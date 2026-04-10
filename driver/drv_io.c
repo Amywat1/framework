@@ -11,7 +11,7 @@
 
 #include "drv_io.h"
 #include "common/log.h"
-#include "config/machine_config.h"
+#include "config/machine/m8_machine_config.h"
 #include "io_exp/slave.h"
 #include <pthread.h>
 #include <string.h>

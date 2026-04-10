@@ -222,4 +222,117 @@ if(BUILD_SIM)
         message(STATUS "BUILD_SIM enabled → no sources found, M8_sim skipped")
     endif()
 
+    # ======================================================================
+    # 测试目标（unit + scenario）
+    # 与 M8_sim 共用相同的 include 路径和编译选项，
+    # 不依赖真机 SDK（snack / io_exp / modbus 等）
+    # 运行：cmake --build build_sim -j4 && ctest --test-dir build_sim -V
+    # ======================================================================
+    enable_testing()
+
+    # -----------------------------------------------------------------------
+    # 公共 include 路径（所有测试共用）
+    # -----------------------------------------------------------------------
+    set(test_includes
+        ${CMAKE_SOURCE_DIR}
+        ${CMAKE_SOURCE_DIR}/src
+    )
+    if(CJSON_FOUND)
+        list(APPEND test_includes ${CJSON_INCLUDE_DIRS})
+    endif()
+
+    # -----------------------------------------------------------------------
+    # 场景测试的基础源文件集：
+    #   sim_sources 去掉仿真主入口（tools/simulator/），由各测试自带 main()
+    # -----------------------------------------------------------------------
+    set(scenario_base ${sim_sources})
+    list(FILTER scenario_base EXCLUDE REGEX "tools/simulator/")
+    list(FILTER scenario_base EXCLUDE REGEX "src/tests/")
+
+    # -----------------------------------------------------------------------
+    # 辅助宏：添加单元测试
+    #   add_unit_test(<name> <test_src> [extra_src ...])
+    # -----------------------------------------------------------------------
+    macro(add_unit_test name test_src)
+        add_executable(${name}
+            ${test_src}
+            ${ARGN}
+            src/core/event_bus/event_bus.c
+            src/ports/port_registry.c
+            common/time_util.c
+        )
+        target_include_directories(${name} PRIVATE ${test_includes})
+        target_link_libraries(${name} PRIVATE pthread)
+        target_compile_options(${name} PRIVATE -Wall -Wextra -Werror -g)
+        add_test(NAME ${name} COMMAND ${name})
+    endmacro()
+
+    # -----------------------------------------------------------------------
+    # 单元测试（每个测试只链接自身逻辑所需的最小源集）
+    # -----------------------------------------------------------------------
+
+    # test_event_bus：只测 event_bus 本身
+    add_unit_test(test_event_bus
+        src/tests/unit/test_event_bus.c
+    )
+
+    # test_alarm_core：event_bus + alarm_core
+    add_unit_test(test_alarm_core
+        src/tests/unit/test_alarm_core.c
+        src/domain/safety/alarm_core.c
+    )
+
+    # test_safety_fsm：event_bus + alarm_core + safety_fsm
+    add_unit_test(test_safety_fsm
+        src/tests/unit/test_safety_fsm.c
+        src/domain/safety/alarm_core.c
+        src/domain/safety/safety_fsm.c
+    )
+
+    # test_step_engine：event_bus + 安全域 + 设备组件 + 流程引擎（mock HAL 内联）
+    add_unit_test(test_step_engine
+        src/tests/unit/test_step_engine.c
+        src/domain/safety/alarm_core.c
+        src/domain/safety/safety_fsm.c
+        src/domain/safety/interlock.c
+        src/domain/device/brush.c
+        src/domain/device/gantry.c
+        src/domain/device/top_lift.c
+        src/domain/device/water.c
+        src/domain/process/step_engine.c
+        src/domain/process/recipe.c
+    )
+
+    # test_dev_ctx：只测 dev_ctx 快照与并发写
+    add_unit_test(test_dev_ctx
+        src/tests/unit/test_dev_ctx.c
+        src/service/dev_ctx/dev_ctx.c
+    )
+
+    # -----------------------------------------------------------------------
+    # 场景集成测试（链接完整 sim 栈，每个测试自带 main()）
+    # -----------------------------------------------------------------------
+    foreach(scenario
+            scenario_estop
+            scenario_vfd_fault
+            scenario_limit_error
+            scenario_standard_wash)
+
+        add_executable(${scenario}
+            src/tests/scenario/${scenario}.c
+            ${scenario_base}
+        )
+        target_include_directories(${scenario} PRIVATE ${test_includes})
+        if(CJSON_FOUND)
+            target_link_libraries(${scenario} PRIVATE pthread ${CJSON_LIBRARIES})
+        else()
+            target_link_libraries(${scenario} PRIVATE pthread)
+        endif()
+        target_compile_options(${scenario} PRIVATE -Wall -Wextra -Werror -g)
+        add_test(NAME ${scenario} COMMAND ${scenario})
+
+    endforeach()
+
+    message(STATUS "Tests registered: 5 unit + 4 scenario (run with: ctest --test-dir build_sim -V)")
+
 endif()

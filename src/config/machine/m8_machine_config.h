@@ -44,5 +44,13 @@
  * 步进电机脉冲参数
  * ------------------------------------------------------------------------- */
 #define CFG_STEPPER_PULSE_US        100U    /* 单脉冲宽度（µs），需按驱动器配置调整 */
+#define CFG_STEPPER_PULSE_BATCH     50U     /* 每批脉冲数（批后检查限位）*/
+#define CFG_LIFT_UP_MAX_PULSES      5000U   /* 上升最大脉冲数（限位兜底）*/
+#define CFG_LIFT_DOWN_DEF_PULSES    500U    /* 下降默认脉冲数（pulses=0 时使用）*/
+
+/* -------------------------------------------------------------------------
+ * 接触器切换参数
+ * ------------------------------------------------------------------------- */
+#define CFG_BRUSH_CONTACTOR_WAIT_MS 200U    /* VFD 停止后等待接触器吸合（ms）*/
 
 #endif /* CONFIG_MACHINE_M8_MACHINE_CONFIG_H */

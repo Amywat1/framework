@@ -8,7 +8,7 @@
 #include "drv_stepper.h"
 #include "drv_io.h"
 #include "common/log.h"
-#include "config/machine_config.h"
+#include "config/machine/m8_machine_config.h"
 #include <time.h>
 #include <unistd.h>
 

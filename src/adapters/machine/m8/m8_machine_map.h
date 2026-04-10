@@ -1,49 +1,56 @@
 /**
  * @file    m8_machine_map.h
- * @brief   M8 机型硬件映射（串口/CAN/引脚/Modbus 地址等编译期常量）
+ * @brief   M8 机型硬件映射（引脚别名 + 从 m8_machine_config.h 引入参数常量）
  * @author  胡望伟
  * @date    2026-04-10
  *
  * @note    仅供 adapters/hal/linux_hw/ 和 adapters/machine/m8/ 内部使用。
  *          domain/ 和 application/ 层不得直接包含此文件。
+ *
+ *          硬件参数（总线名、地址、脉冲宽度等）的唯一权威来源是
+ *          config/machine/m8_machine_config.h。
+ *          本文件只做两件事：
+ *            1. 引入该配置文件（通过 src/ 根路径）
+ *            2. 为适配器层提供 DO/DI 引脚的 M8_ 前缀别名
  */
 
 #ifndef ADAPTERS_MACHINE_M8_MACHINE_MAP_H
 #define ADAPTERS_MACHINE_M8_MACHINE_MAP_H
 
-#include "driver/drv_io.h"    /* drv_io_do_t / drv_io_di_t 枚举 */
+#include "config/machine/m8_machine_config.h"  /* 唯一参数来源 */
+#include "driver/drv_io.h"                      /* drv_io_do_t / drv_io_di_t 枚举 */
 
 /* -------------------------------------------------------------------------
- * IO 子板 CAN 总线参数
+ * IO 子板 CAN 总线参数 — 直接使用 CFG_* 宏（在此文件中作为 M8_ 别名）
  * ------------------------------------------------------------------------- */
-#define M8_IO_CAN_BUS           "can0"
-#define M8_IO_CAN_BAUD          1000000
-#define M8_IO_SELF_NODE         0x10
-#define M8_IO_BOARD_COUNT       1       /* M8 共 1 块 IO 子板 */
+#define M8_IO_CAN_BUS           CFG_IO_CAN_BUS
+#define M8_IO_CAN_BAUD          CFG_IO_CAN_BAUD
+#define M8_IO_SELF_NODE         CFG_IO_SELF_NODE
+#define M8_IO_BOARD_COUNT       CFG_IO_BOARD_COUNT
 
 /* -------------------------------------------------------------------------
- * VFD Modbus RTU 参数（刷子与龙门共用 ttyS1，不同从机地址）
+ * VFD Modbus RTU 参数
  * ------------------------------------------------------------------------- */
-#define M8_VFD_SERIAL_PORT      "/dev/ttyS1"
-#define M8_VFD_BAUD             9600
-#define M8_VFD_BRUSH_ADDR       1       /* 刷子 VFD Modbus 地址 */
-#define M8_VFD_GANTRY_ADDR      2       /* 龙门 VFD Modbus 地址 */
+#define M8_VFD_SERIAL_PORT      CFG_VFD_GANTRY_SERIAL_PORT  /* 刷子/龙门共用 */
+#define M8_VFD_BAUD             CFG_VFD_GANTRY_BAUD
+#define M8_VFD_BRUSH_ADDR       CFG_VFD_BRUSH_MODBUS_ADDR
+#define M8_VFD_GANTRY_ADDR      CFG_VFD_GANTRY_MODBUS_ADDR
 
 /* -------------------------------------------------------------------------
  * 步进电机脉冲参数
  * ------------------------------------------------------------------------- */
-#define M8_STEPPER_PULSE_US     100U    /* 单脉冲宽度（µs）*/
-#define M8_STEPPER_PULSE_BATCH  50U     /* 每批脉冲数（批后检查限位）*/
-#define M8_LIFT_UP_MAX_PULSES   5000U   /* 上升最大脉冲数（限位兜底）*/
-#define M8_LIFT_DOWN_DEF_PULSES 500U    /* 下降默认脉冲数（pulses=0 时使用）*/
+#define M8_STEPPER_PULSE_US     CFG_STEPPER_PULSE_US
+#define M8_STEPPER_PULSE_BATCH  CFG_STEPPER_PULSE_BATCH
+#define M8_LIFT_UP_MAX_PULSES   CFG_LIFT_UP_MAX_PULSES
+#define M8_LIFT_DOWN_DEF_PULSES CFG_LIFT_DOWN_DEF_PULSES
 
 /* -------------------------------------------------------------------------
  * 接触器切换等待时间
  * ------------------------------------------------------------------------- */
-#define M8_BRUSH_CONTACTOR_WAIT_MS  200U    /* 断开后等待再吸合（ms）*/
+#define M8_BRUSH_CONTACTOR_WAIT_MS  CFG_BRUSH_CONTACTOR_WAIT_MS
 
 /* -------------------------------------------------------------------------
- * 数字输出引脚别名（对应图纸，仅作可读性注释，值与 drv_io.h 一致）
+ * 数字输出引脚别名（图纸 DO 编号 → drv_io 枚举，仅提升可读性）
  * ------------------------------------------------------------------------- */
 #define M8_DO_ENTRY_GREEN1      DO_ENTRY_GREEN1
 #define M8_DO_ENTRY_GREEN2      DO_ENTRY_GREEN2
