@@ -5,9 +5,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## 项目概述
 
 **M8 龙门式洗车机控制软件**，运行于 RK3399 + Ubuntu Linux，遵循《恒致创造嵌入式软件开发规范 QRS-0002-2026》开发。
-- 语言：C99 / C++17 混合（`app_main.cpp` 为 C++ 入口，其余为 C）
-- 构建：CMake 3.10+，目标平台为 Linux
-- 框架：snack SDK（回调入口为 `app_main()`，非 `main()`）
+- 语言：C99 / C++17 混合（`app_main.cpp` 为 snack SDK 回调入口，其余为 C）
+- 构建：CMake 3.10+，目标平台为 Linux；`BUILD_SIM=ON` 构建 PC 仿真可执行文件
+- 框架：snack SDK（真机回调入口为 `app_main()`，非 `main()`）；PC 仿真入口为 `tools/simulator/sim_main.c`
 
 规范原文：`恒致创造嵌入式软件开发规范 QRS-0002-2026.pdf`（仓库根目录）。
 
@@ -21,10 +21,11 @@ cmake -B build -DCMAKE_BUILD_TYPE=Debug
 cmake --build build -j4
 
 # PC 模拟器（不依赖硬件驱动）
+# 需要系统安装 libcjson-dev：sudo apt install libcjson-dev
 cmake -B build_sim -DBUILD_SIM=ON
 cmake --build build_sim -j4
 
-# 发布包（命名：M8_v0.1.0_<git-hash>）
+# 发布包（命名：M8_v0.2.0_<git-hash>）
 cmake --build build --target release
 ```
 
@@ -32,78 +33,113 @@ cmake --build build --target release
 
 ---
 
-## 目录架构与调用关系
+## 目录架构（六边形架构 / Ports & Adapters）
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│                      app/（业务层）                       │
-│  app_main.cpp  app_fsm.c  app_cloud.c                    │
-│  app_wash_engine.c  app_wash_steps.c                     │
-├─────────────────────────────────────────────────────────┤
-│                   component/（组件层）                    │
-│  comp_brush  comp_gantry  comp_top_lift  comp_water      │
-├─────────────────────────────────────────────────────────┤
-│                    bsp/（板级层）                         │
-│           bsp_hal.c  bsp_alarm.c  bsp_init.c              │
-├─────────────────────────────────────────────────────────┤
-│                   driver/（驱动层）                       │
-│       drv_io  drv_vfd  drv_stepper                       │
-├─────────────────────────────────────────────────────────┤
-│                   common/（基础层）                       │
-└─────────────────────────────────────────────────────────┘
-     以上各层严格向下调用，禁止反向或跨层调用
+src/
+├── core/                   核心基础设施（无业务逻辑）
+│   ├── event_bus/          事件总线（FIFO 环形队列，pub/sub）
+│   ├── scheduler/          线程注册表 + 统一创建（bootstrap 调用）
+│   └── bootstrap/          启动序列（wiring.c 真机 / wiring_sim.c 仿真）
+│
+├── domain/                 领域核心（纯业务逻辑，零硬件依赖）
+│   ├── model/              值对象（alarm_code.h, device_state.h, wash_types.h…）
+│   ├── safety/             安全域（alarm_core, safety_fsm, interlock）
+│   ├── device/             执行机构（gantry, brush, top_lift, water, gate）
+│   └── process/            洗车流程（step_engine, recipe）
+│
+├── application/            应用编排（订阅事件，协调各域）
+│   └── orchestrators/      device_fsm, wash_orchestrator,
+│                           safety_supervisor, report_aggregator
+│
+├── ports/                  端口接口（抽象 HAL / 存储 / 命令 / 云端）
+│   ├── hal/                hal_motion_port, hal_sensor_port,
+│   │                       hal_water_port, hal_indicator_port, hal_io_port
+│   ├── storage/            param_store, deploy_store
+│   └── cloud/              report_port, command_port
+│
+├── adapters/               适配器（实现 ports/ 接口）
+│   ├── hal/
+│   │   ├── linux_hw/       真机 HAL（Modbus/IO/步进，仅真机构建）
+│   │   └── sim_hw/         仿真 HAL（返回 SW_OK，可注入虚拟传感器值）
+│   ├── storage/json/       cJSON 存储实现（param_store + deploy_store）
+│   ├── cloud/aliyun/       阿里云 MQTT 适配器（仅真机构建）
+│   ├── ui/                 command_bridge（命令→event_bus）+ mqtt_command_parser
+│   └── machine/m8/         m8_alarm_adapt（IO 轮询 + 急停复位回调注入）
+│
+├── service/                跨层服务（dev_ctx 状态快照，svc_param 参数管理）
+│
+├── config/                 只读配置数据（任意层可引用）
+│   ├── threading/          thread_config.h（线程栈/优先级/周期）
+│   ├── recipes/            standard_wash_recipe.h / quick_wash_recipe.h
+│   ├── machine/            m8_machine_config.h（硬件参数：串口/波特率/地址）
+│   ├── features/           m8_features.h（功能安装开关）
+│   └── deployment/         deploy_store 存储路径等
+│
+└── tests/
+    ├── unit/               单元测试（alarm_core, event_bus, safety_fsm,
+    │                       step_engine, dev_ctx）
+    └── scenario/           场景集成测试（standard_wash, estop,
+                            vfd_fault, limit_error）
 
-═══════════════════════════════════════════════════════════
-          service/（跨层服务，所有层均可调用）
-          svc_alarm.c          svc_param.c
-═══════════════════════════════════════════════════════════
+common/                     基础层（log, sw_error, event_types, time_util）
+tools/simulator/            PC 仿真入口（sim_main.c, sim_console.c）
 ```
 
-**调用规则**：
-- 主体层级严格从上到下：`app → component → bsp → driver → common`
-- `service/` 是跨层服务（报警引擎、参数管理），`app`/`component`/`bsp` 层均可调用
-- `config/` 是只读配置数据，任何层可引用
+**调用规则（严格单向）**：
+- `application/ → domain/ → ports/` → `adapters/` 实现 `ports/`
+- `domain/` 与 `application/` 通过 `event_bus` 解耦（事件驱动，不直接调用）
+- `service/` 跨层可用（dev_ctx / svc_param），不持有硬件依赖
+- `domain/` 和 `application/` 禁止直接引用 `drv_io`, `drv_vfd`, `drv_stepper`（违反端口隔离）
+- `config/` 只读，任意层可 `#include`
 
 ---
 
 ## 各模块职责
 
-### app/（业务层）
-| 文件 | 职责 |
-|------|------|
-| `app_main.cpp` | 程序入口，初始化序列，注册 CLI 调试命令（app/bsp/alarm/param） |
-| `app_fsm.c/h` | 设备 FSM（INIT→IDLE→RUN→COMPLETE→FAULT→STOP），初始化所有组件 |
-| `app_cloud.c/h` | 阿里云 MQTT 初始化、状态上报、下行消息解析 |
-| `app_wash_engine.c/h` | 洗车流程引擎，非阻塞 pthread，按步骤表驱动执行机构 |
-| `app_wash_steps.c/h` | 洗车步骤表数据（标准洗 8 步、快洗 6 步） |
+### core/event_bus/
+事件总线：零动态内存 FIFO 环形队列，`event_publish()` / `event_subscribe()`。
+发布方设 type + param，timestamp 由总线自动填入。分发由 `event_dispatch_thread` 驱动，永不在中断上下文调用。
 
-### component/（组件层）
-| 文件 | 职责 |
-|------|------|
-| `comp_brush.c/h` | 刷子管理，决定何时切换顶刷/侧刷，调用 `hal_brush_select()` 执行接触器切换 |
-| `comp_gantry.c/h` | 龙门行走，原子位置计数，阻塞式归位 |
-| `comp_top_lift.c/h` | 顶刷升降，批量脉冲（50 个/批）+ 批间限位检查 |
-| `comp_water.c/h` | 水路组合控制（预洗/刷洗/高压） |
+### core/scheduler/
+`thread_register()` 登记各模块线程参数，`bootstrap.c` 最后统一调用 `scheduler_start_all()` 创建。
 
-### bsp/（板级层）
-| 文件 | 职责 |
-|------|------|
-| `bsp_init.c/h` | 系统初始化序列（顺序固定，见下节） |
-| `bsp_hal.c/h` | 硬件统一入口（`hal_*` 接口），持有两个 `drv_vfd_t` 实例，接触器切换逻辑在此层 |
-| `bsp_alarm.c/h` | M8 报警适配，向 svc_alarm 注入 IO 轮询/驱动事件/急停复位回调 |
+### core/bootstrap/
+- `bootstrap.c`：23 步启动序列（见下节）
+- `wiring.c`（真机）/ `wiring_sim.c`（仿真）：纯注册，port → adapter 依赖注入，不做硬件操作
 
-### service/（跨层服务）
-| 文件 | 职责 |
-|------|------|
-| `svc_alarm.c/h` | 报警引擎（防抖、等级、多种恢复策略），配置表驱动 |
-| `svc_param.c/h` | 参数管理（cJSON，线程安全，持久化到 JSON 文件） |
+### domain/safety/
+- `alarm_core`：防抖 / 等级 / 恢复策略引擎。两路触发：
+  - `alarm_core_set_raw_trigger()` — IO 轮询类（经防抖计时后激活）
+  - `alarm_core_set_state()` — 驱动事件直报（立即激活）
+  - 激活/清除时发布 `EVT_ALARM_TRIGGERED` / `EVT_ALARM_CLEARED`
+- `safety_fsm`：订阅报警事件，OK / WARNING / LOCKOUT 状态机，发布 `EVT_SAFETY_LOCKOUT` 等
+- `interlock`：运动互锁检查（有 ERROR 报警时禁止运动指令）
 
-### driver/（驱动层）
+### domain/device/
+`gantry`, `brush`, `top_lift`, `water`, `gate`：通过 `ports/hal/` 接口控制执行机构，含 interlock 检查。
+
+### domain/process/
+- `step_engine`：同步执行单步（apply_step → wait_exit），在 wash_worker_thread 中调用
+- `recipe`：按模式返回步骤表（standard_wash / quick_wash）
+
+### application/orchestrators/
 | 文件 | 职责 |
 |------|------|
-| `drv_io.c/h` | CAN IO 子板，封装 io_exp SDK |
-| `drv_vfd.c/h` | 士林变频器驱动（handle 参数化：串口、Modbus 地址、IO 引脚），不含业务名称 |
-| `drv_stepper.c/h` | 雷赛步进电机驱动（IO 脉冲控制） |
+| `device_fsm` | 设备 FSM（IDLE/RUN/FAULT/STOP），订阅命令/安全/流程事件 |
+| `wash_orchestrator` | 洗车编排，持有信号量驱动 wash_worker_thread |
+| `safety_supervisor` | 订阅安全事件 → 更新 dev_ctx 安全状态 |
+| `report_aggregator` | 云端周期上报，cloud_thread 持续轮询 is_connected() |
+
+### service/
+| 文件 | 职责 |
+|------|------|
+| `dev_ctx` | 设备状态只读快照（pthread mutex 保护），分片写入 |
+| `svc_param` | 参数管理，委托 `param_store_ops` 读写；未注册时返回默认值 |
+
+### adapters/machine/m8/
+- `m8_alarm_adapt`：注册 IO 轮询回调（每 tick 读取 DI 状态调用 alarm_core）和急停复位回调
+- `m8_linux_hw_init`（真机）：VFD Modbus 通道初始化 + 步进驱动初始化
 
 ---
 
@@ -111,76 +147,91 @@ cmake --build build --target release
 
 ### IO 子板（CAN 总线）
 - SDK：`io_exp`，初始化：`io_init("can0", 1000000, 0x10, 6)`，上电后必须等待 2s
-- IO 引脚编号直接使用图纸 DO/DI 编号（见 `driver/drv_io.h`）
-- 输入通过回调更新缓存（`drv_io_register_input_cb`）；输出通过 `drv_io_do_set()`
+- IO 引脚编号直接使用图纸 DO/DI 编号（见 `adapters/hal/linux_hw/` 中的引脚映射）
+- 输入通过回调更新缓存；输出通过 `drv_io_do_set()`
 
 ### VFD 变频器（士林）
 - **双模控制**：IO 数字输出控制启/停/方向，Modbus RTU 设置频率
-- 刷子 VFD（地址 1）与龙门 VFD（地址 2）共享 `/dev/ttyS1`，由 `bsp_hal` 分别持有两个 `drv_vfd_t` 实例
-- 三路刷子共用一台 VFD，通过接触器切换（逻辑在 `bsp_hal.c` 的 `hal_brush_select()`）：
-  - H29（DO_TOP_BRUSH_ACT）= 顶刷，H28（DO_SIDE_BRUSH_ACT）= 侧刷
+- 刷子 VFD（地址 1）与龙门 VFD（地址 2）共享 `/dev/ttyS1`，由 `m8_hal_ctx.c` 持有实例
+- 三路刷子共用一台 VFD，通过接触器切换（`hal_motion_ops_t.brush_select()`）：
+  - 顶刷：HAL_BRUSH_TOP，侧刷：HAL_BRUSH_SIDE
   - 切换时必须先停 VFD，等待 200ms 后再闭合目标接触器
 - 士林 Modbus 寄存器：0x2001（频率，0.01Hz）、0x2102（故障码）
 
 ### 顶刷升降（雷赛步进电机）
-- IO 脉冲控制：H26（DO_TOP_LIFT_PUL）、DO8（DO_TOP_LIFT_DIR）、DO7（DO_TOP_LIFT_ENA）
-- 脉宽由 `CFG_STEPPER_PULSE_US`（100µs）决定，批量 50 脉冲为一组、组间检查限位
+- IO 脉冲控制：脉宽由 `CFG_STEPPER_PULSE_US`（100µs）决定
+- 批量 50 脉冲为一组、组间检查限位（`hal_sensor_ops_t.lift_at_bottom/top()`）
 
-### 龙门位置检测
-- DI3（后限位）、DI4（前限位）
-- DI9（码盘脉冲）：IO 回调触发，`comp_gantry_encoder_tick()` 更新原子计数器
-- 急停：DI13，常闭接法，`hal_is_estop_active()` 返回 `!drv_io_di_read(DI_ESTOP)`
-
----
-
-## 系统初始化顺序（`bsp_system_init()`）
-
-1. `svc_param_init()` — 先加载参数（后续硬件初始化可使用参数值）
-2. `io_init()` — IO 子板 CAN 初始化
-3. `sleep(2)` — 等待 IO 子板稳定（**不可省略**）
-4. `hal_init()` — Modbus 连接、VFD 复位
-5. `svc_alarm_init()` — 报警引擎
-6. `bsp_alarm_init()` — 注册 M8 报警回调（依赖 hal 和 svc_alarm 就绪）
-
-之后 `app_main()` 调用 `app_fsm_init()`（组件 + FSM 线程）和 `app_cloud_init()`（MQTT）。
+### 龙门位置
+- 前/后限位通过 `hal_sensor_ops_t.gantry_at_fwd/rev_limit()` 查询
+- 位置计数委托给 `hal_sensor_ops_t.get_gantry_pos()`（HAL 层原子累加码盘脉冲）
+- 急停：常闭接法，`hal_sensor_ops_t.is_estop_active()` 返回 `!DI_ESTOP`
 
 ---
 
-## 洗车流程引擎
+## 系统启动序列（`bootstrap_run()`，共 23 步）
 
-- **非阻塞**：`wash_engine_start(mode)` 创建独立 pthread
-- 步骤由 `app_wash_steps.h` 中的 `WashStepConfig_t` 表驱动，每步描述：龙门频率/方向、刷子/水路开关、退出条件（限位/脉冲位置/超时）
-- 单步最长超时：`STEP_TIMEOUT_MS = 120000`（2 分钟）
-- 紧急停止：`wash_engine_emergency_stop()` 设置原子标志 + 立即停所有执行机构
+1. `time_util_init()` — 时间戳基准
+2. `event_bus_init()` — 事件总线
+3. `drv_io_init()` — IO 子板 CAN（**仿真跳过**）
+4. `wiring()` / `wiring_sim()` — port → adapter 注册
+5. `m8_linux_hw_init()` — VFD/步进初始化（**仿真跳过**）
+6. `svc_param_init()` — 加载参数（文件缺失时降级使用默认值）
+7. `dev_ctx_init()` — 状态快照清零
+8. `m8_boot_profile_init()` — 等待 IO 子板 + DO 置安全态（**仿真跳过**）
+9. `alarm_core_init()` — 报警引擎清零
+10. `m8_alarm_adapt_init()` — 注册 IO 轮询 + 急停复位回调
+11. `safety_fsm_init()` — 安全状态机（订阅报警事件）
+12. 设备组件初始化：brush / gantry / top_lift / water / gate
+13. `safety_supervisor_init()` — 订阅安全事件 → 更新 dev_ctx
+14. `device_fsm_init()` — 设备 FSM（订阅命令/安全/流程事件）
+15. `wash_orchestrator_init()` — 注册 wash_worker_thread
+16. `report_aggregator_init()` — 注册 cloud_thread
+17. 加载部署配置（SN、MQTT 凭证；文件缺失时跳过）
+18. `aliyun_command_adapter_init()` — 连接 MQTT（**仿真跳过**）
+19. `cli_adapter_init()` — 注册 CLI 命令域（**仿真跳过**）
+20-21. 注册 event_dispatch_thread + io_poll_thread
+22. `scheduler_start_all()` — 创建所有线程
+
+---
+
+## 洗车流程
+
+- **event_driven**：`EVT_CMD_ORDER` → `device_fsm` → `wash_orchestrator_start()` → 唤醒 `wash_worker_thread`
+- 步骤表在 `config/recipes/standard_wash_recipe.h` / `quick_wash_recipe.h`（8 步 / 6 步）
+- 每步结构：`wash_step_config_t`（龙门频率/方向、刷子/水路开关、升降、退出条件）
+- 单步最长超时：`WASH_STEP_TIMEOUT_MS = 120000ms`（2 分钟）
+- 中止：`wash_orchestrator_abort()` → `step_engine_abort()` → 原子标志，wait_exit 检测
 
 ---
 
 ## 报警系统（数据/引擎分离）
 
-- **配置表**：`config/alarm_config.h` — 只读 const 表，急停必须在第 0 行（`ALARM_EMC_TABLE_IDX = 0`）
-- **引擎**：`service/svc_alarm.c` — 防抖、等级判断、恢复逻辑
-- **M8 回调**：`bsp/bsp_alarm.c` — IO 轮询、驱动事件直报、急停复位、VFD 故障读取
-- 两种触发路径：IO 轮询类用 `svc_alarm_set_raw_trigger()`，驱动事件类用 `svc_alarm_set_state()`
-- 新增报警：在 `alarm_config.h` 追加行 → 在 `bsp_alarm.c` 添加触发逻辑
+- **报警码**：`domain/model/alarm_code.h`（纯常量，无逻辑）
+- **引擎**：`domain/safety/alarm_core.c` — 防抖、等级、恢复策略（配置表内嵌）
+- **M8 回调**：`adapters/machine/m8/m8_alarm_adapt.c` — 注册 IO 轮询 / 急停复位
+- 两种触发路径：IO 轮询类用 `alarm_core_set_raw_trigger()`，驱动事件类用 `alarm_core_set_state()`
+- 新增报警：在 `alarm_core.c` 配置表追加行 → 在 `m8_alarm_adapt.c` 添加触发逻辑
 
 ---
 
 ## 参数管理
 
-- 持久化文件：`/home/neardi/m8/params.json`（cJSON，pthread mutex 保护）
-- 常用接口：`svc_param_get_int(key, default)` / `svc_param_set_int(key, val)` / `svc_param_save()`
-- 参数键名统一定义在 `service/svc_param.h`（`PARAM_KEY_*`），禁止在模块内硬写字符串
+- 持久化文件：`/home/neardi/m8/params.json`（路径在 `adapters/storage/json/json_param_store_cfg.h`）
+- 接口：`svc_param_get_int(key, default)` / `svc_param_set_int(key, val)` / `svc_param_save()`
+- 参数键名统一定义在 `service/svc_param/svc_param.h`（`PARAM_KEY_*`），禁止在模块内硬写字符串
+- 未注册 param_store 时，读取返回 default_val，写入/保存静默失败（降级安全）
 
 ---
 
-## CLI 调试命令
+## CLI 调试命令（真机构建）
 
 | 命令域 | 示例 | 说明 |
 |--------|------|------|
-| `app` | `app status` / `app order` / `app reset` | FSM 状态查询、命令下发 |
-| `bsp` | `bsp do 16 1` / `bsp di 4` / `bsp gantry_fwd 2500` | 硬件直控 |
-| `alarm` | `alarm status` / `alarm reset` | 报警查询与复位 |
+| `device` | `device status` / `device order 0` / `device reset` | FSM 状态查询、命令下发 |
+| `safety` | `safety status` / `safety reset` | 安全状态与报警查询 |
 | `param` | `param get washMode` / `param set washMode 1` / `param save` | 参数读写 |
+| `diag` | `diag io` / `diag vfd` | 硬件诊断直读 |
 
 ---
 
@@ -193,7 +244,7 @@ cmake --build build --target release
 | 全局变量 | `g_` 前缀 | `g_system_state` |
 | 文件内静态变量 | `s_` 前缀 | `s_init_flag` |
 | 类型定义 | 小写+`_t` 后缀 | `motor_state_t` |
-| 文件名 | 全小写+下划线，体现层级前缀 | `app_fsm.c` / `drv_motor.c` |
+| 文件名 | 全小写+下划线，体现层级前缀 | `device_fsm.c` / `hal_motion_port.h` |
 
 ---
 
@@ -215,7 +266,7 @@ cmake --build build --target release
 每个 `.c` / `.h` 文件必须有文件头注释：
 ```c
 /**
- * @file    app_fsm.c
+ * @file    device_fsm.c
  * @brief   设备顶层有限状态机
  * @author  <姓名>
  * @date    YYYY-MM-DD
@@ -232,7 +283,7 @@ cmake --build build --target release
 - 类型：`feat` / `fix` / `docs` / `refactor` / `test` / `chore`
 - 禁止：`update`、`修改`、`fix bug`、`111` 等无意义描述
 
-**分支模型**：`dev`（主开发）/ `feature/<功能名>` / `release/vX.Y.Z` / `hotfix/<描述>`
+**分支模型**：`main`（主干）/ `feature/<功能名>` / `release/vX.Y.Z` / `hotfix/<描述>`
 
 ---
 

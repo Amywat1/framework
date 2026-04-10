@@ -15,9 +15,9 @@
  * Z: 修订版本 — Bug 修复、小范围调整
  * ------------------------------------------------------------------------- */
 #define SW_VERSION_MAJOR    0U
-#define SW_VERSION_MINOR    1U
+#define SW_VERSION_MINOR    2U
 #define SW_VERSION_PATCH    0U
-#define SW_VERSION_STR      "v0.1.0"
+#define SW_VERSION_STR      "v0.2.0"
 
 /* -------------------------------------------------------------------------
  * 产品型号

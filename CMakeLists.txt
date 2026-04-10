@@ -63,32 +63,23 @@ add_compile_options(
 
 # -------------------------------------------------------
 # 源文件（GLOB_RECURSE + CONFIGURE_DEPENDS 保证增删文件后自动重配）
-# 过渡期：旧目录（app/ bsp/ component/ service/）与新目录（src/）共存
-# 收尾阶段 C-2 删除旧目录后，可删除下方"旧架构"区块
+# 旧架构目录（app/ bsp/ component/ service/）已在 C-2 阶段清理完毕
 # -------------------------------------------------------
 file(GLOB_RECURSE src CONFIGURE_DEPENDS
-    # 旧架构（过渡期保留，阶段收尾 C-2 删除）
-    app/*.c app/*.h app/*.cpp
-    bsp/*.c bsp/*.h bsp/*.cpp
-    component/*.c component/*.h
-    service/*.c service/*.h
-    protocol/*.c protocol/*.h
-    # 公共层（始终保留）
+    # 公共层（始终保留；提供 event_types.h / sw_error.h / log.h 等）
     common/*.c common/*.h
+    # 驱动层（linux_hw 适配器依赖 drv_io / drv_vfd / drv_stepper）
     driver/*.c driver/*.h
+    # 旧机型配置（alarm_config.h 等暂时保留，后续迁移至 src/config/）
     config/*.h
-    # 新架构 src/（各阶段逐步填充）
+    # 新架构 src/（domain / application / ports / adapters / service / config / tests）
     src/*.c src/*.h src/*.cpp
 )
 
-# 旧 sim/ 桩和新 sim_hw 适配器不参与嵌入式构建
-list(FILTER src EXCLUDE REGEX ".*/sim/.*")
+# sim_hw 适配器不参与嵌入式构建
 list(FILTER src EXCLUDE REGEX ".*/sim_hw/.*")
-
-# 已被新架构替换的旧文件——排除避免符号重复
-# 过渡期逐步增加；收尾阶段 C-2 直接删除旧目录后可移除此段
-list(FILTER src EXCLUDE REGEX ".*/service/svc_param\\.c$")
-list(FILTER src EXCLUDE REGEX ".*/service/svc_param\\.h$")
+# 场景测试文件不参与产品构建
+list(FILTER src EXCLUDE REGEX ".*/tests/.*")
 
 add_executable(${PROJECT_NAME} ${src})
 
