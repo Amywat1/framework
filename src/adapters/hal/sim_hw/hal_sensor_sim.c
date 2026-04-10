@@ -8,11 +8,10 @@
  *          通过 hal_sensor_sim_set_*() 系列函数注入虚拟传感器状态。
  */
 
+#include "adapters/hal/sim_hw/hal_sensor_sim.h"
 #include "ports/hal/hal_sensor_port.h"
 #include "common/log.h"
 #include <stdatomic.h>
-#include <stdbool.h>
-#include <stdint.h>
 
 /* -------------------------------------------------------------------------
  * 虚拟传感器状态

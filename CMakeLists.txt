@@ -169,6 +169,9 @@ if(BUILD_SIM)
         # M8 报警适配（通过 ports/ 访问 HAL，与 sim HAL 兼容）
         src/adapters/machine/m8/m8_alarm_adapt.c
 
+        # 仿真主入口 + 交互控制台
+        tools/simulator/*.c
+
         # 公共层
         common/*.c
     )
@@ -183,8 +186,9 @@ if(BUILD_SIM)
         add_executable(M8_sim ${sim_sources})
 
         target_include_directories(M8_sim PRIVATE
-            ${CMAKE_SOURCE_DIR}       # common/ 等
-            ${CMAKE_SOURCE_DIR}/src   # 新架构 domain/ ports/ 等
+            ${CMAKE_SOURCE_DIR}               # common/ 等
+            ${CMAKE_SOURCE_DIR}/src           # 新架构 domain/ ports/ 等
+            ${CMAKE_SOURCE_DIR}/tools/simulator  # sim_console.h 等
         )
 
         target_link_libraries(M8_sim PRIVATE pthread)
