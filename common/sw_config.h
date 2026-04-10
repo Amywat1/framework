@@ -1,6 +1,6 @@
 /**
  * @file    sw_config.h
- * @brief   应用级编译配置（硬件参数见 config/machine_config.h）
+ * @brief   应用级编译配置（硬件参数见 src/config/machine/m8_machine_config.h）
  * @author  HUWANGWEI
  * @date    2026-04-07
  */

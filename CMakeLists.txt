@@ -70,8 +70,8 @@ file(GLOB_RECURSE src CONFIGURE_DEPENDS
     common/*.c common/*.h
     # 驱动层（linux_hw 适配器依赖 drv_io / drv_vfd / drv_stepper）
     driver/*.c driver/*.h
-    # 旧机型配置（alarm_config.h 等暂时保留，后续迁移至 src/config/）
-    config/*.h
+    # 注：旧 config/（machine_config.h / alarm_config.h）已于收尾阶段删除，
+    #     机型配置已全部迁移至 src/config/machine/ 和 src/config/features/
     # 新架构 src/（domain / application / ports / adapters / service / config / tests）
     src/*.c src/*.h src/*.cpp
 )
