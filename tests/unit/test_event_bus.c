@@ -6,10 +6,10 @@
  *
  * @note    编译命令（在项目根目录执行）：
  *   gcc -std=c99 -Wall -Wextra \
- *       -I. -I./src \
- *       src/core/event_bus/event_bus.c \
+ *       -I. \
+ *       core/event_bus/event_bus.c \
  *       common/time_util.c \
- *       src/tests/unit/test_event_bus.c \
+ *       tests/unit/test_event_bus.c \
  *       -o test_event_bus -lpthread -lrt && ./test_event_bus
  */
 

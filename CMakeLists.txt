@@ -66,26 +66,30 @@ add_compile_options(
 # 旧架构目录（app/ bsp/ component/ service/）已在 C-2 阶段清理完毕
 # -------------------------------------------------------
 file(GLOB_RECURSE src CONFIGURE_DEPENDS
-    # 公共层（始终保留；提供 event_types.h / sw_error.h / log.h 等）
+    app_main.cpp
     common/*.c common/*.h
-    # 驱动层（linux_hw 适配器依赖 drv_io / drv_vfd / drv_stepper）
     driver/*.c driver/*.h
-    # 注：旧 config/（machine_config.h / alarm_config.h）已于收尾阶段删除，
-    #     机型配置已全部迁移至 src/config/machine/ 和 src/config/features/
-    # 新架构 src/（domain / application / ports / adapters / service / config / tests）
-    src/*.c src/*.h src/*.cpp
+    core/*.c core/*.h
+    domain/*.c domain/*.h
+    application/*.c application/*.h
+    ports/*.c ports/*.h
+    adapters/*.c adapters/*.h
+    service/*.c service/*.h
+    config/*.h
+    tests/*.c tests/*.h
 )
 
 # sim_hw 适配器不参与嵌入式构建
 list(FILTER src EXCLUDE REGEX ".*/sim_hw/.*")
+# sim wiring only participates in BUILD_SIM
+list(FILTER src EXCLUDE REGEX ".*/wiring_sim\.c$")
 # 场景测试文件不参与产品构建
 list(FILTER src EXCLUDE REGEX ".*/tests/.*")
 
 add_executable(${PROJECT_NAME} ${src})
 
 target_include_directories(${PROJECT_NAME} PRIVATE
-    ${CMAKE_SOURCE_DIR}                         # 项目根目录，使 app/ bsp/ common/ 等旧路径可见
-    ${CMAKE_SOURCE_DIR}/src                     # 新架构根目录，使 domain/ ports/ adapters/ 等路径可见
+    ${CMAKE_SOURCE_DIR}                         # 项目根目录：common/ driver/ domain/ ports/ adapters/ 等均在此
     /usr/local/include/snack
     /usr/local/include/snack/canfestival
     ${BLE_LIB_INCLUDE_DIRS}
@@ -121,11 +125,11 @@ endif() # NOT BUILD_SIM
 
 # ======================================================================
 # PC 模拟器目标（BUILD_SIM=ON）
-# 新架构：src/adapters/hal/sim_hw/ 提供 HAL 仿真实现，无需嵌入式 SDK
+# 新架构：adapters/hal/sim_hw/ 提供 HAL 仿真实现，无需嵌入式 SDK
 # 用法：cmake -B build_sim -DBUILD_SIM=ON && cmake --build build_sim
 #
-# 注：仿真源文件在阶段六（sim_hw/ 实现）完成后才会有内容，
-#     当前阶段 GLOB 返回空列表，跳过 M8_sim target 创建。
+# 注：仿真源文件齐全（sim_hw/ + bootstrap + wiring_sim 等），
+#     若 GLOB 返回空列表则跳过 M8_sim target 创建。
 # ======================================================================
 if(BUILD_SIM)
     add_compile_definitions(BUILD_SIM=1)
@@ -161,30 +165,32 @@ if(BUILD_SIM)
     # -----------------------------------------------------------------------
     file(GLOB_RECURSE sim_sources CONFIGURE_DEPENDS
         # 领域核心（纯逻辑，无硬件依赖）
-        src/domain/*.c
-        src/application/*.c
-        src/service/*.c
+        domain/*.c
+        application/*.c
+        service/*.c
 
         # 事件总线 + 调度器
-        src/core/event_bus/*.c
-        src/core/scheduler/*.c
+        core/event_bus/*.c
+        core/scheduler/*.c
+        core/runtime/*.c
 
         # bootstrap：bootstrap.c 含 BUILD_SIM 隔离，wiring_sim.c 替代 wiring.c
-        src/core/bootstrap/bootstrap.c
-        src/core/bootstrap/wiring_sim.c
+        core/bootstrap/bootstrap.c
+        core/bootstrap/wiring_sim.c
 
         # 仿真 HAL 实现
-        src/adapters/hal/sim_hw/*.c
+        ports/*.c
+        adapters/hal/sim_hw/*.c
 
         # 存储适配器（param + deploy，路径可能与真机不同但接口相同）
-        src/adapters/storage/json/*.c
+        adapters/storage/json/*.c
 
         # UI 适配器（mqtt_command_parser + command_bridge，无 snack 依赖）
-        src/adapters/ui/mqtt_cmd/*.c
-        src/adapters/ui/command_bridge.c
+        adapters/ui/mqtt_cmd/*.c
+        adapters/ui/command_bridge.c
 
         # M8 报警适配（通过 ports/ 访问 HAL，与 sim HAL 兼容）
-        src/adapters/machine/m8/m8_alarm_adapt.c
+        adapters/machine/m8/m8_alarm_adapt.c
 
         # 仿真主入口 + 交互控制台
         tools/simulator/*.c
@@ -203,9 +209,8 @@ if(BUILD_SIM)
         add_executable(M8_sim ${sim_sources})
 
         target_include_directories(M8_sim PRIVATE
-            ${CMAKE_SOURCE_DIR}                  # common/ tools/ 等
-            ${CMAKE_SOURCE_DIR}/src              # 新架构 domain/ ports/ 等
-            ${CMAKE_SOURCE_DIR}/tools/simulator  # sim_console.h 等
+            ${CMAKE_SOURCE_DIR}
+            ${CMAKE_SOURCE_DIR}/tools/simulator
         )
 
         if(CJSON_FOUND)
@@ -217,25 +222,22 @@ if(BUILD_SIM)
 
         target_compile_options(M8_sim PRIVATE -Wall -Wextra -Werror -g)
 
-        message(STATUS "BUILD_SIM enabled → target M8_sim")
+        message(STATUS "BUILD_SIM enabled 鈫?target M8_sim")
     else()
-        message(STATUS "BUILD_SIM enabled → no sources found, M8_sim skipped")
+        message(STATUS "BUILD_SIM enabled 鈫?no sources found, M8_sim skipped")
     endif()
 
     # ======================================================================
-    # 测试目标（unit + scenario）
-    # 与 M8_sim 共用相同的 include 路径和编译选项，
-    # 不依赖真机 SDK（snack / io_exp / modbus 等）
-    # 运行：cmake --build build_sim -j4 && ctest --test-dir build_sim -V
+    # 娴嬭瘯鐩爣锛坲nit + scenario锛?    # 涓?M8_sim 鍏辩敤鐩稿悓鐨?include 璺緞鍜岀紪璇戦€夐」锛?    # 涓嶄緷璧栫湡鏈?SDK锛坰nack / io_exp / modbus 绛夛級
+    # 杩愯锛歝make --build build_sim -j4 && ctest --test-dir build_sim -V
     # ======================================================================
     enable_testing()
 
     # -----------------------------------------------------------------------
-    # 公共 include 路径（所有测试共用）
+    # 鍏叡 include 璺緞锛堟墍鏈夋祴璇曞叡鐢級
     # -----------------------------------------------------------------------
     set(test_includes
         ${CMAKE_SOURCE_DIR}
-        ${CMAKE_SOURCE_DIR}/src
     )
     if(CJSON_FOUND)
         list(APPEND test_includes ${CJSON_INCLUDE_DIRS})
@@ -247,7 +249,7 @@ if(BUILD_SIM)
     # -----------------------------------------------------------------------
     set(scenario_base ${sim_sources})
     list(FILTER scenario_base EXCLUDE REGEX "tools/simulator/")
-    list(FILTER scenario_base EXCLUDE REGEX "src/tests/")
+    list(FILTER scenario_base EXCLUDE REGEX "tests/")
 
     # -----------------------------------------------------------------------
     # 辅助宏：添加单元测试
@@ -257,8 +259,8 @@ if(BUILD_SIM)
         add_executable(${name}
             ${test_src}
             ${ARGN}
-            src/core/event_bus/event_bus.c
-            src/ports/port_registry.c
+            core/event_bus/event_bus.c
+            ports/port_registry.c
             common/time_util.c
         )
         target_include_directories(${name} PRIVATE ${test_includes})
@@ -273,40 +275,40 @@ if(BUILD_SIM)
 
     # test_event_bus：只测 event_bus 本身
     add_unit_test(test_event_bus
-        src/tests/unit/test_event_bus.c
+        tests/unit/test_event_bus.c
     )
 
     # test_alarm_core：event_bus + alarm_core
     add_unit_test(test_alarm_core
-        src/tests/unit/test_alarm_core.c
-        src/domain/safety/alarm_core.c
+        tests/unit/test_alarm_core.c
+        domain/safety/alarm_core.c
     )
 
     # test_safety_fsm：event_bus + alarm_core + safety_fsm
     add_unit_test(test_safety_fsm
-        src/tests/unit/test_safety_fsm.c
-        src/domain/safety/alarm_core.c
-        src/domain/safety/safety_fsm.c
+        tests/unit/test_safety_fsm.c
+        domain/safety/alarm_core.c
+        domain/safety/safety_fsm.c
     )
 
     # test_step_engine：event_bus + 安全域 + 设备组件 + 流程引擎（mock HAL 内联）
     add_unit_test(test_step_engine
-        src/tests/unit/test_step_engine.c
-        src/domain/safety/alarm_core.c
-        src/domain/safety/safety_fsm.c
-        src/domain/safety/interlock.c
-        src/domain/device/brush.c
-        src/domain/device/gantry.c
-        src/domain/device/top_lift.c
-        src/domain/device/water.c
-        src/domain/process/step_engine.c
-        src/domain/process/recipe.c
+        tests/unit/test_step_engine.c
+        domain/safety/alarm_core.c
+        domain/safety/safety_fsm.c
+        domain/safety/interlock.c
+        domain/device/brush.c
+        domain/device/gantry.c
+        domain/device/top_lift.c
+        domain/device/water.c
+        domain/process/step_engine.c
+        domain/process/recipe.c
     )
 
     # test_dev_ctx：只测 dev_ctx 快照与并发写
     add_unit_test(test_dev_ctx
-        src/tests/unit/test_dev_ctx.c
-        src/service/dev_ctx/dev_ctx.c
+        tests/unit/test_dev_ctx.c
+        service/dev_ctx/dev_ctx.c
     )
 
     # -----------------------------------------------------------------------
@@ -319,7 +321,7 @@ if(BUILD_SIM)
             scenario_standard_wash)
 
         add_executable(${scenario}
-            src/tests/scenario/${scenario}.c
+            tests/scenario/${scenario}.c
             ${scenario_base}
         )
         target_include_directories(${scenario} PRIVATE ${test_includes})

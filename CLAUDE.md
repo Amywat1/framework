@@ -36,7 +36,7 @@ cmake --build build --target release
 ## 目录架构（六边形架构 / Ports & Adapters）
 
 ```
-src/
+./
 ├── core/                   核心基础设施（无业务逻辑）
 │   ├── event_bus/          事件总线（FIFO 环形队列，pub/sub）
 │   ├── scheduler/          线程注册表 + 统一创建（bootstrap 调用）
