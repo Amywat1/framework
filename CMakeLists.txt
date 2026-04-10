@@ -73,6 +73,7 @@ file(GLOB_RECURSE src CONFIGURE_DEPENDS
     domain/*.c domain/*.h
     application/*.c application/*.h
     ports/*.c ports/*.h
+    adapters/*.cpp
     adapters/*.c adapters/*.h
     service/*.c service/*.h
     config/*.h
