@@ -1,0 +1,45 @@
+# 恒致创造嵌入式软件格式配置（QRS-0002-2026 §5.2）
+# 使用方式: clang-format -i <file>
+
+BasedOnStyle: LLVM
+
+# 缩进：4 个空格，禁止 Tab
+IndentWidth: 4
+TabWidth: 4
+UseTab: Never
+
+# 行宽上限
+ColumnLimit: 120
+
+# 花括号风格（Allman：左花括号独占一行，符合嵌入式 C 习惯）
+BreakBeforeBraces: Allman
+
+# 控制语句花括号不得省略
+InsertBraces: true
+
+# 指针/引用对齐（靠近类型名）
+PointerAlignment: Right
+
+# 函数参数超长时的折叠方式
+AlignAfterOpenBracket: Align
+BinPackArguments: false
+BinPackParameters: false
+
+# 注释对齐
+AlignTrailingComments:
+  Kind: Always
+  OverEmptyLines: 1
+
+# include 排序
+SortIncludes: CaseInsensitive
+IncludeBlocks: Regroup
+
+# 空行控制
+MaxEmptyLinesToKeep: 1
+EmptyLineAfterAccessModifier: Never
+
+# 短语句不合并到一行
+AllowShortFunctionsOnASingleLine: None
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+AllowShortCaseLabelsOnASingleLine: false

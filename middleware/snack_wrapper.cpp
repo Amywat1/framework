@@ -1,0 +1,209 @@
+/**
+ * @file    snack_wrapper.cpp
+ * @brief   snack SDK 封装实现（阿里云 MQTT、日志、音乐、BLE）
+ * @author  胡望伟
+ * @date    2026-04-08
+ */
+
+#include "snack_wrapper.h"
+#include "log/mlog.h"
+#include "cli/cli.h"
+#include "music/music.h"
+#include "tools/cJSON.h"
+#include "aliot/aiot.h"
+#include "ble.h"
+#include <stdarg.h>
+#include <sstream>
+#include <vector>
+#include <string>
+
+/* -------------------------------------------------------------------------
+ * 日志
+ * ------------------------------------------------------------------------- */
+static mlog *s_log = new mlog("M8");
+
+void snack_log_error(const char *fmt, ...)
+{
+    va_list va;
+    va_start(va, fmt);
+    char buf[1024] = {0};
+    vsnprintf(buf, sizeof(buf), fmt, va);
+    s_log->e(buf);
+    va_end(va);
+}
+
+void snack_log_warn(const char *fmt, ...)
+{
+    va_list va;
+    va_start(va, fmt);
+    char buf[1024] = {0};
+    vsnprintf(buf, sizeof(buf), fmt, va);
+    s_log->w(buf);
+    va_end(va);
+}
+
+void snack_log_info(const char *fmt, ...)
+{
+    va_list va;
+    va_start(va, fmt);
+    char buf[1024] = {0};
+    vsnprintf(buf, sizeof(buf), fmt, va);
+    s_log->i(buf);
+    va_end(va);
+}
+
+void snack_log_debug(const char *fmt, ...)
+{
+    va_list va;
+    va_start(va, fmt);
+    char buf[1024] = {0};
+    vsnprintf(buf, sizeof(buf), fmt, va);
+    s_log->d(buf);
+    va_end(va);
+}
+
+void set_log_level(int type)
+{
+    s_log->levelSet((MLOG_type)type);
+    s_log->setLogClearDays(0);
+}
+
+/* -------------------------------------------------------------------------
+ * 阿里云 MQTT
+ * ------------------------------------------------------------------------- */
+static aiot               *s_mqtt_client  = NULL;
+static mqtt_recv_handler_t s_mqtt_callback = NULL;
+
+/* 阿里云平台下行消息格式：{"params": {...}} — 取 params 字段传给回调 */
+static void client_deal(char *topic, char *msg, int msg_len)
+{
+    (void)topic;
+    (void)msg_len;
+
+    cJSON *root  = cJSON_Parse(msg);
+    cJSON *param = cJSON_GetObjectItem(root, "params");
+
+    if (s_mqtt_callback != NULL && param != NULL) {
+        char *str = cJSON_PrintUnformatted(param);
+        s_log->i("mqtt recv: %s", str);
+        s_mqtt_callback(str);
+        free(str);
+    }
+
+    cJSON_Delete(root);
+}
+
+int aliyun_mqtt_init(char *product_key, char *device_name, char *device_secret)
+{
+    if (product_key == NULL || device_name == NULL || device_secret == NULL) {
+        return -1;
+    }
+
+    s_mqtt_client = new aiot(product_key, device_name, device_secret, "");
+    if (s_mqtt_client == NULL) {
+        return -2;
+    }
+
+    s_mqtt_client->connect(client_deal);
+    s_mqtt_client->heartbeatSet(15);
+
+    return 0;
+}
+
+int mqtt_is_online(void)
+{
+    if (s_mqtt_client != NULL && s_mqtt_client->online) {
+        return 1;
+    }
+    return 0;
+}
+
+int net_mqtt_send(char *topic, char *msg)
+{
+    if (s_mqtt_client == NULL || topic == NULL || msg == NULL) {
+        return -1;
+    }
+    return s_mqtt_client->publish(topic, msg);
+}
+
+void mqtt_recv_handler_set(mqtt_recv_handler_t cb)
+{
+    s_mqtt_callback = cb;
+}
+
+/* -------------------------------------------------------------------------
+ * 音乐播放
+ * ------------------------------------------------------------------------- */
+static music s_player;
+
+void player_play(uint8_t item)
+{
+    char filePath[64] = {0};
+    snprintf(filePath, sizeof(filePath), "/home/neardi/Music/00%d.mp3", item);
+    s_player.play(filePath, 60);
+}
+
+/* -------------------------------------------------------------------------
+ * BLE
+ * ------------------------------------------------------------------------- */
+static int (*s_osal_debug_cb)(char *fun, char *param_1, char *param_2) = NULL;
+
+static bool ble_cmd_process(std::vector<std::string> &tokens)
+{
+    if (tokens.size() < 2) {
+        return false;
+    }
+    if (tokens[0] == "osal" && s_osal_debug_cb != NULL) {
+        const char *p1 = tokens.size() > 1 ? tokens[1].c_str() : "";
+        const char *p2 = tokens.size() > 2 ? tokens[2].c_str() : "";
+        const char *p3 = tokens.size() > 3 ? tokens[3].c_str() : "";
+        s_osal_debug_cb((char *)p1, (char *)p2, (char *)p3);
+    }
+    return true;
+}
+
+void ble_init(void)
+{
+    BLE::ble.init();
+
+    BLE::ble.set_data_char_recv_cb([&](std::string &msg, int mtu) {
+        (void)mtu;
+        std::istringstream iss(msg);
+        std::string line;
+        while (std::getline(iss, line, '\n')) {
+            std::vector<std::string> tokens;
+            std::istringstream line_iss(line);
+            std::string token;
+            snack_log_info("ble cmd: %s", line.c_str());
+            while (line_iss >> token) {
+                tokens.push_back(token);
+            }
+            ble_cmd_process(tokens);
+        }
+    });
+
+    BLE::ble.set_debug_char_recv_cb([&](std::string &msg, int mtu) {
+        (void)mtu;
+        snack_log_info("ble debug recv: %s", msg.c_str());
+    });
+}
+
+void ble_deinit(void)
+{
+    BLE::ble.deinit();
+}
+
+void ble_application_channel_send(char *data)
+{
+    BLE::ble.send_to_data_char(std::string(data));
+}
+
+void ble_debug_channel_send(char *data)
+{
+    BLE::ble.send_to_debug_char(std::string(data));
+}
+
+void osal_debug_callback_regist(int (*callback)(char *fun, char *param_1, char *param_2))
+{
+    s_osal_debug_cb = callback;
+}
