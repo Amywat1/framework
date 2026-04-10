@@ -159,8 +159,10 @@ if(BUILD_SIM)
     if(CJSON_FOUND)
         message(STATUS "cJSON found → ${CJSON_LIBRARIES}")
     else()
-        message(WARNING "cJSON not found; JSON features will not compile.\n"
-                        "Fix: sudo apt install libcjson-dev")
+        message(FATAL_ERROR
+            "cJSON not found — M8_sim 构建需要 libcjson。\n"
+            "  Ubuntu/Debian: sudo apt install libcjson-dev\n"
+            "  或指定路径:    cmake -DCJSON_DIR=<path> ...")
     endif()
 
     # -----------------------------------------------------------------------
