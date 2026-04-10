@@ -9,8 +9,8 @@
  */
 
 #include "adapters/storage/json/json_param_store.h"
+#include "adapters/storage/json/json_param_store_cfg.h"
 #include "ports/storage/param_store.h"
-#include "service/svc_param/svc_param.h"  /* SVC_PARAM_FILE_PATH */
 #include "common/log.h"
 #include "tools/cJSON.h"
 #include <stdio.h>
@@ -40,11 +40,11 @@ static sw_err_t store_load(void)
     }
     s_root = cJSON_CreateObject();
 
-    fp = fopen(SVC_PARAM_FILE_PATH, "r");
+    fp = fopen(PARAM_STORE_JSON_FILE_PATH, "r");
     if (fp == NULL)
     {
         LOG_WARN("json_param_store: file not found (%s), using defaults",
-                 SVC_PARAM_FILE_PATH);
+                 PARAM_STORE_JSON_FILE_PATH);
         pthread_mutex_unlock(&s_mutex);
         return SW_ERR_STORAGE;
     }
@@ -78,7 +78,7 @@ static sw_err_t store_load(void)
 
     if (ret == SW_OK)
     {
-        LOG_INFO("json_param_store: loaded from %s", SVC_PARAM_FILE_PATH);
+        LOG_INFO("json_param_store: loaded from %s", PARAM_STORE_JSON_FILE_PATH);
     }
     return ret;
 }
@@ -97,18 +97,18 @@ static sw_err_t store_save(void)
         return SW_ERR_STORAGE;
     }
 
-    fp = fopen(SVC_PARAM_FILE_PATH, "w");
+    fp = fopen(PARAM_STORE_JSON_FILE_PATH, "w");
     if (fp == NULL)
     {
         free(str);
-        LOG_ERROR("json_param_store: cannot write %s", SVC_PARAM_FILE_PATH);
+        LOG_ERROR("json_param_store: cannot write %s", PARAM_STORE_JSON_FILE_PATH);
         return SW_ERR_STORAGE;
     }
 
     fputs(str, fp);
     fclose(fp);
     free(str);
-    LOG_INFO("json_param_store: saved to %s", SVC_PARAM_FILE_PATH);
+    LOG_INFO("json_param_store: saved to %s", PARAM_STORE_JSON_FILE_PATH);
     return SW_OK;
 }
 

@@ -18,12 +18,9 @@ extern "C" {
 #include "common/sw_error.h"
 
 /* -------------------------------------------------------------------------
- * 参数文件路径
- * ------------------------------------------------------------------------- */
-#define SVC_PARAM_FILE_PATH     "/home/neardi/m8/params.json"
-
-/* -------------------------------------------------------------------------
  * 参数键名（统一在此定义）
+ * 参数存储路径由存储适配器（adapters/storage/json/json_param_store_cfg.h）管理，
+ * service 层不感知具体路径。
  * ------------------------------------------------------------------------- */
 #define PARAM_KEY_WASH_MODE         "washMode"          /* 洗车模式（wash_mode_t）*/
 #define PARAM_KEY_BRUSH_FREQ_TOP    "brushFreqTop"      /* 顶刷频率（0.01Hz，默认 4500）*/

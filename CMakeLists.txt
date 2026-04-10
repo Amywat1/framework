@@ -85,6 +85,11 @@ file(GLOB_RECURSE src CONFIGURE_DEPENDS
 list(FILTER src EXCLUDE REGEX ".*/sim/.*")
 list(FILTER src EXCLUDE REGEX ".*/sim_hw/.*")
 
+# 已被新架构替换的旧文件——排除避免符号重复
+# 过渡期逐步增加；收尾阶段 C-2 直接删除旧目录后可移除此段
+list(FILTER src EXCLUDE REGEX ".*/service/svc_param\\.c$")
+list(FILTER src EXCLUDE REGEX ".*/service/svc_param\\.h$")
+
 add_executable(${PROJECT_NAME} ${src})
 
 target_include_directories(${PROJECT_NAME} PRIVATE
