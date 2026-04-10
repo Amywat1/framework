@@ -99,10 +99,6 @@ static sw_err_t m8_wait_io_ready(void)
 
 /**
  * @brief  M8 上电启动安全初始化（由 bootstrap 在 drv_io_init 之后调用）
- * @retval SW_OK / SW_ERR_TIMEOUT
- */
-/**
- * @brief  M8 上电启动安全初始化（由 bootstrap 在 drv_io_init 之后调用）
  *
  * 返回值约定（设计为返回 SW_OK 即使 IO 超时）：
  *   - 若 IO 子板在超时内就绪：执行安全清零，返回 SW_OK。

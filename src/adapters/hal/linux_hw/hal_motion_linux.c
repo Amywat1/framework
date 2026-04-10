@@ -118,7 +118,7 @@ static sw_err_t m8_lift_up_start(uint32_t pulses)
 
     (void)drv_stepper_disable();
     (void)event_publish(EVT_COMP_LIFT_DONE, (uint32_t)ret);
-    return SW_OK;  /* 异步接口约定：返回值表示"启动成功"，结果通过事件通知 */
+    return SW_OK;  /* Phase 3 同步实现：完成后发 EVT_COMP_LIFT_DONE 再返回 */
 }
 
 static sw_err_t m8_lift_down_start(uint32_t pulses)
