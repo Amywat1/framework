@@ -1,0 +1,72 @@
+/**
+ * @file    snack_stub.c
+ * @brief   snack SDK 桩实现（BUILD_SIM=ON 时替代真实 snack 库）
+ * @author  胡望伟
+ * @date    2026-04-10
+ *
+ * @note    sim 构建不链接 snack SDK，但 common/log.h 依赖其日志函数。
+ *          本文件提供 4 个日志函数的 printf 实现，以及其他可能被
+ *          编译器拉入的 snack 符号的空桩。
+ *
+ *          只提供 sim 构建实际链接所需的符号，不穷举 snack API。
+ */
+
+#include "middleware/snack_wrapper.h"
+#include <stdio.h>
+#include <stdarg.h>
+
+/* -------------------------------------------------------------------------
+ * 日志实现（输出到 stderr，带级别前缀）
+ * ------------------------------------------------------------------------- */
+static void sim_vlog(const char *level, const char *fmt, va_list ap)
+{
+    fprintf(stderr, "[%s] ", level);
+    vfprintf(stderr, fmt, ap);
+    fputc('\n', stderr);
+}
+
+void snack_log_error(const char *fmt, ...)
+{
+    va_list ap;
+    va_start(ap, fmt);
+    sim_vlog("ERR", fmt, ap);
+    va_end(ap);
+}
+
+void snack_log_warn(const char *fmt, ...)
+{
+    va_list ap;
+    va_start(ap, fmt);
+    sim_vlog("WRN", fmt, ap);
+    va_end(ap);
+}
+
+void snack_log_info(const char *fmt, ...)
+{
+    va_list ap;
+    va_start(ap, fmt);
+    sim_vlog("INF", fmt, ap);
+    va_end(ap);
+}
+
+void snack_log_debug(const char *fmt, ...)
+{
+    va_list ap;
+    va_start(ap, fmt);
+    sim_vlog("DBG", fmt, ap);
+    va_end(ap);
+}
+
+/* -------------------------------------------------------------------------
+ * 其余 snack 函数：空桩（sim 构建中不会被调用，但某些编译单元可能
+ * 引用了 snack_wrapper.h 中声明的其他符号；此处兜底防止链接错误）
+ * ------------------------------------------------------------------------- */
+void set_log_level(int type)                        { (void)type; }
+void set_app_version(char *name, char *ver)         { (void)name; (void)ver; }
+void set_remote_port(int port)                      { (void)port; }
+
+/* MQTT 桩（aliyun_command_adapter 已从 sim 排除，但保留防意外链接）*/
+int  aliyun_mqtt_init(char *pk, char *dn, char *ds) { (void)pk; (void)dn; (void)ds; return -1; }
+int  mqtt_is_online(void)                           { return 0; }
+int  net_mqtt_send(char *topic, char *msg)          { (void)topic; (void)msg; return -1; }
+void mqtt_recv_handler_set(mqtt_recv_handler_t cb)  { (void)cb; }

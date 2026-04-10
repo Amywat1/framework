@@ -140,6 +140,30 @@ if(BUILD_SIM)
     add_compile_definitions(BUILD_SIM=1)
 
     # -----------------------------------------------------------------------
+    # cJSON：sim 构建使用系统 libcjson（嵌入式目标由 snack SDK 提供）
+    # 安装方式：sudo apt install libcjson-dev
+    # -----------------------------------------------------------------------
+    find_package(PkgConfig QUIET)
+    if(PkgConfig_FOUND)
+        pkg_check_modules(CJSON QUIET libcjson)
+    endif()
+    if(NOT CJSON_FOUND)
+        find_path(CJSON_INCLUDE_DIR NAMES cJSON.h PATH_SUFFIXES cjson)
+        find_library(CJSON_LIBRARY  NAMES cjson)
+        if(CJSON_INCLUDE_DIR AND CJSON_LIBRARY)
+            set(CJSON_FOUND TRUE)
+            set(CJSON_INCLUDE_DIRS  ${CJSON_INCLUDE_DIR})
+            set(CJSON_LIBRARIES     ${CJSON_LIBRARY})
+        endif()
+    endif()
+    if(CJSON_FOUND)
+        message(STATUS "cJSON found → ${CJSON_LIBRARIES}")
+    else()
+        message(WARNING "cJSON not found; JSON features will not compile.\n"
+                        "Fix: sudo apt install libcjson-dev")
+    endif()
+
+    # -----------------------------------------------------------------------
     # sim 构建源文件：明确列出，避免误拉入真机专属文件
     # -----------------------------------------------------------------------
     file(GLOB_RECURSE sim_sources CONFIGURE_DEPENDS
@@ -186,12 +210,17 @@ if(BUILD_SIM)
         add_executable(M8_sim ${sim_sources})
 
         target_include_directories(M8_sim PRIVATE
-            ${CMAKE_SOURCE_DIR}               # common/ 等
-            ${CMAKE_SOURCE_DIR}/src           # 新架构 domain/ ports/ 等
+            ${CMAKE_SOURCE_DIR}                  # common/ tools/ 等
+            ${CMAKE_SOURCE_DIR}/src              # 新架构 domain/ ports/ 等
             ${CMAKE_SOURCE_DIR}/tools/simulator  # sim_console.h 等
         )
 
-        target_link_libraries(M8_sim PRIVATE pthread)
+        if(CJSON_FOUND)
+            target_include_directories(M8_sim PRIVATE ${CJSON_INCLUDE_DIRS})
+            target_link_libraries(M8_sim PRIVATE pthread ${CJSON_LIBRARIES})
+        else()
+            target_link_libraries(M8_sim PRIVATE pthread)
+        endif()
 
         target_compile_options(M8_sim PRIVATE -Wall -Wextra -Werror -g)
 
