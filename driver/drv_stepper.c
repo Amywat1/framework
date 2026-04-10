@@ -17,9 +17,14 @@
 static void delay_us(uint32_t us)
 {
     struct timespec ts;
+    struct timespec rem;
     ts.tv_sec  = 0;
     ts.tv_nsec = (long)us * 1000L;
-    nanosleep(&ts, NULL);
+    /* 循环处理 EINTR：信号打断后用剩余时间继续等待，防止长脉冲序列节拍失真 */
+    while (nanosleep(&ts, &rem) != 0)
+    {
+        ts = rem;
+    }
 }
 
 /* ENA 引脚极性：雷赛驱动器默认低电平使能（true=LOW=使能）*/

@@ -105,10 +105,12 @@ sw_err_t drv_vfd_fault_reset(drv_vfd_t *vfd);
 drv_vfd_state_t drv_vfd_get_state(const drv_vfd_t *vfd);
 
 /**
- * @brief  读取 VFD 故障码（Modbus 寄存器 0x2102，0=无故障）
- * @retval 故障码，Modbus 失败时返回 0
+ * @brief  读取 VFD 故障码（Modbus 寄存器 0x2102）
+ * @param  vfd     VFD 句柄
+ * @param  p_code  输出故障码（0=无故障；Modbus 通信失败时保持原值不变）
+ * @retval SW_OK / SW_ERR_COMM（通信失败，*p_code 不可信，旧实现用 0 掩盖此错误）
  */
-uint16_t drv_vfd_get_fault_code(drv_vfd_t *vfd);
+sw_err_t drv_vfd_get_fault_code(drv_vfd_t *vfd, uint16_t *p_code);
 
 /**
  * @brief  注册 VFD 事件回调（故障/异常时通知上层）

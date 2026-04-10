@@ -50,10 +50,16 @@ typedef struct
     /**
      * @brief  读取 VFD 故障码
      * @param  vfd_id   目标 VFD
-     * @param  p_code   输出故障码（0 = 无故障）
-     * @retval SW_OK / SW_ERR_COMM
+     * @param  p_code   输出故障码（0 = 无故障；不可为 NULL）
+     * @retval SW_OK / SW_ERR_COMM（通信失败，*p_code 不可信）/ SW_ERR_PARAM
      */
     sw_err_t (*get_vfd_fault_code)(hal_vfd_id_t vfd_id, uint16_t *p_code);
+
+    /**
+     * @brief  轮询 VFD 故障并发布事件（由报警轮询定期调用）
+     * @note   Phase 3 桩位：Phase 4 的 m8_alarm_adapt 调用此函数替代旧 m8_vfd_read
+     */
+    void (*poll_vfd_faults)(void);
 } hal_sensor_ops_t;
 
 /* -------------------------------------------------------------------------

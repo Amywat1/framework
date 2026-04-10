@@ -205,13 +205,15 @@ drv_vfd_state_t drv_vfd_get_state(const drv_vfd_t *vfd)
     return vfd->state;
 }
 
-uint16_t drv_vfd_get_fault_code(drv_vfd_t *vfd)
+sw_err_t drv_vfd_get_fault_code(drv_vfd_t *vfd, uint16_t *p_code)
 {
-    uint16_t code = 0U;
-    if (vfd != NULL && vfd->mb != NULL) {
-        (void)mb_read_reg(vfd, VFD_REG_FAULT_CODE, &code);
+    if (vfd == NULL || p_code == NULL) {
+        return SW_ERR_PARAM;
     }
-    return code;
+    if (vfd->mb == NULL) {
+        return SW_ERR_NOT_INIT;
+    }
+    return mb_read_reg(vfd, VFD_REG_FAULT_CODE, p_code);
 }
 
 void drv_vfd_register_event_cb(drv_vfd_t *vfd, void (*cb)(int event_code))

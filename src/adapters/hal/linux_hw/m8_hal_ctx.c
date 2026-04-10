@@ -37,22 +37,21 @@ static pthread_mutex_t s_pos_mutex  = PTHREAD_MUTEX_INITIALIZER;
  * VFD 事件路由（驱动层事件 → event_bus）
  * ------------------------------------------------------------------------- */
 #include "core/event_bus/event_bus.h"
-#include "common/alarm_code.h"   /* TODO Phase 4: move alarm codes here */
+#include "domain/model/alarm_code.h"
 
-/* 先用临时写法，等 domain/model/alarm_code.h 可用后替换 */
-#define EVT_PARAM_VFD_BRUSH_FAULT   0x8011U
-#define EVT_PARAM_VFD_GANTRY_FAULT  0x8010U
-
+/* VFD 事件回调：由驱动层触发（当前驱动层未主动调用此回调，
+ * 故障检测改由 hal_sensor_linux.c 的 poll_vfd_faults 负责，
+ * 此回调作为备用兜底保留。） */
 static void brush_vfd_event_cb(int event_code)
 {
     (void)event_code;
-    (void)event_publish(EVT_HW_VFD_BRUSH_FAULT, EVT_PARAM_VFD_BRUSH_FAULT);
+    (void)event_publish(EVT_HW_VFD_BRUSH_FAULT, ALARM_CODE_VFD_BRUSH);
 }
 
 static void gantry_vfd_event_cb(int event_code)
 {
     (void)event_code;
-    (void)event_publish(EVT_HW_VFD_GANTRY_FAULT, EVT_PARAM_VFD_GANTRY_FAULT);
+    (void)event_publish(EVT_HW_VFD_GANTRY_FAULT, ALARM_CODE_VFD_GANTRY);
 }
 
 /* -------------------------------------------------------------------------

@@ -189,7 +189,12 @@ sw_err_t hal_brush_select(hal_brush_sel_t sel)
 sw_err_t hal_brush_run(uint16_t freq_hz)    { return drv_vfd_run_fwd(&s_vfd_brush, freq_hz); }
 sw_err_t hal_brush_stop(void)               { return drv_vfd_stop(&s_vfd_brush); }
 sw_err_t hal_brush_fault_reset(void)        { return drv_vfd_fault_reset(&s_vfd_brush); }
-uint16_t hal_brush_get_fault_code(void)     { return drv_vfd_get_fault_code(&s_vfd_brush); }
+uint16_t hal_brush_get_fault_code(void)
+{
+    uint16_t code = 0U;
+    (void)drv_vfd_get_fault_code(&s_vfd_brush, &code);
+    return code;
+}
 
 /* -------------------------------------------------------------------------
  * 龙门 VFD
@@ -198,7 +203,12 @@ sw_err_t hal_gantry_fwd(uint16_t freq_hz)   { return drv_vfd_run_fwd(&s_vfd_gant
 sw_err_t hal_gantry_rev(uint16_t freq_hz)   { return drv_vfd_run_rev(&s_vfd_gantry, freq_hz); }
 sw_err_t hal_gantry_stop(void)              { return drv_vfd_stop(&s_vfd_gantry); }
 sw_err_t hal_gantry_fault_reset(void)       { return drv_vfd_fault_reset(&s_vfd_gantry); }
-uint16_t hal_gantry_get_fault_code(void)    { return drv_vfd_get_fault_code(&s_vfd_gantry); }
+uint16_t hal_gantry_get_fault_code(void)
+{
+    uint16_t code = 0U;
+    (void)drv_vfd_get_fault_code(&s_vfd_gantry, &code);
+    return code;
+}
 
 bool hal_gantry_at_fwd_limit(void) { return drv_io_di_read(DI_GANTRY_FWD_LIMIT); }
 bool hal_gantry_at_rev_limit(void) { return drv_io_di_read(DI_GANTRY_REAR_LIMIT); }

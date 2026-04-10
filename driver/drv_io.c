@@ -52,9 +52,7 @@ static void *io_rw_thread(void *arg)
     int      check_interval_ms = CFG_IO_CHECK_OFFLINE_MS;
 
     (void)arg;
-
-    /* 启动时假设全部在线 */
-    memset(s_board_online, 1, sizeof(s_board_online));
+    /* 各板初始为离线状态，首次探测成功后才置在线（与 m8_boot_profile 轮询配合）*/
 
     while (1) {
         loop_cnt++;
@@ -70,27 +68,27 @@ static void *io_rw_thread(void *arg)
 
             if ((loop_cnt % (uint16_t)check_loops) == 0U) {
                 if (io_online_get(i) > 0) {
-                    is_board_check_offline[i] = false;
-                    if (offline_cnt[i] >= (uint8_t)CFG_IO_OFFLINE_CNT) {
-                        /* 子板从掉线恢复 */
-                        if (s_board_error_cb != NULL) {
-                            s_board_error_cb(i, false);
-                        }
-                        LOG_INFO("drv_io: board %d back online", i);
-                        s_board_online[i] = true;
-                    }
+                    /* 探测成功：重置计数，首次/恢复时置在线并回调 */
                     offline_cnt[i] = 0U;
+                    is_board_check_offline[i] = false;
+                    if (!s_board_online[i]) {
+                        s_board_online[i] = true;
+                        if (s_board_error_cb != NULL) {
+                            s_board_error_cb(i, false); /* false = 恢复在线 */
+                        }
+                        LOG_INFO("drv_io: board %d online", i);
+                    }
                 } else {
-                    s_board_online[i] = false;
+                    /* 探测失败：计数，达到阈值后确认掉线 */
                     if (offline_cnt[i] < (uint8_t)CFG_IO_OFFLINE_CNT) {
                         offline_cnt[i]++;
-                        if (offline_cnt[i] == (uint8_t)CFG_IO_OFFLINE_CNT) {
-                            /* 确认掉线 */
+                        if (offline_cnt[i] >= (uint8_t)CFG_IO_OFFLINE_CNT) {
+                            s_board_online[i] = false;
+                            is_board_check_offline[i] = true;
                             if (s_board_error_cb != NULL) {
                                 s_board_error_cb(i, true);
                             }
                             LOG_ERROR("drv_io: board %d offline", i);
-                            is_board_check_offline[i] = true;
                         }
                     }
                 }

@@ -68,14 +68,21 @@ typedef struct
     /* 顶刷升降（步进电机，异步执行）*/
 
     /**
-     * @brief  顶刷上升，直到上限位触发（由 stepper_thread 执行，完成后发 EVT_COMP_LIFT_DONE）
+     * @brief  顶刷上升，直到上限位触发，完成后发布 EVT_COMP_LIFT_DONE
      * @param  pulses  最大脉冲数（0 = 使用配置默认值）
+     *
+     * @note   Phase 3 实现：在调用线程（wash_worker_thread）内同步执行，
+     *         分批发脉冲并检查限位，完成后发 EVT_COMP_LIFT_DONE 再返回。
+     *         Phase 5 TODO：改为向 stepper_thread 投递命令，函数立即返回，
+     *         事件由 stepper_thread 完成后异步发布。
      */
     sw_err_t (*lift_up_start)(uint32_t pulses);
 
     /**
-     * @brief  顶刷下降指定脉冲数（由 stepper_thread 执行，完成后发 EVT_COMP_LIFT_DONE）
-     * @param  pulses  脉冲数（0 = 从参数表读取 topLiftDownPulses）
+     * @brief  顶刷下降指定脉冲数，完成后发布 EVT_COMP_LIFT_DONE
+     * @param  pulses  脉冲数（0 = 使用 M8_LIFT_DOWN_DEF_PULSES 默认值）
+     *
+     * @note   同 lift_up_start，Phase 3 同步实现，Phase 5 异步化。
      */
     sw_err_t (*lift_down_start)(uint32_t pulses);
 } hal_motion_ops_t;
