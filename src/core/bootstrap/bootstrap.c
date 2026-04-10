@@ -21,9 +21,12 @@
  *   14. device_fsm_init()           — 设备 FSM（订阅命令/安全/流程事件）
  *   15. wash_orchestrator_init()    — 洗车编排器（注册 worker_thread）
  *   16. report_aggregator_init()    — 上报聚合器（注册 cloud_thread）
- *   17. 注册 event_dispatch_thread
- *   18. 注册 io_poll_thread
- *   19. scheduler_start_all()       — 创建所有线程
+ *   17. deploy_store_load()         — 加载部署配置（SN、MQTT 凭证）
+ *   18. aliyun_command_adapter_init() — 连接 MQTT，注册命令接收回调
+ *   19. cli_adapter_init()          — 注册 CLI 命令域（device/safety/param/diag）
+ *   20. 注册 event_dispatch_thread
+ *   21. 注册 io_poll_thread
+ *   22. scheduler_start_all()       — 创建所有线程
  */
 
 #include "core/bootstrap/bootstrap.h"
@@ -47,12 +50,19 @@
 #include "adapters/machine/m8/m8_alarm_adapt.h"
 #include "adapters/machine/m8/m8_boot_profile.h"
 #include "adapters/hal/linux_hw/m8_hal_ctx.h"
+#include "ports/storage/deploy_store.h"
 #include "driver/drv_io.h"
 #include "config/threading/thread_config.h"
 #include "common/time_util.h"
 #include "common/log.h"
 #include <unistd.h>
 #include <sched.h>
+
+/* -------------------------------------------------------------------------
+ * 阶段六适配器（声明为 extern，避免在 bootstrap.c 中包含 snack SDK 头文件）
+ * ------------------------------------------------------------------------- */
+extern void aliyun_command_adapter_init(void);
+extern void cli_adapter_init(void);
 
 /* -------------------------------------------------------------------------
  * 线程入口函数（bootstrap 本地，不对外暴露）
@@ -156,21 +166,41 @@ sw_err_t bootstrap_run(void)
     /* 16. 上报聚合器 */
     BOOT_CHECK(report_aggregator_init(), "report_aggregator_init");
 
-    /* 17. 注册 event_dispatch_thread */
+    /* 17. 加载部署配置（SN、MQTT 凭证；允许文件缺失）*/
+    {
+        const deploy_store_ops_t *ds = deploy_store_get_ops();
+        if (ds != NULL)
+        {
+            sw_err_t r = ds->load();
+            if ((r != SW_OK) && (r != SW_ERR_STORAGE))
+            {
+                LOG_ERROR("bootstrap: deploy_store load failed ret=%d", (int)r);
+                return r;
+            }
+        }
+    }
+
+    /* 18. 连接 MQTT + 注册命令接收回调（失败不中止，允许离线运行）*/
+    aliyun_command_adapter_init();
+
+    /* 19. 注册 CLI 命令域 */
+    cli_adapter_init();
+
+    /* 21. 注册 event_dispatch_thread */
     BOOT_CHECK(thread_register("event_dispatch",
                                event_dispatch_thread_fn,
                                SCHED_OTHER, 0,
                                THD_EVENT_DISPATCH_STACK),
                "register event_dispatch_thread");
 
-    /* 18. 注册 io_poll_thread */
+    /* 22. 注册 io_poll_thread */
     BOOT_CHECK(thread_register("io_poll",
                                io_poll_thread_fn,
                                SCHED_OTHER, 0,
                                THD_IO_POLL_STACK),
                "register io_poll_thread");
 
-    /* 19. 启动所有线程 */
+    /* 23. 启动所有线程 */
     BOOT_CHECK(scheduler_start_all(), "scheduler_start_all");
 
     LOG_INFO("bootstrap: system started successfully");

@@ -26,6 +26,12 @@ extern void hal_indicator_linux_register(void);
  * 存储适配器注册函数声明
  * ------------------------------------------------------------------------- */
 extern void json_param_store_register(void);
+extern void json_deploy_store_register(void);
+
+/* -------------------------------------------------------------------------
+ * 云端上报适配器注册函数声明
+ * ------------------------------------------------------------------------- */
+extern void aliyun_report_adapter_register(void);
 
 sw_err_t wiring(void)
 {
@@ -38,6 +44,10 @@ sw_err_t wiring(void)
 
     /* 存储 port → JSON 文件实现 */
     json_param_store_register();
+    json_deploy_store_register();
+
+    /* 云端上报 port → 阿里云 MQTT 实现 */
+    aliyun_report_adapter_register();
 
     LOG_INFO("wiring: all adapters registered");
     return SW_OK;

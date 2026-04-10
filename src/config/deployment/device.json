@@ -1,0 +1,8 @@
+{
+    "deviceSn":     "M8-00001",
+    "siteId":       "",
+    "mqttServer":   "",
+    "mqttPort":     1883,
+    "productKey":   "M8_PRODUCT_KEY",
+    "deviceSecret": "M8_DEVICE_SECRET"
+}
