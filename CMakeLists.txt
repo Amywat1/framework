@@ -139,26 +139,51 @@ endif() # NOT BUILD_SIM
 if(BUILD_SIM)
     add_compile_definitions(BUILD_SIM=1)
 
+    # -----------------------------------------------------------------------
+    # sim 构建源文件：明确列出，避免误拉入真机专属文件
+    # -----------------------------------------------------------------------
     file(GLOB_RECURSE sim_sources CONFIGURE_DEPENDS
-        # 新架构仿真目标（阶段六后逐步填充）
+        # 领域核心（纯逻辑，无硬件依赖）
         src/domain/*.c
         src/application/*.c
         src/service/*.c
-        src/core/*.c
+
+        # 事件总线 + 调度器
+        src/core/event_bus/*.c
+        src/core/scheduler/*.c
+
+        # bootstrap：bootstrap.c 含 BUILD_SIM 隔离，wiring_sim.c 替代 wiring.c
+        src/core/bootstrap/bootstrap.c
+        src/core/bootstrap/wiring_sim.c
+
+        # 仿真 HAL 实现
         src/adapters/hal/sim_hw/*.c
-        src/adapters/storage/*.c
-        src/adapters/ui/*.c
-        src/adapters/machine/*.c
+
+        # 存储适配器（param + deploy，路径可能与真机不同但接口相同）
+        src/adapters/storage/json/*.c
+
+        # UI 适配器（mqtt_command_parser + command_bridge，无 snack 依赖）
+        src/adapters/ui/mqtt_cmd/*.c
+        src/adapters/ui/command_bridge.c
+
+        # M8 报警适配（通过 ports/ 访问 HAL，与 sim HAL 兼容）
+        src/adapters/machine/m8/m8_alarm_adapt.c
+
         # 公共层
         common/*.c
-        driver/*.c
     )
+
+    # 排除仿真不需要或有真机依赖的文件
+    list(FILTER sim_sources EXCLUDE REGEX ".*/linux_hw/.*")
+    list(FILTER sim_sources EXCLUDE REGEX ".*/aliyun/.*")
+    list(FILTER sim_sources EXCLUDE REGEX "cli_adapter\\.cpp")
+    list(FILTER sim_sources EXCLUDE REGEX "m8_boot_profile\\.c")
 
     if(sim_sources)
         add_executable(M8_sim ${sim_sources})
 
         target_include_directories(M8_sim PRIVATE
-            ${CMAKE_SOURCE_DIR}       # common/ driver/ 等
+            ${CMAKE_SOURCE_DIR}       # common/ 等
             ${CMAKE_SOURCE_DIR}/src   # 新架构 domain/ ports/ 等
         )
 
@@ -168,7 +193,7 @@ if(BUILD_SIM)
 
         message(STATUS "BUILD_SIM enabled → target M8_sim")
     else()
-        message(STATUS "BUILD_SIM enabled → src/ not yet populated, M8_sim skipped")
+        message(STATUS "BUILD_SIM enabled → no sources found, M8_sim skipped")
     endif()
 
 endif()

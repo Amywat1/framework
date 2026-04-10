@@ -4,7 +4,8 @@
  * @author  胡望伟
  * @date    2026-04-10
  *
- * @note    不依赖 MQTT SDK，可被任意命令来源复用（BLE、本地按钮等）。
+ * @note    不依赖 MQTT SDK 及任何云平台头文件，可被任意命令来源复用。
+ *          JSON 字段名和 action 值定义在本头文件，不引用 aliyun_topics.h。
  */
 
 #ifndef ADAPTERS_UI_MQTT_CMD_PARSER_H
@@ -16,6 +17,19 @@ extern "C" {
 
 #include "domain/model/command.h"
 #include <stdbool.h>
+
+/* -------------------------------------------------------------------------
+ * 命令 JSON 字段名（平台无关）
+ * ------------------------------------------------------------------------- */
+#define MQTT_CMD_FIELD_ACTION             "action"
+#define MQTT_CMD_FIELD_MODE               "mode"
+
+#define MQTT_CMD_ACTION_START_WASH        "startWash"
+#define MQTT_CMD_ACTION_STOP_WASH         "stopWash"
+#define MQTT_CMD_ACTION_STOP_OPERATION    "stopOperation"
+#define MQTT_CMD_ACTION_RESUME_OPERATION  "resumeOperation"
+#define MQTT_CMD_ACTION_RESET_FAULT       "resetFault"
+#define MQTT_CMD_ACTION_HOME_DEVICE       "homeDevice"
 
 /**
  * @brief  将 JSON 字符串解析为 cmd_t

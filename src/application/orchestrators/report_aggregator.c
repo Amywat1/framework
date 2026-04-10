@@ -60,6 +60,7 @@ static void build_payload(cloud_report_payload_t *p)
 static void *cloud_thread_fn(void *arg)
 {
     (void)arg;
+    bool s_last_connected = false;
 
     while (true)
     {
@@ -68,8 +69,29 @@ static void *cloud_thread_fn(void *arg)
         const cloud_report_ops_t *ops = cloud_report_get_ops();
         if (ops == NULL)
         {
-            /* 云端适配器尚未注册（Phase 6 前），静默等待 */
+            /* 云端适配器尚未注册，静默等待 */
             continue;
+        }
+
+        /* 检测连接状态变化，补全 DISCONNECTED 事件生产者 */
+        bool now_connected = ops->is_connected();
+        if (now_connected != s_last_connected)
+        {
+            s_last_connected = now_connected;
+            if (now_connected)
+            {
+                (void)event_publish(EVT_CLOUD_CONNECTED,    0U);
+            }
+            else
+            {
+                (void)event_publish(EVT_CLOUD_DISCONNECTED, 0U);
+                LOG_WARN("report_aggregator: cloud disconnected");
+            }
+        }
+
+        if (!now_connected)
+        {
+            continue; /* 离线时不发送，避免无用错误日志 */
         }
 
         cloud_report_payload_t payload;

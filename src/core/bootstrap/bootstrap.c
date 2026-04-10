@@ -48,21 +48,25 @@
 #include "application/orchestrators/wash_orchestrator.h"
 #include "application/orchestrators/report_aggregator.h"
 #include "adapters/machine/m8/m8_alarm_adapt.h"
-#include "adapters/machine/m8/m8_boot_profile.h"
-#include "adapters/hal/linux_hw/m8_hal_ctx.h"
 #include "ports/storage/deploy_store.h"
-#include "driver/drv_io.h"
 #include "config/threading/thread_config.h"
 #include "common/time_util.h"
 #include "common/log.h"
 #include <unistd.h>
 #include <sched.h>
 
-/* -------------------------------------------------------------------------
- * 阶段六适配器（声明为 extern，避免在 bootstrap.c 中包含 snack SDK 头文件）
- * ------------------------------------------------------------------------- */
+/* 真机专属头文件（仿真构建不依赖这些）*/
+#ifndef BUILD_SIM
+#  include "adapters/machine/m8/m8_boot_profile.h"
+#  include "adapters/hal/linux_hw/m8_hal_ctx.h"
+#  include "driver/drv_io.h"
+#endif
+
+/* 阶段六适配器：声明为 extern，避免包含 snack SDK 头文件 */
+#ifndef BUILD_SIM
 extern void aliyun_command_adapter_init(void);
 extern void cli_adapter_init(void);
+#endif
 
 /* -------------------------------------------------------------------------
  * 线程入口函数（bootstrap 本地，不对外暴露）
@@ -113,14 +117,18 @@ sw_err_t bootstrap_run(void)
     /* 2. 事件总线 */
     BOOT_CHECK(event_bus_init(), "event_bus_init");
 
-    /* 3. IO 子板 CAN 驱动（所有 DO/DI 操作的基础）*/
+#ifndef BUILD_SIM
+    /* 3. IO 子板 CAN 驱动（所有 DO/DI 操作的基础；仿真跳过）*/
     BOOT_CHECK(drv_io_init(), "drv_io_init");
+#endif
 
     /* 4. 依赖注入：注册所有 port→adapter（纯注册，无硬件操作）*/
     BOOT_CHECK(wiring(), "wiring");
 
-    /* 5. M8 硬件上下文：VFD Modbus 通道 + 步进驱动（依赖 drv_io 已就绪）*/
+#ifndef BUILD_SIM
+    /* 5. M8 硬件上下文：VFD Modbus 通道 + 步进驱动（仿真跳过）*/
     BOOT_CHECK(m8_linux_hw_init(), "m8_linux_hw_init");
+#endif
 
     /* 6. 参数管理（允许文件缺失，降级使用默认值）*/
     {
@@ -135,8 +143,10 @@ sw_err_t bootstrap_run(void)
     /* 7. 设备状态快照 */
     BOOT_CHECK(dev_ctx_init(), "dev_ctx_init");
 
-    /* 8. 上电安全初始化（等待 IO 子板就绪 + 所有 DO 置安全态）*/
+#ifndef BUILD_SIM
+    /* 8. 上电安全初始化（等待 IO 子板就绪 + 所有 DO 置安全态；仿真跳过）*/
     BOOT_CHECK(m8_boot_profile_init(), "m8_boot_profile_init");
+#endif
 
     /* 9. 报警引擎 */
     BOOT_CHECK(alarm_core_init(), "alarm_core_init");
@@ -180,11 +190,13 @@ sw_err_t bootstrap_run(void)
         }
     }
 
-    /* 18. 连接 MQTT + 注册命令接收回调（失败不中止，允许离线运行）*/
+#ifndef BUILD_SIM
+    /* 18. 连接 MQTT + 注册命令接收回调（失败不中止；仿真跳过）*/
     aliyun_command_adapter_init();
 
-    /* 19. 注册 CLI 命令域 */
+    /* 19. 注册 CLI 命令域（仿真跳过，避免 snack SDK 依赖）*/
     cli_adapter_init();
+#endif
 
     /* 21. 注册 event_dispatch_thread */
     BOOT_CHECK(thread_register("event_dispatch",

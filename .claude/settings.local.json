@@ -2,7 +2,9 @@
   "permissions": {
     "allow": [
       "Bash(del \"D:\\\\工作项目\\\\M8\\\\Code-M8\\\\bsp\\\\bsp_board.h\" \"D:\\\\工作项目\\\\M8\\\\Code-M8\\\\bsp\\\\bsp_board.c\" \"D:\\\\工作项目\\\\M8\\\\Code-M8\\\\bsp\\\\bsp_uart.h\" \"D:\\\\工作项目\\\\M8\\\\Code-M8\\\\bsp\\\\bsp_uart.c\" \"D:\\\\工作项目\\\\M8\\\\Code-M8\\\\bsp\\\\bsp_gpio.h\")",
-      "Bash(sed:*)"
+      "Bash(sed:*)",
+      "Bash(cmake -B build_check_sim -DBUILD_SIM=ON -DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++)",
+      "Bash(python3 -)"
     ]
   }
 }

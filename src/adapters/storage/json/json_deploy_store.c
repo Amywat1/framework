@@ -9,6 +9,7 @@
  *          调用方应提供硬编码默认值。
  */
 
+#include "adapters/storage/json/json_deploy_store_cfg.h"
 #include "ports/storage/deploy_store.h"
 #include "common/log.h"
 #include "tools/cJSON.h"
@@ -16,8 +17,6 @@
 #include <string.h>
 #include <stdlib.h>
 #include <pthread.h>
-
-#define DEPLOY_JSON_FILE_PATH   "/home/neardi/m8/device.json"
 
 static cJSON          *s_cfg   = NULL;
 static pthread_mutex_t s_mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -31,10 +30,10 @@ static sw_err_t deploy_load(void)
 
     pthread_mutex_lock(&s_mutex);
 
-    fp = fopen(DEPLOY_JSON_FILE_PATH, "r");
+    fp = fopen(DEPLOY_STORE_JSON_FILE_PATH, "r");
     if (fp == NULL)
     {
-        LOG_WARN("json_deploy_store: file not found (%s)", DEPLOY_JSON_FILE_PATH);
+        LOG_WARN("json_deploy_store: file not found (%s)", DEPLOY_STORE_JSON_FILE_PATH);
         pthread_mutex_unlock(&s_mutex);
         return SW_ERR_STORAGE;
     }
@@ -67,7 +66,7 @@ static sw_err_t deploy_load(void)
 
     if (ret == SW_OK)
     {
-        LOG_INFO("json_deploy_store: loaded from %s", DEPLOY_JSON_FILE_PATH);
+        LOG_INFO("json_deploy_store: loaded from %s", DEPLOY_STORE_JSON_FILE_PATH);
     }
     return ret;
 }

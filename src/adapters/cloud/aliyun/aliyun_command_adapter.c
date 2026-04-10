@@ -5,21 +5,21 @@
  * @date    2026-04-10
  *
  * @note    负责 MQTT 协议层（初始化连接、注册接收回调）。
- *          命令语义解析委托给 mqtt_command_parser，不含 JSON 解析逻辑。
- *          收到命令后通过 event_bus 发布 EVT_CMD_* 事件。
+ *          命令语义解析委托给 mqtt_command_parser。
+ *          解析结果通过 command_port.inject() 注入，不直接调用 event_bus，
+ *          保持 adapters → ports 单向依赖。
  */
 
 #include "adapters/cloud/aliyun/aliyun_topics.h"
 #include "adapters/ui/mqtt_cmd/mqtt_command_parser.h"
+#include "ports/cloud/command_port.h"
 #include "ports/storage/deploy_store.h"
 #include "core/event_bus/event_bus.h"
 #include "common/event_types.h"
 #include "middleware/snack_wrapper.h"
 #include "common/log.h"
 #include <string.h>
-#include <stdio.h>
 
-/* 云端凭证（从 deploy_store 读取，或使用占位符）*/
 #define DEPLOY_KEY_PRODUCT_KEY    "productKey"
 #define DEPLOY_KEY_DEVICE_SN      "deviceSn"
 #define DEPLOY_KEY_DEVICE_SECRET  "deviceSecret"
@@ -29,7 +29,8 @@
  * ------------------------------------------------------------------------- */
 static void mqtt_recv_cb(const char *msg)
 {
-    cmd_t cmd;
+    cmd_t                      cmd;
+    const command_port_ops_t  *cp = command_port_get_ops();
 
     if (!mqtt_command_parse(msg, &cmd))
     {
@@ -37,31 +38,13 @@ static void mqtt_recv_cb(const char *msg)
         return;
     }
 
-    /* 将 cmd_t 转换为 event_bus 事件 */
-    switch (cmd.type)
+    if (cp == NULL)
     {
-        case CMD_START_WASH:
-            (void)event_publish(EVT_CMD_ORDER,            (uint32_t)cmd.payload.start_wash.mode);
-            break;
-        case CMD_STOP_WASH:
-            (void)event_publish(EVT_CMD_STOP_WASH,        0U);
-            break;
-        case CMD_STOP_OPERATION:
-            (void)event_publish(EVT_CMD_STOP_OPERATION,   0U);
-            break;
-        case CMD_RESUME_OPERATION:
-            (void)event_publish(EVT_CMD_RESUME_OPERATION, 0U);
-            break;
-        case CMD_RESET_FAULT:
-            (void)event_publish(EVT_CMD_RESET_FAULT,      0U);
-            break;
-        case CMD_HOME_DEVICE:
-            (void)event_publish(EVT_CMD_HOME_DEVICE,      0U);
-            break;
-        default:
-            LOG_WARN("aliyun_cmd: unknown cmd type=%d", (int)cmd.type);
-            break;
+        LOG_WARN("aliyun_cmd: command_port not registered");
+        return;
     }
+
+    (void)cp->inject(&cmd);
 }
 
 /* -------------------------------------------------------------------------
@@ -74,7 +57,6 @@ void aliyun_command_adapter_init(void)
     char device_sn[64]     = "M8_UNKNOWN";
     char device_secret[64] = "M8_DEVICE_SECRET";
 
-    /* 从 deploy_store 读取凭证（失败则使用占位符，离线运行）*/
     if (ds != NULL)
     {
         (void)ds->get(DEPLOY_KEY_PRODUCT_KEY,   product_key,   sizeof(product_key));

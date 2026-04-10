@@ -33,6 +33,11 @@ extern void json_deploy_store_register(void);
  * ------------------------------------------------------------------------- */
 extern void aliyun_report_adapter_register(void);
 
+/* -------------------------------------------------------------------------
+ * 命令桥接适配器注册函数声明
+ * ------------------------------------------------------------------------- */
+extern void command_bridge_register(void);
+
 sw_err_t wiring(void)
 {
     /* HAL port → linux_hw 实现 */
@@ -48,6 +53,9 @@ sw_err_t wiring(void)
 
     /* 云端上报 port → 阿里云 MQTT 实现 */
     aliyun_report_adapter_register();
+
+    /* 命令 port → event_bus 桥接 */
+    command_bridge_register();
 
     LOG_INFO("wiring: all adapters registered");
     return SW_OK;
