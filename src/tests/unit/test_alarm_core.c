@@ -173,13 +173,15 @@ static void test_just_notice_downgrade(void)
 }
 
 /* TC-8：alarm_core_init() 清零回调（单测间状态不串漏）*/
+static void dummy_poll_fn(void)       {}
+static void dummy_emc_reset_fn(void)  {}
+
 static void test_init_clears_callbacks(void)
 {
     printf("TC-8: init clears callbacks\n");
 
-    /* 注册一个空回调 */
-    alarm_core_register_poll_fn((alarm_poll_fn_t)(void *)0x1234); /* 任意非 NULL */
-    alarm_core_register_emc_reset_fn((alarm_emc_reset_fn_t)(void *)0x5678);
+    alarm_core_register_poll_fn(dummy_poll_fn);
+    alarm_core_register_emc_reset_fn(dummy_emc_reset_fn);
 
     /* 重新 init 后，回调应被清零；不触发任何回调（无法直接验证指针，
      * 此处通过 tick_ms 不 crash 来间接验证）*/

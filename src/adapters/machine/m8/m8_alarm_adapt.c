@@ -63,6 +63,8 @@ static void m8_signal_poll(void)
         sw_err_t ret  = sensor->get_vfd_fault_code(HAL_VFD_GANTRY, &code);
         if (ret == SW_OK)
         {
+            /* 通信成功：清除 Modbus 超时报警，更新 VFD 故障状态 */
+            alarm_core_set_state(ALARM_CODE_MODBUS_GANTRY, false, false);
             alarm_core_set_state(ALARM_CODE_VFD_GANTRY, (code != 0U), false);
             if (code != 0U)
             {
@@ -71,7 +73,7 @@ static void m8_signal_poll(void)
         }
         else
         {
-            /* Modbus 通信失败本身触发通信超时报警 */
+            /* Modbus 通信失败：触发通信超时报警，VFD 故障状态保持上一次值 */
             alarm_core_set_state(ALARM_CODE_MODBUS_GANTRY, true, false);
         }
     }
@@ -80,6 +82,8 @@ static void m8_signal_poll(void)
         sw_err_t ret  = sensor->get_vfd_fault_code(HAL_VFD_BRUSH, &code);
         if (ret == SW_OK)
         {
+            /* 通信成功：清除 Modbus 超时报警，更新 VFD 故障状态 */
+            alarm_core_set_state(ALARM_CODE_MODBUS_BRUSH, false, false);
             alarm_core_set_state(ALARM_CODE_VFD_BRUSH, (code != 0U), false);
             if (code != 0U)
             {
