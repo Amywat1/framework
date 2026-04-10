@@ -1,12 +1,12 @@
 /**
  * @file    test_step_engine.c
- * @brief   step_engine 单元测试（使用 Mock HAL）
+ * @brief   step_engine 单元测试（使用模拟 HAL）
  * @author  胡望伟
  * @date    2026-04-10
  *
  * @note    测试策略：
- *          - 注册 Mock HAL ops（不依赖真实硬件）
- *          - Mock 内部维护虚拟状态（限位 / VFD 运行等）
+ *          - 注册模拟 HAL 操作表（不依赖真实硬件）
+ *          - 模拟层内部维护虚拟状态（限位 / VFD 运行等）
  *          - 通过时间推进（模拟 poll 间隔）验证步骤完成和超时
  */
 
@@ -26,7 +26,7 @@
 #include <stdint.h>
 
 /* -------------------------------------------------------------------------
- * Mock 状态
+ * 模拟状态
  * ------------------------------------------------------------------------- */
 static bool s_mock_fwd_limit   = false;
 static bool s_mock_rev_limit   = false;
@@ -35,7 +35,7 @@ static bool s_mock_lift_bottom = false;
 static bool s_mock_estop       = false;
 static int  s_mock_gantry_pos  = 0;
 
-/* Mock HAL sensor */
+/* 模拟 HAL 传感器 */
 static bool mock_gantry_at_fwd_limit(void) { return s_mock_fwd_limit; }
 static bool mock_gantry_at_rev_limit(void) { return s_mock_rev_limit; }
 static bool mock_lift_at_top(void)         { return s_mock_lift_top; }
@@ -63,7 +63,7 @@ static const hal_sensor_ops_t s_mock_sensor_ops = {
     .poll_vfd_faults      = mock_poll_vfd_faults,
 };
 
-/* Mock HAL motion */
+/* 模拟 HAL 运动控制 */
 static sw_err_t mock_gantry_fwd(uint16_t f)     { (void)f; return SW_OK; }
 static sw_err_t mock_gantry_rev(uint16_t f)     { (void)f; return SW_OK; }
 static sw_err_t mock_gantry_stop(void)           { return SW_OK; }
@@ -86,7 +86,7 @@ static sw_err_t mock_lift_down_start(uint32_t p)
     s_mock_lift_top    = false;
     return SW_OK;
 }
-/* Note: hal_motion_ops_t doesn't have lift_at_top/bottom; those are in sensor */
+/* 说明：lift_at_top/bottom 属于传感器接口，不在 hal_motion_ops_t 中 */
 
 static const hal_motion_ops_t s_mock_motion_ops = {
     .gantry_fwd         = mock_gantry_fwd,
@@ -101,7 +101,7 @@ static const hal_motion_ops_t s_mock_motion_ops = {
     .lift_down_start    = mock_lift_down_start,
 };
 
-/* Mock HAL water */
+/* 模拟 HAL 水路控制 */
 static sw_err_t mock_pump_set(bool on)         { (void)on; return SW_OK; }
 static sw_err_t mock_curtain_set(bool on)      { (void)on; return SW_OK; }
 static sw_err_t mock_foam_set(bool on)         { (void)on; return SW_OK; }
@@ -275,7 +275,7 @@ int main(void)
 {
     printf("=== test_step_engine ===\n");
 
-    /* 注册 Mock HAL */
+    /* 注册模拟 HAL */
     hal_motion_register(&s_mock_motion_ops);
     hal_sensor_register(&s_mock_sensor_ops);
     hal_water_register(&s_mock_water_ops);

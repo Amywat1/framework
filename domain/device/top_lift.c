@@ -29,9 +29,9 @@ sw_err_t top_lift_up_start(uint32_t pulses)
     LOG_INFO("top_lift: up_start pulses=%u", (unsigned)pulses);
 
     /*
-     * HAL Phase 3 实现：同步执行脉冲序列，完成后发 EVT_COMP_LIFT_DONE 再返回。
-     * HAL Phase 5 实现：投递命令到 stepper_thread，立即返回。
-     * 上层通过 EVT_COMP_LIFT_DONE 感知完成，此接口保持一致。
+     * 当前 HAL 实现会在返回前完成脉冲序列。
+     * 上层统一通过 EVT_COMP_LIFT_DONE 感知动作完成，
+     * 因此此接口对调用方保持一致。
      */
     return ops->lift_up_start(pulses);
 }

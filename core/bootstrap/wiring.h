@@ -1,11 +1,11 @@
 /**
  * @file    wiring.h
- * @brief   依赖注入接口（将 adapter 实现注册到 port 接口表）
+ * @brief   依赖接线接口
  * @author  胡望伟
  * @date    2026-04-10
  *
- * @note    真机接线：wiring.c
- *          仿真接线：wiring_sim.c（CMake BUILD_SIM=ON 时替换）
+ * @note    真机构建使用 wiring.c。
+ *          仿真构建使用 wiring_sim.c。
  */
 
 #ifndef CORE_BOOTSTRAP_WIRING_H

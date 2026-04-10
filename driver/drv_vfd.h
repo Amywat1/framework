@@ -1,12 +1,12 @@
 /**
  * @file    drv_vfd.h
  * @brief   士林变频器驱动接口（Modbus RTU + IO 数字量控制，handle 参数化）
- * @author  HUWANGWEI
+ * @author  胡望伟
  * @date    2026-04-08
  *
- * @note    驱动层只描述"士林 VFD 的通信协议和 IO 控制方式"，
+ * @note    驱动层只描述“士林 VFD 的通信协议和 IO 控制方式”，
  *          不包含任何业务机构名称（刷子/龙门）。
- *          调用方（bsp_hal）负责持有实例并提供具体引脚配置。
+ *          调用方负责持有实例并提供具体引脚配置。
  */
 
 #ifndef DRV_VFD_H
@@ -108,7 +108,7 @@ drv_vfd_state_t drv_vfd_get_state(const drv_vfd_t *vfd);
  * @brief  读取 VFD 故障码（Modbus 寄存器 0x2102）
  * @param  vfd     VFD 句柄
  * @param  p_code  输出故障码（0=无故障；Modbus 通信失败时保持原值不变）
- * @retval SW_OK / SW_ERR_COMM（通信失败，*p_code 不可信，旧实现用 0 掩盖此错误）
+ * @retval SW_OK / SW_ERR_COMM（通信失败，*p_code 不可信）
  */
 sw_err_t drv_vfd_get_fault_code(drv_vfd_t *vfd, uint16_t *p_code);
 

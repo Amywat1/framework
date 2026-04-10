@@ -1,6 +1,6 @@
 /**
  * @file    hal_sensor_linux.c
- * @brief   传感器 HAL 端口 — Linux 真机实现（限位/急停/编码器/VFD故障）
+ * @brief   传感器 HAL 端口的 Linux 真机实现
  * @author  胡望伟
  * @date    2026-04-10
  */
@@ -85,9 +85,9 @@ static sw_err_t m8_get_vfd_fault_code(hal_vfd_id_t vfd_id, uint16_t *p_code)
 }
 
 /* -------------------------------------------------------------------------
- * VFD 故障轮询（由报警轮询定期调用，替代旧 bsp_alarm.c 的 m8_vfd_read）
+ * VFD 故障轮询钩子，由报警轮询路径定期调用。
  *
- * 触发链：Phase 4 的 m8_alarm_adapt 在 alarm_core 轮询回调中调用此函数，
+ * m8_alarm_adapt 会在 alarm_core 的轮询回调中调用此函数。
  * 读取故障码后通过 event_bus 发布 EVT_HW_VFD_BRUSH_FAULT / GANTRY_FAULT。
  * 通信失败时只记录日志，不误报故障（避免 Modbus 抖动触发报警）。
  * ------------------------------------------------------------------------- */

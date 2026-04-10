@@ -4,12 +4,11 @@
  * @author  胡望伟
  * @date    2026-04-10
  *
- * @note    替代旧架构 app_debug_ctl / alarm_debug_ctl / bsp_debug_ctl / param_debug_ctl。
- *          各域功能：
- *            device  — 设备状态查询与命令下发（对应旧 app 域）
- *            safety  — 报警/急停状态查询与复位（对应旧 alarm 域）
- *            param   — 参数读写持久化（保留原有接口）
- *            diag    — 硬件直控调试（对应旧 bsp 域）
+ * @note    提供统一的 CLI 命令入口。
+ *          device  - 设备状态查询与命令下发
+ *          safety  - 报警与急停状态查询、复位
+ *          param   - 参数读写与持久化
+ *          diag    - 底层硬件诊断
  */
 
 #include "adapters/ui/cli/cli_commands.h"
@@ -164,7 +163,7 @@ int param_cmd_handler(char *subcmd, char *p1, char *p2)
 }
 
 /* -------------------------------------------------------------------------
- * diag 命令域（硬件直控，替代旧 bsp 域）
+ * diag 命令域（底层硬件诊断）
  * ------------------------------------------------------------------------- */
 int diag_cmd_handler(char *subcmd, char *p1, char *p2)
 {

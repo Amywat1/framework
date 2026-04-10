@@ -1,11 +1,10 @@
 /**
  * @file    wiring_sim.c
- * @brief   依赖注入实现（PC 仿真：sim_hw HAL 适配器）
+ * @brief   仿真构建的依赖接线实现
  * @author  胡望伟
  * @date    2026-04-10
  *
- * @note    BUILD_SIM=ON 时替换 wiring.c。
- *          只注册仿真 HAL、JSON 存储和命令桥接，不注册真机硬件或云端适配器。
+ * @note    注册仿真 HAL、JSON 存储以及 BUILD_SIM 使用的命令桥接实现。
  */
 
 #include "core/bootstrap/wiring.h"

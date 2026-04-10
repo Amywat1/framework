@@ -1,11 +1,11 @@
 /**
  * @file    m8_boot_profile.c
- * @brief   M8 上电安全初始化（所有输出置安全状态 + IO 子板就绪等待）
+ * @brief   M8 上电安全初始化
  * @author  胡望伟
  * @date    2026-04-10
  *
- * @note    在 bootstrap 序列中尽早调用，替代原 bsp_init.c 中的 sleep(2) 硬等待。
- *          关键改进：轮询检测 IO 子板就绪，而非无条件等待固定时间。
+ * @note    在 bootstrap 早期执行。
+ *          通过轮询等待 IO 子板就绪，并在正常启动前强制所有输出进入安全状态。
  */
 
 #include "adapters/machine/m8/m8_machine_map.h"
@@ -63,7 +63,7 @@ static void m8_set_all_outputs_safe(void)
 }
 
 /**
- * @brief  等待所有 IO 子板上线（轮询替代 sleep(2)）
+ * @brief  等待所有 IO 子板就绪
  * @retval SW_OK        所有子板就绪
  * @retval SW_ERR_TIMEOUT 超时（可降级运行或报错）
  */
@@ -113,7 +113,7 @@ sw_err_t m8_boot_profile_init(void)
 {
     sw_err_t io_ret;
 
-    /* 1. 等待 IO 子板就绪（替代原 sleep(2)）*/
+    /* 1. 等待 IO 子板就绪 */
     io_ret = m8_wait_io_ready();
     if (io_ret != SW_OK)
     {

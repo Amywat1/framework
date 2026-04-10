@@ -1,12 +1,10 @@
 /**
  * @file    cli_adapter.cpp
- * @brief   CLI 命令域注册（C++ 实现，使用 snack cli:: 命名空间）
+ * @brief   CLI 命令域注册
  * @author  胡望伟
  * @date    2026-04-10
  *
- * @note    替代旧架构 app_main.cpp 中的 cli::add() 注册。
- *          新命令域：device / safety / param / diag
- *          （替代旧域：app / alarm / param / bsp）
+ * @note    注册 device、safety、param、diag 四个命令域。
  */
 
 #include "adapters/ui/cli/cli_commands.h"

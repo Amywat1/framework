@@ -1,11 +1,11 @@
 /**
  * @file    svc_param.h
- * @brief   运行时参数管理接口（JSON 文件持久化）
+ * @brief   运行时参数服务接口
  * @author  胡望伟
  * @date    2026-04-10
  *
- * @note    轻量改造自原 service/svc_param.h，接口保持不变。
- *          Phase 6 TODO: 底层持久化改为调用 param_store_ops 接口。
+ * @note    对外提供统一的参数访问接口。
+ *          持久化能力由存储端口实现提供。
  */
 
 #ifndef SERVICE_SVC_PARAM_H

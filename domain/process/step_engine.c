@@ -93,7 +93,7 @@ static sw_err_t apply_step(const wash_step_config_t *s, uint16_t brush_freq)
             LOG_ERROR("step_engine: top_lift_down_start failed ret=%d", (int)ret);
             return ret;
         }
-        /* 等待下限位触发（HAL Phase 3 同步实现会在 EVT 发出前阻塞，此处兜底轮询）*/
+        /* 兜底保护：等待下限位生效。 */
         ret = wait_lift_bottom();
         if (ret != SW_OK)
         {

@@ -1,26 +1,11 @@
 /**
  * @file    sim_main.c
- * @brief   M8 PC 仿真入口（BUILD_SIM=ON 时替代 snack 框架的 app_main）
+ * @brief   BUILD_SIM 使用的 PC 仿真入口
  * @author  胡望伟
  * @date    2026-04-10
  *
- * @note    程序启动流程：
- *            1. bootstrap_run() — 完整初始化序列（跳过真机硬件步骤）
- *            2. sim_console_start() — 启动交互控制台线程（stdin 命令）
- *            3. 主线程阻塞，真实工作由 scheduler 启动的各线程完成
- *
- *          可用控制台命令（由 sim_console.c 实现）：
- *            sensor fwd [0|1]   — 设置前限位
- *            sensor rev [0|1]   — 设置后限位
- *            sensor estop [0|1] — 设置急停
- *            sensor lift_top [0|1]    — 顶刷上限位
- *            sensor lift_bottom [0|1] — 顶刷下限位
- *            encoder [+N|-N]    — 注入码盘脉冲
- *            cmd order [0|1]    — 注入启动洗车命令
- *            cmd stop           — 注入停止洗车命令
- *            cmd reset          — 注入故障复位命令
- *            state              — 打印设备状态快照
- *            quit               — 退出仿真
+ * @note    启动 bootstrap，拉起仿真控制台，
+ *          后续后台工作由 scheduler 管理的线程完成。
  */
 
 #include "core/bootstrap/bootstrap.h"

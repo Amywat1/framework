@@ -1,7 +1,7 @@
 /**
  * @file    drv_io.h
  * @brief   CAN IO 子板驱动接口（封装 io_exp SDK，统一使用图纸 DO/DI 编号）
- * @author  HUWANGWEI
+ * @author  胡望伟
  * @date    2026-04-07
  *
  * @note    IO 地址编码规则：io_id = board_id × 100 + pin（pin 从 1 开始）
@@ -20,7 +20,7 @@ extern "C" {
 #include "common/sw_error.h"
 
 /* -------------------------------------------------------------------------
- * IO 地址编解码（内部使用，bsp 层不需要直接调用）
+ * IO 地址编解码（内部使用）
  * ------------------------------------------------------------------------- */
 #define DRV_IO_BOARD_VAL        100
 #define DRV_IO_BOARD_ID(io_id)  ((io_id) / DRV_IO_BOARD_VAL)
@@ -115,7 +115,7 @@ void drv_io_register_input_cb(void (*cb)(int io_id, bool state));
 bool drv_io_board_is_online(int board_id);
 
 /**
- * @brief  注册子板在线状态变化回调（供 bsp_hal 路由到报警系统）
+ * @brief  注册子板在线状态变化回调
  * @param  cb  回调函数：board_id，offline=true 表示掉线，false 表示恢复
  */
 void drv_io_register_board_error_cb(void (*cb)(int board_id, bool offline));

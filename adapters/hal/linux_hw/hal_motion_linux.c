@@ -87,10 +87,9 @@ static sw_err_t m8_brush_fault_reset(void)
 }
 
 /* -------------------------------------------------------------------------
- * 顶刷升降（Phase 3：同步实现，Phase 5 改为异步 stepper_thread）
+ * 顶刷升降当前在调用线程中同步执行。
  *
- * TODO Phase 5: lift_up_start / lift_down_start 移至 stepper_thread 执行，
- *               函数调用应立即返回，stepper_thread 完成后发 EVT_COMP_LIFT_DONE。
+ * 动作完成后发布 EVT_COMP_LIFT_DONE 事件。
  * ------------------------------------------------------------------------- */
 static sw_err_t m8_lift_up_start(uint32_t pulses)
 {
@@ -118,7 +117,7 @@ static sw_err_t m8_lift_up_start(uint32_t pulses)
 
     (void)drv_stepper_disable();
     (void)event_publish(EVT_COMP_LIFT_DONE, (uint32_t)ret);
-    return SW_OK;  /* Phase 3 同步实现：完成后发 EVT_COMP_LIFT_DONE 再返回 */
+    return SW_OK;  /* 当前行为：先发布 EVT_COMP_LIFT_DONE，再返回 */
 }
 
 static sw_err_t m8_lift_down_start(uint32_t pulses)

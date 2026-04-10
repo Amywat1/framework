@@ -1,20 +1,11 @@
 /**
  * @file    device_fsm.h
- * @brief   设备顶层有限状态机接口（事件驱动）
+ * @brief   设备状态机接口
  * @author  胡望伟
  * @date    2026-04-10
  *
- * @note    状态转移完全由事件驱动，在 event_dispatch_thread 上下文执行。
- *          不使用独立轮询线程（与原 app_fsm.c 的 100ms 循环不同）。
- *
- *          状态机：
- *            INIT  → IDLE（init 完成后直接置位）
- *            IDLE  → RUN    （EVT_CMD_ORDER）
- *            IDLE  → STOP   （EVT_CMD_STOP_OPERATION）
- *            RUN   → IDLE   （EVT_WASH_DONE，经 COMPLETE 动作）
- *            RUN   → FAULT  （EVT_WASH_ABORTED / EVT_SAFETY_LOCKOUT）
- *            FAULT → IDLE   （EVT_CMD_RESET_FAULT，报警清除后）
- *            STOP  → IDLE   （EVT_CMD_RESUME_OPERATION）
+ * @note    状态切换由事件驱动完成，
+ *          不依赖独立轮询线程。
  */
 
 #ifndef APPLICATION_DEVICE_FSM_H

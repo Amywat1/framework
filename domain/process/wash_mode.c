@@ -13,8 +13,7 @@ static wash_mode_t s_mode = WASH_MODE_STANDARD;
 sw_err_t wash_mode_init(void)
 {
     /*
-     * Phase 4：使用编译期默认值（STANDARD）。
-     * Phase 5：改为从 svc_param 读取持久化模式。
+     * 当前使用编译期默认模式 `WASH_MODE_STANDARD`。
      */
     s_mode = WASH_MODE_STANDARD;
     LOG_INFO("wash_mode: init ok, default=%d", (int)s_mode);

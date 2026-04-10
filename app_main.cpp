@@ -1,12 +1,12 @@
 /**
  * @file    app_main.cpp
- * @brief   应用入口（snack 框架回调 app_main，非 main）
+ * @brief   应用入口回调（snack 运行时调用的 app_main，而非 main）
  * @author  胡望伟
  * @date    2026-04-10
  *
- * @note    新架构入口：调用 bootstrap_run() 完成所有初始化和线程启动。
- *          CLI 注册由 bootstrap 调用 cli_adapter_init()（见 bootstrap.c 步骤 19）。
- *          IO 日志和 frp 远程端口设置在此层完成（snack SDK 相关，不属于 bootstrap 职责）。
+ * @note    调用 bootstrap_run() 完成模块初始化与工作线程启动。
+ *          CLI 注册由 bootstrap 统一完成。
+ *          IO 日志与 FRP 远程端口设置保留在本层，因为它们依赖 snack 运行时。
  */
 
 #include "core/bootstrap/bootstrap.h"

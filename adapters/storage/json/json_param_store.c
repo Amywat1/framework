@@ -1,11 +1,10 @@
 /**
  * @file    json_param_store.c
- * @brief   JSON 文件参数存储适配器实现
+ * @brief   基于 JSON 的参数存储适配器实现
  * @author  胡望伟
  * @date    2026-04-10
  *
- * @note    原 service/svc_param.c 中的 cJSON 文件读写逻辑迁移至此。
- *          svc_param 通过 param_store_ops 接口访问本适配器，与存储细节解耦。
+ * @note    通过 param_store 端口访问本适配器，使上层不感知底层存储细节。
  */
 
 #include "adapters/storage/json/json_param_store.h"

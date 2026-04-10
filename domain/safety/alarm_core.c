@@ -1,12 +1,11 @@
 /**
  * @file    alarm_core.c
- * @brief   报警核心引擎实现（防抖 / 等级 / 恢复策略）
+ * @brief   报警核心引擎实现
  * @author  胡望伟
  * @date    2026-04-10
  *
- * @note    配置表内嵌在本文件中，机型特定触发逻辑通过回调注入。
- *          tick_ms 由 io_poll_thread 每 ALARM_POLL_PERIOD_MS 调用；
- *          set_raw_trigger / set_state 可从任意线程调用（内部 mutex 保护）。
+ * @note    报警表编译期内嵌在本文件中。
+ *          机型相关的触发采集逻辑通过回调注入。
  */
 
 #include "domain/safety/alarm_core.h"
@@ -17,7 +16,7 @@
 #include <pthread.h>
 
 /* -------------------------------------------------------------------------
- * 报警配置表（编译期只读，内嵌替代 config/alarm_config.h）
+ * 报警表（编译期只读）
  * 首行必须是急停（ALARM_CODE_ESTOP），trigger_ms=0 保证立即激活
  * ------------------------------------------------------------------------- */
 static const alarm_entry_t s_table[] = {

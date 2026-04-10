@@ -1,10 +1,10 @@
 /**
  * @file    hal_sensor_port.h
- * @brief   传感器 / 状态查询 HAL 端口接口
+ * @brief   传感器与状态查询 HAL 端口接口
  * @author  胡望伟
  * @date    2026-04-10
  *
- * @note    包含限位开关、急停、龙门编码器位置、VFD 故障码查询。
+ * @note    包含限位开关、急停、龙门位置以及 VFD 故障码查询接口。
  */
 
 #ifndef PORTS_HAL_SENSOR_PORT_H
@@ -57,7 +57,7 @@ typedef struct
 
     /**
      * @brief  轮询 VFD 故障并发布事件（由报警轮询定期调用）
-     * @note   Phase 3 桩位：Phase 4 的 m8_alarm_adapt 调用此函数替代旧 m8_vfd_read
+     * @note   由报警轮询路径调用，用于查询 VFD 故障并发布相关事件。
      */
     void (*poll_vfd_faults)(void);
 } hal_sensor_ops_t;

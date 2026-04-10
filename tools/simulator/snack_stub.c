@@ -1,14 +1,11 @@
 /**
  * @file    snack_stub.c
- * @brief   snack SDK 桩实现（BUILD_SIM=ON 时替代真实 snack 库）
+ * @brief   BUILD_SIM 使用的 snack SDK 兼容桩
  * @author  胡望伟
  * @date    2026-04-10
  *
- * @note    sim 构建不链接 snack SDK，但 common/log.h 依赖其日志函数。
- *          本文件提供 4 个日志函数的 printf 实现，以及其他可能被
- *          编译器拉入的 snack 符号的空桩。
- *
- *          只提供 sim 构建实际链接所需的符号，不穷举 snack API。
+ * @note    仿真构建不会链接 snack SDK。
+ *          本文件提供 common/log.h 所需的最小符号集合。
  */
 
 #include "middleware/snack_wrapper.h"

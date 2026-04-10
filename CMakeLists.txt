@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.10.0)
 
-# BUILD_SIM=ON 时构建 PC 模拟器目标（M8_sim），替换 bsp/driver 为 sim/ 桩
+# BUILD_SIM=ON 时构建 PC 模拟器目标（M8_sim），使用仿真实现与兼容桩
 option(BUILD_SIM "Build PC wash-engine simulator (no hardware)" OFF)
 
 project(M8 VERSION 0.1.0 LANGUAGES C CXX)
@@ -63,7 +63,7 @@ add_compile_options(
 
 # -------------------------------------------------------
 # 源文件（GLOB_RECURSE + CONFIGURE_DEPENDS 保证增删文件后自动重配）
-# 旧架构目录（app/ bsp/ component/ service/）已在 C-2 阶段清理完毕
+# 源码按模块组织在仓库根目录
 # -------------------------------------------------------
 file(GLOB_RECURSE src CONFIGURE_DEPENDS
     app_main.cpp
@@ -125,7 +125,7 @@ endif() # NOT BUILD_SIM
 
 # ======================================================================
 # PC 模拟器目标（BUILD_SIM=ON）
-# 新架构：adapters/hal/sim_hw/ 提供 HAL 仿真实现，无需嵌入式 SDK
+# adapters/hal/sim_hw/ 提供 HAL 仿真实现，不依赖嵌入式 SDK
 # 用法：cmake -B build_sim -DBUILD_SIM=ON && cmake --build build_sim
 #
 # 注：仿真源文件齐全（sim_hw/ + bootstrap + wiring_sim 等），
@@ -174,7 +174,7 @@ if(BUILD_SIM)
         core/scheduler/*.c
         core/runtime/*.c
 
-        # bootstrap：bootstrap.c 含 BUILD_SIM 隔离，wiring_sim.c 替代 wiring.c
+        # 仿真构建使用 wiring_sim.c 完成依赖接线
         core/bootstrap/bootstrap.c
         core/bootstrap/wiring_sim.c
 

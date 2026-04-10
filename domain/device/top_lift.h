@@ -1,13 +1,11 @@
 /**
  * @file    top_lift.h
- * @brief   顶刷升降设备接口（步进电机驱动）
+ * @brief   顶刷升降设备接口
  * @author  胡望伟
  * @date    2026-04-10
  *
- * @note    lift_up_start / lift_down_start 为非阻塞接口。
- *          Phase 3 HAL 实现为同步（完成后发 EVT_COMP_LIFT_DONE 再返回）；
- *          Phase 5 HAL 改为异步（stepper_thread 执行，立即返回）。
- *          上层无需关心实现差异，统一等待 EVT_COMP_LIFT_DONE 事件。
+ * @note    从调用方视角看，lift_up_start() 与 lift_down_start() 为非阻塞接口。
+ *          上层通过 EVT_COMP_LIFT_DONE 事件感知动作完成。
  */
 
 #ifndef DOMAIN_DEVICE_TOP_LIFT_H

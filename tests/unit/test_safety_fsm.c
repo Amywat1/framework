@@ -4,17 +4,8 @@
  * @author  胡望伟
  * @date    2026-04-10
  *
- * @note    测试策略（简化版，非完整集成验证）：
- *          1. 直接操作 alarm_core 置位/清除报警（不经 event_bus 异步路径）
- *          2. 手动调用 safety_fsm_reevaluate() 模拟事件 handler 被调用的效果
- *          3. 验证 safety_fsm_get_state() 状态转移正确
- *
- *          简化说明：
- *          真实路径是 alarm_core → event_publish → event_dispatch_thread →
- *          on_alarm_triggered → do_reevaluate。
- *          此处绕过 event_bus 异步分发，直接调用 reevaluate，
- *          避免单测中启动线程带来的非确定性。
- *          完整事件驱动路径由 tests/scenario/ 级集成测试覆盖。
+ * @note    本测试直接驱动 alarm_core，并显式调用 safety_fsm_reevaluate()，
+ *          避免启动线程和异步分发带来的不确定性。
  */
 
 #include "domain/safety/safety_fsm.h"
@@ -27,7 +18,7 @@
 
 /* -------------------------------------------------------------------------
  * 测试辅助：模拟报警激活后手动触发 safety_fsm 重评估
- * （替代 event_dispatch_thread 的作用，单测中不启动线程）
+ * 单测中不启动异步分发线程，直接调用重评估入口。
  * ------------------------------------------------------------------------- */
 static void activate_alarm_and_eval(uint16_t code, bool just_notice)
 {

@@ -1,13 +1,11 @@
 /**
  * @file    hal_motion_port.h
- * @brief   运动控制 HAL 端口接口（龙门 / 刷子 / 顶刷升降）
+ * @brief   运动控制 HAL 端口接口
  * @author  胡望伟
  * @date    2026-04-10
  *
- * @note    domain/ 和 application/ 通过此接口控制运动机构，
- *          不依赖任何具体驱动或硬件 SDK。
- *          真机实现：adapters/hal/linux_hw/hal_motion_linux.c
- *          仿真实现：adapters/hal/sim_hw/hal_motion_sim.c
+ * @note    供 domain 与 application 控制龙门、刷子和顶刷升降使用，
+ *          不直接依赖具体驱动或 SDK。
  */
 
 #ifndef PORTS_HAL_MOTION_PORT_H
@@ -71,10 +69,8 @@ typedef struct
      * @brief  顶刷上升，直到上限位触发，完成后发布 EVT_COMP_LIFT_DONE
      * @param  pulses  最大脉冲数（0 = 使用配置默认值）
      *
-     * @note   Phase 3 实现：在调用线程（wash_worker_thread）内同步执行，
+     * @note   当前实现运行在调用线程（`wash_worker_thread`）中。
      *         分批发脉冲并检查限位，完成后发 EVT_COMP_LIFT_DONE 再返回。
-     *         Phase 5 TODO：改为向 stepper_thread 投递命令，函数立即返回，
-     *         事件由 stepper_thread 完成后异步发布。
      */
     sw_err_t (*lift_up_start)(uint32_t pulses);
 
@@ -82,7 +78,7 @@ typedef struct
      * @brief  顶刷下降指定脉冲数，完成后发布 EVT_COMP_LIFT_DONE
      * @param  pulses  脉冲数（0 = 使用 M8_LIFT_DOWN_DEF_PULSES 默认值）
      *
-     * @note   同 lift_up_start，Phase 3 同步实现，Phase 5 异步化。
+     * @note   当前实现与 `lift_up_start` 的行为一致。
      */
     sw_err_t (*lift_down_start)(uint32_t pulses);
 } hal_motion_ops_t;
