@@ -17,9 +17,12 @@
 #include "common/event_types.h"
 #include "common/log.h"
 #include <pthread.h>
+#include <stdbool.h>
 
-static dev_state_t     s_state = DEV_STATE_INIT;
-static pthread_mutex_t s_mutex = PTHREAD_MUTEX_INITIALIZER;
+static dev_state_t     s_state       = DEV_STATE_INIT;
+static pthread_mutex_t s_mutex       = PTHREAD_MUTEX_INITIALIZER;
+/* true = 当前中止是用户主动发起（而非故障），EVT_WASH_ABORTED 时转 IDLE 而非 FAULT */
+static bool            s_manual_stop = false;
 
 /* -------------------------------------------------------------------------
  * 内部辅助
@@ -159,18 +162,46 @@ static void on_wash_done(const event_t *evt)
     LOG_INFO("device_fsm: RUN → IDLE (wash done)");
 }
 
-/* EVT_WASH_ABORTED */
-static void on_wash_aborted(const event_t *evt)
+/* EVT_CMD_STOP_WASH：用户主动停止当前洗车 */
+static void on_cmd_stop_wash(const event_t *evt)
 {
     (void)evt;
     if (get_state() != DEV_STATE_RUN)
     {
+        LOG_WARN("device_fsm: STOP_WASH ignored (not RUN)");
         return;
     }
-    set_state(DEV_STATE_FAULT);
-    (void)gate_block();
-    (void)gate_set_light(HAL_LIGHT_RED);
-    LOG_WARN("device_fsm: RUN → FAULT (wash aborted, reason=%u)", (unsigned)evt->param);
+    s_manual_stop = true; /* 标记为主动停止，EVT_WASH_ABORTED 时转 IDLE */
+    wash_orchestrator_abort();
+    LOG_INFO("device_fsm: manual stop requested");
+}
+
+/* EVT_WASH_ABORTED */
+static void on_wash_aborted(const event_t *evt)
+{
+    if (get_state() != DEV_STATE_RUN)
+    {
+        return;
+    }
+
+    if (s_manual_stop)
+    {
+        /* 用户主动停止：恢复 IDLE，开放入口 */
+        s_manual_stop = false;
+        (void)gate_allow();
+        (void)gate_set_light(HAL_LIGHT_GREEN);
+        set_state(DEV_STATE_IDLE);
+        LOG_INFO("device_fsm: RUN → IDLE (manual stop)");
+    }
+    else
+    {
+        /* 故障导致中止：进入 FAULT，等待复位 */
+        set_state(DEV_STATE_FAULT);
+        (void)gate_block();
+        (void)gate_set_light(HAL_LIGHT_RED);
+        LOG_WARN("device_fsm: RUN → FAULT (wash aborted reason=%u)",
+                 (unsigned)evt->param);
+    }
 }
 
 /* EVT_SAFETY_LOCKOUT：紧急停机 */
@@ -200,6 +231,8 @@ sw_err_t device_fsm_init(void)
     (void)gate_set_light(HAL_LIGHT_GREEN);
 
     ret = event_subscribe(EVT_CMD_ORDER,              on_cmd_order);
+    if (ret != SW_OK) { return ret; }
+    ret = event_subscribe(EVT_CMD_STOP_WASH,          on_cmd_stop_wash);
     if (ret != SW_OK) { return ret; }
     ret = event_subscribe(EVT_CMD_STOP_OPERATION,     on_cmd_stop_op);
     if (ret != SW_OK) { return ret; }

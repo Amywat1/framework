@@ -7,21 +7,23 @@
  * 初始化顺序（严格，每步失败则中止）：
  *   1.  time_util_init()            — 时间戳基准，event_bus 入队依赖
  *   2.  event_bus_init()            — 事件总线，后续所有模块可发布/订阅
- *   3.  wiring()                    — 注册所有 port→adapter（依赖注入）
- *   4.  svc_param_init()            — 加载持久化参数（允许文件缺失）
- *   5.  dev_ctx_init()              — 设备状态快照清零
- *   6.  m8_boot_profile_init()      — IO 子板就绪等待 + 输出安全态
- *   7.  alarm_core_init()           — 报警引擎清零
- *   8.  m8_alarm_adapt_init()       — 注册 M8 IO 轮询和急停复位回调
- *   9.  safety_fsm_init()           — 安全状态机（订阅报警事件）
- *   10. domain/device init          — brush/gantry/top_lift/water/gate
- *   11. safety_supervisor_init()    — 安全监督者（订阅安全事件）
- *   12. device_fsm_init()           — 设备 FSM（订阅命令/安全/流程事件）
- *   13. wash_orchestrator_init()    — 洗车编排器（注册 worker_thread）
- *   14. report_aggregator_init()    — 上报聚合器（注册 cloud_thread）
- *   15. 注册 event_dispatch_thread
- *   16. 注册 io_poll_thread
- *   17. scheduler_start_all()       — 创建所有线程
+ *   3.  drv_io_init()               — IO 子板 CAN 驱动（后续所有 DO/DI 操作的基础）
+ *   4.  wiring()                    — port→adapter 依赖注入（仅做注册，不做硬件初始化）
+ *   5.  m8_linux_hw_init()          — M8 硬件上下文初始化（VFD Modbus + 步进驱动，依赖 drv_io）
+ *   6.  svc_param_init()            — 加载持久化参数（允许文件缺失，降级默认值）
+ *   7.  dev_ctx_init()              — 设备状态快照清零
+ *   8.  m8_boot_profile_init()      — 等待 IO 子板就绪 + 所有 DO 置安全态
+ *   9.  alarm_core_init()           — 报警引擎清零
+ *   10. m8_alarm_adapt_init()       — 注册 M8 IO 轮询和急停复位回调
+ *   11. safety_fsm_init()           — 安全状态机（订阅报警事件）
+ *   12. domain/device init          — brush/gantry/top_lift/water/gate
+ *   13. safety_supervisor_init()    — 安全监督者（订阅安全事件）
+ *   14. device_fsm_init()           — 设备 FSM（订阅命令/安全/流程事件）
+ *   15. wash_orchestrator_init()    — 洗车编排器（注册 worker_thread）
+ *   16. report_aggregator_init()    — 上报聚合器（注册 cloud_thread）
+ *   17. 注册 event_dispatch_thread
+ *   18. 注册 io_poll_thread
+ *   19. scheduler_start_all()       — 创建所有线程
  */
 
 #include "core/bootstrap/bootstrap.h"
@@ -43,7 +45,9 @@
 #include "application/orchestrators/wash_orchestrator.h"
 #include "application/orchestrators/report_aggregator.h"
 #include "adapters/machine/m8/m8_alarm_adapt.h"
-#include "adapters/machine/m8/m8_boot_profile.h"  /* 声明 m8_boot_profile_init */
+#include "adapters/machine/m8/m8_boot_profile.h"
+#include "adapters/hal/linux_hw/m8_hal_ctx.h"
+#include "driver/drv_io.h"
 #include "config/threading/thread_config.h"
 #include "common/time_util.h"
 #include "common/log.h"
@@ -99,10 +103,16 @@ sw_err_t bootstrap_run(void)
     /* 2. 事件总线 */
     BOOT_CHECK(event_bus_init(), "event_bus_init");
 
-    /* 3. 依赖注入 */
+    /* 3. IO 子板 CAN 驱动（所有 DO/DI 操作的基础）*/
+    BOOT_CHECK(drv_io_init(), "drv_io_init");
+
+    /* 4. 依赖注入：注册所有 port→adapter（纯注册，无硬件操作）*/
     BOOT_CHECK(wiring(), "wiring");
 
-    /* 4. 参数管理（允许文件缺失，降级使用默认值）*/
+    /* 5. M8 硬件上下文：VFD Modbus 通道 + 步进驱动（依赖 drv_io 已就绪）*/
+    BOOT_CHECK(m8_linux_hw_init(), "m8_linux_hw_init");
+
+    /* 6. 参数管理（允许文件缺失，降级使用默认值）*/
     {
         sw_err_t r = svc_param_init();
         if ((r != SW_OK) && (r != SW_ERR_STORAGE))
@@ -112,55 +122,55 @@ sw_err_t bootstrap_run(void)
         }
     }
 
-    /* 5. 设备状态快照 */
+    /* 7. 设备状态快照 */
     BOOT_CHECK(dev_ctx_init(), "dev_ctx_init");
 
-    /* 6. 上电安全初始化（IO 子板就绪 + 输出安全态）*/
+    /* 8. 上电安全初始化（等待 IO 子板就绪 + 所有 DO 置安全态）*/
     BOOT_CHECK(m8_boot_profile_init(), "m8_boot_profile_init");
 
-    /* 7. 报警引擎 */
+    /* 9. 报警引擎 */
     BOOT_CHECK(alarm_core_init(), "alarm_core_init");
 
-    /* 8. 注册 M8 报警适配回调 */
+    /* 10. 注册 M8 报警适配回调 */
     BOOT_CHECK(m8_alarm_adapt_init(), "m8_alarm_adapt_init");
 
-    /* 9. 安全状态机 */
+    /* 11. 安全状态机 */
     BOOT_CHECK(safety_fsm_init(), "safety_fsm_init");
 
-    /* 10. 设备组件 */
+    /* 12. 设备组件 */
     BOOT_CHECK(brush_init(),    "brush_init");
     BOOT_CHECK(gantry_init(),   "gantry_init");
     BOOT_CHECK(top_lift_init(), "top_lift_init");
     BOOT_CHECK(water_init(),    "water_init");
     BOOT_CHECK(gate_init(),     "gate_init");
 
-    /* 11. 安全监督者 */
+    /* 13. 安全监督者 */
     BOOT_CHECK(safety_supervisor_init(), "safety_supervisor_init");
 
-    /* 12. 设备 FSM */
+    /* 14. 设备 FSM */
     BOOT_CHECK(device_fsm_init(), "device_fsm_init");
 
-    /* 13. 洗车编排器 */
+    /* 15. 洗车编排器 */
     BOOT_CHECK(wash_orchestrator_init(), "wash_orchestrator_init");
 
-    /* 14. 上报聚合器 */
+    /* 16. 上报聚合器 */
     BOOT_CHECK(report_aggregator_init(), "report_aggregator_init");
 
-    /* 15. 注册 event_dispatch_thread */
+    /* 17. 注册 event_dispatch_thread */
     BOOT_CHECK(thread_register("event_dispatch",
                                event_dispatch_thread_fn,
                                SCHED_OTHER, 0,
                                THD_EVENT_DISPATCH_STACK),
                "register event_dispatch_thread");
 
-    /* 16. 注册 io_poll_thread */
+    /* 18. 注册 io_poll_thread */
     BOOT_CHECK(thread_register("io_poll",
                                io_poll_thread_fn,
                                SCHED_OTHER, 0,
                                THD_IO_POLL_STACK),
                "register io_poll_thread");
 
-    /* 17. 启动所有线程 */
+    /* 19. 启动所有线程 */
     BOOT_CHECK(scheduler_start_all(), "scheduler_start_all");
 
     LOG_INFO("bootstrap: system started successfully");
