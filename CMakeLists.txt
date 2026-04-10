@@ -81,7 +81,8 @@ list(FILTER src EXCLUDE REGEX ".*/sim/.*")
 add_executable(${PROJECT_NAME} ${src})
 
 target_include_directories(${PROJECT_NAME} PRIVATE
-    ${CMAKE_SOURCE_DIR}                         # 项目根目录，使 app/ bsp/ 等路径可见
+    ${CMAKE_SOURCE_DIR}                         # 项目根目录，使 app/ bsp/ common/ 等旧路径可见
+    ${CMAKE_SOURCE_DIR}/src                     # 新架构根目录，使 domain/ ports/ adapters/ 等路径可见
     /usr/local/include/snack
     /usr/local/include/snack/canfestival
     ${BLE_LIB_INCLUDE_DIRS}
