@@ -25,11 +25,16 @@
 /* -------------------------------------------------------------------------
  * 测试辅助：volatile 标志（C99 无 stdatomic，用 volatile + usleep 保证可见性）
  * ------------------------------------------------------------------------- */
-static volatile int g_h1_called;
-static volatile int g_h2_called;
-static volatile int g_h1_call_count;
+static volatile int      g_h1_called;
+static volatile int      g_h2_called;
+static volatile int      g_h1_call_count;
 static volatile uint32_t g_h1_param;
 static volatile uint32_t g_h1_timestamp;
+
+/* FIFO 顺序验证用 */
+#define FIFO_LOG_MAX  8
+static volatile uint32_t g_fifo_log[FIFO_LOG_MAX];
+static volatile int      g_fifo_log_count;
 
 static void handler1(const event_t *evt)
 {
@@ -43,6 +48,17 @@ static void handler2(const event_t *evt)
 {
     (void)evt;
     g_h2_called = 1;
+}
+
+/* FIFO 顺序记录 handler */
+static void fifo_handler(const event_t *evt)
+{
+    int idx = g_fifo_log_count; /* 读取快照避免多次访问 volatile */
+    if (idx < FIFO_LOG_MAX)
+    {
+        g_fifo_log[idx] = evt->param;
+        g_fifo_log_count = idx + 1;
+    }
 }
 
 /* dispatch 线程入口（可被 pthread_cancel 取消，sem_wait 是取消点）*/
@@ -139,26 +155,35 @@ static void test_multi_subscriber(void)
 }
 
 /* =========================================================================
- * 用例 4：多个事件按 FIFO 顺序分发，全部到达
+ * 用例 4：多个事件按 FIFO 顺序分发，且 param 顺序严格一致
  * ========================================================================= */
 static void test_fifo_order(void)
 {
-    g_h1_call_count = 0;
+    g_fifo_log_count = 0;
+    memset((void *)g_fifo_log, 0, sizeof(g_fifo_log));
 
     event_bus_init();
-    assert(event_subscribe(EVT_CMD_ORDER, handler1) == SW_OK);
+    assert(event_subscribe(EVT_CMD_ORDER, fifo_handler) == SW_OK);
 
     pthread_t tid = start_dispatch();
 
-    event_publish(EVT_CMD_ORDER, 1U);
-    event_publish(EVT_CMD_ORDER, 2U);
-    event_publish(EVT_CMD_ORDER, 3U);
+    event_publish(EVT_CMD_ORDER, 10U);
+    event_publish(EVT_CMD_ORDER, 20U);
+    event_publish(EVT_CMD_ORDER, 30U);
     usleep(50000); /* 给 dispatch 足够时间处理 3 个事件 */
 
-    assert(g_h1_call_count == 3);
+    /* 验证数量 */
+    assert(g_fifo_log_count == 3);
+    /* 验证顺序 —— FIFO 要求与入队顺序完全一致 */
+    assert(g_fifo_log[0] == 10U);
+    assert(g_fifo_log[1] == 20U);
+    assert(g_fifo_log[2] == 30U);
 
     stop_dispatch(tid);
-    printf("PASS: test_fifo_order (3 events received)\n");
+    printf("PASS: test_fifo_order (order: %u %u %u)\n",
+           (unsigned)g_fifo_log[0],
+           (unsigned)g_fifo_log[1],
+           (unsigned)g_fifo_log[2]);
 }
 
 /* =========================================================================

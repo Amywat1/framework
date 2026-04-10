@@ -64,13 +64,35 @@ sw_err_t event_bus_init(void)
     memset(s_subs, 0, sizeof(s_subs));
     pthread_mutex_unlock(&s_sub_mutex);
 
-    /* 重置信号量（可重复调用）*/
-    if (s_sem_initialized)
+    /* 信号量初始化 / 重置
+     *
+     * PRE-CONDITION（调用方负责保证）：
+     *   调用此函数时 dispatch 线程必须已停止（不再阻塞于 sem_wait）。
+     *   若 dispatch 线程仍在运行时调用 sem_destroy，是 POSIX 未定义行为。
+     *
+     * 实现策略：
+     *   首次调用：sem_init 创建信号量。
+     *   后续调用：排空残余计数（不 destroy/recreate），避免 UB 风险。
+     */
+    if (!s_sem_initialized)
     {
-        sem_destroy(&s_sem);
+        if (sem_init(&s_sem, 0, 0) != 0)
+        {
+            EVT_LOG_ERROR("sem_init failed");
+            return SW_ERR_HW;
+        }
+        s_sem_initialized = 1;
     }
-    sem_init(&s_sem, 0, 0);
-    s_sem_initialized = 1;
+    else
+    {
+        /* 排空残余信号量计数（dispatch 已停止，sem_trywait 不会阻塞）*/
+        int val = 0;
+        sem_getvalue(&s_sem, &val);
+        for (int i = 0; i < val; i++)
+        {
+            sem_trywait(&s_sem);
+        }
+    }
 
     s_initialized = 1;
     return SW_OK;
@@ -109,7 +131,10 @@ sw_err_t event_publish(event_type_t type, uint32_t param)
 
     pthread_mutex_unlock(&s_q_mutex);
 
-    sem_post(&s_sem); /* 通知 dispatch 线程 */
+    if (sem_post(&s_sem) != 0) /* 通知 dispatch 线程 */
+    {
+        EVT_LOG_WARN("sem_post failed for EVT type=%d", (int)type);
+    }
     return SW_OK;
 }
 
@@ -127,6 +152,12 @@ sw_err_t event_subscribe(event_type_t type, event_handler_t handler)
 
     for (uint32_t i = 0; i < EVENT_BUS_MAX_SUBS_PER_EVT; i++)
     {
+        if (s_subs[type][i] == handler)
+        {
+            /* 重复订阅：幂等处理，直接返回 OK（不重复添加）*/
+            pthread_mutex_unlock(&s_sub_mutex);
+            return SW_OK;
+        }
         if (s_subs[type][i] == NULL)
         {
             s_subs[type][i] = handler;

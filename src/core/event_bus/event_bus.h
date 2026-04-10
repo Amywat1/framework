@@ -32,9 +32,11 @@ typedef void (*event_handler_t)(const event_t *evt);
  * ------------------------------------------------------------------------- */
 
 /**
- * @brief  初始化事件总线（清空队列和订阅表，可重复调用以复位）
- * @note   须在 time_util_init() 之后、所有 subscribe/publish 之前调用
- * @retval SW_OK
+ * @brief  初始化事件总线（清空队列和订阅表）
+ * @note   须在 time_util_init() 之后、dispatch 线程启动前调用。
+ *         若需重置（如测试场景），必须先停止 dispatch 线程再调用，
+ *         否则 sem 操作是 POSIX 未定义行为。
+ * @retval SW_OK / SW_ERR_HW（sem_init 失败）
  */
 sw_err_t event_bus_init(void);
 
