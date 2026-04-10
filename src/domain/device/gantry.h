@@ -67,19 +67,15 @@ bool gantry_at_rev_limit(void);
 
 /**
  * @brief  获取当前位置（码盘脉冲数，归位后为 0）
+ * @note   直接委托给 hal_sensor_get_ops()->get_gantry_pos()（Option A）；
+ *         位置由 HAL 层（m8_hal_ctx.c）通过编码器回调原子累加维护。
  */
 int32_t gantry_get_pos(void);
 
 /**
- * @brief  重置位置计数（归位完成后调用）
+ * @brief  重置位置计数（归位完成后由 home 逻辑调用）
  */
 void gantry_reset_pos(void);
-
-/**
- * @brief  码盘脉冲回调（由 IO 事件触发，在 IO 回调线程调用）
- * @note   使用原子操作，调用方无需加锁
- */
-void gantry_encoder_tick(void);
 
 #ifdef __cplusplus
 }

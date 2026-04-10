@@ -1,14 +1,17 @@
 /**
  * @file    m8_alarm_adapt.c
- * @brief   M8 机型报警适配（IO 轮询 / 驱动事件 / 急停复位回调）
+ * @brief   M8 机型报警适配（IO 轮询 / VFD 故障直报 / 急停复位回调）
  * @author  胡望伟
  * @date    2026-04-10
  *
  * @note    本文件是机型特定代码的集中地：
- *          ① m8_signal_poll()：IO 信号 → alarm_core_set_raw_trigger()（防抖）
- *          ② m8_vfd_fault_poll()：读取 VFD 故障码 → alarm_core_set_state()（直报）
- *          ③ m8_emc_reset()：急停复位序列（停机 → 关水 → 复位驱动 → 关闭入口）
- *          初始化时将三个回调注册到 alarm_core。
+ *          ① m8_signal_poll()：
+ *              - IO 信号 → alarm_core_set_raw_trigger()（防抖路径）
+ *              - 直接调用 get_vfd_fault_code() 读取 Modbus 故障寄存器，
+ *                通过 alarm_core_set_state() 进入安全域（直报路径）；
+ *              - 额外调用 poll_vfd_faults() 发布硬件事件供其他订阅者感知
+ *          ② m8_emc_reset()：急停复位序列（停机 → 关水 → 复位驱动 → 关闭入口）
+ *          初始化时将以上回调注册到 alarm_core。
  *
  *          依赖：alarm_core（domain）、hal_sensor/motion/water/indicator（ports）
  */
@@ -54,7 +57,42 @@ static void m8_signal_poll(void)
     alarm_core_set_raw_trigger(ALARM_CODE_LIFT_DOWN_LIM, false, true);
 #endif
 
-    /* VFD 故障轮询（由 hal_sensor 实现，内部读取 Modbus 寄存器并直接发事件）*/
+    /* VFD 故障直报：直接读取故障码，闭环进入 alarm_core 安全域 */
+    {
+        uint16_t code = 0U;
+        sw_err_t ret  = sensor->get_vfd_fault_code(HAL_VFD_GANTRY, &code);
+        if (ret == SW_OK)
+        {
+            alarm_core_set_state(ALARM_CODE_VFD_GANTRY, (code != 0U), false);
+            if (code != 0U)
+            {
+                LOG_WARN("m8_alarm_adapt: gantry VFD fault code=0x%04X", (unsigned)code);
+            }
+        }
+        else
+        {
+            /* Modbus 通信失败本身触发通信超时报警 */
+            alarm_core_set_state(ALARM_CODE_MODBUS_GANTRY, true, false);
+        }
+    }
+    {
+        uint16_t code = 0U;
+        sw_err_t ret  = sensor->get_vfd_fault_code(HAL_VFD_BRUSH, &code);
+        if (ret == SW_OK)
+        {
+            alarm_core_set_state(ALARM_CODE_VFD_BRUSH, (code != 0U), false);
+            if (code != 0U)
+            {
+                LOG_WARN("m8_alarm_adapt: brush VFD fault code=0x%04X", (unsigned)code);
+            }
+        }
+        else
+        {
+            alarm_core_set_state(ALARM_CODE_MODBUS_BRUSH, true, false);
+        }
+    }
+
+    /* 额外发布硬件事件（供 event_bus 其他订阅者感知，如 dev_ctx 更新）*/
     sensor->poll_vfd_faults();
 }
 

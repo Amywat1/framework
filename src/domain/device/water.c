@@ -17,7 +17,14 @@ sw_err_t water_init(void)
 sw_err_t water_prewash_on(void)
 {
     const hal_water_ops_t *ops = hal_water_get_ops();
-    (void)ops->pump_set(true);
+    sw_err_t               ret;
+
+    ret = ops->pump_set(true);
+    if (ret != SW_OK)
+    {
+        LOG_ERROR("water: pump_set ON failed ret=%d", (int)ret);
+        return ret;
+    }
     (void)ops->foam_set(true);
     (void)ops->curtain_set(true);
     LOG_INFO("water: prewash ON");
@@ -36,7 +43,14 @@ sw_err_t water_prewash_off(void)
 sw_err_t water_brush_on(void)
 {
     const hal_water_ops_t *ops = hal_water_get_ops();
-    (void)ops->pump_set(true);
+    sw_err_t               ret;
+
+    ret = ops->pump_set(true);
+    if (ret != SW_OK)
+    {
+        LOG_ERROR("water: pump_set ON failed ret=%d", (int)ret);
+        return ret;
+    }
     (void)ops->brush_water_set(true);
     return SW_OK;
 }
@@ -51,7 +65,14 @@ sw_err_t water_brush_off(void)
 sw_err_t water_highpres_on(void)
 {
     const hal_water_ops_t *ops = hal_water_get_ops();
-    (void)ops->pump_set(true);
+    sw_err_t               ret;
+
+    ret = ops->pump_set(true);
+    if (ret != SW_OK)
+    {
+        LOG_ERROR("water: pump_set ON failed ret=%d", (int)ret);
+        return ret;
+    }
     (void)ops->highpres_set(true);
     LOG_INFO("water: high pressure ON");
     return SW_OK;
@@ -67,7 +88,14 @@ sw_err_t water_highpres_off(void)
 sw_err_t water_all_off(void)
 {
     const hal_water_ops_t *ops = hal_water_get_ops();
-    (void)ops->all_off();
-    LOG_INFO("water: all OFF");
-    return SW_OK;
+    sw_err_t               ret = ops->all_off();
+    if (ret != SW_OK)
+    {
+        LOG_ERROR("water: all_off failed ret=%d", (int)ret);
+    }
+    else
+    {
+        LOG_INFO("water: all OFF");
+    }
+    return ret;
 }

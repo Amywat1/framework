@@ -8,7 +8,11 @@
 #include "domain/process/recipe.h"
 #include "common/sw_error.h"
 
-/* 配方数据通过 #include 装配，编译期静态只读 */
+/*
+ * 配方数据通过 #include 装配，编译期静态只读。
+ * include 路径约定：CMakeLists 须将 src/ 目录加入 include_directories，
+ * 使 "config/recipes/..." 解析到 src/config/recipes/（已在 CMake 骨架中配置）。
+ */
 #include "config/recipes/standard_wash_recipe.h"
 #include "config/recipes/quick_wash_recipe.h"
 

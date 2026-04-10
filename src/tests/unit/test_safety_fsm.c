@@ -4,13 +4,17 @@
  * @author  胡望伟
  * @date    2026-04-10
  *
- * @note    测试通过：
- *          1. 直接操作 alarm_core 触发报警
- *          2. 调用 event_bus_dispatch_loop 的单步变体驱动事件分发
- *          3. 验证 safety_fsm_get_state() 变化
+ * @note    测试策略（简化版，非完整集成验证）：
+ *          1. 直接操作 alarm_core 置位/清除报警（不经 event_bus 异步路径）
+ *          2. 手动调用 safety_fsm_reevaluate() 模拟事件 handler 被调用的效果
+ *          3. 验证 safety_fsm_get_state() 状态转移正确
  *
- *          测试环境限制：event_bus dispatch 需要在线程中运行，
- *          此处简化为发布事件后手动调用 safety_fsm 的重评估接口。
+ *          简化说明：
+ *          真实路径是 alarm_core → event_publish → event_dispatch_thread →
+ *          on_alarm_triggered → do_reevaluate。
+ *          此处绕过 event_bus 异步分发，直接调用 reevaluate，
+ *          避免单测中启动线程带来的非确定性。
+ *          完整事件驱动路径由 tests/scenario/ 级集成测试覆盖。
  */
 
 #include "domain/safety/safety_fsm.h"

@@ -88,6 +88,11 @@ sw_err_t alarm_core_init(void)
     pthread_mutex_lock(&s_mutex);
     memset(s_rt, 0, sizeof(s_rt));
     pthread_mutex_unlock(&s_mutex);
+
+    /* 清零回调，防止单测间状态串漏 */
+    s_poll_fn      = NULL;
+    s_emc_reset_fn = NULL;
+
     LOG_INFO("alarm_core: init ok, %d alarms configured", ALARM_TABLE_SIZE);
     return SW_OK;
 }

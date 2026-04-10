@@ -6,6 +6,7 @@
  */
 
 #include "domain/device/gantry.h"
+#include "domain/safety/interlock.h"
 #include "ports/hal/hal_motion_port.h"
 #include "ports/hal/hal_sensor_port.h"
 #include "core/event_bus/event_bus.h"
@@ -13,8 +14,11 @@
 #include "common/log.h"
 #include <stdatomic.h>
 
-/* 码盘脉冲计数（原子，IO 回调线程与业务线程共享）*/
-static atomic_int  s_pos    = 0;
+/*
+ * 位置来源：直接委托给 hal_sensor_get_ops()->get_gantry_pos()（Option A）。
+ * HAL 层（m8_hal_ctx.c）通过编码器回调原子累加，是位置的唯一可信来源。
+ * 本层不维护冗余计数，避免双源竞争。
+ */
 static atomic_bool s_homing = false; /* 正在归位中 */
 
 /* -------------------------------------------------------------------------
@@ -30,10 +34,11 @@ static void on_gantry_rev_limit(const event_t *evt)
     }
 
     /* 归位完成：停龙门，清零位置，发布完成事件 */
-    const hal_motion_ops_t *ops = hal_motion_get_ops();
+    const hal_motion_ops_t *ops   = hal_motion_get_ops();
+    const hal_sensor_ops_t *s_ops = hal_sensor_get_ops();
     (void)ops->gantry_stop();
+    s_ops->reset_gantry_pos();
 
-    atomic_store(&s_pos,    0);
     atomic_store(&s_homing, false);
 
     (void)event_publish(EVT_COMP_HOME_DONE, 0U);
@@ -45,7 +50,6 @@ static void on_gantry_rev_limit(const event_t *evt)
  * ------------------------------------------------------------------------- */
 sw_err_t gantry_init(void)
 {
-    atomic_store(&s_pos,    0);
     atomic_store(&s_homing, false);
 
     sw_err_t ret = event_subscribe(EVT_HW_GANTRY_REV_LIM, on_gantry_rev_limit);
@@ -61,16 +65,24 @@ sw_err_t gantry_init(void)
 
 sw_err_t gantry_fwd(uint16_t freq_hz)
 {
-    const hal_motion_ops_t *ops = hal_motion_get_ops();
+    sw_err_t ret = interlock_check_motion(MOTION_TYPE_GANTRY_FWD);
+    if (ret != SW_OK)
+    {
+        return ret;
+    }
     LOG_INFO("gantry: fwd freq=%u", (unsigned)freq_hz);
-    return ops->gantry_fwd(freq_hz);
+    return hal_motion_get_ops()->gantry_fwd(freq_hz);
 }
 
 sw_err_t gantry_rev(uint16_t freq_hz)
 {
-    const hal_motion_ops_t *ops = hal_motion_get_ops();
+    sw_err_t ret = interlock_check_motion(MOTION_TYPE_GANTRY_REV);
+    if (ret != SW_OK)
+    {
+        return ret;
+    }
     LOG_INFO("gantry: rev freq=%u", (unsigned)freq_hz);
-    return ops->gantry_rev(freq_hz);
+    return hal_motion_get_ops()->gantry_rev(freq_hz);
 }
 
 sw_err_t gantry_stop(void)
@@ -85,6 +97,12 @@ sw_err_t gantry_home_start(uint16_t freq_hz)
     const hal_sensor_ops_t  *s_ops = hal_sensor_get_ops();
     sw_err_t                 ret;
 
+    ret = interlock_check_motion(MOTION_TYPE_GANTRY_REV);
+    if (ret != SW_OK)
+    {
+        return ret;
+    }
+
     if (atomic_load(&s_homing))
     {
         LOG_WARN("gantry_home_start: already homing");
@@ -95,7 +113,6 @@ sw_err_t gantry_home_start(uint16_t freq_hz)
     if (s_ops->gantry_at_rev_limit())
     {
         s_ops->reset_gantry_pos();
-        atomic_store(&s_pos, 0);
         (void)event_publish(EVT_COMP_HOME_DONE, 0U);
         LOG_INFO("gantry_home_start: already at home");
         return SW_OK;
@@ -127,17 +144,11 @@ bool gantry_at_rev_limit(void)
 
 int32_t gantry_get_pos(void)
 {
-    return (int32_t)atomic_load(&s_pos);
+    /* Option A：位置由 HAL（m8_hal_ctx.c）通过编码器原子累加维护，直接读取 */
+    return hal_sensor_get_ops()->get_gantry_pos();
 }
 
 void gantry_reset_pos(void)
 {
-    atomic_store(&s_pos, 0);
     hal_sensor_get_ops()->reset_gantry_pos();
-}
-
-void gantry_encoder_tick(void)
-{
-    /* 方向由 HAL 上下文维护，此处仅累加（HAL 适配器视需要改调 gantry_encoder_tick_dir）*/
-    atomic_fetch_add(&s_pos, 1);
 }

@@ -6,6 +6,7 @@
  */
 
 #include "domain/device/brush.h"
+#include "domain/safety/interlock.h"
 #include "ports/hal/hal_motion_port.h"
 #include "core/event_bus/event_bus.h"
 #include "common/event_types.h"
@@ -30,6 +31,13 @@ sw_err_t brush_start(brush_id_t id, uint16_t freq_hz)
     if (id == BRUSH_ID_NONE)
     {
         return SW_ERR_PARAM;
+    }
+
+    /* 运动前互锁检查（切换或继续运行均需通过）*/
+    ret = interlock_check_motion(MOTION_TYPE_BRUSH_SWITCH);
+    if (ret != SW_OK)
+    {
+        return ret;
     }
 
     /* 若当前运行的不是目标刷子，先停 VFD 再切换接触器 */
