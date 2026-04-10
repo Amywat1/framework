@@ -9,7 +9,18 @@
 #include "drv_io.h"
 #include "common/log.h"
 #include "config/machine_config.h"
+#include <time.h>
 #include <unistd.h>
+
+/* nanosleep 包装：将微秒延时转换为 nanosleep 调用
+ * 相比 usleep，nanosleep 在 SCHED_FIFO 线程中精度更高（约 10-50µs vs 1-5ms）*/
+static void delay_us(uint32_t us)
+{
+    struct timespec ts;
+    ts.tv_sec  = 0;
+    ts.tv_nsec = (long)us * 1000L;
+    nanosleep(&ts, NULL);
+}
 
 /* ENA 引脚极性：雷赛驱动器默认低电平使能（true=LOW=使能）*/
 #define STEPPER_ENA_ACTIVE  true
@@ -29,7 +40,7 @@ sw_err_t drv_stepper_init(void)
 sw_err_t drv_stepper_enable(void)
 {
     (void)drv_io_do_set(DO_TOP_LIFT_ENA, STEPPER_ENA_ACTIVE);
-    usleep(5000U);  /* 使能后等待 5ms，让驱动器锁定 */
+    delay_us(5000U);  /* 使能后等待 5ms，让驱动器锁定 */
     return SW_OK;
 }
 
@@ -52,14 +63,14 @@ sw_err_t drv_stepper_move(uint32_t pulses, drv_stepper_dir_t dir, uint32_t pulse
     /* 设置方向 */
     (void)drv_io_do_set(DO_TOP_LIFT_DIR,
                         (dir == STEPPER_DIR_DOWN) ? true : false);
-    usleep(10U);    /* DIR 建立时间 */
+    delay_us(10U);   /* DIR 建立时间 */
 
-    /* 发送脉冲序列 */
+    /* 发送脉冲序列（nanosleep 精度优于 usleep，适合 SCHED_FIFO 线程）*/
     for (i = 0U; i < pulses; i++) {
         (void)drv_io_do_set(DO_TOP_LIFT_PUL, true);
-        usleep(pulse_us);
+        delay_us(pulse_us);
         (void)drv_io_do_set(DO_TOP_LIFT_PUL, false);
-        usleep(pulse_us);
+        delay_us(pulse_us);
     }
 
     return SW_OK;

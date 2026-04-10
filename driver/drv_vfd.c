@@ -14,8 +14,17 @@
 #include "drv_vfd.h"
 #include "common/log.h"
 #include "modbus/modbus-rtu.h"
+#include <pthread.h>
 #include <unistd.h>
 #include <string.h>
+
+/* -------------------------------------------------------------------------
+ * 串口总线互斥锁
+ *
+ * 刷子 VFD（地址 1）和龙门 VFD（地址 2）共享同一串口 /dev/ttyS1。
+ * 此模块级静态锁序列化所有 Modbus 读写，防止两个 VFD 实例并发访问时帧碰撞。
+ * ------------------------------------------------------------------------- */
+static pthread_mutex_t s_modbus_bus_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 /* -------------------------------------------------------------------------
  * 士林 VFD Modbus 寄存器地址
@@ -31,7 +40,11 @@
  * ------------------------------------------------------------------------- */
 static sw_err_t mb_write_reg(drv_vfd_t *vfd, uint16_t addr, uint16_t val)
 {
-    if (modbus_write_register(vfd->mb, (int)addr, (int)val) < 0) {
+    int rc;
+    pthread_mutex_lock(&s_modbus_bus_mutex);
+    rc = modbus_write_register(vfd->mb, (int)addr, (int)val);
+    pthread_mutex_unlock(&s_modbus_bus_mutex);
+    if (rc < 0) {
         LOG_ERROR("drv_vfd[addr=%d]: Modbus write reg 0x%04X failed",
                   modbus_get_slave(vfd->mb), addr);
         return SW_ERR_COMM;
@@ -42,7 +55,11 @@ static sw_err_t mb_write_reg(drv_vfd_t *vfd, uint16_t addr, uint16_t val)
 static sw_err_t mb_read_reg(drv_vfd_t *vfd, uint16_t addr, uint16_t *p_val)
 {
     uint16_t buf = 0U;
-    if (modbus_read_registers(vfd->mb, (int)addr, 1, &buf) < 0) {
+    int      rc;
+    pthread_mutex_lock(&s_modbus_bus_mutex);
+    rc = modbus_read_registers(vfd->mb, (int)addr, 1, &buf);
+    pthread_mutex_unlock(&s_modbus_bus_mutex);
+    if (rc < 0) {
         return SW_ERR_COMM;
     }
     *p_val = buf;
