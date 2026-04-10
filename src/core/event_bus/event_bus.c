@@ -1,0 +1,182 @@
+/**
+ * @file    event_bus.c
+ * @brief   统一事件总线实现
+ * @author  胡望伟
+ * @date    2026-04-10
+ */
+
+#include "core/event_bus/event_bus.h"
+#include "config/threading/thread_config.h"
+#include "common/time_util.h"
+
+#include <pthread.h>
+#include <semaphore.h>
+#include <string.h>
+#include <stdio.h>
+
+/* -------------------------------------------------------------------------
+ * 内部日志（core/ 不依赖 snack SDK，使用 printf 作为轻量日志）
+ * ------------------------------------------------------------------------- */
+#define EVT_LOG_WARN(fmt, ...)  printf("[EVT WARN] " fmt "\n", ##__VA_ARGS__)
+#define EVT_LOG_ERROR(fmt, ...) printf("[EVT ERR]  " fmt "\n", ##__VA_ARGS__)
+
+/* -------------------------------------------------------------------------
+ * 环形队列
+ * ------------------------------------------------------------------------- */
+static event_t          s_queue[EVENT_BUS_QUEUE_SIZE];
+static uint32_t         s_q_head;
+static uint32_t         s_q_tail;
+static uint32_t         s_q_count;
+static pthread_mutex_t  s_q_mutex = PTHREAD_MUTEX_INITIALIZER;
+
+/* -------------------------------------------------------------------------
+ * 订阅表 [event_type][slot]
+ * ------------------------------------------------------------------------- */
+static event_handler_t  s_subs[EVT_MAX][EVENT_BUS_MAX_SUBS_PER_EVT];
+static pthread_mutex_t  s_sub_mutex = PTHREAD_MUTEX_INITIALIZER;
+
+/* -------------------------------------------------------------------------
+ * 信号量（dispatch 线程等待事件入队）
+ * ------------------------------------------------------------------------- */
+static sem_t        s_sem;
+static int          s_sem_initialized = 0;
+
+/* -------------------------------------------------------------------------
+ * 初始化状态
+ * ------------------------------------------------------------------------- */
+static volatile int s_initialized = 0;
+
+/* -------------------------------------------------------------------------
+ * event_bus_init
+ * ------------------------------------------------------------------------- */
+sw_err_t event_bus_init(void)
+{
+    /* 重置队列 */
+    pthread_mutex_lock(&s_q_mutex);
+    memset(s_queue, 0, sizeof(s_queue));
+    s_q_head  = 0;
+    s_q_tail  = 0;
+    s_q_count = 0;
+    pthread_mutex_unlock(&s_q_mutex);
+
+    /* 重置订阅表 */
+    pthread_mutex_lock(&s_sub_mutex);
+    memset(s_subs, 0, sizeof(s_subs));
+    pthread_mutex_unlock(&s_sub_mutex);
+
+    /* 重置信号量（可重复调用）*/
+    if (s_sem_initialized)
+    {
+        sem_destroy(&s_sem);
+    }
+    sem_init(&s_sem, 0, 0);
+    s_sem_initialized = 1;
+
+    s_initialized = 1;
+    return SW_OK;
+}
+
+/* -------------------------------------------------------------------------
+ * event_publish
+ * ------------------------------------------------------------------------- */
+sw_err_t event_publish(event_type_t type, uint32_t param)
+{
+    if (!s_initialized)
+    {
+        return SW_ERR_NOT_INIT;
+    }
+    if (type == EVT_NONE || type >= EVT_MAX)
+    {
+        return SW_ERR_PARAM;
+    }
+
+    pthread_mutex_lock(&s_q_mutex);
+
+    if (s_q_count >= EVENT_BUS_QUEUE_SIZE)
+    {
+        pthread_mutex_unlock(&s_q_mutex);
+        EVT_LOG_WARN("queue full, drop EVT type=%d param=%u", (int)type, param);
+        return SW_ERR_OVERFLOW;
+    }
+
+    event_t *slot      = &s_queue[s_q_tail];
+    slot->type         = type;
+    slot->param        = param;
+    slot->timestamp_ms = time_util_get_ms(); /* 入队时自动打时间戳 */
+
+    s_q_tail  = (s_q_tail + 1U) % EVENT_BUS_QUEUE_SIZE;
+    s_q_count++;
+
+    pthread_mutex_unlock(&s_q_mutex);
+
+    sem_post(&s_sem); /* 通知 dispatch 线程 */
+    return SW_OK;
+}
+
+/* -------------------------------------------------------------------------
+ * event_subscribe
+ * ------------------------------------------------------------------------- */
+sw_err_t event_subscribe(event_type_t type, event_handler_t handler)
+{
+    if (type == EVT_NONE || type >= EVT_MAX || handler == NULL)
+    {
+        return SW_ERR_PARAM;
+    }
+
+    pthread_mutex_lock(&s_sub_mutex);
+
+    for (uint32_t i = 0; i < EVENT_BUS_MAX_SUBS_PER_EVT; i++)
+    {
+        if (s_subs[type][i] == NULL)
+        {
+            s_subs[type][i] = handler;
+            pthread_mutex_unlock(&s_sub_mutex);
+            return SW_OK;
+        }
+    }
+
+    pthread_mutex_unlock(&s_sub_mutex);
+    EVT_LOG_ERROR("subscriber table full for EVT type=%d", (int)type);
+    return SW_ERR_OVERFLOW;
+}
+
+/* -------------------------------------------------------------------------
+ * event_bus_dispatch_loop
+ * ------------------------------------------------------------------------- */
+void event_bus_dispatch_loop(void)
+{
+    event_t             dispatch_evt;
+    event_handler_t     handlers[EVENT_BUS_MAX_SUBS_PER_EVT];
+
+    while (1)
+    {
+        sem_wait(&s_sem); /* POSIX 取消点，可通过 pthread_cancel 退出 */
+
+        /* 出队 */
+        pthread_mutex_lock(&s_q_mutex);
+        if (s_q_count == 0U)
+        {
+            /* 并发 publish 后 sem 计数可能超过实际队列数量，正常跳过 */
+            pthread_mutex_unlock(&s_q_mutex);
+            continue;
+        }
+        dispatch_evt  = s_queue[s_q_head];
+        s_q_head      = (s_q_head + 1U) % EVENT_BUS_QUEUE_SIZE;
+        s_q_count--;
+        pthread_mutex_unlock(&s_q_mutex);
+
+        /* 复制 handler 快照（最小化持锁时间，避免 handler 内部 subscribe 死锁）*/
+        pthread_mutex_lock(&s_sub_mutex);
+        memcpy(handlers, s_subs[dispatch_evt.type], sizeof(handlers));
+        pthread_mutex_unlock(&s_sub_mutex);
+
+        /* 逐一回调 */
+        for (uint32_t i = 0; i < EVENT_BUS_MAX_SUBS_PER_EVT; i++)
+        {
+            if (handlers[i] != NULL)
+            {
+                handlers[i](&dispatch_evt);
+            }
+        }
+    }
+}
