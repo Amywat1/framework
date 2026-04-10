@@ -8,6 +8,10 @@
 #ifndef DOMAIN_COMMAND_H
 #define DOMAIN_COMMAND_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include "domain/model/wash_types.h"
 
 /* -------------------------------------------------------------------------
@@ -39,5 +43,9 @@ typedef struct
         } start_wash;
     } payload;
 } cmd_t;
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* DOMAIN_COMMAND_H */

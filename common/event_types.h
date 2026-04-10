@@ -11,6 +11,10 @@
 #ifndef EVENT_TYPES_H
 #define EVENT_TYPES_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <stdint.h>
 
 /* -------------------------------------------------------------------------
@@ -94,5 +98,9 @@ typedef struct
     uint32_t     param;         /* 简单载荷：报警码、错误码、步骤号等（无载荷时为 0）*/
     uint32_t     timestamp_ms;  /* 入队时间戳（event_bus 自动填充，调用方忽略此字段）*/
 } event_t;
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* EVENT_TYPES_H */

@@ -8,6 +8,10 @@
 #ifndef DOMAIN_DEVICE_STATE_H
 #define DOMAIN_DEVICE_STATE_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /* -------------------------------------------------------------------------
  * 设备 FSM 状态
  * ------------------------------------------------------------------------- */
@@ -20,5 +24,9 @@ typedef enum
     DEV_STATE_FAULT,        /* 故障停机，等待复位 */
     DEV_STATE_STOP,         /* 运营关闭（人工停止运营）*/
 } dev_state_t;
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* DOMAIN_DEVICE_STATE_H */

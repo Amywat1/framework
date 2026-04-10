@@ -8,6 +8,10 @@
 #ifndef DOMAIN_WASH_TYPES_H
 #define DOMAIN_WASH_TYPES_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <stdint.h>
 #include <stdbool.h>
 
@@ -50,5 +54,9 @@ typedef struct
     bool    at_rev_limit;   /* 到达龙门后限位 */
     int32_t pos_pulse;      /* 龙门到达指定脉冲位置（-1 = 不使用）*/
 } wash_exit_cond_t;
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* DOMAIN_WASH_TYPES_H */

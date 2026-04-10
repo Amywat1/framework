@@ -8,6 +8,10 @@
 #ifndef DOMAIN_SAFETY_TYPES_H
 #define DOMAIN_SAFETY_TYPES_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <stdint.h>
 
 /* -------------------------------------------------------------------------
@@ -31,10 +35,16 @@ typedef enum
 } alarm_level_t;
 
 /* -------------------------------------------------------------------------
- * 报警恢复方式（可按位组合）
+ * 报警恢复方式（按位组合标志）
  * ------------------------------------------------------------------------- */
+typedef uint32_t alarm_recover_t; /* 恢复方式标志位组合（ALARM_RECOVER_xxx 按位或）*/
+
 #define ALARM_RECOVER_AUTO    (1U << 0) /* 触发条件消失后自动恢复 */
 #define ALARM_RECOVER_DRIVE   (1U << 1) /* 驱动复位后恢复（VFD 故障复位脉冲）*/
 #define ALARM_RECOVER_MANUAL  (1U << 2) /* 仅允许人工按复位按钮清除 */
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* DOMAIN_SAFETY_TYPES_H */

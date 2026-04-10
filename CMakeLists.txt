@@ -63,20 +63,27 @@ add_compile_options(
 
 # -------------------------------------------------------
 # 源文件（GLOB_RECURSE + CONFIGURE_DEPENDS 保证增删文件后自动重配）
+# 过渡期：旧目录（app/ bsp/ component/ service/）与新目录（src/）共存
+# 收尾阶段 C-2 删除旧目录后，可删除下方"旧架构"区块
 # -------------------------------------------------------
 file(GLOB_RECURSE src CONFIGURE_DEPENDS
+    # 旧架构（过渡期保留，阶段收尾 C-2 删除）
     app/*.c app/*.h app/*.cpp
     bsp/*.c bsp/*.h bsp/*.cpp
-    common/*.c common/*.h
     component/*.c component/*.h
-    driver/*.c driver/*.h
     service/*.c service/*.h
     protocol/*.c protocol/*.h
+    # 公共层（始终保留）
+    common/*.c common/*.h
+    driver/*.c driver/*.h
     config/*.h
+    # 新架构 src/（各阶段逐步填充）
+    src/*.c src/*.h src/*.cpp
 )
 
-# sim/ 桩文件不参与嵌入式构建
+# 旧 sim/ 桩和新 sim_hw 适配器不参与嵌入式构建
 list(FILTER src EXCLUDE REGEX ".*/sim/.*")
+list(FILTER src EXCLUDE REGEX ".*/sim_hw/.*")
 
 add_executable(${PROJECT_NAME} ${src})
 
@@ -118,34 +125,45 @@ endif() # NOT BUILD_SIM
 
 # ======================================================================
 # PC 模拟器目标（BUILD_SIM=ON）
-# 仅编译 wash_engine + component/ + sim/，无需任何嵌入式 SDK
+# 新架构：src/adapters/hal/sim_hw/ 提供 HAL 仿真实现，无需嵌入式 SDK
 # 用法：cmake -B build_sim -DBUILD_SIM=ON && cmake --build build_sim
+#
+# 注：仿真源文件在阶段六（sim_hw/ 实现）完成后才会有内容，
+#     当前阶段 GLOB 返回空列表，跳过 M8_sim target 创建。
 # ======================================================================
 if(BUILD_SIM)
     add_compile_definitions(BUILD_SIM=1)
 
-    set(sim_sources
-        app/wash_engine.c
-        app/wash_config.c
-        component/comp_brush.c
-        component/comp_gantry.c
-        component/comp_top_lift.c
-        component/comp_water.c
-        sim/sim_driver.c
-        sim/sim_console.c
-        sim/sim_main.c
+    file(GLOB_RECURSE sim_sources CONFIGURE_DEPENDS
+        # 新架构仿真目标（阶段六后逐步填充）
+        src/domain/*.c
+        src/application/*.c
+        src/service/*.c
+        src/core/*.c
+        src/adapters/hal/sim_hw/*.c
+        src/adapters/storage/*.c
+        src/adapters/ui/*.c
+        src/adapters/machine/*.c
+        # 公共层
+        common/*.c
+        driver/*.c
     )
 
-    add_executable(M8_sim ${sim_sources})
+    if(sim_sources)
+        add_executable(M8_sim ${sim_sources})
 
-    target_include_directories(M8_sim PRIVATE
-        ${CMAKE_SOURCE_DIR}/sim   # 优先：提供 io_exp/demo.h 等桩头文件
-        ${CMAKE_SOURCE_DIR}       # 项目根，使 component/ app/ 等路径可见
-    )
+        target_include_directories(M8_sim PRIVATE
+            ${CMAKE_SOURCE_DIR}       # common/ driver/ 等
+            ${CMAKE_SOURCE_DIR}/src   # 新架构 domain/ ports/ 等
+        )
 
-    target_link_libraries(M8_sim PRIVATE pthread)
+        target_link_libraries(M8_sim PRIVATE pthread)
 
-    target_compile_options(M8_sim PRIVATE -Wall -Wextra -g)
+        target_compile_options(M8_sim PRIVATE -Wall -Wextra -Werror -g)
 
-    message(STATUS "BUILD_SIM enabled → target M8_sim")
+        message(STATUS "BUILD_SIM enabled → target M8_sim")
+    else()
+        message(STATUS "BUILD_SIM enabled → src/ not yet populated, M8_sim skipped")
+    endif()
+
 endif()
