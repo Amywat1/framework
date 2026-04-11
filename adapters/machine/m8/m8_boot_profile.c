@@ -23,8 +23,9 @@
  *
  * 上电后硬件输出不确定，此函数强制清零所有 DO，
  * 确保电机、水泵、接触器等处于安全状态后再执行后续初始化。
+ * 同时作为 panic handler 的兜底调用（不依赖 event_bus，可在总线失效后直接调用）。
  */
-static void m8_set_all_outputs_safe(void)
+void m8_assert_safe_outputs(void)
 {
     /* 入口指示灯全灭 */
     (void)drv_io_do_set(M8_DO_ENTRY_GREEN1, false);
@@ -60,6 +61,11 @@ static void m8_set_all_outputs_safe(void)
     (void)drv_io_do_set(M8_DO_WATER_FOAM,     false);
     (void)drv_io_do_set(M8_DO_WATER_BRUSH,    false);
     (void)drv_io_do_set(M8_DO_WATER_HIGHPRES, false);
+
+    /* 同步刷新到硬件：绕过后台线程，立即写 CAN 总线
+     * 普通上电路径下可确保安全态在后续初始化前已落硬件；
+     * panic 路径（fatal 回调）下可确保 abort() 前输出已发出 */
+    (void)drv_io_flush_outputs_now();
 }
 
 /**
@@ -123,7 +129,7 @@ sw_err_t m8_boot_profile_init(void)
     }
 
     /* 2. 强制所有输出为安全状态（无论 IO 是否就绪都执行）*/
-    m8_set_all_outputs_safe();
+    m8_assert_safe_outputs();
 
     LOG_INFO("m8_boot_profile_init done (io_ready=%s)",
              (io_ret == SW_OK) ? "yes" : "timeout");

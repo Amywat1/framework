@@ -28,6 +28,37 @@ extern "C" {
 typedef void (*event_handler_t)(const event_t *evt);
 
 /* -------------------------------------------------------------------------
+ * 不可恢复故障（fatal）
+ * ------------------------------------------------------------------------- */
+
+/** 故障原因枚举（可按需扩展）*/
+typedef enum
+{
+    EVENT_BUS_FATAL_SEM_WAIT = 1,   /**< sem_wait 返回非 EINTR 错误（信号量损坏）*/
+} event_bus_fatal_reason_t;
+
+/**
+ * @brief  不可恢复故障回调类型
+ *
+ * @par 回调约束（必须严格遵守）：
+ *   - 禁止调用 event_publish() / event_subscribe()（event_bus 已不可用）
+ *   - 禁止依赖任何需要 event_bus 的业务逻辑
+ *   - 禁止长时间阻塞或等待其他线程
+ *   - 应直接操作底层 HAL/driver 将输出置安全态（最佳努力）
+ *   - 必须是幂等的
+ *   - 必须以 abort() 或 _exit() 终止进程，不可仅 return
+ *
+ * @par 为何必须终止进程：
+ *   dispatch 线程由 scheduler 以 pthread_detach 创建，无法被外部 join。
+ *   若回调仅 return，dispatch 线程退出而进程继续存活，
+ *   systemd 不会重启，系统进入"事件总线已死但进程仍在"的危险状态。
+ *
+ * @param reason    故障原因
+ * @param sys_errno 触发时的 errno 值
+ */
+typedef void (*event_bus_fatal_cb_t)(event_bus_fatal_reason_t reason, int sys_errno);
+
+/* -------------------------------------------------------------------------
  * 运行统计
  * ------------------------------------------------------------------------- */
 typedef struct
@@ -47,6 +78,14 @@ typedef struct
  * ------------------------------------------------------------------------- */
 
 /**
+ * @brief  注册不可恢复故障回调
+ * @note   须在 event_bus_init() 之后、dispatch 线程启动之前调用。
+ *         未注册时默认行为：仅记录日志后 dispatch 线程退出（进程不终止，不安全）。
+ * @param  cb  回调函数；传 NULL 可清除注册
+ */
+void event_bus_set_fatal_cb(event_bus_fatal_cb_t cb);
+
+/**
  * @brief  初始化事件总线（清空队列和订阅表）
  * @note   须在 time_util_init() 之后、dispatch 线程启动前调用。
  *         若需重置（如测试场景），必须先停止 dispatch 线程再调用，
@@ -59,7 +98,9 @@ sw_err_t event_bus_init(void);
  * @brief  请求停止事件总线分发循环
  * @note   调用后 event_publish / event_subscribe 会返回 SW_ERR_NOT_INIT。
  *         dispatch 线程会先排空队列，再从 event_bus_dispatch_loop() 返回。
- *         调用方应在 shutdown 后自行 pthread_join 对应线程。
+ *         - joinable 线程（如单元测试）：可在 shutdown 后 pthread_join 等待退出。
+ *         - detached 线程（生产路径）：不可 join；总线不可恢复故障由 fatal
+ *           回调终止进程，正常 shutdown 由调用方自行协调退出时序。
  * @retval SW_OK / SW_ERR_NOT_INIT / SW_ERR_HW
  */
 sw_err_t event_bus_shutdown(void);

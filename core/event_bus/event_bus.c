@@ -49,9 +49,22 @@ static volatile int s_initialized = 0;
 static volatile int s_shutdown_requested = 0;
 
 /* -------------------------------------------------------------------------
+ * 不可恢复故障回调
+ * ------------------------------------------------------------------------- */
+static event_bus_fatal_cb_t s_fatal_cb = NULL;
+
+/* -------------------------------------------------------------------------
  * 运行统计
  * ------------------------------------------------------------------------- */
 static event_bus_stats_t s_stats;
+
+/* -------------------------------------------------------------------------
+ * event_bus_set_fatal_cb
+ * ------------------------------------------------------------------------- */
+void event_bus_set_fatal_cb(event_bus_fatal_cb_t cb)
+{
+    s_fatal_cb = cb;
+}
 
 /* -------------------------------------------------------------------------
  * event_bus_init
@@ -272,7 +285,13 @@ void event_bus_dispatch_loop(void)
             pthread_mutex_lock(&s_q_mutex);
             s_stats.sem_wait_fail_count++;
             pthread_mutex_unlock(&s_q_mutex);
-            EVT_LOG_ERROR("sem_wait failed errno=%d", errno);
+            EVT_LOG_ERROR("sem_wait failed errno=%d, event bus fatal", errno);
+
+            if (s_fatal_cb != NULL)
+            {
+                s_fatal_cb(EVENT_BUS_FATAL_SEM_WAIT, errno);
+                /* fatal_cb 约定必须终止进程；若违反约定则兜底退出线程 */
+            }
             return;
         }
 

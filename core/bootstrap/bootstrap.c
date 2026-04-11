@@ -54,6 +54,7 @@
 #include "common/log.h"
 #include <unistd.h>
 #include <sched.h>
+#include <stdlib.h>
 
 /* 真机专属头文件（仿真构建不依赖这些）*/
 #ifndef BUILD_SIM
@@ -67,6 +68,25 @@
 extern void aliyun_command_adapter_init(void);
 extern void cli_adapter_init(void);
 #endif
+
+/* -------------------------------------------------------------------------
+ * 进程级 panic handler（event_bus fatal 回调）
+ *
+ * 约定：本函数必须终止进程，不可 return。
+ * 由 systemd Restart=on-failure 负责重启，重启后系统从安全态重新初始化。
+ * ------------------------------------------------------------------------- */
+static void system_panic_safe_stop(event_bus_fatal_reason_t reason, int sys_errno)
+{
+    LOG_ERROR("PANIC: event_bus fatal reason=%d errno=%d, asserting safe outputs and aborting",
+              (int)reason, sys_errno);
+
+#ifndef BUILD_SIM
+    /* 最佳努力：直接写寄存器将所有 DO 置安全态，不依赖 event_bus */
+    m8_assert_safe_outputs();
+#endif
+
+    abort(); /* 产生 core dump，触发 systemd Restart=on-failure */
+}
 
 /* -------------------------------------------------------------------------
  * 线程入口函数（bootstrap 本地，不对外暴露）
@@ -116,6 +136,9 @@ sw_err_t bootstrap_run(void)
 
     /* 2. 事件总线 */
     BOOT_CHECK(event_bus_init(), "event_bus_init");
+
+    /* 2a. 注册 fatal 回调（须在 dispatch 线程启动前完成）*/
+    event_bus_set_fatal_cb(system_panic_safe_stop);
 
 #ifndef BUILD_SIM
     /* 3. IO 子板 CAN 驱动（所有 DO/DI 操作的基础；仿真跳过）*/

@@ -83,6 +83,15 @@ typedef enum
 sw_err_t drv_io_init(void);
 
 /**
+ * @brief  同步刷新所有输出到硬件（绕过后台线程，立即写 CAN 总线）
+ * @note   正常路径使用后台线程异步写出，本函数用于 panic handler 等
+ *         需要在进程退出前保证输出到达硬件的场景。
+ *         仅对当前在线子板执行写操作；CAN 总线不可达时为尽力而为。
+ * @retval SW_OK
+ */
+sw_err_t drv_io_flush_outputs_now(void);
+
+/**
  * @brief  设置数字输出（写入输出缓冲，由后台线程同步到子板）
  * @param  pin  输出引脚（drv_io_do_t）
  * @param  val  true=ON / false=OFF

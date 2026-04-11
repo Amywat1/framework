@@ -193,6 +193,32 @@ sw_err_t drv_io_do_set(drv_io_do_t pin, bool val)
     return SW_OK;
 }
 
+sw_err_t drv_io_flush_outputs_now(void)
+{
+    unsigned int snapshot[IO_BOARD_MAX];
+    bool         online[IO_BOARD_MAX];
+
+    /* 快照输出缓冲和在线状态（最小化持锁时间，CAN 写在锁外执行）*/
+    pthread_mutex_lock(&s_output_mutex);
+    for (int i = 1; i <= CFG_IO_BOARD_COUNT; i++)
+    {
+        snapshot[i] = s_output_buf[i];
+        online[i]   = s_board_online[i];
+    }
+    pthread_mutex_unlock(&s_output_mutex);
+
+    /* 逐板同步写出（跳过离线子板，避免 CAN 超时阻塞）*/
+    for (int i = 1; i <= CFG_IO_BOARD_COUNT; i++)
+    {
+        if (online[i])
+        {
+            io_write_all_s(i, (int)snapshot[i]);
+        }
+    }
+
+    return SW_OK;
+}
+
 bool drv_io_di_read(drv_io_di_t pin)
 {
     int board_id = DRV_IO_BOARD_ID((int)pin);

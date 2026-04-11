@@ -21,6 +21,14 @@ extern "C" {
  */
 sw_err_t m8_boot_profile_init(void);
 
+/**
+ * @brief  立即将所有数字输出置安全状态（关断）并同步刷新到硬件
+ * @note   更新输出缓冲后立即调用 drv_io_flush_outputs_now()，
+ *         绕过后台线程，直接写 CAN 总线（尽力而为，离线子板跳过）。
+ *         可在 panic 路径（abort() 前）安全调用，不依赖 event_bus。
+ */
+void m8_assert_safe_outputs(void);
+
 #ifdef __cplusplus
 }
 #endif
