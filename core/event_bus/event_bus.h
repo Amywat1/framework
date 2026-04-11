@@ -28,6 +28,21 @@ extern "C" {
 typedef void (*event_handler_t)(const event_t *evt);
 
 /* -------------------------------------------------------------------------
+ * 运行统计
+ * ------------------------------------------------------------------------- */
+typedef struct
+{
+    uint32_t published_count;      /* 成功入队的事件数 */
+    uint32_t dispatched_count;     /* 成功出队并进入分发的事件数 */
+    uint32_t dropped_count;        /* 因队列满丢弃的事件数 */
+    uint32_t subscribe_count;      /* 已登记的订阅槽数量 */
+    uint32_t queue_depth;          /* 当前队列深度 */
+    uint32_t queue_peak_depth;     /* 历史最大队列深度 */
+    uint32_t sem_post_fail_count;  /* sem_post 失败次数 */
+    uint32_t sem_wait_fail_count;  /* sem_wait 非 EINTR 失败次数 */
+} event_bus_stats_t;
+
+/* -------------------------------------------------------------------------
  * 接口
  * ------------------------------------------------------------------------- */
 
@@ -41,12 +56,22 @@ typedef void (*event_handler_t)(const event_t *evt);
 sw_err_t event_bus_init(void);
 
 /**
+ * @brief  请求停止事件总线分发循环
+ * @note   调用后 event_publish / event_subscribe 会返回 SW_ERR_NOT_INIT。
+ *         dispatch 线程会先排空队列，再从 event_bus_dispatch_loop() 返回。
+ *         调用方应在 shutdown 后自行 pthread_join 对应线程。
+ * @retval SW_OK / SW_ERR_NOT_INIT / SW_ERR_HW
+ */
+sw_err_t event_bus_shutdown(void);
+
+/**
  * @brief  发布事件
  * @param  type   事件类型（不可为 EVT_NONE 或 >= EVT_MAX）
  * @param  param  简单载荷（报警码、错误码等；无载荷传 0）
  * @retval SW_OK
  * @retval SW_ERR_NOT_INIT  未调用 event_bus_init
  * @retval SW_ERR_PARAM     type 非法
+ * @retval SW_ERR_HW        sem_post 失败，事件已回滚
  * @retval SW_ERR_OVERFLOW  队列已满，事件被丢弃
  */
 sw_err_t event_publish(event_type_t type, uint32_t param);
@@ -56,14 +81,23 @@ sw_err_t event_publish(event_type_t type, uint32_t param);
  * @param  type     要订阅的事件类型
  * @param  handler  事件处理函数（在 dispatch 线程上下文中调用）
  * @retval SW_OK
+ * @retval SW_ERR_NOT_INIT  未调用 event_bus_init 或已进入 shutdown
  * @retval SW_ERR_PARAM     参数非法
  * @retval SW_ERR_OVERFLOW  该事件的订阅槽已满（见 EVENT_BUS_MAX_SUBS_PER_EVT）
  */
 sw_err_t event_subscribe(event_type_t type, event_handler_t handler);
 
 /**
- * @brief  事件分发循环（阻塞，由 event_dispatch_thread 调用，永不返回）
- * @note   此函数是 POSIX 线程取消点（sem_wait），可通过 pthread_cancel 退出
+ * @brief  获取当前运行统计（线程安全，值拷贝）
+ * @param  stats  输出统计结构体
+ * @retval SW_OK / SW_ERR_PARAM
+ */
+sw_err_t event_bus_get_stats(event_bus_stats_t *stats);
+
+/**
+ * @brief  事件分发循环（阻塞，由 event_dispatch_thread 调用）
+ * @note   正常运行时阻塞等待事件；收到 shutdown 请求后会排空队列并返回。
+ *         此函数仍是 POSIX 线程取消点（sem_wait），也可通过 pthread_cancel 退出。
  */
 void event_bus_dispatch_loop(void);
 

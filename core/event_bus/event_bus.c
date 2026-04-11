@@ -13,6 +13,7 @@
 #include <semaphore.h>
 #include <string.h>
 #include <stdio.h>
+#include <errno.h>
 
 /* -------------------------------------------------------------------------
  * 内部日志（core/ 不依赖 snack SDK，使用 printf 作为轻量日志）
@@ -45,18 +46,27 @@ static int          s_sem_initialized = 0;
  * 初始化状态
  * ------------------------------------------------------------------------- */
 static volatile int s_initialized = 0;
+static volatile int s_shutdown_requested = 0;
+
+/* -------------------------------------------------------------------------
+ * 运行统计
+ * ------------------------------------------------------------------------- */
+static event_bus_stats_t s_stats;
 
 /* -------------------------------------------------------------------------
  * event_bus_init
  * ------------------------------------------------------------------------- */
 sw_err_t event_bus_init(void)
 {
+    s_shutdown_requested = 0;
+
     /* 重置队列 */
     pthread_mutex_lock(&s_q_mutex);
     memset(s_queue, 0, sizeof(s_queue));
     s_q_head  = 0;
     s_q_tail  = 0;
     s_q_count = 0;
+    memset(&s_stats, 0, sizeof(s_stats));
     pthread_mutex_unlock(&s_q_mutex);
 
     /* 重置订阅表 */
@@ -99,6 +109,31 @@ sw_err_t event_bus_init(void)
 }
 
 /* -------------------------------------------------------------------------
+ * event_bus_shutdown
+ * ------------------------------------------------------------------------- */
+sw_err_t event_bus_shutdown(void)
+{
+    if (!s_initialized)
+    {
+        return SW_ERR_NOT_INIT;
+    }
+
+    s_shutdown_requested = 1;
+    s_initialized        = 0;
+
+    if (sem_post(&s_sem) != 0)
+    {
+        pthread_mutex_lock(&s_q_mutex);
+        s_stats.sem_post_fail_count++;
+        pthread_mutex_unlock(&s_q_mutex);
+        EVT_LOG_ERROR("shutdown sem_post failed");
+        return SW_ERR_HW;
+    }
+
+    return SW_OK;
+}
+
+/* -------------------------------------------------------------------------
  * event_publish
  * ------------------------------------------------------------------------- */
 sw_err_t event_publish(event_type_t type, uint32_t param)
@@ -116,6 +151,7 @@ sw_err_t event_publish(event_type_t type, uint32_t param)
 
     if (s_q_count >= EVENT_BUS_QUEUE_SIZE)
     {
+        s_stats.dropped_count++;
         pthread_mutex_unlock(&s_q_mutex);
         EVT_LOG_WARN("queue full, drop EVT type=%d param=%u", (int)type, param);
         return SW_ERR_OVERFLOW;
@@ -128,13 +164,26 @@ sw_err_t event_publish(event_type_t type, uint32_t param)
 
     s_q_tail  = (s_q_tail + 1U) % EVENT_BUS_QUEUE_SIZE;
     s_q_count++;
-
-    pthread_mutex_unlock(&s_q_mutex);
+    s_stats.published_count++;
+    s_stats.queue_depth = s_q_count;
+    if (s_stats.queue_peak_depth < s_q_count)
+    {
+        s_stats.queue_peak_depth = s_q_count;
+    }
 
     if (sem_post(&s_sem) != 0) /* 通知 dispatch 线程 */
     {
+        s_q_tail = (s_q_tail == 0U) ? (EVENT_BUS_QUEUE_SIZE - 1U) : (s_q_tail - 1U);
+        s_q_count--;
+        s_stats.published_count--;
+        s_stats.queue_depth = s_q_count;
+        s_stats.sem_post_fail_count++;
+        pthread_mutex_unlock(&s_q_mutex);
         EVT_LOG_WARN("sem_post failed for EVT type=%d", (int)type);
+        return SW_ERR_HW;
     }
+
+    pthread_mutex_unlock(&s_q_mutex);
     return SW_OK;
 }
 
@@ -143,6 +192,12 @@ sw_err_t event_publish(event_type_t type, uint32_t param)
  * ------------------------------------------------------------------------- */
 sw_err_t event_subscribe(event_type_t type, event_handler_t handler)
 {
+    int inserted = 0;
+
+    if (!s_initialized)
+    {
+        return SW_ERR_NOT_INIT;
+    }
     if (type == EVT_NONE || type >= EVT_MAX || handler == NULL)
     {
         return SW_ERR_PARAM;
@@ -162,13 +217,39 @@ sw_err_t event_subscribe(event_type_t type, event_handler_t handler)
         {
             s_subs[type][i] = handler;
             pthread_mutex_unlock(&s_sub_mutex);
-            return SW_OK;
+            inserted = 1;
+            break;
         }
     }
 
-    pthread_mutex_unlock(&s_sub_mutex);
-    EVT_LOG_ERROR("subscriber table full for EVT type=%d", (int)type);
-    return SW_ERR_OVERFLOW;
+    if (!inserted)
+    {
+        pthread_mutex_unlock(&s_sub_mutex);
+        EVT_LOG_ERROR("subscriber table full for EVT type=%d", (int)type);
+        return SW_ERR_OVERFLOW;
+    }
+
+    /* 统计字段统一由 s_q_mutex 保护，避免为 stats 再引入第三把锁 */
+    pthread_mutex_lock(&s_q_mutex);
+    s_stats.subscribe_count++;
+    pthread_mutex_unlock(&s_q_mutex);
+    return SW_OK;
+}
+
+/* -------------------------------------------------------------------------
+ * event_bus_get_stats
+ * ------------------------------------------------------------------------- */
+sw_err_t event_bus_get_stats(event_bus_stats_t *stats)
+{
+    if (stats == NULL)
+    {
+        return SW_ERR_PARAM;
+    }
+
+    pthread_mutex_lock(&s_q_mutex);
+    *stats = s_stats;
+    pthread_mutex_unlock(&s_q_mutex);
+    return SW_OK;
 }
 
 /* -------------------------------------------------------------------------
@@ -181,12 +262,30 @@ void event_bus_dispatch_loop(void)
 
     while (1)
     {
-        sem_wait(&s_sem); /* POSIX 取消点，可通过 pthread_cancel 退出 */
+        while (sem_wait(&s_sem) != 0)
+        {
+            if (errno == EINTR)
+            {
+                continue;
+            }
+
+            pthread_mutex_lock(&s_q_mutex);
+            s_stats.sem_wait_fail_count++;
+            pthread_mutex_unlock(&s_q_mutex);
+            EVT_LOG_ERROR("sem_wait failed errno=%d", errno);
+            return;
+        }
 
         /* 出队 */
         pthread_mutex_lock(&s_q_mutex);
         if (s_q_count == 0U)
         {
+            if (s_shutdown_requested)
+            {
+                pthread_mutex_unlock(&s_q_mutex);
+                return;
+            }
+
             /* 并发 publish 后 sem 计数可能超过实际队列数量，正常跳过 */
             pthread_mutex_unlock(&s_q_mutex);
             continue;
@@ -194,6 +293,8 @@ void event_bus_dispatch_loop(void)
         dispatch_evt  = s_queue[s_q_head];
         s_q_head      = (s_q_head + 1U) % EVENT_BUS_QUEUE_SIZE;
         s_q_count--;
+        s_stats.dispatched_count++;
+        s_stats.queue_depth = s_q_count;
         pthread_mutex_unlock(&s_q_mutex);
 
         /* 复制 handler 快照（最小化持锁时间，避免 handler 内部 subscribe 死锁）*/

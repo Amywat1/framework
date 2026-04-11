@@ -36,6 +36,17 @@ static volatile uint32_t g_h1_timestamp;
 static volatile uint32_t g_fifo_log[FIFO_LOG_MAX];
 static volatile int      g_fifo_log_count;
 
+static void reset_flags(void)
+{
+    g_h1_called = 0;
+    g_h2_called = 0;
+    g_h1_call_count = 0;
+    g_h1_param = 0U;
+    g_h1_timestamp = 0U;
+    g_fifo_log_count = 0;
+    memset((void *)g_fifo_log, 0, sizeof(g_fifo_log));
+}
+
 static void handler1(const event_t *evt)
 {
     g_h1_called     = 1;
@@ -65,8 +76,6 @@ static void fifo_handler(const event_t *evt)
 static void *dispatch_fn(void *arg)
 {
     (void)arg;
-    pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
-    pthread_setcanceltype(PTHREAD_CANCEL_DEFERRED, NULL);
     event_bus_dispatch_loop();
     return NULL;
 }
@@ -82,7 +91,7 @@ static pthread_t start_dispatch(void)
 /* 停止 dispatch 线程 */
 static void stop_dispatch(pthread_t tid)
 {
-    pthread_cancel(tid);
+    assert(event_bus_shutdown() == SW_OK);
     pthread_join(tid, NULL);
 }
 
@@ -91,11 +100,9 @@ static void stop_dispatch(pthread_t tid)
  * ========================================================================= */
 static void test_publish_subscribe(void)
 {
-    g_h1_called    = 0;
-    g_h1_param     = 0;
-    g_h1_timestamp = 0;
+    reset_flags();
 
-    event_bus_init();
+    assert(event_bus_init() == SW_OK);
     assert(event_subscribe(EVT_ALARM_TRIGGERED, handler1) == SW_OK);
 
     pthread_t tid = start_dispatch();
@@ -116,7 +123,8 @@ static void test_publish_subscribe(void)
  * ========================================================================= */
 static void test_queue_full(void)
 {
-    event_bus_init();
+    event_bus_stats_t stats;
+    assert(event_bus_init() == SW_OK);
 
     /* 不启动 dispatch 线程 —— 让队列积压 */
     sw_err_t rc = SW_OK;
@@ -126,6 +134,10 @@ static void test_queue_full(void)
     }
     /* 前 EVENT_BUS_QUEUE_SIZE 次应成功，之后应返回 SW_ERR_OVERFLOW */
     assert(rc == SW_ERR_OVERFLOW);
+    assert(event_bus_get_stats(&stats) == SW_OK);
+    assert(stats.queue_depth == EVENT_BUS_QUEUE_SIZE);
+    assert(stats.queue_peak_depth == EVENT_BUS_QUEUE_SIZE);
+    assert(stats.dropped_count == 5U);
 
     printf("PASS: test_queue_full\n");
 }
@@ -135,10 +147,9 @@ static void test_queue_full(void)
  * ========================================================================= */
 static void test_multi_subscriber(void)
 {
-    g_h1_called = 0;
-    g_h2_called = 0;
+    reset_flags();
 
-    event_bus_init();
+    assert(event_bus_init() == SW_OK);
     assert(event_subscribe(EVT_SAFETY_LOCKOUT, handler1) == SW_OK);
     assert(event_subscribe(EVT_SAFETY_LOCKOUT, handler2) == SW_OK);
 
@@ -159,10 +170,9 @@ static void test_multi_subscriber(void)
  * ========================================================================= */
 static void test_fifo_order(void)
 {
-    g_fifo_log_count = 0;
-    memset((void *)g_fifo_log, 0, sizeof(g_fifo_log));
+    reset_flags();
 
-    event_bus_init();
+    assert(event_bus_init() == SW_OK);
     assert(event_subscribe(EVT_CMD_ORDER, fifo_handler) == SW_OK);
 
     pthread_t tid = start_dispatch();
@@ -191,10 +201,9 @@ static void test_fifo_order(void)
  * ========================================================================= */
 static void test_event_isolation(void)
 {
-    g_h1_called = 0;
-    g_h2_called = 0;
+    reset_flags();
 
-    event_bus_init();
+    assert(event_bus_init() == SW_OK);
     assert(event_subscribe(EVT_ALARM_TRIGGERED, handler1) == SW_OK);
     assert(event_subscribe(EVT_CLOUD_CONNECTED, handler2) == SW_OK);
 
@@ -211,6 +220,76 @@ static void test_event_isolation(void)
 }
 
 /* =========================================================================
+ * 用例 6：未初始化时 subscribe / publish 应返回 SW_ERR_NOT_INIT
+ * ========================================================================= */
+static void test_not_init_guard(void)
+{
+    assert(event_subscribe(EVT_ALARM_TRIGGERED, handler1) == SW_ERR_NOT_INIT);
+    assert(event_publish(EVT_ALARM_TRIGGERED, 1U) == SW_ERR_NOT_INIT);
+    assert(event_bus_shutdown() == SW_ERR_NOT_INIT);
+
+    printf("PASS: test_not_init_guard\n");
+}
+
+/* =========================================================================
+ * 用例 7：重复订阅幂等，统计值正确
+ * ========================================================================= */
+static void test_subscribe_idempotent_and_stats(void)
+{
+    event_bus_stats_t stats;
+
+    reset_flags();
+    assert(event_bus_init() == SW_OK);
+    assert(event_subscribe(EVT_ALARM_TRIGGERED, handler1) == SW_OK);
+    assert(event_subscribe(EVT_ALARM_TRIGGERED, handler1) == SW_OK);
+    assert(event_subscribe(EVT_ALARM_TRIGGERED, handler2) == SW_OK);
+
+    assert(event_bus_get_stats(&stats) == SW_OK);
+    assert(stats.subscribe_count == 2U);
+
+    pthread_t tid = start_dispatch();
+    assert(event_publish(EVT_ALARM_TRIGGERED, 9001U) == SW_OK);
+    usleep(30000);
+    assert(g_h1_called == 1);
+    assert(g_h2_called == 1);
+    assert(g_h1_call_count == 1);
+
+    stop_dispatch(tid);
+    printf("PASS: test_subscribe_idempotent_and_stats\n");
+}
+
+/* =========================================================================
+ * 用例 8：shutdown 后分发线程正常退出，且统计可读
+ * ========================================================================= */
+static void test_shutdown_drains_queue(void)
+{
+    event_bus_stats_t stats;
+
+    reset_flags();
+    assert(event_bus_init() == SW_OK);
+    assert(event_subscribe(EVT_CMD_ORDER, fifo_handler) == SW_OK);
+
+    pthread_t tid = start_dispatch();
+    assert(event_publish(EVT_CMD_ORDER, 1U) == SW_OK);
+    assert(event_publish(EVT_CMD_ORDER, 2U) == SW_OK);
+    assert(event_publish(EVT_CMD_ORDER, 3U) == SW_OK);
+
+    stop_dispatch(tid);
+
+    assert(g_fifo_log_count == 3);
+    assert(g_fifo_log[0] == 1U);
+    assert(g_fifo_log[1] == 2U);
+    assert(g_fifo_log[2] == 3U);
+
+    assert(event_bus_get_stats(&stats) == SW_OK);
+    assert(stats.published_count == 3U);
+    assert(stats.dispatched_count == 3U);
+    assert(stats.queue_depth == 0U);
+
+    printf("PASS: test_shutdown_drains_queue\n");
+}
+
+/* =========================================================================
  * main
  * ========================================================================= */
 int main(void)
@@ -218,12 +297,15 @@ int main(void)
     printf("=== event_bus unit tests ===\n");
     time_util_init();
 
+    test_not_init_guard();
     test_publish_subscribe();
     test_queue_full();
     test_multi_subscriber();
     test_fifo_order();
     test_event_isolation();
+    test_subscribe_idempotent_and_stats();
+    test_shutdown_drains_queue();
 
-    printf("=== All 5 tests PASSED ===\n");
+    printf("=== All 8 tests PASSED ===\n");
     return 0;
 }
