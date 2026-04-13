@@ -1,8 +1,10 @@
 /**
  * @file    cli_commands.h
- * @brief   CLI 命令处理函数声明（C 接口，由 cli_adapter.cpp 调用）
- * @author  胡望伟
+ * @brief   CLI 命令处理函数声明
+ * @author  HUWANGWEI
  * @date    2026-04-10
+ *
+ * @note    由 `cli_adapter.cpp` 调用。
  */
 
 #ifndef ADAPTERS_UI_CLI_COMMANDS_H
@@ -21,7 +23,7 @@ int safety_cmd_handler(char *subcmd, char *p1, char *p2);
 /** @brief param 命令域：get <key> / set <key> <val> / save */
 int param_cmd_handler(char *subcmd, char *p1, char *p2);
 
-/** @brief diag 命令域：do <pin> <0|1> / di <pin> / state */
+/** @brief diag 命令域：do <DO_NAME> <0|1> / di <DI_NAME> / state */
 int diag_cmd_handler(char *subcmd, char *p1, char *p2);
 
 #ifdef __cplusplus

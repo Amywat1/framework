@@ -1,12 +1,19 @@
 /**
  * @file    drv_io.h
- * @brief   CAN IO 子板驱动接口（封装 io_exp SDK，统一使用图纸 DO/DI 编号）
- * @author  胡望伟
+ * @brief   CAN IO 子板驱动接口
+ * @author  HUWANGWEI
  * @date    2026-04-07
  *
- * @note    IO 地址编码规则：io_id = board_id × 100 + pin（pin 从 1 开始）
- *          M8 共 1 块子板（board_id = 1），引脚范围 101-132。
- *          修改引脚分配时只需更新下方枚举，驱动实现无需变动。
+ * @note    工程内部唯一 IO 标识为强类型句柄：
+ *          - `drv_io_di_t`：数字输入句柄
+ *          - `drv_io_do_t`：数字输出句柄
+ *
+ *          句柄底层为 16 位编码，包含：
+ *          - bit15：类型位，0=DI，1=DO
+ *          - bit14~8：子板号
+ *          - bit7~0：引脚号
+ *
+ *          `driver/drv_io_def.h` 是唯一 IO 定义总表。
  */
 
 #ifndef DRV_IO_H
@@ -16,131 +23,202 @@
 extern "C" {
 #endif
 
-#include "common/sw_types.h"
+#include <stdbool.h>
 #include "common/sw_error.h"
+#include "common/sw_types.h"
+#include "common/io_handle.h"
 
 /* -------------------------------------------------------------------------
- * IO 地址编解码（内部使用）
+ * 句柄编码规则
  * ------------------------------------------------------------------------- */
-#define DRV_IO_BOARD_VAL        100
-#define DRV_IO_BOARD_ID(io_id)  ((io_id) / DRV_IO_BOARD_VAL)
-#define DRV_IO_PIN_ID(io_id)    ((io_id) % DRV_IO_BOARD_VAL)
-#define DRV_IO_NULL             0
+#define DRV_IO_NULL                 IO_HANDLE_NULL
+#define DRV_IO_KIND_SHIFT           IO_KIND_SHIFT
+#define DRV_IO_KIND_MASK            IO_KIND_MASK
+#define DRV_IO_KIND_DI              IO_KIND_DI
+#define DRV_IO_KIND_DO              IO_KIND_DO
+#define DRV_IO_HANDLE_BOARD_SHIFT   IO_HANDLE_BOARD_SHIFT
+#define DRV_IO_HANDLE_BOARD_MASK    IO_HANDLE_BOARD_MASK
+#define DRV_IO_HANDLE_PIN_MASK      IO_HANDLE_PIN_MASK
+#define DRV_IO_HANDLE_MAKE(kind_, board_, pin_)  IO_HANDLE_MAKE(kind_, board_, pin_)
 
 /* -------------------------------------------------------------------------
- * 数字输入引脚（对应图纸 DI 编号，board 1）
+ * 强类型句柄
  * ------------------------------------------------------------------------- */
-typedef enum
+typedef io_di_t drv_io_di_t;
+typedef io_do_t drv_io_do_t;
+
+typedef void (*drv_io_debug_input_cb_t)(drv_io_di_t pin, bool state);
+
+#ifdef __cplusplus
+#define DRV_IO_DI(board_, pin_)    drv_io_di_t{DRV_IO_HANDLE_MAKE(DRV_IO_KIND_DI, board_, pin_)}
+#define DRV_IO_DO(board_, pin_)    drv_io_do_t{DRV_IO_HANDLE_MAKE(DRV_IO_KIND_DO, board_, pin_)}
+#else
+#define DRV_IO_DI(board_, pin_)    ((drv_io_di_t)IO_DI(board_, pin_))
+#define DRV_IO_DO(board_, pin_)    ((drv_io_do_t)IO_DO(board_, pin_))
+#endif
+
+/* -------------------------------------------------------------------------
+ * 通过唯一总表生成 DI / DO 常量
+ * ------------------------------------------------------------------------- */
+#define DRV_IO_DI_DEF(name, board, pin, desc) \
+    static const drv_io_di_t DI_##name = DRV_IO_DI(board, pin);
+#include "driver/drv_io_def.h"
+#undef DRV_IO_DI_DEF
+
+#define DRV_IO_DO_DEF(name, board, pin, desc) \
+    static const drv_io_do_t DO_##name = DRV_IO_DO(board, pin);
+#include "driver/drv_io_def.h"
+#undef DRV_IO_DO_DEF
+
+/* -------------------------------------------------------------------------
+ * 基础构造 / 拆解
+ * ------------------------------------------------------------------------- */
+static inline drv_io_di_t drv_io_di_make(uint16_t board_id, uint16_t pin_id)
 {
-    DI_GANTRY_REAR_LIMIT  = 103,    /* 行走后限位 */
-    DI_GANTRY_FWD_LIMIT   = 104,    /* 行走前限位 */
-    DI_TOP_LIFT_DOWN      = 107,    /* 顶刷下限位 */
-    DI_TOP_LIFT_UP        = 108,    /* 顶刷上限位 */
-    DI_ENCODER_PULSE      = 109,    /* 码盘脉冲（龙门位置计数）*/
-    DI_ESTOP              = 113,    /* 急停按钮（常闭，低电平有效）*/
-} drv_io_di_t;
+    return (drv_io_di_t)io_di_make(board_id, pin_id);
+}
+
+static inline drv_io_do_t drv_io_do_make(uint16_t board_id, uint16_t pin_id)
+{
+    return (drv_io_do_t)io_do_make(board_id, pin_id);
+}
+
+static inline uint16_t drv_io_di_raw(drv_io_di_t pin)
+{
+    return io_di_raw((io_di_t)pin);
+}
+
+static inline uint16_t drv_io_do_raw(drv_io_do_t pin)
+{
+    return io_do_raw((io_do_t)pin);
+}
+
+static inline uint16_t drv_io_handle_kind(uint16_t raw)
+{
+    return io_handle_kind(raw);
+}
+
+static inline uint16_t drv_io_handle_board(uint16_t raw)
+{
+    return io_handle_board(raw);
+}
+
+static inline uint16_t drv_io_handle_pin(uint16_t raw)
+{
+    return io_handle_pin(raw);
+}
 
 /* -------------------------------------------------------------------------
- * 数字输出引脚（对应图纸 DO/H 编号，board 1）
+ * 名称解析 / 可读名称
  * ------------------------------------------------------------------------- */
-typedef enum
-{
-    DO_ENTRY_GREEN1       = 101,    /* 入口绿灯 1 */
-    DO_ENTRY_RED          = 102,    /* 入口红灯 */
-    DO_ENTRY_GREEN2       = 103,    /* 入口绿灯 2 */
-    DO_ENTRY_YELLOW       = 104,    /* 入口黄灯 */
-    DO_ROD_EXTEND         = 105,    /* 电动推杆伸出 */
-    DO_ROD_RETRACT        = 106,    /* 电动推杆缩回 */
-    DO_TOP_LIFT_ENA       = 107,    /* 顶刷升降步进 — 使能（ENA）*/
-    DO_TOP_LIFT_DIR       = 108,    /* 顶刷升降步进 — 方向（DIR）*/
-    DO_WATER_PUMP         = 110,    /* 水泵启动 */
-    DO_SIDE_BRUSH_FWD     = 113,    /* 刷子 VFD — 正转 */
-    DO_SIDE_BRUSH_REV     = 114,    /* 刷子 VFD — 反转 */
-    DO_SIDE_BRUSH_RST     = 115,    /* 刷子 VFD — 复位 */
-    DO_GANTRY_FWD         = 116,    /* 龙门 VFD — 前进 */
-    DO_GANTRY_REV         = 117,    /* 龙门 VFD — 后退 */
-    DO_GANTRY_RST         = 118,    /* 龙门 VFD — 复位 */
-    DO_WATER_CURTAIN      = 119,    /* 清水水帘阀 */
-    DO_WATER_FOAM         = 120,    /* 泡沫+预洗液阀 */
-    DO_WATER_BRUSH        = 121,    /* 侧刷冲水阀 */
-    DO_WATER_HIGHPRES     = 122,    /* 高压冲洗阀 */
-    DO_WATER_SPARE1       = 123,    /* 备用水阀 1 */
-    DO_WATER_SPARE2       = 124,    /* 备用水阀 2 */
-    DO_TOP_LIFT_PUL       = 126,    /* 顶刷升降步进 — 脉冲（PUL，H26）*/
-    DO_PARAM_SEL          = 127,    /* 参数选择（H27）*/
-    DO_SIDE_BRUSH_ACT     = 128,    /* 接触器 2 — 侧刷接 VFD（H28）*/
-    DO_TOP_BRUSH_ACT      = 129,    /* 接触器 1 — 顶刷接 VFD（H29）*/
-} drv_io_do_t;
+/**
+ * @brief  解析 DI 名称为句柄
+ * @note   支持 `DI_XXX` / `XXX` / `M8_DI_XXX` 三种写法。
+ * @retval true=解析成功
+ */
+bool drv_io_try_parse_di(const char *name, drv_io_di_t *out);
+
+/**
+ * @brief  解析 DO 名称为句柄
+ * @note   支持 `DO_XXX` / `XXX` / `M8_DO_XXX` 三种写法。
+ * @retval true=解析成功
+ */
+bool drv_io_try_parse_do(const char *name, drv_io_do_t *out);
+
+/**
+ * @brief  获取 DI 句柄对应的标准名称
+ * @retval 返回形如 `DI_ESTOP` 的静态字符串；未知句柄返回 NULL
+ */
+const char *drv_io_di_name(drv_io_di_t pin);
+
+/**
+ * @brief  获取 DO 句柄对应的标准名称
+ * @retval 返回形如 `DO_WATER_PUMP` 的静态字符串；未知句柄返回 NULL
+ */
+const char *drv_io_do_name(drv_io_do_t pin);
 
 /* -------------------------------------------------------------------------
  * 基础接口
  * ------------------------------------------------------------------------- */
-
 /**
- * @brief  初始化 IO 子板驱动并启动后台读写线程
- * @retval SW_OK / SW_ERR_HW
+ * @brief  初始化 IO 子板驱动内部状态
+ * @note   这里只做状态初始化，不再内部自建线程。
+ *          IO 轮询线程由 bootstrap 配合 scheduler 统一注册和启动。
+ *          本接口仅用于系统启动阶段初始化，不用于运行期复位。
+ *          若测试场景需要重复调用本接口重置内部缓冲，调用方应在其后重新注册
+ *          调试输入回调、子板状态回调和 panic 回调。
  */
 sw_err_t drv_io_init(void);
 
 /**
- * @brief  同步刷新所有输出到硬件（绕过后台线程，立即写 CAN 总线）
- * @note   正常路径使用后台线程异步写出，本函数用于 panic handler 等
- *         需要在进程退出前保证输出到达硬件的场景。
- *         仅对当前在线子板执行写操作；CAN 总线不可达时为尽力而为。
- * @retval SW_OK
+ * @brief  IO 轮询线程入口
+ * @param  arg  线程参数，当前固定传 NULL
+ * @return 线程退出值，无业务语义
+ */
+void *drv_io_poll_loop(void *arg);
+
+/**
+ * @brief  立即将当前输出缓冲同步刷到硬件
+ * @note   正常路径由后台轮询线程异步写出。
+ *          本接口主要用于 panic handler、启动安全态等需要“立即落地”的场景。
  */
 sw_err_t drv_io_flush_outputs_now(void);
 
 /**
- * @brief  设置数字输出（写入输出缓冲，由后台线程同步到子板）
- * @param  pin  输出引脚（drv_io_do_t）
- * @param  val  true=ON / false=OFF
- * @retval SW_OK / SW_ERR_PARAM
+ * @brief  设置数字输出
+ * @param  pin  输出句柄
+ * @param  val  true=ON，false=OFF
  */
 sw_err_t drv_io_do_set(drv_io_do_t pin, bool val);
 
 /**
- * @brief  读取数字输入（读取后台线程维护的输入缓冲）
- * @param  pin  输入引脚（drv_io_di_t）
- * @retval true=ON / false=OFF
+ * @brief  读取数字输入缓存
+ * @param  pin  输入句柄
+ * @retval true=ON，false=OFF
  */
 bool drv_io_di_read(drv_io_di_t pin);
 
 /**
- * @brief  注册输入变化回调（任意输入引脚变化时触发）
- * @param  cb  回调函数，参数：io_id（board×100+pin）和新状态
+ * @brief  注册输入变化调试回调
+ * @note   该回调仅用于观察 IO 变化，不参与项目正式控制逻辑。
  */
-void drv_io_register_input_cb(void (*cb)(int io_id, bool state));
+void drv_io_register_debug_input_cb(drv_io_debug_input_cb_t cb);
 
 /* -------------------------------------------------------------------------
  * 扩展接口
  * ------------------------------------------------------------------------- */
-
 /**
  * @brief  查询指定子板是否在线
- * @param  board_id  子板 ID（1-based）
- * @retval true=在线
+ * @param  board_id  子板号，从 1 开始
  */
 bool drv_io_board_is_online(int board_id);
 
 /**
  * @brief  注册子板在线状态变化回调
- * @param  cb  回调函数：board_id，offline=true 表示掉线，false 表示恢复
+ * @param  cb  回调参数：board_id，offline=true 表示掉线，false 表示恢复
  */
 void drv_io_register_board_error_cb(void (*cb)(int board_id, bool offline));
 
 /**
- * @brief  设置 IO 测试覆盖值（调试用，强制指定引脚返回固定值）
- * @param  io_id  IO 地址（board×100+pin）
- * @param  value  0=强制 OFF，1=强制 ON，其它值=清除覆盖
+ * @brief  注册全板离线 panic 回调
+ * @note   检测到全部 IO 子板确认掉线时，drv_io 会先调用该回调准备安全态，
+ *         然后执行 flush + abort，由 systemd 负责拉起进程。
  */
-void drv_io_set_test_override(int io_id, int value);
+void drv_io_register_panic_cb(void (*cb)(void));
 
 /**
- * @brief  清除 IO 测试覆盖
- * @param  io_id  IO 地址
+ * @brief  设置 DI 测试覆盖值
+ * @note   仅用于调试/测试，强制指定输入句柄返回固定值。
+ * @param  pin    DI 句柄
+ * @param  value  0=强制 OFF，1=强制 ON，其它值=清除覆盖
  */
-void drv_io_clear_test_override(int io_id);
+void drv_io_set_test_override(drv_io_di_t pin, int value);
+
+/**
+ * @brief  清除 DI 测试覆盖
+ * @param  pin  DI 句柄
+ */
+void drv_io_clear_test_override(drv_io_di_t pin);
 
 #ifdef __cplusplus
 }

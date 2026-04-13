@@ -23,13 +23,16 @@
 #define EVENT_BUS_MAX_SUBS_PER_EVT   8U
 
 /* -------------------------------------------------------------------------
- * 线程配置（共 6 条）
+ * 线程配置（共 7 条）
  * 调度策略：SCHED_OTHER（普通线程）/ SCHED_FIFO（实时线程）
  * ------------------------------------------------------------------------- */
 
 /* 事件分发线程（SCHED_OTHER） */
 #define THD_EVENT_DISPATCH_STACK     (16U * 1024U)
 #define THD_EVENT_DISPATCH_NICE      0
+
+/* IO 读写线程（SCHED_OTHER）*/
+#define THD_IO_RW_STACK              (16U * 1024U)
 
 /* IO 轮询线程（SCHED_OTHER）*/
 #define THD_IO_POLL_STACK            (16U * 1024U)

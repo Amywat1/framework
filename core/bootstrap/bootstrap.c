@@ -7,7 +7,7 @@
  * 初始化顺序（严格，每步失败则中止）：
  *   1.  time_util_init()            — 时间戳基准，event_bus 入队依赖
  *   2.  event_bus_init()            — 事件总线，后续所有模块可发布/订阅
- *   3.  drv_io_init()               — IO 子板 CAN 驱动（后续所有 DO/DI 操作的基础）
+ *   3.  drv_io_init()               — IO 子板 CAN 驱动（仅初始化数据，线程由 scheduler 统一创建）
  *   4.  wiring()                    — port→adapter 依赖注入（仅做注册，不做硬件初始化）
  *   5.  m8_linux_hw_init()          — M8 硬件上下文初始化（VFD Modbus + 步进驱动，依赖 drv_io）
  *   6.  svc_param_init()            — 加载持久化参数（允许文件缺失，降级默认值）
@@ -25,8 +25,9 @@
  *   18. aliyun_command_adapter_init() — 连接 MQTT，注册命令接收回调
  *   19. cli_adapter_init()          — 注册 CLI 命令域（device/safety/param/diag）
  *   20. 注册 event_dispatch_thread
- *   21. 注册 io_poll_thread
- *   22. scheduler_start_all()       — 创建所有线程
+ *   21. 注册 io_rw_thread
+ *   22. 注册 io_poll_thread
+ *   23. scheduler_start_all()       — 创建所有线程
  */
 
 #include "core/bootstrap/bootstrap.h"
@@ -141,8 +142,11 @@ sw_err_t bootstrap_run(void)
     event_bus_set_fatal_cb(system_panic_safe_stop);
 
 #ifndef BUILD_SIM
-    /* 3. IO 子板 CAN 驱动（所有 DO/DI 操作的基础；仿真跳过）*/
+    /* 3. IO 子板 CAN 驱动（仅初始化数据，线程由 scheduler 统一创建；仿真跳过）*/
     BOOT_CHECK(drv_io_init(), "drv_io_init");
+
+    /* 3a. 注入全板离线安全停机回调 */
+    drv_io_register_panic_cb(m8_assert_safe_outputs);
 #endif
 
     /* 4. 依赖注入：注册所有 port→adapter（纯注册，无硬件操作）*/
@@ -221,12 +225,21 @@ sw_err_t bootstrap_run(void)
     cli_adapter_init();
 #endif
 
-    /* 21. 注册 event_dispatch_thread */
+    /* 20. 注册 event_dispatch_thread */
     BOOT_CHECK(thread_register("event_dispatch",
                                event_dispatch_thread_fn,
                                SCHED_OTHER, 0,
                                THD_EVENT_DISPATCH_STACK),
                "register event_dispatch_thread");
+
+#ifndef BUILD_SIM
+    /* 21. 注册 io_rw_thread */
+    BOOT_CHECK(thread_register("io_rw",
+                               drv_io_poll_loop,
+                               SCHED_OTHER, 0,
+                               THD_IO_RW_STACK),
+               "register io_rw_thread");
+#endif
 
     /* 22. 注册 io_poll_thread */
     BOOT_CHECK(thread_register("io_poll",

@@ -12,6 +12,7 @@
 #include "core/bootstrap/bootstrap.h"
 #include "common/sw_version.h"
 #include "common/log.h"
+#include "config/machine/m8_machine_config.h"
 #include "adapters/runtime/snack/snack_runtime_adapter.h"
 #include "middleware/snack_wrapper.h"
 #include "io_exp/demo.h"
@@ -31,9 +32,22 @@ void app_info_set(char **name, char **version)
  * ------------------------------------------------------------------------- */
 int app_main(int, char **)
 {
+    int io_ret = 0;
+
     set_log_level(6);
     set_app_version((char *)APP_NAME, (char *)APP_VERSION);
     snack_runtime_adapter_init();
+
+    /* 先初始化 io_exp SDK 的 CAN 总线访问，再进入后续模块初始化 */
+    io_ret = io_init(CFG_IO_CAN_BUS, CFG_IO_CAN_BAUD, CFG_IO_SELF_NODE, CFG_IO_BOARD_COUNT);
+    if (io_ret != 0)
+    {
+        LOG_ERROR("app_main: io_init failed ret=%d", io_ret);
+        return -1;
+    }
+
+    /* SDK 初始化完成后等待子板上电稳定 */
+    sleep(2);
 
     if (bootstrap_run() != SW_OK)
     {

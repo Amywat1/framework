@@ -15,38 +15,70 @@
 #include "common/log.h"
 
 /* -------------------------------------------------------------------------
- * IO 输入变化回调（由 drv_io 后台线程调用）
- * 使用 M8_DI_* 别名，不直接混用原始 DI_* 枚举
+ * IO 输入事件轮询（正式运行链路）
+ * 不依赖 drv_io 的调试输入回调；统一从输入缓存读值后做边沿提取并发布事件。
  * ------------------------------------------------------------------------- */
-static void io_input_cb(int io_id, bool state)
+static void m8_poll_input_events(void)
 {
-    if (io_id == (int)M8_DI_ESTOP)
+    static bool s_init             = false;
+    static bool s_prev_estop       = false;
+    static bool s_prev_gantry_fwd  = false;
+    static bool s_prev_gantry_rev  = false;
+    static bool s_prev_lift_up     = false;
+    static bool s_prev_lift_down   = false;
+    static bool s_prev_encoder     = false;
+
+    bool estop_active = !drv_io_di_read(M8_DI_ESTOP);
+    bool gantry_fwd   = drv_io_di_read(M8_DI_GANTRY_FWD_LIM);
+    bool gantry_rev   = drv_io_di_read(M8_DI_GANTRY_REV_LIM);
+    bool lift_up      = drv_io_di_read(M8_DI_LIFT_UP_LIM);
+    bool lift_down    = drv_io_di_read(M8_DI_LIFT_DOWN_LIM);
+    bool encoder      = drv_io_di_read(M8_DI_ENCODER);
+
+    if (!s_init)
     {
-        /* 常闭接法：DI 变 false = 急停按下，变 true = 释放 */
-        (void)event_publish(!state ? EVT_HW_ESTOP_ON : EVT_HW_ESTOP_OFF, 0U);
+        s_prev_estop      = estop_active;
+        s_prev_gantry_fwd = gantry_fwd;
+        s_prev_gantry_rev = gantry_rev;
+        s_prev_lift_up    = lift_up;
+        s_prev_lift_down  = lift_down;
+        s_prev_encoder    = encoder;
+        s_init            = true;
+        return;
     }
-    else if (io_id == (int)M8_DI_GANTRY_FWD_LIM && state)
+
+    if (estop_active != s_prev_estop)
+    {
+        (void)event_publish(estop_active ? EVT_HW_ESTOP_ON : EVT_HW_ESTOP_OFF, 0U);
+    }
+    if (gantry_fwd && !s_prev_gantry_fwd)
     {
         (void)event_publish(EVT_HW_GANTRY_FWD_LIM, 0U);
     }
-    else if (io_id == (int)M8_DI_GANTRY_REV_LIM && state)
+    if (gantry_rev && !s_prev_gantry_rev)
     {
         (void)event_publish(EVT_HW_GANTRY_REV_LIM, 0U);
     }
-    else if (io_id == (int)M8_DI_LIFT_UP_LIM && state)
+    if (lift_up && !s_prev_lift_up)
     {
         (void)event_publish(EVT_HW_LIFT_UP_LIM, 0U);
     }
-    else if (io_id == (int)M8_DI_LIFT_DOWN_LIM && state)
+    if (lift_down && !s_prev_lift_down)
     {
         (void)event_publish(EVT_HW_LIFT_DOWN_LIM, 0U);
     }
-    else if (io_id == (int)M8_DI_ENCODER && state)
+    if (encoder && !s_prev_encoder)
     {
-        /* 上升沿 = 有效脉冲 */
         m8_ctx_encoder_tick();
         (void)event_publish(EVT_HW_ENCODER_TICK, m8_ctx_gantry_is_fwd() ? 1U : 0U);
     }
+
+    s_prev_estop      = estop_active;
+    s_prev_gantry_fwd = gantry_fwd;
+    s_prev_gantry_rev = gantry_rev;
+    s_prev_lift_up    = lift_up;
+    s_prev_lift_down  = lift_down;
+    s_prev_encoder    = encoder;
 }
 
 /* IO 子板在线状态变化回调 */
@@ -127,13 +159,13 @@ static const hal_sensor_ops_t s_ops = {
     .is_estop_active      = m8_is_estop_active,
     .get_gantry_pos       = m8_get_gantry_pos,
     .reset_gantry_pos     = m8_reset_gantry_pos,
+    .poll_input_events    = m8_poll_input_events,
     .get_vfd_fault_code   = m8_get_vfd_fault_code,
     .poll_vfd_faults      = m8_poll_vfd_faults,
 };
 
 void hal_sensor_linux_register(void)
 {
-    drv_io_register_input_cb(io_input_cb);
     drv_io_register_board_error_cb(io_board_status_cb);
     hal_sensor_register(&s_ops);
 }

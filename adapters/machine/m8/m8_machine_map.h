@@ -18,7 +18,7 @@
 #define ADAPTERS_MACHINE_M8_MACHINE_MAP_H
 
 #include "config/machine/m8_machine_config.h"  /* 唯一参数来源 */
-#include "driver/drv_io.h"                      /* drv_io_do_t / drv_io_di_t 枚举 */
+#include "driver/drv_io.h"                      /* drv_io_do_t / drv_io_di_t 类型 */
 
 /* -------------------------------------------------------------------------
  * IO 子板 CAN 总线参数 — 直接使用 CFG_* 宏（在此文件中作为 M8_ 别名）

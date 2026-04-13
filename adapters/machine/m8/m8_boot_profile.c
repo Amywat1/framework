@@ -12,6 +12,7 @@
 #include "driver/drv_io.h"
 #include "common/log.h"
 #include "common/sw_error.h"
+#include "io_exp/slave.h"       /* io_online_get()：启动阶段同步探测 IO 子板在线状态 */
 
 #include <unistd.h>
 
@@ -64,7 +65,7 @@ void m8_assert_safe_outputs(void)
 
     /* 同步刷新到硬件：绕过后台线程，立即写 CAN 总线
      * 普通上电路径下可确保安全态在后续初始化前已落硬件；
-     * panic 路径（fatal 回调）下可确保 abort() 前输出已发出 */
+     * panic 路径（fatal 回调 / 全板离线回调）下可确保 abort() 前输出已尽力发出 */
     (void)drv_io_flush_outputs_now();
 }
 
@@ -82,7 +83,7 @@ static sw_err_t m8_wait_io_ready(void)
         bool all_online = true;
         for (int i = 1; i <= M8_IO_BOARD_COUNT; i++)
         {
-            if (!drv_io_board_is_online(i))
+            if (io_online_get(i) <= 0)
             {
                 all_online = false;
                 break;
@@ -119,7 +120,8 @@ sw_err_t m8_boot_profile_init(void)
 {
     sw_err_t io_ret;
 
-    /* 1. 等待 IO 子板就绪 */
+    /* 1. 等待 IO 子板就绪
+     *    注意：此阶段 IO 后台线程尚未启动，因此直接通过 SDK 同步探测在线状态。 */
     io_ret = m8_wait_io_ready();
     if (io_ret != SW_OK)
     {

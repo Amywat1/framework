@@ -34,6 +34,9 @@ static void m8_signal_poll(void)
 {
     const hal_sensor_ops_t *sensor = hal_sensor_get_ops();
 
+    /* 正式硬件输入事件统一由 sensor 轮询链路提取，不依赖 drv_io 调试回调 */
+    sensor->poll_input_events();
+
     /* 急停（常闭，true=有效）*/
     alarm_core_set_raw_trigger(ALARM_CODE_ESTOP,
                                sensor->is_estop_active(), false);

@@ -48,6 +48,13 @@ typedef struct
     void     (*reset_gantry_pos)(void); /* 归位完成后清零 */
 
     /**
+     * @brief  轮询输入硬件事件并发布事件总线消息
+     * @note   用于正式运行期的硬件输入事件提取，例如急停边沿、限位触发、
+     *         编码器脉冲等；不得依赖 drv_io 的调试输入回调承载项目正式逻辑。
+     */
+    void (*poll_input_events)(void);
+
+    /**
      * @brief  读取 VFD 故障码
      * @param  vfd_id   目标 VFD
      * @param  p_code   输出故障码（0 = 无故障；不可为 NULL）
