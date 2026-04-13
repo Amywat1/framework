@@ -43,13 +43,13 @@ static bool mock_lift_at_bottom(void)      { return s_mock_lift_bottom; }
 static bool mock_is_estop_active(void)     { return s_mock_estop; }
 static int32_t mock_get_gantry_pos(void)   { return (int32_t)s_mock_gantry_pos; }
 static void mock_reset_gantry_pos(void)    { s_mock_gantry_pos = 0; }
+static void mock_poll_input_events(void)   {}
 static sw_err_t mock_get_vfd_fault_code(hal_vfd_id_t id, uint16_t *p_code)
 {
     (void)id;
     if (p_code != NULL) { *p_code = 0U; }
     return SW_OK;
 }
-static void mock_poll_vfd_faults(void) {}
 
 static const hal_sensor_ops_t s_mock_sensor_ops = {
     .gantry_at_fwd_limit  = mock_gantry_at_fwd_limit,
@@ -59,8 +59,8 @@ static const hal_sensor_ops_t s_mock_sensor_ops = {
     .is_estop_active      = mock_is_estop_active,
     .get_gantry_pos       = mock_get_gantry_pos,
     .reset_gantry_pos     = mock_reset_gantry_pos,
+    .poll_input_events    = mock_poll_input_events,
     .get_vfd_fault_code   = mock_get_vfd_fault_code,
-    .poll_vfd_faults      = mock_poll_vfd_faults,
 };
 
 /* 模拟 HAL 运动控制 */

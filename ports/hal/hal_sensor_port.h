@@ -62,11 +62,6 @@ typedef struct
      */
     sw_err_t (*get_vfd_fault_code)(hal_vfd_id_t vfd_id, uint16_t *p_code);
 
-    /**
-     * @brief  轮询 VFD 故障并发布事件（由报警轮询定期调用）
-     * @note   由报警轮询路径调用，用于查询 VFD 故障并发布相关事件。
-     */
-    void (*poll_vfd_faults)(void);
 } hal_sensor_ops_t;
 
 /* -------------------------------------------------------------------------

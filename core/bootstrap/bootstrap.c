@@ -14,7 +14,8 @@
  *   7.  dev_ctx_init()              — 设备状态快照清零
  *   8.  m8_boot_profile_init()      — 等待 IO 子板就绪 + 所有 DO 置安全态
  *   9.  alarm_core_init()           — 报警引擎清零
- *   10. m8_alarm_adapt_init()       — 注册 M8 IO 轮询和急停复位回调
+ *   9a. m8_signal_filter_init()     — 初始化 DI 信号滤波状态（仅真机）
+ *   10. m8_alarm_adapt_init()       — 注册 M8 报警适配与急停复位回调
  *   11. safety_fsm_init()           — 安全状态机（订阅报警事件）
  *   12. domain/device init          — brush/gantry/top_lift/water/gate
  *   13. safety_supervisor_init()    — 安全监督者（订阅安全事件）
@@ -60,6 +61,7 @@
 /* 真机专属头文件（仿真构建不依赖这些）*/
 #ifndef BUILD_SIM
 #  include "adapters/machine/m8/m8_boot_profile.h"
+#  include "adapters/machine/m8/m8_signal_filter.h"
 #  include "adapters/hal/linux_hw/m8_hal_ctx.h"
 #  include "driver/drv_io.h"
 #endif
@@ -101,12 +103,17 @@ static void *event_dispatch_thread_fn(void *arg)
     return NULL;
 }
 
-/** io_poll_thread：每 ALARM_POLL_PERIOD_MS 调用一次 alarm_core_tick_ms */
+/** io_poll_thread：每 ALARM_POLL_PERIOD_MS 执行一次信号滤波与报警时间片 */
 static void *io_poll_thread_fn(void *arg)
 {
     (void)arg;
     while (true)
     {
+#ifndef BUILD_SIM
+        /* 先做 DI 信号滤波，产出稳定输入状态与 EVT_HW_* 事件 */
+        m8_signal_filter_tick();
+#endif
+        /* 再推进报警时间片，处理报警级防抖和组合故障判断 */
         alarm_core_tick_ms(ALARM_POLL_PERIOD_MS);
         usleep((unsigned long)ALARM_POLL_PERIOD_MS * 1000UL);
     }
@@ -177,6 +184,11 @@ sw_err_t bootstrap_run(void)
 
     /* 9. 报警引擎 */
     BOOT_CHECK(alarm_core_init(), "alarm_core_init");
+
+#ifndef BUILD_SIM
+    /* 9a. 信号滤波器初始化（须在 alarm_core 之后，报警适配之前）*/
+    m8_signal_filter_init();
+#endif
 
     /* 10. 注册 M8 报警适配回调 */
     BOOT_CHECK(m8_alarm_adapt_init(), "m8_alarm_adapt_init");

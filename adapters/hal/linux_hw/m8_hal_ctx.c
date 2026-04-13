@@ -40,7 +40,7 @@ static pthread_mutex_t s_pos_mutex  = PTHREAD_MUTEX_INITIALIZER;
 #include "domain/model/alarm_code.h"
 
 /* VFD 事件回调：由驱动层触发（当前驱动层未主动调用此回调，
- * 故障检测改由 hal_sensor_linux.c 的 poll_vfd_faults 负责，
+ * 正常故障检测由 m8_alarm_adapt 的周期性读取完成，
  * 此回调作为备用兜底保留。） */
 static void brush_vfd_event_cb(int event_code)
 {

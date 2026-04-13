@@ -120,8 +120,6 @@ static sw_err_t sim_get_vfd_fault_code(hal_vfd_id_t vfd_id, uint16_t *p_code)
     return SW_OK;
 }
 
-static void sim_poll_vfd_faults(void) { /* 仿真无 VFD 故障 */ }
-
 static const hal_sensor_ops_t s_ops = {
     .gantry_at_fwd_limit  = sim_gantry_at_fwd_limit,
     .gantry_at_rev_limit  = sim_gantry_at_rev_limit,
@@ -132,7 +130,6 @@ static const hal_sensor_ops_t s_ops = {
     .reset_gantry_pos     = sim_reset_gantry_pos,
     .poll_input_events    = sim_poll_input_events,
     .get_vfd_fault_code   = sim_get_vfd_fault_code,
-    .poll_vfd_faults      = sim_poll_vfd_faults,
 };
 
 void hal_sensor_sim_register(void)
