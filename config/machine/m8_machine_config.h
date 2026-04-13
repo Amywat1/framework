@@ -60,4 +60,9 @@
 #define CFG_WATER_PUMP_STOP_DELAY_MS     300U   /* 关泵后等待管路泄压再关阀（ms）*/
 #define CFG_WATER_PUMP_DRY_RUN_TIMEOUT_S 10U    /* 泵空转保护超时（秒）*/
 
+/* -------------------------------------------------------------------------
+ * 入口指示灯参数
+ * ------------------------------------------------------------------------- */
+#define CFG_ENTRY_LIGHT_BLINK_HALF_MS    200U   /* 闪烁半周期（亮/灭各持续时长，ms）*/
+
 #endif /* CONFIG_MACHINE_M8_MACHINE_CONFIG_H */

@@ -20,7 +20,7 @@ typedef enum
     DEV_STATE_INIT     = 0, /* 系统初始化中 */
     DEV_STATE_IDLE,         /* 空闲，等待订单 */
     DEV_STATE_RUN,          /* 洗车进行中 */
-    DEV_STATE_COMPLETE,     /* 洗车完成，龙门归位中 */
+    DEV_STATE_COMPLETE,     /* 归位中（手动归位或流程收尾归位）*/
     DEV_STATE_FAULT,        /* 故障停机，等待复位 */
     DEV_STATE_STOP,         /* 运营关闭（人工停止运营）*/
 } dev_state_t;

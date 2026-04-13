@@ -141,6 +141,15 @@ static void m8_signal_poll(void)
     alarm_core_set_raw_trigger(ALARM_CODE_PUMP_DRY_RUN,
                                water_is_pump_on() && !water_is_any_valve_open(),
                                false);
+
+    /* 指示灯闪烁 tick：由报警轮询周期统一驱动。 */
+    {
+        const hal_indicator_ops_t *indicator = hal_indicator_get_ops();
+        if ((indicator != NULL) && (indicator->entry_light_tick != NULL))
+        {
+            indicator->entry_light_tick();
+        }
+    }
 }
 
 /* -------------------------------------------------------------------------

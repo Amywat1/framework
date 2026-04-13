@@ -11,11 +11,14 @@
 static const char *light_name(hal_light_state_t s)
 {
     switch (s) {
-        case HAL_LIGHT_OFF:    return "OFF";
-        case HAL_LIGHT_GREEN:  return "GREEN";
-        case HAL_LIGHT_RED:    return "RED";
-        case HAL_LIGHT_YELLOW: return "YELLOW";
-        default:               return "?";
+        case HAL_LIGHT_OFF:          return "OFF";
+        case HAL_LIGHT_GREEN:        return "GREEN";
+        case HAL_LIGHT_RED:          return "RED";
+        case HAL_LIGHT_YELLOW:       return "YELLOW";
+        case HAL_LIGHT_GREEN_BLINK:  return "GREEN_BLINK";
+        case HAL_LIGHT_RED_BLINK:    return "RED_BLINK";
+        case HAL_LIGHT_YELLOW_BLINK: return "YELLOW_BLINK";
+        default:                     return "?";
     }
 }
 
@@ -38,9 +41,10 @@ static sw_err_t sim_rod_close(void)
 }
 
 static const hal_indicator_ops_t s_ops = {
-    .entry_light_set = sim_entry_light_set,
-    .rod_open        = sim_rod_open,
-    .rod_close       = sim_rod_close,
+    .entry_light_set  = sim_entry_light_set,
+    .entry_light_tick = NULL,
+    .rod_open         = sim_rod_open,
+    .rod_close        = sim_rod_close,
 };
 
 void hal_indicator_sim_register(void)

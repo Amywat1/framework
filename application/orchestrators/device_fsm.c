@@ -45,6 +45,34 @@ static void set_state(dev_state_t new_state)
     LOG_INFO("device_fsm: → %d", (int)new_state);
 }
 
+static void apply_idle_indicator(void)
+{
+    (void)gate_allow();
+    (void)gate_set_light(HAL_LIGHT_GREEN_BLINK);
+}
+
+static void apply_run_indicator(void)
+{
+    (void)gate_block();
+    (void)gate_set_light(HAL_LIGHT_YELLOW_BLINK);
+}
+
+static void apply_fault_indicator(void)
+{
+    (void)gate_block();
+    (void)gate_set_light(HAL_LIGHT_RED_BLINK);
+}
+
+static void apply_stop_indicator(void)
+{
+    (void)gate_set_light(HAL_LIGHT_OFF);
+}
+
+static void clear_manual_stop_flag(void)
+{
+    s_manual_stop = false;
+}
+
 /* -------------------------------------------------------------------------
  * 事件处理函数（在 event_dispatch_thread 上下文执行）
  * ------------------------------------------------------------------------- */
@@ -72,9 +100,9 @@ static void on_cmd_order(const event_t *evt)
         return;
     }
 
+    clear_manual_stop_flag();
     set_state(DEV_STATE_RUN);
-    (void)gate_block();
-    (void)gate_set_light(HAL_LIGHT_RED);
+    apply_run_indicator();
     LOG_INFO("device_fsm: IDLE → RUN mode=%d", (int)mode);
 }
 
@@ -88,7 +116,7 @@ static void on_cmd_stop_op(const event_t *evt)
         return;
     }
     set_state(DEV_STATE_STOP);
-    (void)gate_set_light(HAL_LIGHT_OFF);
+    apply_stop_indicator();
     LOG_INFO("device_fsm: IDLE → STOP");
 }
 
@@ -102,7 +130,7 @@ static void on_cmd_resume_op(const event_t *evt)
         return;
     }
     set_state(DEV_STATE_IDLE);
-    (void)gate_allow();
+    apply_idle_indicator();
     LOG_INFO("device_fsm: STOP → IDLE");
 }
 
@@ -122,7 +150,7 @@ static void on_cmd_reset_fault(const event_t *evt)
     if (!alarm_core_has_error())
     {
         set_state(DEV_STATE_IDLE);
-        (void)gate_allow();
+        apply_idle_indicator();
         LOG_INFO("device_fsm: FAULT → IDLE (reset ok)");
     }
     else
@@ -141,8 +169,39 @@ static void on_cmd_home(const event_t *evt)
         return;
     }
     /* 龙门归位（异步，EVT_COMP_HOME_DONE 时结束，状态保持 IDLE）*/
-    (void)gantry_home_start(4000U); /* 4000 = 40.00Hz 慢速 */
-    LOG_INFO("device_fsm: homing started");
+    if (gantry_home_start(4000U) != SW_OK) /* 4000 = 40.00Hz 慢速 */
+    {
+        LOG_WARN("device_fsm: homing start failed");
+        return;
+    }
+    set_state(DEV_STATE_COMPLETE);
+    (void)gate_block();
+    (void)gate_set_light(HAL_LIGHT_YELLOW_BLINK);
+    LOG_INFO("device_fsm: IDLE → COMPLETE (homing started)");
+}
+
+/* EVT_COMP_HOME_DONE */
+static void on_home_done(const event_t *evt)
+{
+    if (get_state() != DEV_STATE_COMPLETE)
+    {
+        return;
+    }
+
+    if ((sw_err_t)evt->param == SW_OK)
+    {
+        set_state(DEV_STATE_IDLE);
+        apply_idle_indicator();
+        LOG_INFO("device_fsm: COMPLETE → IDLE (homing done)");
+    }
+    else
+    {
+        clear_manual_stop_flag();
+        set_state(DEV_STATE_FAULT);
+        apply_fault_indicator();
+        LOG_WARN("device_fsm: COMPLETE → FAULT (homing failed ret=%d)",
+                 (int)((sw_err_t)evt->param));
+    }
 }
 
 /* EVT_WASH_DONE */
@@ -154,11 +213,8 @@ static void on_wash_done(const event_t *evt)
         return;
     }
 
-    /* COMPLETE 动作（内联，状态不对外暴露）*/
-    (void)gate_allow();
-    (void)gate_set_light(HAL_LIGHT_GREEN);
-
     set_state(DEV_STATE_IDLE);
+    apply_idle_indicator();
     LOG_INFO("device_fsm: RUN → IDLE (wash done)");
 }
 
@@ -187,18 +243,17 @@ static void on_wash_aborted(const event_t *evt)
     if (s_manual_stop)
     {
         /* 用户主动停止：恢复 IDLE，开放入口 */
-        s_manual_stop = false;
-        (void)gate_allow();
-        (void)gate_set_light(HAL_LIGHT_GREEN);
+        clear_manual_stop_flag();
         set_state(DEV_STATE_IDLE);
+        apply_idle_indicator();
         LOG_INFO("device_fsm: RUN → IDLE (manual stop)");
     }
     else
     {
         /* 故障导致中止：进入 FAULT，等待复位 */
+        clear_manual_stop_flag();
         set_state(DEV_STATE_FAULT);
-        (void)gate_block();
-        (void)gate_set_light(HAL_LIGHT_RED);
+        apply_fault_indicator();
         LOG_WARN("device_fsm: RUN → FAULT (wash aborted reason=%u)",
                  (unsigned)evt->param);
     }
@@ -208,13 +263,22 @@ static void on_wash_aborted(const event_t *evt)
 static void on_safety_lockout(const event_t *evt)
 {
     (void)evt;
-    if (get_state() == DEV_STATE_RUN)
+    dev_state_t state = get_state();
+
+    if ((state == DEV_STATE_RUN) || (state == DEV_STATE_COMPLETE))
     {
-        wash_orchestrator_abort();
+        clear_manual_stop_flag();
+        if (state == DEV_STATE_RUN)
+        {
+            wash_orchestrator_abort();
+        }
+        else
+        {
+            (void)gantry_stop();
+        }
         set_state(DEV_STATE_FAULT);
-        (void)gate_block();
-        (void)gate_set_light(HAL_LIGHT_RED);
-        LOG_WARN("device_fsm: RUN → FAULT (LOCKOUT)");
+        apply_fault_indicator();
+        LOG_WARN("device_fsm: %d → FAULT (LOCKOUT)", (int)state);
     }
 }
 
@@ -227,8 +291,7 @@ sw_err_t device_fsm_init(void)
 
     /* 所有组件已由 bootstrap 初始化完毕，直接进入 IDLE */
     set_state(DEV_STATE_IDLE);
-    (void)gate_allow();
-    (void)gate_set_light(HAL_LIGHT_GREEN);
+    apply_idle_indicator();
 
     ret = event_subscribe(EVT_CMD_ORDER,              on_cmd_order);
     if (ret != SW_OK) { return ret; }
@@ -241,6 +304,8 @@ sw_err_t device_fsm_init(void)
     ret = event_subscribe(EVT_CMD_RESET_FAULT,        on_cmd_reset_fault);
     if (ret != SW_OK) { return ret; }
     ret = event_subscribe(EVT_CMD_HOME_DEVICE,        on_cmd_home);
+    if (ret != SW_OK) { return ret; }
+    ret = event_subscribe(EVT_COMP_HOME_DONE,         on_home_done);
     if (ret != SW_OK) { return ret; }
     ret = event_subscribe(EVT_WASH_DONE,              on_wash_done);
     if (ret != SW_OK) { return ret; }

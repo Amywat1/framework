@@ -19,10 +19,13 @@ extern "C" {
  * ------------------------------------------------------------------------- */
 typedef enum
 {
-    HAL_LIGHT_OFF    = 0,
-    HAL_LIGHT_GREEN,     /* 允许进入 */
-    HAL_LIGHT_RED,       /* 禁止进入 / 故障 */
-    HAL_LIGHT_YELLOW,    /* 等待 / 注意 */
+    HAL_LIGHT_OFF = 0,
+    HAL_LIGHT_GREEN,          /* 绿灯常亮 */
+    HAL_LIGHT_RED,            /* 红灯常亮 */
+    HAL_LIGHT_YELLOW,         /* 黄灯常亮 */
+    HAL_LIGHT_GREEN_BLINK,    /* 绿灯闪烁（等待车辆进入）*/
+    HAL_LIGHT_RED_BLINK,      /* 红灯闪烁（设备故障警告）*/
+    HAL_LIGHT_YELLOW_BLINK,   /* 黄灯闪烁（洗车中/归位中）*/
 } hal_light_state_t;
 
 /* -------------------------------------------------------------------------
@@ -32,6 +35,9 @@ typedef struct
 {
     /** @brief 设置入口指示灯状态（同时控制红/绿/黄三路输出）*/
     sw_err_t (*entry_light_set)(hal_light_state_t state);
+
+    /** @brief 指示灯闪烁 tick（由报警轮询周期调用；可为 NULL 表示不支持闪烁）*/
+    void (*entry_light_tick)(void);
 
     /** @brief 挡杆缩回（放行车辆）*/
     sw_err_t (*rod_open)(void);
