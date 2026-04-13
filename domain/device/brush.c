@@ -6,6 +6,8 @@
  */
 
 #include "domain/device/brush.h"
+#include "domain/device/motor.h"
+#include "config/machine/m8_motor_table.h"
 #include "domain/safety/interlock.h"
 #include "ports/hal/hal_motion_port.h"
 #include "core/event_bus/event_bus.h"
@@ -27,13 +29,18 @@ sw_err_t brush_start(brush_id_t id, uint16_t freq_hz)
 {
     const hal_motion_ops_t *ops = hal_motion_get_ops();
     sw_err_t                ret;
+    int                     motor_id;
 
     if (id == BRUSH_ID_NONE)
     {
         return SW_ERR_PARAM;
     }
+    if (freq_hz == 0U)
+    {
+        return brush_stop();
+    }
 
-    /* 运动前互锁检查（切换或继续运行均需通过）*/
+    /* 运动前互锁检查（切换或继续运行均需通过） */
     ret = interlock_check_motion(MOTION_TYPE_BRUSH_SWITCH);
     if (ret != SW_OK)
     {
@@ -43,8 +50,8 @@ sw_err_t brush_start(brush_id_t id, uint16_t freq_hz)
     /* 若当前运行的不是目标刷子，先停 VFD 再切换接触器 */
     if (s_is_running && (s_active_brush != id))
     {
-        LOG_INFO("brush: switching %d → %d", (int)s_active_brush, (int)id);
-        ret = ops->brush_stop();
+        LOG_INFO("brush: switching %d -> %d", (int)s_active_brush, (int)id);
+        ret = motor_hold((s_active_brush == BRUSH_ID_TOP) ? MOTOR_BRUSH_TOP : MOTOR_BRUSH_SIDE, 0);
         if (ret != SW_OK)
         {
             LOG_ERROR("brush_start: stop failed ret=%d", (int)ret);
@@ -53,7 +60,7 @@ sw_err_t brush_start(brush_id_t id, uint16_t freq_hz)
         s_is_running = false;
     }
 
-    /* 切换接触器（HAL 内部保证：先断全部 → 等 200ms → 合目标）*/
+    /* 切换接触器（HAL 内部保证：先断全部 -> 等待 200ms -> 吸合目标） */
     if (s_active_brush != id)
     {
         hal_brush_sel_t sel = (id == BRUSH_ID_TOP) ? HAL_BRUSH_TOP : HAL_BRUSH_SIDE;
@@ -66,11 +73,12 @@ sw_err_t brush_start(brush_id_t id, uint16_t freq_hz)
         s_active_brush = id;
     }
 
-    /* 启动 VFD */
-    ret = ops->brush_run(freq_hz);
+    /* 启动 VFD：通过 motor 层统一下发 */
+    motor_id = (id == BRUSH_ID_TOP) ? MOTOR_BRUSH_TOP : MOTOR_BRUSH_SIDE;
+    ret = motor_hold(motor_id, (int)freq_hz);
     if (ret != SW_OK)
     {
-        LOG_ERROR("brush_start: brush_run failed ret=%d", (int)ret);
+        LOG_ERROR("brush_start: motor_hold failed ret=%d", (int)ret);
         return ret;
     }
 
@@ -83,15 +91,14 @@ sw_err_t brush_start(brush_id_t id, uint16_t freq_hz)
 
 sw_err_t brush_stop(void)
 {
-    const hal_motion_ops_t *ops = hal_motion_get_ops();
-    sw_err_t                ret;
+    sw_err_t ret;
 
     if (!s_is_running)
     {
         return SW_OK;
     }
 
-    ret = ops->brush_stop();
+    ret = motor_hold((s_active_brush == BRUSH_ID_TOP) ? MOTOR_BRUSH_TOP : MOTOR_BRUSH_SIDE, 0);
     if (ret == SW_OK)
     {
         s_is_running = false;
@@ -103,7 +110,7 @@ sw_err_t brush_stop(void)
 sw_err_t brush_off(void)
 {
     (void)brush_stop();
-    /* 重置内部状态（HAL 侧接触器在下次 brush_select 前保持原状，属于 HAL 职责）*/
+    /* 重置内部状态（HAL 侧接触器在下次 brush_select 前保持原状，属于 HAL 职责） */
     s_active_brush = BRUSH_ID_NONE;
     LOG_INFO("brush: off (state reset)");
     return SW_OK;

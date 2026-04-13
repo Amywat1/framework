@@ -6,8 +6,9 @@
  */
 
 #include "domain/device/gantry.h"
+#include "domain/device/motor.h"
+#include "config/machine/m8_motor_table.h"
 #include "domain/safety/interlock.h"
-#include "ports/hal/hal_motion_port.h"
 #include "ports/hal/hal_sensor_port.h"
 #include "core/event_bus/event_bus.h"
 #include "common/event_types.h"
@@ -24,25 +25,34 @@ static atomic_bool s_homing = false; /* 正在归位中 */
 /* -------------------------------------------------------------------------
  * 事件处理（由 event_dispatch_thread 调用）
  * ------------------------------------------------------------------------- */
-static void on_gantry_rev_limit(const event_t *evt)
+static void on_gantry_done(const event_t *evt)
 {
-    (void)evt;
+    int      motor_id = MOTOR_DONE_PARAM_ID(evt->param);
+    sw_err_t result   = MOTOR_DONE_PARAM_RESULT(evt->param);
+
+    if (motor_id != MOTOR_GANTRY)
+    {
+        return;
+    }
 
     if (!atomic_load(&s_homing))
     {
         return; /* 非归位状态，忽略 */
     }
 
-    /* 归位完成：停龙门，清零位置，发布完成事件 */
-    const hal_motion_ops_t *ops   = hal_motion_get_ops();
-    const hal_sensor_ops_t *s_ops = hal_sensor_get_ops();
-    (void)ops->gantry_stop();
-    s_ops->reset_gantry_pos();
-
     atomic_store(&s_homing, false);
 
-    (void)event_publish(EVT_COMP_HOME_DONE, 0U);
-    LOG_INFO("gantry: home done (rev limit event)");
+    if (result == SW_OK)
+    {
+        hal_sensor_get_ops()->reset_gantry_pos();
+        LOG_INFO("gantry: home done");
+    }
+    else
+    {
+        LOG_WARN("gantry: home aborted ret=%d", (int)result);
+    }
+
+    (void)event_publish(EVT_COMP_HOME_DONE, (uint32_t)result);
 }
 
 /* -------------------------------------------------------------------------
@@ -52,10 +62,10 @@ sw_err_t gantry_init(void)
 {
     atomic_store(&s_homing, false);
 
-    sw_err_t ret = event_subscribe(EVT_HW_GANTRY_REV_LIM, on_gantry_rev_limit);
+    sw_err_t ret = event_subscribe(EVT_COMP_MOTOR_DONE, on_gantry_done);
     if (ret != SW_OK)
     {
-        LOG_ERROR("gantry_init: subscribe EVT_HW_GANTRY_REV_LIM failed");
+        LOG_ERROR("gantry_init: subscribe EVT_COMP_MOTOR_DONE failed");
         return ret;
     }
 
@@ -70,8 +80,14 @@ sw_err_t gantry_fwd(uint16_t freq_hz)
     {
         return ret;
     }
+
+    atomic_store(&s_homing, false);
+    if (freq_hz == 0U)
+    {
+        return motor_stop(MOTOR_GANTRY);
+    }
     LOG_INFO("gantry: fwd freq=%u", (unsigned)freq_hz);
-    return hal_motion_get_ops()->gantry_fwd(freq_hz);
+    return motor_move(MOTOR_GANTRY, (int)freq_hz);
 }
 
 sw_err_t gantry_rev(uint16_t freq_hz)
@@ -81,21 +97,26 @@ sw_err_t gantry_rev(uint16_t freq_hz)
     {
         return ret;
     }
+
+    atomic_store(&s_homing, false);
+    if (freq_hz == 0U)
+    {
+        return motor_stop(MOTOR_GANTRY);
+    }
     LOG_INFO("gantry: rev freq=%u", (unsigned)freq_hz);
-    return hal_motion_get_ops()->gantry_rev(freq_hz);
+    return motor_move(MOTOR_GANTRY, -(int)freq_hz);
 }
 
 sw_err_t gantry_stop(void)
 {
-    const hal_motion_ops_t *ops = hal_motion_get_ops();
-    return ops->gantry_stop();
+    atomic_store(&s_homing, false);
+    return motor_stop(MOTOR_GANTRY);
 }
 
 sw_err_t gantry_home_start(uint16_t freq_hz)
 {
-    const hal_motion_ops_t  *m_ops = hal_motion_get_ops();
-    const hal_sensor_ops_t  *s_ops = hal_sensor_get_ops();
-    sw_err_t                 ret;
+    const hal_sensor_ops_t *s_ops = hal_sensor_get_ops();
+    sw_err_t                ret;
 
     ret = interlock_check_motion(MOTION_TYPE_GANTRY_REV);
     if (ret != SW_OK)
@@ -120,11 +141,11 @@ sw_err_t gantry_home_start(uint16_t freq_hz)
 
     atomic_store(&s_homing, true);
 
-    ret = m_ops->gantry_rev(freq_hz);
+    ret = motor_move(MOTOR_GANTRY, -(int)freq_hz);
     if (ret != SW_OK)
     {
         atomic_store(&s_homing, false);
-        LOG_ERROR("gantry_home_start: gantry_rev failed ret=%d", (int)ret);
+        LOG_ERROR("gantry_home_start: motor_move failed ret=%d", (int)ret);
         return ret;
     }
 

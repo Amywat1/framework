@@ -42,7 +42,7 @@ typedef enum
     /* ------------------------------------------------------------------
      * 组件完成事件（由 domain/device/ 发布）
      * ------------------------------------------------------------------ */
-    EVT_COMP_GANTRY_DONE,       /* 龙门运动完成（param=sw_err_t）*/
+    EVT_COMP_MOTOR_DONE,        /* 电机运动完成（param=编码后的 motor_id + sw_err_t）*/
     EVT_COMP_HOME_DONE,         /* 龙门归位完成（param=sw_err_t）*/
     EVT_COMP_LIFT_DONE,         /* 顶刷升降完成（param=sw_err_t）*/
     EVT_COMP_BRUSH_STARTED,     /* 刷子已启动（param=brush_id）*/

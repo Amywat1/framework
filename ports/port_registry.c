@@ -11,6 +11,7 @@
  */
 
 #include "ports/hal/hal_motion_port.h"
+#include "ports/hal/hal_motor_port.h"
 #include "ports/hal/hal_sensor_port.h"
 #include "ports/hal/hal_io_port.h"
 #include "ports/hal/hal_water_port.h"
@@ -27,6 +28,14 @@ static const hal_motion_ops_t *s_motion_ops;
 
 void hal_motion_register(const hal_motion_ops_t *ops) { s_motion_ops = ops; }
 const hal_motion_ops_t *hal_motion_get_ops(void)      { return s_motion_ops; }
+
+/* -------------------------------------------------------------------------
+ * HAL — 通用电机
+ * ------------------------------------------------------------------------- */
+static const hal_motor_ops_t *s_motor_ops;
+
+void hal_motor_register(const hal_motor_ops_t *ops) { s_motor_ops = ops; }
+const hal_motor_ops_t *hal_motor_get_ops(void)      { return s_motor_ops; }
 
 /* -------------------------------------------------------------------------
  * HAL — 传感器

@@ -40,6 +40,7 @@
 #include "service/dev_ctx/dev_ctx.h"
 #include "domain/safety/alarm_core.h"
 #include "domain/safety/safety_fsm.h"
+#include "domain/device/motor.h"
 #include "domain/device/brush.h"
 #include "domain/device/gantry.h"
 #include "domain/device/top_lift.h"
@@ -197,6 +198,7 @@ sw_err_t bootstrap_run(void)
     BOOT_CHECK(safety_fsm_init(), "safety_fsm_init");
 
     /* 12. 设备组件 */
+    BOOT_CHECK(motor_init(),    "motor_init");
     BOOT_CHECK(brush_init(),    "brush_init");
     BOOT_CHECK(gantry_init(),   "gantry_init");
     BOOT_CHECK(top_lift_init(), "top_lift_init");
@@ -260,7 +262,14 @@ sw_err_t bootstrap_run(void)
                                THD_IO_POLL_STACK),
                "register io_poll_thread");
 
-    /* 23. 启动所有线程 */
+    /* 23. 注册 motor_tick_thread */
+    BOOT_CHECK(thread_register("motor_tick",
+                               motor_tick_loop,
+                               SCHED_OTHER, 0,
+                               THD_MOTOR_TICK_STACK),
+               "register motor_tick_thread");
+
+    /* 24. 启动所有线程 */
     BOOT_CHECK(scheduler_start_all(), "scheduler_start_all");
 
     LOG_INFO("bootstrap: system started successfully");

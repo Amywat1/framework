@@ -15,7 +15,12 @@
 #include "domain/safety/alarm_core.h"
 #include "domain/model/alarm_code.h"
 #include "domain/model/wash_types.h"
+#include "domain/device/motor.h"
+#include "domain/device/brush.h"
+#include "domain/device/gantry.h"
+#include "config/machine/m8_motor_table.h"
 #include "ports/hal/hal_motion_port.h"
+#include "ports/hal/hal_motor_port.h"
 #include "ports/hal/hal_sensor_port.h"
 #include "ports/hal/hal_water_port.h"
 #include "core/event_bus/event_bus.h"
@@ -61,6 +66,46 @@ static const hal_sensor_ops_t s_mock_sensor_ops = {
     .reset_gantry_pos     = mock_reset_gantry_pos,
     .poll_input_events    = mock_poll_input_events,
     .get_vfd_fault_code   = mock_get_vfd_fault_code,
+};
+
+static sw_err_t mock_motor_set_output(int id, int speed_ref)
+{
+    (void)id;
+    (void)speed_ref;
+    return SW_OK;
+}
+
+static bool mock_motor_at_fwd_limit(int id)
+{
+    return (id == MOTOR_GANTRY) ? s_mock_fwd_limit : false;
+}
+
+static bool mock_motor_at_rev_limit(int id)
+{
+    return (id == MOTOR_GANTRY) ? s_mock_rev_limit : false;
+}
+
+static int32_t mock_motor_get_pos(int id)
+{
+    return (id == MOTOR_GANTRY) ? (int32_t)s_mock_gantry_pos : -1;
+}
+
+static sw_err_t mock_motor_clear_pos(int id)
+{
+    if (id != MOTOR_GANTRY)
+    {
+        return SW_ERR_PARAM;
+    }
+    s_mock_gantry_pos = 0;
+    return SW_OK;
+}
+
+static const hal_motor_ops_t s_mock_motor_ops = {
+    .set_output   = mock_motor_set_output,
+    .at_fwd_limit = mock_motor_at_fwd_limit,
+    .at_rev_limit = mock_motor_at_rev_limit,
+    .get_pos      = mock_motor_get_pos,
+    .clear_pos    = mock_motor_clear_pos,
 };
 
 /* 模拟 HAL 运动控制 */
@@ -277,12 +322,16 @@ int main(void)
 
     /* 注册模拟 HAL */
     hal_motion_register(&s_mock_motion_ops);
+    hal_motor_register(&s_mock_motor_ops);
     hal_sensor_register(&s_mock_sensor_ops);
     hal_water_register(&s_mock_water_ops);
 
     /* 初始化基础组件 */
     (void)event_bus_init();
     (void)alarm_core_init();
+    (void)motor_init();
+    (void)brush_init();
+    (void)gantry_init();
     (void)step_engine_init();
 
     test_step_normal_fwd_limit();

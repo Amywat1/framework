@@ -57,4 +57,9 @@
 #define THD_STEPPER_STACK            (16U * 1024U)
 #define THD_STEPPER_FIFO_PRIO        60    /* SCHED_FIFO 优先级，1~99 */
 
+/* 电机状态机线程（SCHED_OTHER） */
+#define THD_MOTOR_TICK_STACK         (16U * 1024U)
+#define THD_MOTOR_TICK_NICE          0
+#define THD_MOTOR_TICK_PERIOD_MS     10U
+
 #endif /* CONFIG_THREADING_THREAD_CONFIG_H */

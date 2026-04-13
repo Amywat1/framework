@@ -298,6 +298,7 @@ if(BUILD_SIM)
         domain/safety/alarm_core.c
         domain/safety/safety_fsm.c
         domain/safety/interlock.c
+        domain/device/motor.c
         domain/device/brush.c
         domain/device/gantry.c
         domain/device/top_lift.c
