@@ -34,6 +34,7 @@ typedef enum
     EVT_HW_LIFT_UP_LIM,         /* 顶刷升降触发上限位 */
     EVT_HW_LIFT_DOWN_LIM,       /* 顶刷升降触发下限位 */
     EVT_HW_ENCODER_TICK,        /* 龙门码盘脉冲（param=方向：0后退/1前进）*/
+    EVT_HW_ENCODER_ERR,         /* 码盘异常（param=MOTOR_EVENT_PARAM_PACK(motor_id, info)）*/
     EVT_HW_IO_OFFLINE,          /* IO 子板掉线（param=board_id）*/
     EVT_HW_IO_ONLINE,           /* IO 子板恢复在线（param=board_id）*/
     EVT_HW_VFD_BRUSH_FAULT,     /* 刷子 VFD 故障（param=fault_code）*/

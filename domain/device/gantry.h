@@ -5,7 +5,7 @@
  * @date    2026-04-10
  *
  * @note    通过 hal_motion_port + hal_sensor_port 接口控制，不依赖驱动层。
- *          码盘脉冲计数由 IO 回调触发（encoder_tick），使用原子操作。
+ *          位置值统一由 motor 管理层对外提供，兼容事件驱动和硬件计数器两种模式。
  *          gantry_home_start() 非阻塞：启动后退，事件驱动停止并发 EVT_COMP_HOME_DONE。
  */
 
@@ -67,8 +67,7 @@ bool gantry_at_rev_limit(void);
 
 /**
  * @brief  获取当前位置（码盘脉冲数，归位后为 0）
- * @note   直接委托给 hal_sensor_get_ops()->get_gantry_pos()（Option A）；
- *         位置由 HAL 层（m8_hal_ctx.c）通过编码器回调原子累加维护。
+ * @note   统一委托给 motor_get_pos()，由 motor 管理层维护当前位置。
  */
 int32_t gantry_get_pos(void);
 

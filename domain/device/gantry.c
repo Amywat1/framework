@@ -16,9 +16,9 @@
 #include <stdatomic.h>
 
 /*
- * 位置来源：直接委托给 hal_sensor_get_ops()->get_gantry_pos()（Option A）。
- * HAL 层（m8_hal_ctx.c）通过编码器回调原子累加，是位置的唯一可信来源。
- * 本层不维护冗余计数，避免双源竞争。
+ * 位置来源：统一委托给 motor 管理层。
+ * 事件驱动模式下，motor_tick_loop 会定时同步 HAL 外部位置；
+ * 将来切到硬件脉冲计数器模式时，上层无需改动。
  */
 static atomic_bool s_homing = false; /* 正在归位中 */
 
@@ -29,6 +29,7 @@ static void on_gantry_done(const event_t *evt)
 {
     int      motor_id = MOTOR_DONE_PARAM_ID(evt->param);
     sw_err_t result   = MOTOR_DONE_PARAM_RESULT(evt->param);
+    sw_err_t clear_ret;
 
     if (motor_id != MOTOR_GANTRY)
     {
@@ -44,8 +45,16 @@ static void on_gantry_done(const event_t *evt)
 
     if (result == SW_OK)
     {
-        hal_sensor_get_ops()->reset_gantry_pos();
-        LOG_INFO("gantry: home done");
+        clear_ret = motor_clear_encoder(MOTOR_GANTRY);
+        if (clear_ret == SW_OK)
+        {
+            LOG_INFO("gantry: home done");
+        }
+        else
+        {
+            result = clear_ret;
+            LOG_WARN("gantry: home clear encoder failed ret=%d", (int)clear_ret);
+        }
     }
     else
     {
@@ -133,7 +142,12 @@ sw_err_t gantry_home_start(uint16_t freq_hz)
     /* 若已在后限位，立即完成 */
     if (s_ops->gantry_at_rev_limit())
     {
-        s_ops->reset_gantry_pos();
+        ret = motor_clear_encoder(MOTOR_GANTRY);
+        if (ret != SW_OK)
+        {
+            LOG_WARN("gantry_home_start: clear encoder failed ret=%d", (int)ret);
+            return ret;
+        }
         (void)event_publish(EVT_COMP_HOME_DONE, 0U);
         LOG_INFO("gantry_home_start: already at home");
         return SW_OK;
@@ -165,11 +179,13 @@ bool gantry_at_rev_limit(void)
 
 int32_t gantry_get_pos(void)
 {
-    /* Option A：位置由 HAL（m8_hal_ctx.c）通过编码器原子累加维护，直接读取 */
-    return hal_sensor_get_ops()->get_gantry_pos();
+    return motor_get_pos(MOTOR_GANTRY);
 }
 
 void gantry_reset_pos(void)
 {
-    hal_sensor_get_ops()->reset_gantry_pos();
+    if (motor_clear_encoder(MOTOR_GANTRY) != SW_OK)
+    {
+        LOG_WARN("gantry_reset_pos: clear encoder failed");
+    }
 }

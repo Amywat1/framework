@@ -21,8 +21,10 @@ typedef struct
     sw_err_t (*set_output)(int id, int speed_ref);
     bool     (*at_fwd_limit)(int id);
     bool     (*at_rev_limit)(int id);
-    int32_t  (*get_pos)(int id);
-    sw_err_t (*clear_pos)(int id);
+    int32_t  (*get_pos)(int id);                           /* 读取事件驱动模式下的外部位置 */
+    sw_err_t (*clear_pos)(int id);                        /* 清零事件驱动模式下的外部位置 */
+    sw_err_t (*read_hw_pulse)(int id, uint32_t *p_value); /* 读取硬件脉冲计数器原始值 */
+    sw_err_t (*clear_hw_pulse)(int id);                   /* 清零硬件脉冲计数器 */
 } hal_motor_ops_t;
 
 void                  hal_motor_register(const hal_motor_ops_t *ops);

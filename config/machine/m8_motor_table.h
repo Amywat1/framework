@@ -73,6 +73,11 @@ typedef struct
     bool                 has_encoder;
     io_di_t              encoder_io;
     io_di_t              encoder_zero_io;
+    bool                 encoder_use_hw_counter;
+    uint8_t              encoder_zero_confirm;
+    uint8_t              encoder_err_threshold;
+    uint16_t             encoder_err_check_ms;
+    uint16_t             encoder_jump_threshold;
 } motor_cfg_t;
 
 static const motor_cfg_t m8_motor_table[] = {
@@ -95,6 +100,11 @@ static const motor_cfg_t m8_motor_table[] = {
         .has_encoder     = true,
         .encoder_io      = DI_ENCODER_PULSE,
         .encoder_zero_io = MOTOR_DI_NONE,
+        .encoder_use_hw_counter = false,
+        .encoder_zero_confirm   = 0U,
+        .encoder_err_threshold  = 5U,
+        .encoder_err_check_ms   = 400U,
+        .encoder_jump_threshold = 0U,
     },
     {
         .id              = MOTOR_BRUSH_TOP,
@@ -115,6 +125,11 @@ static const motor_cfg_t m8_motor_table[] = {
         .has_encoder     = false,
         .encoder_io      = MOTOR_DI_NONE,
         .encoder_zero_io = MOTOR_DI_NONE,
+        .encoder_use_hw_counter = false,
+        .encoder_zero_confirm   = 0U,
+        .encoder_err_threshold  = 0U,
+        .encoder_err_check_ms   = 0U,
+        .encoder_jump_threshold = 0U,
     },
     {
         .id              = MOTOR_BRUSH_SIDE,
@@ -135,6 +150,11 @@ static const motor_cfg_t m8_motor_table[] = {
         .has_encoder     = false,
         .encoder_io      = MOTOR_DI_NONE,
         .encoder_zero_io = MOTOR_DI_NONE,
+        .encoder_use_hw_counter = false,
+        .encoder_zero_confirm   = 0U,
+        .encoder_err_threshold  = 0U,
+        .encoder_err_check_ms   = 0U,
+        .encoder_jump_threshold = 0U,
     },
 };
 

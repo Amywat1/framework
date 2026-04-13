@@ -24,11 +24,29 @@ typedef struct
     motor_state_t paused_from;
     int           speed_ref;
     int           applied_speed_ref;
+    int           stored_dir;
     int32_t       target_pos;
     uint32_t      move_time_ms;
     uint32_t      start_ms;
+    uint32_t      stop_timestamp_ms;
     uint32_t      pause_start_ms;
     uint32_t      paused_total_ms;
+
+    /* ---- 码盘运行时状态 ---- */
+    int32_t       encoder_pos;            /* 软件统一维护的位置值 */
+    uint32_t      encoder_hw_last;        /* 上次读取的硬件脉冲计数器值 */
+    bool          encoder_hw_last_valid;  /* 硬件脉冲基准是否已建立 */
+    bool          encoder_counting;       /* 电机运动或停机惯性窗口内是否继续计数 */
+
+    /* 零位校准 */
+    uint8_t       zero_confirm_cnt;       /* 零位传感器连续触发计数 */
+    bool          zero_clear_pending;     /* 清零失败后的重试标志 */
+
+    /* 异常检测 */
+    int32_t       encoder_check_snapshot; /* 上次检测位置快照 */
+    uint32_t      encoder_check_ms;       /* 上次检测时间戳 */
+    uint8_t       encoder_no_change_cnt;  /* 连续无变化计数 */
+    bool          encoder_err_reported;   /* 是否已上报码盘异常 */
 } motor_ctx_t;
 
 static pthread_mutex_t    s_mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -81,10 +99,6 @@ static const bool s_transition[MOTOR_STATE_MAX][MOTOR_STATE_MAX] = {
         [MOTOR_STATE_MOVE_TIME] = true,
         [MOTOR_STATE_FAULT]     = true,
     },
-    [MOTOR_STATE_STOP] = {
-        [MOTOR_STATE_IDLE]      = true,
-        [MOTOR_STATE_FAULT]     = true,
-    },
     [MOTOR_STATE_FAULT] = {
         [MOTOR_STATE_IDLE]      = true,
         [MOTOR_STATE_FAULT]     = true,
@@ -105,6 +119,36 @@ static bool motor_is_move_state(motor_state_t state)
     return (state == MOTOR_STATE_MOVE) ||
            (state == MOTOR_STATE_MOVE_POS) ||
            (state == MOTOR_STATE_MOVE_TIME);
+}
+
+static int motor_dir_from_speed_ref(int speed_ref)
+{
+    if (speed_ref > 0)
+    {
+        return 1;
+    }
+    if (speed_ref < 0)
+    {
+        return -1;
+    }
+    return 0;
+}
+
+static bool motor_has_valid_encoder(const motor_cfg_t *cfg)
+{
+    return (cfg != NULL) && cfg->has_encoder;
+}
+
+static bool motor_has_zero_sensor(const motor_cfg_t *cfg)
+{
+    return motor_has_valid_encoder(cfg) &&
+           (io_di_raw(cfg->encoder_zero_io) != IO_HANDLE_NULL) &&
+           (cfg->encoder_zero_confirm > 0U);
+}
+
+static void motor_publish_encoder_event(int id, int info)
+{
+    (void)event_publish(EVT_HW_ENCODER_ERR, MOTOR_EVENT_PARAM_PACK(id, info));
 }
 
 static sw_err_t motor_set_state_locked(int id, const motor_cfg_t *cfg, motor_state_t state)
@@ -197,9 +241,11 @@ static sw_err_t motor_start_locked(int id,
     }
 
     ctx->speed_ref       = speed_ref;
+    ctx->stored_dir      = motor_dir_from_speed_ref(speed_ref);
     ctx->target_pos      = target_pos;
     ctx->move_time_ms    = move_time_ms;
     ctx->start_ms        = time_util_get_ms();
+    ctx->stop_timestamp_ms = 0U;
     ctx->pause_start_ms  = 0U;
     ctx->paused_total_ms = 0U;
     return motor_set_state_locked(id, cfg, new_state);
@@ -234,6 +280,7 @@ static sw_err_t motor_stop_locked(int id)
     ctx->target_pos        = 0;
     ctx->move_time_ms      = 0U;
     ctx->start_ms          = 0U;
+    ctx->stop_timestamp_ms = time_util_get_ms();
     ctx->pause_start_ms    = 0U;
     ctx->paused_total_ms   = 0U;
     return motor_set_state_locked(id, cfg, MOTOR_STATE_IDLE);
@@ -263,6 +310,341 @@ static bool motor_finish_locked(int id, sw_err_t result, uint32_t *event_param)
     return false;
 }
 
+static void motor_clear_encoder_error_locked(int id, const motor_cfg_t *cfg, motor_ctx_t *ctx)
+{
+    if ((cfg == NULL) || (ctx == NULL) || !ctx->encoder_err_reported)
+    {
+        return;
+    }
+
+    ctx->encoder_err_reported = false;
+    motor_publish_encoder_event(id, 0);
+}
+
+static void motor_encoder_begin_counting_locked(int id,
+                                                const motor_cfg_t *cfg,
+                                                const hal_motor_ops_t *ops,
+                                                motor_ctx_t *ctx,
+                                                uint32_t now_ms)
+{
+    uint32_t hw_value = 0U;
+
+    if ((cfg == NULL) || (ctx == NULL))
+    {
+        return;
+    }
+
+    if (!ctx->encoder_counting)
+    {
+        ctx->encoder_counting       = true;
+        ctx->zero_confirm_cnt       = 0U;
+        ctx->encoder_no_change_cnt  = 0U;
+        ctx->encoder_check_ms       = now_ms;
+        ctx->encoder_check_snapshot = ctx->encoder_pos;
+        motor_clear_encoder_error_locked(id, cfg, ctx);
+    }
+
+    if (cfg->encoder_use_hw_counter &&
+        (ops != NULL) &&
+        (ops->read_hw_pulse != NULL) &&
+        !ctx->encoder_hw_last_valid)
+    {
+        if (ops->read_hw_pulse(id, &hw_value) == SW_OK)
+        {
+            ctx->encoder_hw_last       = hw_value;
+            ctx->encoder_hw_last_valid = true;
+        }
+    }
+}
+
+static void motor_encoder_end_counting_locked(int id,
+                                              const motor_cfg_t *cfg,
+                                              motor_ctx_t *ctx)
+{
+    if ((cfg == NULL) || (ctx == NULL))
+    {
+        return;
+    }
+
+    ctx->encoder_counting       = false;
+    ctx->zero_confirm_cnt       = 0U;
+    ctx->encoder_no_change_cnt  = 0U;
+    ctx->encoder_check_snapshot = ctx->encoder_pos;
+    motor_clear_encoder_error_locked(id, cfg, ctx);
+}
+
+static void encoder_update_hw_counter_locked(int id,
+                                             const hal_motor_ops_t *ops,
+                                             const motor_cfg_t *cfg,
+                                             motor_ctx_t *ctx)
+{
+    uint32_t hw_value = 0U;
+    uint32_t diff;
+    sw_err_t ret;
+
+    if ((ops == NULL) || (ops->read_hw_pulse == NULL))
+    {
+        return;
+    }
+
+    ret = ops->read_hw_pulse(id, &hw_value);
+    if (ret != SW_OK)
+    {
+        LOG_DEBUG("motor[%s]: hw pulse read failed ret=%d", cfg->name, (int)ret);
+        return;
+    }
+
+    if (!ctx->encoder_hw_last_valid)
+    {
+        ctx->encoder_hw_last       = hw_value;
+        ctx->encoder_hw_last_valid = true;
+        return;
+    }
+
+    diff = hw_value - ctx->encoder_hw_last;
+    ctx->encoder_hw_last = hw_value;
+
+    if ((diff == 0U) || !ctx->encoder_counting)
+    {
+        return;
+    }
+
+    if (ctx->stored_dir > 0)
+    {
+        ctx->encoder_pos += (int32_t)diff;
+    }
+    else if (ctx->stored_dir < 0)
+    {
+        ctx->encoder_pos -= (int32_t)diff;
+    }
+}
+
+static sw_err_t encoder_do_clear_locked(int id,
+                                        const hal_motor_ops_t *ops,
+                                        const motor_cfg_t *cfg,
+                                        motor_ctx_t *ctx)
+{
+    sw_err_t  ret      = SW_OK;
+    uint32_t  hw_value = 0U;
+
+    if ((cfg == NULL) || (ctx == NULL))
+    {
+        return SW_ERR_PARAM;
+    }
+
+    if (cfg->encoder_use_hw_counter)
+    {
+        if ((ops == NULL) || (ops->clear_hw_pulse == NULL) || (ops->read_hw_pulse == NULL))
+        {
+            return SW_ERR_NOT_INIT;
+        }
+
+        ret = ops->clear_hw_pulse(id);
+        if (ret != SW_OK)
+        {
+            ctx->zero_clear_pending = true;
+            LOG_WARN("motor[%s]: clear_hw_pulse failed ret=%d", cfg->name, (int)ret);
+            return ret;
+        }
+
+        if (ops->read_hw_pulse(id, &hw_value) == SW_OK)
+        {
+            ctx->encoder_hw_last       = hw_value;
+            ctx->encoder_hw_last_valid = true;
+        }
+        else
+        {
+            ctx->encoder_hw_last       = 0U;
+            ctx->encoder_hw_last_valid = false;
+        }
+
+        ctx->encoder_pos = 0;
+    }
+    else if ((ops != NULL) && (ops->clear_pos != NULL))
+    {
+        ret = ops->clear_pos(id);
+        if (ret != SW_OK)
+        {
+            LOG_WARN("motor[%s]: clear_pos failed ret=%d", cfg->name, (int)ret);
+            return ret;
+        }
+
+        ctx->encoder_pos = 0;
+    }
+    else
+    {
+        return SW_ERR_NOT_INIT;
+    }
+
+    ctx->zero_clear_pending     = false;
+    ctx->zero_confirm_cnt       = 0U;
+    ctx->encoder_check_snapshot = 0;
+    ctx->encoder_check_ms       = time_util_get_ms();
+    ctx->encoder_no_change_cnt  = 0U;
+    motor_clear_encoder_error_locked(id, cfg, ctx);
+
+    LOG_DEBUG("motor[%s]: encoder cleared", cfg->name);
+    return SW_OK;
+}
+
+static void encoder_check_zero_locked(int id,
+                                      const hal_motor_ops_t *ops,
+                                      const motor_cfg_t *cfg,
+                                      motor_ctx_t *ctx)
+{
+    bool at_zero;
+
+    if ((cfg == NULL) || (ctx == NULL) || !motor_has_zero_sensor(cfg))
+    {
+        return;
+    }
+
+    if (!ctx->encoder_counting)
+    {
+        ctx->zero_confirm_cnt = 0U;
+        return;
+    }
+
+    /*
+     * 当前 M8 机型没有独立零位传感器，零位语义暂时等同于反向限位。
+     * encoder_zero_io 仅作为配置层预留字段和启用条件使用。
+     * 若后续新增“零位不等于反向限位”的电机，应在 hal_motor_ops_t 中增加
+     * 专用 zero 读取接口，或由适配层按 encoder_zero_io 读取对应 DI 后返回。
+     */
+    at_zero = (ops != NULL) && (ops->at_rev_limit != NULL) && ops->at_rev_limit(id);
+    if (at_zero)
+    {
+        if (ctx->zero_confirm_cnt < cfg->encoder_zero_confirm)
+        {
+            ctx->zero_confirm_cnt++;
+        }
+        if (ctx->zero_confirm_cnt == cfg->encoder_zero_confirm)
+        {
+            if (encoder_do_clear_locked(id, ops, cfg, ctx) == SW_OK)
+            {
+                ctx->zero_confirm_cnt = cfg->encoder_zero_confirm;
+                LOG_INFO("motor[%s]: encoder zero calibrated", cfg->name);
+            }
+        }
+    }
+    else
+    {
+        ctx->zero_confirm_cnt = 0U;
+    }
+}
+
+static void encoder_check_anomaly_locked(int id,
+                                         const motor_cfg_t *cfg,
+                                         motor_ctx_t *ctx,
+                                         uint32_t now_ms)
+{
+    int64_t diff;
+    int64_t abs_diff;
+
+    if ((cfg == NULL) || (ctx == NULL) || (cfg->encoder_err_threshold == 0U))
+    {
+        return;
+    }
+
+    if ((cfg->encoder_err_check_ms == 0U) ||
+        ((now_ms - ctx->encoder_check_ms) < cfg->encoder_err_check_ms))
+    {
+        return;
+    }
+
+    ctx->encoder_check_ms = now_ms;
+
+    if (!motor_is_move_state(ctx->state))
+    {
+        ctx->encoder_no_change_cnt  = 0U;
+        ctx->encoder_check_snapshot = ctx->encoder_pos;
+        return;
+    }
+
+    diff     = (int64_t)ctx->encoder_pos - (int64_t)ctx->encoder_check_snapshot;
+    abs_diff = (diff >= 0) ? diff : -diff;
+
+    if ((cfg->encoder_jump_threshold > 0U) &&
+        (abs_diff > (int64_t)cfg->encoder_jump_threshold))
+    {
+        if (!ctx->encoder_err_reported)
+        {
+            ctx->encoder_err_reported = true;
+            LOG_WARN("motor[%s]: encoder jump detected diff=%d",
+                     cfg->name, (int)diff);
+            motor_publish_encoder_event(id, ctx->stored_dir);
+        }
+        ctx->encoder_check_snapshot = ctx->encoder_pos;
+        return;
+    }
+
+    if (abs_diff == 0)
+    {
+        if (ctx->encoder_no_change_cnt < 0xFFU)
+        {
+            ctx->encoder_no_change_cnt++;
+        }
+
+        if ((ctx->encoder_no_change_cnt >= cfg->encoder_err_threshold) &&
+            !ctx->encoder_err_reported)
+        {
+            ctx->encoder_err_reported = true;
+            LOG_WARN("motor[%s]: encoder no change cnt=%u",
+                     cfg->name, (unsigned)ctx->encoder_no_change_cnt);
+            motor_publish_encoder_event(id, ctx->stored_dir);
+        }
+    }
+    else
+    {
+        ctx->encoder_no_change_cnt = 0U;
+        motor_clear_encoder_error_locked(id, cfg, ctx);
+    }
+
+    ctx->encoder_check_snapshot = ctx->encoder_pos;
+}
+
+static void motor_update_encoder_locked(int id,
+                                        const hal_motor_ops_t *ops,
+                                        const motor_cfg_t *cfg,
+                                        motor_ctx_t *ctx,
+                                        uint32_t now_ms)
+{
+    bool is_moving;
+
+    if (!motor_has_valid_encoder(cfg))
+    {
+        return;
+    }
+
+    is_moving = motor_is_move_state(ctx->state);
+    if (is_moving)
+    {
+        motor_encoder_begin_counting_locked(id, cfg, ops, ctx, now_ms);
+    }
+    else if (ctx->encoder_counting &&
+             ((now_ms - ctx->stop_timestamp_ms) > 1000U))
+    {
+        motor_encoder_end_counting_locked(id, cfg, ctx);
+    }
+
+    if (cfg->encoder_use_hw_counter)
+    {
+        encoder_update_hw_counter_locked(id, ops, cfg, ctx);
+    }
+    else if ((ops != NULL) && (ops->get_pos != NULL))
+    {
+        ctx->encoder_pos = ops->get_pos(id);
+    }
+
+    if (ctx->zero_clear_pending)
+    {
+        (void)encoder_do_clear_locked(id, ops, cfg, ctx);
+    }
+
+    encoder_check_zero_locked(id, ops, cfg, ctx);
+    encoder_check_anomaly_locked(id, cfg, ctx, now_ms);
+}
+
 sw_err_t motor_init(void)
 {
     const hal_motor_ops_t *ops = hal_motor_get_ops();
@@ -289,6 +671,12 @@ sw_err_t motor_init(void)
         }
         s_cfg_map[cfg->id]   = cfg;
         s_ctx[cfg->id].state = MOTOR_STATE_IDLE;
+
+        if (cfg->has_encoder && !cfg->encoder_use_hw_counter && (ops->get_pos != NULL))
+        {
+            s_ctx[cfg->id].encoder_pos            = ops->get_pos(cfg->id);
+            s_ctx[cfg->id].encoder_check_snapshot = s_ctx[cfg->id].encoder_pos;
+        }
     }
 
     s_initialized = true;
@@ -436,6 +824,7 @@ sw_err_t motor_pause(int id)
     ret = motor_apply_output_locked(id, cfg, ops, 0);
     if (ret == SW_OK)
     {
+        ctx->stop_timestamp_ms = ctx->pause_start_ms;
         (void)motor_set_state_locked(id, cfg, MOTOR_STATE_PAUSE);
     }
     pthread_mutex_unlock(&s_mutex);
@@ -494,6 +883,9 @@ sw_err_t motor_stop(int id)
 sw_err_t motor_reset_fault(int id)
 {
     const motor_cfg_t *cfg;
+    const hal_motor_ops_t *ops = hal_motor_get_ops();
+    int32_t external_pos = 0;
+    bool    has_external_pos = false;
 
     pthread_mutex_lock(&s_mutex);
     cfg = motor_get_cfg_locked(id);
@@ -505,8 +897,20 @@ sw_err_t motor_reset_fault(int id)
 
     if (s_ctx[id].state == MOTOR_STATE_FAULT)
     {
+        if ((cfg != NULL) && cfg->has_encoder && !cfg->encoder_use_hw_counter &&
+            (ops != NULL) && (ops->get_pos != NULL))
+        {
+            external_pos     = ops->get_pos(id);
+            has_external_pos = true;
+        }
+
         memset(&s_ctx[id], 0, sizeof(s_ctx[id]));
         s_ctx[id].state = MOTOR_STATE_FAULT;
+        if (has_external_pos)
+        {
+            s_ctx[id].encoder_pos            = external_pos;
+            s_ctx[id].encoder_check_snapshot = external_pos;
+        }
         (void)motor_set_state_locked(id, cfg, MOTOR_STATE_IDLE);
         LOG_INFO("motor[%s]: fault reset", cfg->name);
     }
@@ -525,6 +929,44 @@ motor_state_t motor_get_state(int id)
     }
     pthread_mutex_unlock(&s_mutex);
     return state;
+}
+
+int32_t motor_get_pos(int id)
+{
+    int32_t pos = -1;
+
+    pthread_mutex_lock(&s_mutex);
+    if (s_initialized && (id >= 0) && (id < MOTOR_ID_MAX) && (s_cfg_map[id] != NULL) &&
+        s_cfg_map[id]->has_encoder)
+    {
+        pos = s_ctx[id].encoder_pos;
+    }
+    pthread_mutex_unlock(&s_mutex);
+    return pos;
+}
+
+sw_err_t motor_clear_encoder(int id)
+{
+    const motor_cfg_t      *cfg;
+    const hal_motor_ops_t *ops = hal_motor_get_ops();
+    sw_err_t               ret;
+
+    pthread_mutex_lock(&s_mutex);
+    cfg = motor_get_cfg_locked(id);
+    if ((cfg == NULL) || !s_initialized)
+    {
+        pthread_mutex_unlock(&s_mutex);
+        return SW_ERR_NOT_INIT;
+    }
+    if (!cfg->has_encoder)
+    {
+        pthread_mutex_unlock(&s_mutex);
+        return SW_ERR_PARAM;
+    }
+
+    ret = encoder_do_clear_locked(id, ops, cfg, &s_ctx[id]);
+    pthread_mutex_unlock(&s_mutex);
+    return ret;
 }
 
 void *motor_tick_loop(void *arg)
@@ -552,6 +994,7 @@ void *motor_tick_loop(void *arg)
             const hal_motor_ops_t *ops = hal_motor_get_ops();
             motor_ctx_t           *ctx;
             uint32_t               elapsed_ms;
+            int32_t                pos;
             bool                   hit_limit = false;
 
             if ((cfg == NULL) || (ops == NULL))
@@ -560,6 +1003,8 @@ void *motor_tick_loop(void *arg)
             }
 
             ctx = &s_ctx[id];
+            motor_update_encoder_locked(id, ops, cfg, ctx, now_ms);
+
             if (!motor_is_move_state(ctx->state))
             {
                 continue;
@@ -597,9 +1042,9 @@ void *motor_tick_loop(void *arg)
             if ((cfg->limit_mode == MOTOR_LIMIT_PULSE_MAX) ||
                 (cfg->limit_mode == MOTOR_LIMIT_PULSE_MIN_MAX))
             {
-                if ((cfg->has_encoder) && (ops->get_pos != NULL))
+                if (cfg->has_encoder)
                 {
-                    int32_t pos = ops->get_pos(id);
+                    pos = ctx->encoder_pos;
                     if ((cfg->limit_mode == MOTOR_LIMIT_PULSE_MIN_MAX) &&
                         (pos <= (int32_t)cfg->limit_pos_min))
                     {
@@ -622,10 +1067,9 @@ void *motor_tick_loop(void *arg)
                 }
             }
 
-            if ((ctx->state == MOTOR_STATE_MOVE_POS) &&
-                (cfg->has_encoder) && (ops->get_pos != NULL))
+            if ((ctx->state == MOTOR_STATE_MOVE_POS) && cfg->has_encoder)
             {
-                int32_t pos = ops->get_pos(id);
+                pos = ctx->encoder_pos;
                 bool reached = ((ctx->speed_ref > 0) && (pos >= ctx->target_pos)) ||
                                ((ctx->speed_ref < 0) && (pos <= ctx->target_pos));
                 if (reached)

@@ -13,6 +13,10 @@
 #include "driver/drv_vfd.h"
 #include "common/log.h"
 
+/* io-exp SDK 头文件不在仓库内，这里按实际用法声明脉冲计数接口。 */
+extern int io_pluse_read(int board_id, int pin_id);
+extern int io_SDO_write(int board_id, int index, int sub_index, int *data);
+
 static bool is_do_valid(io_do_t pin)
 {
     return io_do_raw(pin) != IO_HANDLE_NULL;
@@ -189,6 +193,15 @@ static bool m8_motor_at_rev_limit(int id)
 
 static int32_t m8_motor_get_pos(int id)
 {
+    const motor_cfg_t *cfg = find_cfg(id);
+
+    if ((cfg == NULL) || !cfg->has_encoder)
+    {
+        return -1;
+    }
+
+    /* 事件驱动模式：位置由 linux_hw 适配层维护并在此读取。
+     * 硬件计数器模式下 motor.c 直接维护内部位置，不会再走本接口。 */
     if (id == MOTOR_GANTRY)
     {
         return m8_ctx_get_gantry_pos();
@@ -198,6 +211,13 @@ static int32_t m8_motor_get_pos(int id)
 
 static sw_err_t m8_motor_clear_pos(int id)
 {
+    const motor_cfg_t *cfg = find_cfg(id);
+
+    if ((cfg == NULL) || !cfg->has_encoder)
+    {
+        return SW_ERR_PARAM;
+    }
+
     if (id == MOTOR_GANTRY)
     {
         m8_ctx_reset_gantry_pos();
@@ -206,12 +226,57 @@ static sw_err_t m8_motor_clear_pos(int id)
     return SW_ERR_PARAM;
 }
 
+static sw_err_t m8_motor_read_hw_pulse(int id, uint32_t *p_value)
+{
+    const motor_cfg_t *cfg = find_cfg(id);
+    int                raw;
+    int                board_id;
+    int                pin_id;
+
+    if ((cfg == NULL) || !cfg->has_encoder || !cfg->encoder_use_hw_counter || (p_value == NULL))
+    {
+        return SW_ERR_PARAM;
+    }
+
+    board_id = (int)io_handle_board(io_di_raw(cfg->encoder_io));
+    pin_id   = (int)io_handle_pin(io_di_raw(cfg->encoder_io));
+    raw      = io_pluse_read(board_id, pin_id);
+    if ((raw < 0) || (raw == (int)0x0FFFFFFF))
+    {
+        return SW_ERR_COMM;
+    }
+
+    *p_value = (uint32_t)raw;
+    return SW_OK;
+}
+
+static sw_err_t m8_motor_clear_hw_pulse(int id)
+{
+    const motor_cfg_t *cfg = find_cfg(id);
+    int                data     = 0;
+    int                board_id;
+    int                pin_id;
+    int                ret;
+
+    if ((cfg == NULL) || !cfg->has_encoder || !cfg->encoder_use_hw_counter)
+    {
+        return SW_ERR_PARAM;
+    }
+
+    board_id = (int)io_handle_board(io_di_raw(cfg->encoder_io));
+    pin_id   = (int)io_handle_pin(io_di_raw(cfg->encoder_io));
+    ret      = io_SDO_write(board_id, 0x2005, pin_id, &data);
+    return (ret >= 0) ? SW_OK : SW_ERR_COMM;
+}
+
 static const hal_motor_ops_t s_ops = {
-    .set_output   = m8_motor_set_output,
-    .at_fwd_limit = m8_motor_at_fwd_limit,
-    .at_rev_limit = m8_motor_at_rev_limit,
-    .get_pos      = m8_motor_get_pos,
-    .clear_pos    = m8_motor_clear_pos,
+    .set_output    = m8_motor_set_output,
+    .at_fwd_limit  = m8_motor_at_fwd_limit,
+    .at_rev_limit  = m8_motor_at_rev_limit,
+    .get_pos       = m8_motor_get_pos,
+    .clear_pos     = m8_motor_clear_pos,
+    .read_hw_pulse = m8_motor_read_hw_pulse,
+    .clear_hw_pulse = m8_motor_clear_hw_pulse,
 };
 
 void hal_motor_linux_register(void)
