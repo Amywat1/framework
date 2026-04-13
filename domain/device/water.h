@@ -15,6 +15,7 @@ extern "C" {
 #endif
 
 #include "common/sw_error.h"
+#include <stdbool.h>
 
 /* -------------------------------------------------------------------------
  * 接口
@@ -31,7 +32,8 @@ sw_err_t water_init(void);
 sw_err_t water_prewash_on(void);
 
 /**
- * @brief  关闭预洗（泡沫 + 水帘，水泵保留给后续步骤）
+ * @brief  关闭预洗（泡沫 + 水帘）
+ * @note   若关闭后系统中已无其他水路在用，会自动停止水泵；否则保留水泵给后续步骤。
  */
 sw_err_t water_prewash_off(void);
 
@@ -59,6 +61,18 @@ sw_err_t water_highpres_off(void);
  * @brief  关闭所有水路（水泵 + 全部水阀）
  */
 sw_err_t water_all_off(void);
+
+/**
+ * @brief  查询水泵是否处于运行状态
+ * @note   供报警轮询检测泵空转异常使用。
+ */
+bool water_is_pump_on(void);
+
+/**
+ * @brief  查询是否有任何水阀处于打开状态
+ * @note   供报警轮询检测泵空转异常使用。
+ */
+bool water_is_any_valve_open(void);
 
 #ifdef __cplusplus
 }

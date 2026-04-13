@@ -53,4 +53,11 @@
  * ------------------------------------------------------------------------- */
 #define CFG_BRUSH_CONTACTOR_WAIT_MS 200U    /* VFD 停止后等待接触器吸合（ms）*/
 
+/* -------------------------------------------------------------------------
+ * 水系统时序参数
+ * ------------------------------------------------------------------------- */
+#define CFG_WATER_VALVE_OPEN_DELAY_MS    200U   /* 开阀后等待阀体到位再开泵（ms）*/
+#define CFG_WATER_PUMP_STOP_DELAY_MS     300U   /* 关泵后等待管路泄压再关阀（ms）*/
+#define CFG_WATER_PUMP_DRY_RUN_TIMEOUT_S 10U    /* 泵空转保护超时（秒）*/
+
 #endif /* CONFIG_MACHINE_M8_MACHINE_CONFIG_H */

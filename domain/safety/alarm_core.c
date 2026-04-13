@@ -10,6 +10,7 @@
 
 #include "domain/safety/alarm_core.h"
 #include "domain/model/alarm_code.h"
+#include "config/machine/m8_machine_config.h"
 #include "core/event_bus/event_bus.h"
 #include "common/log.h"
 #include <string.h>
@@ -37,6 +38,9 @@ static const alarm_entry_t s_table[] = {
     /* 电流异常 */
     { ALARM_CODE_BRUSH_CURRENT,  0,   ALARM_LEVEL_ERROR,   1000, ALARM_RECOVER_DRIVE | ALARM_RECOVER_MANUAL, "刷子电流异常" },
     { ALARM_CODE_GANTRY_CURRENT, 0,   ALARM_LEVEL_ERROR,   1000, ALARM_RECOVER_DRIVE | ALARM_RECOVER_MANUAL, "龙门电流异常" },
+    /* 水系统 */
+    { ALARM_CODE_PUMP_DRY_RUN,   (CFG_WATER_PUMP_DRY_RUN_TIMEOUT_S * 1000U),
+                                  ALARM_LEVEL_WARNING, 1000, ALARM_RECOVER_AUTO,                         "水泵空转保护" },
     /* 云端 */
     { ALARM_CODE_MQTT_OFFLINE,   0,   ALARM_LEVEL_NOTICE,  0,    ALARM_RECOVER_AUTO,                         "云端MQTT断线" },
 };

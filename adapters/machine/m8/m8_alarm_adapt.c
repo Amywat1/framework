@@ -19,9 +19,9 @@
 
 #include "domain/safety/alarm_core.h"
 #include "domain/model/alarm_code.h"
+#include "domain/device/water.h"
 #include "ports/hal/hal_sensor_port.h"
 #include "ports/hal/hal_motion_port.h"
-#include "ports/hal/hal_water_port.h"
 #include "ports/hal/hal_indicator_port.h"
 #include "adapters/machine/m8/m8_feature_map.h"
 #include "core/event_bus/event_bus.h"
@@ -135,6 +135,12 @@ static void m8_signal_poll(void)
         }
         /* 通信失败时保持上一次 VFD 故障状态，避免误清除。 */
     }
+
+    /* 水泵空转检测：泵已开启但无任何水阀打开。
+     * 利用 alarm_core 的触发防抖，只有持续超过配置时间才激活报警。 */
+    alarm_core_set_raw_trigger(ALARM_CODE_PUMP_DRY_RUN,
+                               water_is_pump_on() && !water_is_any_valve_open(),
+                               false);
 }
 
 /* -------------------------------------------------------------------------
@@ -143,7 +149,6 @@ static void m8_signal_poll(void)
 static void m8_emc_reset(void)
 {
     const hal_motion_ops_t    *motion    = hal_motion_get_ops();
-    const hal_water_ops_t     *water     = hal_water_get_ops();
     const hal_indicator_ops_t *indicator = hal_indicator_get_ops();
 
     LOG_INFO("m8_alarm_adapt: EMC reset sequence start");
@@ -153,7 +158,7 @@ static void m8_emc_reset(void)
     (void)motion->brush_stop();
 
     /* 步骤2：关闭所有水路 */
-    (void)water->all_off();
+    (void)water_all_off();
 
     /* 步骤3：等待 VFD 完全停止后复位故障 */
     usleep(200U * 1000U);
