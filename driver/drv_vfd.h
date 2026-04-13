@@ -33,6 +33,12 @@ typedef enum
 } drv_vfd_state_t;
 
 /* -------------------------------------------------------------------------
+ * VFD 事件码（传递给 event_cb 回调）
+ * ------------------------------------------------------------------------- */
+#define DRV_VFD_EVT_COMM_LOST       1   /* Modbus 通信丢失 */
+#define DRV_VFD_EVT_COMM_RESTORED   2   /* Modbus 通信恢复 */
+
+/* -------------------------------------------------------------------------
  * VFD 实例句柄（由调用方以静态方式分配，调用 drv_vfd_init 前清零）
  * ------------------------------------------------------------------------- */
 typedef struct
@@ -44,6 +50,11 @@ typedef struct
     drv_io_do_t      pin_rst;           /* 故障复位 IO 引脚 */
     drv_vfd_state_t  state;
     void           (*event_cb)(int event_code);
+    uint16_t         comm_fail_count;   /* 连续 Modbus 通信失败次数 */
+    bool             comm_ok;           /* true=通信正常，false=通信已丢失 */
+    const char      *serial_port;       /* 串口设备路径（重连时使用）*/
+    int              baud;              /* 波特率（重连时使用）*/
+    int              modbus_addr;       /* 从机地址（重连时使用）*/
 } drv_vfd_t;
 
 /* -------------------------------------------------------------------------
@@ -113,7 +124,23 @@ drv_vfd_state_t drv_vfd_get_state(const drv_vfd_t *vfd);
 sw_err_t drv_vfd_get_fault_code(drv_vfd_t *vfd, uint16_t *p_code);
 
 /**
- * @brief  注册 VFD 事件回调（故障/异常时通知上层）
+ * @brief  读取 VFD 负载电流（Modbus 寄存器 0x2104）
+ * @param  vfd        VFD 句柄
+ * @param  p_current  输出电流值（0.01A；通信失败时保持原值不变）
+ * @retval SW_OK / SW_ERR_COMM / SW_ERR_NOT_INIT
+ */
+sw_err_t drv_vfd_read_current(drv_vfd_t *vfd, uint16_t *p_current);
+
+/**
+ * @brief  读取 VFD 实际运行状态寄存器（Modbus 寄存器 0x2100）
+ * @param  vfd       VFD 句柄
+ * @param  p_status  输出原始状态字（通信失败时保持原值不变）
+ * @retval SW_OK / SW_ERR_COMM / SW_ERR_NOT_INIT
+ */
+sw_err_t drv_vfd_read_status(drv_vfd_t *vfd, uint16_t *p_status);
+
+/**
+ * @brief  注册 VFD 事件回调（通信丢失/恢复等异常事件通知上层）
  * @param  cb  回调函数：参数为事件码
  */
 void drv_vfd_register_event_cb(drv_vfd_t *vfd, void (*cb)(int event_code));

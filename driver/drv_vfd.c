@@ -30,24 +30,149 @@ static pthread_mutex_t s_modbus_bus_mutex = PTHREAD_MUTEX_INITIALIZER;
  * 士林 VFD Modbus 寄存器地址
  * ------------------------------------------------------------------------- */
 #define VFD_REG_FREQ_SET    0x2001U     /* 频率设定值（0.01Hz）*/
+#define VFD_REG_STATUS      0x2100U     /* 运行状态字 */
 #define VFD_REG_FAULT_CODE  0x2102U     /* 故障代码 */
+#define VFD_REG_CURRENT     0x2104U     /* 负载电流（0.01A）*/
 
 #define VFD_FAULT_RESET_PULSE_MS    200U    /* 复位脉冲宽度 */
 #define VFD_MODBUS_TIMEOUT_US       500000U /* 500ms */
+#define VFD_COMM_FAIL_RECONNECT     50U     /* 连续失败 N 次后重建 Modbus 连接 */
+#define VFD_COMM_FAIL_NOTIFY        3U      /* 连续失败 N 次后通知上层 */
 
 /* -------------------------------------------------------------------------
  * 内部辅助
  * ------------------------------------------------------------------------- */
+static bool vfd_is_initialized(const drv_vfd_t *vfd)
+{
+    return (vfd != NULL) &&
+           (vfd->serial_port != NULL) &&
+           (vfd->baud > 0) &&
+           (vfd->modbus_addr > 0);
+}
+
+static sw_err_t mb_reconnect_locked(drv_vfd_t *vfd)
+{
+    if (!vfd_is_initialized(vfd))
+    {
+        return SW_ERR_NOT_INIT;
+    }
+
+    if (vfd->mb != NULL)
+    {
+        modbus_close(vfd->mb);
+        modbus_free(vfd->mb);
+        vfd->mb = NULL;
+    }
+
+    vfd->mb = modbus_new_rtu(vfd->serial_port, vfd->baud, 'N', 8, 1);
+    if (vfd->mb == NULL)
+    {
+        LOG_ERROR("drv_vfd[addr=%d]: reconnect modbus_new_rtu failed", vfd->modbus_addr);
+        return SW_ERR_HW;
+    }
+
+    modbus_set_slave(vfd->mb, vfd->modbus_addr);
+    modbus_set_response_timeout(vfd->mb, 0, VFD_MODBUS_TIMEOUT_US);
+
+    if (modbus_connect(vfd->mb) < 0)
+    {
+        LOG_ERROR("drv_vfd[addr=%d]: reconnect modbus_connect failed", vfd->modbus_addr);
+        modbus_free(vfd->mb);
+        vfd->mb = NULL;
+        return SW_ERR_HW;
+    }
+
+    LOG_INFO("drv_vfd[addr=%d]: Modbus reconnected", vfd->modbus_addr);
+    return SW_OK;
+}
+
+static void mb_on_success_locked(drv_vfd_t *vfd, bool *notify_restored)
+{
+    if (!vfd->comm_ok)
+    {
+        vfd->comm_ok = true;
+        if (notify_restored != NULL)
+        {
+            *notify_restored = true;
+        }
+    }
+    vfd->comm_fail_count = 0U;
+}
+
+static void mb_on_failure_locked(drv_vfd_t *vfd, bool *notify_lost, bool *need_reconnect)
+{
+    if (vfd->comm_fail_count < 0xFFFFU)
+    {
+        vfd->comm_fail_count++;
+    }
+
+    if ((vfd->comm_fail_count >= VFD_COMM_FAIL_NOTIFY) && vfd->comm_ok)
+    {
+        vfd->comm_ok = false;
+        if (notify_lost != NULL)
+        {
+            *notify_lost = true;
+        }
+    }
+
+    if (vfd->comm_fail_count >= VFD_COMM_FAIL_RECONNECT)
+    {
+        vfd->comm_fail_count = 0U;
+        if (need_reconnect != NULL)
+        {
+            *need_reconnect = true;
+        }
+    }
+}
+
 static sw_err_t mb_write_reg(drv_vfd_t *vfd, uint16_t addr, uint16_t val)
 {
-    int rc;
+    int  rc;
+    bool notify_lost     = false;
+    bool notify_restored = false;
+    bool need_reconnect  = false;
+
+    if (!vfd_is_initialized(vfd))
+    {
+        return SW_ERR_NOT_INIT;
+    }
+
     pthread_mutex_lock(&s_modbus_bus_mutex);
-    rc = modbus_write_register(vfd->mb, (int)addr, (int)val);
-    pthread_mutex_unlock(&s_modbus_bus_mutex);
-    if (rc < 0) {
-        LOG_ERROR("drv_vfd[addr=%d]: Modbus write reg 0x%04X failed",
-                  modbus_get_slave(vfd->mb), addr);
+
+    if ((vfd->mb == NULL) && (mb_reconnect_locked(vfd) != SW_OK))
+    {
+        mb_on_failure_locked(vfd, &notify_lost, &need_reconnect);
+        pthread_mutex_unlock(&s_modbus_bus_mutex);
+        if (notify_lost && (vfd->event_cb != NULL))
+        {
+            vfd->event_cb(DRV_VFD_EVT_COMM_LOST);
+        }
         return SW_ERR_COMM;
+    }
+
+    rc = modbus_write_register(vfd->mb, (int)addr, (int)val);
+    if (rc < 0)
+    {
+        mb_on_failure_locked(vfd, &notify_lost, &need_reconnect);
+        if (need_reconnect)
+        {
+            (void)mb_reconnect_locked(vfd);
+        }
+        pthread_mutex_unlock(&s_modbus_bus_mutex);
+        LOG_ERROR("drv_vfd[addr=%d]: Modbus write reg 0x%04X failed",
+                  vfd->modbus_addr, addr);
+        if (notify_lost && (vfd->event_cb != NULL))
+        {
+            vfd->event_cb(DRV_VFD_EVT_COMM_LOST);
+        }
+        return SW_ERR_COMM;
+    }
+
+    mb_on_success_locked(vfd, &notify_restored);
+    pthread_mutex_unlock(&s_modbus_bus_mutex);
+    if (notify_restored && (vfd->event_cb != NULL))
+    {
+        vfd->event_cb(DRV_VFD_EVT_COMM_RESTORED);
     }
     return SW_OK;
 }
@@ -56,11 +181,49 @@ static sw_err_t mb_read_reg(drv_vfd_t *vfd, uint16_t addr, uint16_t *p_val)
 {
     uint16_t buf = 0U;
     int      rc;
+    bool     notify_lost     = false;
+    bool     notify_restored = false;
+    bool     need_reconnect  = false;
+
+    if (!vfd_is_initialized(vfd))
+    {
+        return SW_ERR_NOT_INIT;
+    }
+
     pthread_mutex_lock(&s_modbus_bus_mutex);
-    rc = modbus_read_registers(vfd->mb, (int)addr, 1, &buf);
-    pthread_mutex_unlock(&s_modbus_bus_mutex);
-    if (rc < 0) {
+
+    if ((vfd->mb == NULL) && (mb_reconnect_locked(vfd) != SW_OK))
+    {
+        mb_on_failure_locked(vfd, &notify_lost, &need_reconnect);
+        pthread_mutex_unlock(&s_modbus_bus_mutex);
+        if (notify_lost && (vfd->event_cb != NULL))
+        {
+            vfd->event_cb(DRV_VFD_EVT_COMM_LOST);
+        }
         return SW_ERR_COMM;
+    }
+
+    rc = modbus_read_registers(vfd->mb, (int)addr, 1, &buf);
+    if (rc < 0)
+    {
+        mb_on_failure_locked(vfd, &notify_lost, &need_reconnect);
+        if (need_reconnect)
+        {
+            (void)mb_reconnect_locked(vfd);
+        }
+        pthread_mutex_unlock(&s_modbus_bus_mutex);
+        if (notify_lost && (vfd->event_cb != NULL))
+        {
+            vfd->event_cb(DRV_VFD_EVT_COMM_LOST);
+        }
+        return SW_ERR_COMM;
+    }
+
+    mb_on_success_locked(vfd, &notify_restored);
+    pthread_mutex_unlock(&s_modbus_bus_mutex);
+    if (notify_restored && (vfd->event_cb != NULL))
+    {
+        vfd->event_cb(DRV_VFD_EVT_COMM_RESTORED);
     }
     *p_val = buf;
     return SW_OK;
@@ -88,6 +251,11 @@ sw_err_t drv_vfd_init(drv_vfd_t   *vfd,
     vfd->pin_rst   = pin_rst;
     vfd->state     = DRV_VFD_STATE_STOPPED;
     vfd->event_cb  = NULL;
+    vfd->comm_fail_count = 0U;
+    vfd->comm_ok         = true;
+    vfd->serial_port     = serial_port;
+    vfd->baud            = baud;
+    vfd->modbus_addr     = modbus_addr;
 
     vfd->mb = modbus_new_rtu(serial_port, baud, 'N', 8, 1);
     if (vfd->mb == NULL) {
@@ -120,7 +288,7 @@ sw_err_t drv_vfd_run_fwd(drv_vfd_t *vfd, uint16_t freq_hz)
 {
     sw_err_t ret;
 
-    if (vfd == NULL || vfd->mb == NULL) {
+    if (!vfd_is_initialized(vfd)) {
         return SW_ERR_NOT_INIT;
     }
     if (freq_hz == 0U) {
@@ -145,7 +313,7 @@ sw_err_t drv_vfd_run_rev(drv_vfd_t *vfd, uint16_t freq_hz)
 {
     sw_err_t ret;
 
-    if (vfd == NULL || vfd->mb == NULL) {
+    if (!vfd_is_initialized(vfd)) {
         return SW_ERR_NOT_INIT;
     }
     if (!vfd->has_rev) {
@@ -210,10 +378,36 @@ sw_err_t drv_vfd_get_fault_code(drv_vfd_t *vfd, uint16_t *p_code)
     if (vfd == NULL || p_code == NULL) {
         return SW_ERR_PARAM;
     }
-    if (vfd->mb == NULL) {
+    if (!vfd_is_initialized(vfd)) {
         return SW_ERR_NOT_INIT;
     }
     return mb_read_reg(vfd, VFD_REG_FAULT_CODE, p_code);
+}
+
+sw_err_t drv_vfd_read_current(drv_vfd_t *vfd, uint16_t *p_current)
+{
+    if ((vfd == NULL) || (p_current == NULL))
+    {
+        return SW_ERR_PARAM;
+    }
+    if (!vfd_is_initialized(vfd))
+    {
+        return SW_ERR_NOT_INIT;
+    }
+    return mb_read_reg(vfd, VFD_REG_CURRENT, p_current);
+}
+
+sw_err_t drv_vfd_read_status(drv_vfd_t *vfd, uint16_t *p_status)
+{
+    if ((vfd == NULL) || (p_status == NULL))
+    {
+        return SW_ERR_PARAM;
+    }
+    if (!vfd_is_initialized(vfd))
+    {
+        return SW_ERR_NOT_INIT;
+    }
+    return mb_read_reg(vfd, VFD_REG_STATUS, p_status);
 }
 
 void drv_vfd_register_event_cb(drv_vfd_t *vfd, void (*cb)(int event_code))

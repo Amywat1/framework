@@ -269,14 +269,68 @@ static sw_err_t m8_motor_clear_hw_pulse(int id)
     return (ret >= 0) ? SW_OK : SW_ERR_COMM;
 }
 
+static sw_err_t m8_motor_read_current(int id, uint16_t *p_current)
+{
+    const motor_cfg_t *cfg = find_cfg(id);
+    drv_vfd_t         *vfd = NULL;
+
+    if ((cfg == NULL) || (p_current == NULL) || (cfg->drv_type != MOTOR_DRV_VFD))
+    {
+        return SW_ERR_PARAM;
+    }
+
+    if (id == MOTOR_GANTRY)
+    {
+        vfd = m8_ctx_vfd_gantry();
+    }
+    else if ((id == MOTOR_BRUSH_TOP) || (id == MOTOR_BRUSH_SIDE))
+    {
+        vfd = m8_ctx_vfd_brush();
+    }
+
+    if (vfd == NULL)
+    {
+        return SW_ERR_PARAM;
+    }
+    return drv_vfd_read_current(vfd, p_current);
+}
+
+static sw_err_t m8_motor_read_status(int id, uint16_t *p_status)
+{
+    const motor_cfg_t *cfg = find_cfg(id);
+    drv_vfd_t         *vfd = NULL;
+
+    if ((cfg == NULL) || (p_status == NULL) || (cfg->drv_type != MOTOR_DRV_VFD))
+    {
+        return SW_ERR_PARAM;
+    }
+
+    if (id == MOTOR_GANTRY)
+    {
+        vfd = m8_ctx_vfd_gantry();
+    }
+    else if ((id == MOTOR_BRUSH_TOP) || (id == MOTOR_BRUSH_SIDE))
+    {
+        vfd = m8_ctx_vfd_brush();
+    }
+
+    if (vfd == NULL)
+    {
+        return SW_ERR_PARAM;
+    }
+    return drv_vfd_read_status(vfd, p_status);
+}
+
 static const hal_motor_ops_t s_ops = {
-    .set_output    = m8_motor_set_output,
-    .at_fwd_limit  = m8_motor_at_fwd_limit,
-    .at_rev_limit  = m8_motor_at_rev_limit,
-    .get_pos       = m8_motor_get_pos,
-    .clear_pos     = m8_motor_clear_pos,
-    .read_hw_pulse = m8_motor_read_hw_pulse,
+    .set_output     = m8_motor_set_output,
+    .at_fwd_limit   = m8_motor_at_fwd_limit,
+    .at_rev_limit   = m8_motor_at_rev_limit,
+    .get_pos        = m8_motor_get_pos,
+    .clear_pos      = m8_motor_clear_pos,
+    .read_hw_pulse  = m8_motor_read_hw_pulse,
     .clear_hw_pulse = m8_motor_clear_hw_pulse,
+    .read_current   = m8_motor_read_current,
+    .read_status    = m8_motor_read_status,
 };
 
 void hal_motor_linux_register(void)

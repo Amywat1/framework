@@ -113,14 +113,30 @@ static sw_err_t mock_motor_clear_hw_pulse(int id)
     return SW_ERR_PARAM;
 }
 
+static sw_err_t mock_motor_read_current(int id, uint16_t *p_current)
+{
+    (void)id;
+    (void)p_current;
+    return SW_ERR_PARAM;
+}
+
+static sw_err_t mock_motor_read_status(int id, uint16_t *p_status)
+{
+    (void)id;
+    (void)p_status;
+    return SW_ERR_PARAM;
+}
+
 static const hal_motor_ops_t s_mock_motor_ops = {
-    .set_output     = mock_motor_set_output,
-    .at_fwd_limit   = mock_motor_at_fwd_limit,
-    .at_rev_limit   = mock_motor_at_rev_limit,
-    .get_pos        = mock_motor_get_pos,
-    .clear_pos      = mock_motor_clear_pos,
-    .read_hw_pulse  = mock_motor_read_hw_pulse,
+    .set_output      = mock_motor_set_output,
+    .at_fwd_limit    = mock_motor_at_fwd_limit,
+    .at_rev_limit    = mock_motor_at_rev_limit,
+    .get_pos         = mock_motor_get_pos,
+    .clear_pos       = mock_motor_clear_pos,
+    .read_hw_pulse   = mock_motor_read_hw_pulse,
     .clear_hw_pulse = mock_motor_clear_hw_pulse,
+    .read_current    = mock_motor_read_current,
+    .read_status     = mock_motor_read_status,
 };
 
 /* 模拟 HAL 运动控制 */

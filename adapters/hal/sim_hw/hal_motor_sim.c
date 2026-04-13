@@ -83,14 +83,30 @@ static sw_err_t sim_motor_clear_hw_pulse(int id)
     return SW_ERR_PARAM;
 }
 
+static sw_err_t sim_motor_read_current(int id, uint16_t *p_current)
+{
+    (void)id;
+    (void)p_current;
+    return SW_ERR_PARAM;
+}
+
+static sw_err_t sim_motor_read_status(int id, uint16_t *p_status)
+{
+    (void)id;
+    (void)p_status;
+    return SW_ERR_PARAM;
+}
+
 static const hal_motor_ops_t s_ops = {
-    .set_output     = sim_motor_set_output,
-    .at_fwd_limit   = sim_motor_at_fwd_limit,
-    .at_rev_limit   = sim_motor_at_rev_limit,
-    .get_pos        = sim_motor_get_pos,
-    .clear_pos      = sim_motor_clear_pos,
-    .read_hw_pulse  = sim_motor_read_hw_pulse,
-    .clear_hw_pulse = sim_motor_clear_hw_pulse,
+    .set_output      = sim_motor_set_output,
+    .at_fwd_limit    = sim_motor_at_fwd_limit,
+    .at_rev_limit    = sim_motor_at_rev_limit,
+    .get_pos         = sim_motor_get_pos,
+    .clear_pos       = sim_motor_clear_pos,
+    .read_hw_pulse   = sim_motor_read_hw_pulse,
+    .clear_hw_pulse  = sim_motor_clear_hw_pulse,
+    .read_current    = sim_motor_read_current,
+    .read_status     = sim_motor_read_status,
 };
 
 void hal_motor_sim_register(void)

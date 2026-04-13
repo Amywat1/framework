@@ -12,7 +12,7 @@
  *          - VFD 故障使用 ALARM_RECOVER_DRIVE 恢复策略：
  *            set_state(false)（驱动事件清除）→ EVT_ALARM_CLEARED
  *            → safety_fsm → OK（需先无 ERROR 报警）
- *          - Modbus 通信超时（WARNING 级）不触发 LOCKOUT
+ *          - Modbus 通信丢失（WARNING 级）不触发 LOCKOUT
  */
 
 #include "core/event_bus/event_bus.h"
@@ -125,11 +125,11 @@ static void tc3_dual_vfd_fault_requires_both_cleared(void)
 }
 
 /* -------------------------------------------------------------------------
- * TC-4：Modbus 通信超时（WARNING 级）不引起 LOCKOUT
+ * TC-4：Modbus 通信丢失（WARNING 级）不引起 LOCKOUT
  * ------------------------------------------------------------------------- */
 static void tc4_modbus_timeout_warning_only(void)
 {
-    printf("TC-4: Modbus timeout → WARNING, not LOCKOUT\n");
+    printf("TC-4: Modbus lost → WARNING, not LOCKOUT\n");
 
     (void)alarm_core_init();
     (void)safety_fsm_init();
@@ -143,6 +143,7 @@ static void tc4_modbus_timeout_warning_only(void)
 
     /* 通信恢复 */
     alarm_core_set_state(ALARM_CODE_MODBUS_GANTRY, false, false);
+    alarm_core_tick_ms(2500);
     drain_events();
     assert(safety_fsm_get_state() == SAFETY_STATE_OK);
 

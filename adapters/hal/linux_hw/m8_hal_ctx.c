@@ -7,6 +7,8 @@
 
 #include "adapters/hal/linux_hw/m8_hal_ctx.h"
 #include "adapters/machine/m8/m8_machine_map.h"
+#include "domain/safety/alarm_core.h"
+#include "domain/model/alarm_code.h"
 #include "driver/drv_vfd.h"
 #include "driver/drv_stepper.h"
 #include "driver/drv_io.h"
@@ -34,24 +36,34 @@ static int32_t         s_gantry_pos = 0;
 static pthread_mutex_t s_pos_mutex  = PTHREAD_MUTEX_INITIALIZER;
 
 /* -------------------------------------------------------------------------
- * VFD 事件路由（驱动层事件 → event_bus）
+ * VFD 事件路由（驱动层事件 → alarm_core）
  * ------------------------------------------------------------------------- */
-#include "core/event_bus/event_bus.h"
-#include "domain/model/alarm_code.h"
-
-/* VFD 事件回调：由驱动层触发（当前驱动层未主动调用此回调，
- * 正常故障检测由 m8_alarm_adapt 的周期性读取完成，
- * 此回调作为备用兜底保留。） */
 static void brush_vfd_event_cb(int event_code)
 {
-    (void)event_code;
-    (void)event_publish(EVT_HW_VFD_BRUSH_FAULT, ALARM_CODE_VFD_BRUSH);
+    if (event_code == DRV_VFD_EVT_COMM_LOST)
+    {
+        alarm_core_set_state(ALARM_CODE_MODBUS_BRUSH, true, false);
+        LOG_WARN("m8_hal_ctx: brush VFD Modbus comm lost");
+    }
+    else if (event_code == DRV_VFD_EVT_COMM_RESTORED)
+    {
+        alarm_core_set_state(ALARM_CODE_MODBUS_BRUSH, false, false);
+        LOG_INFO("m8_hal_ctx: brush VFD Modbus comm restored");
+    }
 }
 
 static void gantry_vfd_event_cb(int event_code)
 {
-    (void)event_code;
-    (void)event_publish(EVT_HW_VFD_GANTRY_FAULT, ALARM_CODE_VFD_GANTRY);
+    if (event_code == DRV_VFD_EVT_COMM_LOST)
+    {
+        alarm_core_set_state(ALARM_CODE_MODBUS_GANTRY, true, false);
+        LOG_WARN("m8_hal_ctx: gantry VFD Modbus comm lost");
+    }
+    else if (event_code == DRV_VFD_EVT_COMM_RESTORED)
+    {
+        alarm_core_set_state(ALARM_CODE_MODBUS_GANTRY, false, false);
+        LOG_INFO("m8_hal_ctx: gantry VFD Modbus comm restored");
+    }
 }
 
 /* -------------------------------------------------------------------------

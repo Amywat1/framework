@@ -10,6 +10,7 @@
  *              - IO 组合报警（如双限位同时触发）
  *              - 直接调用 get_vfd_fault_code() 读取 Modbus 故障寄存器，
  *                通过 alarm_core_set_state() 进入安全域（直报路径），并复用同次读取结果发布硬件事件
+ *              - Modbus 通信丢失/恢复由 drv_vfd 的事件回调链路单独处理
  *          ② m8_emc_reset()：急停复位序列（停机 → 关水 → 复位驱动 → 关闭入口）
  *          初始化时将以上回调注册到 alarm_core。
  *
@@ -85,16 +86,15 @@ static void m8_signal_poll(void)
 #endif
 #endif
 
-    /* VFD 故障直报：直接读取故障码，闭环进入 alarm_core 安全域 */
+    /* VFD 故障直报：
+     * Modbus 通信丢失/恢复报警由 drv_vfd → m8_hal_ctx → alarm_core 负责，
+     * 此处仅负责读取故障码并更新 VFD 故障状态。 */
     {
         uint16_t code = 0U;
-        sw_err_t ret  = sensor->get_vfd_fault_code(HAL_VFD_GANTRY, &code);
-        if (ret == SW_OK)
+        if (sensor->get_vfd_fault_code(HAL_VFD_GANTRY, &code) == SW_OK)
         {
             bool has_fault = (code != 0U);
 
-            /* 通信成功：清除 Modbus 超时报警，更新 VFD 故障状态 */
-            alarm_core_set_state(ALARM_CODE_MODBUS_GANTRY, false, false);
             alarm_core_set_state(ALARM_CODE_VFD_GANTRY, has_fault, false);
             if (has_fault)
             {
@@ -110,21 +110,14 @@ static void m8_signal_poll(void)
                 s_gantry_vfd_fault_reported = false;
             }
         }
-        else
-        {
-            /* Modbus 通信失败：触发通信超时报警，VFD 故障状态保持上一次值 */
-            alarm_core_set_state(ALARM_CODE_MODBUS_GANTRY, true, false);
-        }
+        /* 通信失败时保持上一次 VFD 故障状态，避免误清除。 */
     }
     {
         uint16_t code = 0U;
-        sw_err_t ret  = sensor->get_vfd_fault_code(HAL_VFD_BRUSH, &code);
-        if (ret == SW_OK)
+        if (sensor->get_vfd_fault_code(HAL_VFD_BRUSH, &code) == SW_OK)
         {
             bool has_fault = (code != 0U);
 
-            /* 通信成功：清除 Modbus 超时报警，更新 VFD 故障状态 */
-            alarm_core_set_state(ALARM_CODE_MODBUS_BRUSH, false, false);
             alarm_core_set_state(ALARM_CODE_VFD_BRUSH, has_fault, false);
             if (has_fault)
             {
@@ -140,10 +133,7 @@ static void m8_signal_poll(void)
                 s_brush_vfd_fault_reported = false;
             }
         }
-        else
-        {
-            alarm_core_set_state(ALARM_CODE_MODBUS_BRUSH, true, false);
-        }
+        /* 通信失败时保持上一次 VFD 故障状态，避免误清除。 */
     }
 }
 

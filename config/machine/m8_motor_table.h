@@ -12,6 +12,7 @@
 #define CONFIG_MACHINE_M8_MOTOR_TABLE_H
 
 #include "common/io_handle.h"
+#include "domain/model/alarm_code.h"
 #include "driver/drv_io.h"
 #include <stdbool.h>
 #include <stdint.h>
@@ -78,6 +79,13 @@ typedef struct
     uint8_t              encoder_err_threshold;
     uint16_t             encoder_err_check_ms;
     uint16_t             encoder_jump_threshold;
+
+    uint16_t             current_high_threshold;
+    uint16_t             current_low_threshold;
+    uint16_t             current_check_delay_ms;
+    uint16_t             current_confirm_ms;
+    uint16_t             alarm_code_current;
+    uint16_t             alarm_code_fault;
 } motor_cfg_t;
 
 static const motor_cfg_t m8_motor_table[] = {
@@ -105,6 +113,12 @@ static const motor_cfg_t m8_motor_table[] = {
         .encoder_err_threshold  = 5U,
         .encoder_err_check_ms   = 400U,
         .encoder_jump_threshold = 0U,
+        .current_high_threshold = 0U,
+        .current_low_threshold  = 0U,
+        .current_check_delay_ms = 0U,
+        .current_confirm_ms     = 0U,
+        .alarm_code_current     = ALARM_CODE_GANTRY_CURRENT,
+        .alarm_code_fault       = ALARM_CODE_VFD_GANTRY,
     },
     {
         .id              = MOTOR_BRUSH_TOP,
@@ -130,6 +144,12 @@ static const motor_cfg_t m8_motor_table[] = {
         .encoder_err_threshold  = 0U,
         .encoder_err_check_ms   = 0U,
         .encoder_jump_threshold = 0U,
+        .current_high_threshold = 800U,
+        .current_low_threshold  = 50U,
+        .current_check_delay_ms = 2000U,
+        .current_confirm_ms     = 3000U,
+        .alarm_code_current     = ALARM_CODE_BRUSH_CURRENT,
+        .alarm_code_fault       = ALARM_CODE_VFD_BRUSH,
     },
     {
         .id              = MOTOR_BRUSH_SIDE,
@@ -155,6 +175,12 @@ static const motor_cfg_t m8_motor_table[] = {
         .encoder_err_threshold  = 0U,
         .encoder_err_check_ms   = 0U,
         .encoder_jump_threshold = 0U,
+        .current_high_threshold = 800U,
+        .current_low_threshold  = 50U,
+        .current_check_delay_ms = 2000U,
+        .current_confirm_ms     = 3000U,
+        .alarm_code_current     = ALARM_CODE_BRUSH_CURRENT,
+        .alarm_code_fault       = ALARM_CODE_VFD_BRUSH,
     },
 };
 

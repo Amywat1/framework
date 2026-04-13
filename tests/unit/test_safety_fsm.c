@@ -30,8 +30,8 @@ static void clear_alarm_and_eval(uint16_t code)
 {
     /* 对于 AUTO 恢复报警，直接 set_state(false) + 足够 tick 清除 */
     alarm_core_set_state(code, false, false);
-    /* 对于 0 recover_ms，tick 一次即可清除 */
-    alarm_core_tick_ms(10);
+    /* Modbus 通信报警有恢复防抖，tick 足够时长后再重评估 */
+    alarm_core_tick_ms(2500);
     safety_fsm_reevaluate();
 }
 
@@ -67,10 +67,10 @@ static void test_vfd_fault_to_lockout(void)
     printf("  PASS\n");
 }
 
-/* TC-3：Modbus 通信超时 → WARNING（WARNING 级）*/
+/* TC-3：Modbus 通信丢失 → WARNING（WARNING 级）*/
 static void test_modbus_to_warning(void)
 {
-    printf("TC-3: Modbus timeout → WARNING\n");
+    printf("TC-3: Modbus lost → WARNING\n");
     (void)alarm_core_init();
     (void)safety_fsm_init();
 

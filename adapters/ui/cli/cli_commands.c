@@ -148,6 +148,7 @@ int safety_cmd_handler(char *subcmd, char *p1, char *p2)
             ALARM_CODE_ESTOP,
             ALARM_CODE_GANTRY_FWD_LIM, ALARM_CODE_GANTRY_REV_LIM,
             ALARM_CODE_VFD_GANTRY, ALARM_CODE_VFD_BRUSH,
+            ALARM_CODE_GANTRY_CURRENT, ALARM_CODE_BRUSH_CURRENT,
             ALARM_CODE_MODBUS_GANTRY, ALARM_CODE_MODBUS_BRUSH,
             ALARM_CODE_MQTT_OFFLINE,
         };
