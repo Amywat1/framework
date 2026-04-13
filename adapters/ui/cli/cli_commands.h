@@ -23,7 +23,7 @@ int safety_cmd_handler(char *subcmd, char *p1, char *p2);
 /** @brief param 命令域：get <key> / set <key> <val> / save */
 int param_cmd_handler(char *subcmd, char *p1, char *p2);
 
-/** @brief diag 命令域：do <DO_NAME> <0|1> / di <DI_NAME> / state */
+/** @brief diag 命令域：do <DO_NAME> <0|1> / di <DI_NAME> / io [BOARD_ID] / state */
 int diag_cmd_handler(char *subcmd, char *p1, char *p2);
 
 #ifdef __cplusplus

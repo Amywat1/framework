@@ -43,6 +43,12 @@ static void log_diag_di_usage(void)
     LOG_INFO("example: diag di DI_ESTOP");
 }
 
+static void log_diag_io_usage(void)
+{
+    LOG_INFO("usage: diag io [BOARD_ID]");
+    LOG_INFO("example: diag io 1");
+}
+
 /* -------------------------------------------------------------------------
  * device 命令域
  * ------------------------------------------------------------------------- */
@@ -292,6 +298,46 @@ int diag_cmd_handler(char *subcmd, char *p1, char *p2)
                  (unsigned)drv_io_handle_board(drv_io_di_raw(pin)),
                  (unsigned)drv_io_handle_pin(drv_io_di_raw(pin)),
                  (int)val);
+        return 1;
+    }
+
+    if (strcmp(subcmd, "io") == 0)
+    {
+        int first_board = 1;
+        int last_board  = drv_io_board_count();
+
+        if (p1 != NULL)
+        {
+            first_board = atoi(p1);
+            last_board  = first_board;
+        }
+
+        if ((first_board <= 0) || (last_board > drv_io_board_count()))
+        {
+            LOG_ERROR("diag io: invalid board id %d", first_board);
+            log_diag_io_usage();
+            return 1;
+        }
+
+        for (int board_id = first_board; board_id <= last_board; ++board_id)
+        {
+            drv_io_stats_t stats = {0};
+            sw_err_t       ret   = drv_io_get_stats(board_id, &stats);
+
+            if (ret != SW_OK)
+            {
+                LOG_ERROR("diag io: board=%d get stats failed ret=%d", board_id, (int)ret);
+                continue;
+            }
+
+            LOG_INFO("diag io: board=%d online=%d poll=%u write=%u input_change=%u",
+                     board_id,
+                     (int)drv_io_board_is_online(board_id),
+                     (unsigned)stats.poll_count,
+                     (unsigned)stats.write_count,
+                     (unsigned)stats.input_change_count);
+        }
+
         return 1;
     }
 

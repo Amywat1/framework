@@ -24,6 +24,7 @@ extern "C" {
 #endif
 
 #include <stdbool.h>
+#include <stdint.h>
 #include "common/sw_error.h"
 #include "common/sw_types.h"
 #include "common/io_handle.h"
@@ -48,6 +49,14 @@ typedef io_di_t drv_io_di_t;
 typedef io_do_t drv_io_do_t;
 
 typedef void (*drv_io_debug_input_cb_t)(drv_io_di_t pin, bool state);
+
+/** IO 驱动运行时统计（按子板，近似快照） */
+typedef struct
+{
+    uint32_t poll_count;          /**< 该板累计轮询次数 */
+    uint32_t write_count;         /**< 输出实际写出次数 */
+    uint32_t input_change_count;  /**< 输入变化次数（按引脚累加） */
+} drv_io_stats_t;
 
 #ifdef __cplusplus
 #define DRV_IO_DI(board_, pin_)    drv_io_di_t{DRV_IO_HANDLE_MAKE(DRV_IO_KIND_DI, board_, pin_)}
@@ -219,6 +228,21 @@ void drv_io_set_test_override(drv_io_di_t pin, int value);
  * @param  pin  DI 句柄
  */
 void drv_io_clear_test_override(drv_io_di_t pin);
+
+/**
+ * @brief  获取指定子板的 IO 运行时统计
+ * @note   返回的是近似快照，仅用于诊断参考，不用于业务判断。
+ * @param  board_id  子板号，从 1 开始
+ * @param  out       输出统计结构体
+ * @retval SW_OK / SW_ERR_PARAM
+ */
+sw_err_t drv_io_get_stats(int board_id, drv_io_stats_t *out);
+
+/**
+ * @brief  获取当前配置的 IO 子板数量
+ * @retval 子板数量，不包含 0 号占位
+ */
+int drv_io_board_count(void);
 
 #ifdef __cplusplus
 }
