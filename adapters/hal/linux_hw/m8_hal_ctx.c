@@ -7,6 +7,7 @@
 
 #include "adapters/hal/linux_hw/m8_hal_ctx.h"
 #include "adapters/machine/m8/m8_machine_map.h"
+#include "config/machine/m8_vfd_table.h"
 #include "domain/safety/alarm_core.h"
 #include "domain/model/alarm_code.h"
 #include "driver/drv_vfd.h"
@@ -76,10 +77,10 @@ sw_err_t m8_linux_hw_init(void)
     /* 刷子 VFD：仅正转（无反转引脚），接触器上电时全部断开 */
     memset(&s_vfd_brush, 0, sizeof(s_vfd_brush));
     ret = drv_vfd_init(&s_vfd_brush,
-                       M8_VFD_SERIAL_PORT, M8_VFD_BAUD, M8_VFD_BRUSH_ADDR,
-                       M8_DO_BRUSH_FWD,
-                       false, M8_DO_BRUSH_FWD,  /* has_rev=false，rev引脚占位 */
-                       M8_DO_BRUSH_RST);
+                       M8_VFD_BRUSH_SERIAL_PORT, M8_VFD_BRUSH_BAUD, M8_VFD_BRUSH_ADDR,
+                       M8_VFD_BRUSH_PIN_FWD,
+                       M8_VFD_BRUSH_HAS_REV, M8_VFD_BRUSH_PIN_REV,
+                       M8_VFD_BRUSH_PIN_RST);
     if (ret != SW_OK)
     {
         LOG_ERROR("m8_linux_hw_init: vfd_brush init failed");
@@ -92,10 +93,10 @@ sw_err_t m8_linux_hw_init(void)
     /* 龙门 VFD：支持正反转 */
     memset(&s_vfd_gantry, 0, sizeof(s_vfd_gantry));
     ret = drv_vfd_init(&s_vfd_gantry,
-                       M8_VFD_SERIAL_PORT, M8_VFD_BAUD, M8_VFD_GANTRY_ADDR,
-                       M8_DO_GANTRY_FWD,
-                       true, M8_DO_GANTRY_REV,
-                       M8_DO_GANTRY_RST);
+                       M8_VFD_GANTRY_SERIAL_PORT, M8_VFD_GANTRY_BAUD, M8_VFD_GANTRY_ADDR,
+                       M8_VFD_GANTRY_PIN_FWD,
+                       M8_VFD_GANTRY_HAS_REV, M8_VFD_GANTRY_PIN_REV,
+                       M8_VFD_GANTRY_PIN_RST);
     if (ret != SW_OK)
     {
         LOG_ERROR("m8_linux_hw_init: vfd_gantry init failed");

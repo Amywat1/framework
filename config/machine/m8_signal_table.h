@@ -60,9 +60,9 @@ static const m8_signal_cfg_t m8_signal_table[] = {
 /*  sig_id                  io_id                 active_low  trig  rel  evt_active              evt_inactive           alarm_code */
     { M8_SIG_ESTOP,          DI_ESTOP,             true,       1U,   3U,  EVT_HW_ESTOP_ON,        EVT_HW_ESTOP_OFF,      ALARM_CODE_ESTOP          },
     { M8_SIG_GANTRY_FWD_LIM, DI_GANTRY_FWD_LIMIT,  false,      3U,   3U,  EVT_HW_GANTRY_FWD_LIM, EVT_NONE,              0U                        },
-    { M8_SIG_GANTRY_REV_LIM, DI_GANTRY_REAR_LIMIT, false,      3U,   3U,  EVT_HW_GANTRY_REV_LIM, EVT_NONE,              0U                        },
-    { M8_SIG_LIFT_UP_LIM,    DI_TOP_LIFT_UP,       false,      3U,   3U,  EVT_HW_LIFT_UP_LIM,    EVT_NONE,              0U                        },
-    { M8_SIG_LIFT_DOWN_LIM,  DI_TOP_LIFT_DOWN,     false,      3U,   3U,  EVT_HW_LIFT_DOWN_LIM,  EVT_NONE,              0U                        },
+    { M8_SIG_GANTRY_REV_LIM, DI_GANTRY_REV_LIMIT,  false,      3U,   3U,  EVT_HW_GANTRY_REV_LIM, EVT_NONE,              0U                        },
+    { M8_SIG_LIFT_UP_LIM,    DI_LIFT_UP_LIMIT,     false,      3U,   3U,  EVT_HW_LIFT_UP_LIM,    EVT_NONE,              0U                        },
+    { M8_SIG_LIFT_DOWN_LIM,  DI_LIFT_DOWN_LIMIT,   false,      3U,   3U,  EVT_HW_LIFT_DOWN_LIM,  EVT_NONE,              0U                        },
 };
 
 #define M8_SIGNAL_TABLE_SIZE  ((int)ARRAY_SIZE(m8_signal_table))

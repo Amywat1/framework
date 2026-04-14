@@ -29,14 +29,6 @@
 #define M8_IO_BOARD_COUNT       CFG_IO_BOARD_COUNT
 
 /* -------------------------------------------------------------------------
- * VFD Modbus RTU 参数
- * ------------------------------------------------------------------------- */
-#define M8_VFD_SERIAL_PORT      CFG_VFD_GANTRY_SERIAL_PORT  /* 刷子/龙门共用 */
-#define M8_VFD_BAUD             CFG_VFD_GANTRY_BAUD
-#define M8_VFD_BRUSH_ADDR       CFG_VFD_BRUSH_MODBUS_ADDR
-#define M8_VFD_GANTRY_ADDR      CFG_VFD_GANTRY_MODBUS_ADDR
-
-/* -------------------------------------------------------------------------
  * 步进电机脉冲参数
  * ------------------------------------------------------------------------- */
 #define M8_STEPPER_PULSE_US     CFG_STEPPER_PULSE_US
@@ -78,10 +70,10 @@
  * 数字输入引脚别名
  * ------------------------------------------------------------------------- */
 #define M8_DI_GANTRY_FWD_LIM    DI_GANTRY_FWD_LIMIT
-#define M8_DI_GANTRY_REV_LIM    DI_GANTRY_REAR_LIMIT
-#define M8_DI_LIFT_UP_LIM       DI_TOP_LIFT_UP
-#define M8_DI_LIFT_DOWN_LIM     DI_TOP_LIFT_DOWN
-#define M8_DI_ENCODER           DI_ENCODER_PULSE
+#define M8_DI_GANTRY_REV_LIM    DI_GANTRY_REV_LIMIT
+#define M8_DI_LIFT_UP_LIM       DI_LIFT_UP_LIMIT
+#define M8_DI_LIFT_DOWN_LIM     DI_LIFT_DOWN_LIMIT
+#define M8_DI_ENCODER           DI_GANTRY_ENCODER_PULSE
 #define M8_DI_ESTOP             DI_ESTOP
 
 #endif /* ADAPTERS_MACHINE_M8_MACHINE_MAP_H */
