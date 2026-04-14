@@ -13,7 +13,7 @@
  *          - bit14~8：子板号
  *          - bit7~0：引脚号
  *
- *          `driver/drv_io_def.h` 是唯一 IO 定义总表。
+ *          `config/machine/m8_io_table.h` 是唯一 IO 定义总表。
  */
 
 #ifndef DRV_IO_H
@@ -53,9 +53,21 @@ typedef void (*drv_io_debug_input_cb_t)(drv_io_di_t pin, bool state);
 /** IO 驱动运行时统计（按子板，近似快照） */
 typedef struct
 {
-    uint32_t poll_count;          /**< 该板累计轮询次数 */
-    uint32_t write_count;         /**< 输出实际写出次数 */
-    uint32_t input_change_count;  /**< 输入变化次数（按引脚累加） */
+    bool     online;                /**< 当前是否在线 */
+    bool     dirty_pending;         /**< 当前是否存在未落地输出 */
+    uint32_t offline_count;         /**< 确认离线次数 */
+    uint32_t online_recover_count;  /**< 离线后恢复在线次数 */
+    uint32_t input_refresh_count;   /**< 输入缓存刷新次数 */
+    uint32_t output_request_count;  /**< 输出状态变更请求次数 */
+    uint32_t output_flush_count;    /**< 输出实际写硬件次数 */
+    uint32_t output_resend_count;   /**< 板卡恢复在线后的输出重发次数 */
+    uint32_t last_online_ms;        /**< 最近一次恢复在线时间戳 */
+    uint32_t last_offline_ms;       /**< 最近一次确认离线时间戳 */
+    uint32_t last_input_refresh_ms; /**< 最近一次输入缓存刷新时间戳 */
+    uint32_t last_output_req_ms;    /**< 最近一次输出变更请求时间戳 */
+    uint32_t last_output_flush_ms;  /**< 最近一次输出落地时间戳 */
+    uint32_t last_input_snapshot;   /**< 最近一次输入快照 */
+    uint32_t last_output_snapshot;  /**< 最近一次输出快照 */
 } drv_io_stats_t;
 
 #ifdef __cplusplus
@@ -71,12 +83,12 @@ typedef struct
  * ------------------------------------------------------------------------- */
 #define DRV_IO_DI_DEF(name, board, pin, desc) \
     static const drv_io_di_t DI_##name = DRV_IO_DI(board, pin);
-#include "driver/drv_io_def.h"
+#include "config/machine/m8_io_table.h"
 #undef DRV_IO_DI_DEF
 
 #define DRV_IO_DO_DEF(name, board, pin, desc) \
     static const drv_io_do_t DO_##name = DRV_IO_DO(board, pin);
-#include "driver/drv_io_def.h"
+#include "config/machine/m8_io_table.h"
 #undef DRV_IO_DO_DEF
 
 /* -------------------------------------------------------------------------

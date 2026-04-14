@@ -331,12 +331,25 @@ int diag_cmd_handler(char *subcmd, char *p1, char *p2)
                 continue;
             }
 
-            LOG_INFO("diag io: board=%d online=%d poll=%u write=%u input_change=%u",
+            LOG_INFO("diag io: board=%d online=%d dirty=%d off=%u recover=%u in_refresh=%u out_req=%u out_flush=%u resend=%u",
                      board_id,
-                     (int)drv_io_board_is_online(board_id),
-                     (unsigned)stats.poll_count,
-                     (unsigned)stats.write_count,
-                     (unsigned)stats.input_change_count);
+                     (int)stats.online,
+                     (int)stats.dirty_pending,
+                     (unsigned)stats.offline_count,
+                     (unsigned)stats.online_recover_count,
+                     (unsigned)stats.input_refresh_count,
+                     (unsigned)stats.output_request_count,
+                     (unsigned)stats.output_flush_count,
+                     (unsigned)stats.output_resend_count);
+            LOG_INFO("diag io: board=%d last_online=%u last_offline=%u last_in=%u last_req=%u last_flush=%u in=0x%08X out=0x%08X",
+                     board_id,
+                     (unsigned)stats.last_online_ms,
+                     (unsigned)stats.last_offline_ms,
+                     (unsigned)stats.last_input_refresh_ms,
+                     (unsigned)stats.last_output_req_ms,
+                     (unsigned)stats.last_output_flush_ms,
+                     (unsigned)stats.last_input_snapshot,
+                     (unsigned)stats.last_output_snapshot);
         }
 
         return 1;

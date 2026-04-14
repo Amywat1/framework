@@ -20,6 +20,7 @@
 #include <unistd.h>
 
 #include "common/log.h"
+#include "common/time_util.h"
 #include "config/machine/m8_machine_config.h"
 #include "io_exp/slave.h"
 
@@ -40,13 +41,13 @@ typedef struct
  * ------------------------------------------------------------------------- */
 static const drv_io_name_entry_t s_di_name_table[] = {
 #define DRV_IO_DI_DEF(name, board, pin, desc) { "DI_" #name, DRV_IO_HANDLE_MAKE(DRV_IO_KIND_DI, board, pin) },
-#include "driver/drv_io_def.h"
+#include "config/machine/m8_io_table.h"
 #undef DRV_IO_DI_DEF
 };
 
 static const drv_io_name_entry_t s_do_name_table[] = {
 #define DRV_IO_DO_DEF(name, board, pin, desc) { "DO_" #name, DRV_IO_HANDLE_MAKE(DRV_IO_KIND_DO, board, pin) },
-#include "driver/drv_io_def.h"
+#include "config/machine/m8_io_table.h"
 #undef DRV_IO_DO_DEF
 };
 
@@ -59,6 +60,7 @@ static volatile bool          s_output_dirty[IO_BOARD_MAX] = {false};
 static volatile bool          s_board_online[IO_BOARD_MAX] = {0};
 static pthread_mutex_t        s_output_mutex               = PTHREAD_MUTEX_INITIALIZER;
 static drv_io_stats_t         s_stats[IO_BOARD_MAX]        = {{0}};
+static bool                   s_seen_online[IO_BOARD_MAX]  = {false};
 
 /* 调试测试覆盖：索引直接使用 pin_id，因此第二维保留 0 号位不用 */
 static bool s_test_enable[IO_BOARD_MAX][IO_PIN_COUNT + 1U] = {{false}};
@@ -266,13 +268,28 @@ void *drv_io_poll_loop(void *arg)
 
                     if (!s_board_online[i])
                     {
+                        uint32_t now_ms       = time_util_get_ms();
+                        bool     recovered    = s_seen_online[i];
+
                         s_board_online[i] = true;
+                        s_stats[i].online = true;
+                        s_stats[i].last_online_ms = now_ms;
+                        if (recovered)
+                        {
+                            s_stats[i].online_recover_count++;
+                            s_stats[i].output_resend_count++;
+                        }
+                        else
+                        {
+                            s_seen_online[i] = true;
+                        }
 
                         /* 恢复在线时强制重发输出缓存。
                          * 子板离线期间硬件输出可能丢失，即使上层没有再次改输出，
                          * 也需要把当前缓冲重新同步到硬件。 */
                         pthread_mutex_lock(&s_output_mutex);
                         s_output_dirty[i] = true;
+                        s_stats[i].dirty_pending = true;
                         pthread_mutex_unlock(&s_output_mutex);
 
                         if (s_board_error_cb != NULL)
@@ -289,8 +306,13 @@ void *drv_io_poll_loop(void *arg)
                         ++offline_cnt[i];
                         if (offline_cnt[i] >= (uint8_t)CFG_IO_OFFLINE_CNT)
                         {
+                            uint32_t now_ms = time_util_get_ms();
+
                             s_board_online[i]    = false;
                             offline_confirmed[i] = true;
+                            s_stats[i].online = false;
+                            s_stats[i].offline_count++;
+                            s_stats[i].last_offline_ms = now_ms;
 
                             if (s_board_error_cb != NULL)
                             {
@@ -305,14 +327,18 @@ void *drv_io_poll_loop(void *arg)
             /* ---- 仅在线子板参与读写 ---- */
             if (s_board_online[i])
             {
-                unsigned int prev     = s_input_buf[i];
-                unsigned int out_val  = 0U;
-                bool         dirty    = false;
-
-                s_stats[i].poll_count++;
+                unsigned int prev    = s_input_buf[i];
+                unsigned int out_val = 0U;
+                uint32_t     now_ms  = 0U;
+                bool         dirty   = false;
 
                 /* SDO 读写一次约 1~2ms；读失败时 SDK 会保留上次值 */
                 s_input_buf[i] = (unsigned int)io_read_input_s(i);
+                now_ms = time_util_get_ms();
+                s_stats[i].online = true;
+                s_stats[i].input_refresh_count++;
+                s_stats[i].last_input_refresh_ms = now_ms;
+                s_stats[i].last_input_snapshot = s_input_buf[i];
 
                 pthread_mutex_lock(&s_output_mutex);
                 dirty   = s_output_dirty[i];
@@ -321,15 +347,20 @@ void *drv_io_poll_loop(void *arg)
                 {
                     s_output_dirty[i] = false;
                 }
+                s_stats[i].dirty_pending = s_output_dirty[i];
                 pthread_mutex_unlock(&s_output_mutex);
 
                 if (dirty)
                 {
                     io_write_all_s(i, (int)out_val);
-                    s_stats[i].write_count++;
+                    now_ms = time_util_get_ms();
+                    s_stats[i].output_flush_count++;
+                    s_stats[i].last_output_flush_ms = now_ms;
+                    s_stats[i].last_output_snapshot = out_val;
+                    s_stats[i].dirty_pending = false;
                 }
 
-                /* 输入变化统计与调试通知仅用于观察，不参与正式业务判断 */
+                /* 输入变化调试通知仅用于观察，不参与正式业务判断 */
                 {
                     unsigned int changed = prev ^ s_input_buf[i];
 
@@ -339,9 +370,8 @@ void *drv_io_poll_loop(void *arg)
                         {
                             if (((changed >> bit) & 1U) != 0U)
                             {
-                                drv_io_di_t pin      = drv_io_di_make((uint16_t)i, (uint16_t)(bit + 1));
+                                drv_io_di_t pin       = drv_io_di_make((uint16_t)i, (uint16_t)(bit + 1));
                                 bool        new_state = (bool)((s_input_buf[i] >> bit) & 1U);
-                                s_stats[i].input_change_count++;
                                 if (s_debug_input_cb != NULL)
                                 {
                                     s_debug_input_cb(pin, new_state);
@@ -403,6 +433,7 @@ sw_err_t drv_io_init(void)
     memset((void *)s_output_dirty,  0, sizeof(s_output_dirty));
     memset((void *)s_board_online,  0, sizeof(s_board_online));
     memset(s_stats,                 0, sizeof(s_stats));
+    memset(s_seen_online,           0, sizeof(s_seen_online));
     memset(s_test_enable,           0, sizeof(s_test_enable));
     memset(s_test_value,            0, sizeof(s_test_value));
 
@@ -421,6 +452,7 @@ sw_err_t drv_io_do_set(drv_io_do_t pin, bool val)
     int      board_id = (int)drv_io_handle_board(raw);
     int      pin_id   = (int)drv_io_handle_pin(raw);
     int      bit      = pin_id - 1;
+    unsigned int prev_out = 0U;
 
     if (!drv_io_is_valid_do_raw(raw))
     {
@@ -429,6 +461,8 @@ sw_err_t drv_io_do_set(drv_io_do_t pin, bool val)
     }
 
     pthread_mutex_lock(&s_output_mutex);
+    prev_out = s_output_buf[board_id];
+
     if (val)
     {
         s_output_buf[board_id] |= (1U << bit);
@@ -437,7 +471,17 @@ sw_err_t drv_io_do_set(drv_io_do_t pin, bool val)
     {
         s_output_buf[board_id] &= ~(1U << bit);
     }
+
+    if (s_output_buf[board_id] != prev_out)
+    {
+        uint32_t now_ms = time_util_get_ms();
+        s_stats[board_id].output_request_count++;
+        s_stats[board_id].last_output_req_ms = now_ms;
+        s_stats[board_id].last_output_snapshot = s_output_buf[board_id];
+    }
+
     s_output_dirty[board_id] = true;
+    s_stats[board_id].dirty_pending = true;
     pthread_mutex_unlock(&s_output_mutex);
 
     return SW_OK;
@@ -454,6 +498,11 @@ sw_err_t drv_io_flush_outputs_now(void)
     {
         snapshot[i] = s_output_buf[i];
         online[i]   = s_board_online[i];
+        if (online[i])
+        {
+            s_output_dirty[i] = false;
+            s_stats[i].dirty_pending = false;
+        }
     }
     pthread_mutex_unlock(&s_output_mutex);
 
@@ -462,7 +511,11 @@ sw_err_t drv_io_flush_outputs_now(void)
     {
         if (online[i])
         {
+            uint32_t now_ms = time_util_get_ms();
             io_write_all_s(i, (int)snapshot[i]);
+            s_stats[i].output_flush_count++;
+            s_stats[i].last_output_flush_ms = now_ms;
+            s_stats[i].last_output_snapshot = snapshot[i];
         }
     }
 
