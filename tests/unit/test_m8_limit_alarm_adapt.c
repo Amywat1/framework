@@ -97,15 +97,6 @@ static bool mock_is_estop_active(void)
     return m8_signal_is_active(M8_SIG_ESTOP);
 }
 
-static int32_t mock_get_gantry_pos(void)
-{
-    return 0;
-}
-
-static void mock_reset_gantry_pos(void)
-{
-}
-
 static void mock_poll_input_events(void)
 {
 }
@@ -130,8 +121,6 @@ static const hal_sensor_ops_t s_sensor_ops = {
     .lift_at_top         = mock_lift_at_top,
     .lift_at_bottom      = mock_lift_at_bottom,
     .is_estop_active     = mock_is_estop_active,
-    .get_gantry_pos      = mock_get_gantry_pos,
-    .reset_gantry_pos    = mock_reset_gantry_pos,
     .poll_input_events   = mock_poll_input_events,
     .get_vfd_fault_code  = mock_get_vfd_fault_code,
 };

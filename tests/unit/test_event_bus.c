@@ -130,7 +130,7 @@ static void test_queue_full(void)
     sw_err_t rc = SW_OK;
     for (int i = 0; i < (int)EVENT_BUS_QUEUE_SIZE + 5; i++)
     {
-        rc = event_publish(EVT_HW_ENCODER_TICK, (uint32_t)i);
+        rc = event_publish(EVT_CMD_ORDER, (uint32_t)i);
     }
     /* 前 EVENT_BUS_QUEUE_SIZE 次应成功，之后应返回 SW_ERR_OVERFLOW */
     assert(rc == SW_ERR_OVERFLOW);

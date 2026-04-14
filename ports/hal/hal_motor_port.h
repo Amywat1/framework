@@ -21,12 +21,10 @@ typedef struct
     sw_err_t (*set_output)(int id, int speed_ref);
     bool     (*at_fwd_limit)(int id);
     bool     (*at_rev_limit)(int id);
-    int32_t  (*get_pos)(int id);                           /* 读取事件驱动模式下的外部位置 */
-    sw_err_t (*clear_pos)(int id);                        /* 清零事件驱动模式下的外部位置 */
-    sw_err_t (*read_hw_pulse)(int id, uint32_t *p_value); /* 读取硬件脉冲计数器原始值 */
-    sw_err_t (*clear_hw_pulse)(int id);                   /* 清零硬件脉冲计数器 */
-    sw_err_t (*read_current)(int id, uint16_t *p_current);/* 读取电机负载电流（0.01A）*/
-    sw_err_t (*read_status)(int id, uint16_t *p_status);  /* 读取电机实际运行状态字 */
+    sw_err_t (*read_hw_pulse)(int id, uint32_t *p_value);  /* 读取硬件脉冲计数器原始值 */
+    sw_err_t (*clear_hw_pulse)(int id);                    /* 清零硬件脉冲计数器 */
+    sw_err_t (*read_current)(int id, uint16_t *p_current); /* 读取电机负载电流，单位 0.01A */
+    sw_err_t (*read_status)(int id, uint16_t *p_status);   /* 读取电机实际运行状态字 */
 } hal_motor_ops_t;
 
 void                  hal_motor_register(const hal_motor_ops_t *ops);

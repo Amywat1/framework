@@ -9,11 +9,12 @@
  */
 
 #include "adapters/hal/sim_hw/hal_sensor_sim.h"
+#include "adapters/hal/sim_hw/sim_encoder_counter.h"
+#include "config/machine/m8_motor_table.h"
 #include "ports/hal/hal_sensor_port.h"
 #include "core/event_bus/event_bus.h"
 #include "common/event_types.h"
 #include "common/log.h"
-#include <stdatomic.h>
 
 /* -------------------------------------------------------------------------
  * 虚拟传感器状态
@@ -23,8 +24,6 @@ static bool      s_rev_limit    = false;
 static bool      s_lift_top     = false;
 static bool      s_lift_bottom  = false;
 static bool      s_estop        = false;
-static atomic_int s_gantry_pos  = 0;
-static atomic_int s_encoder_pending = 0;
 
 /* -------------------------------------------------------------------------
  * ops 实现
@@ -34,17 +33,6 @@ static bool sim_gantry_at_rev_limit(void) { return s_rev_limit; }
 static bool sim_lift_at_top(void)         { return s_lift_top; }
 static bool sim_lift_at_bottom(void)      { return s_lift_bottom; }
 static bool sim_is_estop_active(void)     { return s_estop; }
-
-static int32_t sim_get_gantry_pos(void)
-{
-    return (int32_t)atomic_load(&s_gantry_pos);
-}
-
-static void sim_reset_gantry_pos(void)
-{
-    atomic_store(&s_gantry_pos, 0);
-    LOG_INFO("hal_sensor_sim: gantry pos reset");
-}
 
 static void sim_poll_input_events(void)
 {
@@ -91,25 +79,6 @@ static void sim_poll_input_events(void)
     s_prev_rev_limit   = s_rev_limit;
     s_prev_lift_top    = s_lift_top;
     s_prev_lift_bottom = s_lift_bottom;
-
-    for (;;)
-    {
-        int pending = atomic_load(&s_encoder_pending);
-        if (pending == 0)
-        {
-            break;
-        }
-        if (atomic_compare_exchange_weak(&s_encoder_pending, &pending, 0))
-        {
-            uint32_t param = (pending > 0) ? 1U : 0U;
-            int count = (pending > 0) ? pending : -pending;
-            for (int i = 0; i < count; i++)
-            {
-                (void)event_publish(EVT_HW_ENCODER_TICK, param);
-            }
-            break;
-        }
-    }
 }
 
 static sw_err_t sim_get_vfd_fault_code(hal_vfd_id_t vfd_id, uint16_t *p_code)
@@ -126,8 +95,6 @@ static const hal_sensor_ops_t s_ops = {
     .lift_at_top          = sim_lift_at_top,
     .lift_at_bottom       = sim_lift_at_bottom,
     .is_estop_active      = sim_is_estop_active,
-    .get_gantry_pos       = sim_get_gantry_pos,
-    .reset_gantry_pos     = sim_reset_gantry_pos,
     .poll_input_events    = sim_poll_input_events,
     .get_vfd_fault_code   = sim_get_vfd_fault_code,
 };
@@ -148,6 +115,5 @@ void hal_sensor_sim_set_lift_bottom(bool v) { s_lift_bottom = v; }
 void hal_sensor_sim_set_estop(bool v)       { s_estop       = v; }
 void hal_sensor_sim_encoder_tick(int delta)
 {
-    atomic_fetch_add(&s_gantry_pos, delta);
-    atomic_fetch_add(&s_encoder_pending, delta);
+    sim_encoder_counter_add_pulse(MOTOR_GANTRY, delta);
 }

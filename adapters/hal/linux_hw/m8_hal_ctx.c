@@ -15,7 +15,6 @@
 #include "driver/drv_io.h"
 #include "common/log.h"
 
-#include <pthread.h>
 #include <string.h>
 
 /* -------------------------------------------------------------------------
@@ -23,18 +22,6 @@
  * ------------------------------------------------------------------------- */
 static drv_vfd_t s_vfd_brush;
 static drv_vfd_t s_vfd_gantry;
-
-/* -------------------------------------------------------------------------
- * 龙门运动方向（motion 更新，encoder callback 读取）
- * 用 volatile，不需要精确原子性（最坏情况：一次 tick 方向暂时错误，可接受）
- * ------------------------------------------------------------------------- */
-static volatile int s_gantry_is_fwd = 1; /* 1=前进，0=后退 */
-
-/* -------------------------------------------------------------------------
- * 龙门位置计数器（encoder callback 和 get_pos 可能在不同线程，用 mutex 保护）
- * ------------------------------------------------------------------------- */
-static int32_t         s_gantry_pos = 0;
-static pthread_mutex_t s_pos_mutex  = PTHREAD_MUTEX_INITIALIZER;
 
 /* -------------------------------------------------------------------------
  * VFD 事件路由（驱动层事件 → alarm_core）
@@ -121,42 +108,3 @@ sw_err_t m8_linux_hw_init(void)
  * ------------------------------------------------------------------------- */
 drv_vfd_t *m8_ctx_vfd_brush(void)   { return &s_vfd_brush; }
 drv_vfd_t *m8_ctx_vfd_gantry(void)  { return &s_vfd_gantry; }
-
-/* -------------------------------------------------------------------------
- * 龙门方向
- * ------------------------------------------------------------------------- */
-void m8_ctx_set_gantry_fwd(bool is_fwd)  { s_gantry_is_fwd = is_fwd ? 1 : 0; }
-bool m8_ctx_gantry_is_fwd(void)          { return (s_gantry_is_fwd != 0); }
-
-/* -------------------------------------------------------------------------
- * 龙门位置计数器
- * ------------------------------------------------------------------------- */
-int32_t m8_ctx_get_gantry_pos(void)
-{
-    int32_t pos;
-    pthread_mutex_lock(&s_pos_mutex);
-    pos = s_gantry_pos;
-    pthread_mutex_unlock(&s_pos_mutex);
-    return pos;
-}
-
-void m8_ctx_reset_gantry_pos(void)
-{
-    pthread_mutex_lock(&s_pos_mutex);
-    s_gantry_pos = 0;
-    pthread_mutex_unlock(&s_pos_mutex);
-}
-
-void m8_ctx_encoder_tick(void)
-{
-    pthread_mutex_lock(&s_pos_mutex);
-    if (s_gantry_is_fwd)
-    {
-        s_gantry_pos++;
-    }
-    else
-    {
-        s_gantry_pos--;
-    }
-    pthread_mutex_unlock(&s_pos_mutex);
-}

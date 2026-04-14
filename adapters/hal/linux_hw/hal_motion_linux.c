@@ -22,13 +22,11 @@
  * ------------------------------------------------------------------------- */
 static sw_err_t m8_gantry_fwd(uint16_t freq_hz)
 {
-    m8_ctx_set_gantry_fwd(true);
     return drv_vfd_run_fwd(m8_ctx_vfd_gantry(), freq_hz);
 }
 
 static sw_err_t m8_gantry_rev(uint16_t freq_hz)
 {
-    m8_ctx_set_gantry_fwd(false);
     return drv_vfd_run_rev(m8_ctx_vfd_gantry(), freq_hz);
 }
 

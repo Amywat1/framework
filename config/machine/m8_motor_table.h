@@ -46,6 +46,12 @@ typedef enum
     MOTOR_LIMIT_PULSE_MIN_MAX,
 } motor_limit_mode_t;
 
+typedef enum
+{
+    MOTOR_ENCODER_NONE = 0,
+    MOTOR_ENCODER_COUNTER,
+} motor_encoder_backend_t;
+
 #define MOTOR_TIMEOUT_FOREVER   0xFFFFFFFFU
 #define MOTOR_DO_NONE           ((io_do_t){IO_HANDLE_NULL})
 #define MOTOR_DI_NONE           ((io_di_t){IO_HANDLE_NULL})
@@ -71,10 +77,10 @@ typedef struct
 
     uint32_t             timeout_ms;
 
-    bool                 has_encoder;
+    bool                     has_encoder;
+    motor_encoder_backend_t  encoder_backend;
     io_di_t              encoder_io;
     io_di_t              encoder_zero_io;
-    bool                 encoder_use_hw_counter;
     uint8_t              encoder_zero_confirm;
     uint8_t              encoder_err_threshold;
     uint16_t             encoder_err_check_ms;
@@ -105,10 +111,10 @@ static const motor_cfg_t m8_motor_table[] = {
         .limit_pos_min   = 0U,
         .limit_pos_max   = 0U,
         .timeout_ms      = 60000U,
-        .has_encoder     = true,
-        .encoder_io      = DI_GANTRY_ENCODER_PULSE,
-        .encoder_zero_io = MOTOR_DI_NONE,
-        .encoder_use_hw_counter = false,
+        .has_encoder            = true,
+        .encoder_backend        = MOTOR_ENCODER_COUNTER,
+        .encoder_io             = DI_GANTRY_ENCODER_PULSE,
+        .encoder_zero_io        = MOTOR_DI_NONE,
         .encoder_zero_confirm   = 0U,
         .encoder_err_threshold  = 5U,
         .encoder_err_check_ms   = 400U,
@@ -136,10 +142,10 @@ static const motor_cfg_t m8_motor_table[] = {
         .limit_pos_min   = 0U,
         .limit_pos_max   = 0U,
         .timeout_ms      = MOTOR_TIMEOUT_FOREVER,
-        .has_encoder     = false,
-        .encoder_io      = MOTOR_DI_NONE,
-        .encoder_zero_io = MOTOR_DI_NONE,
-        .encoder_use_hw_counter = false,
+        .has_encoder            = false,
+        .encoder_backend        = MOTOR_ENCODER_NONE,
+        .encoder_io             = MOTOR_DI_NONE,
+        .encoder_zero_io        = MOTOR_DI_NONE,
         .encoder_zero_confirm   = 0U,
         .encoder_err_threshold  = 0U,
         .encoder_err_check_ms   = 0U,
@@ -167,10 +173,10 @@ static const motor_cfg_t m8_motor_table[] = {
         .limit_pos_min   = 0U,
         .limit_pos_max   = 0U,
         .timeout_ms      = MOTOR_TIMEOUT_FOREVER,
-        .has_encoder     = false,
-        .encoder_io      = MOTOR_DI_NONE,
-        .encoder_zero_io = MOTOR_DI_NONE,
-        .encoder_use_hw_counter = false,
+        .has_encoder            = false,
+        .encoder_backend        = MOTOR_ENCODER_NONE,
+        .encoder_io             = MOTOR_DI_NONE,
+        .encoder_zero_io        = MOTOR_DI_NONE,
         .encoder_zero_confirm   = 0U,
         .encoder_err_threshold  = 0U,
         .encoder_err_check_ms   = 0U,

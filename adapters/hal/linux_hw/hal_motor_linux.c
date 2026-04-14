@@ -49,12 +49,10 @@ static sw_err_t set_vfd_output(int id, int speed_ref)
         vfd = m8_ctx_vfd_gantry();
         if (speed_ref > 0)
         {
-            m8_ctx_set_gantry_fwd(true);
             return drv_vfd_run_fwd(vfd, freq_hz);
         }
         if (speed_ref < 0)
         {
-            m8_ctx_set_gantry_fwd(false);
             return drv_vfd_run_rev(vfd, freq_hz);
         }
         return drv_vfd_stop(vfd);
@@ -191,41 +189,6 @@ static bool m8_motor_at_rev_limit(int id)
     return drv_io_di_read((drv_io_di_t)cfg->limit_io_ccw);
 }
 
-static int32_t m8_motor_get_pos(int id)
-{
-    const motor_cfg_t *cfg = find_cfg(id);
-
-    if ((cfg == NULL) || !cfg->has_encoder)
-    {
-        return -1;
-    }
-
-    /* 事件驱动模式：位置由 linux_hw 适配层维护并在此读取。
-     * 硬件计数器模式下 motor.c 直接维护内部位置，不会再走本接口。 */
-    if (id == MOTOR_GANTRY)
-    {
-        return m8_ctx_get_gantry_pos();
-    }
-    return -1;
-}
-
-static sw_err_t m8_motor_clear_pos(int id)
-{
-    const motor_cfg_t *cfg = find_cfg(id);
-
-    if ((cfg == NULL) || !cfg->has_encoder)
-    {
-        return SW_ERR_PARAM;
-    }
-
-    if (id == MOTOR_GANTRY)
-    {
-        m8_ctx_reset_gantry_pos();
-        return SW_OK;
-    }
-    return SW_ERR_PARAM;
-}
-
 static sw_err_t m8_motor_read_hw_pulse(int id, uint32_t *p_value)
 {
     const motor_cfg_t *cfg = find_cfg(id);
@@ -233,7 +196,8 @@ static sw_err_t m8_motor_read_hw_pulse(int id, uint32_t *p_value)
     int                board_id;
     int                pin_id;
 
-    if ((cfg == NULL) || !cfg->has_encoder || !cfg->encoder_use_hw_counter || (p_value == NULL))
+    if ((cfg == NULL) || (p_value == NULL) || !cfg->has_encoder ||
+        (cfg->encoder_backend != MOTOR_ENCODER_COUNTER))
     {
         return SW_ERR_PARAM;
     }
@@ -258,7 +222,8 @@ static sw_err_t m8_motor_clear_hw_pulse(int id)
     int                pin_id;
     int                ret;
 
-    if ((cfg == NULL) || !cfg->has_encoder || !cfg->encoder_use_hw_counter)
+    if ((cfg == NULL) || !cfg->has_encoder ||
+        (cfg->encoder_backend != MOTOR_ENCODER_COUNTER))
     {
         return SW_ERR_PARAM;
     }
@@ -325,8 +290,6 @@ static const hal_motor_ops_t s_ops = {
     .set_output     = m8_motor_set_output,
     .at_fwd_limit   = m8_motor_at_fwd_limit,
     .at_rev_limit   = m8_motor_at_rev_limit,
-    .get_pos        = m8_motor_get_pos,
-    .clear_pos      = m8_motor_clear_pos,
     .read_hw_pulse  = m8_motor_read_hw_pulse,
     .clear_hw_pulse = m8_motor_clear_hw_pulse,
     .read_current   = m8_motor_read_current,

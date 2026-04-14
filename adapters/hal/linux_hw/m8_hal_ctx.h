@@ -28,17 +28,4 @@ sw_err_t m8_linux_hw_init(void);
 drv_vfd_t *m8_ctx_vfd_brush(void);
 drv_vfd_t *m8_ctx_vfd_gantry(void);
 
-/* -------------------------------------------------------------------------
- * 龙门运动方向（motion 更新，sensor encoder callback 读取）
- * ------------------------------------------------------------------------- */
-void m8_ctx_set_gantry_fwd(bool is_fwd);
-bool m8_ctx_gantry_is_fwd(void);
-
-/* -------------------------------------------------------------------------
- * 龙门位置计数器（encoder callback 更新，sensor port 读取）
- * ------------------------------------------------------------------------- */
-int32_t m8_ctx_get_gantry_pos(void);
-void    m8_ctx_reset_gantry_pos(void);
-void    m8_ctx_encoder_tick(void);   /* 每次码盘上升沿调用一次 */
-
 #endif /* ADAPTERS_HAL_LINUX_HW_M8_HAL_CTX_H */

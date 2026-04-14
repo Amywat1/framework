@@ -46,8 +46,6 @@ static bool mock_gantry_at_rev_limit(void) { return s_mock_rev_limit; }
 static bool mock_lift_at_top(void)         { return s_mock_lift_top; }
 static bool mock_lift_at_bottom(void)      { return s_mock_lift_bottom; }
 static bool mock_is_estop_active(void)     { return s_mock_estop; }
-static int32_t mock_get_gantry_pos(void)   { return (int32_t)s_mock_gantry_pos; }
-static void mock_reset_gantry_pos(void)    { s_mock_gantry_pos = 0; }
 static void mock_poll_input_events(void)   {}
 static sw_err_t mock_get_vfd_fault_code(hal_vfd_id_t id, uint16_t *p_code)
 {
@@ -62,8 +60,6 @@ static const hal_sensor_ops_t s_mock_sensor_ops = {
     .lift_at_top          = mock_lift_at_top,
     .lift_at_bottom       = mock_lift_at_bottom,
     .is_estop_active      = mock_is_estop_active,
-    .get_gantry_pos       = mock_get_gantry_pos,
-    .reset_gantry_pos     = mock_reset_gantry_pos,
     .poll_input_events    = mock_poll_input_events,
     .get_vfd_fault_code   = mock_get_vfd_fault_code,
 };
@@ -83,21 +79,6 @@ static bool mock_motor_at_fwd_limit(int id)
 static bool mock_motor_at_rev_limit(int id)
 {
     return (id == MOTOR_GANTRY) ? s_mock_rev_limit : false;
-}
-
-static int32_t mock_motor_get_pos(int id)
-{
-    return (id == MOTOR_GANTRY) ? (int32_t)s_mock_gantry_pos : -1;
-}
-
-static sw_err_t mock_motor_clear_pos(int id)
-{
-    if (id != MOTOR_GANTRY)
-    {
-        return SW_ERR_PARAM;
-    }
-    s_mock_gantry_pos = 0;
-    return SW_OK;
 }
 
 static sw_err_t mock_motor_read_hw_pulse(int id, uint32_t *p_value)
@@ -131,10 +112,8 @@ static const hal_motor_ops_t s_mock_motor_ops = {
     .set_output      = mock_motor_set_output,
     .at_fwd_limit    = mock_motor_at_fwd_limit,
     .at_rev_limit    = mock_motor_at_rev_limit,
-    .get_pos         = mock_motor_get_pos,
-    .clear_pos       = mock_motor_clear_pos,
     .read_hw_pulse   = mock_motor_read_hw_pulse,
-    .clear_hw_pulse = mock_motor_clear_hw_pulse,
+    .clear_hw_pulse  = mock_motor_clear_hw_pulse,
     .read_current    = mock_motor_read_current,
     .read_status     = mock_motor_read_status,
 };

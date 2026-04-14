@@ -8,40 +8,14 @@
 #include "ports/hal/hal_sensor_port.h"
 #include "adapters/hal/linux_hw/m8_hal_ctx.h"
 #include "adapters/machine/m8/m8_signal_filter.h"
-#include "adapters/machine/m8/m8_machine_map.h"
-#include "domain/model/alarm_code.h"
 #include "driver/drv_io.h"
 #include "driver/drv_vfd.h"
 #include "core/event_bus/event_bus.h"
 #include "common/log.h"
 
-/* -------------------------------------------------------------------------
- * IO 输入事件轮询（正式运行链路）
- * 不依赖 drv_io 的调试输入回调；统一从输入缓存读值后做边沿提取。
- * 急停、限位等离散量已由 m8_signal_filter_tick() 统一做防抖与事件发布，
- * 此处只保留编码器脉冲的边沿提取。
- * ------------------------------------------------------------------------- */
 static void m8_poll_input_events(void)
 {
-    static bool s_init             = false;
-    static bool s_prev_encoder     = false;
-
-    bool encoder      = drv_io_di_read(M8_DI_ENCODER);
-
-    if (!s_init)
-    {
-        s_prev_encoder    = encoder;
-        s_init            = true;
-        return;
-    }
-
-    if (encoder && !s_prev_encoder)
-    {
-        m8_ctx_encoder_tick();
-        (void)event_publish(EVT_HW_ENCODER_TICK, m8_ctx_gantry_is_fwd() ? 1U : 0U);
-    }
-
-    s_prev_encoder    = encoder;
+    /* 真机路径下编码器由硬件脉冲计数器完成，接口保留供报警轮询调用。 */
 }
 
 /* IO 子板在线状态变化回调 */
@@ -65,9 +39,6 @@ static bool m8_is_estop_active(void)
     return m8_signal_is_active(M8_SIG_ESTOP);
 }
 
-static int32_t m8_get_gantry_pos(void)   { return m8_ctx_get_gantry_pos(); }
-static void    m8_reset_gantry_pos(void) { m8_ctx_reset_gantry_pos(); }
-
 static sw_err_t m8_get_vfd_fault_code(hal_vfd_id_t vfd_id, uint16_t *p_code)
 {
     if (p_code == NULL)
@@ -88,8 +59,6 @@ static const hal_sensor_ops_t s_ops = {
     .lift_at_top          = m8_lift_at_top,
     .lift_at_bottom       = m8_lift_at_bottom,
     .is_estop_active      = m8_is_estop_active,
-    .get_gantry_pos       = m8_get_gantry_pos,
-    .reset_gantry_pos     = m8_reset_gantry_pos,
     .poll_input_events    = m8_poll_input_events,
     .get_vfd_fault_code   = m8_get_vfd_fault_code,
 };
