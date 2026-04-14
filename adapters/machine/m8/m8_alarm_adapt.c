@@ -69,6 +69,8 @@ static void m8_signal_poll(void)
 #endif
 #else
     /* 真机中仅处理多信号组合逻辑。 */
+    /* 真机中单路限位只保留为滤波后的稳定事件，
+     * 限位故障报警在这里按组合条件统一判定。 */
     bool fwd = sensor->gantry_at_fwd_limit();
     bool rev = sensor->gantry_at_rev_limit();
     alarm_core_set_state(ALARM_CODE_GANTRY_FWD_LIM, (fwd && rev), false);

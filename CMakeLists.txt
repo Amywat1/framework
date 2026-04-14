@@ -313,6 +313,14 @@ if(BUILD_SIM)
         service/dev_ctx/dev_ctx.c
     )
 
+    add_unit_test(test_m8_limit_alarm_adapt
+        tests/unit/test_m8_limit_alarm_adapt.c
+        domain/safety/alarm_core.c
+        adapters/machine/m8/m8_signal_filter.c
+        adapters/machine/m8/m8_alarm_adapt.c
+        domain/device/water.c
+    )
+
     # -----------------------------------------------------------------------
     # 场景集成测试（链接完整 sim 栈，每个测试自带 main()）
     # -----------------------------------------------------------------------

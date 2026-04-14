@@ -103,6 +103,8 @@ void m8_signal_filter_tick(void)
         }
 
         /* 5. 将稳定态同步到报警引擎，报警层继续做策略级防抖 */
+        /* alarm_code == 0 表示该信号只参与滤波和事件发布，
+         * 不直接同步到 alarm_core；报警归属由更高层机器逻辑统一决定。 */
         if (cfg->alarm_code != 0U)
         {
             alarm_core_set_raw_trigger(cfg->alarm_code, rt->confirmed, false);
