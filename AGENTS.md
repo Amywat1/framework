@@ -1,4 +1,3 @@
 <!-- SPECKIT START -->
-For additional context about technologies to be used, project structure,
-shell commands, and other important information, read the current plan
+如需了解技术栈、项目结构、常用命令及其他重要上下文，请先阅读当前计划。
 <!-- SPECKIT END -->

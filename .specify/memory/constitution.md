@@ -1,50 +1,104 @@
-# [PROJECT_NAME] Constitution
-<!-- Example: Spec Constitution, TaskFlow Constitution, etc. -->
+<!--
+同步影响报告
+版本变更：2.1.0 -> 2.2.0
+修改的原则：
+- 原有四项核心原则已全部中文化，约束含义保持不变
+新增章节：
+- 语言与文档规范
+移除章节：
+- 无
+需要同步的模板：
+- 已更新 .specify/templates/plan-template.md
+- 已更新 .specify/templates/spec-template.md
+- 已更新 .specify/templates/tasks-template.md
+- 已检查 .specify/templates/commands/*.md（目录不存在）
+- 已更新 AGENTS.md
+后续待办：
+- 无
+-->
+# Code-M8 宪章
 
-## Core Principles
+## 核心原则
 
-### [PRINCIPLE_1_NAME]
-<!-- Example: I. Library-First -->
-[PRINCIPLE_1_DESCRIPTION]
-<!-- Example: Every feature starts as a standalone library; Libraries must be self-contained, independently testable, documented; Clear purpose required - no organizational-only libraries -->
+### I. 编码前先澄清
 
-### [PRINCIPLE_2_NAME]
-<!-- Example: II. CLI Interface -->
-[PRINCIPLE_2_DESCRIPTION]
-<!-- Example: Every library exposes functionality via CLI; Text in/out protocol: stdin/args → stdout, errors → stderr; Support JSON + human-readable formats -->
+在开始实现前，实施者必须显式写出假设。若需求存在多个合理解释，
+必须明确列出可选解释与权衡，而不是静默选择其一。若存在更简单的做法，
+必须指出。若需求含糊到实现将依赖猜测，则必须先停止编码，说明不清楚之处，
+待澄清后再继续。
 
-### [PRINCIPLE_3_NAME]
-<!-- Example: III. Test-First (NON-NEGOTIABLE) -->
-[PRINCIPLE_3_DESCRIPTION]
-<!-- Example: TDD mandatory: Tests written → User approved → Tests fail → Then implement; Red-Green-Refactor cycle strictly enforced -->
+理由：隐含假设会直接带来返工。把不确定性说清楚，才能在代码固化错误理解前做出有意识的选择。
 
-### [PRINCIPLE_4_NAME]
-<!-- Example: IV. Integration Testing -->
-[PRINCIPLE_4_DESCRIPTION]
-<!-- Example: Focus areas requiring integration tests: New library contract tests, Contract changes, Inter-service communication, Shared schemas -->
+### II. 简单优先
 
-### [PRINCIPLE_5_NAME]
-<!-- Example: V. Observability, VI. Versioning & Breaking Changes, VII. Simplicity -->
-[PRINCIPLE_5_DESCRIPTION]
-<!-- Example: Text I/O ensures debuggability; Structured logging required; Or: MAJOR.MINOR.BUILD format; Or: Start simple, YAGNI principles -->
+实现必须使用满足需求的最小代码量。不得加入未被请求的功能、为单次使用准备的抽象、
+面向未来猜测的可配置性，或缺乏当前需求支撑的扩展点。错误处理必须面向真实故障场景。
+如果方案可以在不损失必要行为的前提下明显更短、更直接，则必须继续简化后再交付。
 
-## [SECTION_2_NAME]
-<!-- Example: Additional Constraints, Security Requirements, Performance Standards, etc. -->
+理由：Code-M8 重视可维护、直接可读的实现，而不是为假想未来预支复杂度。
 
-[SECTION_2_CONTENT]
-<!-- Example: Technology stack requirements, compliance standards, deployment policies, etc. -->
+### III. 变更要精准
 
-## [SECTION_3_NAME]
-<!-- Example: Development Workflow, Review Process, Quality Gates, etc. -->
+变更必须只触及当前请求所需的文件与代码行。必须遵循现有风格和局部约定，
+即使个人偏好不同也不能擅自改写。除非用户明确要求，否则禁止顺手清理邻近代码、
+进行无关重构、制造格式化噪声，或删除既有死代码。由本次变更引入的未使用导入、
+变量、函数或文件，必须在交付前清理掉。
 
-[SECTION_3_CONTENT]
-<!-- Example: Code review requirements, testing gates, deployment approval process, etc. -->
+理由：小而可追踪的差异更容易评审，也能避免误伤无关逻辑。
 
-## Governance
-<!-- Example: Constitution supersedes all other practices; Amendments require documentation, approval, migration plan -->
+### IV. 以目标驱动执行
 
-[GOVERNANCE_RULES]
-<!-- Example: All PRs/reviews must verify compliance; Complexity must be justified; Use [GUIDANCE_FILE] for runtime development guidance -->
+任务在实现前必须先转化为可验证目标。多步骤工作必须给出简短计划，并为每一步定义验证检查。
+修复缺陷时，只要条件允许，必须先复现问题再修复。新增行为必须定义成功判定方式；
+未完成既定验证，或未明确记录阻塞原因前，不得宣称任务完成。
 
-**Version**: [CONSTITUTION_VERSION] | **Ratified**: [RATIFICATION_DATE] | **Last Amended**: [LAST_AMENDED_DATE]
-<!-- Example: Version: 2.1.1 | Ratified: 2025-06-13 | Last Amended: 2025-07-16 -->
+理由：清晰的成功标准能支持独立推进，避免“先改到能跑”为边界不清的工作方式。
+
+## 执行规范
+
+每份实施计划都必须记录假设、未决问题、被拒绝的替代方案，以及当前最小可行实现。
+任务必须直接映射到用户请求的结果，并包含具体验证步骤。凡是超出直接请求的抽象、
+依赖、较大范围重构或顺手清理，都必须先在计划中说明理由，再进入实现阶段。
+
+## 语言与文档规范
+
+与用户的对话默认使用中文。仓库内新增或修改的规格、计划、任务、说明、评审结论、
+运行指南及其他工程文档，默认必须使用中文。仅在代码标识符、协议字段、命令行参数、
+外部接口名或行业通用术语必须保留原文时，才允许保留必要英文；除这些情况外，
+不得无故中英混写。
+
+理由：统一语言可以降低沟通成本，减少需求、设计、实现和评审之间的理解偏差。
+
+## 嵌入式 C 编码规范
+
+C 代码和嵌入式固件代码必须统一命名与分层。文件名、函数名、变量名必须使用
+`snake_case`；宏必须全大写；类型名必须以 `_t` 结尾；全局变量必须使用 `g_`
+前缀；静态变量必须使用 `s_` 前缀。头文件只允许放声明，不得定义变量，并且
+必须提供防重复包含保护。
+
+格式必须使用 4 个空格缩进，禁止使用 Tab，所有控制语句必须带花括号。禁止魔法数字，
+必须改用具名常量、宏或有类型枚举。变量在使用前必须初始化；关键返回值必须检查；
+指针在解引用前必须判空；共享数据必须有显式并发保护；缓冲区每次读写前都必须检查边界。
+
+硬件、通信、存储、升级相关操作必须返回明确错误。相关设计必须定义最大重试次数、
+降级策略、告警或上报策略、复位策略，以及必要时的停止策略。所有等待操作必须定义
+超时和最大重试次数。中断处理函数必须保持轻量，禁止阻塞、复杂计算、日志输出和动态内存分配。
+
+凡是状态切换会影响硬件行为、通信状态、存储状态、升级流程或故障恢复的关键控制逻辑，
+必须使用显式状态机。此类设计必须定义上电默认状态、故障安全状态、日志记录方式和关键参数校验。
+代码注释必须使用中文；公开接口、状态机、回调函数和硬件相关 API 的注释必须采用 Doxygen 风格。
+
+## 治理
+
+本宪章高于其他相冲突的项目约定和模板说明。任何修订都必须直接修改本文件，
+按照语义化版本规则递增版本号，并同步更新受影响的模板或运行指南文件。
+
+版本规则：
+- MAJOR：核心原则或治理规则被重定义、删除，或产生不兼容变更。
+- MINOR：新增原则、章节，或对既有约束做实质性扩展。
+- PATCH：仅澄清措辞、修正笔误，不改变约束含义。
+
+每次功能计划、任务分解和实现评审都必须执行合规检查。任何例外都必须记录原因、
+风险以及替代验证方式。
+
+**版本**：2.2.0 | **批准日期**：2026-04-28 | **最后修订**：2026-04-28

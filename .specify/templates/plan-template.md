@@ -1,104 +1,130 @@
-# Implementation Plan: [FEATURE]
+# 实施计划：[功能名称]
 
-**Branch**: `[###-feature-name]` | **Date**: [DATE] | **Spec**: [link]
-**Input**: Feature specification from `/specs/[###-feature-name]/spec.md`
+**分支**：`[###-feature-name]` | **日期**：[DATE] | **规格**：[link]  
+**输入**：来自 `/specs/[###-feature-name]/spec.md` 的功能规格
 
-**Note**: This template is filled in by the `/speckit-plan` command. See `.specify/templates/plan-template.md` for the execution workflow.
+**说明**：本模板由 `/speckit-plan` 命令填写。执行流程见 `.specify/templates/plan-template.md`。
 
-## Summary
+## 概要
 
-[Extract from feature spec: primary requirement + technical approach from research]
+[从功能规格中提炼：核心需求、主要用户价值、拟采用的技术路径]
 
-## Technical Context
+## 技术上下文
 
 <!--
-  ACTION REQUIRED: Replace the content in this section with the technical details
-  for the project. The structure here is presented in advisory capacity to guide
-  the iteration process.
+  必填：请将本节替换为当前功能的实际技术背景。
+  这里的结构只是引导，不是限制。
 -->
 
-**Language/Version**: [e.g., Python 3.11, Swift 5.9, Rust 1.75 or NEEDS CLARIFICATION]  
-**Primary Dependencies**: [e.g., FastAPI, UIKit, LLVM or NEEDS CLARIFICATION]  
-**Storage**: [if applicable, e.g., PostgreSQL, CoreData, files or N/A]  
-**Testing**: [e.g., pytest, XCTest, cargo test or NEEDS CLARIFICATION]  
-**Target Platform**: [e.g., Linux server, iOS 15+, WASM or NEEDS CLARIFICATION]
-**Project Type**: [e.g., library/cli/web-service/mobile-app/compiler/desktop-app or NEEDS CLARIFICATION]  
-**Performance Goals**: [domain-specific, e.g., 1000 req/s, 10k lines/sec, 60 fps or NEEDS CLARIFICATION]  
-**Constraints**: [domain-specific, e.g., <200ms p95, <100MB memory, offline-capable or NEEDS CLARIFICATION]  
-**Scale/Scope**: [domain-specific, e.g., 10k users, 1M LOC, 50 screens or NEEDS CLARIFICATION]
+**语言/版本**：[例如：Python 3.11、C17、Rust 1.75，或 待澄清]  
+**主要依赖**：[例如：FastAPI、FreeRTOS、Qt，或 待澄清]  
+**存储**：[如适用：PostgreSQL、文件、Flash、EEPROM，或 不适用]  
+**测试方式**：[例如：pytest、ctest、硬件联调、HIL，或 待澄清]  
+**目标平台**：[例如：Linux、STM32、iOS 15+、WASM，或 待澄清]  
+**项目类型**：[例如：库、CLI、Web 服务、桌面程序、固件，或 待澄清]  
+**性能目标**：[例如：1000 req/s、10ms 控制周期、60 fps，或 待澄清]  
+**约束**：[例如：<200ms p95、<128KB RAM、离线可用，或 待澄清]  
+**规模/范围**：[例如：10k 用户、3 个模块、20 个界面，或 待澄清]
 
-## Constitution Check
+## 宪章检查
 
-*GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
+*关卡：进入 Phase 0 研究前必须通过；Phase 1 设计完成后必须复查。*
 
-[Gates determined based on constitution file]
+- 编码前先澄清：已列出假设；未决问题已解决或显式标记；重要解释分歧与权衡已写明。
+- 简单优先：已明确最小可行方案；未引入猜测性功能、可配置项、依赖或抽象。
+- 变更要精准：计划修改范围已限定到必要文件与代码；无关清理或重构已排除或已说明理由。
+- 以目标驱动执行：每个实现步骤都有明确验证检查；测试或人工验证方式在编码前已定义。
+- 嵌入式 C 规范：若涉及 C/固件/硬件相关代码，已覆盖命名、头文件、格式、初始化、
+  返回值检查、超时重试、中断约束、并发保护、边界检查和状态机要求。
+- 中文规范：本次计划、后续生成文档和修改说明默认使用中文；仅保留必要英文标识符或外部接口名。
 
-## Project Structure
+**宪章豁免**：[如有豁免，请写明原因、风险与替代验证方式；否则填写“无”]
 
-### Documentation (this feature)
+## 假设、问题与权衡
+
+**假设**：[开始实现前依赖成立的事实]  
+**未决问题**：[尚不明确且阻塞实现的事项；若无则写“无”]  
+**被拒绝的方案**：[评估过但未采用的更简单方案或其他解释，以及放弃原因]  
+**最小可行方案**：[满足请求的最小实现路径]  
+**范围边界**：[会改哪些文件/区域；哪些邻近清理不会做]
+
+## 嵌入式 C 安全计划
+
+**是否适用**：[是/否，是否涉及 C、固件、硬件、通信、存储或升级代码]  
+**命名与分层**：[snake_case、宏大写、`_t`、`g_`、`s_`、头文件仅声明]  
+**格式与常量**：[4 空格、禁 Tab、必须花括号、用具名常量替代魔法数字]  
+**错误策略**：[明确错误返回，以及重试/降级/告警或上报/复位/停止策略]  
+**等待策略**：[所有等待的超时与最大重试次数]  
+**中断策略**：[ISR 仅做轻量工作；无阻塞、复杂计算、日志、动态分配]  
+**并发与内存安全**：[共享数据保护、缓冲区边界检查、指针判空]  
+**状态机**：[上电默认状态、故障安全状态、日志和关键参数校验；不适用则写“不适用”]  
+**注释风格**：[中文注释；公开接口与硬件接口使用 Doxygen 风格]
+
+## 项目结构
+
+### 本功能文档
 
 ```text
 specs/[###-feature]/
-├── plan.md              # This file (/speckit-plan command output)
-├── research.md          # Phase 0 output (/speckit-plan command)
-├── data-model.md        # Phase 1 output (/speckit-plan command)
-├── quickstart.md        # Phase 1 output (/speckit-plan command)
-├── contracts/           # Phase 1 output (/speckit-plan command)
-└── tasks.md             # Phase 2 output (/speckit-tasks command - NOT created by /speckit-plan)
+|-- plan.md          # 本文件（/speckit-plan 输出）
+|-- research.md      # Phase 0 输出
+|-- data-model.md    # Phase 1 输出
+|-- quickstart.md    # Phase 1 输出
+|-- contracts/       # Phase 1 输出
+`-- tasks.md         # Phase 2 输出（由 /speckit-tasks 生成）
 ```
 
-### Source Code (repository root)
+### 源码结构（仓库根目录）
+
 <!--
-  ACTION REQUIRED: Replace the placeholder tree below with the concrete layout
-  for this feature. Delete unused options and expand the chosen structure with
-  real paths (e.g., apps/admin, packages/something). The delivered plan must
-  not include Option labels.
+  必填：请将下面的占位结构替换为本功能实际结构。
+  删除不使用的选项，并补充真实目录（如 apps/admin、packages/core 等）。
+  最终计划中不要保留 “Option” 字样。
 -->
 
 ```text
-# [REMOVE IF UNUSED] Option 1: Single project (DEFAULT)
+# [若不用请删除] 方案 1：单项目（默认）
 src/
-├── models/
-├── services/
-├── cli/
-└── lib/
+|-- models/
+|-- services/
+|-- cli/
+`-- lib/
 
 tests/
-├── contract/
-├── integration/
-└── unit/
+|-- contract/
+|-- integration/
+`-- unit/
 
-# [REMOVE IF UNUSED] Option 2: Web application (when "frontend" + "backend" detected)
+# [若不用请删除] 方案 2：Web 应用（存在 frontend + backend 时）
 backend/
-├── src/
-│   ├── models/
-│   ├── services/
-│   └── api/
-└── tests/
+|-- src/
+|   |-- models/
+|   |-- services/
+|   `-- api/
+`-- tests/
 
 frontend/
-├── src/
-│   ├── components/
-│   ├── pages/
-│   └── services/
-└── tests/
+|-- src/
+|   |-- components/
+|   |-- pages/
+|   `-- services/
+`-- tests/
 
-# [REMOVE IF UNUSED] Option 3: Mobile + API (when "iOS/Android" detected)
+# [若不用请删除] 方案 3：移动端 + API（存在 iOS/Android 时）
 api/
-└── [same as backend above]
+`-- [与 backend 类似的结构]
 
-ios/ or android/
-└── [platform-specific structure: feature modules, UI flows, platform tests]
+ios/ 或 android/
+`-- [按平台实际模块、界面流和测试结构展开]
 ```
 
-**Structure Decision**: [Document the selected structure and reference the real
-directories captured above]
+**结构决策**：[说明最终采用的结构，并引用上方真实目录]
 
-## Complexity Tracking
+## 复杂度跟踪
 
-> **Fill ONLY if Constitution Check has violations that must be justified**
+> **仅当宪章检查存在违规且必须说明时填写**
 
-| Violation | Why Needed | Simpler Alternative Rejected Because |
-|-----------|------------|-------------------------------------|
-| [e.g., 4th project] | [current need] | [why 3 projects insufficient] |
-| [e.g., Repository pattern] | [specific problem] | [why direct DB access insufficient] |
+| 违规项 | 为什么必须这样做 | 为什么更简单方案不可行 |
+|--------|------------------|------------------------|
+| [例如：新增第 4 个子项目] | [当前需要] | [为什么 3 个项目不够] |
+| [例如：引入仓储模式] | [具体问题] | [为什么直接访问数据库不够] |
