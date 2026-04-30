@@ -1,0 +1,16 @@
+build/
+bin/
+obj/
+out/
+*.o
+*.a
+*.so
+*.exe
+*.dll
+*.log
+*.tmp
+.idea/
+.vscode/
+Thumbs.db
+.DS_Store
+

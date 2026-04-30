@@ -1,0 +1,39 @@
+{
+    "program_id": "standard_wash",
+    "program_name": "标准洗车",
+    "enabled": true,
+    "default_timeout_ms": 5000,
+    "revision": 1,
+    "stages": [
+        {
+            "stage_id": "pre_soak",
+            "stage_name": "预喷",
+            "sequence_no": 1,
+            "gantry_motion_mode": "forward",
+            "traverse_count": 0,
+            "roof_brush_mode": "disabled",
+            "side_brush_mode": "disabled",
+            "stage_timeout_ms": 1000,
+            "chemical_actions": [
+                {
+                    "channel_id": "foam",
+                    "start_condition": "on_stage_start",
+                    "duration_ms": 1000,
+                    "retry_limit": 1
+                }
+            ]
+        },
+        {
+            "stage_id": "wash",
+            "stage_name": "清洗",
+            "sequence_no": 2,
+            "gantry_motion_mode": "traverse",
+            "traverse_count": 1,
+            "roof_brush_mode": "follow",
+            "side_brush_mode": "follow",
+            "stage_timeout_ms": 2000,
+            "chemical_actions": []
+        }
+    ]
+}
+

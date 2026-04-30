@@ -1,0 +1,17 @@
+{
+    "vehicle_types": [
+        {
+            "vehicle_type_id": "generic",
+            "vehicle_type_name": "通用车型",
+            "min_length_mm": 3500,
+            "max_length_mm": 5500,
+            "max_width_mm": 2200,
+            "max_height_mm": 2200,
+            "allowed_programs": [
+                "standard_wash",
+                "heavy_wash"
+            ]
+        }
+    ]
+}
+

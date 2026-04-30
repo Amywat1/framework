@@ -1,0 +1,108 @@
+#ifndef DOMAIN_MODEL_DOMAIN_ENUMS_H
+#define DOMAIN_MODEL_DOMAIN_ENUMS_H
+
+#include <stdbool.h>
+
+typedef enum {
+    GANTRY_MOTION_STOP = 0,
+    GANTRY_MOTION_FORWARD,
+    GANTRY_MOTION_REVERSE,
+    GANTRY_MOTION_TRAVERSE
+} gantry_motion_mode_t;
+
+typedef enum {
+    BRUSH_MODE_DISABLED = 0,
+    BRUSH_MODE_FOLLOW,
+    BRUSH_MODE_FIXED
+} brush_mode_t;
+
+typedef enum {
+    CHEMICAL_START_ON_STAGE_START = 0,
+    CHEMICAL_START_ON_POSITION_REACHED,
+    CHEMICAL_START_MID_STAGE
+} chemical_start_condition_t;
+
+typedef enum {
+    RESOURCE_STATE_NORMAL = 0,
+    RESOURCE_STATE_LOW,
+    RESOURCE_STATE_FAULT,
+    RESOURCE_STATE_DISABLED
+} resource_state_t;
+
+typedef enum {
+    FAULT_POLICY_DEGRADE = 0,
+    FAULT_POLICY_SKIP,
+    FAULT_POLICY_SAFE_FINISH
+} fault_policy_t;
+
+typedef enum {
+    CYCLE_STATE_IDLE = 0,
+    CYCLE_STATE_PRECHECK,
+    CYCLE_STATE_RUNNING,
+    CYCLE_STATE_DEGRADED,
+    CYCLE_STATE_SAFE_STOP,
+    CYCLE_STATE_COMPLETED,
+    CYCLE_STATE_ABORTED
+} cycle_state_t;
+
+typedef enum {
+    RESULT_CODE_SUCCESS = 0,
+    RESULT_CODE_SAFE_STOP,
+    RESULT_CODE_DEGRADED_COMPLETE,
+    RESULT_CODE_MANUAL_ABORT,
+    RESULT_CODE_START_FAILED
+} result_code_t;
+
+typedef enum {
+    FAULT_SEVERITY_INFO = 0,
+    FAULT_SEVERITY_WARNING,
+    FAULT_SEVERITY_SAFETY
+} fault_severity_t;
+
+typedef enum {
+    FAULT_CLASS_SAFETY = 0,
+    FAULT_CLASS_PROCESS,
+    FAULT_CLASS_RESOURCE,
+    FAULT_CLASS_COMMUNICATION,
+    FAULT_CLASS_CONFIGURATION
+} fault_class_t;
+
+typedef enum {
+    INTERLOCK_READY = 0,
+    INTERLOCK_TRIPPED,
+    INTERLOCK_BYPASSED
+} interlock_state_t;
+
+typedef enum {
+    TRIP_ACTION_BLOCK_START = 0,
+    TRIP_ACTION_STOP_IMMEDIATELY
+} trip_action_t;
+
+typedef enum {
+    RESET_RULE_AUTO = 0,
+    RESET_RULE_MANUAL
+} reset_rule_t;
+
+typedef enum {
+    EVENT_TYPE_CYCLE_STATE_CHANGED = 0,
+    EVENT_TYPE_FAULT_RAISED,
+    EVENT_TYPE_FAULT_CLEARED,
+    EVENT_TYPE_CYCLE_FINISHED
+} event_type_t;
+
+typedef enum {
+    COMMAND_TYPE_START = 0,
+    COMMAND_TYPE_STOP,
+    COMMAND_TYPE_ACK_FAULT,
+    COMMAND_TYPE_ENTER_MAINTENANCE,
+    COMMAND_TYPE_JOG,
+    COMMAND_TYPE_UPDATE_PROGRAM
+} command_type_t;
+
+typedef enum {
+    MAINTENANCE_MODE_OFF = 0,
+    MAINTENANCE_MODE_ON
+} maintenance_mode_t;
+
+#endif
+

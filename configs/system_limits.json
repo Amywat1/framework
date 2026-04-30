@@ -1,0 +1,8 @@
+{
+    "precheck_timeout_ms": 3000,
+    "motion_timeout_ms": 15000,
+    "brush_timeout_ms": 5000,
+    "chemical_timeout_ms": 5000,
+    "max_retry_count": 3
+}
+
