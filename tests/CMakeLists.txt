@@ -5,6 +5,7 @@ function(add_wash_test name source)
     target_link_libraries(${name} PRIVATE wash_core)
     target_include_directories(${name} PRIVATE ${PROJECT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/include ${PROJECT_SOURCE_DIR}/tests)
     add_test(NAME ${name} COMMAND ${name})
+    set_tests_properties(${name} PROPERTIES WORKING_DIRECTORY ${PROJECT_SOURCE_DIR})
 endfunction()
 
 add_wash_test(test_unit_cycle unit/test_wash_cycle_state_machine.c)
