@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <string.h>
 
 #include "adapters/logging/file_event_logger.h"
 #include "adapters/outbound/file_program_repository.h"
@@ -15,6 +16,7 @@ int main(void)
     simulated_driver_context_t driver_context;
     system_context_t system_context;
 
+    memset(&system_context, 0, sizeof(system_context));
     simulated_driver_context_init(&driver_context);
     simulated_sensor_driver_bind(&system_context.sensor_port, &driver_context);
     simulated_gantry_driver_bind(&system_context.actuator_port, &driver_context);

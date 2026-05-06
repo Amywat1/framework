@@ -4,6 +4,6 @@
 #include "application/coordinators/system_context.h"
 
 void file_program_repository_init(system_context_t *system_context, const char *config_root);
+void file_program_repository_set_runtime_program(system_context_t *system_context, const wash_program_t *wash_program, int revision);
 
 #endif
-

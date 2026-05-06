@@ -1,13 +1,20 @@
 #include "application/use_cases/acknowledge_fault.h"
 
+#include "application/use_cases/process_wash_trigger.h"
+#include "domain/model/wash_trigger_event.h"
+
 operation_result_t acknowledge_fault_execute(system_context_t *system_context, const char *event_id)
 {
+    wash_trigger_event_t wash_trigger_event;
+
     if (system_context == 0 || event_id == 0) {
         return operation_result_fail(ERROR_CODE_INVALID_ARGUMENT);
     }
-    if (system_context->event_logger_port.log_message != 0) {
-        system_context->event_logger_port.log_message(system_context->event_logger_port.context, EVENT_TYPE_FAULT_CLEARED, "故障已确认");
-    }
-    return operation_result_ok();
+    wash_trigger_event_init(&wash_trigger_event,
+        TRIGGER_TYPE_FAULT,
+        0,
+        event_id,
+        "fault-command",
+        system_context->current_time_ms);
+    return process_wash_trigger_execute(system_context, &wash_trigger_event);
 }
-

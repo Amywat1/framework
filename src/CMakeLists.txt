@@ -8,14 +8,27 @@ set(WASH_CORE_SOURCES
     domain/model/fault_event.c
     domain/model/safety_interlock.c
     domain/model/program_validation.c
+    domain/model/program_snapshot.c
+    domain/model/state_transition_record.c
+    domain/model/wait_condition.c
+    domain/model/wash_execution.c
+    domain/model/wash_session.c
+    domain/model/wash_trigger_event.c
     domain/services/precheck_service.c
     domain/services/gantry_motion_state_machine.c
     domain/services/brush_control_state_machine.c
     domain/services/chemical_dosing_state_machine.c
     domain/services/fault_policy_service.c
+    domain/services/program_snapshot_service.c
     domain/services/recovery_state_machine.c
+    domain/services/trigger_priority_service.c
+    domain/services/wait_timeout_service.c
+    domain/services/wash_execution_service.c
+    domain/services/wash_session_state_machine.c
     application/coordinators/wash_cycle_coordinator.c
     application/coordinators/maintenance_coordinator.c
+    application/use_cases/process_wash_trigger.c
+    application/use_cases/query_wash_session_status.c
     application/use_cases/start_wash_cycle.c
     application/use_cases/update_program_config.c
     application/use_cases/stop_wash_cycle.c
@@ -42,4 +55,3 @@ target_link_libraries(wash_controller PRIVATE wash_core)
 
 add_executable(wash_cli main/wash_cli_main.c)
 target_link_libraries(wash_cli PRIVATE wash_core)
-

@@ -8,9 +8,12 @@ out/
 *.exe
 *.dll
 *.log
+.env*
 *.tmp
+autom4te.cache/
+config.status
+config.log
 .idea/
 .vscode/
 Thumbs.db
 .DS_Store
-

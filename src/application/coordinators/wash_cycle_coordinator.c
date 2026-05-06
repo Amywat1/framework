@@ -1,80 +1,79 @@
 #include "application/coordinators/wash_cycle_coordinator.h"
 
-#include <stdio.h>
 #include <string.h>
 
-#include "domain/model/program_validation.h"
-#include "domain/services/brush_control_state_machine.h"
-#include "domain/services/chemical_dosing_state_machine.h"
-#include "domain/services/gantry_motion_state_machine.h"
-#include "domain/services/precheck_service.h"
+#include "application/use_cases/process_wash_trigger.h"
+#include "domain/model/wash_trigger_event.h"
+#include "domain/services/wait_timeout_service.h"
 
-static void log_cycle_message(system_context_t *system_context, event_type_t event_type, const char *message)
+static void sync_legacy_cycle(system_context_t *system_context)
 {
-    if (system_context != 0 && system_context->event_logger_port.log_message != 0) {
-        system_context->event_logger_port.log_message(system_context->event_logger_port.context, event_type, message);
+    if (system_context == 0) {
+        return;
     }
+    if (system_context->wash_session.session_id[0] != '\0') {
+        strncpy(system_context->wash_cycle.cycle_id,
+            system_context->wash_session.session_id,
+            sizeof(system_context->wash_cycle.cycle_id) - 1);
+        strncpy(system_context->wash_cycle.selected_program_id,
+            system_context->wash_session.selected_program_id,
+            sizeof(system_context->wash_cycle.selected_program_id) - 1);
+        system_context->wash_cycle.current_stage_index = system_context->wash_execution.stage_index;
+        system_context->wash_cycle.result_code = system_context->wash_session.final_session_result;
+    }
+
+    switch (system_context->wash_session.session_state) {
+        case SESSION_STATE_CREATED:
+            system_context->wash_cycle.cycle_state = CYCLE_STATE_PRECHECK;
+            break;
+        case SESSION_STATE_RUNNING:
+            system_context->wash_cycle.cycle_state = CYCLE_STATE_RUNNING;
+            break;
+        case SESSION_STATE_COMPLETED:
+            system_context->wash_cycle.cycle_state = CYCLE_STATE_COMPLETED;
+            break;
+        case SESSION_STATE_ABORTED:
+            system_context->wash_cycle.cycle_state = CYCLE_STATE_ABORTED;
+            break;
+        default:
+            system_context->wash_cycle.cycle_state = CYCLE_STATE_IDLE;
+            break;
+    }
+}
+
+operation_result_t wash_cycle_coordinator_submit(system_context_t *system_context, const wash_trigger_event_t *wash_trigger_event)
+{
+    operation_result_t result;
+
+    result = process_wash_trigger_execute(system_context, wash_trigger_event);
+    sync_legacy_cycle(system_context);
+    return result;
 }
 
 operation_result_t wash_cycle_coordinator_run(system_context_t *system_context, const char *program_id)
 {
-    int index;
-    operation_result_t result;
+    wash_trigger_event_t wash_trigger_event;
 
-    if (system_context == 0 || program_id == 0) {
+    if (system_context == 0) {
         return operation_result_fail(ERROR_CODE_INVALID_ARGUMENT);
     }
-
-    if (system_context->program_repository_port.load_program(system_context->program_repository_port.context, program_id, &system_context->wash_program) != 0) {
-        return operation_result_fail(ERROR_CODE_IO_FAILED);
+    if (program_id != 0) {
+        wash_trigger_event_init(&wash_trigger_event,
+            TRIGGER_TYPE_START,
+            program_id,
+            0,
+            "coordinator-start",
+            system_context->current_time_ms);
+        return wash_cycle_coordinator_submit(system_context, &wash_trigger_event);
     }
-
-    result = program_validation_validate(&system_context->wash_program);
-    if (!result.ok) {
-        return result;
+    if (wait_timeout_service_should_fire(system_context)) {
+        wash_trigger_event_init(&wash_trigger_event,
+            TRIGGER_TYPE_TIMEOUT,
+            0,
+            system_context->wash_session.progress_stage_id,
+            "coordinator-timeout",
+            system_context->current_time_ms);
+        return wash_cycle_coordinator_submit(system_context, &wash_trigger_event);
     }
-
-    wash_cycle_init(&system_context->wash_cycle, "cycle-001", program_id);
-    wash_cycle_set_state(&system_context->wash_cycle, CYCLE_STATE_PRECHECK);
-    log_cycle_message(system_context, EVENT_TYPE_CYCLE_STATE_CHANGED, "进入预检");
-
-    result = precheck_service_run(&system_context->sensor_port);
-    if (!result.ok) {
-        wash_cycle_set_state(&system_context->wash_cycle, CYCLE_STATE_SAFE_STOP);
-        system_context->wash_cycle.result_code = RESULT_CODE_START_FAILED;
-        log_cycle_message(system_context, EVENT_TYPE_FAULT_RAISED, "预检失败");
-        return result;
-    }
-
-    wash_cycle_set_state(&system_context->wash_cycle, CYCLE_STATE_RUNNING);
-    log_cycle_message(system_context, EVENT_TYPE_CYCLE_STATE_CHANGED, "进入运行");
-
-    for (index = 0; index < system_context->wash_program.stage_count; ++index) {
-        system_context->wash_cycle.current_stage_index = index;
-        result = gantry_motion_state_machine_execute(&system_context->actuator_port, &system_context->wash_program.stages[index]);
-        if (!result.ok) {
-            wash_cycle_set_state(&system_context->wash_cycle, CYCLE_STATE_SAFE_STOP);
-            log_cycle_message(system_context, EVENT_TYPE_FAULT_RAISED, "龙门运动异常");
-            return result;
-        }
-
-        result = brush_control_state_machine_execute(&system_context->actuator_port, &system_context->wash_program.stages[index]);
-        if (!result.ok) {
-            wash_cycle_set_state(&system_context->wash_cycle, CYCLE_STATE_SAFE_STOP);
-            log_cycle_message(system_context, EVENT_TYPE_FAULT_RAISED, "刷组动作异常");
-            return result;
-        }
-
-        result = chemical_dosing_state_machine_execute(&system_context->actuator_port, &system_context->wash_program.stages[index]);
-        if (!result.ok) {
-            wash_cycle_set_state(&system_context->wash_cycle, CYCLE_STATE_DEGRADED);
-            log_cycle_message(system_context, EVENT_TYPE_FAULT_RAISED, "药剂动作异常");
-            return result;
-        }
-    }
-
-    wash_cycle_finish(&system_context->wash_cycle, RESULT_CODE_SUCCESS);
-    log_cycle_message(system_context, EVENT_TYPE_CYCLE_FINISHED, "洗车周期完成");
     return operation_result_ok();
 }
-

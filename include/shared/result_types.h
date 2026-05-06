@@ -14,6 +14,11 @@ typedef struct {
     error_code_t error_code;
 } operation_result_t;
 
+typedef struct {
+    bool accepted;
+    char reject_reason[64];
+} request_decision_t;
+
 static inline operation_result_t operation_result_ok(void)
 {
     operation_result_t result = { true, ERROR_CODE_OK };
@@ -27,4 +32,3 @@ static inline operation_result_t operation_result_fail(error_code_t error_code)
 }
 
 #endif
-
