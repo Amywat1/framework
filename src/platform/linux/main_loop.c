@@ -1,6 +1,6 @@
 #include "platform/linux/main_loop.h"
 
-#include "application/coordinators/wash_cycle_coordinator.h"
+#include "application/use_cases/process_wash_trigger.h"
 #include "domain/services/trigger_priority_service.h"
 #include "domain/services/wait_timeout_service.h"
 #include "shared/timeouts.h"
@@ -78,24 +78,13 @@ void main_loop_advance_time(system_context_t *system_context, unsigned long elap
     system_context->current_time_ms += elapsed_ms;
 }
 
-operation_result_t main_loop_run(system_context_t *system_context, const char *program_id)
+operation_result_t main_loop_run(system_context_t *system_context)
 {
     int best_index;
     unsigned int index;
 
     if (system_context == 0) {
         return operation_result_fail(ERROR_CODE_INVALID_ARGUMENT);
-    }
-
-    if (program_id != 0) {
-        wash_trigger_event_t wash_trigger_event;
-        wash_trigger_event_init(&wash_trigger_event,
-            TRIGGER_TYPE_START,
-            program_id,
-            0,
-            "main-loop-start",
-            system_context->current_time_ms);
-        main_loop_submit_trigger(system_context, &wash_trigger_event);
     }
 
     enqueue_timeout_if_needed(system_context);
@@ -113,6 +102,6 @@ operation_result_t main_loop_run(system_context_t *system_context, const char *p
     {
         wash_trigger_event_t selected_event = system_context->pending_triggers[best_index];
         remove_pending_trigger_at(system_context, (unsigned int)best_index);
-        return wash_cycle_coordinator_submit(system_context, &selected_event);
+        return process_wash_trigger_execute(system_context, &selected_event);
     }
 }

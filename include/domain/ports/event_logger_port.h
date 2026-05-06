@@ -5,6 +5,14 @@
 
 struct state_transition_record_t;
 
+/**
+ * @file event_logger_port.h
+ * @brief 定义事件日志端口契约。
+ */
+
+/**
+ * @brief 抽象主控关键事件、状态迁移、拒绝和忽略日志的输出能力。
+ */
 typedef struct event_logger_port_t {
     void *context;
     int (*log_message)(void *context, event_type_t event_type, const char *message);

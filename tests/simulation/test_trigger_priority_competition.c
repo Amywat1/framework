@@ -10,7 +10,7 @@ static int verify_fault_priority(void)
     operation_result_t result;
 
     test_setup_system_context(&system_context, &driver_context);
-    result = main_loop_run(&system_context, "standard_wash");
+    result = test_start_session(&system_context, "standard_wash");
     TEST_ASSERT(result.ok);
 
     wash_trigger_event_init(&feedback_event, TRIGGER_TYPE_DEVICE_FEEDBACK, 0, "feedback:pre_soak", "dup-1", 1);
@@ -20,10 +20,11 @@ static int verify_fault_priority(void)
     TEST_ASSERT(main_loop_submit_trigger(&system_context, &stop_event).ok);
     TEST_ASSERT(main_loop_submit_trigger(&system_context, &fault_event).ok);
 
-    result = main_loop_run(&system_context, 0);
+    result = main_loop_run(&system_context);
     TEST_ASSERT(result.ok);
     TEST_ASSERT(system_context.wash_session.session_state == SESSION_STATE_ABORTED);
     TEST_ASSERT(strcmp(system_context.wash_session.abort_reason, "sim-fault") == 0);
+    TEST_ASSERT(system_context.last_transition_record.trigger_type == TRIGGER_TYPE_FAULT);
 
     result = test_submit_feedback(&system_context, "feedback:pre_soak", "dup-3");
     TEST_ASSERT(result.ok);
@@ -40,7 +41,7 @@ static int verify_feedback_survives_timeout_round(void)
     operation_result_t result;
 
     test_setup_system_context(&system_context, &driver_context);
-    result = main_loop_run(&system_context, "standard_wash");
+    result = test_start_session(&system_context, "standard_wash");
     TEST_ASSERT(result.ok);
 
     system_context.wait_condition.max_retry_count = 1;
@@ -48,12 +49,13 @@ static int verify_feedback_survives_timeout_round(void)
     TEST_ASSERT(main_loop_submit_trigger(&system_context, &feedback_event).ok);
     main_loop_advance_time(&system_context, 1000);
 
-    result = main_loop_run(&system_context, 0);
+    result = main_loop_run(&system_context);
     TEST_ASSERT(result.ok);
     TEST_ASSERT(system_context.wait_condition.current_retry_count == 1);
     TEST_ASSERT(system_context.pending_trigger_count == 1);
+    TEST_ASSERT(strcmp(system_context.last_reason_code, "timeout_retry") == 0);
 
-    result = main_loop_run(&system_context, 0);
+    result = main_loop_run(&system_context);
     TEST_ASSERT(result.ok);
     TEST_ASSERT(strcmp(system_context.wash_session.progress_stage_id, "wash") == 0);
     return 0;

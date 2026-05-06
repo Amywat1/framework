@@ -16,6 +16,12 @@ static void log_session_transition(system_context_t *system_context,
         return;
     }
 
+    if (result_code != 0) {
+        strncpy(system_context->last_result_code, result_code, sizeof(system_context->last_result_code) - 1);
+    }
+    if (reason_code != 0) {
+        strncpy(system_context->last_reason_code, reason_code, sizeof(system_context->last_reason_code) - 1);
+    }
     state_transition_record_init(&system_context->last_transition_record,
         TRANSITION_ENTITY_SESSION,
         system_context->wash_session.session_id,

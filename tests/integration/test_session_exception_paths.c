@@ -53,6 +53,24 @@ static int verify_timeout_path(void)
     return 0;
 }
 
+static int verify_idle_fault_clear_path(void)
+{
+    system_context_t system_context;
+    simulated_driver_context_t driver_context;
+    operation_result_t result;
+
+    test_setup_system_context(&system_context, &driver_context);
+    result = acknowledge_fault_execute(&system_context, "E_STOP", "idle-fault");
+    TEST_ASSERT(result.ok);
+    TEST_ASSERT(system_context.global_fault_present);
+
+    result = acknowledge_fault_execute(&system_context, "clear", 0);
+    TEST_ASSERT(result.ok);
+    TEST_ASSERT(!system_context.global_fault_present);
+    TEST_ASSERT(strcmp(system_context.last_reason_code, "global_fault_cleared") == 0);
+    return 0;
+}
+
 int main(void)
 {
     if (verify_stop_path() != 0) {
@@ -62,6 +80,9 @@ int main(void)
         return 1;
     }
     if (verify_timeout_path() != 0) {
+        return 1;
+    }
+    if (verify_idle_fault_clear_path() != 0) {
         return 1;
     }
     return 0;

@@ -91,20 +91,6 @@ typedef enum {
 } event_type_t;
 
 typedef enum {
-    COMMAND_TYPE_START = 0,
-    COMMAND_TYPE_STOP,
-    COMMAND_TYPE_ACK_FAULT,
-    COMMAND_TYPE_ENTER_MAINTENANCE,
-    COMMAND_TYPE_JOG,
-    COMMAND_TYPE_UPDATE_PROGRAM
-} command_type_t;
-
-typedef enum {
-    MAINTENANCE_MODE_OFF = 0,
-    MAINTENANCE_MODE_ON
-} maintenance_mode_t;
-
-typedef enum {
     SESSION_STATE_NONE = 0,
     SESSION_STATE_CREATED,
     SESSION_STATE_RUNNING,

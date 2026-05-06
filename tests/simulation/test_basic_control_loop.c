@@ -9,13 +9,12 @@ int main(void)
     operation_result_t result;
 
     test_setup_system_context(&system_context, &driver_context);
-    result = main_loop_run(&system_context, "standard_wash");
+    result = test_start_session(&system_context, "standard_wash");
     TEST_ASSERT(result.ok);
     TEST_ASSERT(driver_context.stop_count == 0);
 
     driver_context.sensor_snapshot.estop_active = true;
-    result = main_loop_run(&system_context, "standard_wash");
+    result = test_start_session(&system_context, "standard_wash");
     TEST_ASSERT(!result.ok);
     return 0;
 }
-

@@ -1,11 +1,12 @@
 #ifndef APPLICATION_COORDINATORS_SYSTEM_CONTEXT_H
 #define APPLICATION_COORDINATORS_SYSTEM_CONTEXT_H
 
+#include <stdbool.h>
+
 #include "domain/model/vehicle_type.h"
 #include "domain/model/program_snapshot.h"
 #include "domain/model/state_transition_record.h"
 #include "domain/model/wait_condition.h"
-#include "domain/model/wash_cycle.h"
 #include "domain/model/wash_execution.h"
 #include "domain/model/wash_program.h"
 #include "domain/model/wash_session.h"
@@ -16,10 +17,20 @@
 #include "domain/ports/sensor_port.h"
 #include "shared/timeouts.h"
 
+/**
+ * @file system_context.h
+ * @brief 定义主控运行期共享上下文。
+ */
+
+/**
+ * @brief 聚合主控运行期共享状态、端口和运行时对象。
+ *
+ * @note 本结构由主控进程在单个进程生命周期内长期持有。
+ * @note 本期新增的全局故障字段只用于记录空闲故障、阻断启动和显式清除。
+ */
 typedef struct system_context_t {
     wash_program_t wash_program;
     vehicle_type_t vehicle_type;
-    wash_cycle_t wash_cycle;
     wash_session_t wash_session;
     wash_execution_t wash_execution;
     wait_condition_t wait_condition;
@@ -31,6 +42,11 @@ typedef struct system_context_t {
     unsigned long next_session_sequence;
     unsigned long next_execution_sequence;
     unsigned long next_wait_condition_sequence;
+    bool global_fault_present;
+    char global_fault_code[64];
+    char global_fault_reason[128];
+    char last_result_code[32];
+    char last_reason_code[64];
     sensor_port_t sensor_port;
     actuator_port_t actuator_port;
     event_logger_port_t event_logger_port;

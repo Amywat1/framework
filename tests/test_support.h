@@ -6,13 +6,13 @@
 
 #include "adapters/logging/file_event_logger.h"
 #include "adapters/outbound/file_program_repository.h"
+#include "adapters/inbound/cli_command_adapter.h"
 #include "application/coordinators/system_context.h"
-#include "application/dto/command_dto.h"
 #include "application/use_cases/acknowledge_fault.h"
 #include "application/use_cases/process_wash_trigger.h"
+#include "application/use_cases/query_wash_session_status.h"
 #include "application/use_cases/start_wash_cycle.h"
 #include "application/use_cases/stop_wash_cycle.h"
-#include "application/use_cases/update_program_config.h"
 #include "domain/model/wash_trigger_event.h"
 #include "platform/drivers/simulated_brush_driver.h"
 #include "platform/drivers/simulated_chemical_driver.h"
@@ -43,12 +43,7 @@ static inline void test_setup_system_context(system_context_t *system_context, s
 
 static inline operation_result_t test_start_session(system_context_t *system_context, const char *program_id)
 {
-    command_dto_t command_dto;
-
-    memset(&command_dto, 0, sizeof(command_dto));
-    command_dto.command_type = COMMAND_TYPE_START;
-    strncpy(command_dto.program_id, program_id, sizeof(command_dto.program_id) - 1);
-    return start_wash_cycle_execute(system_context, &command_dto);
+    return start_wash_cycle_execute(system_context, program_id);
 }
 
 static inline operation_result_t test_submit_feedback(system_context_t *system_context, const char *feedback_code, const char *correlation_key)
@@ -66,7 +61,7 @@ static inline operation_result_t test_submit_feedback(system_context_t *system_c
 
 static inline operation_result_t test_submit_fault(system_context_t *system_context, const char *fault_code)
 {
-    return acknowledge_fault_execute(system_context, fault_code);
+    return acknowledge_fault_execute(system_context, fault_code, "test-fault");
 }
 
 static inline operation_result_t test_submit_stop(system_context_t *system_context, const char *reason_code)
@@ -77,7 +72,29 @@ static inline operation_result_t test_submit_stop(system_context_t *system_conte
 static inline operation_result_t test_fire_timeout(system_context_t *system_context, unsigned long elapsed_ms)
 {
     main_loop_advance_time(system_context, elapsed_ms);
-    return main_loop_run(system_context, 0);
+    return main_loop_run(system_context);
+}
+
+static inline operation_result_t test_process_command(system_context_t *system_context,
+    const char *command_line,
+    char *response_line,
+    size_t response_line_size)
+{
+    return cli_command_adapter_process_line(system_context, command_line, response_line, response_line_size);
+}
+
+static inline unsigned int has_pending_trigger_count(system_context_t *system_context, const char *trigger_id)
+{
+    unsigned int index;
+    unsigned int count;
+
+    count = 0;
+    for (index = 0; index < system_context->pending_trigger_count; ++index) {
+        if (strcmp(system_context->pending_triggers[index].trigger_id, trigger_id) == 0) {
+            count += 1;
+        }
+    }
+    return count;
 }
 
 #endif
