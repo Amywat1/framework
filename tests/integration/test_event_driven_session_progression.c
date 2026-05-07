@@ -42,6 +42,8 @@ static int verify_multiple_chemical_actions_dispatched(void)
     wash_stage_t wash_stage;
     chemical_action_t foam_action;
     chemical_action_t wax_action;
+    wash_execution_fact_t wash_execution_fact;
+    wash_execution_service_args_t wash_execution_service_args;
     operation_result_t result;
 
     test_setup_system_context(&system_context, &driver_context);
@@ -66,9 +68,11 @@ static int verify_multiple_chemical_actions_dispatched(void)
         1);
     wash_session_start_running(&system_context.wash_session);
     wash_execution_reset(&system_context.wash_execution);
-    result = wash_execution_service_begin_next_stage(&system_context);
+    wash_execution_service_args = test_build_wash_execution_service_args(&system_context);
+    result = wash_execution_service_begin_next_stage(&wash_execution_service_args, &wash_execution_fact);
     TEST_ASSERT(result.ok);
     TEST_ASSERT(driver_context.chemical_count == 2);
+    TEST_ASSERT(strcmp(wash_execution_fact.result_code, "waiting") == 0);
     return 0;
 }
 

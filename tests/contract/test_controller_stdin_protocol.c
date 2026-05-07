@@ -59,6 +59,7 @@ static int verify_runtime_commands(void)
     TEST_ASSERT(result.ok);
     TEST_ASSERT(strstr(response_line, "result=status accepted=true") != 0);
     TEST_ASSERT(strstr(response_line, "session=none") != 0);
+    TEST_ASSERT(strcmp(test_latest_result_code(&system_context), "none") == 0);
 
     result = test_process_command(&system_context, "start standard_wash", response_line, sizeof(response_line));
     TEST_ASSERT(result.ok);
@@ -92,6 +93,10 @@ static int verify_fault_commands(void)
     TEST_ASSERT(result.ok);
     TEST_ASSERT(strstr(response_line, "result=accepted accepted=true") != 0);
     TEST_ASSERT(strstr(response_line, "global_fault_cleared") != 0);
+    result = test_process_command(&system_context, "status", response_line, sizeof(response_line));
+    TEST_ASSERT(result.ok);
+    TEST_ASSERT(strstr(response_line, "result=status accepted=true") != 0);
+    TEST_ASSERT(strcmp(system_context.last_reason_code, "global_fault_cleared") == 0);
     return 0;
 }
 

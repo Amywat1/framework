@@ -46,6 +46,7 @@ typedef struct wash_session_status_view_t {
  * @return 成功返回 `operation_result_ok()`；参数非法时返回失败结果。
  *
  * @note 本接口是只读操作，不得推进业务状态。
+ * @note 本接口不得刷新 `last_result_code`、`last_reason_code` 或 `global_fault_*`。
  */
 operation_result_t query_wash_session_status_execute(system_context_t *system_context, wash_session_status_view_t *wash_session_status_view);
 

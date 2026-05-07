@@ -1,67 +1,156 @@
 #include "domain/services/wash_session_state_machine.h"
 
-#include "application/coordinators/runtime_event_recorder.h"
+#include <string.h>
+
 #include "shared/error_codes.h"
 
-static void log_session_transition(system_context_t *system_context,
-    const char *previous_state,
-    const char *current_state,
-    const char *result_code,
-    const char *reason_code,
-    trigger_type_t trigger_type)
+static const char *session_state_to_string(session_state_t session_state)
 {
-    if (system_context == 0) {
+    switch (session_state) {
+        case SESSION_STATE_CREATED:
+            return "created";
+        case SESSION_STATE_RUNNING:
+            return "running";
+        case SESSION_STATE_COMPLETED:
+            return "completed";
+        case SESSION_STATE_ABORTED:
+            return "aborted";
+        default:
+            return "none";
+    }
+}
+
+static void write_fact_field(char *target, size_t target_size, const char *value)
+{
+    if (target == 0 || target_size == 0) {
         return;
     }
 
-    runtime_event_recorder_record(system_context,
-        TRANSITION_ENTITY_SESSION,
-        system_context->wash_session.session_id,
-        trigger_type,
-        previous_state,
-        current_state,
-        result_code,
-        reason_code,
-        RUNTIME_EVENT_LOG_TRANSITION);
+    if (value != 0 && value[0] != '\0') {
+        strncpy(target, value, target_size - 1);
+        target[target_size - 1] = '\0';
+        return;
+    }
+
+    strncpy(target, "none", target_size - 1);
+    target[target_size - 1] = '\0';
 }
 
-operation_result_t wash_session_state_machine_start(system_context_t *system_context, const char *program_id)
+static void init_transition_fact(wash_session_transition_fact_t *wash_session_transition_fact,
+    const wash_session_t *wash_session,
+    const char *previous_state,
+    const char *current_state,
+    const char *result_code,
+    const char *reason_code)
 {
-    if (system_context == 0 || program_id == 0) {
+    if (wash_session_transition_fact == 0) {
+        return;
+    }
+
+    memset(wash_session_transition_fact, 0, sizeof(*wash_session_transition_fact));
+    wash_session_transition_fact->changed = true;
+    write_fact_field(wash_session_transition_fact->session_id,
+        sizeof(wash_session_transition_fact->session_id),
+        wash_session != 0 ? wash_session->session_id : 0);
+    write_fact_field(wash_session_transition_fact->previous_state,
+        sizeof(wash_session_transition_fact->previous_state),
+        previous_state);
+    write_fact_field(wash_session_transition_fact->current_state,
+        sizeof(wash_session_transition_fact->current_state),
+        current_state);
+    write_fact_field(wash_session_transition_fact->result_code,
+        sizeof(wash_session_transition_fact->result_code),
+        result_code);
+    write_fact_field(wash_session_transition_fact->reason_code,
+        sizeof(wash_session_transition_fact->reason_code),
+        reason_code);
+}
+
+static bool invalid_args(wash_session_service_args_t *wash_session_service_args,
+    wash_session_transition_fact_t *wash_session_transition_fact)
+{
+    return wash_session_service_args == 0
+        || wash_session_service_args->wash_session == 0
+        || wash_session_transition_fact == 0;
+}
+
+operation_result_t wash_session_state_machine_start(wash_session_service_args_t *wash_session_service_args,
+    const char *program_id,
+    wash_session_transition_fact_t *wash_session_transition_fact)
+{
+    const char *previous_state;
+
+    if (invalid_args(wash_session_service_args, wash_session_transition_fact)
+        || program_id == 0
+        || wash_session_service_args->program_snapshot == 0
+        || wash_session_service_args->next_session_sequence == 0) {
         return operation_result_fail(ERROR_CODE_INVALID_ARGUMENT);
     }
-    if (wash_session_is_running(&system_context->wash_session)) {
+    if (wash_session_is_running(wash_session_service_args->wash_session)) {
         return operation_result_fail(ERROR_CODE_INVALID_STATE);
     }
 
-    system_context->next_session_sequence += 1;
-    wash_session_create(&system_context->wash_session,
+    previous_state = session_state_to_string(wash_session_service_args->wash_session->session_state);
+    *wash_session_service_args->next_session_sequence += 1;
+    wash_session_create(wash_session_service_args->wash_session,
         program_id,
-        system_context->program_snapshot.program_snapshot_id,
-        system_context->current_time_ms,
-        system_context->next_session_sequence);
-    log_session_transition(system_context, "none", "created", "accepted", "none", TRIGGER_TYPE_START);
-    wash_session_start_running(&system_context->wash_session);
-    log_session_transition(system_context, "created", "running", "accepted", "none", TRIGGER_TYPE_START);
+        wash_session_service_args->program_snapshot->program_snapshot_id,
+        wash_session_service_args->current_time_ms,
+        *wash_session_service_args->next_session_sequence);
+    wash_session_start_running(wash_session_service_args->wash_session);
+    init_transition_fact(wash_session_transition_fact,
+        wash_session_service_args->wash_session,
+        previous_state,
+        session_state_to_string(wash_session_service_args->wash_session->session_state),
+        "accepted",
+        "none");
     return operation_result_ok();
 }
 
-operation_result_t wash_session_state_machine_complete(system_context_t *system_context, result_code_t result_code, trigger_type_t trigger_type)
+operation_result_t wash_session_state_machine_complete(wash_session_service_args_t *wash_session_service_args,
+    result_code_t result_code,
+    wash_session_transition_fact_t *wash_session_transition_fact)
 {
-    if (system_context == 0) {
+    const char *previous_state;
+
+    if (invalid_args(wash_session_service_args, wash_session_transition_fact)) {
         return operation_result_fail(ERROR_CODE_INVALID_ARGUMENT);
     }
-    wash_session_complete(&system_context->wash_session, result_code, system_context->current_time_ms);
-    log_session_transition(system_context, "running", "completed", "completed", "none", trigger_type);
+
+    previous_state = session_state_to_string(wash_session_service_args->wash_session->session_state);
+    wash_session_complete(wash_session_service_args->wash_session,
+        result_code,
+        wash_session_service_args->current_time_ms);
+    init_transition_fact(wash_session_transition_fact,
+        wash_session_service_args->wash_session,
+        previous_state,
+        session_state_to_string(wash_session_service_args->wash_session->session_state),
+        "completed",
+        "none");
     return operation_result_ok();
 }
 
-operation_result_t wash_session_state_machine_abort(system_context_t *system_context, result_code_t result_code, const char *reason_code, trigger_type_t trigger_type)
+operation_result_t wash_session_state_machine_abort(wash_session_service_args_t *wash_session_service_args,
+    result_code_t result_code,
+    const char *reason_code,
+    wash_session_transition_fact_t *wash_session_transition_fact)
 {
-    if (system_context == 0) {
+    const char *previous_state;
+
+    if (invalid_args(wash_session_service_args, wash_session_transition_fact)) {
         return operation_result_fail(ERROR_CODE_INVALID_ARGUMENT);
     }
-    wash_session_abort(&system_context->wash_session, result_code, reason_code, system_context->current_time_ms);
-    log_session_transition(system_context, "running", "aborted", "aborted", reason_code, trigger_type);
+
+    previous_state = session_state_to_string(wash_session_service_args->wash_session->session_state);
+    wash_session_abort(wash_session_service_args->wash_session,
+        result_code,
+        reason_code,
+        wash_session_service_args->current_time_ms);
+    init_transition_fact(wash_session_transition_fact,
+        wash_session_service_args->wash_session,
+        previous_state,
+        session_state_to_string(wash_session_service_args->wash_session->session_state),
+        "aborted",
+        reason_code);
     return operation_result_ok();
 }

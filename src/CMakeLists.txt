@@ -26,6 +26,8 @@ set(WASH_CORE_SOURCES
     domain/services/wash_session_state_machine.c
     application/coordinators/compatibility_trigger_runner.c
     application/coordinators/runtime_event_recorder.c
+    application/coordinators/runtime_result_projection.c
+    application/use_cases/process_formal_command.c
     application/use_cases/process_wash_trigger.c
     application/use_cases/query_wash_session_status.c
     application/use_cases/start_wash_cycle.c

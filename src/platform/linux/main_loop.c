@@ -27,7 +27,7 @@ static void enqueue_timeout_if_needed(system_context_t *system_context)
     if (system_context == 0) {
         return;
     }
-    if (!wait_timeout_service_should_fire(system_context)) {
+    if (!wait_timeout_service_should_fire(&system_context->wait_condition, system_context->current_time_ms)) {
         return;
     }
     if (system_context->pending_trigger_count >= MAX_PENDING_TRIGGER_COUNT) {

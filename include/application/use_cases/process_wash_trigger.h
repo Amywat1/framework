@@ -9,6 +9,17 @@
  * @file process_wash_trigger.h
  * @brief 定义统一触发处理用例。
  */
+
+/**
+ * @brief 统一路由并编排一次待处理触发事件。
+ *
+ * @param system_context 主控共享上下文，不能为空。
+ * @param wash_trigger_event 当前待处理触发，不能为空。
+ * @return 成功返回 `operation_result_ok()`；参数非法或下游处理失败时返回失败结果。
+ *
+ * @note 本接口负责跨对象编排、`global_fault` / 最近结果最终落点与统一结果投影。
+ * @note 会话、执行、等待条件和超时决议的具体推进由下游领域服务负责。
+ */
 operation_result_t process_wash_trigger_execute(system_context_t *system_context, const wash_trigger_event_t *wash_trigger_event);
 
 #endif

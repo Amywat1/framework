@@ -73,7 +73,8 @@ static int drain_runtime(system_context_t *system_context)
 {
     operation_result_t result;
 
-    while (system_context->pending_trigger_count > 0 || wait_timeout_service_should_fire(system_context)) {
+    while (system_context->pending_trigger_count > 0
+        || wait_timeout_service_should_fire(&system_context->wait_condition, system_context->current_time_ms)) {
         result = main_loop_run(system_context);
         if (!result.ok) {
             fprintf(stderr, "wash_controller runtime_error=%d reason=%s\n",

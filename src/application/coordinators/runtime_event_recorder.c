@@ -26,32 +26,36 @@ void runtime_event_recorder_set_latest_result(system_context_t *system_context,
     }
 }
 
-void runtime_event_recorder_record(system_context_t *system_context,
-    transition_entity_type_t transition_entity,
-    const char *entity_id,
-    trigger_type_t trigger_type,
-    const char *previous_state,
-    const char *current_state,
-    const char *result_code,
-    const char *reason_code,
-    runtime_event_log_kind_t runtime_event_log_kind)
+void runtime_event_recorder_apply_projection(system_context_t *system_context,
+    const runtime_result_projection_t *runtime_result_projection)
 {
     if (system_context == 0) {
         return;
     }
+    if (runtime_result_projection == 0) {
+        return;
+    }
 
-    runtime_event_recorder_set_latest_result(system_context, result_code, reason_code);
+    if (runtime_result_projection->updates_latest_result) {
+        runtime_event_recorder_set_latest_result(system_context,
+            runtime_result_projection->latest_result_code,
+            runtime_result_projection->latest_reason_code);
+    }
+    if (!runtime_result_projection->records_transition) {
+        return;
+    }
+
     state_transition_record_init(&system_context->last_transition_record,
-        transition_entity,
-        safe_runtime_field(entity_id),
-        trigger_type,
-        safe_runtime_field(previous_state),
-        safe_runtime_field(current_state),
-        safe_runtime_field(result_code),
-        safe_runtime_field(reason_code),
+        runtime_result_projection->transition_entity,
+        safe_runtime_field(runtime_result_projection->entity_id),
+        runtime_result_projection->trigger_type,
+        safe_runtime_field(runtime_result_projection->previous_state),
+        safe_runtime_field(runtime_result_projection->current_state),
+        safe_runtime_field(runtime_result_projection->transition_result_code),
+        safe_runtime_field(runtime_result_projection->transition_reason_code),
         system_context->current_time_ms);
 
-    switch (runtime_event_log_kind) {
+    switch (runtime_result_projection->log_kind) {
         case RUNTIME_EVENT_LOG_TRANSITION:
             if (system_context->event_logger_port.log_transition != 0) {
                 system_context->event_logger_port.log_transition(system_context->event_logger_port.context, &system_context->last_transition_record);

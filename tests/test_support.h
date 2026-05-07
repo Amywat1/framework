@@ -9,7 +9,11 @@
 #include "adapters/inbound/cli_command_adapter.h"
 #include "application/coordinators/system_context.h"
 #include "application/use_cases/query_wash_session_status.h"
+#include "domain/model/program_snapshot.h"
 #include "domain/model/wash_trigger_event.h"
+#include "domain/services/program_snapshot_service.h"
+#include "domain/services/wash_execution_service.h"
+#include "domain/services/wash_session_state_machine.h"
 #include "platform/drivers/simulated_brush_driver.h"
 #include "platform/drivers/simulated_chemical_driver.h"
 #include "platform/drivers/simulated_driver_context.h"
@@ -50,6 +54,7 @@ static inline void test_assign_trigger_identity(system_context_t *system_context
         system_context->current_time_ms,
         system_context->pending_trigger_count);
     strncpy(wash_trigger_event->source, "test-helper", sizeof(wash_trigger_event->source) - 1);
+    wash_trigger_event->source[sizeof(wash_trigger_event->source) - 1] = '\0';
 }
 
 static inline unsigned int has_pending_trigger_count(system_context_t *system_context, const char *trigger_id)
@@ -162,6 +167,56 @@ static inline operation_result_t test_fire_timeout(system_context_t *system_cont
 {
     main_loop_advance_time(system_context, elapsed_ms);
     return main_loop_run(system_context);
+}
+
+static inline wash_session_service_args_t test_build_wash_session_service_args(system_context_t *system_context)
+{
+    wash_session_service_args_t wash_session_service_args;
+
+    memset(&wash_session_service_args, 0, sizeof(wash_session_service_args));
+    wash_session_service_args.wash_session = &system_context->wash_session;
+    wash_session_service_args.program_snapshot = &system_context->program_snapshot;
+    wash_session_service_args.next_session_sequence = &system_context->next_session_sequence;
+    wash_session_service_args.current_time_ms = system_context->current_time_ms;
+    return wash_session_service_args;
+}
+
+static inline program_snapshot_service_args_t test_build_program_snapshot_service_args(system_context_t *system_context)
+{
+    program_snapshot_service_args_t program_snapshot_service_args;
+
+    memset(&program_snapshot_service_args, 0, sizeof(program_snapshot_service_args));
+    program_snapshot_service_args.program_snapshot = &system_context->program_snapshot;
+    program_snapshot_service_args.wash_program = &system_context->wash_program;
+    program_snapshot_service_args.program_repository_port = &system_context->program_repository_port;
+    program_snapshot_service_args.current_time_ms = system_context->current_time_ms;
+    return program_snapshot_service_args;
+}
+
+static inline wash_execution_service_args_t test_build_wash_execution_service_args(system_context_t *system_context)
+{
+    wash_execution_service_args_t wash_execution_service_args;
+
+    memset(&wash_execution_service_args, 0, sizeof(wash_execution_service_args));
+    wash_execution_service_args.wash_execution = &system_context->wash_execution;
+    wash_execution_service_args.wash_session = &system_context->wash_session;
+    wash_execution_service_args.wait_condition = &system_context->wait_condition;
+    wash_execution_service_args.program_snapshot = &system_context->program_snapshot;
+    wash_execution_service_args.actuator_port = &system_context->actuator_port;
+    wash_execution_service_args.next_execution_sequence = &system_context->next_execution_sequence;
+    wash_execution_service_args.next_wait_condition_sequence = &system_context->next_wait_condition_sequence;
+    wash_execution_service_args.current_time_ms = system_context->current_time_ms;
+    return wash_execution_service_args;
+}
+
+static inline const char *test_latest_result_code(const system_context_t *system_context)
+{
+    return system_context->last_result_code[0] != '\0' ? system_context->last_result_code : "none";
+}
+
+static inline const char *test_latest_reason_code(const system_context_t *system_context)
+{
+    return system_context->last_reason_code[0] != '\0' ? system_context->last_reason_code : "none";
 }
 
 #endif

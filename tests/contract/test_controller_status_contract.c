@@ -12,6 +12,7 @@ static int verify_idle_status(void)
     TEST_ASSERT(result.ok);
     TEST_ASSERT(strstr(response_line, "session=none") != 0);
     TEST_ASSERT(strstr(response_line, "global_fault=false") != 0);
+    TEST_ASSERT(strcmp(test_latest_result_code(&system_context), "none") == 0);
     return 0;
 }
 
@@ -32,6 +33,8 @@ static int verify_running_status(void)
     TEST_ASSERT(strstr(response_line, "execution=running") != 0);
     TEST_ASSERT(strstr(response_line, "stage=pre_soak") != 0);
     TEST_ASSERT(strstr(response_line, "wait=feedback:pre_soak") != 0);
+    TEST_ASSERT(strcmp(system_context.last_result_code, "accepted") == 0);
+    TEST_ASSERT(strcmp(system_context.last_reason_code, "session_started") == 0);
     return 0;
 }
 
@@ -53,6 +56,8 @@ static int verify_global_fault_status(void)
     TEST_ASSERT(strstr(response_line, "session=none") != 0);
     TEST_ASSERT(strstr(response_line, "global_fault=true") != 0);
     TEST_ASSERT(strstr(response_line, "reason=global_fault_recorded") != 0);
+    TEST_ASSERT(strcmp(system_context.last_result_code, "accepted") == 0);
+    TEST_ASSERT(strcmp(system_context.last_reason_code, "global_fault_recorded") == 0);
     return 0;
 }
 

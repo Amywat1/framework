@@ -10,6 +10,7 @@ endfunction()
 
 add_wash_test(test_unit_execution_entities unit/test_execution_model_entities.c)
 add_wash_test(test_unit_session_state_machine unit/test_wash_session_state_machine.c)
+add_wash_test(test_unit_wash_execution_service unit/test_wash_execution_service.c)
 add_wash_test(test_unit_trigger_priority unit/test_trigger_priority_service.c)
 add_wash_test(test_unit_wait_timeout unit/test_wait_timeout_service.c)
 add_wash_test(test_unit_program_snapshot unit/test_program_snapshot_service.c)

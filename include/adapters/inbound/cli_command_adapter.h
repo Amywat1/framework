@@ -11,6 +11,9 @@
 /**
  * @file cli_command_adapter.h
  * @brief 定义主控命令行输入适配器。
+ *
+ * @note 本适配器只负责正式命令的协议适配与兼容性包装。
+ * @note 统一正式入口编排由 `process_formal_command` 负责，本适配器不得演化为第二套业务主路径。
  */
 
 /**

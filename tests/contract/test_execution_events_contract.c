@@ -58,9 +58,10 @@ static int verify_dispatch_failure_transition_source(void)
     test_setup_system_context(&system_context, &driver_context);
     system_context.actuator_port.move_gantry = failing_move_gantry;
     result = test_start_session(&system_context, "standard_wash");
-    TEST_ASSERT(result.ok);
+    TEST_ASSERT(!result.ok);
     TEST_ASSERT(system_context.wash_session.session_state == SESSION_STATE_ABORTED);
     TEST_ASSERT(strcmp(system_context.wash_session.abort_reason, "dispatch_failed") == 0);
+    TEST_ASSERT(strcmp(system_context.last_reason_code, "dispatch_failed") == 0);
     TEST_ASSERT(system_context.last_transition_record.trigger_type == TRIGGER_TYPE_START);
     return 0;
 }
