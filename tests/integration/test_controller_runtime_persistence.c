@@ -22,11 +22,13 @@ int main(void)
 
     result = main_loop_run(&system_context);
     TEST_ASSERT(result.ok);
+    TEST_ASSERT(system_context.pending_trigger_count == 0);
 
     result = test_start_session(&system_context, "standard_wash");
     TEST_ASSERT(result.ok);
     TEST_ASSERT(system_context.wash_session.session_state == SESSION_STATE_RUNNING);
     TEST_ASSERT(strcmp(first_session_id, system_context.wash_session.session_id) != 0);
     TEST_ASSERT(system_context.global_fault_present == false);
+    TEST_ASSERT(strcmp(system_context.last_result_code, "accepted") == 0);
     return 0;
 }

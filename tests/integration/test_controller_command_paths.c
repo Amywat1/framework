@@ -47,13 +47,16 @@ static int verify_running_command_paths(void)
 
     result = test_process_command(&system_context, "start standard_wash", response_line, sizeof(response_line));
     TEST_ASSERT(result.ok);
+    TEST_ASSERT(strstr(response_line, "result=accepted accepted=true") != 0);
 
     result = test_process_command(&system_context, "feedback feedback:pre_soak", response_line, sizeof(response_line));
     TEST_ASSERT(result.ok);
+    TEST_ASSERT(strstr(response_line, "result=accepted accepted=true") != 0);
     TEST_ASSERT(strcmp(system_context.wash_session.progress_stage_id, "wash") == 0);
 
     result = test_process_command(&system_context, "fault E_STOP running_fault", response_line, sizeof(response_line));
     TEST_ASSERT(result.ok);
+    TEST_ASSERT(strstr(response_line, "result=accepted accepted=true detail=E_STOP") != 0);
     TEST_ASSERT(system_context.wash_session.session_state == SESSION_STATE_ABORTED);
     TEST_ASSERT(strcmp(system_context.wash_session.abort_reason, "E_STOP") == 0);
     return 0;

@@ -1,6 +1,6 @@
 #include "application/use_cases/acknowledge_fault.h"
 
-#include "application/use_cases/process_wash_trigger.h"
+#include "application/coordinators/compatibility_trigger_runner.h"
 #include "domain/model/wash_trigger_event.h"
 
 operation_result_t acknowledge_fault_execute(system_context_t *system_context,
@@ -18,5 +18,5 @@ operation_result_t acknowledge_fault_execute(system_context_t *system_context,
         fault_code,
         fault_reason != 0 ? fault_reason : "fault-command",
         system_context->current_time_ms);
-    return process_wash_trigger_execute(system_context, &wash_trigger_event);
+    return compatibility_trigger_runner_execute(system_context, &wash_trigger_event);
 }

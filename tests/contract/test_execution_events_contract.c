@@ -23,6 +23,7 @@ static int verify_stop_transition_source(void)
     result = test_submit_stop(&system_context, "contract-stop");
     TEST_ASSERT(result.ok);
     TEST_ASSERT(system_context.wash_session.session_state == SESSION_STATE_ABORTED);
+    TEST_ASSERT(strcmp(system_context.last_result_code, "accepted") == 0);
     TEST_ASSERT(strcmp(system_context.last_transition_record.reason_code, "contract-stop") == 0);
     TEST_ASSERT(system_context.last_transition_record.trigger_type == TRIGGER_TYPE_STOP);
     return 0;
@@ -42,6 +43,8 @@ static int verify_timeout_transition_source(void)
     result = test_fire_timeout(&system_context, 1000);
     TEST_ASSERT(result.ok);
     TEST_ASSERT(system_context.wash_session.session_state == SESSION_STATE_COMPLETED);
+    TEST_ASSERT(strcmp(system_context.last_result_code, "accepted") == 0);
+    TEST_ASSERT(strcmp(system_context.last_reason_code, "timeout_finish") == 0);
     TEST_ASSERT(system_context.last_transition_record.trigger_type == TRIGGER_TYPE_TIMEOUT);
     return 0;
 }

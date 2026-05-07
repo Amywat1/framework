@@ -2,7 +2,7 @@
 
 #include <string.h>
 
-#include "domain/model/state_transition_record.h"
+#include "application/coordinators/runtime_event_recorder.h"
 #include "domain/services/precheck_service.h"
 #include "domain/services/program_snapshot_service.h"
 #include "domain/services/wait_timeout_service.h"
@@ -20,13 +20,7 @@ static void log_request_record(system_context_t *system_context,
         return;
     }
 
-    if (result_code != 0) {
-        strncpy(system_context->last_result_code, result_code, sizeof(system_context->last_result_code) - 1);
-    }
-    if (reason_code != 0) {
-        strncpy(system_context->last_reason_code, reason_code, sizeof(system_context->last_reason_code) - 1);
-    }
-    state_transition_record_init(&system_context->last_transition_record,
+    runtime_event_recorder_record(system_context,
         TRANSITION_ENTITY_REQUEST,
         system_context->wash_session.session_id[0] != '\0' ? system_context->wash_session.session_id : "request",
         trigger_type,
@@ -34,12 +28,7 @@ static void log_request_record(system_context_t *system_context,
         ignored ? "ignored" : "rejected",
         result_code,
         reason_code,
-        system_context->current_time_ms);
-    if (ignored && system_context->event_logger_port.log_ignored != 0) {
-        system_context->event_logger_port.log_ignored(system_context->event_logger_port.context, &system_context->last_transition_record);
-    } else if (!ignored && system_context->event_logger_port.log_rejection != 0) {
-        system_context->event_logger_port.log_rejection(system_context->event_logger_port.context, &system_context->last_transition_record);
-    }
+        ignored ? RUNTIME_EVENT_LOG_IGNORED : RUNTIME_EVENT_LOG_REJECTION);
 }
 
 static bool is_duplicate_event(system_context_t *system_context, const wash_trigger_event_t *wash_trigger_event)
@@ -70,54 +59,41 @@ static void remember_runtime_result(system_context_t *system_context, const char
     if (system_context == 0) {
         return;
     }
-    if (result_code != 0) {
-        strncpy(system_context->last_result_code, result_code, sizeof(system_context->last_result_code) - 1);
-    }
-    if (reason_code != 0) {
-        strncpy(system_context->last_reason_code, reason_code, sizeof(system_context->last_reason_code) - 1);
-    }
+    runtime_event_recorder_set_latest_result(system_context, result_code, reason_code);
 }
 
-static void log_global_fault_record(system_context_t *system_context, const char *fault_code, const char *fault_reason)
+static void log_global_fault_record(system_context_t *system_context, const char *fault_code)
 {
     if (system_context == 0) {
         return;
     }
 
-    remember_runtime_result(system_context, "accepted", "global_fault_recorded");
-    state_transition_record_init(&system_context->last_transition_record,
+    runtime_event_recorder_record(system_context,
         TRANSITION_ENTITY_REQUEST,
-        "global-fault",
+        fault_code != 0 ? fault_code : "global-fault",
         TRIGGER_TYPE_FAULT,
         "idle",
         "global_fault",
-        fault_code != 0 ? fault_code : "fault",
-        fault_reason != 0 ? fault_reason : "fault",
-        system_context->current_time_ms);
-    if (system_context->event_logger_port.log_transition != 0) {
-        system_context->event_logger_port.log_transition(system_context->event_logger_port.context, &system_context->last_transition_record);
-    }
+        "accepted",
+        "global_fault_recorded",
+        RUNTIME_EVENT_LOG_TRANSITION);
 }
 
-static void log_global_fault_clear(system_context_t *system_context, const char *reason_code)
+static void log_global_fault_clear(system_context_t *system_context, const char *fault_code)
 {
     if (system_context == 0) {
         return;
     }
 
-    remember_runtime_result(system_context, "accepted", reason_code);
-    state_transition_record_init(&system_context->last_transition_record,
+    runtime_event_recorder_record(system_context,
         TRANSITION_ENTITY_REQUEST,
-        "global-fault",
+        fault_code != 0 ? fault_code : "global-fault",
         TRIGGER_TYPE_FAULT,
         "global_fault",
         "idle",
-        "cleared",
-        reason_code,
-        system_context->current_time_ms);
-    if (system_context->event_logger_port.log_transition != 0) {
-        system_context->event_logger_port.log_transition(system_context->event_logger_port.context, &system_context->last_transition_record);
-    }
+        "accepted",
+        "global_fault_cleared",
+        RUNTIME_EVENT_LOG_TRANSITION);
 }
 
 static operation_result_t handle_start(system_context_t *system_context, const wash_trigger_event_t *wash_trigger_event)
@@ -192,15 +168,19 @@ static operation_result_t handle_feedback(system_context_t *system_context, cons
         return operation_result_ok();
     }
     remember_correlation_key(system_context, wash_trigger_event);
-    remember_runtime_result(system_context, "accepted", wash_trigger_event->signal_code);
 
     if (system_context->wash_execution.stage_index + 1 >= system_context->program_snapshot.frozen_program.stage_count) {
-        return wash_session_state_machine_complete(system_context, RESULT_CODE_SUCCESS, TRIGGER_TYPE_DEVICE_FEEDBACK);
+        result = wash_session_state_machine_complete(system_context, RESULT_CODE_SUCCESS, TRIGGER_TYPE_DEVICE_FEEDBACK);
+        if (result.ok) {
+            remember_runtime_result(system_context, "accepted", wash_trigger_event->signal_code);
+        }
+        return result;
     }
     result = wash_execution_service_begin_next_stage(system_context);
     if (!result.ok) {
         return wash_session_state_machine_abort(system_context, RESULT_CODE_SAFE_STOP, "dispatch_failed", TRIGGER_TYPE_DEVICE_FEEDBACK);
     }
+    remember_runtime_result(system_context, "accepted", wash_trigger_event->signal_code);
     return result;
 }
 
@@ -216,8 +196,14 @@ static operation_result_t handle_stop(system_context_t *system_context, const wa
     if (!result.ok) {
         return result;
     }
-    remember_runtime_result(system_context, "accepted", wash_trigger_event->signal_code);
-    return wash_session_state_machine_abort(system_context, RESULT_CODE_MANUAL_ABORT, wash_trigger_event->signal_code, TRIGGER_TYPE_STOP);
+    result = wash_session_state_machine_abort(system_context,
+        RESULT_CODE_MANUAL_ABORT,
+        wash_trigger_event->signal_code,
+        TRIGGER_TYPE_STOP);
+    if (result.ok) {
+        remember_runtime_result(system_context, "accepted", wash_trigger_event->signal_code);
+    }
+    return result;
 }
 
 static operation_result_t handle_fault(system_context_t *system_context, const wash_trigger_event_t *wash_trigger_event)
@@ -225,6 +211,7 @@ static operation_result_t handle_fault(system_context_t *system_context, const w
     operation_result_t result;
     bool clear_requested;
     const char *fault_reason;
+    char previous_fault_code[sizeof(system_context->global_fault_code)];
 
     clear_requested = strcmp(wash_trigger_event->signal_code, "clear") == 0;
     fault_reason = wash_trigger_event->correlation_key[0] != '\0'
@@ -233,10 +220,14 @@ static operation_result_t handle_fault(system_context_t *system_context, const w
 
     if (!wash_session_is_running(&system_context->wash_session)) {
         if (clear_requested) {
+            strncpy(previous_fault_code,
+                system_context->global_fault_code,
+                sizeof(previous_fault_code) - 1);
+            previous_fault_code[sizeof(previous_fault_code) - 1] = '\0';
             system_context->global_fault_present = false;
             system_context->global_fault_code[0] = '\0';
             system_context->global_fault_reason[0] = '\0';
-            log_global_fault_clear(system_context, "global_fault_cleared");
+            log_global_fault_clear(system_context, previous_fault_code);
             return operation_result_ok();
         }
 
@@ -247,7 +238,9 @@ static operation_result_t handle_fault(system_context_t *system_context, const w
         strncpy(system_context->global_fault_reason,
             fault_reason,
             sizeof(system_context->global_fault_reason) - 1);
-        log_global_fault_record(system_context, wash_trigger_event->signal_code, fault_reason);
+        system_context->global_fault_code[sizeof(system_context->global_fault_code) - 1] = '\0';
+        system_context->global_fault_reason[sizeof(system_context->global_fault_reason) - 1] = '\0';
+        log_global_fault_record(system_context, wash_trigger_event->signal_code);
         return operation_result_ok();
     }
     if (clear_requested) {
@@ -258,8 +251,14 @@ static operation_result_t handle_fault(system_context_t *system_context, const w
     if (!result.ok) {
         return result;
     }
-    remember_runtime_result(system_context, "accepted", wash_trigger_event->signal_code);
-    return wash_session_state_machine_abort(system_context, RESULT_CODE_SAFE_STOP, wash_trigger_event->signal_code, TRIGGER_TYPE_FAULT);
+    result = wash_session_state_machine_abort(system_context,
+        RESULT_CODE_SAFE_STOP,
+        wash_trigger_event->signal_code,
+        TRIGGER_TYPE_FAULT);
+    if (result.ok) {
+        remember_runtime_result(system_context, "accepted", wash_trigger_event->signal_code);
+    }
+    return result;
 }
 
 static operation_result_t handle_timeout(system_context_t *system_context)
@@ -276,8 +275,16 @@ static operation_result_t handle_timeout(system_context_t *system_context)
             remember_runtime_result(system_context, "waiting", "timeout_retry");
             return operation_result_ok();
         case WAIT_TIMEOUT_RESOLUTION_CONTINUE_SESSION:
+            result = wash_execution_service_handle_timeout_continue(system_context);
+            if (!result.ok) {
+                return result;
+            }
             if (system_context->wash_execution.stage_index + 1 >= system_context->program_snapshot.frozen_program.stage_count) {
-                return wash_session_state_machine_complete(system_context, RESULT_CODE_DEGRADED_COMPLETE, TRIGGER_TYPE_TIMEOUT);
+                result = wash_session_state_machine_complete(system_context, RESULT_CODE_DEGRADED_COMPLETE, TRIGGER_TYPE_TIMEOUT);
+                if (result.ok) {
+                    remember_runtime_result(system_context, "accepted", "timeout_continue");
+                }
+                return result;
             }
             result = wash_execution_service_begin_next_stage(system_context);
             if (!result.ok) {
@@ -286,11 +293,25 @@ static operation_result_t handle_timeout(system_context_t *system_context)
             remember_runtime_result(system_context, "accepted", "timeout_continue");
             return result;
         case WAIT_TIMEOUT_RESOLUTION_FINISH_EXECUTION:
-            remember_runtime_result(system_context, "accepted", "timeout_finish");
-            return wash_session_state_machine_complete(system_context, RESULT_CODE_DEGRADED_COMPLETE, TRIGGER_TYPE_TIMEOUT);
+            result = wash_execution_service_handle_timeout_finish(system_context);
+            if (!result.ok) {
+                return result;
+            }
+            result = wash_session_state_machine_complete(system_context, RESULT_CODE_DEGRADED_COMPLETE, TRIGGER_TYPE_TIMEOUT);
+            if (result.ok) {
+                remember_runtime_result(system_context, "accepted", "timeout_finish");
+            }
+            return result;
         case WAIT_TIMEOUT_RESOLUTION_ABORT_SESSION:
-            remember_runtime_result(system_context, "accepted", "timeout");
-            return wash_session_state_machine_abort(system_context, RESULT_CODE_SAFE_STOP, "timeout", TRIGGER_TYPE_TIMEOUT);
+            result = wash_execution_service_handle_timeout_abort(system_context);
+            if (!result.ok) {
+                return result;
+            }
+            result = wash_session_state_machine_abort(system_context, RESULT_CODE_SAFE_STOP, "timeout", TRIGGER_TYPE_TIMEOUT);
+            if (result.ok) {
+                remember_runtime_result(system_context, "accepted", "timeout");
+            }
+            return result;
         default:
             return operation_result_fail(ERROR_CODE_INVALID_STATE);
     }

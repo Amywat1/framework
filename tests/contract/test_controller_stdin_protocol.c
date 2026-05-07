@@ -66,10 +66,11 @@ static int verify_runtime_commands(void)
 
     result = test_process_command(&system_context, "feedback feedback:pre_soak", response_line, sizeof(response_line));
     TEST_ASSERT(result.ok);
-    TEST_ASSERT(strstr(response_line, "accepted=true") != 0);
+    TEST_ASSERT(strstr(response_line, "result=accepted accepted=true") != 0);
 
     result = test_process_command(&system_context, "stop", response_line, sizeof(response_line));
     TEST_ASSERT(result.ok);
+    TEST_ASSERT(strstr(response_line, "result=accepted accepted=true") != 0);
     TEST_ASSERT(strstr(response_line, "manual-stop") != 0);
     return 0;
 }
@@ -89,7 +90,26 @@ static int verify_fault_commands(void)
 
     result = test_process_command(&system_context, "fault clear", response_line, sizeof(response_line));
     TEST_ASSERT(result.ok);
+    TEST_ASSERT(strstr(response_line, "result=accepted accepted=true") != 0);
     TEST_ASSERT(strstr(response_line, "global_fault_cleared") != 0);
+    return 0;
+}
+
+static int verify_queue_full_still_returns_protocol_line(void)
+{
+    char response_line[512];
+    system_context_t system_context;
+    simulated_driver_context_t driver_context;
+    operation_result_t result;
+
+    test_setup_system_context(&system_context, &driver_context);
+    system_context.pending_trigger_count = MAX_PENDING_TRIGGER_COUNT;
+
+    result = test_process_command(&system_context, "start standard_wash", response_line, sizeof(response_line));
+    TEST_ASSERT(!result.ok);
+    TEST_ASSERT(strstr(response_line, "result=resource_unavailable accepted=false detail=trigger_queue_full") != 0);
+    TEST_ASSERT(strcmp(system_context.last_transition_record.result_code, "rejected") == 0);
+    TEST_ASSERT(strcmp(system_context.last_transition_record.reason_code, "trigger_queue_full") == 0);
     return 0;
 }
 
@@ -105,6 +125,9 @@ int main(void)
         return 1;
     }
     if (verify_fault_commands() != 0) {
+        return 1;
+    }
+    if (verify_queue_full_still_returns_protocol_line() != 0) {
         return 1;
     }
     return 0;

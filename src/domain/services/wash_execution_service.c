@@ -3,8 +3,8 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "application/coordinators/runtime_event_recorder.h"
 #include "domain/model/chemical_action.h"
-#include "domain/model/state_transition_record.h"
 #include "shared/error_codes.h"
 #include "shared/timeouts.h"
 
@@ -18,7 +18,7 @@ static void log_execution_transition(system_context_t *system_context,
     if (system_context == 0) {
         return;
     }
-    state_transition_record_init(&system_context->last_transition_record,
+    runtime_event_recorder_record(system_context,
         TRANSITION_ENTITY_EXECUTION,
         system_context->wash_execution.execution_id,
         trigger_type,
@@ -26,10 +26,7 @@ static void log_execution_transition(system_context_t *system_context,
         current_state,
         result_code,
         reason_code,
-        system_context->current_time_ms);
-    if (system_context->event_logger_port.log_transition != 0) {
-        system_context->event_logger_port.log_transition(system_context->event_logger_port.context, &system_context->last_transition_record);
-    }
+        RUNTIME_EVENT_LOG_TRANSITION);
 }
 
 static void log_wait_retry(system_context_t *system_context, const char *reason_code)
@@ -199,4 +196,46 @@ bool wash_execution_service_is_waiting(const system_context_t *system_context)
 void wash_execution_service_log_retry(system_context_t *system_context, const char *reason_code)
 {
     log_wait_retry(system_context, reason_code);
+}
+
+operation_result_t wash_execution_service_handle_timeout_continue(system_context_t *system_context)
+{
+    if (system_context == 0) {
+        return operation_result_fail(ERROR_CODE_INVALID_ARGUMENT);
+    }
+    wash_execution_complete(&system_context->wash_execution,
+        EXECUTION_RESULT_TIMED_OUT,
+        EXECUTION_END_REASON_TIMEOUT,
+        system_context->current_time_ms);
+    wash_session_record_execution_result(&system_context->wash_session, EXECUTION_RESULT_TIMED_OUT);
+    log_execution_transition(system_context, TRIGGER_TYPE_TIMEOUT, "running", "completed", "timed_out", "timeout_continue");
+    return operation_result_ok();
+}
+
+operation_result_t wash_execution_service_handle_timeout_finish(system_context_t *system_context)
+{
+    if (system_context == 0) {
+        return operation_result_fail(ERROR_CODE_INVALID_ARGUMENT);
+    }
+    wash_execution_complete(&system_context->wash_execution,
+        EXECUTION_RESULT_TIMED_OUT,
+        EXECUTION_END_REASON_TIMEOUT,
+        system_context->current_time_ms);
+    wash_session_record_execution_result(&system_context->wash_session, EXECUTION_RESULT_TIMED_OUT);
+    log_execution_transition(system_context, TRIGGER_TYPE_TIMEOUT, "running", "completed", "timed_out", "timeout_finish");
+    return operation_result_ok();
+}
+
+operation_result_t wash_execution_service_handle_timeout_abort(system_context_t *system_context)
+{
+    if (system_context == 0) {
+        return operation_result_fail(ERROR_CODE_INVALID_ARGUMENT);
+    }
+    wash_execution_abort(&system_context->wash_execution,
+        EXECUTION_RESULT_TIMED_OUT,
+        EXECUTION_END_REASON_TIMEOUT,
+        system_context->current_time_ms);
+    wash_session_record_execution_result(&system_context->wash_session, EXECUTION_RESULT_TIMED_OUT);
+    log_execution_transition(system_context, TRIGGER_TYPE_TIMEOUT, "running", "aborted", "timed_out", "timeout");
+    return operation_result_ok();
 }

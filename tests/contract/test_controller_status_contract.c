@@ -45,12 +45,14 @@ static int verify_global_fault_status(void)
     test_setup_system_context(&system_context, &driver_context);
     result = test_process_command(&system_context, "fault E_STOP emergency_pressed", response_line, sizeof(response_line));
     TEST_ASSERT(result.ok);
+    TEST_ASSERT(strcmp(system_context.last_result_code, "accepted") == 0);
+    TEST_ASSERT(strcmp(system_context.last_reason_code, "global_fault_recorded") == 0);
 
     result = test_process_command(&system_context, "status", response_line, sizeof(response_line));
     TEST_ASSERT(result.ok);
     TEST_ASSERT(strstr(response_line, "session=none") != 0);
     TEST_ASSERT(strstr(response_line, "global_fault=true") != 0);
-    TEST_ASSERT(strstr(response_line, "reason=emergency_pressed") != 0);
+    TEST_ASSERT(strstr(response_line, "reason=global_fault_recorded") != 0);
     return 0;
 }
 

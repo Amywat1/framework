@@ -4,13 +4,10 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "application/use_cases/acknowledge_fault.h"
-#include "application/use_cases/process_wash_trigger.h"
+#include "application/coordinators/runtime_event_recorder.h"
 #include "application/use_cases/query_wash_session_status.h"
-#include "application/use_cases/start_wash_cycle.h"
-#include "application/use_cases/stop_wash_cycle.h"
-#include "domain/model/state_transition_record.h"
 #include "domain/model/wash_trigger_event.h"
+#include "platform/linux/main_loop.h"
 #include "shared/error_codes.h"
 
 static const char *error_code_to_string(error_code_t error_code)
@@ -137,39 +134,39 @@ static char *take_remainder(char **cursor)
     return start;
 }
 
+static bool has_pending_trigger_id(const system_context_t *system_context, const char *trigger_id)
+{
+    unsigned int index;
+
+    if (system_context == 0 || trigger_id == 0 || trigger_id[0] == '\0') {
+        return false;
+    }
+    for (index = 0; index < system_context->pending_trigger_count; ++index) {
+        if (strcmp(system_context->pending_triggers[index].trigger_id, trigger_id) == 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
 static void remember_protocol_error(system_context_t *system_context, const char *reason_code)
 {
-    if (system_context == 0) {
-        return;
-    }
-
-    strncpy(system_context->last_result_code, "error", sizeof(system_context->last_result_code) - 1);
-    strncpy(system_context->last_reason_code, reason_code, sizeof(system_context->last_reason_code) - 1);
-    state_transition_record_init(&system_context->last_transition_record,
+    runtime_event_recorder_record(system_context,
         TRANSITION_ENTITY_REQUEST,
-        "stdin",
+        "formal-command",
         TRIGGER_TYPE_REJECT,
         "received",
         "error",
         "error",
         reason_code,
-        system_context->current_time_ms);
-    if (system_context->event_logger_port.log_rejection != 0) {
-        system_context->event_logger_port.log_rejection(system_context->event_logger_port.context, &system_context->last_transition_record);
-    }
+        RUNTIME_EVENT_LOG_REJECTION);
 }
 
 static void remember_command_rejection(system_context_t *system_context,
     trigger_type_t trigger_type,
     const char *reason_code)
 {
-    if (system_context == 0 || reason_code == 0) {
-        return;
-    }
-
-    strncpy(system_context->last_result_code, "rejected", sizeof(system_context->last_result_code) - 1);
-    strncpy(system_context->last_reason_code, reason_code, sizeof(system_context->last_reason_code) - 1);
-    state_transition_record_init(&system_context->last_transition_record,
+    runtime_event_recorder_record(system_context,
         TRANSITION_ENTITY_REQUEST,
         system_context->wash_session.session_id[0] != '\0' ? system_context->wash_session.session_id : "stdin",
         trigger_type,
@@ -177,10 +174,22 @@ static void remember_command_rejection(system_context_t *system_context,
         "rejected",
         "rejected",
         reason_code,
-        system_context->current_time_ms);
-    if (system_context->event_logger_port.log_rejection != 0) {
-        system_context->event_logger_port.log_rejection(system_context->event_logger_port.context, &system_context->last_transition_record);
-    }
+        RUNTIME_EVENT_LOG_REJECTION);
+}
+
+static void remember_submit_rejection(system_context_t *system_context,
+    trigger_type_t trigger_type,
+    const char *reason_code)
+{
+    runtime_event_recorder_record(system_context,
+        TRANSITION_ENTITY_REQUEST,
+        "pending-trigger-queue",
+        trigger_type,
+        "prepared",
+        "rejected",
+        "rejected",
+        reason_code,
+        RUNTIME_EVENT_LOG_REJECTION);
 }
 
 static void write_result_line(char *response_line,
@@ -199,19 +208,6 @@ static void write_result_line(char *response_line,
         result_code != 0 ? result_code : "unknown",
         accepted ? "true" : "false",
         detail != 0 ? detail : "none");
-}
-
-static operation_result_t execute_feedback(system_context_t *system_context, const char *signal_code)
-{
-    wash_trigger_event_t wash_trigger_event;
-
-    wash_trigger_event_init(&wash_trigger_event,
-        TRIGGER_TYPE_DEVICE_FEEDBACK,
-        0,
-        signal_code,
-        signal_code,
-        system_context->current_time_ms);
-    return process_wash_trigger_execute(system_context, &wash_trigger_event);
 }
 
 static void assign_stdin_trigger_id(system_context_t *system_context, wash_trigger_event_t *wash_trigger_event)
@@ -248,11 +244,6 @@ static operation_result_t execute_status(system_context_t *system_context, char 
     summary_reason = wash_session_status_view.reason_code[0] != '\0'
         ? wash_session_status_view.reason_code
         : "none";
-    if (!wash_session_status_view.has_active_session
-        && wash_session_status_view.global_fault_present
-        && wash_session_status_view.global_fault_reason[0] != '\0') {
-        summary_reason = wash_session_status_view.global_fault_reason;
-    }
     snprintf(detail,
         sizeof(detail),
         "session=%s state=%s execution=%s stage=%s wait=%s global_fault=%s reason=%s",
@@ -296,6 +287,41 @@ operation_result_t cli_command_adapter_finalize_trigger_response(system_context_
         : "none";
     write_result_line(response_line, response_line_size, result_code, accepted, detail);
     return result;
+}
+
+operation_result_t cli_command_adapter_execute_formal_line(system_context_t *system_context,
+    const char *command_line,
+    char *response_line,
+    size_t response_line_size)
+{
+    bool has_trigger;
+    wash_trigger_event_t wash_trigger_event;
+    operation_result_t result;
+
+    result = cli_command_adapter_prepare_line(system_context,
+        command_line,
+        &wash_trigger_event,
+        &has_trigger,
+        response_line,
+        response_line_size);
+    if (!result.ok || !has_trigger) {
+        return result;
+    }
+
+    result = main_loop_submit_trigger(system_context, &wash_trigger_event);
+    if (!result.ok) {
+        remember_submit_rejection(system_context, wash_trigger_event.trigger_type, "trigger_queue_full");
+        return cli_command_adapter_finalize_trigger_response(system_context, result, response_line, response_line_size);
+    }
+
+    while (has_pending_trigger_id(system_context, wash_trigger_event.trigger_id)) {
+        result = main_loop_run(system_context);
+        if (!result.ok && has_pending_trigger_id(system_context, wash_trigger_event.trigger_id)) {
+            return result;
+        }
+    }
+
+    return cli_command_adapter_finalize_trigger_response(system_context, result, response_line, response_line_size);
 }
 
 operation_result_t cli_command_adapter_prepare_line(system_context_t *system_context,
@@ -448,38 +474,5 @@ operation_result_t cli_command_adapter_process_line(system_context_t *system_con
     char *response_line,
     size_t response_line_size)
 {
-    bool has_trigger;
-    wash_trigger_event_t wash_trigger_event;
-    operation_result_t result;
-
-    result = cli_command_adapter_prepare_line(system_context,
-        command_line,
-        &wash_trigger_event,
-        &has_trigger,
-        response_line,
-        response_line_size);
-    if (!result.ok || !has_trigger) {
-        return result;
-    }
-
-    switch (wash_trigger_event.trigger_type) {
-        case TRIGGER_TYPE_START:
-            result = start_wash_cycle_execute(system_context, wash_trigger_event.program_id);
-            break;
-        case TRIGGER_TYPE_STOP:
-            result = stop_wash_cycle_with_reason_execute(system_context, wash_trigger_event.signal_code);
-            break;
-        case TRIGGER_TYPE_DEVICE_FEEDBACK:
-            result = execute_feedback(system_context, wash_trigger_event.signal_code);
-            break;
-        case TRIGGER_TYPE_FAULT:
-            result = acknowledge_fault_execute(system_context,
-                wash_trigger_event.signal_code,
-                wash_trigger_event.correlation_key[0] != '\0' ? wash_trigger_event.correlation_key : 0);
-            break;
-        default:
-            result = operation_result_fail(ERROR_CODE_UNSUPPORTED);
-            break;
-    }
-    return cli_command_adapter_finalize_trigger_response(system_context, result, response_line, response_line_size);
+    return cli_command_adapter_execute_formal_line(system_context, command_line, response_line, response_line_size);
 }

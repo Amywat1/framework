@@ -16,6 +16,8 @@
  * @param fault_code 故障代码；当值为 `clear` 时表示清除全局故障。
  * @param fault_reason 故障原因；清除全局故障时可传入 `0`。
  * @return 执行成功返回 `operation_result_ok()`；参数非法时返回失败结果。
+ *
+ * @note 本接口保留为兼容性辅助包装，新代码不应把它作为生产主路径入口。
  */
 operation_result_t acknowledge_fault_execute(system_context_t *system_context,
     const char *fault_code,

@@ -14,6 +14,8 @@
  *
  * @param system_context 主控共享上下文，不能为空。
  * @return 触发成功返回 `operation_result_ok()`；参数非法时返回失败结果。
+ *
+ * @note 本接口保留为兼容性辅助包装，新代码不应把它作为生产主路径入口。
  */
 operation_result_t stop_wash_cycle_execute(system_context_t *system_context);
 
@@ -23,6 +25,8 @@ operation_result_t stop_wash_cycle_execute(system_context_t *system_context);
  * @param system_context 主控共享上下文，不能为空。
  * @param reason_code 停止原因，允许为空时由下游按默认值处理。
  * @return 触发成功返回 `operation_result_ok()`；参数非法时返回失败结果。
+ *
+ * @note 本接口保留为兼容性辅助包装，新代码不应把它作为生产主路径入口。
  */
 operation_result_t stop_wash_cycle_with_reason_execute(system_context_t *system_context, const char *reason_code);
 

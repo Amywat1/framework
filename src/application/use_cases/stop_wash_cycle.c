@@ -1,6 +1,6 @@
 #include "application/use_cases/stop_wash_cycle.h"
 
-#include "application/use_cases/process_wash_trigger.h"
+#include "application/coordinators/compatibility_trigger_runner.h"
 #include "domain/model/wash_trigger_event.h"
 
 operation_result_t stop_wash_cycle_execute(system_context_t *system_context)
@@ -21,5 +21,5 @@ operation_result_t stop_wash_cycle_with_reason_execute(system_context_t *system_
         reason_code,
         "stop-command",
         system_context->current_time_ms);
-    return process_wash_trigger_execute(system_context, &wash_trigger_event);
+    return compatibility_trigger_runner_execute(system_context, &wash_trigger_event);
 }

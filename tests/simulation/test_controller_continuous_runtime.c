@@ -13,6 +13,7 @@ static int verify_idle_runtime_keeps_waiting(void)
         TEST_ASSERT(result.ok);
         TEST_ASSERT(system_context.pending_trigger_count == 0);
         TEST_ASSERT(system_context.wash_session.session_state == SESSION_STATE_NONE);
+        TEST_ASSERT(system_context.global_fault_present == false);
     }
     return 0;
 }
@@ -43,6 +44,7 @@ static int verify_runtime_after_one_session(void)
         TEST_ASSERT(result.ok);
         TEST_ASSERT(system_context.pending_trigger_count == 0);
     }
+    TEST_ASSERT(system_context.wait_condition.active == false);
     return 0;
 }
 

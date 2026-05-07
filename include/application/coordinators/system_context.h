@@ -27,6 +27,8 @@
  *
  * @note 本结构由主控进程在单个进程生命周期内长期持有。
  * @note 本期新增的全局故障字段只用于记录空闲故障、阻断启动和显式清除。
+ * @note `global_fault_*` 仅允许由 `process_wash_trigger_execute()` 改写。
+ * @note `last_result_code`、`last_reason_code` 与 `last_transition_record` 应通过统一记录辅助逻辑刷新。
  */
 typedef struct system_context_t {
     wash_program_t wash_program;

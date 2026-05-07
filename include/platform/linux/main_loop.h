@@ -15,6 +15,8 @@
  *
  * @param system_context 主控共享上下文，不能为空。
  * @return 成功返回 `operation_result_ok()`；参数非法或处理失败时返回失败结果。
+ *
+ * @note 本接口只负责选择和消费待处理 trigger，不直接实现业务状态写入策略。
  */
 operation_result_t main_loop_run(system_context_t *system_context);
 

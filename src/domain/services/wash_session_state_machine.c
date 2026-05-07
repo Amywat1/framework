@@ -1,8 +1,6 @@
 #include "domain/services/wash_session_state_machine.h"
 
-#include <string.h>
-
-#include "domain/model/state_transition_record.h"
+#include "application/coordinators/runtime_event_recorder.h"
 #include "shared/error_codes.h"
 
 static void log_session_transition(system_context_t *system_context,
@@ -16,13 +14,7 @@ static void log_session_transition(system_context_t *system_context,
         return;
     }
 
-    if (result_code != 0) {
-        strncpy(system_context->last_result_code, result_code, sizeof(system_context->last_result_code) - 1);
-    }
-    if (reason_code != 0) {
-        strncpy(system_context->last_reason_code, reason_code, sizeof(system_context->last_reason_code) - 1);
-    }
-    state_transition_record_init(&system_context->last_transition_record,
+    runtime_event_recorder_record(system_context,
         TRANSITION_ENTITY_SESSION,
         system_context->wash_session.session_id,
         trigger_type,
@@ -30,10 +22,7 @@ static void log_session_transition(system_context_t *system_context,
         current_state,
         result_code,
         reason_code,
-        system_context->current_time_ms);
-    if (system_context->event_logger_port.log_transition != 0) {
-        system_context->event_logger_port.log_transition(system_context->event_logger_port.context, &system_context->last_transition_record);
-    }
+        RUNTIME_EVENT_LOG_TRANSITION);
 }
 
 operation_result_t wash_session_state_machine_start(system_context_t *system_context, const char *program_id)

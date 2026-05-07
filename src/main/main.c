@@ -17,22 +17,6 @@
 #include "platform/drivers/simulated_sensor_driver.h"
 #include "domain/services/wait_timeout_service.h"
 #include "platform/linux/main_loop.h"
-#include "shared/error_codes.h"
-
-static bool has_pending_trigger_id(const system_context_t *system_context, const char *trigger_id)
-{
-    unsigned int index;
-
-    if (system_context == 0 || trigger_id == 0 || trigger_id[0] == '\0') {
-        return false;
-    }
-    for (index = 0; index < system_context->pending_trigger_count; ++index) {
-        if (strcmp(system_context->pending_triggers[index].trigger_id, trigger_id) == 0) {
-            return true;
-        }
-    }
-    return false;
-}
 
 static unsigned long monotonic_time_ms(void)
 {
@@ -103,39 +87,15 @@ static int drain_runtime(system_context_t *system_context)
 
 static int process_stdin_command(system_context_t *system_context, const char *command_line, char *response_line, size_t response_line_size)
 {
-    bool has_trigger;
-    wash_trigger_event_t wash_trigger_event;
     operation_result_t result;
 
-    result = cli_command_adapter_prepare_line(system_context,
-        command_line,
-        &wash_trigger_event,
-        &has_trigger,
-        response_line,
-        response_line_size);
-    if (!result.ok || !has_trigger) {
-        printf("%s\n", response_line);
-        fflush(stdout);
-        return 0;
-    }
-
-    result = main_loop_submit_trigger(system_context, &wash_trigger_event);
-    if (!result.ok) {
-        fprintf(stderr, "wash_controller submit_failed=%d\n", (int)result.error_code);
+    result = cli_command_adapter_execute_formal_line(system_context, command_line, response_line, response_line_size);
+    if (!result.ok && response_line[0] == '\0') {
+        fprintf(stderr, "wash_controller command_failed=%d reason=%s\n",
+            (int)result.error_code,
+            system_context->last_reason_code[0] != '\0' ? system_context->last_reason_code : "none");
         return 1;
     }
-
-    while (has_pending_trigger_id(system_context, wash_trigger_event.trigger_id)) {
-        result = main_loop_run(system_context);
-        if (!result.ok && has_pending_trigger_id(system_context, wash_trigger_event.trigger_id)) {
-            fprintf(stderr, "wash_controller runtime_error=%d reason=%s\n",
-                (int)result.error_code,
-                system_context->last_reason_code[0] != '\0' ? system_context->last_reason_code : "none");
-            return 1;
-        }
-    }
-
-    cli_command_adapter_finalize_trigger_response(system_context, result, response_line, response_line_size);
     printf("%s\n", response_line);
     fflush(stdout);
     return 0;

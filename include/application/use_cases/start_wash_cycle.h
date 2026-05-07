@@ -15,6 +15,8 @@
  * @param system_context 主控共享上下文，不能为空。
  * @param program_id 启动所选程序标识，不能为空字符串。
  * @return 受理成功返回 `operation_result_ok()`；预检失败或参数非法时返回失败结果。
+ *
+ * @note 本接口保留为兼容性辅助包装，新代码不应把它作为生产主路径入口。
  */
 operation_result_t start_wash_cycle_execute(system_context_t *system_context, const char *program_id);
 

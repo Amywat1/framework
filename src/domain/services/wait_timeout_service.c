@@ -38,20 +38,11 @@ operation_result_t wait_timeout_service_handle_timeout(system_context_t *system_
     timeout_policy = system_context->wait_condition.timeout_policy;
     wait_condition_reset(&system_context->wait_condition);
     if (timeout_policy == WAIT_TIMEOUT_POLICY_ABORT_SESSION) {
-        wash_execution_abort(&system_context->wash_execution,
-            EXECUTION_RESULT_TIMED_OUT,
-            EXECUTION_END_REASON_TIMEOUT,
-            system_context->current_time_ms);
         *wait_timeout_resolution = WAIT_TIMEOUT_RESOLUTION_ABORT_SESSION;
     } else {
-        wash_execution_complete(&system_context->wash_execution,
-            EXECUTION_RESULT_TIMED_OUT,
-            EXECUTION_END_REASON_TIMEOUT,
-            system_context->current_time_ms);
         *wait_timeout_resolution = timeout_policy == WAIT_TIMEOUT_POLICY_CONTINUE_SESSION
             ? WAIT_TIMEOUT_RESOLUTION_CONTINUE_SESSION
             : WAIT_TIMEOUT_RESOLUTION_FINISH_EXECUTION;
     }
-    wash_session_record_execution_result(&system_context->wash_session, EXECUTION_RESULT_TIMED_OUT);
     return operation_result_ok();
 }

@@ -31,6 +31,8 @@ bool wait_timeout_service_should_fire(const system_context_t *system_context);
  * @param system_context 主控共享上下文，不能为空。
  * @param wait_timeout_resolution 输出超时决议，不能为空。
  * @return 处理成功返回 `operation_result_ok()`；参数非法或当前未超时时返回失败结果。
+ *
+ * @note 本接口只负责 timeout 决策与必要的等待条件更新，不直接推进会话或执行状态机。
  */
 operation_result_t wait_timeout_service_handle_timeout(system_context_t *system_context, wait_timeout_resolution_t *wait_timeout_resolution);
 

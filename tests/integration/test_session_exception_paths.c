@@ -60,14 +60,21 @@ static int verify_idle_fault_clear_path(void)
     operation_result_t result;
 
     test_setup_system_context(&system_context, &driver_context);
-    result = acknowledge_fault_execute(&system_context, "E_STOP", "idle-fault");
+    result = test_submit_fault_with_reason(&system_context, "E_STOP", "idle-fault");
     TEST_ASSERT(result.ok);
     TEST_ASSERT(system_context.global_fault_present);
+    TEST_ASSERT(strcmp(system_context.last_result_code, "accepted") == 0);
+    TEST_ASSERT(strcmp(system_context.last_reason_code, "global_fault_recorded") == 0);
+    TEST_ASSERT(strcmp(system_context.last_transition_record.result_code, "accepted") == 0);
+    TEST_ASSERT(strcmp(system_context.last_transition_record.reason_code, "global_fault_recorded") == 0);
 
-    result = acknowledge_fault_execute(&system_context, "clear", 0);
+    result = test_clear_fault(&system_context);
     TEST_ASSERT(result.ok);
     TEST_ASSERT(!system_context.global_fault_present);
+    TEST_ASSERT(strcmp(system_context.last_result_code, "accepted") == 0);
     TEST_ASSERT(strcmp(system_context.last_reason_code, "global_fault_cleared") == 0);
+    TEST_ASSERT(strcmp(system_context.last_transition_record.result_code, "accepted") == 0);
+    TEST_ASSERT(strcmp(system_context.last_transition_record.reason_code, "global_fault_cleared") == 0);
     return 0;
 }
 
