@@ -1,0 +1,10 @@
+{
+  "program_id": "wash_json_dup_a",
+  "program_id": "wash_json_dup_b",
+  "program_name": "duplicate key",
+  "revision": 1,
+  "enabled": true,
+  "default_segment_timeout_ms": 15000,
+  "default_exit_timeout_ms": 5000,
+  "segments": []
+}

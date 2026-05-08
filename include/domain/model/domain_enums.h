@@ -1,95 +1,12 @@
 #ifndef DOMAIN_MODEL_DOMAIN_ENUMS_H
 #define DOMAIN_MODEL_DOMAIN_ENUMS_H
 
-#include <stdbool.h>
+/**
+ * @file domain_enums.h
+ * @brief 定义工步段运行模型使用的核心枚举类型。
+ */
 
-typedef enum {
-    GANTRY_MOTION_STOP = 0,
-    GANTRY_MOTION_FORWARD,
-    GANTRY_MOTION_REVERSE,
-    GANTRY_MOTION_TRAVERSE
-} gantry_motion_mode_t;
-
-typedef enum {
-    BRUSH_MODE_DISABLED = 0,
-    BRUSH_MODE_FOLLOW,
-    BRUSH_MODE_FIXED
-} brush_mode_t;
-
-typedef enum {
-    CHEMICAL_START_ON_STAGE_START = 0,
-    CHEMICAL_START_ON_POSITION_REACHED,
-    CHEMICAL_START_MID_STAGE
-} chemical_start_condition_t;
-
-typedef enum {
-    RESOURCE_STATE_NORMAL = 0,
-    RESOURCE_STATE_LOW,
-    RESOURCE_STATE_FAULT,
-    RESOURCE_STATE_DISABLED
-} resource_state_t;
-
-typedef enum {
-    FAULT_POLICY_DEGRADE = 0,
-    FAULT_POLICY_SKIP,
-    FAULT_POLICY_SAFE_FINISH
-} fault_policy_t;
-
-typedef enum {
-    CYCLE_STATE_IDLE = 0,
-    CYCLE_STATE_PRECHECK,
-    CYCLE_STATE_RUNNING,
-    CYCLE_STATE_DEGRADED,
-    CYCLE_STATE_SAFE_STOP,
-    CYCLE_STATE_COMPLETED,
-    CYCLE_STATE_ABORTED
-} cycle_state_t;
-
-typedef enum {
-    RESULT_CODE_SUCCESS = 0,
-    RESULT_CODE_SAFE_STOP,
-    RESULT_CODE_DEGRADED_COMPLETE,
-    RESULT_CODE_MANUAL_ABORT,
-    RESULT_CODE_START_FAILED
-} result_code_t;
-
-typedef enum {
-    FAULT_SEVERITY_INFO = 0,
-    FAULT_SEVERITY_WARNING,
-    FAULT_SEVERITY_SAFETY
-} fault_severity_t;
-
-typedef enum {
-    FAULT_CLASS_SAFETY = 0,
-    FAULT_CLASS_PROCESS,
-    FAULT_CLASS_RESOURCE,
-    FAULT_CLASS_COMMUNICATION,
-    FAULT_CLASS_CONFIGURATION
-} fault_class_t;
-
-typedef enum {
-    INTERLOCK_READY = 0,
-    INTERLOCK_TRIPPED,
-    INTERLOCK_BYPASSED
-} interlock_state_t;
-
-typedef enum {
-    TRIP_ACTION_BLOCK_START = 0,
-    TRIP_ACTION_STOP_IMMEDIATELY
-} trip_action_t;
-
-typedef enum {
-    RESET_RULE_AUTO = 0,
-    RESET_RULE_MANUAL
-} reset_rule_t;
-
-typedef enum {
-    EVENT_TYPE_CYCLE_STATE_CHANGED = 0,
-    EVENT_TYPE_FAULT_RAISED,
-    EVENT_TYPE_FAULT_CLEARED,
-    EVENT_TYPE_CYCLE_FINISHED
-} event_type_t;
-
+/** @brief 会话状态。 */
 typedef enum {
     SESSION_STATE_NONE = 0,
     SESSION_STATE_CREATED,
@@ -98,6 +15,7 @@ typedef enum {
     SESSION_STATE_ABORTED
 } session_state_t;
 
+/** @brief 当前工步执行状态。 */
 typedef enum {
     EXECUTION_STATE_NONE = 0,
     EXECUTION_STATE_RUNNING,
@@ -105,25 +23,22 @@ typedef enum {
     EXECUTION_STATE_ABORTED
 } execution_state_t;
 
-typedef enum {
-    EXECUTION_KIND_STAGE_STEP = 0,
-    EXECUTION_KIND_STOP_PATH,
-    EXECUTION_KIND_FAULT_PATH,
-    EXECUTION_KIND_TIMEOUT_PATH
-} execution_kind_t;
-
+/** @brief 当前工步执行结果。 */
 typedef enum {
     EXECUTION_RESULT_NONE = 0,
-    EXECUTION_RESULT_ADVANCED,
-    EXECUTION_RESULT_WAITING,
-    EXECUTION_RESULT_COMPLETED,
+    EXECUTION_RESULT_RUNNING,
+    EXECUTION_RESULT_SEGMENT_COMPLETED,
+    EXECUTION_RESULT_PROGRAM_COMPLETED,
     EXECUTION_RESULT_STOPPED,
     EXECUTION_RESULT_FAULTED,
-    EXECUTION_RESULT_TIMED_OUT,
-    EXECUTION_RESULT_IGNORED,
-    EXECUTION_RESULT_REJECTED
+    EXECUTION_RESULT_SEGMENT_TIMEOUT,
+    EXECUTION_RESULT_EXIT_TIMEOUT,
+    EXECUTION_RESULT_EXIT_FAILED,
+    EXECUTION_RESULT_POSITION_LOST,
+    EXECUTION_RESULT_FOLLOW_LOST
 } execution_result_t;
 
+/** @brief 当前工步结束原因。 */
 typedef enum {
     EXECUTION_END_REASON_NONE = 0,
     EXECUTION_END_REASON_NORMAL,
@@ -133,10 +48,21 @@ typedef enum {
     EXECUTION_END_REASON_REJECTION
 } execution_end_reason_t;
 
+/** @brief 对外投影的会话结果码。 */
+typedef enum {
+    RESULT_CODE_SUCCESS = 0,
+    RESULT_CODE_SAFE_STOP,
+    RESULT_CODE_DEGRADED_COMPLETE,
+    RESULT_CODE_MANUAL_ABORT,
+    RESULT_CODE_START_FAILED,
+    RESULT_CODE_EXIT_FAILED,
+    RESULT_CODE_SEGMENT_TIMEOUT
+} result_code_t;
+
+/** @brief 主控统一处理的触发事件类型。 */
 typedef enum {
     TRIGGER_TYPE_START = 0,
     TRIGGER_TYPE_STOP,
-    TRIGGER_TYPE_DEVICE_FEEDBACK,
     TRIGGER_TYPE_FAULT,
     TRIGGER_TYPE_BUSINESS,
     TRIGGER_TYPE_TIMEOUT,
@@ -144,22 +70,103 @@ typedef enum {
     TRIGGER_TYPE_IGNORE
 } trigger_type_t;
 
+/** @brief 等待条件超时策略。 */
 typedef enum {
-    WAIT_TIMEOUT_POLICY_CONTINUE_SESSION = 0,
-    WAIT_TIMEOUT_POLICY_FINISH_EXECUTION,
-    WAIT_TIMEOUT_POLICY_ABORT_SESSION
+    WAIT_TIMEOUT_POLICY_NONE = 0,
+    WAIT_TIMEOUT_POLICY_SEGMENT,
+    WAIT_TIMEOUT_POLICY_EXIT
 } wait_timeout_policy_t;
 
+/** @brief 状态迁移记录中的实体类型。 */
 typedef enum {
     TRANSITION_ENTITY_SESSION = 0,
     TRANSITION_ENTITY_EXECUTION,
     TRANSITION_ENTITY_REQUEST
 } transition_entity_type_t;
 
+/** @brief 程序冻结快照校验结果。 */
 typedef enum {
     PROGRAM_SNAPSHOT_VALIDATION_VALID = 0,
     PROGRAM_SNAPSHOT_VALIDATION_UNAVAILABLE,
     PROGRAM_SNAPSHOT_VALIDATION_INVALID
 } program_snapshot_validation_t;
+
+/** @brief 工步段工艺类别。 */
+typedef enum {
+    SEGMENT_KIND_UNKNOWN = 0,
+    SEGMENT_KIND_ROOF_BRUSH,
+    SEGMENT_KIND_SIDE_BRUSH,
+    SEGMENT_KIND_RO_WATER,
+    SEGMENT_KIND_DRYER
+} segment_kind_t;
+
+/** @brief 执行机构品类。 */
+typedef enum {
+    ACTUATOR_CATEGORY_NONE = 0,
+    ACTUATOR_GANTRY,
+    ACTUATOR_ROOF_BRUSH,
+    ACTUATOR_SIDE_BRUSH,
+    ACTUATOR_CHEMICAL,
+    ACTUATOR_RO_WATER,
+    ACTUATOR_DRYER
+} actuator_category_t;
+
+/** @brief 龙门运动方向。 */
+typedef enum {
+    MOTION_DIRECTION_STOP = 0,
+    MOTION_DIRECTION_FORWARD,
+    MOTION_DIRECTION_REVERSE
+} motion_direction_t;
+
+/** @brief 龙门运动目标基准。 */
+typedef enum {
+    MOTION_TARGET_NONE = 0,
+    MOTION_TARGET_HEAD,
+    MOTION_TARGET_TAIL,
+    MOTION_TARGET_HOME,
+    MOTION_TARGET_RELATIVE_DISTANCE,
+    MOTION_TARGET_ABSOLUTE_POSITION
+} motion_target_reference_t;
+
+/** @brief 位置触发条件使用的业务基准。 */
+typedef enum {
+    POSITION_REFERENCE_NONE = 0,
+    POSITION_REFERENCE_ABSOLUTE_MM,
+    POSITION_REFERENCE_DISTANCE_TO_HEAD_MM,
+    POSITION_REFERENCE_DISTANCE_TO_TAIL_MM,
+    POSITION_REFERENCE_HEAD_REACHED,
+    POSITION_REFERENCE_TAIL_REACHED,
+    POSITION_REFERENCE_HOME_REACHED
+} position_reference_t;
+
+/** @brief 位置触发比较方式。 */
+typedef enum {
+    POSITION_COMPARE_TRUE = 0,
+    POSITION_COMPARE_GREATER_EQUAL,
+    POSITION_COMPARE_LESS_EQUAL,
+    POSITION_COMPARE_RANGE_INCLUSIVE
+} position_compare_mode_t;
+
+/** @brief 条件控制受限能力类型。 */
+typedef enum {
+    CONDITIONAL_CONTROL_NONE = 0,
+    CONDITIONAL_CONTROL_CHEMICAL_WINDOW
+} conditional_control_kind_t;
+
+/** @brief 当前工步生命周期状态。 */
+typedef enum {
+    SEGMENT_LIFECYCLE_PENDING = 0,
+    SEGMENT_LIFECYCLE_ENTERING,
+    SEGMENT_LIFECYCLE_RUNNING,
+    SEGMENT_LIFECYCLE_EXITING,
+    SEGMENT_LIFECYCLE_COMPLETED,
+    SEGMENT_LIFECYCLE_ABORTED
+} segment_lifecycle_state_t;
+
+/** @brief 异常处理策略。 */
+typedef enum {
+    EXCEPTION_STRATEGY_ABORT_SESSION = 0,
+    EXCEPTION_STRATEGY_SAFE_FINISH
+} exception_strategy_t;
 
 #endif

@@ -16,7 +16,7 @@ typedef struct program_snapshot_t {
     program_snapshot_validation_t validation_result;
     char snapshot_hash[64];
     char snapshot_payload_ref[64];
-    wash_program_t frozen_program;
+    wash_program_v1_t frozen_program;
 } program_snapshot_t;
 
 void program_snapshot_reset(program_snapshot_t *program_snapshot);

@@ -1,0 +1,54 @@
+{
+  "program_id": "wash_step_control_invalid_position",
+  "program_name": "位置语义冲突",
+  "revision": 1,
+  "enabled": true,
+  "default_segment_timeout_ms": 15000,
+  "default_exit_timeout_ms": 5000,
+  "segments": [
+    {
+      "segment_id": "side_segment",
+      "segment_name": "侧刷段",
+      "sequence_no": 1,
+      "segment_kind": "side_brush",
+      "motion_plan": {
+        "direction": "reverse",
+        "target_reference": "head",
+        "target_tolerance_mm": 50,
+        "requires_position_feedback": true
+      },
+      "continuous_controls": {
+        "roof_brush_follow": false,
+        "side_brush_enabled": true,
+        "ro_water_enabled": false,
+        "dryer_enabled": false
+      },
+      "conditional_controls": [
+        {
+          "control_id": "invalid_mixed_basis",
+          "control_object": "chemical",
+          "basis": "absolute_mm",
+          "start_trigger": {
+            "reference": "absolute_mm",
+            "compare_mode": "greater_equal",
+            "value_mm": 2000
+          },
+          "stop_trigger": {
+            "reference": "distance_to_head_mm",
+            "compare_mode": "less_equal",
+            "value_mm": 500
+          },
+          "active_during_exit": false
+        }
+      ],
+      "completion_condition": {
+        "reference": "head_reached",
+        "compare_mode": "true"
+      },
+      "exit_actions": {
+        "stop_side_brush": true,
+        "stop_chemical": true
+      }
+    }
+  ]
+}

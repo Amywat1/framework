@@ -1,74 +1,51 @@
+#include "domain/model/conditional_control.h"
+#include "domain/model/position_trigger.h"
+#include "domain/model/wash_segment.h"
 #include "tests/test_support.h"
 
-#include "domain/model/program_snapshot.h"
-#include "domain/model/state_transition_record.h"
-#include "domain/model/wait_condition.h"
-#include "domain/model/wash_execution.h"
-#include "domain/model/wash_session.h"
-#include "domain/model/wash_trigger_event.h"
+static int test_valid_segment_entities(void)
+{
+    wash_segment_t wash_segment;
+
+    wash_segment_init(&wash_segment, "roof_segment", "顶刷段", 1);
+    wash_segment.segment_kind = SEGMENT_KIND_ROOF_BRUSH;
+    wash_segment.motion_plan.direction = MOTION_DIRECTION_FORWARD;
+    wash_segment.motion_plan.target_reference = MOTION_TARGET_TAIL;
+    wash_segment.motion_plan.requires_position_feedback = true;
+    wash_segment.completion_condition.trigger.reference = POSITION_REFERENCE_TAIL_REACHED;
+    wash_segment.completion_condition.trigger.compare_mode = POSITION_COMPARE_TRUE;
+    wash_segment.exit_actions.stop_roof_brush = true;
+    wash_segment.exit_actions.stop_chemical = true;
+    wash_segment.exit_actions.roof_brush_home = true;
+    wash_segment.continuous_controls.roof_brush_follow = true;
+    TEST_ASSERT(wash_segment_is_valid(&wash_segment));
+    return 0;
+}
+
+static int test_invalid_conditional_basis_is_rejected(void)
+{
+    conditional_control_t conditional_control;
+
+    conditional_control_init(&conditional_control);
+    strncpy(conditional_control.control_id, "invalid", sizeof(conditional_control.control_id) - 1);
+    conditional_control.kind = CONDITIONAL_CONTROL_CHEMICAL_WINDOW;
+    conditional_control.control_object = ACTUATOR_CHEMICAL;
+    conditional_control.basis = POSITION_REFERENCE_ABSOLUTE_MM;
+    conditional_control.start_trigger.reference = POSITION_REFERENCE_ABSOLUTE_MM;
+    conditional_control.start_trigger.compare_mode = POSITION_COMPARE_GREATER_EQUAL;
+    conditional_control.stop_trigger.reference = POSITION_REFERENCE_DISTANCE_TO_HEAD_MM;
+    conditional_control.stop_trigger.compare_mode = POSITION_COMPARE_LESS_EQUAL;
+    TEST_ASSERT(!conditional_control_is_valid(&conditional_control));
+    return 0;
+}
 
 int main(void)
 {
-    wait_condition_t wait_condition;
-    wait_condition_t second_wait_condition;
-    wash_execution_t wash_execution;
-    wash_execution_t second_wash_execution;
-    wash_session_t wash_session;
-    wash_session_t second_wash_session;
-    wash_trigger_event_t wash_trigger_event;
-    state_transition_record_t state_transition_record;
-    program_snapshot_t program_snapshot;
-    wash_program_t wash_program;
-
-    wash_program_init(&wash_program, "standard_wash", "标准洗车");
-    program_snapshot_capture(&program_snapshot, "standard_wash", 1, 10, &wash_program, PROGRAM_SNAPSHOT_VALIDATION_VALID);
-    TEST_ASSERT(strcmp(program_snapshot.source_program_id, "standard_wash") == 0);
-
-    wash_session_create(&wash_session, "standard_wash", program_snapshot.program_snapshot_id, 11, 1);
-    TEST_ASSERT(wash_session.session_state == SESSION_STATE_CREATED);
-    wash_session_create(&second_wash_session, "standard_wash", program_snapshot.program_snapshot_id, 11, 2);
-    TEST_ASSERT(strcmp(wash_session.session_id, second_wash_session.session_id) != 0);
-
-    wash_execution_start_stage(&wash_execution, wash_session.session_id, 0, "pre_soak", 12, 1);
-    TEST_ASSERT(wash_execution.execution_state == EXECUTION_STATE_RUNNING);
-    TEST_ASSERT(strcmp(wash_execution.stage_id, "pre_soak") == 0);
-    wash_execution_start_stage(&second_wash_execution, wash_session.session_id, 1, "wash", 12, 2);
-    TEST_ASSERT(strcmp(wash_execution.execution_id, second_wash_execution.execution_id) != 0);
-
-    wait_condition_arm(&wait_condition,
-        wash_execution.execution_id,
-        TRIGGER_TYPE_DEVICE_FEEDBACK,
-        "feedback:pre_soak",
-        12,
-        1012,
-        WAIT_TIMEOUT_POLICY_FINISH_EXECUTION,
-        3,
-        1);
-    TEST_ASSERT(wait_condition.active);
-    TEST_ASSERT(wait_condition_matches(&wait_condition, TRIGGER_TYPE_DEVICE_FEEDBACK, "feedback:pre_soak"));
-    wait_condition_arm(&second_wait_condition,
-        second_wash_execution.execution_id,
-        TRIGGER_TYPE_DEVICE_FEEDBACK,
-        "feedback:wash",
-        12,
-        2012,
-        WAIT_TIMEOUT_POLICY_FINISH_EXECUTION,
-        3,
-        2);
-    TEST_ASSERT(strcmp(wait_condition.wait_condition_id, second_wait_condition.wait_condition_id) != 0);
-
-    wash_trigger_event_init(&wash_trigger_event, TRIGGER_TYPE_DEVICE_FEEDBACK, 0, "feedback:pre_soak", "c1", 13);
-    TEST_ASSERT(strcmp(wash_trigger_event.signal_code, "feedback:pre_soak") == 0);
-
-    state_transition_record_init(&state_transition_record,
-        TRANSITION_ENTITY_SESSION,
-        wash_session.session_id,
-        TRIGGER_TYPE_START,
-        "created",
-        "running",
-        "accepted",
-        "none",
-        14);
-    TEST_ASSERT(strcmp(state_transition_record.current_state, "running") == 0);
+    if (test_valid_segment_entities() != 0) {
+        return 1;
+    }
+    if (test_invalid_conditional_basis_is_rejected() != 0) {
+        return 1;
+    }
     return 0;
 }

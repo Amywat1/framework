@@ -1,0 +1,64 @@
+{
+  "enabled": true,
+  "default_exit_timeout_ms": 5000,
+  "program_name": "edge {cfg} \"ok\"",
+  "default_segment_timeout_ms": 15000,
+  "revision": 2,
+  "program_id": "wash_json_edge",
+  "segments": [
+    {
+      "sequence_no": 1,
+      "segment_name": "roof {A} \"B\"",
+      "segment_id": "roof_edge",
+      "segment_kind": "roof_brush",
+      "completion_condition": {
+        "compare_mode": "true",
+        "reference": "tail_reached"
+      },
+      "conditional_controls": [
+        {
+          "basis": "absolute_mm",
+          "control_id": "edge_chemical",
+          "control_object": "chemical",
+          "active_during_exit": false,
+          "stop_trigger": {
+            "compare_mode": "greater_equal",
+            "reference": "absolute_mm",
+            "value_mm": 9000,
+            "tolerance_mm": 0
+          },
+          "start_trigger": {
+            "compare_mode": "greater_equal",
+            "reference": "absolute_mm",
+            "value_mm": 0,
+            "tolerance_mm": 0
+          }
+        }
+      ],
+      "motion_plan": {
+        "requires_position_feedback": true,
+        "direction": "forward",
+        "target_reference": "tail",
+        "target_tolerance_mm": 50
+      },
+      "continuous_controls": {
+        "dryer_enabled": false,
+        "roof_brush_follow": true,
+        "ro_water_enabled": false,
+        "side_brush_enabled": false
+      },
+      "exception_policy": {
+        "on_exit_failure": "abort_session",
+        "on_exit_timeout": "abort_session",
+        "on_follow_lost": "abort_session",
+        "on_position_lost": "abort_session",
+        "on_segment_timeout": "abort_session"
+      },
+      "exit_actions": {
+        "roof_brush_home": true,
+        "stop_chemical": true,
+        "stop_roof_brush": true
+      }
+    }
+  ]
+}

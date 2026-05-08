@@ -1,0 +1,33 @@
+{
+  "program_id": "wash_step_control_missing_exit",
+  "program_name": "缺失退出动作",
+  "revision": 1,
+  "enabled": true,
+  "default_segment_timeout_ms": 15000,
+  "default_exit_timeout_ms": 5000,
+  "segments": [
+    {
+      "segment_id": "roof_segment",
+      "segment_name": "顶刷段",
+      "sequence_no": 1,
+      "segment_kind": "roof_brush",
+      "motion_plan": {
+        "direction": "forward",
+        "target_reference": "tail",
+        "target_tolerance_mm": 50,
+        "requires_position_feedback": true
+      },
+      "continuous_controls": {
+        "roof_brush_follow": true,
+        "side_brush_enabled": false,
+        "ro_water_enabled": false,
+        "dryer_enabled": false
+      },
+      "conditional_controls": [],
+      "completion_condition": {
+        "reference": "tail_reached",
+        "compare_mode": "true"
+      }
+    }
+  ]
+}

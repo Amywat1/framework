@@ -15,17 +15,18 @@ operation_result_t query_wash_session_status_execute(system_context_t *system_co
     wash_session_status_view->global_fault_present = system_context->global_fault_present;
     wash_session_status_view->session_state = system_context->wash_session.session_state;
     wash_session_status_view->execution_state = system_context->wash_execution.execution_state;
+    wash_session_status_view->lifecycle_state = system_context->wash_execution.lifecycle_state;
     strncpy(wash_session_status_view->session_id,
         system_context->wash_session.session_id,
         sizeof(wash_session_status_view->session_id) - 1);
     strncpy(wash_session_status_view->stage_id,
-        system_context->wash_session.progress_stage_id,
+        system_context->wash_session.progress_segment_id,
         sizeof(wash_session_status_view->stage_id) - 1);
     strncpy(wash_session_status_view->wait_condition_id,
         system_context->wait_condition.wait_condition_id,
         sizeof(wash_session_status_view->wait_condition_id) - 1);
     strncpy(wash_session_status_view->wait_reason,
-        system_context->wait_condition.expected_signal,
+        system_context->wait_condition.reason_code,
         sizeof(wash_session_status_view->wait_reason) - 1);
     strncpy(wash_session_status_view->reason_code,
         system_context->last_reason_code[0] != '\0'

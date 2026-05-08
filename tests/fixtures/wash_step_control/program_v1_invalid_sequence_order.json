@@ -1,0 +1,121 @@
+{
+  "program_id": "wash_step_control_invalid_sequence",
+  "program_name": "invalid sequence order",
+  "revision": 1,
+  "enabled": true,
+  "default_segment_timeout_ms": 15000,
+  "default_exit_timeout_ms": 5000,
+  "segments": [
+    {
+      "segment_id": "side_segment",
+      "segment_name": "side brush",
+      "sequence_no": 2,
+      "segment_kind": "side_brush",
+      "motion_plan": {
+        "direction": "reverse",
+        "target_reference": "head",
+        "target_tolerance_mm": 50,
+        "requires_position_feedback": true
+      },
+      "continuous_controls": {
+        "roof_brush_follow": false,
+        "side_brush_enabled": true,
+        "ro_water_enabled": false,
+        "dryer_enabled": false
+      },
+      "conditional_controls": [
+        {
+          "control_id": "side_chemical_delay",
+          "control_object": "chemical",
+          "basis": "absolute_mm",
+          "start_trigger": {
+            "reference": "absolute_mm",
+            "compare_mode": "greater_equal",
+            "value_mm": 3000,
+            "tolerance_mm": 0
+          },
+          "stop_trigger": {
+            "reference": "absolute_mm",
+            "compare_mode": "greater_equal",
+            "value_mm": 7000,
+            "tolerance_mm": 0
+          },
+          "active_during_exit": false
+        }
+      ],
+      "completion_condition": {
+        "reference": "head_reached",
+        "compare_mode": "true"
+      },
+      "exit_actions": {
+        "stop_side_brush": true,
+        "stop_chemical": true
+      },
+      "segment_timeout_ms": 15000,
+      "exit_timeout_ms": 5000,
+      "exception_policy": {
+        "on_position_lost": "abort_session",
+        "on_follow_lost": "abort_session",
+        "on_segment_timeout": "abort_session",
+        "on_exit_timeout": "abort_session",
+        "on_exit_failure": "abort_session"
+      }
+    },
+    {
+      "segment_id": "roof_segment",
+      "segment_name": "roof brush",
+      "sequence_no": 1,
+      "segment_kind": "roof_brush",
+      "motion_plan": {
+        "direction": "forward",
+        "target_reference": "tail",
+        "target_tolerance_mm": 50,
+        "requires_position_feedback": true
+      },
+      "continuous_controls": {
+        "roof_brush_follow": true,
+        "side_brush_enabled": false,
+        "ro_water_enabled": false,
+        "dryer_enabled": false
+      },
+      "conditional_controls": [
+        {
+          "control_id": "roof_chemical_window",
+          "control_object": "chemical",
+          "basis": "absolute_mm",
+          "start_trigger": {
+            "reference": "absolute_mm",
+            "compare_mode": "greater_equal",
+            "value_mm": 0,
+            "tolerance_mm": 0
+          },
+          "stop_trigger": {
+            "reference": "absolute_mm",
+            "compare_mode": "greater_equal",
+            "value_mm": 9000,
+            "tolerance_mm": 0
+          },
+          "active_during_exit": false
+        }
+      ],
+      "completion_condition": {
+        "reference": "tail_reached",
+        "compare_mode": "true"
+      },
+      "exit_actions": {
+        "stop_roof_brush": true,
+        "stop_chemical": true,
+        "roof_brush_home": true
+      },
+      "segment_timeout_ms": 15000,
+      "exit_timeout_ms": 5000,
+      "exception_policy": {
+        "on_position_lost": "abort_session",
+        "on_follow_lost": "abort_session",
+        "on_segment_timeout": "abort_session",
+        "on_exit_timeout": "abort_session",
+        "on_exit_failure": "abort_session"
+      }
+    }
+  ]
+}

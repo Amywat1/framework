@@ -25,13 +25,11 @@ static void write_fact_field(char *target, size_t target_size, const char *value
     if (target == 0 || target_size == 0) {
         return;
     }
-
     if (value != 0 && value[0] != '\0') {
         strncpy(target, value, target_size - 1);
         target[target_size - 1] = '\0';
         return;
     }
-
     strncpy(target, "none", target_size - 1);
     target[target_size - 1] = '\0';
 }
@@ -103,7 +101,7 @@ operation_result_t wash_session_state_machine_start(wash_session_service_args_t 
         previous_state,
         session_state_to_string(wash_session_service_args->wash_session->session_state),
         "accepted",
-        "none");
+        "session_started");
     return operation_result_ok();
 }
 
@@ -126,7 +124,7 @@ operation_result_t wash_session_state_machine_complete(wash_session_service_args
         previous_state,
         session_state_to_string(wash_session_service_args->wash_session->session_state),
         "completed",
-        "none");
+        "program_finished");
     return operation_result_ok();
 }
 

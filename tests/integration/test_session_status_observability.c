@@ -10,18 +10,25 @@ int main(void)
     operation_result_t result;
 
     test_setup_system_context(&system_context, &driver_context);
-    result = test_start_session(&system_context, "standard_wash");
+    result = test_load_runtime_program_from_fixture(&system_context,
+        "tests/fixtures/wash_step_control/program_v1_valid.json",
+        0);
+    TEST_ASSERT(result.ok);
+    result = test_start_session(&system_context, "wash_step_control_v1");
     TEST_ASSERT(result.ok);
 
     result = query_wash_session_status_execute(&system_context, &wash_session_status_view);
     TEST_ASSERT(result.ok);
+    TEST_ASSERT(wash_session_status_view.has_active_session);
     TEST_ASSERT(wash_session_status_view.session_state == SESSION_STATE_RUNNING);
-    TEST_ASSERT(strcmp(wash_session_status_view.stage_id, "pre_soak") == 0);
+    TEST_ASSERT(wash_session_status_view.execution_state == EXECUTION_STATE_RUNNING);
+    TEST_ASSERT(strcmp(wash_session_status_view.stage_id, "roof_segment") == 0);
 
     result = test_submit_stop(&system_context, "status-stop");
     TEST_ASSERT(result.ok);
     result = query_wash_session_status_execute(&system_context, &wash_session_status_view);
     TEST_ASSERT(result.ok);
+    TEST_ASSERT(!wash_session_status_view.has_active_session);
     TEST_ASSERT(strcmp(wash_session_status_view.reason_code, "status-stop") == 0);
 
     test_setup_system_context(&system_context, &driver_context);

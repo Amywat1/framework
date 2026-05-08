@@ -1,0 +1,53 @@
+{
+  "program_id": "wash_step_control_invalid_conditional",
+  "program_name": "无效条件控制",
+  "revision": 1,
+  "enabled": true,
+  "default_segment_timeout_ms": 15000,
+  "default_exit_timeout_ms": 5000,
+  "segments": [
+    {
+      "segment_id": "ro_segment",
+      "segment_name": "RO 水段",
+      "sequence_no": 1,
+      "segment_kind": "ro_water",
+      "motion_plan": {
+        "direction": "forward",
+        "target_reference": "tail",
+        "target_tolerance_mm": 50,
+        "requires_position_feedback": true
+      },
+      "continuous_controls": {
+        "roof_brush_follow": false,
+        "side_brush_enabled": false,
+        "ro_water_enabled": true,
+        "dryer_enabled": false
+      },
+      "conditional_controls": [
+        {
+          "control_id": "unsupported_ro_window",
+          "control_object": "ro_water",
+          "basis": "absolute_mm",
+          "start_trigger": {
+            "reference": "absolute_mm",
+            "compare_mode": "greater_equal",
+            "value_mm": 1000
+          },
+          "stop_trigger": {
+            "reference": "absolute_mm",
+            "compare_mode": "greater_equal",
+            "value_mm": 5000
+          },
+          "active_during_exit": false
+        }
+      ],
+      "completion_condition": {
+        "reference": "tail_reached",
+        "compare_mode": "true"
+      },
+      "exit_actions": {
+        "close_ro_water": true
+      }
+    }
+  ]
+}

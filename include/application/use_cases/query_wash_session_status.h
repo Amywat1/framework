@@ -26,11 +26,13 @@ typedef struct wash_session_status_view_t {
     session_state_t session_state;
     /** @brief 当前执行状态。 */
     execution_state_t execution_state;
-    /** @brief 当前推进到的阶段标识。 */
+    /** @brief 当前工步生命周期。 */
+    segment_lifecycle_state_t lifecycle_state;
+    /** @brief 当前推进到的工步标识。 */
     char stage_id[32];
     /** @brief 当前等待条件标识。 */
     char wait_condition_id[32];
-    /** @brief 当前等待原因或期待信号。 */
+    /** @brief 当前等待原因。 */
     char wait_reason[64];
     /** @brief 最近一次处理事件的原因码。 */
     char reason_code[64];

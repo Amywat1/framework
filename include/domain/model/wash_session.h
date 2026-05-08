@@ -15,7 +15,7 @@ typedef struct wash_session_t {
     char selected_program_id[32];
     char program_snapshot_id[32];
     char current_execution_id[32];
-    char progress_stage_id[32];
+    char progress_segment_id[32];
     execution_result_t latest_execution_result;
     result_code_t final_session_result;
     char abort_reason[64];
@@ -31,7 +31,7 @@ void wash_session_create(wash_session_t *wash_session,
     unsigned long started_at_ms,
     unsigned long session_sequence);
 void wash_session_start_running(wash_session_t *wash_session);
-void wash_session_bind_execution(wash_session_t *wash_session, const char *execution_id, const char *stage_id);
+void wash_session_bind_execution(wash_session_t *wash_session, const char *execution_id, const char *segment_id);
 void wash_session_record_execution_result(wash_session_t *wash_session, execution_result_t execution_result);
 void wash_session_complete(wash_session_t *wash_session, result_code_t final_session_result, unsigned long ended_at_ms);
 void wash_session_abort(wash_session_t *wash_session, result_code_t final_session_result, const char *abort_reason, unsigned long ended_at_ms);

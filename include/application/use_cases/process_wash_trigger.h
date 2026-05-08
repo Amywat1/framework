@@ -21,5 +21,6 @@
  * @note 会话、执行、等待条件和超时决议的具体推进由下游领域服务负责。
  */
 operation_result_t process_wash_trigger_execute(system_context_t *system_context, const wash_trigger_event_t *wash_trigger_event);
+operation_result_t process_wash_runtime_tick(system_context_t *system_context);
 
 #endif

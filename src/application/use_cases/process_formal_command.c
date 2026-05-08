@@ -70,6 +70,25 @@ static const char *execution_state_to_string(execution_state_t execution_state)
     }
 }
 
+static const char *lifecycle_state_to_string(segment_lifecycle_state_t lifecycle_state)
+{
+    switch (lifecycle_state) {
+        case SEGMENT_LIFECYCLE_ENTERING:
+            return "entering";
+        case SEGMENT_LIFECYCLE_RUNNING:
+            return "running";
+        case SEGMENT_LIFECYCLE_EXITING:
+            return "exiting";
+        case SEGMENT_LIFECYCLE_COMPLETED:
+            return "completed";
+        case SEGMENT_LIFECYCLE_ABORTED:
+            return "aborted";
+        case SEGMENT_LIFECYCLE_PENDING:
+        default:
+            return "pending";
+    }
+}
+
 static void trim_trailing_whitespace(char *text)
 {
     size_t length;
@@ -285,10 +304,11 @@ static operation_result_t execute_status(system_context_t *system_context, char 
         : "none";
     snprintf(detail,
         sizeof(detail),
-        "session=%s state=%s execution=%s stage=%s wait=%s global_fault=%s reason=%s",
+        "session=%s state=%s execution=%s lifecycle=%s stage=%s wait=%s global_fault=%s reason=%s",
         wash_session_status_view.session_id[0] != '\0' ? wash_session_status_view.session_id : "none",
         session_state_to_string(wash_session_status_view.session_state),
         execution_state_to_string(wash_session_status_view.execution_state),
+        lifecycle_state_to_string(wash_session_status_view.lifecycle_state),
         wash_session_status_view.stage_id[0] != '\0' ? wash_session_status_view.stage_id : "none",
         wash_session_status_view.wait_reason[0] != '\0' ? wash_session_status_view.wait_reason : "none",
         wash_session_status_view.global_fault_present ? "true" : "false",
@@ -369,25 +389,6 @@ operation_result_t process_formal_command_prepare_line(system_context_t *system_
             0,
             "manual-stop",
             "stop-command",
-            system_context->current_time_ms);
-        assign_stdin_trigger_id(system_context, &formal_command_request->wash_trigger_event);
-        return operation_result_ok();
-    }
-
-    if (strcmp(command_name, "feedback") == 0) {
-        if (argument_1 == 0 || argument_1[0] == '\0' || argument_2 != 0) {
-            remember_protocol_error(system_context, "feedback_requires_signal_code");
-            write_result_line(response_line, response_line_size, "parse_failed", false, "feedback_requires_signal_code");
-            return operation_result_fail(ERROR_CODE_PARSE_FAILED);
-        }
-
-        formal_command_request->requires_queue = true;
-        formal_command_request->has_trigger = true;
-        wash_trigger_event_init(&formal_command_request->wash_trigger_event,
-            TRIGGER_TYPE_DEVICE_FEEDBACK,
-            0,
-            argument_1,
-            argument_1,
             system_context->current_time_ms);
         assign_stdin_trigger_id(system_context, &formal_command_request->wash_trigger_event);
         return operation_result_ok();

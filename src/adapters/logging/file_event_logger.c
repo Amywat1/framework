@@ -11,7 +11,7 @@ typedef struct file_logger_context_t {
 
 static file_logger_context_t g_logger_context;
 
-static int log_message_impl(void *context, event_type_t event_type, const char *message)
+static int log_message_impl(void *context, trigger_type_t trigger_type, const char *message)
 {
     FILE *file_handle;
     file_logger_context_t *logger_context = (file_logger_context_t *)context;
@@ -20,7 +20,7 @@ static int log_message_impl(void *context, event_type_t event_type, const char *
     if (file_handle == 0) {
         return -1;
     }
-    fprintf(file_handle, "%d,%s\n", (int)event_type, message != 0 ? message : "");
+    fprintf(file_handle, "%d,%s\n", (int)trigger_type, message != 0 ? message : "");
     fclose(file_handle);
     return 0;
 }

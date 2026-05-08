@@ -48,7 +48,7 @@ void wash_session_start_running(wash_session_t *wash_session)
     wash_session->session_state = SESSION_STATE_RUNNING;
 }
 
-void wash_session_bind_execution(wash_session_t *wash_session, const char *execution_id, const char *stage_id)
+void wash_session_bind_execution(wash_session_t *wash_session, const char *execution_id, const char *segment_id)
 {
     if (wash_session == 0) {
         return;
@@ -56,8 +56,8 @@ void wash_session_bind_execution(wash_session_t *wash_session, const char *execu
     if (execution_id != 0) {
         strncpy(wash_session->current_execution_id, execution_id, sizeof(wash_session->current_execution_id) - 1);
     }
-    if (stage_id != 0) {
-        strncpy(wash_session->progress_stage_id, stage_id, sizeof(wash_session->progress_stage_id) - 1);
+    if (segment_id != 0) {
+        strncpy(wash_session->progress_segment_id, segment_id, sizeof(wash_session->progress_segment_id) - 1);
     }
 }
 

@@ -4,20 +4,19 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "adapters/config/json_program_parser.h"
+#include "adapters/inbound/cli_command_adapter.h"
 #include "adapters/logging/file_event_logger.h"
 #include "adapters/outbound/file_program_repository.h"
-#include "adapters/inbound/cli_command_adapter.h"
 #include "application/coordinators/system_context.h"
 #include "application/use_cases/query_wash_session_status.h"
-#include "domain/model/program_snapshot.h"
 #include "domain/model/wash_trigger_event.h"
-#include "domain/services/program_snapshot_service.h"
-#include "domain/services/wash_execution_service.h"
-#include "domain/services/wash_session_state_machine.h"
 #include "platform/drivers/simulated_brush_driver.h"
 #include "platform/drivers/simulated_chemical_driver.h"
 #include "platform/drivers/simulated_driver_context.h"
+#include "platform/drivers/simulated_dryer_driver.h"
 #include "platform/drivers/simulated_gantry_driver.h"
+#include "platform/drivers/simulated_ro_water_driver.h"
 #include "platform/drivers/simulated_sensor_driver.h"
 #include "platform/linux/main_loop.h"
 #include "shared/error_codes.h"
@@ -38,8 +37,28 @@ static inline void test_setup_system_context(system_context_t *system_context, s
     simulated_gantry_driver_bind(&system_context->actuator_port, driver_context);
     simulated_brush_driver_bind(&system_context->actuator_port, driver_context);
     simulated_chemical_driver_bind(&system_context->actuator_port, driver_context);
+    simulated_ro_water_driver_bind(&system_context->actuator_port, driver_context);
+    simulated_dryer_driver_bind(&system_context->actuator_port, driver_context);
     file_program_repository_init(system_context, "./configs");
     file_event_logger_init(system_context, "./runtime/logs/test_events.log");
+}
+
+static inline operation_result_t test_load_runtime_program_from_fixture(system_context_t *system_context,
+    const char *fixture_path,
+    wash_program_t *wash_program)
+{
+    operation_result_t result;
+    wash_program_t parsed_program;
+
+    result = json_program_parser_parse(fixture_path, &parsed_program);
+    if (!result.ok) {
+        return result;
+    }
+    file_program_repository_set_runtime_program(system_context, &parsed_program, parsed_program.revision);
+    if (wash_program != 0) {
+        *wash_program = parsed_program;
+    }
+    return operation_result_ok();
 }
 
 static inline void test_assign_trigger_identity(system_context_t *system_context, wash_trigger_event_t *wash_trigger_event)
@@ -54,7 +73,6 @@ static inline void test_assign_trigger_identity(system_context_t *system_context
         system_context->current_time_ms,
         system_context->pending_trigger_count);
     strncpy(wash_trigger_event->source, "test-helper", sizeof(wash_trigger_event->source) - 1);
-    wash_trigger_event->source[sizeof(wash_trigger_event->source) - 1] = '\0';
 }
 
 static inline unsigned int has_pending_trigger_count(system_context_t *system_context, const char *trigger_id)
@@ -74,10 +92,6 @@ static inline unsigned int has_pending_trigger_count(system_context_t *system_co
 static inline operation_result_t test_submit_trigger_and_drain(system_context_t *system_context, wash_trigger_event_t *wash_trigger_event)
 {
     operation_result_t result;
-
-    if (system_context == 0 || wash_trigger_event == 0) {
-        return operation_result_fail(ERROR_CODE_INVALID_ARGUMENT);
-    }
 
     if (wash_trigger_event->trigger_id[0] == '\0') {
         test_assign_trigger_identity(system_context, wash_trigger_event);
@@ -112,19 +126,6 @@ static inline operation_result_t test_start_session(system_context_t *system_con
     return test_process_command(system_context, command_line, response_line, sizeof(response_line));
 }
 
-static inline operation_result_t test_submit_feedback(system_context_t *system_context, const char *feedback_code, const char *correlation_key)
-{
-    wash_trigger_event_t wash_trigger_event;
-
-    wash_trigger_event_init(&wash_trigger_event,
-        TRIGGER_TYPE_DEVICE_FEEDBACK,
-        0,
-        feedback_code,
-        correlation_key,
-        system_context->current_time_ms);
-    return test_submit_trigger_and_drain(system_context, &wash_trigger_event);
-}
-
 static inline operation_result_t test_submit_fault_with_reason(system_context_t *system_context,
     const char *fault_code,
     const char *fault_reason)
@@ -140,16 +141,6 @@ static inline operation_result_t test_submit_fault_with_reason(system_context_t 
     return test_submit_trigger_and_drain(system_context, &wash_trigger_event);
 }
 
-static inline operation_result_t test_submit_fault(system_context_t *system_context, const char *fault_code)
-{
-    return test_submit_fault_with_reason(system_context, fault_code, "test-fault");
-}
-
-static inline operation_result_t test_clear_fault(system_context_t *system_context)
-{
-    return test_submit_fault_with_reason(system_context, "clear", 0);
-}
-
 static inline operation_result_t test_submit_stop(system_context_t *system_context, const char *reason_code)
 {
     wash_trigger_event_t wash_trigger_event;
@@ -163,50 +154,10 @@ static inline operation_result_t test_submit_stop(system_context_t *system_conte
     return test_submit_trigger_and_drain(system_context, &wash_trigger_event);
 }
 
-static inline operation_result_t test_fire_timeout(system_context_t *system_context, unsigned long elapsed_ms)
+static inline operation_result_t test_tick(system_context_t *system_context, unsigned long elapsed_ms)
 {
     main_loop_advance_time(system_context, elapsed_ms);
     return main_loop_run(system_context);
-}
-
-static inline wash_session_service_args_t test_build_wash_session_service_args(system_context_t *system_context)
-{
-    wash_session_service_args_t wash_session_service_args;
-
-    memset(&wash_session_service_args, 0, sizeof(wash_session_service_args));
-    wash_session_service_args.wash_session = &system_context->wash_session;
-    wash_session_service_args.program_snapshot = &system_context->program_snapshot;
-    wash_session_service_args.next_session_sequence = &system_context->next_session_sequence;
-    wash_session_service_args.current_time_ms = system_context->current_time_ms;
-    return wash_session_service_args;
-}
-
-static inline program_snapshot_service_args_t test_build_program_snapshot_service_args(system_context_t *system_context)
-{
-    program_snapshot_service_args_t program_snapshot_service_args;
-
-    memset(&program_snapshot_service_args, 0, sizeof(program_snapshot_service_args));
-    program_snapshot_service_args.program_snapshot = &system_context->program_snapshot;
-    program_snapshot_service_args.wash_program = &system_context->wash_program;
-    program_snapshot_service_args.program_repository_port = &system_context->program_repository_port;
-    program_snapshot_service_args.current_time_ms = system_context->current_time_ms;
-    return program_snapshot_service_args;
-}
-
-static inline wash_execution_service_args_t test_build_wash_execution_service_args(system_context_t *system_context)
-{
-    wash_execution_service_args_t wash_execution_service_args;
-
-    memset(&wash_execution_service_args, 0, sizeof(wash_execution_service_args));
-    wash_execution_service_args.wash_execution = &system_context->wash_execution;
-    wash_execution_service_args.wash_session = &system_context->wash_session;
-    wash_execution_service_args.wait_condition = &system_context->wait_condition;
-    wash_execution_service_args.program_snapshot = &system_context->program_snapshot;
-    wash_execution_service_args.actuator_port = &system_context->actuator_port;
-    wash_execution_service_args.next_execution_sequence = &system_context->next_execution_sequence;
-    wash_execution_service_args.next_wait_condition_sequence = &system_context->next_wait_condition_sequence;
-    wash_execution_service_args.current_time_ms = system_context->current_time_ms;
-    return wash_execution_service_args;
 }
 
 static inline const char *test_latest_result_code(const system_context_t *system_context)

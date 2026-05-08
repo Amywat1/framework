@@ -38,6 +38,7 @@ typedef struct system_context_t {
     wash_execution_t wash_execution;
     wait_condition_t wait_condition;
     program_snapshot_t program_snapshot;
+    runtime_snapshot_t runtime_snapshot;
     state_transition_record_t last_transition_record;
     wash_trigger_event_t pending_triggers[MAX_PENDING_TRIGGER_COUNT];
     unsigned int pending_trigger_count;

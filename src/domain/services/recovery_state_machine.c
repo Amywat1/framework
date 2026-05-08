@@ -9,8 +9,7 @@ operation_result_t recovery_state_machine_execute(const actuator_port_t *actuato
         return operation_result_fail(ERROR_CODE_INVALID_ARGUMENT);
     }
     if (actuator_port->stop_all(actuator_port->context, STOP_TIMEOUT_MS) != 0) {
-        return operation_result_fail(ERROR_CODE_TIMEOUT);
+        return operation_result_fail(ERROR_CODE_IO_FAILED);
     }
     return operation_result_ok();
 }
-

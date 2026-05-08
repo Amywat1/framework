@@ -30,16 +30,13 @@ static void enqueue_timeout_if_needed(system_context_t *system_context)
     if (!wait_timeout_service_should_fire(&system_context->wait_condition, system_context->current_time_ms)) {
         return;
     }
-    if (system_context->pending_trigger_count >= MAX_PENDING_TRIGGER_COUNT) {
-        return;
-    }
-    if (has_pending_timeout_trigger(system_context)) {
+    if (system_context->pending_trigger_count >= MAX_PENDING_TRIGGER_COUNT || has_pending_timeout_trigger(system_context)) {
         return;
     }
     wash_trigger_event_init(&wash_trigger_event,
         TRIGGER_TYPE_TIMEOUT,
         0,
-        system_context->wash_session.progress_stage_id,
+        system_context->wait_condition.reason_code,
         "main-loop-timeout",
         system_context->current_time_ms);
     system_context->pending_triggers[system_context->pending_trigger_count++] = wash_trigger_event;
@@ -82,26 +79,31 @@ operation_result_t main_loop_run(system_context_t *system_context)
 {
     int best_index;
     unsigned int index;
+    operation_result_t result;
 
     if (system_context == 0) {
         return operation_result_fail(ERROR_CODE_INVALID_ARGUMENT);
     }
 
     enqueue_timeout_if_needed(system_context);
-    if (system_context->pending_trigger_count == 0) {
-        return operation_result_ok();
-    }
+    if (system_context->pending_trigger_count > 0) {
+        best_index = 0;
+        for (index = 1; index < system_context->pending_trigger_count; ++index) {
+            if (trigger_priority_service_compare(&system_context->pending_triggers[index],
+                &system_context->pending_triggers[best_index]) > 0) {
+                best_index = (int)index;
+            }
+        }
 
-    best_index = 0;
-    for (index = 1; index < system_context->pending_trigger_count; ++index) {
-        if (trigger_priority_service_compare(&system_context->pending_triggers[index], &system_context->pending_triggers[best_index]) > 0) {
-            best_index = (int)index;
+        {
+            wash_trigger_event_t selected_event = system_context->pending_triggers[best_index];
+            remove_pending_trigger_at(system_context, (unsigned int)best_index);
+            result = process_wash_trigger_execute(system_context, &selected_event);
+            if (!result.ok) {
+                return result;
+            }
         }
     }
 
-    {
-        wash_trigger_event_t selected_event = system_context->pending_triggers[best_index];
-        remove_pending_trigger_at(system_context, (unsigned int)best_index);
-        return process_wash_trigger_execute(system_context, &selected_event);
-    }
+    return process_wash_runtime_tick(system_context);
 }

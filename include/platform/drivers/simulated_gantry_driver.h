@@ -7,4 +7,3 @@
 int simulated_gantry_driver_bind(actuator_port_t *actuator_port, simulated_driver_context_t *driver_context);
 
 #endif
-

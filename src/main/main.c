@@ -14,7 +14,9 @@
 #include "platform/drivers/simulated_chemical_driver.h"
 #include "platform/drivers/simulated_driver_context.h"
 #include "platform/drivers/simulated_gantry_driver.h"
+#include "platform/drivers/simulated_ro_water_driver.h"
 #include "platform/drivers/simulated_sensor_driver.h"
+#include "platform/drivers/simulated_dryer_driver.h"
 #include "domain/services/wait_timeout_service.h"
 #include "platform/linux/main_loop.h"
 
@@ -35,6 +37,8 @@ static void initialize_system_context(system_context_t *system_context, simulate
     simulated_gantry_driver_bind(&system_context->actuator_port, driver_context);
     simulated_brush_driver_bind(&system_context->actuator_port, driver_context);
     simulated_chemical_driver_bind(&system_context->actuator_port, driver_context);
+    simulated_ro_water_driver_bind(&system_context->actuator_port, driver_context);
+    simulated_dryer_driver_bind(&system_context->actuator_port, driver_context);
     file_program_repository_init(system_context, "./configs");
     file_event_logger_init(system_context, "./runtime/logs/events.log");
 }
