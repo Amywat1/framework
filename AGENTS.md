@@ -1,3 +1,3 @@
 <!-- SPECKIT START -->
-如需了解技术栈、项目结构、常用命令及其他重要上下文，请先阅读当前计划：`specs/007-controller-boundary-hardening/plan.md`。
+如需了解技术栈、项目结构、常用命令及其他重要上下文，请先阅读当前计划：`specs/008-harden-platform-scheduler/plan.md`。
 <!-- SPECKIT END -->

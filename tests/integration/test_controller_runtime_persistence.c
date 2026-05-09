@@ -13,7 +13,7 @@ int main(void)
         "tests/fixtures/wash_step_control/program_v1_valid.json",
         0);
     TEST_ASSERT(result.ok);
-    result = test_start_session(&system_context, "wash_step_control_v1");
+    result = test_start_session_and_flush(&system_context, "wash_step_control_v1");
     TEST_ASSERT(result.ok);
 
     driver_context.runtime_snapshot.position_snapshot.gantry_absolute_mm = 9500;

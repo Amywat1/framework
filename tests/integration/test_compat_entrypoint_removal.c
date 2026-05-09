@@ -75,7 +75,7 @@ static int verify_formal_path_still_works(void)
         "tests/fixtures/wash_step_control/program_v1_valid.json",
         0);
     TEST_ASSERT(result.ok);
-    result = test_process_command(&system_context,
+    result = test_process_command_and_flush(&system_context,
         "start wash_step_control_v1",
         response_line,
         sizeof(response_line));

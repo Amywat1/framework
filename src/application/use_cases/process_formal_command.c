@@ -272,23 +272,6 @@ static void assign_stdin_trigger_id(system_context_t *system_context, wash_trigg
     wash_trigger_event->source[sizeof(wash_trigger_event->source) - 1] = '\0';
 }
 
-static bool has_pending_trigger_id(const system_context_t *system_context, const char *trigger_id)
-{
-    unsigned int index;
-
-    if (system_context == 0 || trigger_id == 0 || trigger_id[0] == '\0') {
-        return false;
-    }
-
-    for (index = 0; index < system_context->pending_trigger_count; ++index) {
-        if (strcmp(system_context->pending_triggers[index].trigger_id, trigger_id) == 0) {
-            return true;
-        }
-    }
-
-    return false;
-}
-
 static operation_result_t execute_status(system_context_t *system_context, char *response_line, size_t response_line_size)
 {
     char detail[384];
@@ -519,13 +502,6 @@ operation_result_t process_formal_command_execute(system_context_t *system_conte
             "trigger_queue_full");
         return finalize_formal_command_response(system_context, result, response_line, response_line_size);
     }
-
-    while (has_pending_trigger_id(system_context, formal_command_request.wash_trigger_event.trigger_id)) {
-        result = main_loop_run(system_context);
-        if (!result.ok && has_pending_trigger_id(system_context, formal_command_request.wash_trigger_event.trigger_id)) {
-            return result;
-        }
-    }
-
-    return finalize_formal_command_response(system_context, result, response_line, response_line_size);
+    write_result_line(response_line, response_line_size, "accepted", true, "queued");
+    return result;
 }

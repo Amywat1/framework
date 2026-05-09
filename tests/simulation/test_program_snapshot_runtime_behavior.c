@@ -10,13 +10,13 @@ int main(void)
 
     test_setup_system_context(&system_context, &driver_context);
 
-    result = test_start_session(&system_context, "missing_program");
+    result = test_start_session_and_flush(&system_context, "missing_program");
     TEST_ASSERT(!result.ok);
 
-    result = test_start_session(&system_context, "standard_wash");
+    result = test_start_session_and_flush(&system_context, "standard_wash");
     TEST_ASSERT(result.ok);
 
-    result = test_start_session(&system_context, "standard_wash");
+    result = test_start_session_and_flush(&system_context, "standard_wash");
     TEST_ASSERT(!result.ok);
 
     updated_program = system_context.program_snapshot.frozen_program;

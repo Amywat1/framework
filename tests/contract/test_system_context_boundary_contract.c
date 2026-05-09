@@ -16,7 +16,7 @@ static int verify_context_holds_shared_runtime_facts(void)
         "tests/fixtures/wash_step_control/program_v1_valid.json",
         0);
     TEST_ASSERT(result.ok);
-    result = test_start_session(&system_context, "wash_step_control_v1");
+    result = test_start_session_and_flush(&system_context, "wash_step_control_v1");
     TEST_ASSERT(result.ok);
 
     pending_trigger_count_before = system_context.pending_trigger_count;

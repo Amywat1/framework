@@ -13,7 +13,7 @@ static int test_ro_water_close_fallback(void)
         "tests/fixtures/wash_step_control/program_v1_valid.json",
         0);
     TEST_ASSERT(result.ok);
-    result = test_start_session(&system_context, "wash_step_control_v1");
+    result = test_start_session_and_flush(&system_context, "wash_step_control_v1");
     TEST_ASSERT(result.ok);
 
     driver_context.runtime_snapshot.position_snapshot.gantry_absolute_mm = 9500;
@@ -59,7 +59,7 @@ static int test_ro_water_missing_feedback_with_declared_feedback_times_out(void)
         "tests/fixtures/wash_step_control/program_v1_valid.json",
         0);
     TEST_ASSERT(result.ok);
-    result = test_start_session(&system_context, "wash_step_control_v1");
+    result = test_start_session_and_flush(&system_context, "wash_step_control_v1");
     TEST_ASSERT(result.ok);
 
     driver_context.runtime_snapshot.position_snapshot.gantry_absolute_mm = 9500;
@@ -106,7 +106,7 @@ static int test_follow_loss_recovery_failure_returns_error(void)
         "tests/fixtures/wash_step_control/program_v1_valid.json",
         0);
     TEST_ASSERT(result.ok);
-    result = test_start_session(&system_context, "wash_step_control_v1");
+    result = test_start_session_and_flush(&system_context, "wash_step_control_v1");
     TEST_ASSERT(result.ok);
 
     driver_context.runtime_snapshot.actuator_feedback.roof_brush_follow_ok = false;
@@ -130,7 +130,7 @@ static int test_chemical_command_failure_does_not_flip_rule_state(void)
         "tests/fixtures/wash_step_control/program_v1_valid.json",
         0);
     TEST_ASSERT(result.ok);
-    result = test_start_session(&system_context, "wash_step_control_v1");
+    result = test_start_session_and_flush(&system_context, "wash_step_control_v1");
     TEST_ASSERT(result.ok);
 
     result = test_tick(&system_context, 100);
@@ -153,7 +153,7 @@ static int test_exit_command_failure_does_not_half_switch_state(void)
         "tests/fixtures/wash_step_control/program_v1_valid.json",
         0);
     TEST_ASSERT(result.ok);
-    result = test_start_session(&system_context, "wash_step_control_v1");
+    result = test_start_session_and_flush(&system_context, "wash_step_control_v1");
     TEST_ASSERT(result.ok);
 
     result = test_tick(&system_context, 100);

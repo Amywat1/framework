@@ -1,32 +1,22 @@
 #define _POSIX_C_SOURCE 200809L
 
-#include <errno.h>
 #include <stdio.h>
 #include <string.h>
-#include <sys/select.h>
-#include <time.h>
-#include <unistd.h>
 
-#include "adapters/inbound/cli_command_adapter.h"
 #include "adapters/logging/file_event_logger.h"
 #include "adapters/outbound/file_program_repository.h"
 #include "platform/drivers/simulated_brush_driver.h"
 #include "platform/drivers/simulated_chemical_driver.h"
 #include "platform/drivers/simulated_driver_context.h"
+#include "platform/drivers/simulated_dryer_driver.h"
 #include "platform/drivers/simulated_gantry_driver.h"
 #include "platform/drivers/simulated_ro_water_driver.h"
 #include "platform/drivers/simulated_sensor_driver.h"
-#include "platform/drivers/simulated_dryer_driver.h"
-#include "platform/linux/main_loop.h"
+#include "platform/linux/controller_scheduler_linux.h"
 
-static unsigned long monotonic_time_ms(void)
-{
-    struct timespec timespec_now;
-
-    clock_gettime(CLOCK_MONOTONIC, &timespec_now);
-    return (unsigned long)(timespec_now.tv_sec * 1000ul)
-        + (unsigned long)(timespec_now.tv_nsec / 1000000ul);
-}
+#define CONTROLLER_CONTROL_PERIOD_MS 100ul
+#define CONTROLLER_BOUNDED_DRAIN_TICKS 8u
+#define CONTROLLER_MAX_TRIGGERS_PER_TICK 1u
 
 static void initialize_system_context(system_context_t *system_context, simulated_driver_context_t *driver_context)
 {
@@ -49,75 +39,30 @@ static void initialize_system_context(system_context_t *system_context, simulate
     file_event_logger_init(system_context, "./runtime/logs/events.log");
 }
 
-static unsigned long compute_wait_timeout_ms(const system_context_t *system_context)
+static void initialize_scheduler_config(controller_scheduler_config_t *controller_scheduler_config)
 {
-    return system_context_wait_timeout_ms(system_context);
-}
-
-static int wait_for_input_or_timeout(const system_context_t *system_context)
-{
-    fd_set read_fds;
-    struct timeval timeout_value;
-    struct timeval *timeout_ptr = 0;
-    unsigned long wait_timeout_ms;
-
-    FD_ZERO(&read_fds);
-    FD_SET(STDIN_FILENO, &read_fds);
-    wait_timeout_ms = compute_wait_timeout_ms(system_context);
-    if (system_context_wait_condition_active(system_context)) {
-        timeout_value.tv_sec = (long)(wait_timeout_ms / 1000ul);
-        timeout_value.tv_usec = (long)((wait_timeout_ms % 1000ul) * 1000ul);
-        timeout_ptr = &timeout_value;
-    }
-
-    return select(STDIN_FILENO + 1, &read_fds, 0, 0, timeout_ptr);
-}
-
-static int drain_runtime(system_context_t *system_context)
-{
-    operation_result_t result;
-
-    while (system_context_has_pending_runtime_work(system_context)) {
-        result = main_loop_run(system_context);
-        if (!result.ok) {
-            fprintf(stderr, "wash_controller runtime_error=%d reason=%s\n",
-                (int)result.error_code,
-                system_context_last_reason_code(system_context)[0] != '\0'
-                    ? system_context_last_reason_code(system_context)
-                    : "none");
-            return 1;
-        }
-    }
-    return 0;
-}
-
-static int process_stdin_command(system_context_t *system_context, const char *command_line, char *response_line, size_t response_line_size)
-{
-    operation_result_t result;
-
-    result = cli_command_adapter_execute_formal_line(system_context, command_line, response_line, response_line_size);
-    if (!result.ok && response_line[0] == '\0') {
-        fprintf(stderr, "wash_controller command_failed=%d reason=%s\n",
-            (int)result.error_code,
-            system_context_last_reason_code(system_context)[0] != '\0'
-                ? system_context_last_reason_code(system_context)
-                : "none");
-        return 1;
-    }
-    printf("%s\n", response_line);
-    fflush(stdout);
-    return 0;
+    memset(controller_scheduler_config, 0, sizeof(*controller_scheduler_config));
+    controller_scheduler_config->control_period_ms = CONTROLLER_CONTROL_PERIOD_MS;
+    controller_scheduler_config->command_event_source_enabled = true;
+    controller_scheduler_config->notification_event_source_enabled = false;
+    controller_scheduler_config->exit_event_source_enabled = true;
+    controller_scheduler_config->exit_mode = CONTROLLER_SCHEDULER_EXIT_MODE_BOUNDED_DRAIN;
+    controller_scheduler_config->bounded_drain_ticks = CONTROLLER_BOUNDED_DRAIN_TICKS;
+    controller_scheduler_config->max_triggers_per_tick = CONTROLLER_MAX_TRIGGERS_PER_TICK;
+    controller_scheduler_config->overrun_warning_threshold_ms = CONTROLLER_CONTROL_PERIOD_MS;
+    controller_scheduler_config->observability_enabled = true;
 }
 
 int main(void)
 {
-    char command_line[256];
-    char response_line[512];
-    int wait_result;
-    unsigned long previous_tick_ms;
-    unsigned long current_tick_ms;
+    controller_runtime_state_view_t controller_runtime_state_view;
+    controller_scheduler_config_t controller_scheduler_config;
+    controller_scheduler_linux_stdio_t controller_scheduler_linux_stdio;
     simulated_driver_context_t driver_context;
+    controller_scheduler_t *controller_scheduler;
     system_context_t *system_context;
+    operation_result_t result;
+    int exit_code;
 
     system_context = system_context_create();
     if (system_context == 0) {
@@ -126,48 +71,36 @@ int main(void)
     }
 
     initialize_system_context(system_context, &driver_context);
-    previous_tick_ms = monotonic_time_ms();
+    initialize_scheduler_config(&controller_scheduler_config);
+    memset(&controller_scheduler_linux_stdio, 0, sizeof(controller_scheduler_linux_stdio));
+    controller_scheduler_linux_stdio.input = stdin;
+    controller_scheduler_linux_stdio.output = stdout;
+    controller_scheduler_linux_stdio.error = stderr;
 
-    for (;;) {
-        wait_result = wait_for_input_or_timeout(system_context);
-        current_tick_ms = monotonic_time_ms();
-        main_loop_advance_time(system_context, current_tick_ms - previous_tick_ms);
-        previous_tick_ms = current_tick_ms;
-
-        if (wait_result < 0) {
-            if (errno == EINTR) {
-                continue;
-            }
-            fprintf(stderr, "wash_controller select_failed=%d\n", errno);
-            system_context_destroy(system_context);
-            return 1;
-        }
-
-        if (wait_result > 0 && fgets(command_line, sizeof(command_line), stdin) != 0) {
-            if (process_stdin_command(system_context, command_line, response_line, sizeof(response_line)) != 0) {
-                system_context_destroy(system_context);
-                return 1;
-            }
-        } else if (wait_result > 0) {
-            if (feof(stdin)) {
-                if (drain_runtime(system_context) != 0) {
-                    system_context_destroy(system_context);
-                    return 1;
-                }
-                system_context_destroy(system_context);
-                return 0;
-            }
-            if (ferror(stdin)) {
-                fprintf(stderr, "wash_controller stdin_read_failed\n");
-                system_context_destroy(system_context);
-                return 1;
-            }
-            clearerr(stdin);
-        }
-
-        if (drain_runtime(system_context) != 0) {
-            system_context_destroy(system_context);
-            return 1;
-        }
+    controller_scheduler = controller_scheduler_linux_create(system_context,
+        &controller_scheduler_config,
+        &controller_scheduler_linux_stdio);
+    if (controller_scheduler == 0) {
+        fprintf(stderr, "wash_controller scheduler_create_failed\n");
+        system_context_destroy(system_context);
+        return 1;
     }
+
+    result = controller_scheduler_run(controller_scheduler);
+    exit_code = 0;
+    if (!result.ok) {
+        controller_scheduler_read_view(controller_scheduler, &controller_runtime_state_view);
+        fprintf(stderr, "wash_controller scheduler_failed reason=%s domain_reason=%s\n",
+            controller_runtime_state_view.metrics.last_error_reason[0] != '\0'
+                ? controller_runtime_state_view.metrics.last_error_reason
+                : "none",
+            system_context_last_reason_code(system_context)[0] != '\0'
+                ? system_context_last_reason_code(system_context)
+                : "none");
+        exit_code = 1;
+    }
+
+    controller_scheduler_linux_destroy(controller_scheduler);
+    system_context_destroy(system_context);
+    return exit_code;
 }

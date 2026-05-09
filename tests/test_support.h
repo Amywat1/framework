@@ -18,6 +18,7 @@
 #include "platform/drivers/simulated_gantry_driver.h"
 #include "platform/drivers/simulated_ro_water_driver.h"
 #include "platform/drivers/simulated_sensor_driver.h"
+#include "platform/linux/controller_scheduler_linux.h"
 #include "platform/linux/main_loop.h"
 #include "shared/error_codes.h"
 
@@ -112,12 +113,87 @@ static inline operation_result_t test_submit_trigger_and_drain(system_context_t 
     return result;
 }
 
+static inline operation_result_t test_flush_pending_runtime(system_context_t *system_context)
+{
+    operation_result_t result;
+    unsigned int spin_guard;
+
+    result = operation_result_ok();
+    spin_guard = 0u;
+    while (system_context_has_pending_runtime_work(system_context) && spin_guard < 64u) {
+        result = main_loop_run(system_context);
+        if (!result.ok) {
+            return result;
+        }
+        spin_guard += 1u;
+    }
+    if (system_context_has_pending_runtime_work(system_context)) {
+        return operation_result_fail(ERROR_CODE_TIMEOUT);
+    }
+    return result;
+}
+
+static inline void test_rebuild_formal_response_line(system_context_t *system_context,
+    char *response_line,
+    size_t response_line_size)
+{
+    const char *detail;
+    const char *result_code;
+    bool accepted;
+
+    if (system_context == 0 || response_line == 0 || response_line_size == 0u) {
+        return;
+    }
+
+    result_code = system_context_last_result_code(system_context)[0] != '\0'
+        ? system_context_last_result_code(system_context)
+        : "accepted";
+    detail = system_context_last_reason_code(system_context)[0] != '\0'
+        ? system_context_last_reason_code(system_context)
+        : "none";
+    accepted = strcmp(result_code, "ignored") != 0
+        && strcmp(result_code, "rejected") != 0
+        && strcmp(result_code, "error") != 0;
+    snprintf(response_line,
+        response_line_size,
+        "result=%s accepted=%s detail=%s",
+        result_code,
+        accepted ? "true" : "false",
+        detail);
+}
+
 static inline operation_result_t test_process_command(system_context_t *system_context,
     const char *command_line,
     char *response_line,
     size_t response_line_size)
 {
     return cli_command_adapter_execute_formal_line(system_context, command_line, response_line, response_line_size);
+}
+
+static inline operation_result_t test_process_command_and_flush(system_context_t *system_context,
+    const char *command_line,
+    char *response_line,
+    size_t response_line_size)
+{
+    operation_result_t result;
+    unsigned int pending_before;
+
+    pending_before = system_context_pending_trigger_count(system_context);
+    result = test_process_command(system_context, command_line, response_line, response_line_size);
+    if (!result.ok) {
+        return result;
+    }
+    if (system_context_pending_trigger_count(system_context) > pending_before) {
+        result = test_flush_pending_runtime(system_context);
+        if (!result.ok) {
+            if (system_context_pending_trigger_count(system_context) <= pending_before) {
+                test_rebuild_formal_response_line(system_context, response_line, response_line_size);
+            }
+            return result;
+        }
+        test_rebuild_formal_response_line(system_context, response_line, response_line_size);
+    }
+    return result;
 }
 
 static inline operation_result_t test_clear_fault(system_context_t *system_context)
@@ -127,6 +203,13 @@ static inline operation_result_t test_clear_fault(system_context_t *system_conte
     return test_process_command(system_context, "fault clear", response_line, sizeof(response_line));
 }
 
+static inline operation_result_t test_clear_fault_and_flush(system_context_t *system_context)
+{
+    char response_line[512];
+
+    return test_process_command_and_flush(system_context, "fault clear", response_line, sizeof(response_line));
+}
+
 static inline operation_result_t test_start_session(system_context_t *system_context, const char *program_id)
 {
     char command_line[256];
@@ -134,6 +217,15 @@ static inline operation_result_t test_start_session(system_context_t *system_con
 
     snprintf(command_line, sizeof(command_line), "start %s", program_id != 0 ? program_id : "");
     return test_process_command(system_context, command_line, response_line, sizeof(response_line));
+}
+
+static inline operation_result_t test_start_session_and_flush(system_context_t *system_context, const char *program_id)
+{
+    char command_line[256];
+    char response_line[512];
+
+    snprintf(command_line, sizeof(command_line), "start %s", program_id != 0 ? program_id : "");
+    return test_process_command_and_flush(system_context, command_line, response_line, sizeof(response_line));
 }
 
 static inline operation_result_t test_submit_fault_with_reason(system_context_t *system_context,
@@ -168,6 +260,68 @@ static inline operation_result_t test_tick(system_context_t *system_context, uns
 {
     main_loop_advance_time(system_context, elapsed_ms);
     return main_loop_run(system_context);
+}
+
+static inline controller_scheduler_t *test_create_scheduler(system_context_t *system_context,
+    unsigned long control_period_ms)
+{
+    controller_scheduler_config_t controller_scheduler_config;
+    controller_scheduler_linux_stdio_t controller_scheduler_linux_stdio;
+
+    memset(&controller_scheduler_config, 0, sizeof(controller_scheduler_config));
+    controller_scheduler_config.control_period_ms = control_period_ms;
+    controller_scheduler_config.command_event_source_enabled = true;
+    controller_scheduler_config.notification_event_source_enabled = true;
+    controller_scheduler_config.exit_event_source_enabled = true;
+    controller_scheduler_config.exit_mode = CONTROLLER_SCHEDULER_EXIT_MODE_BOUNDED_DRAIN;
+    controller_scheduler_config.bounded_drain_ticks = 4u;
+    controller_scheduler_config.max_triggers_per_tick = 1u;
+    controller_scheduler_config.overrun_warning_threshold_ms = control_period_ms;
+    controller_scheduler_config.observability_enabled = true;
+    memset(&controller_scheduler_linux_stdio, 0, sizeof(controller_scheduler_linux_stdio));
+    return controller_scheduler_linux_create(system_context, &controller_scheduler_config, &controller_scheduler_linux_stdio);
+}
+
+static inline int test_scheduler_tick(controller_scheduler_t *controller_scheduler, unsigned int expiration_count)
+{
+    operation_result_t result;
+
+    result = controller_scheduler_linux_test_inject_period(controller_scheduler, expiration_count);
+    TEST_ASSERT(result.ok);
+    return 0;
+}
+
+static inline int test_scheduler_command(controller_scheduler_t *controller_scheduler,
+    const char *command_line,
+    char *response_line,
+    size_t response_line_size)
+{
+    operation_result_t result;
+
+    result = controller_scheduler_linux_test_inject_command(controller_scheduler,
+        command_line,
+        response_line,
+        response_line_size);
+    TEST_ASSERT(result.ok);
+    return 0;
+}
+
+static inline int test_scheduler_notification(controller_scheduler_t *controller_scheduler, unsigned int notification_count)
+{
+    operation_result_t result;
+
+    result = controller_scheduler_linux_test_inject_notification(controller_scheduler, notification_count);
+    TEST_ASSERT(result.ok);
+    return 0;
+}
+
+static inline int test_scheduler_exit(controller_scheduler_t *controller_scheduler, bool immediate)
+{
+    operation_result_t result;
+
+    result = controller_scheduler_linux_test_inject_exit(controller_scheduler, immediate);
+    TEST_ASSERT(result.ok);
+    return 0;
 }
 
 static inline const char *test_latest_result_code(const system_context_t *system_context)

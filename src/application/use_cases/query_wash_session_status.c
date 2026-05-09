@@ -38,5 +38,8 @@ operation_result_t query_wash_session_status_execute(const system_context_t *sys
     strncpy(wash_session_status_view->global_fault_reason,
         system_context->global_fault_reason,
         sizeof(wash_session_status_view->global_fault_reason) - 1);
+    if (controller_scheduler_read_context_view(system_context, &wash_session_status_view->scheduler_view).ok) {
+        wash_session_status_view->scheduler_view_available = true;
+    }
     return operation_result_ok();
 }

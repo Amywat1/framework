@@ -17,7 +17,7 @@ static int verify_stop_transition_source(void)
     operation_result_t result;
 
     test_setup_system_context(&system_context, &driver_context);
-    result = test_start_session(&system_context, "standard_wash");
+    result = test_start_session_and_flush(&system_context, "standard_wash");
     TEST_ASSERT(result.ok);
     TEST_ASSERT(strcmp(system_context.last_transition_record.current_state, "running") == 0);
 
@@ -37,7 +37,7 @@ static int verify_timeout_transition_source(void)
     operation_result_t result;
 
     test_setup_system_context(&system_context, &driver_context);
-    result = test_start_session(&system_context, "standard_wash");
+    result = test_start_session_and_flush(&system_context, "standard_wash");
     TEST_ASSERT(result.ok);
     system_context.wait_condition.max_retry_count = 0;
     system_context.wait_condition.timeout_policy = WAIT_TIMEOUT_POLICY_FINISH_EXECUTION;
@@ -58,7 +58,7 @@ static int verify_dispatch_failure_transition_source(void)
 
     test_setup_system_context(&system_context, &driver_context);
     system_context.actuator_port.move_gantry = failing_move_gantry;
-    result = test_start_session(&system_context, "standard_wash");
+    result = test_start_session_and_flush(&system_context, "standard_wash");
     TEST_ASSERT(!result.ok);
     TEST_ASSERT(system_context.wash_session.session_state == SESSION_STATE_ABORTED);
     TEST_ASSERT(strcmp(system_context.wash_session.abort_reason, "dispatch_failed") == 0);

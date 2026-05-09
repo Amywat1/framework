@@ -21,7 +21,11 @@ static int verify_formal_command_execute_is_public_entry(void)
         response_line,
         sizeof(response_line));
     TEST_ASSERT(result.ok);
-    TEST_ASSERT(strstr(response_line, "accepted=true") != 0);
+    TEST_ASSERT(strstr(response_line, "detail=queued") != 0);
+    TEST_ASSERT(system_context.pending_trigger_count == 1u);
+    TEST_ASSERT(system_context.wash_session.session_state != SESSION_STATE_RUNNING);
+    result = test_flush_pending_runtime(&system_context);
+    TEST_ASSERT(result.ok);
     TEST_ASSERT(system_context.pending_trigger_count == 0u);
     TEST_ASSERT(system_context.wash_session.session_state == SESSION_STATE_RUNNING);
     TEST_ASSERT(system_context.last_reason_code[0] != '\0');
@@ -46,7 +50,11 @@ static int verify_cli_execute_uses_formal_entry(void)
         response_line,
         sizeof(response_line));
     TEST_ASSERT(result.ok);
-    TEST_ASSERT(strstr(response_line, "accepted=true") != 0);
+    TEST_ASSERT(strstr(response_line, "detail=queued") != 0);
+    TEST_ASSERT(system_context.pending_trigger_count == 1u);
+    TEST_ASSERT(system_context.wash_session.session_state != SESSION_STATE_RUNNING);
+    result = test_flush_pending_runtime(&system_context);
+    TEST_ASSERT(result.ok);
     TEST_ASSERT(system_context.pending_trigger_count == 0u);
     TEST_ASSERT(system_context.wash_session.session_state == SESSION_STATE_RUNNING);
     TEST_ASSERT(system_context.last_reason_code[0] != '\0');

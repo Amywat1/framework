@@ -8,7 +8,7 @@ static int verify_stop_path(void)
     operation_result_t result;
 
     test_setup_system_context(&system_context, &driver_context);
-    result = test_start_session(&system_context, "standard_wash");
+    result = test_start_session_and_flush(&system_context, "standard_wash");
     TEST_ASSERT(result.ok);
     result = test_submit_stop(&system_context, "integration-stop");
     TEST_ASSERT(result.ok);
@@ -23,7 +23,7 @@ static int verify_fault_path(void)
     operation_result_t result;
 
     test_setup_system_context(&system_context, &driver_context);
-    result = test_start_session(&system_context, "standard_wash");
+    result = test_start_session_and_flush(&system_context, "standard_wash");
     TEST_ASSERT(result.ok);
     result = test_submit_fault(&system_context, "fault-e-stop");
     TEST_ASSERT(result.ok);
@@ -38,7 +38,7 @@ static int verify_timeout_path(void)
     operation_result_t result;
 
     test_setup_system_context(&system_context, &driver_context);
-    result = test_start_session(&system_context, "standard_wash");
+    result = test_start_session_and_flush(&system_context, "standard_wash");
     TEST_ASSERT(result.ok);
     system_context.wait_condition.timeout_policy = WAIT_TIMEOUT_POLICY_ABORT_SESSION;
     system_context.wait_condition.max_retry_count = 3;

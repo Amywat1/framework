@@ -12,7 +12,7 @@ static int test_follow_loss_aborts_session(void)
         "tests/fixtures/wash_step_control/program_v1_valid.json",
         0);
     TEST_ASSERT(result.ok);
-    result = test_start_session(&system_context, "wash_step_control_v1");
+    result = test_start_session_and_flush(&system_context, "wash_step_control_v1");
     TEST_ASSERT(result.ok);
 
     driver_context.runtime_snapshot.actuator_feedback.roof_brush_follow_ok = false;
@@ -35,7 +35,7 @@ static int test_exit_timeout_aborts_session(void)
         "tests/fixtures/wash_step_control/program_v1_valid.json",
         0);
     TEST_ASSERT(result.ok);
-    result = test_start_session(&system_context, "wash_step_control_v1");
+    result = test_start_session_and_flush(&system_context, "wash_step_control_v1");
     TEST_ASSERT(result.ok);
 
     driver_context.runtime_snapshot.position_snapshot.gantry_absolute_mm = 9500;
@@ -60,7 +60,7 @@ static int test_runtime_snapshot_read_failure_enters_safe_stop(void)
         "tests/fixtures/wash_step_control/program_v1_valid.json",
         0);
     TEST_ASSERT(result.ok);
-    result = test_start_session(&system_context, "wash_step_control_v1");
+    result = test_start_session_and_flush(&system_context, "wash_step_control_v1");
     TEST_ASSERT(result.ok);
 
     result = test_tick(&system_context, 100);

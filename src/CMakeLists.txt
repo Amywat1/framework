@@ -32,6 +32,7 @@ set(WASH_CORE_SOURCES
     adapters/outbound/file_program_repository.c
     adapters/config/json_program_parser.c
     adapters/logging/file_event_logger.c
+    platform/linux/controller_scheduler_linux.c
     platform/linux/main_loop.c
     platform/drivers/simulated_gantry_driver.c
     platform/drivers/simulated_brush_driver.c
