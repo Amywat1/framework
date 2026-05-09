@@ -1,5 +1,6 @@
 #include "application/use_cases/query_wash_session_status.h"
 #include "tests/test_support.h"
+#include "src/application/coordinators/system_context_private.h"
 
 typedef struct readonly_snapshot_t {
     bool global_fault_present;

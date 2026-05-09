@@ -1,4 +1,5 @@
 #include "tests/test_support.h"
+#include "src/application/coordinators/system_context_private.h"
 
 static int verify_stop_path(void)
 {

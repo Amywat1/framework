@@ -17,9 +17,7 @@
 #include "platform/drivers/simulated_ro_water_driver.h"
 #include "platform/drivers/simulated_sensor_driver.h"
 #include "platform/drivers/simulated_dryer_driver.h"
-#include "domain/services/wait_timeout_service.h"
 #include "platform/linux/main_loop.h"
-#include "src/application/coordinators/system_context_private.h"
 
 static unsigned long monotonic_time_ms(void)
 {
@@ -32,27 +30,28 @@ static unsigned long monotonic_time_ms(void)
 
 static void initialize_system_context(system_context_t *system_context, simulated_driver_context_t *driver_context)
 {
-    memset(system_context, 0, sizeof(*system_context));
+    sensor_port_t sensor_port;
+    actuator_port_t actuator_port;
+
+    system_context_reset(system_context);
     simulated_driver_context_init(driver_context);
-    simulated_sensor_driver_bind(&system_context->sensor_port, driver_context);
-    simulated_gantry_driver_bind(&system_context->actuator_port, driver_context);
-    simulated_brush_driver_bind(&system_context->actuator_port, driver_context);
-    simulated_chemical_driver_bind(&system_context->actuator_port, driver_context);
-    simulated_ro_water_driver_bind(&system_context->actuator_port, driver_context);
-    simulated_dryer_driver_bind(&system_context->actuator_port, driver_context);
+    memset(&sensor_port, 0, sizeof(sensor_port));
+    memset(&actuator_port, 0, sizeof(actuator_port));
+    simulated_sensor_driver_bind(&sensor_port, driver_context);
+    simulated_gantry_driver_bind(&actuator_port, driver_context);
+    simulated_brush_driver_bind(&actuator_port, driver_context);
+    simulated_chemical_driver_bind(&actuator_port, driver_context);
+    simulated_ro_water_driver_bind(&actuator_port, driver_context);
+    simulated_dryer_driver_bind(&actuator_port, driver_context);
+    system_context_set_sensor_port(system_context, &sensor_port);
+    system_context_set_actuator_port(system_context, &actuator_port);
     file_program_repository_init(system_context, "./configs");
     file_event_logger_init(system_context, "./runtime/logs/events.log");
 }
 
 static unsigned long compute_wait_timeout_ms(const system_context_t *system_context)
 {
-    if (system_context->wait_condition.active == false) {
-        return 0;
-    }
-    if (system_context->current_time_ms >= system_context->wait_condition.timeout_at_ms) {
-        return 0;
-    }
-    return system_context->wait_condition.timeout_at_ms - system_context->current_time_ms;
+    return system_context_wait_timeout_ms(system_context);
 }
 
 static int wait_for_input_or_timeout(const system_context_t *system_context)
@@ -65,7 +64,7 @@ static int wait_for_input_or_timeout(const system_context_t *system_context)
     FD_ZERO(&read_fds);
     FD_SET(STDIN_FILENO, &read_fds);
     wait_timeout_ms = compute_wait_timeout_ms(system_context);
-    if (system_context->wait_condition.active) {
+    if (system_context_wait_condition_active(system_context)) {
         timeout_value.tv_sec = (long)(wait_timeout_ms / 1000ul);
         timeout_value.tv_usec = (long)((wait_timeout_ms % 1000ul) * 1000ul);
         timeout_ptr = &timeout_value;
@@ -78,13 +77,14 @@ static int drain_runtime(system_context_t *system_context)
 {
     operation_result_t result;
 
-    while (system_context->pending_trigger_count > 0
-        || wait_timeout_service_should_fire(&system_context->wait_condition, system_context->current_time_ms)) {
+    while (system_context_has_pending_runtime_work(system_context)) {
         result = main_loop_run(system_context);
         if (!result.ok) {
             fprintf(stderr, "wash_controller runtime_error=%d reason=%s\n",
                 (int)result.error_code,
-                system_context->last_reason_code[0] != '\0' ? system_context->last_reason_code : "none");
+                system_context_last_reason_code(system_context)[0] != '\0'
+                    ? system_context_last_reason_code(system_context)
+                    : "none");
             return 1;
         }
     }
@@ -99,7 +99,9 @@ static int process_stdin_command(system_context_t *system_context, const char *c
     if (!result.ok && response_line[0] == '\0') {
         fprintf(stderr, "wash_controller command_failed=%d reason=%s\n",
             (int)result.error_code,
-            system_context->last_reason_code[0] != '\0' ? system_context->last_reason_code : "none");
+            system_context_last_reason_code(system_context)[0] != '\0'
+                ? system_context_last_reason_code(system_context)
+                : "none");
         return 1;
     }
     printf("%s\n", response_line);
@@ -115,15 +117,21 @@ int main(void)
     unsigned long previous_tick_ms;
     unsigned long current_tick_ms;
     simulated_driver_context_t driver_context;
-    system_context_t system_context;
+    system_context_t *system_context;
 
-    initialize_system_context(&system_context, &driver_context);
+    system_context = system_context_create();
+    if (system_context == 0) {
+        fprintf(stderr, "wash_controller context_create_failed\n");
+        return 1;
+    }
+
+    initialize_system_context(system_context, &driver_context);
     previous_tick_ms = monotonic_time_ms();
 
     for (;;) {
-        wait_result = wait_for_input_or_timeout(&system_context);
+        wait_result = wait_for_input_or_timeout(system_context);
         current_tick_ms = monotonic_time_ms();
-        main_loop_advance_time(&system_context, current_tick_ms - previous_tick_ms);
+        main_loop_advance_time(system_context, current_tick_ms - previous_tick_ms);
         previous_tick_ms = current_tick_ms;
 
         if (wait_result < 0) {
@@ -131,28 +139,34 @@ int main(void)
                 continue;
             }
             fprintf(stderr, "wash_controller select_failed=%d\n", errno);
+            system_context_destroy(system_context);
             return 1;
         }
 
         if (wait_result > 0 && fgets(command_line, sizeof(command_line), stdin) != 0) {
-            if (process_stdin_command(&system_context, command_line, response_line, sizeof(response_line)) != 0) {
+            if (process_stdin_command(system_context, command_line, response_line, sizeof(response_line)) != 0) {
+                system_context_destroy(system_context);
                 return 1;
             }
         } else if (wait_result > 0) {
             if (feof(stdin)) {
-                if (drain_runtime(&system_context) != 0) {
+                if (drain_runtime(system_context) != 0) {
+                    system_context_destroy(system_context);
                     return 1;
                 }
+                system_context_destroy(system_context);
                 return 0;
             }
             if (ferror(stdin)) {
                 fprintf(stderr, "wash_controller stdin_read_failed\n");
+                system_context_destroy(system_context);
                 return 1;
             }
             clearerr(stdin);
         }
 
-        if (drain_runtime(&system_context) != 0) {
+        if (drain_runtime(system_context) != 0) {
+            system_context_destroy(system_context);
             return 1;
         }
     }

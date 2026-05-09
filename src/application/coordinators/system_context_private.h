@@ -23,6 +23,7 @@
  * @brief 定义组合根的私有内部状态。
  */
 struct system_context_t {
+    bool owns_storage;
     wash_program_t wash_program;
     vehicle_type_t vehicle_type;
     wash_session_t wash_session;

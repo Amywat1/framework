@@ -3,10 +3,11 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "application/coordinators/system_context.h"
 #include "adapters/config/json_program_parser.h"
 #include "domain/model/program_snapshot.h"
 #include "domain/model/program_validation.h"
-#include "src/application/coordinators/system_context_private.h"
+#include "domain/model/vehicle_type.h"
 
 typedef struct file_repository_context_t {
     char config_root[260];
@@ -88,24 +89,32 @@ static int validate_program_snapshot_impl(void *context, const char *program_id,
 
 void file_program_repository_init(system_context_t *system_context, const char *config_root)
 {
+    program_repository_port_t program_repository_port;
+
     memset(&g_repository_context, 0, sizeof(g_repository_context));
     strncpy(g_repository_context.config_root, config_root, sizeof(g_repository_context.config_root) - 1);
-
-    system_context->program_repository_port.context = &g_repository_context;
-    system_context->program_repository_port.load_program = load_program_impl;
-    system_context->program_repository_port.save_program = save_program_impl;
-    system_context->program_repository_port.load_vehicle_type = load_vehicle_type_impl;
-    system_context->program_repository_port.validate_program_snapshot = validate_program_snapshot_impl;
+    memset(&program_repository_port, 0, sizeof(program_repository_port));
+    program_repository_port.context = &g_repository_context;
+    program_repository_port.load_program = load_program_impl;
+    program_repository_port.save_program = save_program_impl;
+    program_repository_port.load_vehicle_type = load_vehicle_type_impl;
+    program_repository_port.validate_program_snapshot = validate_program_snapshot_impl;
+    system_context_set_program_repository_port(system_context, &program_repository_port);
 }
 
 void file_program_repository_set_runtime_program(system_context_t *system_context, const wash_program_t *wash_program, int revision)
 {
     file_repository_context_t *repository_context;
+    const program_repository_port_t *program_repository_port;
 
     if (system_context == 0 || wash_program == 0) {
         return;
     }
-    repository_context = (file_repository_context_t *)system_context->program_repository_port.context;
+    program_repository_port = system_context_program_repository_port(system_context);
+    if (program_repository_port == 0) {
+        return;
+    }
+    repository_context = (file_repository_context_t *)program_repository_port->context;
     if (repository_context == 0) {
         return;
     }

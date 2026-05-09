@@ -1,4 +1,5 @@
 #include "tests/test_support.h"
+#include "src/application/coordinators/system_context_private.h"
 
 static void complete_roof_segment(simulated_driver_context_t *driver_context)
 {

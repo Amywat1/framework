@@ -1,4 +1,5 @@
 #include "tests/test_support.h"
+#include "src/application/coordinators/system_context_private.h"
 
 #include "domain/services/recovery_state_machine.h"
 
@@ -14,4 +15,3 @@ int main(void)
     TEST_ASSERT(driver_context.stop_count == 1);
     return 0;
 }
-

@@ -1,4 +1,5 @@
 #include "tests/test_support.h"
+#include "src/application/coordinators/system_context_private.h"
 
 static int failing_move_gantry(void *context, gantry_motion_mode_t motion_mode, int traverse_count, int timeout_ms)
 {

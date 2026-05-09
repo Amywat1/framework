@@ -1,5 +1,6 @@
 #include "application/use_cases/query_wash_session_status.h"
 #include "tests/test_support.h"
+#include "src/application/coordinators/system_context_private.h"
 
 static int verify_context_holds_shared_runtime_facts(void)
 {
@@ -31,7 +32,58 @@ static int verify_context_holds_shared_runtime_facts(void)
     return 0;
 }
 
+static int verify_public_lifecycle_preserves_bound_ports(void)
+{
+    system_context_t *system_context;
+    const program_repository_port_t *program_repository_port_ptr;
+    program_repository_port_t program_repository_port_before;
+    program_repository_port_t program_repository_port_after;
+
+    system_context = system_context_create();
+    TEST_ASSERT(system_context != 0);
+
+    file_program_repository_init(system_context, "./configs");
+    file_event_logger_init(system_context, "./runtime/logs/test_events.log");
+    program_repository_port_ptr = system_context_program_repository_port(system_context);
+    TEST_ASSERT(program_repository_port_ptr != 0);
+    program_repository_port_before = *program_repository_port_ptr;
+    TEST_ASSERT(program_repository_port_before.context != 0);
+
+    system_context_reset(system_context);
+    program_repository_port_ptr = system_context_program_repository_port(system_context);
+    TEST_ASSERT(program_repository_port_ptr != 0);
+    program_repository_port_after = *program_repository_port_ptr;
+    TEST_ASSERT(program_repository_port_after.context == program_repository_port_before.context);
+    TEST_ASSERT(system_context_pending_trigger_count(system_context) == 0u);
+    TEST_ASSERT(system_context_current_time_ms(system_context) == 0ul);
+
+    system_context_destroy(system_context);
+    return 0;
+}
+
+static int verify_destroy_on_caller_storage_does_not_release_storage(void)
+{
+    system_context_t system_context;
+
+    system_context_initialize(&system_context);
+    TEST_ASSERT(system_context.owns_storage == false);
+    system_context_destroy(&system_context);
+    TEST_ASSERT(system_context.owns_storage == false);
+    TEST_ASSERT(system_context_pending_trigger_count(&system_context) == 0u);
+    TEST_ASSERT(system_context_current_time_ms(&system_context) == 0ul);
+    return 0;
+}
+
 int main(void)
 {
-    return verify_context_holds_shared_runtime_facts();
+    if (verify_context_holds_shared_runtime_facts() != 0) {
+        return 1;
+    }
+    if (verify_public_lifecycle_preserves_bound_ports() != 0) {
+        return 1;
+    }
+    if (verify_destroy_on_caller_storage_does_not_release_storage() != 0) {
+        return 1;
+    }
+    return 0;
 }

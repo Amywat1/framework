@@ -19,7 +19,6 @@
 #include "platform/drivers/simulated_ro_water_driver.h"
 #include "platform/drivers/simulated_sensor_driver.h"
 #include "platform/linux/main_loop.h"
-#include "src/application/coordinators/system_context_private.h"
 #include "shared/error_codes.h"
 
 #define TEST_ASSERT(expr) \
@@ -32,14 +31,21 @@
 
 static inline void test_setup_system_context(system_context_t *system_context, simulated_driver_context_t *driver_context)
 {
-    memset(system_context, 0, sizeof(*system_context));
+    sensor_port_t sensor_port;
+    actuator_port_t actuator_port;
+
+    system_context_initialize(system_context);
     simulated_driver_context_init(driver_context);
-    simulated_sensor_driver_bind(&system_context->sensor_port, driver_context);
-    simulated_gantry_driver_bind(&system_context->actuator_port, driver_context);
-    simulated_brush_driver_bind(&system_context->actuator_port, driver_context);
-    simulated_chemical_driver_bind(&system_context->actuator_port, driver_context);
-    simulated_ro_water_driver_bind(&system_context->actuator_port, driver_context);
-    simulated_dryer_driver_bind(&system_context->actuator_port, driver_context);
+    memset(&sensor_port, 0, sizeof(sensor_port));
+    memset(&actuator_port, 0, sizeof(actuator_port));
+    simulated_sensor_driver_bind(&sensor_port, driver_context);
+    simulated_gantry_driver_bind(&actuator_port, driver_context);
+    simulated_brush_driver_bind(&actuator_port, driver_context);
+    simulated_chemical_driver_bind(&actuator_port, driver_context);
+    simulated_ro_water_driver_bind(&actuator_port, driver_context);
+    simulated_dryer_driver_bind(&actuator_port, driver_context);
+    system_context_set_sensor_port(system_context, &sensor_port);
+    system_context_set_actuator_port(system_context, &actuator_port);
     file_program_repository_init(system_context, "./configs");
     file_event_logger_init(system_context, "./runtime/logs/test_events.log");
 }
@@ -71,41 +77,19 @@ static inline void test_assign_trigger_identity(system_context_t *system_context
     snprintf(wash_trigger_event->trigger_id,
         sizeof(wash_trigger_event->trigger_id),
         "test-%lu-%u",
-        system_context->current_time_ms,
-        system_context->pending_trigger_count);
+        system_context_current_time_ms(system_context),
+        system_context_pending_trigger_count(system_context));
     strncpy(wash_trigger_event->source, "test-helper", sizeof(wash_trigger_event->source) - 1);
 }
 
 static inline unsigned int has_pending_trigger_count(system_context_t *system_context, const char *trigger_id)
 {
-    unsigned int index;
-    unsigned int count;
-
-    count = 0;
-    for (index = 0; index < system_context->pending_trigger_count; ++index) {
-        if (strcmp(system_context->pending_triggers[index].trigger_id, trigger_id) == 0) {
-            count += 1;
-        }
-    }
-    return count;
+    return system_context_count_pending_triggers_by_id(system_context, trigger_id);
 }
 
 static inline unsigned int test_count_pending_trigger_type(const system_context_t *system_context, trigger_type_t trigger_type)
 {
-    unsigned int count;
-    unsigned int index;
-
-    if (system_context == 0) {
-        return 0;
-    }
-
-    count = 0;
-    for (index = 0; index < system_context->pending_trigger_count; ++index) {
-        if (system_context->pending_triggers[index].trigger_type == trigger_type) {
-            count += 1;
-        }
-    }
-    return count;
+    return system_context_count_pending_triggers_by_type(system_context, trigger_type);
 }
 
 static inline operation_result_t test_submit_trigger_and_drain(system_context_t *system_context, wash_trigger_event_t *wash_trigger_event)
@@ -163,7 +147,7 @@ static inline operation_result_t test_submit_fault_with_reason(system_context_t 
         0,
         fault_code,
         fault_reason != 0 ? fault_reason : "test-fault",
-        system_context->current_time_ms);
+        system_context_current_time_ms(system_context));
     return test_submit_trigger_and_drain(system_context, &wash_trigger_event);
 }
 
@@ -176,7 +160,7 @@ static inline operation_result_t test_submit_stop(system_context_t *system_conte
         0,
         reason_code,
         "stop-command",
-        system_context->current_time_ms);
+        system_context_current_time_ms(system_context));
     return test_submit_trigger_and_drain(system_context, &wash_trigger_event);
 }
 
@@ -188,12 +172,12 @@ static inline operation_result_t test_tick(system_context_t *system_context, uns
 
 static inline const char *test_latest_result_code(const system_context_t *system_context)
 {
-    return system_context->last_result_code[0] != '\0' ? system_context->last_result_code : "none";
+    return system_context_last_result_code(system_context)[0] != '\0' ? system_context_last_result_code(system_context) : "none";
 }
 
 static inline const char *test_latest_reason_code(const system_context_t *system_context)
 {
-    return system_context->last_reason_code[0] != '\0' ? system_context->last_reason_code : "none";
+    return system_context_last_reason_code(system_context)[0] != '\0' ? system_context_last_reason_code(system_context) : "none";
 }
 
 #endif

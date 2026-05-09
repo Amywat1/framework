@@ -1,4 +1,5 @@
 #include "tests/test_support.h"
+#include "src/application/coordinators/system_context_private.h"
 
 #include "domain/services/precheck_service.h"
 
@@ -19,4 +20,3 @@ int main(void)
     TEST_ASSERT(result.error_code == ERROR_CODE_VEHICLE_NOT_ALLOWED);
     return 0;
 }
-

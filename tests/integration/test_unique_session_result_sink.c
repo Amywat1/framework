@@ -1,5 +1,6 @@
 #include "application/use_cases/query_wash_session_status.h"
 #include "tests/test_support.h"
+#include "src/application/coordinators/system_context_private.h"
 
 static int verify_session_end_has_single_final_sink(void)
 {

@@ -1,4 +1,5 @@
 #include "tests/test_support.h"
+#include "src/application/coordinators/system_context_private.h"
 
 #include "application/use_cases/query_wash_session_status.h"
 

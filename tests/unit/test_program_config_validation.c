@@ -1,6 +1,7 @@
 #include "adapters/config/json_program_parser.h"
 #include "domain/model/program_validation.h"
 #include "tests/test_support.h"
+#include "src/application/coordinators/system_context_private.h"
 
 static int test_valid_program_fixture_passes(void)
 {

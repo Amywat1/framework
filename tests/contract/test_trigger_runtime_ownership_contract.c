@@ -3,6 +3,7 @@
 #include "application/use_cases/process_wash_trigger.h"
 #include "platform/linux/main_loop.h"
 #include "tests/test_support.h"
+#include "src/application/coordinators/system_context_private.h"
 
 static int verify_main_loop_owns_queue_and_time(void)
 {

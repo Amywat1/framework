@@ -4,6 +4,7 @@
 #include <string.h>
 
 #include "tests/test_support.h"
+#include "src/application/coordinators/system_context_private.h"
 
 #ifndef WASH_CORE_ARCHIVE_PATH
 #define WASH_CORE_ARCHIVE_PATH ""

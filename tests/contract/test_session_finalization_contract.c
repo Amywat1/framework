@@ -1,5 +1,6 @@
 #include "application/coordinators/runtime_event_recorder.h"
 #include "tests/test_support.h"
+#include "src/application/coordinators/system_context_private.h"
 
 static int verify_final_session_result_is_unique_sink(void)
 {

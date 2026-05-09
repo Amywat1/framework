@@ -3,8 +3,8 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "application/coordinators/system_context.h"
 #include "domain/model/state_transition_record.h"
-#include "src/application/coordinators/system_context_private.h"
 
 typedef struct file_logger_context_t {
     char log_path[260];
@@ -70,12 +70,15 @@ static int log_ignored_impl(void *context, const state_transition_record_t *stat
 
 void file_event_logger_init(system_context_t *system_context, const char *log_path)
 {
+    event_logger_port_t event_logger_port;
+
     memset(&g_logger_context, 0, sizeof(g_logger_context));
     strncpy(g_logger_context.log_path, log_path, sizeof(g_logger_context.log_path) - 1);
-
-    system_context->event_logger_port.context = &g_logger_context;
-    system_context->event_logger_port.log_message = log_message_impl;
-    system_context->event_logger_port.log_transition = log_transition_impl;
-    system_context->event_logger_port.log_rejection = log_rejection_impl;
-    system_context->event_logger_port.log_ignored = log_ignored_impl;
+    memset(&event_logger_port, 0, sizeof(event_logger_port));
+    event_logger_port.context = &g_logger_context;
+    event_logger_port.log_message = log_message_impl;
+    event_logger_port.log_transition = log_transition_impl;
+    event_logger_port.log_rejection = log_rejection_impl;
+    event_logger_port.log_ignored = log_ignored_impl;
+    system_context_set_event_logger_port(system_context, &event_logger_port);
 }

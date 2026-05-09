@@ -1,4 +1,5 @@
 #include "tests/test_support.h"
+#include "src/application/coordinators/system_context_private.h"
 
 typedef struct status_side_effect_snapshot_t {
     bool global_fault_present;

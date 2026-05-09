@@ -1,6 +1,7 @@
 #include "adapters/inbound/cli_command_adapter.h"
 #include "application/use_cases/process_formal_command.h"
 #include "tests/test_support.h"
+#include "src/application/coordinators/system_context_private.h"
 
 static int verify_formal_command_execute_is_public_entry(void)
 {
