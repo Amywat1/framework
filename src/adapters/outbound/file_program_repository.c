@@ -6,6 +6,7 @@
 #include "adapters/config/json_program_parser.h"
 #include "domain/model/program_snapshot.h"
 #include "domain/model/program_validation.h"
+#include "src/application/coordinators/system_context_private.h"
 
 typedef struct file_repository_context_t {
     char config_root[260];

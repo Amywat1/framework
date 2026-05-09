@@ -3,6 +3,7 @@
 #include <string.h>
 
 #include "domain/model/state_transition_record.h"
+#include "src/application/coordinators/system_context_private.h"
 
 static const char *safe_runtime_field(const char *value)
 {

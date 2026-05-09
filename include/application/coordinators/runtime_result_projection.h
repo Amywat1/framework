@@ -22,6 +22,8 @@ typedef enum runtime_event_log_kind_t {
 
 /**
  * @brief 描述一次领域结论在最近结果、迁移记录和日志中的统一投影。
+ *
+ * @note 该结构只承载最近一次对外投影，不承担会话终态存储职责。
  */
 typedef struct runtime_result_projection_t {
     bool updates_latest_result;

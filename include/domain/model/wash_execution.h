@@ -45,6 +45,13 @@ typedef struct wash_execution_t {
     char reason_code[64];
 } wash_execution_t;
 
+/**
+ * @brief 重置当前执行对象。
+ *
+ * @param wash_execution 执行对象，不能为空。
+ *
+ * @note 本对象只解释当前工步执行态，不解释整个会话的最终结论。
+ */
 void wash_execution_reset(wash_execution_t *wash_execution);
 void wash_execution_start_segment(wash_execution_t *wash_execution,
     const char *session_id,

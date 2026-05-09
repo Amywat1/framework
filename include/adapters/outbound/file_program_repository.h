@@ -2,6 +2,7 @@
 #define ADAPTERS_OUTBOUND_FILE_PROGRAM_REPOSITORY_H
 
 #include "application/coordinators/system_context.h"
+#include "domain/model/wash_program.h"
 
 /**
  * @file file_program_repository.h

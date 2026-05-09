@@ -19,6 +19,7 @@
 #include "platform/drivers/simulated_dryer_driver.h"
 #include "domain/services/wait_timeout_service.h"
 #include "platform/linux/main_loop.h"
+#include "src/application/coordinators/system_context_private.h"
 
 static unsigned long monotonic_time_ms(void)
 {

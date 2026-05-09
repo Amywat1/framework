@@ -50,6 +50,7 @@ typedef struct wash_session_status_view_t {
  * @note 本接口是只读操作，不得推进业务状态。
  * @note 本接口不得刷新 `last_result_code`、`last_reason_code` 或 `global_fault_*`。
  */
-operation_result_t query_wash_session_status_execute(system_context_t *system_context, wash_session_status_view_t *wash_session_status_view);
+operation_result_t query_wash_session_status_execute(const system_context_t *system_context,
+    wash_session_status_view_t *wash_session_status_view);
 
 #endif

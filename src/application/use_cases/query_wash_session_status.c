@@ -2,9 +2,11 @@
 
 #include <string.h>
 
+#include "src/application/coordinators/system_context_private.h"
 #include "shared/error_codes.h"
 
-operation_result_t query_wash_session_status_execute(system_context_t *system_context, wash_session_status_view_t *wash_session_status_view)
+operation_result_t query_wash_session_status_execute(const system_context_t *system_context,
+    wash_session_status_view_t *wash_session_status_view)
 {
     if (system_context == 0 || wash_session_status_view == 0) {
         return operation_result_fail(ERROR_CODE_INVALID_ARGUMENT);

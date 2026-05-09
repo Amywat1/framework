@@ -7,6 +7,7 @@
 #include "domain/services/wait_timeout_service.h"
 #include "domain/services/wash_execution_service.h"
 #include "domain/services/wash_session_state_machine.h"
+#include "src/application/coordinators/system_context_private.h"
 #include "shared/error_codes.h"
 
 static wash_session_service_args_t build_session_service_args(system_context_t *system_context)

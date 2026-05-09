@@ -8,11 +8,11 @@
 
 /**
  * @file program_snapshot_service.h
- * @brief 瀹氫箟鍚姩鍓嶇▼搴忓揩鐓ф牎楠屾湇鍔°€?
+ * @brief 定义启动前程序快照校验服务。
  */
 
 /**
- * @brief 鎻忚堪绋嬪簭蹇収鏍￠獙鏈嶅姟鎵€闇€鐨勬渶灏忚緭鍏ラ泦鍚堛€?
+ * @brief 描述程序快照服务所需的最小输入集合。
  */
 typedef struct program_snapshot_service_args_t {
     program_snapshot_t *program_snapshot;
@@ -22,11 +22,13 @@ typedef struct program_snapshot_service_args_t {
 } program_snapshot_service_args_t;
 
 /**
- * @brief 鎶撳彇骞舵牎楠屽惎鍔ㄦ墍闇€鐨勭▼搴忓揩鐓с€?
+ * @brief 抓取并校验启动所需的程序快照。
  *
- * @param program_snapshot_service_args 绋嬪簭蹇収鏈嶅姟杈撳叆锛屼笉鑳戒负绌恒€?
- * @param program_id 鐩爣绋嬪簭鏍囪瘑锛屼笉鑳戒负绌恒€?
- * @return 鎴愬姛杩斿洖 `operation_result_ok()`锛涘弬鏁伴潪娉曘€佺▼搴忎笉鍙敤鎴栧揩鐓т笉鍚堟硶鏃惰繑鍥炲け璐ョ粨鏋溿€?
+ * @param program_snapshot_service_args 程序快照服务输入，不能为空。
+ * @param program_id 目标程序标识，不能为空。
+ * @return 成功返回 `operation_result_ok()`；参数非法、程序不可用或快照不合法时返回失败结果。
+ *
+ * @note 本切片不得扩展为依赖整个 `system_context_t`。
  */
 operation_result_t program_snapshot_service_capture(program_snapshot_service_args_t *program_snapshot_service_args,
     const char *program_id);

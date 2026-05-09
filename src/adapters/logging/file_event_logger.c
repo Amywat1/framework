@@ -4,6 +4,7 @@
 #include <string.h>
 
 #include "domain/model/state_transition_record.h"
+#include "src/application/coordinators/system_context_private.h"
 
 typedef struct file_logger_context_t {
     char log_path[260];

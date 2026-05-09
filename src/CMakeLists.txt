@@ -22,15 +22,11 @@ set(WASH_CORE_SOURCES
     domain/services/wait_timeout_service.c
     domain/services/wash_execution_service.c
     domain/services/wash_session_state_machine.c
-    application/coordinators/compatibility_trigger_runner.c
     application/coordinators/runtime_event_recorder.c
     application/coordinators/runtime_result_projection.c
     application/use_cases/process_formal_command.c
     application/use_cases/process_wash_trigger.c
     application/use_cases/query_wash_session_status.c
-    application/use_cases/start_wash_cycle.c
-    application/use_cases/stop_wash_cycle.c
-    application/use_cases/acknowledge_fault.c
     adapters/inbound/cli_command_adapter.c
     adapters/outbound/file_program_repository.c
     adapters/config/json_program_parser.c
@@ -45,7 +41,10 @@ set(WASH_CORE_SOURCES
 )
 
 add_library(wash_core STATIC ${WASH_CORE_SOURCES})
-target_include_directories(wash_core PUBLIC ${PROJECT_SOURCE_DIR}/include)
+target_include_directories(wash_core
+    PUBLIC ${PROJECT_SOURCE_DIR}/include
+    PRIVATE ${PROJECT_SOURCE_DIR})
 
 add_executable(wash_controller main/main.c)
+target_include_directories(wash_controller PRIVATE ${PROJECT_SOURCE_DIR})
 target_link_libraries(wash_controller PRIVATE wash_core)

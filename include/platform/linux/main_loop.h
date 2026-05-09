@@ -26,6 +26,8 @@ operation_result_t main_loop_run(system_context_t *system_context);
  * @param system_context 主控共享上下文，不能为空。
  * @param wash_trigger_event 待提交的触发事件，不能为空。
  * @return 提交成功返回 `operation_result_ok()`；队列满或参数非法时返回失败结果。
+ *
+ * @note 这是外部路径提交触发的唯一正式入口；适配层和领域服务不得直接改写队列字段。
  */
 operation_result_t main_loop_submit_trigger(system_context_t *system_context, const wash_trigger_event_t *wash_trigger_event);
 
@@ -34,6 +36,8 @@ operation_result_t main_loop_submit_trigger(system_context_t *system_context, co
  *
  * @param system_context 主控共享上下文，不能为空。
  * @param elapsed_ms 需要推进的毫秒数。
+ *
+ * @note 当前时间属于主循环运行事实，只允许通过本接口推进。
  */
 void main_loop_advance_time(system_context_t *system_context, unsigned long elapsed_ms);
 

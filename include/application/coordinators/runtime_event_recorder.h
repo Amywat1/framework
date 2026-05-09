@@ -16,6 +16,8 @@
  * @param system_context 主控共享上下文，不能为空。
  * @param result_code 最近结果码；传入 `0` 时保持现有值。
  * @param reason_code 最近原因码；传入 `0` 时保持现有值。
+ *
+ * @note 本接口只维护最近一次对外投影，不解释会话最终结论。
  */
 void runtime_event_recorder_set_latest_result(system_context_t *system_context,
     const char *result_code,
@@ -26,6 +28,8 @@ void runtime_event_recorder_set_latest_result(system_context_t *system_context,
  *
  * @param system_context 主控共享上下文，不能为空。
  * @param runtime_result_projection 统一运行时结果投影，不能为空。
+ *
+ * @note 本接口是最近结果与迁移记录的唯一正式落点，不负责修改会话最终结果。
  */
 void runtime_event_recorder_apply_projection(system_context_t *system_context,
     const runtime_result_projection_t *runtime_result_projection);

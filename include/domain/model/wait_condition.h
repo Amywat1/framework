@@ -19,6 +19,13 @@ typedef struct wait_condition_t {
     bool active;
 } wait_condition_t;
 
+/**
+ * @brief 重置等待条件对象。
+ *
+ * @param wait_condition 等待对象，不能为空。
+ *
+ * @note 等待对象只描述超时事实，不负责直接改写执行或会话终态。
+ */
 void wait_condition_reset(wait_condition_t *wait_condition);
 void wait_condition_arm(wait_condition_t *wait_condition,
     const char *execution_id,

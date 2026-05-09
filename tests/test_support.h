@@ -19,6 +19,7 @@
 #include "platform/drivers/simulated_ro_water_driver.h"
 #include "platform/drivers/simulated_sensor_driver.h"
 #include "platform/linux/main_loop.h"
+#include "src/application/coordinators/system_context_private.h"
 #include "shared/error_codes.h"
 
 #define TEST_ASSERT(expr) \
@@ -89,6 +90,24 @@ static inline unsigned int has_pending_trigger_count(system_context_t *system_co
     return count;
 }
 
+static inline unsigned int test_count_pending_trigger_type(const system_context_t *system_context, trigger_type_t trigger_type)
+{
+    unsigned int count;
+    unsigned int index;
+
+    if (system_context == 0) {
+        return 0;
+    }
+
+    count = 0;
+    for (index = 0; index < system_context->pending_trigger_count; ++index) {
+        if (system_context->pending_triggers[index].trigger_type == trigger_type) {
+            count += 1;
+        }
+    }
+    return count;
+}
+
 static inline operation_result_t test_submit_trigger_and_drain(system_context_t *system_context, wash_trigger_event_t *wash_trigger_event)
 {
     operation_result_t result;
@@ -115,6 +134,13 @@ static inline operation_result_t test_process_command(system_context_t *system_c
     size_t response_line_size)
 {
     return cli_command_adapter_execute_formal_line(system_context, command_line, response_line, response_line_size);
+}
+
+static inline operation_result_t test_clear_fault(system_context_t *system_context)
+{
+    char response_line[512];
+
+    return test_process_command(system_context, "fault clear", response_line, sizeof(response_line));
 }
 
 static inline operation_result_t test_start_session(system_context_t *system_context, const char *program_id)

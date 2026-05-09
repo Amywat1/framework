@@ -19,6 +19,13 @@ typedef struct program_snapshot_t {
     wash_program_v1_t frozen_program;
 } program_snapshot_t;
 
+/**
+ * @brief 重置程序快照对象。
+ *
+ * @param program_snapshot 快照对象，不能为空。
+ *
+ * @note 快照对象只负责冻结程序配置，不负责写入最近结果或故障状态。
+ */
 void program_snapshot_reset(program_snapshot_t *program_snapshot);
 void program_snapshot_capture(program_snapshot_t *program_snapshot,
     const char *program_id,

@@ -3,6 +3,7 @@
 #include "application/use_cases/process_wash_trigger.h"
 #include "domain/services/trigger_priority_service.h"
 #include "domain/services/wait_timeout_service.h"
+#include "src/application/coordinators/system_context_private.h"
 #include "shared/timeouts.h"
 
 static bool has_pending_timeout_trigger(const system_context_t *system_context)

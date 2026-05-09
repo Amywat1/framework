@@ -37,6 +37,12 @@ typedef struct wash_execution_service_args_t {
     unsigned long current_time_ms;
 } wash_execution_service_args_t;
 
+/**
+ * @brief 工步执行服务的最小依赖切片。
+ *
+ * @note 本切片只包含执行服务完成职责所需的对象、端口和序列号。
+ */
+
 operation_result_t wash_execution_service_begin_next_segment(wash_execution_service_args_t *wash_execution_service_args,
     wash_execution_fact_t *wash_execution_fact);
 operation_result_t wash_execution_service_tick(wash_execution_service_args_t *wash_execution_service_args,

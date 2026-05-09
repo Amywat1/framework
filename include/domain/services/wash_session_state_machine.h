@@ -27,6 +27,12 @@ typedef struct wash_session_service_args_t {
     unsigned long current_time_ms;
 } wash_session_service_args_t;
 
+/**
+ * @brief 会话状态机的最小依赖切片。
+ *
+ * @note 本切片不得携带 `system_context_t`、全局故障、最近结果或触发队列等无关共享状态。
+ */
+
 operation_result_t wash_session_state_machine_start(wash_session_service_args_t *wash_session_service_args,
     const char *program_id,
     wash_session_transition_fact_t *wash_session_transition_fact);

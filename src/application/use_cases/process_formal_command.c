@@ -8,7 +8,14 @@
 #include "application/coordinators/runtime_result_projection.h"
 #include "application/use_cases/query_wash_session_status.h"
 #include "platform/linux/main_loop.h"
+#include "src/application/coordinators/system_context_private.h"
 #include "shared/error_codes.h"
+
+typedef struct formal_command_request_t {
+    bool has_trigger;
+    bool requires_queue;
+    wash_trigger_event_t wash_trigger_event;
+} formal_command_request_t;
 
 static const char *error_code_to_string(error_code_t error_code)
 {
@@ -317,7 +324,7 @@ static operation_result_t execute_status(system_context_t *system_context, char 
     return operation_result_ok();
 }
 
-operation_result_t process_formal_command_prepare_line(system_context_t *system_context,
+static operation_result_t prepare_formal_command_request(system_context_t *system_context,
     const char *command_line,
     formal_command_request_t *formal_command_request,
     char *response_line,
@@ -453,7 +460,7 @@ operation_result_t process_formal_command_prepare_line(system_context_t *system_
     return operation_result_fail(ERROR_CODE_UNSUPPORTED);
 }
 
-operation_result_t process_formal_command_finalize_response(system_context_t *system_context,
+static operation_result_t finalize_formal_command_response(system_context_t *system_context,
     operation_result_t result,
     char *response_line,
     size_t response_line_size)
@@ -496,7 +503,7 @@ operation_result_t process_formal_command_execute(system_context_t *system_conte
     formal_command_request_t formal_command_request;
     operation_result_t result;
 
-    result = process_formal_command_prepare_line(system_context,
+    result = prepare_formal_command_request(system_context,
         command_line,
         &formal_command_request,
         response_line,
@@ -510,7 +517,7 @@ operation_result_t process_formal_command_execute(system_context_t *system_conte
         remember_submit_rejection(system_context,
             formal_command_request.wash_trigger_event.trigger_type,
             "trigger_queue_full");
-        return process_formal_command_finalize_response(system_context, result, response_line, response_line_size);
+        return finalize_formal_command_response(system_context, result, response_line, response_line_size);
     }
 
     while (has_pending_trigger_id(system_context, formal_command_request.wash_trigger_event.trigger_id)) {
@@ -520,5 +527,5 @@ operation_result_t process_formal_command_execute(system_context_t *system_conte
         }
     }
 
-    return process_formal_command_finalize_response(system_context, result, response_line, response_line_size);
+    return finalize_formal_command_response(system_context, result, response_line, response_line_size);
 }
