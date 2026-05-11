@@ -34,8 +34,8 @@ int main(void)
     TEST_ASSERT(result.ok);
     TEST_ASSERT(strcmp(snapshot_id, system_context_private_runtime(system_context)->program_snapshot.program_snapshot_id) == 0);
 
-    result = system_context_release(system_context);
-    TEST_ASSERT(result.ok);
+    test_release_system_context(invalid_context);
+    test_release_system_context(system_context);
     result = test_start_session_and_flush(system_context, "standard_wash");
     TEST_ASSERT(!result.ok);
     TEST_ASSERT(result.error_code == ERROR_CODE_INVALID_STATE);

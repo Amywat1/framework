@@ -34,7 +34,7 @@ int main(void)
     TEST_ASSERT(strstr(response_line, "accepted=true") != 0);
     TEST_ASSERT(system_context_private_runtime(system_context)->wash_session.session_state == SESSION_STATE_RUNNING);
 
-    controller_scheduler_linux_destroy(controller_scheduler);
+    test_release_system_context(system_context);
     test_setup_system_context(&system_context, &driver_context);
     controller_scheduler = test_create_scheduler(system_context, 100ul);
     TEST_ASSERT(controller_scheduler != 0);
@@ -45,10 +45,8 @@ int main(void)
     TEST_ASSERT(controller_runtime_state_view.runtime_state == CONTROLLER_SCHEDULER_RUNTIME_STATE_STOPPED);
     TEST_ASSERT(controller_runtime_state_view.exit_source_state == CONTROLLER_SCHEDULER_EVENT_SOURCE_DEGRADED);
 
-    controller_scheduler_linux_destroy(controller_scheduler);
     released_handle = system_context;
-    result = system_context_release(system_context);
-    TEST_ASSERT(result.ok);
+    test_release_system_context(system_context);
     result = controller_scheduler_read_context_view(released_handle, &controller_runtime_state_view);
     TEST_ASSERT(!result.ok);
     TEST_ASSERT(result.error_code == ERROR_CODE_INVALID_STATE);

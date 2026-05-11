@@ -3,6 +3,7 @@
 
 #include "application/coordinators/system_context.h"
 #include "domain/model/wash_program.h"
+#include "shared/result_types.h"
 
 /**
  * @file file_program_repository.h
@@ -14,7 +15,7 @@
  * @param system_context 主控共享上下文，不能为空。
  * @param config_root 程序配置根目录，不能为空。
  */
-void file_program_repository_init(system_context_t system_context, const char *config_root);
+operation_result_t file_program_repository_init(system_context_t system_context, const char *config_root);
 
 /**
  * @brief 向运行时仓储注入测试或调试用的内存程序。

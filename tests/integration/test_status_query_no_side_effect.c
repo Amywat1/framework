@@ -73,8 +73,7 @@ static int verify_status_command_has_no_side_effect(void)
     TEST_ASSERT(after_snapshot.last_result_code[0] == '\0');
     TEST_ASSERT(after_snapshot.last_reason_code[0] == '\0');
 
-    result = system_context_release(system_context);
-    TEST_ASSERT(result.ok);
+    test_release_system_context(system_context);
     result = query_wash_session_status_execute(system_context, &(wash_session_status_view_t){0});
     TEST_ASSERT(!result.ok);
     TEST_ASSERT(result.error_code == ERROR_CODE_INVALID_STATE);

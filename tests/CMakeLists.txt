@@ -1,7 +1,7 @@
 enable_testing()
 
 function(add_wash_test name source)
-    add_executable(${name} ${source})
+    add_executable(${name} ${source} test_runtime_friend.c)
     target_link_libraries(${name} PRIVATE wash_core)
     target_include_directories(${name} PRIVATE ${PROJECT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/include ${PROJECT_SOURCE_DIR}/tests)
     add_test(NAME ${name} COMMAND ${name})
@@ -25,6 +25,8 @@ add_wash_test(test_contract_trigger_runtime_ownership contract/test_trigger_runt
 add_wash_test(test_contract_session_finalization contract/test_session_finalization_contract.c)
 add_wash_test(test_contract_status_query_readonly contract/test_status_query_readonly_contract.c)
 add_wash_test(test_contract_controller_scheduler contract/test_controller_scheduler_contract.c)
+add_wash_test(test_contract_controller_runtime_lifecycle contract/test_controller_runtime_lifecycle_contract.c)
+add_wash_test(test_contract_controller_runtime_startup_rollback contract/test_controller_runtime_startup_rollback_contract.c)
 add_wash_test(test_contract_main_loop_boundary contract/test_main_loop_boundary_contract.c)
 add_wash_test(test_contract_event_source_dispatch contract/test_event_source_dispatch_contract.c)
 add_wash_test(test_contract_scheduler_exit contract/test_scheduler_exit_contract.c)
@@ -33,6 +35,8 @@ add_wash_test(test_contract_scheduler_observability contract/test_scheduler_obse
 # Integration
 add_wash_test(test_integration_segment_runtime integration/test_segment_runtime_orchestration.c)
 add_wash_test(test_integration_controller_runtime integration/test_controller_runtime_persistence.c)
+add_wash_test(test_integration_controller_runtime_startup_failures integration/test_controller_runtime_startup_failures.c)
+add_wash_test(test_integration_controller_runtime_single_instance integration/test_controller_runtime_single_instance.c)
 add_wash_test(test_integration_segment_exception_paths integration/test_segment_exception_paths.c)
 add_wash_test(test_integration_session_status_observability integration/test_session_status_observability.c)
 add_wash_test(test_integration_formal_entry_ownership integration/test_formal_entry_ownership.c)

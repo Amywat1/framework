@@ -37,9 +37,7 @@ int main(void)
     TEST_ASSERT(!result.ok);
     TEST_ASSERT(result.error_code == ERROR_CODE_INVALID_STATE);
 
-    controller_scheduler_linux_destroy(controller_scheduler);
-    result = system_context_release(system_context);
-    TEST_ASSERT(result.ok);
+    test_release_system_context(system_context);
     return 0;
 }
 

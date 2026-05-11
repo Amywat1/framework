@@ -99,8 +99,7 @@ static int verify_released_handle_is_rejected_by_runtime_paths(void)
 
     test_setup_system_context(&system_context, &driver_context);
     released_handle = system_context;
-    result = system_context_release(system_context);
-    TEST_ASSERT(result.ok);
+    test_release_system_context(system_context);
 
     wash_trigger_event_init(&wash_trigger_event, TRIGGER_TYPE_STOP, 0, "released", "released", 0ul);
     result = main_loop_submit_trigger(system_context, &wash_trigger_event);
@@ -166,6 +165,8 @@ static int verify_released_handle_is_rejected_by_runtime_paths(void)
 
 static int verify_bound_scheduler_blocks_release_and_rebind(void)
 {
+    controller_scheduler_config_t controller_scheduler_config;
+    controller_scheduler_linux_stdio_t controller_scheduler_linux_stdio;
     system_context_t system_context;
     simulated_driver_context_t driver_context;
     controller_scheduler_t *controller_scheduler;
@@ -180,12 +181,14 @@ static int verify_bound_scheduler_blocks_release_and_rebind(void)
     TEST_ASSERT(!result.ok);
     TEST_ASSERT(result.error_code == ERROR_CODE_INVALID_STATE);
 
-    duplicate_scheduler = test_create_scheduler(system_context, 100ul);
+    test_init_scheduler_config(&controller_scheduler_config, 100ul);
+    memset(&controller_scheduler_linux_stdio, 0, sizeof(controller_scheduler_linux_stdio));
+    duplicate_scheduler = controller_scheduler_linux_create(system_context,
+        &controller_scheduler_config,
+        &controller_scheduler_linux_stdio);
     TEST_ASSERT(duplicate_scheduler == 0);
 
-    controller_scheduler_linux_destroy(controller_scheduler);
-    result = system_context_release(system_context);
-    TEST_ASSERT(result.ok);
+    test_release_system_context(system_context);
     return 0;
 }
 
@@ -220,6 +223,10 @@ static int verify_multi_instance_file_adapters_are_isolated(void)
     const system_context_runtime_t *second_runtime;
     simulated_driver_context_t first_driver_context;
     simulated_driver_context_t second_driver_context;
+    sensor_port_t first_sensor_port;
+    sensor_port_t second_sensor_port;
+    actuator_port_t first_actuator_port;
+    actuator_port_t second_actuator_port;
     system_context_t first_system_context;
     system_context_t second_system_context;
     wash_program_t first_loaded_program;
@@ -230,13 +237,26 @@ static int verify_multi_instance_file_adapters_are_isolated(void)
 
     remove(first_log_path);
     remove(second_log_path);
-    test_setup_system_context(&first_system_context, &first_driver_context);
-    test_setup_system_context(&second_system_context, &second_driver_context);
+    result = system_context_acquire(&first_system_context);
+    TEST_ASSERT(result.ok);
+    result = system_context_acquire(&second_system_context);
+    TEST_ASSERT(result.ok);
 
-    file_program_repository_init(first_system_context, "./configs");
-    file_program_repository_init(second_system_context, "./configs");
-    file_event_logger_init(first_system_context, first_log_path);
-    file_event_logger_init(second_system_context, second_log_path);
+    test_bind_simulated_ports(&first_driver_context, &first_sensor_port, &first_actuator_port);
+    test_bind_simulated_ports(&second_driver_context, &second_sensor_port, &second_actuator_port);
+    system_context_set_sensor_port(first_system_context, &first_sensor_port);
+    system_context_set_actuator_port(first_system_context, &first_actuator_port);
+    system_context_set_sensor_port(second_system_context, &second_sensor_port);
+    system_context_set_actuator_port(second_system_context, &second_actuator_port);
+
+    result = file_program_repository_init(first_system_context, "./configs");
+    TEST_ASSERT(result.ok);
+    result = file_program_repository_init(second_system_context, "./configs");
+    TEST_ASSERT(result.ok);
+    result = file_event_logger_init(first_system_context, first_log_path);
+    TEST_ASSERT(result.ok);
+    result = file_event_logger_init(second_system_context, second_log_path);
+    TEST_ASSERT(result.ok);
 
     result = json_program_parser_parse("tests/fixtures/wash_step_control/program_v1_valid.json", &first_runtime_program);
     TEST_ASSERT(result.ok);
@@ -290,8 +310,10 @@ static int verify_multi_instance_file_adapters_are_isolated(void)
     TEST_ASSERT(strstr(second_log_buffer, "ctx-b") != 0);
     TEST_ASSERT(strstr(second_log_buffer, "ctx-a") == 0);
 
-    test_release_system_context(first_system_context);
-    test_release_system_context(second_system_context);
+    result = system_context_release(first_system_context);
+    TEST_ASSERT(result.ok);
+    result = system_context_release(second_system_context);
+    TEST_ASSERT(result.ok);
     return 0;
 }
 

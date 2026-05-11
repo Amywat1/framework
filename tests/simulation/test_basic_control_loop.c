@@ -48,8 +48,7 @@ int main(void)
     TEST_ASSERT(system_context_private_runtime(system_context)->wash_execution.lifecycle_state == SEGMENT_LIFECYCLE_RUNNING);
     TEST_ASSERT(driver_context.motion_command_count == 1);
 
-    result = system_context_release(system_context);
-    TEST_ASSERT(result.ok);
+    test_release_system_context(system_context);
     result = test_tick(system_context, 100);
     TEST_ASSERT(!result.ok);
     TEST_ASSERT(result.error_code == ERROR_CODE_INVALID_STATE);

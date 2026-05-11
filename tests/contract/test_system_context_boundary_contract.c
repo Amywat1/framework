@@ -70,8 +70,7 @@ static int verify_release_returns_resource_to_pool_and_invalidates_handle(void)
     test_setup_system_context(&system_context, &driver_context);
     TEST_ASSERT(system_context_private_debug_is_in_use(system_context));
 
-    result = system_context_release(system_context);
-    TEST_ASSERT(result.ok);
+    test_release_system_context(system_context);
     TEST_ASSERT(!system_context_private_debug_is_in_use(system_context));
     TEST_ASSERT(system_context_pending_trigger_count(system_context) == 0u);
     TEST_ASSERT(system_context_current_time_ms(system_context) == 0ul);

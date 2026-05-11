@@ -22,6 +22,7 @@ static int test_follow_loss_aborts_session(void)
     TEST_ASSERT(result.ok);
     TEST_ASSERT(system_context_private_runtime(system_context)->wash_session.session_state == SESSION_STATE_ABORTED);
     TEST_ASSERT(strcmp(test_latest_reason_code(system_context), "follow_lost") == 0);
+    test_release_system_context(system_context);
     return 0;
 }
 
@@ -48,6 +49,7 @@ static int test_exit_timeout_aborts_session(void)
     TEST_ASSERT(result.ok);
     TEST_ASSERT(system_context_private_runtime(system_context)->wash_session.session_state == SESSION_STATE_ABORTED);
     TEST_ASSERT(strcmp(test_latest_reason_code(system_context), "exit_timeout") == 0);
+    test_release_system_context(system_context);
     return 0;
 }
 
@@ -86,8 +88,7 @@ static int test_runtime_snapshot_read_failure_enters_safe_stop(void)
     TEST_ASSERT(result.ok);
     TEST_ASSERT(system_context_private_runtime(system_context)->wash_session.session_state == SESSION_STATE_RUNNING);
 
-    result = system_context_release(system_context);
-    TEST_ASSERT(result.ok);
+    test_release_system_context(system_context);
     result = query_wash_session_status_execute(system_context, &(wash_session_status_view_t){0});
     TEST_ASSERT(!result.ok);
     TEST_ASSERT(result.error_code == ERROR_CODE_INVALID_STATE);

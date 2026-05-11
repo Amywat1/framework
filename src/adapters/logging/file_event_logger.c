@@ -69,18 +69,29 @@ static int log_ignored_impl(void *context, const state_transition_record_t *stat
     return write_transition_record(context, "ignored", state_transition_record);
 }
 
-void file_event_logger_init(system_context_t system_context, const char *log_path)
+operation_result_t file_event_logger_init(system_context_t system_context, const char *log_path)
 {
     event_logger_port_t event_logger_port;
+    FILE *probe_file;
     file_logger_context_t *logger_context;
     unsigned int slot_index;
 
-    if (log_path == 0) {
-        return;
+    if (!system_context_private_require_active(system_context).ok) {
+        return operation_result_fail(ERROR_CODE_INVALID_STATE);
     }
+    if (log_path == 0 || log_path[0] == '\0') {
+        return operation_result_fail(ERROR_CODE_INVALID_ARGUMENT);
+    }
+
+    probe_file = fopen(log_path, "a");
+    if (probe_file == 0) {
+        return operation_result_fail(ERROR_CODE_IO_FAILED);
+    }
+    fclose(probe_file);
+
     slot_index = system_context_private_slot_index(system_context);
     if (slot_index == SYSTEM_CONTEXT_POOL_INVALID_INDEX) {
-        return;
+        return operation_result_fail(ERROR_CODE_INVALID_STATE);
     }
     logger_context = &g_logger_contexts[slot_index];
     memset(logger_context, 0, sizeof(*logger_context));
@@ -92,4 +103,5 @@ void file_event_logger_init(system_context_t system_context, const char *log_pat
     event_logger_port.log_rejection = log_rejection_impl;
     event_logger_port.log_ignored = log_ignored_impl;
     system_context_set_event_logger_port(system_context, &event_logger_port);
+    return operation_result_ok();
 }

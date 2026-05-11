@@ -47,8 +47,7 @@ static int verify_release_invalidates_runtime_entrypoints(void)
     char response_line[256];
 
     test_setup_system_context(&system_context, &driver_context);
-    result = system_context_release(system_context);
-    TEST_ASSERT(result.ok);
+    test_release_system_context(system_context);
 
     result = system_context_reset(system_context);
     TEST_ASSERT(!result.ok);

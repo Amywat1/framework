@@ -47,6 +47,7 @@ static int test_ro_water_close_fallback(void)
     result = test_tick(system_context, 2500);
     TEST_ASSERT(result.ok);
     TEST_ASSERT(strcmp(system_context_private_runtime(system_context)->wash_execution.segment_id, "dryer_segment") == 0);
+    test_release_system_context(system_context);
     return 0;
 }
 
@@ -93,6 +94,7 @@ static int test_ro_water_missing_feedback_with_declared_feedback_times_out(void)
     TEST_ASSERT(result.ok);
     TEST_ASSERT(system_context_private_runtime(system_context)->wash_session.session_state == SESSION_STATE_ABORTED);
     TEST_ASSERT(strcmp(test_latest_reason_code(system_context), "exit_timeout") == 0);
+    test_release_system_context(system_context);
     return 0;
 }
 
@@ -117,6 +119,7 @@ static int test_follow_loss_recovery_failure_returns_error(void)
     TEST_ASSERT(result.error_code == ERROR_CODE_IO_FAILED);
     TEST_ASSERT(system_context_private_runtime(system_context)->wash_session.session_state == SESSION_STATE_RUNNING);
     TEST_ASSERT(system_context_private_runtime(system_context)->wash_execution.lifecycle_state == SEGMENT_LIFECYCLE_RUNNING);
+    test_release_system_context(system_context);
     return 0;
 }
 
@@ -140,6 +143,7 @@ static int test_chemical_command_failure_does_not_flip_rule_state(void)
     TEST_ASSERT(result.error_code == ERROR_CODE_IO_FAILED);
     TEST_ASSERT(!system_context_private_runtime(system_context)->wash_execution.active_conditional_controls[0]);
     TEST_ASSERT(driver_context.chemical_command_count == 0);
+    test_release_system_context(system_context);
     return 0;
 }
 
@@ -167,6 +171,7 @@ static int test_exit_command_failure_does_not_half_switch_state(void)
     TEST_ASSERT(result.error_code == ERROR_CODE_IO_FAILED);
     TEST_ASSERT(system_context_private_runtime(system_context)->wash_execution.lifecycle_state == SEGMENT_LIFECYCLE_RUNNING);
     TEST_ASSERT(system_context_private_runtime(system_context)->wait_condition.timeout_policy != WAIT_TIMEOUT_POLICY_EXIT);
+    test_release_system_context(system_context);
     return 0;
 }
 
@@ -200,8 +205,7 @@ static int test_exception_paths_can_reset_and_release_cleanly(void)
     TEST_ASSERT(result.ok);
     TEST_ASSERT(system_context_private_runtime(system_context)->wash_session.session_state == SESSION_STATE_RUNNING);
 
-    result = system_context_release(system_context);
-    TEST_ASSERT(result.ok);
+    test_release_system_context(system_context);
     result = query_wash_session_status_execute(system_context, &(wash_session_status_view_t){0});
     TEST_ASSERT(!result.ok);
     TEST_ASSERT(result.error_code == ERROR_CODE_INVALID_STATE);

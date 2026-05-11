@@ -2,6 +2,7 @@
 #define ADAPTERS_LOGGING_FILE_EVENT_LOGGER_H
 
 #include "application/coordinators/system_context.h"
+#include "shared/result_types.h"
 
 /**
  * @file file_event_logger.h
@@ -14,6 +15,6 @@
  * @param system_context 主控共享上下文，不能为空。
  * @param log_path 日志文件路径，不能为空。
  */
-void file_event_logger_init(system_context_t system_context, const char *log_path);
+operation_result_t file_event_logger_init(system_context_t system_context, const char *log_path);
 
 #endif

@@ -32,7 +32,6 @@ int main(void)
     TEST_ASSERT(result.ok);
     TEST_ASSERT(controller_runtime_state_view.metrics.cycle_count == 1ul);
 
-    controller_scheduler_linux_destroy(controller_scheduler);
     test_release_system_context(system_context);
     return 0;
 }

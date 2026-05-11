@@ -20,7 +20,6 @@ static int verify_immediate_exit_stops_without_drain(void)
     TEST_ASSERT(controller_runtime_state_view.runtime_state == CONTROLLER_SCHEDULER_RUNTIME_STATE_STOPPED);
     TEST_ASSERT(controller_runtime_state_view.metrics.exit_event_count == 1ul);
 
-    controller_scheduler_linux_destroy(controller_scheduler);
     test_release_system_context(system_context);
     return 0;
 }
@@ -71,7 +70,6 @@ static int verify_bounded_drain_has_terminal_conclusion(void)
         || controller_runtime_state_view.runtime_state == CONTROLLER_SCHEDULER_RUNTIME_STATE_STOPPED);
     TEST_ASSERT(controller_runtime_state_view.metrics.exit_event_count == 1ul);
 
-    controller_scheduler_linux_destroy(controller_scheduler);
     test_release_system_context(system_context);
     return 0;
 }

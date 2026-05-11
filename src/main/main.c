@@ -3,8 +3,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "adapters/logging/file_event_logger.h"
-#include "adapters/outbound/file_program_repository.h"
+#include "application/coordinators/controller_runtime.h"
 #include "platform/drivers/simulated_brush_driver.h"
 #include "platform/drivers/simulated_chemical_driver.h"
 #include "platform/drivers/simulated_driver_context.h"
@@ -12,30 +11,24 @@
 #include "platform/drivers/simulated_gantry_driver.h"
 #include "platform/drivers/simulated_ro_water_driver.h"
 #include "platform/drivers/simulated_sensor_driver.h"
-#include "platform/linux/controller_scheduler_linux.h"
 
 #define CONTROLLER_CONTROL_PERIOD_MS 100ul
 #define CONTROLLER_BOUNDED_DRAIN_TICKS 8u
 #define CONTROLLER_MAX_TRIGGERS_PER_TICK 1u
 
-static void initialize_system_context(system_context_t system_context, simulated_driver_context_t *driver_context)
+static void initialize_ports(simulated_driver_context_t *driver_context,
+    sensor_port_t *sensor_port,
+    actuator_port_t *actuator_port)
 {
-    sensor_port_t sensor_port;
-    actuator_port_t actuator_port;
-
     simulated_driver_context_init(driver_context);
-    memset(&sensor_port, 0, sizeof(sensor_port));
-    memset(&actuator_port, 0, sizeof(actuator_port));
-    simulated_sensor_driver_bind(&sensor_port, driver_context);
-    simulated_gantry_driver_bind(&actuator_port, driver_context);
-    simulated_brush_driver_bind(&actuator_port, driver_context);
-    simulated_chemical_driver_bind(&actuator_port, driver_context);
-    simulated_ro_water_driver_bind(&actuator_port, driver_context);
-    simulated_dryer_driver_bind(&actuator_port, driver_context);
-    system_context_set_sensor_port(system_context, &sensor_port);
-    system_context_set_actuator_port(system_context, &actuator_port);
-    file_program_repository_init(system_context, "./configs");
-    file_event_logger_init(system_context, "./runtime/logs/events.log");
+    memset(sensor_port, 0, sizeof(*sensor_port));
+    memset(actuator_port, 0, sizeof(*actuator_port));
+    simulated_sensor_driver_bind(sensor_port, driver_context);
+    simulated_gantry_driver_bind(actuator_port, driver_context);
+    simulated_brush_driver_bind(actuator_port, driver_context);
+    simulated_chemical_driver_bind(actuator_port, driver_context);
+    simulated_ro_water_driver_bind(actuator_port, driver_context);
+    simulated_dryer_driver_bind(actuator_port, driver_context);
 }
 
 static void initialize_scheduler_config(controller_scheduler_config_t *controller_scheduler_config)
@@ -54,52 +47,53 @@ static void initialize_scheduler_config(controller_scheduler_config_t *controlle
 
 int main(void)
 {
-    controller_runtime_state_view_t controller_runtime_state_view;
+    controller_runtime_status_view_t runtime_status_view;
+    controller_runtime_config_t controller_runtime_config;
     controller_scheduler_config_t controller_scheduler_config;
-    controller_scheduler_linux_stdio_t controller_scheduler_linux_stdio;
     simulated_driver_context_t driver_context;
-    controller_scheduler_t *controller_scheduler;
-    system_context_t system_context;
+    controller_runtime_t *controller_runtime;
+    sensor_port_t sensor_port;
+    actuator_port_t actuator_port;
     operation_result_t result;
     int exit_code;
 
-    result = system_context_acquire(&system_context);
-    if (!result.ok || system_context == 0) {
-        fprintf(stderr, "wash_controller context_acquire_failed\n");
-        return 1;
-    }
-
-    initialize_system_context(system_context, &driver_context);
+    initialize_ports(&driver_context, &sensor_port, &actuator_port);
     initialize_scheduler_config(&controller_scheduler_config);
-    memset(&controller_scheduler_linux_stdio, 0, sizeof(controller_scheduler_linux_stdio));
-    controller_scheduler_linux_stdio.input = stdin;
-    controller_scheduler_linux_stdio.output = stdout;
-    controller_scheduler_linux_stdio.error = stderr;
+    controller_runtime_config_init(&controller_runtime_config);
+    controller_runtime_config.sensor_port = &sensor_port;
+    controller_runtime_config.actuator_port = &actuator_port;
+    controller_runtime_config.scheduler_config = &controller_scheduler_config;
+    controller_runtime_config.command_input = stdin;
+    controller_runtime_config.command_output = stdout;
+    controller_runtime_config.command_error = stderr;
+    controller_runtime_config.config_root = "./configs";
+    controller_runtime_config.event_log_path = "./runtime/logs/events.log";
 
-    controller_scheduler = controller_scheduler_linux_create(system_context,
-        &controller_scheduler_config,
-        &controller_scheduler_linux_stdio);
-    if (controller_scheduler == 0) {
-        fprintf(stderr, "wash_controller scheduler_create_failed\n");
-        (void)system_context_release(system_context);
+    result = controller_runtime_create(&controller_runtime, &controller_runtime_config);
+    if (!result.ok || controller_runtime == 0) {
+        fprintf(stderr, "wash_controller runtime_create_failed error_code=%d\n", (int)result.error_code);
         return 1;
     }
 
-    result = controller_scheduler_run(controller_scheduler);
+    result = controller_runtime_run(controller_runtime);
     exit_code = 0;
     if (!result.ok) {
-        controller_scheduler_read_view(controller_scheduler, &controller_runtime_state_view);
+        (void)controller_runtime_read_state(controller_runtime, &runtime_status_view);
         fprintf(stderr, "wash_controller scheduler_failed reason=%s domain_reason=%s\n",
-            controller_runtime_state_view.metrics.last_error_reason[0] != '\0'
-                ? controller_runtime_state_view.metrics.last_error_reason
+            runtime_status_view.scheduler_view_available
+                    && runtime_status_view.scheduler_view.metrics.last_error_reason[0] != '\0'
+                ? runtime_status_view.scheduler_view.metrics.last_error_reason
                 : "none",
-            system_context_last_reason_code(system_context)[0] != '\0'
-                ? system_context_last_reason_code(system_context)
+            runtime_status_view.last_reason_code[0] != '\0'
+                ? runtime_status_view.last_reason_code
                 : "none");
         exit_code = 1;
     }
 
-    controller_scheduler_linux_destroy(controller_scheduler);
-    (void)system_context_release(system_context);
+    result = controller_runtime_destroy(controller_runtime);
+    if (!result.ok) {
+        fprintf(stderr, "wash_controller runtime_destroy_failed error_code=%d\n", (int)result.error_code);
+        exit_code = 1;
+    }
     return exit_code;
 }

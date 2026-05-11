@@ -23,7 +23,7 @@ static int verify_main_loop_failure_is_terminal(void)
     TEST_ASSERT(controller_runtime_state_view.runtime_state == CONTROLLER_SCHEDULER_RUNTIME_STATE_FAILED);
     TEST_ASSERT(strcmp(controller_runtime_state_view.metrics.last_error_reason, "main_loop_run_failed") == 0);
 
-    controller_scheduler_linux_destroy(controller_scheduler);
+    test_release_system_context(system_context);
     return 0;
 }
 
@@ -49,7 +49,7 @@ static int verify_wakeup_failure_is_terminal(void)
     TEST_ASSERT(controller_runtime_state_view.runtime_state == CONTROLLER_SCHEDULER_RUNTIME_STATE_FAILED);
     TEST_ASSERT(strcmp(controller_runtime_state_view.metrics.last_error_reason, "wakeup_write_failed") == 0);
 
-    controller_scheduler_linux_destroy(controller_scheduler);
+    test_release_system_context(system_context);
     return 0;
 }
 
@@ -90,7 +90,7 @@ static int verify_command_path_does_not_swallow_runtime_failure(void)
     TEST_ASSERT(controller_runtime_state_view.runtime_state == CONTROLLER_SCHEDULER_RUNTIME_STATE_FAILED);
     TEST_ASSERT(strcmp(controller_runtime_state_view.metrics.last_error_reason, "main_loop_run_failed") == 0);
 
-    controller_scheduler_linux_destroy(controller_scheduler);
+    test_release_system_context(system_context);
     return 0;
 }
 
@@ -102,10 +102,9 @@ static int verify_released_context_is_rejected_by_scheduler_boundary(void)
     operation_result_t result;
 
     test_setup_system_context(&system_context, &driver_context);
-    result = system_context_release(system_context);
-    TEST_ASSERT(result.ok);
+    test_release_system_context(system_context);
 
-    TEST_ASSERT(test_create_scheduler(system_context, 100ul) == 0);
+    TEST_ASSERT(controller_scheduler_linux_create(system_context, 0, 0) == 0);
     result = controller_scheduler_read_context_view(system_context, &controller_runtime_state_view);
     TEST_ASSERT(!result.ok);
     TEST_ASSERT(result.error_code == ERROR_CODE_INVALID_STATE);
@@ -128,4 +127,3 @@ int main(void)
     }
     return 0;
 }
-

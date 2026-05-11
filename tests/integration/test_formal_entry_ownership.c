@@ -29,6 +29,7 @@ static int verify_formal_command_execute_is_public_entry(void)
     TEST_ASSERT(system_context_private_runtime(system_context)->pending_trigger_count == 0u);
     TEST_ASSERT(system_context_private_runtime(system_context)->wash_session.session_state == SESSION_STATE_RUNNING);
     TEST_ASSERT(system_context_private_runtime(system_context)->last_reason_code[0] != '\0');
+    test_release_system_context(system_context);
     return 0;
 }
 
@@ -58,6 +59,7 @@ static int verify_cli_execute_uses_formal_entry(void)
     TEST_ASSERT(system_context_private_runtime(system_context)->pending_trigger_count == 0u);
     TEST_ASSERT(system_context_private_runtime(system_context)->wash_session.session_state == SESSION_STATE_RUNNING);
     TEST_ASSERT(system_context_private_runtime(system_context)->last_reason_code[0] != '\0');
+    test_release_system_context(system_context);
     return 0;
 }
 

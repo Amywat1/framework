@@ -84,8 +84,7 @@ static int verify_idle_fault_clear_path(void)
     TEST_ASSERT(!system_context_private_runtime(system_context)->global_fault_present);
     TEST_ASSERT(system_context_private_runtime(system_context)->wash_session.session_state == SESSION_STATE_NONE);
 
-    result = system_context_release(system_context);
-    TEST_ASSERT(result.ok);
+    test_release_system_context(system_context);
     result = query_wash_session_status_execute(system_context, &(wash_session_status_view_t){0});
     TEST_ASSERT(!result.ok);
     TEST_ASSERT(result.error_code == ERROR_CODE_INVALID_STATE);

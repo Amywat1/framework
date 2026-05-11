@@ -39,7 +39,6 @@ int main(void)
     TEST_ASSERT(wash_session_status_view.scheduler_view.metrics.command_event_count == 1ul);
     TEST_ASSERT(wash_session_status_view.scheduler_view.metrics.notification_event_count == 1ul);
 
-    controller_scheduler_linux_destroy(controller_scheduler);
     test_release_system_context(system_context);
     return 0;
 }

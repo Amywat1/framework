@@ -1,6 +1,7 @@
 #include "adapters/outbound/file_program_repository.h"
 
 #include <stdio.h>
+#include <sys/stat.h>
 #include <string.h>
 
 #include "application/coordinators/system_context.h"
@@ -18,6 +19,19 @@ typedef struct file_repository_context_t {
 } file_repository_context_t;
 
 static file_repository_context_t g_repository_contexts[SYSTEM_CONTEXT_POOL_CAPACITY];
+
+static bool directory_exists(const char *path)
+{
+    struct stat path_stat;
+
+    if (path == 0 || path[0] == '\0') {
+        return false;
+    }
+    if (stat(path, &path_stat) != 0) {
+        return false;
+    }
+    return S_ISDIR(path_stat.st_mode);
+}
 
 static int load_program_impl(void *context, const char *program_id, wash_program_t *wash_program)
 {
@@ -88,18 +102,30 @@ static int validate_program_snapshot_impl(void *context, const char *program_id,
     return 0;
 }
 
-void file_program_repository_init(system_context_t system_context, const char *config_root)
+operation_result_t file_program_repository_init(system_context_t system_context, const char *config_root)
 {
     file_repository_context_t *repository_context;
     program_repository_port_t program_repository_port;
+    char programs_root[320];
     unsigned int slot_index;
 
-    if (config_root == 0) {
-        return;
+    if (!system_context_private_require_active(system_context).ok) {
+        return operation_result_fail(ERROR_CODE_INVALID_STATE);
     }
+    if (config_root == 0 || config_root[0] == '\0') {
+        return operation_result_fail(ERROR_CODE_INVALID_ARGUMENT);
+    }
+    if (!directory_exists(config_root)) {
+        return operation_result_fail(ERROR_CODE_IO_FAILED);
+    }
+    snprintf(programs_root, sizeof(programs_root), "%s/programs", config_root);
+    if (!directory_exists(programs_root)) {
+        return operation_result_fail(ERROR_CODE_IO_FAILED);
+    }
+
     slot_index = system_context_private_slot_index(system_context);
     if (slot_index == SYSTEM_CONTEXT_POOL_INVALID_INDEX) {
-        return;
+        return operation_result_fail(ERROR_CODE_INVALID_STATE);
     }
     repository_context = &g_repository_contexts[slot_index];
     memset(repository_context, 0, sizeof(*repository_context));
@@ -111,6 +137,7 @@ void file_program_repository_init(system_context_t system_context, const char *c
     program_repository_port.load_vehicle_type = load_vehicle_type_impl;
     program_repository_port.validate_program_snapshot = validate_program_snapshot_impl;
     system_context_set_program_repository_port(system_context, &program_repository_port);
+    return operation_result_ok();
 }
 
 void file_program_repository_set_runtime_program(system_context_t system_context, const wash_program_t *wash_program, int revision)

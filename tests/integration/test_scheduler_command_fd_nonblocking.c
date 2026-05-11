@@ -11,20 +11,14 @@ static int verify_partial_command_does_not_block_scheduler(void)
 {
     controller_runtime_state_view_t controller_runtime_state_view;
     controller_scheduler_config_t controller_scheduler_config;
-    controller_scheduler_linux_stdio_t controller_scheduler_linux_stdio;
     simulated_driver_context_t driver_context;
+    controller_runtime_t *controller_runtime;
     system_context_t system_context;
     controller_scheduler_t *controller_scheduler;
     FILE *input_file;
     FILE *output_file;
     int pipe_fds[2];
     operation_result_t result;
-
-    test_setup_system_context(&system_context, &driver_context);
-    result = test_load_runtime_program_from_fixture(system_context,
-        "tests/fixtures/wash_step_control/program_v1_valid.json",
-        0);
-    TEST_ASSERT(result.ok);
 
     TEST_ASSERT(pipe(pipe_fds) == 0);
     input_file = fdopen(pipe_fds[0], "r");
@@ -43,13 +37,25 @@ static int verify_partial_command_does_not_block_scheduler(void)
     controller_scheduler_config.overrun_warning_threshold_ms = 100ul;
     controller_scheduler_config.observability_enabled = true;
 
-    memset(&controller_scheduler_linux_stdio, 0, sizeof(controller_scheduler_linux_stdio));
-    controller_scheduler_linux_stdio.input = input_file;
-    controller_scheduler_linux_stdio.output = output_file;
-    controller_scheduler = controller_scheduler_linux_create(system_context,
+    result = test_create_runtime_with_overrides(&controller_runtime,
+        &driver_context,
         &controller_scheduler_config,
-        &controller_scheduler_linux_stdio);
+        input_file,
+        output_file,
+        0,
+        "./configs",
+        "./runtime/logs/test_events.log");
+    TEST_ASSERT(result.ok);
+
+    result = test_runtime_system_context(controller_runtime, &system_context);
+    TEST_ASSERT(result.ok);
+    controller_scheduler = test_runtime_scheduler(controller_runtime);
     TEST_ASSERT(controller_scheduler != 0);
+
+    result = test_load_runtime_program_from_fixture(system_context,
+        "tests/fixtures/wash_step_control/program_v1_valid.json",
+        0);
+    TEST_ASSERT(result.ok);
 
     result = controller_scheduler_read_view(controller_scheduler, &controller_runtime_state_view);
     TEST_ASSERT(result.ok);
@@ -74,7 +80,8 @@ static int verify_partial_command_does_not_block_scheduler(void)
     TEST_ASSERT(result.ok);
     TEST_ASSERT(system_context_private_runtime(system_context)->wash_session.session_state == SESSION_STATE_RUNNING);
 
-    controller_scheduler_linux_destroy(controller_scheduler);
+    result = controller_runtime_destroy(controller_runtime);
+    TEST_ASSERT(result.ok);
     fclose(output_file);
     fclose(input_file);
     close(pipe_fds[1]);
@@ -85,4 +92,3 @@ int main(void)
 {
     return verify_partial_command_does_not_block_scheduler();
 }
-

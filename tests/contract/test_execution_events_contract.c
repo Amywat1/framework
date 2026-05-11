@@ -88,8 +88,7 @@ static int verify_reset_clears_transition_observation_and_release_blocks_it(void
     TEST_ASSERT(system_context_private_runtime(system_context)->last_transition_record.current_state[0] == '\0');
     TEST_ASSERT(system_context_private_runtime(system_context)->last_transition_record.reason_code[0] == '\0');
 
-    result = system_context_release(system_context);
-    TEST_ASSERT(result.ok);
+    test_release_system_context(system_context);
     wash_trigger_event_init(&wash_trigger_event, TRIGGER_TYPE_STOP, 0, "released", "released", 0ul);
     result = process_wash_trigger_execute(system_context, &wash_trigger_event);
     TEST_ASSERT(!result.ok);

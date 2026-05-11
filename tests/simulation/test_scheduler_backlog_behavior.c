@@ -32,7 +32,6 @@ int main(void)
     TEST_ASSERT(controller_runtime_state_view.metrics.consecutive_overrun_count == 0ul);
     TEST_ASSERT(system_context_current_time_ms(system_context) == 400ul);
 
-    controller_scheduler_linux_destroy(controller_scheduler);
     test_release_system_context(system_context);
     return 0;
 }

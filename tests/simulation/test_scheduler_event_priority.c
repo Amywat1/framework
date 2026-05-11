@@ -34,7 +34,6 @@ int main(void)
     TEST_ASSERT(controller_runtime_state_view.runtime_state == CONTROLLER_SCHEDULER_RUNTIME_STATE_STOPPED
         || controller_runtime_state_view.runtime_state == CONTROLLER_SCHEDULER_RUNTIME_STATE_DRAINING);
 
-    controller_scheduler_linux_destroy(controller_scheduler);
     test_release_system_context(system_context);
     return 0;
 }

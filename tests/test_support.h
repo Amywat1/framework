@@ -9,6 +9,7 @@
 #include "adapters/inbound/cli_command_adapter.h"
 #include "adapters/logging/file_event_logger.h"
 #include "adapters/outbound/file_program_repository.h"
+#include "application/coordinators/controller_runtime.h"
 #include "application/coordinators/system_context.h"
 #include "application/use_cases/query_wash_session_status.h"
 #include "domain/model/wash_trigger_event.h"
@@ -32,38 +33,124 @@
         } \
     } while (0)
 
-static inline void test_setup_system_context(system_context_t *system_context, simulated_driver_context_t *driver_context)
-{
-    operation_result_t result;
+typedef struct test_runtime_binding_t {
+    bool occupied;
+    controller_runtime_t *controller_runtime;
+    system_context_t system_context;
     sensor_port_t sensor_port;
     actuator_port_t actuator_port;
+} test_runtime_binding_t;
+
+static test_runtime_binding_t g_test_runtime_bindings[SYSTEM_CONTEXT_POOL_CAPACITY];
+
+operation_result_t test_runtime_friend_read_system_context(controller_runtime_t *controller_runtime,
+    system_context_t *system_context);
+controller_scheduler_t *test_runtime_friend_scheduler(controller_runtime_t *controller_runtime);
+
+static inline operation_result_t test_create_runtime(controller_runtime_t **controller_runtime,
+    simulated_driver_context_t *driver_context,
+    unsigned long control_period_ms);
+static inline operation_result_t test_create_runtime_with_overrides(controller_runtime_t **controller_runtime,
+    simulated_driver_context_t *driver_context,
+    const controller_scheduler_config_t *controller_scheduler_config,
+    FILE *command_input,
+    FILE *command_output,
+    FILE *command_error,
+    const char *config_root,
+    const char *event_log_path);
+
+static inline void test_purge_stale_runtime_bindings(void)
+{
+    unsigned int index;
+
+    for (index = 0u; index < SYSTEM_CONTEXT_POOL_CAPACITY; ++index) {
+        if (!g_test_runtime_bindings[index].occupied) {
+            continue;
+        }
+        if (!system_context_private_require_active(g_test_runtime_bindings[index].system_context).ok) {
+            memset(&g_test_runtime_bindings[index], 0, sizeof(g_test_runtime_bindings[index]));
+        }
+    }
+}
+
+static inline test_runtime_binding_t *test_find_runtime_binding(system_context_t system_context)
+{
+    unsigned int index;
+
+    test_purge_stale_runtime_bindings();
+    for (index = 0u; index < SYSTEM_CONTEXT_POOL_CAPACITY; ++index) {
+        if (g_test_runtime_bindings[index].occupied
+            && g_test_runtime_bindings[index].system_context == system_context) {
+            return &g_test_runtime_bindings[index];
+        }
+    }
+    return 0;
+}
+
+static inline test_runtime_binding_t *test_allocate_runtime_binding(void)
+{
+    unsigned int index;
+
+    test_purge_stale_runtime_bindings();
+    for (index = 0u; index < SYSTEM_CONTEXT_POOL_CAPACITY; ++index) {
+        if (!g_test_runtime_bindings[index].occupied) {
+            memset(&g_test_runtime_bindings[index], 0, sizeof(g_test_runtime_bindings[index]));
+            return &g_test_runtime_bindings[index];
+        }
+    }
+    return 0;
+}
+
+static inline void test_bind_simulated_ports(simulated_driver_context_t *driver_context,
+    sensor_port_t *sensor_port,
+    actuator_port_t *actuator_port)
+{
+    simulated_driver_context_init(driver_context);
+    memset(sensor_port, 0, sizeof(*sensor_port));
+    memset(actuator_port, 0, sizeof(*actuator_port));
+    simulated_sensor_driver_bind(sensor_port, driver_context);
+    simulated_gantry_driver_bind(actuator_port, driver_context);
+    simulated_brush_driver_bind(actuator_port, driver_context);
+    simulated_chemical_driver_bind(actuator_port, driver_context);
+    simulated_ro_water_driver_bind(actuator_port, driver_context);
+    simulated_dryer_driver_bind(actuator_port, driver_context);
+}
+
+static inline void test_setup_system_context(system_context_t *system_context, simulated_driver_context_t *driver_context)
+{
+    controller_runtime_t *controller_runtime;
+    operation_result_t result;
 
     if (system_context == 0) {
         abort();
     }
-    result = system_context_acquire(system_context);
-    if (!result.ok || *system_context == 0) {
-        fprintf(stderr, "FAILED TO ACQUIRE system_context\n");
+    result = test_create_runtime(&controller_runtime, driver_context, 100ul);
+    if (!result.ok || controller_runtime == 0) {
+        fprintf(stderr, "FAILED TO CREATE controller_runtime\n");
         abort();
     }
-    simulated_driver_context_init(driver_context);
-    memset(&sensor_port, 0, sizeof(sensor_port));
-    memset(&actuator_port, 0, sizeof(actuator_port));
-    simulated_sensor_driver_bind(&sensor_port, driver_context);
-    simulated_gantry_driver_bind(&actuator_port, driver_context);
-    simulated_brush_driver_bind(&actuator_port, driver_context);
-    simulated_chemical_driver_bind(&actuator_port, driver_context);
-    simulated_ro_water_driver_bind(&actuator_port, driver_context);
-    simulated_dryer_driver_bind(&actuator_port, driver_context);
-    system_context_set_sensor_port(*system_context, &sensor_port);
-    system_context_set_actuator_port(*system_context, &actuator_port);
-    file_program_repository_init(*system_context, "./configs");
-    file_event_logger_init(*system_context, "./runtime/logs/test_events.log");
+    result = test_runtime_friend_read_system_context(controller_runtime, system_context);
+    if (!result.ok || *system_context == 0) {
+        fprintf(stderr, "FAILED TO READ controller_runtime system_context\n");
+        abort();
+    }
 }
 
 static inline void test_release_system_context(system_context_t system_context)
 {
+    test_runtime_binding_t *binding;
     operation_result_t result;
+
+    binding = test_find_runtime_binding(system_context);
+    if (binding != 0) {
+        result = controller_runtime_destroy(binding->controller_runtime);
+        if (!result.ok) {
+            fprintf(stderr, "FAILED TO DESTROY controller_runtime\n");
+            abort();
+        }
+        memset(binding, 0, sizeof(*binding));
+        return;
+    }
 
     result = system_context_release(system_context);
     if (!result.ok) {
@@ -286,21 +373,132 @@ static inline operation_result_t test_tick(system_context_t system_context, unsi
 static inline controller_scheduler_t *test_create_scheduler(system_context_t system_context,
     unsigned long control_period_ms)
 {
-    controller_scheduler_config_t controller_scheduler_config;
-    controller_scheduler_linux_stdio_t controller_scheduler_linux_stdio;
+    test_runtime_binding_t *binding;
+    controller_runtime_status_view_t status_view;
+    controller_scheduler_t *controller_scheduler;
+    operation_result_t result;
 
-    memset(&controller_scheduler_config, 0, sizeof(controller_scheduler_config));
-    controller_scheduler_config.control_period_ms = control_period_ms;
-    controller_scheduler_config.command_event_source_enabled = true;
-    controller_scheduler_config.notification_event_source_enabled = true;
-    controller_scheduler_config.exit_event_source_enabled = true;
-    controller_scheduler_config.exit_mode = CONTROLLER_SCHEDULER_EXIT_MODE_BOUNDED_DRAIN;
-    controller_scheduler_config.bounded_drain_ticks = 4u;
-    controller_scheduler_config.max_triggers_per_tick = 1u;
-    controller_scheduler_config.overrun_warning_threshold_ms = control_period_ms;
-    controller_scheduler_config.observability_enabled = true;
-    memset(&controller_scheduler_linux_stdio, 0, sizeof(controller_scheduler_linux_stdio));
-    return controller_scheduler_linux_create(system_context, &controller_scheduler_config, &controller_scheduler_linux_stdio);
+    binding = test_find_runtime_binding(system_context);
+    if (binding == 0) {
+        fprintf(stderr, "FAILED TO FIND runtime binding for system_context\n");
+        abort();
+    }
+
+    result = controller_runtime_read_state(binding->controller_runtime, &status_view);
+    if (!result.ok || !status_view.scheduler_view_available) {
+        fprintf(stderr, "FAILED TO READ controller_runtime state\n");
+        abort();
+    }
+    if (status_view.scheduler_view.control_period_ms != control_period_ms) {
+        fprintf(stderr, "UNEXPECTED scheduler control period\n");
+        abort();
+    }
+
+    controller_scheduler = test_runtime_friend_scheduler(binding->controller_runtime);
+    if (controller_scheduler == 0) {
+        fprintf(stderr, "FAILED TO READ controller_runtime scheduler\n");
+        abort();
+    }
+    return controller_scheduler;
+}
+
+static inline void test_init_scheduler_config(controller_scheduler_config_t *controller_scheduler_config,
+    unsigned long control_period_ms)
+{
+    if (controller_scheduler_config == 0) {
+        abort();
+    }
+
+    memset(controller_scheduler_config, 0, sizeof(*controller_scheduler_config));
+    controller_scheduler_config->control_period_ms = control_period_ms;
+    controller_scheduler_config->command_event_source_enabled = true;
+    controller_scheduler_config->notification_event_source_enabled = true;
+    controller_scheduler_config->exit_event_source_enabled = true;
+    controller_scheduler_config->exit_mode = CONTROLLER_SCHEDULER_EXIT_MODE_BOUNDED_DRAIN;
+    controller_scheduler_config->bounded_drain_ticks = 4u;
+    controller_scheduler_config->max_triggers_per_tick = 1u;
+    controller_scheduler_config->overrun_warning_threshold_ms = control_period_ms;
+    controller_scheduler_config->observability_enabled = true;
+}
+
+static inline operation_result_t test_create_runtime(controller_runtime_t **controller_runtime,
+    simulated_driver_context_t *driver_context,
+    unsigned long control_period_ms)
+{
+    controller_scheduler_config_t controller_scheduler_config;
+
+    test_init_scheduler_config(&controller_scheduler_config, control_period_ms);
+    return test_create_runtime_with_overrides(controller_runtime,
+        driver_context,
+        &controller_scheduler_config,
+        0,
+        0,
+        0,
+        "./configs",
+        "./runtime/logs/test_events.log");
+}
+
+static inline operation_result_t test_create_runtime_with_overrides(controller_runtime_t **controller_runtime,
+    simulated_driver_context_t *driver_context,
+    const controller_scheduler_config_t *controller_scheduler_config,
+    FILE *command_input,
+    FILE *command_output,
+    FILE *command_error,
+    const char *config_root,
+    const char *event_log_path)
+{
+    controller_runtime_config_t controller_runtime_config;
+    test_runtime_binding_t *binding;
+    operation_result_t result;
+
+    if (controller_runtime == 0 || driver_context == 0) {
+        return operation_result_fail(ERROR_CODE_INVALID_ARGUMENT);
+    }
+
+    binding = test_allocate_runtime_binding();
+    if (binding == 0) {
+        return operation_result_fail(ERROR_CODE_RESOURCE_UNAVAILABLE);
+    }
+
+    test_bind_simulated_ports(driver_context, &binding->sensor_port, &binding->actuator_port);
+
+    controller_runtime_config_init(&controller_runtime_config);
+    controller_runtime_config.sensor_port = &binding->sensor_port;
+    controller_runtime_config.actuator_port = &binding->actuator_port;
+    controller_runtime_config.scheduler_config = controller_scheduler_config;
+    controller_runtime_config.command_input = command_input;
+    controller_runtime_config.command_output = command_output;
+    controller_runtime_config.command_error = command_error;
+    controller_runtime_config.config_root = config_root;
+    controller_runtime_config.event_log_path = event_log_path;
+    result = controller_runtime_create(controller_runtime, &controller_runtime_config);
+    if (!result.ok || *controller_runtime == 0) {
+        memset(binding, 0, sizeof(*binding));
+        return result;
+    }
+
+    result = test_runtime_friend_read_system_context(*controller_runtime, &binding->system_context);
+    if (!result.ok || binding->system_context == 0) {
+        (void)controller_runtime_destroy(*controller_runtime);
+        *controller_runtime = 0;
+        memset(binding, 0, sizeof(*binding));
+        return result.ok ? operation_result_fail(ERROR_CODE_INVALID_STATE) : result;
+    }
+
+    binding->occupied = true;
+    binding->controller_runtime = *controller_runtime;
+    return operation_result_ok();
+}
+
+static inline operation_result_t test_runtime_system_context(controller_runtime_t *controller_runtime,
+    system_context_t *system_context)
+{
+    return test_runtime_friend_read_system_context(controller_runtime, system_context);
+}
+
+static inline controller_scheduler_t *test_runtime_scheduler(controller_runtime_t *controller_runtime)
+{
+    return test_runtime_friend_scheduler(controller_runtime);
 }
 
 static inline int test_scheduler_tick(controller_scheduler_t *controller_scheduler, unsigned int expiration_count)
