@@ -1,4 +1,4 @@
-#include "tests/test_support.h"
+﻿#include "tests/test_support.h"
 
 #include "domain/model/fault_event.h"
 
@@ -11,4 +11,5 @@ int main(void)
     TEST_ASSERT(fault_event.operator_ack_required);
     return 0;
 }
+
 

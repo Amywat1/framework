@@ -10,7 +10,7 @@ static int verify_main_loop_failure_is_terminal(void)
     operation_result_t result;
 
     test_setup_system_context(&system_context, &driver_context);
-    controller_scheduler = test_create_scheduler(&system_context, 100ul);
+    controller_scheduler = test_create_scheduler(system_context, 100ul);
     TEST_ASSERT(controller_scheduler != 0);
 
     controller_scheduler_linux_test_set_failpoint(controller_scheduler,
@@ -36,7 +36,7 @@ static int verify_wakeup_failure_is_terminal(void)
     operation_result_t result;
 
     test_setup_system_context(&system_context, &driver_context);
-    controller_scheduler = test_create_scheduler(&system_context, 100ul);
+    controller_scheduler = test_create_scheduler(system_context, 100ul);
     TEST_ASSERT(controller_scheduler != 0);
 
     controller_scheduler_linux_test_set_failpoint(controller_scheduler,
@@ -63,11 +63,11 @@ static int verify_command_path_does_not_swallow_runtime_failure(void)
     operation_result_t result;
 
     test_setup_system_context(&system_context, &driver_context);
-    result = test_load_runtime_program_from_fixture(&system_context,
+    result = test_load_runtime_program_from_fixture(system_context,
         "tests/fixtures/wash_step_control/program_v1_valid.json",
         0);
     TEST_ASSERT(result.ok);
-    controller_scheduler = test_create_scheduler(&system_context, 100ul);
+    controller_scheduler = test_create_scheduler(system_context, 100ul);
     TEST_ASSERT(controller_scheduler != 0);
 
     result = controller_scheduler_linux_test_inject_command(controller_scheduler,
@@ -75,7 +75,7 @@ static int verify_command_path_does_not_swallow_runtime_failure(void)
         response_line,
         sizeof(response_line));
     TEST_ASSERT(result.ok);
-    TEST_ASSERT(strcmp(system_context.last_result_code, "accepted") == 0);
+    TEST_ASSERT(strcmp(system_context_private_runtime(system_context)->last_result_code, "accepted") == 0);
 
     controller_scheduler_linux_test_set_failpoint(controller_scheduler,
         CONTROLLER_SCHEDULER_LINUX_TEST_FAIL_MAIN_LOOP_RUN,
@@ -94,6 +94,24 @@ static int verify_command_path_does_not_swallow_runtime_failure(void)
     return 0;
 }
 
+static int verify_released_context_is_rejected_by_scheduler_boundary(void)
+{
+    controller_runtime_state_view_t controller_runtime_state_view;
+    simulated_driver_context_t driver_context;
+    system_context_t system_context;
+    operation_result_t result;
+
+    test_setup_system_context(&system_context, &driver_context);
+    result = system_context_release(system_context);
+    TEST_ASSERT(result.ok);
+
+    TEST_ASSERT(test_create_scheduler(system_context, 100ul) == 0);
+    result = controller_scheduler_read_context_view(system_context, &controller_runtime_state_view);
+    TEST_ASSERT(!result.ok);
+    TEST_ASSERT(result.error_code == ERROR_CODE_INVALID_STATE);
+    return 0;
+}
+
 int main(void)
 {
     if (verify_main_loop_failure_is_terminal() != 0) {
@@ -105,5 +123,9 @@ int main(void)
     if (verify_command_path_does_not_swallow_runtime_failure() != 0) {
         return 1;
     }
+    if (verify_released_context_is_rejected_by_scheduler_boundary() != 0) {
+        return 1;
+    }
     return 0;
 }
+

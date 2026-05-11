@@ -1,4 +1,4 @@
-#include <stddef.h>
+﻿#include <stddef.h>
 
 #include "domain/services/program_snapshot_service.h"
 #include "domain/services/wash_execution_service.h"
@@ -117,3 +117,4 @@ int main(void)
     }
     return 0;
 }
+

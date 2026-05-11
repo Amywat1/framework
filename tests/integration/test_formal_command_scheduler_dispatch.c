@@ -12,22 +12,22 @@ int main(void)
     unsigned int pending_before;
 
     test_setup_system_context(&system_context, &driver_context);
-    result = test_load_runtime_program_from_fixture(&system_context,
+    result = test_load_runtime_program_from_fixture(system_context,
         "tests/fixtures/wash_step_control/program_v1_valid.json",
         0);
     TEST_ASSERT(result.ok);
 
-    controller_scheduler = test_create_scheduler(&system_context, 100ul);
+    controller_scheduler = test_create_scheduler(system_context, 100ul);
     TEST_ASSERT(controller_scheduler != 0);
 
-    pending_before = system_context.pending_trigger_count;
+    pending_before = system_context_private_runtime(system_context)->pending_trigger_count;
     TEST_ASSERT(test_scheduler_command(controller_scheduler,
         "start wash_step_control_v1",
         response_line,
         sizeof(response_line)) == 0);
     TEST_ASSERT(strstr(response_line, "accepted=true") != 0);
-    TEST_ASSERT(system_context.pending_trigger_count == pending_before);
-    TEST_ASSERT(system_context.wash_session.session_state == SESSION_STATE_RUNNING);
+    TEST_ASSERT(system_context_private_runtime(system_context)->pending_trigger_count == pending_before);
+    TEST_ASSERT(system_context_private_runtime(system_context)->wash_session.session_state == SESSION_STATE_RUNNING);
 
     TEST_ASSERT(test_scheduler_command(controller_scheduler,
         "status",
@@ -42,3 +42,4 @@ int main(void)
     controller_scheduler_linux_destroy(controller_scheduler);
     return 0;
 }
+

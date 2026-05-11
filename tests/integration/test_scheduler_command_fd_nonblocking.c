@@ -21,7 +21,7 @@ static int verify_partial_command_does_not_block_scheduler(void)
     operation_result_t result;
 
     test_setup_system_context(&system_context, &driver_context);
-    result = test_load_runtime_program_from_fixture(&system_context,
+    result = test_load_runtime_program_from_fixture(system_context,
         "tests/fixtures/wash_step_control/program_v1_valid.json",
         0);
     TEST_ASSERT(result.ok);
@@ -46,7 +46,7 @@ static int verify_partial_command_does_not_block_scheduler(void)
     memset(&controller_scheduler_linux_stdio, 0, sizeof(controller_scheduler_linux_stdio));
     controller_scheduler_linux_stdio.input = input_file;
     controller_scheduler_linux_stdio.output = output_file;
-    controller_scheduler = controller_scheduler_linux_create(&system_context,
+    controller_scheduler = controller_scheduler_linux_create(system_context,
         &controller_scheduler_config,
         &controller_scheduler_linux_stdio);
     TEST_ASSERT(controller_scheduler != 0);
@@ -60,19 +60,19 @@ static int verify_partial_command_does_not_block_scheduler(void)
     TEST_ASSERT(write(pipe_fds[1], "start wash_step_control_v1", 26) == 26);
     result = controller_scheduler_linux_test_poll_once(controller_scheduler);
     TEST_ASSERT(result.ok);
-    TEST_ASSERT(system_context.wash_session.session_state != SESSION_STATE_RUNNING);
-    TEST_ASSERT(system_context.pending_trigger_count == 0u);
-    TEST_ASSERT(system_context.current_time_ms == 0ul);
+    TEST_ASSERT(system_context_private_runtime(system_context)->wash_session.session_state != SESSION_STATE_RUNNING);
+    TEST_ASSERT(system_context_private_runtime(system_context)->pending_trigger_count == 0u);
+    TEST_ASSERT(system_context_private_runtime(system_context)->current_time_ms == 0ul);
 
     result = controller_scheduler_linux_test_inject_period(controller_scheduler, 1u);
     TEST_ASSERT(result.ok);
-    TEST_ASSERT(system_context.current_time_ms == 100ul);
-    TEST_ASSERT(system_context.wash_session.session_state != SESSION_STATE_RUNNING);
+    TEST_ASSERT(system_context_private_runtime(system_context)->current_time_ms == 100ul);
+    TEST_ASSERT(system_context_private_runtime(system_context)->wash_session.session_state != SESSION_STATE_RUNNING);
 
     TEST_ASSERT(write(pipe_fds[1], "\n", 1) == 1);
     result = controller_scheduler_linux_test_poll_once(controller_scheduler);
     TEST_ASSERT(result.ok);
-    TEST_ASSERT(system_context.wash_session.session_state == SESSION_STATE_RUNNING);
+    TEST_ASSERT(system_context_private_runtime(system_context)->wash_session.session_state == SESSION_STATE_RUNNING);
 
     controller_scheduler_linux_destroy(controller_scheduler);
     fclose(output_file);
@@ -85,3 +85,4 @@ int main(void)
 {
     return verify_partial_command_does_not_block_scheduler();
 }
+

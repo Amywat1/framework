@@ -11,27 +11,29 @@ int main(void)
     operation_result_t result;
 
     test_setup_system_context(&system_context, &driver_context);
-    result = test_load_runtime_program_from_fixture(&system_context,
+    result = test_load_runtime_program_from_fixture(system_context,
         "tests/fixtures/wash_step_control/program_v1_valid.json",
         0);
     TEST_ASSERT(result.ok);
-    controller_scheduler = test_create_scheduler(&system_context, 100ul);
+    controller_scheduler = test_create_scheduler(system_context, 100ul);
     TEST_ASSERT(controller_scheduler != 0);
 
     TEST_ASSERT(test_scheduler_command(controller_scheduler,
         "start wash_step_control_v1",
         response_line,
         sizeof(response_line)) == 0);
-    TEST_ASSERT(system_context.wash_execution.lifecycle_state == SEGMENT_LIFECYCLE_RUNNING);
+    TEST_ASSERT(system_context_private_runtime(system_context)->wash_execution.lifecycle_state == SEGMENT_LIFECYCLE_RUNNING);
     driver_context.runtime_snapshot.position_snapshot.gantry_absolute_mm = 9500;
     driver_context.runtime_snapshot.position_snapshot.tail_reached = true;
     TEST_ASSERT(test_scheduler_tick(controller_scheduler, 1u) == 0);
-    TEST_ASSERT(system_context.wash_execution.lifecycle_state == SEGMENT_LIFECYCLE_EXITING);
+    TEST_ASSERT(system_context_private_runtime(system_context)->wash_execution.lifecycle_state == SEGMENT_LIFECYCLE_EXITING);
 
     result = controller_scheduler_read_view(controller_scheduler, &controller_runtime_state_view);
     TEST_ASSERT(result.ok);
     TEST_ASSERT(controller_runtime_state_view.metrics.cycle_count == 1ul);
 
     controller_scheduler_linux_destroy(controller_scheduler);
+    test_release_system_context(system_context);
     return 0;
 }
+

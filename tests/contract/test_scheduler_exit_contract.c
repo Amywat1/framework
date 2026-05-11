@@ -11,7 +11,7 @@ static int verify_immediate_exit_stops_without_drain(void)
     operation_result_t result;
 
     test_setup_system_context(&system_context, &driver_context);
-    controller_scheduler = test_create_scheduler(&system_context, 100ul);
+    controller_scheduler = test_create_scheduler(system_context, 100ul);
     TEST_ASSERT(controller_scheduler != 0);
 
     TEST_ASSERT(test_scheduler_exit(controller_scheduler, true) == 0);
@@ -21,6 +21,7 @@ static int verify_immediate_exit_stops_without_drain(void)
     TEST_ASSERT(controller_runtime_state_view.metrics.exit_event_count == 1ul);
 
     controller_scheduler_linux_destroy(controller_scheduler);
+    test_release_system_context(system_context);
     return 0;
 }
 
@@ -35,19 +36,19 @@ static int verify_bounded_drain_has_terminal_conclusion(void)
     unsigned int step_index;
 
     test_setup_system_context(&system_context, &driver_context);
-    result = test_load_runtime_program_from_fixture(&system_context,
+    result = test_load_runtime_program_from_fixture(system_context,
         "tests/fixtures/wash_step_control/program_v1_valid.json",
         0);
     TEST_ASSERT(result.ok);
-    controller_scheduler = test_create_scheduler(&system_context, 100ul);
+    controller_scheduler = test_create_scheduler(system_context, 100ul);
     TEST_ASSERT(controller_scheduler != 0);
 
-    result = process_formal_command_execute(&system_context,
+    result = process_formal_command_execute(system_context,
         "start wash_step_control_v1",
         response_line,
         sizeof(response_line));
     TEST_ASSERT(result.ok);
-    TEST_ASSERT(system_context.pending_trigger_count == 1u);
+    TEST_ASSERT(system_context_private_runtime(system_context)->pending_trigger_count == 1u);
 
     TEST_ASSERT(test_scheduler_exit(controller_scheduler, false) == 0);
     for (step_index = 0u; step_index < 8u; ++step_index) {
@@ -71,6 +72,7 @@ static int verify_bounded_drain_has_terminal_conclusion(void)
     TEST_ASSERT(controller_runtime_state_view.metrics.exit_event_count == 1ul);
 
     controller_scheduler_linux_destroy(controller_scheduler);
+    test_release_system_context(system_context);
     return 0;
 }
 
@@ -84,3 +86,4 @@ int main(void)
     }
     return 0;
 }
+

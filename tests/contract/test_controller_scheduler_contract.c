@@ -11,7 +11,7 @@ int main(void)
     operation_result_t result;
 
     test_setup_system_context(&system_context, &driver_context);
-    controller_scheduler = test_create_scheduler(&system_context, 100ul);
+    controller_scheduler = test_create_scheduler(system_context, 100ul);
     TEST_ASSERT(controller_scheduler != 0);
 
     result = controller_scheduler_read_view(controller_scheduler, &view_from_scheduler);
@@ -22,7 +22,7 @@ int main(void)
     TEST_ASSERT(view_from_scheduler.notification_source_state == CONTROLLER_SCHEDULER_EVENT_SOURCE_DEGRADED);
     TEST_ASSERT(view_from_scheduler.exit_source_state == CONTROLLER_SCHEDULER_EVENT_SOURCE_DEGRADED);
 
-    result = controller_scheduler_read_context_view(&system_context, &view_from_context);
+    result = controller_scheduler_read_context_view(system_context, &view_from_context);
     TEST_ASSERT(result.ok);
     TEST_ASSERT(view_from_context.control_period_ms == 100ul);
     TEST_ASSERT(view_from_context.metrics.pending_trigger_count == 0u);
@@ -33,6 +33,13 @@ int main(void)
     TEST_ASSERT(view_from_scheduler.runtime_state == CONTROLLER_SCHEDULER_RUNTIME_STATE_RUNNING);
     TEST_ASSERT(view_from_scheduler.metrics.cycle_count == 1ul);
 
+    result = system_context_release(system_context);
+    TEST_ASSERT(!result.ok);
+    TEST_ASSERT(result.error_code == ERROR_CODE_INVALID_STATE);
+
     controller_scheduler_linux_destroy(controller_scheduler);
+    result = system_context_release(system_context);
+    TEST_ASSERT(result.ok);
     return 0;
 }
+

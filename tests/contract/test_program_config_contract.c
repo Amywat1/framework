@@ -1,4 +1,4 @@
-#include "tests/test_support.h"
+﻿#include "tests/test_support.h"
 
 #include "adapters/config/json_program_parser.h"
 
@@ -12,4 +12,5 @@ int main(void)
     TEST_ASSERT(wash_program.stage_count >= 1);
     return 0;
 }
+
 

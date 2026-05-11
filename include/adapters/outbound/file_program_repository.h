@@ -14,7 +14,7 @@
  * @param system_context 主控共享上下文，不能为空。
  * @param config_root 程序配置根目录，不能为空。
  */
-void file_program_repository_init(system_context_t *system_context, const char *config_root);
+void file_program_repository_init(system_context_t system_context, const char *config_root);
 
 /**
  * @brief 向运行时仓储注入测试或调试用的内存程序。
@@ -22,6 +22,6 @@ void file_program_repository_init(system_context_t *system_context, const char *
  * @param wash_program 运行时程序模型，不能为空。
  * @param revision 运行时程序版本号。
  */
-void file_program_repository_set_runtime_program(system_context_t *system_context, const wash_program_t *wash_program, int revision);
+void file_program_repository_set_runtime_program(system_context_t system_context, const wash_program_t *wash_program, int revision);
 
 #endif

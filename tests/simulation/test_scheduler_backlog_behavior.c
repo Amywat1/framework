@@ -10,7 +10,7 @@ int main(void)
     operation_result_t result;
 
     test_setup_system_context(&system_context, &driver_context);
-    controller_scheduler = test_create_scheduler(&system_context, 100ul);
+    controller_scheduler = test_create_scheduler(system_context, 100ul);
     TEST_ASSERT(controller_scheduler != 0);
 
     controller_scheduler_linux_test_set_cycle_duration(controller_scheduler, 250ul);
@@ -21,7 +21,7 @@ int main(void)
     TEST_ASSERT(controller_runtime_state_view.metrics.cycle_count == 1ul);
     TEST_ASSERT(controller_runtime_state_view.metrics.overrun_count == 1ul);
     TEST_ASSERT(controller_runtime_state_view.metrics.consecutive_overrun_count == 1ul);
-    TEST_ASSERT(system_context_current_time_ms(&system_context) == 300ul);
+    TEST_ASSERT(system_context_current_time_ms(system_context) == 300ul);
 
     controller_scheduler_linux_test_set_cycle_duration(controller_scheduler, 10ul);
     result = controller_scheduler_linux_test_inject_period(controller_scheduler, 1u);
@@ -30,8 +30,10 @@ int main(void)
     TEST_ASSERT(result.ok);
     TEST_ASSERT(controller_runtime_state_view.metrics.cycle_count == 2ul);
     TEST_ASSERT(controller_runtime_state_view.metrics.consecutive_overrun_count == 0ul);
-    TEST_ASSERT(system_context_current_time_ms(&system_context) == 400ul);
+    TEST_ASSERT(system_context_current_time_ms(system_context) == 400ul);
 
     controller_scheduler_linux_destroy(controller_scheduler);
+    test_release_system_context(system_context);
     return 0;
 }
+

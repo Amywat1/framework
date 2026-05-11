@@ -8,6 +8,7 @@
 #include "domain/model/program_snapshot.h"
 #include "domain/model/program_validation.h"
 #include "domain/model/vehicle_type.h"
+#include "src/application/coordinators/system_context_private.h"
 
 typedef struct file_repository_context_t {
     char config_root[260];
@@ -16,7 +17,7 @@ typedef struct file_repository_context_t {
     int runtime_program_available;
 } file_repository_context_t;
 
-static file_repository_context_t g_repository_context;
+static file_repository_context_t g_repository_contexts[SYSTEM_CONTEXT_POOL_CAPACITY];
 
 static int load_program_impl(void *context, const char *program_id, wash_program_t *wash_program)
 {
@@ -87,14 +88,24 @@ static int validate_program_snapshot_impl(void *context, const char *program_id,
     return 0;
 }
 
-void file_program_repository_init(system_context_t *system_context, const char *config_root)
+void file_program_repository_init(system_context_t system_context, const char *config_root)
 {
+    file_repository_context_t *repository_context;
     program_repository_port_t program_repository_port;
+    unsigned int slot_index;
 
-    memset(&g_repository_context, 0, sizeof(g_repository_context));
-    strncpy(g_repository_context.config_root, config_root, sizeof(g_repository_context.config_root) - 1);
+    if (config_root == 0) {
+        return;
+    }
+    slot_index = system_context_private_slot_index(system_context);
+    if (slot_index == SYSTEM_CONTEXT_POOL_INVALID_INDEX) {
+        return;
+    }
+    repository_context = &g_repository_contexts[slot_index];
+    memset(repository_context, 0, sizeof(*repository_context));
+    strncpy(repository_context->config_root, config_root, sizeof(repository_context->config_root) - 1);
     memset(&program_repository_port, 0, sizeof(program_repository_port));
-    program_repository_port.context = &g_repository_context;
+    program_repository_port.context = repository_context;
     program_repository_port.load_program = load_program_impl;
     program_repository_port.save_program = save_program_impl;
     program_repository_port.load_vehicle_type = load_vehicle_type_impl;
@@ -102,12 +113,12 @@ void file_program_repository_init(system_context_t *system_context, const char *
     system_context_set_program_repository_port(system_context, &program_repository_port);
 }
 
-void file_program_repository_set_runtime_program(system_context_t *system_context, const wash_program_t *wash_program, int revision)
+void file_program_repository_set_runtime_program(system_context_t system_context, const wash_program_t *wash_program, int revision)
 {
     file_repository_context_t *repository_context;
     const program_repository_port_t *program_repository_port;
 
-    if (system_context == 0 || wash_program == 0) {
+    if (wash_program == 0) {
         return;
     }
     program_repository_port = system_context_program_repository_port(system_context);

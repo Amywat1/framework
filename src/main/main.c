@@ -18,12 +18,11 @@
 #define CONTROLLER_BOUNDED_DRAIN_TICKS 8u
 #define CONTROLLER_MAX_TRIGGERS_PER_TICK 1u
 
-static void initialize_system_context(system_context_t *system_context, simulated_driver_context_t *driver_context)
+static void initialize_system_context(system_context_t system_context, simulated_driver_context_t *driver_context)
 {
     sensor_port_t sensor_port;
     actuator_port_t actuator_port;
 
-    system_context_reset(system_context);
     simulated_driver_context_init(driver_context);
     memset(&sensor_port, 0, sizeof(sensor_port));
     memset(&actuator_port, 0, sizeof(actuator_port));
@@ -60,13 +59,13 @@ int main(void)
     controller_scheduler_linux_stdio_t controller_scheduler_linux_stdio;
     simulated_driver_context_t driver_context;
     controller_scheduler_t *controller_scheduler;
-    system_context_t *system_context;
+    system_context_t system_context;
     operation_result_t result;
     int exit_code;
 
-    system_context = system_context_create();
-    if (system_context == 0) {
-        fprintf(stderr, "wash_controller context_create_failed\n");
+    result = system_context_acquire(&system_context);
+    if (!result.ok || system_context == 0) {
+        fprintf(stderr, "wash_controller context_acquire_failed\n");
         return 1;
     }
 
@@ -82,7 +81,7 @@ int main(void)
         &controller_scheduler_linux_stdio);
     if (controller_scheduler == 0) {
         fprintf(stderr, "wash_controller scheduler_create_failed\n");
-        system_context_destroy(system_context);
+        (void)system_context_release(system_context);
         return 1;
     }
 
@@ -101,6 +100,6 @@ int main(void)
     }
 
     controller_scheduler_linux_destroy(controller_scheduler);
-    system_context_destroy(system_context);
+    (void)system_context_release(system_context);
     return exit_code;
 }

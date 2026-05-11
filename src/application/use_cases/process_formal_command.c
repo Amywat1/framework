@@ -184,7 +184,7 @@ static void write_result_line(char *response_line,
         detail != 0 ? detail : "none");
 }
 
-static void apply_request_projection(system_context_t *system_context,
+static void apply_request_projection(system_context_t system_context,
     trigger_type_t trigger_type,
     const char *entity_id,
     const char *previous_state,
@@ -211,7 +211,7 @@ static void apply_request_projection(system_context_t *system_context,
     runtime_event_recorder_apply_projection(system_context, &runtime_result_projection);
 }
 
-static void remember_protocol_error(system_context_t *system_context, const char *reason_code)
+static void remember_protocol_error(system_context_t system_context, const char *reason_code)
 {
     apply_request_projection(system_context,
         TRIGGER_TYPE_REJECT,
@@ -225,13 +225,13 @@ static void remember_protocol_error(system_context_t *system_context, const char
         RUNTIME_EVENT_LOG_REJECTION);
 }
 
-static void remember_command_rejection(system_context_t *system_context,
+static void remember_command_rejection(system_context_t system_context,
     trigger_type_t trigger_type,
     const char *reason_code)
 {
     apply_request_projection(system_context,
         trigger_type,
-        system_context->wash_session.session_id[0] != '\0' ? system_context->wash_session.session_id : "stdin",
+        system_context_private_runtime(system_context)->wash_session.session_id[0] != '\0' ? system_context_private_runtime(system_context)->wash_session.session_id : "stdin",
         "received",
         "rejected",
         "rejected",
@@ -241,7 +241,7 @@ static void remember_command_rejection(system_context_t *system_context,
         RUNTIME_EVENT_LOG_REJECTION);
 }
 
-static void remember_submit_rejection(system_context_t *system_context,
+static void remember_submit_rejection(system_context_t system_context,
     trigger_type_t trigger_type,
     const char *reason_code)
 {
@@ -257,22 +257,22 @@ static void remember_submit_rejection(system_context_t *system_context,
         RUNTIME_EVENT_LOG_REJECTION);
 }
 
-static void assign_stdin_trigger_id(system_context_t *system_context, wash_trigger_event_t *wash_trigger_event)
+static void assign_stdin_trigger_id(system_context_t system_context, wash_trigger_event_t *wash_trigger_event)
 {
-    if (system_context == 0 || wash_trigger_event == 0) {
+    if (wash_trigger_event == 0) {
         return;
     }
 
     snprintf(wash_trigger_event->trigger_id,
         sizeof(wash_trigger_event->trigger_id),
         "stdin-%lu-%u",
-        system_context->current_time_ms,
-        system_context->pending_trigger_count);
+        system_context_private_runtime(system_context)->current_time_ms,
+        system_context_private_runtime(system_context)->pending_trigger_count);
     strncpy(wash_trigger_event->source, "stdin", sizeof(wash_trigger_event->source) - 1);
     wash_trigger_event->source[sizeof(wash_trigger_event->source) - 1] = '\0';
 }
 
-static operation_result_t execute_status(system_context_t *system_context, char *response_line, size_t response_line_size)
+static operation_result_t execute_status(system_context_t system_context, char *response_line, size_t response_line_size)
 {
     char detail[384];
     const char *summary_reason;
@@ -307,7 +307,7 @@ static operation_result_t execute_status(system_context_t *system_context, char 
     return operation_result_ok();
 }
 
-static operation_result_t prepare_formal_command_request(system_context_t *system_context,
+static operation_result_t prepare_formal_command_request(system_context_t system_context,
     const char *command_line,
     formal_command_request_t *formal_command_request,
     char *response_line,
@@ -319,7 +319,7 @@ static operation_result_t prepare_formal_command_request(system_context_t *syste
     char *argument_1;
     char *argument_2;
 
-    if (system_context == 0 || command_line == 0 || formal_command_request == 0
+    if (command_line == 0 || formal_command_request == 0
         || response_line == 0 || response_line_size == 0) {
         return operation_result_fail(ERROR_CODE_INVALID_ARGUMENT);
     }
@@ -347,7 +347,7 @@ static operation_result_t prepare_formal_command_request(system_context_t *syste
             write_result_line(response_line, response_line_size, "parse_failed", false, "start_requires_program_id");
             return operation_result_fail(ERROR_CODE_PARSE_FAILED);
         }
-        if (wash_session_is_running(&system_context->wash_session)) {
+        if (wash_session_is_running(&system_context_private_runtime(system_context)->wash_session)) {
             remember_command_rejection(system_context, TRIGGER_TYPE_START, "running_session_exists");
             write_result_line(response_line, response_line_size, "invalid_state", false, "running_session_exists");
             return operation_result_fail(ERROR_CODE_INVALID_STATE);
@@ -360,7 +360,7 @@ static operation_result_t prepare_formal_command_request(system_context_t *syste
             argument_1,
             0,
             "start-command",
-            system_context->current_time_ms);
+            system_context_private_runtime(system_context)->current_time_ms);
         assign_stdin_trigger_id(system_context, &formal_command_request->wash_trigger_event);
         return operation_result_ok();
     }
@@ -379,7 +379,7 @@ static operation_result_t prepare_formal_command_request(system_context_t *syste
             0,
             "manual-stop",
             "stop-command",
-            system_context->current_time_ms);
+            system_context_private_runtime(system_context)->current_time_ms);
         assign_stdin_trigger_id(system_context, &formal_command_request->wash_trigger_event);
         return operation_result_ok();
     }
@@ -405,7 +405,7 @@ static operation_result_t prepare_formal_command_request(system_context_t *syste
                 0,
                 "clear",
                 0,
-                system_context->current_time_ms);
+                system_context_private_runtime(system_context)->current_time_ms);
             assign_stdin_trigger_id(system_context, &formal_command_request->wash_trigger_event);
             return operation_result_ok();
         }
@@ -421,7 +421,7 @@ static operation_result_t prepare_formal_command_request(system_context_t *syste
             0,
             argument_1,
             argument_2,
-            system_context->current_time_ms);
+            system_context_private_runtime(system_context)->current_time_ms);
         assign_stdin_trigger_id(system_context, &formal_command_request->wash_trigger_event);
         return operation_result_ok();
     }
@@ -443,7 +443,7 @@ static operation_result_t prepare_formal_command_request(system_context_t *syste
     return operation_result_fail(ERROR_CODE_UNSUPPORTED);
 }
 
-static operation_result_t finalize_formal_command_response(system_context_t *system_context,
+static operation_result_t finalize_formal_command_response(system_context_t system_context,
     operation_result_t result,
     char *response_line,
     size_t response_line_size)
@@ -452,24 +452,24 @@ static operation_result_t finalize_formal_command_response(system_context_t *sys
     const char *detail;
     const char *result_code;
 
-    if (system_context == 0 || response_line == 0 || response_line_size == 0) {
+    if (response_line == 0 || response_line_size == 0) {
         return operation_result_fail(ERROR_CODE_INVALID_ARGUMENT);
     }
 
     if (!result.ok) {
         result_code = error_code_to_string(result.error_code);
-        detail = system_context->last_reason_code[0] != '\0'
-            ? system_context->last_reason_code
+        detail = system_context_private_runtime(system_context)->last_reason_code[0] != '\0'
+            ? system_context_private_runtime(system_context)->last_reason_code
             : result_code;
         write_result_line(response_line, response_line_size, result_code, false, detail);
         return result;
     }
 
-    result_code = system_context->last_result_code[0] != '\0'
-        ? system_context->last_result_code
+    result_code = system_context_private_runtime(system_context)->last_result_code[0] != '\0'
+        ? system_context_private_runtime(system_context)->last_result_code
         : "accepted";
-    detail = system_context->last_reason_code[0] != '\0'
-        ? system_context->last_reason_code
+    detail = system_context_private_runtime(system_context)->last_reason_code[0] != '\0'
+        ? system_context_private_runtime(system_context)->last_reason_code
         : "none";
     accepted = strcmp(result_code, "ignored") != 0
         && strcmp(result_code, "rejected") != 0
@@ -478,13 +478,23 @@ static operation_result_t finalize_formal_command_response(system_context_t *sys
     return result;
 }
 
-operation_result_t process_formal_command_execute(system_context_t *system_context,
+operation_result_t process_formal_command_execute(system_context_t system_context,
     const char *command_line,
     char *response_line,
     size_t response_line_size)
 {
     formal_command_request_t formal_command_request;
     operation_result_t result;
+
+    result = system_context_private_require_active(system_context);
+    if (!result.ok) {
+        write_result_line(response_line,
+            response_line_size,
+            error_code_to_string(result.error_code),
+            false,
+            "invalid_system_context");
+        return result;
+    }
 
     result = prepare_formal_command_request(system_context,
         command_line,

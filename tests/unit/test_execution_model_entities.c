@@ -1,4 +1,4 @@
-#include "domain/model/conditional_control.h"
+﻿#include "domain/model/conditional_control.h"
 #include "domain/model/position_trigger.h"
 #include "domain/model/wash_segment.h"
 #include "tests/test_support.h"
@@ -49,3 +49,4 @@ int main(void)
     }
     return 0;
 }
+

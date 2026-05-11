@@ -13,21 +13,22 @@ static int verify_start_returns_transition_fact(void)
     wash_session_transition_fact_t wash_session_transition_fact;
 
     test_setup_system_context(&system_context, &driver_context);
-    system_context.current_time_ms = 100;
-    program_snapshot_service_args = test_build_program_snapshot_service_args(&system_context);
+    system_context_private_runtime(system_context)->current_time_ms = 100;
+    program_snapshot_service_args = test_build_program_snapshot_service_args(system_context);
     result = program_snapshot_service_capture(&program_snapshot_service_args, "standard_wash");
     TEST_ASSERT(result.ok);
 
-    wash_session_service_args = test_build_wash_session_service_args(&system_context);
+    wash_session_service_args = test_build_wash_session_service_args(system_context);
     result = wash_session_state_machine_start(&wash_session_service_args,
         "standard_wash",
         &wash_session_transition_fact);
     TEST_ASSERT(result.ok);
-    TEST_ASSERT(system_context.wash_session.session_state == SESSION_STATE_RUNNING);
+    TEST_ASSERT(system_context_private_runtime(system_context)->wash_session.session_state == SESSION_STATE_RUNNING);
     TEST_ASSERT(strcmp(wash_session_transition_fact.previous_state, "none") == 0);
     TEST_ASSERT(strcmp(wash_session_transition_fact.current_state, "running") == 0);
     TEST_ASSERT(strcmp(wash_session_transition_fact.result_code, "accepted") == 0);
     TEST_ASSERT(strcmp(wash_session_transition_fact.reason_code, "none") == 0);
+    test_release_system_context(system_context);
     return 0;
 }
 
@@ -41,11 +42,11 @@ static int verify_complete_returns_transition_fact(void)
     wash_session_transition_fact_t wash_session_transition_fact;
 
     test_setup_system_context(&system_context, &driver_context);
-    program_snapshot_service_args = test_build_program_snapshot_service_args(&system_context);
+    program_snapshot_service_args = test_build_program_snapshot_service_args(system_context);
     result = program_snapshot_service_capture(&program_snapshot_service_args, "standard_wash");
     TEST_ASSERT(result.ok);
 
-    wash_session_service_args = test_build_wash_session_service_args(&system_context);
+    wash_session_service_args = test_build_wash_session_service_args(system_context);
     result = wash_session_state_machine_start(&wash_session_service_args,
         "standard_wash",
         &wash_session_transition_fact);
@@ -56,10 +57,11 @@ static int verify_complete_returns_transition_fact(void)
         RESULT_CODE_SUCCESS,
         &wash_session_transition_fact);
     TEST_ASSERT(result.ok);
-    TEST_ASSERT(system_context.wash_session.session_state == SESSION_STATE_COMPLETED);
+    TEST_ASSERT(system_context_private_runtime(system_context)->wash_session.session_state == SESSION_STATE_COMPLETED);
     TEST_ASSERT(strcmp(wash_session_transition_fact.previous_state, "running") == 0);
     TEST_ASSERT(strcmp(wash_session_transition_fact.current_state, "completed") == 0);
     TEST_ASSERT(strcmp(wash_session_transition_fact.result_code, "completed") == 0);
+    test_release_system_context(system_context);
     return 0;
 }
 
@@ -73,11 +75,11 @@ static int verify_abort_returns_transition_fact(void)
     wash_session_transition_fact_t wash_session_transition_fact;
 
     test_setup_system_context(&system_context, &driver_context);
-    program_snapshot_service_args = test_build_program_snapshot_service_args(&system_context);
+    program_snapshot_service_args = test_build_program_snapshot_service_args(system_context);
     result = program_snapshot_service_capture(&program_snapshot_service_args, "standard_wash");
     TEST_ASSERT(result.ok);
 
-    wash_session_service_args = test_build_wash_session_service_args(&system_context);
+    wash_session_service_args = test_build_wash_session_service_args(system_context);
     result = wash_session_state_machine_start(&wash_session_service_args,
         "standard_wash",
         &wash_session_transition_fact);
@@ -89,10 +91,11 @@ static int verify_abort_returns_transition_fact(void)
         "manual-stop",
         &wash_session_transition_fact);
     TEST_ASSERT(result.ok);
-    TEST_ASSERT(system_context.wash_session.session_state == SESSION_STATE_ABORTED);
+    TEST_ASSERT(system_context_private_runtime(system_context)->wash_session.session_state == SESSION_STATE_ABORTED);
     TEST_ASSERT(strcmp(wash_session_transition_fact.previous_state, "running") == 0);
     TEST_ASSERT(strcmp(wash_session_transition_fact.current_state, "aborted") == 0);
     TEST_ASSERT(strcmp(wash_session_transition_fact.reason_code, "manual-stop") == 0);
+    test_release_system_context(system_context);
     return 0;
 }
 
@@ -109,3 +112,4 @@ int main(void)
     }
     return 0;
 }
+

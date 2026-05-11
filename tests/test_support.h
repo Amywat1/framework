@@ -1,6 +1,7 @@
 #ifndef TESTS_TEST_SUPPORT_H
 #define TESTS_TEST_SUPPORT_H
 
+#include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -32,10 +33,18 @@
 
 static inline void test_setup_system_context(system_context_t *system_context, simulated_driver_context_t *driver_context)
 {
+    operation_result_t result;
     sensor_port_t sensor_port;
     actuator_port_t actuator_port;
 
-    system_context_initialize(system_context);
+    if (system_context == 0) {
+        abort();
+    }
+    result = system_context_acquire(system_context);
+    if (!result.ok || *system_context == 0) {
+        fprintf(stderr, "FAILED TO ACQUIRE system_context\n");
+        abort();
+    }
     simulated_driver_context_init(driver_context);
     memset(&sensor_port, 0, sizeof(sensor_port));
     memset(&actuator_port, 0, sizeof(actuator_port));
@@ -45,13 +54,24 @@ static inline void test_setup_system_context(system_context_t *system_context, s
     simulated_chemical_driver_bind(&actuator_port, driver_context);
     simulated_ro_water_driver_bind(&actuator_port, driver_context);
     simulated_dryer_driver_bind(&actuator_port, driver_context);
-    system_context_set_sensor_port(system_context, &sensor_port);
-    system_context_set_actuator_port(system_context, &actuator_port);
-    file_program_repository_init(system_context, "./configs");
-    file_event_logger_init(system_context, "./runtime/logs/test_events.log");
+    system_context_set_sensor_port(*system_context, &sensor_port);
+    system_context_set_actuator_port(*system_context, &actuator_port);
+    file_program_repository_init(*system_context, "./configs");
+    file_event_logger_init(*system_context, "./runtime/logs/test_events.log");
 }
 
-static inline operation_result_t test_load_runtime_program_from_fixture(system_context_t *system_context,
+static inline void test_release_system_context(system_context_t system_context)
+{
+    operation_result_t result;
+
+    result = system_context_release(system_context);
+    if (!result.ok) {
+        fprintf(stderr, "FAILED TO RELEASE system_context\n");
+        abort();
+    }
+}
+
+static inline operation_result_t test_load_runtime_program_from_fixture(system_context_t system_context,
     const char *fixture_path,
     wash_program_t *wash_program)
 {
@@ -69,9 +89,9 @@ static inline operation_result_t test_load_runtime_program_from_fixture(system_c
     return operation_result_ok();
 }
 
-static inline void test_assign_trigger_identity(system_context_t *system_context, wash_trigger_event_t *wash_trigger_event)
+static inline void test_assign_trigger_identity(system_context_t system_context, wash_trigger_event_t *wash_trigger_event)
 {
-    if (system_context == 0 || wash_trigger_event == 0) {
+    if (wash_trigger_event == 0) {
         return;
     }
 
@@ -83,17 +103,17 @@ static inline void test_assign_trigger_identity(system_context_t *system_context
     strncpy(wash_trigger_event->source, "test-helper", sizeof(wash_trigger_event->source) - 1);
 }
 
-static inline unsigned int has_pending_trigger_count(system_context_t *system_context, const char *trigger_id)
+static inline unsigned int has_pending_trigger_count(system_context_t system_context, const char *trigger_id)
 {
     return system_context_count_pending_triggers_by_id(system_context, trigger_id);
 }
 
-static inline unsigned int test_count_pending_trigger_type(const system_context_t *system_context, trigger_type_t trigger_type)
+static inline unsigned int test_count_pending_trigger_type(const system_context_t system_context, trigger_type_t trigger_type)
 {
     return system_context_count_pending_triggers_by_type(system_context, trigger_type);
 }
 
-static inline operation_result_t test_submit_trigger_and_drain(system_context_t *system_context, wash_trigger_event_t *wash_trigger_event)
+static inline operation_result_t test_submit_trigger_and_drain(system_context_t system_context, wash_trigger_event_t *wash_trigger_event)
 {
     operation_result_t result;
 
@@ -113,7 +133,7 @@ static inline operation_result_t test_submit_trigger_and_drain(system_context_t 
     return result;
 }
 
-static inline operation_result_t test_flush_pending_runtime(system_context_t *system_context)
+static inline operation_result_t test_flush_pending_runtime(system_context_t system_context)
 {
     operation_result_t result;
     unsigned int spin_guard;
@@ -133,7 +153,7 @@ static inline operation_result_t test_flush_pending_runtime(system_context_t *sy
     return result;
 }
 
-static inline void test_rebuild_formal_response_line(system_context_t *system_context,
+static inline void test_rebuild_formal_response_line(system_context_t system_context,
     char *response_line,
     size_t response_line_size)
 {
@@ -141,7 +161,7 @@ static inline void test_rebuild_formal_response_line(system_context_t *system_co
     const char *result_code;
     bool accepted;
 
-    if (system_context == 0 || response_line == 0 || response_line_size == 0u) {
+    if (response_line == 0 || response_line_size == 0u) {
         return;
     }
 
@@ -162,7 +182,7 @@ static inline void test_rebuild_formal_response_line(system_context_t *system_co
         detail);
 }
 
-static inline operation_result_t test_process_command(system_context_t *system_context,
+static inline operation_result_t test_process_command(system_context_t system_context,
     const char *command_line,
     char *response_line,
     size_t response_line_size)
@@ -170,7 +190,7 @@ static inline operation_result_t test_process_command(system_context_t *system_c
     return cli_command_adapter_execute_formal_line(system_context, command_line, response_line, response_line_size);
 }
 
-static inline operation_result_t test_process_command_and_flush(system_context_t *system_context,
+static inline operation_result_t test_process_command_and_flush(system_context_t system_context,
     const char *command_line,
     char *response_line,
     size_t response_line_size)
@@ -196,21 +216,21 @@ static inline operation_result_t test_process_command_and_flush(system_context_t
     return result;
 }
 
-static inline operation_result_t test_clear_fault(system_context_t *system_context)
+static inline operation_result_t test_clear_fault(system_context_t system_context)
 {
     char response_line[512];
 
     return test_process_command(system_context, "fault clear", response_line, sizeof(response_line));
 }
 
-static inline operation_result_t test_clear_fault_and_flush(system_context_t *system_context)
+static inline operation_result_t test_clear_fault_and_flush(system_context_t system_context)
 {
     char response_line[512];
 
     return test_process_command_and_flush(system_context, "fault clear", response_line, sizeof(response_line));
 }
 
-static inline operation_result_t test_start_session(system_context_t *system_context, const char *program_id)
+static inline operation_result_t test_start_session(system_context_t system_context, const char *program_id)
 {
     char command_line[256];
     char response_line[512];
@@ -219,7 +239,7 @@ static inline operation_result_t test_start_session(system_context_t *system_con
     return test_process_command(system_context, command_line, response_line, sizeof(response_line));
 }
 
-static inline operation_result_t test_start_session_and_flush(system_context_t *system_context, const char *program_id)
+static inline operation_result_t test_start_session_and_flush(system_context_t system_context, const char *program_id)
 {
     char command_line[256];
     char response_line[512];
@@ -228,7 +248,7 @@ static inline operation_result_t test_start_session_and_flush(system_context_t *
     return test_process_command_and_flush(system_context, command_line, response_line, sizeof(response_line));
 }
 
-static inline operation_result_t test_submit_fault_with_reason(system_context_t *system_context,
+static inline operation_result_t test_submit_fault_with_reason(system_context_t system_context,
     const char *fault_code,
     const char *fault_reason)
 {
@@ -243,7 +263,7 @@ static inline operation_result_t test_submit_fault_with_reason(system_context_t 
     return test_submit_trigger_and_drain(system_context, &wash_trigger_event);
 }
 
-static inline operation_result_t test_submit_stop(system_context_t *system_context, const char *reason_code)
+static inline operation_result_t test_submit_stop(system_context_t system_context, const char *reason_code)
 {
     wash_trigger_event_t wash_trigger_event;
 
@@ -256,13 +276,13 @@ static inline operation_result_t test_submit_stop(system_context_t *system_conte
     return test_submit_trigger_and_drain(system_context, &wash_trigger_event);
 }
 
-static inline operation_result_t test_tick(system_context_t *system_context, unsigned long elapsed_ms)
+static inline operation_result_t test_tick(system_context_t system_context, unsigned long elapsed_ms)
 {
     main_loop_advance_time(system_context, elapsed_ms);
     return main_loop_run(system_context);
 }
 
-static inline controller_scheduler_t *test_create_scheduler(system_context_t *system_context,
+static inline controller_scheduler_t *test_create_scheduler(system_context_t system_context,
     unsigned long control_period_ms)
 {
     controller_scheduler_config_t controller_scheduler_config;
@@ -324,12 +344,12 @@ static inline int test_scheduler_exit(controller_scheduler_t *controller_schedul
     return 0;
 }
 
-static inline const char *test_latest_result_code(const system_context_t *system_context)
+static inline const char *test_latest_result_code(const system_context_t system_context)
 {
     return system_context_last_result_code(system_context)[0] != '\0' ? system_context_last_result_code(system_context) : "none";
 }
 
-static inline const char *test_latest_reason_code(const system_context_t *system_context)
+static inline const char *test_latest_reason_code(const system_context_t system_context)
 {
     return system_context_last_reason_code(system_context)[0] != '\0' ? system_context_last_reason_code(system_context) : "none";
 }

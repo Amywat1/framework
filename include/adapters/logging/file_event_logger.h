@@ -14,6 +14,6 @@
  * @param system_context 主控共享上下文，不能为空。
  * @param log_path 日志文件路径，不能为空。
  */
-void file_event_logger_init(system_context_t *system_context, const char *log_path);
+void file_event_logger_init(system_context_t system_context, const char *log_path);
 
 #endif

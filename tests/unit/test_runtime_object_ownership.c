@@ -1,4 +1,4 @@
-#include "domain/model/program_snapshot.h"
+﻿#include "domain/model/program_snapshot.h"
 #include "domain/model/wait_condition.h"
 #include "domain/model/wash_execution.h"
 #include "domain/model/wash_session.h"
@@ -78,3 +78,4 @@ int main(void)
     }
     return 0;
 }
+

@@ -102,10 +102,11 @@ static int test_repository_save_is_rejected_without_serializer(void)
     test_setup_system_context(&system_context, &driver_context);
     result = json_program_parser_parse("tests/fixtures/wash_step_control/program_v1_valid.json", &wash_program);
     TEST_ASSERT(result.ok);
-    TEST_ASSERT(system_context.program_repository_port.save_program != 0);
-    TEST_ASSERT(system_context.program_repository_port.save_program(
-        system_context.program_repository_port.context,
+    TEST_ASSERT(system_context_private_runtime(system_context)->program_repository_port.save_program != 0);
+    TEST_ASSERT(system_context_private_runtime(system_context)->program_repository_port.save_program(
+        system_context_private_runtime(system_context)->program_repository_port.context,
         &wash_program) != 0);
+    test_release_system_context(system_context);
     return 0;
 }
 
@@ -137,3 +138,4 @@ int main(void)
     }
     return 0;
 }
+

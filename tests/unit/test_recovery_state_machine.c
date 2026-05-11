@@ -10,8 +10,10 @@ int main(void)
     operation_result_t result;
 
     test_setup_system_context(&system_context, &driver_context);
-    result = recovery_state_machine_execute(&system_context.actuator_port);
+    result = recovery_state_machine_execute(system_context_private_runtime(system_context)->actuator_port);
     TEST_ASSERT(result.ok);
     TEST_ASSERT(driver_context.stop_count == 1);
+    test_release_system_context(system_context);
     return 0;
 }
+

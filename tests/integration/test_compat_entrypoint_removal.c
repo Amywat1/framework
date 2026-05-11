@@ -71,17 +71,17 @@ static int verify_formal_path_still_works(void)
     operation_result_t result;
 
     test_setup_system_context(&system_context, &driver_context);
-    result = test_load_runtime_program_from_fixture(&system_context,
+    result = test_load_runtime_program_from_fixture(system_context,
         "tests/fixtures/wash_step_control/program_v1_valid.json",
         0);
     TEST_ASSERT(result.ok);
-    result = test_process_command_and_flush(&system_context,
+    result = test_process_command_and_flush(system_context,
         "start wash_step_control_v1",
         response_line,
         sizeof(response_line));
     TEST_ASSERT(result.ok);
     TEST_ASSERT(strstr(response_line, "accepted=true") != 0);
-    TEST_ASSERT(system_context.wash_session.session_state == SESSION_STATE_RUNNING);
+    TEST_ASSERT(system_context_private_runtime(system_context)->wash_session.session_state == SESSION_STATE_RUNNING);
     return 0;
 }
 
@@ -95,3 +95,4 @@ int main(void)
     }
     return 0;
 }
+

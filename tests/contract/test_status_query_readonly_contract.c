@@ -14,18 +14,18 @@ typedef struct readonly_snapshot_t {
     char global_fault_reason[128];
 } readonly_snapshot_t;
 
-static void capture_snapshot(const system_context_t *system_context, readonly_snapshot_t *snapshot)
+static void capture_snapshot(const system_context_t system_context, readonly_snapshot_t *snapshot)
 {
     memset(snapshot, 0, sizeof(*snapshot));
-    snapshot->global_fault_present = system_context->global_fault_present;
-    snapshot->pending_trigger_count = system_context->pending_trigger_count;
-    snapshot->current_time_ms = system_context->current_time_ms;
-    snapshot->session_state = system_context->wash_session.session_state;
-    snapshot->execution_state = system_context->wash_execution.execution_state;
-    snapshot->final_session_result = system_context->wash_session.final_session_result;
-    strncpy(snapshot->last_result_code, system_context->last_result_code, sizeof(snapshot->last_result_code) - 1);
-    strncpy(snapshot->last_reason_code, system_context->last_reason_code, sizeof(snapshot->last_reason_code) - 1);
-    strncpy(snapshot->global_fault_reason, system_context->global_fault_reason, sizeof(snapshot->global_fault_reason) - 1);
+    snapshot->global_fault_present = system_context_private_runtime(system_context)->global_fault_present;
+    snapshot->pending_trigger_count = system_context_private_runtime(system_context)->pending_trigger_count;
+    snapshot->current_time_ms = system_context_private_runtime(system_context)->current_time_ms;
+    snapshot->session_state = system_context_private_runtime(system_context)->wash_session.session_state;
+    snapshot->execution_state = system_context_private_runtime(system_context)->wash_execution.execution_state;
+    snapshot->final_session_result = system_context_private_runtime(system_context)->wash_session.final_session_result;
+    strncpy(snapshot->last_result_code, system_context_private_runtime(system_context)->last_result_code, sizeof(snapshot->last_result_code) - 1);
+    strncpy(snapshot->last_reason_code, system_context_private_runtime(system_context)->last_reason_code, sizeof(snapshot->last_reason_code) - 1);
+    strncpy(snapshot->global_fault_reason, system_context_private_runtime(system_context)->global_fault_reason, sizeof(snapshot->global_fault_reason) - 1);
 }
 
 static int assert_snapshot_equal(const readonly_snapshot_t *left, const readonly_snapshot_t *right)
@@ -52,22 +52,23 @@ static int verify_status_query_is_readonly(void)
     operation_result_t result;
 
     test_setup_system_context(&system_context, &driver_context);
-    result = test_load_runtime_program_from_fixture(&system_context,
+    result = test_load_runtime_program_from_fixture(system_context,
         "tests/fixtures/wash_step_control/program_v1_valid.json",
         0);
     TEST_ASSERT(result.ok);
-    result = test_start_session_and_flush(&system_context, "wash_step_control_v1");
+    result = test_start_session_and_flush(system_context, "wash_step_control_v1");
     TEST_ASSERT(result.ok);
 
-    capture_snapshot(&system_context, &before_snapshot);
-    result = query_wash_session_status_execute(&system_context, &wash_session_status_view);
+    capture_snapshot(system_context, &before_snapshot);
+    result = query_wash_session_status_execute(system_context, &wash_session_status_view);
     TEST_ASSERT(result.ok);
-    result = query_wash_session_status_execute(&system_context, &wash_session_status_view);
+    result = query_wash_session_status_execute(system_context, &wash_session_status_view);
     TEST_ASSERT(result.ok);
-    capture_snapshot(&system_context, &after_snapshot);
+    capture_snapshot(system_context, &after_snapshot);
 
     TEST_ASSERT(assert_snapshot_equal(&before_snapshot, &after_snapshot) == 0);
     TEST_ASSERT(wash_session_status_view.session_state == SESSION_STATE_RUNNING);
+    test_release_system_context(system_context);
     return 0;
 }
 
@@ -75,3 +76,4 @@ int main(void)
 {
     return verify_status_query_is_readonly();
 }
+

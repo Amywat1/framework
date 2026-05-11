@@ -21,15 +21,18 @@
 #include "src/application/coordinators/system_context_private.h"
 #include "src/platform/linux/controller_scheduler_linux_internal.h"
 
-#define CONTROLLER_SCHEDULER_MAX_BINDINGS 8
+#define CONTROLLER_SCHEDULER_MAX_BINDINGS SYSTEM_CONTEXT_POOL_CAPACITY
 #define CONTROLLER_SCHEDULER_MAX_EPOLL_EVENTS 4
 
 typedef struct scheduler_binding_entry_t {
-    const system_context_t *system_context;
+    uintptr_t handle_token;
     controller_scheduler_t *controller_scheduler;
 } scheduler_binding_entry_t;
 
 static scheduler_binding_entry_t g_scheduler_bindings[CONTROLLER_SCHEDULER_MAX_BINDINGS];
+
+_Static_assert(CONTROLLER_SCHEDULER_MAX_BINDINGS >= SYSTEM_CONTEXT_POOL_CAPACITY,
+    "scheduler binding table must cover system_context pool capacity");
 
 static unsigned long monotonic_now_ms(void)
 {
@@ -90,8 +93,8 @@ static void controller_scheduler_register_binding(controller_scheduler_t *contro
     unsigned int index;
 
     for (index = 0u; index < CONTROLLER_SCHEDULER_MAX_BINDINGS; ++index) {
-        if (g_scheduler_bindings[index].system_context == 0) {
-            g_scheduler_bindings[index].system_context = controller_scheduler->system_context;
+        if (g_scheduler_bindings[index].handle_token == 0u) {
+            g_scheduler_bindings[index].handle_token = controller_scheduler->system_context->opaque_handle_token;
             g_scheduler_bindings[index].controller_scheduler = controller_scheduler;
             return;
         }
@@ -110,12 +113,18 @@ static void controller_scheduler_unregister_binding(const controller_scheduler_t
     }
 }
 
-static controller_scheduler_t *controller_scheduler_lookup_binding(const system_context_t *system_context)
+static controller_scheduler_t *controller_scheduler_lookup_binding(const system_context_t system_context)
 {
+    uintptr_t handle_token;
     unsigned int index;
 
+    if (system_context == 0) {
+        return 0;
+    }
+
+    handle_token = system_context->opaque_handle_token;
     for (index = 0u; index < CONTROLLER_SCHEDULER_MAX_BINDINGS; ++index) {
-        if (g_scheduler_bindings[index].system_context == system_context) {
+        if (g_scheduler_bindings[index].handle_token == handle_token) {
             return g_scheduler_bindings[index].controller_scheduler;
         }
     }
@@ -141,15 +150,18 @@ static void controller_scheduler_record_error(controller_scheduler_t *controller
 
 static void controller_scheduler_log_message(controller_scheduler_t *controller_scheduler, const char *message)
 {
+    const system_context_runtime_t *runtime;
+
     if (controller_scheduler == 0 || message == 0 || controller_scheduler->system_context == 0) {
         return;
     }
     if (!controller_scheduler->config.observability_enabled) {
         return;
     }
-    if (controller_scheduler->system_context->event_logger_port.log_message != 0) {
-        controller_scheduler->system_context->event_logger_port.log_message(
-            controller_scheduler->system_context->event_logger_port.context,
+    runtime = system_context_private_runtime_const(controller_scheduler->system_context);
+    if (runtime != 0 && runtime->event_logger_port.log_message != 0) {
+        runtime->event_logger_port.log_message(
+            runtime->event_logger_port.context,
             TRIGGER_TYPE_BUSINESS,
             message);
     }
@@ -164,7 +176,7 @@ static void controller_scheduler_update_pending_metric(controller_scheduler_t *c
         system_context_pending_trigger_count(controller_scheduler->system_context);
 }
 
-static void controller_scheduler_rebuild_formal_response(const system_context_t *system_context,
+static void controller_scheduler_rebuild_formal_response(const system_context_t system_context,
     char *response_line,
     size_t response_line_size)
 {
@@ -172,7 +184,7 @@ static void controller_scheduler_rebuild_formal_response(const system_context_t 
     const char *result_code;
     bool accepted;
 
-    if (system_context == 0 || response_line == 0 || response_line_size == 0u) {
+    if (response_line == 0 || response_line_size == 0u) {
         return;
     }
 
@@ -772,7 +784,7 @@ static operation_result_t controller_scheduler_validate_config(const controller_
     return operation_result_ok();
 }
 
-controller_scheduler_t *controller_scheduler_linux_create(system_context_t *system_context,
+controller_scheduler_t *controller_scheduler_linux_create(system_context_t system_context,
     const controller_scheduler_config_t *controller_scheduler_config,
     const controller_scheduler_linux_stdio_t *controller_scheduler_linux_stdio)
 {
@@ -780,7 +792,7 @@ controller_scheduler_t *controller_scheduler_linux_create(system_context_t *syst
     struct itimerspec timer_spec;
     operation_result_t result;
 
-    if (system_context == 0) {
+    if (!system_context_private_require_active(system_context).ok) {
         return 0;
     }
     result = controller_scheduler_validate_config(controller_scheduler_config);
@@ -806,6 +818,11 @@ controller_scheduler_t *controller_scheduler_linux_create(system_context_t *syst
     controller_scheduler->exit_source.source_kind = CONTROLLER_SCHEDULER_EVENT_SOURCE_EXIT;
     if (controller_scheduler_linux_stdio != 0) {
         controller_scheduler->stdio_binding = *controller_scheduler_linux_stdio;
+    }
+    result = system_context_private_bind_scheduler(system_context);
+    if (!result.ok) {
+        free(controller_scheduler);
+        return 0;
     }
 
     controller_scheduler->epoll_fd = epoll_create1(EPOLL_CLOEXEC);
@@ -862,6 +879,7 @@ void controller_scheduler_linux_destroy(controller_scheduler_t *controller_sched
     }
 
     controller_scheduler_unregister_binding(controller_scheduler);
+    system_context_private_unbind_scheduler(controller_scheduler->system_context);
     if (controller_scheduler->command_fd >= 0 && controller_scheduler->command_fd_flags_valid) {
         fcntl(controller_scheduler->command_fd, F_SETFL, controller_scheduler->command_fd_flags);
     }
@@ -924,13 +942,19 @@ operation_result_t controller_scheduler_read_view(const controller_scheduler_t *
     return operation_result_ok();
 }
 
-operation_result_t controller_scheduler_read_context_view(const system_context_t *system_context,
+operation_result_t controller_scheduler_read_context_view(const system_context_t system_context,
     controller_runtime_state_view_t *controller_runtime_state_view)
 {
     controller_scheduler_t *controller_scheduler;
+    operation_result_t result;
 
-    if (system_context == 0 || controller_runtime_state_view == 0) {
+    if (controller_runtime_state_view == 0) {
         return operation_result_fail(ERROR_CODE_INVALID_ARGUMENT);
+    }
+    result = system_context_private_require_active(system_context);
+    if (!result.ok) {
+        memset(controller_runtime_state_view, 0, sizeof(*controller_runtime_state_view));
+        return result;
     }
     controller_scheduler = controller_scheduler_lookup_binding(system_context);
     if (controller_scheduler == 0) {

@@ -1,6 +1,8 @@
 #include "tests/test_support.h"
 #include "src/application/coordinators/system_context_private.h"
 
+#include "application/use_cases/query_wash_session_status.h"
+
 static int verify_stop_path(void)
 {
     system_context_t system_context;
@@ -8,11 +10,11 @@ static int verify_stop_path(void)
     operation_result_t result;
 
     test_setup_system_context(&system_context, &driver_context);
-    result = test_start_session_and_flush(&system_context, "standard_wash");
+    result = test_start_session_and_flush(system_context, "standard_wash");
     TEST_ASSERT(result.ok);
-    result = test_submit_stop(&system_context, "integration-stop");
+    result = test_submit_stop(system_context, "integration-stop");
     TEST_ASSERT(result.ok);
-    TEST_ASSERT(system_context.wash_session.session_state == SESSION_STATE_ABORTED);
+    TEST_ASSERT(system_context_private_runtime(system_context)->wash_session.session_state == SESSION_STATE_ABORTED);
     return 0;
 }
 
@@ -23,11 +25,11 @@ static int verify_fault_path(void)
     operation_result_t result;
 
     test_setup_system_context(&system_context, &driver_context);
-    result = test_start_session_and_flush(&system_context, "standard_wash");
+    result = test_start_session_and_flush(system_context, "standard_wash");
     TEST_ASSERT(result.ok);
-    result = test_submit_fault(&system_context, "fault-e-stop");
+    result = test_submit_fault(system_context, "fault-e-stop");
     TEST_ASSERT(result.ok);
-    TEST_ASSERT(system_context.wash_execution.execution_result == EXECUTION_RESULT_FAULTED);
+    TEST_ASSERT(system_context_private_runtime(system_context)->wash_execution.execution_result == EXECUTION_RESULT_FAULTED);
     return 0;
 }
 
@@ -38,19 +40,19 @@ static int verify_timeout_path(void)
     operation_result_t result;
 
     test_setup_system_context(&system_context, &driver_context);
-    result = test_start_session_and_flush(&system_context, "standard_wash");
+    result = test_start_session_and_flush(system_context, "standard_wash");
     TEST_ASSERT(result.ok);
-    system_context.wait_condition.timeout_policy = WAIT_TIMEOUT_POLICY_ABORT_SESSION;
-    system_context.wait_condition.max_retry_count = 3;
-    result = test_fire_timeout(&system_context, 4000);
+    system_context_private_runtime(system_context)->wait_condition.timeout_policy = WAIT_TIMEOUT_POLICY_ABORT_SESSION;
+    system_context_private_runtime(system_context)->wait_condition.max_retry_count = 3;
+    result = test_fire_timeout(system_context, 4000);
     TEST_ASSERT(result.ok);
-    result = test_fire_timeout(&system_context, 4000);
+    result = test_fire_timeout(system_context, 4000);
     TEST_ASSERT(result.ok);
-    result = test_fire_timeout(&system_context, 4000);
+    result = test_fire_timeout(system_context, 4000);
     TEST_ASSERT(result.ok);
-    result = test_fire_timeout(&system_context, 4000);
+    result = test_fire_timeout(system_context, 4000);
     TEST_ASSERT(result.ok);
-    TEST_ASSERT(system_context.wash_session.session_state == SESSION_STATE_ABORTED);
+    TEST_ASSERT(system_context_private_runtime(system_context)->wash_session.session_state == SESSION_STATE_ABORTED);
     return 0;
 }
 
@@ -61,21 +63,32 @@ static int verify_idle_fault_clear_path(void)
     operation_result_t result;
 
     test_setup_system_context(&system_context, &driver_context);
-    result = test_submit_fault_with_reason(&system_context, "E_STOP", "idle-fault");
+    result = test_submit_fault_with_reason(system_context, "E_STOP", "idle-fault");
     TEST_ASSERT(result.ok);
-    TEST_ASSERT(system_context.global_fault_present);
-    TEST_ASSERT(strcmp(system_context.last_result_code, "accepted") == 0);
-    TEST_ASSERT(strcmp(system_context.last_reason_code, "global_fault_recorded") == 0);
-    TEST_ASSERT(strcmp(system_context.last_transition_record.result_code, "accepted") == 0);
-    TEST_ASSERT(strcmp(system_context.last_transition_record.reason_code, "global_fault_recorded") == 0);
+    TEST_ASSERT(system_context_private_runtime(system_context)->global_fault_present);
+    TEST_ASSERT(strcmp(system_context_private_runtime(system_context)->last_result_code, "accepted") == 0);
+    TEST_ASSERT(strcmp(system_context_private_runtime(system_context)->last_reason_code, "global_fault_recorded") == 0);
+    TEST_ASSERT(strcmp(system_context_private_runtime(system_context)->last_transition_record.result_code, "accepted") == 0);
+    TEST_ASSERT(strcmp(system_context_private_runtime(system_context)->last_transition_record.reason_code, "global_fault_recorded") == 0);
 
-    result = test_clear_fault(&system_context);
+    result = test_clear_fault(system_context);
     TEST_ASSERT(result.ok);
-    TEST_ASSERT(!system_context.global_fault_present);
-    TEST_ASSERT(strcmp(system_context.last_result_code, "accepted") == 0);
-    TEST_ASSERT(strcmp(system_context.last_reason_code, "global_fault_cleared") == 0);
-    TEST_ASSERT(strcmp(system_context.last_transition_record.result_code, "accepted") == 0);
-    TEST_ASSERT(strcmp(system_context.last_transition_record.reason_code, "global_fault_cleared") == 0);
+    TEST_ASSERT(!system_context_private_runtime(system_context)->global_fault_present);
+    TEST_ASSERT(strcmp(system_context_private_runtime(system_context)->last_result_code, "accepted") == 0);
+    TEST_ASSERT(strcmp(system_context_private_runtime(system_context)->last_reason_code, "global_fault_cleared") == 0);
+    TEST_ASSERT(strcmp(system_context_private_runtime(system_context)->last_transition_record.result_code, "accepted") == 0);
+    TEST_ASSERT(strcmp(system_context_private_runtime(system_context)->last_transition_record.reason_code, "global_fault_cleared") == 0);
+
+    result = system_context_reset(system_context);
+    TEST_ASSERT(result.ok);
+    TEST_ASSERT(!system_context_private_runtime(system_context)->global_fault_present);
+    TEST_ASSERT(system_context_private_runtime(system_context)->wash_session.session_state == SESSION_STATE_NONE);
+
+    result = system_context_release(system_context);
+    TEST_ASSERT(result.ok);
+    result = query_wash_session_status_execute(system_context, &(wash_session_status_view_t){0});
+    TEST_ASSERT(!result.ok);
+    TEST_ASSERT(result.error_code == ERROR_CODE_INVALID_STATE);
     return 0;
 }
 
@@ -95,3 +108,4 @@ int main(void)
     }
     return 0;
 }
+

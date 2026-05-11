@@ -1,4 +1,4 @@
-#include "adapters/config/json_program_parser.h"
+﻿#include "adapters/config/json_program_parser.h"
 #include "tests/test_support.h"
 
 int main(void)
@@ -24,3 +24,4 @@ int main(void)
     TEST_ASSERT(strcmp(wash_program.segments[0].segment_name, "roof {A} \"B\"") == 0);
     return 0;
 }
+

@@ -21,7 +21,7 @@ typedef struct scheduler_notification_snapshot_t {
 } scheduler_notification_snapshot_t;
 
 struct controller_scheduler_t {
-    system_context_t *system_context;
+    system_context_t system_context;
     controller_scheduler_config_t config;
     controller_scheduler_runtime_state_t runtime_state;
     controller_scheduler_linux_stdio_t stdio_binding;

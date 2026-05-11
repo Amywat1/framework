@@ -1,4 +1,4 @@
-#include "tests/test_support.h"
+﻿#include "tests/test_support.h"
 
 #include "domain/services/fault_policy_service.h"
 
@@ -14,4 +14,5 @@ int main(void)
     TEST_ASSERT(result.error_code == ERROR_CODE_SAFETY_INTERLOCK_ACTIVE);
     return 0;
 }
+
 
