@@ -150,7 +150,7 @@ static void controller_scheduler_record_error(controller_scheduler_t *controller
 
 static void controller_scheduler_log_message(controller_scheduler_t *controller_scheduler, const char *message)
 {
-    const system_context_runtime_t *runtime;
+    const event_logger_port_t *event_logger_port;
 
     if (controller_scheduler == 0 || message == 0 || controller_scheduler->system_context == 0) {
         return;
@@ -158,10 +158,10 @@ static void controller_scheduler_log_message(controller_scheduler_t *controller_
     if (!controller_scheduler->config.observability_enabled) {
         return;
     }
-    runtime = system_context_private_runtime_const(controller_scheduler->system_context);
-    if (runtime != 0 && runtime->event_logger_port.log_message != 0) {
-        runtime->event_logger_port.log_message(
-            runtime->event_logger_port.context,
+    event_logger_port = system_context_private_event_logger_port(controller_scheduler->system_context);
+    if (event_logger_port != 0 && event_logger_port->log_message != 0) {
+        event_logger_port->log_message(
+            event_logger_port->context,
             TRIGGER_TYPE_BUSINESS,
             message);
     }

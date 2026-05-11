@@ -17,19 +17,15 @@ void runtime_event_recorder_set_latest_result(system_context_t system_context,
     if (!system_context_private_require_active(system_context).ok) {
         return;
     }
-    if (result_code != 0) {
-        strncpy(system_context_private_runtime(system_context)->last_result_code, result_code, sizeof(system_context_private_runtime(system_context)->last_result_code) - 1);
-        system_context_private_runtime(system_context)->last_result_code[sizeof(system_context_private_runtime(system_context)->last_result_code) - 1] = '\0';
-    }
-    if (reason_code != 0) {
-        strncpy(system_context_private_runtime(system_context)->last_reason_code, reason_code, sizeof(system_context_private_runtime(system_context)->last_reason_code) - 1);
-        system_context_private_runtime(system_context)->last_reason_code[sizeof(system_context_private_runtime(system_context)->last_reason_code) - 1] = '\0';
-    }
+    system_context_private_set_latest_result(system_context, result_code, reason_code);
 }
 
 void runtime_event_recorder_apply_projection(system_context_t system_context,
     const runtime_result_projection_t *runtime_result_projection)
 {
+    const event_logger_port_t *event_logger_port;
+    state_transition_record_t *last_transition_record;
+
     if (!system_context_private_require_active(system_context).ok) {
         return;
     }
@@ -46,7 +42,13 @@ void runtime_event_recorder_apply_projection(system_context_t system_context,
         return;
     }
 
-    state_transition_record_init(&system_context_private_runtime(system_context)->last_transition_record,
+    last_transition_record = system_context_private_last_transition_record_mutable(system_context);
+    event_logger_port = system_context_private_event_logger_port(system_context);
+    if (last_transition_record == 0 || event_logger_port == 0) {
+        return;
+    }
+
+    state_transition_record_init(last_transition_record,
         runtime_result_projection->transition_entity,
         safe_runtime_field(runtime_result_projection->entity_id),
         runtime_result_projection->trigger_type,
@@ -54,22 +56,22 @@ void runtime_event_recorder_apply_projection(system_context_t system_context,
         safe_runtime_field(runtime_result_projection->current_state),
         safe_runtime_field(runtime_result_projection->transition_result_code),
         safe_runtime_field(runtime_result_projection->transition_reason_code),
-        system_context_private_runtime(system_context)->current_time_ms);
+        system_context_current_time_ms(system_context));
 
     switch (runtime_result_projection->log_kind) {
         case RUNTIME_EVENT_LOG_TRANSITION:
-            if (system_context_private_runtime(system_context)->event_logger_port.log_transition != 0) {
-                system_context_private_runtime(system_context)->event_logger_port.log_transition(system_context_private_runtime(system_context)->event_logger_port.context, &system_context_private_runtime(system_context)->last_transition_record);
+            if (event_logger_port->log_transition != 0) {
+                event_logger_port->log_transition(event_logger_port->context, last_transition_record);
             }
             break;
         case RUNTIME_EVENT_LOG_REJECTION:
-            if (system_context_private_runtime(system_context)->event_logger_port.log_rejection != 0) {
-                system_context_private_runtime(system_context)->event_logger_port.log_rejection(system_context_private_runtime(system_context)->event_logger_port.context, &system_context_private_runtime(system_context)->last_transition_record);
+            if (event_logger_port->log_rejection != 0) {
+                event_logger_port->log_rejection(event_logger_port->context, last_transition_record);
             }
             break;
         case RUNTIME_EVENT_LOG_IGNORED:
-            if (system_context_private_runtime(system_context)->event_logger_port.log_ignored != 0) {
-                system_context_private_runtime(system_context)->event_logger_port.log_ignored(system_context_private_runtime(system_context)->event_logger_port.context, &system_context_private_runtime(system_context)->last_transition_record);
+            if (event_logger_port->log_ignored != 0) {
+                event_logger_port->log_ignored(event_logger_port->context, last_transition_record);
             }
             break;
         case RUNTIME_EVENT_LOG_NONE:

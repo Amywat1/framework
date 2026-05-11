@@ -229,9 +229,12 @@ static void remember_command_rejection(system_context_t system_context,
     trigger_type_t trigger_type,
     const char *reason_code)
 {
+    const wash_session_t *wash_session;
+
+    wash_session = system_context_private_wash_session(system_context);
     apply_request_projection(system_context,
         trigger_type,
-        system_context_private_runtime(system_context)->wash_session.session_id[0] != '\0' ? system_context_private_runtime(system_context)->wash_session.session_id : "stdin",
+        (wash_session != 0 && wash_session->session_id[0] != '\0') ? wash_session->session_id : "stdin",
         "received",
         "rejected",
         "rejected",
@@ -266,8 +269,8 @@ static void assign_stdin_trigger_id(system_context_t system_context, wash_trigge
     snprintf(wash_trigger_event->trigger_id,
         sizeof(wash_trigger_event->trigger_id),
         "stdin-%lu-%u",
-        system_context_private_runtime(system_context)->current_time_ms,
-        system_context_private_runtime(system_context)->pending_trigger_count);
+        system_context_current_time_ms(system_context),
+        system_context_pending_trigger_count(system_context));
     strncpy(wash_trigger_event->source, "stdin", sizeof(wash_trigger_event->source) - 1);
     wash_trigger_event->source[sizeof(wash_trigger_event->source) - 1] = '\0';
 }
@@ -347,7 +350,7 @@ static operation_result_t prepare_formal_command_request(system_context_t system
             write_result_line(response_line, response_line_size, "parse_failed", false, "start_requires_program_id");
             return operation_result_fail(ERROR_CODE_PARSE_FAILED);
         }
-        if (wash_session_is_running(&system_context_private_runtime(system_context)->wash_session)) {
+        if (wash_session_is_running(system_context_private_wash_session(system_context))) {
             remember_command_rejection(system_context, TRIGGER_TYPE_START, "running_session_exists");
             write_result_line(response_line, response_line_size, "invalid_state", false, "running_session_exists");
             return operation_result_fail(ERROR_CODE_INVALID_STATE);
@@ -360,7 +363,7 @@ static operation_result_t prepare_formal_command_request(system_context_t system
             argument_1,
             0,
             "start-command",
-            system_context_private_runtime(system_context)->current_time_ms);
+            system_context_current_time_ms(system_context));
         assign_stdin_trigger_id(system_context, &formal_command_request->wash_trigger_event);
         return operation_result_ok();
     }
@@ -379,7 +382,7 @@ static operation_result_t prepare_formal_command_request(system_context_t system
             0,
             "manual-stop",
             "stop-command",
-            system_context_private_runtime(system_context)->current_time_ms);
+            system_context_current_time_ms(system_context));
         assign_stdin_trigger_id(system_context, &formal_command_request->wash_trigger_event);
         return operation_result_ok();
     }
@@ -405,7 +408,7 @@ static operation_result_t prepare_formal_command_request(system_context_t system
                 0,
                 "clear",
                 0,
-                system_context_private_runtime(system_context)->current_time_ms);
+                system_context_current_time_ms(system_context));
             assign_stdin_trigger_id(system_context, &formal_command_request->wash_trigger_event);
             return operation_result_ok();
         }
@@ -421,7 +424,7 @@ static operation_result_t prepare_formal_command_request(system_context_t system
             0,
             argument_1,
             argument_2,
-            system_context_private_runtime(system_context)->current_time_ms);
+            system_context_current_time_ms(system_context));
         assign_stdin_trigger_id(system_context, &formal_command_request->wash_trigger_event);
         return operation_result_ok();
     }
@@ -458,18 +461,18 @@ static operation_result_t finalize_formal_command_response(system_context_t syst
 
     if (!result.ok) {
         result_code = error_code_to_string(result.error_code);
-        detail = system_context_private_runtime(system_context)->last_reason_code[0] != '\0'
-            ? system_context_private_runtime(system_context)->last_reason_code
+        detail = system_context_last_reason_code(system_context)[0] != '\0'
+            ? system_context_last_reason_code(system_context)
             : result_code;
         write_result_line(response_line, response_line_size, result_code, false, detail);
         return result;
     }
 
-    result_code = system_context_private_runtime(system_context)->last_result_code[0] != '\0'
-        ? system_context_private_runtime(system_context)->last_result_code
+    result_code = system_context_last_result_code(system_context)[0] != '\0'
+        ? system_context_last_result_code(system_context)
         : "accepted";
-    detail = system_context_private_runtime(system_context)->last_reason_code[0] != '\0'
-        ? system_context_private_runtime(system_context)->last_reason_code
+    detail = system_context_last_reason_code(system_context)[0] != '\0'
+        ? system_context_last_reason_code(system_context)
         : "none";
     accepted = strcmp(result_code, "ignored") != 0
         && strcmp(result_code, "rejected") != 0

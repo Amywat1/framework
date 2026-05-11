@@ -21,6 +21,7 @@
 #include "platform/drivers/simulated_sensor_driver.h"
 #include "platform/linux/controller_scheduler_linux.h"
 #include "platform/linux/main_loop.h"
+#include "src/application/coordinators/system_context_runtime_layout.h"
 #include "shared/error_codes.h"
 
 #define TEST_ASSERT(expr) \

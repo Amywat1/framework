@@ -18,6 +18,9 @@
 #include "domain/ports/event_logger_port.h"
 #include "domain/ports/program_repository_port.h"
 #include "domain/ports/sensor_port.h"
+#include "domain/services/program_snapshot_service.h"
+#include "domain/services/wash_execution_service.h"
+#include "domain/services/wash_session_state_machine.h"
 #include "shared/timeouts.h"
 
 /**
@@ -29,63 +32,42 @@
 #define SYSTEM_CONTEXT_HANDLE_GENERATION_WINDOW 65536u
 #define SYSTEM_CONTEXT_POOL_INVALID_INDEX ((unsigned int)(~0u))
 
-typedef struct system_context_runtime_t {
-    wash_program_t wash_program;
-    vehicle_type_t vehicle_type;
-    wash_session_t wash_session;
-    wash_execution_t wash_execution;
-    wait_condition_t wait_condition;
-    program_snapshot_t program_snapshot;
-    runtime_snapshot_t runtime_snapshot;
-    state_transition_record_t last_transition_record;
-    wash_trigger_event_t pending_triggers[MAX_PENDING_TRIGGER_COUNT];
-    unsigned int pending_trigger_count;
-    unsigned long current_time_ms;
-    unsigned long next_session_sequence;
-    unsigned long next_execution_sequence;
-    unsigned long next_wait_condition_sequence;
-    bool global_fault_present;
-    char global_fault_code[64];
-    char global_fault_reason[128];
-    char last_result_code[32];
-    char last_reason_code[64];
-    bool scheduler_bound;
-    sensor_port_t sensor_port;
-    actuator_port_t actuator_port;
-    event_logger_port_t event_logger_port;
-    program_repository_port_t program_repository_port;
-} system_context_runtime_t;
-
 struct system_context_handle {
     uintptr_t opaque_handle_token;
 };
-
-typedef struct system_context_pool_slot_t {
-    bool in_use;
-    unsigned int next_free_index;
-    unsigned int generation;
-    system_context_runtime_t runtime;
-} system_context_pool_slot_t;
-
-typedef struct system_context_pool_state_t {
-    bool initialized;
-    unsigned int free_head_index;
-    unsigned int free_count;
-    system_context_pool_slot_t slots[SYSTEM_CONTEXT_POOL_CAPACITY];
-} system_context_pool_state_t;
 
 operation_result_t system_context_private_require_active(const system_context_t system_context);
 operation_result_t system_context_private_bind_scheduler(system_context_t system_context);
 void system_context_private_unbind_scheduler(system_context_t system_context);
 bool system_context_private_has_scheduler_binding(const system_context_t system_context);
 unsigned int system_context_private_slot_index(const system_context_t system_context);
-system_context_runtime_t *system_context_private_runtime_mutable(system_context_t system_context);
-const system_context_runtime_t *system_context_private_runtime_const(const system_context_t system_context);
-#define system_context_private_runtime(system_context) \
-    _Generic((system_context), \
-        const system_context_t: system_context_private_runtime_const, \
-        system_context_t: system_context_private_runtime_mutable, \
-        default: system_context_private_runtime_mutable)(system_context)
+bool system_context_private_global_fault_present(const system_context_t system_context);
+const char *system_context_private_global_fault_reason(const system_context_t system_context);
+void system_context_private_set_global_fault(system_context_t system_context, const char *fault_code, const char *fault_reason);
+void system_context_private_clear_global_fault(system_context_t system_context);
+const state_transition_record_t *system_context_private_last_transition_record(const system_context_t system_context);
+state_transition_record_t *system_context_private_last_transition_record_mutable(system_context_t system_context);
+void system_context_private_set_latest_result(system_context_t system_context,
+    const char *result_code,
+    const char *reason_code);
+const event_logger_port_t *system_context_private_event_logger_port(const system_context_t system_context);
+void system_context_private_build_session_service_args(system_context_t system_context,
+    wash_session_service_args_t *wash_session_service_args);
+void system_context_private_build_program_snapshot_service_args(system_context_t system_context,
+    program_snapshot_service_args_t *program_snapshot_service_args);
+void system_context_private_build_execution_service_args(system_context_t system_context,
+    wash_execution_service_args_t *wash_execution_service_args);
+const wash_session_t *system_context_private_wash_session(const system_context_t system_context);
+wash_session_t *system_context_private_wash_session_mutable(system_context_t system_context);
+const wash_execution_t *system_context_private_wash_execution(const system_context_t system_context);
+wash_execution_t *system_context_private_wash_execution_mutable(system_context_t system_context);
+const wait_condition_t *system_context_private_wait_condition(const system_context_t system_context);
+wait_condition_t *system_context_private_wait_condition_mutable(system_context_t system_context);
+const program_snapshot_t *system_context_private_program_snapshot(const system_context_t system_context);
+void system_context_private_advance_time(system_context_t system_context, unsigned long elapsed_ms);
+operation_result_t system_context_private_append_trigger(system_context_t system_context, const wash_trigger_event_t *wash_trigger_event);
+const wash_trigger_event_t *system_context_private_pending_trigger_at(const system_context_t system_context, unsigned int index);
+void system_context_private_remove_pending_trigger_at(system_context_t system_context, unsigned int remove_index);
 unsigned int system_context_private_debug_free_count(void);
 unsigned int system_context_private_debug_capacity(void);
 bool system_context_private_debug_is_in_use(const system_context_t system_context);

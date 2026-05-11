@@ -11,7 +11,7 @@
 #include "domain/model/wash_program.h"
 #include "domain/model/wash_session.h"
 #include "domain/services/wait_timeout_service.h"
-#include "src/application/coordinators/system_context_private.h"
+#include "src/application/coordinators/system_context_runtime_layout.h"
 
 static system_context_pool_state_t s_system_context_pool;
 static struct system_context_handle s_system_context_handles
@@ -226,6 +226,291 @@ unsigned int system_context_private_slot_index(const system_context_t system_con
         return SYSTEM_CONTEXT_POOL_INVALID_INDEX;
     }
     return (unsigned int)(slot - &s_system_context_pool.slots[0]);
+}
+
+bool system_context_private_global_fault_present(const system_context_t system_context)
+{
+    if (!require_active_slot(system_context, 0).ok) {
+        return false;
+    }
+    return system_context_private_runtime(system_context)->global_fault_present;
+}
+
+const char *system_context_private_global_fault_reason(const system_context_t system_context)
+{
+    if (!require_active_slot(system_context, 0).ok) {
+        return "";
+    }
+    return system_context_private_runtime(system_context)->global_fault_reason;
+}
+
+void system_context_private_set_global_fault(system_context_t system_context, const char *fault_code, const char *fault_reason)
+{
+    system_context_runtime_t *runtime;
+
+    if (!require_active_slot(system_context, 0).ok) {
+        return;
+    }
+
+    runtime = system_context_private_runtime(system_context);
+    runtime->global_fault_present = true;
+    runtime->global_fault_code[0] = '\0';
+    runtime->global_fault_reason[0] = '\0';
+    if (fault_code != 0) {
+        strncpy(runtime->global_fault_code, fault_code, sizeof(runtime->global_fault_code) - 1);
+        runtime->global_fault_code[sizeof(runtime->global_fault_code) - 1] = '\0';
+    }
+    if (fault_reason != 0) {
+        strncpy(runtime->global_fault_reason, fault_reason, sizeof(runtime->global_fault_reason) - 1);
+        runtime->global_fault_reason[sizeof(runtime->global_fault_reason) - 1] = '\0';
+    }
+}
+
+void system_context_private_clear_global_fault(system_context_t system_context)
+{
+    system_context_runtime_t *runtime;
+
+    if (!require_active_slot(system_context, 0).ok) {
+        return;
+    }
+
+    runtime = system_context_private_runtime(system_context);
+    runtime->global_fault_present = false;
+    runtime->global_fault_code[0] = '\0';
+    runtime->global_fault_reason[0] = '\0';
+}
+
+const state_transition_record_t *system_context_private_last_transition_record(const system_context_t system_context)
+{
+    if (!require_active_slot(system_context, 0).ok) {
+        return 0;
+    }
+    return &system_context_private_runtime(system_context)->last_transition_record;
+}
+
+state_transition_record_t *system_context_private_last_transition_record_mutable(system_context_t system_context)
+{
+    if (!require_active_slot(system_context, 0).ok) {
+        return 0;
+    }
+    return &system_context_private_runtime(system_context)->last_transition_record;
+}
+
+void system_context_private_set_latest_result(system_context_t system_context,
+    const char *result_code,
+    const char *reason_code)
+{
+    system_context_runtime_t *runtime;
+
+    if (!require_active_slot(system_context, 0).ok) {
+        return;
+    }
+
+    runtime = system_context_private_runtime(system_context);
+    if (result_code != 0) {
+        strncpy(runtime->last_result_code, result_code, sizeof(runtime->last_result_code) - 1);
+        runtime->last_result_code[sizeof(runtime->last_result_code) - 1] = '\0';
+    }
+    if (reason_code != 0) {
+        strncpy(runtime->last_reason_code, reason_code, sizeof(runtime->last_reason_code) - 1);
+        runtime->last_reason_code[sizeof(runtime->last_reason_code) - 1] = '\0';
+    }
+}
+
+const event_logger_port_t *system_context_private_event_logger_port(const system_context_t system_context)
+{
+    if (!require_active_slot(system_context, 0).ok) {
+        return 0;
+    }
+    return &system_context_private_runtime(system_context)->event_logger_port;
+}
+
+void system_context_private_build_session_service_args(system_context_t system_context,
+    wash_session_service_args_t *wash_session_service_args)
+{
+    system_context_runtime_t *runtime;
+
+    if (wash_session_service_args == 0) {
+        return;
+    }
+
+    memset(wash_session_service_args, 0, sizeof(*wash_session_service_args));
+    if (!require_active_slot(system_context, 0).ok) {
+        return;
+    }
+
+    runtime = system_context_private_runtime(system_context);
+    wash_session_service_args->wash_session = &runtime->wash_session;
+    wash_session_service_args->program_snapshot = &runtime->program_snapshot;
+    wash_session_service_args->next_session_sequence = &runtime->next_session_sequence;
+    wash_session_service_args->current_time_ms = runtime->current_time_ms;
+}
+
+void system_context_private_build_program_snapshot_service_args(system_context_t system_context,
+    program_snapshot_service_args_t *program_snapshot_service_args)
+{
+    system_context_runtime_t *runtime;
+
+    if (program_snapshot_service_args == 0) {
+        return;
+    }
+
+    memset(program_snapshot_service_args, 0, sizeof(*program_snapshot_service_args));
+    if (!require_active_slot(system_context, 0).ok) {
+        return;
+    }
+
+    runtime = system_context_private_runtime(system_context);
+    program_snapshot_service_args->program_snapshot = &runtime->program_snapshot;
+    program_snapshot_service_args->wash_program = &runtime->wash_program;
+    program_snapshot_service_args->program_repository_port = &runtime->program_repository_port;
+    program_snapshot_service_args->current_time_ms = runtime->current_time_ms;
+}
+
+void system_context_private_build_execution_service_args(system_context_t system_context,
+    wash_execution_service_args_t *wash_execution_service_args)
+{
+    system_context_runtime_t *runtime;
+
+    if (wash_execution_service_args == 0) {
+        return;
+    }
+
+    memset(wash_execution_service_args, 0, sizeof(*wash_execution_service_args));
+    if (!require_active_slot(system_context, 0).ok) {
+        return;
+    }
+
+    runtime = system_context_private_runtime(system_context);
+    wash_execution_service_args->wash_execution = &runtime->wash_execution;
+    wash_execution_service_args->wash_session = &runtime->wash_session;
+    wash_execution_service_args->wait_condition = &runtime->wait_condition;
+    wash_execution_service_args->program_snapshot = &runtime->program_snapshot;
+    wash_execution_service_args->actuator_port = &runtime->actuator_port;
+    wash_execution_service_args->sensor_port = &runtime->sensor_port;
+    wash_execution_service_args->next_execution_sequence = &runtime->next_execution_sequence;
+    wash_execution_service_args->next_wait_condition_sequence = &runtime->next_wait_condition_sequence;
+    wash_execution_service_args->current_time_ms = runtime->current_time_ms;
+}
+
+const wash_session_t *system_context_private_wash_session(const system_context_t system_context)
+{
+    if (!require_active_slot(system_context, 0).ok) {
+        return 0;
+    }
+    return &system_context_private_runtime(system_context)->wash_session;
+}
+
+wash_session_t *system_context_private_wash_session_mutable(system_context_t system_context)
+{
+    if (!require_active_slot(system_context, 0).ok) {
+        return 0;
+    }
+    return &system_context_private_runtime(system_context)->wash_session;
+}
+
+const wash_execution_t *system_context_private_wash_execution(const system_context_t system_context)
+{
+    if (!require_active_slot(system_context, 0).ok) {
+        return 0;
+    }
+    return &system_context_private_runtime(system_context)->wash_execution;
+}
+
+wash_execution_t *system_context_private_wash_execution_mutable(system_context_t system_context)
+{
+    if (!require_active_slot(system_context, 0).ok) {
+        return 0;
+    }
+    return &system_context_private_runtime(system_context)->wash_execution;
+}
+
+const wait_condition_t *system_context_private_wait_condition(const system_context_t system_context)
+{
+    if (!require_active_slot(system_context, 0).ok) {
+        return 0;
+    }
+    return &system_context_private_runtime(system_context)->wait_condition;
+}
+
+wait_condition_t *system_context_private_wait_condition_mutable(system_context_t system_context)
+{
+    if (!require_active_slot(system_context, 0).ok) {
+        return 0;
+    }
+    return &system_context_private_runtime(system_context)->wait_condition;
+}
+
+const program_snapshot_t *system_context_private_program_snapshot(const system_context_t system_context)
+{
+    if (!require_active_slot(system_context, 0).ok) {
+        return 0;
+    }
+    return &system_context_private_runtime(system_context)->program_snapshot;
+}
+
+void system_context_private_advance_time(system_context_t system_context, unsigned long elapsed_ms)
+{
+    if (!require_active_slot(system_context, 0).ok) {
+        return;
+    }
+    system_context_private_runtime(system_context)->current_time_ms += elapsed_ms;
+}
+
+operation_result_t system_context_private_append_trigger(system_context_t system_context, const wash_trigger_event_t *wash_trigger_event)
+{
+    operation_result_t result;
+    system_context_runtime_t *runtime;
+
+    result = require_active_slot(system_context, 0);
+    if (!result.ok) {
+        return result;
+    }
+    if (wash_trigger_event == 0) {
+        return operation_result_fail(ERROR_CODE_INVALID_ARGUMENT);
+    }
+
+    runtime = system_context_private_runtime(system_context);
+    if (runtime->pending_trigger_count >= MAX_PENDING_TRIGGER_COUNT) {
+        return operation_result_fail(ERROR_CODE_RESOURCE_UNAVAILABLE);
+    }
+
+    runtime->pending_triggers[runtime->pending_trigger_count++] = *wash_trigger_event;
+    return operation_result_ok();
+}
+
+const wash_trigger_event_t *system_context_private_pending_trigger_at(const system_context_t system_context, unsigned int index)
+{
+    const system_context_runtime_t *runtime;
+
+    if (!require_active_slot(system_context, 0).ok) {
+        return 0;
+    }
+
+    runtime = system_context_private_runtime(system_context);
+    if (index >= runtime->pending_trigger_count) {
+        return 0;
+    }
+    return &runtime->pending_triggers[index];
+}
+
+void system_context_private_remove_pending_trigger_at(system_context_t system_context, unsigned int remove_index)
+{
+    unsigned int index;
+    system_context_runtime_t *runtime;
+
+    if (!require_active_slot(system_context, 0).ok) {
+        return;
+    }
+
+    runtime = system_context_private_runtime(system_context);
+    if (remove_index >= runtime->pending_trigger_count) {
+        return;
+    }
+    for (index = remove_index + 1; index < runtime->pending_trigger_count; ++index) {
+        runtime->pending_triggers[index - 1] = runtime->pending_triggers[index];
+    }
+    runtime->pending_trigger_count -= 1u;
 }
 
 system_context_runtime_t *system_context_private_runtime_mutable(system_context_t system_context)

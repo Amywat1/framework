@@ -8,10 +8,12 @@
 
 static bool has_pending_timeout_trigger(const system_context_t system_context)
 {
+    const wash_trigger_event_t *wash_trigger_event;
     unsigned int index;
 
-    for (index = 0; index < system_context_private_runtime(system_context)->pending_trigger_count; ++index) {
-        if (system_context_private_runtime(system_context)->pending_triggers[index].trigger_type == TRIGGER_TYPE_TIMEOUT) {
+    for (index = 0; index < system_context_pending_trigger_count(system_context); ++index) {
+        wash_trigger_event = system_context_private_pending_trigger_at(system_context, index);
+        if (wash_trigger_event != 0 && wash_trigger_event->trigger_type == TRIGGER_TYPE_TIMEOUT) {
             return true;
         }
     }
@@ -20,21 +22,25 @@ static bool has_pending_timeout_trigger(const system_context_t system_context)
 
 static void enqueue_timeout_if_needed(system_context_t system_context)
 {
+    const wait_condition_t *wait_condition;
     wash_trigger_event_t wash_trigger_event;
+    unsigned long current_time_ms;
 
-    if (!wait_timeout_service_should_fire(&system_context_private_runtime(system_context)->wait_condition, system_context_private_runtime(system_context)->current_time_ms)) {
+    wait_condition = system_context_private_wait_condition(system_context);
+    current_time_ms = system_context_current_time_ms(system_context);
+    if (wait_condition == 0 || !wait_timeout_service_should_fire(wait_condition, current_time_ms)) {
         return;
     }
-    if (system_context_private_runtime(system_context)->pending_trigger_count >= MAX_PENDING_TRIGGER_COUNT || has_pending_timeout_trigger(system_context)) {
+    if (system_context_pending_trigger_count(system_context) >= MAX_PENDING_TRIGGER_COUNT || has_pending_timeout_trigger(system_context)) {
         return;
     }
     wash_trigger_event_init(&wash_trigger_event,
         TRIGGER_TYPE_TIMEOUT,
         0,
-        system_context_private_runtime(system_context)->wait_condition.reason_code,
+        wait_condition->reason_code,
         "main-loop-timeout",
-        system_context_private_runtime(system_context)->current_time_ms);
-    system_context_private_runtime(system_context)->pending_triggers[system_context_private_runtime(system_context)->pending_trigger_count++] = wash_trigger_event;
+        current_time_ms);
+    (void)system_context_private_append_trigger(system_context, &wash_trigger_event);
 }
 
 operation_result_t main_loop_submit_trigger(system_context_t system_context, const wash_trigger_event_t *wash_trigger_event)
@@ -48,24 +54,7 @@ operation_result_t main_loop_submit_trigger(system_context_t system_context, con
     if (wash_trigger_event == 0) {
         return operation_result_fail(ERROR_CODE_INVALID_ARGUMENT);
     }
-    if (system_context_private_runtime(system_context)->pending_trigger_count >= MAX_PENDING_TRIGGER_COUNT) {
-        return operation_result_fail(ERROR_CODE_RESOURCE_UNAVAILABLE);
-    }
-    system_context_private_runtime(system_context)->pending_triggers[system_context_private_runtime(system_context)->pending_trigger_count++] = *wash_trigger_event;
-    return operation_result_ok();
-}
-
-static void remove_pending_trigger_at(system_context_t system_context, unsigned int remove_index)
-{
-    unsigned int index;
-
-    if (remove_index >= system_context_private_runtime(system_context)->pending_trigger_count) {
-        return;
-    }
-    for (index = remove_index + 1; index < system_context_private_runtime(system_context)->pending_trigger_count; ++index) {
-        system_context_private_runtime(system_context)->pending_triggers[index - 1] = system_context_private_runtime(system_context)->pending_triggers[index];
-    }
-    system_context_private_runtime(system_context)->pending_trigger_count -= 1;
+    return system_context_private_append_trigger(system_context, wash_trigger_event);
 }
 
 void main_loop_advance_time(system_context_t system_context, unsigned long elapsed_ms)
@@ -73,7 +62,7 @@ void main_loop_advance_time(system_context_t system_context, unsigned long elaps
     if (!system_context_private_require_active(system_context).ok) {
         return;
     }
-    system_context_private_runtime(system_context)->current_time_ms += elapsed_ms;
+    system_context_private_advance_time(system_context, elapsed_ms);
 }
 
 operation_result_t main_loop_run(system_context_t system_context)
@@ -88,18 +77,31 @@ operation_result_t main_loop_run(system_context_t system_context)
     }
 
     enqueue_timeout_if_needed(system_context);
-    if (system_context_private_runtime(system_context)->pending_trigger_count > 0) {
+    if (system_context_pending_trigger_count(system_context) > 0u) {
         best_index = 0;
-        for (index = 1; index < system_context_private_runtime(system_context)->pending_trigger_count; ++index) {
-            if (trigger_priority_service_compare(&system_context_private_runtime(system_context)->pending_triggers[index],
-                &system_context_private_runtime(system_context)->pending_triggers[best_index]) > 0) {
+        for (index = 1; index < system_context_pending_trigger_count(system_context); ++index) {
+            const wash_trigger_event_t *candidate;
+            const wash_trigger_event_t *best_candidate;
+
+            candidate = system_context_private_pending_trigger_at(system_context, index);
+            best_candidate = system_context_private_pending_trigger_at(system_context, (unsigned int)best_index);
+            if (candidate != 0
+                && best_candidate != 0
+                && trigger_priority_service_compare(candidate, best_candidate) > 0) {
                 best_index = (int)index;
             }
         }
 
         {
-            wash_trigger_event_t selected_event = system_context_private_runtime(system_context)->pending_triggers[best_index];
-            remove_pending_trigger_at(system_context, (unsigned int)best_index);
+            const wash_trigger_event_t *selected_event_ref =
+                system_context_private_pending_trigger_at(system_context, (unsigned int)best_index);
+            wash_trigger_event_t selected_event;
+
+            if (selected_event_ref == 0) {
+                return operation_result_fail(ERROR_CODE_INVALID_STATE);
+            }
+            selected_event = *selected_event_ref;
+            system_context_private_remove_pending_trigger_at(system_context, (unsigned int)best_index);
             result = process_wash_trigger_execute(system_context, &selected_event);
             if (!result.ok) {
                 return result;

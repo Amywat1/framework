@@ -14,11 +14,7 @@ static wash_session_service_args_t build_session_service_args(system_context_t s
 {
     wash_session_service_args_t wash_session_service_args;
 
-    memset(&wash_session_service_args, 0, sizeof(wash_session_service_args));
-    wash_session_service_args.wash_session = &system_context_private_runtime(system_context)->wash_session;
-    wash_session_service_args.program_snapshot = &system_context_private_runtime(system_context)->program_snapshot;
-    wash_session_service_args.next_session_sequence = &system_context_private_runtime(system_context)->next_session_sequence;
-    wash_session_service_args.current_time_ms = system_context_private_runtime(system_context)->current_time_ms;
+    system_context_private_build_session_service_args(system_context, &wash_session_service_args);
     return wash_session_service_args;
 }
 
@@ -26,11 +22,7 @@ static program_snapshot_service_args_t build_program_snapshot_service_args(syste
 {
     program_snapshot_service_args_t program_snapshot_service_args;
 
-    memset(&program_snapshot_service_args, 0, sizeof(program_snapshot_service_args));
-    program_snapshot_service_args.program_snapshot = &system_context_private_runtime(system_context)->program_snapshot;
-    program_snapshot_service_args.wash_program = &system_context_private_runtime(system_context)->wash_program;
-    program_snapshot_service_args.program_repository_port = &system_context_private_runtime(system_context)->program_repository_port;
-    program_snapshot_service_args.current_time_ms = system_context_private_runtime(system_context)->current_time_ms;
+    system_context_private_build_program_snapshot_service_args(system_context, &program_snapshot_service_args);
     return program_snapshot_service_args;
 }
 
@@ -38,44 +30,13 @@ static wash_execution_service_args_t build_execution_service_args(system_context
 {
     wash_execution_service_args_t wash_execution_service_args;
 
-    memset(&wash_execution_service_args, 0, sizeof(wash_execution_service_args));
-    wash_execution_service_args.wash_execution = &system_context_private_runtime(system_context)->wash_execution;
-    wash_execution_service_args.wash_session = &system_context_private_runtime(system_context)->wash_session;
-    wash_execution_service_args.wait_condition = &system_context_private_runtime(system_context)->wait_condition;
-    wash_execution_service_args.program_snapshot = &system_context_private_runtime(system_context)->program_snapshot;
-    wash_execution_service_args.actuator_port = &system_context_private_runtime(system_context)->actuator_port;
-    wash_execution_service_args.sensor_port = &system_context_private_runtime(system_context)->sensor_port;
-    wash_execution_service_args.next_execution_sequence = &system_context_private_runtime(system_context)->next_execution_sequence;
-    wash_execution_service_args.next_wait_condition_sequence = &system_context_private_runtime(system_context)->next_wait_condition_sequence;
-    wash_execution_service_args.current_time_ms = system_context_private_runtime(system_context)->current_time_ms;
+    system_context_private_build_execution_service_args(system_context, &wash_execution_service_args);
     return wash_execution_service_args;
 }
 
 static void set_latest_result(system_context_t system_context, const char *result_code, const char *reason_code)
 {
     runtime_event_recorder_set_latest_result(system_context, result_code, reason_code);
-}
-
-static void set_global_fault(system_context_t system_context, const char *fault_code, const char *fault_reason)
-{
-    system_context_private_runtime(system_context)->global_fault_present = true;
-    system_context_private_runtime(system_context)->global_fault_code[0] = '\0';
-    system_context_private_runtime(system_context)->global_fault_reason[0] = '\0';
-    if (fault_code != 0) {
-        strncpy(system_context_private_runtime(system_context)->global_fault_code, fault_code, sizeof(system_context_private_runtime(system_context)->global_fault_code) - 1);
-        system_context_private_runtime(system_context)->global_fault_code[sizeof(system_context_private_runtime(system_context)->global_fault_code) - 1] = '\0';
-    }
-    if (fault_reason != 0) {
-        strncpy(system_context_private_runtime(system_context)->global_fault_reason, fault_reason, sizeof(system_context_private_runtime(system_context)->global_fault_reason) - 1);
-        system_context_private_runtime(system_context)->global_fault_reason[sizeof(system_context_private_runtime(system_context)->global_fault_reason) - 1] = '\0';
-    }
-}
-
-static void clear_global_fault(system_context_t system_context)
-{
-    system_context_private_runtime(system_context)->global_fault_present = false;
-    system_context_private_runtime(system_context)->global_fault_code[0] = '\0';
-    system_context_private_runtime(system_context)->global_fault_reason[0] = '\0';
 }
 
 static result_code_t map_execution_abort_result(const wash_execution_t *wash_execution)
@@ -98,20 +59,30 @@ static result_code_t map_execution_abort_result(const wash_execution_t *wash_exe
 
 static operation_result_t advance_or_finish_session(system_context_t system_context)
 {
+    const program_snapshot_t *program_snapshot;
+    const wash_execution_t *wash_execution;
+    const wash_session_t *wash_session;
     operation_result_t result;
     wash_execution_service_args_t wash_execution_service_args;
     wash_execution_fact_t wash_execution_fact;
     wash_session_service_args_t wash_session_service_args;
     wash_session_transition_fact_t wash_session_transition_fact;
 
-    if (system_context_private_runtime(system_context)->wash_execution.execution_state == EXECUTION_STATE_ABORTED
-        && wash_session_is_running(&system_context_private_runtime(system_context)->wash_session)) {
+    wash_execution = system_context_private_wash_execution(system_context);
+    wash_session = system_context_private_wash_session(system_context);
+    program_snapshot = system_context_private_program_snapshot(system_context);
+    if (wash_execution == 0 || wash_session == 0 || program_snapshot == 0) {
+        return operation_result_fail(ERROR_CODE_INVALID_STATE);
+    }
+
+    if (wash_execution->execution_state == EXECUTION_STATE_ABORTED
+        && wash_session_is_running(wash_session)) {
         wash_session_service_args = build_session_service_args(system_context);
         result = wash_session_state_machine_abort(&wash_session_service_args,
-            map_execution_abort_result(&system_context_private_runtime(system_context)->wash_execution),
-            system_context_private_runtime(system_context)->wash_execution.reason_code[0] != '\0'
-                ? system_context_private_runtime(system_context)->wash_execution.reason_code
-                : system_context_private_runtime(system_context)->wash_session.abort_reason,
+            map_execution_abort_result(wash_execution),
+            wash_execution->reason_code[0] != '\0'
+                ? wash_execution->reason_code
+                : wash_session->abort_reason,
             &wash_session_transition_fact);
         if (result.ok) {
             set_latest_result(system_context, "aborted", wash_session_transition_fact.reason_code);
@@ -119,13 +90,13 @@ static operation_result_t advance_or_finish_session(system_context_t system_cont
         return result;
     }
 
-    if (system_context_private_runtime(system_context)->wash_execution.execution_state != EXECUTION_STATE_COMPLETED
-        || system_context_private_runtime(system_context)->wash_execution.lifecycle_state != SEGMENT_LIFECYCLE_COMPLETED) {
+    if (wash_execution->execution_state != EXECUTION_STATE_COMPLETED
+        || wash_execution->lifecycle_state != SEGMENT_LIFECYCLE_COMPLETED) {
         return operation_result_ok();
     }
 
-    if (system_context_private_runtime(system_context)->wash_execution.segment_index + 1
-        < system_context_private_runtime(system_context)->program_snapshot.frozen_program.segment_count) {
+    if (wash_execution->segment_index + 1
+        < program_snapshot->frozen_program.segment_count) {
         wash_execution_service_args = build_execution_service_args(system_context);
         result = wash_execution_service_begin_next_segment(&wash_execution_service_args, &wash_execution_fact);
         if (result.ok) {
@@ -148,16 +119,24 @@ static operation_result_t handle_start(system_context_t system_context, const wa
 {
     operation_result_t result;
     program_snapshot_service_args_t program_snapshot_service_args;
+    wash_execution_t *wash_execution;
+    wash_session_t *wash_session;
     wash_session_service_args_t wash_session_service_args;
     wash_session_transition_fact_t wash_session_transition_fact;
     wash_execution_service_args_t wash_execution_service_args;
     wash_execution_fact_t wash_execution_fact;
 
-    if (system_context_private_runtime(system_context)->global_fault_present) {
+    if (system_context_private_global_fault_present(system_context)) {
         set_latest_result(system_context, "rejected", "global_fault_active");
         return operation_result_fail(ERROR_CODE_INVALID_STATE);
     }
-    if (wash_session_is_running(&system_context_private_runtime(system_context)->wash_session)) {
+
+    wash_session = system_context_private_wash_session_mutable(system_context);
+    wash_execution = system_context_private_wash_execution_mutable(system_context);
+    if (wash_session == 0 || wash_execution == 0) {
+        return operation_result_fail(ERROR_CODE_INVALID_STATE);
+    }
+    if (wash_session_is_running(wash_session)) {
         set_latest_result(system_context, "rejected", "running_session_exists");
         return operation_result_fail(ERROR_CODE_INVALID_STATE);
     }
@@ -179,9 +158,9 @@ static operation_result_t handle_start(system_context_t system_context, const wa
         return result;
     }
 
-    wash_execution_reset(&system_context_private_runtime(system_context)->wash_execution);
-    system_context_private_runtime(system_context)->wash_execution.segment_index = -1;
-    system_context_private_runtime(system_context)->wash_session.last_correlation_key[0] = '\0';
+    wash_execution_reset(wash_execution);
+    wash_execution->segment_index = -1;
+    wash_session->last_correlation_key[0] = '\0';
     wash_execution_service_args = build_execution_service_args(system_context);
     result = wash_execution_service_begin_next_segment(&wash_execution_service_args, &wash_execution_fact);
     if (result.ok) {
@@ -192,13 +171,18 @@ static operation_result_t handle_start(system_context_t system_context, const wa
 
 static operation_result_t handle_stop(system_context_t system_context, const wash_trigger_event_t *wash_trigger_event)
 {
+    const wash_session_t *wash_session;
     operation_result_t result;
     wash_execution_service_args_t wash_execution_service_args;
     wash_execution_fact_t wash_execution_fact;
     wash_session_service_args_t wash_session_service_args;
     wash_session_transition_fact_t wash_session_transition_fact;
 
-    if (!wash_session_is_running(&system_context_private_runtime(system_context)->wash_session)) {
+    wash_session = system_context_private_wash_session(system_context);
+    if (wash_session == 0) {
+        return operation_result_fail(ERROR_CODE_INVALID_STATE);
+    }
+    if (!wash_session_is_running(wash_session)) {
         set_latest_result(system_context, "ignored", "idle_stop");
         return operation_result_ok();
     }
@@ -225,6 +209,7 @@ static operation_result_t handle_stop(system_context_t system_context, const was
 static operation_result_t handle_fault(system_context_t system_context, const wash_trigger_event_t *wash_trigger_event)
 {
     bool clear_requested;
+    const wash_session_t *wash_session;
     operation_result_t result;
     wash_execution_service_args_t wash_execution_service_args;
     wash_execution_fact_t wash_execution_fact;
@@ -232,13 +217,19 @@ static operation_result_t handle_fault(system_context_t system_context, const wa
     wash_session_transition_fact_t wash_session_transition_fact;
 
     clear_requested = strcmp(wash_trigger_event->signal_code, "clear") == 0;
-    if (!wash_session_is_running(&system_context_private_runtime(system_context)->wash_session)) {
+    wash_session = system_context_private_wash_session(system_context);
+    if (wash_session == 0) {
+        return operation_result_fail(ERROR_CODE_INVALID_STATE);
+    }
+    if (!wash_session_is_running(wash_session)) {
         if (clear_requested) {
-            clear_global_fault(system_context);
+            system_context_private_clear_global_fault(system_context);
             set_latest_result(system_context, "accepted", "global_fault_cleared");
             return operation_result_ok();
         }
-        set_global_fault(system_context, wash_trigger_event->signal_code, wash_trigger_event->correlation_key);
+        system_context_private_set_global_fault(system_context,
+            wash_trigger_event->signal_code,
+            wash_trigger_event->correlation_key);
         set_latest_result(system_context, "accepted", "global_fault_recorded");
         return operation_result_ok();
     }
@@ -269,13 +260,17 @@ static operation_result_t handle_fault(system_context_t system_context, const wa
 static operation_result_t handle_timeout(system_context_t system_context)
 {
     operation_result_t result;
+    wait_condition_t *wait_condition;
     wait_timeout_fact_t wait_timeout_fact;
     wash_execution_service_args_t wash_execution_service_args;
     wash_execution_fact_t wash_execution_fact;
 
-    result = wait_timeout_service_handle_timeout(&system_context_private_runtime(system_context)->wait_condition,
-        system_context_private_runtime(system_context)->current_time_ms,
-        &wait_timeout_fact);
+    wait_condition = system_context_private_wait_condition_mutable(system_context);
+    if (wait_condition == 0) {
+        return operation_result_fail(ERROR_CODE_INVALID_STATE);
+    }
+
+    result = wait_timeout_service_handle_timeout(wait_condition, system_context_current_time_ms(system_context), &wait_timeout_fact);
     if (!result.ok) {
         return result;
     }
@@ -317,6 +312,7 @@ operation_result_t process_wash_trigger_execute(system_context_t system_context,
 
 operation_result_t process_wash_runtime_tick(system_context_t system_context)
 {
+    const wash_session_t *wash_session;
     operation_result_t result;
     wash_execution_service_args_t wash_execution_service_args;
     wash_execution_fact_t wash_execution_fact;
@@ -325,7 +321,12 @@ operation_result_t process_wash_runtime_tick(system_context_t system_context)
     if (!result.ok) {
         return result;
     }
-    if (!wash_session_is_running(&system_context_private_runtime(system_context)->wash_session)) {
+
+    wash_session = system_context_private_wash_session(system_context);
+    if (wash_session == 0) {
+        return operation_result_fail(ERROR_CODE_INVALID_STATE);
+    }
+    if (!wash_session_is_running(wash_session)) {
         return operation_result_ok();
     }
 
