@@ -41,7 +41,7 @@ typedef struct test_runtime_binding_t {
     actuator_port_t actuator_port;
 } test_runtime_binding_t;
 
-static test_runtime_binding_t g_test_runtime_bindings[SYSTEM_CONTEXT_POOL_CAPACITY];
+static test_runtime_binding_t g_test_runtime_binding;
 
 operation_result_t test_runtime_friend_read_system_context(controller_runtime_t *controller_runtime,
     system_context_t *system_context);
@@ -61,42 +61,27 @@ static inline operation_result_t test_create_runtime_with_overrides(controller_r
 
 static inline void test_purge_stale_runtime_bindings(void)
 {
-    unsigned int index;
-
-    for (index = 0u; index < SYSTEM_CONTEXT_POOL_CAPACITY; ++index) {
-        if (!g_test_runtime_bindings[index].occupied) {
-            continue;
-        }
-        if (!system_context_private_require_active(g_test_runtime_bindings[index].system_context).ok) {
-            memset(&g_test_runtime_bindings[index], 0, sizeof(g_test_runtime_bindings[index]));
-        }
+    if (g_test_runtime_binding.occupied
+        && !system_context_private_require_active(g_test_runtime_binding.system_context).ok) {
+        memset(&g_test_runtime_binding, 0, sizeof(g_test_runtime_binding));
     }
 }
 
 static inline test_runtime_binding_t *test_find_runtime_binding(system_context_t system_context)
 {
-    unsigned int index;
-
     test_purge_stale_runtime_bindings();
-    for (index = 0u; index < SYSTEM_CONTEXT_POOL_CAPACITY; ++index) {
-        if (g_test_runtime_bindings[index].occupied
-            && g_test_runtime_bindings[index].system_context == system_context) {
-            return &g_test_runtime_bindings[index];
-        }
+    if (g_test_runtime_binding.occupied && g_test_runtime_binding.system_context == system_context) {
+        return &g_test_runtime_binding;
     }
     return 0;
 }
 
 static inline test_runtime_binding_t *test_allocate_runtime_binding(void)
 {
-    unsigned int index;
-
     test_purge_stale_runtime_bindings();
-    for (index = 0u; index < SYSTEM_CONTEXT_POOL_CAPACITY; ++index) {
-        if (!g_test_runtime_bindings[index].occupied) {
-            memset(&g_test_runtime_bindings[index], 0, sizeof(g_test_runtime_bindings[index]));
-            return &g_test_runtime_bindings[index];
-        }
+    if (!g_test_runtime_binding.occupied) {
+        memset(&g_test_runtime_binding, 0, sizeof(g_test_runtime_binding));
+        return &g_test_runtime_binding;
     }
     return 0;
 }

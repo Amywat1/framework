@@ -11,7 +11,7 @@ typedef struct file_logger_context_t {
     char log_path[260];
 } file_logger_context_t;
 
-static file_logger_context_t g_logger_contexts[SYSTEM_CONTEXT_POOL_CAPACITY];
+static file_logger_context_t g_logger_context;
 
 static int log_message_impl(void *context, trigger_type_t trigger_type, const char *message)
 {
@@ -73,8 +73,6 @@ operation_result_t file_event_logger_init(system_context_t system_context, const
 {
     event_logger_port_t event_logger_port;
     FILE *probe_file;
-    file_logger_context_t *logger_context;
-    unsigned int slot_index;
 
     if (!system_context_private_require_active(system_context).ok) {
         return operation_result_fail(ERROR_CODE_INVALID_STATE);
@@ -89,15 +87,10 @@ operation_result_t file_event_logger_init(system_context_t system_context, const
     }
     fclose(probe_file);
 
-    slot_index = system_context_private_slot_index(system_context);
-    if (slot_index == SYSTEM_CONTEXT_POOL_INVALID_INDEX) {
-        return operation_result_fail(ERROR_CODE_INVALID_STATE);
-    }
-    logger_context = &g_logger_contexts[slot_index];
-    memset(logger_context, 0, sizeof(*logger_context));
-    strncpy(logger_context->log_path, log_path, sizeof(logger_context->log_path) - 1);
+    memset(&g_logger_context, 0, sizeof(g_logger_context));
+    strncpy(g_logger_context.log_path, log_path, sizeof(g_logger_context.log_path) - 1);
     memset(&event_logger_port, 0, sizeof(event_logger_port));
-    event_logger_port.context = logger_context;
+    event_logger_port.context = &g_logger_context;
     event_logger_port.log_message = log_message_impl;
     event_logger_port.log_transition = log_transition_impl;
     event_logger_port.log_rejection = log_rejection_impl;

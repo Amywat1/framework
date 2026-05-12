@@ -6,7 +6,7 @@
 #include "tests/test_support.h"
 #include "src/application/coordinators/system_context_private.h"
 
-static int verify_null_and_non_pool_handles_fail_formally(void)
+static int verify_null_and_non_runtime_handles_fail_formally(void)
 {
     char fake_storage;
     system_context_t fake_context;
@@ -50,35 +50,28 @@ static int verify_null_and_non_pool_handles_fail_formally(void)
     return 0;
 }
 
-static int verify_pool_exhaustion_is_explicit_and_recoverable(void)
+static int verify_second_acquire_is_rejected_until_release(void)
 {
-    system_context_t acquired[32];
+    system_context_t first_handle;
+    system_context_t second_handle;
     operation_result_t result;
-    unsigned int capacity;
-    unsigned int index;
 
-    memset(acquired, 0, sizeof(acquired));
-    capacity = system_context_private_debug_capacity();
-    TEST_ASSERT(capacity <= (sizeof(acquired) / sizeof(acquired[0])));
+    result = system_context_acquire(&first_handle);
+    TEST_ASSERT(result.ok);
 
-    for (index = 0u; index < capacity; ++index) {
-        result = system_context_acquire(&acquired[index]);
-        TEST_ASSERT(result.ok);
-    }
-
-    result = system_context_acquire(&acquired[capacity]);
+    result = system_context_acquire(&second_handle);
     TEST_ASSERT(!result.ok);
     TEST_ASSERT(result.error_code == ERROR_CODE_RESOURCE_UNAVAILABLE);
+    TEST_ASSERT(second_handle == 0);
 
-    result = system_context_release(acquired[0]);
-    TEST_ASSERT(result.ok);
-    result = system_context_acquire(&acquired[0]);
+    result = system_context_release(first_handle);
     TEST_ASSERT(result.ok);
 
-    for (index = 0u; index < capacity; ++index) {
-        result = system_context_release(acquired[index]);
-        TEST_ASSERT(result.ok);
-    }
+    result = system_context_acquire(&second_handle);
+    TEST_ASSERT(result.ok);
+    TEST_ASSERT(second_handle != first_handle);
+    result = system_context_release(second_handle);
+    TEST_ASSERT(result.ok);
     return 0;
 }
 
@@ -211,16 +204,14 @@ static int read_text_file(const char *path, char *buffer, size_t buffer_size)
     return 0;
 }
 
-static int verify_multi_instance_file_adapters_are_isolated(void)
+static int verify_single_instance_file_adapters_rebind_cleanly(void)
 {
     const char *first_log_path = "./runtime/logs/test_events_ctx_a.log";
     const char *second_log_path = "./runtime/logs/test_events_ctx_b.log";
     char first_log_buffer[256];
     char second_log_buffer[256];
-    const program_repository_port_t *first_repository_port;
-    const program_repository_port_t *second_repository_port;
-    const system_context_runtime_t *first_runtime;
-    const system_context_runtime_t *second_runtime;
+    const program_repository_port_t *program_repository_port;
+    const system_context_runtime_t *runtime;
     simulated_driver_context_t first_driver_context;
     simulated_driver_context_t second_driver_context;
     sensor_port_t first_sensor_port;
@@ -229,9 +220,8 @@ static int verify_multi_instance_file_adapters_are_isolated(void)
     actuator_port_t second_actuator_port;
     system_context_t first_system_context;
     system_context_t second_system_context;
-    wash_program_t first_loaded_program;
+    wash_program_t loaded_program;
     wash_program_t first_runtime_program;
-    wash_program_t second_loaded_program;
     wash_program_t second_runtime_program;
     operation_result_t result;
 
@@ -239,79 +229,84 @@ static int verify_multi_instance_file_adapters_are_isolated(void)
     remove(second_log_path);
     result = system_context_acquire(&first_system_context);
     TEST_ASSERT(result.ok);
-    result = system_context_acquire(&second_system_context);
-    TEST_ASSERT(result.ok);
 
     test_bind_simulated_ports(&first_driver_context, &first_sensor_port, &first_actuator_port);
-    test_bind_simulated_ports(&second_driver_context, &second_sensor_port, &second_actuator_port);
     system_context_set_sensor_port(first_system_context, &first_sensor_port);
     system_context_set_actuator_port(first_system_context, &first_actuator_port);
-    system_context_set_sensor_port(second_system_context, &second_sensor_port);
-    system_context_set_actuator_port(second_system_context, &second_actuator_port);
 
     result = file_program_repository_init(first_system_context, "./configs");
     TEST_ASSERT(result.ok);
-    result = file_program_repository_init(second_system_context, "./configs");
-    TEST_ASSERT(result.ok);
     result = file_event_logger_init(first_system_context, first_log_path);
-    TEST_ASSERT(result.ok);
-    result = file_event_logger_init(second_system_context, second_log_path);
     TEST_ASSERT(result.ok);
 
     result = json_program_parser_parse("tests/fixtures/wash_step_control/program_v1_valid.json", &first_runtime_program);
     TEST_ASSERT(result.ok);
-    result = json_program_parser_parse("tests/fixtures/wash_step_control/program_v1_valid_json_edge_cases.json", &second_runtime_program);
-    TEST_ASSERT(result.ok);
-
     file_program_repository_set_runtime_program(first_system_context, &first_runtime_program, 101);
-    file_program_repository_set_runtime_program(second_system_context, &second_runtime_program, 202);
 
-    first_repository_port = system_context_program_repository_port(first_system_context);
-    second_repository_port = system_context_program_repository_port(second_system_context);
-    TEST_ASSERT(first_repository_port != 0);
-    TEST_ASSERT(second_repository_port != 0);
-    TEST_ASSERT(first_repository_port->context != 0);
-    TEST_ASSERT(second_repository_port->context != 0);
-    TEST_ASSERT(first_repository_port->context != second_repository_port->context);
+    program_repository_port = system_context_program_repository_port(first_system_context);
+    TEST_ASSERT(program_repository_port != 0);
+    TEST_ASSERT(program_repository_port->context != 0);
 
-    memset(&first_loaded_program, 0, sizeof(first_loaded_program));
-    memset(&second_loaded_program, 0, sizeof(second_loaded_program));
-    TEST_ASSERT(first_repository_port->load_program(first_repository_port->context,
+    memset(&loaded_program, 0, sizeof(loaded_program));
+    TEST_ASSERT(program_repository_port->load_program(program_repository_port->context,
         first_runtime_program.program_id,
-        &first_loaded_program) == 0);
-    TEST_ASSERT(second_repository_port->load_program(second_repository_port->context,
-        second_runtime_program.program_id,
-        &second_loaded_program) == 0);
-    TEST_ASSERT(strcmp(first_loaded_program.program_id, first_runtime_program.program_id) == 0);
-    TEST_ASSERT(strcmp(second_loaded_program.program_id, second_runtime_program.program_id) == 0);
-    TEST_ASSERT(first_loaded_program.revision == 101);
-    TEST_ASSERT(second_loaded_program.revision == 202);
+        &loaded_program) == 0);
+    TEST_ASSERT(strcmp(loaded_program.program_id, first_runtime_program.program_id) == 0);
+    TEST_ASSERT(loaded_program.revision == 101);
 
-    first_runtime = system_context_private_runtime(first_system_context);
-    second_runtime = system_context_private_runtime(second_system_context);
-    TEST_ASSERT(first_runtime != 0);
-    TEST_ASSERT(second_runtime != 0);
-    TEST_ASSERT(first_runtime->event_logger_port.context != 0);
-    TEST_ASSERT(second_runtime->event_logger_port.context != 0);
-    TEST_ASSERT(first_runtime->event_logger_port.context != second_runtime->event_logger_port.context);
-    TEST_ASSERT(first_runtime->event_logger_port.log_message != 0);
-    TEST_ASSERT(second_runtime->event_logger_port.log_message != 0);
-    TEST_ASSERT(first_runtime->event_logger_port.log_message(first_runtime->event_logger_port.context,
+    runtime = system_context_private_runtime(first_system_context);
+    TEST_ASSERT(runtime != 0);
+    TEST_ASSERT(runtime->event_logger_port.context != 0);
+    TEST_ASSERT(runtime->event_logger_port.log_message != 0);
+    TEST_ASSERT(runtime->event_logger_port.log_message(runtime->event_logger_port.context,
         TRIGGER_TYPE_START,
         "ctx-a") == 0);
-    TEST_ASSERT(second_runtime->event_logger_port.log_message(second_runtime->event_logger_port.context,
-        TRIGGER_TYPE_STOP,
-        "ctx-b") == 0);
 
     TEST_ASSERT(read_text_file(first_log_path, first_log_buffer, sizeof(first_log_buffer)) == 0);
-    TEST_ASSERT(read_text_file(second_log_path, second_log_buffer, sizeof(second_log_buffer)) == 0);
     TEST_ASSERT(strstr(first_log_buffer, "ctx-a") != 0);
-    TEST_ASSERT(strstr(first_log_buffer, "ctx-b") == 0);
-    TEST_ASSERT(strstr(second_log_buffer, "ctx-b") != 0);
-    TEST_ASSERT(strstr(second_log_buffer, "ctx-a") == 0);
 
     result = system_context_release(first_system_context);
     TEST_ASSERT(result.ok);
+
+    result = system_context_acquire(&second_system_context);
+    TEST_ASSERT(result.ok);
+    TEST_ASSERT(second_system_context != first_system_context);
+
+    test_bind_simulated_ports(&second_driver_context, &second_sensor_port, &second_actuator_port);
+    system_context_set_sensor_port(second_system_context, &second_sensor_port);
+    system_context_set_actuator_port(second_system_context, &second_actuator_port);
+
+    result = file_program_repository_init(second_system_context, "./configs");
+    TEST_ASSERT(result.ok);
+    result = file_event_logger_init(second_system_context, second_log_path);
+    TEST_ASSERT(result.ok);
+    result = json_program_parser_parse("tests/fixtures/wash_step_control/program_v1_valid_json_edge_cases.json",
+        &second_runtime_program);
+    TEST_ASSERT(result.ok);
+    file_program_repository_set_runtime_program(second_system_context, &second_runtime_program, 202);
+
+    program_repository_port = system_context_program_repository_port(second_system_context);
+    TEST_ASSERT(program_repository_port != 0);
+    TEST_ASSERT(program_repository_port->context != 0);
+    memset(&loaded_program, 0, sizeof(loaded_program));
+    TEST_ASSERT(program_repository_port->load_program(program_repository_port->context,
+        second_runtime_program.program_id,
+        &loaded_program) == 0);
+    TEST_ASSERT(strcmp(loaded_program.program_id, second_runtime_program.program_id) == 0);
+    TEST_ASSERT(loaded_program.revision == 202);
+
+    runtime = system_context_private_runtime(second_system_context);
+    TEST_ASSERT(runtime != 0);
+    TEST_ASSERT(runtime->event_logger_port.context != 0);
+    TEST_ASSERT(runtime->event_logger_port.log_message != 0);
+    TEST_ASSERT(runtime->event_logger_port.log_message(runtime->event_logger_port.context,
+        TRIGGER_TYPE_STOP,
+        "ctx-b") == 0);
+
+    TEST_ASSERT(read_text_file(second_log_path, second_log_buffer, sizeof(second_log_buffer)) == 0);
+    TEST_ASSERT(strstr(second_log_buffer, "ctx-b") != 0);
+    TEST_ASSERT(strstr(second_log_buffer, "ctx-a") == 0);
+
     result = system_context_release(second_system_context);
     TEST_ASSERT(result.ok);
     return 0;
@@ -348,10 +343,10 @@ static int verify_failed_program_import_does_not_bind_runtime_cache(void)
 
 int main(void)
 {
-    if (verify_null_and_non_pool_handles_fail_formally() != 0) {
+    if (verify_null_and_non_runtime_handles_fail_formally() != 0) {
         return 1;
     }
-    if (verify_pool_exhaustion_is_explicit_and_recoverable() != 0) {
+    if (verify_second_acquire_is_rejected_until_release() != 0) {
         return 1;
     }
     if (verify_released_handle_is_rejected_by_runtime_paths() != 0) {
@@ -360,7 +355,7 @@ int main(void)
     if (verify_bound_scheduler_blocks_release_and_rebind() != 0) {
         return 1;
     }
-    if (verify_multi_instance_file_adapters_are_isolated() != 0) {
+    if (verify_single_instance_file_adapters_rebind_cleanly() != 0) {
         return 1;
     }
     if (verify_failed_program_import_does_not_bind_runtime_cache() != 0) {

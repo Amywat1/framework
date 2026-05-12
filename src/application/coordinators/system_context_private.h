@@ -3,8 +3,6 @@
 
 #include <stddef.h>
 #include <stdbool.h>
-#include <stdint.h>
-
 #include "application/coordinators/system_context.h"
 #include "domain/model/program_snapshot.h"
 #include "domain/model/state_transition_record.h"
@@ -28,19 +26,10 @@
  * @brief 定义组合根的私有内部状态。
  */
 
-#define SYSTEM_CONTEXT_POOL_CAPACITY 8u
-#define SYSTEM_CONTEXT_HANDLE_GENERATION_WINDOW 65536u
-#define SYSTEM_CONTEXT_POOL_INVALID_INDEX ((unsigned int)(~0u))
-
-struct system_context_handle {
-    uintptr_t opaque_handle_token;
-};
-
 operation_result_t system_context_private_require_active(const system_context_t system_context);
 operation_result_t system_context_private_bind_scheduler(system_context_t system_context);
 void system_context_private_unbind_scheduler(system_context_t system_context);
 bool system_context_private_has_scheduler_binding(const system_context_t system_context);
-unsigned int system_context_private_slot_index(const system_context_t system_context);
 bool system_context_private_global_fault_present(const system_context_t system_context);
 const char *system_context_private_global_fault_reason(const system_context_t system_context);
 void system_context_private_set_global_fault(system_context_t system_context, const char *fault_code, const char *fault_reason);
@@ -68,8 +57,6 @@ void system_context_private_advance_time(system_context_t system_context, unsign
 operation_result_t system_context_private_append_trigger(system_context_t system_context, const wash_trigger_event_t *wash_trigger_event);
 const wash_trigger_event_t *system_context_private_pending_trigger_at(const system_context_t system_context, unsigned int index);
 void system_context_private_remove_pending_trigger_at(system_context_t system_context, unsigned int remove_index);
-unsigned int system_context_private_debug_free_count(void);
-unsigned int system_context_private_debug_capacity(void);
 bool system_context_private_debug_is_in_use(const system_context_t system_context);
 
 #endif

@@ -5,7 +5,7 @@
 
 /**
  * @file system_context_runtime_layout.h
- * @brief 暴露组合根运行时布局的白盒内部头，仅供组合根实现与测试观察使用。
+ * @brief 暴露组合根运行时布局的白盒内部头，仅供单实例组合根实现与测试观察使用。
  */
 typedef struct system_context_runtime_t {
     wash_program_t wash_program;
@@ -34,19 +34,11 @@ typedef struct system_context_runtime_t {
     program_repository_port_t program_repository_port;
 } system_context_runtime_t;
 
-typedef struct system_context_pool_slot_t {
+typedef struct system_context_instance_state_t {
     bool in_use;
-    unsigned int next_free_index;
     unsigned int generation;
     system_context_runtime_t runtime;
-} system_context_pool_slot_t;
-
-typedef struct system_context_pool_state_t {
-    bool initialized;
-    unsigned int free_head_index;
-    unsigned int free_count;
-    system_context_pool_slot_t slots[SYSTEM_CONTEXT_POOL_CAPACITY];
-} system_context_pool_state_t;
+} system_context_instance_state_t;
 
 system_context_runtime_t *system_context_private_runtime_mutable(system_context_t system_context);
 const system_context_runtime_t *system_context_private_runtime_const(const system_context_t system_context);

@@ -13,7 +13,7 @@ add_wash_test(test_unit_execution_entities unit/test_execution_model_entities.c)
 add_wash_test(test_unit_program_config_validation unit/test_program_config_validation.c)
 add_wash_test(test_unit_service_arg_slices unit/test_service_arg_slices.c)
 add_wash_test(test_unit_runtime_object_ownership unit/test_runtime_object_ownership.c)
-add_wash_test(test_unit_system_context_pool unit/test_system_context_pool.c)
+add_wash_test(test_unit_system_context_lifecycle unit/test_system_context_lifecycle.c)
 
 # Contract
 add_wash_test(test_contract_program_config_adapter contract/test_program_config_adapter_contract.c)

@@ -21,18 +21,14 @@
 #include "src/application/coordinators/system_context_private.h"
 #include "src/platform/linux/controller_scheduler_linux_internal.h"
 
-#define CONTROLLER_SCHEDULER_MAX_BINDINGS SYSTEM_CONTEXT_POOL_CAPACITY
 #define CONTROLLER_SCHEDULER_MAX_EPOLL_EVENTS 4
 
-typedef struct scheduler_binding_entry_t {
-    uintptr_t handle_token;
+typedef struct scheduler_binding_state_t {
+    system_context_t system_context;
     controller_scheduler_t *controller_scheduler;
-} scheduler_binding_entry_t;
+} scheduler_binding_state_t;
 
-static scheduler_binding_entry_t g_scheduler_bindings[CONTROLLER_SCHEDULER_MAX_BINDINGS];
-
-_Static_assert(CONTROLLER_SCHEDULER_MAX_BINDINGS >= SYSTEM_CONTEXT_POOL_CAPACITY,
-    "scheduler binding table must cover system_context pool capacity");
+static scheduler_binding_state_t g_scheduler_binding;
 
 static unsigned long monotonic_now_ms(void)
 {
@@ -90,45 +86,25 @@ static void controller_scheduler_refresh_source_states(controller_scheduler_t *c
 
 static void controller_scheduler_register_binding(controller_scheduler_t *controller_scheduler)
 {
-    unsigned int index;
-
-    for (index = 0u; index < CONTROLLER_SCHEDULER_MAX_BINDINGS; ++index) {
-        if (g_scheduler_bindings[index].handle_token == 0u) {
-            g_scheduler_bindings[index].handle_token = controller_scheduler->system_context->opaque_handle_token;
-            g_scheduler_bindings[index].controller_scheduler = controller_scheduler;
-            return;
-        }
-    }
+    g_scheduler_binding.system_context = controller_scheduler->system_context;
+    g_scheduler_binding.controller_scheduler = controller_scheduler;
 }
 
 static void controller_scheduler_unregister_binding(const controller_scheduler_t *controller_scheduler)
 {
-    unsigned int index;
-
-    for (index = 0u; index < CONTROLLER_SCHEDULER_MAX_BINDINGS; ++index) {
-        if (g_scheduler_bindings[index].controller_scheduler == controller_scheduler) {
-            memset(&g_scheduler_bindings[index], 0, sizeof(g_scheduler_bindings[index]));
-            return;
-        }
+    if (g_scheduler_binding.controller_scheduler == controller_scheduler) {
+        memset(&g_scheduler_binding, 0, sizeof(g_scheduler_binding));
     }
 }
 
 static controller_scheduler_t *controller_scheduler_lookup_binding(const system_context_t system_context)
 {
-    uintptr_t handle_token;
-    unsigned int index;
-
     if (system_context == 0) {
         return 0;
     }
-
-    handle_token = system_context->opaque_handle_token;
-    for (index = 0u; index < CONTROLLER_SCHEDULER_MAX_BINDINGS; ++index) {
-        if (g_scheduler_bindings[index].handle_token == handle_token) {
-            return g_scheduler_bindings[index].controller_scheduler;
-        }
-    }
-    return 0;
+    return g_scheduler_binding.system_context == system_context
+        ? g_scheduler_binding.controller_scheduler
+        : 0;
 }
 
 static void controller_scheduler_record_error(controller_scheduler_t *controller_scheduler,

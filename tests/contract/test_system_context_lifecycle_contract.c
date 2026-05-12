@@ -16,7 +16,6 @@ static int verify_reset_preserves_bound_ports_and_occupied_state(void)
     test_setup_system_context(&system_context, &driver_context);
     main_loop_advance_time(system_context, 33ul);
     TEST_ASSERT(system_context_private_debug_is_in_use(system_context));
-    TEST_ASSERT(system_context_private_debug_free_count() + 1u == system_context_private_debug_capacity());
 
     program_repository_port_before = system_context_program_repository_port(system_context);
     TEST_ASSERT(program_repository_port_before != 0);
@@ -25,7 +24,6 @@ static int verify_reset_preserves_bound_ports_and_occupied_state(void)
     result = system_context_reset(system_context);
     TEST_ASSERT(result.ok);
     TEST_ASSERT(system_context_private_debug_is_in_use(system_context));
-    TEST_ASSERT(system_context_private_debug_free_count() + 1u == system_context_private_debug_capacity());
     TEST_ASSERT(system_context_current_time_ms(system_context) == 0ul);
     TEST_ASSERT(system_context_pending_trigger_count(system_context) == 0u);
 

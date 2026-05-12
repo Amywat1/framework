@@ -18,22 +18,22 @@
 /**
  * @brief 主控运行期组合根的不透明正式句柄。
  *
- * @note 这是对内部静态资源池实例的正式引用，外部无法看到其内部表示。
+ * @note 这是对内部静态单实例运行态的正式引用，外部无法看到其内部表示。
  * @note 外部只允许通过 `system_context_acquire()` 获取合法句柄，不得伪造、解引用或依赖其底层布局。
  */
 struct system_context_handle;
 typedef struct system_context_handle *system_context_t;
 
 /**
- * @brief 从正式生命周期池中获取一个主控运行时句柄。
+ * @brief 获取正式主控单实例运行时句柄。
  *
  * @param system_context 输出正式运行时句柄，不能为空。
- * @return 获取成功返回 `operation_result_ok()`；池耗尽或参数非法时返回失败结果。
+ * @return 获取成功返回 `operation_result_ok()`；实例已占用或参数非法时返回失败结果。
  */
 operation_result_t system_context_acquire(system_context_t *system_context);
 
 /**
- * @brief 释放一个正式主控运行时句柄并归还内部池资源。
+ * @brief 释放正式主控运行时句柄并归还内部单实例占用。
  *
  * @param system_context 正式主控运行时句柄。
  * @return 释放成功返回 `operation_result_ok()`；句柄非法或已释放时返回失败结果。

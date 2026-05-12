@@ -61,7 +61,7 @@ static int verify_public_lifecycle_preserves_bound_ports(void)
     return 0;
 }
 
-static int verify_release_returns_resource_to_pool_and_invalidates_handle(void)
+static int verify_release_clears_single_instance_and_invalidates_handle(void)
 {
     system_context_t system_context;
     simulated_driver_context_t driver_context;
@@ -89,7 +89,7 @@ int main(void)
     if (verify_public_lifecycle_preserves_bound_ports() != 0) {
         return 1;
     }
-    if (verify_release_returns_resource_to_pool_and_invalidates_handle() != 0) {
+    if (verify_release_clears_single_instance_and_invalidates_handle() != 0) {
         return 1;
     }
     return 0;
