@@ -1,0 +1,14 @@
+{
+  "program_id": "legacy_stages_program",
+  "program_name": "legacy stages program",
+  "revision": 1,
+  "enabled": true,
+  "default_timeout_ms": 5000,
+  "stages": [
+    {
+      "stage_id": "legacy_stage",
+      "stage_name": "legacy stage",
+      "sequence_no": 1
+    }
+  ]
+}

@@ -317,6 +317,35 @@ static int verify_multi_instance_file_adapters_are_isolated(void)
     return 0;
 }
 
+static int verify_failed_program_import_does_not_bind_runtime_cache(void)
+{
+    simulated_driver_context_t driver_context;
+    system_context_t system_context;
+    wash_program_t wash_program;
+    operation_result_t result;
+
+    test_setup_system_context(&system_context, &driver_context);
+
+    result = test_load_runtime_program_from_fixture(
+        system_context,
+        "tests/fixtures/wash_step_control/program_v1_invalid_json_syntax.json",
+        &wash_program);
+    TEST_ASSERT(!result.ok);
+    TEST_ASSERT(result.error_code == ERROR_CODE_PARSE_FAILED);
+    TEST_ASSERT(test_load_program_via_repository(system_context, "broken_json", &wash_program) != 0);
+
+    result = test_load_runtime_program_from_fixture(
+        system_context,
+        "tests/fixtures/wash_step_control/program_v1_invalid_stages_schema.json",
+        &wash_program);
+    TEST_ASSERT(!result.ok);
+    TEST_ASSERT(result.error_code == ERROR_CODE_UNSUPPORTED);
+    TEST_ASSERT(test_load_program_via_repository(system_context, "legacy_stages_program", &wash_program) != 0);
+
+    test_release_system_context(system_context);
+    return 0;
+}
+
 int main(void)
 {
     if (verify_null_and_non_pool_handles_fail_formally() != 0) {
@@ -332,6 +361,9 @@ int main(void)
         return 1;
     }
     if (verify_multi_instance_file_adapters_are_isolated() != 0) {
+        return 1;
+    }
+    if (verify_failed_program_import_does_not_bind_runtime_cache() != 0) {
         return 1;
     }
     return 0;

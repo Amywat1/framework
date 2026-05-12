@@ -1,39 +1,107 @@
 {
-    "program_id": "heavy_wash",
-    "program_name": "强力洗车",
-    "enabled": true,
-    "default_timeout_ms": 6000,
-    "revision": 2,
-    "stages": [
+  "program_id": "heavy_wash",
+  "program_name": "heavy wash",
+  "revision": 2,
+  "enabled": true,
+  "default_segment_timeout_ms": 18000,
+  "default_exit_timeout_ms": 6000,
+  "segments": [
+    {
+      "segment_id": "heavy_roof",
+      "segment_name": "roof brush",
+      "sequence_no": 1,
+      "segment_kind": "roof_brush",
+      "motion_plan": {
+        "direction": "forward",
+        "target_reference": "tail",
+        "target_tolerance_mm": 50,
+        "requires_position_feedback": true
+      },
+      "continuous_controls": {
+        "roof_brush_follow": true,
+        "side_brush_enabled": false,
+        "ro_water_enabled": false,
+        "dryer_enabled": false
+      },
+      "conditional_controls": [
         {
-            "stage_id": "pre_soak",
-            "stage_name": "高压预喷",
-            "sequence_no": 1,
-            "gantry_motion_mode": "forward",
-            "traverse_count": 0,
-            "roof_brush_mode": "disabled",
-            "side_brush_mode": "disabled",
-            "stage_timeout_ms": 1200,
-            "chemical_actions": [
-                {
-                    "channel_id": "foam",
-                    "start_condition": "on_stage_start",
-                    "duration_ms": 1500,
-                    "retry_limit": 2
-                }
-            ]
-        },
-        {
-            "stage_id": "wash",
-            "stage_name": "双程刷洗",
-            "sequence_no": 2,
-            "gantry_motion_mode": "traverse",
-            "traverse_count": 2,
-            "roof_brush_mode": "follow",
-            "side_brush_mode": "follow",
-            "stage_timeout_ms": 2500,
-            "chemical_actions": []
+          "control_id": "heavy_roof_chemical",
+          "control_object": "chemical",
+          "basis": "absolute_mm",
+          "start_trigger": {
+            "reference": "absolute_mm",
+            "compare_mode": "greater_equal",
+            "value_mm": 0,
+            "tolerance_mm": 0
+          },
+          "stop_trigger": {
+            "reference": "absolute_mm",
+            "compare_mode": "greater_equal",
+            "value_mm": 10000,
+            "tolerance_mm": 0
+          },
+          "active_during_exit": false
         }
-    ]
+      ],
+      "completion_condition": {
+        "reference": "tail_reached",
+        "compare_mode": "true"
+      },
+      "exit_actions": {
+        "stop_roof_brush": true,
+        "stop_chemical": true,
+        "roof_brush_home": true
+      },
+      "segment_timeout_ms": 18000,
+      "exit_timeout_ms": 6000
+    },
+    {
+      "segment_id": "heavy_side",
+      "segment_name": "side brush",
+      "sequence_no": 2,
+      "segment_kind": "side_brush",
+      "motion_plan": {
+        "direction": "reverse",
+        "target_reference": "head",
+        "target_tolerance_mm": 50,
+        "requires_position_feedback": true
+      },
+      "continuous_controls": {
+        "roof_brush_follow": false,
+        "side_brush_enabled": true,
+        "ro_water_enabled": false,
+        "dryer_enabled": false
+      },
+      "conditional_controls": [
+        {
+          "control_id": "heavy_side_chemical",
+          "control_object": "chemical",
+          "basis": "absolute_mm",
+          "start_trigger": {
+            "reference": "absolute_mm",
+            "compare_mode": "greater_equal",
+            "value_mm": 2500,
+            "tolerance_mm": 0
+          },
+          "stop_trigger": {
+            "reference": "absolute_mm",
+            "compare_mode": "greater_equal",
+            "value_mm": 8000,
+            "tolerance_mm": 0
+          },
+          "active_during_exit": false
+        }
+      ],
+      "completion_condition": {
+        "reference": "head_reached",
+        "compare_mode": "true"
+      },
+      "exit_actions": {
+        "stop_side_brush": true,
+        "stop_chemical": true
+      },
+      "segment_timeout_ms": 18000,
+      "exit_timeout_ms": 6000
+    }
+  ]
 }
-

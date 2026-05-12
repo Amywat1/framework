@@ -1,6 +1,6 @@
 {
   "program_id": "wash_step_control_invalid_position",
-  "program_name": "位置语义冲突",
+  "program_name": "invalid position semantics",
   "revision": 1,
   "enabled": true,
   "default_segment_timeout_ms": 15000,
@@ -8,7 +8,7 @@
   "segments": [
     {
       "segment_id": "side_segment",
-      "segment_name": "侧刷段",
+      "segment_name": "side brush",
       "sequence_no": 1,
       "segment_kind": "side_brush",
       "motion_plan": {

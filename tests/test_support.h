@@ -177,6 +177,26 @@ static inline operation_result_t test_load_runtime_program_from_fixture(system_c
     return operation_result_ok();
 }
 
+static inline int test_load_program_via_repository(system_context_t system_context,
+    const char *program_id,
+    wash_program_t *wash_program)
+{
+    const program_repository_port_t *program_repository_port;
+
+    if (program_id == 0 || wash_program == 0) {
+        return -1;
+    }
+
+    program_repository_port = system_context_program_repository_port(system_context);
+    if (program_repository_port == 0
+        || program_repository_port->context == 0
+        || program_repository_port->load_program == 0) {
+        return -1;
+    }
+
+    return program_repository_port->load_program(program_repository_port->context, program_id, wash_program);
+}
+
 static inline void test_assign_trigger_identity(system_context_t system_context, wash_trigger_event_t *wash_trigger_event)
 {
     if (wash_trigger_event == 0) {

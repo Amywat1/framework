@@ -1,6 +1,6 @@
 {
   "program_id": "wash_step_control_missing_exit",
-  "program_name": "缺失退出动作",
+  "program_name": "missing exit actions",
   "revision": 1,
   "enabled": true,
   "default_segment_timeout_ms": 15000,
@@ -8,7 +8,7 @@
   "segments": [
     {
       "segment_id": "roof_segment",
-      "segment_name": "顶刷段",
+      "segment_name": "roof brush",
       "sequence_no": 1,
       "segment_kind": "roof_brush",
       "motion_plan": {

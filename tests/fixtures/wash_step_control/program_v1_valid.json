@@ -1,6 +1,6 @@
 {
   "program_id": "wash_step_control_v1",
-  "program_name": "工步真实控制",
+  "program_name": "wash step control",
   "revision": 1,
   "enabled": true,
   "default_segment_timeout_ms": 15000,
@@ -8,7 +8,7 @@
   "segments": [
     {
       "segment_id": "roof_segment",
-      "segment_name": "顶刷段",
+      "segment_name": "roof brush",
       "sequence_no": 1,
       "segment_kind": "roof_brush",
       "motion_plan": {
@@ -64,7 +64,7 @@
     },
     {
       "segment_id": "side_segment",
-      "segment_name": "侧刷段",
+      "segment_name": "side brush",
       "sequence_no": 2,
       "segment_kind": "side_brush",
       "motion_plan": {
@@ -119,7 +119,7 @@
     },
     {
       "segment_id": "ro_segment",
-      "segment_name": "RO 水段",
+      "segment_name": "ro water",
       "sequence_no": 3,
       "segment_kind": "ro_water",
       "motion_plan": {
@@ -154,7 +154,7 @@
     },
     {
       "segment_id": "dryer_segment",
-      "segment_name": "风干段",
+      "segment_name": "dryer",
       "sequence_no": 4,
       "segment_kind": "dryer",
       "motion_plan": {

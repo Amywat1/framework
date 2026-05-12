@@ -1,6 +1,6 @@
 {
   "program_id": "wash_step_control_v1",
-  "program_name": "工步真实控制",
+  "program_name": "wash step control",
   "revision": 1,
   "enabled": true,
   "default_segment_timeout_ms": 15000,
@@ -8,7 +8,7 @@
   "segments": [
     {
       "segment_id": "roof_segment",
-      "segment_name": "顶刷段",
+      "segment_name": "roof brush",
       "sequence_no": 1,
       "segment_kind": "roof_brush",
       "motion_plan": {
@@ -51,11 +51,20 @@
         "stop_roof_brush": true,
         "stop_chemical": true,
         "roof_brush_home": true
+      },
+      "segment_timeout_ms": 15000,
+      "exit_timeout_ms": 5000,
+      "exception_policy": {
+        "on_position_lost": "abort_session",
+        "on_follow_lost": "abort_session",
+        "on_segment_timeout": "abort_session",
+        "on_exit_timeout": "abort_session",
+        "on_exit_failure": "abort_session"
       }
     },
     {
       "segment_id": "side_segment",
-      "segment_name": "侧刷段",
+      "segment_name": "side brush",
       "sequence_no": 2,
       "segment_kind": "side_brush",
       "motion_plan": {
@@ -97,11 +106,20 @@
       "exit_actions": {
         "stop_side_brush": true,
         "stop_chemical": true
+      },
+      "segment_timeout_ms": 15000,
+      "exit_timeout_ms": 4000,
+      "exception_policy": {
+        "on_position_lost": "abort_session",
+        "on_follow_lost": "abort_session",
+        "on_segment_timeout": "abort_session",
+        "on_exit_timeout": "abort_session",
+        "on_exit_failure": "abort_session"
       }
     },
     {
       "segment_id": "ro_segment",
-      "segment_name": "RO 水段",
+      "segment_name": "ro water",
       "sequence_no": 3,
       "segment_kind": "ro_water",
       "motion_plan": {
@@ -123,11 +141,20 @@
       },
       "exit_actions": {
         "close_ro_water": true
+      },
+      "segment_timeout_ms": 15000,
+      "exit_timeout_ms": 4000,
+      "exception_policy": {
+        "on_position_lost": "abort_session",
+        "on_follow_lost": "abort_session",
+        "on_segment_timeout": "safe_finish",
+        "on_exit_timeout": "abort_session",
+        "on_exit_failure": "abort_session"
       }
     },
     {
       "segment_id": "dryer_segment",
-      "segment_name": "风干段",
+      "segment_name": "dryer",
       "sequence_no": 4,
       "segment_kind": "dryer",
       "motion_plan": {
@@ -149,6 +176,15 @@
       },
       "exit_actions": {
         "close_dryer": true
+      },
+      "segment_timeout_ms": 15000,
+      "exit_timeout_ms": 4000,
+      "exception_policy": {
+        "on_position_lost": "abort_session",
+        "on_follow_lost": "abort_session",
+        "on_segment_timeout": "abort_session",
+        "on_exit_timeout": "abort_session",
+        "on_exit_failure": "abort_session"
       }
     }
   ]

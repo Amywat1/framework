@@ -1,6 +1,6 @@
 {
   "program_id": "wash_step_control_invalid_conditional",
-  "program_name": "无效条件控制",
+  "program_name": "invalid conditional control",
   "revision": 1,
   "enabled": true,
   "default_segment_timeout_ms": 15000,
@@ -8,7 +8,7 @@
   "segments": [
     {
       "segment_id": "ro_segment",
-      "segment_name": "RO 水段",
+      "segment_name": "ro water",
       "sequence_no": 1,
       "segment_kind": "ro_water",
       "motion_plan": {

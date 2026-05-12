@@ -1,0 +1,9 @@
+{
+  "program_id": "broken_json",
+  "program_name": "broken syntax",
+  "segments": [
+    {
+      "segment_id": "broken_segment",
+      "sequence_no": 1
+    }
+  ]

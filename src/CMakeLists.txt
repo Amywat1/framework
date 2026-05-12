@@ -1,4 +1,5 @@
 set(WASH_CORE_SOURCES
+    ../third_party/cjson/cJSON.c
     domain/model/segment_motion_plan.c
     domain/model/position_trigger.c
     domain/model/conditional_control.c
@@ -46,7 +47,11 @@ set(WASH_CORE_SOURCES
 add_library(wash_core STATIC ${WASH_CORE_SOURCES})
 target_include_directories(wash_core
     PUBLIC ${PROJECT_SOURCE_DIR}/include
-    PRIVATE ${PROJECT_SOURCE_DIR})
+    PRIVATE ${PROJECT_SOURCE_DIR}
+            ${PROJECT_SOURCE_DIR}/third_party/cjson)
+if(NOT WIN32)
+    target_link_libraries(wash_core PUBLIC m)
+endif()
 
 add_executable(wash_controller main/main.c)
 target_include_directories(wash_controller PRIVATE ${PROJECT_SOURCE_DIR})

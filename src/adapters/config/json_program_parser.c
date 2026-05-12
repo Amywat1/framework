@@ -1,638 +1,303 @@
 #include "adapters/config/json_program_parser.h"
 
-#include <ctype.h>
 #include <limits.h>
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
+#include "cJSON.h"
+
 #include "domain/model/program_validation.h"
 #include "shared/error_codes.h"
 
+/* 保持与旧实现一致的资源边界，避免受限进程吃下超大配置。 */
+#define JSON_MAX_DOCUMENT_BYTES 16383L
 #define JSON_MAX_NESTING_DEPTH 32
 
-typedef enum json_value_type_t {
-    JSON_VALUE_OBJECT = 0,
-    JSON_VALUE_ARRAY,
-    JSON_VALUE_STRING,
-    JSON_VALUE_NUMBER,
-    JSON_VALUE_BOOL,
-    JSON_VALUE_NULL
-} json_value_type_t;
+typedef enum json_expected_type_t {
+    JSON_EXPECT_OBJECT = 0,
+    JSON_EXPECT_ARRAY,
+    JSON_EXPECT_STRING,
+    JSON_EXPECT_NUMBER,
+    JSON_EXPECT_BOOL
+} json_expected_type_t;
 
-typedef struct json_value_t json_value_t;
+static bool json_matches_expected_type(const cJSON *json_value, json_expected_type_t expected_type)
+{
+    if (json_value == 0) {
+        return false;
+    }
 
-typedef struct json_object_member_t {
-    char *key;
-    json_value_t *value;
-} json_object_member_t;
+    switch (expected_type) {
+        case JSON_EXPECT_OBJECT:
+            return cJSON_IsObject(json_value) != 0;
+        case JSON_EXPECT_ARRAY:
+            return cJSON_IsArray(json_value) != 0;
+        case JSON_EXPECT_STRING:
+            return cJSON_IsString(json_value) != 0;
+        case JSON_EXPECT_NUMBER:
+            return cJSON_IsNumber(json_value) != 0;
+        case JSON_EXPECT_BOOL:
+            return cJSON_IsBool(json_value) != 0;
+        default:
+            return false;
+    }
+}
 
-struct json_value_t {
-    json_value_type_t type;
-    union {
-        struct {
-            json_object_member_t *items;
-            size_t count;
-        } object_value;
-        struct {
-            json_value_t **items;
-            size_t count;
-        } array_value;
-        char *string_value;
-        long number_value;
-        bool bool_value;
-    } data;
-};
-
-typedef struct json_parser_t {
-    const char *cursor;
-} json_parser_t;
-
-static bool read_file_text(const char *config_path, char *buffer, size_t buffer_size)
+static operation_result_t read_file_text(const char *config_path, char **text_buffer)
 {
     FILE *file_handle;
     long file_length;
-
-    file_handle = fopen(config_path, "r");
-    if (file_handle == 0) {
-        return false;
-    }
-    fseek(file_handle, 0, SEEK_END);
-    file_length = ftell(file_handle);
-    fseek(file_handle, 0, SEEK_SET);
-    if (file_length <= 0 || (size_t)file_length >= buffer_size) {
-        fclose(file_handle);
-        return false;
-    }
-    memset(buffer, 0, buffer_size);
-    if (fread(buffer, 1, (size_t)file_length, file_handle) != (size_t)file_length) {
-        fclose(file_handle);
-        return false;
-    }
-    fclose(file_handle);
-    return true;
-}
-
-static void json_value_init(json_value_t *json_value)
-{
-    if (json_value == 0) {
-        return;
-    }
-    memset(json_value, 0, sizeof(*json_value));
-}
-
-static void json_value_free(json_value_t *json_value)
-{
-    size_t index;
-
-    if (json_value == 0) {
-        return;
-    }
-
-    switch (json_value->type) {
-        case JSON_VALUE_OBJECT:
-            for (index = 0; index < json_value->data.object_value.count; ++index) {
-                free(json_value->data.object_value.items[index].key);
-                json_value_free(json_value->data.object_value.items[index].value);
-                free(json_value->data.object_value.items[index].value);
-            }
-            free(json_value->data.object_value.items);
-            break;
-        case JSON_VALUE_ARRAY:
-            for (index = 0; index < json_value->data.array_value.count; ++index) {
-                json_value_free(json_value->data.array_value.items[index]);
-                free(json_value->data.array_value.items[index]);
-            }
-            free(json_value->data.array_value.items);
-            break;
-        case JSON_VALUE_STRING:
-            free(json_value->data.string_value);
-            break;
-        case JSON_VALUE_NUMBER:
-        case JSON_VALUE_BOOL:
-        case JSON_VALUE_NULL:
-        default:
-            break;
-    }
-
-    json_value_init(json_value);
-}
-
-static void skip_whitespace(json_parser_t *json_parser)
-{
-    while (json_parser->cursor != 0 && *json_parser->cursor != '\0'
-        && isspace((unsigned char)*json_parser->cursor)) {
-        json_parser->cursor += 1;
-    }
-}
-
-static bool decode_hex4(const char *cursor, unsigned int *value)
-{
-    int index;
-
-    *value = 0;
-    for (index = 0; index < 4; ++index) {
-        char ch = cursor[index];
-        *value <<= 4;
-        if (ch >= '0' && ch <= '9') {
-            *value |= (unsigned int)(ch - '0');
-        } else if (ch >= 'a' && ch <= 'f') {
-            *value |= (unsigned int)(ch - 'a' + 10);
-        } else if (ch >= 'A' && ch <= 'F') {
-            *value |= (unsigned int)(ch - 'A' + 10);
-        } else {
-            return false;
-        }
-    }
-    return true;
-}
-
-static bool parse_json_string(json_parser_t *json_parser, char **value)
-{
+    size_t read_size;
     char *buffer;
-    size_t capacity;
-    size_t length;
 
-    if (json_parser == 0 || value == 0 || json_parser->cursor == 0 || *json_parser->cursor != '"') {
-        return false;
+    if (config_path == 0 || text_buffer == 0) {
+        return operation_result_fail(ERROR_CODE_INVALID_ARGUMENT);
+    }
+    *text_buffer = 0;
+
+    file_handle = fopen(config_path, "rb");
+    if (file_handle == 0) {
+        return operation_result_fail(ERROR_CODE_IO_FAILED);
+    }
+    if (fseek(file_handle, 0, SEEK_END) != 0) {
+        fclose(file_handle);
+        return operation_result_fail(ERROR_CODE_IO_FAILED);
+    }
+    file_length = ftell(file_handle);
+    if (file_length <= 0 || file_length > JSON_MAX_DOCUMENT_BYTES) {
+        fclose(file_handle);
+        return operation_result_fail(ERROR_CODE_IO_FAILED);
+    }
+    if (fseek(file_handle, 0, SEEK_SET) != 0) {
+        fclose(file_handle);
+        return operation_result_fail(ERROR_CODE_IO_FAILED);
     }
 
-    json_parser->cursor += 1;
-    capacity = strlen(json_parser->cursor) + 1;
-    buffer = (char *)malloc(capacity);
+    buffer = (char *)malloc((size_t)file_length + 1u);
     if (buffer == 0) {
+        fclose(file_handle);
+        return operation_result_fail(ERROR_CODE_IO_FAILED);
+    }
+
+    read_size = fread(buffer, 1u, (size_t)file_length, file_handle);
+    fclose(file_handle);
+    if (read_size != (size_t)file_length) {
+        free(buffer);
+        return operation_result_fail(ERROR_CODE_IO_FAILED);
+    }
+
+    buffer[file_length] = '\0';
+    *text_buffer = buffer;
+    return operation_result_ok();
+}
+
+static bool json_object_has_duplicate_keys(const cJSON *json_object)
+{
+    const cJSON *member;
+
+    if (!cJSON_IsObject(json_object)) {
         return false;
     }
 
-    length = 0;
-    while (*json_parser->cursor != '\0') {
-        char ch = *json_parser->cursor;
-        if (ch == '"') {
-            buffer[length] = '\0';
-            json_parser->cursor += 1;
-            *value = buffer;
+    for (member = json_object->child; member != 0; member = member->next) {
+        const cJSON *other_member;
+
+        if (member->string == 0) {
             return true;
         }
-        if (ch == '\\') {
-            unsigned int unicode_value;
-
-            json_parser->cursor += 1;
-            ch = *json_parser->cursor;
-            if (ch == '\0') {
-                free(buffer);
-                return false;
+        for (other_member = member->next; other_member != 0; other_member = other_member->next) {
+            if (other_member->string != 0 && strcmp(member->string, other_member->string) == 0) {
+                return true;
             }
-            switch (ch) {
-                case '"':
-                case '\\':
-                case '/':
-                    buffer[length++] = ch;
-                    break;
-                case 'b':
-                    buffer[length++] = '\b';
-                    break;
-                case 'f':
-                    buffer[length++] = '\f';
-                    break;
-                case 'n':
-                    buffer[length++] = '\n';
-                    break;
-                case 'r':
-                    buffer[length++] = '\r';
-                    break;
-                case 't':
-                    buffer[length++] = '\t';
-                    break;
-                case 'u':
-                    if (!decode_hex4(json_parser->cursor + 1, &unicode_value)) {
-                        free(buffer);
-                        return false;
-                    }
-                    buffer[length++] = unicode_value <= 0x7fu ? (char)unicode_value : '?';
-                    json_parser->cursor += 4;
-                    break;
-                default:
-                    free(buffer);
-                    return false;
-            }
-        } else {
-            buffer[length++] = ch;
         }
-        json_parser->cursor += 1;
-    }
-
-    free(buffer);
-    return false;
-}
-
-static bool parse_json_number(json_parser_t *json_parser, long *value)
-{
-    char *end_cursor;
-
-    if (json_parser == 0 || value == 0 || json_parser->cursor == 0) {
-        return false;
-    }
-    end_cursor = 0;
-    *value = strtol(json_parser->cursor, &end_cursor, 10);
-    if (end_cursor == json_parser->cursor) {
-        return false;
-    }
-    json_parser->cursor = end_cursor;
-    return true;
-}
-
-static bool json_object_has_key(const json_value_t *json_value, const char *key)
-{
-    size_t index;
-
-    if (json_value == 0 || key == 0 || json_value->type != JSON_VALUE_OBJECT) {
-        return false;
-    }
-    for (index = 0; index < json_value->data.object_value.count; ++index) {
-        if (strcmp(json_value->data.object_value.items[index].key, key) == 0) {
-            return true;
-        }
-    }
-    return false;
-}
-
-static bool parse_json_value(json_parser_t *json_parser, json_value_t *json_value, int depth);
-
-static bool parse_json_object(json_parser_t *json_parser, json_value_t *json_value, int depth)
-{
-    if (json_parser == 0 || json_value == 0 || *json_parser->cursor != '{') {
-        return false;
-    }
-
-    json_value->type = JSON_VALUE_OBJECT;
-    json_parser->cursor += 1;
-    skip_whitespace(json_parser);
-    if (*json_parser->cursor == '}') {
-        json_parser->cursor += 1;
-        return true;
-    }
-
-    while (*json_parser->cursor != '\0') {
-        char *key;
-        json_value_t member_value;
-        json_object_member_t *new_items;
-        json_value_t *stored_value;
-        size_t new_count;
-
-        key = 0;
-        json_value_init(&member_value);
-        if (!parse_json_string(json_parser, &key)) {
-            return false;
-        }
-        if (json_object_has_key(json_value, key)) {
-            free(key);
-            return false;
-        }
-
-        skip_whitespace(json_parser);
-        if (*json_parser->cursor != ':') {
-            free(key);
-            return false;
-        }
-        json_parser->cursor += 1;
-        skip_whitespace(json_parser);
-        if (!parse_json_value(json_parser, &member_value, depth + 1)) {
-            free(key);
-            return false;
-        }
-
-        stored_value = (json_value_t *)malloc(sizeof(*stored_value));
-        if (stored_value == 0) {
-            free(key);
-            json_value_free(&member_value);
-            return false;
-        }
-        *stored_value = member_value;
-
-        new_count = json_value->data.object_value.count + 1;
-        new_items = (json_object_member_t *)realloc(json_value->data.object_value.items,
-            new_count * sizeof(*new_items));
-        if (new_items == 0) {
-            free(key);
-            json_value_free(stored_value);
-            free(stored_value);
-            return false;
-        }
-
-        json_value->data.object_value.items = new_items;
-        json_value->data.object_value.items[new_count - 1].key = key;
-        json_value->data.object_value.items[new_count - 1].value = stored_value;
-        json_value->data.object_value.count = new_count;
-
-        skip_whitespace(json_parser);
-        if (*json_parser->cursor == '}') {
-            json_parser->cursor += 1;
-            return true;
-        }
-        if (*json_parser->cursor != ',') {
-            return false;
-        }
-        json_parser->cursor += 1;
-        skip_whitespace(json_parser);
     }
 
     return false;
 }
 
-static bool parse_json_array(json_parser_t *json_parser, json_value_t *json_value, int depth)
+static operation_result_t validate_json_tree_constraints(const cJSON *json_value, int depth)
 {
-    if (json_parser == 0 || json_value == 0 || *json_parser->cursor != '[') {
-        return false;
+    const cJSON *child;
+
+    if (json_value == 0) {
+        return operation_result_ok();
     }
-
-    json_value->type = JSON_VALUE_ARRAY;
-    json_parser->cursor += 1;
-    skip_whitespace(json_parser);
-    if (*json_parser->cursor == ']') {
-        json_parser->cursor += 1;
-        return true;
-    }
-
-    while (*json_parser->cursor != '\0') {
-        json_value_t item_value;
-        json_value_t **new_items;
-        json_value_t *stored_value;
-        size_t new_count;
-
-        json_value_init(&item_value);
-        if (!parse_json_value(json_parser, &item_value, depth + 1)) {
-            return false;
-        }
-
-        stored_value = (json_value_t *)malloc(sizeof(*stored_value));
-        if (stored_value == 0) {
-            json_value_free(&item_value);
-            return false;
-        }
-        *stored_value = item_value;
-
-        new_count = json_value->data.array_value.count + 1;
-        new_items = (json_value_t **)realloc(json_value->data.array_value.items,
-            new_count * sizeof(*new_items));
-        if (new_items == 0) {
-            json_value_free(stored_value);
-            free(stored_value);
-            return false;
-        }
-
-        json_value->data.array_value.items = new_items;
-        json_value->data.array_value.items[new_count - 1] = stored_value;
-        json_value->data.array_value.count = new_count;
-
-        skip_whitespace(json_parser);
-        if (*json_parser->cursor == ']') {
-            json_parser->cursor += 1;
-            return true;
-        }
-        if (*json_parser->cursor != ',') {
-            return false;
-        }
-        json_parser->cursor += 1;
-        skip_whitespace(json_parser);
-    }
-
-    return false;
-}
-
-static bool parse_json_value(json_parser_t *json_parser, json_value_t *json_value, int depth)
-{
-    char *string_value;
-    long number_value;
-
-    if (json_parser == 0 || json_value == 0 || depth > JSON_MAX_NESTING_DEPTH) {
-        return false;
-    }
-
-    skip_whitespace(json_parser);
-    if (json_parser->cursor == 0 || *json_parser->cursor == '\0') {
-        return false;
-    }
-
-    json_value_init(json_value);
-    switch (*json_parser->cursor) {
-        case '{':
-            return parse_json_object(json_parser, json_value, depth);
-        case '[':
-            return parse_json_array(json_parser, json_value, depth);
-        case '"':
-            string_value = 0;
-            if (!parse_json_string(json_parser, &string_value)) {
-                return false;
-            }
-            json_value->type = JSON_VALUE_STRING;
-            json_value->data.string_value = string_value;
-            return true;
-        case 't':
-            if (strncmp(json_parser->cursor, "true", 4) != 0) {
-                return false;
-            }
-            json_value->type = JSON_VALUE_BOOL;
-            json_value->data.bool_value = true;
-            json_parser->cursor += 4;
-            return true;
-        case 'f':
-            if (strncmp(json_parser->cursor, "false", 5) != 0) {
-                return false;
-            }
-            json_value->type = JSON_VALUE_BOOL;
-            json_value->data.bool_value = false;
-            json_parser->cursor += 5;
-            return true;
-        case 'n':
-            if (strncmp(json_parser->cursor, "null", 4) != 0) {
-                return false;
-            }
-            json_value->type = JSON_VALUE_NULL;
-            json_parser->cursor += 4;
-            return true;
-        default:
-            if (!parse_json_number(json_parser, &number_value)) {
-                return false;
-            }
-            json_value->type = JSON_VALUE_NUMBER;
-            json_value->data.number_value = number_value;
-            return true;
-    }
-}
-
-static bool parse_json_document(const char *text, json_value_t *root_value)
-{
-    json_parser_t json_parser;
-
-    if (text == 0 || root_value == 0) {
-        return false;
-    }
-
-    json_parser.cursor = text;
-    if (!parse_json_value(&json_parser, root_value, 0)) {
-        return false;
-    }
-    skip_whitespace(&json_parser);
-    return *json_parser.cursor == '\0';
-}
-
-static const json_value_t *json_object_find(const json_value_t *json_value, const char *key)
-{
-    size_t index;
-
-    if (json_value == 0 || key == 0 || json_value->type != JSON_VALUE_OBJECT) {
-        return 0;
-    }
-
-    for (index = 0; index < json_value->data.object_value.count; ++index) {
-        if (strcmp(json_value->data.object_value.items[index].key, key) == 0) {
-            return json_value->data.object_value.items[index].value;
-        }
-    }
-    return 0;
-}
-
-static operation_result_t require_member(const json_value_t *json_value,
-    const char *key,
-    json_value_type_t expected_type,
-    const json_value_t **member_value)
-{
-    const json_value_t *found_value;
-
-    found_value = json_object_find(json_value, key);
-    if (found_value == 0 || found_value->type != expected_type) {
+    if (depth > JSON_MAX_NESTING_DEPTH) {
         return operation_result_fail(ERROR_CODE_PARSE_FAILED);
     }
+    if (json_object_has_duplicate_keys(json_value)) {
+        return operation_result_fail(ERROR_CODE_PARSE_FAILED);
+    }
+
+    for (child = json_value->child; child != 0; child = child->next) {
+        operation_result_t result = validate_json_tree_constraints(child, depth + 1);
+        if (!result.ok) {
+            return result;
+        }
+    }
+
+    return operation_result_ok();
+}
+
+static operation_result_t require_member(const cJSON *json_object,
+    const char *key,
+    json_expected_type_t expected_type,
+    const cJSON **member_value)
+{
+    const cJSON *found_value;
+
+    if (json_object == 0 || key == 0 || member_value == 0) {
+        return operation_result_fail(ERROR_CODE_PARSE_FAILED);
+    }
+
+    found_value = cJSON_GetObjectItemCaseSensitive(json_object, key);
+    if (!json_matches_expected_type(found_value, expected_type)) {
+        return operation_result_fail(ERROR_CODE_PARSE_FAILED);
+    }
+
     *member_value = found_value;
     return operation_result_ok();
 }
 
-static operation_result_t optional_member(const json_value_t *json_value,
+static operation_result_t optional_member(const cJSON *json_object,
     const char *key,
-    json_value_type_t expected_type,
-    const json_value_t **member_value,
+    json_expected_type_t expected_type,
+    const cJSON **member_value,
     bool *present)
 {
-    const json_value_t *found_value;
+    const cJSON *found_value;
 
-    found_value = json_object_find(json_value, key);
+    if (json_object == 0 || key == 0 || member_value == 0 || present == 0) {
+        return operation_result_fail(ERROR_CODE_PARSE_FAILED);
+    }
+
+    found_value = cJSON_GetObjectItemCaseSensitive(json_object, key);
     if (found_value == 0) {
         *member_value = 0;
         *present = false;
         return operation_result_ok();
     }
-    if (found_value->type != expected_type) {
+    if (!json_matches_expected_type(found_value, expected_type)) {
         return operation_result_fail(ERROR_CODE_PARSE_FAILED);
     }
+
     *member_value = found_value;
     *present = true;
     return operation_result_ok();
 }
 
-static operation_result_t copy_required_string_member(const json_value_t *json_value,
-    const char *key,
-    char *target,
-    size_t target_size)
+static operation_result_t copy_string_value(const cJSON *json_value, char *target, size_t target_size)
 {
-    const json_value_t *member_value;
     size_t length;
-    operation_result_t result;
 
-    result = require_member(json_value, key, JSON_VALUE_STRING, &member_value);
-    if (!result.ok || target == 0 || target_size == 0) {
+    if (!cJSON_IsString(json_value) || json_value->valuestring == 0 || target == 0 || target_size == 0u) {
         return operation_result_fail(ERROR_CODE_PARSE_FAILED);
     }
 
-    length = strlen(member_value->data.string_value);
+    length = strlen(json_value->valuestring);
     if (length >= target_size) {
-        length = target_size - 1;
+        length = target_size - 1u;
     }
-    memcpy(target, member_value->data.string_value, length);
+    memcpy(target, json_value->valuestring, length);
     target[length] = '\0';
     return operation_result_ok();
 }
 
-static operation_result_t copy_optional_string_member(const json_value_t *json_value,
+static operation_result_t copy_required_string_member(const cJSON *json_object,
+    const char *key,
+    char *target,
+    size_t target_size)
+{
+    const cJSON *member_value;
+    operation_result_t result;
+
+    result = require_member(json_object, key, JSON_EXPECT_STRING, &member_value);
+    if (!result.ok) {
+        return result;
+    }
+    return copy_string_value(member_value, target, target_size);
+}
+
+static operation_result_t copy_optional_string_member(const cJSON *json_object,
     const char *key,
     char *target,
     size_t target_size,
     bool *present)
 {
-    const json_value_t *member_value;
-    size_t length;
+    const cJSON *member_value;
     operation_result_t result;
 
-    result = optional_member(json_value, key, JSON_VALUE_STRING, &member_value, present);
+    result = optional_member(json_object, key, JSON_EXPECT_STRING, &member_value, present);
+    if (!result.ok || !*present) {
+        return result;
+    }
+    return copy_string_value(member_value, target, target_size);
+}
+
+static operation_result_t read_int_value(const cJSON *json_value, int *value)
+{
+    double integer_part;
+
+    if (!cJSON_IsNumber(json_value) || value == 0) {
+        return operation_result_fail(ERROR_CODE_PARSE_FAILED);
+    }
+    if (!isfinite(json_value->valuedouble)) {
+        return operation_result_fail(ERROR_CODE_PARSE_FAILED);
+    }
+    if (modf(json_value->valuedouble, &integer_part) != 0.0) {
+        return operation_result_fail(ERROR_CODE_PARSE_FAILED);
+    }
+    if (integer_part < (double)INT_MIN || integer_part > (double)INT_MAX) {
+        return operation_result_fail(ERROR_CODE_PARSE_FAILED);
+    }
+
+    *value = (int)integer_part;
+    return operation_result_ok();
+}
+
+static operation_result_t read_required_int_member(const cJSON *json_object, const char *key, int *value)
+{
+    const cJSON *member_value;
+    operation_result_t result;
+
+    result = require_member(json_object, key, JSON_EXPECT_NUMBER, &member_value);
     if (!result.ok) {
         return result;
     }
-    if (!*present) {
-        return operation_result_ok();
-    }
-
-    length = strlen(member_value->data.string_value);
-    if (length >= target_size) {
-        length = target_size - 1;
-    }
-    memcpy(target, member_value->data.string_value, length);
-    target[length] = '\0';
-    return operation_result_ok();
+    return read_int_value(member_value, value);
 }
 
-static operation_result_t read_required_int_member(const json_value_t *json_value,
-    const char *key,
-    int *value)
-{
-    const json_value_t *member_value;
-    operation_result_t result;
-
-    result = require_member(json_value, key, JSON_VALUE_NUMBER, &member_value);
-    if (!result.ok || value == 0) {
-        return operation_result_fail(ERROR_CODE_PARSE_FAILED);
-    }
-    if (member_value->data.number_value < INT_MIN || member_value->data.number_value > INT_MAX) {
-        return operation_result_fail(ERROR_CODE_PARSE_FAILED);
-    }
-    *value = (int)member_value->data.number_value;
-    return operation_result_ok();
-}
-
-static operation_result_t read_optional_int_member(const json_value_t *json_value,
+static operation_result_t read_optional_int_member(const cJSON *json_object,
     const char *key,
     int *value,
     bool *present)
 {
-    const json_value_t *member_value;
+    const cJSON *member_value;
     operation_result_t result;
 
-    result = optional_member(json_value, key, JSON_VALUE_NUMBER, &member_value, present);
-    if (!result.ok) {
+    result = optional_member(json_object, key, JSON_EXPECT_NUMBER, &member_value, present);
+    if (!result.ok || !*present) {
         return result;
     }
-    if (!*present) {
-        return operation_result_ok();
-    }
-    if (member_value->data.number_value < INT_MIN || member_value->data.number_value > INT_MAX) {
-        return operation_result_fail(ERROR_CODE_PARSE_FAILED);
-    }
-    *value = (int)member_value->data.number_value;
-    return operation_result_ok();
+    return read_int_value(member_value, value);
 }
 
-static operation_result_t read_optional_bool_member(const json_value_t *json_value,
+static operation_result_t read_optional_bool_member(const cJSON *json_object,
     const char *key,
     bool *value,
     bool *present)
 {
-    const json_value_t *member_value;
+    const cJSON *member_value;
     operation_result_t result;
 
-    result = optional_member(json_value, key, JSON_VALUE_BOOL, &member_value, present);
+    result = optional_member(json_object, key, JSON_EXPECT_BOOL, &member_value, present);
     if (!result.ok) {
         return result;
     }
     if (*present && value != 0) {
-        *value = member_value->data.bool_value;
+        *value = cJSON_IsTrue(member_value) != 0;
     }
     return operation_result_ok();
 }
@@ -763,14 +428,14 @@ static bool parse_compare_mode(const char *text, position_compare_mode_t *positi
     return false;
 }
 
-static operation_result_t parse_position_trigger_object(const json_value_t *json_value,
+static operation_result_t parse_position_trigger_object(const cJSON *json_value,
     position_trigger_t *position_trigger)
 {
     char text[64];
     bool present;
     operation_result_t result;
 
-    if (json_value == 0 || json_value->type != JSON_VALUE_OBJECT) {
+    if (!cJSON_IsObject(json_value) || position_trigger == 0) {
         return operation_result_fail(ERROR_CODE_PARSE_FAILED);
     }
 
@@ -783,7 +448,6 @@ static operation_result_t parse_position_trigger_object(const json_value_t *json
     if (!result.ok || !parse_compare_mode(text, &position_trigger->compare_mode)) {
         return operation_result_fail(ERROR_CODE_PARSE_FAILED);
     }
-    present = false;
     result = read_optional_int_member(json_value, "value_mm", &position_trigger->value_mm, &present);
     if (!result.ok) {
         return result;
@@ -796,21 +460,26 @@ static operation_result_t parse_position_trigger_object(const json_value_t *json
     if (!result.ok) {
         return result;
     }
+
     return position_trigger_is_valid(position_trigger)
         ? operation_result_ok()
         : operation_result_fail(ERROR_CODE_PARSE_FAILED);
 }
 
-static operation_result_t parse_motion_plan(const json_value_t *segment_value,
+static operation_result_t parse_motion_plan(const cJSON *segment_value,
     segment_motion_plan_t *segment_motion_plan)
 {
-    const json_value_t *motion_plan_value;
+    const cJSON *motion_plan_value;
     char text[64];
     bool present;
     operation_result_t result;
 
+    if (segment_motion_plan == 0) {
+        return operation_result_fail(ERROR_CODE_PARSE_FAILED);
+    }
+
     segment_motion_plan_init(segment_motion_plan);
-    result = require_member(segment_value, "motion_plan", JSON_VALUE_OBJECT, &motion_plan_value);
+    result = require_member(segment_value, "motion_plan", JSON_EXPECT_OBJECT, &motion_plan_value);
     if (!result.ok) {
         return result;
     }
@@ -854,15 +523,19 @@ static operation_result_t parse_motion_plan(const json_value_t *segment_value,
         : operation_result_fail(ERROR_CODE_PARSE_FAILED);
 }
 
-static operation_result_t parse_continuous_controls(const json_value_t *segment_value,
+static operation_result_t parse_continuous_controls(const cJSON *segment_value,
     segment_continuous_controls_t *segment_continuous_controls)
 {
-    const json_value_t *controls_value;
+    const cJSON *controls_value;
     bool present;
     operation_result_t result;
 
+    if (segment_continuous_controls == 0) {
+        return operation_result_fail(ERROR_CODE_PARSE_FAILED);
+    }
+
     memset(segment_continuous_controls, 0, sizeof(*segment_continuous_controls));
-    result = require_member(segment_value, "continuous_controls", JSON_VALUE_OBJECT, &controls_value);
+    result = require_member(segment_value, "continuous_controls", JSON_EXPECT_OBJECT, &controls_value);
     if (!result.ok) {
         return result;
     }
@@ -890,17 +563,20 @@ static operation_result_t parse_continuous_controls(const json_value_t *segment_
     return operation_result_ok();
 }
 
-static operation_result_t parse_conditional_controls(const json_value_t *segment_value,
-    wash_segment_t *wash_segment)
+static operation_result_t parse_conditional_controls(const cJSON *segment_value, wash_segment_t *wash_segment)
 {
-    const json_value_t *conditional_controls_value;
-    size_t index;
+    const cJSON *conditional_controls_value;
+    const cJSON *control_value;
     bool present;
     operation_result_t result;
 
+    if (wash_segment == 0) {
+        return operation_result_fail(ERROR_CODE_PARSE_FAILED);
+    }
+
     wash_segment->conditional_control_count = 0;
     result = optional_member(segment_value, "conditional_controls",
-        JSON_VALUE_ARRAY, &conditional_controls_value, &present);
+        JSON_EXPECT_ARRAY, &conditional_controls_value, &present);
     if (!result.ok) {
         return result;
     }
@@ -908,13 +584,12 @@ static operation_result_t parse_conditional_controls(const json_value_t *segment
         return operation_result_ok();
     }
 
-    for (index = 0; index < conditional_controls_value->data.array_value.count; ++index) {
-        const json_value_t *control_value;
+    cJSON_ArrayForEach(control_value, conditional_controls_value) {
         conditional_control_t *conditional_control;
+        const cJSON *trigger_value;
         char text[64];
 
-        control_value = conditional_controls_value->data.array_value.items[index];
-        if (control_value == 0 || control_value->type != JSON_VALUE_OBJECT) {
+        if (!cJSON_IsObject(control_value)) {
             return operation_result_fail(ERROR_CODE_PARSE_FAILED);
         }
         if (wash_segment->conditional_control_count >= MAX_SEGMENT_CONDITIONAL_CONTROLS) {
@@ -935,25 +610,26 @@ static operation_result_t parse_conditional_controls(const json_value_t *segment
         if (strcmp(text, "chemical") != 0) {
             return operation_result_fail(ERROR_CODE_UNSUPPORTED);
         }
+
         conditional_control->kind = CONDITIONAL_CONTROL_CHEMICAL_WINDOW;
         conditional_control->control_object = ACTUATOR_CHEMICAL;
         result = copy_required_string_member(control_value, "basis", text, sizeof(text));
         if (!result.ok || !parse_position_reference(text, &conditional_control->basis)) {
             return operation_result_fail(ERROR_CODE_PARSE_FAILED);
         }
-        result = require_member(control_value, "start_trigger", JSON_VALUE_OBJECT, &segment_value);
+        result = require_member(control_value, "start_trigger", JSON_EXPECT_OBJECT, &trigger_value);
         if (!result.ok) {
             return result;
         }
-        result = parse_position_trigger_object(segment_value, &conditional_control->start_trigger);
+        result = parse_position_trigger_object(trigger_value, &conditional_control->start_trigger);
         if (!result.ok) {
             return result;
         }
-        result = require_member(control_value, "stop_trigger", JSON_VALUE_OBJECT, &segment_value);
+        result = require_member(control_value, "stop_trigger", JSON_EXPECT_OBJECT, &trigger_value);
         if (!result.ok) {
             return result;
         }
-        result = parse_position_trigger_object(segment_value, &conditional_control->stop_trigger);
+        result = parse_position_trigger_object(trigger_value, &conditional_control->stop_trigger);
         if (!result.ok) {
             return result;
         }
@@ -968,35 +644,44 @@ static operation_result_t parse_conditional_controls(const json_value_t *segment
         if (!conditional_control_is_valid(conditional_control)) {
             return operation_result_fail(ERROR_CODE_PARSE_FAILED);
         }
+
         wash_segment->conditional_control_count += 1;
     }
 
     return operation_result_ok();
 }
 
-static operation_result_t parse_completion_condition(const json_value_t *segment_value,
+static operation_result_t parse_completion_condition(const cJSON *segment_value,
     segment_completion_condition_t *segment_completion_condition)
 {
-    const json_value_t *completion_value;
+    const cJSON *completion_value;
     operation_result_t result;
 
+    if (segment_completion_condition == 0) {
+        return operation_result_fail(ERROR_CODE_PARSE_FAILED);
+    }
+
     memset(segment_completion_condition, 0, sizeof(*segment_completion_condition));
-    result = require_member(segment_value, "completion_condition", JSON_VALUE_OBJECT, &completion_value);
+    result = require_member(segment_value, "completion_condition", JSON_EXPECT_OBJECT, &completion_value);
     if (!result.ok) {
         return result;
     }
     return parse_position_trigger_object(completion_value, &segment_completion_condition->trigger);
 }
 
-static operation_result_t parse_exit_actions(const json_value_t *segment_value,
+static operation_result_t parse_exit_actions(const cJSON *segment_value,
     segment_exit_actions_t *segment_exit_actions)
 {
-    const json_value_t *exit_actions_value;
+    const cJSON *exit_actions_value;
     bool present;
     operation_result_t result;
 
+    if (segment_exit_actions == 0) {
+        return operation_result_fail(ERROR_CODE_PARSE_FAILED);
+    }
+
     segment_exit_actions_init(segment_exit_actions);
-    result = require_member(segment_value, "exit_actions", JSON_VALUE_OBJECT, &exit_actions_value);
+    result = require_member(segment_value, "exit_actions", JSON_EXPECT_OBJECT, &exit_actions_value);
     if (!result.ok) {
         return result;
     }
@@ -1034,56 +719,80 @@ static operation_result_t parse_exit_actions(const json_value_t *segment_value,
     return operation_result_ok();
 }
 
-static void parse_exception_policy(const json_value_t *segment_value,
+static operation_result_t parse_exception_policy(const cJSON *segment_value,
     segment_exception_policy_t *segment_exception_policy)
 {
-    const json_value_t *exception_policy_value;
+    const cJSON *exception_policy_value;
     bool present;
     char text[64];
     operation_result_t result;
 
+    if (segment_exception_policy == 0) {
+        return operation_result_fail(ERROR_CODE_PARSE_FAILED);
+    }
+
     segment_exception_policy_init(segment_exception_policy);
     result = optional_member(segment_value, "exception_policy",
-        JSON_VALUE_OBJECT, &exception_policy_value, &present);
-    if (!result.ok || !present) {
-        return;
+        JSON_EXPECT_OBJECT, &exception_policy_value, &present);
+    if (!result.ok) {
+        return result;
+    }
+    if (!present) {
+        return operation_result_ok();
     }
 
     result = copy_optional_string_member(exception_policy_value, "on_position_lost",
         text, sizeof(text), &present);
-    if (result.ok && present) {
-        (void)parse_exception_strategy(text, &segment_exception_policy->on_position_lost);
+    if (!result.ok) {
+        return result;
+    }
+    if (present && !parse_exception_strategy(text, &segment_exception_policy->on_position_lost)) {
+        return operation_result_fail(ERROR_CODE_PARSE_FAILED);
     }
     result = copy_optional_string_member(exception_policy_value, "on_follow_lost",
         text, sizeof(text), &present);
-    if (result.ok && present) {
-        (void)parse_exception_strategy(text, &segment_exception_policy->on_follow_lost);
+    if (!result.ok) {
+        return result;
+    }
+    if (present && !parse_exception_strategy(text, &segment_exception_policy->on_follow_lost)) {
+        return operation_result_fail(ERROR_CODE_PARSE_FAILED);
     }
     result = copy_optional_string_member(exception_policy_value, "on_segment_timeout",
         text, sizeof(text), &present);
-    if (result.ok && present) {
-        (void)parse_exception_strategy(text, &segment_exception_policy->on_segment_timeout);
+    if (!result.ok) {
+        return result;
+    }
+    if (present && !parse_exception_strategy(text, &segment_exception_policy->on_segment_timeout)) {
+        return operation_result_fail(ERROR_CODE_PARSE_FAILED);
     }
     result = copy_optional_string_member(exception_policy_value, "on_exit_timeout",
         text, sizeof(text), &present);
-    if (result.ok && present) {
-        (void)parse_exception_strategy(text, &segment_exception_policy->on_exit_timeout);
+    if (!result.ok) {
+        return result;
+    }
+    if (present && !parse_exception_strategy(text, &segment_exception_policy->on_exit_timeout)) {
+        return operation_result_fail(ERROR_CODE_PARSE_FAILED);
     }
     result = copy_optional_string_member(exception_policy_value, "on_exit_failure",
         text, sizeof(text), &present);
-    if (result.ok && present) {
-        (void)parse_exception_strategy(text, &segment_exception_policy->on_exit_failure);
+    if (!result.ok) {
+        return result;
     }
+    if (present && !parse_exception_strategy(text, &segment_exception_policy->on_exit_failure)) {
+        return operation_result_fail(ERROR_CODE_PARSE_FAILED);
+    }
+
+    return operation_result_ok();
 }
 
-static operation_result_t parse_segment_object(const json_value_t *segment_value, wash_program_t *wash_program)
+static operation_result_t parse_segment_object(const cJSON *segment_value, wash_program_t *wash_program)
 {
     char text[64];
     wash_segment_t wash_segment;
     bool present;
     operation_result_t result;
 
-    if (segment_value == 0 || segment_value->type != JSON_VALUE_OBJECT) {
+    if (!cJSON_IsObject(segment_value) || wash_program == 0) {
         return operation_result_fail(ERROR_CODE_PARSE_FAILED);
     }
 
@@ -1142,10 +851,14 @@ static operation_result_t parse_segment_object(const json_value_t *segment_value
     if (!present) {
         wash_segment.exit_timeout_ms = wash_program->default_exit_timeout_ms;
     }
-    parse_exception_policy(segment_value, &wash_segment.exception_policy);
+    result = parse_exception_policy(segment_value, &wash_segment.exception_policy);
+    if (!result.ok) {
+        return result;
+    }
     if (!wash_segment_is_valid(&wash_segment)) {
         return operation_result_fail(ERROR_CODE_PARSE_FAILED);
     }
+
     return wash_program_add_segment(wash_program, &wash_segment) == 0
         ? operation_result_ok()
         : operation_result_fail(ERROR_CODE_PARSE_FAILED);
@@ -1153,81 +866,91 @@ static operation_result_t parse_segment_object(const json_value_t *segment_value
 
 operation_result_t json_program_parser_parse(const char *config_path, wash_program_t *wash_program)
 {
-    char buffer[16384];
-    char program_id[64];
-    char program_name[32];
-    json_value_t root_value;
-    const json_value_t *segments_value;
+    char *json_text;
+    cJSON *root_value;
+    const cJSON *segments_value;
+    const cJSON *segment_value;
+    wash_program_t parsed_program;
+    char program_id[sizeof(parsed_program.program_id)];
+    char program_name[sizeof(parsed_program.program_name)];
     bool present;
-    size_t index;
     operation_result_t result;
 
     if (config_path == 0 || wash_program == 0) {
         return operation_result_fail(ERROR_CODE_INVALID_ARGUMENT);
     }
-    if (!read_file_text(config_path, buffer, sizeof(buffer))) {
-        return operation_result_fail(ERROR_CODE_IO_FAILED);
-    }
 
-    json_value_init(&root_value);
-    if (!parse_json_document(buffer, &root_value) || root_value.type != JSON_VALUE_OBJECT) {
-        json_value_free(&root_value);
-        return operation_result_fail(ERROR_CODE_PARSE_FAILED);
-    }
-    if (json_object_find(&root_value, "stages") != 0) {
-        json_value_free(&root_value);
-        return operation_result_fail(ERROR_CODE_UNSUPPORTED);
-    }
-
-    result = copy_required_string_member(&root_value, "program_id", program_id, sizeof(program_id));
+    json_text = 0;
+    root_value = 0;
+    result = read_file_text(config_path, &json_text);
     if (!result.ok) {
-        json_value_free(&root_value);
-        return result;
-    }
-    result = copy_required_string_member(&root_value, "program_name", program_name, sizeof(program_name));
-    if (!result.ok) {
-        json_value_free(&root_value);
         return result;
     }
 
-    wash_program_init(wash_program, program_id, program_name);
-    result = read_optional_int_member(&root_value, "revision", &wash_program->revision, &present);
-    if (!result.ok) {
-        json_value_free(&root_value);
-        return result;
+    root_value = cJSON_ParseWithOpts(json_text, 0, 1);
+    if (root_value == 0 || !cJSON_IsObject(root_value)) {
+        result = operation_result_fail(ERROR_CODE_PARSE_FAILED);
+        goto cleanup;
     }
-    result = read_optional_bool_member(&root_value, "enabled", &wash_program->enabled, &present);
+    result = validate_json_tree_constraints(root_value, 0);
     if (!result.ok) {
-        json_value_free(&root_value);
-        return result;
+        goto cleanup;
     }
-    result = read_optional_int_member(&root_value, "default_segment_timeout_ms",
-        &wash_program->default_segment_timeout_ms, &present);
-    if (!result.ok) {
-        json_value_free(&root_value);
-        return result;
-    }
-    result = read_optional_int_member(&root_value, "default_exit_timeout_ms",
-        &wash_program->default_exit_timeout_ms, &present);
-    if (!result.ok) {
-        json_value_free(&root_value);
-        return result;
-    }
-    result = require_member(&root_value, "segments", JSON_VALUE_ARRAY, &segments_value);
-    if (!result.ok) {
-        json_value_free(&root_value);
-        return result;
+    if (cJSON_GetObjectItemCaseSensitive(root_value, "stages") != 0) {
+        result = operation_result_fail(ERROR_CODE_UNSUPPORTED);
+        goto cleanup;
     }
 
-    for (index = 0; index < segments_value->data.array_value.count; ++index) {
-        result = parse_segment_object(segments_value->data.array_value.items[index], wash_program);
+    result = copy_required_string_member(root_value, "program_id", program_id, sizeof(program_id));
+    if (!result.ok) {
+        goto cleanup;
+    }
+    result = copy_required_string_member(root_value, "program_name", program_name, sizeof(program_name));
+    if (!result.ok) {
+        goto cleanup;
+    }
+
+    wash_program_init(&parsed_program, program_id, program_name);
+    result = read_optional_int_member(root_value, "revision", &parsed_program.revision, &present);
+    if (!result.ok) {
+        goto cleanup;
+    }
+    result = read_optional_bool_member(root_value, "enabled", &parsed_program.enabled, &present);
+    if (!result.ok) {
+        goto cleanup;
+    }
+    result = read_optional_int_member(root_value, "default_segment_timeout_ms",
+        &parsed_program.default_segment_timeout_ms, &present);
+    if (!result.ok) {
+        goto cleanup;
+    }
+    result = read_optional_int_member(root_value, "default_exit_timeout_ms",
+        &parsed_program.default_exit_timeout_ms, &present);
+    if (!result.ok) {
+        goto cleanup;
+    }
+    result = require_member(root_value, "segments", JSON_EXPECT_ARRAY, &segments_value);
+    if (!result.ok) {
+        goto cleanup;
+    }
+
+    cJSON_ArrayForEach(segment_value, segments_value) {
+        result = parse_segment_object(segment_value, &parsed_program);
         if (!result.ok) {
-            json_value_free(&root_value);
-            return result;
+            goto cleanup;
         }
     }
 
-    result = program_validation_validate(wash_program);
-    json_value_free(&root_value);
+    result = program_validation_validate(&parsed_program);
+    if (!result.ok) {
+        goto cleanup;
+    }
+
+    *wash_program = parsed_program;
+    result = operation_result_ok();
+
+cleanup:
+    cJSON_Delete(root_value);
+    free(json_text);
     return result;
 }
