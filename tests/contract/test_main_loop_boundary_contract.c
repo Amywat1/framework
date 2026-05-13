@@ -14,6 +14,8 @@ int main(void)
         "tests/fixtures/wash_step_control/program_v1_valid.json",
         0);
     TEST_ASSERT(result.ok);
+    result = test_homing_system_and_flush(system_context);
+    TEST_ASSERT(result.ok);
 
     result = process_formal_command_execute(system_context,
         "start wash_step_control_v1",

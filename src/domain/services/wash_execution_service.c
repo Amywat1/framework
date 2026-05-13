@@ -190,7 +190,10 @@ static operation_result_t trigger_exit_actions(wash_execution_service_args_t *wa
 
 static operation_result_t execute_recovery(actuator_port_t *actuator_port)
 {
-    return recovery_state_machine_execute(actuator_port);
+    return recovery_state_machine_execute(actuator_port,
+        0,
+        RECOVERY_MODE_STOP_ONLY,
+        0);
 }
 
 static operation_result_t abort_with_recovery(wash_execution_service_args_t *wash_execution_service_args,

@@ -43,6 +43,7 @@ static void reset_runtime_state(system_context_runtime_t *runtime)
     runtime->next_session_sequence = 0ul;
     runtime->next_execution_sequence = 0ul;
     runtime->next_wait_condition_sequence = 0ul;
+    runtime->device_state = DEVICE_STATE_STOPPED;
     runtime->global_fault_present = false;
     memset(runtime->global_fault_code, 0, sizeof(runtime->global_fault_code));
     memset(runtime->global_fault_reason, 0, sizeof(runtime->global_fault_reason));
@@ -146,6 +147,38 @@ bool system_context_private_has_scheduler_binding(const system_context_t system_
         return false;
     }
     return s_system_context_instance.runtime.scheduler_bound;
+}
+
+device_state_t system_context_private_device_state(const system_context_t system_context)
+{
+    if (!require_active_instance(system_context).ok) {
+        return DEVICE_STATE_STOPPED;
+    }
+    return s_system_context_instance.runtime.device_state;
+}
+
+void system_context_private_set_device_state(system_context_t system_context, device_state_t device_state)
+{
+    if (!require_active_instance(system_context).ok) {
+        return;
+    }
+    s_system_context_instance.runtime.device_state = device_state;
+}
+
+const actuator_port_t *system_context_private_actuator_port(const system_context_t system_context)
+{
+    if (!require_active_instance(system_context).ok) {
+        return 0;
+    }
+    return &s_system_context_instance.runtime.actuator_port;
+}
+
+const sensor_port_t *system_context_private_sensor_port(const system_context_t system_context)
+{
+    if (!require_active_instance(system_context).ok) {
+        return 0;
+    }
+    return &s_system_context_instance.runtime.sensor_port;
 }
 
 bool system_context_private_global_fault_present(const system_context_t system_context)

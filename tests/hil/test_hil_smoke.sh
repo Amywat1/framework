@@ -11,7 +11,7 @@ if [ ! -x "$BINARY" ]; then
     exit 1
 fi
 
-OUTPUT=$(cd "$REPO_ROOT" && printf 'start wash_step_control_v1\nstatus\n' | "$BINARY")
+OUTPUT=$(cd "$REPO_ROOT" && printf 'homing\nstart wash_step_control_v1\nstatus\n' | "$BINARY")
 printf '%s\n' "$OUTPUT"
 
 printf '%s\n' "$OUTPUT" | grep -q "result=running accepted=true"

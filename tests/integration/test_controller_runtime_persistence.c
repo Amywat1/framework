@@ -37,6 +37,12 @@ int main(void)
         "tests/fixtures/wash_step_control/program_v1_valid.json",
         0);
     TEST_ASSERT(result.ok);
+    result = controller_scheduler_linux_test_inject_command(test_runtime_scheduler(controller_runtime),
+        "homing",
+        response_line,
+        sizeof(response_line));
+    TEST_ASSERT(result.ok);
+    TEST_ASSERT(strstr(response_line, "accepted=true") != 0);
 
     result = controller_scheduler_linux_test_inject_command(test_runtime_scheduler(controller_runtime),
         "start wash_step_control_v1",

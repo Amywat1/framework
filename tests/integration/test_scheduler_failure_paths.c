@@ -71,7 +71,7 @@ static int verify_command_path_does_not_swallow_runtime_failure(void)
     TEST_ASSERT(controller_scheduler != 0);
 
     result = controller_scheduler_linux_test_inject_command(controller_scheduler,
-        "fault E_STOP idle-fault",
+        "homing",
         response_line,
         sizeof(response_line));
     TEST_ASSERT(result.ok);

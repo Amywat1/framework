@@ -20,6 +20,11 @@ int main(void)
     controller_scheduler = test_create_scheduler(system_context, 100ul);
     TEST_ASSERT(controller_scheduler != 0);
 
+    TEST_ASSERT(test_scheduler_command(controller_scheduler,
+        "homing",
+        response_line,
+        sizeof(response_line)) == 0);
+    TEST_ASSERT(strstr(response_line, "accepted=true") != 0);
     TEST_ASSERT(test_scheduler_notification(controller_scheduler, 2u) == 0);
     TEST_ASSERT(system_context_private_runtime(system_context)->wash_session.session_state != SESSION_STATE_RUNNING);
     result = controller_scheduler_read_view(controller_scheduler, &controller_runtime_state_view);

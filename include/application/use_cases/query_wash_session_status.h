@@ -11,6 +11,7 @@
 typedef struct wash_session_status_view_t {
     bool has_active_session;
     bool global_fault_present;
+    device_state_t device_state;
     char session_id[32];
     session_state_t session_state;
     execution_state_t execution_state;

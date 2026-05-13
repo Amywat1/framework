@@ -1,11 +1,10 @@
 #include "tests/test_support.h"
 #include "src/application/coordinators/system_context_private.h"
 
-static int failing_move_gantry(void *context, gantry_motion_mode_t motion_mode, int traverse_count, int timeout_ms)
+static int failing_start_motion(void *context, const segment_motion_plan_t *segment_motion_plan, int timeout_ms)
 {
     (void)context;
-    (void)motion_mode;
-    (void)traverse_count;
+    (void)segment_motion_plan;
     (void)timeout_ms;
     return -1;
 }
@@ -39,13 +38,12 @@ static int verify_timeout_transition_source(void)
     test_setup_system_context(&system_context, &driver_context);
     result = test_start_session_and_flush(system_context, "standard_wash");
     TEST_ASSERT(result.ok);
-    system_context_private_runtime(system_context)->wait_condition.max_retry_count = 0;
-    system_context_private_runtime(system_context)->wait_condition.timeout_policy = WAIT_TIMEOUT_POLICY_FINISH_EXECUTION;
+    system_context_private_runtime(system_context)->wait_condition.timeout_policy = WAIT_TIMEOUT_POLICY_SEGMENT;
     result = test_fire_timeout(system_context, 1000);
     TEST_ASSERT(result.ok);
-    TEST_ASSERT(system_context_private_runtime(system_context)->wash_session.session_state == SESSION_STATE_COMPLETED);
-    TEST_ASSERT(strcmp(system_context_private_runtime(system_context)->last_result_code, "accepted") == 0);
-    TEST_ASSERT(strcmp(system_context_private_runtime(system_context)->last_reason_code, "timeout_finish") == 0);
+    TEST_ASSERT(system_context_private_runtime(system_context)->wash_session.session_state == SESSION_STATE_ABORTED);
+    TEST_ASSERT(strcmp(system_context_private_runtime(system_context)->last_result_code, "aborted") == 0);
+    TEST_ASSERT(strcmp(system_context_private_runtime(system_context)->last_reason_code, "segment_timeout") == 0);
     TEST_ASSERT(system_context_private_runtime(system_context)->last_transition_record.trigger_type == TRIGGER_TYPE_TIMEOUT);
     return 0;
 }
@@ -57,7 +55,7 @@ static int verify_dispatch_failure_transition_source(void)
     operation_result_t result;
 
     test_setup_system_context(&system_context, &driver_context);
-    system_context_private_runtime(system_context)->actuator_port.move_gantry = failing_move_gantry;
+    system_context_private_runtime(system_context)->actuator_port.start_motion = failing_start_motion;
     result = test_start_session_and_flush(system_context, "standard_wash");
     TEST_ASSERT(!result.ok);
     TEST_ASSERT(system_context_private_runtime(system_context)->wash_session.session_state == SESSION_STATE_ABORTED);

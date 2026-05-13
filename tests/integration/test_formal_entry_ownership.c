@@ -15,6 +15,8 @@ static int verify_formal_command_execute_is_public_entry(void)
         "tests/fixtures/wash_step_control/program_v1_valid.json",
         0);
     TEST_ASSERT(result.ok);
+    result = test_homing_system_and_flush(system_context);
+    TEST_ASSERT(result.ok);
 
     result = process_formal_command_execute(system_context,
         "start wash_step_control_v1",
@@ -44,6 +46,8 @@ static int verify_cli_execute_uses_formal_entry(void)
     result = test_load_runtime_program_from_fixture(system_context,
         "tests/fixtures/wash_step_control/program_v1_valid.json",
         0);
+    TEST_ASSERT(result.ok);
+    result = test_homing_system_and_flush(system_context);
     TEST_ASSERT(result.ok);
 
     result = cli_command_adapter_execute_formal_line(system_context,

@@ -19,6 +19,10 @@ int main(void)
     TEST_ASSERT(controller_scheduler != 0);
 
     TEST_ASSERT(test_scheduler_command(controller_scheduler,
+        "homing",
+        response_line,
+        sizeof(response_line)) == 0);
+    TEST_ASSERT(test_scheduler_command(controller_scheduler,
         "start wash_step_control_v1",
         response_line,
         sizeof(response_line)) == 0);

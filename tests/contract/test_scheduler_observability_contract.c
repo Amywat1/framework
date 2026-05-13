@@ -20,6 +20,10 @@ int main(void)
     controller_scheduler = test_create_scheduler(system_context, 100ul);
     TEST_ASSERT(controller_scheduler != 0);
     TEST_ASSERT(test_scheduler_command(controller_scheduler,
+        "homing",
+        response_line,
+        sizeof(response_line)) == 0);
+    TEST_ASSERT(test_scheduler_command(controller_scheduler,
         "start wash_step_control_v1",
         response_line,
         sizeof(response_line)) == 0);
@@ -28,7 +32,7 @@ int main(void)
 
     result = controller_scheduler_read_view(controller_scheduler, &controller_runtime_state_view);
     TEST_ASSERT(result.ok);
-    TEST_ASSERT(controller_runtime_state_view.metrics.command_event_count == 1ul);
+    TEST_ASSERT(controller_runtime_state_view.metrics.command_event_count == 2ul);
     TEST_ASSERT(controller_runtime_state_view.metrics.notification_event_count == 1ul);
     TEST_ASSERT(controller_runtime_state_view.metrics.cycle_count == 1ul);
     TEST_ASSERT(controller_runtime_state_view.metrics.overrun_count == 1ul);
@@ -36,7 +40,7 @@ int main(void)
     result = query_wash_session_status_execute(system_context, &wash_session_status_view);
     TEST_ASSERT(result.ok);
     TEST_ASSERT(wash_session_status_view.scheduler_view_available);
-    TEST_ASSERT(wash_session_status_view.scheduler_view.metrics.command_event_count == 1ul);
+    TEST_ASSERT(wash_session_status_view.scheduler_view.metrics.command_event_count == 2ul);
     TEST_ASSERT(wash_session_status_view.scheduler_view.metrics.notification_event_count == 1ul);
 
     test_release_system_context(system_context);

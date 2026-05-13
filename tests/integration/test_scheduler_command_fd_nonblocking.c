@@ -63,7 +63,7 @@ static int verify_partial_command_does_not_block_scheduler(void)
     TEST_ASSERT(controller_runtime_state_view.notification_source_state == CONTROLLER_SCHEDULER_EVENT_SOURCE_DISABLED);
     TEST_ASSERT(controller_runtime_state_view.exit_source_state == CONTROLLER_SCHEDULER_EVENT_SOURCE_DISABLED);
 
-    TEST_ASSERT(write(pipe_fds[1], "start wash_step_control_v1", 26) == 26);
+    TEST_ASSERT(write(pipe_fds[1], "homing\nstart wash_step_control_v1", 33) == 33);
     result = controller_scheduler_linux_test_poll_once(controller_scheduler);
     TEST_ASSERT(result.ok);
     TEST_ASSERT(system_context_private_runtime(system_context)->wash_session.session_state != SESSION_STATE_RUNNING);

@@ -23,8 +23,10 @@ typedef struct simulated_driver_context_t {
     bool ro_water_close_feedback_available;
     bool dryer_close_feedback_available;
     bool roof_home_feedback_available;
+    bool roof_home_reached;
     bool runtime_snapshot_read_should_fail;
     bool stop_all_should_fail;
+    bool roof_home_command_should_fail;
     bool chemical_set_command_should_fail;
     bool chemical_stop_command_should_fail;
     bool roof_stop_command_should_fail;

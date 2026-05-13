@@ -323,11 +323,44 @@ static inline operation_result_t test_clear_fault_and_flush(system_context_t sys
     return test_process_command_and_flush(system_context, "fault clear", response_line, sizeof(response_line));
 }
 
+static inline operation_result_t test_homing_system(system_context_t system_context)
+{
+    char response_line[512];
+
+    return test_process_command(system_context, "homing", response_line, sizeof(response_line));
+}
+
+static inline operation_result_t test_homing_system_and_flush(system_context_t system_context)
+{
+    char response_line[512];
+
+    return test_process_command_and_flush(system_context, "homing", response_line, sizeof(response_line));
+}
+
+static inline operation_result_t test_ensure_idle_device_state(system_context_t system_context)
+{
+    device_state_t device_state;
+
+    device_state = system_context_private_device_state(system_context);
+    if (device_state == DEVICE_STATE_IDLE) {
+        return operation_result_ok();
+    }
+    if (device_state != DEVICE_STATE_STOPPED && device_state != DEVICE_STATE_EXCEPTION) {
+        return operation_result_fail(ERROR_CODE_INVALID_STATE);
+    }
+    return test_homing_system_and_flush(system_context);
+}
+
 static inline operation_result_t test_start_session(system_context_t system_context, const char *program_id)
 {
     char command_line[256];
     char response_line[512];
+    operation_result_t result;
 
+    result = test_ensure_idle_device_state(system_context);
+    if (!result.ok) {
+        return result;
+    }
     snprintf(command_line, sizeof(command_line), "start %s", program_id != 0 ? program_id : "");
     return test_process_command(system_context, command_line, response_line, sizeof(response_line));
 }
@@ -336,7 +369,12 @@ static inline operation_result_t test_start_session_and_flush(system_context_t s
 {
     char command_line[256];
     char response_line[512];
+    operation_result_t result;
 
+    result = test_ensure_idle_device_state(system_context);
+    if (!result.ok) {
+        return result;
+    }
     snprintf(command_line, sizeof(command_line), "start %s", program_id != 0 ? program_id : "");
     return test_process_command_and_flush(system_context, command_line, response_line, sizeof(response_line));
 }
@@ -356,6 +394,11 @@ static inline operation_result_t test_submit_fault_with_reason(system_context_t 
     return test_submit_trigger_and_drain(system_context, &wash_trigger_event);
 }
 
+static inline operation_result_t test_submit_fault(system_context_t system_context, const char *fault_code)
+{
+    return test_submit_fault_with_reason(system_context, fault_code, "test-fault");
+}
+
 static inline operation_result_t test_submit_stop(system_context_t system_context, const char *reason_code)
 {
     wash_trigger_event_t wash_trigger_event;
@@ -373,6 +416,11 @@ static inline operation_result_t test_tick(system_context_t system_context, unsi
 {
     main_loop_advance_time(system_context, elapsed_ms);
     return main_loop_run(system_context);
+}
+
+static inline operation_result_t test_fire_timeout(system_context_t system_context, unsigned long elapsed_ms)
+{
+    return test_tick(system_context, elapsed_ms);
 }
 
 static inline controller_scheduler_t *test_create_scheduler(system_context_t system_context,
@@ -528,6 +576,13 @@ static inline int test_scheduler_command(controller_scheduler_t *controller_sche
         response_line_size);
     TEST_ASSERT(result.ok);
     return 0;
+}
+
+static inline int test_scheduler_homing(controller_scheduler_t *controller_scheduler)
+{
+    char response_line[512];
+
+    return test_scheduler_command(controller_scheduler, "homing", response_line, sizeof(response_line));
 }
 
 static inline int test_scheduler_notification(controller_scheduler_t *controller_scheduler, unsigned int notification_count)

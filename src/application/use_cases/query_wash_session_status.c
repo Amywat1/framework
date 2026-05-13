@@ -32,6 +32,7 @@ operation_result_t query_wash_session_status_execute(const system_context_t syst
 
     wash_session_status_view->has_active_session = (wash_session->session_state == SESSION_STATE_CREATED
         || wash_session->session_state == SESSION_STATE_RUNNING);
+    wash_session_status_view->device_state = system_context_private_device_state(system_context);
     wash_session_status_view->global_fault_present = system_context_private_global_fault_present(system_context);
     wash_session_status_view->session_state = wash_session->session_state;
     wash_session_status_view->execution_state = wash_execution->execution_state;

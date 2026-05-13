@@ -1,6 +1,7 @@
 # HIL 冒烟验证
 
-1. 使用 `configs/programs/wash_step_control_v1.json` 启动真实工步程序：`start wash_step_control_v1`。
+1. 先发送归位命令：`homing`。
+2. 使用 `configs/programs/wash_step_control_v1.json` 启动真实工步程序：`start wash_step_control_v1`。
 2. 依次验证顶刷段、侧刷段、RO 水段、风干段都按“进入段 -> 运行段 -> 退出段”推进。
 3. 核对顶刷段整段喷药、侧刷段延迟喷药、到尾停药停刷并回零、RO 水完整关闭、风干完整关闭。
 4. 注入异常并观察固定收口：

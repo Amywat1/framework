@@ -77,6 +77,40 @@ static const char *execution_state_to_string(execution_state_t execution_state)
     }
 }
 
+static const char *device_state_to_string(device_state_t device_state)
+{
+    switch (device_state) {
+        case DEVICE_STATE_RECOVERING:
+            return "recovering";
+        case DEVICE_STATE_IDLE:
+            return "idle";
+        case DEVICE_STATE_RUNNING:
+            return "running";
+        case DEVICE_STATE_EXCEPTION:
+            return "exception";
+        case DEVICE_STATE_STOPPED:
+        default:
+            return "stopped";
+    }
+}
+
+static const char *start_rejection_reason(device_state_t device_state)
+{
+    switch (device_state) {
+        case DEVICE_STATE_STOPPED:
+            return "device_state_stopped";
+        case DEVICE_STATE_RECOVERING:
+            return "device_state_recovering";
+        case DEVICE_STATE_RUNNING:
+            return "device_state_running";
+        case DEVICE_STATE_EXCEPTION:
+            return "device_state_exception";
+        case DEVICE_STATE_IDLE:
+        default:
+            return "device_not_idle";
+    }
+}
+
 static const char *lifecycle_state_to_string(segment_lifecycle_state_t lifecycle_state)
 {
     switch (lifecycle_state) {
@@ -297,7 +331,8 @@ static operation_result_t execute_status(system_context_t system_context, char *
         : "none";
     snprintf(detail,
         sizeof(detail),
-        "session=%s state=%s execution=%s lifecycle=%s stage=%s wait=%s global_fault=%s reason=%s",
+        "device=%s session=%s state=%s execution=%s lifecycle=%s stage=%s wait=%s global_fault=%s reason=%s",
+        device_state_to_string(wash_session_status_view.device_state),
         wash_session_status_view.session_id[0] != '\0' ? wash_session_status_view.session_id : "none",
         session_state_to_string(wash_session_status_view.session_state),
         execution_state_to_string(wash_session_status_view.execution_state),
@@ -345,10 +380,21 @@ static operation_result_t prepare_formal_command_request(system_context_t system
     argument_2 = take_remainder(&cursor);
 
     if (strcmp(command_name, "start") == 0) {
+        device_state_t device_state;
+
         if (argument_1 == 0 || argument_1[0] == '\0' || argument_2 != 0) {
             remember_protocol_error(system_context, "start_requires_program_id");
             write_result_line(response_line, response_line_size, "parse_failed", false, "start_requires_program_id");
             return operation_result_fail(ERROR_CODE_PARSE_FAILED);
+        }
+        device_state = system_context_private_device_state(system_context);
+        if (device_state != DEVICE_STATE_IDLE) {
+            const char *reason_code;
+
+            reason_code = start_rejection_reason(device_state);
+            remember_command_rejection(system_context, TRIGGER_TYPE_START, reason_code);
+            write_result_line(response_line, response_line_size, "invalid_state", false, reason_code);
+            return operation_result_fail(ERROR_CODE_INVALID_STATE);
         }
         if (wash_session_is_running(system_context_private_wash_session(system_context))) {
             remember_command_rejection(system_context, TRIGGER_TYPE_START, "running_session_exists");
@@ -363,6 +409,34 @@ static operation_result_t prepare_formal_command_request(system_context_t system
             argument_1,
             0,
             "start-command",
+            system_context_current_time_ms(system_context));
+        assign_stdin_trigger_id(system_context, &formal_command_request->wash_trigger_event);
+        return operation_result_ok();
+    }
+
+    if (strcmp(command_name, "homing") == 0) {
+        device_state_t device_state;
+
+        if (argument_1 != 0) {
+            remember_protocol_error(system_context, "homing_takes_no_argument");
+            write_result_line(response_line, response_line_size, "parse_failed", false, "homing_takes_no_argument");
+            return operation_result_fail(ERROR_CODE_PARSE_FAILED);
+        }
+
+        device_state = system_context_private_device_state(system_context);
+        if (device_state != DEVICE_STATE_STOPPED && device_state != DEVICE_STATE_EXCEPTION) {
+            remember_command_rejection(system_context, TRIGGER_TYPE_HOMING, "homing_requires_stopped_or_exception");
+            write_result_line(response_line, response_line_size, "invalid_state", false, "homing_requires_stopped_or_exception");
+            return operation_result_fail(ERROR_CODE_INVALID_STATE);
+        }
+
+        formal_command_request->requires_queue = true;
+        formal_command_request->has_trigger = true;
+        wash_trigger_event_init(&formal_command_request->wash_trigger_event,
+            TRIGGER_TYPE_HOMING,
+            0,
+            "homing",
+            "homing-command",
             system_context_current_time_ms(system_context));
         assign_stdin_trigger_id(system_context, &formal_command_request->wash_trigger_event);
         return operation_result_ok();

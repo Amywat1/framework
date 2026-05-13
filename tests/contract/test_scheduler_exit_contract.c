@@ -42,6 +42,8 @@ static int verify_bounded_drain_has_terminal_conclusion(void)
     controller_scheduler = test_create_scheduler(system_context, 100ul);
     TEST_ASSERT(controller_scheduler != 0);
 
+    result = test_homing_system_and_flush(system_context);
+    TEST_ASSERT(result.ok);
     result = process_formal_command_execute(system_context,
         "start wash_step_control_v1",
         response_line,

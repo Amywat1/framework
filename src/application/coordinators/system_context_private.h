@@ -30,6 +30,10 @@ operation_result_t system_context_private_require_active(const system_context_t 
 operation_result_t system_context_private_bind_scheduler(system_context_t system_context);
 void system_context_private_unbind_scheduler(system_context_t system_context);
 bool system_context_private_has_scheduler_binding(const system_context_t system_context);
+device_state_t system_context_private_device_state(const system_context_t system_context);
+void system_context_private_set_device_state(system_context_t system_context, device_state_t device_state);
+const actuator_port_t *system_context_private_actuator_port(const system_context_t system_context);
+const sensor_port_t *system_context_private_sensor_port(const system_context_t system_context);
 bool system_context_private_global_fault_present(const system_context_t system_context);
 const char *system_context_private_global_fault_reason(const system_context_t system_context);
 void system_context_private_set_global_fault(system_context_t system_context, const char *fault_code, const char *fault_reason);

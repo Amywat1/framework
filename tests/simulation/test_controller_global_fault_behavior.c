@@ -44,7 +44,7 @@ int main(void)
     result = test_process_command_and_flush(system_context, "start wash_step_control_v1", response_line, sizeof(response_line));
     TEST_ASSERT(!result.ok);
     TEST_ASSERT(strstr(response_line, "accepted=false") != 0);
-    TEST_ASSERT(strstr(response_line, "global_fault_active") != 0);
+    TEST_ASSERT(strstr(response_line, "device_state_exception") != 0);
 
     result = test_process_command_and_flush(system_context, "fault clear", response_line, sizeof(response_line));
     TEST_ASSERT(result.ok);
@@ -52,10 +52,17 @@ int main(void)
     TEST_ASSERT(strcmp(system_context_private_runtime(system_context)->last_result_code, "accepted") == 0);
     TEST_ASSERT(strcmp(system_context_private_runtime(system_context)->last_reason_code, "global_fault_cleared") == 0);
     TEST_ASSERT(system_context_private_runtime(system_context)->global_fault_present == false);
+    TEST_ASSERT(system_context_private_runtime(system_context)->device_state == DEVICE_STATE_STOPPED);
+
+    result = test_process_command_and_flush(system_context, "homing", response_line, sizeof(response_line));
+    TEST_ASSERT(result.ok);
+    TEST_ASSERT(strstr(response_line, "result=accepted accepted=true detail=homing_completed") != 0);
+    TEST_ASSERT(system_context_private_runtime(system_context)->device_state == DEVICE_STATE_IDLE);
 
     result = test_process_command_and_flush(system_context, "start wash_step_control_v1", response_line, sizeof(response_line));
     TEST_ASSERT(result.ok);
     TEST_ASSERT(system_context_private_runtime(system_context)->wash_session.session_state == SESSION_STATE_RUNNING);
+    TEST_ASSERT(system_context_private_runtime(system_context)->device_state == DEVICE_STATE_RUNNING);
     test_release_system_context(system_context);
     return 0;
 }

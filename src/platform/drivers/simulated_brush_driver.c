@@ -55,9 +55,12 @@ static int simulated_home_roof_brush(void *context, int timeout_ms)
 {
     simulated_driver_context_t *driver_context = (simulated_driver_context_t *)context;
     (void)timeout_ms;
+    if (driver_context->roof_home_command_should_fail) {
+        return -1;
+    }
     driver_context->roof_home_command_count += 1;
     driver_context->runtime_snapshot.actuator_feedback.roof_brush_home_reached =
-        driver_context->roof_home_feedback_available;
+        driver_context->roof_home_reached;
     return 0;
 }
 

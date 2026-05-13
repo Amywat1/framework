@@ -3,6 +3,7 @@
 
 int main(void)
 {
+    int roof_home_command_count_before_exit;
     operation_result_t result;
     simulated_driver_context_t driver_context;
     system_context_t system_context;
@@ -17,6 +18,7 @@ int main(void)
     TEST_ASSERT(system_context_private_runtime(system_context)->wash_session.session_state == SESSION_STATE_RUNNING);
     TEST_ASSERT(system_context_private_runtime(system_context)->wash_execution.lifecycle_state == SEGMENT_LIFECYCLE_RUNNING);
     TEST_ASSERT(strcmp(system_context_private_runtime(system_context)->wash_execution.segment_id, "roof_segment") == 0);
+    roof_home_command_count_before_exit = driver_context.roof_home_command_count;
 
     driver_context.runtime_snapshot.position_snapshot.gantry_absolute_mm = 9500;
     driver_context.runtime_snapshot.position_snapshot.tail_reached = true;
@@ -25,7 +27,7 @@ int main(void)
     TEST_ASSERT(system_context_private_runtime(system_context)->wash_execution.lifecycle_state == SEGMENT_LIFECYCLE_EXITING);
     TEST_ASSERT(driver_context.roof_stop_command_count == 1);
     TEST_ASSERT(driver_context.chemical_stop_command_count == 1);
-    TEST_ASSERT(driver_context.roof_home_command_count == 1);
+    TEST_ASSERT(driver_context.roof_home_command_count == roof_home_command_count_before_exit + 1);
 
     driver_context.runtime_snapshot.actuator_feedback.roof_brush_home_reached = true;
     driver_context.runtime_snapshot.position_snapshot.tail_reached = false;

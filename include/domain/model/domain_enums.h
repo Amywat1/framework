@@ -3,10 +3,10 @@
 
 /**
  * @file domain_enums.h
- * @brief 定义工步段运行模型使用的核心枚举类型。
+ * @brief 定义洗车运行时领域模型使用的核心枚举类型。
  */
 
-/** @brief 会话状态。 */
+/** @brief 洗车会话状态。 */
 typedef enum {
     SESSION_STATE_NONE = 0,
     SESSION_STATE_CREATED,
@@ -14,6 +14,15 @@ typedef enum {
     SESSION_STATE_COMPLETED,
     SESSION_STATE_ABORTED
 } session_state_t;
+
+/** @brief 设备生命周期状态。 */
+typedef enum {
+    DEVICE_STATE_STOPPED = 0,
+    DEVICE_STATE_RECOVERING,
+    DEVICE_STATE_IDLE,
+    DEVICE_STATE_RUNNING,
+    DEVICE_STATE_EXCEPTION
+} device_state_t;
 
 /** @brief 当前工步执行状态。 */
 typedef enum {
@@ -62,6 +71,7 @@ typedef enum {
 /** @brief 主控统一处理的触发事件类型。 */
 typedef enum {
     TRIGGER_TYPE_START = 0,
+    TRIGGER_TYPE_HOMING,
     TRIGGER_TYPE_STOP,
     TRIGGER_TYPE_FAULT,
     TRIGGER_TYPE_BUSINESS,

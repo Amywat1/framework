@@ -17,13 +17,13 @@ int main(void)
     TEST_ASSERT(system_context_private_runtime(system_context)->wash_session.session_state == SESSION_STATE_RUNNING);
     TEST_ASSERT(system_context_private_runtime(system_context)->wash_execution.lifecycle_state == SEGMENT_LIFECYCLE_RUNNING);
     TEST_ASSERT(driver_context.motion_command_count == 1);
-    TEST_ASSERT(driver_context.stop_all_command_count == 0);
+    TEST_ASSERT(driver_context.stop_all_command_count == 1);
 
     result = test_tick(system_context, 100);
     TEST_ASSERT(result.ok);
     TEST_ASSERT(system_context_private_runtime(system_context)->wash_execution.lifecycle_state == SEGMENT_LIFECYCLE_RUNNING);
     TEST_ASSERT(driver_context.motion_command_count == 1);
-    TEST_ASSERT(driver_context.stop_all_command_count == 0);
+    TEST_ASSERT(driver_context.stop_all_command_count == 1);
 
     driver_context.runtime_snapshot.position_snapshot.gantry_absolute_mm = 9500;
     driver_context.runtime_snapshot.position_snapshot.tail_reached = true;

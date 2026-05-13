@@ -9,6 +9,8 @@ static int trigger_priority(trigger_type_t trigger_type)
             return 3;
         case TRIGGER_TYPE_TIMEOUT:
             return 2;
+        case TRIGGER_TYPE_HOMING:
+            return 1;
         default:
             return 0;
     }

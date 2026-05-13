@@ -22,6 +22,7 @@ typedef struct system_context_runtime_t {
     unsigned long next_session_sequence;
     unsigned long next_execution_sequence;
     unsigned long next_wait_condition_sequence;
+    device_state_t device_state;
     bool global_fault_present;
     char global_fault_code[64];
     char global_fault_reason[128];

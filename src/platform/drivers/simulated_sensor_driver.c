@@ -37,13 +37,14 @@ void simulated_driver_context_init(simulated_driver_context_t *driver_context)
     driver_context->ro_water_close_feedback_available = true;
     driver_context->dryer_close_feedback_available = true;
     driver_context->roof_home_feedback_available = true;
+    driver_context->roof_home_reached = true;
     driver_context->runtime_snapshot.actuator_feedback.roof_brush_follow_ok = true;
     driver_context->runtime_snapshot.actuator_feedback.roof_brush_stopped = true;
     driver_context->runtime_snapshot.actuator_feedback.side_brush_stopped = true;
     driver_context->runtime_snapshot.actuator_feedback.chemical_closed = true;
     driver_context->runtime_snapshot.actuator_feedback.ro_water_closed = true;
     driver_context->runtime_snapshot.actuator_feedback.dryer_closed = true;
-    driver_context->runtime_snapshot.actuator_feedback.roof_brush_home_reached = true;
+    driver_context->runtime_snapshot.actuator_feedback.roof_brush_home_reached = driver_context->roof_home_reached;
     sync_feedback_capabilities(driver_context);
 }
 
