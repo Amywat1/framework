@@ -17,7 +17,8 @@ typedef enum {
 
 /** @brief 设备生命周期状态。 */
 typedef enum {
-    DEVICE_STATE_STOPPED = 0,
+    DEVICE_STATE_INIT = 0,
+    DEVICE_STATE_STOPPED,
     DEVICE_STATE_RECOVERING,
     DEVICE_STATE_IDLE,
     DEVICE_STATE_RUNNING,

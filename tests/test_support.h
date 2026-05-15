@@ -340,12 +340,20 @@ static inline operation_result_t test_homing_system_and_flush(system_context_t s
 static inline operation_result_t test_ensure_idle_device_state(system_context_t system_context)
 {
     device_state_t device_state;
+    operation_result_t result;
 
     device_state = system_context_private_device_state(system_context);
     if (device_state == DEVICE_STATE_IDLE) {
         return operation_result_ok();
     }
-    if (device_state != DEVICE_STATE_STOPPED && device_state != DEVICE_STATE_EXCEPTION) {
+    if (device_state == DEVICE_STATE_EXCEPTION) {
+        result = test_clear_fault_and_flush(system_context);
+        if (!result.ok) {
+            return result;
+        }
+        device_state = system_context_private_device_state(system_context);
+    }
+    if (device_state != DEVICE_STATE_STOPPED) {
         return operation_result_fail(ERROR_CODE_INVALID_STATE);
     }
     return test_homing_system_and_flush(system_context);
@@ -397,6 +405,19 @@ static inline operation_result_t test_submit_fault_with_reason(system_context_t 
 static inline operation_result_t test_submit_fault(system_context_t system_context, const char *fault_code)
 {
     return test_submit_fault_with_reason(system_context, fault_code, "test-fault");
+}
+
+static inline operation_result_t test_submit_fault_clear(system_context_t system_context)
+{
+    wash_trigger_event_t wash_trigger_event;
+
+    wash_trigger_event_init(&wash_trigger_event,
+        TRIGGER_TYPE_FAULT,
+        0,
+        "clear",
+        0,
+        system_context_current_time_ms(system_context));
+    return test_submit_trigger_and_drain(system_context, &wash_trigger_event);
 }
 
 static inline operation_result_t test_submit_stop(system_context_t system_context, const char *reason_code)

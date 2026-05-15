@@ -43,7 +43,7 @@ static void reset_runtime_state(system_context_runtime_t *runtime)
     runtime->next_session_sequence = 0ul;
     runtime->next_execution_sequence = 0ul;
     runtime->next_wait_condition_sequence = 0ul;
-    runtime->device_state = DEVICE_STATE_STOPPED;
+    runtime->device_state = DEVICE_STATE_INIT;
     runtime->global_fault_present = false;
     memset(runtime->global_fault_code, 0, sizeof(runtime->global_fault_code));
     memset(runtime->global_fault_reason, 0, sizeof(runtime->global_fault_reason));
@@ -112,6 +112,25 @@ static operation_result_t require_active_instance(const system_context_t system_
 operation_result_t system_context_private_require_active(const system_context_t system_context)
 {
     return require_active_instance(system_context);
+}
+
+operation_result_t system_context_private_complete_initialization(system_context_t system_context)
+{
+    system_context_runtime_t *runtime;
+    operation_result_t result;
+
+    result = require_active_instance(system_context);
+    if (!result.ok) {
+        return result;
+    }
+
+    runtime = &s_system_context_instance.runtime;
+    if (runtime->device_state != DEVICE_STATE_INIT) {
+        return operation_result_fail(ERROR_CODE_INVALID_STATE);
+    }
+
+    runtime->device_state = DEVICE_STATE_STOPPED;
+    return operation_result_ok();
 }
 
 operation_result_t system_context_private_bind_scheduler(system_context_t system_context)
@@ -558,7 +577,7 @@ operation_result_t system_context_reset(system_context_t system_context)
     runtime->actuator_port = actuator_port;
     runtime->event_logger_port = event_logger_port;
     runtime->program_repository_port = program_repository_port;
-    return operation_result_ok();
+    return system_context_private_complete_initialization(system_context);
 }
 
 void system_context_set_sensor_port(system_context_t system_context, const sensor_port_t *sensor_port)

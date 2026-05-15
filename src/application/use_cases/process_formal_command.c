@@ -80,6 +80,8 @@ static const char *execution_state_to_string(execution_state_t execution_state)
 static const char *device_state_to_string(device_state_t device_state)
 {
     switch (device_state) {
+        case DEVICE_STATE_INIT:
+            return "init";
         case DEVICE_STATE_RECOVERING:
             return "recovering";
         case DEVICE_STATE_IDLE:
@@ -97,6 +99,8 @@ static const char *device_state_to_string(device_state_t device_state)
 static const char *start_rejection_reason(device_state_t device_state)
 {
     switch (device_state) {
+        case DEVICE_STATE_INIT:
+            return "device_state_init";
         case DEVICE_STATE_STOPPED:
             return "device_state_stopped";
         case DEVICE_STATE_RECOVERING:
@@ -109,6 +113,16 @@ static const char *start_rejection_reason(device_state_t device_state)
         default:
             return "device_not_idle";
     }
+}
+
+static const char *stop_rejection_reason(void)
+{
+    return "stop_requires_running";
+}
+
+static const char *fault_clear_rejection_reason(void)
+{
+    return "fault_clear_requires_exception";
 }
 
 static const char *lifecycle_state_to_string(segment_lifecycle_state_t lifecycle_state)
@@ -424,9 +438,9 @@ static operation_result_t prepare_formal_command_request(system_context_t system
         }
 
         device_state = system_context_private_device_state(system_context);
-        if (device_state != DEVICE_STATE_STOPPED && device_state != DEVICE_STATE_EXCEPTION) {
-            remember_command_rejection(system_context, TRIGGER_TYPE_HOMING, "homing_requires_stopped_or_exception");
-            write_result_line(response_line, response_line_size, "invalid_state", false, "homing_requires_stopped_or_exception");
+        if (device_state != DEVICE_STATE_STOPPED) {
+            remember_command_rejection(system_context, TRIGGER_TYPE_HOMING, "homing_requires_stopped");
+            write_result_line(response_line, response_line_size, "invalid_state", false, "homing_requires_stopped");
             return operation_result_fail(ERROR_CODE_INVALID_STATE);
         }
 
@@ -443,10 +457,20 @@ static operation_result_t prepare_formal_command_request(system_context_t system
     }
 
     if (strcmp(command_name, "stop") == 0) {
+        device_state_t device_state;
+
         if (argument_1 != 0) {
             remember_protocol_error(system_context, "stop_takes_no_argument");
             write_result_line(response_line, response_line_size, "parse_failed", false, "stop_takes_no_argument");
             return operation_result_fail(ERROR_CODE_PARSE_FAILED);
+        }
+
+        device_state = system_context_private_device_state(system_context);
+        if (device_state != DEVICE_STATE_RUNNING
+            || !wash_session_is_running(system_context_private_wash_session(system_context))) {
+            remember_command_rejection(system_context, TRIGGER_TYPE_STOP, stop_rejection_reason());
+            write_result_line(response_line, response_line_size, "invalid_state", false, stop_rejection_reason());
+            return operation_result_fail(ERROR_CODE_INVALID_STATE);
         }
 
         formal_command_request->requires_queue = true;
@@ -471,10 +495,19 @@ static operation_result_t prepare_formal_command_request(system_context_t system
         formal_command_request->requires_queue = true;
         formal_command_request->has_trigger = true;
         if (strcmp(argument_1, "clear") == 0) {
+            device_state_t device_state;
+
             if (argument_2 != 0 && argument_2[0] != '\0') {
                 remember_protocol_error(system_context, "fault_clear_takes_no_argument");
                 write_result_line(response_line, response_line_size, "parse_failed", false, "fault_clear_takes_no_argument");
                 return operation_result_fail(ERROR_CODE_PARSE_FAILED);
+            }
+
+            device_state = system_context_private_device_state(system_context);
+            if (device_state != DEVICE_STATE_EXCEPTION) {
+                remember_command_rejection(system_context, TRIGGER_TYPE_FAULT, fault_clear_rejection_reason());
+                write_result_line(response_line, response_line_size, "invalid_state", false, fault_clear_rejection_reason());
+                return operation_result_fail(ERROR_CODE_INVALID_STATE);
             }
 
             wash_trigger_event_init(&formal_command_request->wash_trigger_event,

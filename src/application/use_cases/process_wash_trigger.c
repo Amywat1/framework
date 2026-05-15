@@ -3,6 +3,7 @@
 #include <string.h>
 
 #include "application/coordinators/runtime_event_recorder.h"
+#include "application/coordinators/runtime_result_projection.h"
 #include "domain/services/program_snapshot_service.h"
 #include "domain/services/recovery_state_machine.h"
 #include "domain/services/wait_timeout_service.h"
@@ -40,9 +41,67 @@ static void set_latest_result(system_context_t system_context, const char *resul
     runtime_event_recorder_set_latest_result(system_context, result_code, reason_code);
 }
 
+static const char *device_state_to_string(device_state_t device_state)
+{
+    switch (device_state) {
+        case DEVICE_STATE_INIT:
+            return "init";
+        case DEVICE_STATE_RECOVERING:
+            return "recovering";
+        case DEVICE_STATE_IDLE:
+            return "idle";
+        case DEVICE_STATE_RUNNING:
+            return "running";
+        case DEVICE_STATE_EXCEPTION:
+            return "exception";
+        case DEVICE_STATE_STOPPED:
+        default:
+            return "stopped";
+    }
+}
+
+static void project_trigger_result(system_context_t system_context,
+    const wash_trigger_event_t *wash_trigger_event,
+    device_state_t previous_device_state,
+    device_state_t current_device_state,
+    const char *result_code,
+    const char *reason_code,
+    runtime_event_log_kind_t runtime_event_log_kind)
+{
+    runtime_result_projection_t runtime_result_projection;
+
+    if (wash_trigger_event == 0) {
+        set_latest_result(system_context, result_code, reason_code);
+        return;
+    }
+
+    runtime_result_projection_init(&runtime_result_projection);
+    runtime_result_projection_set_latest_result(&runtime_result_projection, result_code, reason_code);
+    runtime_result_projection_set_transition(&runtime_result_projection,
+        TRANSITION_ENTITY_REQUEST,
+        wash_trigger_event->trigger_id[0] != '\0' ? wash_trigger_event->trigger_id : "runtime-trigger",
+        wash_trigger_event->trigger_type,
+        device_state_to_string(previous_device_state),
+        device_state_to_string(current_device_state),
+        result_code,
+        reason_code,
+        runtime_event_log_kind);
+    runtime_event_recorder_apply_projection(system_context, &runtime_result_projection);
+}
+
 static void set_device_state(system_context_t system_context, device_state_t device_state)
 {
     system_context_private_set_device_state(system_context, device_state);
+}
+
+static const char *stop_rejection_reason(void)
+{
+    return "stop_requires_running";
+}
+
+static const char *fault_clear_rejection_reason(void)
+{
+    return "fault_clear_requires_exception";
 }
 
 static result_code_t map_execution_abort_result(const wash_execution_t *wash_execution)
@@ -93,7 +152,7 @@ static operation_result_t advance_or_finish_session(system_context_t system_cont
         if (result.ok) {
             set_device_state(system_context,
                 wash_execution->execution_result == EXECUTION_RESULT_STOPPED
-                    ? DEVICE_STATE_IDLE
+                    ? DEVICE_STATE_STOPPED
                     : DEVICE_STATE_EXCEPTION);
             set_latest_result(system_context, "aborted", wash_session_transition_fact.reason_code);
         }
@@ -132,6 +191,7 @@ static operation_result_t handle_homing(system_context_t system_context)
     const actuator_port_t *actuator_port;
     const sensor_port_t *sensor_port;
     const char *failure_reason_code;
+    wash_trigger_event_t wash_trigger_event;
     device_state_t device_state;
     operation_result_t result;
 
@@ -141,36 +201,77 @@ static operation_result_t handle_homing(system_context_t system_context)
     if (wash_session == 0 || actuator_port == 0 || sensor_port == 0) {
         return operation_result_fail(ERROR_CODE_INVALID_STATE);
     }
-    if (wash_session_is_running(wash_session)) {
-        set_latest_result(system_context, "rejected", "running_session_exists");
-        return operation_result_fail(ERROR_CODE_INVALID_STATE);
-    }
-    if (system_context_private_global_fault_present(system_context)) {
-        set_latest_result(system_context, "rejected", "global_fault_active");
-        return operation_result_fail(ERROR_CODE_INVALID_STATE);
-    }
-
     device_state = system_context_private_device_state(system_context);
-    if (device_state != DEVICE_STATE_STOPPED && device_state != DEVICE_STATE_EXCEPTION) {
-        set_latest_result(system_context, "rejected", "homing_requires_stopped_or_exception");
+    if (wash_session_is_running(wash_session)) {
+        wash_trigger_event_init(&wash_trigger_event,
+            TRIGGER_TYPE_HOMING,
+            0,
+            "homing",
+            "homing-command",
+            system_context_current_time_ms(system_context));
+        project_trigger_result(system_context,
+            &wash_trigger_event,
+            device_state,
+            device_state,
+            "rejected",
+            "running_session_exists",
+            RUNTIME_EVENT_LOG_REJECTION);
+        return operation_result_fail(ERROR_CODE_INVALID_STATE);
+    }
+    if (device_state != DEVICE_STATE_STOPPED) {
+        wash_trigger_event_init(&wash_trigger_event,
+            TRIGGER_TYPE_HOMING,
+            0,
+            "homing",
+            "homing-command",
+            system_context_current_time_ms(system_context));
+        project_trigger_result(system_context,
+            &wash_trigger_event,
+            device_state,
+            device_state,
+            "rejected",
+            "homing_requires_stopped",
+            RUNTIME_EVENT_LOG_REJECTION);
         return operation_result_fail(ERROR_CODE_INVALID_STATE);
     }
 
+    wash_trigger_event_init(&wash_trigger_event,
+        TRIGGER_TYPE_HOMING,
+        0,
+        "homing",
+        "homing-command",
+        system_context_current_time_ms(system_context));
+    system_context_private_clear_global_fault(system_context);
     set_device_state(system_context, DEVICE_STATE_RECOVERING);
     failure_reason_code = 0;
     result = recovery_state_machine_execute(actuator_port,
         sensor_port,
         RECOVERY_MODE_HOME_ROOF_BRUSH,
         &failure_reason_code);
-    if (!result.ok) {
+    if (!result.ok || system_context_private_global_fault_present(system_context)) {
         set_device_state(system_context, DEVICE_STATE_EXCEPTION);
-        set_latest_result(system_context, "error",
-            failure_reason_code != 0 ? failure_reason_code : "homing_failed");
-        return result;
+        project_trigger_result(system_context,
+            &wash_trigger_event,
+            DEVICE_STATE_STOPPED,
+            DEVICE_STATE_EXCEPTION,
+            "error",
+            failure_reason_code != 0
+                ? failure_reason_code
+                : (system_context_private_global_fault_present(system_context)
+                        ? "recovering_alarm_triggered"
+                        : "homing_failed"),
+            RUNTIME_EVENT_LOG_TRANSITION);
+        return !result.ok ? result : operation_result_fail(ERROR_CODE_INVALID_STATE);
     }
 
     set_device_state(system_context, DEVICE_STATE_IDLE);
-    set_latest_result(system_context, "accepted", "homing_completed");
+    project_trigger_result(system_context,
+        &wash_trigger_event,
+        DEVICE_STATE_STOPPED,
+        DEVICE_STATE_IDLE,
+        "accepted",
+        "homing_completed",
+        RUNTIME_EVENT_LOG_TRANSITION);
     return operation_result_ok();
 }
 
@@ -178,6 +279,7 @@ static operation_result_t handle_start(system_context_t system_context, const wa
 {
     device_state_t device_state;
     operation_result_t result;
+    const char *reason_code;
     program_snapshot_service_args_t program_snapshot_service_args;
     wash_execution_t *wash_execution;
     wash_session_t *wash_session;
@@ -188,11 +290,23 @@ static operation_result_t handle_start(system_context_t system_context, const wa
 
     device_state = system_context_private_device_state(system_context);
     if (device_state != DEVICE_STATE_IDLE) {
-        set_latest_result(system_context, "rejected", "device_not_idle");
+        project_trigger_result(system_context,
+            wash_trigger_event,
+            device_state,
+            device_state,
+            "rejected",
+            "device_not_idle",
+            RUNTIME_EVENT_LOG_REJECTION);
         return operation_result_fail(ERROR_CODE_INVALID_STATE);
     }
     if (system_context_private_global_fault_present(system_context)) {
-        set_latest_result(system_context, "rejected", "global_fault_active");
+        project_trigger_result(system_context,
+            wash_trigger_event,
+            device_state,
+            device_state,
+            "rejected",
+            "global_fault_active",
+            RUNTIME_EVENT_LOG_REJECTION);
         return operation_result_fail(ERROR_CODE_INVALID_STATE);
     }
 
@@ -202,16 +316,29 @@ static operation_result_t handle_start(system_context_t system_context, const wa
         return operation_result_fail(ERROR_CODE_INVALID_STATE);
     }
     if (wash_session_is_running(wash_session)) {
-        set_latest_result(system_context, "rejected", "running_session_exists");
+        project_trigger_result(system_context,
+            wash_trigger_event,
+            device_state,
+            device_state,
+            "rejected",
+            "running_session_exists",
+            RUNTIME_EVENT_LOG_REJECTION);
         return operation_result_fail(ERROR_CODE_INVALID_STATE);
     }
 
     program_snapshot_service_args = build_program_snapshot_service_args(system_context);
     result = program_snapshot_service_capture(&program_snapshot_service_args, wash_trigger_event->program_id);
     if (!result.ok) {
-        set_latest_result(system_context, "rejected", result.error_code == ERROR_CODE_RESOURCE_UNAVAILABLE
+        reason_code = result.error_code == ERROR_CODE_RESOURCE_UNAVAILABLE
             ? "program_unavailable"
-            : "program_invalid");
+            : "program_invalid";
+        project_trigger_result(system_context,
+            wash_trigger_event,
+            device_state,
+            device_state,
+            "rejected",
+            reason_code,
+            RUNTIME_EVENT_LOG_REJECTION);
         return result;
     }
 
@@ -237,6 +364,7 @@ static operation_result_t handle_start(system_context_t system_context, const wa
 
 static operation_result_t handle_stop(system_context_t system_context, const wash_trigger_event_t *wash_trigger_event)
 {
+    device_state_t device_state;
     const wash_session_t *wash_session;
     operation_result_t result;
     wash_execution_service_args_t wash_execution_service_args;
@@ -248,9 +376,16 @@ static operation_result_t handle_stop(system_context_t system_context, const was
     if (wash_session == 0) {
         return operation_result_fail(ERROR_CODE_INVALID_STATE);
     }
-    if (!wash_session_is_running(wash_session)) {
-        set_latest_result(system_context, "ignored", "idle_stop");
-        return operation_result_ok();
+    device_state = system_context_private_device_state(system_context);
+    if (device_state != DEVICE_STATE_RUNNING || !wash_session_is_running(wash_session)) {
+        project_trigger_result(system_context,
+            wash_trigger_event,
+            device_state,
+            device_state,
+            "rejected",
+            stop_rejection_reason(),
+            RUNTIME_EVENT_LOG_REJECTION);
+        return operation_result_fail(ERROR_CODE_INVALID_STATE);
     }
 
     wash_execution_service_args = build_execution_service_args(system_context);
@@ -267,7 +402,7 @@ static operation_result_t handle_stop(system_context_t system_context, const was
         wash_trigger_event->signal_code,
         &wash_session_transition_fact);
     if (result.ok) {
-        set_device_state(system_context, DEVICE_STATE_IDLE);
+        set_device_state(system_context, DEVICE_STATE_STOPPED);
         set_latest_result(system_context, "aborted", wash_trigger_event->signal_code);
     }
     return result;
@@ -276,6 +411,7 @@ static operation_result_t handle_stop(system_context_t system_context, const was
 static operation_result_t handle_fault(system_context_t system_context, const wash_trigger_event_t *wash_trigger_event)
 {
     bool clear_requested;
+    device_state_t device_state;
     const wash_session_t *wash_session;
     operation_result_t result;
     wash_execution_service_args_t wash_execution_service_args;
@@ -284,27 +420,46 @@ static operation_result_t handle_fault(system_context_t system_context, const wa
     wash_session_transition_fact_t wash_session_transition_fact;
 
     clear_requested = strcmp(wash_trigger_event->signal_code, "clear") == 0;
+    device_state = system_context_private_device_state(system_context);
     wash_session = system_context_private_wash_session(system_context);
     if (wash_session == 0) {
         return operation_result_fail(ERROR_CODE_INVALID_STATE);
     }
-    if (!wash_session_is_running(wash_session)) {
-        if (clear_requested) {
-            system_context_private_clear_global_fault(system_context);
-            set_device_state(system_context, DEVICE_STATE_STOPPED);
-            set_latest_result(system_context, "accepted", "global_fault_cleared");
-            return operation_result_ok();
+    if (clear_requested) {
+        if (device_state != DEVICE_STATE_EXCEPTION) {
+            project_trigger_result(system_context,
+                wash_trigger_event,
+                device_state,
+                device_state,
+                "rejected",
+                fault_clear_rejection_reason(),
+                RUNTIME_EVENT_LOG_REJECTION);
+            return operation_result_fail(ERROR_CODE_INVALID_STATE);
         }
+        system_context_private_clear_global_fault(system_context);
+        set_device_state(system_context, DEVICE_STATE_STOPPED);
+        project_trigger_result(system_context,
+            wash_trigger_event,
+            DEVICE_STATE_EXCEPTION,
+            DEVICE_STATE_STOPPED,
+            "accepted",
+            "global_fault_cleared",
+            RUNTIME_EVENT_LOG_TRANSITION);
+        return operation_result_ok();
+    }
+    if (!wash_session_is_running(wash_session)) {
         system_context_private_set_global_fault(system_context,
             wash_trigger_event->signal_code,
             wash_trigger_event->correlation_key);
         set_device_state(system_context, DEVICE_STATE_EXCEPTION);
-        set_latest_result(system_context, "accepted", "global_fault_recorded");
+        project_trigger_result(system_context,
+            wash_trigger_event,
+            device_state,
+            DEVICE_STATE_EXCEPTION,
+            "accepted",
+            "global_fault_recorded",
+            RUNTIME_EVENT_LOG_TRANSITION);
         return operation_result_ok();
-    }
-    if (clear_requested) {
-        set_latest_result(system_context, "rejected", "fault_clear_while_running");
-        return operation_result_fail(ERROR_CODE_INVALID_STATE);
     }
     system_context_private_set_global_fault(system_context,
         wash_trigger_event->signal_code,

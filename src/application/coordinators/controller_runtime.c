@@ -7,6 +7,7 @@
 #include "adapters/outbound/file_program_repository.h"
 #include "platform/linux/controller_scheduler_linux.h"
 #include "src/application/coordinators/controller_runtime_private.h"
+#include "src/application/coordinators/system_context_private.h"
 
 #define CONTROLLER_RUNTIME_HANDLE_BITS ((unsigned int)(sizeof(uintptr_t) * 8u))
 #define CONTROLLER_RUNTIME_HANDLE_MAGIC_BITS 8u
@@ -357,6 +358,14 @@ operation_result_t controller_runtime_create(controller_runtime_t **runtime,
     }
 
     result = file_event_logger_init(g_controller_runtime_state.system_context, config->event_log_path);
+    if (!result.ok) {
+        g_controller_runtime_state.last_error_code = result.error_code;
+        runtime_copy_last_reason_from_context(&g_controller_runtime_state);
+        (void)runtime_destroy_owned_resources(0u);
+        return result;
+    }
+
+    result = system_context_private_complete_initialization(g_controller_runtime_state.system_context);
     if (!result.ok) {
         g_controller_runtime_state.last_error_code = result.error_code;
         runtime_copy_last_reason_from_context(&g_controller_runtime_state);

@@ -15,6 +15,10 @@ static int verify_stop_path(void)
     result = test_submit_stop(system_context, "integration-stop");
     TEST_ASSERT(result.ok);
     TEST_ASSERT(system_context_private_runtime(system_context)->wash_session.session_state == SESSION_STATE_ABORTED);
+    TEST_ASSERT(system_context_private_runtime(system_context)->wash_session.final_session_result == RESULT_CODE_MANUAL_ABORT);
+    TEST_ASSERT(system_context_private_runtime(system_context)->wash_execution.execution_result == EXECUTION_RESULT_STOPPED);
+    TEST_ASSERT(strcmp(system_context_private_runtime(system_context)->last_result_code, "aborted") == 0);
+    TEST_ASSERT(strcmp(system_context_private_runtime(system_context)->last_reason_code, "integration-stop") == 0);
     TEST_ASSERT(system_context_private_runtime(system_context)->device_state == DEVICE_STATE_STOPPED);
     return 0;
 }
@@ -30,7 +34,11 @@ static int verify_fault_path(void)
     TEST_ASSERT(result.ok);
     result = test_submit_fault(system_context, "fault-e-stop");
     TEST_ASSERT(result.ok);
+    TEST_ASSERT(system_context_private_runtime(system_context)->wash_session.session_state == SESSION_STATE_ABORTED);
+    TEST_ASSERT(system_context_private_runtime(system_context)->wash_session.final_session_result == RESULT_CODE_SAFE_STOP);
     TEST_ASSERT(system_context_private_runtime(system_context)->wash_execution.execution_result == EXECUTION_RESULT_FAULTED);
+    TEST_ASSERT(strcmp(system_context_private_runtime(system_context)->last_result_code, "aborted") == 0);
+    TEST_ASSERT(strcmp(system_context_private_runtime(system_context)->last_reason_code, "fault-e-stop") == 0);
     TEST_ASSERT(system_context_private_runtime(system_context)->device_state == DEVICE_STATE_EXCEPTION);
     return 0;
 }
@@ -54,6 +62,10 @@ static int verify_timeout_path(void)
     result = test_fire_timeout(system_context, 4000);
     TEST_ASSERT(result.ok);
     TEST_ASSERT(system_context_private_runtime(system_context)->wash_session.session_state == SESSION_STATE_ABORTED);
+    TEST_ASSERT(system_context_private_runtime(system_context)->wash_session.final_session_result == RESULT_CODE_SEGMENT_TIMEOUT);
+    TEST_ASSERT(system_context_private_runtime(system_context)->wash_execution.execution_result == EXECUTION_RESULT_SEGMENT_TIMEOUT);
+    TEST_ASSERT(strcmp(system_context_private_runtime(system_context)->last_result_code, "aborted") == 0);
+    TEST_ASSERT(strcmp(system_context_private_runtime(system_context)->last_reason_code, "segment_timeout") == 0);
     TEST_ASSERT(system_context_private_runtime(system_context)->device_state == DEVICE_STATE_EXCEPTION);
     return 0;
 }
@@ -77,7 +89,7 @@ static int verify_idle_fault_clear_path(void)
     result = test_clear_fault_and_flush(system_context);
     TEST_ASSERT(result.ok);
     TEST_ASSERT(!system_context_private_runtime(system_context)->global_fault_present);
-    TEST_ASSERT(system_context_private_runtime(system_context)->device_state == DEVICE_STATE_EXCEPTION);
+    TEST_ASSERT(system_context_private_runtime(system_context)->device_state == DEVICE_STATE_STOPPED);
     TEST_ASSERT(strcmp(system_context_private_runtime(system_context)->last_result_code, "accepted") == 0);
     TEST_ASSERT(strcmp(system_context_private_runtime(system_context)->last_reason_code, "global_fault_cleared") == 0);
     TEST_ASSERT(strcmp(system_context_private_runtime(system_context)->last_transition_record.result_code, "accepted") == 0);
@@ -96,6 +108,57 @@ static int verify_idle_fault_clear_path(void)
     return 0;
 }
 
+static int verify_direct_trigger_rejections_follow_command_matrix(void)
+{
+    system_context_t system_context;
+    simulated_driver_context_t driver_context;
+    operation_result_t result;
+
+    test_setup_system_context(&system_context, &driver_context);
+
+    result = test_submit_stop(system_context, "direct-stop");
+    TEST_ASSERT(!result.ok);
+    TEST_ASSERT(strcmp(system_context_private_runtime(system_context)->last_result_code, "rejected") == 0);
+    TEST_ASSERT(strcmp(system_context_private_runtime(system_context)->last_reason_code, "stop_requires_running") == 0);
+    TEST_ASSERT(system_context_private_runtime(system_context)->device_state == DEVICE_STATE_STOPPED);
+
+    result = test_submit_fault_clear(system_context);
+    TEST_ASSERT(!result.ok);
+    TEST_ASSERT(strcmp(system_context_private_runtime(system_context)->last_result_code, "rejected") == 0);
+    TEST_ASSERT(strcmp(system_context_private_runtime(system_context)->last_reason_code, "fault_clear_requires_exception") == 0);
+    TEST_ASSERT(system_context_private_runtime(system_context)->device_state == DEVICE_STATE_STOPPED);
+
+    result = test_homing_system_and_flush(system_context);
+    TEST_ASSERT(result.ok);
+    TEST_ASSERT(system_context_private_runtime(system_context)->device_state == DEVICE_STATE_IDLE);
+
+    result = test_submit_stop(system_context, "direct-stop");
+    TEST_ASSERT(!result.ok);
+    TEST_ASSERT(strcmp(system_context_private_runtime(system_context)->last_result_code, "rejected") == 0);
+    TEST_ASSERT(strcmp(system_context_private_runtime(system_context)->last_reason_code, "stop_requires_running") == 0);
+    TEST_ASSERT(system_context_private_runtime(system_context)->device_state == DEVICE_STATE_IDLE);
+
+    result = test_submit_fault_clear(system_context);
+    TEST_ASSERT(!result.ok);
+    TEST_ASSERT(strcmp(system_context_private_runtime(system_context)->last_result_code, "rejected") == 0);
+    TEST_ASSERT(strcmp(system_context_private_runtime(system_context)->last_reason_code, "fault_clear_requires_exception") == 0);
+    TEST_ASSERT(system_context_private_runtime(system_context)->device_state == DEVICE_STATE_IDLE);
+
+    result = test_submit_fault_with_reason(system_context, "E_STOP", "direct-fault");
+    TEST_ASSERT(result.ok);
+    TEST_ASSERT(system_context_private_runtime(system_context)->device_state == DEVICE_STATE_EXCEPTION);
+
+    result = test_submit_fault_clear(system_context);
+    TEST_ASSERT(result.ok);
+    TEST_ASSERT(strcmp(system_context_private_runtime(system_context)->last_result_code, "accepted") == 0);
+    TEST_ASSERT(strcmp(system_context_private_runtime(system_context)->last_reason_code, "global_fault_cleared") == 0);
+    TEST_ASSERT(system_context_private_runtime(system_context)->device_state == DEVICE_STATE_STOPPED);
+    TEST_ASSERT(!system_context_private_runtime(system_context)->global_fault_present);
+
+    test_release_system_context(system_context);
+    return 0;
+}
+
 int main(void)
 {
     if (verify_stop_path() != 0) {
@@ -108,6 +171,9 @@ int main(void)
         return 1;
     }
     if (verify_idle_fault_clear_path() != 0) {
+        return 1;
+    }
+    if (verify_direct_trigger_rejections_follow_command_matrix() != 0) {
         return 1;
     }
     return 0;

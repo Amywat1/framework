@@ -75,6 +75,28 @@ static int verify_in_use_only_tracks_active_single_instance(void)
     return 0;
 }
 
+static int verify_init_state_is_completed_by_runtime_creation_path(void)
+{
+    simulated_driver_context_t driver_context;
+    system_context_t system_context;
+    wash_session_status_view_t wash_session_status_view;
+    operation_result_t result;
+
+    result = system_context_acquire(&system_context);
+    TEST_ASSERT(result.ok);
+    TEST_ASSERT(system_context_private_device_state(system_context) == DEVICE_STATE_INIT);
+    result = system_context_release(system_context);
+    TEST_ASSERT(result.ok);
+
+    test_setup_system_context(&system_context, &driver_context);
+    result = query_wash_session_status_execute(system_context, &wash_session_status_view);
+    TEST_ASSERT(result.ok);
+    TEST_ASSERT(wash_session_status_view.device_state == DEVICE_STATE_STOPPED);
+    TEST_ASSERT(system_context_private_device_state(system_context) == DEVICE_STATE_STOPPED);
+    test_release_system_context(system_context);
+    return 0;
+}
+
 int main(void)
 {
     if (verify_single_instance_acquire_release_cycle() != 0) {
@@ -84,6 +106,9 @@ int main(void)
         return 1;
     }
     if (verify_in_use_only_tracks_active_single_instance() != 0) {
+        return 1;
+    }
+    if (verify_init_state_is_completed_by_runtime_creation_path() != 0) {
         return 1;
     }
     return 0;

@@ -48,6 +48,11 @@ static int test_exit_timeout_aborts_session(void)
     result = test_tick(system_context, 6000);
     TEST_ASSERT(result.ok);
     TEST_ASSERT(system_context_private_runtime(system_context)->wash_session.session_state == SESSION_STATE_ABORTED);
+    TEST_ASSERT(system_context_private_runtime(system_context)->wash_session.final_session_result == RESULT_CODE_EXIT_FAILED);
+    TEST_ASSERT(system_context_private_runtime(system_context)->wash_execution.execution_result == EXECUTION_RESULT_EXIT_TIMEOUT);
+    TEST_ASSERT(system_context_private_runtime(system_context)->device_state == DEVICE_STATE_EXCEPTION);
+    TEST_ASSERT(strcmp(system_context_private_runtime(system_context)->last_result_code, "aborted") == 0);
+    TEST_ASSERT(strcmp(system_context_private_runtime(system_context)->last_reason_code, "exit_timeout") == 0);
     TEST_ASSERT(strcmp(test_latest_reason_code(system_context), "exit_timeout") == 0);
     test_release_system_context(system_context);
     return 0;

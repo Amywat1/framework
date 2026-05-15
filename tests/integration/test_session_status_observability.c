@@ -55,7 +55,7 @@ int main(void)
     result = query_wash_session_status_execute(system_context, &wash_session_status_view);
     TEST_ASSERT(result.ok);
     TEST_ASSERT(!wash_session_status_view.has_active_session);
-    TEST_ASSERT(wash_session_status_view.device_state == DEVICE_STATE_IDLE);
+    TEST_ASSERT(wash_session_status_view.device_state == DEVICE_STATE_STOPPED);
     TEST_ASSERT(strcmp(wash_session_status_view.reason_code, "status-stop") == 0);
 
     result = system_context_reset(system_context);

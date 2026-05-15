@@ -27,6 +27,7 @@
  */
 
 operation_result_t system_context_private_require_active(const system_context_t system_context);
+operation_result_t system_context_private_complete_initialization(system_context_t system_context);
 operation_result_t system_context_private_bind_scheduler(system_context_t system_context);
 void system_context_private_unbind_scheduler(system_context_t system_context);
 bool system_context_private_has_scheduler_binding(const system_context_t system_context);
