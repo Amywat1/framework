@@ -9,7 +9,6 @@
 #include "domain/model/program_snapshot.h"
 #include "domain/model/program_validation.h"
 #include "domain/model/vehicle_type.h"
-#include "src/application/coordinators/system_context_private.h"
 
 typedef struct file_repository_context_t {
     char config_root[260];
@@ -18,6 +17,7 @@ typedef struct file_repository_context_t {
     int runtime_program_available;
 } file_repository_context_t;
 
+/* 单实例假设：与 system_context 单实例约束一致，每个进程只维护一个仓储上下文。 */
 static file_repository_context_t g_repository_context;
 
 static bool directory_exists(const char *path)
@@ -107,7 +107,7 @@ operation_result_t file_program_repository_init(system_context_t system_context,
     program_repository_port_t program_repository_port;
     char programs_root[320];
 
-    if (!system_context_private_require_active(system_context).ok) {
+    if (!system_context_require_active(system_context).ok) {
         return operation_result_fail(ERROR_CODE_INVALID_STATE);
     }
     if (config_root == 0 || config_root[0] == '\0') {

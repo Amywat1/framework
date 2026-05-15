@@ -71,7 +71,7 @@ operation_result_t recovery_state_machine_execute(const actuator_port_t *actuato
     if (mode != RECOVERY_MODE_HOME_ROOF_BRUSH) {
         return fail_with_reason(ERROR_CODE_INVALID_ARGUMENT,
             failure_reason_code,
-            "stop_all_failed");
+            "unsupported_recovery_mode");
     }
     if (actuator_port->home_roof_brush == 0) {
         return fail_with_reason(ERROR_CODE_INVALID_ARGUMENT,

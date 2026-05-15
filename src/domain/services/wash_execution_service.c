@@ -269,6 +269,28 @@ static operation_result_t begin_exit(wash_execution_service_args_t *wash_executi
     return operation_result_ok();
 }
 
+static operation_result_t handle_sensor_fault(wash_execution_service_args_t *wash_execution_service_args,
+    const wash_segment_t *wash_segment,
+    exception_strategy_t policy,
+    execution_result_t execution_result,
+    const char *reason_code,
+    wash_execution_fact_t *wash_execution_fact)
+{
+    fault_policy_decision_t decision;
+
+    fault_policy_service_resolve(policy, false, &decision);
+    if (decision.enter_exit) {
+        return begin_exit(wash_execution_service_args, wash_segment, wash_execution_fact);
+    }
+    return abort_with_recovery(wash_execution_service_args,
+        execution_result,
+        EXECUTION_END_REASON_FAULT,
+        "running",
+        "aborted",
+        reason_code,
+        wash_execution_fact);
+}
+
 static bool feedback_or_fallback_done(bool feedback_available,
     bool feedback_done,
     unsigned long elapsed_ms,
@@ -382,7 +404,6 @@ operation_result_t wash_execution_service_tick(wash_execution_service_args_t *wa
     runtime_snapshot_t runtime_snapshot;
     segment_control_evaluation_t segment_control_evaluation;
     operation_result_t result;
-    fault_policy_decision_t fault_policy_decision;
     int index;
 
     if (invalid_args(wash_execution_service_args, wash_execution_fact)) {
@@ -431,64 +452,20 @@ operation_result_t wash_execution_service_tick(wash_execution_service_args_t *wa
             return result;
         }
         if (segment_control_evaluation.position_lost) {
-            fault_policy_service_resolve(wash_segment->exception_policy.on_position_lost,
-                false,
-                &fault_policy_decision);
-            if (fault_policy_decision.enter_exit) {
-                return begin_exit(wash_execution_service_args, wash_segment, wash_execution_fact);
-            }
-            result = execute_recovery(wash_execution_service_args->actuator_port);
-            if (!result.ok) {
-                return result;
-            }
-            wait_condition_mark_done(wash_execution_service_args->wait_condition);
-            wash_execution_abort(wash_execution_service_args->wash_execution,
+            return handle_sensor_fault(wash_execution_service_args,
+                wash_segment,
+                wash_segment->exception_policy.on_position_lost,
                 EXECUTION_RESULT_POSITION_LOST,
-                EXECUTION_END_REASON_FAULT,
-                wash_execution_service_args->current_time_ms);
-            write_field(wash_execution_service_args->wash_execution->result_code,
-                sizeof(wash_execution_service_args->wash_execution->result_code),
-                "aborted");
-            write_field(wash_execution_service_args->wash_execution->reason_code,
-                sizeof(wash_execution_service_args->wash_execution->reason_code),
-                "position_lost");
-            init_fact(wash_execution_fact,
-                wash_execution_service_args->wash_execution,
-                "running",
-                "aborted",
-                "aborted",
-                "position_lost");
-            return operation_result_ok();
+                "position_lost",
+                wash_execution_fact);
         }
         if (segment_control_evaluation.follow_lost) {
-            fault_policy_service_resolve(wash_segment->exception_policy.on_follow_lost,
-                false,
-                &fault_policy_decision);
-            if (fault_policy_decision.enter_exit) {
-                return begin_exit(wash_execution_service_args, wash_segment, wash_execution_fact);
-            }
-            result = execute_recovery(wash_execution_service_args->actuator_port);
-            if (!result.ok) {
-                return result;
-            }
-            wait_condition_mark_done(wash_execution_service_args->wait_condition);
-            wash_execution_abort(wash_execution_service_args->wash_execution,
+            return handle_sensor_fault(wash_execution_service_args,
+                wash_segment,
+                wash_segment->exception_policy.on_follow_lost,
                 EXECUTION_RESULT_FOLLOW_LOST,
-                EXECUTION_END_REASON_FAULT,
-                wash_execution_service_args->current_time_ms);
-            write_field(wash_execution_service_args->wash_execution->result_code,
-                sizeof(wash_execution_service_args->wash_execution->result_code),
-                "aborted");
-            write_field(wash_execution_service_args->wash_execution->reason_code,
-                sizeof(wash_execution_service_args->wash_execution->reason_code),
-                "follow_lost");
-            init_fact(wash_execution_fact,
-                wash_execution_service_args->wash_execution,
-                "running",
-                "aborted",
-                "aborted",
-                "follow_lost");
-            return operation_result_ok();
+                "follow_lost",
+                wash_execution_fact);
         }
 
         if (segment_control_evaluation.segment_complete) {

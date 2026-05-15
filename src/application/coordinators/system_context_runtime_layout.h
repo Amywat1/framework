@@ -6,6 +6,7 @@
 /**
  * @file system_context_runtime_layout.h
  * @brief 暴露组合根运行时布局的白盒内部头，仅供单实例组合根实现与测试观察使用。
+ * @note 本文件使用 C11 _Generic 泛型选择宏，要求 GCC 4.9+ 或等效 C11 兼容工具链。
  */
 typedef struct system_context_runtime_t {
     wash_program_t wash_program;

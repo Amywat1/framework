@@ -15,10 +15,10 @@
 #include <unistd.h>
 
 #include "adapters/inbound/cli_command_adapter.h"
+#include "application/coordinators/system_context.h"
 #include "domain/model/domain_enums.h"
 #include "platform/linux/main_loop.h"
 #include "shared/error_codes.h"
-#include "src/application/coordinators/system_context_private.h"
 #include "src/platform/linux/controller_scheduler_linux_internal.h"
 
 #define CONTROLLER_SCHEDULER_MAX_EPOLL_EVENTS 4
@@ -34,7 +34,9 @@ static unsigned long monotonic_now_ms(void)
 {
     struct timespec current_time;
 
-    clock_gettime(CLOCK_MONOTONIC, &current_time);
+    if (clock_gettime(CLOCK_MONOTONIC, &current_time) != 0) {
+        return 0ul;
+    }
     return (unsigned long)(current_time.tv_sec * 1000ul)
         + (unsigned long)(current_time.tv_nsec / 1000000ul);
 }
@@ -134,7 +136,7 @@ static void controller_scheduler_log_message(controller_scheduler_t *controller_
     if (!controller_scheduler->config.observability_enabled) {
         return;
     }
-    event_logger_port = system_context_private_event_logger_port(controller_scheduler->system_context);
+    event_logger_port = system_context_event_logger_port(controller_scheduler->system_context);
     if (event_logger_port != 0 && event_logger_port->log_message != 0) {
         event_logger_port->log_message(
             event_logger_port->context,
@@ -768,7 +770,7 @@ controller_scheduler_t *controller_scheduler_linux_create(system_context_t syste
     struct itimerspec timer_spec;
     operation_result_t result;
 
-    if (!system_context_private_require_active(system_context).ok) {
+    if (!system_context_require_active(system_context).ok) {
         return 0;
     }
     result = controller_scheduler_validate_config(controller_scheduler_config);
@@ -782,6 +784,12 @@ controller_scheduler_t *controller_scheduler_linux_create(system_context_t syste
     }
 
     controller_scheduler->system_context = system_context;
+    result = system_context_bind_scheduler(system_context);
+    if (!result.ok) {
+        free(controller_scheduler);
+        return 0;
+    }
+
     controller_scheduler->config = *controller_scheduler_config;
     controller_scheduler->runtime_state = CONTROLLER_SCHEDULER_RUNTIME_STATE_INITIALIZED;
     controller_scheduler->epoll_fd = -1;
@@ -795,12 +803,6 @@ controller_scheduler_t *controller_scheduler_linux_create(system_context_t syste
     if (controller_scheduler_linux_stdio != 0) {
         controller_scheduler->stdio_binding = *controller_scheduler_linux_stdio;
     }
-    result = system_context_private_bind_scheduler(system_context);
-    if (!result.ok) {
-        free(controller_scheduler);
-        return 0;
-    }
-
     controller_scheduler->epoll_fd = epoll_create1(EPOLL_CLOEXEC);
     controller_scheduler->timer_fd = timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK | TFD_CLOEXEC);
     controller_scheduler->wakeup_fd = eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC);
@@ -855,7 +857,7 @@ void controller_scheduler_linux_destroy(controller_scheduler_t *controller_sched
     }
 
     controller_scheduler_unregister_binding(controller_scheduler);
-    system_context_private_unbind_scheduler(controller_scheduler->system_context);
+    system_context_unbind_scheduler(controller_scheduler->system_context);
     if (controller_scheduler->command_fd >= 0 && controller_scheduler->command_fd_flags_valid) {
         fcntl(controller_scheduler->command_fd, F_SETFL, controller_scheduler->command_fd_flags);
     }
@@ -927,7 +929,7 @@ operation_result_t controller_scheduler_read_context_view(const system_context_t
     if (controller_runtime_state_view == 0) {
         return operation_result_fail(ERROR_CODE_INVALID_ARGUMENT);
     }
-    result = system_context_private_require_active(system_context);
+    result = system_context_require_active(system_context);
     if (!result.ok) {
         memset(controller_runtime_state_view, 0, sizeof(*controller_runtime_state_view));
         return result;

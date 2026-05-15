@@ -4,6 +4,8 @@
 #include <stdbool.h>
 
 #include "domain/model/domain_enums.h"
+#include "domain/model/wait_condition.h"
+#include "domain/model/wash_trigger_event.h"
 #include "domain/ports/actuator_port.h"
 #include "domain/ports/event_logger_port.h"
 #include "domain/ports/program_repository_port.h"
@@ -162,5 +164,90 @@ const char *system_context_last_result_code(const system_context_t system_contex
  * @return 最近原因码；无值时返回空字符串。
  */
 const char *system_context_last_reason_code(const system_context_t system_context);
+
+/**
+ * @brief 判断调度器是否已绑定到此系统上下文。
+ *
+ * @param system_context 主控上下文；允许为 `0`。
+ * @return 已绑定时返回 `true`；未绑定或上下文无效时返回 `false`。
+ */
+bool system_context_has_scheduler_binding(const system_context_t system_context);
+
+/**
+ * @brief 绑定调度器到系统上下文，防止重复创建或提前释放。
+ *
+ * @note 由平台层调度器在 create 内部调用；已绑定时返回失败，可用作防重复保护。
+ * @param system_context 主控上下文，必须处于激活状态。
+ * @return 绑定成功返回 `operation_result_ok()`；已绑定或句柄非法时返回失败。
+ */
+operation_result_t system_context_bind_scheduler(system_context_t system_context);
+
+/**
+ * @brief 解除调度器与系统上下文的绑定关系。
+ *
+ * @note 由平台层调度器在 destroy 内部调用。
+ * @param system_context 主控上下文；允许为 `0`（此时为空操作）。
+ */
+void system_context_unbind_scheduler(system_context_t system_context);
+
+/**
+ * @brief 校验主控句柄当前是否处于激活状态。
+ *
+ * @param system_context 主控上下文句柄。
+ * @return 句柄合法且实例激活时返回 `operation_result_ok()`；否则返回失败结果。
+ */
+operation_result_t system_context_require_active(system_context_t system_context);
+
+/**
+ * @brief 读取指定索引处的待处理触发事件（只读）。
+ *
+ * @param system_context 主控上下文；允许为 `0`。
+ * @param index 目标索引，必须小于 `system_context_pending_trigger_count()`。
+ * @return 指向触发事件的只读指针；索引越界或上下文为空时返回 `0`。
+ */
+const wash_trigger_event_t *system_context_pending_trigger_at(const system_context_t system_context,
+    unsigned int index);
+
+/**
+ * @brief 向待处理队列追加一个触发事件。
+ *
+ * @param system_context 主控上下文，不能为空。
+ * @param wash_trigger_event 待追加的触发事件，不能为空。
+ * @return 追加成功返回 `operation_result_ok()`；队列已满或参数非法时返回失败。
+ */
+operation_result_t system_context_append_trigger(system_context_t system_context,
+    const wash_trigger_event_t *wash_trigger_event);
+
+/**
+ * @brief 从待处理队列中移除指定索引处的触发事件。
+ *
+ * @param system_context 主控上下文，不能为空。
+ * @param index 目标索引，必须小于 `system_context_pending_trigger_count()`。
+ */
+void system_context_remove_pending_trigger_at(system_context_t system_context, unsigned int index);
+
+/**
+ * @brief 读取当前等待条件（只读）。
+ *
+ * @param system_context 主控上下文；允许为 `0`。
+ * @return 指向等待条件的只读指针；无有效等待条件时返回 `0`。
+ */
+const wait_condition_t *system_context_wait_condition(const system_context_t system_context);
+
+/**
+ * @brief 推进主控内部时钟。
+ *
+ * @param system_context 主控上下文，不能为空。
+ * @param elapsed_ms 本次推进的毫秒数。
+ */
+void system_context_advance_time(system_context_t system_context, unsigned long elapsed_ms);
+
+/**
+ * @brief 读取当前已装配的事件日志端口。
+ *
+ * @param system_context 主控上下文；允许为 `0`。
+ * @return 事件日志端口只读指针；无上下文时返回 `0`。
+ */
+const event_logger_port_t *system_context_event_logger_port(const system_context_t system_context);
 
 #endif

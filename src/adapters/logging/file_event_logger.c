@@ -5,7 +5,6 @@
 
 #include "application/coordinators/system_context.h"
 #include "domain/model/state_transition_record.h"
-#include "src/application/coordinators/system_context_private.h"
 
 typedef struct file_logger_context_t {
     char log_path[260];
@@ -74,7 +73,7 @@ operation_result_t file_event_logger_init(system_context_t system_context, const
     event_logger_port_t event_logger_port;
     FILE *probe_file;
 
-    if (!system_context_private_require_active(system_context).ok) {
+    if (!system_context_require_active(system_context).ok) {
         return operation_result_fail(ERROR_CODE_INVALID_STATE);
     }
     if (log_path == 0 || log_path[0] == '\0') {

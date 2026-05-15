@@ -48,6 +48,26 @@ void simulated_driver_context_init(simulated_driver_context_t *driver_context)
     sync_feedback_capabilities(driver_context);
 }
 
+static int simulated_read_snapshot(void *context, sensor_snapshot_t *sensor_snapshot)
+{
+    const simulated_driver_context_t *driver_context = (const simulated_driver_context_t *)context;
+
+    if (driver_context == 0 || sensor_snapshot == 0) {
+        return -1;
+    }
+    if (driver_context->precheck_read_should_fail) {
+        return -1;
+    }
+    sensor_snapshot->safety_ok = !driver_context->precheck_safety_should_fail;
+    sensor_snapshot->estop_active = driver_context->precheck_estop_active;
+    sensor_snapshot->vehicle_present = !driver_context->precheck_vehicle_absent;
+    sensor_snapshot->vehicle_allowed = !driver_context->precheck_vehicle_not_allowed;
+    sensor_snapshot->resource_ok = !driver_context->precheck_resource_fail;
+    sensor_snapshot->position_ok = !driver_context->precheck_position_fail
+        && driver_context->runtime_snapshot.position_snapshot.position_valid;
+    return 0;
+}
+
 static int simulated_read_runtime_snapshot(void *context, runtime_snapshot_t *runtime_snapshot)
 {
     simulated_driver_context_t *driver_context = (simulated_driver_context_t *)context;
@@ -67,5 +87,6 @@ int simulated_sensor_driver_bind(sensor_port_t *sensor_port, simulated_driver_co
 {
     sensor_port->context = driver_context;
     sensor_port->read_runtime_snapshot = simulated_read_runtime_snapshot;
+    sensor_port->read_snapshot = simulated_read_snapshot;
     return 0;
 }

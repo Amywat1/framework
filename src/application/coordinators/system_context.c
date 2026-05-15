@@ -27,34 +27,16 @@ static system_context_t s_active_system_context = 0;
 _Static_assert(SYSTEM_CONTEXT_HANDLE_GENERATION_WINDOW > 1u,
     "system_context handle generation window must provide at least one active generation");
 
-static void reset_runtime_state(system_context_runtime_t *runtime)
+static void initialize_runtime_object(system_context_runtime_t *runtime)
 {
+    memset(runtime, 0, sizeof(*runtime));
+    /* memset 将标量字段归零，但域模型对象有自己的非零初始语义，必须显式初始化。 */
     wash_program_init(&runtime->wash_program, "", "");
     vehicle_type_init(&runtime->vehicle_type, "", "");
     wash_session_reset(&runtime->wash_session);
     wash_execution_reset(&runtime->wash_execution);
     wait_condition_reset(&runtime->wait_condition);
     program_snapshot_reset(&runtime->program_snapshot);
-    memset(&runtime->runtime_snapshot, 0, sizeof(runtime->runtime_snapshot));
-    memset(&runtime->last_transition_record, 0, sizeof(runtime->last_transition_record));
-    memset(&runtime->pending_triggers, 0, sizeof(runtime->pending_triggers));
-    runtime->pending_trigger_count = 0u;
-    runtime->current_time_ms = 0ul;
-    runtime->next_session_sequence = 0ul;
-    runtime->next_execution_sequence = 0ul;
-    runtime->next_wait_condition_sequence = 0ul;
-    runtime->device_state = DEVICE_STATE_INIT;
-    runtime->global_fault_present = false;
-    memset(runtime->global_fault_code, 0, sizeof(runtime->global_fault_code));
-    memset(runtime->global_fault_reason, 0, sizeof(runtime->global_fault_reason));
-    memset(runtime->last_result_code, 0, sizeof(runtime->last_result_code));
-    memset(runtime->last_reason_code, 0, sizeof(runtime->last_reason_code));
-}
-
-static void initialize_runtime_object(system_context_runtime_t *runtime)
-{
-    memset(runtime, 0, sizeof(*runtime));
-    reset_runtime_state(runtime);
 }
 
 static void initialize_handle_storage_if_needed(void)
@@ -808,4 +790,56 @@ const char *system_context_last_reason_code(const system_context_t system_contex
         return "";
     }
     return s_system_context_instance.runtime.last_reason_code;
+}
+
+bool system_context_has_scheduler_binding(const system_context_t system_context)
+{
+    return system_context_private_has_scheduler_binding(system_context);
+}
+
+operation_result_t system_context_bind_scheduler(system_context_t system_context)
+{
+    return system_context_private_bind_scheduler(system_context);
+}
+
+void system_context_unbind_scheduler(system_context_t system_context)
+{
+    system_context_private_unbind_scheduler(system_context);
+}
+
+operation_result_t system_context_require_active(system_context_t system_context)
+{
+    return system_context_private_require_active(system_context);
+}
+
+const wash_trigger_event_t *system_context_pending_trigger_at(const system_context_t system_context,
+    unsigned int index)
+{
+    return system_context_private_pending_trigger_at(system_context, index);
+}
+
+operation_result_t system_context_append_trigger(system_context_t system_context,
+    const wash_trigger_event_t *wash_trigger_event)
+{
+    return system_context_private_append_trigger(system_context, wash_trigger_event);
+}
+
+void system_context_remove_pending_trigger_at(system_context_t system_context, unsigned int index)
+{
+    system_context_private_remove_pending_trigger_at(system_context, index);
+}
+
+const wait_condition_t *system_context_wait_condition(const system_context_t system_context)
+{
+    return system_context_private_wait_condition(system_context);
+}
+
+void system_context_advance_time(system_context_t system_context, unsigned long elapsed_ms)
+{
+    system_context_private_advance_time(system_context, elapsed_ms);
+}
+
+const event_logger_port_t *system_context_event_logger_port(const system_context_t system_context)
+{
+    return system_context_private_event_logger_port(system_context);
 }
