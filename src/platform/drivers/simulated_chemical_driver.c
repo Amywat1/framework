@@ -4,7 +4,8 @@ static int simulated_set_chemical_enabled(void *context, bool enabled, int timeo
 {
     simulated_driver_context_t *driver_context = (simulated_driver_context_t *)context;
     (void)timeout_ms;
-    if (driver_context->chemical_set_command_should_fail) {
+    if (driver_context->chemical_set_command_should_fail)
+    {
         return -1;
     }
     driver_context->chemical_enabled = enabled;
@@ -17,7 +18,8 @@ static int simulated_stop_chemical(void *context, int timeout_ms)
 {
     simulated_driver_context_t *driver_context = (simulated_driver_context_t *)context;
     (void)timeout_ms;
-    if (driver_context->chemical_stop_command_should_fail) {
+    if (driver_context->chemical_stop_command_should_fail)
+    {
         return -1;
     }
     driver_context->chemical_stop_command_count += 1;

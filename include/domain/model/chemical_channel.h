@@ -1,10 +1,11 @@
 #ifndef DOMAIN_MODEL_CHEMICAL_CHANNEL_H
 #define DOMAIN_MODEL_CHEMICAL_CHANNEL_H
 
-#include <stdbool.h>
 #include "domain/model/domain_enums.h"
+#include <stdbool.h>
 
-typedef struct chemical_channel_t {
+typedef struct chemical_channel_t
+{
     char channel_id[32];
     char channel_name[32];
     bool enabled;
@@ -17,4 +18,3 @@ typedef struct chemical_channel_t {
 void chemical_channel_init(chemical_channel_t *chemical_channel, const char *channel_id, const char *channel_name);
 
 #endif
-

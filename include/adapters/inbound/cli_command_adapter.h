@@ -25,9 +25,7 @@
  * @note 写命令会走“解析 -> 入队 -> 消费 -> 统一响应”路径。
  * @note `status` 会走“解析 -> 只读查询 -> 统一响应”路径，但仍受统一正式受理逻辑约束。
  */
-operation_result_t cli_command_adapter_execute_formal_line(system_context_t system_context,
-    const char *command_line,
-    char *response_line,
-    size_t response_line_size);
+operation_result_t cli_command_adapter_execute_formal_line(system_context_t system_context, const char *command_line,
+                                                           char *response_line, size_t response_line_size);
 
 #endif

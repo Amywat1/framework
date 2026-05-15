@@ -15,12 +15,14 @@ struct vehicle_type_t;
  *
  * @note 字符串文件路径、目录结构和外部存储细节只能留在适配层实现中。
  */
-typedef struct program_repository_port_t {
+typedef struct program_repository_port_t
+{
     void *context;
     int (*load_program)(void *context, const char *program_id, struct wash_program_t *wash_program);
     int (*save_program)(void *context, const struct wash_program_t *wash_program);
     int (*load_vehicle_type)(void *context, const char *vehicle_type_id, struct vehicle_type_t *vehicle_type);
-    int (*validate_program_snapshot)(void *context, const char *program_id, struct program_snapshot_t *program_snapshot, struct wash_program_t *wash_program);
+    int (*validate_program_snapshot)(void *context, const char *program_id, struct program_snapshot_t *program_snapshot,
+                                     struct wash_program_t *wash_program);
 } program_repository_port_t;
 
 #endif

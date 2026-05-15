@@ -9,7 +9,8 @@
  * @file actuator_port.h
  * @brief 定义平台层执行机构端口。
  */
-typedef struct actuator_port_t {
+typedef struct actuator_port_t
+{
     void *context;
     int (*start_motion)(void *context, const segment_motion_plan_t *segment_motion_plan, int timeout_ms);
     int (*set_roof_brush_follow)(void *context, bool enabled, int timeout_ms);

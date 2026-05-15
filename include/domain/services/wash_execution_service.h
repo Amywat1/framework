@@ -15,7 +15,8 @@
  * @file wash_execution_service.h
  * @brief 定义工步段执行服务。
  */
-typedef struct wash_execution_fact_t {
+typedef struct wash_execution_fact_t
+{
     bool changed;
     char execution_id[32];
     char previous_state[16];
@@ -25,7 +26,8 @@ typedef struct wash_execution_fact_t {
     char segment_id[32];
 } wash_execution_fact_t;
 
-typedef struct wash_execution_service_args_t {
+typedef struct wash_execution_service_args_t
+{
     wash_execution_t *wash_execution;
     wash_session_t *wash_session;
     wait_condition_t *wait_condition;
@@ -44,16 +46,16 @@ typedef struct wash_execution_service_args_t {
  */
 
 operation_result_t wash_execution_service_begin_next_segment(wash_execution_service_args_t *wash_execution_service_args,
-    wash_execution_fact_t *wash_execution_fact);
+                                                             wash_execution_fact_t *wash_execution_fact);
 operation_result_t wash_execution_service_tick(wash_execution_service_args_t *wash_execution_service_args,
-    wash_execution_fact_t *wash_execution_fact);
+                                               wash_execution_fact_t *wash_execution_fact);
 operation_result_t wash_execution_service_handle_stop(wash_execution_service_args_t *wash_execution_service_args,
-    const char *reason_code,
-    wash_execution_fact_t *wash_execution_fact);
+                                                      const char *reason_code,
+                                                      wash_execution_fact_t *wash_execution_fact);
 operation_result_t wash_execution_service_handle_fault(wash_execution_service_args_t *wash_execution_service_args,
-    const char *reason_code,
-    wash_execution_fact_t *wash_execution_fact);
+                                                       const char *reason_code,
+                                                       wash_execution_fact_t *wash_execution_fact);
 operation_result_t wash_execution_service_handle_timeout(wash_execution_service_args_t *wash_execution_service_args,
-    wash_execution_fact_t *wash_execution_fact);
+                                                         wash_execution_fact_t *wash_execution_fact);
 
 #endif

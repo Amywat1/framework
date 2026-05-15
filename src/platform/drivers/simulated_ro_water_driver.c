@@ -14,7 +14,8 @@ static int simulated_close_ro_water(void *context, int timeout_ms)
 {
     simulated_driver_context_t *driver_context = (simulated_driver_context_t *)context;
     (void)timeout_ms;
-    if (driver_context->ro_water_close_command_should_fail) {
+    if (driver_context->ro_water_close_command_should_fail)
+    {
         return -1;
     }
     driver_context->ro_water_close_command_count += 1;

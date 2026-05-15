@@ -7,20 +7,23 @@
 
 #include "platform/linux/controller_scheduler_linux.h"
 
-typedef struct scheduler_event_source_descriptor_t {
+typedef struct scheduler_event_source_descriptor_t
+{
     controller_scheduler_event_source_kind_t source_kind;
     controller_scheduler_event_source_state_t source_state;
     unsigned long trigger_count;
     unsigned long last_seen_time_ms;
 } scheduler_event_source_descriptor_t;
 
-typedef struct scheduler_notification_snapshot_t {
+typedef struct scheduler_notification_snapshot_t
+{
     unsigned long snapshot_version;
     unsigned long captured_time_ms;
     bool dirty;
 } scheduler_notification_snapshot_t;
 
-struct controller_scheduler_t {
+struct controller_scheduler_t
+{
     system_context_t system_context;
     controller_scheduler_config_t config;
     controller_scheduler_runtime_state_t runtime_state;

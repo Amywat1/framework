@@ -14,7 +14,8 @@
 /**
  * @brief 描述程序快照服务所需的最小输入集合。
  */
-typedef struct program_snapshot_service_args_t {
+typedef struct program_snapshot_service_args_t
+{
     program_snapshot_t *program_snapshot;
     wash_program_t *wash_program;
     program_repository_port_t *program_repository_port;
@@ -31,6 +32,6 @@ typedef struct program_snapshot_service_args_t {
  * @note 本切片不得扩展为依赖整个 `system_context_t`。
  */
 operation_result_t program_snapshot_service_capture(program_snapshot_service_args_t *program_snapshot_service_args,
-    const char *program_id);
+                                                    const char *program_id);
 
 #endif

@@ -7,7 +7,8 @@
  * @file state_transition_record.h
  * @brief 定义状态迁移与拒绝/忽略记录。
  */
-typedef struct state_transition_record_t {
+typedef struct state_transition_record_t
+{
     char record_id[32];
     transition_entity_type_t entity_type;
     char entity_id[32];
@@ -20,13 +21,8 @@ typedef struct state_transition_record_t {
 } state_transition_record_t;
 
 void state_transition_record_init(state_transition_record_t *state_transition_record,
-    transition_entity_type_t entity_type,
-    const char *entity_id,
-    trigger_type_t trigger_type,
-    const char *previous_state,
-    const char *current_state,
-    const char *result_code,
-    const char *reason_code,
-    unsigned long recorded_at_ms);
+                                  transition_entity_type_t entity_type, const char *entity_id,
+                                  trigger_type_t trigger_type, const char *previous_state, const char *current_state,
+                                  const char *result_code, const char *reason_code, unsigned long recorded_at_ms);
 
 #endif

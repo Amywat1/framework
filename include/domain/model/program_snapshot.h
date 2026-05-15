@@ -8,7 +8,8 @@
  * @file program_snapshot.h
  * @brief 定义会话绑定的程序快照。
  */
-typedef struct program_snapshot_t {
+typedef struct program_snapshot_t
+{
     char program_snapshot_id[32];
     char source_program_id[32];
     int source_revision;
@@ -27,11 +28,8 @@ typedef struct program_snapshot_t {
  * @note 快照对象只负责冻结程序配置，不负责写入最近结果或故障状态。
  */
 void program_snapshot_reset(program_snapshot_t *program_snapshot);
-void program_snapshot_capture(program_snapshot_t *program_snapshot,
-    const char *program_id,
-    int source_revision,
-    unsigned long captured_at_ms,
-    const wash_program_t *wash_program,
-    program_snapshot_validation_t validation_result);
+void program_snapshot_capture(program_snapshot_t *program_snapshot, const char *program_id, int source_revision,
+                              unsigned long captured_at_ms, const wash_program_t *wash_program,
+                              program_snapshot_validation_t validation_result);
 
 #endif

@@ -6,7 +6,8 @@
 #include "application/coordinators/system_context.h"
 #include "domain/model/state_transition_record.h"
 
-typedef struct file_logger_context_t {
+typedef struct file_logger_context_t
+{
     char log_path[260];
 } file_logger_context_t;
 
@@ -18,7 +19,8 @@ static int log_message_impl(void *context, trigger_type_t trigger_type, const ch
     file_logger_context_t *logger_context = (file_logger_context_t *)context;
 
     file_handle = fopen(logger_context->log_path, "a");
-    if (file_handle == 0) {
+    if (file_handle == 0)
+    {
         return -1;
     }
     fprintf(file_handle, "%d,%s\n", (int)trigger_type, message != 0 ? message : "");
@@ -26,29 +28,26 @@ static int log_message_impl(void *context, trigger_type_t trigger_type, const ch
     return 0;
 }
 
-static int write_transition_record(void *context, const char *prefix, const state_transition_record_t *state_transition_record)
+static int write_transition_record(void *context, const char *prefix,
+                                   const state_transition_record_t *state_transition_record)
 {
     FILE *file_handle;
     file_logger_context_t *logger_context = (file_logger_context_t *)context;
 
-    if (state_transition_record == 0) {
+    if (state_transition_record == 0)
+    {
         return -1;
     }
     file_handle = fopen(logger_context->log_path, "a");
-    if (file_handle == 0) {
+    if (file_handle == 0)
+    {
         return -1;
     }
-    fprintf(file_handle,
-        "%s,%d,%s,%d,%s,%s,%s,%s,%lu\n",
-        prefix,
-        (int)state_transition_record->entity_type,
-        state_transition_record->entity_id,
-        (int)state_transition_record->trigger_type,
-        state_transition_record->previous_state,
-        state_transition_record->current_state,
-        state_transition_record->result_code,
-        state_transition_record->reason_code,
-        state_transition_record->recorded_at_ms);
+    fprintf(file_handle, "%s,%d,%s,%d,%s,%s,%s,%s,%lu\n", prefix, (int)state_transition_record->entity_type,
+            state_transition_record->entity_id, (int)state_transition_record->trigger_type,
+            state_transition_record->previous_state, state_transition_record->current_state,
+            state_transition_record->result_code, state_transition_record->reason_code,
+            state_transition_record->recorded_at_ms);
     fclose(file_handle);
     return 0;
 }
@@ -73,15 +72,18 @@ operation_result_t file_event_logger_init(system_context_t system_context, const
     event_logger_port_t event_logger_port;
     FILE *probe_file;
 
-    if (!system_context_require_active(system_context).ok) {
+    if (!system_context_require_active(system_context).ok)
+    {
         return operation_result_fail(ERROR_CODE_INVALID_STATE);
     }
-    if (log_path == 0 || log_path[0] == '\0') {
+    if (log_path == 0 || log_path[0] == '\0')
+    {
         return operation_result_fail(ERROR_CODE_INVALID_ARGUMENT);
     }
 
     probe_file = fopen(log_path, "a");
-    if (probe_file == 0) {
+    if (probe_file == 0)
+    {
         return operation_result_fail(ERROR_CODE_IO_FAILED);
     }
     fclose(probe_file);

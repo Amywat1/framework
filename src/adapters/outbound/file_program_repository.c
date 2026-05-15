@@ -1,16 +1,17 @@
 #include "adapters/outbound/file_program_repository.h"
 
 #include <stdio.h>
-#include <sys/stat.h>
 #include <string.h>
+#include <sys/stat.h>
 
-#include "application/coordinators/system_context.h"
 #include "adapters/config/json_program_parser.h"
+#include "application/coordinators/system_context.h"
 #include "domain/model/program_snapshot.h"
 #include "domain/model/program_validation.h"
 #include "domain/model/vehicle_type.h"
 
-typedef struct file_repository_context_t {
+typedef struct file_repository_context_t
+{
     char config_root[260];
     wash_program_t runtime_program;
     int runtime_revision;
@@ -24,10 +25,12 @@ static bool directory_exists(const char *path)
 {
     struct stat path_stat;
 
-    if (path == 0 || path[0] == '\0') {
+    if (path == 0 || path[0] == '\0')
+    {
         return false;
     }
-    if (stat(path, &path_stat) != 0) {
+    if (stat(path, &path_stat) != 0)
+    {
         return false;
     }
     return S_ISDIR(path_stat.st_mode);
@@ -39,11 +42,13 @@ static int load_program_impl(void *context, const char *program_id, wash_program
     char config_path[320];
     operation_result_t result;
 
-    if (context == 0 || program_id == 0 || wash_program == 0) {
+    if (context == 0 || program_id == 0 || wash_program == 0)
+    {
         return -1;
     }
-    if (repository_context->runtime_program_available != 0
-        && strcmp(program_id, repository_context->runtime_program.program_id) == 0) {
+    if (repository_context->runtime_program_available != 0 &&
+        strcmp(program_id, repository_context->runtime_program.program_id) == 0)
+    {
         *wash_program = repository_context->runtime_program;
         return 0;
     }
@@ -67,38 +72,29 @@ static int load_vehicle_type_impl(void *context, const char *vehicle_type_id, ve
     return 0;
 }
 
-static int validate_program_snapshot_impl(void *context, const char *program_id, program_snapshot_t *program_snapshot, wash_program_t *wash_program)
+static int validate_program_snapshot_impl(void *context, const char *program_id, program_snapshot_t *program_snapshot,
+                                          wash_program_t *wash_program)
 {
     operation_result_t result;
 
-    if (context == 0 || program_id == 0 || program_snapshot == 0 || wash_program == 0) {
+    if (context == 0 || program_id == 0 || program_snapshot == 0 || wash_program == 0)
+    {
         return -1;
     }
-    if (load_program_impl(context, program_id, wash_program) != 0) {
-        program_snapshot_capture(program_snapshot,
-            program_id,
-            0,
-            0,
-            0,
-            PROGRAM_SNAPSHOT_VALIDATION_UNAVAILABLE);
+    if (load_program_impl(context, program_id, wash_program) != 0)
+    {
+        program_snapshot_capture(program_snapshot, program_id, 0, 0, 0, PROGRAM_SNAPSHOT_VALIDATION_UNAVAILABLE);
         return 0;
     }
     result = program_validation_validate(wash_program);
-    if (!result.ok) {
-        program_snapshot_capture(program_snapshot,
-            program_id,
-            wash_program->revision,
-            0,
-            wash_program,
-            PROGRAM_SNAPSHOT_VALIDATION_INVALID);
+    if (!result.ok)
+    {
+        program_snapshot_capture(program_snapshot, program_id, wash_program->revision, 0, wash_program,
+                                 PROGRAM_SNAPSHOT_VALIDATION_INVALID);
         return 0;
     }
-    program_snapshot_capture(program_snapshot,
-        program_id,
-        wash_program->revision,
-        0,
-        wash_program,
-        PROGRAM_SNAPSHOT_VALIDATION_VALID);
+    program_snapshot_capture(program_snapshot, program_id, wash_program->revision, 0, wash_program,
+                             PROGRAM_SNAPSHOT_VALIDATION_VALID);
     return 0;
 }
 
@@ -107,17 +103,21 @@ operation_result_t file_program_repository_init(system_context_t system_context,
     program_repository_port_t program_repository_port;
     char programs_root[320];
 
-    if (!system_context_require_active(system_context).ok) {
+    if (!system_context_require_active(system_context).ok)
+    {
         return operation_result_fail(ERROR_CODE_INVALID_STATE);
     }
-    if (config_root == 0 || config_root[0] == '\0') {
+    if (config_root == 0 || config_root[0] == '\0')
+    {
         return operation_result_fail(ERROR_CODE_INVALID_ARGUMENT);
     }
-    if (!directory_exists(config_root)) {
+    if (!directory_exists(config_root))
+    {
         return operation_result_fail(ERROR_CODE_IO_FAILED);
     }
     snprintf(programs_root, sizeof(programs_root), "%s/programs", config_root);
-    if (!directory_exists(programs_root)) {
+    if (!directory_exists(programs_root))
+    {
         return operation_result_fail(ERROR_CODE_IO_FAILED);
     }
 
@@ -133,20 +133,24 @@ operation_result_t file_program_repository_init(system_context_t system_context,
     return operation_result_ok();
 }
 
-void file_program_repository_set_runtime_program(system_context_t system_context, const wash_program_t *wash_program, int revision)
+void file_program_repository_set_runtime_program(system_context_t system_context, const wash_program_t *wash_program,
+                                                 int revision)
 {
     file_repository_context_t *repository_context;
     const program_repository_port_t *program_repository_port;
 
-    if (wash_program == 0) {
+    if (wash_program == 0)
+    {
         return;
     }
     program_repository_port = system_context_program_repository_port(system_context);
-    if (program_repository_port == 0) {
+    if (program_repository_port == 0)
+    {
         return;
     }
     repository_context = (file_repository_context_t *)program_repository_port->context;
-    if (repository_context == 0) {
+    if (repository_context == 0)
+    {
         return;
     }
     repository_context->runtime_program = *wash_program;

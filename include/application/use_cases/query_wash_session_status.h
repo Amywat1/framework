@@ -8,7 +8,8 @@
 #include "platform/controller_scheduler.h"
 #include "shared/result_types.h"
 
-typedef struct wash_session_status_view_t {
+typedef struct wash_session_status_view_t
+{
     bool has_active_session;
     bool global_fault_present;
     device_state_t device_state;
@@ -26,6 +27,6 @@ typedef struct wash_session_status_view_t {
 } wash_session_status_view_t;
 
 operation_result_t query_wash_session_status_execute(const system_context_t system_context,
-    wash_session_status_view_t *wash_session_status_view);
+                                                     wash_session_status_view_t *wash_session_status_view);
 
 #endif

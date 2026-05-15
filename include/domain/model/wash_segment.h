@@ -14,19 +14,22 @@
  * @file wash_segment.h
  * @brief 定义强类型工步段模型。
  */
-typedef struct segment_continuous_controls_t {
+typedef struct segment_continuous_controls_t
+{
     bool roof_brush_follow;
     bool side_brush_enabled;
     bool ro_water_enabled;
     bool dryer_enabled;
 } segment_continuous_controls_t;
 
-typedef struct segment_completion_condition_t {
+typedef struct segment_completion_condition_t
+{
     position_trigger_t trigger;
     bool requires_all_controls_started;
 } segment_completion_condition_t;
 
-typedef struct wash_segment_t {
+typedef struct wash_segment_t
+{
     char segment_id[32];
     char segment_name[32];
     int sequence_no;

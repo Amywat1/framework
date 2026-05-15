@@ -10,15 +10,17 @@ bool wait_timeout_service_should_fire(const wait_condition_t *wait_condition, un
 }
 
 operation_result_t wait_timeout_service_handle_timeout(const wait_condition_t *wait_condition,
-    unsigned long current_time_ms,
-    wait_timeout_fact_t *wait_timeout_fact)
+                                                       unsigned long current_time_ms,
+                                                       wait_timeout_fact_t *wait_timeout_fact)
 {
-    if (wait_condition == 0 || wait_timeout_fact == 0) {
+    if (wait_condition == 0 || wait_timeout_fact == 0)
+    {
         return operation_result_fail(ERROR_CODE_INVALID_ARGUMENT);
     }
 
     memset(wait_timeout_fact, 0, sizeof(*wait_timeout_fact));
-    if (!wait_timeout_service_should_fire(wait_condition, current_time_ms)) {
+    if (!wait_timeout_service_should_fire(wait_condition, current_time_ms))
+    {
         return operation_result_fail(ERROR_CODE_INVALID_STATE);
     }
 

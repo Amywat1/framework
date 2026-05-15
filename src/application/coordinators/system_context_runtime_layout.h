@@ -8,7 +8,8 @@
  * @brief 暴露组合根运行时布局的白盒内部头，仅供单实例组合根实现与测试观察使用。
  * @note 本文件使用 C11 _Generic 泛型选择宏，要求 GCC 4.9+ 或等效 C11 兼容工具链。
  */
-typedef struct system_context_runtime_t {
+typedef struct system_context_runtime_t
+{
     wash_program_t wash_program;
     vehicle_type_t vehicle_type;
     wash_session_t wash_session;
@@ -36,7 +37,8 @@ typedef struct system_context_runtime_t {
     program_repository_port_t program_repository_port;
 } system_context_runtime_t;
 
-typedef struct system_context_instance_state_t {
+typedef struct system_context_instance_state_t
+{
     bool in_use;
     unsigned int generation;
     system_context_runtime_t runtime;
@@ -45,10 +47,10 @@ typedef struct system_context_instance_state_t {
 system_context_runtime_t *system_context_private_runtime_mutable(system_context_t system_context);
 const system_context_runtime_t *system_context_private_runtime_const(const system_context_t system_context);
 
-#define system_context_private_runtime(system_context) \
-    _Generic((system_context), \
-        const system_context_t: system_context_private_runtime_const, \
-        system_context_t: system_context_private_runtime_mutable, \
+#define system_context_private_runtime(system_context)                                                                 \
+    _Generic((system_context),                                                                                         \
+        const system_context_t: system_context_private_runtime_const,                                                  \
+        system_context_t: system_context_private_runtime_mutable,                                                      \
         default: system_context_private_runtime_mutable)(system_context)
 
 #endif

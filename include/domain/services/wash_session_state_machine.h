@@ -11,7 +11,8 @@
  * @file wash_session_state_machine.h
  * @brief 定义会话状态迁移规则。
  */
-typedef struct wash_session_transition_fact_t {
+typedef struct wash_session_transition_fact_t
+{
     bool changed;
     char session_id[32];
     char previous_state[16];
@@ -20,7 +21,8 @@ typedef struct wash_session_transition_fact_t {
     char reason_code[64];
 } wash_session_transition_fact_t;
 
-typedef struct wash_session_service_args_t {
+typedef struct wash_session_service_args_t
+{
     wash_session_t *wash_session;
     const program_snapshot_t *program_snapshot;
     unsigned long *next_session_sequence;
@@ -34,14 +36,13 @@ typedef struct wash_session_service_args_t {
  */
 
 operation_result_t wash_session_state_machine_start(wash_session_service_args_t *wash_session_service_args,
-    const char *program_id,
-    wash_session_transition_fact_t *wash_session_transition_fact);
+                                                    const char *program_id,
+                                                    wash_session_transition_fact_t *wash_session_transition_fact);
 operation_result_t wash_session_state_machine_complete(wash_session_service_args_t *wash_session_service_args,
-    result_code_t result_code,
-    wash_session_transition_fact_t *wash_session_transition_fact);
+                                                       result_code_t result_code,
+                                                       wash_session_transition_fact_t *wash_session_transition_fact);
 operation_result_t wash_session_state_machine_abort(wash_session_service_args_t *wash_session_service_args,
-    result_code_t result_code,
-    const char *reason_code,
-    wash_session_transition_fact_t *wash_session_transition_fact);
+                                                    result_code_t result_code, const char *reason_code,
+                                                    wash_session_transition_fact_t *wash_session_transition_fact);
 
 #endif

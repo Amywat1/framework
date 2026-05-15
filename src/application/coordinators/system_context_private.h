@@ -1,8 +1,6 @@
 #ifndef APPLICATION_COORDINATORS_SYSTEM_CONTEXT_PRIVATE_H
 #define APPLICATION_COORDINATORS_SYSTEM_CONTEXT_PRIVATE_H
 
-#include <stddef.h>
-#include <stdbool.h>
 #include "application/coordinators/system_context.h"
 #include "domain/model/program_snapshot.h"
 #include "domain/model/state_transition_record.h"
@@ -20,6 +18,8 @@
 #include "domain/services/wash_execution_service.h"
 #include "domain/services/wash_session_state_machine.h"
 #include "shared/timeouts.h"
+#include <stdbool.h>
+#include <stddef.h>
 
 /**
  * @file system_context_private.h
@@ -82,7 +82,8 @@ const char *system_context_private_global_fault_reason(const system_context_t sy
  * @param fault_code   故障码（机器可读短标识），不能为空。
  * @param fault_reason 故障原因描述（人类可读），允许为空（不更新现有原因）。
  */
-void system_context_private_set_global_fault(system_context_t system_context, const char *fault_code, const char *fault_reason);
+void system_context_private_set_global_fault(system_context_t system_context, const char *fault_code,
+                                             const char *fault_reason);
 
 /** @brief 清除全局故障标志及相关信息。 */
 void system_context_private_clear_global_fault(system_context_t system_context);
@@ -94,9 +95,8 @@ const state_transition_record_t *system_context_private_last_transition_record(c
 state_transition_record_t *system_context_private_last_transition_record_mutable(system_context_t system_context);
 
 /** @brief 写入最近对外结果码与原因码；任一参数为 `0` 时对应字段保持不变。 */
-void system_context_private_set_latest_result(system_context_t system_context,
-    const char *result_code,
-    const char *reason_code);
+void system_context_private_set_latest_result(system_context_t system_context, const char *result_code,
+                                              const char *reason_code);
 
 /**
  * @brief 统一写入设备运行时落点。
@@ -105,10 +105,8 @@ void system_context_private_set_latest_result(system_context_t system_context,
  * @param result_code 最新结果码；传入 `0` 时保持现有结果码不变。
  * @param reason_code 最新原因码；传入 `0` 时保持现有原因码不变。
  */
-void system_context_private_apply_device_runtime_result(system_context_t system_context,
-    device_state_t device_state,
-    const char *result_code,
-    const char *reason_code);
+void system_context_private_apply_device_runtime_result(system_context_t system_context, device_state_t device_state,
+                                                        const char *result_code, const char *reason_code);
 /**
  * @brief 应用 start accepted 路径的会话启动落点。
  * @param system_context 系统上下文；调用前要求 session start 已成功。
@@ -117,22 +115,22 @@ void system_context_private_apply_device_runtime_result(system_context_t system_
  * @return 首段启动结果；成功时会落到 running，并写入 accepted/session_started。
  */
 operation_result_t system_context_private_apply_start_accepted(system_context_t system_context,
-    wash_session_t *wash_session,
-    wash_execution_t *wash_execution);
+                                                               wash_session_t *wash_session,
+                                                               wash_execution_t *wash_execution);
 /** @brief 读取事件日志端口（只读）；句柄非法时返回 `0`。 */
 const event_logger_port_t *system_context_private_event_logger_port(const system_context_t system_context);
 
 /** @brief 将当前运行时状态填充到会话服务参数结构体中。 */
 void system_context_private_build_session_service_args(system_context_t system_context,
-    wash_session_service_args_t *wash_session_service_args);
+                                                       wash_session_service_args_t *wash_session_service_args);
 
 /** @brief 将当前运行时状态填充到程序快照服务参数结构体中。 */
-void system_context_private_build_program_snapshot_service_args(system_context_t system_context,
-    program_snapshot_service_args_t *program_snapshot_service_args);
+void system_context_private_build_program_snapshot_service_args(
+    system_context_t system_context, program_snapshot_service_args_t *program_snapshot_service_args);
 
 /** @brief 将当前运行时状态填充到工步执行服务参数结构体中。 */
 void system_context_private_build_execution_service_args(system_context_t system_context,
-    wash_execution_service_args_t *wash_execution_service_args);
+                                                         wash_execution_service_args_t *wash_execution_service_args);
 
 /** @brief 读取当前洗车会话（只读）；句柄非法时返回 `0`。 */
 const wash_session_t *system_context_private_wash_session(const system_context_t system_context);
@@ -169,7 +167,8 @@ void system_context_private_advance_time(system_context_t system_context, unsign
  * @param wash_trigger_event 待追加的触发事件，不能为空。
  * @return 追加成功返回 `operation_result_ok()`；队列已满时返回 ERROR_CODE_RESOURCE_UNAVAILABLE。
  */
-operation_result_t system_context_private_append_trigger(system_context_t system_context, const wash_trigger_event_t *wash_trigger_event);
+operation_result_t system_context_private_append_trigger(system_context_t system_context,
+                                                         const wash_trigger_event_t *wash_trigger_event);
 
 /**
  * @brief 读取指定索引处的待处理触发事件（只读）。
@@ -177,7 +176,8 @@ operation_result_t system_context_private_append_trigger(system_context_t system
  * @param index 目标索引，必须小于 `system_context_pending_trigger_count()`。
  * @return 指向触发事件的只读指针；索引越界或上下文为空时返回 `0`。
  */
-const wash_trigger_event_t *system_context_private_pending_trigger_at(const system_context_t system_context, unsigned int index);
+const wash_trigger_event_t *system_context_private_pending_trigger_at(const system_context_t system_context,
+                                                                      unsigned int index);
 
 /**
  * @brief 从待处理队列中移除指定索引处的触发事件，后续元素前移。

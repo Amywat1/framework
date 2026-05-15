@@ -13,7 +13,8 @@
 /**
  * @brief 标识投影完成后需要写入的日志通道。
  */
-typedef enum runtime_event_log_kind_t {
+typedef enum runtime_event_log_kind_t
+{
     RUNTIME_EVENT_LOG_NONE = 0,
     RUNTIME_EVENT_LOG_TRANSITION,
     RUNTIME_EVENT_LOG_REJECTION,
@@ -25,7 +26,8 @@ typedef enum runtime_event_log_kind_t {
  *
  * @note 该结构只承载最近一次对外投影，不承担会话终态存储职责。
  */
-typedef struct runtime_result_projection_t {
+typedef struct runtime_result_projection_t
+{
     bool updates_latest_result;
     bool records_transition;
     transition_entity_type_t transition_entity;
@@ -55,8 +57,7 @@ void runtime_result_projection_init(runtime_result_projection_t *runtime_result_
  * @param reason_code 最近原因码；为空时写入 `"none"`。
  */
 void runtime_result_projection_set_latest_result(runtime_result_projection_t *runtime_result_projection,
-    const char *result_code,
-    const char *reason_code);
+                                                 const char *result_code, const char *reason_code);
 
 /**
  * @brief 配置投影中的迁移记录与日志结论。
@@ -72,13 +73,9 @@ void runtime_result_projection_set_latest_result(runtime_result_projection_t *ru
  * @param runtime_event_log_kind 对应日志通道。
  */
 void runtime_result_projection_set_transition(runtime_result_projection_t *runtime_result_projection,
-    transition_entity_type_t transition_entity,
-    const char *entity_id,
-    trigger_type_t trigger_type,
-    const char *previous_state,
-    const char *current_state,
-    const char *result_code,
-    const char *reason_code,
-    runtime_event_log_kind_t runtime_event_log_kind);
+                                              transition_entity_type_t transition_entity, const char *entity_id,
+                                              trigger_type_t trigger_type, const char *previous_state,
+                                              const char *current_state, const char *result_code,
+                                              const char *reason_code, runtime_event_log_kind_t runtime_event_log_kind);
 
 #endif

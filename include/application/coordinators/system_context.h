@@ -72,7 +72,8 @@ void system_context_set_actuator_port(system_context_t system_context, const act
  * @param system_context 主控上下文，不能为空。
  * @param event_logger_port 日志端口；传入 `0` 时清空该端口。
  */
-void system_context_set_event_logger_port(system_context_t system_context, const event_logger_port_t *event_logger_port);
+void system_context_set_event_logger_port(system_context_t system_context,
+                                          const event_logger_port_t *event_logger_port);
 
 /**
  * @brief 将程序仓储端口装配到主控上下文。
@@ -81,7 +82,7 @@ void system_context_set_event_logger_port(system_context_t system_context, const
  * @param program_repository_port 程序仓储端口；传入 `0` 时清空该端口。
  */
 void system_context_set_program_repository_port(system_context_t system_context,
-    const program_repository_port_t *program_repository_port);
+                                                const program_repository_port_t *program_repository_port);
 
 /**
  * @brief 读取当前已装配的程序仓储端口。
@@ -123,7 +124,8 @@ unsigned int system_context_count_pending_triggers_by_id(const system_context_t 
  * @param trigger_type 目标触发类型。
  * @return 匹配数量。
  */
-unsigned int system_context_count_pending_triggers_by_type(const system_context_t system_context, trigger_type_t trigger_type);
+unsigned int system_context_count_pending_triggers_by_type(const system_context_t system_context,
+                                                           trigger_type_t trigger_type);
 
 /**
  * @brief 判断主控当前是否仍有待处理运行工作。
@@ -206,7 +208,7 @@ operation_result_t system_context_require_active(system_context_t system_context
  * @return 指向触发事件的只读指针；索引越界或上下文为空时返回 `0`。
  */
 const wash_trigger_event_t *system_context_pending_trigger_at(const system_context_t system_context,
-    unsigned int index);
+                                                              unsigned int index);
 
 /**
  * @brief 向待处理队列追加一个触发事件。
@@ -216,7 +218,7 @@ const wash_trigger_event_t *system_context_pending_trigger_at(const system_conte
  * @return 追加成功返回 `operation_result_ok()`；队列已满或参数非法时返回失败。
  */
 operation_result_t system_context_append_trigger(system_context_t system_context,
-    const wash_trigger_event_t *wash_trigger_event);
+                                                 const wash_trigger_event_t *wash_trigger_event);
 
 /**
  * @brief 从待处理队列中移除指定索引处的触发事件。

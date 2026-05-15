@@ -27,7 +27,8 @@ operation_result_t main_loop_run(system_context_t system_context);
  * @param wash_trigger_event 待入队的触发事件。
  * @return 成功时返回 `operation_result_ok()`，失败时返回显式错误结果。
  */
-operation_result_t main_loop_submit_trigger(system_context_t system_context, const wash_trigger_event_t *wash_trigger_event);
+operation_result_t main_loop_submit_trigger(system_context_t system_context,
+                                            const wash_trigger_event_t *wash_trigger_event);
 
 /**
  * @brief 按给定时长推进主控当前时间。

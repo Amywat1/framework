@@ -14,13 +14,13 @@ static int simulated_close_dryer(void *context, int timeout_ms)
 {
     simulated_driver_context_t *driver_context = (simulated_driver_context_t *)context;
     (void)timeout_ms;
-    if (driver_context->dryer_close_command_should_fail) {
+    if (driver_context->dryer_close_command_should_fail)
+    {
         return -1;
     }
     driver_context->dryer_close_command_count += 1;
     driver_context->dryer_enabled = false;
-    driver_context->runtime_snapshot.actuator_feedback.dryer_closed =
-        driver_context->dryer_close_feedback_available;
+    driver_context->runtime_snapshot.actuator_feedback.dryer_closed = driver_context->dryer_close_feedback_available;
     return 0;
 }
 

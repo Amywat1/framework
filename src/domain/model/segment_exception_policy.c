@@ -2,7 +2,8 @@
 
 void segment_exception_policy_init(segment_exception_policy_t *segment_exception_policy)
 {
-    if (segment_exception_policy == 0) {
+    if (segment_exception_policy == 0)
+    {
         return;
     }
 

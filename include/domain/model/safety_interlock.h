@@ -3,7 +3,8 @@
 
 #include "domain/model/domain_enums.h"
 
-typedef struct safety_interlock_t {
+typedef struct safety_interlock_t
+{
     char interlock_id[32];
     char interlock_name[32];
     interlock_state_t current_state;
@@ -14,4 +15,3 @@ typedef struct safety_interlock_t {
 void safety_interlock_init(safety_interlock_t *safety_interlock, const char *interlock_id, const char *interlock_name);
 
 #endif
-

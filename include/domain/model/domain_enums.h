@@ -7,7 +7,8 @@
  */
 
 /** @brief 洗车会话状态。 */
-typedef enum {
+typedef enum
+{
     SESSION_STATE_NONE = 0,
     SESSION_STATE_CREATED,
     SESSION_STATE_RUNNING,
@@ -16,7 +17,8 @@ typedef enum {
 } session_state_t;
 
 /** @brief 设备生命周期状态。 */
-typedef enum {
+typedef enum
+{
     DEVICE_STATE_INIT = 0,
     DEVICE_STATE_STOPPED,
     DEVICE_STATE_RECOVERING,
@@ -26,7 +28,8 @@ typedef enum {
 } device_state_t;
 
 /** @brief 当前工步执行状态。 */
-typedef enum {
+typedef enum
+{
     EXECUTION_STATE_NONE = 0,
     EXECUTION_STATE_RUNNING,
     EXECUTION_STATE_COMPLETED,
@@ -34,7 +37,8 @@ typedef enum {
 } execution_state_t;
 
 /** @brief 当前工步执行结果。 */
-typedef enum {
+typedef enum
+{
     EXECUTION_RESULT_NONE = 0,
     EXECUTION_RESULT_RUNNING,
     EXECUTION_RESULT_SEGMENT_COMPLETED,
@@ -49,7 +53,8 @@ typedef enum {
 } execution_result_t;
 
 /** @brief 当前工步结束原因。 */
-typedef enum {
+typedef enum
+{
     EXECUTION_END_REASON_NONE = 0,
     EXECUTION_END_REASON_NORMAL,
     EXECUTION_END_REASON_STOP,
@@ -59,7 +64,8 @@ typedef enum {
 } execution_end_reason_t;
 
 /** @brief 对外投影的会话结果码。 */
-typedef enum {
+typedef enum
+{
     RESULT_CODE_SUCCESS = 0,
     RESULT_CODE_SAFE_STOP,
     RESULT_CODE_DEGRADED_COMPLETE,
@@ -70,7 +76,8 @@ typedef enum {
 } result_code_t;
 
 /** @brief 主控统一处理的触发事件类型。 */
-typedef enum {
+typedef enum
+{
     TRIGGER_TYPE_START = 0,
     TRIGGER_TYPE_HOMING,
     TRIGGER_TYPE_STOP,
@@ -82,28 +89,32 @@ typedef enum {
 } trigger_type_t;
 
 /** @brief 等待条件超时策略。 */
-typedef enum {
+typedef enum
+{
     WAIT_TIMEOUT_POLICY_NONE = 0,
     WAIT_TIMEOUT_POLICY_SEGMENT,
     WAIT_TIMEOUT_POLICY_EXIT
 } wait_timeout_policy_t;
 
 /** @brief 状态迁移记录中的实体类型。 */
-typedef enum {
+typedef enum
+{
     TRANSITION_ENTITY_SESSION = 0,
     TRANSITION_ENTITY_EXECUTION,
     TRANSITION_ENTITY_REQUEST
 } transition_entity_type_t;
 
 /** @brief 程序冻结快照校验结果。 */
-typedef enum {
+typedef enum
+{
     PROGRAM_SNAPSHOT_VALIDATION_VALID = 0,
     PROGRAM_SNAPSHOT_VALIDATION_UNAVAILABLE,
     PROGRAM_SNAPSHOT_VALIDATION_INVALID
 } program_snapshot_validation_t;
 
 /** @brief 工步段工艺类别。 */
-typedef enum {
+typedef enum
+{
     SEGMENT_KIND_UNKNOWN = 0,
     SEGMENT_KIND_ROOF_BRUSH,
     SEGMENT_KIND_SIDE_BRUSH,
@@ -112,7 +123,8 @@ typedef enum {
 } segment_kind_t;
 
 /** @brief 执行机构品类。 */
-typedef enum {
+typedef enum
+{
     ACTUATOR_CATEGORY_NONE = 0,
     ACTUATOR_GANTRY,
     ACTUATOR_ROOF_BRUSH,
@@ -123,14 +135,16 @@ typedef enum {
 } actuator_category_t;
 
 /** @brief 龙门运动方向。 */
-typedef enum {
+typedef enum
+{
     MOTION_DIRECTION_STOP = 0,
     MOTION_DIRECTION_FORWARD,
     MOTION_DIRECTION_REVERSE
 } motion_direction_t;
 
 /** @brief 龙门运动目标基准。 */
-typedef enum {
+typedef enum
+{
     MOTION_TARGET_NONE = 0,
     MOTION_TARGET_HEAD,
     MOTION_TARGET_TAIL,
@@ -140,7 +154,8 @@ typedef enum {
 } motion_target_reference_t;
 
 /** @brief 位置触发条件使用的业务基准。 */
-typedef enum {
+typedef enum
+{
     POSITION_REFERENCE_NONE = 0,
     POSITION_REFERENCE_ABSOLUTE_MM,
     POSITION_REFERENCE_DISTANCE_TO_HEAD_MM,
@@ -151,7 +166,8 @@ typedef enum {
 } position_reference_t;
 
 /** @brief 位置触发比较方式。 */
-typedef enum {
+typedef enum
+{
     POSITION_COMPARE_TRUE = 0,
     POSITION_COMPARE_GREATER_EQUAL,
     POSITION_COMPARE_LESS_EQUAL,
@@ -159,13 +175,15 @@ typedef enum {
 } position_compare_mode_t;
 
 /** @brief 条件控制受限能力类型。 */
-typedef enum {
+typedef enum
+{
     CONDITIONAL_CONTROL_NONE = 0,
     CONDITIONAL_CONTROL_CHEMICAL_WINDOW
 } conditional_control_kind_t;
 
 /** @brief 当前工步生命周期状态。 */
-typedef enum {
+typedef enum
+{
     SEGMENT_LIFECYCLE_PENDING = 0,
     SEGMENT_LIFECYCLE_ENTERING,
     SEGMENT_LIFECYCLE_RUNNING,
@@ -175,7 +193,8 @@ typedef enum {
 } segment_lifecycle_state_t;
 
 /** @brief 异常处理策略。 */
-typedef enum {
+typedef enum
+{
     EXCEPTION_STRATEGY_ABORT_SESSION = 0,
     EXCEPTION_STRATEGY_SAFE_FINISH
 } exception_strategy_t;

@@ -6,15 +6,18 @@
 
 void wash_segment_init(wash_segment_t *wash_segment, const char *segment_id, const char *segment_name, int sequence_no)
 {
-    if (wash_segment == 0) {
+    if (wash_segment == 0)
+    {
         return;
     }
 
     memset(wash_segment, 0, sizeof(*wash_segment));
-    if (segment_id != 0) {
+    if (segment_id != 0)
+    {
         strncpy(wash_segment->segment_id, segment_id, sizeof(wash_segment->segment_id) - 1);
     }
-    if (segment_name != 0) {
+    if (segment_name != 0)
+    {
         strncpy(wash_segment->segment_name, segment_name, sizeof(wash_segment->segment_name) - 1);
     }
     wash_segment->sequence_no = sequence_no;
@@ -30,17 +33,22 @@ bool wash_segment_is_valid(const wash_segment_t *wash_segment)
 {
     int index;
 
-    if (wash_segment == 0 || wash_segment->segment_id[0] == '\0') {
+    if (wash_segment == 0 || wash_segment->segment_id[0] == '\0')
+    {
         return false;
     }
-    if (!segment_motion_plan_is_valid(&wash_segment->motion_plan)) {
+    if (!segment_motion_plan_is_valid(&wash_segment->motion_plan))
+    {
         return false;
     }
-    if (!position_trigger_is_valid(&wash_segment->completion_condition.trigger)) {
+    if (!position_trigger_is_valid(&wash_segment->completion_condition.trigger))
+    {
         return false;
     }
-    for (index = 0; index < wash_segment->conditional_control_count; ++index) {
-        if (!conditional_control_is_valid(&wash_segment->conditional_controls[index])) {
+    for (index = 0; index < wash_segment->conditional_control_count; ++index)
+    {
+        if (!conditional_control_is_valid(&wash_segment->conditional_controls[index]))
+        {
             return false;
         }
     }

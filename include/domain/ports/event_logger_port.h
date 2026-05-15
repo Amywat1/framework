@@ -16,7 +16,8 @@ struct state_transition_record_t;
  * @note 该端口只消费应用层已经投影完成的事件结论。
  * @note `status` 一类只读查询不得为了适配本端口而新增运行时事件副作用。
  */
-typedef struct event_logger_port_t {
+typedef struct event_logger_port_t
+{
     void *context;
     int (*log_message)(void *context, trigger_type_t trigger_type, const char *message);
     int (*log_transition)(void *context, const struct state_transition_record_t *state_transition_record);

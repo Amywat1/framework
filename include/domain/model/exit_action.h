@@ -7,7 +7,8 @@
  * @file exit_action.h
  * @brief 定义固定退出动作集合。
  */
-typedef struct segment_exit_actions_t {
+typedef struct segment_exit_actions_t
+{
     bool stop_roof_brush;
     bool stop_side_brush;
     bool stop_chemical;

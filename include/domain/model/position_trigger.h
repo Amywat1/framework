@@ -9,7 +9,8 @@
  * @file position_trigger.h
  * @brief 定义统一位置快照与位置触发器。
  */
-typedef struct position_snapshot_t {
+typedef struct position_snapshot_t
+{
     bool position_valid;
     int gantry_absolute_mm;
     int distance_to_vehicle_head_mm;
@@ -19,7 +20,8 @@ typedef struct position_snapshot_t {
     bool tail_reached;
 } position_snapshot_t;
 
-typedef struct position_trigger_t {
+typedef struct position_trigger_t
+{
     position_reference_t reference;
     position_compare_mode_t compare_mode;
     int value_mm;

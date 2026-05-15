@@ -9,7 +9,8 @@
  * @file segment_motion_plan.h
  * @brief 定义工步段移动计划。
  */
-typedef struct segment_motion_plan_t {
+typedef struct segment_motion_plan_t
+{
     motion_direction_t direction;
     motion_target_reference_t target_reference;
     position_reference_t relative_basis;

@@ -7,4 +7,3 @@
 int simulated_sensor_driver_bind(sensor_port_t *sensor_port, simulated_driver_context_t *driver_context);
 
 #endif
-

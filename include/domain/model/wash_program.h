@@ -11,7 +11,8 @@
  * @file wash_program.h
  * @brief 定义工步程序模型。
  */
-typedef struct wash_program_t {
+typedef struct wash_program_t
+{
     char program_id[32];
     char program_name[32];
     bool enabled;

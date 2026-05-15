@@ -6,7 +6,8 @@
  * @brief 定义主控软件统一错误码。
  */
 
-typedef enum {
+typedef enum
+{
     ERROR_CODE_OK = 0,
     ERROR_CODE_INVALID_ARGUMENT,
     ERROR_CODE_INVALID_STATE,

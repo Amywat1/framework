@@ -19,7 +19,8 @@ typedef struct controller_runtime_t controller_runtime_t;
 /**
  * @brief 正式 runtime 生命周期状态。
  */
-typedef enum {
+typedef enum
+{
     CONTROLLER_RUNTIME_STATE_UNAVAILABLE = 0,
     CONTROLLER_RUNTIME_STATE_CREATED,
     CONTROLLER_RUNTIME_STATE_RUNNING,
@@ -33,7 +34,8 @@ typedef enum {
  * @note `sensor_port`、`actuator_port`、stdio 句柄和路径参数均由调用方拥有。
  * @note runtime 只绑定这些外部资源，不负责销毁调用方对象。
  */
-typedef struct controller_runtime_config_t {
+typedef struct controller_runtime_config_t
+{
     const sensor_port_t *sensor_port;
     const actuator_port_t *actuator_port;
     const controller_scheduler_config_t *scheduler_config;
@@ -47,7 +49,8 @@ typedef struct controller_runtime_config_t {
 /**
  * @brief runtime 只读生命周期视图。
  */
-typedef struct controller_runtime_status_view_t {
+typedef struct controller_runtime_status_view_t
+{
     controller_runtime_lifecycle_state_t lifecycle_state;
     bool system_context_acquired;
     bool scheduler_created;
@@ -80,8 +83,7 @@ operation_result_t controller_runtime_config_validate(const controller_runtime_c
  * @param config 创建配置，不能为空。
  * @return 创建成功时返回 `operation_result_ok()`，失败时返回显式错误结果。
  */
-operation_result_t controller_runtime_create(controller_runtime_t **runtime,
-    const controller_runtime_config_t *config);
+operation_result_t controller_runtime_create(controller_runtime_t **runtime, const controller_runtime_config_t *config);
 
 /**
  * @brief 进入正式主控运行闭环。
@@ -96,7 +98,8 @@ operation_result_t controller_runtime_run(controller_runtime_t *runtime);
  *
  * @note 对于本进程曾正式创建过且已销毁的句柄，重复调用本接口按安全重复销毁语义返回 `operation_result_ok()`。
  * @param runtime 正式 runtime 句柄；允许传入 `0`。
- * @return 销毁成功或重复销毁安全返回 `operation_result_ok()`；若 runtime owned 资源释放失败，则返回显式失败结果；非法句柄返回失败结果。
+ * @return 销毁成功或重复销毁安全返回 `operation_result_ok()`；若 runtime owned
+ * 资源释放失败，则返回显式失败结果；非法句柄返回失败结果。
  */
 operation_result_t controller_runtime_destroy(controller_runtime_t *runtime);
 
@@ -109,6 +112,6 @@ operation_result_t controller_runtime_destroy(controller_runtime_t *runtime);
  * @return 读取成功返回 `operation_result_ok()`，否则返回显式失败结果。
  */
 operation_result_t controller_runtime_read_state(const controller_runtime_t *runtime,
-    controller_runtime_status_view_t *status_view);
+                                                 controller_runtime_status_view_t *status_view);
 
 #endif

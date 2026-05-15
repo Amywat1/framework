@@ -7,7 +7,8 @@
  * @file segment_exception_policy.h
  * @brief 定义工步段异常策略。
  */
-typedef struct segment_exception_policy_t {
+typedef struct segment_exception_policy_t
+{
     exception_strategy_t on_position_lost;
     exception_strategy_t on_follow_lost;
     exception_strategy_t on_segment_timeout;

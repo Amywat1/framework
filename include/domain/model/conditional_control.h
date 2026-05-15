@@ -12,7 +12,8 @@
  * @file conditional_control.h
  * @brief 定义受限条件控制模型。
  */
-typedef struct conditional_control_t {
+typedef struct conditional_control_t
+{
     char control_id[32];
     conditional_control_kind_t kind;
     actuator_category_t control_object;

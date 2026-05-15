@@ -6,15 +6,18 @@
 
 void wash_program_init(wash_program_t *wash_program, const char *program_id, const char *program_name)
 {
-    if (wash_program == 0) {
+    if (wash_program == 0)
+    {
         return;
     }
 
     memset(wash_program, 0, sizeof(*wash_program));
-    if (program_id != 0) {
+    if (program_id != 0)
+    {
         strncpy(wash_program->program_id, program_id, sizeof(wash_program->program_id) - 1);
     }
-    if (program_name != 0) {
+    if (program_name != 0)
+    {
         strncpy(wash_program->program_name, program_name, sizeof(wash_program->program_name) - 1);
     }
     wash_program->enabled = true;
@@ -27,14 +30,17 @@ int wash_program_add_segment(wash_program_t *wash_program, const wash_segment_t 
 {
     int expected_sequence_no;
 
-    if (wash_program == 0 || wash_segment == 0) {
+    if (wash_program == 0 || wash_segment == 0)
+    {
         return -1;
     }
-    if (wash_program->segment_count >= MAX_PROGRAM_SEGMENTS) {
+    if (wash_program->segment_count >= MAX_PROGRAM_SEGMENTS)
+    {
         return -1;
     }
     expected_sequence_no = wash_program->segment_count + 1;
-    if (wash_segment->sequence_no != expected_sequence_no) {
+    if (wash_segment->sequence_no != expected_sequence_no)
+    {
         return -1;
     }
     wash_program->segments[wash_program->segment_count++] = *wash_segment;
@@ -43,7 +49,8 @@ int wash_program_add_segment(wash_program_t *wash_program, const wash_segment_t 
 
 const wash_segment_t *wash_program_get_segment(const wash_program_t *wash_program, int index)
 {
-    if (wash_program == 0 || index < 0 || index >= wash_program->segment_count) {
+    if (wash_program == 0 || index < 0 || index >= wash_program->segment_count)
+    {
         return 0;
     }
     return &wash_program->segments[index];
