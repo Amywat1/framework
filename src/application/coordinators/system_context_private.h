@@ -23,7 +23,7 @@
 
 /**
  * @file system_context_private.h
- * @brief 定义组合根的私有内部状态。
+ * @brief 定义系统上下文协调层的私有内部接口。
  */
 
 operation_result_t system_context_private_require_active(const system_context_t system_context);
@@ -44,6 +44,27 @@ state_transition_record_t *system_context_private_last_transition_record_mutable
 void system_context_private_set_latest_result(system_context_t system_context,
     const char *result_code,
     const char *reason_code);
+/**
+ * @brief 统一写入设备运行时落点。
+ * @param system_context 系统上下文；必须为当前激活实例。
+ * @param device_state 需要落到的设备状态。
+ * @param result_code 最新结果码；传入 `0` 时保持现有结果码不变。
+ * @param reason_code 最新原因码；传入 `0` 时保持现有原因码不变。
+ */
+void system_context_private_apply_device_runtime_result(system_context_t system_context,
+    device_state_t device_state,
+    const char *result_code,
+    const char *reason_code);
+/**
+ * @brief 应用 start accepted 路径的会话启动落点。
+ * @param system_context 系统上下文；调用前要求 session start 已成功。
+ * @param wash_session 可变洗车会话；调用后会清空上次关联键。
+ * @param wash_execution 可变执行快照；调用后会重置执行状态并启动首段。
+ * @return 首段启动结果；成功时会落到 running，并写入 accepted/session_started。
+ */
+operation_result_t system_context_private_apply_start_accepted(system_context_t system_context,
+    wash_session_t *wash_session,
+    wash_execution_t *wash_execution);
 const event_logger_port_t *system_context_private_event_logger_port(const system_context_t system_context);
 void system_context_private_build_session_service_args(system_context_t system_context,
     wash_session_service_args_t *wash_session_service_args);
