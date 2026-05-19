@@ -2,6 +2,7 @@
 #define PLATFORM_CONTROLLER_SCHEDULER_H
 
 #include <stdbool.h>
+#include <stdio.h>
 
 #include "shared/result_types.h"
 
@@ -13,6 +14,16 @@
 struct system_context_handle;
 typedef struct system_context_handle *system_context_t;
 typedef struct controller_scheduler_t controller_scheduler_t;
+
+/**
+ * @brief 调度器使用的标准输入输出绑定。
+ */
+typedef struct controller_scheduler_stdio_t
+{
+    FILE *input;  /**< 命令输入流。 */
+    FILE *output; /**< 命令响应输出流。 */
+    FILE *error;  /**< 错误输出流。 */
+} controller_scheduler_stdio_t;
 
 /**
  * @brief 调度器当前运行态。
@@ -102,6 +113,25 @@ typedef struct controller_runtime_state_view_t
     controller_scheduler_event_source_state_t exit_source_state;
     controller_scheduler_metrics_t metrics;
 } controller_runtime_state_view_t;
+
+/**
+ * @brief 创建当前平台的调度器实例。
+ *
+ * @param system_context 主控运行时组合根句柄。
+ * @param controller_scheduler_config 调度器配置。
+ * @param controller_scheduler_stdio 可选的标准输入输出绑定。
+ * @return 成功时返回调度器对象；参数非法、句柄失效或底层资源初始化失败时返回 `0`。
+ */
+controller_scheduler_t *controller_scheduler_create(system_context_t system_context,
+                                                    const controller_scheduler_config_t *controller_scheduler_config,
+                                                    const controller_scheduler_stdio_t *controller_scheduler_stdio);
+
+/**
+ * @brief 销毁当前平台的调度器实例。
+ *
+ * @param controller_scheduler 调度器对象；允许传入 `0`。
+ */
+void controller_scheduler_destroy(controller_scheduler_t *controller_scheduler);
 
 /**
  * @brief 启动并运行调度器主循环。

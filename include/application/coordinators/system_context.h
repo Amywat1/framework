@@ -168,21 +168,15 @@ const char *system_context_last_result_code(const system_context_t system_contex
 const char *system_context_last_reason_code(const system_context_t system_context);
 
 /**
- * @brief 判断调度器是否已绑定到此系统上下文。
- *
- * @param system_context 主控上下文；允许为 `0`。
- * @return 已绑定时返回 `true`；未绑定或上下文无效时返回 `false`。
- */
-bool system_context_has_scheduler_binding(const system_context_t system_context);
-
-/**
  * @brief 绑定调度器到系统上下文，防止重复创建或提前释放。
  *
  * @note 由平台层调度器在 create 内部调用；已绑定时返回失败，可用作防重复保护。
  * @param system_context 主控上下文，必须处于激活状态。
+ * @param scheduler_binding 调度器绑定对象，不能为空，由调用方按自身层级解释。
  * @return 绑定成功返回 `operation_result_ok()`；已绑定或句柄非法时返回失败。
  */
-operation_result_t system_context_bind_scheduler(system_context_t system_context);
+operation_result_t system_context_bind_scheduler(system_context_t system_context,
+                                                 void *scheduler_binding);
 
 /**
  * @brief 解除调度器与系统上下文的绑定关系。
@@ -191,6 +185,14 @@ operation_result_t system_context_bind_scheduler(system_context_t system_context
  * @param system_context 主控上下文；允许为 `0`（此时为空操作）。
  */
 void system_context_unbind_scheduler(system_context_t system_context);
+
+/**
+ * @brief 读取当前绑定到系统上下文的调度器。
+ *
+ * @param system_context 主控上下文；允许为 `0`。
+ * @return 已绑定调度器对象；未绑定或上下文无效时返回 `0`。
+ */
+void *system_context_bound_scheduler(const system_context_t system_context);
 
 /**
  * @brief 校验主控句柄当前是否处于激活状态。
@@ -227,6 +229,15 @@ operation_result_t system_context_append_trigger(system_context_t system_context
  * @param index 目标索引，必须小于 `system_context_pending_trigger_count()`。
  */
 void system_context_remove_pending_trigger_at(system_context_t system_context, unsigned int index);
+
+/**
+ * @brief 从外部触发收件箱中尝试取出一个触发事件。
+ *
+ * @param system_context 主控上下文，不能为空。
+ * @param wash_trigger_event 输出触发事件，不能为空。
+ * @return 成功取到事件返回 `true`；当前收件箱为空或上下文无效时返回 `false`。
+ */
+bool system_context_try_pop_external_trigger(system_context_t system_context, wash_trigger_event_t *wash_trigger_event);
 
 /**
  * @brief 读取当前等待条件（只读）。

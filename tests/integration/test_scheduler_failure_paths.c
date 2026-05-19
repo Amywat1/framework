@@ -104,7 +104,7 @@ static int verify_released_context_is_rejected_by_scheduler_boundary(void)
     test_setup_system_context(&system_context, &driver_context);
     test_release_system_context(system_context);
 
-    TEST_ASSERT(controller_scheduler_linux_create(system_context, 0, 0) == 0);
+    TEST_ASSERT(controller_scheduler_create(system_context, 0, 0) == 0);
     result = controller_scheduler_read_context_view(system_context, &controller_runtime_state_view);
     TEST_ASSERT(!result.ok);
     TEST_ASSERT(result.error_code == ERROR_CODE_INVALID_STATE);

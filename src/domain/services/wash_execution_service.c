@@ -2,36 +2,12 @@
 
 #include <string.h>
 
+#include "domain/model/runtime_state_text.h"
 #include "domain/services/fault_policy_service.h"
 #include "domain/services/recovery_state_machine.h"
 #include "domain/services/segment_control_service.h"
 #include "shared/error_codes.h"
 #include "shared/timeouts.h"
-
-/**
- * @brief 将工步生命周期状态转换为字符串形式（用于事件日志）
- * @param lifecycle_state 生命周期状态
- * @return 状态对应的字符串；未知状态返回 "pending"
- */
-static const char *lifecycle_to_string(segment_lifecycle_state_t lifecycle_state)
-{
-    switch (lifecycle_state)
-    {
-    case SEGMENT_LIFECYCLE_ENTERING:
-        return "entering";
-    case SEGMENT_LIFECYCLE_RUNNING:
-        return "running";
-    case SEGMENT_LIFECYCLE_EXITING:
-        return "exiting";
-    case SEGMENT_LIFECYCLE_COMPLETED:
-        return "completed";
-    case SEGMENT_LIFECYCLE_ABORTED:
-        return "aborted";
-    case SEGMENT_LIFECYCLE_PENDING:
-    default:
-        return "pending";
-    }
-}
 
 /**
  * @brief 安全写入执行事实字段：处理空指针、空字符串、缓冲区填充
@@ -531,7 +507,8 @@ operation_result_t wash_execution_service_tick(wash_execution_service_args_t *wa
     if (!result.ok)
     {
         return abort_with_recovery(wash_execution_service_args, EXECUTION_RESULT_FAULTED, EXECUTION_END_REASON_FAULT,
-                                   lifecycle_to_string(wash_execution_service_args->wash_execution->lifecycle_state),
+                                   runtime_state_text_segment_lifecycle_state(
+                                       wash_execution_service_args->wash_execution->lifecycle_state),
                                    "aborted", "runtime_snapshot_unavailable", wash_execution_fact);
     }
 
@@ -632,7 +609,8 @@ operation_result_t wash_execution_service_handle_stop(wash_execution_service_arg
     write_field(wash_execution_service_args->wash_execution->reason_code,
                 sizeof(wash_execution_service_args->wash_execution->reason_code), reason_code);
     init_fact(wash_execution_fact, wash_execution_service_args->wash_execution,
-              lifecycle_to_string(SEGMENT_LIFECYCLE_RUNNING), "aborted", "stopped", reason_code);
+              runtime_state_text_segment_lifecycle_state(SEGMENT_LIFECYCLE_RUNNING), "aborted", "stopped",
+              reason_code);
     return operation_result_ok();
 }
 
@@ -660,7 +638,8 @@ operation_result_t wash_execution_service_handle_fault(wash_execution_service_ar
     write_field(wash_execution_service_args->wash_execution->reason_code,
                 sizeof(wash_execution_service_args->wash_execution->reason_code), reason_code);
     init_fact(wash_execution_fact, wash_execution_service_args->wash_execution,
-              lifecycle_to_string(wash_execution_service_args->wash_execution->lifecycle_state), "aborted", "faulted",
+              runtime_state_text_segment_lifecycle_state(wash_execution_service_args->wash_execution->lifecycle_state),
+              "aborted", "faulted",
               reason_code);
     return operation_result_ok();
 }

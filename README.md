@@ -23,11 +23,12 @@
 5. `src/application/coordinators/system_context.c`
 6. `include/platform/controller_scheduler.h`
 7. `src/platform/linux/controller_scheduler_linux.c`
-8. `include/platform/linux/main_loop.h`
-9. `src/platform/linux/main_loop.c`
-10. `src/application/use_cases/process_formal_command.c`
-11. `src/application/use_cases/process_wash_trigger.c`
-12. `src/domain/services/wash_execution_service.c`
+8. `src/platform/linux/stdio_formal_command_adapter.c`
+9. `include/application/coordinators/main_loop.h`
+10. `src/application/coordinators/main_loop.c`
+11. `src/application/use_cases/process_formal_command.c`
+12. `src/application/use_cases/process_wash_trigger.c`
+13. `src/domain/services/wash_execution_service.c`
 
 这条顺序基本对应当前程序的真实运行链路。
 
@@ -78,11 +79,11 @@
 `controller_scheduler` 负责“什么时候推进业务”，不负责“业务上应该发生什么”。当前 Linux 实现位于 `src/platform/linux/controller_scheduler_linux.c`，它统一管理：
 
 - 固定控制周期
-- 命令输入事件
+- 命令输入事件的 fd 就绪通知
 - 唤醒与退出流程
 - 调度状态和运行指标
 
-这层屏蔽了底层 `epoll`、`timerfd`、`eventfd` 等 Linux 细节，使上层只感知“被调度”而不直接依赖 OS 等待机制。
+具体 stdin/stdout 命令来源适配由 `src/platform/linux/stdio_formal_command_adapter.c` 承担。调度器只感知“命令 fd 就绪”，不再直接处理命令缓冲、协议执行和响应输出。这层屏蔽了底层 `epoll`、`timerfd`、`eventfd` 等 Linux 细节，使上层只感知“被调度”而不直接依赖 OS 等待机制。
 
 ### 5. 单拍运行内核
 
@@ -124,6 +125,7 @@
 - 文件程序仓储
 - JSON 程序解析
 - 文件事件日志
+- stdin/stdout formal command 来源适配
 - 仿真传感器驱动
 - 仿真执行机构驱动
 
@@ -166,7 +168,9 @@
 
 命令主链路是：
 
-`stdin` -> 平台调度器 -> `cli_command_adapter` -> `process_formal_command`
+`stdin` -> `stdio_formal_command_adapter` -> `process_formal_command`
+
+平台调度器只负责发现 stdin fd 就绪并触发适配器处理；适配器负责读取、缓冲、按行解析、调用正式命令用例并写回响应。
 
 当前命令分为两类：
 
@@ -223,7 +227,8 @@
 - runtime 生命周期：`src/application/coordinators/controller_runtime.c`
 - 运行时组合根：`src/application/coordinators/system_context.c`
 - 平台调度器：`src/platform/linux/controller_scheduler_linux.c`
-- 单拍推进器：`src/platform/linux/main_loop.c`
+- stdin 命令来源适配：`src/platform/linux/stdio_formal_command_adapter.c`
+- 单拍推进器：`src/application/coordinators/main_loop.c`
 - 正式命令入口：`src/application/use_cases/process_formal_command.c`
 - trigger 编排：`src/application/use_cases/process_wash_trigger.c`
 - 状态查询：`src/application/use_cases/query_wash_session_status.c`

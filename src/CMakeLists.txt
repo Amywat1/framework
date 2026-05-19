@@ -10,6 +10,7 @@ set(WASH_CORE_SOURCES
     domain/model/vehicle_type.c
     domain/model/program_validation.c
     domain/model/program_snapshot.c
+    domain/model/runtime_state_text.c
     domain/model/state_transition_record.c
     domain/model/wait_condition.c
     domain/model/wash_execution.c
@@ -25,20 +26,19 @@ set(WASH_CORE_SOURCES
     domain/services/wash_execution_service.c
     domain/services/wash_session_state_machine.c
     application/coordinators/controller_runtime.c
+    application/coordinators/main_loop.c
     application/coordinators/system_context.c
     application/coordinators/runtime_event_recorder.c
-    application/coordinators/runtime_result_projection.c
-    application/jobs/io_read_job.c
     application/jobs/alarm_detect_job.c
     application/use_cases/process_formal_command.c
     application/use_cases/process_wash_trigger.c
     application/use_cases/query_wash_session_status.c
-    adapters/inbound/cli_command_adapter.c
     adapters/outbound/file_program_repository.c
     adapters/config/json_program_parser.c
     adapters/logging/file_event_logger.c
+    platform/linux/background_alarm_monitor_linux.c
     platform/linux/controller_scheduler_linux.c
-    platform/linux/main_loop.c
+    platform/linux/stdio_formal_command_adapter.c
     platform/linux/worker_thread_linux.c
     platform/drivers/simulated_driver_context.c
     platform/drivers/simulated_gantry_driver.c

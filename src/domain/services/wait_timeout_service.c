@@ -4,11 +4,6 @@
 
 #include "shared/error_codes.h"
 
-bool wait_timeout_service_should_fire(const wait_condition_t *wait_condition, unsigned long current_time_ms)
-{
-    return wait_condition_is_timed_out(wait_condition, current_time_ms);
-}
-
 operation_result_t wait_timeout_service_handle_timeout(const wait_condition_t *wait_condition,
                                                        unsigned long current_time_ms,
                                                        wait_timeout_fact_t *wait_timeout_fact)
@@ -19,7 +14,7 @@ operation_result_t wait_timeout_service_handle_timeout(const wait_condition_t *w
     }
 
     memset(wait_timeout_fact, 0, sizeof(*wait_timeout_fact));
-    if (!wait_timeout_service_should_fire(wait_condition, current_time_ms))
+    if (!wait_condition_is_timed_out(wait_condition, current_time_ms))
     {
         return operation_result_fail(ERROR_CODE_INVALID_STATE);
     }

@@ -1,7 +1,7 @@
 #include "application/coordinators/runtime_event_recorder.h"
 #include "application/coordinators/runtime_result_projection.h"
 #include "application/use_cases/process_wash_trigger.h"
-#include "platform/linux/main_loop.h"
+#include "application/coordinators/main_loop.h"
 #include "tests/test_support.h"
 #include "src/application/coordinators/system_context_private.h"
 

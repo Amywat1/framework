@@ -6,11 +6,12 @@
 #include <string.h>
 
 #include "adapters/config/json_program_parser.h"
-#include "adapters/inbound/cli_command_adapter.h"
 #include "adapters/logging/file_event_logger.h"
 #include "adapters/outbound/file_program_repository.h"
 #include "application/coordinators/controller_runtime.h"
+#include "application/coordinators/main_loop.h"
 #include "application/coordinators/system_context.h"
+#include "application/use_cases/process_formal_command.h"
 #include "application/use_cases/query_wash_session_status.h"
 #include "domain/model/wash_trigger_event.h"
 #include "platform/drivers/simulated_brush_driver.h"
@@ -21,7 +22,7 @@
 #include "platform/drivers/simulated_ro_water_driver.h"
 #include "platform/drivers/simulated_sensor_driver.h"
 #include "platform/linux/controller_scheduler_linux.h"
-#include "platform/linux/main_loop.h"
+#include "src/application/coordinators/system_context_private.h"
 #include "src/application/coordinators/system_context_runtime_layout.h"
 #include "shared/error_codes.h"
 
@@ -252,8 +253,6 @@ static inline void test_rebuild_formal_response_line(system_context_t system_con
 {
     const char *detail;
     const char *result_code;
-    bool accepted;
-
     if (response_line == 0 || response_line_size == 0u) {
         return;
     }
@@ -264,14 +263,10 @@ static inline void test_rebuild_formal_response_line(system_context_t system_con
     detail = system_context_last_reason_code(system_context)[0] != '\0'
         ? system_context_last_reason_code(system_context)
         : "none";
-    accepted = strcmp(result_code, "ignored") != 0
-        && strcmp(result_code, "rejected") != 0
-        && strcmp(result_code, "error") != 0;
-    snprintf(response_line,
+    process_formal_command_format_response(response_line,
         response_line_size,
-        "result=%s accepted=%s detail=%s",
         result_code,
-        accepted ? "true" : "false",
+        process_formal_command_result_is_accepted(result_code),
         detail);
 }
 
@@ -280,7 +275,7 @@ static inline operation_result_t test_process_command(system_context_t system_co
     char *response_line,
     size_t response_line_size)
 {
-    return cli_command_adapter_execute_formal_line(system_context, command_line, response_line, response_line_size);
+    return process_formal_command_execute(system_context, command_line, response_line, response_line_size);
 }
 
 static inline operation_result_t test_process_command_and_flush(system_context_t system_context,

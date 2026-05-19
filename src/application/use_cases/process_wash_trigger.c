@@ -4,6 +4,7 @@
 
 #include "application/coordinators/runtime_event_recorder.h"
 #include "application/coordinators/runtime_result_projection.h"
+#include "domain/model/runtime_state_text.h"
 #include "domain/services/program_snapshot_service.h"
 #include "domain/services/recovery_state_machine.h"
 #include "domain/services/wait_timeout_service.h"
@@ -64,31 +65,6 @@ static void set_latest_result(system_context_t system_context, const char *resul
 }
 
 /**
- * @brief 将设备状态枚举转换为字符串。
- * @param device_state 设备状态。
- * @return 状态对应的字符串；未知状态返回 "stopped"。
- */
-static const char *device_state_to_string(device_state_t device_state)
-{
-    switch (device_state)
-    {
-    case DEVICE_STATE_INIT:
-        return "init";
-    case DEVICE_STATE_RECOVERING:
-        return "recovering";
-    case DEVICE_STATE_IDLE:
-        return "idle";
-    case DEVICE_STATE_RUNNING:
-        return "running";
-    case DEVICE_STATE_EXCEPTION:
-        return "exception";
-    case DEVICE_STATE_STOPPED:
-    default:
-        return "stopped";
-    }
-}
-
-/**
  * @brief 将触发处理结果投影到运行时结果和转移记录。
  * @param system_context 系统上下文。
  * @param wash_trigger_event 原始触发事件；为空时仅记录结果码。
@@ -116,8 +92,8 @@ static void project_trigger_result(system_context_t system_context, const wash_t
     runtime_result_projection_set_transition(
         &runtime_result_projection, TRANSITION_ENTITY_REQUEST,
         wash_trigger_event->trigger_id[0] != '\0' ? wash_trigger_event->trigger_id : "runtime-trigger",
-        wash_trigger_event->trigger_type, device_state_to_string(previous_device_state),
-        device_state_to_string(current_device_state), result_code, reason_code, runtime_event_log_kind);
+        wash_trigger_event->trigger_type, runtime_state_text_device_state(previous_device_state),
+        runtime_state_text_device_state(current_device_state), result_code, reason_code, runtime_event_log_kind);
     runtime_event_recorder_apply_projection(system_context, &runtime_result_projection);
 }
 

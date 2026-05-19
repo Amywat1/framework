@@ -29,8 +29,8 @@ operation_result_t alarm_detect_job_process_snapshot(system_context_t system_con
         return operation_result_ok();
     }
 
-    wash_trigger_event_init(&wash_trigger_event, TRIGGER_TYPE_FAULT, 0, fault_code,
-                            BACKGROUND_ALARM_CORRELATION_KEY, fault_occurred_at_ms);
+    wash_trigger_event_init(&wash_trigger_event, TRIGGER_TYPE_FAULT, 0, fault_code, BACKGROUND_ALARM_CORRELATION_KEY,
+                            fault_occurred_at_ms);
     strncpy(wash_trigger_event.source, BACKGROUND_ALARM_SOURCE, sizeof(wash_trigger_event.source) - 1u);
     result = system_context_private_enqueue_external_trigger(system_context, &wash_trigger_event);
     if (!result.ok)

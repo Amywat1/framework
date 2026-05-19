@@ -40,6 +40,9 @@ operation_result_t system_context_private_require_active(const system_context_t 
  */
 operation_result_t system_context_private_complete_initialization(system_context_t system_context);
 
+/** @name 调度器绑定 */
+/** @{ */
+
 /**
  * @brief 绑定调度器到系统上下文，标记调度器已建立。
  * @note 由 Application 层（controller_runtime.c）在调度器创建成功后调用；
@@ -47,7 +50,8 @@ operation_result_t system_context_private_complete_initialization(system_context
  * @param system_context 系统上下文，必须处于激活状态。
  * @return 绑定成功返回 `operation_result_ok()`；已绑定或句柄非法时返回失败。
  */
-operation_result_t system_context_private_bind_scheduler(system_context_t system_context);
+operation_result_t system_context_private_bind_scheduler(system_context_t system_context,
+                                                         void *scheduler_binding);
 
 /**
  * @brief 解除调度器与系统上下文的绑定关系。
@@ -56,8 +60,13 @@ operation_result_t system_context_private_bind_scheduler(system_context_t system
  */
 void system_context_private_unbind_scheduler(system_context_t system_context);
 
-/** @brief 判断调度器是否已绑定到此系统上下文。 */
-bool system_context_private_has_scheduler_binding(const system_context_t system_context);
+/** @brief 读取已绑定调度器；未绑定或句柄非法时返回 `0`。 */
+void *system_context_private_bound_scheduler(const system_context_t system_context);
+
+/** @} */
+
+/** @name 设备状态与端口 */
+/** @{ */
 
 /** @brief 读取当前设备状态；句柄非法时返回 `DEVICE_STATE_INIT`。 */
 device_state_t system_context_private_device_state(const system_context_t system_context);
@@ -70,6 +79,11 @@ const actuator_port_t *system_context_private_actuator_port(const system_context
 
 /** @brief 读取传感器端口（只读）；句柄非法时返回 `0`。 */
 const sensor_port_t *system_context_private_sensor_port(const system_context_t system_context);
+
+/** @} */
+
+/** @name 全局故障 */
+/** @{ */
 
 /** @brief 判断是否存在未清除的全局故障。 */
 bool system_context_private_global_fault_present(const system_context_t system_context);
@@ -87,6 +101,11 @@ void system_context_private_set_global_fault(system_context_t system_context, co
 
 /** @brief 清除全局故障标志及相关信息。 */
 void system_context_private_clear_global_fault(system_context_t system_context);
+
+/** @} */
+
+/** @name 运行时结果与日志 */
+/** @{ */
 
 /** @brief 读取最近一次状态迁移记录（只读）；句柄非法时返回 `0`。 */
 const state_transition_record_t *system_context_private_last_transition_record(const system_context_t system_context);
@@ -120,6 +139,11 @@ operation_result_t system_context_private_apply_start_accepted(system_context_t 
 /** @brief 读取事件日志端口（只读）；句柄非法时返回 `0`。 */
 const event_logger_port_t *system_context_private_event_logger_port(const system_context_t system_context);
 
+/** @} */
+
+/** @name 服务参数构建 */
+/** @{ */
+
 /** @brief 将当前运行时状态填充到会话服务参数结构体中。 */
 void system_context_private_build_session_service_args(system_context_t system_context,
                                                        wash_session_service_args_t *wash_session_service_args);
@@ -131,6 +155,11 @@ void system_context_private_build_program_snapshot_service_args(
 /** @brief 将当前运行时状态填充到工步执行服务参数结构体中。 */
 void system_context_private_build_execution_service_args(system_context_t system_context,
                                                          wash_execution_service_args_t *wash_execution_service_args);
+
+/** @} */
+
+/** @name 聚合根快照 */
+/** @{ */
 
 /** @brief 读取当前洗车会话（只读）；句柄非法时返回 `0`。 */
 const wash_session_t *system_context_private_wash_session(const system_context_t system_context);
@@ -152,6 +181,11 @@ wait_condition_t *system_context_private_wait_condition_mutable(system_context_t
 
 /** @brief 读取当前程序快照（只读）；句柄非法时返回 `0`。 */
 const program_snapshot_t *system_context_private_program_snapshot(const system_context_t system_context);
+
+/** @} */
+
+/** @name 时间与触发队列 */
+/** @{ */
 
 /**
  * @brief 推进系统上下文内部时钟。
@@ -212,11 +246,18 @@ const wash_trigger_event_t *system_context_private_pending_trigger_at(const syst
  */
 void system_context_private_remove_pending_trigger_at(system_context_t system_context, unsigned int remove_index);
 
+/** @} */
+
+/** @name 测试辅助 */
+/** @{ */
+
 /**
  * @brief 调试用：判断系统上下文实例当前是否处于占用状态。
  * @note 仅用于测试断言，不应在生产路径中使用。
  * @return 实例正被占用时返回 `true`。
  */
 bool system_context_private_debug_is_in_use(const system_context_t system_context);
+
+/** @} */
 
 #endif

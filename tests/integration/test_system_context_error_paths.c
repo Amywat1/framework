@@ -69,7 +69,7 @@ static int verify_second_acquire_is_rejected_until_release(void)
 
     result = system_context_acquire(&second_handle);
     TEST_ASSERT(result.ok);
-    TEST_ASSERT(second_handle != first_handle);
+    TEST_ASSERT(second_handle == first_handle);
     result = system_context_release(second_handle);
     TEST_ASSERT(result.ok);
     return 0;
@@ -78,7 +78,7 @@ static int verify_second_acquire_is_rejected_until_release(void)
 static int verify_released_handle_is_rejected_by_runtime_paths(void)
 {
     controller_scheduler_config_t controller_scheduler_config;
-    controller_scheduler_linux_stdio_t controller_scheduler_linux_stdio;
+    controller_scheduler_stdio_t controller_scheduler_stdio;
     controller_runtime_state_view_t controller_runtime_state_view;
     system_context_t released_handle;
     system_context_t reacquired_context;
@@ -126,11 +126,11 @@ static int verify_released_handle_is_rejected_by_runtime_paths(void)
     controller_scheduler_config.max_triggers_per_tick = 1u;
     controller_scheduler_config.overrun_warning_threshold_ms = 100ul;
     controller_scheduler_config.observability_enabled = true;
-    memset(&controller_scheduler_linux_stdio, 0, sizeof(controller_scheduler_linux_stdio));
+    memset(&controller_scheduler_stdio, 0, sizeof(controller_scheduler_stdio));
 
-    controller_scheduler = controller_scheduler_linux_create(system_context,
+    controller_scheduler = controller_scheduler_create(system_context,
         &controller_scheduler_config,
-        &controller_scheduler_linux_stdio);
+        &controller_scheduler_stdio);
     TEST_ASSERT(controller_scheduler == 0);
 
     result = system_context_release(system_context);
@@ -139,13 +139,11 @@ static int verify_released_handle_is_rejected_by_runtime_paths(void)
 
     result = system_context_acquire(&reacquired_context);
     TEST_ASSERT(result.ok);
-    TEST_ASSERT(reacquired_context != released_handle);
-    TEST_ASSERT(!system_context_private_debug_is_in_use(released_handle));
+    TEST_ASSERT(reacquired_context == released_handle);
+    TEST_ASSERT(system_context_private_debug_is_in_use(released_handle));
 
-    wash_trigger_event_init(&wash_trigger_event, TRIGGER_TYPE_STOP, 0, "stale", "stale", 0ul);
-    result = main_loop_submit_trigger(released_handle, &wash_trigger_event);
-    TEST_ASSERT(!result.ok);
-    TEST_ASSERT(result.error_code == ERROR_CODE_INVALID_STATE);
+    TEST_ASSERT(system_context_current_time_ms(reacquired_context) == 0ul);
+    TEST_ASSERT(system_context_pending_trigger_count(reacquired_context) == 0u);
 
     result = controller_scheduler_read_context_view(released_handle, &controller_runtime_state_view);
     TEST_ASSERT(!result.ok);
@@ -159,7 +157,7 @@ static int verify_released_handle_is_rejected_by_runtime_paths(void)
 static int verify_bound_scheduler_blocks_release_and_rebind(void)
 {
     controller_scheduler_config_t controller_scheduler_config;
-    controller_scheduler_linux_stdio_t controller_scheduler_linux_stdio;
+    controller_scheduler_stdio_t controller_scheduler_stdio;
     system_context_t system_context;
     simulated_driver_context_t driver_context;
     controller_scheduler_t *controller_scheduler;
@@ -175,10 +173,10 @@ static int verify_bound_scheduler_blocks_release_and_rebind(void)
     TEST_ASSERT(result.error_code == ERROR_CODE_INVALID_STATE);
 
     test_init_scheduler_config(&controller_scheduler_config, 100ul);
-    memset(&controller_scheduler_linux_stdio, 0, sizeof(controller_scheduler_linux_stdio));
-    duplicate_scheduler = controller_scheduler_linux_create(system_context,
+    memset(&controller_scheduler_stdio, 0, sizeof(controller_scheduler_stdio));
+    duplicate_scheduler = controller_scheduler_create(system_context,
         &controller_scheduler_config,
-        &controller_scheduler_linux_stdio);
+        &controller_scheduler_stdio);
     TEST_ASSERT(duplicate_scheduler == 0);
 
     test_release_system_context(system_context);

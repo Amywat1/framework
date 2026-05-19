@@ -1,5 +1,3 @@
-#define _POSIX_C_SOURCE 200809L
-
 #include <stdio.h>
 #include <string.h>
 
@@ -80,10 +78,8 @@ int main(void)
     controller_runtime_config.config_root = "./configs";
     controller_runtime_config.event_log_path = "./runtime/logs/events.log";
     controller_runtime_config.background_alarm_monitor.enabled = true;
-    controller_runtime_config.background_alarm_monitor.io_sample_period_ms =
-        CONTROLLER_BACKGROUND_ALARM_IO_PERIOD_MS;
-    controller_runtime_config.background_alarm_monitor.detect_period_ms =
-        CONTROLLER_BACKGROUND_ALARM_DETECT_PERIOD_MS;
+    controller_runtime_config.background_alarm_monitor.io_sample_period_ms = CONTROLLER_BACKGROUND_ALARM_IO_PERIOD_MS;
+    controller_runtime_config.background_alarm_monitor.detect_period_ms = CONTROLLER_BACKGROUND_ALARM_DETECT_PERIOD_MS;
 
     result = controller_runtime_create(&controller_runtime, &controller_runtime_config);
     if (!result.ok || controller_runtime == 0)
@@ -109,8 +105,8 @@ int main(void)
         {
             domain_reason = runtime_status_view.last_reason_code;
         }
-        fprintf(stderr, "wash_controller: run failed, scheduler_reason=%s, domain_reason=%s\n",
-                scheduler_reason, domain_reason);
+        fprintf(stderr, "wash_controller: run failed, scheduler_reason=%s, domain_reason=%s\n", scheduler_reason,
+                domain_reason);
         exit_code = 1;
     }
 

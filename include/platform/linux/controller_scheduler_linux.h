@@ -3,7 +3,6 @@
 
 #include <stdbool.h>
 #include <stddef.h>
-#include <stdio.h>
 
 #include "application/coordinators/system_context.h"
 #include "platform/controller_scheduler.h"
@@ -12,16 +11,6 @@
  * @file controller_scheduler_linux.h
  * @brief 声明 Linux 平台调度器实现与测试注入口。
  */
-
-/**
- * @brief Linux 调度器使用的标准输入输出绑定。
- */
-typedef struct controller_scheduler_linux_stdio_t
-{
-    FILE *input;
-    FILE *output;
-    FILE *error;
-} controller_scheduler_linux_stdio_t;
 
 /**
  * @brief Linux 调度器测试故障注入点。
@@ -35,26 +24,6 @@ typedef enum
     CONTROLLER_SCHEDULER_LINUX_TEST_FAIL_COMMAND_READ,
     CONTROLLER_SCHEDULER_LINUX_TEST_FAIL_MAIN_LOOP_RUN
 } controller_scheduler_linux_test_failpoint_t;
-
-/**
- * @brief 创建一个 Linux 平台调度器实例。
- *
- * @param system_context 主控运行时组合根句柄。
- * @param controller_scheduler_config 调度器配置。
- * @param controller_scheduler_linux_stdio 可选的标准输入输出绑定。
- * @return 成功时返回调度器对象；参数非法、句柄失效或底层资源初始化失败时返回 `0`。
- */
-controller_scheduler_t *
-controller_scheduler_linux_create(system_context_t system_context,
-                                  const controller_scheduler_config_t *controller_scheduler_config,
-                                  const controller_scheduler_linux_stdio_t *controller_scheduler_linux_stdio);
-
-/**
- * @brief 销毁一个 Linux 平台调度器实例。
- *
- * @param controller_scheduler 调度器对象；允许传入 `0`。
- */
-void controller_scheduler_linux_destroy(controller_scheduler_t *controller_scheduler);
 
 /**
  * @brief 在测试中注入一次周期触发。

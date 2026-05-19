@@ -1,8 +1,6 @@
 ﻿#include "application/coordinators/system_context.h"
 
-#include <stddef.h>
 #include <stdatomic.h>
-#include <stdint.h>
 #include <string.h>
 
 #include "domain/model/program_snapshot.h"
@@ -11,23 +9,15 @@
 #include "domain/model/wash_execution.h"
 #include "domain/model/wash_program.h"
 #include "domain/model/wash_session.h"
-#include "domain/services/wait_timeout_service.h"
 #include "src/application/coordinators/system_context_runtime_layout.h"
-
-#define SYSTEM_CONTEXT_HANDLE_GENERATION_WINDOW 65536u
 
 struct system_context_handle
 {
-    unsigned int generation;
+    unsigned int reserved;
 };
 
 static system_context_instance_state_t s_system_context_instance;
-static struct system_context_handle s_system_context_handles[SYSTEM_CONTEXT_HANDLE_GENERATION_WINDOW];
-static bool s_system_context_handles_initialized = false;
-static system_context_t s_active_system_context = 0;
-
-_Static_assert(SYSTEM_CONTEXT_HANDLE_GENERATION_WINDOW > 1u,
-               "system_context handle generation window must provide at least one active generation");
+static struct system_context_handle s_system_context_handle;
 
 /**
  * @brief 初始化外部触发收件箱。
@@ -58,59 +48,17 @@ static void initialize_runtime_object(system_context_runtime_t *runtime)
     initialize_external_trigger_queue(runtime);
 }
 
-static void initialize_handle_storage_if_needed(void)
-{
-    unsigned int generation;
-
-    if (s_system_context_handles_initialized)
-    {
-        return;
-    }
-
-    memset(&s_system_context_instance, 0, sizeof(s_system_context_instance));
-    for (generation = 1u; generation < SYSTEM_CONTEXT_HANDLE_GENERATION_WINDOW; ++generation)
-    {
-        s_system_context_handles[generation].generation = generation;
-    }
-    s_system_context_handles_initialized = true;
-}
-
-static bool is_managed_handle(const system_context_t system_context)
-{
-    uintptr_t base_address;
-    uintptr_t end_address;
-    uintptr_t handle_address;
-    size_t offset;
-
-    if (system_context == 0)
-    {
-        return false;
-    }
-
-    base_address = (uintptr_t)&s_system_context_handles[0];
-    end_address = base_address + sizeof(s_system_context_handles);
-    handle_address = (uintptr_t)system_context;
-    if (handle_address < base_address || handle_address >= end_address)
-    {
-        return false;
-    }
-
-    offset = (size_t)(handle_address - base_address);
-    return (offset % sizeof(s_system_context_handles[0])) == 0u;
-}
-
 static operation_result_t require_active_instance(const system_context_t system_context)
 {
-    initialize_handle_storage_if_needed();
     if (system_context == 0)
     {
         return operation_result_fail(ERROR_CODE_INVALID_ARGUMENT);
     }
-    if (!is_managed_handle(system_context))
+    if (system_context != &s_system_context_handle)
     {
         return operation_result_fail(ERROR_CODE_INVALID_ARGUMENT);
     }
-    if (!s_system_context_instance.in_use || system_context != s_active_system_context)
+    if (!s_system_context_instance.in_use)
     {
         return operation_result_fail(ERROR_CODE_INVALID_STATE);
     }
@@ -143,11 +91,16 @@ operation_result_t system_context_private_complete_initialization(system_context
     return operation_result_ok();
 }
 
-operation_result_t system_context_private_bind_scheduler(system_context_t system_context)
+operation_result_t system_context_private_bind_scheduler(system_context_t system_context,
+                                                         void *scheduler_binding)
 {
     system_context_runtime_t *runtime;
     operation_result_t result;
 
+    if (scheduler_binding == 0)
+    {
+        return operation_result_fail(ERROR_CODE_INVALID_ARGUMENT);
+    }
     result = require_active_instance(system_context);
     if (!result.ok)
     {
@@ -155,12 +108,12 @@ operation_result_t system_context_private_bind_scheduler(system_context_t system
     }
 
     runtime = &s_system_context_instance.runtime;
-    if (runtime->scheduler_bound)
+    if (runtime->scheduler_binding != 0)
     {
         return operation_result_fail(ERROR_CODE_INVALID_STATE);
     }
 
-    runtime->scheduler_bound = true;
+    runtime->scheduler_binding = scheduler_binding;
     return operation_result_ok();
 }
 
@@ -170,16 +123,16 @@ void system_context_private_unbind_scheduler(system_context_t system_context)
     {
         return;
     }
-    s_system_context_instance.runtime.scheduler_bound = false;
+    s_system_context_instance.runtime.scheduler_binding = 0;
 }
 
-bool system_context_private_has_scheduler_binding(const system_context_t system_context)
+void *system_context_private_bound_scheduler(const system_context_t system_context)
 {
     if (!require_active_instance(system_context).ok)
     {
-        return false;
+        return 0;
     }
-    return s_system_context_instance.runtime.scheduler_bound;
+    return s_system_context_instance.runtime.scheduler_binding;
 }
 
 device_state_t system_context_private_device_state(const system_context_t system_context)
@@ -671,13 +624,11 @@ const system_context_runtime_t *system_context_private_runtime_const(const syste
 
 bool system_context_private_debug_is_in_use(const system_context_t system_context)
 {
-    initialize_handle_storage_if_needed();
-    return s_system_context_instance.in_use && system_context == s_active_system_context;
+    return s_system_context_instance.in_use && system_context == &s_system_context_handle;
 }
 
 operation_result_t system_context_acquire(system_context_t *system_context)
 {
-    initialize_handle_storage_if_needed();
     if (system_context == 0)
     {
         return operation_result_fail(ERROR_CODE_INVALID_ARGUMENT);
@@ -689,16 +640,9 @@ operation_result_t system_context_acquire(system_context_t *system_context)
         return operation_result_fail(ERROR_CODE_RESOURCE_UNAVAILABLE);
     }
 
-    s_system_context_instance.generation += 1u;
-    if (s_system_context_instance.generation >= SYSTEM_CONTEXT_HANDLE_GENERATION_WINDOW)
-    {
-        s_system_context_instance.generation = 1u;
-    }
-
     initialize_runtime_object(&s_system_context_instance.runtime);
     s_system_context_instance.in_use = true;
-    s_active_system_context = &s_system_context_handles[s_system_context_instance.generation];
-    *system_context = s_active_system_context;
+    *system_context = &s_system_context_handle;
     return operation_result_ok();
 }
 
@@ -711,14 +655,13 @@ operation_result_t system_context_release(system_context_t system_context)
     {
         return result;
     }
-    if (s_system_context_instance.runtime.scheduler_bound)
+    if (s_system_context_instance.runtime.scheduler_binding != 0)
     {
         return operation_result_fail(ERROR_CODE_INVALID_STATE);
     }
 
     initialize_runtime_object(&s_system_context_instance.runtime);
     s_system_context_instance.in_use = false;
-    s_active_system_context = 0;
     return operation_result_ok();
 }
 
@@ -728,7 +671,7 @@ operation_result_t system_context_reset(system_context_t system_context)
     event_logger_port_t event_logger_port;
     operation_result_t result;
     program_repository_port_t program_repository_port;
-    bool scheduler_bound;
+    void *scheduler_binding;
     sensor_port_t sensor_port;
     system_context_runtime_t *runtime;
 
@@ -743,10 +686,10 @@ operation_result_t system_context_reset(system_context_t system_context)
     actuator_port = runtime->actuator_port;
     event_logger_port = runtime->event_logger_port;
     program_repository_port = runtime->program_repository_port;
-    scheduler_bound = runtime->scheduler_bound;
+    scheduler_binding = runtime->scheduler_binding;
 
     initialize_runtime_object(runtime);
-    runtime->scheduler_bound = scheduler_bound;
+    runtime->scheduler_binding = scheduler_binding;
     runtime->sensor_port = sensor_port;
     runtime->actuator_port = actuator_port;
     runtime->event_logger_port = event_logger_port;
@@ -910,8 +853,8 @@ bool system_context_has_pending_runtime_work(const system_context_t system_conte
 
     return s_system_context_instance.runtime.pending_trigger_count > 0u ||
            system_context_private_external_trigger_count(system_context) > 0u ||
-           wait_timeout_service_should_fire(&s_system_context_instance.runtime.wait_condition,
-                                            s_system_context_instance.runtime.current_time_ms);
+           wait_condition_is_timed_out(&s_system_context_instance.runtime.wait_condition,
+                                       s_system_context_instance.runtime.current_time_ms);
 }
 
 bool system_context_wait_condition_active(const system_context_t system_context)
@@ -962,19 +905,20 @@ const char *system_context_last_reason_code(const system_context_t system_contex
     return s_system_context_instance.runtime.last_reason_code;
 }
 
-bool system_context_has_scheduler_binding(const system_context_t system_context)
+operation_result_t system_context_bind_scheduler(system_context_t system_context,
+                                                 void *scheduler_binding)
 {
-    return system_context_private_has_scheduler_binding(system_context);
-}
-
-operation_result_t system_context_bind_scheduler(system_context_t system_context)
-{
-    return system_context_private_bind_scheduler(system_context);
+    return system_context_private_bind_scheduler(system_context, scheduler_binding);
 }
 
 void system_context_unbind_scheduler(system_context_t system_context)
 {
     system_context_private_unbind_scheduler(system_context);
+}
+
+void *system_context_bound_scheduler(const system_context_t system_context)
+{
+    return system_context_private_bound_scheduler(system_context);
 }
 
 operation_result_t system_context_require_active(system_context_t system_context)
@@ -996,6 +940,11 @@ operation_result_t system_context_append_trigger(system_context_t system_context
 void system_context_remove_pending_trigger_at(system_context_t system_context, unsigned int index)
 {
     system_context_private_remove_pending_trigger_at(system_context, index);
+}
+
+bool system_context_try_pop_external_trigger(system_context_t system_context, wash_trigger_event_t *wash_trigger_event)
+{
+    return system_context_private_try_pop_external_trigger(system_context, wash_trigger_event);
 }
 
 const wait_condition_t *system_context_wait_condition(const system_context_t system_context)

@@ -1,8 +1,10 @@
 #ifndef APPLICATION_COORDINATORS_CONTROLLER_RUNTIME_H
 #define APPLICATION_COORDINATORS_CONTROLLER_RUNTIME_H
 
+#include <stdbool.h>
 #include <stdio.h>
 
+#include "application/coordinators/background_alarm_settings.h"
 #include "application/coordinators/system_context.h"
 #include "domain/ports/actuator_port.h"
 #include "domain/ports/sensor_port.h"
@@ -29,16 +31,6 @@ typedef enum
 } controller_runtime_lifecycle_state_t;
 
 /**
- * @brief 后台报警监控配置。
- */
-typedef struct controller_runtime_background_alarm_monitor_config_t
-{
-    bool enabled;                       /**< 是否启用后台报警监控。 */
-    unsigned long io_sample_period_ms; /**< IO 线程读取传感器快照的周期，单位毫秒。 */
-    unsigned long detect_period_ms;    /**< 检测线程等待新快照通知的最大超时周期，超时后会兜底重试一次检测，单位毫秒。 */
-} controller_runtime_background_alarm_monitor_config_t;
-
-/**
  * @brief 正式 runtime 创建配置。
  *
  * @note `sensor_port`、`actuator_port`、stdio 句柄和路径参数均由调用方拥有。
@@ -54,7 +46,7 @@ typedef struct controller_runtime_config_t
     FILE *command_error;
     const char *config_root;
     const char *event_log_path;
-    controller_runtime_background_alarm_monitor_config_t background_alarm_monitor;
+    background_alarm_settings_t background_alarm_monitor;
 } controller_runtime_config_t;
 
 /**
@@ -107,7 +99,7 @@ operation_result_t controller_runtime_run(controller_runtime_t *runtime);
 /**
  * @brief 销毁正式 runtime 实例并逆序释放 runtime owned 资源。
  *
- * @note 对于本进程曾正式创建过且已销毁的句柄，重复调用本接口按安全重复销毁语义返回
+ * @note runtime 使用单实例不透明句柄；实例未被重新创建占用时，重复调用本接口按安全重复销毁语义返回
  *       `operation_result_ok()`。
  * @param runtime 正式 runtime 句柄；允许传入 `0`。
  * @return 销毁成功或重复销毁安全返回 `operation_result_ok()`；若 runtime owned
@@ -118,8 +110,8 @@ operation_result_t controller_runtime_destroy(controller_runtime_t *runtime);
 /**
  * @brief 读取 runtime 当前生命周期视图。
  *
- * @note 对于本进程曾正式创建过且已销毁的句柄，本接口仍返回 `operation_result_ok()`，
- *       并输出保守的 `DESTROYED` 视图。
+ * @note runtime 使用单实例不透明句柄；实例未被重新创建占用时，本接口仍返回
+ *       `operation_result_ok()` 并输出保守的 `DESTROYED` 视图。
  * @param runtime 正式 runtime 句柄。
  * @param status_view 输出状态视图，不能为空。
  * @return 读取成功返回 `operation_result_ok()`，否则返回显式失败结果。

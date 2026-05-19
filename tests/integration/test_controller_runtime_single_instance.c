@@ -42,28 +42,30 @@ int main(void)
     result = controller_runtime_destroy(first_runtime);
     TEST_ASSERT(result.ok);
 
+    /* 覆盖单实例句柄的销毁后再创建语义：地址复用，但生命周期状态已重建。 */
     result = test_create_runtime(&second_runtime, &second_driver_context, 100ul);
     TEST_ASSERT(result.ok);
     TEST_ASSERT(second_runtime != 0);
+    TEST_ASSERT(second_runtime == first_runtime);
 
     result = controller_runtime_read_state(first_runtime, &first_status_view);
     TEST_ASSERT(result.ok);
-    TEST_ASSERT(first_status_view.lifecycle_state == CONTROLLER_RUNTIME_STATE_DESTROYED);
-    TEST_ASSERT(!first_status_view.system_context_acquired);
-    TEST_ASSERT(!first_status_view.scheduler_created);
-    TEST_ASSERT(!first_status_view.scheduler_view_available);
-    TEST_ASSERT(test_runtime_scheduler(first_runtime) == 0);
+    TEST_ASSERT(first_status_view.lifecycle_state == CONTROLLER_RUNTIME_STATE_CREATED);
+    TEST_ASSERT(first_status_view.system_context_acquired);
+    TEST_ASSERT(first_status_view.scheduler_created);
+    TEST_ASSERT(first_status_view.scheduler_view_available);
+    TEST_ASSERT(test_runtime_scheduler(first_runtime) != 0);
     result = test_runtime_system_context(first_runtime, &first_system_context);
-    TEST_ASSERT(!result.ok);
-    TEST_ASSERT(result.error_code == ERROR_CODE_INVALID_STATE);
+    TEST_ASSERT(result.ok);
+    TEST_ASSERT(first_system_context != 0);
 
     result = controller_runtime_destroy(first_runtime);
     TEST_ASSERT(result.ok);
     result = controller_runtime_read_state(second_runtime, &second_status_view);
     TEST_ASSERT(result.ok);
-    TEST_ASSERT(second_status_view.lifecycle_state == CONTROLLER_RUNTIME_STATE_CREATED);
-    TEST_ASSERT(second_status_view.system_context_acquired);
-    TEST_ASSERT(second_status_view.scheduler_created);
+    TEST_ASSERT(second_status_view.lifecycle_state == CONTROLLER_RUNTIME_STATE_DESTROYED);
+    TEST_ASSERT(!second_status_view.system_context_acquired);
+    TEST_ASSERT(!second_status_view.scheduler_created);
 
     result = controller_runtime_destroy(second_runtime);
     TEST_ASSERT(result.ok);

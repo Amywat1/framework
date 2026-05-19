@@ -38,7 +38,7 @@ typedef struct system_context_runtime_t
     char global_fault_reason[128];
     char last_result_code[32];
     char last_reason_code[64];
-    bool scheduler_bound;
+    void *scheduler_binding;
     sensor_port_t sensor_port;
     actuator_port_t actuator_port;
     event_logger_port_t event_logger_port;
@@ -48,7 +48,6 @@ typedef struct system_context_runtime_t
 typedef struct system_context_instance_state_t
 {
     bool in_use;
-    unsigned int generation;
     system_context_runtime_t runtime;
 } system_context_instance_state_t;
 

@@ -53,7 +53,7 @@ int main(void)
     TEST_ASSERT(!status_view.scheduler_created);
     TEST_ASSERT(!status_view.scheduler_view_available);
 
-    /* Corrupt a real issued token so it still looks handle-shaped but is not an issued handle. */
+    /* 构造一个非 runtime 正式句柄地址，验证 opaque 边界仍拒绝伪造值。 */
     forged_runtime = (controller_runtime_t *)(((uintptr_t)controller_runtime) ^ (((uintptr_t)1u) << 8u));
     result = controller_runtime_destroy(forged_runtime);
     TEST_ASSERT(!result.ok);

@@ -1,4 +1,3 @@
-#include "adapters/inbound/cli_command_adapter.h"
 #include "application/use_cases/process_formal_command.h"
 #include "tests/test_support.h"
 #include "src/application/coordinators/system_context_private.h"
@@ -205,7 +204,7 @@ static int verify_cli_execute_uses_formal_entry(void)
     result = test_homing_system_and_flush(system_context);
     TEST_ASSERT(result.ok);
 
-    result = cli_command_adapter_execute_formal_line(system_context,
+    result = process_formal_command_execute(system_context,
         "start wash_step_control_v1",
         response_line,
         sizeof(response_line));

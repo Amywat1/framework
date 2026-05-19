@@ -6,8 +6,9 @@
 
 #include "application/coordinators/runtime_event_recorder.h"
 #include "application/coordinators/runtime_result_projection.h"
+#include "application/coordinators/main_loop.h"
 #include "application/use_cases/query_wash_session_status.h"
-#include "platform/linux/main_loop.h"
+#include "domain/model/runtime_state_text.h"
 #include "shared/error_codes.h"
 #include "src/application/coordinators/system_context_private.h"
 #include "src/application/use_cases/command_matrix_reason_codes.h"
@@ -56,98 +57,6 @@ static const char *error_code_to_string(error_code_t error_code)
         return "unsupported";
     default:
         return "unknown_error";
-    }
-}
-
-/**
- * @brief 将会话状态转换为字符串形式
- * @param session_state 会话状态
- * @return 状态对应的字符串；未知状态返回 "none"
- */
-static const char *session_state_to_string(session_state_t session_state)
-{
-    switch (session_state)
-    {
-    case SESSION_STATE_CREATED:
-        return "created";
-    case SESSION_STATE_RUNNING:
-        return "running";
-    case SESSION_STATE_COMPLETED:
-        return "completed";
-    case SESSION_STATE_ABORTED:
-        return "aborted";
-    default:
-        return "none";
-    }
-}
-
-/**
- * @brief 将工步执行状态转换为字符串形式
- * @param execution_state 执行状态
- * @return 状态对应的字符串；未知状态返回 "none"
- */
-static const char *execution_state_to_string(execution_state_t execution_state)
-{
-    switch (execution_state)
-    {
-    case EXECUTION_STATE_RUNNING:
-        return "running";
-    case EXECUTION_STATE_COMPLETED:
-        return "completed";
-    case EXECUTION_STATE_ABORTED:
-        return "aborted";
-    default:
-        return "none";
-    }
-}
-
-/**
- * @brief 将设备状态转换为字符串。
- * @param device_state 设备状态。
- * @return 对应的状态字符串。
- */
-static const char *device_state_to_string(device_state_t device_state)
-{
-    switch (device_state)
-    {
-    case DEVICE_STATE_INIT:
-        return "init";
-    case DEVICE_STATE_RECOVERING:
-        return "recovering";
-    case DEVICE_STATE_IDLE:
-        return "idle";
-    case DEVICE_STATE_RUNNING:
-        return "running";
-    case DEVICE_STATE_EXCEPTION:
-        return "exception";
-    case DEVICE_STATE_STOPPED:
-    default:
-        return "stopped";
-    }
-}
-
-/**
- * @brief 将生命周期状态转换为字符串。
- * @param lifecycle_state 生命周期状态。
- * @return 对应的状态字符串。
- */
-static const char *lifecycle_state_to_string(segment_lifecycle_state_t lifecycle_state)
-{
-    switch (lifecycle_state)
-    {
-    case SEGMENT_LIFECYCLE_ENTERING:
-        return "entering";
-    case SEGMENT_LIFECYCLE_RUNNING:
-        return "running";
-    case SEGMENT_LIFECYCLE_EXITING:
-        return "exiting";
-    case SEGMENT_LIFECYCLE_COMPLETED:
-        return "completed";
-    case SEGMENT_LIFECYCLE_ABORTED:
-        return "aborted";
-    case SEGMENT_LIFECYCLE_PENDING:
-    default:
-        return "pending";
     }
 }
 
@@ -249,6 +158,28 @@ static char *take_remainder(char **cursor)
     return start;
 }
 
+bool process_formal_command_result_is_accepted(const char *result_code)
+{
+    if (result_code == 0)
+    {
+        return true;
+    }
+    return strcmp(result_code, "ignored") != 0 && strcmp(result_code, "rejected") != 0 &&
+           strcmp(result_code, "error") != 0;
+}
+
+void process_formal_command_format_response(char *response_line, size_t response_line_size, const char *result_code,
+                                            bool accepted, const char *detail)
+{
+    if (response_line == 0 || response_line_size == 0)
+    {
+        return;
+    }
+
+    snprintf(response_line, response_line_size, "result=%s accepted=%s detail=%s",
+             result_code != 0 ? result_code : "unknown", accepted ? "true" : "false", detail != 0 ? detail : "none");
+}
+
 /**
  * @brief 生成单行命令响应文本。
  * @param response_line 响应缓冲区。
@@ -260,13 +191,7 @@ static char *take_remainder(char **cursor)
 static void write_result_line(char *response_line, size_t response_line_size, const char *result_code, bool accepted,
                               const char *detail)
 {
-    if (response_line == 0 || response_line_size == 0)
-    {
-        return;
-    }
-
-    snprintf(response_line, response_line_size, "result=%s accepted=%s detail=%s",
-             result_code != 0 ? result_code : "unknown", accepted ? "true" : "false", detail != 0 ? detail : "none");
+    process_formal_command_format_response(response_line, response_line_size, result_code, accepted, detail);
 }
 
 /**
@@ -384,11 +309,11 @@ static operation_result_t execute_status(system_context_t system_context, char *
     summary_reason = wash_session_status_view.reason_code[0] != '\0' ? wash_session_status_view.reason_code : "none";
     snprintf(detail, sizeof(detail),
              "device=%s session=%s state=%s execution=%s lifecycle=%s stage=%s wait=%s global_fault=%s reason=%s",
-             device_state_to_string(wash_session_status_view.device_state),
+             runtime_state_text_device_state(wash_session_status_view.device_state),
              wash_session_status_view.session_id[0] != '\0' ? wash_session_status_view.session_id : "none",
-             session_state_to_string(wash_session_status_view.session_state),
-             execution_state_to_string(wash_session_status_view.execution_state),
-             lifecycle_state_to_string(wash_session_status_view.lifecycle_state),
+             runtime_state_text_session_state(wash_session_status_view.session_state),
+             runtime_state_text_execution_state(wash_session_status_view.execution_state),
+             runtime_state_text_segment_lifecycle_state(wash_session_status_view.lifecycle_state),
              wash_session_status_view.stage_id[0] != '\0' ? wash_session_status_view.stage_id : "none",
              wash_session_status_view.wait_reason[0] != '\0' ? wash_session_status_view.wait_reason : "none",
              wash_session_status_view.global_fault_present ? "true" : "false", summary_reason);
@@ -640,8 +565,7 @@ static operation_result_t finalize_formal_command_response(system_context_t syst
     detail = system_context_last_reason_code(system_context)[0] != '\0'
                  ? system_context_last_reason_code(system_context)
                  : "none";
-    accepted = strcmp(result_code, "ignored") != 0 && strcmp(result_code, "rejected") != 0 &&
-               strcmp(result_code, "error") != 0;
+    accepted = process_formal_command_result_is_accepted(result_code);
     write_result_line(response_line, response_line_size, result_code, accepted, detail);
     return result;
 }

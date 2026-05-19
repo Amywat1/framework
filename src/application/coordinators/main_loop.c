@@ -1,17 +1,15 @@
-#include "platform/linux/main_loop.h"
+#include "application/coordinators/main_loop.h"
 
 #include "application/coordinators/system_context.h"
 #include "application/use_cases/process_wash_trigger.h"
 #include "domain/services/trigger_priority_service.h"
-#include "domain/services/wait_timeout_service.h"
 #include "shared/error_codes.h"
 #include "shared/timeouts.h"
-#include "src/application/coordinators/system_context_private.h"
 
 /**
- * @brief 判断待处理触发队列中是否已有超时触发
- * @param system_context 系统上下文
- * @return true 表示队列中存在 TRIGGER_TYPE_TIMEOUT 类型的触发；false 表示无超时触发
+ * @brief 判断待处理触发队列中是否已有超时触发。
+ * @param system_context 系统上下文。
+ * @return 存在超时触发时返回 `true`，否则返回 `false`。
  */
 static bool has_pending_timeout_trigger(const system_context_t system_context)
 {
@@ -30,9 +28,9 @@ static bool has_pending_timeout_trigger(const system_context_t system_context)
 }
 
 /**
- * @brief 若等待条件已超时且条件允许，则向触发队列添加超时触发
- * @param system_context 系统上下文
- * @details 添加条件：等待条件存在、已超时、队列未满、队列内无重复超时触发
+ * @brief 若等待条件已超时且条件允许，则向触发队列添加超时触发。
+ * @param system_context 系统上下文。
+ * @details 添加条件：等待条件存在、已超时、队列未满、队列内无重复超时触发。
  */
 static void enqueue_timeout_if_needed(system_context_t system_context)
 {
@@ -42,7 +40,7 @@ static void enqueue_timeout_if_needed(system_context_t system_context)
 
     wait_condition = system_context_wait_condition(system_context);
     current_time_ms = system_context_current_time_ms(system_context);
-    if (wait_condition == 0 || !wait_timeout_service_should_fire(wait_condition, current_time_ms))
+    if (wait_condition == 0 || !wait_condition_is_timed_out(wait_condition, current_time_ms))
     {
         return;
     }
@@ -99,7 +97,11 @@ operation_result_t main_loop_run(system_context_t system_context)
         return result;
     }
 
-    if (system_context_private_try_pop_external_trigger(system_context, &external_event))
+    /*
+     * 后台报警等跨线程事件已经在外部收件箱完成隔离，单拍内优先处理，
+     * 避免内部待处理队列积压时延迟故障进入领域状态机。
+     */
+    if (system_context_try_pop_external_trigger(system_context, &external_event))
     {
         result = process_wash_trigger_execute(system_context, &external_event);
         if (!result.ok)

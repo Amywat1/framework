@@ -4,7 +4,6 @@
 #include "platform/linux/controller_scheduler_linux.h"
 
 #include <errno.h>
-#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -14,27 +13,13 @@
 #include <time.h>
 #include <unistd.h>
 
-#include "adapters/inbound/cli_command_adapter.h"
 #include "application/coordinators/system_context.h"
+#include "application/coordinators/main_loop.h"
 #include "domain/model/domain_enums.h"
-#include "platform/linux/main_loop.h"
 #include "shared/error_codes.h"
 #include "src/platform/linux/controller_scheduler_linux_internal.h"
 
 #define CONTROLLER_SCHEDULER_MAX_EPOLL_EVENTS 4
-
-/**
- * @brief 调度器与 system_context 的绑定关系
- * @details 用于 main_loop 和其他平台层代码通过 controller_scheduler_lookup_binding() 查询当前活跃的调度器
- */
-typedef struct scheduler_binding_state_t
-{
-    system_context_t system_context;
-    controller_scheduler_t *controller_scheduler;
-} scheduler_binding_state_t;
-
-/** @brief 全局唯一调度器绑定状态 */
-static scheduler_binding_state_t g_scheduler_binding;
 
 /**
  * @brief 读取单调时钟的当前时刻（毫秒）
@@ -109,8 +94,9 @@ static void controller_scheduler_refresh_source_states(controller_scheduler_t *c
     {
         controller_scheduler->command_source.source_state =
             controller_scheduler->config.command_event_source_enabled
-                ? (controller_scheduler->command_fd >= 0 ? CONTROLLER_SCHEDULER_EVENT_SOURCE_ENABLED
-                                                         : CONTROLLER_SCHEDULER_EVENT_SOURCE_DEGRADED)
+                ? (stdio_formal_command_adapter_fd(&controller_scheduler->command_adapter) >= 0
+                       ? CONTROLLER_SCHEDULER_EVENT_SOURCE_ENABLED
+                       : CONTROLLER_SCHEDULER_EVENT_SOURCE_DEGRADED)
                 : CONTROLLER_SCHEDULER_EVENT_SOURCE_DISABLED;
     }
     controller_scheduler->notification_source.source_state =
@@ -120,51 +106,13 @@ static void controller_scheduler_refresh_source_states(controller_scheduler_t *c
 }
 
 /**
- * @brief 将调度器注册到全局绑定表
- * @param controller_scheduler 新建的调度器实例
- * @details 供 main_loop 和 CLI 命令处理器通过 controller_scheduler_lookup_binding() 查询；create 末尾调用
- */
-static void controller_scheduler_register_binding(controller_scheduler_t *controller_scheduler)
-{
-    g_scheduler_binding.system_context = controller_scheduler->system_context;
-    g_scheduler_binding.controller_scheduler = controller_scheduler;
-}
-
-/**
- * @brief 从全局绑定表注销调度器
- * @param controller_scheduler 待注销的调度器实例
- * @details destroy 开始时调用；清空对应的绑定条目，防止悬空引用
- */
-static void controller_scheduler_unregister_binding(const controller_scheduler_t *controller_scheduler)
-{
-    if (g_scheduler_binding.controller_scheduler == controller_scheduler)
-    {
-        memset(&g_scheduler_binding, 0, sizeof(g_scheduler_binding));
-    }
-}
-
-/**
- * @brief 通过 `system_context` 查找已绑定的调度器实例。
- * @param system_context 系统上下文句柄。
- * @return 找到绑定时返回调度器指针，否则返回 `0`。
- */
-static controller_scheduler_t *controller_scheduler_lookup_binding(const system_context_t system_context)
-{
-    if (system_context == 0)
-    {
-        return 0;
-    }
-    return g_scheduler_binding.system_context == system_context ? g_scheduler_binding.controller_scheduler : 0;
-}
-
-/**
  * @brief 记录最近一次错误原因，并按需将调度器标记为失败态。
  * @param controller_scheduler 调度器实例。
  * @param reason_code 错误原因码。
  * @param terminal 是否同步切换到失败态。
  */
-static void controller_scheduler_record_error(controller_scheduler_t *controller_scheduler, const char *reason_code,
-                                              bool terminal)
+void controller_scheduler_record_error(controller_scheduler_t *controller_scheduler, const char *reason_code,
+                                       bool terminal)
 {
     if (controller_scheduler == 0 || reason_code == 0)
     {
@@ -208,7 +156,7 @@ static void controller_scheduler_log_message(controller_scheduler_t *controller_
  * @brief 刷新待处理触发数指标。
  * @param controller_scheduler 调度器实例。
  */
-static void controller_scheduler_update_pending_metric(controller_scheduler_t *controller_scheduler)
+void controller_scheduler_update_pending_metric(controller_scheduler_t *controller_scheduler)
 {
     if (controller_scheduler == 0 || controller_scheduler->system_context == 0)
     {
@@ -216,36 +164,6 @@ static void controller_scheduler_update_pending_metric(controller_scheduler_t *c
     }
     controller_scheduler->metrics.pending_trigger_count =
         system_context_pending_trigger_count(controller_scheduler->system_context);
-}
-
-/**
- * @brief 根据最新上下文结果重建 formal command 响应行。
- * @param system_context 系统上下文句柄。
- * @param response_line 输出响应缓冲区。
- * @param response_line_size 输出缓冲区大小。
- */
-static void controller_scheduler_rebuild_formal_response(const system_context_t system_context, char *response_line,
-                                                         size_t response_line_size)
-{
-    const char *detail;
-    const char *result_code;
-    bool accepted;
-
-    if (response_line == 0 || response_line_size == 0u)
-    {
-        return;
-    }
-
-    result_code = system_context_last_result_code(system_context)[0] != '\0'
-                      ? system_context_last_result_code(system_context)
-                      : "accepted";
-    detail = system_context_last_reason_code(system_context)[0] != '\0'
-                 ? system_context_last_reason_code(system_context)
-                 : "none";
-    accepted = strcmp(result_code, "ignored") != 0 && strcmp(result_code, "rejected") != 0 &&
-               strcmp(result_code, "error") != 0;
-    snprintf(response_line, response_line_size, "result=%s accepted=%s detail=%s", result_code,
-             accepted ? "true" : "false", detail);
 }
 
 /**
@@ -266,105 +184,25 @@ static void controller_scheduler_note_source_event(scheduler_event_source_descri
 }
 
 /**
- * @brief 判断命令缓冲区中是否已有完整命令行。
+ * @brief 记录命令事件指标和观测日志。
  * @param controller_scheduler 调度器实例。
- * @return 存在完整命令行时返回 `true`，否则返回 `false`。
+ * @param command_line 命令行文本。
  */
-static bool controller_scheduler_command_buffer_has_complete_line(const controller_scheduler_t *controller_scheduler)
+void controller_scheduler_note_command_event(controller_scheduler_t *controller_scheduler, const char *command_line)
 {
-    if (controller_scheduler == 0)
-    {
-        return false;
-    }
-    if (memchr(controller_scheduler->command_buffer, '\n', controller_scheduler->command_buffer_length) != 0)
-    {
-        return true;
-    }
-    return controller_scheduler->command_input_eof && controller_scheduler->command_buffer_length > 0u;
-}
+    char log_line[160];
+    unsigned long seen_time_ms;
 
-/**
- * @brief 将新读取的命令字节追加到命令缓冲区。
- * @param controller_scheduler 调度器实例。
- * @param bytes 待读取的字节序列。
- * @param byte_count 字节数。
- * @return 追加成功返回 `ok`，参数非法或缓冲区不足时返回失败。
- */
-static operation_result_t controller_scheduler_append_command_bytes(controller_scheduler_t *controller_scheduler,
-                                                                    const char *bytes, size_t byte_count)
-{
-    if (controller_scheduler == 0 || (bytes == 0 && byte_count > 0u))
+    if (controller_scheduler == 0 || command_line == 0)
     {
-        return operation_result_fail(ERROR_CODE_INVALID_ARGUMENT);
-    }
-    if (controller_scheduler->command_buffer_length + byte_count >= sizeof(controller_scheduler->command_buffer))
-    {
-        controller_scheduler_record_error(controller_scheduler, "command_line_too_long", true);
-        return operation_result_fail(ERROR_CODE_RESOURCE_UNAVAILABLE);
-    }
-    if (byte_count > 0u)
-    {
-        memcpy(controller_scheduler->command_buffer + controller_scheduler->command_buffer_length, bytes, byte_count);
-        controller_scheduler->command_buffer_length += byte_count;
-        controller_scheduler->command_buffer[controller_scheduler->command_buffer_length] = '\0';
-    }
-    return operation_result_ok();
-}
-
-/**
- * @brief 从命令缓冲区提取一行命令并消费对应字节。
- * @param controller_scheduler 调度器实例。
- * @param command_line 输出命令行缓冲区。
- * @param command_line_size 输出缓冲区大小。
- * @return 提取到完整命令行时返回 `true`，否则返回 `false`。
- */
-static bool controller_scheduler_extract_command_line(controller_scheduler_t *controller_scheduler, char *command_line,
-                                                      size_t command_line_size)
-{
-    char *newline_ptr;
-    size_t line_length;
-    size_t consume_length;
-
-    if (controller_scheduler == 0 || command_line == 0 || command_line_size == 0u)
-    {
-        return false;
-    }
-    if (!controller_scheduler_command_buffer_has_complete_line(controller_scheduler))
-    {
-        return false;
+        return;
     }
 
-    newline_ptr =
-        (char *)memchr(controller_scheduler->command_buffer, '\n', controller_scheduler->command_buffer_length);
-    if (newline_ptr != 0)
-    {
-        line_length = (size_t)(newline_ptr - controller_scheduler->command_buffer);
-        consume_length = line_length + 1u;
-    }
-    else
-    {
-        line_length = controller_scheduler->command_buffer_length;
-        consume_length = line_length;
-    }
-    if (line_length > 0u && controller_scheduler->command_buffer[line_length - 1u] == '\r')
-    {
-        line_length -= 1u;
-    }
-    if (line_length >= command_line_size)
-    {
-        line_length = command_line_size - 1u;
-    }
-    memcpy(command_line, controller_scheduler->command_buffer, line_length);
-    command_line[line_length] = '\0';
-
-    if (consume_length < controller_scheduler->command_buffer_length)
-    {
-        memmove(controller_scheduler->command_buffer, controller_scheduler->command_buffer + consume_length,
-                controller_scheduler->command_buffer_length - consume_length);
-    }
-    controller_scheduler->command_buffer_length -= consume_length;
-    controller_scheduler->command_buffer[controller_scheduler->command_buffer_length] = '\0';
-    return true;
+    seen_time_ms = system_context_current_time_ms(controller_scheduler->system_context);
+    controller_scheduler->metrics.command_event_count += 1ul;
+    controller_scheduler_note_source_event(&controller_scheduler->command_source, 1ul, seen_time_ms);
+    snprintf(log_line, sizeof(log_line), "scheduler command line=%s", command_line);
+    controller_scheduler_log_message(controller_scheduler, log_line);
 }
 
 /**
@@ -389,10 +227,10 @@ static void controller_scheduler_ensure_running_state(controller_scheduler_t *co
  * @param cycle_count_increment 周期计数增量。
  * @return 执行成功返回 `ok`，主循环失败时返回对应错误。
  */
-static operation_result_t controller_scheduler_execute_bounded_ticks(controller_scheduler_t *controller_scheduler,
-                                                                     bool advance_time, unsigned long elapsed_ms,
-                                                                     bool count_cycle,
-                                                                     unsigned long cycle_count_increment)
+operation_result_t controller_scheduler_execute_bounded_ticks(controller_scheduler_t *controller_scheduler,
+                                                             bool advance_time, unsigned long elapsed_ms,
+                                                             bool count_cycle,
+                                                             unsigned long cycle_count_increment)
 {
     char log_line[160];
     operation_result_t result;
@@ -544,8 +382,8 @@ static operation_result_t controller_scheduler_handle_exit(controller_scheduler_
  * @param signal_wakeup 是否向唤醒 fd 写入通知。
  * @return 请求成功返回 `ok`，写唤醒失败时返回对应错误。
  */
-static operation_result_t controller_scheduler_request_exit_internal(controller_scheduler_t *controller_scheduler,
-                                                                     bool immediate, bool signal_wakeup)
+operation_result_t controller_scheduler_request_exit_internal(controller_scheduler_t *controller_scheduler,
+                                                             bool immediate, bool signal_wakeup)
 {
     uint64_t wakeup_value;
     ssize_t write_result;
@@ -577,177 +415,6 @@ static operation_result_t controller_scheduler_request_exit_internal(controller_
     {
         controller_scheduler_record_error(controller_scheduler, "wakeup_write_failed", true);
         return operation_result_fail(ERROR_CODE_IO_FAILED);
-    }
-    return operation_result_ok();
-}
-
-/**
- * @brief 执行一条 formal command 命令行并按需回填响应。
- * @param controller_scheduler 调度器实例。
- * @param command_line 输入命令行。
- * @param response_line 输出响应缓冲区。
- * @param response_line_size 输出缓冲区大小。
- * @param print_response 是否将响应写回标准输出。
- * @return 处理成功返回 `ok`，命令执行失败时返回对应错误。
- */
-static operation_result_t controller_scheduler_process_command_line(controller_scheduler_t *controller_scheduler,
-                                                                    const char *command_line, char *response_line,
-                                                                    size_t response_line_size, bool print_response)
-{
-    char local_response[512];
-    operation_result_t result;
-    unsigned int pending_before;
-    bool queued_work;
-
-    if (controller_scheduler == 0 || command_line == 0)
-    {
-        return operation_result_fail(ERROR_CODE_INVALID_ARGUMENT);
-    }
-
-    if (response_line == 0 || response_line_size == 0u)
-    {
-        response_line = local_response;
-        response_line_size = sizeof(local_response);
-    }
-    memset(response_line, 0, response_line_size);
-
-    pending_before = system_context_pending_trigger_count(controller_scheduler->system_context);
-    result = cli_command_adapter_execute_formal_line(controller_scheduler->system_context, command_line, response_line,
-                                                     response_line_size);
-    queued_work = system_context_pending_trigger_count(controller_scheduler->system_context) > pending_before;
-    if (result.ok && queued_work && controller_scheduler->runtime_state == CONTROLLER_SCHEDULER_RUNTIME_STATE_RUNNING)
-    {
-        result = controller_scheduler_execute_bounded_ticks(controller_scheduler, false, 0ul, false, 0ul);
-        if (!result.ok)
-        {
-            return result;
-        }
-        controller_scheduler_rebuild_formal_response(controller_scheduler->system_context, response_line,
-                                                     response_line_size);
-    }
-    if (!result.ok && response_line[0] == '\0')
-    {
-        controller_scheduler_record_error(controller_scheduler, "command_dispatch_failed", true);
-        return result;
-    }
-    if (print_response && controller_scheduler->stdio_binding.output != 0 && response_line[0] != '\0')
-    {
-        fprintf(controller_scheduler->stdio_binding.output, "%s\n", response_line);
-        fflush(controller_scheduler->stdio_binding.output);
-    }
-    controller_scheduler_update_pending_metric(controller_scheduler);
-    return operation_result_ok();
-}
-
-/**
- * @brief 记录命令事件指标后处理一条命令行。
- * @param controller_scheduler 调度器实例。
- * @param command_line 输入命令行。
- * @param response_line 输出响应缓冲区。
- * @param response_line_size 输出缓冲区大小。
- * @param print_response 是否将响应写回标准输出。
- * @return 处理成功返回 `ok`，失败时返回对应错误。
- */
-static operation_result_t controller_scheduler_handle_command_event(controller_scheduler_t *controller_scheduler,
-                                                                    const char *command_line, char *response_line,
-                                                                    size_t response_line_size, bool print_response)
-{
-    char log_line[160];
-    unsigned long seen_time_ms;
-
-    if (controller_scheduler == 0 || command_line == 0)
-    {
-        return operation_result_fail(ERROR_CODE_INVALID_ARGUMENT);
-    }
-
-    seen_time_ms = system_context_current_time_ms(controller_scheduler->system_context);
-    controller_scheduler->metrics.command_event_count += 1ul;
-    controller_scheduler_note_source_event(&controller_scheduler->command_source, 1ul, seen_time_ms);
-    snprintf(log_line, sizeof(log_line), "scheduler command line=%s", command_line);
-    controller_scheduler_log_message(controller_scheduler, log_line);
-    return controller_scheduler_process_command_line(controller_scheduler, command_line, response_line,
-                                                     response_line_size, print_response);
-}
-
-/**
- * @brief 从命令输入 fd 读取数据并驱动命令行处理。
- * @param controller_scheduler 调度器实例。
- * @return 处理成功返回 `ok`，读失败时返回对应错误。
- */
-static operation_result_t controller_scheduler_handle_command_fd(controller_scheduler_t *controller_scheduler)
-{
-    char read_buffer[128];
-    char command_line[256];
-    ssize_t read_count;
-    operation_result_t result;
-
-    if (controller_scheduler == 0 || controller_scheduler->command_fd < 0)
-    {
-        return operation_result_fail(ERROR_CODE_INVALID_ARGUMENT);
-    }
-
-    if (controller_scheduler_extract_command_line(controller_scheduler, command_line, sizeof(command_line)))
-    {
-        controller_scheduler->pending_command_event =
-            controller_scheduler_command_buffer_has_complete_line(controller_scheduler);
-        result = controller_scheduler_handle_command_event(controller_scheduler, command_line, 0, 0u, true);
-        if (!result.ok)
-        {
-            return result;
-        }
-        if (controller_scheduler->command_input_eof && controller_scheduler->command_buffer_length == 0u)
-        {
-            return controller_scheduler_request_exit_internal(controller_scheduler, false, false);
-        }
-        return operation_result_ok();
-    }
-
-    controller_scheduler->pending_command_event = false;
-    if (controller_scheduler->failpoint_command_read)
-    {
-        controller_scheduler_record_error(controller_scheduler, "command_read_failed", true);
-        return operation_result_fail(ERROR_CODE_IO_FAILED);
-    }
-
-    for (;;)
-    {
-        read_count = read(controller_scheduler->command_fd, read_buffer, sizeof(read_buffer));
-        if (read_count > 0)
-        {
-            result = controller_scheduler_append_command_bytes(controller_scheduler, read_buffer, (size_t)read_count);
-            if (!result.ok)
-            {
-                return result;
-            }
-            continue;
-        }
-        if (read_count == 0)
-        {
-            controller_scheduler->command_input_eof = true;
-            controller_scheduler->command_source.source_state = CONTROLLER_SCHEDULER_EVENT_SOURCE_CLOSED;
-            break;
-        }
-        if (errno == EAGAIN || errno == EWOULDBLOCK)
-        {
-            break;
-        }
-        controller_scheduler_record_error(controller_scheduler, "command_read_failed", true);
-        return operation_result_fail(ERROR_CODE_IO_FAILED);
-    }
-
-    if (controller_scheduler_extract_command_line(controller_scheduler, command_line, sizeof(command_line)))
-    {
-        controller_scheduler->pending_command_event =
-            controller_scheduler_command_buffer_has_complete_line(controller_scheduler);
-        result = controller_scheduler_handle_command_event(controller_scheduler, command_line, 0, 0u, true);
-        if (!result.ok)
-        {
-            return result;
-        }
-    }
-    if (controller_scheduler->command_input_eof && controller_scheduler->command_buffer_length == 0u)
-    {
-        return controller_scheduler_request_exit_internal(controller_scheduler, false, false);
     }
     return operation_result_ok();
 }
@@ -831,7 +498,9 @@ static operation_result_t controller_scheduler_dispatch_ready_events(controller_
         }
         if (controller_scheduler->pending_command_event)
         {
-            result = controller_scheduler_handle_command_fd(controller_scheduler);
+            result = stdio_formal_command_adapter_handle_fd(&controller_scheduler->command_adapter,
+                                                            controller_scheduler,
+                                                            controller_scheduler->failpoint_command_read);
             if (!result.ok)
             {
                 return result;
@@ -922,7 +591,8 @@ static operation_result_t controller_scheduler_collect_ready_events(controller_s
             }
             continue;
         }
-        if (controller_scheduler->command_fd >= 0 && events[event_index].data.fd == controller_scheduler->command_fd)
+        if (stdio_formal_command_adapter_fd(&controller_scheduler->command_adapter) >= 0 &&
+            events[event_index].data.fd == stdio_formal_command_adapter_fd(&controller_scheduler->command_adapter))
         {
             controller_scheduler->pending_command_event = true;
         }
@@ -979,14 +649,24 @@ controller_scheduler_validate_config(const controller_scheduler_config_t *contro
     return operation_result_ok();
 }
 
-controller_scheduler_t *
-controller_scheduler_linux_create(system_context_t system_context,
-                                  const controller_scheduler_config_t *controller_scheduler_config,
-                                  const controller_scheduler_linux_stdio_t *controller_scheduler_linux_stdio)
+static void controller_scheduler_linux_destroy_impl(controller_scheduler_t *controller_scheduler);
+
+/**
+ * @brief 创建 Linux 调度器内部实例。
+ * @param system_context 主控运行时组合根句柄。
+ * @param controller_scheduler_config 调度器配置。
+ * @param controller_scheduler_stdio 可选标准输入输出绑定。
+ * @return 创建成功返回调度器对象；失败时返回 `0`。
+ */
+static controller_scheduler_t *
+controller_scheduler_linux_create_impl(system_context_t system_context,
+                                       const controller_scheduler_config_t *controller_scheduler_config,
+                                       const controller_scheduler_stdio_t *controller_scheduler_stdio)
 {
     controller_scheduler_t *controller_scheduler;
     struct itimerspec timer_spec;
     operation_result_t result;
+    int command_fd;
 
     if (!system_context_require_active(system_context).ok)
     {
@@ -1005,7 +685,7 @@ controller_scheduler_linux_create(system_context_t system_context,
     }
 
     controller_scheduler->system_context = system_context;
-    result = system_context_bind_scheduler(system_context);
+    result = system_context_bind_scheduler(system_context, controller_scheduler);
     if (!result.ok)
     {
         free(controller_scheduler);
@@ -1017,21 +697,17 @@ controller_scheduler_linux_create(system_context_t system_context,
     controller_scheduler->epoll_fd = -1;
     controller_scheduler->timer_fd = -1;
     controller_scheduler->wakeup_fd = -1;
-    controller_scheduler->command_fd = -1;
+    stdio_formal_command_adapter_init(&controller_scheduler->command_adapter, controller_scheduler_stdio);
     controller_scheduler->monotonic_epoch_ms = monotonic_now_ms();
     controller_scheduler->command_source.source_kind = CONTROLLER_SCHEDULER_EVENT_SOURCE_COMMAND;
     controller_scheduler->notification_source.source_kind = CONTROLLER_SCHEDULER_EVENT_SOURCE_NOTIFICATION;
     controller_scheduler->exit_source.source_kind = CONTROLLER_SCHEDULER_EVENT_SOURCE_EXIT;
-    if (controller_scheduler_linux_stdio != 0)
-    {
-        controller_scheduler->stdio_binding = *controller_scheduler_linux_stdio;
-    }
     controller_scheduler->epoll_fd = epoll_create1(EPOLL_CLOEXEC);
     controller_scheduler->timer_fd = timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK | TFD_CLOEXEC);
     controller_scheduler->wakeup_fd = eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC);
     if (controller_scheduler->epoll_fd < 0 || controller_scheduler->timer_fd < 0 || controller_scheduler->wakeup_fd < 0)
     {
-        controller_scheduler_linux_destroy(controller_scheduler);
+        controller_scheduler_linux_destroy_impl(controller_scheduler);
         return 0;
     }
 
@@ -1041,61 +717,69 @@ controller_scheduler_linux_create(system_context_t system_context,
     timer_spec.it_interval = timer_spec.it_value;
     if (timerfd_settime(controller_scheduler->timer_fd, 0, &timer_spec, 0) < 0)
     {
-        controller_scheduler_linux_destroy(controller_scheduler);
+        controller_scheduler_linux_destroy_impl(controller_scheduler);
         return 0;
     }
     if (!controller_scheduler_register_epoll_fd(controller_scheduler, controller_scheduler->timer_fd).ok ||
         !controller_scheduler_register_epoll_fd(controller_scheduler, controller_scheduler->wakeup_fd).ok)
     {
-        controller_scheduler_linux_destroy(controller_scheduler);
+        controller_scheduler_linux_destroy_impl(controller_scheduler);
         return 0;
     }
 
-    if (controller_scheduler->stdio_binding.input != 0 && controller_scheduler_config->command_event_source_enabled)
+    if (controller_scheduler_config->command_event_source_enabled)
     {
-        controller_scheduler->command_fd = fileno(controller_scheduler->stdio_binding.input);
-        if (controller_scheduler->command_fd >= 0)
+        command_fd = stdio_formal_command_adapter_enable(&controller_scheduler->command_adapter);
+        if (command_fd >= 0)
         {
-            controller_scheduler->command_fd_flags = fcntl(controller_scheduler->command_fd, F_GETFL, 0);
-            controller_scheduler->command_fd_flags_valid = controller_scheduler->command_fd_flags >= 0;
-            if (controller_scheduler->command_fd_flags_valid &&
-                fcntl(controller_scheduler->command_fd, F_SETFL, controller_scheduler->command_fd_flags | O_NONBLOCK) <
-                    0)
+            if (!controller_scheduler_register_epoll_fd(controller_scheduler, command_fd).ok)
             {
-                controller_scheduler_linux_destroy(controller_scheduler);
+                controller_scheduler_linux_destroy_impl(controller_scheduler);
                 return 0;
             }
-            if (!controller_scheduler_register_epoll_fd(controller_scheduler, controller_scheduler->command_fd).ok)
-            {
-                controller_scheduler_linux_destroy(controller_scheduler);
-                return 0;
-            }
+        }
+        else if (stdio_formal_command_adapter_fd(&controller_scheduler->command_adapter) >= 0)
+        {
+            controller_scheduler_linux_destroy_impl(controller_scheduler);
+            return 0;
         }
     }
 
     controller_scheduler_refresh_source_states(controller_scheduler);
-    controller_scheduler_register_binding(controller_scheduler);
     controller_scheduler_update_pending_metric(controller_scheduler);
     return controller_scheduler;
 }
 
-void controller_scheduler_linux_destroy(controller_scheduler_t *controller_scheduler)
+/**
+ * @brief 销毁 Linux 调度器内部实例。
+ * @param controller_scheduler 调度器对象；允许为 `0`。
+ */
+static void controller_scheduler_linux_destroy_impl(controller_scheduler_t *controller_scheduler)
 {
     if (controller_scheduler == 0)
     {
         return;
     }
 
-    controller_scheduler_unregister_binding(controller_scheduler);
     system_context_unbind_scheduler(controller_scheduler->system_context);
-    if (controller_scheduler->command_fd >= 0 && controller_scheduler->command_fd_flags_valid)
-    {
-        fcntl(controller_scheduler->command_fd, F_SETFL, controller_scheduler->command_fd_flags);
-    }
+    stdio_formal_command_adapter_restore(&controller_scheduler->command_adapter);
     close_fd_if_needed(&controller_scheduler->timer_fd);
     close_fd_if_needed(&controller_scheduler->wakeup_fd);
     close_fd_if_needed(&controller_scheduler->epoll_fd);
     free(controller_scheduler);
+}
+
+controller_scheduler_t *controller_scheduler_create(system_context_t system_context,
+                                                    const controller_scheduler_config_t *controller_scheduler_config,
+                                                    const controller_scheduler_stdio_t *controller_scheduler_stdio)
+{
+    return controller_scheduler_linux_create_impl(system_context, controller_scheduler_config,
+                                                  controller_scheduler_stdio);
+}
+
+void controller_scheduler_destroy(controller_scheduler_t *controller_scheduler)
+{
+    controller_scheduler_linux_destroy_impl(controller_scheduler);
 }
 
 operation_result_t controller_scheduler_run(controller_scheduler_t *controller_scheduler)
@@ -1173,7 +857,7 @@ controller_scheduler_read_context_view(const system_context_t system_context,
         memset(controller_runtime_state_view, 0, sizeof(*controller_runtime_state_view));
         return result;
     }
-    controller_scheduler = controller_scheduler_lookup_binding(system_context);
+    controller_scheduler = (controller_scheduler_t *)system_context_bound_scheduler(system_context);
     if (controller_scheduler == 0)
     {
         memset(controller_runtime_state_view, 0, sizeof(*controller_runtime_state_view));
@@ -1203,8 +887,9 @@ operation_result_t controller_scheduler_linux_test_inject_command(controller_sch
         return operation_result_fail(ERROR_CODE_INVALID_ARGUMENT);
     }
     controller_scheduler_ensure_running_state(controller_scheduler);
-    return controller_scheduler_handle_command_event(controller_scheduler, command_line, response_line,
-                                                     response_line_size, false);
+    return stdio_formal_command_adapter_handle_command_event(&controller_scheduler->command_adapter,
+                                                             controller_scheduler, command_line, response_line,
+                                                             response_line_size, false);
 }
 
 operation_result_t controller_scheduler_linux_test_inject_notification(controller_scheduler_t *controller_scheduler,

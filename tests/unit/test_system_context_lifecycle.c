@@ -26,7 +26,7 @@ static int verify_single_instance_acquire_release_cycle(void)
     return 0;
 }
 
-static int verify_release_invalidates_stale_handle_and_reissues_clean_instance(void)
+static int verify_release_invalidates_handle_until_reacquire(void)
 {
     system_context_t first;
     system_context_t reacquired;
@@ -46,10 +46,10 @@ static int verify_release_invalidates_stale_handle_and_reissues_clean_instance(v
 
     result = system_context_acquire(&reacquired);
     TEST_ASSERT(result.ok);
-    TEST_ASSERT(reacquired != first);
+    TEST_ASSERT(reacquired == first);
     TEST_ASSERT(system_context_current_time_ms(reacquired) == 0ul);
     TEST_ASSERT(system_context_pending_trigger_count(reacquired) == 0u);
-    TEST_ASSERT(!system_context_private_debug_is_in_use(first));
+    TEST_ASSERT(system_context_private_debug_is_in_use(first));
 
     result = system_context_release(reacquired);
     TEST_ASSERT(result.ok);
@@ -102,7 +102,7 @@ int main(void)
     if (verify_single_instance_acquire_release_cycle() != 0) {
         return 1;
     }
-    if (verify_release_invalidates_stale_handle_and_reissues_clean_instance() != 0) {
+    if (verify_release_invalidates_handle_until_reacquire() != 0) {
         return 1;
     }
     if (verify_in_use_only_tracks_active_single_instance() != 0) {
