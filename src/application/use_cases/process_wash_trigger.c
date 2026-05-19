@@ -11,8 +11,13 @@
 #include "domain/services/wash_session_state_machine.h"
 #include "shared/error_codes.h"
 #include "src/application/coordinators/system_context_private.h"
+#include "src/application/use_cases/command_matrix_reason_codes.h"
 
-/** @brief 从 system_context 构建会话服务参数 */
+/**
+ * @brief 从 system_context 构建会话服务参数。
+ * @param system_context 系统上下文。
+ * @return 会话服务参数。
+ */
 static wash_session_service_args_t build_session_service_args(system_context_t system_context)
 {
     wash_session_service_args_t wash_session_service_args;
@@ -21,7 +26,11 @@ static wash_session_service_args_t build_session_service_args(system_context_t s
     return wash_session_service_args;
 }
 
-/** @brief 从 system_context 构建程序快照服务参数 */
+/**
+ * @brief 从 system_context 构建程序快照服务参数。
+ * @param system_context 系统上下文。
+ * @return 程序快照服务参数。
+ */
 static program_snapshot_service_args_t build_program_snapshot_service_args(system_context_t system_context)
 {
     program_snapshot_service_args_t program_snapshot_service_args;
@@ -30,7 +39,11 @@ static program_snapshot_service_args_t build_program_snapshot_service_args(syste
     return program_snapshot_service_args;
 }
 
-/** @brief 从 system_context 构建工步执行服务参数 */
+/**
+ * @brief 从 system_context 构建工步执行服务参数。
+ * @param system_context 系统上下文。
+ * @return 工步执行服务参数。
+ */
 static wash_execution_service_args_t build_execution_service_args(system_context_t system_context)
 {
     wash_execution_service_args_t wash_execution_service_args;
@@ -39,16 +52,21 @@ static wash_execution_service_args_t build_execution_service_args(system_context
     return wash_execution_service_args;
 }
 
-/** @brief 记录最新的结果码和原因码 */
+/**
+ * @brief 记录最新的结果码和原因码。
+ * @param system_context 系统上下文。
+ * @param result_code 结果码。
+ * @param reason_code 原因码。
+ */
 static void set_latest_result(system_context_t system_context, const char *result_code, const char *reason_code)
 {
     runtime_event_recorder_set_latest_result(system_context, result_code, reason_code);
 }
 
 /**
- * @brief 将设备状态枚举转换为字符串形式
- * @param device_state 设备状态
- * @return 状态对应的字符串；未知状态返回 "stopped"
+ * @brief 将设备状态枚举转换为字符串。
+ * @param device_state 设备状态。
+ * @return 状态对应的字符串；未知状态返回 "stopped"。
  */
 static const char *device_state_to_string(device_state_t device_state)
 {
@@ -71,14 +89,14 @@ static const char *device_state_to_string(device_state_t device_state)
 }
 
 /**
- * @brief 将触发处理结果投影到事件日志和结果码记录
- * @param system_context 系统上下文
- * @param wash_trigger_event 原始触发事件；null 时仅记录结果码，不记录转移
- * @param previous_device_state 转移前的设备状态
- * @param current_device_state 转移后的设备状态
- * @param result_code 结果码
- * @param reason_code 原因码
- * @param runtime_event_log_kind 事件日志类型
+ * @brief 将触发处理结果投影到运行时结果和转移记录。
+ * @param system_context 系统上下文。
+ * @param wash_trigger_event 原始触发事件；为空时仅记录结果码。
+ * @param previous_device_state 转移前设备状态。
+ * @param current_device_state 转移后设备状态。
+ * @param result_code 结果码。
+ * @param reason_code 原因码。
+ * @param runtime_event_log_kind 运行时事件日志类型。
  */
 static void project_trigger_result(system_context_t system_context, const wash_trigger_event_t *wash_trigger_event,
                                    device_state_t previous_device_state, device_state_t current_device_state,
@@ -103,10 +121,11 @@ static void project_trigger_result(system_context_t system_context, const wash_t
     runtime_event_recorder_apply_projection(system_context, &runtime_result_projection);
 }
 
-static const char *stop_rejection_reason(void) { return "stop_requires_running"; }
-
-static const char *fault_clear_rejection_reason(void) { return "fault_clear_requires_exception"; }
-
+/**
+ * @brief 将执行中止结果映射为会话中止结果码。
+ * @param wash_execution 当前执行快照；为空时按安全停止处理。
+ * @return 与执行终态对应的会话结果码。
+ */
 static result_code_t map_execution_abort_result(const wash_execution_t *wash_execution)
 {
     if (wash_execution == 0)
@@ -129,6 +148,11 @@ static result_code_t map_execution_abort_result(const wash_execution_t *wash_exe
     return RESULT_CODE_SAFE_STOP;
 }
 
+/**
+ * @brief 根据当前执行状态推进下一段或完成会话收尾。
+ * @param system_context 系统上下文。
+ * @return 推进成功返回 `ok`，状态非法或下游失败时返回对应错误。
+ */
 static operation_result_t advance_or_finish_session(system_context_t system_context)
 {
     const program_snapshot_t *program_snapshot;
@@ -194,6 +218,11 @@ static operation_result_t advance_or_finish_session(system_context_t system_cont
     return result;
 }
 
+/**
+ * @brief 处理 homing 触发并驱动恢复状态机。
+ * @param system_context 系统上下文。
+ * @return 处理成功返回 `ok`，状态不满足或恢复失败时返回对应错误。
+ */
 static operation_result_t handle_homing(system_context_t system_context)
 {
     const wash_session_t *wash_session;
@@ -217,7 +246,7 @@ static operation_result_t handle_homing(system_context_t system_context)
         wash_trigger_event_init(&wash_trigger_event, TRIGGER_TYPE_HOMING, 0, "homing", "homing-command",
                                 system_context_current_time_ms(system_context));
         project_trigger_result(system_context, &wash_trigger_event, device_state, device_state, "rejected",
-                               "running_session_exists", RUNTIME_EVENT_LOG_REJECTION);
+                               command_matrix_running_session_exists_reason(), RUNTIME_EVENT_LOG_REJECTION);
         return operation_result_fail(ERROR_CODE_INVALID_STATE);
     }
     if (device_state != DEVICE_STATE_STOPPED)
@@ -225,7 +254,7 @@ static operation_result_t handle_homing(system_context_t system_context)
         wash_trigger_event_init(&wash_trigger_event, TRIGGER_TYPE_HOMING, 0, "homing", "homing-command",
                                 system_context_current_time_ms(system_context));
         project_trigger_result(system_context, &wash_trigger_event, device_state, device_state, "rejected",
-                               "homing_requires_stopped", RUNTIME_EVENT_LOG_REJECTION);
+                               command_matrix_homing_requires_stopped_reason(), RUNTIME_EVENT_LOG_REJECTION);
         return operation_result_fail(ERROR_CODE_INVALID_STATE);
     }
 
@@ -255,6 +284,12 @@ static operation_result_t handle_homing(system_context_t system_context)
     return operation_result_ok();
 }
 
+/**
+ * @brief 处理 start 触发并启动新的洗车会话。
+ * @param system_context 系统上下文。
+ * @param wash_trigger_event 当前触发事件。
+ * @return 处理成功返回 `ok`，前置条件不满足或启动失败时返回对应错误。
+ */
 static operation_result_t handle_start(system_context_t system_context, const wash_trigger_event_t *wash_trigger_event)
 {
     device_state_t device_state;
@@ -270,7 +305,7 @@ static operation_result_t handle_start(system_context_t system_context, const wa
     if (device_state != DEVICE_STATE_IDLE)
     {
         project_trigger_result(system_context, wash_trigger_event, device_state, device_state, "rejected",
-                               "device_not_idle", RUNTIME_EVENT_LOG_REJECTION);
+                               command_matrix_start_rejection_reason(device_state), RUNTIME_EVENT_LOG_REJECTION);
         return operation_result_fail(ERROR_CODE_INVALID_STATE);
     }
     if (system_context_private_global_fault_present(system_context))
@@ -289,7 +324,7 @@ static operation_result_t handle_start(system_context_t system_context, const wa
     if (wash_session_is_running(wash_session))
     {
         project_trigger_result(system_context, wash_trigger_event, device_state, device_state, "rejected",
-                               "running_session_exists", RUNTIME_EVENT_LOG_REJECTION);
+                               command_matrix_running_session_exists_reason(), RUNTIME_EVENT_LOG_REJECTION);
         return operation_result_fail(ERROR_CODE_INVALID_STATE);
     }
 
@@ -311,9 +346,21 @@ static operation_result_t handle_start(system_context_t system_context, const wa
         return result;
     }
 
-    return system_context_private_apply_start_accepted(system_context, wash_session, wash_execution);
+    result = system_context_private_apply_start_accepted(system_context, wash_session, wash_execution);
+    if (result.ok)
+    {
+        project_trigger_result(system_context, wash_trigger_event, device_state, DEVICE_STATE_RUNNING, "accepted",
+                               wash_session_transition_fact.reason_code, RUNTIME_EVENT_LOG_TRANSITION);
+    }
+    return result;
 }
 
+/**
+ * @brief 处理 stop 触发并中止当前运行会话。
+ * @param system_context 系统上下文。
+ * @param wash_trigger_event 当前触发事件。
+ * @return 处理成功返回 `ok`，状态不满足或中止失败时返回对应错误。
+ */
 static operation_result_t handle_stop(system_context_t system_context, const wash_trigger_event_t *wash_trigger_event)
 {
     device_state_t device_state;
@@ -333,7 +380,7 @@ static operation_result_t handle_stop(system_context_t system_context, const was
     if (device_state != DEVICE_STATE_RUNNING || !wash_session_is_running(wash_session))
     {
         project_trigger_result(system_context, wash_trigger_event, device_state, device_state, "rejected",
-                               stop_rejection_reason(), RUNTIME_EVENT_LOG_REJECTION);
+                               command_matrix_stop_rejection_reason(), RUNTIME_EVENT_LOG_REJECTION);
         return operation_result_fail(ERROR_CODE_INVALID_STATE);
     }
 
@@ -352,10 +399,18 @@ static operation_result_t handle_stop(system_context_t system_context, const was
     {
         system_context_private_apply_device_runtime_result(system_context, DEVICE_STATE_STOPPED, "aborted",
                                                            wash_trigger_event->signal_code);
+        project_trigger_result(system_context, wash_trigger_event, DEVICE_STATE_RUNNING, DEVICE_STATE_STOPPED,
+                               "aborted", wash_trigger_event->signal_code, RUNTIME_EVENT_LOG_TRANSITION);
     }
     return result;
 }
 
+/**
+ * @brief 处理 fault 触发，包括故障记录与 clear 分支。
+ * @param system_context 系统上下文。
+ * @param wash_trigger_event 当前触发事件。
+ * @return 处理成功返回 `ok`，状态不满足或下游处理失败时返回对应错误。
+ */
 static operation_result_t handle_fault(system_context_t system_context, const wash_trigger_event_t *wash_trigger_event)
 {
     bool clear_requested;
@@ -379,7 +434,7 @@ static operation_result_t handle_fault(system_context_t system_context, const wa
         if (device_state != DEVICE_STATE_EXCEPTION)
         {
             project_trigger_result(system_context, wash_trigger_event, device_state, device_state, "rejected",
-                                   fault_clear_rejection_reason(), RUNTIME_EVENT_LOG_REJECTION);
+                                   command_matrix_fault_clear_rejection_reason(), RUNTIME_EVENT_LOG_REJECTION);
             return operation_result_fail(ERROR_CODE_INVALID_STATE);
         }
         system_context_private_clear_global_fault(system_context);
@@ -419,6 +474,11 @@ static operation_result_t handle_fault(system_context_t system_context, const wa
     return result;
 }
 
+/**
+ * @brief 处理 timeout 触发并推进执行超时收尾。
+ * @param system_context 系统上下文。
+ * @return 处理成功返回 `ok`，超时事实或执行处理失败时返回对应错误。
+ */
 static operation_result_t handle_timeout(system_context_t system_context)
 {
     operation_result_t result;
@@ -482,6 +542,11 @@ operation_result_t process_wash_trigger_execute(system_context_t system_context,
     }
 }
 
+/**
+ * @brief 推进一次运行中会话的执行 tick，并按需驱动会话收尾。
+ * @param system_context 系统上下文。
+ * @return 推进成功返回 `ok`，状态非法或下游推进失败时返回对应错误。
+ */
 operation_result_t process_wash_runtime_tick(system_context_t system_context)
 {
     const wash_session_t *wash_session;

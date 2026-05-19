@@ -1,29 +1,37 @@
+#define _POSIX_C_SOURCE 200809L
+
 #include "application/coordinators/controller_runtime.h"
 
+#include <stdatomic.h>
 #include <stdint.h>
 #include <string.h>
+#include <time.h>
 
 #include "adapters/logging/file_event_logger.h"
 #include "adapters/outbound/file_program_repository.h"
+#include "application/services/alarm_evaluator.h"
+#include "platform/worker_thread.h"
 #include "platform/linux/controller_scheduler_linux.h"
+#include "src/application/jobs/alarm_detect_job.h"
+#include "src/application/jobs/io_read_job.h"
 #include "src/application/coordinators/controller_runtime_private.h"
 #include "src/application/coordinators/system_context_private.h"
 
 /*
  * Controller Runtime 句柄编码方案（opaque token）：
- * 目的：防止外部直接解引用或伪造句柄；允许检测已释放/过期句柄。
+ * 目的：防止外部直接解引用或伪造句柄，并允许识别已释放或过期句柄。
  *
- * 编码布局（低位 → 高位）：
+ * 编码布局（低位到高位）：
  *   [8位 magic] [16位 checksum] [N位 generation]
- * - magic: 固定标记 0x52u（ASCII 'R'），识别有效token
- * - checksum: XOR校验码，由generation和随机secret推导
- * - generation: 单调递增的代次号，用于检测use-after-free
+ * - magic: 固定标记 0x52u（ASCII 'R'），用于识别有效 token。
+ * - checksum: 由 generation 与 secret 混合得到的校验码。
+ * - generation: 单调递增的代次号，用于检测 use-after-free。
  *
  * 流程：
- * 1. create: runtime_issue_generation() → runtime_handle_from_generation() → 返回编码后的opaque token
- * 2. 调用方: 保存token作为句柄
- * 3. 操作方: runtime_decode_handle() → 验证magic、checksum → 提取generation → 检查代次是否一致
- * 4. destroy: 递增generation（使旧token失效），清零占用标志
+ * 1. create：分配 generation，再编码为 opaque token 返回给调用方。
+ * 2. use：调用方保存 token，并在后续接口中传回。
+ * 3. decode：校验 magic、checksum，再提取 generation 并核对当前代次。
+ * 4. destroy：递增 generation，使旧 token 立即失效。
  */
 
 #define CONTROLLER_RUNTIME_HANDLE_BITS ((unsigned int)(sizeof(uintptr_t) * 8u))
@@ -39,6 +47,14 @@
 _Static_assert(CONTROLLER_RUNTIME_HANDLE_BITS > CONTROLLER_RUNTIME_HANDLE_GENERATION_SHIFT,
                "controller_runtime handle token must leave room for a positive generation field");
 
+typedef struct background_alarm_snapshot_mailbox_t
+{
+    atomic_bool access_guard;
+    unsigned long published_sequence;
+    sensor_snapshot_t sensor_snapshot;
+    unsigned long occurred_at_ms;
+} background_alarm_snapshot_mailbox_t;
+
 typedef struct controller_runtime_state_t
 {
     controller_runtime_lifecycle_state_t lifecycle_state;
@@ -50,6 +66,17 @@ typedef struct controller_runtime_state_t
     char last_reason_code[64];
     system_context_t system_context;
     controller_scheduler_t *controller_scheduler;
+    worker_thread_t *background_alarm_io_worker_thread;
+    worker_thread_t *background_alarm_detect_worker_thread;
+    struct
+    {
+        system_context_t system_context;
+        const sensor_port_t *sensor_port;
+        unsigned long io_sample_period_ms;
+        unsigned long detect_period_ms;
+        alarm_evaluator_t alarm_evaluator;
+        background_alarm_snapshot_mailbox_t snapshot_mailbox;
+    } background_alarm_monitor_context;
     controller_runtime_config_t config_snapshot;
     uintptr_t active_generation;
 } controller_runtime_state_t;
@@ -58,13 +85,368 @@ static controller_runtime_state_t g_controller_runtime_state;
 static uintptr_t g_controller_runtime_next_generation = 1u;
 static uintptr_t g_controller_runtime_handle_secret = 0u;
 
-/** @brief 判断字符串非空且非空字符串 */
+static void runtime_stop_background_alarm_monitor(void);
+
+/** @brief 判断字符串指针非空且内容非空。 */
 static bool string_present(const char *value) { return value != 0 && value[0] != '\0'; }
 
 /**
- * @brief 生成并缓存校验密钥
- * @details 由全局符号地址 XOR 推导，用于计算 handle checksum
- * @return 校验密钥，保证非零
+ * @brief 校验后台报警监控配置是否满足最小要求。
+ * @param config runtime 创建配置。
+ * @return 配置合法时返回 `operation_result_ok()`，否则返回失败结果。
+ */
+static operation_result_t runtime_validate_background_alarm_monitor_config(const controller_runtime_config_t *config)
+{
+    if (config == 0)
+    {
+        return operation_result_fail(ERROR_CODE_INVALID_ARGUMENT);
+    }
+    if (!config->background_alarm_monitor.enabled)
+    {
+        return operation_result_ok();
+    }
+    if (config->background_alarm_monitor.io_sample_period_ms == 0ul ||
+        config->background_alarm_monitor.detect_period_ms == 0ul)
+    {
+        return operation_result_fail(ERROR_CODE_INVALID_ARGUMENT);
+    }
+    if (config->sensor_port == 0 || config->sensor_port->read_snapshot == 0)
+    {
+        return operation_result_fail(ERROR_CODE_INVALID_ARGUMENT);
+    }
+    return operation_result_ok();
+}
+
+/**
+ * @brief 将毫秒时长转换为 `timespec`。
+ * @param sleep_ms 休眠毫秒数。
+ * @param sleep_time 输出 `timespec`。
+ */
+static void runtime_build_sleep_time(unsigned long sleep_ms, struct timespec *sleep_time)
+{
+    if (sleep_time == 0)
+    {
+        return;
+    }
+
+    sleep_time->tv_sec = (time_t)(sleep_ms / 1000ul);
+    sleep_time->tv_nsec = (long)((sleep_ms % 1000ul) * 1000000ul);
+}
+
+/**
+ * @brief 读取当前单调时钟的毫秒值。
+ * @return 读取成功时返回毫秒值，失败时返回 `0`。
+ */
+static unsigned long runtime_read_monotonic_ms(void)
+{
+    struct timespec current_time;
+
+    if (clock_gettime(CLOCK_MONOTONIC, &current_time) != 0)
+    {
+        return 0ul;
+    }
+
+    return (unsigned long)(current_time.tv_sec * 1000ul) + (unsigned long)(current_time.tv_nsec / 1000000ul);
+}
+
+/**
+ * @brief 按短切片休眠，避免后台线程在停止时长时间阻塞。
+ * @param worker_thread 后台线程句柄。
+ * @param sleep_ms 总休眠时长。
+ */
+static void runtime_sleep_with_stop_check(worker_thread_t *worker_thread, unsigned long sleep_ms)
+{
+    static const unsigned long s_sleep_slice_ms = 20ul;
+    struct timespec sleep_time;
+    unsigned long remaining_ms;
+    unsigned long current_slice_ms;
+
+    remaining_ms = sleep_ms;
+    while (remaining_ms > 0ul && !worker_thread_stop_requested(worker_thread))
+    {
+        current_slice_ms = remaining_ms > s_sleep_slice_ms ? s_sleep_slice_ms : remaining_ms;
+        runtime_build_sleep_time(current_slice_ms, &sleep_time);
+        (void)nanosleep(&sleep_time, 0);
+        remaining_ms -= current_slice_ms;
+    }
+}
+
+/**
+ * @brief 初始化后台报警快照邮箱。
+ * @param snapshot_mailbox 单生产者单消费者快照邮箱。
+ */
+static void runtime_background_alarm_snapshot_mailbox_init(background_alarm_snapshot_mailbox_t *snapshot_mailbox)
+{
+    if (snapshot_mailbox == 0)
+    {
+        return;
+    }
+
+    memset(&snapshot_mailbox->sensor_snapshot, 0, sizeof(snapshot_mailbox->sensor_snapshot));
+    snapshot_mailbox->occurred_at_ms = 0ul;
+    snapshot_mailbox->published_sequence = 0ul;
+    atomic_init(&snapshot_mailbox->access_guard, false);
+}
+
+/**
+ * @brief 尝试获取后台报警邮箱访问锁。
+ * @param snapshot_mailbox 单生产者单消费者快照邮箱。
+ * @return 获取成功返回 `true`，否则返回 `false`。
+ */
+static bool runtime_background_alarm_snapshot_mailbox_try_lock(background_alarm_snapshot_mailbox_t *snapshot_mailbox)
+{
+    bool expected_unlocked;
+
+    if (snapshot_mailbox == 0)
+    {
+        return false;
+    }
+
+    expected_unlocked = false;
+    return atomic_compare_exchange_strong_explicit(&snapshot_mailbox->access_guard,
+                                                   &expected_unlocked,
+                                                   true,
+                                                   memory_order_acquire,
+                                                   memory_order_relaxed);
+}
+
+/**
+ * @brief 释放后台报警邮箱访问锁。
+ * @param snapshot_mailbox 单生产者单消费者快照邮箱。
+ */
+static void runtime_background_alarm_snapshot_mailbox_unlock(background_alarm_snapshot_mailbox_t *snapshot_mailbox)
+{
+    if (snapshot_mailbox == 0)
+    {
+        return;
+    }
+
+    atomic_store_explicit(&snapshot_mailbox->access_guard, false, memory_order_release);
+}
+
+/**
+ * @brief 发布最新传感器快照到邮箱。
+ * @param snapshot_mailbox 单生产者单消费者快照邮箱。
+ * @param sensor_snapshot 本次读取到的传感器快照。
+ * @param occurred_at_ms 本次快照采样时间。
+ */
+static bool runtime_background_alarm_snapshot_mailbox_publish(background_alarm_snapshot_mailbox_t *snapshot_mailbox,
+                                                              const sensor_snapshot_t *sensor_snapshot,
+                                                              unsigned long occurred_at_ms)
+{
+    if (snapshot_mailbox == 0 || sensor_snapshot == 0)
+    {
+        return false;
+    }
+    if (!runtime_background_alarm_snapshot_mailbox_try_lock(snapshot_mailbox))
+    {
+        return false;
+    }
+
+    snapshot_mailbox->sensor_snapshot = *sensor_snapshot;
+    snapshot_mailbox->occurred_at_ms = occurred_at_ms;
+    snapshot_mailbox->published_sequence += 1ul;
+    runtime_background_alarm_snapshot_mailbox_unlock(snapshot_mailbox);
+    return true;
+}
+
+/**
+ * @brief 尝试读取一份稳定发布且尚未消费的新快照。
+ * @param snapshot_mailbox 单生产者单消费者快照邮箱。
+ * @param last_consumed_sequence 调用方维护的最近已消费序号。
+ * @param sensor_snapshot 输出快照。
+ * @param occurred_at_ms 输出采样时间。
+ * @return 读到新快照时返回 `true`，否则返回 `false`。
+ */
+static bool runtime_background_alarm_snapshot_mailbox_try_read(
+    background_alarm_snapshot_mailbox_t *snapshot_mailbox,
+    unsigned long *last_consumed_sequence,
+    sensor_snapshot_t *sensor_snapshot,
+    unsigned long *occurred_at_ms)
+{
+    unsigned long consumed_sequence;
+    unsigned long published_sequence;
+
+    if (snapshot_mailbox == 0 || last_consumed_sequence == 0 || sensor_snapshot == 0 || occurred_at_ms == 0)
+    {
+        return false;
+    }
+    if (!runtime_background_alarm_snapshot_mailbox_try_lock(snapshot_mailbox))
+    {
+        return false;
+    }
+
+    consumed_sequence = *last_consumed_sequence;
+    published_sequence = snapshot_mailbox->published_sequence;
+    if (published_sequence == 0ul || published_sequence == consumed_sequence)
+    {
+        runtime_background_alarm_snapshot_mailbox_unlock(snapshot_mailbox);
+        return false;
+    }
+
+    *sensor_snapshot = snapshot_mailbox->sensor_snapshot;
+    *occurred_at_ms = snapshot_mailbox->occurred_at_ms;
+    *last_consumed_sequence = published_sequence;
+    runtime_background_alarm_snapshot_mailbox_unlock(snapshot_mailbox);
+    return true;
+}
+
+/**
+ * @brief 后台报警 IO 线程入口，仅负责周期读取并发布最新快照。
+ * @param worker_thread 后台线程句柄。
+ * @param context 运行时上下文。
+ */
+static void runtime_background_alarm_io_entry(worker_thread_t *worker_thread, void *context)
+{
+    controller_runtime_state_t *runtime_state;
+    sensor_snapshot_t sensor_snapshot;
+    operation_result_t result;
+
+    runtime_state = (controller_runtime_state_t *)context;
+    if (runtime_state == 0)
+    {
+        return;
+    }
+
+    while (!worker_thread_stop_requested(worker_thread))
+    {
+        result = io_read_job_read_snapshot(runtime_state->background_alarm_monitor_context.sensor_port, &sensor_snapshot);
+        if (result.ok &&
+            runtime_background_alarm_snapshot_mailbox_publish(
+                &runtime_state->background_alarm_monitor_context.snapshot_mailbox,
+                &sensor_snapshot,
+                runtime_read_monotonic_ms()))
+        {
+            (void)worker_thread_notify(runtime_state->background_alarm_detect_worker_thread);
+        }
+
+        runtime_sleep_with_stop_check(worker_thread,
+                                      runtime_state->background_alarm_monitor_context.io_sample_period_ms);
+    }
+}
+
+/**
+ * @brief 后台报警检测线程入口，只消费新快照并执行告警检测。
+ * @param worker_thread 后台线程句柄。
+ * @param context 运行时上下文。
+ */
+static void runtime_background_alarm_detect_entry(worker_thread_t *worker_thread, void *context)
+{
+    unsigned long last_consumed_sequence;
+    controller_runtime_state_t *runtime_state;
+    sensor_snapshot_t sensor_snapshot;
+    unsigned long occurred_at_ms;
+
+    runtime_state = (controller_runtime_state_t *)context;
+    if (runtime_state == 0)
+    {
+        return;
+    }
+
+    last_consumed_sequence = 0ul;
+    while (!worker_thread_stop_requested(worker_thread))
+    {
+        if (runtime_background_alarm_snapshot_mailbox_try_read(
+                &runtime_state->background_alarm_monitor_context.snapshot_mailbox,
+                &last_consumed_sequence,
+                &sensor_snapshot,
+                &occurred_at_ms))
+        {
+            (void)alarm_detect_job_process_snapshot(
+                runtime_state->background_alarm_monitor_context.system_context,
+                &runtime_state->background_alarm_monitor_context.alarm_evaluator,
+                &sensor_snapshot,
+                occurred_at_ms);
+            continue;
+        }
+
+        (void)worker_thread_wait(worker_thread,
+                                 runtime_state->background_alarm_monitor_context.detect_period_ms);
+    }
+}
+
+/**
+ * @brief 启动可选的后台报警监控线程。
+ * @return 启动成功返回 `operation_result_ok()`，否则返回失败结果。
+ */
+static operation_result_t runtime_start_background_alarm_monitor(void)
+{
+    operation_result_t result;
+    worker_thread_config_t worker_thread_config;
+
+    if (!g_controller_runtime_state.config_snapshot.background_alarm_monitor.enabled)
+    {
+        return operation_result_ok();
+    }
+    if (g_controller_runtime_state.background_alarm_io_worker_thread != 0 ||
+        g_controller_runtime_state.background_alarm_detect_worker_thread != 0)
+    {
+        return operation_result_ok();
+    }
+
+    memset(&worker_thread_config, 0, sizeof(worker_thread_config));
+    g_controller_runtime_state.background_alarm_monitor_context.system_context = g_controller_runtime_state.system_context;
+    g_controller_runtime_state.background_alarm_monitor_context.sensor_port =
+        g_controller_runtime_state.config_snapshot.sensor_port;
+    g_controller_runtime_state.background_alarm_monitor_context.io_sample_period_ms =
+        g_controller_runtime_state.config_snapshot.background_alarm_monitor.io_sample_period_ms;
+    g_controller_runtime_state.background_alarm_monitor_context.detect_period_ms =
+        g_controller_runtime_state.config_snapshot.background_alarm_monitor.detect_period_ms;
+    alarm_evaluator_init(&g_controller_runtime_state.background_alarm_monitor_context.alarm_evaluator);
+    runtime_background_alarm_snapshot_mailbox_init(&g_controller_runtime_state.background_alarm_monitor_context.snapshot_mailbox);
+    worker_thread_config.entry = runtime_background_alarm_io_entry;
+    worker_thread_config.context = &g_controller_runtime_state;
+    result = worker_thread_start(&g_controller_runtime_state.background_alarm_io_worker_thread, &worker_thread_config);
+    if (!result.ok)
+    {
+        return result;
+    }
+
+    worker_thread_config.entry = runtime_background_alarm_detect_entry;
+    result = worker_thread_start(&g_controller_runtime_state.background_alarm_detect_worker_thread, &worker_thread_config);
+    if (!result.ok)
+    {
+        runtime_stop_background_alarm_monitor();
+        return result;
+    }
+    return operation_result_ok();
+}
+
+/**
+ * @brief 停止并销毁后台报警监控线程。
+ * @details 先同时发出停止请求，再先等待 IO 线程退出，避免 detect 线程销毁后仍被 IO 线程 notify。
+ */
+static void runtime_stop_background_alarm_monitor(void)
+{
+    if (g_controller_runtime_state.background_alarm_detect_worker_thread != 0)
+    {
+        (void)worker_thread_request_stop(g_controller_runtime_state.background_alarm_detect_worker_thread);
+    }
+    if (g_controller_runtime_state.background_alarm_io_worker_thread != 0)
+    {
+        (void)worker_thread_request_stop(g_controller_runtime_state.background_alarm_io_worker_thread);
+    }
+    if (g_controller_runtime_state.background_alarm_io_worker_thread != 0)
+    {
+        (void)worker_thread_join(g_controller_runtime_state.background_alarm_io_worker_thread);
+    }
+    if (g_controller_runtime_state.background_alarm_detect_worker_thread != 0)
+    {
+        (void)worker_thread_join(g_controller_runtime_state.background_alarm_detect_worker_thread);
+        worker_thread_destroy(g_controller_runtime_state.background_alarm_detect_worker_thread);
+        g_controller_runtime_state.background_alarm_detect_worker_thread = 0;
+    }
+    if (g_controller_runtime_state.background_alarm_io_worker_thread != 0)
+    {
+        worker_thread_destroy(g_controller_runtime_state.background_alarm_io_worker_thread);
+        g_controller_runtime_state.background_alarm_io_worker_thread = 0;
+    }
+}
+
+/**
+ * @brief 生成并缓存句柄校验密钥。
+ * @details 由全局符号地址异或推导，用于计算 handle checksum。
+ * @return 校验密钥，保证非零。
  */
 static uintptr_t runtime_handle_secret(void)
 {
@@ -88,9 +470,9 @@ static uintptr_t runtime_handle_secret(void)
 }
 
 /**
- * @brief 计算 generation 的校验码
- * @param generation 代次号
- * @return 16 位校验码：通过 XOR 混合 generation、密钥、移位值推导
+ * @brief 计算 generation 的校验码。
+ * @param generation 代次号。
+ * @return 16 位校验码。
  */
 static uintptr_t runtime_handle_checksum(uintptr_t generation)
 {
@@ -103,10 +485,10 @@ static uintptr_t runtime_handle_checksum(uintptr_t generation)
 }
 
 /**
- * @brief 将 generation 编码成 opaque handle
- * @param generation 代次号
- * @return 编码后的 opaque token（布局：generation | checksum | magic），不指向真实内存
- * @note 返回的指针仅作 token 使用，调用方必须保存并在后续操作中传回
+ * @brief 将 generation 编码为 opaque handle。
+ * @param generation 代次号。
+ * @return 编码后的 opaque token，不指向真实内存。
+ * @note 返回值仅作为 token 使用，调用方需保存并在后续操作中传回。
  */
 static controller_runtime_t *runtime_handle_from_generation(uintptr_t generation)
 {
@@ -124,10 +506,10 @@ static controller_runtime_t *runtime_handle_from_generation(uintptr_t generation
 }
 
 /**
- * @brief 解码 opaque handle 并完整验证
- * @param runtime opaque handle token
- * @param[out] generation 指向输出 generation 的指针，可为 null
- * @return true 表示 handle 合法、magic 有效、checksum 通过；false 表示伪造或过期
+ * @brief 解码 opaque handle 并完成完整校验。
+ * @param runtime opaque handle token。
+ * @param[out] generation 输出 generation 的指针，可为 `0`。
+ * @return 校验通过返回 `true`，否则返回 `false`。
  */
 static bool runtime_decode_handle(const controller_runtime_t *runtime, uintptr_t *generation)
 {
@@ -142,20 +524,20 @@ static bool runtime_decode_handle(const controller_runtime_t *runtime, uintptr_t
     }
 
     token = (uintptr_t)runtime;
-    /* 检查magic marker */
+    /* 先检查 magic 标记。 */
     if ((token & CONTROLLER_RUNTIME_HANDLE_MAGIC_MASK) != CONTROLLER_RUNTIME_HANDLE_MAGIC)
     {
         return false;
     }
 
-    /* 提取checksum和generation */
+    /* 再提取 checksum 与 generation。 */
     checksum = (token >> CONTROLLER_RUNTIME_HANDLE_MAGIC_BITS) & CONTROLLER_RUNTIME_HANDLE_CHECKSUM_MASK;
     decoded_generation = token >> CONTROLLER_RUNTIME_HANDLE_GENERATION_SHIFT;
     if (decoded_generation == 0u)
     {
         return false;
     }
-    /* 重算checksum验证 */
+    /* 最后重算 checksum 做一致性校验。 */
     decoded_checksum = runtime_handle_checksum(decoded_generation);
     if (checksum != decoded_checksum)
     {
@@ -170,8 +552,8 @@ static bool runtime_decode_handle(const controller_runtime_t *runtime, uintptr_t
 }
 
 /**
- * @brief 分配新的 generation 号
- * @return 单调递增的代次号；超过上限时返回 0（溢出标记）
+ * @brief 分配新的 generation 号。
+ * @return 单调递增的代次号；超过上限时返回 `0`。
  */
 static uintptr_t runtime_issue_generation(void)
 {
@@ -188,9 +570,9 @@ static uintptr_t runtime_issue_generation(void)
 }
 
 /**
- * @brief 判断 generation 是否曾被分配过
- * @param generation 代次号
- * @return true 表示此 generation 在历史上曾被分配；false 表示野指针或伪造句柄
+ * @brief 判断 generation 是否曾被分配过。
+ * @param generation 代次号。
+ * @return 历史上分配过则返回 `true`，否则返回 `false`。
  */
 static bool runtime_generation_was_issued(uintptr_t generation)
 {
@@ -198,9 +580,9 @@ static bool runtime_generation_was_issued(uintptr_t generation)
 }
 
 /**
- * @brief 从 system_context 复制最近的原因码到 runtime_state
- * @param runtime_state 目标运行状态结构
- * @note 用于运行时问题诊断；清空缓冲区后，从 system_context 读取最新原因码
+ * @brief 从 system_context 复制最近原因码到 runtime_state。
+ * @param runtime_state 目标运行状态结构。
+ * @note 复制前会先清空本地缓冲区。
  */
 static void runtime_copy_last_reason_from_context(controller_runtime_state_t *runtime_state)
 {
@@ -225,9 +607,9 @@ static void runtime_copy_last_reason_from_context(controller_runtime_state_t *ru
 }
 
 /**
- * @brief 从全局运行状态构建当前活跃 runtime 的状态快照
- * @param[out] status_view 输出状态视图
- * @details 包括生命周期状态、错误码、原因码、调度器视图等；若调度器视图不可用则标记为不可用
+ * @brief 从全局运行状态构建当前 runtime 的状态快照。
+ * @param[out] status_view 输出状态视图。
+ * @details 包含生命周期、错误码、原因码和调度器视图等信息。
  */
 static void runtime_build_status_view(controller_runtime_status_view_t *status_view)
 {
@@ -242,7 +624,7 @@ static void runtime_build_status_view(controller_runtime_status_view_t *status_v
     status_view->scheduler_created = g_controller_runtime_state.scheduler_created;
     status_view->run_invoked = g_controller_runtime_state.run_invoked;
     status_view->last_error_code = g_controller_runtime_state.last_error_code;
-    /* 防止缓冲区越界：预留1字节给null终止符 */
+    /* 预留 1 字节给 null 终止符，避免缓冲区越界。 */
     strncpy(status_view->last_reason_code, g_controller_runtime_state.last_reason_code,
             sizeof(status_view->last_reason_code) - 1u);
 
@@ -255,11 +637,11 @@ static void runtime_build_status_view(controller_runtime_status_view_t *status_v
 }
 
 /**
- * @brief 为已释放的 runtime 构建销毁后的状态视图
- * @param[out] status_view 输出状态视图
- * @param last_error_code 最后的错误码
- * @param last_reason_code 最后的原因码
- * @details 状态标记为 DESTROYED，保留错误信息供后续查询
+ * @brief 为已销毁 runtime 构建状态视图。
+ * @param[out] status_view 输出状态视图。
+ * @param last_error_code 最后的错误码。
+ * @param last_reason_code 最后的原因码。
+ * @details 生命周期会标记为 `CONTROLLER_RUNTIME_STATE_DESTROYED`。
  */
 static void runtime_build_destroyed_status_view(controller_runtime_status_view_t *status_view,
                                                 error_code_t last_error_code, const char *last_reason_code)
@@ -279,9 +661,9 @@ static void runtime_build_destroyed_status_view(controller_runtime_status_view_t
 }
 
 /**
- * @brief 清零借用的外部资源指针
- * @param runtime_state 目标运行状态结构
- * @details 清零 system_context、scheduler、config；仅在释放资源后调用，防止悬空指针
+ * @brief 清零借用的外部资源绑定。
+ * @param runtime_state 目标运行状态结构。
+ * @details 仅在资源释放后调用，用于避免悬空指针。
  */
 static void runtime_zero_borrowed_bindings(controller_runtime_state_t *runtime_state)
 {
@@ -292,16 +674,18 @@ static void runtime_zero_borrowed_bindings(controller_runtime_state_t *runtime_s
 
     memset(&runtime_state->config_snapshot, 0, sizeof(runtime_state->config_snapshot));
     runtime_state->controller_scheduler = 0;
+    runtime_state->background_alarm_io_worker_thread = 0;
+    runtime_state->background_alarm_detect_worker_thread = 0;
     runtime_state->system_context = 0;
     runtime_state->system_context_acquired = false;
     runtime_state->scheduler_created = false;
 }
 
 /**
- * @brief 验证调度器配置有效性
- * @param scheduler_config 待验证配置
- * @return 配置合法时返回 ok；任意字段无效时返回 INVALID_ARGUMENT
- * @details 检查项：周期非零、最大触发数非零、有界排干模式下排干刻度非零
+ * @brief 验证调度器配置有效性。
+ * @param scheduler_config 待验证配置。
+ * @return 配置合法时返回 `ok`，否则返回 `INVALID_ARGUMENT`。
+ * @details 检查周期、最大触发数和有界排干配置是否有效。
  */
 static operation_result_t runtime_validate_scheduler_config(const controller_scheduler_config_t *scheduler_config)
 {
@@ -326,9 +710,9 @@ static operation_result_t runtime_validate_scheduler_config(const controller_sch
 }
 
 /**
- * @brief 验证句柄的有效性和当前性
- * @param runtime 待验证句柄
- * @return 句柄合法、实例占用、generation 匹配当前活跃 generation 时返回 ok；否则返回失败
+ * @brief 验证句柄是否指向当前活跃 runtime。
+ * @param runtime 待验证句柄。
+ * @return 句柄合法且代次匹配时返回 `ok`，否则返回失败。
  */
 static operation_result_t runtime_require_current_handle(const controller_runtime_t *runtime)
 {
@@ -350,12 +734,11 @@ static operation_result_t runtime_require_current_handle(const controller_runtim
 }
 
 /**
- * @brief 释放 runtime 拥有的所有资源
- * @param retired_generation 待退役的 generation（目前未使用）
- * @return 资源释放成功时返回 ok；释放过程中任意失败返回相应错误码
- * @details 逆序释放：调度器 → system_context；清零所有指针；失败时保留错误信息
+ * @brief 释放 runtime 持有的所有资源。
+ * @return 全部释放成功返回 `ok`，否则返回对应错误码。
+ * @details 按调度器再到 system_context 的顺序释放资源。
  */
-static operation_result_t runtime_destroy_owned_resources(uintptr_t retired_generation)
+static operation_result_t runtime_destroy_owned_resources(void)
 {
     operation_result_t release_result;
     error_code_t destroy_error_code;
@@ -364,6 +747,8 @@ static operation_result_t runtime_destroy_owned_resources(uintptr_t retired_gene
     g_controller_runtime_state.last_error_code = ERROR_CODE_OK;
     destroy_error_code = ERROR_CODE_OK;
     release_result = operation_result_ok();
+
+    runtime_stop_background_alarm_monitor();
 
     if (g_controller_runtime_state.controller_scheduler != 0)
     {
@@ -387,7 +772,6 @@ static operation_result_t runtime_destroy_owned_resources(uintptr_t retired_gene
     g_controller_runtime_state.occupied = false;
     g_controller_runtime_state.lifecycle_state = CONTROLLER_RUNTIME_STATE_DESTROYED;
     g_controller_runtime_state.active_generation = 0u;
-    (void)retired_generation;
 
     runtime_zero_borrowed_bindings(&g_controller_runtime_state);
     return destroy_error_code == ERROR_CODE_OK ? operation_result_ok() : operation_result_fail(destroy_error_code);
@@ -420,6 +804,11 @@ operation_result_t controller_runtime_config_validate(const controller_runtime_c
     }
 
     result = runtime_validate_scheduler_config(config->scheduler_config);
+    if (!result.ok)
+    {
+        return result;
+    }
+    result = runtime_validate_background_alarm_monitor_config(config);
     if (!result.ok)
     {
         return result;
@@ -459,7 +848,7 @@ operation_result_t controller_runtime_create(controller_runtime_t **runtime, con
     if (!result.ok || g_controller_runtime_state.system_context == 0)
     {
         g_controller_runtime_state.last_error_code = result.ok ? ERROR_CODE_RESOURCE_UNAVAILABLE : result.error_code;
-        (void)runtime_destroy_owned_resources(0u);
+        (void)runtime_destroy_owned_resources();
         return operation_result_fail(g_controller_runtime_state.last_error_code);
     }
     g_controller_runtime_state.system_context_acquired = true;
@@ -472,7 +861,7 @@ operation_result_t controller_runtime_create(controller_runtime_t **runtime, con
     {
         g_controller_runtime_state.last_error_code = result.error_code;
         runtime_copy_last_reason_from_context(&g_controller_runtime_state);
-        (void)runtime_destroy_owned_resources(0u);
+        (void)runtime_destroy_owned_resources();
         return result;
     }
 
@@ -481,7 +870,7 @@ operation_result_t controller_runtime_create(controller_runtime_t **runtime, con
     {
         g_controller_runtime_state.last_error_code = result.error_code;
         runtime_copy_last_reason_from_context(&g_controller_runtime_state);
-        (void)runtime_destroy_owned_resources(0u);
+        (void)runtime_destroy_owned_resources();
         return result;
     }
 
@@ -490,7 +879,7 @@ operation_result_t controller_runtime_create(controller_runtime_t **runtime, con
     {
         g_controller_runtime_state.last_error_code = result.error_code;
         runtime_copy_last_reason_from_context(&g_controller_runtime_state);
-        (void)runtime_destroy_owned_resources(0u);
+        (void)runtime_destroy_owned_resources();
         return result;
     }
 
@@ -504,7 +893,7 @@ operation_result_t controller_runtime_create(controller_runtime_t **runtime, con
     {
         g_controller_runtime_state.last_error_code = ERROR_CODE_IO_FAILED;
         runtime_copy_last_reason_from_context(&g_controller_runtime_state);
-        (void)runtime_destroy_owned_resources(0u);
+        (void)runtime_destroy_owned_resources();
         return operation_result_fail(ERROR_CODE_IO_FAILED);
     }
 
@@ -516,7 +905,7 @@ operation_result_t controller_runtime_create(controller_runtime_t **runtime, con
     if (active_generation == 0u)
     {
         g_controller_runtime_state.last_error_code = ERROR_CODE_RESOURCE_UNAVAILABLE;
-        (void)runtime_destroy_owned_resources(0u);
+        (void)runtime_destroy_owned_resources();
         return operation_result_fail(ERROR_CODE_RESOURCE_UNAVAILABLE);
     }
     g_controller_runtime_state.active_generation = active_generation;
@@ -544,7 +933,17 @@ operation_result_t controller_runtime_run(controller_runtime_t *runtime)
 
     g_controller_runtime_state.lifecycle_state = CONTROLLER_RUNTIME_STATE_RUNNING;
     g_controller_runtime_state.run_invoked = true;
+    result = runtime_start_background_alarm_monitor();
+    if (!result.ok)
+    {
+        g_controller_runtime_state.last_error_code = result.error_code;
+        runtime_copy_last_reason_from_context(&g_controller_runtime_state);
+        g_controller_runtime_state.lifecycle_state = CONTROLLER_RUNTIME_STATE_TERMINATED;
+        return result;
+    }
+
     result = controller_scheduler_run(g_controller_runtime_state.controller_scheduler);
+    runtime_stop_background_alarm_monitor();
     g_controller_runtime_state.last_error_code = result.error_code;
     runtime_copy_last_reason_from_context(&g_controller_runtime_state);
     g_controller_runtime_state.lifecycle_state = CONTROLLER_RUNTIME_STATE_TERMINATED;
@@ -577,7 +976,7 @@ operation_result_t controller_runtime_destroy(controller_runtime_t *runtime)
     {
         return result;
     }
-    return runtime_destroy_owned_resources(generation);
+    return runtime_destroy_owned_resources();
 }
 
 operation_result_t controller_runtime_read_state(const controller_runtime_t *runtime,

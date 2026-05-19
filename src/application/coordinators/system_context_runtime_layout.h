@@ -1,7 +1,11 @@
 #ifndef APPLICATION_COORDINATORS_SYSTEM_CONTEXT_RUNTIME_LAYOUT_H
 #define APPLICATION_COORDINATORS_SYSTEM_CONTEXT_RUNTIME_LAYOUT_H
 
+#include <stdatomic.h>
+
 #include "src/application/coordinators/system_context_private.h"
+
+#define MAX_EXTERNAL_TRIGGER_QUEUE_COUNT 8u
 
 /**
  * @file system_context_runtime_layout.h
@@ -19,11 +23,15 @@ typedef struct system_context_runtime_t
     runtime_snapshot_t runtime_snapshot;
     state_transition_record_t last_transition_record;
     wash_trigger_event_t pending_triggers[MAX_PENDING_TRIGGER_COUNT];
+    wash_trigger_event_t external_triggers[MAX_EXTERNAL_TRIGGER_QUEUE_COUNT];
     unsigned int pending_trigger_count;
     unsigned long current_time_ms;
     unsigned long next_session_sequence;
     unsigned long next_execution_sequence;
     unsigned long next_wait_condition_sequence;
+    atomic_uint external_trigger_read_index;
+    atomic_uint external_trigger_write_index;
+    atomic_uint external_trigger_count;
     device_state_t device_state;
     bool global_fault_present;
     char global_fault_code[64];

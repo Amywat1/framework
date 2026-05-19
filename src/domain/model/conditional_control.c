@@ -2,6 +2,10 @@
 
 #include <string.h>
 
+/**
+ * @brief 初始化条件控制对象。
+ * @param conditional_control 条件控制对象。
+ */
 void conditional_control_init(conditional_control_t *conditional_control)
 {
     if (conditional_control == 0)
@@ -12,6 +16,11 @@ void conditional_control_init(conditional_control_t *conditional_control)
     memset(conditional_control, 0, sizeof(*conditional_control));
 }
 
+/**
+ * @brief 判断条件控制配置是否合法。
+ * @param conditional_control 条件控制对象。
+ * @return 合法返回 `true`，否则返回 `false`。
+ */
 bool conditional_control_is_valid(const conditional_control_t *conditional_control)
 {
     if (conditional_control == 0)

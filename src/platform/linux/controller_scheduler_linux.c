@@ -143,6 +143,11 @@ static void controller_scheduler_unregister_binding(const controller_scheduler_t
     }
 }
 
+/**
+ * @brief 通过 `system_context` 查找已绑定的调度器实例。
+ * @param system_context 系统上下文句柄。
+ * @return 找到绑定时返回调度器指针，否则返回 `0`。
+ */
 static controller_scheduler_t *controller_scheduler_lookup_binding(const system_context_t system_context)
 {
     if (system_context == 0)
@@ -152,6 +157,12 @@ static controller_scheduler_t *controller_scheduler_lookup_binding(const system_
     return g_scheduler_binding.system_context == system_context ? g_scheduler_binding.controller_scheduler : 0;
 }
 
+/**
+ * @brief 记录最近一次错误原因，并按需将调度器标记为失败态。
+ * @param controller_scheduler 调度器实例。
+ * @param reason_code 错误原因码。
+ * @param terminal 是否同步切换到失败态。
+ */
 static void controller_scheduler_record_error(controller_scheduler_t *controller_scheduler, const char *reason_code,
                                               bool terminal)
 {
@@ -169,6 +180,11 @@ static void controller_scheduler_record_error(controller_scheduler_t *controller
     }
 }
 
+/**
+ * @brief 在可观测性开启时写入调度器日志消息。
+ * @param controller_scheduler 调度器实例。
+ * @param message 待写入的日志文本。
+ */
 static void controller_scheduler_log_message(controller_scheduler_t *controller_scheduler, const char *message)
 {
     const event_logger_port_t *event_logger_port;
@@ -188,6 +204,10 @@ static void controller_scheduler_log_message(controller_scheduler_t *controller_
     }
 }
 
+/**
+ * @brief 刷新待处理触发数指标。
+ * @param controller_scheduler 调度器实例。
+ */
 static void controller_scheduler_update_pending_metric(controller_scheduler_t *controller_scheduler)
 {
     if (controller_scheduler == 0 || controller_scheduler->system_context == 0)
@@ -198,6 +218,12 @@ static void controller_scheduler_update_pending_metric(controller_scheduler_t *c
         system_context_pending_trigger_count(controller_scheduler->system_context);
 }
 
+/**
+ * @brief 根据最新上下文结果重建 formal command 响应行。
+ * @param system_context 系统上下文句柄。
+ * @param response_line 输出响应缓冲区。
+ * @param response_line_size 输出缓冲区大小。
+ */
 static void controller_scheduler_rebuild_formal_response(const system_context_t system_context, char *response_line,
                                                          size_t response_line_size)
 {
@@ -222,6 +248,12 @@ static void controller_scheduler_rebuild_formal_response(const system_context_t 
              accepted ? "true" : "false", detail);
 }
 
+/**
+ * @brief 记录事件源的触发次数与最近观测时间。
+ * @param source_descriptor 事件源描述符。
+ * @param event_count 本次新增事件数。
+ * @param seen_time_ms 最近观测时间。
+ */
 static void controller_scheduler_note_source_event(scheduler_event_source_descriptor_t *source_descriptor,
                                                    unsigned long event_count, unsigned long seen_time_ms)
 {
@@ -233,6 +265,11 @@ static void controller_scheduler_note_source_event(scheduler_event_source_descri
     source_descriptor->last_seen_time_ms = seen_time_ms;
 }
 
+/**
+ * @brief 判断命令缓冲区中是否已有完整命令行。
+ * @param controller_scheduler 调度器实例。
+ * @return 存在完整命令行时返回 `true`，否则返回 `false`。
+ */
 static bool controller_scheduler_command_buffer_has_complete_line(const controller_scheduler_t *controller_scheduler)
 {
     if (controller_scheduler == 0)
@@ -246,6 +283,13 @@ static bool controller_scheduler_command_buffer_has_complete_line(const controll
     return controller_scheduler->command_input_eof && controller_scheduler->command_buffer_length > 0u;
 }
 
+/**
+ * @brief 将新读取的命令字节追加到命令缓冲区。
+ * @param controller_scheduler 调度器实例。
+ * @param bytes 待读取的字节序列。
+ * @param byte_count 字节数。
+ * @return 追加成功返回 `ok`，参数非法或缓冲区不足时返回失败。
+ */
 static operation_result_t controller_scheduler_append_command_bytes(controller_scheduler_t *controller_scheduler,
                                                                     const char *bytes, size_t byte_count)
 {
@@ -267,6 +311,13 @@ static operation_result_t controller_scheduler_append_command_bytes(controller_s
     return operation_result_ok();
 }
 
+/**
+ * @brief 从命令缓冲区提取一行命令并消费对应字节。
+ * @param controller_scheduler 调度器实例。
+ * @param command_line 输出命令行缓冲区。
+ * @param command_line_size 输出缓冲区大小。
+ * @return 提取到完整命令行时返回 `true`，否则返回 `false`。
+ */
 static bool controller_scheduler_extract_command_line(controller_scheduler_t *controller_scheduler, char *command_line,
                                                       size_t command_line_size)
 {
@@ -316,6 +367,10 @@ static bool controller_scheduler_extract_command_line(controller_scheduler_t *co
     return true;
 }
 
+/**
+ * @brief 将初始化态调度器推进到运行态。
+ * @param controller_scheduler 调度器实例。
+ */
 static void controller_scheduler_ensure_running_state(controller_scheduler_t *controller_scheduler)
 {
     if (controller_scheduler != 0 &&
@@ -325,6 +380,15 @@ static void controller_scheduler_ensure_running_state(controller_scheduler_t *co
     }
 }
 
+/**
+ * @brief 在限定次数内执行主循环 tick，并更新周期指标。
+ * @param controller_scheduler 调度器实例。
+ * @param advance_time 是否推进逻辑时间。
+ * @param elapsed_ms 本次推进的时间跨度。
+ * @param count_cycle 是否累计周期计数。
+ * @param cycle_count_increment 周期计数增量。
+ * @return 执行成功返回 `ok`，主循环失败时返回对应错误。
+ */
 static operation_result_t controller_scheduler_execute_bounded_ticks(controller_scheduler_t *controller_scheduler,
                                                                      bool advance_time, unsigned long elapsed_ms,
                                                                      bool count_cycle,
@@ -399,6 +463,11 @@ static operation_result_t controller_scheduler_execute_bounded_ticks(controller_
     return result;
 }
 
+/**
+ * @brief 消费待处理通知事件并更新通知快照。
+ * @param controller_scheduler 调度器实例。
+ * @return 处理成功返回 `ok`，参数非法时返回失败。
+ */
 static operation_result_t controller_scheduler_handle_notification(controller_scheduler_t *controller_scheduler)
 {
     char log_line[160];
@@ -430,6 +499,11 @@ static operation_result_t controller_scheduler_handle_notification(controller_sc
     return operation_result_ok();
 }
 
+/**
+ * @brief 处理退出事件并决定停止或进入排干态。
+ * @param controller_scheduler 调度器实例。
+ * @return 处理成功返回 `ok`，参数非法时返回失败。
+ */
 static operation_result_t controller_scheduler_handle_exit(controller_scheduler_t *controller_scheduler)
 {
     char log_line[128];
@@ -463,6 +537,13 @@ static operation_result_t controller_scheduler_handle_exit(controller_scheduler_
     return operation_result_ok();
 }
 
+/**
+ * @brief 设置内部退出请求，并按需唤醒 epoll 循环。
+ * @param controller_scheduler 调度器实例。
+ * @param immediate 是否立即退出。
+ * @param signal_wakeup 是否向唤醒 fd 写入通知。
+ * @return 请求成功返回 `ok`，写唤醒失败时返回对应错误。
+ */
 static operation_result_t controller_scheduler_request_exit_internal(controller_scheduler_t *controller_scheduler,
                                                                      bool immediate, bool signal_wakeup)
 {
@@ -500,6 +581,15 @@ static operation_result_t controller_scheduler_request_exit_internal(controller_
     return operation_result_ok();
 }
 
+/**
+ * @brief 执行一条 formal command 命令行并按需回填响应。
+ * @param controller_scheduler 调度器实例。
+ * @param command_line 输入命令行。
+ * @param response_line 输出响应缓冲区。
+ * @param response_line_size 输出缓冲区大小。
+ * @param print_response 是否将响应写回标准输出。
+ * @return 处理成功返回 `ok`，命令执行失败时返回对应错误。
+ */
 static operation_result_t controller_scheduler_process_command_line(controller_scheduler_t *controller_scheduler,
                                                                     const char *command_line, char *response_line,
                                                                     size_t response_line_size, bool print_response)
@@ -549,6 +639,15 @@ static operation_result_t controller_scheduler_process_command_line(controller_s
     return operation_result_ok();
 }
 
+/**
+ * @brief 记录命令事件指标后处理一条命令行。
+ * @param controller_scheduler 调度器实例。
+ * @param command_line 输入命令行。
+ * @param response_line 输出响应缓冲区。
+ * @param response_line_size 输出缓冲区大小。
+ * @param print_response 是否将响应写回标准输出。
+ * @return 处理成功返回 `ok`，失败时返回对应错误。
+ */
 static operation_result_t controller_scheduler_handle_command_event(controller_scheduler_t *controller_scheduler,
                                                                     const char *command_line, char *response_line,
                                                                     size_t response_line_size, bool print_response)
@@ -570,6 +669,11 @@ static operation_result_t controller_scheduler_handle_command_event(controller_s
                                                      response_line_size, print_response);
 }
 
+/**
+ * @brief 从命令输入 fd 读取数据并驱动命令行处理。
+ * @param controller_scheduler 调度器实例。
+ * @return 处理成功返回 `ok`，读失败时返回对应错误。
+ */
 static operation_result_t controller_scheduler_handle_command_fd(controller_scheduler_t *controller_scheduler)
 {
     char read_buffer[128];
@@ -648,6 +752,11 @@ static operation_result_t controller_scheduler_handle_command_fd(controller_sche
     return operation_result_ok();
 }
 
+/**
+ * @brief 在排干态下继续执行剩余运行时工作。
+ * @param controller_scheduler 调度器实例。
+ * @return 排干成功返回 `ok`，超时或执行失败时返回对应错误。
+ */
 static operation_result_t controller_scheduler_service_drain(controller_scheduler_t *controller_scheduler)
 {
     operation_result_t result;
@@ -690,6 +799,11 @@ static operation_result_t controller_scheduler_service_drain(controller_schedule
     return operation_result_ok();
 }
 
+/**
+ * @brief 按优先级分发当前已就绪的内部事件。
+ * @param controller_scheduler 调度器实例。
+ * @return 分发成功返回 `ok`，任一处理步骤失败时返回对应错误。
+ */
 static operation_result_t controller_scheduler_dispatch_ready_events(controller_scheduler_t *controller_scheduler)
 {
     operation_result_t result;
@@ -746,6 +860,11 @@ static operation_result_t controller_scheduler_dispatch_ready_events(controller_
     return result;
 }
 
+/**
+ * @brief 从 epoll 收集本轮已就绪事件并转成内部待处理标记。
+ * @param controller_scheduler 调度器实例。
+ * @return 收集成功返回 `ok`，底层 IO 失败时返回对应错误。
+ */
 static operation_result_t controller_scheduler_collect_ready_events(controller_scheduler_t *controller_scheduler)
 {
     struct epoll_event events[CONTROLLER_SCHEDULER_MAX_EPOLL_EVENTS];
@@ -811,6 +930,12 @@ static operation_result_t controller_scheduler_collect_ready_events(controller_s
     return operation_result_ok();
 }
 
+/**
+ * @brief 将指定 fd 注册到调度器的 epoll 实例。
+ * @param controller_scheduler 调度器实例。
+ * @param fd 待注册文件描述符。
+ * @return 注册成功返回 `ok`，失败时返回 IO 错误。
+ */
 static operation_result_t controller_scheduler_register_epoll_fd(controller_scheduler_t *controller_scheduler, int fd)
 {
     struct epoll_event event_registration;
@@ -826,6 +951,11 @@ static operation_result_t controller_scheduler_register_epoll_fd(controller_sche
     return operation_result_ok();
 }
 
+/**
+ * @brief 校验调度器创建配置是否合法。
+ * @param controller_scheduler_config 待校验配置。
+ * @return 配置合法返回 `ok`，否则返回参数错误。
+ */
 static operation_result_t
 controller_scheduler_validate_config(const controller_scheduler_config_t *controller_scheduler_config)
 {

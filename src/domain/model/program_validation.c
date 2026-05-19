@@ -4,6 +4,11 @@
 
 #include "shared/error_codes.h"
 
+/**
+ * @brief 校验洗车程序整体配置是否合法。
+ * @param wash_program 待校验程序对象。
+ * @return 成功返回 `operation_result_ok()`，程序不合法时返回失败结果。
+ */
 operation_result_t program_validation_validate(const wash_program_t *wash_program)
 {
     int index;
@@ -23,6 +28,7 @@ operation_result_t program_validation_validate(const wash_program_t *wash_progra
         {
             return operation_result_fail(ERROR_CODE_PARSE_FAILED);
         }
+        /* 同时校验顺序号连续和段 ID 唯一，避免冻结后出现歧义工步。 */
         if (wash_program->segments[index].sequence_no != index + 1)
         {
             return operation_result_fail(ERROR_CODE_PARSE_FAILED);

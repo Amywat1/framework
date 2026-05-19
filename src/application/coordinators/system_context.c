@@ -1,6 +1,7 @@
 ﻿#include "application/coordinators/system_context.h"
 
 #include <stddef.h>
+#include <stdatomic.h>
 #include <stdint.h>
 #include <string.h>
 
@@ -28,6 +29,22 @@ static system_context_t s_active_system_context = 0;
 _Static_assert(SYSTEM_CONTEXT_HANDLE_GENERATION_WINDOW > 1u,
                "system_context handle generation window must provide at least one active generation");
 
+/**
+ * @brief 初始化外部触发收件箱。
+ * @param runtime 运行时对象，不能为空。
+ */
+static void initialize_external_trigger_queue(system_context_runtime_t *runtime)
+{
+    if (runtime == 0)
+    {
+        return;
+    }
+
+    atomic_init(&runtime->external_trigger_read_index, 0u);
+    atomic_init(&runtime->external_trigger_write_index, 0u);
+    atomic_init(&runtime->external_trigger_count, 0u);
+}
+
 static void initialize_runtime_object(system_context_runtime_t *runtime)
 {
     memset(runtime, 0, sizeof(*runtime));
@@ -38,6 +55,7 @@ static void initialize_runtime_object(system_context_runtime_t *runtime)
     wash_execution_reset(&runtime->wash_execution);
     wait_condition_reset(&runtime->wait_condition);
     program_snapshot_reset(&runtime->program_snapshot);
+    initialize_external_trigger_queue(runtime);
 }
 
 static void initialize_handle_storage_if_needed(void)
@@ -527,6 +545,72 @@ operation_result_t system_context_private_append_trigger(system_context_t system
     return operation_result_ok();
 }
 
+operation_result_t system_context_private_enqueue_external_trigger(system_context_t system_context,
+                                                                  const wash_trigger_event_t *wash_trigger_event)
+{
+    system_context_runtime_t *runtime;
+    unsigned int write_index;
+    unsigned int next_count;
+
+    if (wash_trigger_event == 0)
+    {
+        return operation_result_fail(ERROR_CODE_INVALID_ARGUMENT);
+    }
+    if (!require_active_instance(system_context).ok)
+    {
+        return operation_result_fail(ERROR_CODE_INVALID_STATE);
+    }
+
+    runtime = &s_system_context_instance.runtime;
+    next_count = atomic_load(&runtime->external_trigger_count);
+    if (next_count >= MAX_EXTERNAL_TRIGGER_QUEUE_COUNT)
+    {
+        return operation_result_fail(ERROR_CODE_RESOURCE_UNAVAILABLE);
+    }
+
+    write_index = atomic_load(&runtime->external_trigger_write_index);
+    runtime->external_triggers[write_index] = *wash_trigger_event;
+    write_index = (write_index + 1u) % MAX_EXTERNAL_TRIGGER_QUEUE_COUNT;
+    atomic_store(&runtime->external_trigger_write_index, write_index);
+    atomic_fetch_add(&runtime->external_trigger_count, 1u);
+    return operation_result_ok();
+}
+
+bool system_context_private_try_pop_external_trigger(system_context_t system_context,
+                                                     wash_trigger_event_t *wash_trigger_event)
+{
+    system_context_runtime_t *runtime;
+    unsigned int read_index;
+
+    if (wash_trigger_event == 0 || !require_active_instance(system_context).ok)
+    {
+        return false;
+    }
+
+    runtime = &s_system_context_instance.runtime;
+    if (atomic_load(&runtime->external_trigger_count) == 0u)
+    {
+        return false;
+    }
+
+    read_index = atomic_load(&runtime->external_trigger_read_index);
+    *wash_trigger_event = runtime->external_triggers[read_index];
+    read_index = (read_index + 1u) % MAX_EXTERNAL_TRIGGER_QUEUE_COUNT;
+    atomic_store(&runtime->external_trigger_read_index, read_index);
+    atomic_fetch_sub(&runtime->external_trigger_count, 1u);
+    return true;
+}
+
+unsigned int system_context_private_external_trigger_count(const system_context_t system_context)
+{
+    if (!require_active_instance(system_context).ok)
+    {
+        return 0u;
+    }
+
+    return atomic_load(&s_system_context_instance.runtime.external_trigger_count);
+}
+
 const wash_trigger_event_t *system_context_private_pending_trigger_at(const system_context_t system_context,
                                                                       unsigned int index)
 {
@@ -825,6 +909,7 @@ bool system_context_has_pending_runtime_work(const system_context_t system_conte
     }
 
     return s_system_context_instance.runtime.pending_trigger_count > 0u ||
+           system_context_private_external_trigger_count(system_context) > 0u ||
            wait_timeout_service_should_fire(&s_system_context_instance.runtime.wait_condition,
                                             s_system_context_instance.runtime.current_time_ms);
 }

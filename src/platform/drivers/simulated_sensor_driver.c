@@ -1,7 +1,5 @@
 #include "platform/drivers/simulated_sensor_driver.h"
 
-#include <string.h>
-
 static void sync_feedback_capabilities(simulated_driver_context_t *driver_context)
 {
     if (driver_context == 0)
@@ -23,43 +21,20 @@ static void sync_feedback_capabilities(simulated_driver_context_t *driver_contex
         driver_context->roof_home_feedback_available;
 }
 
-void simulated_driver_context_init(simulated_driver_context_t *driver_context)
-{
-    if (driver_context == 0)
-    {
-        return;
-    }
-
-    memset(driver_context, 0, sizeof(*driver_context));
-    driver_context->runtime_snapshot.position_snapshot.position_valid = true;
-    driver_context->roof_follow_feedback_available = true;
-    driver_context->roof_stop_feedback_available = true;
-    driver_context->side_stop_feedback_available = true;
-    driver_context->chemical_close_feedback_available = true;
-    driver_context->ro_water_close_feedback_available = true;
-    driver_context->dryer_close_feedback_available = true;
-    driver_context->roof_home_feedback_available = true;
-    driver_context->roof_home_reached = true;
-    driver_context->runtime_snapshot.actuator_feedback.roof_brush_follow_ok = true;
-    driver_context->runtime_snapshot.actuator_feedback.roof_brush_stopped = true;
-    driver_context->runtime_snapshot.actuator_feedback.side_brush_stopped = true;
-    driver_context->runtime_snapshot.actuator_feedback.chemical_closed = true;
-    driver_context->runtime_snapshot.actuator_feedback.ro_water_closed = true;
-    driver_context->runtime_snapshot.actuator_feedback.dryer_closed = true;
-    driver_context->runtime_snapshot.actuator_feedback.roof_brush_home_reached = driver_context->roof_home_reached;
-    sync_feedback_capabilities(driver_context);
-}
-
 static int simulated_read_snapshot(void *context, sensor_snapshot_t *sensor_snapshot)
 {
     const simulated_driver_context_t *driver_context = (const simulated_driver_context_t *)context;
+    simulated_driver_context_t *mutable_driver_context;
 
     if (driver_context == 0 || sensor_snapshot == 0)
     {
         return -1;
     }
+    mutable_driver_context = (simulated_driver_context_t *)driver_context;
+    simulated_driver_context_lock(mutable_driver_context);
     if (driver_context->precheck_read_should_fail)
     {
+        simulated_driver_context_unlock(mutable_driver_context);
         return -1;
     }
     sensor_snapshot->safety_ok = !driver_context->precheck_safety_should_fail;
@@ -69,6 +44,7 @@ static int simulated_read_snapshot(void *context, sensor_snapshot_t *sensor_snap
     sensor_snapshot->resource_ok = !driver_context->precheck_resource_fail;
     sensor_snapshot->position_ok =
         !driver_context->precheck_position_fail && driver_context->runtime_snapshot.position_snapshot.position_valid;
+    simulated_driver_context_unlock(mutable_driver_context);
     return 0;
 }
 
@@ -80,12 +56,15 @@ static int simulated_read_runtime_snapshot(void *context, runtime_snapshot_t *ru
     {
         return -1;
     }
+    simulated_driver_context_lock(driver_context);
     if (driver_context->runtime_snapshot_read_should_fail)
     {
+        simulated_driver_context_unlock(driver_context);
         return -1;
     }
     sync_feedback_capabilities(driver_context);
     *runtime_snapshot = driver_context->runtime_snapshot;
+    simulated_driver_context_unlock(driver_context);
     return 0;
 }
 

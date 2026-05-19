@@ -4,9 +4,11 @@ static int simulated_set_dryer_enabled(void *context, bool enabled, int timeout_
 {
     simulated_driver_context_t *driver_context = (simulated_driver_context_t *)context;
     (void)timeout_ms;
+    simulated_driver_context_lock(driver_context);
     driver_context->dryer_enabled = enabled;
     driver_context->dryer_command_count += 1;
     driver_context->runtime_snapshot.actuator_feedback.dryer_closed = !enabled;
+    simulated_driver_context_unlock(driver_context);
     return 0;
 }
 
@@ -14,13 +16,16 @@ static int simulated_close_dryer(void *context, int timeout_ms)
 {
     simulated_driver_context_t *driver_context = (simulated_driver_context_t *)context;
     (void)timeout_ms;
+    simulated_driver_context_lock(driver_context);
     if (driver_context->dryer_close_command_should_fail)
     {
+        simulated_driver_context_unlock(driver_context);
         return -1;
     }
     driver_context->dryer_close_command_count += 1;
     driver_context->dryer_enabled = false;
     driver_context->runtime_snapshot.actuator_feedback.dryer_closed = driver_context->dryer_close_feedback_available;
+    simulated_driver_context_unlock(driver_context);
     return 0;
 }
 

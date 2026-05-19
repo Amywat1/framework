@@ -2,6 +2,7 @@
 #define PLATFORM_DRIVERS_SIMULATED_DRIVER_CONTEXT_H
 
 #include <stdbool.h>
+#include <pthread.h>
 
 #include "domain/ports/sensor_port.h"
 
@@ -11,6 +12,7 @@
  */
 typedef struct simulated_driver_context_t
 {
+    pthread_mutex_t mutex;
     runtime_snapshot_t runtime_snapshot;
     /* precheck_service 预检字段：默认全通过，置反可覆盖触发对应拒绝路径 */
     bool precheck_read_should_fail;    /**< 置 true 使 read_snapshot 返回 -1（独立于 read_runtime_snapshot）*/
@@ -57,6 +59,22 @@ typedef struct simulated_driver_context_t
     int stop_all_command_count;
 } simulated_driver_context_t;
 
+/**
+ * @brief 初始化仿真驱动共享上下文。
+ * @param driver_context 共享上下文，不能为空。
+ */
 void simulated_driver_context_init(simulated_driver_context_t *driver_context);
+
+/**
+ * @brief 锁住仿真驱动共享上下文。
+ * @param driver_context 共享上下文，不能为空。
+ */
+void simulated_driver_context_lock(simulated_driver_context_t *driver_context);
+
+/**
+ * @brief 解锁仿真驱动共享上下文。
+ * @param driver_context 共享上下文，不能为空。
+ */
+void simulated_driver_context_unlock(simulated_driver_context_t *driver_context);
 
 #endif

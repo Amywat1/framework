@@ -16,6 +16,7 @@ set(WASH_CORE_SOURCES
     domain/model/wash_session.c
     domain/model/wash_trigger_event.c
     domain/services/fault_policy_service.c
+    application/services/alarm_evaluator.c
     domain/services/program_snapshot_service.c
     domain/services/recovery_state_machine.c
     domain/services/segment_control_service.c
@@ -27,6 +28,8 @@ set(WASH_CORE_SOURCES
     application/coordinators/system_context.c
     application/coordinators/runtime_event_recorder.c
     application/coordinators/runtime_result_projection.c
+    application/jobs/io_read_job.c
+    application/jobs/alarm_detect_job.c
     application/use_cases/process_formal_command.c
     application/use_cases/process_wash_trigger.c
     application/use_cases/query_wash_session_status.c
@@ -36,6 +39,8 @@ set(WASH_CORE_SOURCES
     adapters/logging/file_event_logger.c
     platform/linux/controller_scheduler_linux.c
     platform/linux/main_loop.c
+    platform/linux/worker_thread_linux.c
+    platform/drivers/simulated_driver_context.c
     platform/drivers/simulated_gantry_driver.c
     platform/drivers/simulated_brush_driver.c
     platform/drivers/simulated_chemical_driver.c
@@ -49,8 +54,11 @@ target_include_directories(wash_core
     PUBLIC ${PROJECT_SOURCE_DIR}/include
     PRIVATE ${PROJECT_SOURCE_DIR}
             ${PROJECT_SOURCE_DIR}/third_party/cjson)
+find_package(Threads REQUIRED)
 if(NOT WIN32)
-    target_link_libraries(wash_core PUBLIC m)
+    target_link_libraries(wash_core PUBLIC m Threads::Threads)
+else()
+    target_link_libraries(wash_core PUBLIC Threads::Threads)
 endif()
 
 add_executable(wash_controller main/main.c)

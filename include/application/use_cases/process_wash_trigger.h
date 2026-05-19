@@ -22,6 +22,15 @@
  */
 operation_result_t process_wash_trigger_execute(system_context_t system_context,
                                                 const wash_trigger_event_t *wash_trigger_event);
+
+/**
+ * @brief 推进一次运行中会话的 runtime tick。
+ *
+ * @param system_context 主控共享上下文，不能为空。
+ * @return 成功返回 `operation_result_ok()`；上下文非法或下游推进失败时返回失败结果。
+ *
+ * @note 本接口仅在会话运行中推进执行状态，并在需要时驱动会话收尾。
+ */
 operation_result_t process_wash_runtime_tick(system_context_t system_context);
 
 #endif

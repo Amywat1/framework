@@ -10,6 +10,7 @@
 #include "platform/linux/main_loop.h"
 #include "shared/error_codes.h"
 #include "src/application/coordinators/system_context_private.h"
+#include "src/application/use_cases/command_matrix_reason_codes.h"
 
 /**
  * @brief 正式命令请求的解析结果
@@ -100,6 +101,11 @@ static const char *execution_state_to_string(execution_state_t execution_state)
     }
 }
 
+/**
+ * @brief 将设备状态转换为字符串。
+ * @param device_state 设备状态。
+ * @return 对应的状态字符串。
+ */
 static const char *device_state_to_string(device_state_t device_state)
 {
     switch (device_state)
@@ -120,30 +126,11 @@ static const char *device_state_to_string(device_state_t device_state)
     }
 }
 
-static const char *start_rejection_reason(device_state_t device_state)
-{
-    switch (device_state)
-    {
-    case DEVICE_STATE_INIT:
-        return "device_state_init";
-    case DEVICE_STATE_STOPPED:
-        return "device_state_stopped";
-    case DEVICE_STATE_RECOVERING:
-        return "device_state_recovering";
-    case DEVICE_STATE_RUNNING:
-        return "device_state_running";
-    case DEVICE_STATE_EXCEPTION:
-        return "device_state_exception";
-    case DEVICE_STATE_IDLE:
-    default:
-        return "device_not_idle";
-    }
-}
-
-static const char *stop_rejection_reason(void) { return "stop_requires_running"; }
-
-static const char *fault_clear_rejection_reason(void) { return "fault_clear_requires_exception"; }
-
+/**
+ * @brief 将生命周期状态转换为字符串。
+ * @param lifecycle_state 生命周期状态。
+ * @return 对应的状态字符串。
+ */
 static const char *lifecycle_state_to_string(segment_lifecycle_state_t lifecycle_state)
 {
     switch (lifecycle_state)
@@ -164,6 +151,10 @@ static const char *lifecycle_state_to_string(segment_lifecycle_state_t lifecycle
     }
 }
 
+/**
+ * @brief 去除字符串末尾的空白字符。
+ * @param text 待处理字符串。
+ */
 static void trim_trailing_whitespace(char *text)
 {
     size_t length;
@@ -181,6 +172,11 @@ static void trim_trailing_whitespace(char *text)
     }
 }
 
+/**
+ * @brief 跳过字符串前导空白。
+ * @param text 原始字符串。
+ * @return 首个非空白字符位置。
+ */
 static char *skip_leading_whitespace(char *text)
 {
     while (text != 0 && *text != '\0' && isspace((unsigned char)*text))
@@ -190,6 +186,11 @@ static char *skip_leading_whitespace(char *text)
     return text;
 }
 
+/**
+ * @brief 从当前游标读取一个空白分隔 token。
+ * @param cursor 命令解析游标。
+ * @return 读取到的 token；没有则返回 0。
+ */
 static char *take_token(char **cursor)
 {
     char *start;
@@ -222,6 +223,11 @@ static char *take_token(char **cursor)
     return start;
 }
 
+/**
+ * @brief 读取游标剩余内容并裁掉首尾多余空白。
+ * @param cursor 命令解析游标。
+ * @return 剩余文本；没有则返回 0。
+ */
 static char *take_remainder(char **cursor)
 {
     char *start;
@@ -243,6 +249,14 @@ static char *take_remainder(char **cursor)
     return start;
 }
 
+/**
+ * @brief 生成单行命令响应文本。
+ * @param response_line 响应缓冲区。
+ * @param response_line_size 缓冲区大小。
+ * @param result_code 结果码。
+ * @param accepted 是否接受。
+ * @param detail 结果详情。
+ */
 static void write_result_line(char *response_line, size_t response_line_size, const char *result_code, bool accepted,
                               const char *detail)
 {
@@ -255,6 +269,19 @@ static void write_result_line(char *response_line, size_t response_line_size, co
              result_code != 0 ? result_code : "unknown", accepted ? "true" : "false", detail != 0 ? detail : "none");
 }
 
+/**
+ * @brief 将命令处理结果投影到运行时结果记录。
+ * @param system_context 系统上下文。
+ * @param trigger_type 触发类型。
+ * @param entity_id 转移实体标识。
+ * @param previous_state 前一状态字符串。
+ * @param current_state 当前状态字符串。
+ * @param latest_result_code 最新结果码。
+ * @param latest_reason_code 最新原因码。
+ * @param transition_result_code 转移结果码。
+ * @param transition_reason_code 转移原因码。
+ * @param runtime_event_log_kind 事件日志类型。
+ */
 static void apply_request_projection(system_context_t system_context, trigger_type_t trigger_type,
                                      const char *entity_id, const char *previous_state, const char *current_state,
                                      const char *latest_result_code, const char *latest_reason_code,
@@ -271,12 +298,23 @@ static void apply_request_projection(system_context_t system_context, trigger_ty
     runtime_event_recorder_apply_projection(system_context, &runtime_result_projection);
 }
 
+/**
+ * @brief 记录协议层解析错误。
+ * @param system_context 系统上下文。
+ * @param reason_code 错误原因码。
+ */
 static void remember_protocol_error(system_context_t system_context, const char *reason_code)
 {
     apply_request_projection(system_context, TRIGGER_TYPE_REJECT, "formal-command", "received", "error", "error",
                              reason_code, "error", reason_code, RUNTIME_EVENT_LOG_REJECTION);
 }
 
+/**
+ * @brief 记录命令在预检查阶段被拒绝。
+ * @param system_context 系统上下文。
+ * @param trigger_type 触发类型。
+ * @param reason_code 拒绝原因码。
+ */
 static void remember_command_rejection(system_context_t system_context, trigger_type_t trigger_type,
                                        const char *reason_code)
 {
@@ -289,6 +327,12 @@ static void remember_command_rejection(system_context_t system_context, trigger_
         "rejected", "rejected", reason_code, "rejected", reason_code, RUNTIME_EVENT_LOG_REJECTION);
 }
 
+/**
+ * @brief 记录触发事件提交队列失败。
+ * @param system_context 系统上下文。
+ * @param trigger_type 触发类型。
+ * @param reason_code 拒绝原因码。
+ */
 static void remember_submit_rejection(system_context_t system_context, trigger_type_t trigger_type,
                                       const char *reason_code)
 {
@@ -296,6 +340,11 @@ static void remember_submit_rejection(system_context_t system_context, trigger_t
                              reason_code, "rejected", reason_code, RUNTIME_EVENT_LOG_REJECTION);
 }
 
+/**
+ * @brief 为 stdin 触发生成内部 trigger_id 和来源。
+ * @param system_context 系统上下文。
+ * @param wash_trigger_event 待写入的触发事件。
+ */
 static void assign_stdin_trigger_id(system_context_t system_context, wash_trigger_event_t *wash_trigger_event)
 {
     if (wash_trigger_event == 0)
@@ -309,6 +358,13 @@ static void assign_stdin_trigger_id(system_context_t system_context, wash_trigge
     wash_trigger_event->source[sizeof(wash_trigger_event->source) - 1] = '\0';
 }
 
+/**
+ * @brief 执行 status 命令并写入响应。
+ * @param system_context 系统上下文。
+ * @param response_line 响应缓冲区。
+ * @param response_line_size 缓冲区大小。
+ * @return 执行结果。
+ */
 static operation_result_t execute_status(system_context_t system_context, char *response_line,
                                          size_t response_line_size)
 {
@@ -340,6 +396,15 @@ static operation_result_t execute_status(system_context_t system_context, char *
     return operation_result_ok();
 }
 
+/**
+ * @brief 解析正式命令并生成待执行请求。
+ * @param system_context 系统上下文。
+ * @param command_line 原始命令行。
+ * @param formal_command_request 输出的命令请求。
+ * @param response_line 响应缓冲区。
+ * @param response_line_size 缓冲区大小。
+ * @return 解析或预检查结果。
+ */
 static operation_result_t prepare_formal_command_request(system_context_t system_context, const char *command_line,
                                                          formal_command_request_t *formal_command_request,
                                                          char *response_line, size_t response_line_size)
@@ -388,15 +453,17 @@ static operation_result_t prepare_formal_command_request(system_context_t system
         {
             const char *reason_code;
 
-            reason_code = start_rejection_reason(device_state);
+            reason_code = command_matrix_start_rejection_reason(device_state);
             remember_command_rejection(system_context, TRIGGER_TYPE_START, reason_code);
             write_result_line(response_line, response_line_size, "invalid_state", false, reason_code);
             return operation_result_fail(ERROR_CODE_INVALID_STATE);
         }
         if (wash_session_is_running(system_context_private_wash_session(system_context)))
         {
-            remember_command_rejection(system_context, TRIGGER_TYPE_START, "running_session_exists");
-            write_result_line(response_line, response_line_size, "invalid_state", false, "running_session_exists");
+            remember_command_rejection(system_context, TRIGGER_TYPE_START,
+                                       command_matrix_running_session_exists_reason());
+            write_result_line(response_line, response_line_size, "invalid_state", false,
+                              command_matrix_running_session_exists_reason());
             return operation_result_fail(ERROR_CODE_INVALID_STATE);
         }
 
@@ -422,8 +489,10 @@ static operation_result_t prepare_formal_command_request(system_context_t system
         device_state = system_context_private_device_state(system_context);
         if (device_state != DEVICE_STATE_STOPPED)
         {
-            remember_command_rejection(system_context, TRIGGER_TYPE_HOMING, "homing_requires_stopped");
-            write_result_line(response_line, response_line_size, "invalid_state", false, "homing_requires_stopped");
+            remember_command_rejection(system_context, TRIGGER_TYPE_HOMING,
+                                       command_matrix_homing_requires_stopped_reason());
+            write_result_line(response_line, response_line_size, "invalid_state", false,
+                              command_matrix_homing_requires_stopped_reason());
             return operation_result_fail(ERROR_CODE_INVALID_STATE);
         }
 
@@ -450,8 +519,9 @@ static operation_result_t prepare_formal_command_request(system_context_t system
         if (device_state != DEVICE_STATE_RUNNING ||
             !wash_session_is_running(system_context_private_wash_session(system_context)))
         {
-            remember_command_rejection(system_context, TRIGGER_TYPE_STOP, stop_rejection_reason());
-            write_result_line(response_line, response_line_size, "invalid_state", false, stop_rejection_reason());
+            remember_command_rejection(system_context, TRIGGER_TYPE_STOP, command_matrix_stop_rejection_reason());
+            write_result_line(response_line, response_line_size, "invalid_state", false,
+                              command_matrix_stop_rejection_reason());
             return operation_result_fail(ERROR_CODE_INVALID_STATE);
         }
 
@@ -489,9 +559,10 @@ static operation_result_t prepare_formal_command_request(system_context_t system
             device_state = system_context_private_device_state(system_context);
             if (device_state != DEVICE_STATE_EXCEPTION)
             {
-                remember_command_rejection(system_context, TRIGGER_TYPE_FAULT, fault_clear_rejection_reason());
+                remember_command_rejection(system_context, TRIGGER_TYPE_FAULT,
+                                           command_matrix_fault_clear_rejection_reason());
                 write_result_line(response_line, response_line_size, "invalid_state", false,
-                                  fault_clear_rejection_reason());
+                                  command_matrix_fault_clear_rejection_reason());
                 return operation_result_fail(ERROR_CODE_INVALID_STATE);
             }
 
@@ -533,6 +604,14 @@ static operation_result_t prepare_formal_command_request(system_context_t system
     return operation_result_fail(ERROR_CODE_UNSUPPORTED);
 }
 
+/**
+ * @brief 根据最终执行结果补全响应文本。
+ * @param system_context 系统上下文。
+ * @param result 当前执行结果。
+ * @param response_line 响应缓冲区。
+ * @param response_line_size 缓冲区大小。
+ * @return 原始执行结果。
+ */
 static operation_result_t finalize_formal_command_response(system_context_t system_context, operation_result_t result,
                                                            char *response_line, size_t response_line_size)
 {

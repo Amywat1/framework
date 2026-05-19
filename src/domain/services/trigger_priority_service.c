@@ -1,5 +1,10 @@
 #include "domain/services/trigger_priority_service.h"
 
+/**
+ * @brief 返回指定触发类型的优先级数值。
+ * @param trigger_type 触发类型。
+ * @return 数值越大表示优先级越高。
+ */
 static int trigger_priority(trigger_type_t trigger_type)
 {
     switch (trigger_type)

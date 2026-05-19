@@ -6,6 +6,7 @@
 #include "domain/services/wait_timeout_service.h"
 #include "shared/error_codes.h"
 #include "shared/timeouts.h"
+#include "src/application/coordinators/system_context_private.h"
 
 /**
  * @brief 判断待处理触发队列中是否已有超时触发
@@ -85,6 +86,7 @@ operation_result_t main_loop_run(system_context_t system_context)
 {
     int best_index;
     unsigned int index;
+    wash_trigger_event_t external_event;
     const wash_trigger_event_t *selected_event_ref;
     wash_trigger_event_t selected_event;
     const wash_trigger_event_t *candidate;
@@ -95,6 +97,16 @@ operation_result_t main_loop_run(system_context_t system_context)
     if (!result.ok)
     {
         return result;
+    }
+
+    if (system_context_private_try_pop_external_trigger(system_context, &external_event))
+    {
+        result = process_wash_trigger_execute(system_context, &external_event);
+        if (!result.ok)
+        {
+            return result;
+        }
+        return process_wash_runtime_tick(system_context);
     }
 
     enqueue_timeout_if_needed(system_context);

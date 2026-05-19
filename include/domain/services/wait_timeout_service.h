@@ -10,10 +10,16 @@
  * @file wait_timeout_service.h
  * @brief 定义超时判断服务。
  */
+/**
+ * @brief 描述一次等待超时判定得到的事实。
+ */
 typedef struct wait_timeout_fact_t
 {
+    /**< 是否已经触发超时。 */
     bool timed_out;
+    /**< 命中的超时策略。 */
     wait_timeout_policy_t timeout_policy;
+    /**< 本次超时使用的原因码。 */
     char reason_code[64];
 } wait_timeout_fact_t;
 

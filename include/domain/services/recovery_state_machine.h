@@ -9,9 +9,14 @@
  * @file recovery_state_machine.h
  * @brief 定义 recovery/homing 的最小闭环流程。
  */
+/**
+ * @brief 描述恢复状态机支持的执行模式。
+ */
 typedef enum recovery_mode_t
 {
+    /**< 仅执行安全停止恢复。 */
     RECOVERY_MODE_STOP_ONLY = 0,
+    /**< 执行停机后再回零顶刷。 */
     RECOVERY_MODE_HOME_ROOF_BRUSH
 } recovery_mode_t;
 

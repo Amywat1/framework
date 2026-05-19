@@ -16,9 +16,13 @@
  */
 typedef struct program_snapshot_service_args_t
 {
+    /**< 输出程序快照对象。 */
     program_snapshot_t *program_snapshot;
+    /**< 输出洗车程序对象。 */
     wash_program_t *wash_program;
+    /**< 程序仓储端口。 */
     program_repository_port_t *program_repository_port;
+    /**< 当前运行时间。 */
     unsigned long current_time_ms;
 } program_snapshot_service_args_t;
 

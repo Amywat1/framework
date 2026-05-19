@@ -171,6 +171,32 @@ operation_result_t system_context_private_append_trigger(system_context_t system
                                                          const wash_trigger_event_t *wash_trigger_event);
 
 /**
+ * @brief 向后台线程专用的外部触发收件箱追加一个触发事件。
+ * @note 当前实现面向单生产者（后台报警线程）+ 单消费者（控制线程）场景。
+ * @param system_context 系统上下文，不能为空。
+ * @param wash_trigger_event 待投递的触发事件，不能为空。
+ * @return 入队成功返回 `operation_result_ok()`；收件箱已满或参数非法返回失败结果。
+ */
+operation_result_t system_context_private_enqueue_external_trigger(system_context_t system_context,
+                                                                  const wash_trigger_event_t *wash_trigger_event);
+
+/**
+ * @brief 从外部触发收件箱中尝试取出一个触发事件。
+ * @param system_context 系统上下文，不能为空。
+ * @param wash_trigger_event 输出触发事件，不能为空。
+ * @return 成功取到事件返回 `true`；当前收件箱为空时返回 `false`。
+ */
+bool system_context_private_try_pop_external_trigger(system_context_t system_context,
+                                                     wash_trigger_event_t *wash_trigger_event);
+
+/**
+ * @brief 读取外部触发收件箱当前积压数量。
+ * @param system_context 系统上下文；允许传入 `0`。
+ * @return 当前积压数量。
+ */
+unsigned int system_context_private_external_trigger_count(const system_context_t system_context);
+
+/**
  * @brief 读取指定索引处的待处理触发事件（只读）。
  * @param system_context 系统上下文；允许为 `0`。
  * @param index 目标索引，必须小于 `system_context_pending_trigger_count()`。

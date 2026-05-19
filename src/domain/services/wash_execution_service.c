@@ -144,6 +144,12 @@ static operation_result_t read_runtime_snapshot(wash_execution_service_args_t *w
     return operation_result_ok();
 }
 
+/**
+ * @brief 在 entering 阶段下发当前工步的进入动作输出。
+ * @param wash_execution_service_args 执行服务参数。
+ * @param wash_segment 当前工步段。
+ * @return 下发成功返回 `ok`，任一执行机构调用失败时返回对应错误。
+ */
 static operation_result_t apply_entering_outputs(wash_execution_service_args_t *wash_execution_service_args,
                                                  const wash_segment_t *wash_segment)
 {
@@ -182,6 +188,12 @@ static operation_result_t apply_entering_outputs(wash_execution_service_args_t *
     return operation_result_ok();
 }
 
+/**
+ * @brief 触发当前工步段的退出动作。
+ * @param wash_execution_service_args 执行服务参数。
+ * @param wash_segment 当前工步段。
+ * @return 触发成功返回 `ok`，任一执行机构调用失败时返回对应错误。
+ */
 static operation_result_t trigger_exit_actions(wash_execution_service_args_t *wash_execution_service_args,
                                                const wash_segment_t *wash_segment)
 {
@@ -242,11 +254,27 @@ static operation_result_t trigger_exit_actions(wash_execution_service_args_t *wa
     return operation_result_ok();
 }
 
+/**
+ * @brief 执行一次停止恢复流程。
+ * @param actuator_port 执行机构端口。
+ * @return 恢复成功返回 `ok`，失败时返回对应错误。
+ */
 static operation_result_t execute_recovery(actuator_port_t *actuator_port)
 {
     return recovery_state_machine_execute(actuator_port, 0, RECOVERY_MODE_STOP_ONLY, 0);
 }
 
+/**
+ * @brief 执行恢复后将当前执行推进到中止态。
+ * @param wash_execution_service_args 执行服务参数。
+ * @param execution_result 执行结果枚举。
+ * @param end_reason 执行结束原因。
+ * @param previous_state 中止前生命周期状态。
+ * @param result_code 结果码。
+ * @param reason_code 原因码。
+ * @param wash_execution_fact 输出执行事实。
+ * @return 成功返回 `ok`，恢复失败时返回对应错误。
+ */
 static operation_result_t abort_with_recovery(wash_execution_service_args_t *wash_execution_service_args,
                                               execution_result_t execution_result, execution_end_reason_t end_reason,
                                               const char *previous_state, const char *result_code,
@@ -271,6 +299,12 @@ static operation_result_t abort_with_recovery(wash_execution_service_args_t *was
     return operation_result_ok();
 }
 
+/**
+ * @brief 为当前执行装配一条段超时等待条件。
+ * @param wash_execution_service_args 执行服务参数。
+ * @param timeout_ms 超时毫秒数。
+ * @param wait_timeout_policy 超时策略。
+ */
 static void arm_segment_timeout(wash_execution_service_args_t *wash_execution_service_args, int timeout_ms,
                                 wait_timeout_policy_t wait_timeout_policy)
 {
@@ -283,6 +317,13 @@ static void arm_segment_timeout(wash_execution_service_args_t *wash_execution_se
                        *wash_execution_service_args->next_wait_condition_sequence);
 }
 
+/**
+ * @brief 将当前工步从运行态切入退出态。
+ * @param wash_execution_service_args 执行服务参数。
+ * @param wash_segment 当前工步段。
+ * @param wash_execution_fact 输出执行事实。
+ * @return 成功返回 `ok`，退出动作触发失败时返回对应错误。
+ */
 static operation_result_t begin_exit(wash_execution_service_args_t *wash_execution_service_args,
                                      const wash_segment_t *wash_segment, wash_execution_fact_t *wash_execution_fact)
 {
@@ -309,6 +350,16 @@ static operation_result_t begin_exit(wash_execution_service_args_t *wash_executi
     return operation_result_ok();
 }
 
+/**
+ * @brief 按故障策略处理传感器故障分支。
+ * @param wash_execution_service_args 执行服务参数。
+ * @param wash_segment 当前工步段。
+ * @param policy 异常处理策略。
+ * @param execution_result 中止后的执行结果。
+ * @param reason_code 原因码。
+ * @param wash_execution_fact 输出执行事实。
+ * @return 成功返回 `ok`，失败时返回对应错误。
+ */
 static operation_result_t handle_sensor_fault(wash_execution_service_args_t *wash_execution_service_args,
                                               const wash_segment_t *wash_segment, exception_strategy_t policy,
                                               execution_result_t execution_result, const char *reason_code,
@@ -325,6 +376,14 @@ static operation_result_t handle_sensor_fault(wash_execution_service_args_t *was
                                "aborted", reason_code, wash_execution_fact);
 }
 
+/**
+ * @brief 根据反馈可用性判断退出动作是否完成。
+ * @param feedback_available 反馈是否可用。
+ * @param feedback_done 反馈是否表明已完成。
+ * @param elapsed_ms 已经过毫秒数。
+ * @param fallback_timeout_ms 兜底超时毫秒数。
+ * @return 已完成返回 `true`，否则返回 `false`。
+ */
 static bool feedback_or_fallback_done(bool feedback_available, bool feedback_done, unsigned long elapsed_ms,
                                       unsigned long fallback_timeout_ms)
 {
@@ -335,6 +394,14 @@ static bool feedback_or_fallback_done(bool feedback_available, bool feedback_don
     return elapsed_ms >= fallback_timeout_ms;
 }
 
+/**
+ * @brief 汇总判断当前工步的全部退出动作是否完成。
+ * @param wash_segment 当前工步段。
+ * @param wash_execution 当前执行对象。
+ * @param runtime_snapshot 当前运行时快照。
+ * @param current_time_ms 当前时间。
+ * @return 全部完成返回 `true`，否则返回 `false`。
+ */
 static bool all_exit_actions_done(const wash_segment_t *wash_segment, wash_execution_t *wash_execution,
                                   const runtime_snapshot_t *runtime_snapshot, unsigned long current_time_ms)
 {
@@ -387,6 +454,12 @@ static bool all_exit_actions_done(const wash_segment_t *wash_segment, wash_execu
            (!wash_segment->exit_actions.roof_brush_home || wash_execution->exit_runtime.roof_brush_home_done);
 }
 
+/**
+ * @brief 装载并进入下一段工步执行。
+ * @param wash_execution_service_args 执行服务参数。
+ * @param wash_execution_fact 输出执行事实。
+ * @return 成功返回 `operation_result_ok()`，失败时返回对应错误。
+ */
 operation_result_t wash_execution_service_begin_next_segment(wash_execution_service_args_t *wash_execution_service_args,
                                                              wash_execution_fact_t *wash_execution_fact)
 {

@@ -4,6 +4,13 @@
 
 #include "shared/timeouts.h"
 
+/**
+ * @brief 初始化工步段对象并装配默认子对象。
+ * @param wash_segment 工步段对象。
+ * @param segment_id 工步段 ID，可为空。
+ * @param segment_name 工步段名称，可为空。
+ * @param sequence_no 顺序号。
+ */
 void wash_segment_init(wash_segment_t *wash_segment, const char *segment_id, const char *segment_name, int sequence_no)
 {
     if (wash_segment == 0)
@@ -29,6 +36,11 @@ void wash_segment_init(wash_segment_t *wash_segment, const char *segment_id, con
     segment_exception_policy_init(&wash_segment->exception_policy);
 }
 
+/**
+ * @brief 判断工步段配置是否合法。
+ * @param wash_segment 工步段对象。
+ * @return 合法返回 `true`，否则返回 `false`。
+ */
 bool wash_segment_is_valid(const wash_segment_t *wash_segment)
 {
     int index;

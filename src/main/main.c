@@ -13,10 +13,17 @@
 #include "platform/drivers/simulated_sensor_driver.h"
 
 #define CONTROLLER_CONTROL_PERIOD_MS 100ul
+#define CONTROLLER_BACKGROUND_ALARM_IO_PERIOD_MS 50ul
+#define CONTROLLER_BACKGROUND_ALARM_DETECT_PERIOD_MS 50ul
 #define CONTROLLER_BOUNDED_DRAIN_TICKS 8u
 #define CONTROLLER_MAX_TRIGGERS_PER_TICK 1u
 
-/* 初始化所有仿真驱动程序端口：传感器端口、执行机构端口（龙门、刷子、化学品、水、烘干） */
+/**
+ * @brief 初始化仿真传感器端口和执行器端口。
+ * @param driver_context 仿真驱动上下文。
+ * @param sensor_port 传感器端口输出位置。
+ * @param actuator_port 执行器端口输出位置。
+ */
 static void initialize_ports(simulated_driver_context_t *driver_context, sensor_port_t *sensor_port,
                              actuator_port_t *actuator_port)
 {
@@ -31,7 +38,10 @@ static void initialize_ports(simulated_driver_context_t *driver_context, sensor_
     simulated_dryer_driver_bind(actuator_port, driver_context);
 }
 
-/* 初始化调度器配置：控制周期、事件源、出口模式、触发限流 */
+/**
+ * @brief 初始化控制器调度器配置。
+ * @param scheduler_config 待写入的调度器配置。
+ */
 static void initialize_scheduler_config(controller_scheduler_config_t *scheduler_config)
 {
     memset(scheduler_config, 0, sizeof(*scheduler_config));
@@ -69,6 +79,11 @@ int main(void)
     controller_runtime_config.command_error = stderr;
     controller_runtime_config.config_root = "./configs";
     controller_runtime_config.event_log_path = "./runtime/logs/events.log";
+    controller_runtime_config.background_alarm_monitor.enabled = true;
+    controller_runtime_config.background_alarm_monitor.io_sample_period_ms =
+        CONTROLLER_BACKGROUND_ALARM_IO_PERIOD_MS;
+    controller_runtime_config.background_alarm_monitor.detect_period_ms =
+        CONTROLLER_BACKGROUND_ALARM_DETECT_PERIOD_MS;
 
     result = controller_runtime_create(&controller_runtime, &controller_runtime_config);
     if (!result.ok || controller_runtime == 0)

@@ -2,6 +2,10 @@
 
 #include <string.h>
 
+/**
+ * @brief 将位置触发器初始化为零值状态。
+ * @param position_trigger 待初始化触发器。
+ */
 void position_trigger_init(position_trigger_t *position_trigger)
 {
     if (position_trigger == 0)
@@ -12,12 +16,22 @@ void position_trigger_init(position_trigger_t *position_trigger)
     memset(position_trigger, 0, sizeof(*position_trigger));
 }
 
+/**
+ * @brief 判断给定参考量是否属于布尔型触发参考。
+ * @param reference 位置参考量。
+ * @return 布尔型参考返回 `true`，否则返回 `false`。
+ */
 static bool reference_is_boolean(position_reference_t reference)
 {
     return reference == POSITION_REFERENCE_HEAD_REACHED || reference == POSITION_REFERENCE_TAIL_REACHED ||
            reference == POSITION_REFERENCE_HOME_REACHED;
 }
 
+/**
+ * @brief 判断位置触发器配置是否合法。
+ * @param position_trigger 待校验触发器。
+ * @return 合法返回 `true`，否则返回 `false`。
+ */
 bool position_trigger_is_valid(const position_trigger_t *position_trigger)
 {
     if (position_trigger == 0 || position_trigger->reference == POSITION_REFERENCE_NONE)
@@ -35,6 +49,12 @@ bool position_trigger_is_valid(const position_trigger_t *position_trigger)
     return true;
 }
 
+/**
+ * @brief 按触发器参考量提取当前测量值。
+ * @param position_trigger 位置触发器。
+ * @param position_snapshot 当前位置快照。
+ * @return 对应参考量的测量值；参数非法时返回 `0`。
+ */
 int position_trigger_measure(const position_trigger_t *position_trigger, const position_snapshot_t *position_snapshot)
 {
     if (position_trigger == 0 || position_snapshot == 0)
@@ -62,6 +82,12 @@ int position_trigger_measure(const position_trigger_t *position_trigger, const p
     }
 }
 
+/**
+ * @brief 判断当前位置快照是否满足触发条件。
+ * @param position_trigger 位置触发器。
+ * @param position_snapshot 当前位置快照。
+ * @return 命中触发条件返回 `true`，否则返回 `false`。
+ */
 bool position_trigger_matches(const position_trigger_t *position_trigger, const position_snapshot_t *position_snapshot)
 {
     int value;

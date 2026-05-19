@@ -49,9 +49,9 @@ typedef struct runtime_snapshot_t
 typedef struct sensor_port_t
 {
     void *context;
-    /** @brief 读取运行时执行快照（位置 + 执行机构反馈）；成功返回 0，失败返回非零。 */
+    /** @brief 读取运行时执行快照（位置 + 执行机构反馈）；实现必须支持并发读取并返回一致快照，成功返回 0，失败返回非零。 */
     int (*read_runtime_snapshot)(void *context, runtime_snapshot_t *runtime_snapshot);
-    /** @brief 读取启动前预检快照；成功返回 0，失败返回非零。 */
+    /** @brief 读取启动前预检快照；实现必须保证并发读取时字段来自同一观测视图，成功返回 0，失败返回非零。 */
     int (*read_snapshot)(void *context, sensor_snapshot_t *sensor_snapshot);
 } sensor_port_t;
 

@@ -5,7 +5,9 @@ static int simulated_start_motion(void *context, const segment_motion_plan_t *se
     simulated_driver_context_t *driver_context = (simulated_driver_context_t *)context;
     (void)segment_motion_plan;
     (void)timeout_ms;
+    simulated_driver_context_lock(driver_context);
     driver_context->motion_command_count += 1;
+    simulated_driver_context_unlock(driver_context);
     return 0;
 }
 
@@ -13,8 +15,10 @@ static int simulated_stop_all(void *context, int timeout_ms)
 {
     simulated_driver_context_t *driver_context = (simulated_driver_context_t *)context;
     (void)timeout_ms;
+    simulated_driver_context_lock(driver_context);
     if (driver_context->stop_all_should_fail)
     {
+        simulated_driver_context_unlock(driver_context);
         return -1;
     }
 
@@ -29,6 +33,7 @@ static int simulated_stop_all(void *context, int timeout_ms)
     driver_context->runtime_snapshot.actuator_feedback.chemical_closed = true;
     driver_context->runtime_snapshot.actuator_feedback.ro_water_closed = true;
     driver_context->runtime_snapshot.actuator_feedback.dryer_closed = true;
+    simulated_driver_context_unlock(driver_context);
     return 0;
 }
 

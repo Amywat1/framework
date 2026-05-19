@@ -94,6 +94,13 @@ static bool invalid_args(wash_session_service_args_t *wash_session_service_args,
            wash_session_transition_fact == 0;
 }
 
+/**
+ * @brief 创建并启动新的运行会话。
+ * @param wash_session_service_args 会话服务参数。
+ * @param program_id 目标程序 ID。
+ * @param wash_session_transition_fact 输出迁移事实。
+ * @return 成功返回 `operation_result_ok()`，失败时返回对应错误。
+ */
 operation_result_t wash_session_state_machine_start(wash_session_service_args_t *wash_session_service_args,
                                                     const char *program_id,
                                                     wash_session_transition_fact_t *wash_session_transition_fact)
@@ -122,6 +129,13 @@ operation_result_t wash_session_state_machine_start(wash_session_service_args_t 
     return operation_result_ok();
 }
 
+/**
+ * @brief 将当前会话推进到完成态。
+ * @param wash_session_service_args 会话服务参数。
+ * @param result_code 完成结果码。
+ * @param wash_session_transition_fact 输出迁移事实。
+ * @return 成功返回 `operation_result_ok()`，失败时返回对应错误。
+ */
 operation_result_t wash_session_state_machine_complete(wash_session_service_args_t *wash_session_service_args,
                                                        result_code_t result_code,
                                                        wash_session_transition_fact_t *wash_session_transition_fact)
@@ -142,6 +156,14 @@ operation_result_t wash_session_state_machine_complete(wash_session_service_args
     return operation_result_ok();
 }
 
+/**
+ * @brief 将当前会话推进到中止态。
+ * @param wash_session_service_args 会话服务参数。
+ * @param result_code 中止结果码。
+ * @param reason_code 中止原因码。
+ * @param wash_session_transition_fact 输出迁移事实。
+ * @return 成功返回 `operation_result_ok()`，失败时返回对应错误。
+ */
 operation_result_t wash_session_state_machine_abort(wash_session_service_args_t *wash_session_service_args,
                                                     result_code_t result_code, const char *reason_code,
                                                     wash_session_transition_fact_t *wash_session_transition_fact)
