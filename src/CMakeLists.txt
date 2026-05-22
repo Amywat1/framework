@@ -25,9 +25,9 @@ set(WASH_CORE_SOURCES
     domain/services/wait_timeout_service.c
     domain/services/wash_execution_service.c
     domain/services/wash_session_state_machine.c
-    application/coordinators/controller_runtime.c
-    application/coordinators/main_loop.c
-    application/coordinators/system_context.c
+    application/coordinators/wash_app.c
+    application/coordinators/control_tick.c
+    application/coordinators/device_runtime.c
     application/coordinators/runtime_event_recorder.c
     application/jobs/alarm_detect_job.c
     application/use_cases/process_formal_command.c

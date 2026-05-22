@@ -2,7 +2,7 @@
 #define PLATFORM_BACKGROUND_ALARM_MONITOR_H
 
 #include "application/coordinators/background_alarm_settings.h"
-#include "application/coordinators/system_context.h"
+#include "application/coordinators/device_runtime.h"
 #include "domain/ports/sensor_port.h"
 #include "shared/result_types.h"
 
@@ -19,7 +19,7 @@ typedef struct background_alarm_monitor_t background_alarm_monitor_t;
 typedef struct background_alarm_monitor_config_t
 {
     background_alarm_settings_t settings; /**< 后台报警监控通用设置。 */
-    system_context_t system_context;      /**< 主控运行时组合根句柄。 */
+    device_runtime_t system_context;      /**< 主控运行时组合根句柄。 */
     const sensor_port_t *sensor_port;     /**< 传感器读取端口。 */
 } background_alarm_monitor_config_t;
 

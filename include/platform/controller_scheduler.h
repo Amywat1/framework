@@ -11,8 +11,8 @@
  * @brief 声明平台调度器抽象与运行态视图。
  */
 
-struct system_context_handle;
-typedef struct system_context_handle *system_context_t;
+struct device_runtime_handle;
+typedef struct device_runtime_handle *device_runtime_t;
 typedef struct controller_scheduler_t controller_scheduler_t;
 
 /**
@@ -102,7 +102,7 @@ typedef struct controller_scheduler_metrics_t
 /**
  * @brief 对外暴露的调度器运行态快照。
  */
-typedef struct controller_runtime_state_view_t
+typedef struct controller_scheduler_state_view_t
 {
     controller_scheduler_runtime_state_t runtime_state;
     unsigned long control_period_ms;
@@ -112,7 +112,7 @@ typedef struct controller_runtime_state_view_t
     controller_scheduler_event_source_state_t notification_source_state;
     controller_scheduler_event_source_state_t exit_source_state;
     controller_scheduler_metrics_t metrics;
-} controller_runtime_state_view_t;
+} controller_scheduler_state_view_t;
 
 /**
  * @brief 创建当前平台的调度器实例。
@@ -122,7 +122,7 @@ typedef struct controller_runtime_state_view_t
  * @param controller_scheduler_stdio 可选的标准输入输出绑定。
  * @return 成功时返回调度器对象；参数非法、句柄失效或底层资源初始化失败时返回 `0`。
  */
-controller_scheduler_t *controller_scheduler_create(system_context_t system_context,
+controller_scheduler_t *controller_scheduler_create(device_runtime_t system_context,
                                                     const controller_scheduler_config_t *controller_scheduler_config,
                                                     const controller_scheduler_stdio_t *controller_scheduler_stdio);
 
@@ -157,7 +157,7 @@ operation_result_t controller_scheduler_request_stop(controller_scheduler_t *con
  * @return 成功时返回 `operation_result_ok()`，失败时返回显式错误结果。
  */
 operation_result_t controller_scheduler_read_view(const controller_scheduler_t *controller_scheduler,
-                                                  controller_runtime_state_view_t *controller_runtime_state_view);
+                                                  controller_scheduler_state_view_t *controller_runtime_state_view);
 
 /**
  * @brief 通过 `system_context` 读取其绑定调度器的运行态视图。
@@ -167,7 +167,7 @@ operation_result_t controller_scheduler_read_view(const controller_scheduler_t *
  * @return 成功时返回 `operation_result_ok()`；句柄非法、已释放或未绑定调度器时返回失败结果。
  */
 operation_result_t
-controller_scheduler_read_context_view(const system_context_t system_context,
-                                       controller_runtime_state_view_t *controller_runtime_state_view);
+controller_scheduler_read_context_view(const device_runtime_t system_context,
+                                       controller_scheduler_state_view_t *controller_runtime_state_view);
 
 #endif

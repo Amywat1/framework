@@ -3,7 +3,7 @@
 #include <string.h>
 
 #include "domain/model/state_transition_record.h"
-#include "src/application/coordinators/system_context_private.h"
+#include "src/application/coordinators/device_runtime_private.h"
 
 /*
  * runtime_result_projection_* 的实现与 recorder 放在同一文件中，
@@ -75,23 +75,23 @@ void runtime_result_projection_set_transition(runtime_result_projection_t *runti
                            sizeof(runtime_result_projection->transition_reason_code), reason_code);
 }
 
-void runtime_event_recorder_set_latest_result(system_context_t system_context, const char *result_code,
+void runtime_event_recorder_set_latest_result(device_runtime_t system_context, const char *result_code,
                                               const char *reason_code)
 {
-    if (!system_context_private_require_active(system_context).ok)
+    if (!device_runtime_private_require_active(system_context).ok)
     {
         return;
     }
-    system_context_private_set_latest_result(system_context, result_code, reason_code);
+    device_runtime_private_set_latest_result(system_context, result_code, reason_code);
 }
 
-void runtime_event_recorder_apply_projection(system_context_t system_context,
+void runtime_event_recorder_apply_projection(device_runtime_t system_context,
                                              const runtime_result_projection_t *runtime_result_projection)
 {
     const event_logger_port_t *event_logger_port;
     state_transition_record_t *last_transition_record;
 
-    if (!system_context_private_require_active(system_context).ok)
+    if (!device_runtime_private_require_active(system_context).ok)
     {
         return;
     }
@@ -110,8 +110,8 @@ void runtime_event_recorder_apply_projection(system_context_t system_context,
         return;
     }
 
-    last_transition_record = system_context_private_last_transition_record_mutable(system_context);
-    event_logger_port = system_context_private_event_logger_port(system_context);
+    last_transition_record = device_runtime_private_last_transition_record_mutable(system_context);
+    event_logger_port = device_runtime_private_event_logger_port(system_context);
     if (last_transition_record == 0 || event_logger_port == 0)
     {
         return;
@@ -124,7 +124,7 @@ void runtime_event_recorder_apply_projection(system_context_t system_context,
                                  safe_runtime_field(runtime_result_projection->current_state),
                                  safe_runtime_field(runtime_result_projection->transition_result_code),
                                  safe_runtime_field(runtime_result_projection->transition_reason_code),
-                                 system_context_current_time_ms(system_context));
+                                 device_runtime_current_time_ms(system_context));
 
     switch (runtime_result_projection->log_kind)
     {

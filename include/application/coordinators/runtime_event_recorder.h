@@ -2,7 +2,7 @@
 #define APPLICATION_COORDINATORS_RUNTIME_EVENT_RECORDER_H
 
 #include "application/coordinators/runtime_result_projection.h"
-#include "application/coordinators/system_context.h"
+#include "application/coordinators/device_runtime.h"
 #include "domain/model/state_transition_record.h"
 
 /**
@@ -19,7 +19,7 @@
  *
  * @note 本接口只维护最近一次对外投影，不解释会话最终结论。
  */
-void runtime_event_recorder_set_latest_result(system_context_t system_context, const char *result_code,
+void runtime_event_recorder_set_latest_result(device_runtime_t system_context, const char *result_code,
                                               const char *reason_code);
 
 /**
@@ -30,7 +30,7 @@ void runtime_event_recorder_set_latest_result(system_context_t system_context, c
  *
  * @note 本接口是最近结果与迁移记录的唯一正式落点，不负责修改会话最终结果。
  */
-void runtime_event_recorder_apply_projection(system_context_t system_context,
+void runtime_event_recorder_apply_projection(device_runtime_t system_context,
                                              const runtime_result_projection_t *runtime_result_projection);
 
 #endif

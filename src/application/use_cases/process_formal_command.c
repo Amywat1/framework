@@ -6,11 +6,11 @@
 
 #include "application/coordinators/runtime_event_recorder.h"
 #include "application/coordinators/runtime_result_projection.h"
-#include "application/coordinators/main_loop.h"
+#include "application/coordinators/control_tick.h"
 #include "application/use_cases/query_wash_session_status.h"
 #include "domain/model/runtime_state_text.h"
 #include "shared/error_codes.h"
-#include "src/application/coordinators/system_context_private.h"
+#include "src/application/coordinators/device_runtime_private.h"
 #include "src/application/use_cases/command_matrix_reason_codes.h"
 
 /**
@@ -207,7 +207,7 @@ static void write_result_line(char *response_line, size_t response_line_size, co
  * @param transition_reason_code 转移原因码。
  * @param runtime_event_log_kind 事件日志类型。
  */
-static void apply_request_projection(system_context_t system_context, trigger_type_t trigger_type,
+static void apply_request_projection(device_runtime_t system_context, trigger_type_t trigger_type,
                                      const char *entity_id, const char *previous_state, const char *current_state,
                                      const char *latest_result_code, const char *latest_reason_code,
                                      const char *transition_result_code, const char *transition_reason_code,
@@ -228,7 +228,7 @@ static void apply_request_projection(system_context_t system_context, trigger_ty
  * @param system_context 系统上下文。
  * @param reason_code 错误原因码。
  */
-static void remember_protocol_error(system_context_t system_context, const char *reason_code)
+static void remember_protocol_error(device_runtime_t system_context, const char *reason_code)
 {
     apply_request_projection(system_context, TRIGGER_TYPE_REJECT, "formal-command", "received", "error", "error",
                              reason_code, "error", reason_code, RUNTIME_EVENT_LOG_REJECTION);
@@ -240,12 +240,12 @@ static void remember_protocol_error(system_context_t system_context, const char 
  * @param trigger_type 触发类型。
  * @param reason_code 拒绝原因码。
  */
-static void remember_command_rejection(system_context_t system_context, trigger_type_t trigger_type,
+static void remember_command_rejection(device_runtime_t system_context, trigger_type_t trigger_type,
                                        const char *reason_code)
 {
     const wash_session_t *wash_session;
 
-    wash_session = system_context_private_wash_session(system_context);
+    wash_session = device_runtime_private_wash_session(system_context);
     apply_request_projection(
         system_context, trigger_type,
         (wash_session != 0 && wash_session->session_id[0] != '\0') ? wash_session->session_id : "stdin", "received",
@@ -258,7 +258,7 @@ static void remember_command_rejection(system_context_t system_context, trigger_
  * @param trigger_type 触发类型。
  * @param reason_code 拒绝原因码。
  */
-static void remember_submit_rejection(system_context_t system_context, trigger_type_t trigger_type,
+static void remember_submit_rejection(device_runtime_t system_context, trigger_type_t trigger_type,
                                       const char *reason_code)
 {
     apply_request_projection(system_context, trigger_type, "pending-trigger-queue", "prepared", "rejected", "rejected",
@@ -270,7 +270,7 @@ static void remember_submit_rejection(system_context_t system_context, trigger_t
  * @param system_context 系统上下文。
  * @param wash_trigger_event 待写入的触发事件。
  */
-static void assign_stdin_trigger_id(system_context_t system_context, wash_trigger_event_t *wash_trigger_event)
+static void assign_stdin_trigger_id(device_runtime_t system_context, wash_trigger_event_t *wash_trigger_event)
 {
     if (wash_trigger_event == 0)
     {
@@ -278,7 +278,7 @@ static void assign_stdin_trigger_id(system_context_t system_context, wash_trigge
     }
 
     snprintf(wash_trigger_event->trigger_id, sizeof(wash_trigger_event->trigger_id), "stdin-%lu-%u",
-             system_context_current_time_ms(system_context), system_context_pending_trigger_count(system_context));
+             device_runtime_current_time_ms(system_context), device_runtime_pending_trigger_count(system_context));
     strncpy(wash_trigger_event->source, "stdin", sizeof(wash_trigger_event->source) - 1);
     wash_trigger_event->source[sizeof(wash_trigger_event->source) - 1] = '\0';
 }
@@ -290,7 +290,7 @@ static void assign_stdin_trigger_id(system_context_t system_context, wash_trigge
  * @param response_line_size 缓冲区大小。
  * @return 执行结果。
  */
-static operation_result_t execute_status(system_context_t system_context, char *response_line,
+static operation_result_t execute_status(device_runtime_t system_context, char *response_line,
                                          size_t response_line_size)
 {
     char detail[384];
@@ -330,7 +330,7 @@ static operation_result_t execute_status(system_context_t system_context, char *
  * @param response_line_size 缓冲区大小。
  * @return 解析或预检查结果。
  */
-static operation_result_t prepare_formal_command_request(system_context_t system_context, const char *command_line,
+static operation_result_t prepare_formal_command_request(device_runtime_t system_context, const char *command_line,
                                                          formal_command_request_t *formal_command_request,
                                                          char *response_line, size_t response_line_size)
 {
@@ -373,7 +373,7 @@ static operation_result_t prepare_formal_command_request(system_context_t system
             write_result_line(response_line, response_line_size, "parse_failed", false, "start_requires_program_id");
             return operation_result_fail(ERROR_CODE_PARSE_FAILED);
         }
-        device_state = system_context_private_device_state(system_context);
+        device_state = device_runtime_private_device_state(system_context);
         if (device_state != DEVICE_STATE_IDLE)
         {
             const char *reason_code;
@@ -383,7 +383,7 @@ static operation_result_t prepare_formal_command_request(system_context_t system
             write_result_line(response_line, response_line_size, "invalid_state", false, reason_code);
             return operation_result_fail(ERROR_CODE_INVALID_STATE);
         }
-        if (wash_session_is_running(system_context_private_wash_session(system_context)))
+        if (wash_session_is_running(device_runtime_private_wash_session(system_context)))
         {
             remember_command_rejection(system_context, TRIGGER_TYPE_START,
                                        command_matrix_running_session_exists_reason());
@@ -395,7 +395,7 @@ static operation_result_t prepare_formal_command_request(system_context_t system
         formal_command_request->requires_queue = true;
         formal_command_request->has_trigger = true;
         wash_trigger_event_init(&formal_command_request->wash_trigger_event, TRIGGER_TYPE_START, argument_1, 0,
-                                "start-command", system_context_current_time_ms(system_context));
+                                "start-command", device_runtime_current_time_ms(system_context));
         assign_stdin_trigger_id(system_context, &formal_command_request->wash_trigger_event);
         return operation_result_ok();
     }
@@ -411,7 +411,7 @@ static operation_result_t prepare_formal_command_request(system_context_t system
             return operation_result_fail(ERROR_CODE_PARSE_FAILED);
         }
 
-        device_state = system_context_private_device_state(system_context);
+        device_state = device_runtime_private_device_state(system_context);
         if (device_state != DEVICE_STATE_STOPPED)
         {
             remember_command_rejection(system_context, TRIGGER_TYPE_HOMING,
@@ -424,7 +424,7 @@ static operation_result_t prepare_formal_command_request(system_context_t system
         formal_command_request->requires_queue = true;
         formal_command_request->has_trigger = true;
         wash_trigger_event_init(&formal_command_request->wash_trigger_event, TRIGGER_TYPE_HOMING, 0, "homing",
-                                "homing-command", system_context_current_time_ms(system_context));
+                                "homing-command", device_runtime_current_time_ms(system_context));
         assign_stdin_trigger_id(system_context, &formal_command_request->wash_trigger_event);
         return operation_result_ok();
     }
@@ -440,9 +440,9 @@ static operation_result_t prepare_formal_command_request(system_context_t system
             return operation_result_fail(ERROR_CODE_PARSE_FAILED);
         }
 
-        device_state = system_context_private_device_state(system_context);
+        device_state = device_runtime_private_device_state(system_context);
         if (device_state != DEVICE_STATE_RUNNING ||
-            !wash_session_is_running(system_context_private_wash_session(system_context)))
+            !wash_session_is_running(device_runtime_private_wash_session(system_context)))
         {
             remember_command_rejection(system_context, TRIGGER_TYPE_STOP, command_matrix_stop_rejection_reason());
             write_result_line(response_line, response_line_size, "invalid_state", false,
@@ -453,7 +453,7 @@ static operation_result_t prepare_formal_command_request(system_context_t system
         formal_command_request->requires_queue = true;
         formal_command_request->has_trigger = true;
         wash_trigger_event_init(&formal_command_request->wash_trigger_event, TRIGGER_TYPE_STOP, 0, "manual-stop",
-                                "stop-command", system_context_current_time_ms(system_context));
+                                "stop-command", device_runtime_current_time_ms(system_context));
         assign_stdin_trigger_id(system_context, &formal_command_request->wash_trigger_event);
         return operation_result_ok();
     }
@@ -481,7 +481,7 @@ static operation_result_t prepare_formal_command_request(system_context_t system
                 return operation_result_fail(ERROR_CODE_PARSE_FAILED);
             }
 
-            device_state = system_context_private_device_state(system_context);
+            device_state = device_runtime_private_device_state(system_context);
             if (device_state != DEVICE_STATE_EXCEPTION)
             {
                 remember_command_rejection(system_context, TRIGGER_TYPE_FAULT,
@@ -492,7 +492,7 @@ static operation_result_t prepare_formal_command_request(system_context_t system
             }
 
             wash_trigger_event_init(&formal_command_request->wash_trigger_event, TRIGGER_TYPE_FAULT, 0, "clear", 0,
-                                    system_context_current_time_ms(system_context));
+                                    device_runtime_current_time_ms(system_context));
             assign_stdin_trigger_id(system_context, &formal_command_request->wash_trigger_event);
             return operation_result_ok();
         }
@@ -505,7 +505,7 @@ static operation_result_t prepare_formal_command_request(system_context_t system
         }
 
         wash_trigger_event_init(&formal_command_request->wash_trigger_event, TRIGGER_TYPE_FAULT, 0, argument_1,
-                                argument_2, system_context_current_time_ms(system_context));
+                                argument_2, device_runtime_current_time_ms(system_context));
         assign_stdin_trigger_id(system_context, &formal_command_request->wash_trigger_event);
         return operation_result_ok();
     }
@@ -537,7 +537,7 @@ static operation_result_t prepare_formal_command_request(system_context_t system
  * @param response_line_size 缓冲区大小。
  * @return 原始执行结果。
  */
-static operation_result_t finalize_formal_command_response(system_context_t system_context, operation_result_t result,
+static operation_result_t finalize_formal_command_response(device_runtime_t system_context, operation_result_t result,
                                                            char *response_line, size_t response_line_size)
 {
     bool accepted;
@@ -552,31 +552,31 @@ static operation_result_t finalize_formal_command_response(system_context_t syst
     if (!result.ok)
     {
         result_code = error_code_to_string(result.error_code);
-        detail = system_context_last_reason_code(system_context)[0] != '\0'
-                     ? system_context_last_reason_code(system_context)
+        detail = device_runtime_last_reason_code(system_context)[0] != '\0'
+                     ? device_runtime_last_reason_code(system_context)
                      : result_code;
         write_result_line(response_line, response_line_size, result_code, false, detail);
         return result;
     }
 
-    result_code = system_context_last_result_code(system_context)[0] != '\0'
-                      ? system_context_last_result_code(system_context)
+    result_code = device_runtime_last_result_code(system_context)[0] != '\0'
+                      ? device_runtime_last_result_code(system_context)
                       : "accepted";
-    detail = system_context_last_reason_code(system_context)[0] != '\0'
-                 ? system_context_last_reason_code(system_context)
+    detail = device_runtime_last_reason_code(system_context)[0] != '\0'
+                 ? device_runtime_last_reason_code(system_context)
                  : "none";
     accepted = process_formal_command_result_is_accepted(result_code);
     write_result_line(response_line, response_line_size, result_code, accepted, detail);
     return result;
 }
 
-operation_result_t process_formal_command_execute(system_context_t system_context, const char *command_line,
+operation_result_t process_formal_command_execute(device_runtime_t system_context, const char *command_line,
                                                   char *response_line, size_t response_line_size)
 {
     formal_command_request_t formal_command_request;
     operation_result_t result;
 
-    result = system_context_private_require_active(system_context);
+    result = device_runtime_private_require_active(system_context);
     if (!result.ok)
     {
         write_result_line(response_line, response_line_size, error_code_to_string(result.error_code), false,
@@ -591,7 +591,7 @@ operation_result_t process_formal_command_execute(system_context_t system_contex
         return result;
     }
 
-    result = main_loop_submit_trigger(system_context, &formal_command_request.wash_trigger_event);
+    result = control_tick_submit_trigger(system_context, &formal_command_request.wash_trigger_event);
     if (!result.ok)
     {
         remember_submit_rejection(system_context, formal_command_request.wash_trigger_event.trigger_type,

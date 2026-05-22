@@ -5,7 +5,7 @@
 #include <sys/stat.h>
 
 #include "adapters/config/json_program_parser.h"
-#include "application/coordinators/system_context.h"
+#include "application/coordinators/device_runtime.h"
 #include "domain/model/program_snapshot.h"
 #include "domain/model/program_validation.h"
 #include "domain/model/vehicle_type.h"
@@ -98,12 +98,12 @@ static int validate_program_snapshot_impl(void *context, const char *program_id,
     return 0;
 }
 
-operation_result_t file_program_repository_init(system_context_t system_context, const char *config_root)
+operation_result_t file_program_repository_init(device_runtime_t system_context, const char *config_root)
 {
     program_repository_port_t program_repository_port;
     char programs_root[320];
 
-    if (!system_context_require_active(system_context).ok)
+    if (!device_runtime_require_active(system_context).ok)
     {
         return operation_result_fail(ERROR_CODE_INVALID_STATE);
     }
@@ -129,11 +129,11 @@ operation_result_t file_program_repository_init(system_context_t system_context,
     program_repository_port.save_program = save_program_impl;
     program_repository_port.load_vehicle_type = load_vehicle_type_impl;
     program_repository_port.validate_program_snapshot = validate_program_snapshot_impl;
-    system_context_set_program_repository_port(system_context, &program_repository_port);
+    device_runtime_set_program_repository_port(system_context, &program_repository_port);
     return operation_result_ok();
 }
 
-void file_program_repository_set_runtime_program(system_context_t system_context, const wash_program_t *wash_program,
+void file_program_repository_set_runtime_program(device_runtime_t system_context, const wash_program_t *wash_program,
                                                  int revision)
 {
     file_repository_context_t *repository_context;
@@ -143,7 +143,7 @@ void file_program_repository_set_runtime_program(system_context_t system_context
     {
         return;
     }
-    program_repository_port = system_context_program_repository_port(system_context);
+    program_repository_port = device_runtime_program_repository_port(system_context);
     if (program_repository_port == 0)
     {
         return;

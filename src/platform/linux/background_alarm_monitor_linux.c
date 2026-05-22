@@ -22,7 +22,7 @@ typedef struct background_alarm_snapshot_mailbox_t
 struct background_alarm_monitor_t
 {
     background_alarm_settings_t settings;
-    system_context_t system_context;
+    device_runtime_t system_context;
     const sensor_port_t *sensor_port;
     alarm_evaluator_t alarm_evaluator;
     background_alarm_snapshot_mailbox_t snapshot_mailbox;

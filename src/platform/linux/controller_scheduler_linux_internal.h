@@ -25,7 +25,7 @@ typedef struct scheduler_notification_snapshot_t
 
 struct controller_scheduler_t
 {
-    system_context_t system_context;
+    device_runtime_t system_context;
     controller_scheduler_config_t config;
     controller_scheduler_runtime_state_t runtime_state;
     stdio_formal_command_adapter_t command_adapter;
@@ -53,7 +53,7 @@ struct controller_scheduler_t
     bool failpoint_wakeup_read;
     bool failpoint_wakeup_write;
     bool failpoint_command_read;
-    bool failpoint_main_loop_run;
+    bool failpoint_control_tick_run;
 };
 
 /**

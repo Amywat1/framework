@@ -19,7 +19,7 @@
  * @param response_line 输出响应缓冲区。
  * @param response_line_size 输出缓冲区大小。
  */
-static void stdio_formal_command_adapter_rebuild_response(const system_context_t system_context, char *response_line,
+static void stdio_formal_command_adapter_rebuild_response(const device_runtime_t system_context, char *response_line,
                                                           size_t response_line_size)
 {
     const char *detail;
@@ -30,11 +30,11 @@ static void stdio_formal_command_adapter_rebuild_response(const system_context_t
         return;
     }
 
-    result_code = system_context_last_result_code(system_context)[0] != '\0'
-                      ? system_context_last_result_code(system_context)
+    result_code = device_runtime_last_result_code(system_context)[0] != '\0'
+                      ? device_runtime_last_result_code(system_context)
                       : "accepted";
-    detail = system_context_last_reason_code(system_context)[0] != '\0'
-                 ? system_context_last_reason_code(system_context)
+    detail = device_runtime_last_reason_code(system_context)[0] != '\0'
+                 ? device_runtime_last_reason_code(system_context)
                  : "none";
     process_formal_command_format_response(response_line, response_line_size, result_code,
                                            process_formal_command_result_is_accepted(result_code), detail);
@@ -174,10 +174,10 @@ static operation_result_t stdio_formal_command_adapter_process_line(
     }
     memset(response_line, 0, response_line_size);
 
-    pending_before = system_context_pending_trigger_count(controller_scheduler->system_context);
+    pending_before = device_runtime_pending_trigger_count(controller_scheduler->system_context);
     result = process_formal_command_execute(controller_scheduler->system_context, command_line, response_line,
                                             response_line_size);
-    queued_work = system_context_pending_trigger_count(controller_scheduler->system_context) > pending_before;
+    queued_work = device_runtime_pending_trigger_count(controller_scheduler->system_context) > pending_before;
     if (result.ok && queued_work &&
         controller_scheduler->runtime_state == CONTROLLER_SCHEDULER_RUNTIME_STATE_RUNNING)
     {

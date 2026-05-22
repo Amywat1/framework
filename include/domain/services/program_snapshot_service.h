@@ -33,7 +33,7 @@ typedef struct program_snapshot_service_args_t
  * @param program_id 目标程序标识，不能为空。
  * @return 成功返回 `operation_result_ok()`；参数非法、程序不可用或快照不合法时返回失败结果。
  *
- * @note 本切片不得扩展为依赖整个 `system_context_t`。
+ * @note 本切片不得扩展为依赖整个 `device_runtime_t`。
  */
 operation_result_t program_snapshot_service_capture(program_snapshot_service_args_t *program_snapshot_service_args,
                                                     const char *program_id);

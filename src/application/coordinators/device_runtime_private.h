@@ -1,7 +1,7 @@
-#ifndef APPLICATION_COORDINATORS_SYSTEM_CONTEXT_PRIVATE_H
-#define APPLICATION_COORDINATORS_SYSTEM_CONTEXT_PRIVATE_H
+#ifndef APPLICATION_COORDINATORS_DEVICE_RUNTIME_PRIVATE_H
+#define APPLICATION_COORDINATORS_DEVICE_RUNTIME_PRIVATE_H
 
-#include "application/coordinators/system_context.h"
+#include "application/coordinators/device_runtime.h"
 #include "domain/model/program_snapshot.h"
 #include "domain/model/state_transition_record.h"
 #include "domain/model/vehicle_type.h"
@@ -31,14 +31,14 @@
  * @param system_context 系统上下文句柄，允许为 `0`（此时直接返回失败）。
  * @return 句柄合法且实例激活时返回成功；否则返回 ERROR_CODE_INVALID_STATE。
  */
-operation_result_t system_context_private_require_active(const system_context_t system_context);
+operation_result_t device_runtime_private_require_active(const device_runtime_t system_context);
 
 /**
  * @brief 完成系统上下文的初始化流程，将设备状态推进至 STOPPED。
- * @param system_context 系统上下文，调用前必须已通过 `system_context_acquire` 获取。
+ * @param system_context 系统上下文，调用前必须已通过 `device_runtime_acquire` 获取。
  * @return 初始化成功返回 `operation_result_ok()`；句柄非法时返回失败。
  */
-operation_result_t system_context_private_complete_initialization(system_context_t system_context);
+operation_result_t device_runtime_private_complete_initialization(device_runtime_t system_context);
 
 /** @name 调度器绑定 */
 /** @{ */
@@ -50,7 +50,7 @@ operation_result_t system_context_private_complete_initialization(system_context
  * @param system_context 系统上下文，必须处于激活状态。
  * @return 绑定成功返回 `operation_result_ok()`；已绑定或句柄非法时返回失败。
  */
-operation_result_t system_context_private_bind_scheduler(system_context_t system_context,
+operation_result_t device_runtime_private_bind_scheduler(device_runtime_t system_context,
                                                          void *scheduler_binding);
 
 /**
@@ -58,10 +58,10 @@ operation_result_t system_context_private_bind_scheduler(system_context_t system
  * @note 由 Application 层（controller_runtime.c）在调度器销毁后调用。
  * @param system_context 系统上下文；允许为 `0`（此时为空操作）。
  */
-void system_context_private_unbind_scheduler(system_context_t system_context);
+void device_runtime_private_unbind_scheduler(device_runtime_t system_context);
 
 /** @brief 读取已绑定调度器；未绑定或句柄非法时返回 `0`。 */
-void *system_context_private_bound_scheduler(const system_context_t system_context);
+void *device_runtime_private_bound_scheduler(const device_runtime_t system_context);
 
 /** @} */
 
@@ -69,16 +69,16 @@ void *system_context_private_bound_scheduler(const system_context_t system_conte
 /** @{ */
 
 /** @brief 读取当前设备状态；句柄非法时返回 `DEVICE_STATE_INIT`。 */
-device_state_t system_context_private_device_state(const system_context_t system_context);
+device_state_t device_runtime_private_device_state(const device_runtime_t system_context);
 
 /** @brief 设置当前设备状态；句柄非法时为空操作。 */
-void system_context_private_set_device_state(system_context_t system_context, device_state_t device_state);
+void device_runtime_private_set_device_state(device_runtime_t system_context, device_state_t device_state);
 
 /** @brief 读取执行机构端口（只读）；句柄非法时返回 `0`。 */
-const actuator_port_t *system_context_private_actuator_port(const system_context_t system_context);
+const actuator_port_t *device_runtime_private_actuator_port(const device_runtime_t system_context);
 
 /** @brief 读取传感器端口（只读）；句柄非法时返回 `0`。 */
-const sensor_port_t *system_context_private_sensor_port(const system_context_t system_context);
+const sensor_port_t *device_runtime_private_sensor_port(const device_runtime_t system_context);
 
 /** @} */
 
@@ -86,21 +86,21 @@ const sensor_port_t *system_context_private_sensor_port(const system_context_t s
 /** @{ */
 
 /** @brief 判断是否存在未清除的全局故障。 */
-bool system_context_private_global_fault_present(const system_context_t system_context);
+bool device_runtime_private_global_fault_present(const device_runtime_t system_context);
 
 /** @brief 读取全局故障原因描述；句柄非法时返回空字符串。 */
-const char *system_context_private_global_fault_reason(const system_context_t system_context);
+const char *device_runtime_private_global_fault_reason(const device_runtime_t system_context);
 
 /**
  * @brief 设置全局故障信息。
  * @param fault_code   故障码（机器可读短标识），不能为空。
  * @param fault_reason 故障原因描述（人类可读），允许为空（不更新现有原因）。
  */
-void system_context_private_set_global_fault(system_context_t system_context, const char *fault_code,
+void device_runtime_private_set_global_fault(device_runtime_t system_context, const char *fault_code,
                                              const char *fault_reason);
 
 /** @brief 清除全局故障标志及相关信息。 */
-void system_context_private_clear_global_fault(system_context_t system_context);
+void device_runtime_private_clear_global_fault(device_runtime_t system_context);
 
 /** @} */
 
@@ -108,13 +108,13 @@ void system_context_private_clear_global_fault(system_context_t system_context);
 /** @{ */
 
 /** @brief 读取最近一次状态迁移记录（只读）；句柄非法时返回 `0`。 */
-const state_transition_record_t *system_context_private_last_transition_record(const system_context_t system_context);
+const state_transition_record_t *device_runtime_private_last_transition_record(const device_runtime_t system_context);
 
 /** @brief 读取最近一次状态迁移记录（可写）；句柄非法时返回 `0`。 */
-state_transition_record_t *system_context_private_last_transition_record_mutable(system_context_t system_context);
+state_transition_record_t *device_runtime_private_last_transition_record_mutable(device_runtime_t system_context);
 
 /** @brief 写入最近对外结果码与原因码；任一参数为 `0` 时对应字段保持不变。 */
-void system_context_private_set_latest_result(system_context_t system_context, const char *result_code,
+void device_runtime_private_set_latest_result(device_runtime_t system_context, const char *result_code,
                                               const char *reason_code);
 
 /**
@@ -124,7 +124,7 @@ void system_context_private_set_latest_result(system_context_t system_context, c
  * @param result_code 最新结果码；传入 `0` 时保持现有结果码不变。
  * @param reason_code 最新原因码；传入 `0` 时保持现有原因码不变。
  */
-void system_context_private_apply_device_runtime_result(system_context_t system_context, device_state_t device_state,
+void device_runtime_private_apply_device_runtime_result(device_runtime_t system_context, device_state_t device_state,
                                                         const char *result_code, const char *reason_code);
 /**
  * @brief 应用 start accepted 路径的会话启动落点。
@@ -133,11 +133,11 @@ void system_context_private_apply_device_runtime_result(system_context_t system_
  * @param wash_execution 可变执行快照；调用后会重置执行状态并启动首段。
  * @return 首段启动结果；成功时会落到 running，并写入 accepted/session_started。
  */
-operation_result_t system_context_private_apply_start_accepted(system_context_t system_context,
+operation_result_t device_runtime_private_apply_start_accepted(device_runtime_t system_context,
                                                                wash_session_t *wash_session,
                                                                wash_execution_t *wash_execution);
 /** @brief 读取事件日志端口（只读）；句柄非法时返回 `0`。 */
-const event_logger_port_t *system_context_private_event_logger_port(const system_context_t system_context);
+const event_logger_port_t *device_runtime_private_event_logger_port(const device_runtime_t system_context);
 
 /** @} */
 
@@ -145,15 +145,15 @@ const event_logger_port_t *system_context_private_event_logger_port(const system
 /** @{ */
 
 /** @brief 将当前运行时状态填充到会话服务参数结构体中。 */
-void system_context_private_build_session_service_args(system_context_t system_context,
+void device_runtime_private_build_session_service_args(device_runtime_t system_context,
                                                        wash_session_service_args_t *wash_session_service_args);
 
 /** @brief 将当前运行时状态填充到程序快照服务参数结构体中。 */
-void system_context_private_build_program_snapshot_service_args(
-    system_context_t system_context, program_snapshot_service_args_t *program_snapshot_service_args);
+void device_runtime_private_build_program_snapshot_service_args(
+    device_runtime_t system_context, program_snapshot_service_args_t *program_snapshot_service_args);
 
 /** @brief 将当前运行时状态填充到工步执行服务参数结构体中。 */
-void system_context_private_build_execution_service_args(system_context_t system_context,
+void device_runtime_private_build_execution_service_args(device_runtime_t system_context,
                                                          wash_execution_service_args_t *wash_execution_service_args);
 
 /** @} */
@@ -162,25 +162,25 @@ void system_context_private_build_execution_service_args(system_context_t system
 /** @{ */
 
 /** @brief 读取当前洗车会话（只读）；句柄非法时返回 `0`。 */
-const wash_session_t *system_context_private_wash_session(const system_context_t system_context);
+const wash_session_t *device_runtime_private_wash_session(const device_runtime_t system_context);
 
 /** @brief 读取当前洗车会话（可写）；句柄非法时返回 `0`。 */
-wash_session_t *system_context_private_wash_session_mutable(system_context_t system_context);
+wash_session_t *device_runtime_private_wash_session_mutable(device_runtime_t system_context);
 
 /** @brief 读取当前工步执行态（只读）；句柄非法时返回 `0`。 */
-const wash_execution_t *system_context_private_wash_execution(const system_context_t system_context);
+const wash_execution_t *device_runtime_private_wash_execution(const device_runtime_t system_context);
 
 /** @brief 读取当前工步执行态（可写）；句柄非法时返回 `0`。 */
-wash_execution_t *system_context_private_wash_execution_mutable(system_context_t system_context);
+wash_execution_t *device_runtime_private_wash_execution_mutable(device_runtime_t system_context);
 
 /** @brief 读取当前等待条件（只读）；句柄非法时返回 `0`。 */
-const wait_condition_t *system_context_private_wait_condition(const system_context_t system_context);
+const wait_condition_t *device_runtime_private_wait_condition(const device_runtime_t system_context);
 
 /** @brief 读取当前等待条件（可写）；句柄非法时返回 `0`。 */
-wait_condition_t *system_context_private_wait_condition_mutable(system_context_t system_context);
+wait_condition_t *device_runtime_private_wait_condition_mutable(device_runtime_t system_context);
 
 /** @brief 读取当前程序快照（只读）；句柄非法时返回 `0`。 */
-const program_snapshot_t *system_context_private_program_snapshot(const system_context_t system_context);
+const program_snapshot_t *device_runtime_private_program_snapshot(const device_runtime_t system_context);
 
 /** @} */
 
@@ -192,7 +192,7 @@ const program_snapshot_t *system_context_private_program_snapshot(const system_c
  * @param system_context 系统上下文，不能为空。
  * @param elapsed_ms 本次推进的毫秒数。
  */
-void system_context_private_advance_time(system_context_t system_context, unsigned long elapsed_ms);
+void device_runtime_private_advance_time(device_runtime_t system_context, unsigned long elapsed_ms);
 
 /**
  * @brief 向待处理触发队列追加一个事件。
@@ -201,7 +201,7 @@ void system_context_private_advance_time(system_context_t system_context, unsign
  * @param wash_trigger_event 待追加的触发事件，不能为空。
  * @return 追加成功返回 `operation_result_ok()`；队列已满时返回 ERROR_CODE_RESOURCE_UNAVAILABLE。
  */
-operation_result_t system_context_private_append_trigger(system_context_t system_context,
+operation_result_t device_runtime_private_append_trigger(device_runtime_t system_context,
                                                          const wash_trigger_event_t *wash_trigger_event);
 
 /**
@@ -211,7 +211,7 @@ operation_result_t system_context_private_append_trigger(system_context_t system
  * @param wash_trigger_event 待投递的触发事件，不能为空。
  * @return 入队成功返回 `operation_result_ok()`；收件箱已满或参数非法返回失败结果。
  */
-operation_result_t system_context_private_enqueue_external_trigger(system_context_t system_context,
+operation_result_t device_runtime_private_enqueue_external_trigger(device_runtime_t system_context,
                                                                   const wash_trigger_event_t *wash_trigger_event);
 
 /**
@@ -220,7 +220,7 @@ operation_result_t system_context_private_enqueue_external_trigger(system_contex
  * @param wash_trigger_event 输出触发事件，不能为空。
  * @return 成功取到事件返回 `true`；当前收件箱为空时返回 `false`。
  */
-bool system_context_private_try_pop_external_trigger(system_context_t system_context,
+bool device_runtime_private_try_pop_external_trigger(device_runtime_t system_context,
                                                      wash_trigger_event_t *wash_trigger_event);
 
 /**
@@ -228,23 +228,23 @@ bool system_context_private_try_pop_external_trigger(system_context_t system_con
  * @param system_context 系统上下文；允许传入 `0`。
  * @return 当前积压数量。
  */
-unsigned int system_context_private_external_trigger_count(const system_context_t system_context);
+unsigned int device_runtime_private_external_trigger_count(const device_runtime_t system_context);
 
 /**
  * @brief 读取指定索引处的待处理触发事件（只读）。
  * @param system_context 系统上下文；允许为 `0`。
- * @param index 目标索引，必须小于 `system_context_pending_trigger_count()`。
+ * @param index 目标索引，必须小于 `device_runtime_pending_trigger_count()`。
  * @return 指向触发事件的只读指针；索引越界或上下文为空时返回 `0`。
  */
-const wash_trigger_event_t *system_context_private_pending_trigger_at(const system_context_t system_context,
+const wash_trigger_event_t *device_runtime_private_pending_trigger_at(const device_runtime_t system_context,
                                                                       unsigned int index);
 
 /**
  * @brief 从待处理队列中移除指定索引处的触发事件，后续元素前移。
  * @param system_context 系统上下文，不能为空。
- * @param remove_index 目标索引，必须小于 `system_context_pending_trigger_count()`。
+ * @param remove_index 目标索引，必须小于 `device_runtime_pending_trigger_count()`。
  */
-void system_context_private_remove_pending_trigger_at(system_context_t system_context, unsigned int remove_index);
+void device_runtime_private_remove_pending_trigger_at(device_runtime_t system_context, unsigned int remove_index);
 
 /** @} */
 
@@ -256,7 +256,7 @@ void system_context_private_remove_pending_trigger_at(system_context_t system_co
  * @note 仅用于测试断言，不应在生产路径中使用。
  * @return 实例正被占用时返回 `true`。
  */
-bool system_context_private_debug_is_in_use(const system_context_t system_context);
+bool device_runtime_private_debug_is_in_use(const device_runtime_t system_context);
 
 /** @} */
 

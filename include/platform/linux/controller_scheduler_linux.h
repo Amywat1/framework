@@ -4,7 +4,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 
-#include "application/coordinators/system_context.h"
+#include "application/coordinators/device_runtime.h"
 #include "platform/controller_scheduler.h"
 
 /**
@@ -22,7 +22,7 @@ typedef enum
     CONTROLLER_SCHEDULER_LINUX_TEST_FAIL_WAKEUP_READ,
     CONTROLLER_SCHEDULER_LINUX_TEST_FAIL_WAKEUP_WRITE,
     CONTROLLER_SCHEDULER_LINUX_TEST_FAIL_COMMAND_READ,
-    CONTROLLER_SCHEDULER_LINUX_TEST_FAIL_MAIN_LOOP_RUN
+    CONTROLLER_SCHEDULER_LINUX_TEST_FAIL_CONTROL_TICK_RUN
 } controller_scheduler_linux_test_failpoint_t;
 
 /**

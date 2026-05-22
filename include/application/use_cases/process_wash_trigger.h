@@ -1,7 +1,7 @@
 #ifndef APPLICATION_USE_CASES_PROCESS_WASH_TRIGGER_H
 #define APPLICATION_USE_CASES_PROCESS_WASH_TRIGGER_H
 
-#include "application/coordinators/system_context.h"
+#include "application/coordinators/device_runtime.h"
 #include "domain/model/wash_trigger_event.h"
 #include "shared/result_types.h"
 
@@ -20,7 +20,7 @@
  * @note 本接口负责跨对象编排、`global_fault` / 最近结果最终落点与统一结果投影。
  * @note 会话、执行、等待条件和超时决议的具体推进由下游领域服务负责。
  */
-operation_result_t process_wash_trigger_execute(system_context_t system_context,
+operation_result_t process_wash_trigger_execute(device_runtime_t system_context,
                                                 const wash_trigger_event_t *wash_trigger_event);
 
 /**
@@ -31,6 +31,6 @@ operation_result_t process_wash_trigger_execute(system_context_t system_context,
  *
  * @note 本接口仅在会话运行中推进执行状态，并在需要时驱动会话收尾。
  */
-operation_result_t process_wash_runtime_tick(system_context_t system_context);
+operation_result_t process_wash_runtime_tick(device_runtime_t system_context);
 
 #endif

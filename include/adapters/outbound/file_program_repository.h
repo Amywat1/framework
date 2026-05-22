@@ -1,7 +1,7 @@
 #ifndef ADAPTERS_OUTBOUND_FILE_PROGRAM_REPOSITORY_H
 #define ADAPTERS_OUTBOUND_FILE_PROGRAM_REPOSITORY_H
 
-#include "application/coordinators/system_context.h"
+#include "application/coordinators/device_runtime.h"
 #include "domain/model/wash_program.h"
 #include "shared/result_types.h"
 
@@ -15,7 +15,7 @@
  * @param system_context 主控共享上下文，不能为空。
  * @param config_root 程序配置根目录，不能为空。
  */
-operation_result_t file_program_repository_init(system_context_t system_context, const char *config_root);
+operation_result_t file_program_repository_init(device_runtime_t system_context, const char *config_root);
 
 /**
  * @brief 向运行时仓储注入测试或调试用的内存程序。
@@ -23,7 +23,7 @@ operation_result_t file_program_repository_init(system_context_t system_context,
  * @param wash_program 运行时程序模型，不能为空。
  * @param revision 运行时程序版本号。
  */
-void file_program_repository_set_runtime_program(system_context_t system_context, const wash_program_t *wash_program,
+void file_program_repository_set_runtime_program(device_runtime_t system_context, const wash_program_t *wash_program,
                                                  int revision);
 
 #endif

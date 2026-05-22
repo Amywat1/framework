@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "application/coordinators/controller_runtime.h"
+#include "application/coordinators/wash_app.h"
 #include "platform/drivers/simulated_brush_driver.h"
 #include "platform/drivers/simulated_chemical_driver.h"
 #include "platform/drivers/simulated_driver_context.h"
@@ -56,11 +56,11 @@ static void initialize_scheduler_config(controller_scheduler_config_t *scheduler
 
 int main(void)
 {
-    controller_runtime_status_view_t runtime_status_view;
-    controller_runtime_config_t controller_runtime_config;
+    wash_app_status_view_t runtime_status_view;
+    wash_app_config_t controller_runtime_config;
     controller_scheduler_config_t scheduler_config;
     simulated_driver_context_t driver_context;
-    controller_runtime_t *controller_runtime;
+    wash_app_t *controller_runtime;
     sensor_port_t sensor_port;
     actuator_port_t actuator_port;
     operation_result_t result;
@@ -68,7 +68,7 @@ int main(void)
 
     initialize_ports(&driver_context, &sensor_port, &actuator_port);
     initialize_scheduler_config(&scheduler_config);
-    controller_runtime_config_init(&controller_runtime_config);
+    wash_app_config_init(&controller_runtime_config);
     controller_runtime_config.sensor_port = &sensor_port;
     controller_runtime_config.actuator_port = &actuator_port;
     controller_runtime_config.scheduler_config = &scheduler_config;
@@ -81,21 +81,21 @@ int main(void)
     controller_runtime_config.background_alarm_monitor.io_sample_period_ms = CONTROLLER_BACKGROUND_ALARM_IO_PERIOD_MS;
     controller_runtime_config.background_alarm_monitor.detect_period_ms = CONTROLLER_BACKGROUND_ALARM_DETECT_PERIOD_MS;
 
-    result = controller_runtime_create(&controller_runtime, &controller_runtime_config);
+    result = wash_app_create(&controller_runtime, &controller_runtime_config);
     if (!result.ok || controller_runtime == 0)
     {
         fprintf(stderr, "wash_controller: create failed, error_code=%d\n", (int)result.error_code);
         return 1;
     }
 
-    result = controller_runtime_run(controller_runtime);
+    result = wash_app_run(controller_runtime);
     exit_code = 0;
     if (!result.ok)
     {
         const char *scheduler_reason = "none";
         const char *domain_reason = "none";
 
-        (void)controller_runtime_read_state(controller_runtime, &runtime_status_view);
+        (void)wash_app_read_state(controller_runtime, &runtime_status_view);
         if (runtime_status_view.scheduler_view_available &&
             runtime_status_view.scheduler_view.metrics.last_error_reason[0] != '\0')
         {
@@ -110,7 +110,7 @@ int main(void)
         exit_code = 1;
     }
 
-    result = controller_runtime_destroy(controller_runtime);
+    result = wash_app_destroy(controller_runtime);
     if (!result.ok)
     {
         fprintf(stderr, "wash_controller: destroy failed, error_code=%d\n", (int)result.error_code);

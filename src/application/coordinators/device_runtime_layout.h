@@ -1,9 +1,9 @@
-#ifndef APPLICATION_COORDINATORS_SYSTEM_CONTEXT_RUNTIME_LAYOUT_H
-#define APPLICATION_COORDINATORS_SYSTEM_CONTEXT_RUNTIME_LAYOUT_H
+#ifndef APPLICATION_COORDINATORS_DEVICE_RUNTIME_LAYOUT_H
+#define APPLICATION_COORDINATORS_DEVICE_RUNTIME_LAYOUT_H
 
 #include <stdatomic.h>
 
-#include "src/application/coordinators/system_context_private.h"
+#include "src/application/coordinators/device_runtime_private.h"
 
 #define MAX_EXTERNAL_TRIGGER_QUEUE_COUNT 8u
 
@@ -12,7 +12,7 @@
  * @brief 暴露组合根运行时布局的白盒内部头，仅供单实例组合根实现与测试观察使用。
  * @note 本文件使用 C11 _Generic 泛型选择宏，要求 GCC 4.9+ 或等效 C11 兼容工具链。
  */
-typedef struct system_context_runtime_t
+typedef struct device_runtime_state_t
 {
     wash_program_t wash_program;
     vehicle_type_t vehicle_type;
@@ -43,21 +43,21 @@ typedef struct system_context_runtime_t
     actuator_port_t actuator_port;
     event_logger_port_t event_logger_port;
     program_repository_port_t program_repository_port;
-} system_context_runtime_t;
+} device_runtime_state_t;
 
-typedef struct system_context_instance_state_t
+typedef struct device_runtime_instance_t
 {
     bool in_use;
-    system_context_runtime_t runtime;
-} system_context_instance_state_t;
+    device_runtime_state_t runtime;
+} device_runtime_instance_t;
 
-system_context_runtime_t *system_context_private_runtime_mutable(system_context_t system_context);
-const system_context_runtime_t *system_context_private_runtime_const(const system_context_t system_context);
+device_runtime_state_t *device_runtime_private_runtime_mutable(device_runtime_t system_context);
+const device_runtime_state_t *device_runtime_private_runtime_const(const device_runtime_t system_context);
 
-#define system_context_private_runtime(system_context)                                                                 \
+#define device_runtime_private_runtime(system_context)                                                                 \
     _Generic((system_context),                                                                                         \
-        const system_context_t: system_context_private_runtime_const,                                                  \
-        system_context_t: system_context_private_runtime_mutable,                                                      \
-        default: system_context_private_runtime_mutable)(system_context)
+        const device_runtime_t: device_runtime_private_runtime_const,                                                  \
+        device_runtime_t: device_runtime_private_runtime_mutable,                                                      \
+        default: device_runtime_private_runtime_mutable)(system_context)
 
 #endif
