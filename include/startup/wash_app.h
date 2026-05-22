@@ -1,5 +1,5 @@
-#ifndef APPLICATION_COORDINATORS_WASH_APP_H
-#define APPLICATION_COORDINATORS_WASH_APP_H
+#ifndef STARTUP_WASH_APP_H
+#define STARTUP_WASH_APP_H
 
 #include <stdbool.h>
 #include <stdio.h>

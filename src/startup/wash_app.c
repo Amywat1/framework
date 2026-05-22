@@ -1,11 +1,11 @@
-#include "application/coordinators/wash_app.h"
+#include "startup/wash_app.h"
 
 #include <string.h>
 
 #include "adapters/logging/file_event_logger.h"
 #include "adapters/outbound/file_program_repository.h"
 #include "platform/background_alarm_monitor.h"
-#include "src/application/coordinators/wash_app_private.h"
+#include "src/startup/wash_app_private.h"
 #include "src/application/coordinators/device_runtime_private.h"
 
 struct wash_app_t

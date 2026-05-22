@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "application/coordinators/wash_app.h"
+#include "startup/wash_app.h"
 #include "platform/drivers/simulated_brush_driver.h"
 #include "platform/drivers/simulated_chemical_driver.h"
 #include "platform/drivers/simulated_driver_context.h"

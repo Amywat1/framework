@@ -25,7 +25,7 @@ set(WASH_CORE_SOURCES
     domain/services/wait_timeout_service.c
     domain/services/wash_execution_service.c
     domain/services/wash_session_state_machine.c
-    application/coordinators/wash_app.c
+    startup/wash_app.c
     application/coordinators/control_tick.c
     application/coordinators/device_runtime.c
     application/coordinators/runtime_event_recorder.c
@@ -61,6 +61,6 @@ else()
     target_link_libraries(wash_core PUBLIC Threads::Threads)
 endif()
 
-add_executable(wash_controller main/main.c)
+add_executable(wash_controller startup/main.c)
 target_include_directories(wash_controller PRIVATE ${PROJECT_SOURCE_DIR})
 target_link_libraries(wash_controller PRIVATE wash_core)
