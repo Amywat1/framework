@@ -117,12 +117,12 @@ typedef struct controller_scheduler_state_view_t
 /**
  * @brief 创建当前平台的调度器实例。
  *
- * @param system_context 主控运行时组合根句柄。
+ * @param device_runtime 主控运行时组合根句柄。
  * @param controller_scheduler_config 调度器配置。
  * @param controller_scheduler_stdio 可选的标准输入输出绑定。
  * @return 成功时返回调度器对象；参数非法、句柄失效或底层资源初始化失败时返回 `0`。
  */
-controller_scheduler_t *controller_scheduler_create(device_runtime_t system_context,
+controller_scheduler_t *controller_scheduler_create(device_runtime_t device_runtime,
                                                     const controller_scheduler_config_t *controller_scheduler_config,
                                                     const controller_scheduler_stdio_t *controller_scheduler_stdio);
 
@@ -153,21 +153,21 @@ operation_result_t controller_scheduler_request_stop(controller_scheduler_t *con
  * @brief 读取指定调度器的当前运行态视图。
  *
  * @param controller_scheduler 调度器对象。
- * @param controller_runtime_state_view 输出运行态视图。
+ * @param state_view 输出运行态视图。
  * @return 成功时返回 `operation_result_ok()`，失败时返回显式错误结果。
  */
 operation_result_t controller_scheduler_read_view(const controller_scheduler_t *controller_scheduler,
-                                                  controller_scheduler_state_view_t *controller_runtime_state_view);
+                                                  controller_scheduler_state_view_t *state_view);
 
 /**
- * @brief 通过 `system_context` 读取其绑定调度器的运行态视图。
+ * @brief 通过 `device_runtime` 读取其绑定调度器的运行态视图。
  *
- * @param system_context 主控运行时组合根句柄。
- * @param controller_runtime_state_view 输出运行态视图。
+ * @param device_runtime 主控运行时组合根句柄。
+ * @param state_view 输出运行态视图。
  * @return 成功时返回 `operation_result_ok()`；句柄非法、已释放或未绑定调度器时返回失败结果。
  */
 operation_result_t
-controller_scheduler_read_context_view(const device_runtime_t system_context,
-                                       controller_scheduler_state_view_t *controller_runtime_state_view);
+controller_scheduler_read_context_view(const device_runtime_t device_runtime,
+                                       controller_scheduler_state_view_t *state_view);
 
 #endif

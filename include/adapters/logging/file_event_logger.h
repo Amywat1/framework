@@ -12,9 +12,9 @@
 /**
  * @brief 将主控事件日志端口绑定到文件输出实现。
  *
- * @param system_context 主控共享上下文，不能为空。
+ * @param device_runtime 主控共享上下文，不能为空。
  * @param log_path 日志文件路径，不能为空。
  */
-operation_result_t file_event_logger_init(device_runtime_t system_context, const char *log_path);
+operation_result_t file_event_logger_init(device_runtime_t device_runtime, const char *log_path);
 
 #endif

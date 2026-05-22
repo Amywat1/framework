@@ -15,11 +15,11 @@
 
 /**
  * @brief 根据最新上下文结果重建 formal command 响应行。
- * @param system_context 系统上下文句柄。
+ * @param device_runtime 系统上下文句柄。
  * @param response_line 输出响应缓冲区。
  * @param response_line_size 输出缓冲区大小。
  */
-static void stdio_formal_command_adapter_rebuild_response(const device_runtime_t system_context, char *response_line,
+static void stdio_formal_command_adapter_rebuild_response(const device_runtime_t device_runtime, char *response_line,
                                                           size_t response_line_size)
 {
     const char *detail;
@@ -30,11 +30,11 @@ static void stdio_formal_command_adapter_rebuild_response(const device_runtime_t
         return;
     }
 
-    result_code = device_runtime_last_result_code(system_context)[0] != '\0'
-                      ? device_runtime_last_result_code(system_context)
+    result_code = device_runtime_last_result_code(device_runtime)[0] != '\0'
+                      ? device_runtime_last_result_code(device_runtime)
                       : "accepted";
-    detail = device_runtime_last_reason_code(system_context)[0] != '\0'
-                 ? device_runtime_last_reason_code(system_context)
+    detail = device_runtime_last_reason_code(device_runtime)[0] != '\0'
+                 ? device_runtime_last_reason_code(device_runtime)
                  : "none";
     process_formal_command_format_response(response_line, response_line_size, result_code,
                                            process_formal_command_result_is_accepted(result_code), detail);
@@ -174,10 +174,10 @@ static operation_result_t stdio_formal_command_adapter_process_line(
     }
     memset(response_line, 0, response_line_size);
 
-    pending_before = device_runtime_pending_trigger_count(controller_scheduler->system_context);
-    result = process_formal_command_execute(controller_scheduler->system_context, command_line, response_line,
+    pending_before = device_runtime_pending_trigger_count(controller_scheduler->device_runtime);
+    result = process_formal_command_execute(controller_scheduler->device_runtime, command_line, response_line,
                                             response_line_size);
-    queued_work = device_runtime_pending_trigger_count(controller_scheduler->system_context) > pending_before;
+    queued_work = device_runtime_pending_trigger_count(controller_scheduler->device_runtime) > pending_before;
     if (result.ok && queued_work &&
         controller_scheduler->runtime_state == CONTROLLER_SCHEDULER_RUNTIME_STATE_RUNNING)
     {
@@ -186,7 +186,7 @@ static operation_result_t stdio_formal_command_adapter_process_line(
         {
             return result;
         }
-        stdio_formal_command_adapter_rebuild_response(controller_scheduler->system_context, response_line,
+        stdio_formal_command_adapter_rebuild_response(controller_scheduler->device_runtime, response_line,
                                                       response_line_size);
     }
     if (!result.ok && response_line[0] == '\0')

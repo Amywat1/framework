@@ -7,7 +7,7 @@
 #define BACKGROUND_ALARM_CORRELATION_KEY "background-alarm-monitor"
 #define BACKGROUND_ALARM_SOURCE "background-alarm-monitor"
 
-operation_result_t alarm_detect_job_process_snapshot(device_runtime_t system_context,
+operation_result_t alarm_detect_job_process_snapshot(device_runtime_t device_runtime,
                                                      alarm_evaluator_t *alarm_evaluator,
                                                      const sensor_snapshot_t *sensor_snapshot,
                                                      unsigned long occurred_at_ms)
@@ -19,7 +19,7 @@ operation_result_t alarm_detect_job_process_snapshot(device_runtime_t system_con
 
     fault_code = 0;
     fault_occurred_at_ms = 0ul;
-    if (system_context == 0 || alarm_evaluator == 0 || sensor_snapshot == 0)
+    if (device_runtime == 0 || alarm_evaluator == 0 || sensor_snapshot == 0)
     {
         return operation_result_fail(ERROR_CODE_INVALID_ARGUMENT);
     }
@@ -32,7 +32,7 @@ operation_result_t alarm_detect_job_process_snapshot(device_runtime_t system_con
     wash_trigger_event_init(&wash_trigger_event, TRIGGER_TYPE_FAULT, 0, fault_code, BACKGROUND_ALARM_CORRELATION_KEY,
                             fault_occurred_at_ms);
     strncpy(wash_trigger_event.source, BACKGROUND_ALARM_SOURCE, sizeof(wash_trigger_event.source) - 1u);
-    result = device_runtime_private_enqueue_external_trigger(system_context, &wash_trigger_event);
+    result = device_runtime_private_enqueue_external_trigger(device_runtime, &wash_trigger_event);
     if (!result.ok)
     {
         return result;

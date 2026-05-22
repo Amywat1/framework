@@ -75,23 +75,23 @@ void runtime_result_projection_set_transition(runtime_result_projection_t *runti
                            sizeof(runtime_result_projection->transition_reason_code), reason_code);
 }
 
-void runtime_event_recorder_set_latest_result(device_runtime_t system_context, const char *result_code,
+void runtime_event_recorder_set_latest_result(device_runtime_t device_runtime, const char *result_code,
                                               const char *reason_code)
 {
-    if (!device_runtime_private_require_active(system_context).ok)
+    if (!device_runtime_private_require_active(device_runtime).ok)
     {
         return;
     }
-    device_runtime_private_set_latest_result(system_context, result_code, reason_code);
+    device_runtime_private_set_latest_result(device_runtime, result_code, reason_code);
 }
 
-void runtime_event_recorder_apply_projection(device_runtime_t system_context,
+void runtime_event_recorder_apply_projection(device_runtime_t device_runtime,
                                              const runtime_result_projection_t *runtime_result_projection)
 {
     const event_logger_port_t *event_logger_port;
     state_transition_record_t *last_transition_record;
 
-    if (!device_runtime_private_require_active(system_context).ok)
+    if (!device_runtime_private_require_active(device_runtime).ok)
     {
         return;
     }
@@ -102,7 +102,7 @@ void runtime_event_recorder_apply_projection(device_runtime_t system_context,
 
     if (runtime_result_projection->updates_latest_result)
     {
-        runtime_event_recorder_set_latest_result(system_context, runtime_result_projection->latest_result_code,
+        runtime_event_recorder_set_latest_result(device_runtime, runtime_result_projection->latest_result_code,
                                                  runtime_result_projection->latest_reason_code);
     }
     if (!runtime_result_projection->records_transition)
@@ -110,8 +110,8 @@ void runtime_event_recorder_apply_projection(device_runtime_t system_context,
         return;
     }
 
-    last_transition_record = device_runtime_private_last_transition_record_mutable(system_context);
-    event_logger_port = device_runtime_private_event_logger_port(system_context);
+    last_transition_record = device_runtime_private_last_transition_record_mutable(device_runtime);
+    event_logger_port = device_runtime_private_event_logger_port(device_runtime);
     if (last_transition_record == 0 || event_logger_port == 0)
     {
         return;
@@ -124,7 +124,7 @@ void runtime_event_recorder_apply_projection(device_runtime_t system_context,
                                  safe_runtime_field(runtime_result_projection->current_state),
                                  safe_runtime_field(runtime_result_projection->transition_result_code),
                                  safe_runtime_field(runtime_result_projection->transition_reason_code),
-                                 device_runtime_current_time_ms(system_context));
+                                 device_runtime_current_time_ms(device_runtime));
 
     switch (runtime_result_projection->log_kind)
     {

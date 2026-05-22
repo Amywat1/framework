@@ -26,7 +26,7 @@ typedef struct wash_session_status_view_t
     controller_scheduler_state_view_t scheduler_view;
 } wash_session_status_view_t;
 
-operation_result_t query_wash_session_status_execute(const device_runtime_t system_context,
+operation_result_t query_wash_session_status_execute(const device_runtime_t device_runtime,
                                                      wash_session_status_view_t *wash_session_status_view);
 
 #endif

@@ -32,13 +32,13 @@ void process_formal_command_format_response(char *response_line, size_t response
 
 /**
  * @brief 执行一条正式命令并生成单行响应。
- * @param system_context 主控运行时组合根句柄。
+ * @param device_runtime 主控运行时组合根句柄。
  * @param command_line 输入命令行，不能为空。
  * @param response_line 输出响应缓冲区，不能为空。
  * @param response_line_size 输出响应缓冲区大小，必须大于 0。
  * @return 命令受理成功返回 `operation_result_ok()`；参数非法或状态不允许时返回失败结果。
  */
-operation_result_t process_formal_command_execute(device_runtime_t system_context, const char *command_line,
+operation_result_t process_formal_command_execute(device_runtime_t device_runtime, const char *command_line,
                                                   char *response_line, size_t response_line_size);
 
 #endif

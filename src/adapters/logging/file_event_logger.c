@@ -67,12 +67,12 @@ static int log_ignored_impl(void *context, const state_transition_record_t *stat
     return write_transition_record(context, "ignored", state_transition_record);
 }
 
-operation_result_t file_event_logger_init(device_runtime_t system_context, const char *log_path)
+operation_result_t file_event_logger_init(device_runtime_t device_runtime, const char *log_path)
 {
     event_logger_port_t event_logger_port;
     FILE *probe_file;
 
-    if (!device_runtime_require_active(system_context).ok)
+    if (!device_runtime_require_active(device_runtime).ok)
     {
         return operation_result_fail(ERROR_CODE_INVALID_STATE);
     }
@@ -96,6 +96,6 @@ operation_result_t file_event_logger_init(device_runtime_t system_context, const
     event_logger_port.log_transition = log_transition_impl;
     event_logger_port.log_rejection = log_rejection_impl;
     event_logger_port.log_ignored = log_ignored_impl;
-    device_runtime_set_event_logger_port(system_context, &event_logger_port);
+    device_runtime_set_event_logger_port(device_runtime, &event_logger_port);
     return operation_result_ok();
 }
