@@ -4,6 +4,7 @@
 #include <stdbool.h>
 #include <stdio.h>
 
+#include "application/coordinators/scheduler_runtime_port.h"
 #include "shared/result_types.h"
 
 /**
@@ -11,8 +12,6 @@
  * @brief 声明平台调度器抽象与运行态视图。
  */
 
-struct device_runtime_handle;
-typedef struct device_runtime_handle *device_runtime_t;
 typedef struct controller_scheduler_t controller_scheduler_t;
 
 /**
@@ -117,12 +116,12 @@ typedef struct controller_scheduler_state_view_t
 /**
  * @brief 创建当前平台的调度器实例。
  *
- * @param device_runtime 主控运行时组合根句柄。
+ * @param runtime_port 调度器运行时端口，不能为空，各函数指针必须有效。
  * @param controller_scheduler_config 调度器配置。
  * @param controller_scheduler_stdio 可选的标准输入输出绑定。
- * @return 成功时返回调度器对象；参数非法、句柄失效或底层资源初始化失败时返回 `0`。
+ * @return 成功时返回调度器对象；参数非法或底层资源初始化失败时返回 `0`。
  */
-controller_scheduler_t *controller_scheduler_create(device_runtime_t device_runtime,
+controller_scheduler_t *controller_scheduler_create(const scheduler_runtime_port_t *runtime_port,
                                                     const controller_scheduler_config_t *controller_scheduler_config,
                                                     const controller_scheduler_stdio_t *controller_scheduler_stdio);
 
@@ -158,16 +157,5 @@ operation_result_t controller_scheduler_request_stop(controller_scheduler_t *con
  */
 operation_result_t controller_scheduler_read_view(const controller_scheduler_t *controller_scheduler,
                                                   controller_scheduler_state_view_t *state_view);
-
-/**
- * @brief 通过 `device_runtime` 读取其绑定调度器的运行态视图。
- *
- * @param device_runtime 主控运行时组合根句柄。
- * @param state_view 输出运行态视图。
- * @return 成功时返回 `operation_result_ok()`；句柄非法、已释放或未绑定调度器时返回失败结果。
- */
-operation_result_t
-controller_scheduler_read_context_view(const device_runtime_t device_runtime,
-                                       controller_scheduler_state_view_t *state_view);
 
 #endif

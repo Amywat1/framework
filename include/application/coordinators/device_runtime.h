@@ -3,6 +3,7 @@
 
 #include <stdbool.h>
 
+#include "application/coordinators/scheduler_runtime_port.h"
 #include "domain/model/domain_enums.h"
 #include "domain/model/wait_condition.h"
 #include "domain/model/wash_trigger_event.h"
@@ -262,5 +263,16 @@ void device_runtime_advance_time(device_runtime_t device_runtime, unsigned long 
  * @return 事件日志端口只读指针；无上下文时返回 `0`。
  */
 const event_logger_port_t *device_runtime_event_logger_port(const device_runtime_t device_runtime);
+
+/**
+ * @brief 从 device_runtime 实例填充调度器运行时端口。
+ *
+ * @details 由应用层提供的适配器，将 device_runtime 各项能力映射到
+ *          `scheduler_runtime_port_t` 函数指针接口，供基础设施层调度器使用。
+ * @param port 待写入端口，不能为空。
+ * @param device_runtime 主控运行时句柄，不能为空。
+ */
+void scheduler_runtime_port_init_from_device_runtime(scheduler_runtime_port_t *port,
+                                                     device_runtime_t device_runtime);
 
 #endif

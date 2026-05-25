@@ -57,9 +57,6 @@ typedef struct wash_app_status_view_t
     wash_app_lifecycle_state_t lifecycle_state;
     bool device_runtime_acquired;
     bool scheduler_created;
-    bool run_invoked;
-    error_code_t last_error_code;
-    char last_reason_code[64];
     bool scheduler_view_available;
     controller_scheduler_state_view_t scheduler_view;
 } wash_app_status_view_t;

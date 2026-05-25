@@ -70,7 +70,7 @@ operation_result_t device_runtime_private_require_active(const device_runtime_t 
     return require_active_instance(device_runtime);
 }
 
-operation_result_t device_runtime_private_complete_initialization(device_runtime_t device_runtime)
+operation_result_t device_runtime_private_enter_stopped(device_runtime_t device_runtime)
 {
     device_runtime_state_t *runtime;
     operation_result_t result;
@@ -694,7 +694,7 @@ operation_result_t device_runtime_reset(device_runtime_t device_runtime)
     runtime->actuator_port = actuator_port;
     runtime->event_logger_port = event_logger_port;
     runtime->program_repository_port = program_repository_port;
-    return device_runtime_private_complete_initialization(device_runtime);
+    return device_runtime_private_enter_stopped(device_runtime);
 }
 
 void device_runtime_set_sensor_port(device_runtime_t device_runtime, const sensor_port_t *sensor_port)

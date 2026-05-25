@@ -4,6 +4,7 @@
 
 #include "adapters/logging/file_event_logger.h"
 #include "adapters/outbound/file_program_repository.h"
+#include "application/coordinators/scheduler_runtime_port.h"
 #include "platform/background_alarm_monitor.h"
 #include "src/startup/wash_app_private.h"
 #include "src/application/coordinators/device_runtime_private.h"
@@ -17,15 +18,11 @@ typedef struct wash_app_state_t
 {
     wash_app_lifecycle_state_t lifecycle_state;
     bool occupied;
-    bool run_invoked;
     bool device_runtime_acquired;
     bool scheduler_created;
-    error_code_t last_error_code;
-    char last_reason_code[64];
     device_runtime_t device_runtime;
     controller_scheduler_t *scheduler;
     background_alarm_monitor_t *background_alarm_monitor;
-    wash_app_config_t config_snapshot;
 } wash_app_state_t;
 
 static wash_app_state_t g_wash_app_state;
@@ -38,7 +35,7 @@ static bool string_present(const char *value) { return value != 0 && value[0] !=
 
 /**
  * @brief 校验后台报警监控配置是否满足最小要求。
- * @param config runtime 创建配置。
+ * @param config app 创建配置。
  * @return 配置合法时返回 `operation_result_ok()`，否则返回失败结果。
  */
 static operation_result_t validate_alarm_monitor_config(const wash_app_config_t *config)
@@ -65,9 +62,10 @@ static operation_result_t validate_alarm_monitor_config(const wash_app_config_t 
 
 /**
  * @brief 创建可选的后台报警监控组件。
+ * @param config wash_app 创建配置。
  * @return 创建成功返回 `operation_result_ok()`，否则返回失败结果。
  */
-static operation_result_t create_alarm_monitor(void)
+static operation_result_t create_alarm_monitor(const wash_app_config_t *config)
 {
     background_alarm_monitor_config_t monitor_config;
 
@@ -75,15 +73,15 @@ static operation_result_t create_alarm_monitor(void)
     {
         return operation_result_ok();
     }
-    if (!g_wash_app_state.config_snapshot.background_alarm_monitor.enabled)
+    if (!config->background_alarm_monitor.enabled)
     {
         return operation_result_ok();
     }
 
     memset(&monitor_config, 0, sizeof(monitor_config));
-    monitor_config.settings = g_wash_app_state.config_snapshot.background_alarm_monitor;
+    monitor_config.settings = config->background_alarm_monitor;
     monitor_config.device_runtime = g_wash_app_state.device_runtime;
-    monitor_config.sensor_port = g_wash_app_state.config_snapshot.sensor_port;
+    monitor_config.sensor_port = config->sensor_port;
     return background_alarm_monitor_create(&g_wash_app_state.background_alarm_monitor, &monitor_config);
 }
 
@@ -114,36 +112,9 @@ static void destroy_alarm_monitor(void)
 }
 
 /**
- * @brief 从 device_runtime 复制最近原因码到 app_state。
- * @param app_state 目标运行状态结构。
- * @note 复制前会先清空本地缓冲区。
- */
-static void copy_last_reason(wash_app_state_t *app_state)
-{
-    const char *reason_code;
-
-    if (app_state == 0)
-    {
-        return;
-    }
-
-    memset(app_state->last_reason_code, 0, sizeof(app_state->last_reason_code));
-    if (app_state->device_runtime == 0)
-    {
-        return;
-    }
-
-    reason_code = device_runtime_last_reason_code(app_state->device_runtime);
-    if (reason_code != 0)
-    {
-        strncpy(app_state->last_reason_code, reason_code, sizeof(app_state->last_reason_code) - 1u);
-    }
-}
-
-/**
  * @brief 从全局运行状态构建当前 wash_app 状态快照。
  * @param[out] status_view 输出状态视图。
- * @details 包含生命周期、错误码、原因码和调度器视图等信息。
+ * @details 包含生命周期和调度器视图等信息。
  */
 static void build_status_view(wash_app_status_view_t *status_view)
 {
@@ -156,41 +127,12 @@ static void build_status_view(wash_app_status_view_t *status_view)
     status_view->lifecycle_state = g_wash_app_state.lifecycle_state;
     status_view->device_runtime_acquired = g_wash_app_state.device_runtime_acquired;
     status_view->scheduler_created = g_wash_app_state.scheduler_created;
-    status_view->run_invoked = g_wash_app_state.run_invoked;
-    status_view->last_error_code = g_wash_app_state.last_error_code;
-    /* 预留 1 字节给 null 终止符，避免缓冲区越界。 */
-    strncpy(status_view->last_reason_code, g_wash_app_state.last_reason_code,
-            sizeof(status_view->last_reason_code) - 1u);
 
     if (g_wash_app_state.scheduler != 0 &&
         controller_scheduler_read_view(g_wash_app_state.scheduler, &status_view->scheduler_view)
             .ok)
     {
         status_view->scheduler_view_available = true;
-    }
-}
-
-/**
- * @brief 为已销毁 wash_app 构建状态视图。
- * @param[out] status_view 输出状态视图。
- * @param last_error_code 最后的错误码。
- * @param last_reason_code 最后的原因码。
- * @details 生命周期会标记为 `WASH_APP_STATE_DESTROYED`。
- */
-static void build_destroyed_status_view(wash_app_status_view_t *status_view,
-                                                error_code_t last_error_code, const char *last_reason_code)
-{
-    if (status_view == 0)
-    {
-        return;
-    }
-
-    memset(status_view, 0, sizeof(*status_view));
-    status_view->lifecycle_state = WASH_APP_STATE_DESTROYED;
-    status_view->last_error_code = last_error_code;
-    if (last_reason_code != 0)
-    {
-        strncpy(status_view->last_reason_code, last_reason_code, sizeof(status_view->last_reason_code) - 1u);
     }
 }
 
@@ -206,7 +148,6 @@ static void zero_borrowed_bindings(wash_app_state_t *app_state)
         return;
     }
 
-    memset(&app_state->config_snapshot, 0, sizeof(app_state->config_snapshot));
     app_state->scheduler = 0;
     app_state->background_alarm_monitor = 0;
     app_state->device_runtime = 0;
@@ -244,16 +185,16 @@ static operation_result_t validate_scheduler_config(const controller_scheduler_c
 
 /**
  * @brief 验证句柄是否指向当前活跃 wash_app 实例。
- * @param runtime 待验证句柄。
- * @return 句柄合法且 runtime 当前被占用时返回 `ok`，否则返回失败。
+ * @param app 待验证句柄。
+ * @return 句柄合法且 app 当前被占用时返回 `ok`，否则返回失败。
  */
-static operation_result_t require_current_handle(const wash_app_t *runtime)
+static operation_result_t require_current_handle(const wash_app_t *app)
 {
-    if (runtime == 0)
+    if (app == 0)
     {
         return operation_result_fail(ERROR_CODE_INVALID_ARGUMENT);
     }
-    if (runtime != &g_wash_app_handle)
+    if (app != &g_wash_app_handle)
     {
         return operation_result_fail(ERROR_CODE_INVALID_ARGUMENT);
     }
@@ -274,8 +215,6 @@ static operation_result_t destroy_owned_resources(void)
     operation_result_t release_result;
     error_code_t destroy_error_code;
 
-    copy_last_reason(&g_wash_app_state);
-    g_wash_app_state.last_error_code = ERROR_CODE_OK;
     destroy_error_code = ERROR_CODE_OK;
     release_result = operation_result_ok();
 
@@ -283,6 +222,7 @@ static operation_result_t destroy_owned_resources(void)
 
     if (g_wash_app_state.scheduler != 0)
     {
+        device_runtime_unbind_scheduler(g_wash_app_state.device_runtime);
         controller_scheduler_destroy(g_wash_app_state.scheduler);
         g_wash_app_state.scheduler = 0;
     }
@@ -295,7 +235,6 @@ static operation_result_t destroy_owned_resources(void)
         g_wash_app_state.device_runtime_acquired = false;
         if (!release_result.ok)
         {
-            g_wash_app_state.last_error_code = release_result.error_code;
             destroy_error_code = release_result.error_code;
         }
     }
@@ -346,16 +285,17 @@ operation_result_t wash_app_config_validate(const wash_app_config_t *config)
     return operation_result_ok();
 }
 
-operation_result_t wash_app_create(wash_app_t **runtime, const wash_app_config_t *config)
+operation_result_t wash_app_create(wash_app_t **app, const wash_app_config_t *config)
 {
     controller_scheduler_stdio_t scheduler_stdio;
+    scheduler_runtime_port_t scheduler_port;
     operation_result_t result;
 
-    if (runtime == 0)
+    if (app == 0)
     {
         return operation_result_fail(ERROR_CODE_INVALID_ARGUMENT);
     }
-    *runtime = 0;
+    *app = 0;
 
     result = wash_app_config_validate(config);
     if (!result.ok)
@@ -370,15 +310,12 @@ operation_result_t wash_app_create(wash_app_t **runtime, const wash_app_config_t
     memset(&g_wash_app_state, 0, sizeof(g_wash_app_state));
     g_wash_app_state.occupied = true;
     g_wash_app_state.lifecycle_state = WASH_APP_STATE_UNAVAILABLE;
-    g_wash_app_state.last_error_code = ERROR_CODE_OK;
-    g_wash_app_state.config_snapshot = *config;
-
     result = device_runtime_acquire(&g_wash_app_state.device_runtime);
     if (!result.ok || g_wash_app_state.device_runtime == 0)
     {
-        g_wash_app_state.last_error_code = result.ok ? ERROR_CODE_RESOURCE_UNAVAILABLE : result.error_code;
+        error_code_t error_code = result.ok ? ERROR_CODE_RESOURCE_UNAVAILABLE : result.error_code;
         (void)destroy_owned_resources();
-        return operation_result_fail(g_wash_app_state.last_error_code);
+        return operation_result_fail(error_code);
     }
     g_wash_app_state.device_runtime_acquired = true;
 
@@ -388,8 +325,6 @@ operation_result_t wash_app_create(wash_app_t **runtime, const wash_app_config_t
     result = file_program_repository_init(g_wash_app_state.device_runtime, config->config_root);
     if (!result.ok)
     {
-        g_wash_app_state.last_error_code = result.error_code;
-        copy_last_reason(&g_wash_app_state);
         (void)destroy_owned_resources();
         return result;
     }
@@ -397,26 +332,20 @@ operation_result_t wash_app_create(wash_app_t **runtime, const wash_app_config_t
     result = file_event_logger_init(g_wash_app_state.device_runtime, config->event_log_path);
     if (!result.ok)
     {
-        g_wash_app_state.last_error_code = result.error_code;
-        copy_last_reason(&g_wash_app_state);
         (void)destroy_owned_resources();
         return result;
     }
 
-    result = device_runtime_private_complete_initialization(g_wash_app_state.device_runtime);
+    result = device_runtime_private_enter_stopped(g_wash_app_state.device_runtime);
     if (!result.ok)
     {
-        g_wash_app_state.last_error_code = result.error_code;
-        copy_last_reason(&g_wash_app_state);
         (void)destroy_owned_resources();
         return result;
     }
 
-    result = create_alarm_monitor();
+    result = create_alarm_monitor(config);
     if (!result.ok)
     {
-        g_wash_app_state.last_error_code = result.error_code;
-        copy_last_reason(&g_wash_app_state);
         (void)destroy_owned_resources();
         return result;
     }
@@ -425,28 +354,32 @@ operation_result_t wash_app_create(wash_app_t **runtime, const wash_app_config_t
     scheduler_stdio.input = config->command_input;
     scheduler_stdio.output = config->command_output;
     scheduler_stdio.error = config->command_error;
+    scheduler_runtime_port_init_from_device_runtime(&scheduler_port, g_wash_app_state.device_runtime);
     g_wash_app_state.scheduler = controller_scheduler_create(
-        g_wash_app_state.device_runtime, config->scheduler_config, &scheduler_stdio);
+        &scheduler_port, config->scheduler_config, &scheduler_stdio);
     if (g_wash_app_state.scheduler == 0)
     {
-        g_wash_app_state.last_error_code = ERROR_CODE_IO_FAILED;
-        copy_last_reason(&g_wash_app_state);
         (void)destroy_owned_resources();
         return operation_result_fail(ERROR_CODE_IO_FAILED);
+    }
+    result = device_runtime_bind_scheduler(g_wash_app_state.device_runtime, g_wash_app_state.scheduler);
+    if (!result.ok)
+    {
+        (void)destroy_owned_resources();
+        return result;
     }
 
     g_wash_app_state.scheduler_created = true;
     g_wash_app_state.lifecycle_state = WASH_APP_STATE_CREATED;
-    copy_last_reason(&g_wash_app_state);
-    *runtime = &g_wash_app_handle;
+    *app = &g_wash_app_handle;
     return operation_result_ok();
 }
 
-operation_result_t wash_app_run(wash_app_t *runtime)
+operation_result_t wash_app_run(wash_app_t *app)
 {
     operation_result_t result;
 
-    result = require_current_handle(runtime);
+    result = require_current_handle(app);
     if (!result.ok)
     {
         return result;
@@ -461,33 +394,28 @@ operation_result_t wash_app_run(wash_app_t *runtime)
     }
 
     g_wash_app_state.lifecycle_state = WASH_APP_STATE_RUNNING;
-    g_wash_app_state.run_invoked = true;
     result = start_alarm_monitor();
     if (!result.ok)
     {
-        g_wash_app_state.last_error_code = result.error_code;
-        copy_last_reason(&g_wash_app_state);
         g_wash_app_state.lifecycle_state = WASH_APP_STATE_TERMINATED;
         return result;
     }
 
     result = controller_scheduler_run(g_wash_app_state.scheduler);
     stop_alarm_monitor();
-    g_wash_app_state.last_error_code = result.error_code;
-    copy_last_reason(&g_wash_app_state);
     g_wash_app_state.lifecycle_state = WASH_APP_STATE_TERMINATED;
     return result;
 }
 
-operation_result_t wash_app_destroy(wash_app_t *runtime)
+operation_result_t wash_app_destroy(wash_app_t *app)
 {
     operation_result_t result;
 
-    if (runtime == 0)
+    if (app == 0)
     {
         return operation_result_ok();
     }
-    if (runtime != &g_wash_app_handle)
+    if (app != &g_wash_app_handle)
     {
         return operation_result_fail(ERROR_CODE_INVALID_ARGUMENT);
     }
@@ -497,7 +425,7 @@ operation_result_t wash_app_destroy(wash_app_t *runtime)
         return operation_result_ok();
     }
 
-    result = require_current_handle(runtime);
+    result = require_current_handle(app);
     if (!result.ok)
     {
         return result;
@@ -505,7 +433,7 @@ operation_result_t wash_app_destroy(wash_app_t *runtime)
     return destroy_owned_resources();
 }
 
-operation_result_t wash_app_read_state(const wash_app_t *runtime,
+operation_result_t wash_app_read_state(const wash_app_t *app,
                                                  wash_app_status_view_t *status_view)
 {
     if (status_view == 0)
@@ -513,11 +441,11 @@ operation_result_t wash_app_read_state(const wash_app_t *runtime,
         return operation_result_fail(ERROR_CODE_INVALID_ARGUMENT);
     }
     memset(status_view, 0, sizeof(*status_view));
-    if (runtime == 0)
+    if (app == 0)
     {
         return operation_result_fail(ERROR_CODE_INVALID_ARGUMENT);
     }
-    if (runtime != &g_wash_app_handle)
+    if (app != &g_wash_app_handle)
     {
         return operation_result_fail(ERROR_CODE_INVALID_ARGUMENT);
     }
@@ -528,11 +456,11 @@ operation_result_t wash_app_read_state(const wash_app_t *runtime,
         return operation_result_ok();
     }
 
-    build_destroyed_status_view(status_view, ERROR_CODE_OK, 0);
+    status_view->lifecycle_state = WASH_APP_STATE_DESTROYED;
     return operation_result_ok();
 }
 
-operation_result_t wash_app_private_read_device_runtime(const wash_app_t *runtime,
+operation_result_t wash_app_private_read_device_runtime(const wash_app_t *app,
                                                                   device_runtime_t *out_device_runtime)
 {
     operation_result_t result;
@@ -543,7 +471,7 @@ operation_result_t wash_app_private_read_device_runtime(const wash_app_t *runtim
     }
     *out_device_runtime = 0;
 
-    result = require_current_handle(runtime);
+    result = require_current_handle(app);
     if (!result.ok)
     {
         return result;
@@ -557,9 +485,9 @@ operation_result_t wash_app_private_read_device_runtime(const wash_app_t *runtim
     return operation_result_ok();
 }
 
-controller_scheduler_t *wash_app_private_scheduler(const wash_app_t *runtime)
+controller_scheduler_t *wash_app_private_scheduler(const wash_app_t *app)
 {
-    if (!require_current_handle(runtime).ok || !g_wash_app_state.scheduler_created)
+    if (!require_current_handle(app).ok || !g_wash_app_state.scheduler_created)
     {
         return 0;
     }

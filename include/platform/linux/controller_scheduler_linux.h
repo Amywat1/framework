@@ -4,7 +4,6 @@
 #include <stdbool.h>
 #include <stddef.h>
 
-#include "application/coordinators/device_runtime.h"
 #include "platform/controller_scheduler.h"
 
 /**

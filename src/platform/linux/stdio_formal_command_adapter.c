@@ -174,10 +174,14 @@ static operation_result_t stdio_formal_command_adapter_process_line(
     }
     memset(response_line, 0, response_line_size);
 
-    pending_before = device_runtime_pending_trigger_count(controller_scheduler->device_runtime);
-    result = process_formal_command_execute(controller_scheduler->device_runtime, command_line, response_line,
-                                            response_line_size);
-    queued_work = device_runtime_pending_trigger_count(controller_scheduler->device_runtime) > pending_before;
+    /* runtime_port.context 始终由 scheduler_runtime_port_init_from_device_runtime 写入 device_runtime_t */
+    device_runtime_t device_runtime = (device_runtime_t)controller_scheduler->runtime_port.context;
+    pending_before =
+        controller_scheduler->runtime_port.pending_trigger_count(controller_scheduler->runtime_port.context);
+    result = process_formal_command_execute(device_runtime, command_line, response_line, response_line_size);
+    queued_work =
+        controller_scheduler->runtime_port.pending_trigger_count(controller_scheduler->runtime_port.context) >
+        pending_before;
     if (result.ok && queued_work &&
         controller_scheduler->runtime_state == CONTROLLER_SCHEDULER_RUNTIME_STATE_RUNNING)
     {
@@ -186,8 +190,7 @@ static operation_result_t stdio_formal_command_adapter_process_line(
         {
             return result;
         }
-        stdio_formal_command_adapter_rebuild_response(controller_scheduler->device_runtime, response_line,
-                                                      response_line_size);
+        stdio_formal_command_adapter_rebuild_response(device_runtime, response_line, response_line_size);
     }
     if (!result.ok && response_line[0] == '\0')
     {

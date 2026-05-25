@@ -34,11 +34,11 @@
 operation_result_t device_runtime_private_require_active(const device_runtime_t device_runtime);
 
 /**
- * @brief 完成系统上下文的初始化流程，将设备状态推进至 STOPPED。
- * @param device_runtime 系统上下文，调用前必须已通过 `device_runtime_acquire` 获取。
- * @return 初始化成功返回 `operation_result_ok()`；句柄非法时返回失败。
+ * @brief 将设备状态从 INIT 推进至 STOPPED，标志端口装配完成、设备就绪可接受命令。
+ * @param device_runtime 主控运行时句柄，调用前必须已通过 `device_runtime_acquire` 获取。
+ * @return 成功返回 `operation_result_ok()`；设备状态非 INIT 或句柄非法时返回失败。
  */
-operation_result_t device_runtime_private_complete_initialization(device_runtime_t device_runtime);
+operation_result_t device_runtime_private_enter_stopped(device_runtime_t device_runtime);
 
 /** @name 调度器绑定 */
 /** @{ */

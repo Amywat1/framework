@@ -13,8 +13,6 @@
 #include <time.h>
 #include <unistd.h>
 
-#include "application/coordinators/device_runtime.h"
-#include "application/coordinators/control_tick.h"
 #include "domain/model/domain_enums.h"
 #include "shared/error_codes.h"
 #include "src/platform/linux/controller_scheduler_linux_internal.h"
@@ -137,7 +135,7 @@ static void controller_scheduler_log_message(controller_scheduler_t *controller_
 {
     const event_logger_port_t *event_logger_port;
 
-    if (controller_scheduler == 0 || message == 0 || controller_scheduler->device_runtime == 0)
+    if (controller_scheduler == 0 || message == 0)
     {
         return;
     }
@@ -145,7 +143,8 @@ static void controller_scheduler_log_message(controller_scheduler_t *controller_
     {
         return;
     }
-    event_logger_port = device_runtime_event_logger_port(controller_scheduler->device_runtime);
+    event_logger_port = controller_scheduler->runtime_port.event_logger_port(
+        controller_scheduler->runtime_port.context);
     if (event_logger_port != 0 && event_logger_port->log_message != 0)
     {
         event_logger_port->log_message(event_logger_port->context, TRIGGER_TYPE_BUSINESS, message);
@@ -158,12 +157,12 @@ static void controller_scheduler_log_message(controller_scheduler_t *controller_
  */
 void controller_scheduler_update_pending_metric(controller_scheduler_t *controller_scheduler)
 {
-    if (controller_scheduler == 0 || controller_scheduler->device_runtime == 0)
+    if (controller_scheduler == 0)
     {
         return;
     }
     controller_scheduler->metrics.pending_trigger_count =
-        device_runtime_pending_trigger_count(controller_scheduler->device_runtime);
+        controller_scheduler->runtime_port.pending_trigger_count(controller_scheduler->runtime_port.context);
 }
 
 /**
@@ -198,7 +197,7 @@ void controller_scheduler_note_command_event(controller_scheduler_t *controller_
         return;
     }
 
-    seen_time_ms = device_runtime_current_time_ms(controller_scheduler->device_runtime);
+    seen_time_ms = controller_scheduler->runtime_port.current_time_ms(controller_scheduler->runtime_port.context);
     controller_scheduler->metrics.command_event_count += 1ul;
     controller_scheduler_note_source_event(&controller_scheduler->command_source, 1ul, seen_time_ms);
     snprintf(log_line, sizeof(log_line), "scheduler command line=%s", command_line);
@@ -237,7 +236,7 @@ operation_result_t controller_scheduler_execute_bounded_ticks(controller_schedul
     unsigned int remaining_runs;
     unsigned long cycle_start_ms;
 
-    if (controller_scheduler == 0 || controller_scheduler->device_runtime == 0)
+    if (controller_scheduler == 0)
     {
         return operation_result_fail(ERROR_CODE_INVALID_ARGUMENT);
     }
@@ -246,7 +245,7 @@ operation_result_t controller_scheduler_execute_bounded_ticks(controller_schedul
     controller_scheduler->last_cycle_start_ms = cycle_start_ms;
     if (advance_time)
     {
-        control_tick_advance_time(controller_scheduler->device_runtime, elapsed_ms);
+        controller_scheduler->runtime_port.advance_time(controller_scheduler->runtime_port.context, elapsed_ms);
     }
 
     remaining_runs = controller_scheduler->config.max_triggers_per_tick > 0u
@@ -260,14 +259,15 @@ operation_result_t controller_scheduler_execute_bounded_ticks(controller_schedul
             controller_scheduler_record_error(controller_scheduler, "control_tick_run_failed", true);
             return operation_result_fail(ERROR_CODE_IO_FAILED);
         }
-        result = control_tick_run(controller_scheduler->device_runtime);
+        result = controller_scheduler->runtime_port.run_control_tick(controller_scheduler->runtime_port.context);
         if (!result.ok)
         {
             controller_scheduler_record_error(controller_scheduler, "control_tick_run_failed", true);
             return result;
         }
         remaining_runs -= 1u;
-        if (remaining_runs == 0u || device_runtime_pending_trigger_count(controller_scheduler->device_runtime) == 0u)
+        if (remaining_runs == 0u ||
+            controller_scheduler->runtime_port.pending_trigger_count(controller_scheduler->runtime_port.context) == 0u)
         {
             break;
         }
@@ -324,7 +324,7 @@ static operation_result_t controller_scheduler_handle_notification(controller_sc
         return operation_result_ok();
     }
 
-    seen_time_ms = device_runtime_current_time_ms(controller_scheduler->device_runtime);
+    seen_time_ms = controller_scheduler->runtime_port.current_time_ms(controller_scheduler->runtime_port.context);
     controller_scheduler->metrics.notification_event_count += notification_count;
     controller_scheduler->notification_snapshot.snapshot_version += notification_count;
     controller_scheduler->notification_snapshot.captured_time_ms = seen_time_ms;
@@ -353,7 +353,7 @@ static operation_result_t controller_scheduler_handle_exit(controller_scheduler_
     }
 
     controller_scheduler->pending_exit_event = false;
-    seen_time_ms = device_runtime_current_time_ms(controller_scheduler->device_runtime);
+    seen_time_ms = controller_scheduler->runtime_port.current_time_ms(controller_scheduler->runtime_port.context);
     controller_scheduler->metrics.exit_event_count += 1ul;
     controller_scheduler_note_source_event(&controller_scheduler->exit_source, 1ul, seen_time_ms);
 
@@ -436,7 +436,7 @@ static operation_result_t controller_scheduler_service_drain(controller_schedule
     {
         return operation_result_ok();
     }
-    if (!device_runtime_has_pending_work(controller_scheduler->device_runtime))
+    if (!controller_scheduler->runtime_port.has_pending_work(controller_scheduler->runtime_port.context))
     {
         controller_scheduler->runtime_state = CONTROLLER_SCHEDULER_RUNTIME_STATE_STOPPED;
         return operation_result_ok();
@@ -454,7 +454,7 @@ static operation_result_t controller_scheduler_service_drain(controller_schedule
     {
         return result;
     }
-    if (!device_runtime_has_pending_work(controller_scheduler->device_runtime))
+    if (!controller_scheduler->runtime_port.has_pending_work(controller_scheduler->runtime_port.context))
     {
         controller_scheduler->runtime_state = CONTROLLER_SCHEDULER_RUNTIME_STATE_STOPPED;
     }
@@ -653,13 +653,13 @@ static void controller_scheduler_linux_destroy_impl(controller_scheduler_t *cont
 
 /**
  * @brief 创建 Linux 调度器内部实例。
- * @param device_runtime 主控运行时组合根句柄。
+ * @param runtime_port 调度器运行时端口，不能为空，各函数指针必须有效。
  * @param controller_scheduler_config 调度器配置。
  * @param controller_scheduler_stdio 可选标准输入输出绑定。
  * @return 创建成功返回调度器对象；失败时返回 `0`。
  */
 static controller_scheduler_t *
-controller_scheduler_linux_create_impl(device_runtime_t device_runtime,
+controller_scheduler_linux_create_impl(const scheduler_runtime_port_t *runtime_port,
                                        const controller_scheduler_config_t *controller_scheduler_config,
                                        const controller_scheduler_stdio_t *controller_scheduler_stdio)
 {
@@ -668,7 +668,7 @@ controller_scheduler_linux_create_impl(device_runtime_t device_runtime,
     operation_result_t result;
     int command_fd;
 
-    if (!device_runtime_require_active(device_runtime).ok)
+    if (runtime_port == 0 || runtime_port->current_time_ms == 0 || runtime_port->run_control_tick == 0)
     {
         return 0;
     }
@@ -684,13 +684,7 @@ controller_scheduler_linux_create_impl(device_runtime_t device_runtime,
         return 0;
     }
 
-    controller_scheduler->device_runtime = device_runtime;
-    result = device_runtime_bind_scheduler(device_runtime, controller_scheduler);
-    if (!result.ok)
-    {
-        free(controller_scheduler);
-        return 0;
-    }
+    controller_scheduler->runtime_port = *runtime_port;
 
     controller_scheduler->config = *controller_scheduler_config;
     controller_scheduler->runtime_state = CONTROLLER_SCHEDULER_RUNTIME_STATE_INITIALIZED;
@@ -761,7 +755,6 @@ static void controller_scheduler_linux_destroy_impl(controller_scheduler_t *cont
         return;
     }
 
-    device_runtime_unbind_scheduler(controller_scheduler->device_runtime);
     stdio_formal_command_adapter_restore(&controller_scheduler->command_adapter);
     close_fd_if_needed(&controller_scheduler->timer_fd);
     close_fd_if_needed(&controller_scheduler->wakeup_fd);
@@ -769,11 +762,11 @@ static void controller_scheduler_linux_destroy_impl(controller_scheduler_t *cont
     free(controller_scheduler);
 }
 
-controller_scheduler_t *controller_scheduler_create(device_runtime_t device_runtime,
+controller_scheduler_t *controller_scheduler_create(const scheduler_runtime_port_t *runtime_port,
                                                     const controller_scheduler_config_t *controller_scheduler_config,
                                                     const controller_scheduler_stdio_t *controller_scheduler_stdio)
 {
-    return controller_scheduler_linux_create_impl(device_runtime, controller_scheduler_config,
+    return controller_scheduler_linux_create_impl(runtime_port, controller_scheduler_config,
                                                   controller_scheduler_stdio);
 }
 
@@ -840,31 +833,6 @@ operation_result_t controller_scheduler_read_view(const controller_scheduler_t *
     return operation_result_ok();
 }
 
-operation_result_t
-controller_scheduler_read_context_view(const device_runtime_t device_runtime,
-                                       controller_scheduler_state_view_t *state_view)
-{
-    controller_scheduler_t *controller_scheduler;
-    operation_result_t result;
-
-    if (state_view == 0)
-    {
-        return operation_result_fail(ERROR_CODE_INVALID_ARGUMENT);
-    }
-    result = device_runtime_require_active(device_runtime);
-    if (!result.ok)
-    {
-        memset(state_view, 0, sizeof(*state_view));
-        return result;
-    }
-    controller_scheduler = (controller_scheduler_t *)device_runtime_bound_scheduler(device_runtime);
-    if (controller_scheduler == 0)
-    {
-        memset(state_view, 0, sizeof(*state_view));
-        return operation_result_fail(ERROR_CODE_INVALID_STATE);
-    }
-    return controller_scheduler_read_view(controller_scheduler, state_view);
-}
 
 operation_result_t controller_scheduler_linux_test_inject_period(controller_scheduler_t *controller_scheduler,
                                                                  unsigned int expiration_count)

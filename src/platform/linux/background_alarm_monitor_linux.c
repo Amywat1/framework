@@ -67,7 +67,7 @@ static unsigned long background_alarm_monitor_read_monotonic_ms(void)
  * @param worker_thread 后台线程句柄。
  * @param sleep_ms 总休眠时长。
  */
-static void background_alarm_monitor_sleep_with_stop_check(worker_thread_t *worker_thread, unsigned long sleep_ms)
+static void background_alarm_monitor_sleep_with_stop_check(worker_run_ctx_t *run_ctx, unsigned long sleep_ms)
 {
     static const unsigned long s_sleep_slice_ms = 20ul;
     struct timespec sleep_time;
@@ -75,7 +75,7 @@ static void background_alarm_monitor_sleep_with_stop_check(worker_thread_t *work
     unsigned long current_slice_ms;
 
     remaining_ms = sleep_ms;
-    while (remaining_ms > 0ul && !worker_thread_stop_requested(worker_thread))
+    while (remaining_ms > 0ul && !worker_run_ctx_stop_requested(run_ctx))
     {
         current_slice_ms = remaining_ms > s_sleep_slice_ms ? s_sleep_slice_ms : remaining_ms;
         background_alarm_monitor_build_sleep_time(current_slice_ms, &sleep_time);
@@ -226,7 +226,7 @@ static bool background_alarm_snapshot_mailbox_try_read(background_alarm_snapshot
  * @param worker_thread 后台线程句柄。
  * @param context 监控实例。
  */
-static void background_alarm_monitor_io_entry(worker_thread_t *worker_thread, void *context)
+static void background_alarm_monitor_io_entry(worker_run_ctx_t *run_ctx, void *context)
 {
     background_alarm_monitor_t *monitor;
     sensor_snapshot_t sensor_snapshot;
@@ -238,7 +238,7 @@ static void background_alarm_monitor_io_entry(worker_thread_t *worker_thread, vo
         return;
     }
 
-    while (!worker_thread_stop_requested(worker_thread))
+    while (!worker_run_ctx_stop_requested(run_ctx))
     {
         result = background_alarm_monitor_read_snapshot(monitor->sensor_port, &sensor_snapshot);
         if (result.ok &&
@@ -248,7 +248,7 @@ static void background_alarm_monitor_io_entry(worker_thread_t *worker_thread, vo
             (void)worker_thread_notify(monitor->detect_worker_thread);
         }
 
-        background_alarm_monitor_sleep_with_stop_check(worker_thread, monitor->settings.io_sample_period_ms);
+        background_alarm_monitor_sleep_with_stop_check(run_ctx, monitor->settings.io_sample_period_ms);
     }
 }
 
@@ -257,7 +257,7 @@ static void background_alarm_monitor_io_entry(worker_thread_t *worker_thread, vo
  * @param worker_thread 后台线程句柄。
  * @param context 监控实例。
  */
-static void background_alarm_monitor_detect_entry(worker_thread_t *worker_thread, void *context)
+static void background_alarm_monitor_detect_entry(worker_run_ctx_t *run_ctx, void *context)
 {
     unsigned long last_consumed_sequence;
     background_alarm_monitor_t *monitor;
@@ -271,7 +271,7 @@ static void background_alarm_monitor_detect_entry(worker_thread_t *worker_thread
     }
 
     last_consumed_sequence = 0ul;
-    while (!worker_thread_stop_requested(worker_thread))
+    while (!worker_run_ctx_stop_requested(run_ctx))
     {
         if (background_alarm_snapshot_mailbox_try_read(&monitor->snapshot_mailbox, &last_consumed_sequence,
                                                        &sensor_snapshot, &occurred_at_ms))
@@ -281,7 +281,7 @@ static void background_alarm_monitor_detect_entry(worker_thread_t *worker_thread
             continue;
         }
 
-        (void)worker_thread_wait(worker_thread, monitor->settings.detect_period_ms);
+        (void)worker_run_ctx_wait(run_ctx, monitor->settings.detect_period_ms);
     }
 }
 

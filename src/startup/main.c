@@ -2,6 +2,8 @@
 #include <string.h>
 
 #include "startup/wash_app.h"
+#include "wash_app_private.h"
+#include "application/coordinators/device_runtime.h"
 #include "platform/drivers/simulated_brush_driver.h"
 #include "platform/drivers/simulated_chemical_driver.h"
 #include "platform/drivers/simulated_driver_context.h"
@@ -94,6 +96,7 @@ int main(void)
     {
         const char *scheduler_reason = "none";
         const char *domain_reason = "none";
+        device_runtime_t device_runtime;
 
         (void)wash_app_read_state(app, &status_view);
         if (status_view.scheduler_view_available &&
@@ -101,9 +104,13 @@ int main(void)
         {
             scheduler_reason = status_view.scheduler_view.metrics.last_error_reason;
         }
-        if (status_view.last_reason_code[0] != '\0')
+        if (wash_app_private_read_device_runtime(app, &device_runtime).ok && device_runtime != 0)
         {
-            domain_reason = status_view.last_reason_code;
+            const char *reason = device_runtime_last_reason_code(device_runtime);
+            if (reason != 0 && reason[0] != '\0')
+            {
+                domain_reason = reason;
+            }
         }
         fprintf(stderr, "wash_controller: run failed, scheduler_reason=%s, domain_reason=%s\n", scheduler_reason,
                 domain_reason);

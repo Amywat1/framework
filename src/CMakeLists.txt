@@ -29,6 +29,7 @@ set(WASH_CORE_SOURCES
     application/coordinators/control_tick.c
     application/coordinators/device_runtime.c
     application/coordinators/runtime_event_recorder.c
+    application/coordinators/scheduler_runtime_port.c
     application/jobs/alarm_detect_job.c
     application/use_cases/process_formal_command.c
     application/use_cases/process_wash_trigger.c

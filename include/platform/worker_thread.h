@@ -7,18 +7,25 @@
 
 /**
  * @file worker_thread.h
- * @brief 定义平台层通用后台工作线程壳子接口。
+ * @brief 定义平台层通用后台工作线程接口。
+ *
+ * @details 提供两类句柄：
+ *   - `worker_thread_t`：由创建方持有，用于启动、停止、等待、销毁线程。
+ *   - `worker_run_ctx_t`：由线程入口函数持有，用于查询停止请求和等待通知。
+ *
+ * 两者相互独立，业务入口函数无需引用管理句柄，消除自指依赖。
  */
 
+typedef struct worker_run_ctx_t worker_run_ctx_t;
 typedef struct worker_thread_t worker_thread_t;
 
 /**
- * @brief 后台工作线程入口函数。
+ * @brief 后台工作线程入口函数签名。
  *
- * @param worker_thread 工作线程句柄，可用于查询停止请求状态或等待通知。
+ * @param run_ctx 运行控制句柄，可用于查询停止请求或等待通知。
  * @param context 调用方提供的业务上下文。
  */
-typedef void (*worker_thread_entry_t)(worker_thread_t *worker_thread, void *context);
+typedef void (*worker_thread_entry_t)(worker_run_ctx_t *run_ctx, void *context);
 
 /**
  * @brief 工作线程启动配置。
@@ -28,6 +35,27 @@ typedef struct worker_thread_config_t
     worker_thread_entry_t entry;
     void *context;
 } worker_thread_config_t;
+
+/* — 运行控制 API，在入口函数内部使用 — */
+
+/**
+ * @brief 查询后台工作线程是否已收到停止请求。
+ *
+ * @param run_ctx 运行控制句柄；允许传入 `0`，此时返回 `true`。
+ * @return 已收到停止请求时返回 `true`。
+ */
+bool worker_run_ctx_stop_requested(const worker_run_ctx_t *run_ctx);
+
+/**
+ * @brief 等待一次线程通知或超时。
+ *
+ * @param run_ctx 运行控制句柄；允许传入 `0`，此时返回 `false`。
+ * @param timeout_ms 最大等待时长（毫秒）；传入 `0` 表示仅探测是否已有通知。
+ * @return 收到通知时返回 `true`；超时、句柄无效或已收到停止请求时返回 `false`。
+ */
+bool worker_run_ctx_wait(worker_run_ctx_t *run_ctx, unsigned long timeout_ms);
+
+/* — 管理 API，由创建方使用 — */
 
 /**
  * @brief 启动一个后台工作线程。
@@ -48,29 +76,12 @@ operation_result_t worker_thread_start(worker_thread_t **worker_thread,
 operation_result_t worker_thread_notify(worker_thread_t *worker_thread);
 
 /**
- * @brief 等待一次线程通知或超时。
- *
- * @param worker_thread 工作线程句柄；允许传入 `0`，此时返回 `false`。
- * @param timeout_ms 最大等待时长，单位毫秒；传入 `0` 表示仅探测是否已有通知。
- * @return 收到通知时返回 `true`；超时、句柄无效或已收到停止请求时返回 `false`。
- */
-bool worker_thread_wait(worker_thread_t *worker_thread, unsigned long timeout_ms);
-
-/**
  * @brief 请求后台工作线程尽快停止。
  *
  * @param worker_thread 工作线程句柄；允许传入 `0`，此时为无操作。
- * @return 句柄有效时返回 `operation_result_ok()`；句柄非法时返回失败结果。
+ * @return 句柄有效时返回 `operation_result_ok()`；底层广播失败时返回失败结果。
  */
 operation_result_t worker_thread_request_stop(worker_thread_t *worker_thread);
-
-/**
- * @brief 查询后台工作线程是否已收到停止请求。
- *
- * @param worker_thread 工作线程句柄；允许传入 `0`。
- * @return 已收到停止请求时返回 `true`。
- */
-bool worker_thread_stop_requested(const worker_thread_t *worker_thread);
 
 /**
  * @brief 等待后台工作线程退出。
@@ -83,8 +94,8 @@ operation_result_t worker_thread_join(worker_thread_t *worker_thread);
 /**
  * @brief 销毁后台工作线程句柄。
  *
- * @param worker_thread 工作线程句柄；允许传入 `0`，此时为无操作。
  * @note 若线程仍在运行，会先请求停止并等待退出，再释放句柄。
+ * @param worker_thread 工作线程句柄；允许传入 `0`，此时为无操作。
  */
 void worker_thread_destroy(worker_thread_t *worker_thread);
 
