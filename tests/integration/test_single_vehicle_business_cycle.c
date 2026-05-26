@@ -1,13 +1,13 @@
 #include "application/use_cases/process_wash_trigger.h"
 #include "application/use_cases/query_wash_session_status.h"
 #include "tests/test_support.h"
-#include "src/application/coordinators/system_context_private.h"
+#include "src/application/coordinators/device_runtime_private.h"
 
 #define TEST_PROGRAM_FIXTURE_PATH "tests/fixtures/wash_step_control/program_v1_valid.json"
 #define TEST_PROGRAM_ID "wash_step_control_v1"
 
 typedef struct recovering_probe_context_t {
-    system_context_t system_context;
+    device_runtime_t system_context;
     actuator_port_t actuator_port;
     bool stop_all_observed_recovering;
     bool home_roof_observed_recovering;
@@ -19,7 +19,7 @@ static int recovering_probe_stop_all(void *context, int timeout_ms)
 
     recovering_probe_context = context;
     recovering_probe_context->stop_all_observed_recovering =
-        system_context_private_runtime(recovering_probe_context->system_context)->device_state == DEVICE_STATE_RECOVERING;
+        device_runtime_private_runtime(recovering_probe_context->system_context)->device_state == DEVICE_STATE_RECOVERING;
     return recovering_probe_context->actuator_port.stop_all(
         recovering_probe_context->actuator_port.context,
         timeout_ms);
@@ -31,37 +31,37 @@ static int recovering_probe_home_roof_brush(void *context, int timeout_ms)
 
     recovering_probe_context = context;
     recovering_probe_context->home_roof_observed_recovering =
-        system_context_private_runtime(recovering_probe_context->system_context)->device_state == DEVICE_STATE_RECOVERING;
+        device_runtime_private_runtime(recovering_probe_context->system_context)->device_state == DEVICE_STATE_RECOVERING;
     return recovering_probe_context->actuator_port.home_roof_brush(
         recovering_probe_context->actuator_port.context,
         timeout_ms);
 }
 
-static void install_recovering_probe(system_context_t system_context, recovering_probe_context_t *recovering_probe_context)
+static void install_recovering_probe(device_runtime_t system_context, recovering_probe_context_t *recovering_probe_context)
 {
     actuator_port_t actuator_port;
 
     memset(recovering_probe_context, 0, sizeof(*recovering_probe_context));
     recovering_probe_context->system_context = system_context;
-    recovering_probe_context->actuator_port = system_context_private_runtime(system_context)->actuator_port;
+    recovering_probe_context->actuator_port = device_runtime_private_runtime(system_context)->actuator_port;
 
     actuator_port = recovering_probe_context->actuator_port;
     actuator_port.context = recovering_probe_context;
     actuator_port.stop_all = recovering_probe_stop_all;
     actuator_port.home_roof_brush = recovering_probe_home_roof_brush;
-    system_context_set_actuator_port(system_context, &actuator_port);
+    device_runtime_set_actuator_port(system_context, &actuator_port);
 }
 
-static void mark_session_ready_for_completion(system_context_t system_context)
+static void mark_session_ready_for_completion(device_runtime_t system_context)
 {
     int final_segment_index;
-    system_context_runtime_t *runtime;
+    device_runtime_state_t *runtime;
 
-    runtime = system_context_private_runtime(system_context);
+    runtime = device_runtime_private_runtime(system_context);
     final_segment_index = runtime->program_snapshot.frozen_program.segment_count - 1;
     runtime->wash_execution.segment_index = final_segment_index;
     runtime->wash_execution.execution_state = EXECUTION_STATE_COMPLETED;
-    runtime->wash_execution.lifecycle_state = SEGMENT_LIFECYCLE_COMPLETED;
+    runtime->wash_execution.state = SEGMENT_LIFECYCLE_COMPLETED;
     runtime->wash_execution.execution_result = EXECUTION_RESULT_SEGMENT_COMPLETED;
 }
 
@@ -69,7 +69,7 @@ static int verify_completed_business_cycle_path(void)
 {
     recovering_probe_context_t recovering_probe_context;
     simulated_driver_context_t driver_context;
-    system_context_t system_context;
+    device_runtime_t system_context;
     wash_session_status_view_t wash_session_status_view;
     operation_result_t result;
 
@@ -93,8 +93,8 @@ static int verify_completed_business_cycle_path(void)
     TEST_ASSERT(!wash_session_status_view.has_active_session);
     TEST_ASSERT(wash_session_status_view.device_state == DEVICE_STATE_IDLE);
     TEST_ASSERT(wash_session_status_view.session_state == SESSION_STATE_NONE);
-    TEST_ASSERT(strcmp(system_context_private_runtime(system_context)->last_result_code, "accepted") == 0);
-    TEST_ASSERT(strcmp(system_context_private_runtime(system_context)->last_reason_code, "homing_completed") == 0);
+    TEST_ASSERT(strcmp(device_runtime_private_runtime(system_context)->last_result_code, "accepted") == 0);
+    TEST_ASSERT(strcmp(device_runtime_private_runtime(system_context)->last_reason_code, "homing_completed") == 0);
     TEST_ASSERT(strcmp(wash_session_status_view.reason_code, "homing_completed") == 0);
 
     result = test_start_session_and_flush(system_context, TEST_PROGRAM_ID);
@@ -114,9 +114,9 @@ static int verify_completed_business_cycle_path(void)
     TEST_ASSERT(!wash_session_status_view.has_active_session);
     TEST_ASSERT(wash_session_status_view.device_state == DEVICE_STATE_IDLE);
     TEST_ASSERT(wash_session_status_view.session_state == SESSION_STATE_COMPLETED);
-    TEST_ASSERT(system_context_private_runtime(system_context)->wash_session.final_session_result == RESULT_CODE_SUCCESS);
-    TEST_ASSERT(strcmp(system_context_private_runtime(system_context)->last_result_code, "completed") == 0);
-    TEST_ASSERT(strcmp(system_context_private_runtime(system_context)->last_reason_code, "program_finished") == 0);
+    TEST_ASSERT(device_runtime_private_runtime(system_context)->wash_session.final_session_result == RESULT_CODE_SUCCESS);
+    TEST_ASSERT(strcmp(device_runtime_private_runtime(system_context)->last_result_code, "completed") == 0);
+    TEST_ASSERT(strcmp(device_runtime_private_runtime(system_context)->last_reason_code, "program_finished") == 0);
     TEST_ASSERT(strcmp(wash_session_status_view.reason_code, "program_finished") == 0);
 
     test_release_system_context(system_context);
@@ -126,7 +126,7 @@ static int verify_completed_business_cycle_path(void)
 static int verify_manual_stop_cycle_path(void)
 {
     simulated_driver_context_t driver_context;
-    system_context_t system_context;
+    device_runtime_t system_context;
     wash_session_status_view_t wash_session_status_view;
     operation_result_t result;
 
@@ -150,10 +150,10 @@ static int verify_manual_stop_cycle_path(void)
     TEST_ASSERT(!wash_session_status_view.has_active_session);
     TEST_ASSERT(wash_session_status_view.device_state == DEVICE_STATE_STOPPED);
     TEST_ASSERT(wash_session_status_view.session_state == SESSION_STATE_ABORTED);
-    TEST_ASSERT(system_context_private_runtime(system_context)->wash_session.final_session_result == RESULT_CODE_MANUAL_ABORT);
-    TEST_ASSERT(system_context_private_runtime(system_context)->wash_execution.execution_result == EXECUTION_RESULT_STOPPED);
-    TEST_ASSERT(strcmp(system_context_private_runtime(system_context)->last_result_code, "aborted") == 0);
-    TEST_ASSERT(strcmp(system_context_private_runtime(system_context)->last_reason_code, "manual-stop") == 0);
+    TEST_ASSERT(device_runtime_private_runtime(system_context)->wash_session.final_session_result == RESULT_CODE_MANUAL_ABORT);
+    TEST_ASSERT(device_runtime_private_runtime(system_context)->wash_execution.execution_result == EXECUTION_RESULT_STOPPED);
+    TEST_ASSERT(strcmp(device_runtime_private_runtime(system_context)->last_result_code, "aborted") == 0);
+    TEST_ASSERT(strcmp(device_runtime_private_runtime(system_context)->last_reason_code, "manual-stop") == 0);
     TEST_ASSERT(strcmp(wash_session_status_view.reason_code, "manual-stop") == 0);
 
     test_release_system_context(system_context);
@@ -164,7 +164,7 @@ static int verify_fault_clear_recovery_cycle_path(void)
 {
     recovering_probe_context_t recovering_probe_context;
     simulated_driver_context_t driver_context;
-    system_context_t system_context;
+    device_runtime_t system_context;
     wash_session_status_view_t wash_session_status_view;
     operation_result_t result;
 
@@ -184,10 +184,10 @@ static int verify_fault_clear_recovery_cycle_path(void)
     TEST_ASSERT(wash_session_status_view.global_fault_present);
     TEST_ASSERT(wash_session_status_view.device_state == DEVICE_STATE_EXCEPTION);
     TEST_ASSERT(wash_session_status_view.session_state == SESSION_STATE_ABORTED);
-    TEST_ASSERT(system_context_private_runtime(system_context)->wash_session.final_session_result == RESULT_CODE_SAFE_STOP);
-    TEST_ASSERT(system_context_private_runtime(system_context)->wash_execution.execution_result == EXECUTION_RESULT_FAULTED);
-    TEST_ASSERT(strcmp(system_context_private_runtime(system_context)->last_result_code, "aborted") == 0);
-    TEST_ASSERT(strcmp(system_context_private_runtime(system_context)->last_reason_code, "fault-e-stop") == 0);
+    TEST_ASSERT(device_runtime_private_runtime(system_context)->wash_session.final_session_result == RESULT_CODE_SAFE_STOP);
+    TEST_ASSERT(device_runtime_private_runtime(system_context)->wash_execution.execution_result == EXECUTION_RESULT_FAULTED);
+    TEST_ASSERT(strcmp(device_runtime_private_runtime(system_context)->last_result_code, "aborted") == 0);
+    TEST_ASSERT(strcmp(device_runtime_private_runtime(system_context)->last_reason_code, "fault-e-stop") == 0);
     TEST_ASSERT(strcmp(wash_session_status_view.reason_code, "fault-e-stop") == 0);
 
     result = test_clear_fault_and_flush(system_context);
@@ -197,9 +197,9 @@ static int verify_fault_clear_recovery_cycle_path(void)
     TEST_ASSERT(!wash_session_status_view.global_fault_present);
     TEST_ASSERT(wash_session_status_view.device_state == DEVICE_STATE_STOPPED);
     TEST_ASSERT(wash_session_status_view.session_state == SESSION_STATE_ABORTED);
-    TEST_ASSERT(system_context_private_runtime(system_context)->wash_session.final_session_result == RESULT_CODE_SAFE_STOP);
-    TEST_ASSERT(strcmp(system_context_private_runtime(system_context)->last_result_code, "accepted") == 0);
-    TEST_ASSERT(strcmp(system_context_private_runtime(system_context)->last_reason_code, "global_fault_cleared") == 0);
+    TEST_ASSERT(device_runtime_private_runtime(system_context)->wash_session.final_session_result == RESULT_CODE_SAFE_STOP);
+    TEST_ASSERT(strcmp(device_runtime_private_runtime(system_context)->last_result_code, "accepted") == 0);
+    TEST_ASSERT(strcmp(device_runtime_private_runtime(system_context)->last_reason_code, "global_fault_cleared") == 0);
     TEST_ASSERT(strcmp(wash_session_status_view.reason_code, "global_fault_cleared") == 0);
 
     install_recovering_probe(system_context, &recovering_probe_context);
@@ -212,9 +212,9 @@ static int verify_fault_clear_recovery_cycle_path(void)
     TEST_ASSERT(!wash_session_status_view.global_fault_present);
     TEST_ASSERT(wash_session_status_view.device_state == DEVICE_STATE_IDLE);
     TEST_ASSERT(wash_session_status_view.session_state == SESSION_STATE_ABORTED);
-    TEST_ASSERT(system_context_private_runtime(system_context)->wash_session.final_session_result == RESULT_CODE_SAFE_STOP);
-    TEST_ASSERT(strcmp(system_context_private_runtime(system_context)->last_result_code, "accepted") == 0);
-    TEST_ASSERT(strcmp(system_context_private_runtime(system_context)->last_reason_code, "homing_completed") == 0);
+    TEST_ASSERT(device_runtime_private_runtime(system_context)->wash_session.final_session_result == RESULT_CODE_SAFE_STOP);
+    TEST_ASSERT(strcmp(device_runtime_private_runtime(system_context)->last_result_code, "accepted") == 0);
+    TEST_ASSERT(strcmp(device_runtime_private_runtime(system_context)->last_reason_code, "homing_completed") == 0);
     TEST_ASSERT(strcmp(wash_session_status_view.reason_code, "homing_completed") == 0);
 
     test_release_system_context(system_context);

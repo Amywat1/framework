@@ -1,9 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "startup/wash_app.h"
-#include "wash_app_private.h"
-#include "application/coordinators/device_runtime.h"
+#include "startup/app_bootstrap.h"
 #include "platform/drivers/simulated_brush_driver.h"
 #include "platform/drivers/simulated_chemical_driver.h"
 #include "platform/drivers/simulated_driver_context.h"
@@ -40,28 +38,50 @@ static void bind_simulated_drivers(simulated_driver_context_t *driver_context, s
 
 /**
  * @brief 初始化控制器调度器配置。
- * @param scheduler_config 待写入的调度器配置。
+ * @param scheduler_config  待写入的调度器配置，不能为空。
  */
-static void initialize_scheduler_config(controller_scheduler_config_t *scheduler_config)
+static void initialize_scheduler_config(scheduler_config_t *scheduler_config)
 {
     memset(scheduler_config, 0, sizeof(*scheduler_config));
     scheduler_config->control_period_ms = CONTROL_PERIOD_MS;
     scheduler_config->command_event_source_enabled = true;
     scheduler_config->notification_event_source_enabled = false;
     scheduler_config->exit_event_source_enabled = true;
-    scheduler_config->exit_mode = CONTROLLER_SCHEDULER_EXIT_MODE_BOUNDED_DRAIN;
+    scheduler_config->exit_mode = SCHEDULER_EXIT_MODE_BOUNDED_DRAIN;
     scheduler_config->bounded_drain_ticks = BOUNDED_DRAIN_TICKS;
     scheduler_config->max_triggers_per_tick = MAX_TRIGGERS_PER_TICK;
     scheduler_config->overrun_warning_threshold_ms = CONTROL_PERIOD_MS;
 }
 
+
+/**
+ * @brief 输出 run 失败时的诊断信息。
+ * @param app  应用句柄，不能为空。
+ */
+static void report_run_failure(const app_t *app)
+{
+    const char *scheduler_reason = "none";
+    const char *domain_reason = "none";
+
+    (void)app_read_state(app, &status_view);
+    if (status_view.scheduler_view_available && status_view.scheduler_view.metrics.last_error_reason[0] != '\0')
+    {
+        scheduler_reason = status_view.scheduler_view.metrics.last_error_reason;
+    }
+    if (status_view.domain_reason_available && status_view.domain_last_reason_code[0] != '\0')
+    {
+        domain_reason = status_view.domain_last_reason_code;
+    }
+    fprintf(stderr, "wash_controller: run failed, scheduler_reason=%s, domain_reason=%s\n", scheduler_reason,
+            domain_reason);
+}
+
 int main(void)
 {
-    wash_app_status_view_t status_view;
-    wash_app_config_t app_config;
-    controller_scheduler_config_t scheduler_config;
+    app_config_t app_config;
+    scheduler_config_t scheduler_config;
     simulated_driver_context_t driver_context;
-    wash_app_t *app;
+    app_t *app;
     sensor_port_t sensor_port;
     actuator_port_t actuator_port;
     operation_result_t result;
@@ -69,7 +89,7 @@ int main(void)
 
     bind_simulated_drivers(&driver_context, &sensor_port, &actuator_port);
     initialize_scheduler_config(&scheduler_config);
-    wash_app_config_init(&app_config);
+    app_config_init(&app_config);
     app_config.sensor_port = &sensor_port;
     app_config.actuator_port = &actuator_port;
     app_config.scheduler_config = &scheduler_config;
@@ -81,41 +101,22 @@ int main(void)
     app_config.background_alarm_monitor.io_sample_period_ms = BACKGROUND_ALARM_IO_PERIOD_MS;
     app_config.background_alarm_monitor.detect_period_ms = BACKGROUND_ALARM_DETECT_PERIOD_MS;
 
-    result = wash_app_create(&app, &app_config);
+    result = app_create(&app, &app_config);
     if (!result.ok || app == 0)
     {
         fprintf(stderr, "wash_controller: create failed, error_code=%d\n", (int)result.error_code);
         return 1;
     }
 
-    result = wash_app_run(app);
+    result = app_run(app);
     exit_code = 0;
     if (!result.ok)
     {
-        const char *scheduler_reason = "none";
-        const char *domain_reason = "none";
-        device_runtime_t device_runtime;
-
-        (void)wash_app_read_state(app, &status_view);
-        if (status_view.scheduler_view_available &&
-            status_view.scheduler_view.metrics.last_error_reason[0] != '\0')
-        {
-            scheduler_reason = status_view.scheduler_view.metrics.last_error_reason;
-        }
-        if (wash_app_private_read_device_runtime(app, &device_runtime).ok && device_runtime != 0)
-        {
-            const char *reason = device_runtime_last_reason_code(device_runtime);
-            if (reason != 0 && reason[0] != '\0')
-            {
-                domain_reason = reason;
-            }
-        }
-        fprintf(stderr, "wash_controller: run failed, scheduler_reason=%s, domain_reason=%s\n", scheduler_reason,
-                domain_reason);
+        report_run_failure(app);
         exit_code = 1;
     }
 
-    result = wash_app_destroy(app);
+    result = app_destroy(app);
     if (!result.ok)
     {
         fprintf(stderr, "wash_controller: destroy failed, error_code=%d\n", (int)result.error_code);

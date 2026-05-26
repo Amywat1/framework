@@ -1,4 +1,4 @@
-#include "application/coordinators/controller_runtime.h"
+#include "startup/app_bootstrap.h"
 #include "tests/test_support.h"
 
 static void build_ports(simulated_driver_context_t *driver_context,
@@ -18,18 +18,17 @@ static void build_ports(simulated_driver_context_t *driver_context,
 
 static int verify_missing_bindings_fail_explicitly(void)
 {
-    controller_runtime_config_t controller_runtime_config;
-    controller_scheduler_config_t controller_scheduler_config;
-    controller_runtime_t *controller_runtime;
+    app_config_t app_config;
+    scheduler_config_t scheduler_config;
+    app_t *app;
     operation_result_t result;
 
-    test_init_scheduler_config(&controller_scheduler_config, 100ul);
-    controller_runtime_config_init(&controller_runtime_config);
-    controller_runtime_config.scheduler_config = &controller_scheduler_config;
-    controller_runtime_config.config_root = "./configs";
-    controller_runtime_config.event_log_path = "./runtime/logs/test_events.log";
+    test_init_scheduler_config(&scheduler_config, 100ul);
+    app_config_init(&app_config);
+    app_config.scheduler_config = &scheduler_config;
+    app_config.config_root = "./configs";
 
-    result = controller_runtime_create(&controller_runtime, &controller_runtime_config);
+    result = app_create(&app, &app_config);
     TEST_ASSERT(!result.ok);
     TEST_ASSERT(result.error_code == ERROR_CODE_INVALID_ARGUMENT);
     return 0;
@@ -37,64 +36,55 @@ static int verify_missing_bindings_fail_explicitly(void)
 
 static int verify_bad_paths_fail_and_allow_immediate_recreate(void)
 {
-    controller_runtime_config_t controller_runtime_config;
-    controller_scheduler_config_t controller_scheduler_config;
+    app_config_t app_config;
+    scheduler_config_t scheduler_config;
     sensor_port_t sensor_port;
     actuator_port_t actuator_port;
     simulated_driver_context_t driver_context;
-    controller_runtime_t *controller_runtime;
+    app_t *app;
     operation_result_t result;
 
     build_ports(&driver_context, &sensor_port, &actuator_port);
-    test_init_scheduler_config(&controller_scheduler_config, 100ul);
-    controller_runtime_config_init(&controller_runtime_config);
-    controller_runtime_config.sensor_port = &sensor_port;
-    controller_runtime_config.actuator_port = &actuator_port;
-    controller_runtime_config.scheduler_config = &controller_scheduler_config;
-    controller_runtime_config.config_root = "./configs-missing";
-    controller_runtime_config.event_log_path = "./runtime/logs/test_events.log";
+    test_init_scheduler_config(&scheduler_config, 100ul);
+    app_config_init(&app_config);
+    app_config.sensor_port = &sensor_port;
+    app_config.actuator_port = &actuator_port;
+    app_config.scheduler_config = &scheduler_config;
+    app_config.config_root = "./configs-missing";
 
-    result = controller_runtime_create(&controller_runtime, &controller_runtime_config);
+    result = app_create(&app, &app_config);
     TEST_ASSERT(!result.ok);
     TEST_ASSERT(result.error_code == ERROR_CODE_IO_FAILED);
-
-    controller_runtime_config.config_root = "./configs";
-    controller_runtime_config.event_log_path = "./runtime/logs/missing-dir/test_events.log";
-    result = controller_runtime_create(&controller_runtime, &controller_runtime_config);
-    TEST_ASSERT(!result.ok);
-    TEST_ASSERT(result.error_code == ERROR_CODE_IO_FAILED);
-
-    controller_runtime_config.event_log_path = "./runtime/logs/test_events.log";
-    result = controller_runtime_create(&controller_runtime, &controller_runtime_config);
+    app_config.config_root = "./configs";
+    result = app_create(&app, &app_config);
     TEST_ASSERT(result.ok);
-    TEST_ASSERT(controller_runtime != 0);
-    result = controller_runtime_destroy(controller_runtime);
+    TEST_ASSERT(app != 0);
+    result = app_destroy(app);
     TEST_ASSERT(result.ok);
     return 0;
 }
 
 static int verify_bad_scheduler_config_fails_explicitly(void)
 {
-    controller_runtime_config_t controller_runtime_config;
-    controller_scheduler_config_t controller_scheduler_config;
+    app_config_t app_config;
+    scheduler_config_t scheduler_config;
     sensor_port_t sensor_port;
     actuator_port_t actuator_port;
     simulated_driver_context_t driver_context;
-    controller_runtime_t *controller_runtime;
+    app_t *app;
     operation_result_t result;
 
     build_ports(&driver_context, &sensor_port, &actuator_port);
-    test_init_scheduler_config(&controller_scheduler_config, 100ul);
-    controller_scheduler_config.control_period_ms = 0ul;
+    test_init_scheduler_config(&scheduler_config, 100ul);
+    scheduler_config.control_period_ms = 0ul;
 
-    controller_runtime_config_init(&controller_runtime_config);
-    controller_runtime_config.sensor_port = &sensor_port;
-    controller_runtime_config.actuator_port = &actuator_port;
-    controller_runtime_config.scheduler_config = &controller_scheduler_config;
-    controller_runtime_config.config_root = "./configs";
-    controller_runtime_config.event_log_path = "./runtime/logs/test_events.log";
+    app_config_init(&app_config);
+    app_config.sensor_port = &sensor_port;
+    app_config.actuator_port = &actuator_port;
+    app_config.scheduler_config = &scheduler_config;
+    app_config.config_root = "./configs";
 
-    result = controller_runtime_create(&controller_runtime, &controller_runtime_config);
+    result = app_create(&app, &app_config);
     TEST_ASSERT(!result.ok);
     TEST_ASSERT(result.error_code == ERROR_CODE_INVALID_ARGUMENT);
     return 0;

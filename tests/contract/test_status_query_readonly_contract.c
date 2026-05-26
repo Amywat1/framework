@@ -1,6 +1,6 @@
 #include "application/use_cases/query_wash_session_status.h"
 #include "tests/test_support.h"
-#include "src/application/coordinators/system_context_private.h"
+#include "src/application/coordinators/device_runtime_private.h"
 
 typedef struct readonly_snapshot_t {
     bool global_fault_present;
@@ -14,18 +14,18 @@ typedef struct readonly_snapshot_t {
     char global_fault_reason[128];
 } readonly_snapshot_t;
 
-static void capture_snapshot(const system_context_t system_context, readonly_snapshot_t *snapshot)
+static void capture_snapshot(const device_runtime_t system_context, readonly_snapshot_t *snapshot)
 {
     memset(snapshot, 0, sizeof(*snapshot));
-    snapshot->global_fault_present = system_context_private_runtime(system_context)->global_fault_present;
-    snapshot->pending_trigger_count = system_context_private_runtime(system_context)->pending_trigger_count;
-    snapshot->current_time_ms = system_context_private_runtime(system_context)->current_time_ms;
-    snapshot->session_state = system_context_private_runtime(system_context)->wash_session.session_state;
-    snapshot->execution_state = system_context_private_runtime(system_context)->wash_execution.execution_state;
-    snapshot->final_session_result = system_context_private_runtime(system_context)->wash_session.final_session_result;
-    strncpy(snapshot->last_result_code, system_context_private_runtime(system_context)->last_result_code, sizeof(snapshot->last_result_code) - 1);
-    strncpy(snapshot->last_reason_code, system_context_private_runtime(system_context)->last_reason_code, sizeof(snapshot->last_reason_code) - 1);
-    strncpy(snapshot->global_fault_reason, system_context_private_runtime(system_context)->global_fault_reason, sizeof(snapshot->global_fault_reason) - 1);
+    snapshot->global_fault_present = device_runtime_private_runtime(system_context)->global_fault_present;
+    snapshot->pending_trigger_count = device_runtime_private_runtime(system_context)->pending_trigger_count;
+    snapshot->current_time_ms = device_runtime_private_runtime(system_context)->current_time_ms;
+    snapshot->session_state = device_runtime_private_runtime(system_context)->wash_session.session_state;
+    snapshot->execution_state = device_runtime_private_runtime(system_context)->wash_execution.execution_state;
+    snapshot->final_session_result = device_runtime_private_runtime(system_context)->wash_session.final_session_result;
+    strncpy(snapshot->last_result_code, device_runtime_private_runtime(system_context)->last_result_code, sizeof(snapshot->last_result_code) - 1);
+    strncpy(snapshot->last_reason_code, device_runtime_private_runtime(system_context)->last_reason_code, sizeof(snapshot->last_reason_code) - 1);
+    strncpy(snapshot->global_fault_reason, device_runtime_private_runtime(system_context)->global_fault_reason, sizeof(snapshot->global_fault_reason) - 1);
 }
 
 static int assert_snapshot_equal(const readonly_snapshot_t *left, const readonly_snapshot_t *right)
@@ -44,7 +44,7 @@ static int assert_snapshot_equal(const readonly_snapshot_t *left, const readonly
 
 static int verify_status_query_is_readonly(void)
 {
-    system_context_t system_context;
+    device_runtime_t system_context;
     simulated_driver_context_t driver_context;
     wash_session_status_view_t wash_session_status_view;
     readonly_snapshot_t before_snapshot;

@@ -1,11 +1,11 @@
 #include "tests/test_support.h"
-#include "src/application/coordinators/system_context_private.h"
+#include "src/application/coordinators/device_runtime_private.h"
 
 int main(void)
 {
     operation_result_t result;
     simulated_driver_context_t driver_context;
-    system_context_t system_context;
+    device_runtime_t system_context;
 
     test_setup_system_context(&system_context, &driver_context);
     result = test_load_runtime_program_from_fixture(system_context,
@@ -30,7 +30,7 @@ int main(void)
     result = test_tick(system_context, 100);
     TEST_ASSERT(result.ok);
     TEST_ASSERT(driver_context.chemical_stop_command_count >= 1);
-    TEST_ASSERT(strcmp(system_context_private_runtime(system_context)->wash_execution.segment_id, "side_segment") == 0);
+    TEST_ASSERT(strcmp(device_runtime_private_runtime(system_context)->wash_execution.segment_id, "side_segment") == 0);
 
     driver_context.runtime_snapshot.position_snapshot.gantry_absolute_mm = 2000;
     result = test_tick(system_context, 100);

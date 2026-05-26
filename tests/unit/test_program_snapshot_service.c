@@ -1,12 +1,12 @@
 #include "tests/test_support.h"
-#include "src/application/coordinators/system_context_private.h"
+#include "src/application/coordinators/device_runtime_private.h"
 
 #include "domain/services/program_snapshot_service.h"
 
 int main(void)
 {
     program_snapshot_service_args_t program_snapshot_service_args;
-    system_context_t system_context;
+    device_runtime_t system_context;
     simulated_driver_context_t driver_context;
     operation_result_t result;
 
@@ -14,7 +14,7 @@ int main(void)
     program_snapshot_service_args = test_build_program_snapshot_service_args(system_context);
     result = program_snapshot_service_capture(&program_snapshot_service_args, "standard_wash");
     TEST_ASSERT(result.ok);
-    TEST_ASSERT(system_context_private_runtime(system_context)->program_snapshot.validation_result == PROGRAM_SNAPSHOT_VALIDATION_VALID);
+    TEST_ASSERT(device_runtime_private_runtime(system_context)->program_snapshot.validation_result == PROGRAM_SNAPSHOT_VALIDATION_VALID);
 
     result = program_snapshot_service_capture(&program_snapshot_service_args, "invalid_program");
     TEST_ASSERT(!result.ok);

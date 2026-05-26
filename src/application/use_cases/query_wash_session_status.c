@@ -2,7 +2,7 @@
 
 #include <string.h>
 
-#include "platform/controller_scheduler.h"
+#include "platform/scheduler.h"
 #include "shared/error_codes.h"
 #include "src/application/coordinators/device_runtime_private.h"
 
@@ -56,9 +56,9 @@ operation_result_t query_wash_session_status_execute(const device_runtime_t devi
     strncpy(wash_session_status_view->global_fault_reason, device_runtime_private_global_fault_reason(device_runtime),
             sizeof(wash_session_status_view->global_fault_reason) - 1);
     {
-        controller_scheduler_t *bound_scheduler =
-            (controller_scheduler_t *)device_runtime_bound_scheduler(device_runtime);
-        if (controller_scheduler_read_view(bound_scheduler, &wash_session_status_view->scheduler_view).ok)
+        scheduler_t *bound_scheduler =
+            (scheduler_t *)device_runtime_bound_scheduler(device_runtime);
+        if (scheduler_read_view(bound_scheduler, &wash_session_status_view->scheduler_view).ok)
         {
             wash_session_status_view->scheduler_view_available = true;
         }

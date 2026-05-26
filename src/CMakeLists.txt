@@ -25,7 +25,7 @@ set(WASH_CORE_SOURCES
     domain/services/wait_timeout_service.c
     domain/services/wash_execution_service.c
     domain/services/wash_session_state_machine.c
-    startup/wash_app.c
+    startup/app_bootstrap.c
     application/coordinators/background_alarm_monitor.c
     application/coordinators/control_tick.c
     application/coordinators/device_runtime.c
@@ -37,7 +37,7 @@ set(WASH_CORE_SOURCES
     application/use_cases/query_wash_session_status.c
     adapters/outbound/file_program_repository.c
     adapters/config/json_program_parser.c
-    platform/linux/controller_scheduler_linux.c
+    platform/linux/scheduler_linux.c
     platform/linux/stdio_formal_command_adapter.c
     platform/linux/worker_thread_linux.c
     platform/drivers/simulated_driver_context.c

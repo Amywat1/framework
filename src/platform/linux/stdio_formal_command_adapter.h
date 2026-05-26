@@ -4,7 +4,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 
-#include "platform/controller_scheduler.h"
+#include "platform/scheduler.h"
 #include "shared/result_types.h"
 
 /**
@@ -14,7 +14,7 @@
 
 typedef struct stdio_formal_command_adapter_t
 {
-    controller_scheduler_stdio_t stdio_binding; /**< 标准输入输出绑定。 */
+    scheduler_stdio_t stdio_binding; /**< 标准输入输出绑定。 */
     int command_fd;                             /**< 已启用的命令输入 fd；未启用时为 -1。 */
     int command_fd_flags;                       /**< 命令输入 fd 原始标志。 */
     bool command_fd_flags_valid;                /**< 原始 fd 标志是否有效。 */
@@ -29,7 +29,7 @@ typedef struct stdio_formal_command_adapter_t
  * @param stdio_binding 可选标准输入输出绑定。
  */
 void stdio_formal_command_adapter_init(stdio_formal_command_adapter_t *adapter,
-                                       const controller_scheduler_stdio_t *stdio_binding);
+                                       const scheduler_stdio_t *stdio_binding);
 
 /**
  * @brief 启用 stdin formal command 输入源。
@@ -54,18 +54,18 @@ int stdio_formal_command_adapter_fd(const stdio_formal_command_adapter_t *adapte
 /**
  * @brief 从命令输入 fd 读取数据并处理完整 formal command 行。
  * @param adapter 适配器状态，不能为空。
- * @param controller_scheduler 所属调度器实例，不能为空。
+ * @param scheduler 所属调度器实例，不能为空。
  * @param failpoint_command_read 是否注入命令读取失败。
  * @return 处理成功返回 `operation_result_ok()`，失败时返回显式错误结果。
  */
 operation_result_t stdio_formal_command_adapter_handle_fd(stdio_formal_command_adapter_t *adapter,
-                                                          controller_scheduler_t *controller_scheduler,
+                                                          scheduler_t *scheduler,
                                                           bool failpoint_command_read);
 
 /**
  * @brief 处理一条测试或外部注入的 formal command 行。
  * @param adapter 适配器状态，不能为空。
- * @param controller_scheduler 所属调度器实例，不能为空。
+ * @param scheduler 所属调度器实例，不能为空。
  * @param command_line 命令行文本，不能为空。
  * @param response_line 输出响应缓冲区。
  * @param response_line_size 输出响应缓冲区大小。
@@ -73,7 +73,7 @@ operation_result_t stdio_formal_command_adapter_handle_fd(stdio_formal_command_a
  * @return 处理成功返回 `operation_result_ok()`，失败时返回显式错误结果。
  */
 operation_result_t stdio_formal_command_adapter_handle_command_event(
-    stdio_formal_command_adapter_t *adapter, controller_scheduler_t *controller_scheduler, const char *command_line,
+    stdio_formal_command_adapter_t *adapter, scheduler_t *scheduler, const char *command_line,
     char *response_line, size_t response_line_size, bool print_response);
 
 #endif

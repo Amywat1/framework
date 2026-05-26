@@ -1,4 +1,4 @@
-﻿#include "application/coordinators/device_runtime.h"
+#include "application/coordinators/device_runtime.h"
 
 #include <stdatomic.h>
 #include <string.h>

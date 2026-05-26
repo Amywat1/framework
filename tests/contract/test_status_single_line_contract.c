@@ -77,7 +77,7 @@ static int extract_field_value(const char *response_line, const char *field_name
     return 0;
 }
 
-static int assert_status_single_line_matches_view(system_context_t system_context, device_state_t expected_device_state)
+static int assert_status_single_line_matches_view(device_runtime_t system_context, device_state_t expected_device_state)
 {
     wash_session_status_view_t wash_session_status_view;
     char accepted_value[16];
@@ -130,7 +130,7 @@ static int assert_status_single_line_matches_view(system_context_t system_contex
 static int verify_stopped_status_single_line_contract(void)
 {
     simulated_driver_context_t driver_context;
-    system_context_t system_context;
+    device_runtime_t system_context;
 
     test_setup_system_context(&system_context, &driver_context);
     TEST_ASSERT(assert_status_single_line_matches_view(system_context, DEVICE_STATE_STOPPED) == 0);
@@ -141,7 +141,7 @@ static int verify_stopped_status_single_line_contract(void)
 static int verify_running_status_single_line_contract(void)
 {
     simulated_driver_context_t driver_context;
-    system_context_t system_context;
+    device_runtime_t system_context;
     operation_result_t result;
 
     test_setup_system_context(&system_context, &driver_context);
@@ -160,7 +160,7 @@ static int verify_running_status_single_line_contract(void)
 static int verify_exception_status_single_line_contract(void)
 {
     simulated_driver_context_t driver_context;
-    system_context_t system_context;
+    device_runtime_t system_context;
     char response_line[512];
     operation_result_t result;
 

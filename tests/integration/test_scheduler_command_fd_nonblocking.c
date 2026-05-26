@@ -3,18 +3,18 @@
 #include <stdio.h>
 #include <unistd.h>
 
-#include "platform/linux/controller_scheduler_linux.h"
+#include "platform/linux/scheduler_linux.h"
 #include "tests/test_support.h"
-#include "src/application/coordinators/system_context_private.h"
+#include "src/application/coordinators/device_runtime_private.h"
 
 static int verify_partial_command_does_not_block_scheduler(void)
 {
-    controller_runtime_state_view_t controller_runtime_state_view;
-    controller_scheduler_config_t controller_scheduler_config;
+    scheduler_state_view_t app_state_view;
+    scheduler_config_t scheduler_config;
     simulated_driver_context_t driver_context;
-    controller_runtime_t *controller_runtime;
-    system_context_t system_context;
-    controller_scheduler_t *controller_scheduler;
+    app_t *app;
+    device_runtime_t system_context;
+    scheduler_t *scheduler;
     FILE *input_file;
     FILE *output_file;
     int pipe_fds[2];
@@ -26,61 +26,58 @@ static int verify_partial_command_does_not_block_scheduler(void)
     output_file = tmpfile();
     TEST_ASSERT(output_file != 0);
 
-    memset(&controller_scheduler_config, 0, sizeof(controller_scheduler_config));
-    controller_scheduler_config.control_period_ms = 100ul;
-    controller_scheduler_config.command_event_source_enabled = true;
-    controller_scheduler_config.notification_event_source_enabled = false;
-    controller_scheduler_config.exit_event_source_enabled = false;
-    controller_scheduler_config.exit_mode = CONTROLLER_SCHEDULER_EXIT_MODE_BOUNDED_DRAIN;
-    controller_scheduler_config.bounded_drain_ticks = 4u;
-    controller_scheduler_config.max_triggers_per_tick = 1u;
-    controller_scheduler_config.overrun_warning_threshold_ms = 100ul;
-    controller_scheduler_config.observability_enabled = true;
+    memset(&scheduler_config, 0, sizeof(scheduler_config));
+    scheduler_config.control_period_ms = 100ul;
+    scheduler_config.command_event_source_enabled = true;
+    scheduler_config.notification_event_source_enabled = false;
+    scheduler_config.exit_event_source_enabled = false;
+    scheduler_config.exit_mode = SCHEDULER_EXIT_MODE_BOUNDED_DRAIN;
+    scheduler_config.bounded_drain_ticks = 4u;
+    scheduler_config.max_triggers_per_tick = 1u;
+    scheduler_config.overrun_warning_threshold_ms = 100ul;
 
-    result = test_create_runtime_with_overrides(&controller_runtime,
+    result = test_create_runtime_with_overrides(&app,
         &driver_context,
-        &controller_scheduler_config,
+        &scheduler_config,
         input_file,
         output_file,
-        0,
-        "./configs",
-        "./runtime/logs/test_events.log");
+        0, "./runtime/logs/test_events.log");
     TEST_ASSERT(result.ok);
 
-    result = test_runtime_system_context(controller_runtime, &system_context);
+    result = test_runtime_system_context(app, &system_context);
     TEST_ASSERT(result.ok);
-    controller_scheduler = test_runtime_scheduler(controller_runtime);
-    TEST_ASSERT(controller_scheduler != 0);
+    scheduler = test_runtime_scheduler(app);
+    TEST_ASSERT(scheduler != 0);
 
     result = test_load_runtime_program_from_fixture(system_context,
         "tests/fixtures/wash_step_control/program_v1_valid.json",
         0);
     TEST_ASSERT(result.ok);
 
-    result = controller_scheduler_read_view(controller_scheduler, &controller_runtime_state_view);
+    result = scheduler_read_view(scheduler, &app_state_view);
     TEST_ASSERT(result.ok);
-    TEST_ASSERT(controller_runtime_state_view.command_source_state == CONTROLLER_SCHEDULER_EVENT_SOURCE_ENABLED);
-    TEST_ASSERT(controller_runtime_state_view.notification_source_state == CONTROLLER_SCHEDULER_EVENT_SOURCE_DISABLED);
-    TEST_ASSERT(controller_runtime_state_view.exit_source_state == CONTROLLER_SCHEDULER_EVENT_SOURCE_DISABLED);
+    TEST_ASSERT(app_state_view.command_source_state == SCHEDULER_EVENT_SOURCE_ENABLED);
+    TEST_ASSERT(app_state_view.notification_source_state == SCHEDULER_EVENT_SOURCE_DISABLED);
+    TEST_ASSERT(app_state_view.exit_source_state == SCHEDULER_EVENT_SOURCE_DISABLED);
 
     TEST_ASSERT(write(pipe_fds[1], "homing\nstart wash_step_control_v1", 33) == 33);
-    result = controller_scheduler_linux_test_poll_once(controller_scheduler);
+    result = scheduler_linux_test_poll_once(scheduler);
     TEST_ASSERT(result.ok);
-    TEST_ASSERT(system_context_private_runtime(system_context)->wash_session.session_state != SESSION_STATE_RUNNING);
-    TEST_ASSERT(system_context_private_runtime(system_context)->pending_trigger_count == 0u);
-    TEST_ASSERT(system_context_private_runtime(system_context)->current_time_ms == 0ul);
+    TEST_ASSERT(device_runtime_private_runtime(system_context)->wash_session.session_state != SESSION_STATE_RUNNING);
+    TEST_ASSERT(device_runtime_private_runtime(system_context)->pending_trigger_count == 0u);
+    TEST_ASSERT(device_runtime_private_runtime(system_context)->current_time_ms == 0ul);
 
-    result = controller_scheduler_linux_test_inject_period(controller_scheduler, 1u);
+    result = scheduler_linux_test_inject_period(scheduler, 1u);
     TEST_ASSERT(result.ok);
-    TEST_ASSERT(system_context_private_runtime(system_context)->current_time_ms == 100ul);
-    TEST_ASSERT(system_context_private_runtime(system_context)->wash_session.session_state != SESSION_STATE_RUNNING);
+    TEST_ASSERT(device_runtime_private_runtime(system_context)->current_time_ms == 100ul);
+    TEST_ASSERT(device_runtime_private_runtime(system_context)->wash_session.session_state != SESSION_STATE_RUNNING);
 
     TEST_ASSERT(write(pipe_fds[1], "\n", 1) == 1);
-    result = controller_scheduler_linux_test_poll_once(controller_scheduler);
+    result = scheduler_linux_test_poll_once(scheduler);
     TEST_ASSERT(result.ok);
-    TEST_ASSERT(system_context_private_runtime(system_context)->wash_session.session_state == SESSION_STATE_RUNNING);
+    TEST_ASSERT(device_runtime_private_runtime(system_context)->wash_session.session_state == SESSION_STATE_RUNNING);
 
-    result = controller_runtime_destroy(controller_runtime);
+    result = app_destroy(app);
     TEST_ASSERT(result.ok);
     fclose(output_file);
     fclose(input_file);

@@ -40,8 +40,8 @@ static int verify_direct_parse_repository_load_and_test_helper_match(void)
 {
     simulated_driver_context_t repository_driver_context;
     simulated_driver_context_t helper_driver_context;
-    system_context_t repository_context;
-    system_context_t helper_context;
+    device_runtime_t repository_context;
+    device_runtime_t helper_context;
     wash_program_t direct_program;
     wash_program_t repository_program;
     wash_program_t helper_program;

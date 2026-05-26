@@ -1,5 +1,5 @@
 #include "tests/test_support.h"
-#include "src/application/coordinators/system_context_private.h"
+#include "src/application/coordinators/device_runtime_private.h"
 
 int main(void)
 {
@@ -7,7 +7,7 @@ int main(void)
     char response_line[512];
     char status_response[512];
     char long_fault_code[64];
-    system_context_t system_context;
+    device_runtime_t system_context;
     simulated_driver_context_t driver_context;
     operation_result_t result;
     size_t index;
@@ -27,19 +27,19 @@ int main(void)
     result = test_process_command_and_flush(system_context, fault_command, response_line, sizeof(response_line));
     TEST_ASSERT(result.ok);
     TEST_ASSERT(strstr(response_line, "result=accepted accepted=true detail=global_fault_recorded") != 0);
-    TEST_ASSERT(strcmp(system_context_private_runtime(system_context)->last_result_code, "accepted") == 0);
-    TEST_ASSERT(strcmp(system_context_private_runtime(system_context)->last_reason_code, "global_fault_recorded") == 0);
-    TEST_ASSERT(system_context_private_runtime(system_context)->global_fault_present == true);
-    TEST_ASSERT(system_context_private_runtime(system_context)->global_fault_code[sizeof(system_context_private_runtime(system_context)->global_fault_code) - 1] == '\0');
-    TEST_ASSERT(strlen(system_context_private_runtime(system_context)->global_fault_code) == sizeof(long_fault_code) - 1);
-    TEST_ASSERT(strcmp(system_context_private_runtime(system_context)->global_fault_code, long_fault_code) == 0);
+    TEST_ASSERT(strcmp(device_runtime_private_runtime(system_context)->last_result_code, "accepted") == 0);
+    TEST_ASSERT(strcmp(device_runtime_private_runtime(system_context)->last_reason_code, "global_fault_recorded") == 0);
+    TEST_ASSERT(device_runtime_private_runtime(system_context)->global_fault_present == true);
+    TEST_ASSERT(device_runtime_private_runtime(system_context)->global_fault_code[sizeof(device_runtime_private_runtime(system_context)->global_fault_code) - 1] == '\0');
+    TEST_ASSERT(strlen(device_runtime_private_runtime(system_context)->global_fault_code) == sizeof(long_fault_code) - 1);
+    TEST_ASSERT(strcmp(device_runtime_private_runtime(system_context)->global_fault_code, long_fault_code) == 0);
 
     result = test_process_command(system_context, "status", status_response, sizeof(status_response));
     TEST_ASSERT(result.ok);
     TEST_ASSERT(strstr(status_response, "result=status accepted=true") != 0);
-    TEST_ASSERT(system_context_private_runtime(system_context)->global_fault_present == true);
-    TEST_ASSERT(strcmp(system_context_private_runtime(system_context)->last_result_code, "accepted") == 0);
-    TEST_ASSERT(strcmp(system_context_private_runtime(system_context)->last_reason_code, "global_fault_recorded") == 0);
+    TEST_ASSERT(device_runtime_private_runtime(system_context)->global_fault_present == true);
+    TEST_ASSERT(strcmp(device_runtime_private_runtime(system_context)->last_result_code, "accepted") == 0);
+    TEST_ASSERT(strcmp(device_runtime_private_runtime(system_context)->last_reason_code, "global_fault_recorded") == 0);
 
     result = test_process_command_and_flush(system_context, "start wash_step_control_v1", response_line, sizeof(response_line));
     TEST_ASSERT(!result.ok);
@@ -49,20 +49,20 @@ int main(void)
     result = test_process_command_and_flush(system_context, "fault clear", response_line, sizeof(response_line));
     TEST_ASSERT(result.ok);
     TEST_ASSERT(strstr(response_line, "result=accepted accepted=true detail=global_fault_cleared") != 0);
-    TEST_ASSERT(strcmp(system_context_private_runtime(system_context)->last_result_code, "accepted") == 0);
-    TEST_ASSERT(strcmp(system_context_private_runtime(system_context)->last_reason_code, "global_fault_cleared") == 0);
-    TEST_ASSERT(system_context_private_runtime(system_context)->global_fault_present == false);
-    TEST_ASSERT(system_context_private_runtime(system_context)->device_state == DEVICE_STATE_STOPPED);
+    TEST_ASSERT(strcmp(device_runtime_private_runtime(system_context)->last_result_code, "accepted") == 0);
+    TEST_ASSERT(strcmp(device_runtime_private_runtime(system_context)->last_reason_code, "global_fault_cleared") == 0);
+    TEST_ASSERT(device_runtime_private_runtime(system_context)->global_fault_present == false);
+    TEST_ASSERT(device_runtime_private_runtime(system_context)->device_state == DEVICE_STATE_STOPPED);
 
     result = test_process_command_and_flush(system_context, "homing", response_line, sizeof(response_line));
     TEST_ASSERT(result.ok);
     TEST_ASSERT(strstr(response_line, "result=accepted accepted=true detail=homing_completed") != 0);
-    TEST_ASSERT(system_context_private_runtime(system_context)->device_state == DEVICE_STATE_IDLE);
+    TEST_ASSERT(device_runtime_private_runtime(system_context)->device_state == DEVICE_STATE_IDLE);
 
     result = test_process_command_and_flush(system_context, "start wash_step_control_v1", response_line, sizeof(response_line));
     TEST_ASSERT(result.ok);
-    TEST_ASSERT(system_context_private_runtime(system_context)->wash_session.session_state == SESSION_STATE_RUNNING);
-    TEST_ASSERT(system_context_private_runtime(system_context)->device_state == DEVICE_STATE_RUNNING);
+    TEST_ASSERT(device_runtime_private_runtime(system_context)->wash_session.session_state == SESSION_STATE_RUNNING);
+    TEST_ASSERT(device_runtime_private_runtime(system_context)->device_state == DEVICE_STATE_RUNNING);
     test_release_system_context(system_context);
     return 0;
 }

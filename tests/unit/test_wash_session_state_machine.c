@@ -1,19 +1,19 @@
 #include "tests/test_support.h"
-#include "src/application/coordinators/system_context_private.h"
+#include "src/application/coordinators/device_runtime_private.h"
 
 #include "domain/services/program_snapshot_service.h"
 
 static int verify_start_returns_transition_fact(void)
 {
     program_snapshot_service_args_t program_snapshot_service_args;
-    system_context_t system_context;
+    device_runtime_t system_context;
     simulated_driver_context_t driver_context;
     operation_result_t result;
     wash_session_service_args_t wash_session_service_args;
     wash_session_transition_fact_t wash_session_transition_fact;
 
     test_setup_system_context(&system_context, &driver_context);
-    system_context_private_runtime(system_context)->current_time_ms = 100;
+    device_runtime_private_runtime(system_context)->current_time_ms = 100;
     program_snapshot_service_args = test_build_program_snapshot_service_args(system_context);
     result = program_snapshot_service_capture(&program_snapshot_service_args, "standard_wash");
     TEST_ASSERT(result.ok);
@@ -23,7 +23,7 @@ static int verify_start_returns_transition_fact(void)
         "standard_wash",
         &wash_session_transition_fact);
     TEST_ASSERT(result.ok);
-    TEST_ASSERT(system_context_private_runtime(system_context)->wash_session.session_state == SESSION_STATE_RUNNING);
+    TEST_ASSERT(device_runtime_private_runtime(system_context)->wash_session.session_state == SESSION_STATE_RUNNING);
     TEST_ASSERT(strcmp(wash_session_transition_fact.previous_state, "none") == 0);
     TEST_ASSERT(strcmp(wash_session_transition_fact.current_state, "running") == 0);
     TEST_ASSERT(strcmp(wash_session_transition_fact.result_code, "accepted") == 0);
@@ -35,7 +35,7 @@ static int verify_start_returns_transition_fact(void)
 static int verify_complete_returns_transition_fact(void)
 {
     program_snapshot_service_args_t program_snapshot_service_args;
-    system_context_t system_context;
+    device_runtime_t system_context;
     simulated_driver_context_t driver_context;
     operation_result_t result;
     wash_session_service_args_t wash_session_service_args;
@@ -57,7 +57,7 @@ static int verify_complete_returns_transition_fact(void)
         RESULT_CODE_SUCCESS,
         &wash_session_transition_fact);
     TEST_ASSERT(result.ok);
-    TEST_ASSERT(system_context_private_runtime(system_context)->wash_session.session_state == SESSION_STATE_COMPLETED);
+    TEST_ASSERT(device_runtime_private_runtime(system_context)->wash_session.session_state == SESSION_STATE_COMPLETED);
     TEST_ASSERT(strcmp(wash_session_transition_fact.previous_state, "running") == 0);
     TEST_ASSERT(strcmp(wash_session_transition_fact.current_state, "completed") == 0);
     TEST_ASSERT(strcmp(wash_session_transition_fact.result_code, "completed") == 0);
@@ -68,7 +68,7 @@ static int verify_complete_returns_transition_fact(void)
 static int verify_abort_returns_transition_fact(void)
 {
     program_snapshot_service_args_t program_snapshot_service_args;
-    system_context_t system_context;
+    device_runtime_t system_context;
     simulated_driver_context_t driver_context;
     operation_result_t result;
     wash_session_service_args_t wash_session_service_args;
@@ -91,7 +91,7 @@ static int verify_abort_returns_transition_fact(void)
         "manual-stop",
         &wash_session_transition_fact);
     TEST_ASSERT(result.ok);
-    TEST_ASSERT(system_context_private_runtime(system_context)->wash_session.session_state == SESSION_STATE_ABORTED);
+    TEST_ASSERT(device_runtime_private_runtime(system_context)->wash_session.session_state == SESSION_STATE_ABORTED);
     TEST_ASSERT(strcmp(wash_session_transition_fact.previous_state, "running") == 0);
     TEST_ASSERT(strcmp(wash_session_transition_fact.current_state, "aborted") == 0);
     TEST_ASSERT(strcmp(wash_session_transition_fact.reason_code, "manual-stop") == 0);

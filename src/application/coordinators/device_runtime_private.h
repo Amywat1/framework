@@ -44,7 +44,7 @@ operation_result_t device_runtime_private_enter_stopped(device_runtime_t device_
 
 /**
  * @brief 绑定调度器到系统上下文，标记调度器已建立。
- * @note 由 Application 层（wash_app.c）在调度器创建成功后调用；
+ * @note 由 Application 层（app_bootstrap.c）在调度器创建成功后调用；
  *       每个上下文实例仅允许绑定一次，重复绑定返回失败。
  * @param device_runtime 系统上下文，必须处于激活状态。
  * @return 绑定成功返回 `operation_result_ok()`；已绑定或句柄非法时返回失败。
@@ -54,7 +54,7 @@ operation_result_t device_runtime_private_bind_scheduler(device_runtime_t device
 
 /**
  * @brief 解除调度器与系统上下文的绑定关系。
- * @note 由 Application 层（wash_app.c）在调度器销毁后调用。
+ * @note 由 Application 层（app_bootstrap.c）在调度器销毁后调用。
  * @param device_runtime 系统上下文；允许为 `0`（此时为空操作）。
  */
 void device_runtime_private_unbind_scheduler(device_runtime_t device_runtime);

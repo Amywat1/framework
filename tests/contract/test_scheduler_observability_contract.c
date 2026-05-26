@@ -1,13 +1,13 @@
 #include "tests/test_support.h"
-#include "src/application/coordinators/system_context_private.h"
+#include "src/application/coordinators/device_runtime_private.h"
 
 int main(void)
 {
-    controller_runtime_state_view_t controller_runtime_state_view;
+    scheduler_state_view_t app_state_view;
     simulated_driver_context_t driver_context;
     wash_session_status_view_t wash_session_status_view;
-    system_context_t system_context;
-    controller_scheduler_t *controller_scheduler;
+    device_runtime_t system_context;
+    scheduler_t *scheduler;
     char response_line[512];
     operation_result_t result;
 
@@ -17,25 +17,25 @@ int main(void)
         0);
     TEST_ASSERT(result.ok);
 
-    controller_scheduler = test_create_scheduler(system_context, 100ul);
-    TEST_ASSERT(controller_scheduler != 0);
-    TEST_ASSERT(test_scheduler_command(controller_scheduler,
+    scheduler = test_create_scheduler(system_context, 100ul);
+    TEST_ASSERT(scheduler != 0);
+    TEST_ASSERT(test_scheduler_command(scheduler,
         "homing",
         response_line,
         sizeof(response_line)) == 0);
-    TEST_ASSERT(test_scheduler_command(controller_scheduler,
+    TEST_ASSERT(test_scheduler_command(scheduler,
         "start wash_step_control_v1",
         response_line,
         sizeof(response_line)) == 0);
-    TEST_ASSERT(test_scheduler_notification(controller_scheduler, 1u) == 0);
-    TEST_ASSERT(test_scheduler_tick(controller_scheduler, 2u) == 0);
+    TEST_ASSERT(test_scheduler_notification(scheduler, 1u) == 0);
+    TEST_ASSERT(test_scheduler_tick(scheduler, 2u) == 0);
 
-    result = controller_scheduler_read_view(controller_scheduler, &controller_runtime_state_view);
+    result = scheduler_read_view(scheduler, &app_state_view);
     TEST_ASSERT(result.ok);
-    TEST_ASSERT(controller_runtime_state_view.metrics.command_event_count == 2ul);
-    TEST_ASSERT(controller_runtime_state_view.metrics.notification_event_count == 1ul);
-    TEST_ASSERT(controller_runtime_state_view.metrics.cycle_count == 1ul);
-    TEST_ASSERT(controller_runtime_state_view.metrics.overrun_count == 1ul);
+    TEST_ASSERT(app_state_view.metrics.command_event_count == 2ul);
+    TEST_ASSERT(app_state_view.metrics.notification_event_count == 1ul);
+    TEST_ASSERT(app_state_view.metrics.cycle_count == 1ul);
+    TEST_ASSERT(app_state_view.metrics.overrun_count == 1ul);
 
     result = query_wash_session_status_execute(system_context, &wash_session_status_view);
     TEST_ASSERT(result.ok);

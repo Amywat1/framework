@@ -1,6 +1,6 @@
 #include "tests/test_support.h"
 
-static int assert_device_state_equals(system_context_t system_context, device_state_t expected_device_state)
+static int assert_device_state_equals(device_runtime_t system_context, device_state_t expected_device_state)
 {
     wash_session_status_view_t wash_session_status_view;
     operation_result_t result;
@@ -14,7 +14,7 @@ static int assert_device_state_equals(system_context_t system_context, device_st
 static int verify_stopped_start_returns_device_state_stopped(void)
 {
     simulated_driver_context_t driver_context;
-    system_context_t system_context;
+    device_runtime_t system_context;
     char response_line[512];
     operation_result_t result;
 
@@ -39,7 +39,7 @@ static int verify_stopped_start_returns_device_state_stopped(void)
 static int verify_idle_homing_returns_homing_requires_stopped(void)
 {
     simulated_driver_context_t driver_context;
-    system_context_t system_context;
+    device_runtime_t system_context;
     char response_line[512];
     operation_result_t result;
 
@@ -63,7 +63,7 @@ static int verify_idle_homing_returns_homing_requires_stopped(void)
 static int verify_running_stop_returns_manual_stop_and_stops_device(void)
 {
     simulated_driver_context_t driver_context;
-    system_context_t system_context;
+    device_runtime_t system_context;
     char response_line[512];
     operation_result_t result;
 
@@ -89,7 +89,7 @@ static int verify_running_stop_returns_manual_stop_and_stops_device(void)
 static int verify_exception_fault_clear_returns_global_fault_cleared_and_stops_device(void)
 {
     simulated_driver_context_t driver_context;
-    system_context_t system_context;
+    device_runtime_t system_context;
     char response_line[512];
     operation_result_t result;
 

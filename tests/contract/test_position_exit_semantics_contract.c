@@ -1,6 +1,6 @@
 #include "domain/model/position_trigger.h"
 #include "tests/test_support.h"
-#include "src/application/coordinators/system_context_private.h"
+#include "src/application/coordinators/device_runtime_private.h"
 
 static int test_position_trigger_explains_start_and_stop(void)
 {
@@ -24,7 +24,7 @@ static int test_target_reached_is_not_exit_complete(void)
 {
     operation_result_t result;
     simulated_driver_context_t driver_context;
-    system_context_t system_context;
+    device_runtime_t system_context;
 
     test_setup_system_context(&system_context, &driver_context);
     result = test_load_runtime_program_from_fixture(system_context,
@@ -38,8 +38,8 @@ static int test_target_reached_is_not_exit_complete(void)
     driver_context.runtime_snapshot.position_snapshot.tail_reached = true;
     result = test_tick(system_context, 100);
     TEST_ASSERT(result.ok);
-    TEST_ASSERT(system_context_private_runtime(system_context)->wash_execution.lifecycle_state == SEGMENT_LIFECYCLE_EXITING);
-    TEST_ASSERT(system_context_private_runtime(system_context)->wash_session.session_state == SESSION_STATE_RUNNING);
+    TEST_ASSERT(device_runtime_private_runtime(system_context)->wash_execution.state == SEGMENT_LIFECYCLE_EXITING);
+    TEST_ASSERT(device_runtime_private_runtime(system_context)->wash_session.session_state == SESSION_STATE_RUNNING);
     test_release_system_context(system_context);
     return 0;
 }

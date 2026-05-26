@@ -5,7 +5,7 @@
 
 #include "application/coordinators/device_runtime.h"
 #include "domain/model/domain_enums.h"
-#include "platform/controller_scheduler.h"
+#include "platform/scheduler.h"
 #include "shared/result_types.h"
 
 typedef struct wash_session_status_view_t
@@ -23,7 +23,7 @@ typedef struct wash_session_status_view_t
     char reason_code[64];
     char global_fault_reason[128];
     bool scheduler_view_available;
-    controller_scheduler_state_view_t scheduler_view;
+    scheduler_state_view_t scheduler_view;
 } wash_session_status_view_t;
 
 operation_result_t query_wash_session_status_execute(const device_runtime_t device_runtime,

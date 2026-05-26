@@ -1,7 +1,7 @@
 #include "adapters/config/json_program_parser.h"
 #include "domain/model/program_validation.h"
 #include "tests/test_support.h"
-#include "src/application/coordinators/system_context_private.h"
+#include "src/application/coordinators/device_runtime_private.h"
 
 static int test_valid_program_fixture_passes(void)
 {
@@ -238,14 +238,14 @@ static int test_repository_save_is_rejected_without_serializer(void)
     operation_result_t result;
     wash_program_t wash_program;
     simulated_driver_context_t driver_context;
-    system_context_t system_context;
+    device_runtime_t system_context;
 
     test_setup_system_context(&system_context, &driver_context);
     result = json_program_parser_parse("tests/fixtures/wash_step_control/program_v1_valid.json", &wash_program);
     TEST_ASSERT(result.ok);
-    TEST_ASSERT(system_context_private_runtime(system_context)->program_repository_port.save_program != 0);
-    TEST_ASSERT(system_context_private_runtime(system_context)->program_repository_port.save_program(
-        system_context_private_runtime(system_context)->program_repository_port.context,
+    TEST_ASSERT(device_runtime_private_runtime(system_context)->program_repository_port.save_program != 0);
+    TEST_ASSERT(device_runtime_private_runtime(system_context)->program_repository_port.save_program(
+        device_runtime_private_runtime(system_context)->program_repository_port.context,
         &wash_program) != 0);
     test_release_system_context(system_context);
     return 0;

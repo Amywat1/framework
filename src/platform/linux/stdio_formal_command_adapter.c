@@ -11,7 +11,7 @@
 
 #include "application/use_cases/process_formal_command.h"
 #include "shared/error_codes.h"
-#include "src/platform/linux/controller_scheduler_linux_internal.h"
+#include "src/platform/linux/scheduler_linux_internal.h"
 
 /**
  * @brief 根据最新上下文结果重建 formal command 响应行。
@@ -61,22 +61,22 @@ static bool stdio_formal_command_adapter_has_complete_line(const stdio_formal_co
 /**
  * @brief 将新读取的命令字节追加到命令缓冲区。
  * @param adapter 适配器状态。
- * @param controller_scheduler 所属调度器实例。
+ * @param scheduler 所属调度器实例。
  * @param bytes 待读取的字节序列。
  * @param byte_count 字节数。
  * @return 追加成功返回 `operation_result_ok()`。
  */
 static operation_result_t stdio_formal_command_adapter_append_bytes(stdio_formal_command_adapter_t *adapter,
-                                                                    controller_scheduler_t *controller_scheduler,
+                                                                    scheduler_t *scheduler,
                                                                     const char *bytes, size_t byte_count)
 {
-    if (adapter == 0 || controller_scheduler == 0 || (bytes == 0 && byte_count > 0u))
+    if (adapter == 0 || scheduler == 0 || (bytes == 0 && byte_count > 0u))
     {
         return operation_result_fail(ERROR_CODE_INVALID_ARGUMENT);
     }
     if (adapter->command_buffer_length + byte_count >= sizeof(adapter->command_buffer))
     {
-        controller_scheduler_record_error(controller_scheduler, "command_line_too_long", true);
+        scheduler_record_error(scheduler, "command_line_too_long", true);
         return operation_result_fail(ERROR_CODE_RESOURCE_UNAVAILABLE);
     }
     if (byte_count > 0u)
@@ -146,7 +146,7 @@ static bool stdio_formal_command_adapter_extract_line(stdio_formal_command_adapt
 /**
  * @brief 执行一条 formal command 命令行并按需回填响应。
  * @param adapter 适配器状态。
- * @param controller_scheduler 所属调度器实例。
+ * @param scheduler 所属调度器实例。
  * @param command_line 输入命令行。
  * @param response_line 输出响应缓冲区。
  * @param response_line_size 输出缓冲区大小。
@@ -154,7 +154,7 @@ static bool stdio_formal_command_adapter_extract_line(stdio_formal_command_adapt
  * @return 处理成功返回 `operation_result_ok()`。
  */
 static operation_result_t stdio_formal_command_adapter_process_line(
-    stdio_formal_command_adapter_t *adapter, controller_scheduler_t *controller_scheduler, const char *command_line,
+    stdio_formal_command_adapter_t *adapter, scheduler_t *scheduler, const char *command_line,
     char *response_line, size_t response_line_size, bool print_response)
 {
     char local_response[512];
@@ -162,7 +162,7 @@ static operation_result_t stdio_formal_command_adapter_process_line(
     unsigned int pending_before;
     bool queued_work;
 
-    if (adapter == 0 || controller_scheduler == 0 || command_line == 0)
+    if (adapter == 0 || scheduler == 0 || command_line == 0)
     {
         return operation_result_fail(ERROR_CODE_INVALID_ARGUMENT);
     }
@@ -175,17 +175,17 @@ static operation_result_t stdio_formal_command_adapter_process_line(
     memset(response_line, 0, response_line_size);
 
     /* runtime_port.context 始终由 scheduler_runtime_port_init_from_device_runtime 写入 device_runtime_t */
-    device_runtime_t device_runtime = (device_runtime_t)controller_scheduler->runtime_port.context;
+    device_runtime_t device_runtime = (device_runtime_t)scheduler->runtime_port.context;
     pending_before =
-        controller_scheduler->runtime_port.pending_trigger_count(controller_scheduler->runtime_port.context);
+        scheduler->runtime_port.pending_trigger_count(scheduler->runtime_port.context);
     result = process_formal_command_execute(device_runtime, command_line, response_line, response_line_size);
     queued_work =
-        controller_scheduler->runtime_port.pending_trigger_count(controller_scheduler->runtime_port.context) >
+        scheduler->runtime_port.pending_trigger_count(scheduler->runtime_port.context) >
         pending_before;
     if (result.ok && queued_work &&
-        controller_scheduler->runtime_state == CONTROLLER_SCHEDULER_RUNTIME_STATE_RUNNING)
+        scheduler->runtime_state == SCHEDULER_RUNTIME_STATE_RUNNING)
     {
-        result = controller_scheduler_execute_bounded_ticks(controller_scheduler, false, 0ul, false, 0ul);
+        result = scheduler_execute_bounded_ticks(scheduler, false, 0ul, false, 0ul);
         if (!result.ok)
         {
             return result;
@@ -194,7 +194,7 @@ static operation_result_t stdio_formal_command_adapter_process_line(
     }
     if (!result.ok && response_line[0] == '\0')
     {
-        controller_scheduler_record_error(controller_scheduler, "command_dispatch_failed", true);
+        scheduler_record_error(scheduler, "command_dispatch_failed", true);
         return result;
     }
     if (print_response && adapter->stdio_binding.output != 0 && response_line[0] != '\0')
@@ -202,12 +202,12 @@ static operation_result_t stdio_formal_command_adapter_process_line(
         fprintf(adapter->stdio_binding.output, "%s\n", response_line);
         fflush(adapter->stdio_binding.output);
     }
-    controller_scheduler_update_pending_metric(controller_scheduler);
+    scheduler_update_pending_metric(scheduler);
     return operation_result_ok();
 }
 
 void stdio_formal_command_adapter_init(stdio_formal_command_adapter_t *adapter,
-                                       const controller_scheduler_stdio_t *stdio_binding)
+                                       const scheduler_stdio_t *stdio_binding)
 {
     if (adapter == 0)
     {
@@ -263,7 +263,7 @@ int stdio_formal_command_adapter_fd(const stdio_formal_command_adapter_t *adapte
 }
 
 operation_result_t stdio_formal_command_adapter_handle_fd(stdio_formal_command_adapter_t *adapter,
-                                                          controller_scheduler_t *controller_scheduler,
+                                                          scheduler_t *scheduler,
                                                           bool failpoint_command_read)
 {
     char read_buffer[128];
@@ -271,15 +271,15 @@ operation_result_t stdio_formal_command_adapter_handle_fd(stdio_formal_command_a
     ssize_t read_count;
     operation_result_t result;
 
-    if (adapter == 0 || controller_scheduler == 0 || adapter->command_fd < 0)
+    if (adapter == 0 || scheduler == 0 || adapter->command_fd < 0)
     {
         return operation_result_fail(ERROR_CODE_INVALID_ARGUMENT);
     }
 
     if (stdio_formal_command_adapter_extract_line(adapter, command_line, sizeof(command_line)))
     {
-        controller_scheduler->pending_command_event = stdio_formal_command_adapter_has_complete_line(adapter);
-        result = stdio_formal_command_adapter_handle_command_event(adapter, controller_scheduler, command_line, 0, 0u,
+        scheduler->pending_command_event = stdio_formal_command_adapter_has_complete_line(adapter);
+        result = stdio_formal_command_adapter_handle_command_event(adapter, scheduler, command_line, 0, 0u,
                                                                    true);
         if (!result.ok)
         {
@@ -287,15 +287,15 @@ operation_result_t stdio_formal_command_adapter_handle_fd(stdio_formal_command_a
         }
         if (adapter->command_input_eof && adapter->command_buffer_length == 0u)
         {
-            return controller_scheduler_request_exit_internal(controller_scheduler, false, false);
+            return scheduler_request_exit_internal(scheduler, false, false);
         }
         return operation_result_ok();
     }
 
-    controller_scheduler->pending_command_event = false;
+    scheduler->pending_command_event = false;
     if (failpoint_command_read)
     {
-        controller_scheduler_record_error(controller_scheduler, "command_read_failed", true);
+        scheduler_record_error(scheduler, "command_read_failed", true);
         return operation_result_fail(ERROR_CODE_IO_FAILED);
     }
 
@@ -304,7 +304,7 @@ operation_result_t stdio_formal_command_adapter_handle_fd(stdio_formal_command_a
         read_count = read(adapter->command_fd, read_buffer, sizeof(read_buffer));
         if (read_count > 0)
         {
-            result = stdio_formal_command_adapter_append_bytes(adapter, controller_scheduler, read_buffer,
+            result = stdio_formal_command_adapter_append_bytes(adapter, scheduler, read_buffer,
                                                                (size_t)read_count);
             if (!result.ok)
             {
@@ -315,21 +315,21 @@ operation_result_t stdio_formal_command_adapter_handle_fd(stdio_formal_command_a
         if (read_count == 0)
         {
             adapter->command_input_eof = true;
-            controller_scheduler->command_source.source_state = CONTROLLER_SCHEDULER_EVENT_SOURCE_CLOSED;
+            scheduler->command_source.source_state = SCHEDULER_EVENT_SOURCE_CLOSED;
             break;
         }
         if (errno == EAGAIN || errno == EWOULDBLOCK)
         {
             break;
         }
-        controller_scheduler_record_error(controller_scheduler, "command_read_failed", true);
+        scheduler_record_error(scheduler, "command_read_failed", true);
         return operation_result_fail(ERROR_CODE_IO_FAILED);
     }
 
     if (stdio_formal_command_adapter_extract_line(adapter, command_line, sizeof(command_line)))
     {
-        controller_scheduler->pending_command_event = stdio_formal_command_adapter_has_complete_line(adapter);
-        result = stdio_formal_command_adapter_handle_command_event(adapter, controller_scheduler, command_line, 0, 0u,
+        scheduler->pending_command_event = stdio_formal_command_adapter_has_complete_line(adapter);
+        result = stdio_formal_command_adapter_handle_command_event(adapter, scheduler, command_line, 0, 0u,
                                                                    true);
         if (!result.ok)
         {
@@ -338,21 +338,21 @@ operation_result_t stdio_formal_command_adapter_handle_fd(stdio_formal_command_a
     }
     if (adapter->command_input_eof && adapter->command_buffer_length == 0u)
     {
-        return controller_scheduler_request_exit_internal(controller_scheduler, false, false);
+        return scheduler_request_exit_internal(scheduler, false, false);
     }
     return operation_result_ok();
 }
 
 operation_result_t stdio_formal_command_adapter_handle_command_event(
-    stdio_formal_command_adapter_t *adapter, controller_scheduler_t *controller_scheduler, const char *command_line,
+    stdio_formal_command_adapter_t *adapter, scheduler_t *scheduler, const char *command_line,
     char *response_line, size_t response_line_size, bool print_response)
 {
-    if (adapter == 0 || controller_scheduler == 0 || command_line == 0)
+    if (adapter == 0 || scheduler == 0 || command_line == 0)
     {
         return operation_result_fail(ERROR_CODE_INVALID_ARGUMENT);
     }
 
-    controller_scheduler_note_command_event(controller_scheduler, command_line);
-    return stdio_formal_command_adapter_process_line(adapter, controller_scheduler, command_line, response_line,
+    scheduler_note_command_event(scheduler, command_line);
+    return stdio_formal_command_adapter_process_line(adapter, scheduler, command_line, response_line,
                                                      response_line_size, print_response);
 }

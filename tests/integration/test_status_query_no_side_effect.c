@@ -1,5 +1,5 @@
 #include "tests/test_support.h"
-#include "src/application/coordinators/system_context_private.h"
+#include "src/application/coordinators/device_runtime_private.h"
 
 #include "application/use_cases/query_wash_session_status.h"
 
@@ -12,15 +12,15 @@ typedef struct status_side_effect_snapshot_t {
     char last_reason_code[64];
 } status_side_effect_snapshot_t;
 
-static void capture_status_snapshot(const system_context_t system_context, status_side_effect_snapshot_t *snapshot)
+static void capture_status_snapshot(const device_runtime_t system_context, status_side_effect_snapshot_t *snapshot)
 {
     memset(snapshot, 0, sizeof(*snapshot));
-    snapshot->global_fault_present = system_context_private_runtime(system_context)->global_fault_present;
-    snapshot->pending_trigger_count = system_context_private_runtime(system_context)->pending_trigger_count;
-    snapshot->session_state = system_context_private_runtime(system_context)->wash_session.session_state;
-    snapshot->final_session_result = system_context_private_runtime(system_context)->wash_session.final_session_result;
-    strncpy(snapshot->last_result_code, system_context_private_runtime(system_context)->last_result_code, sizeof(snapshot->last_result_code) - 1);
-    strncpy(snapshot->last_reason_code, system_context_private_runtime(system_context)->last_reason_code, sizeof(snapshot->last_reason_code) - 1);
+    snapshot->global_fault_present = device_runtime_private_runtime(system_context)->global_fault_present;
+    snapshot->pending_trigger_count = device_runtime_private_runtime(system_context)->pending_trigger_count;
+    snapshot->session_state = device_runtime_private_runtime(system_context)->wash_session.session_state;
+    snapshot->final_session_result = device_runtime_private_runtime(system_context)->wash_session.final_session_result;
+    strncpy(snapshot->last_result_code, device_runtime_private_runtime(system_context)->last_result_code, sizeof(snapshot->last_result_code) - 1);
+    strncpy(snapshot->last_reason_code, device_runtime_private_runtime(system_context)->last_reason_code, sizeof(snapshot->last_reason_code) - 1);
 }
 
 static int assert_status_snapshot_equal(const status_side_effect_snapshot_t *left,
@@ -37,7 +37,7 @@ static int assert_status_snapshot_equal(const status_side_effect_snapshot_t *lef
 
 static int verify_status_command_has_no_side_effect(void)
 {
-    system_context_t system_context;
+    device_runtime_t system_context;
     simulated_driver_context_t driver_context;
     status_side_effect_snapshot_t before_snapshot;
     status_side_effect_snapshot_t after_snapshot;
@@ -62,7 +62,7 @@ static int verify_status_command_has_no_side_effect(void)
 
     TEST_ASSERT(assert_status_snapshot_equal(&before_snapshot, &after_snapshot) == 0);
 
-    result = system_context_reset(system_context);
+    result = device_runtime_reset(system_context);
     TEST_ASSERT(result.ok);
     result = query_wash_session_status_execute(system_context, &(wash_session_status_view_t){0});
     TEST_ASSERT(result.ok);
