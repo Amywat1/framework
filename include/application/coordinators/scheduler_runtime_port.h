@@ -3,7 +3,6 @@
 
 #include <stdbool.h>
 
-#include "domain/ports/event_logger_port.h"
 #include "shared/result_types.h"
 
 /**
@@ -45,13 +44,6 @@ typedef struct scheduler_runtime_port_t
      * @return 存在待处理触发或已到期超时时返回 `true`。
      */
     bool (*has_pending_work)(void *context);
-
-    /**
-     * @brief 读取当前已装配的事件日志端口。
-     * @param context 实现方私有上下文。
-     * @return 事件日志端口只读指针；未装配时返回 `0`。
-     */
-    const event_logger_port_t *(*event_logger_port)(void *context);
 
     /**
      * @brief 按给定时长推进运行时逻辑时钟。

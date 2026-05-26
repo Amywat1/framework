@@ -11,7 +11,6 @@
 #include "domain/model/wash_session.h"
 #include "domain/model/wash_trigger_event.h"
 #include "domain/ports/actuator_port.h"
-#include "domain/ports/event_logger_port.h"
 #include "domain/ports/program_repository_port.h"
 #include "domain/ports/sensor_port.h"
 #include "domain/services/program_snapshot_service.h"
@@ -104,7 +103,7 @@ void device_runtime_private_clear_global_fault(device_runtime_t device_runtime);
 
 /** @} */
 
-/** @name 运行时结果与日志 */
+/** @name 运行时结果 */
 /** @{ */
 
 /** @brief 读取最近一次状态迁移记录（只读）；句柄非法时返回 `0`。 */
@@ -136,8 +135,6 @@ void device_runtime_private_apply_device_runtime_result(device_runtime_t device_
 operation_result_t device_runtime_private_apply_start_accepted(device_runtime_t device_runtime,
                                                                wash_session_t *wash_session,
                                                                wash_execution_t *wash_execution);
-/** @brief 读取事件日志端口（只读）；句柄非法时返回 `0`。 */
-const event_logger_port_t *device_runtime_private_event_logger_port(const device_runtime_t device_runtime);
 
 /** @} */
 

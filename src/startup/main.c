@@ -53,7 +53,6 @@ static void initialize_scheduler_config(controller_scheduler_config_t *scheduler
     scheduler_config->bounded_drain_ticks = BOUNDED_DRAIN_TICKS;
     scheduler_config->max_triggers_per_tick = MAX_TRIGGERS_PER_TICK;
     scheduler_config->overrun_warning_threshold_ms = CONTROL_PERIOD_MS;
-    scheduler_config->observability_enabled = true;
 }
 
 int main(void)
@@ -78,7 +77,6 @@ int main(void)
     app_config.command_output = stdout;
     app_config.command_error = stderr;
     app_config.config_root = "./configs";
-    app_config.event_log_path = "./runtime/logs/events.log";
     app_config.background_alarm_monitor.enabled = true;
     app_config.background_alarm_monitor.io_sample_period_ms = BACKGROUND_ALARM_IO_PERIOD_MS;
     app_config.background_alarm_monitor.detect_period_ms = BACKGROUND_ALARM_DETECT_PERIOD_MS;

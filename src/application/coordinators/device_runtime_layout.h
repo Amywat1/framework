@@ -41,7 +41,6 @@ typedef struct device_runtime_state_t
     void *scheduler_binding;
     sensor_port_t sensor_port;
     actuator_port_t actuator_port;
-    event_logger_port_t event_logger_port;
     program_repository_port_t program_repository_port;
 } device_runtime_state_t;
 

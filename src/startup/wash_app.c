@@ -2,7 +2,6 @@
 
 #include <string.h>
 
-#include "adapters/logging/file_event_logger.h"
 #include "adapters/outbound/file_program_repository.h"
 #include "application/coordinators/scheduler_runtime_port.h"
 #include "application/coordinators/background_alarm_monitor.h"
@@ -267,7 +266,7 @@ operation_result_t wash_app_config_validate(const wash_app_config_t *config)
     {
         return operation_result_fail(ERROR_CODE_INVALID_ARGUMENT);
     }
-    if (!string_present(config->config_root) || !string_present(config->event_log_path))
+    if (!string_present(config->config_root))
     {
         return operation_result_fail(ERROR_CODE_INVALID_ARGUMENT);
     }
@@ -323,13 +322,6 @@ operation_result_t wash_app_create(wash_app_t **app, const wash_app_config_t *co
     device_runtime_set_actuator_port(g_wash_app_state.device_runtime, config->actuator_port);
 
     result = file_program_repository_init(g_wash_app_state.device_runtime, config->config_root);
-    if (!result.ok)
-    {
-        (void)destroy_owned_resources();
-        return result;
-    }
-
-    result = file_event_logger_init(g_wash_app_state.device_runtime, config->event_log_path);
     if (!result.ok)
     {
         (void)destroy_owned_resources();

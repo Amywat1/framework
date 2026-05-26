@@ -127,31 +127,6 @@ void controller_scheduler_record_error(controller_scheduler_t *controller_schedu
 }
 
 /**
- * @brief 在可观测性开启时写入调度器日志消息。
- * @param controller_scheduler 调度器实例。
- * @param message 待写入的日志文本。
- */
-static void controller_scheduler_log_message(controller_scheduler_t *controller_scheduler, const char *message)
-{
-    const event_logger_port_t *event_logger_port;
-
-    if (controller_scheduler == 0 || message == 0)
-    {
-        return;
-    }
-    if (!controller_scheduler->config.observability_enabled)
-    {
-        return;
-    }
-    event_logger_port = controller_scheduler->runtime_port.event_logger_port(
-        controller_scheduler->runtime_port.context);
-    if (event_logger_port != 0 && event_logger_port->log_message != 0)
-    {
-        event_logger_port->log_message(event_logger_port->context, TRIGGER_TYPE_BUSINESS, message);
-    }
-}
-
-/**
  * @brief 刷新待处理触发数指标。
  * @param controller_scheduler 调度器实例。
  */
@@ -189,7 +164,6 @@ static void controller_scheduler_note_source_event(scheduler_event_source_descri
  */
 void controller_scheduler_note_command_event(controller_scheduler_t *controller_scheduler, const char *command_line)
 {
-    char log_line[160];
     unsigned long seen_time_ms;
 
     if (controller_scheduler == 0 || command_line == 0)
@@ -200,8 +174,6 @@ void controller_scheduler_note_command_event(controller_scheduler_t *controller_
     seen_time_ms = controller_scheduler->runtime_port.current_time_ms(controller_scheduler->runtime_port.context);
     controller_scheduler->metrics.command_event_count += 1ul;
     controller_scheduler_note_source_event(&controller_scheduler->command_source, 1ul, seen_time_ms);
-    snprintf(log_line, sizeof(log_line), "scheduler command line=%s", command_line);
-    controller_scheduler_log_message(controller_scheduler, log_line);
 }
 
 /**
@@ -231,7 +203,6 @@ operation_result_t controller_scheduler_execute_bounded_ticks(controller_schedul
                                                              bool count_cycle,
                                                              unsigned long cycle_count_increment)
 {
-    char log_line[160];
     operation_result_t result;
     unsigned int remaining_runs;
     unsigned long cycle_start_ms;
@@ -294,10 +265,6 @@ operation_result_t controller_scheduler_execute_bounded_ticks(controller_schedul
     }
     controller_scheduler_update_pending_metric(controller_scheduler);
 
-    snprintf(log_line, sizeof(log_line), "scheduler cycle=%lu duration_ms=%lu pending=%u state=%d",
-             controller_scheduler->metrics.cycle_count, controller_scheduler->last_cycle_duration_ms,
-             controller_scheduler->metrics.pending_trigger_count, (int)controller_scheduler->runtime_state);
-    controller_scheduler_log_message(controller_scheduler, log_line);
     return result;
 }
 
@@ -308,7 +275,6 @@ operation_result_t controller_scheduler_execute_bounded_ticks(controller_schedul
  */
 static operation_result_t controller_scheduler_handle_notification(controller_scheduler_t *controller_scheduler)
 {
-    char log_line[160];
     unsigned int notification_count;
     unsigned long seen_time_ms;
 
@@ -331,9 +297,6 @@ static operation_result_t controller_scheduler_handle_notification(controller_sc
     controller_scheduler->notification_snapshot.dirty = true;
     controller_scheduler_note_source_event(&controller_scheduler->notification_source, notification_count,
                                            seen_time_ms);
-    snprintf(log_line, sizeof(log_line), "scheduler notification count=%u version=%lu", notification_count,
-             controller_scheduler->notification_snapshot.snapshot_version);
-    controller_scheduler_log_message(controller_scheduler, log_line);
     return operation_result_ok();
 }
 
@@ -344,7 +307,6 @@ static operation_result_t controller_scheduler_handle_notification(controller_sc
  */
 static operation_result_t controller_scheduler_handle_exit(controller_scheduler_t *controller_scheduler)
 {
-    char log_line[128];
     unsigned long seen_time_ms;
 
     if (controller_scheduler == 0)
@@ -369,9 +331,6 @@ static operation_result_t controller_scheduler_handle_exit(controller_scheduler_
         controller_scheduler->drain_ticks_remaining = controller_scheduler->config.bounded_drain_ticks;
     }
 
-    snprintf(log_line, sizeof(log_line), "scheduler exit state=%d drain_ticks=%u",
-             (int)controller_scheduler->runtime_state, controller_scheduler->drain_ticks_remaining);
-    controller_scheduler_log_message(controller_scheduler, log_line);
     return operation_result_ok();
 }
 

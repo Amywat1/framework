@@ -191,13 +191,11 @@ void process_formal_command_format_response(char *response_line, size_t response
  * @param latest_reason_code 最新原因码。
  * @param transition_result_code 转移结果码。
  * @param transition_reason_code 转移原因码。
- * @param runtime_event_log_kind 事件日志类型。
  */
 static void apply_request_projection(device_runtime_t device_runtime, trigger_type_t trigger_type,
                                      const char *entity_id, const char *previous_state, const char *current_state,
                                      const char *latest_result_code, const char *latest_reason_code,
-                                     const char *transition_result_code, const char *transition_reason_code,
-                                     runtime_event_log_kind_t runtime_event_log_kind)
+                                     const char *transition_result_code, const char *transition_reason_code)
 {
     runtime_result_projection_t runtime_result_projection;
 
@@ -205,7 +203,7 @@ static void apply_request_projection(device_runtime_t device_runtime, trigger_ty
     runtime_result_projection_set_latest_result(&runtime_result_projection, latest_result_code, latest_reason_code);
     runtime_result_projection_set_transition(&runtime_result_projection, TRANSITION_ENTITY_REQUEST, entity_id,
                                              trigger_type, previous_state, current_state, transition_result_code,
-                                             transition_reason_code, runtime_event_log_kind);
+                                             transition_reason_code);
     runtime_event_recorder_apply_projection(device_runtime, &runtime_result_projection);
 }
 
@@ -217,7 +215,7 @@ static void apply_request_projection(device_runtime_t device_runtime, trigger_ty
 static void remember_protocol_error(device_runtime_t device_runtime, const char *reason_code)
 {
     apply_request_projection(device_runtime, TRIGGER_TYPE_REJECT, "formal-command", "received", "error", "error",
-                             reason_code, "error", reason_code, RUNTIME_EVENT_LOG_REJECTION);
+                             reason_code, "error", reason_code);
 }
 
 /**
@@ -235,7 +233,7 @@ static void remember_command_rejection(device_runtime_t device_runtime, trigger_
     apply_request_projection(
         device_runtime, trigger_type,
         (wash_session != 0 && wash_session->session_id[0] != '\0') ? wash_session->session_id : "stdin", "received",
-        "rejected", "rejected", reason_code, "rejected", reason_code, RUNTIME_EVENT_LOG_REJECTION);
+        "rejected", "rejected", reason_code, "rejected", reason_code);
 }
 
 /**
@@ -248,7 +246,7 @@ static void remember_submit_rejection(device_runtime_t device_runtime, trigger_t
                                       const char *reason_code)
 {
     apply_request_projection(device_runtime, trigger_type, "pending-trigger-queue", "prepared", "rejected", "rejected",
-                             reason_code, "rejected", reason_code, RUNTIME_EVENT_LOG_REJECTION);
+                             reason_code, "rejected", reason_code);
 }
 
 /**

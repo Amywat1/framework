@@ -8,7 +8,6 @@
 #include "domain/model/wait_condition.h"
 #include "domain/model/wash_trigger_event.h"
 #include "domain/ports/actuator_port.h"
-#include "domain/ports/event_logger_port.h"
 #include "domain/ports/program_repository_port.h"
 #include "domain/ports/sensor_port.h"
 #include "shared/result_types.h"
@@ -66,15 +65,6 @@ void device_runtime_set_sensor_port(device_runtime_t device_runtime, const senso
  * @param actuator_port 执行机构端口；传入 `0` 时清空该端口。
  */
 void device_runtime_set_actuator_port(device_runtime_t device_runtime, const actuator_port_t *actuator_port);
-
-/**
- * @brief 将事件日志端口装配到主控上下文。
- *
- * @param device_runtime 主控上下文，不能为空。
- * @param event_logger_port 日志端口；传入 `0` 时清空该端口。
- */
-void device_runtime_set_event_logger_port(device_runtime_t device_runtime,
-                                          const event_logger_port_t *event_logger_port);
 
 /**
  * @brief 将程序仓储端口装配到主控上下文。
@@ -255,14 +245,6 @@ const wait_condition_t *device_runtime_wait_condition(const device_runtime_t dev
  * @param elapsed_ms 本次推进的毫秒数。
  */
 void device_runtime_advance_time(device_runtime_t device_runtime, unsigned long elapsed_ms);
-
-/**
- * @brief 读取当前已装配的事件日志端口。
- *
- * @param device_runtime 主控上下文；允许为 `0`。
- * @return 事件日志端口只读指针；无上下文时返回 `0`。
- */
-const event_logger_port_t *device_runtime_event_logger_port(const device_runtime_t device_runtime);
 
 /**
  * @brief 从 device_runtime 实例填充调度器运行时端口。

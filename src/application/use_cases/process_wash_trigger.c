@@ -61,12 +61,10 @@ static wash_execution_service_args_t build_execution_service_args(device_runtime
  * @param current_device_state 转移后设备状态。
  * @param result_code 结果码。
  * @param reason_code 原因码。
- * @param runtime_event_log_kind 运行时事件日志类型。
  */
 static void project_trigger_result(device_runtime_t device_runtime, const wash_trigger_event_t *wash_trigger_event,
                                    device_state_t previous_device_state, device_state_t current_device_state,
-                                   const char *result_code, const char *reason_code,
-                                   runtime_event_log_kind_t runtime_event_log_kind)
+                                   const char *result_code, const char *reason_code)
 {
     runtime_result_projection_t runtime_result_projection;
 
@@ -82,7 +80,7 @@ static void project_trigger_result(device_runtime_t device_runtime, const wash_t
         &runtime_result_projection, TRANSITION_ENTITY_REQUEST,
         wash_trigger_event->trigger_id[0] != '\0' ? wash_trigger_event->trigger_id : "internal-trigger",
         wash_trigger_event->trigger_type, runtime_state_text_device_state(previous_device_state),
-        runtime_state_text_device_state(current_device_state), result_code, reason_code, runtime_event_log_kind);
+        runtime_state_text_device_state(current_device_state), result_code, reason_code);
     runtime_event_recorder_apply_projection(device_runtime, &runtime_result_projection);
 }
 
@@ -211,7 +209,7 @@ static operation_result_t handle_homing(device_runtime_t device_runtime)
         wash_trigger_event_init(&wash_trigger_event, TRIGGER_TYPE_HOMING, 0, "homing", "homing-command",
                                 device_runtime_current_time_ms(device_runtime));
         project_trigger_result(device_runtime, &wash_trigger_event, device_state, device_state, "rejected",
-                               command_matrix_running_session_exists_reason(), RUNTIME_EVENT_LOG_REJECTION);
+                               command_matrix_running_session_exists_reason());
         return operation_result_fail(ERROR_CODE_INVALID_STATE);
     }
     if (device_state != DEVICE_STATE_STOPPED)
@@ -219,7 +217,7 @@ static operation_result_t handle_homing(device_runtime_t device_runtime)
         wash_trigger_event_init(&wash_trigger_event, TRIGGER_TYPE_HOMING, 0, "homing", "homing-command",
                                 device_runtime_current_time_ms(device_runtime));
         project_trigger_result(device_runtime, &wash_trigger_event, device_state, device_state, "rejected",
-                               command_matrix_homing_requires_stopped_reason(), RUNTIME_EVENT_LOG_REJECTION);
+                               command_matrix_homing_requires_stopped_reason());
         return operation_result_fail(ERROR_CODE_INVALID_STATE);
     }
 
@@ -238,14 +236,13 @@ static operation_result_t handle_homing(device_runtime_t device_runtime)
                                failure_reason_code != 0 ? failure_reason_code
                                                         : (device_runtime_private_global_fault_present(device_runtime)
                                                                ? "recovering_alarm_triggered"
-                                                               : "homing_failed"),
-                               RUNTIME_EVENT_LOG_TRANSITION);
+                                                               : "homing_failed"));
         return !result.ok ? result : operation_result_fail(ERROR_CODE_INVALID_STATE);
     }
 
     device_runtime_private_apply_device_runtime_result(device_runtime, DEVICE_STATE_IDLE, 0, 0);
     project_trigger_result(device_runtime, &wash_trigger_event, DEVICE_STATE_STOPPED, DEVICE_STATE_IDLE, "accepted",
-                           "homing_completed", RUNTIME_EVENT_LOG_TRANSITION);
+                           "homing_completed");
     return operation_result_ok();
 }
 
@@ -270,13 +267,13 @@ static operation_result_t handle_start(device_runtime_t device_runtime, const wa
     if (device_state != DEVICE_STATE_IDLE)
     {
         project_trigger_result(device_runtime, wash_trigger_event, device_state, device_state, "rejected",
-                               command_matrix_start_rejection_reason(device_state), RUNTIME_EVENT_LOG_REJECTION);
+                               command_matrix_start_rejection_reason(device_state));
         return operation_result_fail(ERROR_CODE_INVALID_STATE);
     }
     if (device_runtime_private_global_fault_present(device_runtime))
     {
         project_trigger_result(device_runtime, wash_trigger_event, device_state, device_state, "rejected",
-                               "global_fault_active", RUNTIME_EVENT_LOG_REJECTION);
+                               "global_fault_active");
         return operation_result_fail(ERROR_CODE_INVALID_STATE);
     }
 
@@ -289,7 +286,7 @@ static operation_result_t handle_start(device_runtime_t device_runtime, const wa
     if (wash_session_is_running(wash_session))
     {
         project_trigger_result(device_runtime, wash_trigger_event, device_state, device_state, "rejected",
-                               command_matrix_running_session_exists_reason(), RUNTIME_EVENT_LOG_REJECTION);
+                               command_matrix_running_session_exists_reason());
         return operation_result_fail(ERROR_CODE_INVALID_STATE);
     }
 
@@ -298,8 +295,7 @@ static operation_result_t handle_start(device_runtime_t device_runtime, const wa
     if (!result.ok)
     {
         reason_code = result.error_code == ERROR_CODE_RESOURCE_UNAVAILABLE ? "program_unavailable" : "program_invalid";
-        project_trigger_result(device_runtime, wash_trigger_event, device_state, device_state, "rejected", reason_code,
-                               RUNTIME_EVENT_LOG_REJECTION);
+        project_trigger_result(device_runtime, wash_trigger_event, device_state, device_state, "rejected", reason_code);
         return result;
     }
 
@@ -315,7 +311,7 @@ static operation_result_t handle_start(device_runtime_t device_runtime, const wa
     if (result.ok)
     {
         project_trigger_result(device_runtime, wash_trigger_event, device_state, DEVICE_STATE_RUNNING, "accepted",
-                               wash_session_transition_fact.reason_code, RUNTIME_EVENT_LOG_TRANSITION);
+                               wash_session_transition_fact.reason_code);
     }
     return result;
 }
@@ -345,7 +341,7 @@ static operation_result_t handle_stop(device_runtime_t device_runtime, const was
     if (device_state != DEVICE_STATE_RUNNING || !wash_session_is_running(wash_session))
     {
         project_trigger_result(device_runtime, wash_trigger_event, device_state, device_state, "rejected",
-                               command_matrix_stop_rejection_reason(), RUNTIME_EVENT_LOG_REJECTION);
+                               command_matrix_stop_rejection_reason());
         return operation_result_fail(ERROR_CODE_INVALID_STATE);
     }
 
@@ -365,7 +361,7 @@ static operation_result_t handle_stop(device_runtime_t device_runtime, const was
         device_runtime_private_apply_device_runtime_result(device_runtime, DEVICE_STATE_STOPPED, "aborted",
                                                            wash_trigger_event->signal_code);
         project_trigger_result(device_runtime, wash_trigger_event, DEVICE_STATE_RUNNING, DEVICE_STATE_STOPPED,
-                               "aborted", wash_trigger_event->signal_code, RUNTIME_EVENT_LOG_TRANSITION);
+                               "aborted", wash_trigger_event->signal_code);
     }
     return result;
 }
@@ -399,13 +395,13 @@ static operation_result_t handle_fault(device_runtime_t device_runtime, const wa
         if (device_state != DEVICE_STATE_EXCEPTION)
         {
             project_trigger_result(device_runtime, wash_trigger_event, device_state, device_state, "rejected",
-                                   command_matrix_fault_clear_rejection_reason(), RUNTIME_EVENT_LOG_REJECTION);
+                                   command_matrix_fault_clear_rejection_reason());
             return operation_result_fail(ERROR_CODE_INVALID_STATE);
         }
         device_runtime_private_clear_global_fault(device_runtime);
         device_runtime_private_apply_device_runtime_result(device_runtime, DEVICE_STATE_STOPPED, 0, 0);
         project_trigger_result(device_runtime, wash_trigger_event, DEVICE_STATE_EXCEPTION, DEVICE_STATE_STOPPED,
-                               "accepted", "global_fault_cleared", RUNTIME_EVENT_LOG_TRANSITION);
+                               "accepted", "global_fault_cleared");
         return operation_result_ok();
     }
     if (!wash_session_is_running(wash_session))
@@ -414,7 +410,7 @@ static operation_result_t handle_fault(device_runtime_t device_runtime, const wa
                                                 wash_trigger_event->correlation_key);
         device_runtime_private_apply_device_runtime_result(device_runtime, DEVICE_STATE_EXCEPTION, 0, 0);
         project_trigger_result(device_runtime, wash_trigger_event, device_state, DEVICE_STATE_EXCEPTION, "accepted",
-                               "global_fault_recorded", RUNTIME_EVENT_LOG_TRANSITION);
+                               "global_fault_recorded");
         return operation_result_ok();
     }
     device_runtime_private_set_global_fault(device_runtime, wash_trigger_event->signal_code,

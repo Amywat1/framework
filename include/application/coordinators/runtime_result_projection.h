@@ -11,18 +11,7 @@
  */
 
 /**
- * @brief 标识投影完成后需要写入的日志通道。
- */
-typedef enum runtime_event_log_kind_t
-{
-    RUNTIME_EVENT_LOG_NONE = 0,
-    RUNTIME_EVENT_LOG_TRANSITION,
-    RUNTIME_EVENT_LOG_REJECTION,
-    RUNTIME_EVENT_LOG_IGNORED
-} runtime_event_log_kind_t;
-
-/**
- * @brief 描述一次领域结论在最近结果、迁移记录和日志中的统一投影。
+ * @brief 描述一次领域结论在最近结果与迁移记录中的统一投影。
  *
  * @note 该结构只承载最近一次对外投影，不承担会话终态存储职责。
  */
@@ -32,7 +21,6 @@ typedef struct runtime_result_projection_t
     bool records_transition;
     transition_entity_type_t transition_entity;
     trigger_type_t trigger_type;
-    runtime_event_log_kind_t log_kind;
     char entity_id[32];
     char previous_state[32];
     char current_state[32];
@@ -60,7 +48,7 @@ void runtime_result_projection_set_latest_result(runtime_result_projection_t *ru
                                                  const char *result_code, const char *reason_code);
 
 /**
- * @brief 配置投影中的迁移记录与日志结论。
+ * @brief 配置投影中的迁移记录结论。
  *
  * @param runtime_result_projection 投影对象，不能为空。
  * @param transition_entity 迁移实体类型。
@@ -70,12 +58,11 @@ void runtime_result_projection_set_latest_result(runtime_result_projection_t *ru
  * @param current_state 后态；为空时写入 `"none"`。
  * @param result_code 迁移结果码；为空时写入 `"none"`。
  * @param reason_code 迁移原因码；为空时写入 `"none"`。
- * @param runtime_event_log_kind 对应日志通道。
  */
 void runtime_result_projection_set_transition(runtime_result_projection_t *runtime_result_projection,
                                               transition_entity_type_t transition_entity, const char *entity_id,
                                               trigger_type_t trigger_type, const char *previous_state,
                                               const char *current_state, const char *result_code,
-                                              const char *reason_code, runtime_event_log_kind_t runtime_event_log_kind);
+                                              const char *reason_code);
 
 #endif

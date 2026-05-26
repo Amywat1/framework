@@ -45,7 +45,6 @@ typedef struct wash_app_config_t
     FILE *command_output;
     FILE *command_error;
     const char *config_root;
-    const char *event_log_path;
     background_alarm_settings_t background_alarm_monitor;
 } wash_app_config_t;
 

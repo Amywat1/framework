@@ -37,7 +37,6 @@ set(WASH_CORE_SOURCES
     application/use_cases/query_wash_session_status.c
     adapters/outbound/file_program_repository.c
     adapters/config/json_program_parser.c
-    adapters/logging/file_event_logger.c
     platform/linux/controller_scheduler_linux.c
     platform/linux/stdio_formal_command_adapter.c
     platform/linux/worker_thread_linux.c

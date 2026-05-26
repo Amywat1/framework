@@ -30,7 +30,6 @@ void runtime_result_projection_init(runtime_result_projection_t *runtime_result_
     }
 
     memset(runtime_result_projection, 0, sizeof(*runtime_result_projection));
-    runtime_result_projection->log_kind = RUNTIME_EVENT_LOG_NONE;
 }
 
 void runtime_result_projection_set_latest_result(runtime_result_projection_t *runtime_result_projection,
@@ -52,7 +51,7 @@ void runtime_result_projection_set_transition(runtime_result_projection_t *runti
                                               transition_entity_type_t transition_entity, const char *entity_id,
                                               trigger_type_t trigger_type, const char *previous_state,
                                               const char *current_state, const char *result_code,
-                                              const char *reason_code, runtime_event_log_kind_t runtime_event_log_kind)
+                                              const char *reason_code)
 {
     if (runtime_result_projection == 0)
     {
@@ -62,7 +61,6 @@ void runtime_result_projection_set_transition(runtime_result_projection_t *runti
     runtime_result_projection->records_transition = true;
     runtime_result_projection->transition_entity = transition_entity;
     runtime_result_projection->trigger_type = trigger_type;
-    runtime_result_projection->log_kind = runtime_event_log_kind;
     write_projection_field(runtime_result_projection->entity_id, sizeof(runtime_result_projection->entity_id),
                            entity_id);
     write_projection_field(runtime_result_projection->previous_state, sizeof(runtime_result_projection->previous_state),
@@ -88,7 +86,6 @@ void runtime_event_recorder_set_latest_result(device_runtime_t device_runtime, c
 void runtime_event_recorder_apply_projection(device_runtime_t device_runtime,
                                              const runtime_result_projection_t *runtime_result_projection)
 {
-    const event_logger_port_t *event_logger_port;
     state_transition_record_t *last_transition_record;
 
     if (!device_runtime_private_require_active(device_runtime).ok)
@@ -111,8 +108,7 @@ void runtime_event_recorder_apply_projection(device_runtime_t device_runtime,
     }
 
     last_transition_record = device_runtime_private_last_transition_record_mutable(device_runtime);
-    event_logger_port = device_runtime_private_event_logger_port(device_runtime);
-    if (last_transition_record == 0 || event_logger_port == 0)
+    if (last_transition_record == 0)
     {
         return;
     }
@@ -125,29 +121,4 @@ void runtime_event_recorder_apply_projection(device_runtime_t device_runtime,
                                  safe_runtime_field(runtime_result_projection->transition_result_code),
                                  safe_runtime_field(runtime_result_projection->transition_reason_code),
                                  device_runtime_current_time_ms(device_runtime));
-
-    switch (runtime_result_projection->log_kind)
-    {
-    case RUNTIME_EVENT_LOG_TRANSITION:
-        if (event_logger_port->log_transition != 0)
-        {
-            event_logger_port->log_transition(event_logger_port->context, last_transition_record);
-        }
-        break;
-    case RUNTIME_EVENT_LOG_REJECTION:
-        if (event_logger_port->log_rejection != 0)
-        {
-            event_logger_port->log_rejection(event_logger_port->context, last_transition_record);
-        }
-        break;
-    case RUNTIME_EVENT_LOG_IGNORED:
-        if (event_logger_port->log_ignored != 0)
-        {
-            event_logger_port->log_ignored(event_logger_port->context, last_transition_record);
-        }
-        break;
-    case RUNTIME_EVENT_LOG_NONE:
-    default:
-        break;
-    }
 }

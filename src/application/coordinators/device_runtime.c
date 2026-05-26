@@ -317,15 +317,6 @@ operation_result_t device_runtime_private_apply_start_accepted(device_runtime_t 
     return result;
 }
 
-const event_logger_port_t *device_runtime_private_event_logger_port(const device_runtime_t device_runtime)
-{
-    if (!require_active_instance(device_runtime).ok)
-    {
-        return 0;
-    }
-    return &s_device_runtime_instance.runtime.event_logger_port;
-}
-
 void device_runtime_private_build_session_service_args(device_runtime_t device_runtime,
                                                        wash_session_service_args_t *wash_session_service_args)
 {
@@ -668,7 +659,6 @@ operation_result_t device_runtime_release(device_runtime_t device_runtime)
 operation_result_t device_runtime_reset(device_runtime_t device_runtime)
 {
     actuator_port_t actuator_port;
-    event_logger_port_t event_logger_port;
     operation_result_t result;
     program_repository_port_t program_repository_port;
     void *scheduler_binding;
@@ -684,7 +674,6 @@ operation_result_t device_runtime_reset(device_runtime_t device_runtime)
     runtime = &s_device_runtime_instance.runtime;
     sensor_port = runtime->sensor_port;
     actuator_port = runtime->actuator_port;
-    event_logger_port = runtime->event_logger_port;
     program_repository_port = runtime->program_repository_port;
     scheduler_binding = runtime->scheduler_binding;
 
@@ -692,7 +681,6 @@ operation_result_t device_runtime_reset(device_runtime_t device_runtime)
     runtime->scheduler_binding = scheduler_binding;
     runtime->sensor_port = sensor_port;
     runtime->actuator_port = actuator_port;
-    runtime->event_logger_port = event_logger_port;
     runtime->program_repository_port = program_repository_port;
     return device_runtime_private_enter_stopped(device_runtime);
 }
@@ -731,24 +719,6 @@ void device_runtime_set_actuator_port(device_runtime_t device_runtime, const act
         return;
     }
     runtime->actuator_port = *actuator_port;
-}
-
-void device_runtime_set_event_logger_port(device_runtime_t device_runtime, const event_logger_port_t *event_logger_port)
-{
-    device_runtime_state_t *runtime;
-
-    if (!require_active_instance(device_runtime).ok)
-    {
-        return;
-    }
-
-    runtime = &s_device_runtime_instance.runtime;
-    if (event_logger_port == 0)
-    {
-        memset(&runtime->event_logger_port, 0, sizeof(runtime->event_logger_port));
-        return;
-    }
-    runtime->event_logger_port = *event_logger_port;
 }
 
 void device_runtime_set_program_repository_port(device_runtime_t device_runtime,
@@ -955,9 +925,4 @@ const wait_condition_t *device_runtime_wait_condition(const device_runtime_t dev
 void device_runtime_advance_time(device_runtime_t device_runtime, unsigned long elapsed_ms)
 {
     device_runtime_private_advance_time(device_runtime, elapsed_ms);
-}
-
-const event_logger_port_t *device_runtime_event_logger_port(const device_runtime_t device_runtime)
-{
-    return device_runtime_private_event_logger_port(device_runtime);
 }

@@ -80,7 +80,6 @@ typedef struct controller_scheduler_config_t
     unsigned int bounded_drain_ticks;
     unsigned int max_triggers_per_tick;
     unsigned long overrun_warning_threshold_ms;
-    bool observability_enabled;
 } controller_scheduler_config_t;
 
 /**
