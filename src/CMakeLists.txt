@@ -26,6 +26,7 @@ set(WASH_CORE_SOURCES
     domain/services/wash_execution_service.c
     domain/services/wash_session_state_machine.c
     startup/wash_app.c
+    application/coordinators/background_alarm_monitor.c
     application/coordinators/control_tick.c
     application/coordinators/device_runtime.c
     application/coordinators/runtime_event_recorder.c
@@ -37,7 +38,6 @@ set(WASH_CORE_SOURCES
     adapters/outbound/file_program_repository.c
     adapters/config/json_program_parser.c
     adapters/logging/file_event_logger.c
-    platform/linux/background_alarm_monitor_linux.c
     platform/linux/controller_scheduler_linux.c
     platform/linux/stdio_formal_command_adapter.c
     platform/linux/worker_thread_linux.c

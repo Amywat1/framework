@@ -1,5 +1,5 @@
-#ifndef PLATFORM_BACKGROUND_ALARM_MONITOR_H
-#define PLATFORM_BACKGROUND_ALARM_MONITOR_H
+#ifndef APPLICATION_COORDINATORS_BACKGROUND_ALARM_MONITOR_H
+#define APPLICATION_COORDINATORS_BACKGROUND_ALARM_MONITOR_H
 
 #include "application/coordinators/background_alarm_settings.h"
 #include "application/coordinators/device_runtime.h"
@@ -8,7 +8,7 @@
 
 /**
  * @file background_alarm_monitor.h
- * @brief 声明后台报警监控平台组件接口。
+ * @brief 声明后台报警监控应用层组件接口。
  */
 
 typedef struct background_alarm_monitor_t background_alarm_monitor_t;

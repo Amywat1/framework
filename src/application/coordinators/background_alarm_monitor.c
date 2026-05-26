@@ -1,11 +1,7 @@
-#define _POSIX_C_SOURCE 200809L
+#include "application/coordinators/background_alarm_monitor.h"
 
-#include "platform/background_alarm_monitor.h"
-
-#include <stdatomic.h>
 #include <stdlib.h>
 #include <string.h>
-#include <time.h>
 
 #include "application/services/alarm_evaluator.h"
 #include "platform/worker_thread.h"
@@ -13,7 +9,7 @@
 
 typedef struct background_alarm_snapshot_mailbox_t
 {
-    atomic_bool access_guard;
+    try_lock_t *access_guard;
     unsigned long published_sequence;
     sensor_snapshot_t sensor_snapshot;
     unsigned long occurred_at_ms;
@@ -29,60 +25,6 @@ struct background_alarm_monitor_t
     worker_thread_t *io_worker_thread;
     worker_thread_t *detect_worker_thread;
 };
-
-/**
- * @brief 将毫秒时长转换为 `timespec`。
- * @param sleep_ms 休眠毫秒数。
- * @param sleep_time 输出 `timespec`。
- */
-static void background_alarm_monitor_build_sleep_time(unsigned long sleep_ms, struct timespec *sleep_time)
-{
-    if (sleep_time == 0)
-    {
-        return;
-    }
-
-    sleep_time->tv_sec = (time_t)(sleep_ms / 1000ul);
-    sleep_time->tv_nsec = (long)((sleep_ms % 1000ul) * 1000000ul);
-}
-
-/**
- * @brief 读取当前单调时钟的毫秒值。
- * @return 读取成功时返回毫秒值，失败时返回 `0`。
- */
-static unsigned long background_alarm_monitor_read_monotonic_ms(void)
-{
-    struct timespec current_time;
-
-    if (clock_gettime(CLOCK_MONOTONIC, &current_time) != 0)
-    {
-        return 0ul;
-    }
-
-    return (unsigned long)(current_time.tv_sec * 1000ul) + (unsigned long)(current_time.tv_nsec / 1000000ul);
-}
-
-/**
- * @brief 按短切片休眠，避免后台线程在停止时长时间阻塞。
- * @param worker_thread 后台线程句柄。
- * @param sleep_ms 总休眠时长。
- */
-static void background_alarm_monitor_sleep_with_stop_check(worker_run_ctx_t *run_ctx, unsigned long sleep_ms)
-{
-    static const unsigned long s_sleep_slice_ms = 20ul;
-    struct timespec sleep_time;
-    unsigned long remaining_ms;
-    unsigned long current_slice_ms;
-
-    remaining_ms = sleep_ms;
-    while (remaining_ms > 0ul && !worker_run_ctx_stop_requested(run_ctx))
-    {
-        current_slice_ms = remaining_ms > s_sleep_slice_ms ? s_sleep_slice_ms : remaining_ms;
-        background_alarm_monitor_build_sleep_time(current_slice_ms, &sleep_time);
-        (void)nanosleep(&sleep_time, 0);
-        remaining_ms -= current_slice_ms;
-    }
-}
 
 /**
  * @brief 通过传感器端口读取一次后台报警采样快照。
@@ -107,52 +49,21 @@ static operation_result_t background_alarm_monitor_read_snapshot(const sensor_po
 /**
  * @brief 初始化后台报警快照邮箱。
  * @param snapshot_mailbox 单生产者单消费者快照邮箱。
+ * @return 初始化成功返回 `true`；内存不足时返回 `false`。
  */
-static void background_alarm_snapshot_mailbox_init(background_alarm_snapshot_mailbox_t *snapshot_mailbox)
+static bool background_alarm_snapshot_mailbox_init(background_alarm_snapshot_mailbox_t *snapshot_mailbox)
 {
-    if (snapshot_mailbox == 0)
-    {
-        return;
-    }
-
-    memset(&snapshot_mailbox->sensor_snapshot, 0, sizeof(snapshot_mailbox->sensor_snapshot));
-    snapshot_mailbox->occurred_at_ms = 0ul;
-    snapshot_mailbox->published_sequence = 0ul;
-    atomic_init(&snapshot_mailbox->access_guard, false);
-}
-
-/**
- * @brief 尝试获取后台报警邮箱访问锁。
- * @param snapshot_mailbox 单生产者单消费者快照邮箱。
- * @return 获取成功返回 `true`，否则返回 `false`。
- */
-static bool background_alarm_snapshot_mailbox_try_lock(background_alarm_snapshot_mailbox_t *snapshot_mailbox)
-{
-    bool expected_unlocked;
-
     if (snapshot_mailbox == 0)
     {
         return false;
     }
-
-    expected_unlocked = false;
-    return atomic_compare_exchange_strong_explicit(&snapshot_mailbox->access_guard, &expected_unlocked, true,
-                                                   memory_order_acquire, memory_order_relaxed);
+    memset(&snapshot_mailbox->sensor_snapshot, 0, sizeof(snapshot_mailbox->sensor_snapshot));
+    snapshot_mailbox->occurred_at_ms = 0ul;
+    snapshot_mailbox->published_sequence = 0ul;
+    snapshot_mailbox->access_guard = try_lock_create();
+    return snapshot_mailbox->access_guard != 0;
 }
 
-/**
- * @brief 释放后台报警邮箱访问锁。
- * @param snapshot_mailbox 单生产者单消费者快照邮箱。
- */
-static void background_alarm_snapshot_mailbox_unlock(background_alarm_snapshot_mailbox_t *snapshot_mailbox)
-{
-    if (snapshot_mailbox == 0)
-    {
-        return;
-    }
-
-    atomic_store_explicit(&snapshot_mailbox->access_guard, false, memory_order_release);
-}
 
 /**
  * @brief 发布最新传感器快照到邮箱。
@@ -169,7 +80,7 @@ static bool background_alarm_snapshot_mailbox_publish(background_alarm_snapshot_
     {
         return false;
     }
-    if (!background_alarm_snapshot_mailbox_try_lock(snapshot_mailbox))
+    if (!try_lock_acquire(snapshot_mailbox->access_guard))
     {
         return false;
     }
@@ -177,7 +88,7 @@ static bool background_alarm_snapshot_mailbox_publish(background_alarm_snapshot_
     snapshot_mailbox->sensor_snapshot = *sensor_snapshot;
     snapshot_mailbox->occurred_at_ms = occurred_at_ms;
     snapshot_mailbox->published_sequence += 1ul;
-    background_alarm_snapshot_mailbox_unlock(snapshot_mailbox);
+    try_lock_release(snapshot_mailbox->access_guard);
     return true;
 }
 
@@ -201,7 +112,7 @@ static bool background_alarm_snapshot_mailbox_try_read(background_alarm_snapshot
     {
         return false;
     }
-    if (!background_alarm_snapshot_mailbox_try_lock(snapshot_mailbox))
+    if (!try_lock_acquire(snapshot_mailbox->access_guard))
     {
         return false;
     }
@@ -210,20 +121,20 @@ static bool background_alarm_snapshot_mailbox_try_read(background_alarm_snapshot
     published_sequence = snapshot_mailbox->published_sequence;
     if (published_sequence == 0ul || published_sequence == consumed_sequence)
     {
-        background_alarm_snapshot_mailbox_unlock(snapshot_mailbox);
+        try_lock_release(snapshot_mailbox->access_guard);
         return false;
     }
 
     *sensor_snapshot = snapshot_mailbox->sensor_snapshot;
     *occurred_at_ms = snapshot_mailbox->occurred_at_ms;
     *last_consumed_sequence = published_sequence;
-    background_alarm_snapshot_mailbox_unlock(snapshot_mailbox);
+    try_lock_release(snapshot_mailbox->access_guard);
     return true;
 }
 
 /**
  * @brief 后台报警 IO 线程入口，仅负责周期读取并发布最新快照。
- * @param worker_thread 后台线程句柄。
+ * @param run_ctx 运行控制句柄。
  * @param context 监控实例。
  */
 static void background_alarm_monitor_io_entry(worker_run_ctx_t *run_ctx, void *context)
@@ -243,18 +154,18 @@ static void background_alarm_monitor_io_entry(worker_run_ctx_t *run_ctx, void *c
         result = background_alarm_monitor_read_snapshot(monitor->sensor_port, &sensor_snapshot);
         if (result.ok &&
             background_alarm_snapshot_mailbox_publish(&monitor->snapshot_mailbox, &sensor_snapshot,
-                                                      background_alarm_monitor_read_monotonic_ms()))
+                                                      worker_run_ctx_current_time_ms(run_ctx)))
         {
             (void)worker_thread_notify(monitor->detect_worker_thread);
         }
 
-        background_alarm_monitor_sleep_with_stop_check(run_ctx, monitor->settings.io_sample_period_ms);
+        (void)worker_run_ctx_wait(run_ctx, monitor->settings.io_sample_period_ms);
     }
 }
 
 /**
  * @brief 后台报警检测线程入口，只消费新快照并执行告警检测。
- * @param worker_thread 后台线程句柄。
+ * @param run_ctx 运行控制句柄。
  * @param context 监控实例。
  */
 static void background_alarm_monitor_detect_entry(worker_run_ctx_t *run_ctx, void *context)
@@ -312,7 +223,11 @@ operation_result_t background_alarm_monitor_create(background_alarm_monitor_t **
     created_monitor->device_runtime = config->device_runtime;
     created_monitor->sensor_port = config->sensor_port;
     alarm_evaluator_init(&created_monitor->alarm_evaluator);
-    background_alarm_snapshot_mailbox_init(&created_monitor->snapshot_mailbox);
+    if (!background_alarm_snapshot_mailbox_init(&created_monitor->snapshot_mailbox))
+    {
+        free(created_monitor);
+        return operation_result_fail(ERROR_CODE_RESOURCE_UNAVAILABLE);
+    }
     *monitor = created_monitor;
     return operation_result_ok();
 }
@@ -392,5 +307,6 @@ void background_alarm_monitor_destroy(background_alarm_monitor_t *monitor)
     }
 
     background_alarm_monitor_stop(monitor);
+    try_lock_destroy(monitor->snapshot_mailbox.access_guard);
     free(monitor);
 }

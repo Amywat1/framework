@@ -16,6 +16,7 @@
  * 两者相互独立，业务入口函数无需引用管理句柄，消除自指依赖。
  */
 
+typedef struct try_lock_t try_lock_t;
 typedef struct worker_run_ctx_t worker_run_ctx_t;
 typedef struct worker_thread_t worker_thread_t;
 
@@ -36,6 +37,41 @@ typedef struct worker_thread_config_t
     void *context;
 } worker_thread_config_t;
 
+/* — 非阻塞互斥锁，用于跨线程共享数据的保护 — */
+
+/**
+ * @brief 创建并初始化一个非阻塞互斥锁。
+ * @return 成功返回锁实例指针；内存不足时返回 `0`。
+ */
+try_lock_t *try_lock_create(void);
+
+/**
+ * @brief 尝试获取锁，非阻塞。
+ * @param lock 锁实例，不能为空。
+ * @return 获取成功返回 `true`；锁已被持有或参数非法时返回 `false`。
+ */
+bool try_lock_acquire(try_lock_t *lock);
+
+/**
+ * @brief 阻塞等待获取锁，直到成功或超时。
+ * @param lock 锁实例，不能为空。
+ * @param timeout_ms 最大等待时长（毫秒）；传入 `0` 等同于非阻塞尝试。
+ * @return 获取成功返回 `true`；超时或参数非法时返回 `false`。
+ */
+bool try_lock_acquire_timeout(try_lock_t *lock, unsigned long timeout_ms);
+
+/**
+ * @brief 释放锁。
+ * @param lock 锁实例，不能为空。
+ */
+void try_lock_release(try_lock_t *lock);
+
+/**
+ * @brief 销毁锁并释放关联内存。
+ * @param lock 锁实例；允许传入 `0`，此时为无操作。
+ */
+void try_lock_destroy(try_lock_t *lock);
+
 /* — 运行控制 API，在入口函数内部使用 — */
 
 /**
@@ -45,6 +81,14 @@ typedef struct worker_thread_config_t
  * @return 已收到停止请求时返回 `true`。
  */
 bool worker_run_ctx_stop_requested(const worker_run_ctx_t *run_ctx);
+
+/**
+ * @brief 读取当前单调时钟毫秒值。
+ *
+ * @param run_ctx 运行控制句柄；允许传入 `0`，此时返回 `0`。
+ * @return 当前单调时钟毫秒值；系统调用失败时返回 `0`。
+ */
+unsigned long worker_run_ctx_current_time_ms(const worker_run_ctx_t *run_ctx);
 
 /**
  * @brief 等待一次线程通知或超时。

@@ -5,7 +5,7 @@
 #include "adapters/logging/file_event_logger.h"
 #include "adapters/outbound/file_program_repository.h"
 #include "application/coordinators/scheduler_runtime_port.h"
-#include "platform/background_alarm_monitor.h"
+#include "application/coordinators/background_alarm_monitor.h"
 #include "src/startup/wash_app_private.h"
 #include "src/application/coordinators/device_runtime_private.h"
 

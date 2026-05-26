@@ -8,6 +8,11 @@
 #include <stdlib.h>
 #include <time.h>
 
+struct try_lock_t
+{
+    pthread_mutex_t mutex;
+};
+
 struct worker_run_ctx_t
 {
     pthread_mutex_t mutex;
@@ -25,6 +30,77 @@ struct worker_thread_t
     bool started;
     bool joined;
 };
+
+try_lock_t *try_lock_create(void)
+{
+    try_lock_t *lock;
+
+    lock = (try_lock_t *)malloc(sizeof(*lock));
+    if (lock == 0)
+    {
+        return 0;
+    }
+    if (pthread_mutex_init(&lock->mutex, 0) != 0)
+    {
+        free(lock);
+        return 0;
+    }
+    return lock;
+}
+
+bool try_lock_acquire(try_lock_t *lock)
+{
+    if (lock == 0)
+    {
+        return false;
+    }
+    return pthread_mutex_trylock(&lock->mutex) == 0;
+}
+
+bool try_lock_acquire_timeout(try_lock_t *lock, unsigned long timeout_ms)
+{
+    struct timespec deadline;
+
+    if (lock == 0)
+    {
+        return false;
+    }
+    if (timeout_ms == 0ul)
+    {
+        return pthread_mutex_trylock(&lock->mutex) == 0;
+    }
+    if (clock_gettime(CLOCK_REALTIME, &deadline) != 0)
+    {
+        return false;
+    }
+    deadline.tv_sec += (time_t)(timeout_ms / 1000ul);
+    deadline.tv_nsec += (long)((timeout_ms % 1000ul) * 1000000ul);
+    if (deadline.tv_nsec >= 1000000000l)
+    {
+        deadline.tv_sec += 1;
+        deadline.tv_nsec -= 1000000000l;
+    }
+    return pthread_mutex_timedlock(&lock->mutex, &deadline) == 0;
+}
+
+void try_lock_release(try_lock_t *lock)
+{
+    if (lock == 0)
+    {
+        return;
+    }
+    (void)pthread_mutex_unlock(&lock->mutex);
+}
+
+void try_lock_destroy(try_lock_t *lock)
+{
+    if (lock == 0)
+    {
+        return;
+    }
+    (void)pthread_mutex_destroy(&lock->mutex);
+    free(lock);
+}
 
 /**
  * @brief pthread 入口壳子，负责签名适配。
@@ -52,6 +128,21 @@ bool worker_run_ctx_stop_requested(const worker_run_ctx_t *run_ctx)
         return true;
     }
     return atomic_load(&run_ctx->stop_requested);
+}
+
+unsigned long worker_run_ctx_current_time_ms(const worker_run_ctx_t *run_ctx)
+{
+    struct timespec current_time;
+
+    if (run_ctx == 0)
+    {
+        return 0ul;
+    }
+    if (clock_gettime(CLOCK_MONOTONIC, &current_time) != 0)
+    {
+        return 0ul;
+    }
+    return (unsigned long)(current_time.tv_sec * 1000ul) + (unsigned long)(current_time.tv_nsec / 1000000ul);
 }
 
 bool worker_run_ctx_wait(worker_run_ctx_t *run_ctx, unsigned long timeout_ms)
