@@ -1,7 +1,6 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "startup/app_bootstrap.h"
 #include "platform/drivers/simulated_brush_driver.h"
 #include "platform/drivers/simulated_chemical_driver.h"
 #include "platform/drivers/simulated_driver_context.h"
@@ -9,6 +8,7 @@
 #include "platform/drivers/simulated_gantry_driver.h"
 #include "platform/drivers/simulated_ro_water_driver.h"
 #include "platform/drivers/simulated_sensor_driver.h"
+#include "startup/app_bootstrap.h"
 
 #define CONTROL_PERIOD_MS 100ul
 #define BACKGROUND_ALARM_IO_PERIOD_MS 50ul
@@ -53,17 +53,16 @@ static void initialize_scheduler_config(scheduler_config_t *scheduler_config)
     scheduler_config->overrun_warning_threshold_ms = CONTROL_PERIOD_MS;
 }
 
-
 /**
  * @brief 输出 run 失败时的诊断信息。
- * @param app  应用句柄，不能为空。
  */
-static void report_run_failure(const app_t *app)
+static void report_run_failure(void)
 {
+    app_status_view_t status_view;
     const char *scheduler_reason = "none";
     const char *domain_reason = "none";
 
-    (void)app_read_state(app, &status_view);
+    (void)app_read_state(&status_view);
     if (status_view.scheduler_view_available && status_view.scheduler_view.metrics.last_error_reason[0] != '\0')
     {
         scheduler_reason = status_view.scheduler_view.metrics.last_error_reason;
@@ -81,7 +80,6 @@ int main(void)
     app_config_t app_config;
     scheduler_config_t scheduler_config;
     simulated_driver_context_t driver_context;
-    app_t *app;
     sensor_port_t sensor_port;
     actuator_port_t actuator_port;
     operation_result_t result;
@@ -101,22 +99,22 @@ int main(void)
     app_config.background_alarm_monitor.io_sample_period_ms = BACKGROUND_ALARM_IO_PERIOD_MS;
     app_config.background_alarm_monitor.detect_period_ms = BACKGROUND_ALARM_DETECT_PERIOD_MS;
 
-    result = app_create(&app, &app_config);
-    if (!result.ok || app == 0)
+    result = app_create(&app_config);
+    if (!result.ok)
     {
         fprintf(stderr, "wash_controller: create failed, error_code=%d\n", (int)result.error_code);
         return 1;
     }
 
-    result = app_run(app);
+    result = app_run();
     exit_code = 0;
     if (!result.ok)
     {
-        report_run_failure(app);
+        report_run_failure();
         exit_code = 1;
     }
 
-    result = app_destroy(app);
+    result = app_destroy();
     if (!result.ok)
     {
         fprintf(stderr, "wash_controller: destroy failed, error_code=%d\n", (int)result.error_code);

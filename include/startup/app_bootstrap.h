@@ -16,10 +16,8 @@
  * @brief 声明应用引导层接口。
  *
  * @details 本模块负责将 caller 注入的资源装配为可运行应用实例。
- *          公开 API 使用 create/run/destroy 表达实例生命周期，文件名体现模块归属。
+ *          公开 API 使用 create/run/destroy 表达单实例生命周期，文件名体现模块归属。
  */
-
-typedef struct app_t app_t;
 
 /**
  * @brief 应用实例生命周期状态。
@@ -81,42 +79,38 @@ void app_config_init(app_config_t *config);
 operation_result_t app_config_validate(const app_config_t *config);
 
 /**
- * @brief 创建应用实例并完成运行时组件装配。
+ * @brief 创建应用单实例并完成运行时组件装配。
  *
- * @param out_app  输出应用句柄，不能为空。
- * @param config   创建配置，不能为空。
+ * @param config  创建配置，不能为空。
  * @return 创建成功时返回 `operation_result_ok()`，失败时返回显式错误结果。
  */
-operation_result_t app_create(app_t **out_app, const app_config_t *config);
+operation_result_t app_create(const app_config_t *config);
 
 /**
- * @brief 运行应用实例主循环。
+ * @brief 运行应用单实例主循环。
  *
- * @param app  应用句柄，不能为空。
  * @return 正常退出返回 `operation_result_ok()`；运行期错误或状态误用返回失败结果。
  */
-operation_result_t app_run(app_t *app);
+operation_result_t app_run(void);
 
 /**
- * @brief 销毁应用实例并逆序释放模块持有资源。
+ * @brief 销毁应用单实例并逆序释放模块持有资源。
  *
- * @note 使用单实例不透明句柄；实例未被重新占用时，重复调用按安全重复销毁语义返回
+ * @note 实例未被初始化或已销毁时，重复调用按安全重复销毁语义返回
  *       `operation_result_ok()`。
- * @param app  应用句柄；允许传入 `0`。
  * @return 销毁成功或重复销毁安全返回 `operation_result_ok()`；资源释放失败时返回显式失败结果；
- *         非法句柄返回失败结果。
+ *         未初始化时调用 `app_run` 等接口返回失败结果。
  */
-operation_result_t app_destroy(app_t *app);
+operation_result_t app_destroy(void);
 
 /**
- * @brief 读取应用实例当前状态视图。
+ * @brief 读取应用单实例当前状态视图。
  *
- * @note 使用单实例不透明句柄；实例未被重新占用时，仍返回
- *       `operation_result_ok()` 并输出保守的 `APP_STATE_DESTROYED` 视图。
- * @param app          应用句柄，不能为空。
+ * @note 实例未初始化或已销毁时，仍返回 `operation_result_ok()` 并输出保守的
+ *       `APP_STATE_DESTROYED` 视图。
  * @param status_view  输出状态视图，不能为空。
  * @return 读取成功返回 `operation_result_ok()`，否则返回显式失败结果。
  */
-operation_result_t app_read_state(const app_t *app, app_status_view_t *status_view);
+operation_result_t app_read_state(app_status_view_t *status_view);
 
 #endif

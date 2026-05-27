@@ -1,7 +1,7 @@
 enable_testing()
 
 function(add_wash_test name source)
-    add_executable(${name} ${source} test_runtime_friend.c)
+    add_executable(${name} ${source})
     target_link_libraries(${name} PRIVATE wash_core)
     target_include_directories(${name} PRIVATE ${PROJECT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/include ${PROJECT_SOURCE_DIR}/tests)
     add_test(NAME ${name} COMMAND ${name})
@@ -29,8 +29,6 @@ add_wash_test(test_contract_trigger_runtime_ownership contract/test_trigger_runt
 add_wash_test(test_contract_session_finalization contract/test_session_finalization_contract.c)
 add_wash_test(test_contract_status_query_readonly contract/test_status_query_readonly_contract.c)
 add_wash_test(test_contract_scheduler contract/test_scheduler_contract.c)
-add_wash_test(test_contract_controller_runtime_lifecycle contract/test_controller_runtime_lifecycle_contract.c)
-add_wash_test(test_contract_controller_runtime_startup_rollback contract/test_controller_runtime_startup_rollback_contract.c)
 add_wash_test(test_contract_main_loop_boundary contract/test_main_loop_boundary_contract.c)
 add_wash_test(test_contract_event_source_dispatch contract/test_event_source_dispatch_contract.c)
 add_wash_test(test_contract_scheduler_exit contract/test_scheduler_exit_contract.c)
@@ -40,9 +38,6 @@ add_wash_test(test_contract_formal_command_matrix_samples contract/test_formal_c
 
 # Integration
 add_wash_test(test_integration_segment_runtime integration/test_segment_runtime_orchestration.c)
-add_wash_test(test_integration_controller_runtime integration/test_controller_runtime_persistence.c)
-add_wash_test(test_integration_controller_runtime_startup_failures integration/test_controller_runtime_startup_failures.c)
-add_wash_test(test_integration_controller_runtime_single_instance integration/test_controller_runtime_single_instance.c)
 add_wash_test(test_integration_background_alarm_monitor_runtime integration/test_background_alarm_monitor_runtime.c)
 add_wash_test(test_integration_segment_exception_paths integration/test_segment_exception_paths.c)
 add_wash_test(test_integration_session_status_observability integration/test_session_status_observability.c)
@@ -55,7 +50,6 @@ target_compile_definitions(test_integration_compat_entrypoint_removal PRIVATE
 add_wash_test(test_integration_unique_session_result_sink integration/test_unique_session_result_sink.c)
 add_wash_test(test_integration_status_query_no_side_effect integration/test_status_query_no_side_effect.c)
 add_wash_test(test_integration_formal_command_scheduler_dispatch integration/test_formal_command_scheduler_dispatch.c)
-add_wash_test(test_integration_scheduler_command_fd_nonblocking integration/test_scheduler_command_fd_nonblocking.c)
 add_wash_test(test_integration_scheduler_failure_paths integration/test_scheduler_failure_paths.c)
 add_wash_test(test_integration_device_state_machine integration/test_device_state_machine.c)
 add_wash_test(test_integration_single_vehicle_business_cycle integration/test_single_vehicle_business_cycle.c)

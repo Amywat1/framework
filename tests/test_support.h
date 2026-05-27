@@ -19,13 +19,13 @@
 #include "platform/drivers/simulated_gantry_driver.h"
 #include "platform/drivers/simulated_ro_water_driver.h"
 #include "platform/drivers/simulated_sensor_driver.h"
+#include "application/coordinators/scheduler_runtime_port.h"
 #include "platform/linux/scheduler_linux.h"
-#include "startup/app_bootstrap.h"
+#include "platform/scheduler.h"
 #include "domain/services/program_snapshot_service.h"
 #include "domain/services/wash_session_state_machine.h"
 #include "src/application/coordinators/device_runtime_layout.h"
 #include "src/application/coordinators/device_runtime_private.h"
-#include "src/startup/app_bootstrap_private.h"
 #include "shared/error_codes.h"
 
 #define TEST_ASSERT(expr) \
@@ -38,32 +38,20 @@
 
 typedef struct test_runtime_binding_t
 {
-    bool occupied;
-    app_t *app;
+    bool initialized;
     device_runtime_t device_runtime;
+    scheduler_t *scheduler;
     sensor_port_t sensor_port;
     actuator_port_t actuator_port;
 } test_runtime_binding_t;
 
 static test_runtime_binding_t g_test_runtime_binding;
 
-operation_result_t test_runtime_friend_read_device_runtime(app_t *app, device_runtime_t *device_runtime);
-scheduler_t *test_runtime_friend_scheduler(app_t *app);
-
-static inline operation_result_t test_create_runtime(app_t **app,
-                                                     simulated_driver_context_t *driver_context,
-                                                     unsigned long control_period_ms);
-static inline operation_result_t test_create_runtime_with_overrides(app_t **app,
-                                                                    simulated_driver_context_t *driver_context,
-                                                                    const scheduler_config_t *scheduler_config,
-                                                                    FILE *command_input,
-                                                                    FILE *command_output,
-                                                                    FILE *command_error,
-                                                                    const char *config_root);
+static inline void test_init_scheduler_config(scheduler_config_t *scheduler_config, unsigned long control_period_ms);
 
 static inline void test_purge_stale_runtime_bindings(void)
 {
-    if (g_test_runtime_binding.occupied
+    if (g_test_runtime_binding.initialized
         && !device_runtime_private_require_active(g_test_runtime_binding.device_runtime).ok)
     {
         memset(&g_test_runtime_binding, 0, sizeof(g_test_runtime_binding));
@@ -73,7 +61,7 @@ static inline void test_purge_stale_runtime_bindings(void)
 static inline test_runtime_binding_t *test_find_runtime_binding(device_runtime_t device_runtime)
 {
     test_purge_stale_runtime_bindings();
-    if (g_test_runtime_binding.occupied && g_test_runtime_binding.device_runtime == device_runtime)
+    if (g_test_runtime_binding.initialized && g_test_runtime_binding.device_runtime == device_runtime)
     {
         return &g_test_runtime_binding;
     }
@@ -83,7 +71,7 @@ static inline test_runtime_binding_t *test_find_runtime_binding(device_runtime_t
 static inline test_runtime_binding_t *test_allocate_runtime_binding(void)
 {
     test_purge_stale_runtime_bindings();
-    if (!g_test_runtime_binding.occupied)
+    if (!g_test_runtime_binding.initialized)
     {
         memset(&g_test_runtime_binding, 0, sizeof(g_test_runtime_binding));
         return &g_test_runtime_binding;
@@ -106,28 +94,96 @@ static inline void test_bind_simulated_ports(simulated_driver_context_t *driver_
     simulated_dryer_driver_bind(actuator_port, driver_context);
 }
 
+static inline operation_result_t test_bind_device_runtime_binding(test_runtime_binding_t *binding,
+                                                                simulated_driver_context_t *driver_context,
+                                                                const scheduler_config_t *scheduler_config,
+                                                                const char *config_root)
+{
+    scheduler_runtime_port_t scheduler_port;
+    scheduler_stdio_t scheduler_stdio;
+    operation_result_t result;
+
+    if (binding == 0 || driver_context == 0 || scheduler_config == 0 || config_root == 0)
+    {
+        return operation_result_fail(ERROR_CODE_INVALID_ARGUMENT);
+    }
+
+    test_bind_simulated_ports(driver_context, &binding->sensor_port, &binding->actuator_port);
+    result = device_runtime_acquire(&binding->device_runtime);
+    if (!result.ok || binding->device_runtime == 0)
+    {
+        return result.ok ? operation_result_fail(ERROR_CODE_RESOURCE_UNAVAILABLE) : result;
+    }
+
+    device_runtime_set_sensor_port(binding->device_runtime, &binding->sensor_port);
+    device_runtime_set_actuator_port(binding->device_runtime, &binding->actuator_port);
+    result = file_program_repository_init(binding->device_runtime, config_root);
+    if (!result.ok)
+    {
+        (void)device_runtime_release(binding->device_runtime);
+        binding->device_runtime = 0;
+        return result;
+    }
+
+    result = device_runtime_private_enter_stopped(binding->device_runtime);
+    if (!result.ok)
+    {
+        (void)device_runtime_release(binding->device_runtime);
+        binding->device_runtime = 0;
+        return result;
+    }
+
+    memset(&scheduler_stdio, 0, sizeof(scheduler_stdio));
+    scheduler_runtime_port_init_from_device_runtime(&scheduler_port, binding->device_runtime);
+    binding->scheduler = scheduler_create(&scheduler_port, scheduler_config, &scheduler_stdio);
+    if (binding->scheduler == 0)
+    {
+        (void)device_runtime_release(binding->device_runtime);
+        binding->device_runtime = 0;
+        return operation_result_fail(ERROR_CODE_IO_FAILED);
+    }
+
+    result = device_runtime_bind_scheduler(binding->device_runtime, binding->scheduler);
+    if (!result.ok)
+    {
+        scheduler_destroy(binding->scheduler);
+        binding->scheduler = 0;
+        (void)device_runtime_release(binding->device_runtime);
+        binding->device_runtime = 0;
+        return result;
+    }
+
+    binding->initialized = true;
+    return operation_result_ok();
+}
+
 static inline void test_setup_device_runtime(device_runtime_t *device_runtime,
                                              simulated_driver_context_t *driver_context)
 {
-    app_t *app;
+    scheduler_config_t scheduler_config;
+    test_runtime_binding_t *binding;
     operation_result_t result;
 
     if (device_runtime == 0)
     {
         abort();
     }
-    result = test_create_runtime(&app, driver_context, 100ul);
-    if (!result.ok || app == 0)
+
+    binding = test_allocate_runtime_binding();
+    if (binding == 0)
     {
-        fprintf(stderr, "FAILED TO CREATE app\n");
+        fprintf(stderr, "FAILED TO ALLOCATE runtime binding\n");
         abort();
     }
-    result = test_runtime_friend_read_device_runtime(app, device_runtime);
-    if (!result.ok || *device_runtime == 0)
+
+    test_init_scheduler_config(&scheduler_config, 100ul);
+    result = test_bind_device_runtime_binding(binding, driver_context, &scheduler_config, "./configs");
+    if (!result.ok || binding->device_runtime == 0)
     {
-        fprintf(stderr, "FAILED TO READ app device_runtime\n");
+        fprintf(stderr, "FAILED TO CREATE device_runtime\n");
         abort();
     }
+    *device_runtime = binding->device_runtime;
 }
 
 /** @deprecated 使用 test_setup_device_runtime。 */
@@ -145,10 +201,16 @@ static inline void test_release_device_runtime(device_runtime_t device_runtime)
     binding = test_find_runtime_binding(device_runtime);
     if (binding != 0)
     {
-        result = app_destroy(binding->app);
+        if (binding->scheduler != 0)
+        {
+            (void)device_runtime_unbind_scheduler(binding->device_runtime);
+            scheduler_destroy(binding->scheduler);
+            binding->scheduler = 0;
+        }
+        result = device_runtime_release(binding->device_runtime);
         if (!result.ok)
         {
-            fprintf(stderr, "FAILED TO DESTROY app\n");
+            fprintf(stderr, "FAILED TO RELEASE device_runtime\n");
             abort();
         }
         memset(binding, 0, sizeof(*binding));
@@ -469,36 +531,28 @@ static inline operation_result_t test_fire_timeout(device_runtime_t device_runti
 static inline scheduler_t *test_create_scheduler(device_runtime_t device_runtime, unsigned long control_period_ms)
 {
     test_runtime_binding_t *binding;
-    app_status_view_t status_view;
-    scheduler_t *scheduler;
+    scheduler_state_view_t status_view;
     operation_result_t result;
 
     binding = test_find_runtime_binding(device_runtime);
-    if (binding == 0)
+    if (binding == 0 || binding->scheduler == 0)
     {
         fprintf(stderr, "FAILED TO FIND runtime binding for device_runtime\n");
         abort();
     }
 
-    result = app_read_state(binding->app, &status_view);
-    if (!result.ok || !status_view.scheduler_view_available)
+    result = scheduler_read_view(binding->scheduler, &status_view);
+    if (!result.ok)
     {
-        fprintf(stderr, "FAILED TO READ app state\n");
+        fprintf(stderr, "FAILED TO READ scheduler state\n");
         abort();
     }
-    if (status_view.scheduler_view.control_period_ms != control_period_ms)
+    if (status_view.control_period_ms != control_period_ms)
     {
         fprintf(stderr, "UNEXPECTED scheduler control period\n");
         abort();
     }
-
-    scheduler = test_runtime_friend_scheduler(binding->app);
-    if (scheduler == 0)
-    {
-        fprintf(stderr, "FAILED TO READ app scheduler\n");
-        abort();
-    }
-    return scheduler;
+    return binding->scheduler;
 }
 
 static inline operation_result_t test_scheduler_read_bound_view(device_runtime_t device_runtime,
@@ -550,67 +604,6 @@ static inline void test_init_scheduler_config(scheduler_config_t *scheduler_conf
     scheduler_config->overrun_warning_threshold_ms = control_period_ms;
 }
 
-static inline operation_result_t test_create_runtime(app_t **app, simulated_driver_context_t *driver_context,
-                                                     unsigned long control_period_ms)
-{
-    scheduler_config_t scheduler_config;
-
-    test_init_scheduler_config(&scheduler_config, control_period_ms);
-    return test_create_runtime_with_overrides(app, driver_context, &scheduler_config, 0, 0, 0, "./configs");
-}
-
-static inline operation_result_t test_create_runtime_with_overrides(app_t **app,
-                                                                  simulated_driver_context_t *driver_context,
-                                                                  const scheduler_config_t *scheduler_config,
-                                                                  FILE *command_input, FILE *command_output,
-                                                                  FILE *command_error, const char *config_root)
-{
-    app_config_t app_config;
-    test_runtime_binding_t *binding;
-    operation_result_t result;
-
-    if (app == 0 || driver_context == 0)
-    {
-        return operation_result_fail(ERROR_CODE_INVALID_ARGUMENT);
-    }
-
-    binding = test_allocate_runtime_binding();
-    if (binding == 0)
-    {
-        return operation_result_fail(ERROR_CODE_RESOURCE_UNAVAILABLE);
-    }
-
-    test_bind_simulated_ports(driver_context, &binding->sensor_port, &binding->actuator_port);
-
-    app_config_init(&app_config);
-    app_config.sensor_port = &binding->sensor_port;
-    app_config.actuator_port = &binding->actuator_port;
-    app_config.scheduler_config = scheduler_config;
-    app_config.command_input = command_input;
-    app_config.command_output = command_output;
-    app_config.command_error = command_error;
-    app_config.config_root = config_root;
-    result = app_create(app, &app_config);
-    if (!result.ok || *app == 0)
-    {
-        memset(binding, 0, sizeof(*binding));
-        return result;
-    }
-
-    result = test_runtime_friend_read_device_runtime(*app, &binding->device_runtime);
-    if (!result.ok || binding->device_runtime == 0)
-    {
-        (void)app_destroy(*app);
-        *app = 0;
-        memset(binding, 0, sizeof(*binding));
-        return result.ok ? operation_result_fail(ERROR_CODE_INVALID_STATE) : result;
-    }
-
-    binding->occupied = true;
-    binding->app = *app;
-    return operation_result_ok();
-}
-
 static inline program_snapshot_service_args_t test_build_program_snapshot_service_args(
     device_runtime_t device_runtime)
 {
@@ -627,22 +620,6 @@ static inline wash_session_service_args_t test_build_wash_session_service_args(d
 
     device_runtime_private_build_session_service_args(device_runtime, &wash_session_service_args);
     return wash_session_service_args;
-}
-
-static inline operation_result_t test_runtime_device_runtime(app_t *app, device_runtime_t *device_runtime)
-{
-    return test_runtime_friend_read_device_runtime(app, device_runtime);
-}
-
-/** @deprecated 使用 test_runtime_device_runtime。 */
-static inline operation_result_t test_runtime_system_context(app_t *app, device_runtime_t *device_runtime)
-{
-    return test_runtime_device_runtime(app, device_runtime);
-}
-
-static inline scheduler_t *test_runtime_scheduler(app_t *app)
-{
-    return test_runtime_friend_scheduler(app);
 }
 
 static inline int test_scheduler_tick(scheduler_t *scheduler, unsigned int expiration_count)

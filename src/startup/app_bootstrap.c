@@ -3,20 +3,14 @@
 #include <string.h>
 
 #include "adapters/outbound/file_program_repository.h"
-#include "application/coordinators/scheduler_runtime_port.h"
 #include "application/coordinators/background_alarm_monitor.h"
-#include "src/startup/app_bootstrap_private.h"
+#include "application/coordinators/scheduler_runtime_port.h"
 #include "src/application/coordinators/device_runtime_private.h"
-
-struct app_t
-{
-    unsigned int reserved; /**< 占位字段，确保单实例不透明句柄结构体非空。 */
-};
 
 typedef struct app_instance_t
 {
+    bool initialized;
     app_state_t state;
-    bool occupied;
     bool device_runtime_acquired;
     bool scheduler_created;
     device_runtime_t device_runtime;
@@ -25,7 +19,6 @@ typedef struct app_instance_t
 } app_instance_t;
 
 static app_instance_t g_app_instance;
-static app_t g_app_handle;
 
 static void stop_alarm_monitor(void);
 
@@ -96,10 +89,7 @@ static operation_result_t start_alarm_monitor(void)
 /**
  * @brief 停止后台报警监控组件。
  */
-static void stop_alarm_monitor(void)
-{
-    background_alarm_monitor_stop(g_app_instance.background_alarm_monitor);
-}
+static void stop_alarm_monitor(void) { background_alarm_monitor_stop(g_app_instance.background_alarm_monitor); }
 
 /**
  * @brief 销毁后台报警监控组件。
@@ -128,9 +118,7 @@ static void build_status_view(app_status_view_t *status_view)
     status_view->device_runtime_acquired = g_app_instance.device_runtime_acquired;
     status_view->scheduler_created = g_app_instance.scheduler_created;
 
-    if (g_app_instance.scheduler != 0 &&
-        scheduler_read_view(g_app_instance.scheduler, &status_view->scheduler_view)
-            .ok)
+    if (g_app_instance.scheduler != 0 && scheduler_read_view(g_app_instance.scheduler, &status_view->scheduler_view).ok)
     {
         status_view->scheduler_view_available = true;
     }
@@ -150,7 +138,7 @@ static void build_status_view(app_status_view_t *status_view)
 
 /**
  * @brief 清零借用的外部资源绑定。
- * @param app_state 目标运行状态结构。
+ * @param instance 目标运行状态结构。
  * @details 仅在资源释放后调用，用于避免悬空指针。
  */
 static void zero_borrowed_bindings(app_instance_t *instance)
@@ -187,8 +175,7 @@ static operation_result_t validate_scheduler_config(const scheduler_config_t *sc
     {
         return operation_result_fail(ERROR_CODE_INVALID_ARGUMENT);
     }
-    if (scheduler_config->exit_mode == SCHEDULER_EXIT_MODE_BOUNDED_DRAIN &&
-        scheduler_config->bounded_drain_ticks == 0u)
+    if (scheduler_config->exit_mode == SCHEDULER_EXIT_MODE_BOUNDED_DRAIN && scheduler_config->bounded_drain_ticks == 0u)
     {
         return operation_result_fail(ERROR_CODE_INVALID_ARGUMENT);
     }
@@ -196,21 +183,12 @@ static operation_result_t validate_scheduler_config(const scheduler_config_t *sc
 }
 
 /**
- * @brief 验证句柄是否指向当前活跃应用实例。
- * @param app 待验证句柄。
- * @return 句柄合法且 app 当前被占用时返回 `ok`，否则返回失败。
+ * @brief 验证应用单实例是否已完成初始化。
+ * @return 已初始化时返回 `ok`，否则返回失败结果。
  */
-static operation_result_t require_current_handle(const app_t *app)
+static operation_result_t require_initialized(void)
 {
-    if (app == 0)
-    {
-        return operation_result_fail(ERROR_CODE_INVALID_ARGUMENT);
-    }
-    if (app != &g_app_handle)
-    {
-        return operation_result_fail(ERROR_CODE_INVALID_ARGUMENT);
-    }
-    if (!g_app_instance.occupied)
+    if (!g_app_instance.initialized)
     {
         return operation_result_fail(ERROR_CODE_INVALID_STATE);
     }
@@ -251,7 +229,7 @@ static operation_result_t destroy_owned_resources(void)
         }
     }
 
-    g_app_instance.occupied = false;
+    g_app_instance.initialized = false;
     g_app_instance.state = APP_STATE_DESTROYED;
 
     zero_borrowed_bindings(&g_app_instance);
@@ -297,30 +275,23 @@ operation_result_t app_config_validate(const app_config_t *config)
     return operation_result_ok();
 }
 
-operation_result_t app_create(app_t **app, const app_config_t *config)
+operation_result_t app_create(const app_config_t *config)
 {
     scheduler_stdio_t scheduler_stdio;
     scheduler_runtime_port_t scheduler_port;
     operation_result_t result;
-
-    if (app == 0)
-    {
-        return operation_result_fail(ERROR_CODE_INVALID_ARGUMENT);
-    }
-    *app = 0;
 
     result = app_config_validate(config);
     if (!result.ok)
     {
         return result;
     }
-    if (g_app_instance.occupied)
+    if (g_app_instance.initialized)
     {
         return operation_result_fail(ERROR_CODE_RESOURCE_UNAVAILABLE);
     }
 
     memset(&g_app_instance, 0, sizeof(g_app_instance));
-    g_app_instance.occupied = true;
     g_app_instance.state = APP_STATE_UNAVAILABLE;
     result = device_runtime_acquire(&g_app_instance.device_runtime);
     if (!result.ok || g_app_instance.device_runtime == 0)
@@ -360,8 +331,7 @@ operation_result_t app_create(app_t **app, const app_config_t *config)
     scheduler_stdio.output = config->command_output;
     scheduler_stdio.error = config->command_error;
     scheduler_runtime_port_init_from_device_runtime(&scheduler_port, g_app_instance.device_runtime);
-    g_app_instance.scheduler = scheduler_create(
-        &scheduler_port, config->scheduler_config, &scheduler_stdio);
+    g_app_instance.scheduler = scheduler_create(&scheduler_port, config->scheduler_config, &scheduler_stdio);
     if (g_app_instance.scheduler == 0)
     {
         (void)destroy_owned_resources();
@@ -376,15 +346,15 @@ operation_result_t app_create(app_t **app, const app_config_t *config)
 
     g_app_instance.scheduler_created = true;
     g_app_instance.state = APP_STATE_CREATED;
-    *app = &g_app_handle;
+    g_app_instance.initialized = true;
     return operation_result_ok();
 }
 
-operation_result_t app_run(app_t *app)
+operation_result_t app_run(void)
 {
     operation_result_t result;
 
-    result = require_current_handle(app);
+    result = require_initialized();
     if (!result.ok)
     {
         return result;
@@ -412,50 +382,24 @@ operation_result_t app_run(app_t *app)
     return result;
 }
 
-operation_result_t app_destroy(app_t *app)
+operation_result_t app_destroy(void)
 {
-    operation_result_t result;
-
-    if (app == 0)
+    if (!g_app_instance.initialized)
     {
         return operation_result_ok();
-    }
-    if (app != &g_app_handle)
-    {
-        return operation_result_fail(ERROR_CODE_INVALID_ARGUMENT);
-    }
-
-    if (!g_app_instance.occupied)
-    {
-        return operation_result_ok();
-    }
-
-    result = require_current_handle(app);
-    if (!result.ok)
-    {
-        return result;
     }
     return destroy_owned_resources();
 }
 
-operation_result_t app_read_state(const app_t *app,
-                                                 app_status_view_t *status_view)
+operation_result_t app_read_state(app_status_view_t *status_view)
 {
     if (status_view == 0)
     {
         return operation_result_fail(ERROR_CODE_INVALID_ARGUMENT);
     }
     memset(status_view, 0, sizeof(*status_view));
-    if (app == 0)
-    {
-        return operation_result_fail(ERROR_CODE_INVALID_ARGUMENT);
-    }
-    if (app != &g_app_handle)
-    {
-        return operation_result_fail(ERROR_CODE_INVALID_ARGUMENT);
-    }
 
-    if (g_app_instance.occupied)
+    if (g_app_instance.initialized)
     {
         build_status_view(status_view);
         return operation_result_ok();
@@ -463,38 +407,4 @@ operation_result_t app_read_state(const app_t *app,
 
     status_view->state = APP_STATE_DESTROYED;
     return operation_result_ok();
-}
-
-operation_result_t app_private_read_device_runtime(const app_t *app,
-                                                                  device_runtime_t *out_device_runtime)
-{
-    operation_result_t result;
-
-    if (out_device_runtime == 0)
-    {
-        return operation_result_fail(ERROR_CODE_INVALID_ARGUMENT);
-    }
-    *out_device_runtime = 0;
-
-    result = require_current_handle(app);
-    if (!result.ok)
-    {
-        return result;
-    }
-    if (!g_app_instance.device_runtime_acquired || g_app_instance.device_runtime == 0)
-    {
-        return operation_result_fail(ERROR_CODE_INVALID_STATE);
-    }
-
-    *out_device_runtime = g_app_instance.device_runtime;
-    return operation_result_ok();
-}
-
-scheduler_t *app_private_scheduler(const app_t *app)
-{
-    if (!require_current_handle(app).ok || !g_app_instance.scheduler_created)
-    {
-        return 0;
-    }
-    return g_app_instance.scheduler;
 }
