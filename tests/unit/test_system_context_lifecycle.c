@@ -1,21 +1,21 @@
 #include <string.h>
 
-#include "application/coordinators/device_runtime.h"
+#include "application/coordinators/control_context.h"
 #include "tests/test_support.h"
-#include "src/application/coordinators/device_runtime_private.h"
+#include "src/application/coordinators/control_context_private.h"
 
 static int verify_single_instance_acquire_release_cycle(void)
 {
     operation_result_t result;
 
-    result = device_runtime_init();
+    result = control_context_init();
     TEST_ASSERT(result.ok);
 
-    result = device_runtime_init();
+    result = control_context_init();
     TEST_ASSERT(!result.ok);
     TEST_ASSERT(result.error_code == ERROR_CODE_RESOURCE_UNAVAILABLE);
 
-    result = device_runtime_deinit();
+    result = control_context_deinit();
     TEST_ASSERT(result.ok);
     return 0;
 }
@@ -25,9 +25,9 @@ static int verify_release_invalidates_handle_until_reacquire(void)
     wash_trigger_event_t wash_trigger_event;
     operation_result_t result;
 
-    result = device_runtime_init();
+    result = control_context_init();
     TEST_ASSERT(result.ok);
-    result = device_runtime_deinit();
+    result = control_context_deinit();
     TEST_ASSERT(result.ok);
 
     wash_trigger_event_init(&wash_trigger_event, TRIGGER_TYPE_STOP, 0, "stale", "stale", 0ul);
@@ -35,12 +35,12 @@ static int verify_release_invalidates_handle_until_reacquire(void)
     TEST_ASSERT(!result.ok);
     TEST_ASSERT(result.error_code == ERROR_CODE_INVALID_STATE);
 
-    result = device_runtime_init();
+    result = control_context_init();
     TEST_ASSERT(result.ok);
-    TEST_ASSERT(device_runtime_current_time_ms() == 0ul);
-    TEST_ASSERT(device_runtime_pending_trigger_count() == 0u);
+    TEST_ASSERT(control_context_current_time_ms() == 0ul);
+    TEST_ASSERT(control_context_pending_trigger_count() == 0u);
 
-    result = device_runtime_deinit();
+    result = control_context_deinit();
     TEST_ASSERT(result.ok);
     return 0;
 }
@@ -49,13 +49,13 @@ static int verify_initialized_only_tracks_active_single_instance(void)
 {
     operation_result_t result;
 
-    result = device_runtime_init();
+    result = control_context_init();
     TEST_ASSERT(result.ok);
 
-    result = device_runtime_reset();
+    result = control_context_reset();
     TEST_ASSERT(result.ok);
 
-    result = device_runtime_deinit();
+    result = control_context_deinit();
     TEST_ASSERT(result.ok);
     return 0;
 }
@@ -66,17 +66,17 @@ static int verify_init_state_is_completed_by_runtime_creation_path(void)
     wash_session_status_view_t wash_session_status_view;
     operation_result_t result;
 
-    result = device_runtime_init();
+    result = control_context_init();
     TEST_ASSERT(result.ok);
-    TEST_ASSERT(device_runtime_private_device_state() == DEVICE_STATE_INIT);
-    result = device_runtime_deinit();
+    TEST_ASSERT(control_context_private_device_state() == DEVICE_STATE_INIT);
+    result = control_context_deinit();
     TEST_ASSERT(result.ok);
 
     test_setup_system_context(&driver_context);
     result = query_wash_session_status_execute(&wash_session_status_view);
     TEST_ASSERT(result.ok);
     TEST_ASSERT(wash_session_status_view.device_state == DEVICE_STATE_STOPPED);
-    TEST_ASSERT(device_runtime_private_device_state() == DEVICE_STATE_STOPPED);
+    TEST_ASSERT(control_context_private_device_state() == DEVICE_STATE_STOPPED);
     test_release_system_context();
     return 0;
 }

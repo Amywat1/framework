@@ -3,7 +3,7 @@
 #include "application/use_cases/process_formal_command.h"
 #include "application/use_cases/query_wash_session_status.h"
 #include "tests/test_support.h"
-#include "src/application/coordinators/device_runtime_private.h"
+#include "src/application/coordinators/control_context_private.h"
 
 static int verify_reset_preserves_bound_ports_and_occupied_state(void)
 {
@@ -15,16 +15,16 @@ static int verify_reset_preserves_bound_ports_and_occupied_state(void)
     test_setup_system_context( &driver_context);
     control_tick_advance_time( 33ul);
 
-    program_repository_port_before = device_runtime_program_repository_port();
+    program_repository_port_before = control_context_program_repository_port();
     TEST_ASSERT(program_repository_port_before != 0);
     TEST_ASSERT(program_repository_port_before->context != 0);
 
-    result = device_runtime_reset();
+    result = control_context_reset();
     TEST_ASSERT(result.ok);
-    TEST_ASSERT(device_runtime_current_time_ms() == 0ul);
-    TEST_ASSERT(device_runtime_pending_trigger_count() == 0u);
+    TEST_ASSERT(control_context_current_time_ms() == 0ul);
+    TEST_ASSERT(control_context_pending_trigger_count() == 0u);
 
-    program_repository_port_after = device_runtime_program_repository_port();
+    program_repository_port_after = control_context_program_repository_port();
     TEST_ASSERT(program_repository_port_after != 0);
     TEST_ASSERT(program_repository_port_after->context == program_repository_port_before->context);
 
@@ -43,7 +43,7 @@ static int verify_release_invalidates_runtime_entrypoints(void)
     test_setup_system_context( &driver_context);
     test_release_system_context();
 
-    result = device_runtime_reset();
+    result = control_context_reset();
     TEST_ASSERT(!result.ok);
     TEST_ASSERT(result.error_code == ERROR_CODE_INVALID_STATE);
 

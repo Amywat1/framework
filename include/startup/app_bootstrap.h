@@ -5,7 +5,7 @@
 #include <stdio.h>
 
 #include "application/coordinators/background_alarm_settings.h"
-#include "application/coordinators/device_runtime.h"
+#include "application/coordinators/control_context.h"
 #include "domain/ports/actuator_port.h"
 #include "domain/ports/sensor_port.h"
 #include "platform/scheduler.h"
@@ -18,18 +18,6 @@
  * @details 本模块负责将 caller 注入的资源装配为可运行应用实例。
  *          公开 API 使用 create/run/destroy 表达单实例生命周期，文件名体现模块归属。
  */
-
-/**
- * @brief 应用实例生命周期状态。
- */
-typedef enum app_state_t
-{
-    APP_STATE_UNAVAILABLE = 0,
-    APP_STATE_CREATED,
-    APP_STATE_RUNNING,
-    APP_STATE_TERMINATED,
-    APP_STATE_DESTROYED
-} app_state_t;
 
 /**
  * @brief 应用实例创建配置。
@@ -48,19 +36,6 @@ typedef struct app_config_t
     const char *config_root;
     background_alarm_settings_t background_alarm_monitor;
 } app_config_t;
-
-/**
- * @brief 应用实例只读状态视图。
- */
-typedef struct app_status_view_t
-{
-    app_state_t state;
-    bool scheduler_created;
-    bool scheduler_view_available;
-    bool domain_reason_available;
-    char domain_last_reason_code[64];
-    scheduler_state_view_t scheduler_view;
-} app_status_view_t;
 
 /**
  * @brief 将应用配置重置为默认空值。
@@ -102,14 +77,5 @@ operation_result_t app_run(void);
  */
 operation_result_t app_destroy(void);
 
-/**
- * @brief 读取应用单实例当前状态视图。
- *
- * @note 实例未初始化或已销毁时，仍返回 `operation_result_ok()` 并输出保守的
- *       `APP_STATE_DESTROYED` 视图。
- * @param status_view  输出状态视图，不能为空。
- * @return 读取成功返回 `operation_result_ok()`，否则返回显式失败结果。
- */
-operation_result_t app_read_state(app_status_view_t *status_view);
 
 #endif

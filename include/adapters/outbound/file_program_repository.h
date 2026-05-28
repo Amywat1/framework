@@ -1,7 +1,7 @@
 #ifndef ADAPTERS_OUTBOUND_FILE_PROGRAM_REPOSITORY_H
 #define ADAPTERS_OUTBOUND_FILE_PROGRAM_REPOSITORY_H
 
-#include "application/coordinators/device_runtime.h"
+#include "application/coordinators/control_context.h"
 #include "domain/model/wash_program.h"
 #include "shared/result_types.h"
 

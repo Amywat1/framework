@@ -1,5 +1,5 @@
 #include "tests/test_support.h"
-#include "src/application/coordinators/device_runtime_private.h"
+#include "src/application/coordinators/control_context_private.h"
 
 int main(void)
 {
@@ -20,7 +20,7 @@ int main(void)
     TEST_ASSERT(app_state_view.metrics.cycle_count == 1ul);
     TEST_ASSERT(app_state_view.metrics.overrun_count == 1ul);
     TEST_ASSERT(app_state_view.metrics.consecutive_overrun_count == 1ul);
-    TEST_ASSERT(device_runtime_current_time_ms() == 300ul);
+    TEST_ASSERT(control_context_current_time_ms() == 300ul);
 
     scheduler_linux_test_set_cycle_duration(scheduler, 10ul);
     result = scheduler_linux_test_inject_period(scheduler, 1u);
@@ -29,7 +29,7 @@ int main(void)
     TEST_ASSERT(result.ok);
     TEST_ASSERT(app_state_view.metrics.cycle_count == 2ul);
     TEST_ASSERT(app_state_view.metrics.consecutive_overrun_count == 0ul);
-    TEST_ASSERT(device_runtime_current_time_ms() == 400ul);
+    TEST_ASSERT(control_context_current_time_ms() == 400ul);
 
     test_release_system_context();
     return 0;

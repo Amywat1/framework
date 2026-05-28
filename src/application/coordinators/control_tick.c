@@ -1,6 +1,6 @@
 #include "application/coordinators/control_tick.h"
 
-#include "application/coordinators/device_runtime.h"
+#include "application/coordinators/control_context.h"
 #include "application/use_cases/process_wash_trigger.h"
 #include "domain/services/trigger_priority_service.h"
 #include "shared/error_codes.h"
@@ -15,9 +15,9 @@ static bool has_pending_timeout_trigger(void)
     const wash_trigger_event_t *wash_trigger_event;
     unsigned int index;
 
-    for (index = 0; index < device_runtime_pending_trigger_count(); ++index)
+    for (index = 0; index < control_context_pending_trigger_count(); ++index)
     {
-        wash_trigger_event = device_runtime_pending_trigger_at(index);
+        wash_trigger_event = control_context_pending_trigger_at(index);
         if (wash_trigger_event != 0 && wash_trigger_event->trigger_type == TRIGGER_TYPE_TIMEOUT)
         {
             return true;
@@ -36,27 +36,27 @@ static void enqueue_timeout_if_needed(void)
     wash_trigger_event_t wash_trigger_event;
     unsigned long current_time_ms;
 
-    wait_condition = device_runtime_wait_condition();
-    current_time_ms = device_runtime_current_time_ms();
+    wait_condition = control_context_wait_condition();
+    current_time_ms = control_context_current_time_ms();
     if (wait_condition == 0 || !wait_condition_is_timed_out(wait_condition, current_time_ms))
     {
         return;
     }
-    if (device_runtime_pending_trigger_count() >= MAX_PENDING_TRIGGER_COUNT ||
+    if (control_context_pending_trigger_count() >= MAX_PENDING_TRIGGER_COUNT ||
         has_pending_timeout_trigger())
     {
         return;
     }
     wash_trigger_event_init(&wash_trigger_event, TRIGGER_TYPE_TIMEOUT, 0, wait_condition->reason_code,
                             "control-tick-timeout", current_time_ms);
-    (void)device_runtime_append_trigger(&wash_trigger_event);
+    (void)control_context_append_trigger(&wash_trigger_event);
 }
 
 operation_result_t control_tick_submit_trigger(const wash_trigger_event_t *wash_trigger_event)
 {
     operation_result_t result;
 
-    result = device_runtime_require_active();
+    result = control_context_require_active();
     if (!result.ok)
     {
         return result;
@@ -65,16 +65,16 @@ operation_result_t control_tick_submit_trigger(const wash_trigger_event_t *wash_
     {
         return operation_result_fail(ERROR_CODE_INVALID_ARGUMENT);
     }
-    return device_runtime_append_trigger(wash_trigger_event);
+    return control_context_append_trigger(wash_trigger_event);
 }
 
 void control_tick_advance_time(unsigned long elapsed_ms)
 {
-    if (!device_runtime_require_active().ok)
+    if (!control_context_require_active().ok)
     {
         return;
     }
-    device_runtime_advance_time(elapsed_ms);
+    control_context_advance_time(elapsed_ms);
 }
 
 operation_result_t control_tick_run(void)
@@ -88,7 +88,7 @@ operation_result_t control_tick_run(void)
     const wash_trigger_event_t *best_candidate;
     operation_result_t result;
 
-    result = device_runtime_require_active();
+    result = control_context_require_active();
     if (!result.ok)
     {
         return result;
@@ -98,7 +98,7 @@ operation_result_t control_tick_run(void)
      * 后台报警等跨线程事件已经在外部收件箱完成隔离，单拍内优先处理，
      * 避免内部待处理队列积压时延迟故障进入领域状态机。
      */
-    if (device_runtime_try_pop_external_trigger(&external_event))
+    if (control_context_try_pop_external_trigger(&external_event))
     {
         result = process_wash_trigger_execute(&external_event);
         if (!result.ok)
@@ -109,13 +109,13 @@ operation_result_t control_tick_run(void)
     }
 
     enqueue_timeout_if_needed();
-    if (device_runtime_pending_trigger_count() > 0u)
+    if (control_context_pending_trigger_count() > 0u)
     {
         best_index = 0;
-        for (index = 1; index < device_runtime_pending_trigger_count(); ++index)
+        for (index = 1; index < control_context_pending_trigger_count(); ++index)
         {
-            candidate = device_runtime_pending_trigger_at(index);
-            best_candidate = device_runtime_pending_trigger_at((unsigned int)best_index);
+            candidate = control_context_pending_trigger_at(index);
+            best_candidate = control_context_pending_trigger_at((unsigned int)best_index);
             if (candidate != 0 && best_candidate != 0 &&
                 trigger_priority_service_compare(candidate, best_candidate) > 0)
             {
@@ -123,13 +123,13 @@ operation_result_t control_tick_run(void)
             }
         }
 
-        selected_event_ref = device_runtime_pending_trigger_at((unsigned int)best_index);
+        selected_event_ref = control_context_pending_trigger_at((unsigned int)best_index);
         if (selected_event_ref == 0)
         {
             return operation_result_fail(ERROR_CODE_INVALID_STATE);
         }
         selected_event = *selected_event_ref;
-        device_runtime_remove_pending_trigger_at((unsigned int)best_index);
+        control_context_remove_pending_trigger_at((unsigned int)best_index);
         result = process_wash_trigger_execute(&selected_event);
         if (!result.ok)
         {

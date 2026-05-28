@@ -1,5 +1,5 @@
 #include "tests/test_support.h"
-#include "src/application/coordinators/device_runtime_private.h"
+#include "src/application/coordinators/control_context_private.h"
 
 static int verify_main_loop_failure_is_terminal(void)
 {
@@ -72,7 +72,7 @@ static int verify_command_path_does_not_swallow_runtime_failure(void)
         response_line,
         sizeof(response_line));
     TEST_ASSERT(result.ok);
-    TEST_ASSERT(strcmp(device_runtime_private_runtime_mutable()->last_result_code, "accepted") == 0);
+    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->last_result_code, "accepted") == 0);
 
     scheduler_linux_test_set_failpoint(scheduler,
         SCHEDULER_LINUX_TEST_FAIL_CONTROL_TICK_RUN,

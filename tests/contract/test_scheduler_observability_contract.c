@@ -1,5 +1,5 @@
 #include "tests/test_support.h"
-#include "src/application/coordinators/device_runtime_private.h"
+#include "src/application/coordinators/control_context_private.h"
 
 int main(void)
 {

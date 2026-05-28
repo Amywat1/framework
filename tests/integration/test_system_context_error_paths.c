@@ -4,7 +4,7 @@
 #include "application/use_cases/process_wash_trigger.h"
 #include "application/use_cases/query_wash_session_status.h"
 #include "tests/test_support.h"
-#include "src/application/coordinators/device_runtime_private.h"
+#include "src/application/coordinators/control_context_private.h"
 
 static int verify_calls_fail_before_acquire(void)
 {
@@ -14,11 +14,11 @@ static int verify_calls_fail_before_acquire(void)
     char response_line[256];
 
     /* 未 acquire 时，所有接口应返回 INVALID_STATE */
-    result = device_runtime_reset();
+    result = control_context_reset();
     TEST_ASSERT(!result.ok);
     TEST_ASSERT(result.error_code == ERROR_CODE_INVALID_STATE);
 
-    result = device_runtime_deinit();
+    result = control_context_deinit();
     TEST_ASSERT(!result.ok);
     TEST_ASSERT(result.error_code == ERROR_CODE_INVALID_STATE);
 
@@ -46,19 +46,19 @@ static int verify_second_acquire_is_rejected_until_release(void)
 {
     operation_result_t result;
 
-    result = device_runtime_init();
+    result = control_context_init();
     TEST_ASSERT(result.ok);
 
-    result = device_runtime_init();
+    result = control_context_init();
     TEST_ASSERT(!result.ok);
     TEST_ASSERT(result.error_code == ERROR_CODE_RESOURCE_UNAVAILABLE);
 
-    result = device_runtime_deinit();
+    result = control_context_deinit();
     TEST_ASSERT(result.ok);
 
-    result = device_runtime_init();
+    result = control_context_init();
     TEST_ASSERT(result.ok);
-    result = device_runtime_deinit();
+    result = control_context_deinit();
     TEST_ASSERT(result.ok);
     return 0;
 }
@@ -112,26 +112,26 @@ static int verify_released_handle_is_rejected_by_runtime_paths(void)
     scheduler_config.overrun_warning_threshold_ms = 100ul;
     memset(&scheduler_stdio, 0, sizeof(scheduler_stdio));
 
-    /* 释放后创建调度器应失败（scheduler_runtime_port_init_from_device_runtime 会成功但调度器内部会失败） */
+    /* 释放后创建调度器应失败（scheduler_runtime_port_init_from_control_context 会成功但调度器内部会失败） */
     scheduler = test_scheduler_create_unbound(&scheduler_config, &scheduler_stdio);
     /* 注意：在单实例设计下，scheduler_runtime_port_init 始终成功，但 scheduler_create 仍应能创建
-     * （调度器创建本身不依赖 device_runtime 状态）。此处仅验证 re-acquire 后可正常使用。*/
+     * （调度器创建本身不依赖 control_context 状态）。此处仅验证 re-acquire 后可正常使用。*/
     if (scheduler != 0)
     {
         scheduler_destroy(scheduler);
     }
 
-    result = device_runtime_deinit();
+    result = control_context_deinit();
     TEST_ASSERT(!result.ok);
     TEST_ASSERT(result.error_code == ERROR_CODE_INVALID_STATE);
 
     /* 重新 acquire 后接口应正常 */
-    result = device_runtime_init();
+    result = control_context_init();
     TEST_ASSERT(result.ok);
-    TEST_ASSERT(device_runtime_current_time_ms() == 0ul);
-    TEST_ASSERT(device_runtime_pending_trigger_count() == 0u);
+    TEST_ASSERT(control_context_current_time_ms() == 0ul);
+    TEST_ASSERT(control_context_pending_trigger_count() == 0u);
 
-    result = device_runtime_deinit();
+    result = control_context_deinit();
     TEST_ASSERT(result.ok);
     return 0;
 }
@@ -149,7 +149,7 @@ static int verify_bound_scheduler_blocks_release_and_rebind(void)
     scheduler = test_create_scheduler(100ul);
     TEST_ASSERT(scheduler != 0);
 
-    result = device_runtime_deinit();
+    result = control_context_deinit();
     TEST_ASSERT(!result.ok);
     TEST_ASSERT(result.error_code == ERROR_CODE_INVALID_STATE);
 
@@ -186,7 +186,7 @@ static int read_text_file(const char *path, char *buffer, size_t buffer_size)
 static int verify_single_instance_file_adapters_rebind_cleanly(void)
 {
     const program_repository_port_t *program_repository_port;
-    const device_runtime_state_t *runtime;
+    const control_context_state_t *runtime;
     simulated_driver_context_t first_driver_context;
     simulated_driver_context_t second_driver_context;
     sensor_port_t first_sensor_port;
@@ -198,12 +198,12 @@ static int verify_single_instance_file_adapters_rebind_cleanly(void)
     wash_program_t second_runtime_program;
     operation_result_t result;
 
-    result = device_runtime_init();
+    result = control_context_init();
     TEST_ASSERT(result.ok);
 
     test_bind_simulated_ports(&first_driver_context, &first_sensor_port, &first_actuator_port);
-    device_runtime_set_sensor_port(&first_sensor_port);
-    device_runtime_set_actuator_port(&first_actuator_port);
+    control_context_set_sensor_port(&first_sensor_port);
+    control_context_set_actuator_port(&first_actuator_port);
 
     result = file_program_repository_init("./configs");
     TEST_ASSERT(result.ok);
@@ -212,7 +212,7 @@ static int verify_single_instance_file_adapters_rebind_cleanly(void)
     TEST_ASSERT(result.ok);
     file_program_repository_set_runtime_program(&first_runtime_program, 101);
 
-    program_repository_port = device_runtime_program_repository_port();
+    program_repository_port = control_context_program_repository_port();
     TEST_ASSERT(program_repository_port != 0);
     TEST_ASSERT(program_repository_port->context != 0);
 
@@ -223,19 +223,19 @@ static int verify_single_instance_file_adapters_rebind_cleanly(void)
     TEST_ASSERT(strcmp(loaded_program.program_id, first_runtime_program.program_id) == 0);
     TEST_ASSERT(loaded_program.revision == 101);
 
-    runtime = device_runtime_private_runtime_mutable();
+    runtime = control_context_private_runtime_mutable();
     TEST_ASSERT(runtime != 0);
     TEST_ASSERT(runtime->program_repository_port.context != 0);
 
-    result = device_runtime_deinit();
+    result = control_context_deinit();
     TEST_ASSERT(result.ok);
 
-    result = device_runtime_init();
+    result = control_context_init();
     TEST_ASSERT(result.ok);
 
     test_bind_simulated_ports(&second_driver_context, &second_sensor_port, &second_actuator_port);
-    device_runtime_set_sensor_port(&second_sensor_port);
-    device_runtime_set_actuator_port(&second_actuator_port);
+    control_context_set_sensor_port(&second_sensor_port);
+    control_context_set_actuator_port(&second_actuator_port);
 
     result = file_program_repository_init("./configs");
     TEST_ASSERT(result.ok);
@@ -244,7 +244,7 @@ static int verify_single_instance_file_adapters_rebind_cleanly(void)
     TEST_ASSERT(result.ok);
     file_program_repository_set_runtime_program(&second_runtime_program, 202);
 
-    program_repository_port = device_runtime_program_repository_port();
+    program_repository_port = control_context_program_repository_port();
     TEST_ASSERT(program_repository_port != 0);
     TEST_ASSERT(program_repository_port->context != 0);
     memset(&loaded_program, 0, sizeof(loaded_program));
@@ -254,11 +254,11 @@ static int verify_single_instance_file_adapters_rebind_cleanly(void)
     TEST_ASSERT(strcmp(loaded_program.program_id, second_runtime_program.program_id) == 0);
     TEST_ASSERT(loaded_program.revision == 202);
 
-    runtime = device_runtime_private_runtime_mutable();
+    runtime = control_context_private_runtime_mutable();
     TEST_ASSERT(runtime != 0);
     TEST_ASSERT(runtime->program_repository_port.context != 0);
 
-    result = device_runtime_deinit();
+    result = control_context_deinit();
     TEST_ASSERT(result.ok);
     return 0;
 }

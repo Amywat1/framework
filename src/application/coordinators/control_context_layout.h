@@ -1,17 +1,17 @@
-#ifndef APPLICATION_COORDINATORS_DEVICE_RUNTIME_LAYOUT_H
-#define APPLICATION_COORDINATORS_DEVICE_RUNTIME_LAYOUT_H
+#ifndef APPLICATION_COORDINATORS_CONTROL_CONTEXT_LAYOUT_H
+#define APPLICATION_COORDINATORS_CONTROL_CONTEXT_LAYOUT_H
 
 #include <stdatomic.h>
 
-#include "src/application/coordinators/device_runtime_private.h"
+#include "src/application/coordinators/control_context_private.h"
 
 #define MAX_EXTERNAL_TRIGGER_QUEUE_COUNT 8u
 
 /**
- * @file device_runtime_layout.h
+ * @file control_context_layout.h
  * @brief 暴露组合根运行时布局的白盒内部头，仅供单实例组合根实现与测试观察使用。
  */
-typedef struct device_runtime_state_t
+typedef struct control_context_state_t
 {
     wash_program_t wash_program;
     vehicle_type_t vehicle_type;
@@ -41,18 +41,18 @@ typedef struct device_runtime_state_t
     sensor_port_t sensor_port;
     actuator_port_t actuator_port;
     program_repository_port_t program_repository_port;
-} device_runtime_state_t;
+} control_context_state_t;
 
-typedef struct device_runtime_instance_t
+typedef struct control_context_instance_t
 {
     bool initialized;
-    device_runtime_state_t runtime;
-} device_runtime_instance_t;
+    control_context_state_t runtime;
+} control_context_instance_t;
 
 /** @brief 读取可变运行时状态；实例未激活时返回 `0`。 */
-device_runtime_state_t *device_runtime_private_runtime_mutable(void);
+control_context_state_t *control_context_private_runtime_mutable(void);
 
 /** @brief 读取只读运行时状态；实例未激活时返回 `0`。 */
-const device_runtime_state_t *device_runtime_private_runtime_const(void);
+const control_context_state_t *control_context_private_runtime_const(void);
 
 #endif

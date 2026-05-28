@@ -1,7 +1,7 @@
 #ifndef APPLICATION_COORDINATORS_CONTROL_TICK_H
 #define APPLICATION_COORDINATORS_CONTROL_TICK_H
 
-#include "application/coordinators/device_runtime.h"
+#include "application/coordinators/control_context.h"
 #include "domain/model/wash_trigger_event.h"
 #include "shared/result_types.h"
 

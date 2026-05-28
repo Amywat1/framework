@@ -1,5 +1,5 @@
 #include "tests/test_support.h"
-#include "src/application/coordinators/device_runtime_private.h"
+#include "src/application/coordinators/control_context_private.h"
 
 int main(void)
 {
@@ -24,7 +24,7 @@ int main(void)
         sizeof(response_line)) == 0);
     TEST_ASSERT(strstr(response_line, "accepted=true") != 0);
     TEST_ASSERT(test_scheduler_notification(scheduler, 2u) == 0);
-    TEST_ASSERT(device_runtime_private_runtime_mutable()->wash_session.session_state != SESSION_STATE_RUNNING);
+    TEST_ASSERT(control_context_private_runtime_mutable()->wash_session.session_state != SESSION_STATE_RUNNING);
     result = scheduler_read_view(scheduler, &app_state_view);
     TEST_ASSERT(result.ok);
     TEST_ASSERT(app_state_view.metrics.notification_event_count == 2ul);
@@ -35,7 +35,7 @@ int main(void)
         response_line,
         sizeof(response_line)) == 0);
     TEST_ASSERT(strstr(response_line, "accepted=true") != 0);
-    TEST_ASSERT(device_runtime_private_runtime_mutable()->wash_session.session_state == SESSION_STATE_RUNNING);
+    TEST_ASSERT(control_context_private_runtime_mutable()->wash_session.session_state == SESSION_STATE_RUNNING);
 
     test_release_system_context();
     test_setup_system_context(&driver_context);
@@ -48,7 +48,7 @@ int main(void)
     TEST_ASSERT(app_state_view.runtime_state == SCHEDULER_RUNTIME_STATE_STOPPED);
     TEST_ASSERT(app_state_view.exit_source_state == SCHEDULER_EVENT_SOURCE_DEGRADED);
 
-    /* 释放后，device_runtime_bound_scheduler 返回 0，test_scheduler_read_bound_view 应返回失败 */
+    /* 释放后，control_context_bound_scheduler 返回 0，test_scheduler_read_bound_view 应返回失败 */
     test_release_system_context();
     result = test_scheduler_read_bound_view(&app_state_view);
     TEST_ASSERT(!result.ok);

@@ -1,6 +1,6 @@
 #include "application/use_cases/query_wash_session_status.h"
 #include "tests/test_support.h"
-#include "src/application/coordinators/device_runtime_private.h"
+#include "src/application/coordinators/control_context_private.h"
 
 static int verify_context_holds_shared_runtime_facts(void)
 {
@@ -18,16 +18,16 @@ static int verify_context_holds_shared_runtime_facts(void)
     result = test_start_session_and_flush( "wash_step_control_v1");
     TEST_ASSERT(result.ok);
 
-    pending_trigger_count_before = device_runtime_private_runtime_mutable()->pending_trigger_count;
-    current_time_before = device_runtime_private_runtime_mutable()->current_time_ms;
+    pending_trigger_count_before = control_context_private_runtime_mutable()->pending_trigger_count;
+    current_time_before = control_context_private_runtime_mutable()->current_time_ms;
     result = query_wash_session_status_execute( &wash_session_status_view);
     TEST_ASSERT(result.ok);
     TEST_ASSERT(wash_session_status_view.has_active_session);
-    TEST_ASSERT(device_runtime_private_runtime_mutable()->pending_trigger_count == pending_trigger_count_before);
-    TEST_ASSERT(device_runtime_private_runtime_mutable()->current_time_ms == current_time_before);
-    TEST_ASSERT(device_runtime_private_runtime_mutable()->last_result_code[0] != '\0');
-    TEST_ASSERT(device_runtime_private_runtime_mutable()->last_reason_code[0] != '\0');
-    TEST_ASSERT(device_runtime_private_runtime_mutable()->wash_session.session_state == SESSION_STATE_RUNNING);
+    TEST_ASSERT(control_context_private_runtime_mutable()->pending_trigger_count == pending_trigger_count_before);
+    TEST_ASSERT(control_context_private_runtime_mutable()->current_time_ms == current_time_before);
+    TEST_ASSERT(control_context_private_runtime_mutable()->last_result_code[0] != '\0');
+    TEST_ASSERT(control_context_private_runtime_mutable()->last_reason_code[0] != '\0');
+    TEST_ASSERT(control_context_private_runtime_mutable()->wash_session.session_state == SESSION_STATE_RUNNING);
     test_release_system_context();
     return 0;
 }
@@ -41,19 +41,19 @@ static int verify_public_lifecycle_preserves_bound_ports(void)
     operation_result_t result;
 
     test_setup_system_context( &driver_context);
-    program_repository_port_ptr = device_runtime_program_repository_port();
+    program_repository_port_ptr = control_context_program_repository_port();
     TEST_ASSERT(program_repository_port_ptr != 0);
     program_repository_port_before = *program_repository_port_ptr;
     TEST_ASSERT(program_repository_port_before.context != 0);
 
-    result = device_runtime_reset();
+    result = control_context_reset();
     TEST_ASSERT(result.ok);
-    program_repository_port_ptr = device_runtime_program_repository_port();
+    program_repository_port_ptr = control_context_program_repository_port();
     TEST_ASSERT(program_repository_port_ptr != 0);
     program_repository_port_after = *program_repository_port_ptr;
     TEST_ASSERT(program_repository_port_after.context == program_repository_port_before.context);
-    TEST_ASSERT(device_runtime_pending_trigger_count() == 0u);
-    TEST_ASSERT(device_runtime_current_time_ms() == 0ul);
+    TEST_ASSERT(control_context_pending_trigger_count() == 0u);
+    TEST_ASSERT(control_context_current_time_ms() == 0ul);
 
     test_release_system_context();
     return 0;
@@ -67,11 +67,11 @@ static int verify_release_clears_single_instance_and_invalidates_handle(void)
     test_setup_system_context( &driver_context);
 
     test_release_system_context();
-    TEST_ASSERT(device_runtime_pending_trigger_count() == 0u);
-    TEST_ASSERT(device_runtime_current_time_ms() == 0ul);
-    TEST_ASSERT(device_runtime_program_repository_port() == 0);
+    TEST_ASSERT(control_context_pending_trigger_count() == 0u);
+    TEST_ASSERT(control_context_current_time_ms() == 0ul);
+    TEST_ASSERT(control_context_program_repository_port() == 0);
 
-    result = device_runtime_deinit();
+    result = control_context_deinit();
     TEST_ASSERT(!result.ok);
     return 0;
 }

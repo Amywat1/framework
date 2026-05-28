@@ -5,7 +5,16 @@
 #include "adapters/outbound/file_program_repository.h"
 #include "application/coordinators/background_alarm_monitor.h"
 #include "application/coordinators/scheduler_runtime_port.h"
-#include "src/application/coordinators/device_runtime_private.h"
+#include "src/application/coordinators/control_context_private.h"
+
+typedef enum app_state_t
+{
+    APP_STATE_UNAVAILABLE = 0,
+    APP_STATE_CREATED,
+    APP_STATE_RUNNING,
+    APP_STATE_TERMINATED,
+    APP_STATE_DESTROYED
+} app_state_t;
 
 typedef struct app_instance_t
 {
@@ -98,38 +107,6 @@ static void destroy_alarm_monitor(void)
 }
 
 /**
- * @brief 从当前实例状态构建状态视图。
- * @param status_view  输出状态视图，不能为空。
- */
-static void build_status_view(app_status_view_t *status_view)
-{
-    const char *domain_reason;
-
-    if (status_view == 0)
-    {
-        return;
-    }
-
-    memset(status_view, 0, sizeof(*status_view));
-    status_view->state = g_app_instance.state;
-    status_view->scheduler_created = g_app_instance.scheduler_created;
-
-    if (g_app_instance.scheduler != 0 && scheduler_read_view(g_app_instance.scheduler, &status_view->scheduler_view).ok)
-    {
-        status_view->scheduler_view_available = true;
-    }
-
-    domain_reason = device_runtime_last_reason_code();
-    if (domain_reason != 0 && domain_reason[0] != '\0')
-    {
-        status_view->domain_reason_available = true;
-        strncpy(status_view->domain_last_reason_code, domain_reason,
-                sizeof(status_view->domain_last_reason_code) - 1);
-        status_view->domain_last_reason_code[sizeof(status_view->domain_last_reason_code) - 1] = '\0';
-    }
-}
-
-/**
  * @brief 清零借用的外部资源绑定。
  * @param instance 目标运行状态结构。
  * @details 仅在资源释放后调用，用于避免悬空指针。
@@ -189,7 +166,7 @@ static operation_result_t require_initialized(void)
 /**
  * @brief 释放应用实例持有的所有资源。
  * @return 全部释放成功返回 `ok`，否则返回对应错误码。
- * @details 按调度器再到 device_runtime 的顺序释放资源。
+ * @details 按调度器再到 control_context 的顺序释放资源。
  */
 static operation_result_t destroy_owned_resources(void)
 {
@@ -203,13 +180,13 @@ static operation_result_t destroy_owned_resources(void)
 
     if (g_app_instance.scheduler != 0)
     {
-        device_runtime_unbind_scheduler();
+        control_context_unbind_scheduler();
         scheduler_destroy(g_app_instance.scheduler);
         g_app_instance.scheduler = 0;
     }
     g_app_instance.scheduler_created = false;
 
-    release_result = device_runtime_deinit();
+    release_result = control_context_deinit();
     if (!release_result.ok)
     {
         destroy_error_code = release_result.error_code;
@@ -279,15 +256,15 @@ operation_result_t app_create(const app_config_t *config)
 
     memset(&g_app_instance, 0, sizeof(g_app_instance));
     g_app_instance.state = APP_STATE_UNAVAILABLE;
-    result = device_runtime_init();
+    result = control_context_init();
     if (!result.ok)
     {
         (void)destroy_owned_resources();
         return result;
     }
 
-    device_runtime_set_sensor_port(config->sensor_port);
-    device_runtime_set_actuator_port(config->actuator_port);
+    control_context_set_sensor_port(config->sensor_port);
+    control_context_set_actuator_port(config->actuator_port);
 
     result = file_program_repository_init(config->config_root);
     if (!result.ok)
@@ -296,7 +273,7 @@ operation_result_t app_create(const app_config_t *config)
         return result;
     }
 
-    result = device_runtime_private_enter_stopped();
+    result = control_context_private_enter_stopped();
     if (!result.ok)
     {
         (void)destroy_owned_resources();
@@ -314,14 +291,14 @@ operation_result_t app_create(const app_config_t *config)
     scheduler_stdio.input = config->command_input;
     scheduler_stdio.output = config->command_output;
     scheduler_stdio.error = config->command_error;
-    scheduler_runtime_port_init_from_device_runtime(&scheduler_port);
+    scheduler_runtime_port_init_from_control_context(&scheduler_port);
     g_app_instance.scheduler = scheduler_create(&scheduler_port, config->scheduler_config, &scheduler_stdio);
     if (g_app_instance.scheduler == 0)
     {
         (void)destroy_owned_resources();
         return operation_result_fail(ERROR_CODE_IO_FAILED);
     }
-    result = device_runtime_bind_scheduler(g_app_instance.scheduler);
+    result = control_context_bind_scheduler(g_app_instance.scheduler);
     if (!result.ok)
     {
         (void)destroy_owned_resources();
@@ -375,20 +352,3 @@ operation_result_t app_destroy(void)
     return destroy_owned_resources();
 }
 
-operation_result_t app_read_state(app_status_view_t *status_view)
-{
-    if (status_view == 0)
-    {
-        return operation_result_fail(ERROR_CODE_INVALID_ARGUMENT);
-    }
-    memset(status_view, 0, sizeof(*status_view));
-
-    if (g_app_instance.initialized)
-    {
-        build_status_view(status_view);
-        return operation_result_ok();
-    }
-
-    status_view->state = APP_STATE_DESTROYED;
-    return operation_result_ok();
-}

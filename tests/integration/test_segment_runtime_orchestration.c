@@ -1,5 +1,5 @@
 #include "tests/test_support.h"
-#include "src/application/coordinators/device_runtime_private.h"
+#include "src/application/coordinators/control_context_private.h"
 
 static void complete_roof_segment(simulated_driver_context_t *driver_context)
 {
@@ -35,7 +35,7 @@ int main(void)
     TEST_ASSERT(result.ok);
     result = test_tick( 100);
     TEST_ASSERT(result.ok);
-    TEST_ASSERT(strcmp(device_runtime_private_runtime_mutable()->wash_execution.segment_id, "side_segment") == 0);
+    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->wash_execution.segment_id, "side_segment") == 0);
 
     complete_side_segment(&driver_context);
     result = test_tick( 100);
@@ -45,7 +45,7 @@ int main(void)
     TEST_ASSERT(result.ok);
     result = test_tick( 100);
     TEST_ASSERT(result.ok);
-    TEST_ASSERT(strcmp(device_runtime_private_runtime_mutable()->wash_execution.segment_id, "ro_segment") == 0);
+    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->wash_execution.segment_id, "ro_segment") == 0);
     test_release_system_context();
     return 0;
 }

@@ -1,5 +1,5 @@
 #include "tests/test_support.h"
-#include "src/application/coordinators/device_runtime_private.h"
+#include "src/application/coordinators/control_context_private.h"
 
 #include "domain/services/recovery_state_machine.h"
 
@@ -10,7 +10,7 @@ static int test_stop_only_recovery_stops_all(void)
 
     test_setup_system_context(&driver_context);
 
-    result = recovery_state_machine_execute(&device_runtime_private_runtime_mutable()->actuator_port,
+    result = recovery_state_machine_execute(&control_context_private_runtime_mutable()->actuator_port,
         0,
         RECOVERY_MODE_STOP_ONLY,
         0);
@@ -31,8 +31,8 @@ static int test_homing_recovery_runs_stop_and_roof_home(void)
     test_setup_system_context(&driver_context);
 
     failure_reason_code = 0;
-    result = recovery_state_machine_execute(&device_runtime_private_runtime_mutable()->actuator_port,
-        &device_runtime_private_runtime_mutable()->sensor_port,
+    result = recovery_state_machine_execute(&control_context_private_runtime_mutable()->actuator_port,
+        &control_context_private_runtime_mutable()->sensor_port,
         RECOVERY_MODE_HOME_ROOF_BRUSH,
         &failure_reason_code);
     TEST_ASSERT(result.ok);
@@ -54,8 +54,8 @@ static int test_homing_recovery_reports_feedback_timeout(void)
     driver_context.roof_home_feedback_available = false;
 
     failure_reason_code = 0;
-    result = recovery_state_machine_execute(&device_runtime_private_runtime_mutable()->actuator_port,
-        &device_runtime_private_runtime_mutable()->sensor_port,
+    result = recovery_state_machine_execute(&control_context_private_runtime_mutable()->actuator_port,
+        &control_context_private_runtime_mutable()->sensor_port,
         RECOVERY_MODE_HOME_ROOF_BRUSH,
         &failure_reason_code);
     TEST_ASSERT(!result.ok);

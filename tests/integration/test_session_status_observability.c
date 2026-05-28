@@ -1,5 +1,5 @@
 #include "tests/test_support.h"
-#include "src/application/coordinators/device_runtime_private.h"
+#include "src/application/coordinators/control_context_private.h"
 
 #include "application/use_cases/query_wash_session_status.h"
 
@@ -38,16 +38,16 @@ int main(void)
     TEST_ASSERT(strcmp(wash_session_status_view.stage_id, "roof_segment") == 0);
     TEST_ASSERT(wash_session_status_view.scheduler_view_available);
     TEST_ASSERT(wash_session_status_view.scheduler_view.metrics.command_event_count == 2ul);
-    strncpy(last_result_code_before, device_runtime_private_runtime_mutable()->last_result_code, sizeof(last_result_code_before) - 1);
-    strncpy(last_reason_code_before, device_runtime_private_runtime_mutable()->last_reason_code, sizeof(last_reason_code_before) - 1);
+    strncpy(last_result_code_before, control_context_private_runtime_mutable()->last_result_code, sizeof(last_result_code_before) - 1);
+    strncpy(last_reason_code_before, control_context_private_runtime_mutable()->last_reason_code, sizeof(last_reason_code_before) - 1);
     last_result_code_before[sizeof(last_result_code_before) - 1] = '\0';
     last_reason_code_before[sizeof(last_reason_code_before) - 1] = '\0';
 
     result = query_wash_session_status_execute( &wash_session_status_view);
     TEST_ASSERT(result.ok);
-    TEST_ASSERT(strcmp(device_runtime_private_runtime_mutable()->last_result_code, last_result_code_before) == 0);
-    TEST_ASSERT(strcmp(device_runtime_private_runtime_mutable()->last_reason_code, last_reason_code_before) == 0);
-    TEST_ASSERT(device_runtime_private_runtime_mutable()->pending_trigger_count == 0u);
+    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->last_result_code, last_result_code_before) == 0);
+    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->last_reason_code, last_reason_code_before) == 0);
+    TEST_ASSERT(control_context_private_runtime_mutable()->pending_trigger_count == 0u);
 
     result = test_submit_stop( "status-stop");
     TEST_ASSERT(result.ok);
@@ -57,7 +57,7 @@ int main(void)
     TEST_ASSERT(wash_session_status_view.device_state == DEVICE_STATE_STOPPED);
     TEST_ASSERT(strcmp(wash_session_status_view.reason_code, "status-stop") == 0);
 
-    result = device_runtime_reset();
+    result = control_context_reset();
     TEST_ASSERT(result.ok);
     result = query_wash_session_status_execute( &wash_session_status_view);
     TEST_ASSERT(result.ok);

@@ -3,7 +3,7 @@
 
 #include <stdbool.h>
 
-#include "application/coordinators/device_runtime.h"
+#include "application/coordinators/control_context.h"
 #include "domain/model/domain_enums.h"
 #include "platform/scheduler.h"
 #include "shared/result_types.h"

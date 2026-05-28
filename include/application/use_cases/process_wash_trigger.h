@@ -1,7 +1,7 @@
 #ifndef APPLICATION_USE_CASES_PROCESS_WASH_TRIGGER_H
 #define APPLICATION_USE_CASES_PROCESS_WASH_TRIGGER_H
 
-#include "application/coordinators/device_runtime.h"
+#include "application/coordinators/control_context.h"
 #include "domain/model/wash_trigger_event.h"
 #include "shared/result_types.h"
 

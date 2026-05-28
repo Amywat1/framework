@@ -1,5 +1,5 @@
 #include "tests/test_support.h"
-#include "src/application/coordinators/device_runtime_private.h"
+#include "src/application/coordinators/control_context_private.h"
 
 int main(void)
 {
@@ -19,7 +19,7 @@ int main(void)
     scheduler = test_create_scheduler( 100ul);
     TEST_ASSERT(scheduler != 0);
 
-    pending_before = device_runtime_private_runtime_mutable()->pending_trigger_count;
+    pending_before = control_context_private_runtime_mutable()->pending_trigger_count;
     TEST_ASSERT(test_scheduler_command(scheduler,
         "homing",
         response_line,
@@ -30,8 +30,8 @@ int main(void)
         response_line,
         sizeof(response_line)) == 0);
     TEST_ASSERT(strstr(response_line, "accepted=true") != 0);
-    TEST_ASSERT(device_runtime_private_runtime_mutable()->pending_trigger_count == pending_before);
-    TEST_ASSERT(device_runtime_private_runtime_mutable()->wash_session.session_state == SESSION_STATE_RUNNING);
+    TEST_ASSERT(control_context_private_runtime_mutable()->pending_trigger_count == pending_before);
+    TEST_ASSERT(control_context_private_runtime_mutable()->wash_session.session_state == SESSION_STATE_RUNNING);
 
     TEST_ASSERT(test_scheduler_command(scheduler,
         "status",

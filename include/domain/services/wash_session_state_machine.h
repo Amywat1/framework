@@ -48,7 +48,7 @@ typedef struct wash_session_service_args_t
 /**
  * @brief 会话状态机的最小依赖切片。
  *
- * @note 本切片不得携带 `device_runtime_t`、全局故障、最近结果或触发队列等无关共享状态。
+ * @note 本切片不得携带 `control_context_t`、全局故障、最近结果或触发队列等无关共享状态。
  */
 /**
  * @brief 创建并启动新的运行会话。

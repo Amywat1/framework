@@ -2,7 +2,7 @@
 #define APPLICATION_COORDINATORS_RUNTIME_EVENT_RECORDER_H
 
 #include "application/coordinators/runtime_result_projection.h"
-#include "application/coordinators/device_runtime.h"
+#include "application/coordinators/control_context.h"
 #include "domain/model/state_transition_record.h"
 
 /**

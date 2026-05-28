@@ -28,7 +28,7 @@ set(WASH_CORE_SOURCES
     startup/app_bootstrap.c
     application/coordinators/background_alarm_monitor.c
     application/coordinators/control_tick.c
-    application/coordinators/device_runtime.c
+    application/coordinators/control_context.c
     application/coordinators/runtime_event_recorder.c
     application/coordinators/scheduler_runtime_port.c
     application/jobs/alarm_detect_job.c

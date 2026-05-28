@@ -4,7 +4,7 @@
 #include <string.h>
 
 #include "tests/test_support.h"
-#include "src/application/coordinators/device_runtime_private.h"
+#include "src/application/coordinators/control_context_private.h"
 
 #ifndef WASH_CORE_ARCHIVE_PATH
 #define WASH_CORE_ARCHIVE_PATH ""
@@ -82,7 +82,7 @@ static int verify_formal_path_still_works(void)
         sizeof(response_line));
     TEST_ASSERT(result.ok);
     TEST_ASSERT(strstr(response_line, "accepted=true") != 0);
-    TEST_ASSERT(device_runtime_private_runtime_mutable()->wash_session.session_state == SESSION_STATE_RUNNING);
+    TEST_ASSERT(control_context_private_runtime_mutable()->wash_session.session_state == SESSION_STATE_RUNNING);
     return 0;
 }
 

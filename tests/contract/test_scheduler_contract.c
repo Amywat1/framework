@@ -1,5 +1,5 @@
 #include "tests/test_support.h"
-#include "src/application/coordinators/device_runtime_private.h"
+#include "src/application/coordinators/control_context_private.h"
 
 int main(void)
 {
@@ -32,7 +32,7 @@ int main(void)
     TEST_ASSERT(view_from_scheduler.runtime_state == SCHEDULER_RUNTIME_STATE_RUNNING);
     TEST_ASSERT(view_from_scheduler.metrics.cycle_count == 1ul);
 
-    result = device_runtime_deinit();
+    result = control_context_deinit();
     TEST_ASSERT(!result.ok);
     TEST_ASSERT(result.error_code == ERROR_CODE_INVALID_STATE);
 

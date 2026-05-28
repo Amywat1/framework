@@ -1,7 +1,7 @@
 #ifndef SRC_APPLICATION_JOBS_ALARM_DETECT_JOB_H
 #define SRC_APPLICATION_JOBS_ALARM_DETECT_JOB_H
 
-#include "application/coordinators/device_runtime.h"
+#include "application/coordinators/control_context.h"
 #include "application/services/alarm_evaluator.h"
 #include "domain/ports/sensor_port.h"
 #include "shared/result_types.h"

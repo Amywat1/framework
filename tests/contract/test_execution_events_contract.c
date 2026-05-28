@@ -1,5 +1,5 @@
 #include "tests/test_support.h"
-#include "src/application/coordinators/device_runtime_private.h"
+#include "src/application/coordinators/control_context_private.h"
 
 static int failing_start_motion(void *context, const segment_motion_plan_t *segment_motion_plan, int timeout_ms)
 {
@@ -11,63 +11,63 @@ static int failing_start_motion(void *context, const segment_motion_plan_t *segm
 
 static int verify_stop_transition_source(void)
 {
-    device_runtime_t system_context;
+    control_context_t system_context;
     simulated_driver_context_t driver_context;
     operation_result_t result;
 
     test_setup_system_context(&system_context, &driver_context);
     result = test_start_session_and_flush(system_context, "standard_wash");
     TEST_ASSERT(result.ok);
-    TEST_ASSERT(strcmp(device_runtime_private_runtime_mutable()->last_transition_record.current_state, "running") == 0);
+    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->last_transition_record.current_state, "running") == 0);
 
     result = test_submit_stop(system_context, "contract-stop");
     TEST_ASSERT(result.ok);
-    TEST_ASSERT(device_runtime_private_runtime_mutable()->wash_session.session_state == SESSION_STATE_ABORTED);
-    TEST_ASSERT(strcmp(device_runtime_private_runtime_mutable()->last_result_code, "accepted") == 0);
-    TEST_ASSERT(strcmp(device_runtime_private_runtime_mutable()->last_transition_record.reason_code, "contract-stop") == 0);
-    TEST_ASSERT(device_runtime_private_runtime_mutable()->last_transition_record.trigger_type == TRIGGER_TYPE_STOP);
+    TEST_ASSERT(control_context_private_runtime_mutable()->wash_session.session_state == SESSION_STATE_ABORTED);
+    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->last_result_code, "accepted") == 0);
+    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->last_transition_record.reason_code, "contract-stop") == 0);
+    TEST_ASSERT(control_context_private_runtime_mutable()->last_transition_record.trigger_type == TRIGGER_TYPE_STOP);
     return 0;
 }
 
 static int verify_timeout_transition_source(void)
 {
-    device_runtime_t system_context;
+    control_context_t system_context;
     simulated_driver_context_t driver_context;
     operation_result_t result;
 
     test_setup_system_context(&system_context, &driver_context);
     result = test_start_session_and_flush(system_context, "standard_wash");
     TEST_ASSERT(result.ok);
-    device_runtime_private_runtime_mutable()->wait_condition.timeout_policy = WAIT_TIMEOUT_POLICY_SEGMENT;
+    control_context_private_runtime_mutable()->wait_condition.timeout_policy = WAIT_TIMEOUT_POLICY_SEGMENT;
     result = test_fire_timeout(system_context, 1000);
     TEST_ASSERT(result.ok);
-    TEST_ASSERT(device_runtime_private_runtime_mutable()->wash_session.session_state == SESSION_STATE_ABORTED);
-    TEST_ASSERT(strcmp(device_runtime_private_runtime_mutable()->last_result_code, "aborted") == 0);
-    TEST_ASSERT(strcmp(device_runtime_private_runtime_mutable()->last_reason_code, "segment_timeout") == 0);
-    TEST_ASSERT(device_runtime_private_runtime_mutable()->last_transition_record.trigger_type == TRIGGER_TYPE_TIMEOUT);
+    TEST_ASSERT(control_context_private_runtime_mutable()->wash_session.session_state == SESSION_STATE_ABORTED);
+    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->last_result_code, "aborted") == 0);
+    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->last_reason_code, "segment_timeout") == 0);
+    TEST_ASSERT(control_context_private_runtime_mutable()->last_transition_record.trigger_type == TRIGGER_TYPE_TIMEOUT);
     return 0;
 }
 
 static int verify_dispatch_failure_transition_source(void)
 {
-    device_runtime_t system_context;
+    control_context_t system_context;
     simulated_driver_context_t driver_context;
     operation_result_t result;
 
     test_setup_system_context(&system_context, &driver_context);
-    device_runtime_private_runtime_mutable()->actuator_port.start_motion = failing_start_motion;
+    control_context_private_runtime_mutable()->actuator_port.start_motion = failing_start_motion;
     result = test_start_session_and_flush(system_context, "standard_wash");
     TEST_ASSERT(!result.ok);
-    TEST_ASSERT(device_runtime_private_runtime_mutable()->wash_session.session_state == SESSION_STATE_ABORTED);
-    TEST_ASSERT(strcmp(device_runtime_private_runtime_mutable()->wash_session.abort_reason, "dispatch_failed") == 0);
-    TEST_ASSERT(strcmp(device_runtime_private_runtime_mutable()->last_reason_code, "dispatch_failed") == 0);
-    TEST_ASSERT(device_runtime_private_runtime_mutable()->last_transition_record.trigger_type == TRIGGER_TYPE_START);
+    TEST_ASSERT(control_context_private_runtime_mutable()->wash_session.session_state == SESSION_STATE_ABORTED);
+    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->wash_session.abort_reason, "dispatch_failed") == 0);
+    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->last_reason_code, "dispatch_failed") == 0);
+    TEST_ASSERT(control_context_private_runtime_mutable()->last_transition_record.trigger_type == TRIGGER_TYPE_START);
     return 0;
 }
 
 static int verify_reset_clears_transition_observation_and_release_blocks_it(void)
 {
-    device_runtime_t system_context;
+    control_context_t system_context;
     simulated_driver_context_t driver_context;
     wash_trigger_event_t wash_trigger_event;
     operation_result_t result;
@@ -77,14 +77,14 @@ static int verify_reset_clears_transition_observation_and_release_blocks_it(void
     TEST_ASSERT(result.ok);
     result = test_submit_stop(system_context, "reset-stop");
     TEST_ASSERT(result.ok);
-    TEST_ASSERT(device_runtime_private_runtime_mutable()->last_transition_record.current_state[0] != '\0');
+    TEST_ASSERT(control_context_private_runtime_mutable()->last_transition_record.current_state[0] != '\0');
 
-    result = device_runtime_reset(system_context);
+    result = control_context_reset(system_context);
     TEST_ASSERT(result.ok);
-    TEST_ASSERT(device_runtime_private_runtime_mutable()->last_result_code[0] == '\0');
-    TEST_ASSERT(device_runtime_private_runtime_mutable()->last_reason_code[0] == '\0');
-    TEST_ASSERT(device_runtime_private_runtime_mutable()->last_transition_record.current_state[0] == '\0');
-    TEST_ASSERT(device_runtime_private_runtime_mutable()->last_transition_record.reason_code[0] == '\0');
+    TEST_ASSERT(control_context_private_runtime_mutable()->last_result_code[0] == '\0');
+    TEST_ASSERT(control_context_private_runtime_mutable()->last_reason_code[0] == '\0');
+    TEST_ASSERT(control_context_private_runtime_mutable()->last_transition_record.current_state[0] == '\0');
+    TEST_ASSERT(control_context_private_runtime_mutable()->last_transition_record.reason_code[0] == '\0');
 
     test_release_system_context(system_context);
     wash_trigger_event_init(&wash_trigger_event, TRIGGER_TYPE_STOP, 0, "released", "released", 0ul);

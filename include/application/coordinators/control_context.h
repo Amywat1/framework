@@ -1,5 +1,5 @@
-#ifndef APPLICATION_COORDINATORS_DEVICE_RUNTIME_H
-#define APPLICATION_COORDINATORS_DEVICE_RUNTIME_H
+#ifndef APPLICATION_COORDINATORS_CONTROL_CONTEXT_H
+#define APPLICATION_COORDINATORS_CONTROL_CONTEXT_H
 
 #include <stdbool.h>
 
@@ -13,12 +13,12 @@
 #include "shared/result_types.h"
 
 /**
- * @file device_runtime.h
+ * @file control_context.h
  * @brief 声明主控运行期组合根接口。
  *
- * @note device_runtime 是进程内唯一的单实例模块，所有接口直接操作内部静态实例，
- *       无需外部传入句柄。调用方通过 `device_runtime_acquire()` 占用实例，
- *       通过 `device_runtime_release()` 归还占用。
+ * @note control_context 是进程内唯一的单实例模块，所有接口直接操作内部静态实例，
+ *       无需外部传入句柄。调用方通过 `control_context_acquire()` 占用实例，
+ *       通过 `control_context_release()` 归还占用。
  */
 
 /**
@@ -26,7 +26,7 @@
  *
  * @return 初始化成功返回 `operation_result_ok()`；实例已初始化时返回失败结果。
  */
-operation_result_t device_runtime_init(void);
+operation_result_t control_context_init(void);
 
 /**
  * @brief 反初始化主控运行时，释放内部资源并重置状态。
@@ -35,56 +35,56 @@ operation_result_t device_runtime_init(void);
  * @note 调度器仍绑定时返回失败结果。
  * @return 成功返回 `operation_result_ok()`；调度器未解绑时返回失败结果。
  */
-operation_result_t device_runtime_deinit(void);
+operation_result_t control_context_deinit(void);
 
 /**
  * @brief 重置主控运行态，但保留已装配的外部端口和当前占用关系。
  *
  * @return 重置成功返回 `operation_result_ok()`；实例未激活时返回失败结果。
  */
-operation_result_t device_runtime_reset(void);
+operation_result_t control_context_reset(void);
 
 /**
  * @brief 将传感器端口装配到主控上下文。
  *
  * @param sensor_port 传感器端口；传入 `0` 时清空该端口。
  */
-void device_runtime_set_sensor_port(const sensor_port_t *sensor_port);
+void control_context_set_sensor_port(const sensor_port_t *sensor_port);
 
 /**
  * @brief 将执行机构端口装配到主控上下文。
  *
  * @param actuator_port 执行机构端口；传入 `0` 时清空该端口。
  */
-void device_runtime_set_actuator_port(const actuator_port_t *actuator_port);
+void control_context_set_actuator_port(const actuator_port_t *actuator_port);
 
 /**
  * @brief 将程序仓储端口装配到主控上下文。
  *
  * @param program_repository_port 程序仓储端口；传入 `0` 时清空该端口。
  */
-void device_runtime_set_program_repository_port(const program_repository_port_t *program_repository_port);
+void control_context_set_program_repository_port(const program_repository_port_t *program_repository_port);
 
 /**
  * @brief 读取当前已装配的程序仓储端口。
  *
  * @return 程序仓储端口只读指针；实例未激活时返回 `0`。
  */
-const program_repository_port_t *device_runtime_program_repository_port(void);
+const program_repository_port_t *control_context_program_repository_port(void);
 
 /**
  * @brief 读取主控当前时间。
  *
  * @return 当前时间；实例未激活时返回 `0`。
  */
-unsigned long device_runtime_current_time_ms(void);
+unsigned long control_context_current_time_ms(void);
 
 /**
  * @brief 读取待处理触发数量。
  *
  * @return 当前待处理触发数量；实例未激活时返回 `0`。
  */
-unsigned int device_runtime_pending_trigger_count(void);
+unsigned int control_context_pending_trigger_count(void);
 
 /**
  * @brief 统计指定触发 ID 当前仍在队列中的数量。
@@ -92,7 +92,7 @@ unsigned int device_runtime_pending_trigger_count(void);
  * @param trigger_id 目标触发 ID；允许为 `0`。
  * @return 匹配数量。
  */
-unsigned int device_runtime_count_pending_triggers_by_id(const char *trigger_id);
+unsigned int control_context_count_pending_triggers_by_id(const char *trigger_id);
 
 /**
  * @brief 统计指定触发类型当前仍在队列中的数量。
@@ -100,42 +100,42 @@ unsigned int device_runtime_count_pending_triggers_by_id(const char *trigger_id)
  * @param trigger_type 目标触发类型。
  * @return 匹配数量。
  */
-unsigned int device_runtime_count_pending_triggers_by_type(trigger_type_t trigger_type);
+unsigned int control_context_count_pending_triggers_by_type(trigger_type_t trigger_type);
 
 /**
  * @brief 判断主控当前是否仍有待处理运行工作。
  *
  * @return 存在待处理触发或已到期超时时返回 `true`。
  */
-bool device_runtime_has_pending_work(void);
+bool control_context_has_pending_work(void);
 
 /**
  * @brief 判断当前是否存在已激活的等待条件。
  *
  * @return 等待条件激活时返回 `true`。
  */
-bool device_runtime_wait_condition_active(void);
+bool control_context_wait_condition_active(void);
 
 /**
  * @brief 计算当前等待条件距离超时还剩余多少毫秒。
  *
  * @return 剩余毫秒数；无有效等待或已到期时返回 `0`。
  */
-unsigned long device_runtime_wait_timeout_ms(void);
+unsigned long control_context_wait_timeout_ms(void);
 
 /**
  * @brief 读取最近一次对外结果码。
  *
  * @return 最近结果码；无值时返回空字符串。
  */
-const char *device_runtime_last_result_code(void);
+const char *control_context_last_result_code(void);
 
 /**
  * @brief 读取最近一次对外原因码。
  *
  * @return 最近原因码；无值时返回空字符串。
  */
-const char *device_runtime_last_reason_code(void);
+const char *control_context_last_reason_code(void);
 
 /**
  * @brief 绑定调度器到系统上下文，防止重复创建或提前释放。
@@ -144,36 +144,36 @@ const char *device_runtime_last_reason_code(void);
  * @param scheduler_binding 调度器绑定对象，不能为空，由调用方按自身层级解释。
  * @return 绑定成功返回 `operation_result_ok()`；已绑定或实例未激活时返回失败。
  */
-operation_result_t device_runtime_bind_scheduler(void *scheduler_binding);
+operation_result_t control_context_bind_scheduler(void *scheduler_binding);
 
 /**
  * @brief 解除调度器与系统上下文的绑定关系。
  *
  * @note 由平台层调度器在 destroy 内部调用。
  */
-void device_runtime_unbind_scheduler(void);
+void control_context_unbind_scheduler(void);
 
 /**
  * @brief 读取当前绑定到系统上下文的调度器。
  *
  * @return 已绑定调度器对象；未绑定或上下文未激活时返回 `0`。
  */
-void *device_runtime_bound_scheduler(void);
+void *control_context_bound_scheduler(void);
 
 /**
  * @brief 校验主控当前是否处于激活状态。
  *
  * @return 实例激活时返回 `operation_result_ok()`；否则返回失败结果。
  */
-operation_result_t device_runtime_require_active(void);
+operation_result_t control_context_require_active(void);
 
 /**
  * @brief 读取指定索引处的待处理触发事件（只读）。
  *
- * @param index 目标索引，必须小于 `device_runtime_pending_trigger_count()`。
+ * @param index 目标索引，必须小于 `control_context_pending_trigger_count()`。
  * @return 指向触发事件的只读指针；索引越界或实例未激活时返回 `0`。
  */
-const wash_trigger_event_t *device_runtime_pending_trigger_at(unsigned int index);
+const wash_trigger_event_t *control_context_pending_trigger_at(unsigned int index);
 
 /**
  * @brief 向待处理队列追加一个触发事件。
@@ -181,14 +181,14 @@ const wash_trigger_event_t *device_runtime_pending_trigger_at(unsigned int index
  * @param wash_trigger_event 待追加的触发事件，不能为空。
  * @return 追加成功返回 `operation_result_ok()`；队列已满或参数非法时返回失败。
  */
-operation_result_t device_runtime_append_trigger(const wash_trigger_event_t *wash_trigger_event);
+operation_result_t control_context_append_trigger(const wash_trigger_event_t *wash_trigger_event);
 
 /**
  * @brief 从待处理队列中移除指定索引处的触发事件。
  *
- * @param index 目标索引，必须小于 `device_runtime_pending_trigger_count()`。
+ * @param index 目标索引，必须小于 `control_context_pending_trigger_count()`。
  */
-void device_runtime_remove_pending_trigger_at(unsigned int index);
+void control_context_remove_pending_trigger_at(unsigned int index);
 
 /**
  * @brief 从外部触发收件箱中尝试取出一个触发事件。
@@ -196,29 +196,29 @@ void device_runtime_remove_pending_trigger_at(unsigned int index);
  * @param wash_trigger_event 输出触发事件，不能为空。
  * @return 成功取到事件返回 `true`；当前收件箱为空或实例未激活时返回 `false`。
  */
-bool device_runtime_try_pop_external_trigger(wash_trigger_event_t *wash_trigger_event);
+bool control_context_try_pop_external_trigger(wash_trigger_event_t *wash_trigger_event);
 
 /**
  * @brief 读取当前等待条件（只读）。
  *
  * @return 指向等待条件的只读指针；无有效等待条件时返回 `0`。
  */
-const wait_condition_t *device_runtime_wait_condition(void);
+const wait_condition_t *control_context_wait_condition(void);
 
 /**
  * @brief 推进主控内部时钟。
  *
  * @param elapsed_ms 本次推进的毫秒数。
  */
-void device_runtime_advance_time(unsigned long elapsed_ms);
+void control_context_advance_time(unsigned long elapsed_ms);
 
 /**
- * @brief 从 device_runtime 单实例填充调度器运行时端口。
+ * @brief 从 control_context 单实例填充调度器运行时端口。
  *
- * @details 由应用层提供的适配器，将 device_runtime 各项能力映射到
+ * @details 由应用层提供的适配器，将 control_context 各项能力映射到
  *          `scheduler_runtime_port_t` 函数指针接口，供基础设施层调度器使用。
  * @param port 待写入端口，不能为空。
  */
-void scheduler_runtime_port_init_from_device_runtime(scheduler_runtime_port_t *port);
+void scheduler_runtime_port_init_from_control_context(scheduler_runtime_port_t *port);
 
 #endif

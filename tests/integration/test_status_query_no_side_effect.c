@@ -1,5 +1,5 @@
 #include "tests/test_support.h"
-#include "src/application/coordinators/device_runtime_private.h"
+#include "src/application/coordinators/control_context_private.h"
 
 #include "application/use_cases/query_wash_session_status.h"
 
@@ -15,12 +15,12 @@ typedef struct status_side_effect_snapshot_t {
 static void capture_status_snapshot(status_side_effect_snapshot_t *snapshot)
 {
     memset(snapshot, 0, sizeof(*snapshot));
-    snapshot->global_fault_present = device_runtime_private_runtime_mutable()->global_fault_present;
-    snapshot->pending_trigger_count = device_runtime_private_runtime_mutable()->pending_trigger_count;
-    snapshot->session_state = device_runtime_private_runtime_mutable()->wash_session.session_state;
-    snapshot->final_session_result = device_runtime_private_runtime_mutable()->wash_session.final_session_result;
-    strncpy(snapshot->last_result_code, device_runtime_private_runtime_mutable()->last_result_code, sizeof(snapshot->last_result_code) - 1);
-    strncpy(snapshot->last_reason_code, device_runtime_private_runtime_mutable()->last_reason_code, sizeof(snapshot->last_reason_code) - 1);
+    snapshot->global_fault_present = control_context_private_runtime_mutable()->global_fault_present;
+    snapshot->pending_trigger_count = control_context_private_runtime_mutable()->pending_trigger_count;
+    snapshot->session_state = control_context_private_runtime_mutable()->wash_session.session_state;
+    snapshot->final_session_result = control_context_private_runtime_mutable()->wash_session.final_session_result;
+    strncpy(snapshot->last_result_code, control_context_private_runtime_mutable()->last_result_code, sizeof(snapshot->last_result_code) - 1);
+    strncpy(snapshot->last_reason_code, control_context_private_runtime_mutable()->last_reason_code, sizeof(snapshot->last_reason_code) - 1);
 }
 
 static int assert_status_snapshot_equal(const status_side_effect_snapshot_t *left,
@@ -61,7 +61,7 @@ static int verify_status_command_has_no_side_effect(void)
 
     TEST_ASSERT(assert_status_snapshot_equal(&before_snapshot, &after_snapshot) == 0);
 
-    result = device_runtime_reset();
+    result = control_context_reset();
     TEST_ASSERT(result.ok);
     result = query_wash_session_status_execute( &(wash_session_status_view_t){0});
     TEST_ASSERT(result.ok);

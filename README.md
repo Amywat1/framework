@@ -19,8 +19,8 @@
 1. `src/startup/main.c`
 2. `include/startup/app_bootstrap.h`
 3. `src/startup/app_bootstrap.c`
-4. `include/application/coordinators/device_runtime.h`
-5. `src/application/coordinators/device_runtime.c`
+4. `include/application/coordinators/control_context.h`
+5. `src/application/coordinators/control_context.c`
 6. `include/platform/scheduler.h`
 7. `src/platform/linux/scheduler_linux.c`
 8. `src/platform/linux/stdio_formal_command_adapter.c`
@@ -50,7 +50,7 @@
 `app_bootstrap` 是当前程序的正式运行时外壳，负责：
 
 - 校验运行配置
-- 获取正式 `device_runtime`
+- 获取正式 `control_context`
 - 装配传感器端口、执行机构端口和程序仓储
 - 创建平台调度器
 - 驱动调度器运行
@@ -60,7 +60,7 @@
 
 ### 3. 运行时组合根
 
-`device_runtime` 是整个主控的运行时组合根。它承载当前程序运行需要保留的核心状态，包括：
+`control_context` 是整个主控的运行时组合根。它承载当前程序运行需要保留的核心状态，包括：
 
 - 当前洗车会话
 - 当前执行段状态
@@ -72,7 +72,7 @@
 - 最近结果和原因
 - 已装配的外部端口
 
-当前 `device_runtime` 已经不是对外暴露内部结构的普通对象，而是一个正式句柄。外部代码只允许通过公开接口或私有构建函数访问它，这样可以把生命周期、单实例占用和状态边界统一收口。
+当前 `control_context` 已经不是对外暴露内部结构的普通对象，而是一个正式句柄。外部代码只允许通过公开接口或私有构建函数访问它，这样可以把生命周期、单实例占用和状态边界统一收口。
 
 ### 4. 平台调度层
 
@@ -139,7 +139,7 @@
 1. `main` 初始化仿真传感器和执行机构端口。
 2. `main` 准备调度配置，例如控制周期、退出模式和每拍最大 trigger 数。
 3. `main` 组装 `app_config_t`，把端口、配置目录和标准输入输出传给引导层。
-4. `app_create()` 获取正式 `device_runtime`，装配程序仓储，再创建平台调度器。
+4. `app_create()` 获取正式 `control_context`，装配程序仓储，再创建平台调度器。
 5. `app_run()` 启动调度器主循环。
 
 ### 稳态运行阶段
@@ -210,7 +210,7 @@
 
 ### 4. 运行态集中承载
 
-核心运行状态集中在 `device_runtime` 中，而不是分散在大量全局变量里。这使得生命周期、状态访问和资源释放更容易控制。
+核心运行状态集中在 `control_context` 中，而不是分散在大量全局变量里。这使得生命周期、状态访问和资源释放更容易控制。
 
 ### 5. 外部资源通过端口接入
 
@@ -224,7 +224,7 @@
 
 - 进程入口：`src/startup/main.c`
 - 应用引导层：`src/startup/app_bootstrap.c`
-- 运行时组合根：`src/application/coordinators/device_runtime.c`
+- 运行时组合根：`src/application/coordinators/control_context.c`
 - 平台调度器：`src/platform/linux/scheduler_linux.c`
 - stdin 命令来源适配：`src/platform/linux/stdio_formal_command_adapter.c`
 - 单拍推进器：`src/application/coordinators/control_tick.c`
@@ -237,7 +237,7 @@
 ## 给新开发者的建议
 
 - 先把 `app_bootstrap -> scheduler -> control_tick -> process_wash_trigger` 这条主链读通，再看某个具体业务细节。
-- 遇到“这个状态从哪来”的问题，优先看 `device_runtime` 是否承载了它。
+- 遇到“这个状态从哪来”的问题，优先看 `control_context` 是否承载了它。
 - 遇到“为什么会在这个时刻推进”的问题，优先看 `scheduler`。
 - 遇到“为什么业务这样变化”的问题，优先看 `process_wash_trigger` 和领域服务，而不是先看平台层。
 - 扩展外部资源接入时，优先走端口和适配器，不要把文件系统、驱动或 Linux 细节直接带进领域层。
@@ -248,7 +248,7 @@
 
 - `main` 负责启动
 - `app_bootstrap` 负责生命周期
-- `device_runtime` 负责承载运行态
+- `control_context` 负责承载运行态
 - `scheduler` 负责外层调度
 - `control_tick` 负责单拍推进
 - 应用层负责编排

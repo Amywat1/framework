@@ -3,7 +3,7 @@
 #include <string.h>
 
 #include "domain/model/state_transition_record.h"
-#include "src/application/coordinators/device_runtime_private.h"
+#include "src/application/coordinators/control_context_private.h"
 
 /*
  * runtime_result_projection_* 的实现与 recorder 放在同一文件中，
@@ -75,18 +75,18 @@ void runtime_result_projection_set_transition(runtime_result_projection_t *runti
 
 void runtime_event_recorder_set_latest_result(const char *result_code, const char *reason_code)
 {
-    if (!device_runtime_require_active().ok)
+    if (!control_context_require_active().ok)
     {
         return;
     }
-    device_runtime_private_set_latest_result(result_code, reason_code);
+    control_context_private_set_latest_result(result_code, reason_code);
 }
 
 void runtime_event_recorder_apply_projection(const runtime_result_projection_t *runtime_result_projection)
 {
     state_transition_record_t *last_transition_record;
 
-    if (!device_runtime_require_active().ok)
+    if (!control_context_require_active().ok)
     {
         return;
     }
@@ -105,7 +105,7 @@ void runtime_event_recorder_apply_projection(const runtime_result_projection_t *
         return;
     }
 
-    last_transition_record = device_runtime_private_last_transition_record_mutable();
+    last_transition_record = control_context_private_last_transition_record_mutable();
     if (last_transition_record == 0)
     {
         return;
@@ -118,5 +118,5 @@ void runtime_event_recorder_apply_projection(const runtime_result_projection_t *
                                  safe_runtime_field(runtime_result_projection->current_state),
                                  safe_runtime_field(runtime_result_projection->transition_result_code),
                                  safe_runtime_field(runtime_result_projection->transition_reason_code),
-                                 device_runtime_current_time_ms());
+                                 control_context_current_time_ms());
 }

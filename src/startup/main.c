@@ -53,28 +53,6 @@ static void initialize_scheduler_config(scheduler_config_t *scheduler_config)
     scheduler_config->overrun_warning_threshold_ms = CONTROL_PERIOD_MS;
 }
 
-/**
- * @brief 输出 run 失败时的诊断信息。
- */
-static void report_run_failure(void)
-{
-    app_status_view_t status_view;
-    const char *scheduler_reason = "none";
-    const char *domain_reason = "none";
-
-    (void)app_read_state(&status_view);
-    if (status_view.scheduler_view_available && status_view.scheduler_view.metrics.last_error_reason[0] != '\0')
-    {
-        scheduler_reason = status_view.scheduler_view.metrics.last_error_reason;
-    }
-    if (status_view.domain_reason_available && status_view.domain_last_reason_code[0] != '\0')
-    {
-        domain_reason = status_view.domain_last_reason_code;
-    }
-    fprintf(stderr, "wash_controller: run failed, scheduler_reason=%s, domain_reason=%s\n", scheduler_reason,
-            domain_reason);
-}
-
 int main(void)
 {
     app_config_t app_config;
@@ -102,7 +80,7 @@ int main(void)
     result = app_create(&app_config);
     if (!result.ok)
     {
-        fprintf(stderr, "wash_controller: create failed, error_code=%d\n", (int)result.error_code);
+        fprintf(stderr, "App create failed, error_code=%d\n", (int)result.error_code);
         return 1;
     }
 
@@ -110,14 +88,14 @@ int main(void)
     exit_code = 0;
     if (!result.ok)
     {
-        report_run_failure();
+        fprintf(stderr, "App run failed, error_code=%d\n", (int)result.error_code);
         exit_code = 1;
     }
 
     result = app_destroy();
     if (!result.ok)
     {
-        fprintf(stderr, "wash_controller: destroy failed, error_code=%d\n", (int)result.error_code);
+        fprintf(stderr, "App destroy failed, error_code=%d\n", (int)result.error_code);
         exit_code = 1;
     }
     return exit_code;

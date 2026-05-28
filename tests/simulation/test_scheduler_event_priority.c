@@ -1,5 +1,5 @@
 #include "tests/test_support.h"
-#include "src/application/coordinators/device_runtime_private.h"
+#include "src/application/coordinators/control_context_private.h"
 #include "src/platform/linux/scheduler_linux_internal.h"
 
 int main(void)
@@ -18,7 +18,7 @@ int main(void)
     result = scheduler_linux_test_step(scheduler);
     TEST_ASSERT(result.ok);
     TEST_ASSERT(scheduler->notification_snapshot.captured_time_ms == 0ul);
-    TEST_ASSERT(device_runtime_current_time_ms() == 100ul);
+    TEST_ASSERT(control_context_current_time_ms() == 100ul);
 
     scheduler->pending_notification_count = 1u;
     scheduler->pending_period_expirations = 1ul;

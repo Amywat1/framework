@@ -5,7 +5,7 @@
 #include <sys/stat.h>
 
 #include "adapters/config/json_program_parser.h"
-#include "application/coordinators/device_runtime.h"
+#include "application/coordinators/control_context.h"
 #include "domain/model/program_snapshot.h"
 #include "domain/model/program_validation.h"
 #include "domain/model/vehicle_type.h"
@@ -18,7 +18,7 @@ typedef struct file_repository_context_t
     int runtime_program_available;
 } file_repository_context_t;
 
-/* 单实例假设：与 device_runtime 单实例约束一致，每个进程只维护一个仓储上下文。 */
+/* 单实例假设：与 control_context 单实例约束一致，每个进程只维护一个仓储上下文。 */
 static file_repository_context_t g_repository_context;
 
 static bool directory_exists(const char *path)
@@ -103,7 +103,7 @@ operation_result_t file_program_repository_init(const char *config_root)
     program_repository_port_t program_repository_port;
     char programs_root[320];
 
-    if (!device_runtime_require_active().ok)
+    if (!control_context_require_active().ok)
     {
         return operation_result_fail(ERROR_CODE_INVALID_STATE);
     }
@@ -129,7 +129,7 @@ operation_result_t file_program_repository_init(const char *config_root)
     program_repository_port.save_program = save_program_impl;
     program_repository_port.load_vehicle_type = load_vehicle_type_impl;
     program_repository_port.validate_program_snapshot = validate_program_snapshot_impl;
-    device_runtime_set_program_repository_port(&program_repository_port);
+    control_context_set_program_repository_port(&program_repository_port);
     return operation_result_ok();
 }
 
@@ -142,7 +142,7 @@ void file_program_repository_set_runtime_program(const wash_program_t *wash_prog
     {
         return;
     }
-    program_repository_port = device_runtime_program_repository_port();
+    program_repository_port = control_context_program_repository_port();
     if (program_repository_port == 0)
     {
         return;

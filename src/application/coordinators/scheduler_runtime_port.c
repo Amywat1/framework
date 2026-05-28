@@ -1,24 +1,24 @@
 #include "application/coordinators/scheduler_runtime_port.h"
 
 #include "application/coordinators/control_tick.h"
-#include "application/coordinators/device_runtime.h"
+#include "application/coordinators/control_context.h"
 
 static unsigned long adapter_current_time_ms(void *context)
 {
     (void)context;
-    return device_runtime_current_time_ms();
+    return control_context_current_time_ms();
 }
 
 static unsigned int adapter_pending_trigger_count(void *context)
 {
     (void)context;
-    return device_runtime_pending_trigger_count();
+    return control_context_pending_trigger_count();
 }
 
 static bool adapter_has_pending_work(void *context)
 {
     (void)context;
-    return device_runtime_has_pending_work();
+    return control_context_has_pending_work();
 }
 
 static void adapter_advance_time(void *context, unsigned long elapsed_ms)
@@ -34,10 +34,10 @@ static operation_result_t adapter_run_control_tick(void *context)
 }
 
 /**
- * @brief 从 device_runtime 单实例填充调度器运行时端口。
+ * @brief 从 control_context 单实例填充调度器运行时端口。
  * @param port 待写入端口，不能为空。
  */
-void scheduler_runtime_port_init_from_device_runtime(scheduler_runtime_port_t *port)
+void scheduler_runtime_port_init_from_control_context(scheduler_runtime_port_t *port)
 {
     if (port == 0)
     {

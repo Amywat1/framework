@@ -3,7 +3,7 @@
 #include "application/use_cases/process_wash_trigger.h"
 #include "application/coordinators/control_tick.h"
 #include "tests/test_support.h"
-#include "src/application/coordinators/device_runtime_private.h"
+#include "src/application/coordinators/control_context_private.h"
 
 static int verify_main_loop_owns_queue_and_time(void)
 {
@@ -12,23 +12,23 @@ static int verify_main_loop_owns_queue_and_time(void)
     operation_result_t result;
 
     test_setup_system_context( &driver_context);
-    TEST_ASSERT(device_runtime_private_runtime_mutable()->pending_trigger_count == 0u);
-    TEST_ASSERT(device_runtime_private_runtime_mutable()->current_time_ms == 0ul);
+    TEST_ASSERT(control_context_private_runtime_mutable()->pending_trigger_count == 0u);
+    TEST_ASSERT(control_context_private_runtime_mutable()->current_time_ms == 0ul);
 
     control_tick_advance_time( 25ul);
-    TEST_ASSERT(device_runtime_private_runtime_mutable()->current_time_ms == 25ul);
+    TEST_ASSERT(control_context_private_runtime_mutable()->current_time_ms == 25ul);
 
     wash_trigger_event_init(&wash_trigger_event,
         TRIGGER_TYPE_STOP,
         0,
         "ownership-stop",
         "contract",
-        device_runtime_private_runtime_mutable()->current_time_ms);
+        control_context_private_runtime_mutable()->current_time_ms);
     result = control_tick_submit_trigger( &wash_trigger_event);
     TEST_ASSERT(result.ok);
-    TEST_ASSERT(device_runtime_private_runtime_mutable()->pending_trigger_count == 1u);
-    TEST_ASSERT(device_runtime_private_runtime_mutable()->global_fault_present == false);
-    TEST_ASSERT(device_runtime_private_runtime_mutable()->last_result_code[0] == '\0');
+    TEST_ASSERT(control_context_private_runtime_mutable()->pending_trigger_count == 1u);
+    TEST_ASSERT(control_context_private_runtime_mutable()->global_fault_present == false);
+    TEST_ASSERT(control_context_private_runtime_mutable()->last_result_code[0] == '\0');
     test_release_system_context();
     return 0;
 }
@@ -39,7 +39,7 @@ static int verify_recorder_owns_latest_projection(void)
     runtime_result_projection_t runtime_result_projection;
 
     test_setup_system_context( &driver_context);
-    wash_session_abort(&device_runtime_private_runtime_mutable()->wash_session, RESULT_CODE_MANUAL_ABORT, "already-final", 77ul);
+    wash_session_abort(&control_context_private_runtime_mutable()->wash_session, RESULT_CODE_MANUAL_ABORT, "already-final", 77ul);
 
     runtime_result_projection_init(&runtime_result_projection);
     runtime_result_projection_set_latest_result(&runtime_result_projection, "accepted", "projection-only");
@@ -53,10 +53,10 @@ static int verify_recorder_owns_latest_projection(void)
         "projection-only");
     runtime_event_recorder_apply_projection( &runtime_result_projection);
 
-    TEST_ASSERT(strcmp(device_runtime_private_runtime_mutable()->last_result_code, "accepted") == 0);
-    TEST_ASSERT(strcmp(device_runtime_private_runtime_mutable()->last_reason_code, "projection-only") == 0);
-    TEST_ASSERT(strcmp(device_runtime_private_runtime_mutable()->last_transition_record.reason_code, "projection-only") == 0);
-    TEST_ASSERT(device_runtime_private_runtime_mutable()->wash_session.final_session_result == RESULT_CODE_MANUAL_ABORT);
+    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->last_result_code, "accepted") == 0);
+    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->last_reason_code, "projection-only") == 0);
+    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->last_transition_record.reason_code, "projection-only") == 0);
+    TEST_ASSERT(control_context_private_runtime_mutable()->wash_session.final_session_result == RESULT_CODE_MANUAL_ABORT);
     test_release_system_context();
     return 0;
 }
@@ -76,11 +76,11 @@ static int verify_trigger_entry_owns_global_fault(void)
         0ul);
     result = process_wash_trigger_execute( &wash_trigger_event);
     TEST_ASSERT(result.ok);
-    TEST_ASSERT(device_runtime_private_runtime_mutable()->global_fault_present);
-    TEST_ASSERT(strcmp(device_runtime_private_runtime_mutable()->global_fault_code, "E_STOP") == 0);
-    TEST_ASSERT(strcmp(device_runtime_private_runtime_mutable()->global_fault_reason, "ownership-fault") == 0);
-    TEST_ASSERT(strcmp(device_runtime_private_runtime_mutable()->last_result_code, "accepted") == 0);
-    TEST_ASSERT(strcmp(device_runtime_private_runtime_mutable()->last_reason_code, "global_fault_recorded") == 0);
+    TEST_ASSERT(control_context_private_runtime_mutable()->global_fault_present);
+    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->global_fault_code, "E_STOP") == 0);
+    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->global_fault_reason, "ownership-fault") == 0);
+    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->last_result_code, "accepted") == 0);
+    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->last_reason_code, "global_fault_recorded") == 0);
     test_release_system_context();
     return 0;
 }

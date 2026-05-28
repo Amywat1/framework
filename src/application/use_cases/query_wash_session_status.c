@@ -4,7 +4,7 @@
 
 #include "platform/scheduler.h"
 #include "shared/error_codes.h"
-#include "src/application/coordinators/device_runtime_private.h"
+#include "src/application/coordinators/control_context_private.h"
 
 operation_result_t query_wash_session_status_execute(wash_session_status_view_t *wash_session_status_view)
 {
@@ -18,16 +18,16 @@ operation_result_t query_wash_session_status_execute(wash_session_status_view_t 
     {
         return operation_result_fail(ERROR_CODE_INVALID_ARGUMENT);
     }
-    result = device_runtime_require_active();
+    result = control_context_require_active();
     if (!result.ok)
     {
         return result;
     }
     memset(wash_session_status_view, 0, sizeof(*wash_session_status_view));
-    wash_session = device_runtime_private_wash_session();
-    wash_execution = device_runtime_private_wash_execution();
-    wait_condition = device_runtime_wait_condition();
-    last_transition_record = device_runtime_private_last_transition_record();
+    wash_session = control_context_private_wash_session();
+    wash_execution = control_context_private_wash_execution();
+    wait_condition = control_context_wait_condition();
+    last_transition_record = control_context_private_last_transition_record();
     if (wash_session == 0 || wash_execution == 0 || wait_condition == 0 || last_transition_record == 0)
     {
         return operation_result_fail(ERROR_CODE_INVALID_STATE);
@@ -35,8 +35,8 @@ operation_result_t query_wash_session_status_execute(wash_session_status_view_t 
 
     wash_session_status_view->has_active_session =
         (wash_session->session_state == SESSION_STATE_CREATED || wash_session->session_state == SESSION_STATE_RUNNING);
-    wash_session_status_view->device_state = device_runtime_private_device_state();
-    wash_session_status_view->global_fault_present = device_runtime_private_global_fault_present();
+    wash_session_status_view->device_state = control_context_private_device_state();
+    wash_session_status_view->global_fault_present = control_context_private_global_fault_present();
     wash_session_status_view->session_state = wash_session->session_state;
     wash_session_status_view->execution_state = wash_execution->execution_state;
     wash_session_status_view->lifecycle_state = wash_execution->lifecycle_state;
@@ -49,16 +49,16 @@ operation_result_t query_wash_session_status_execute(wash_session_status_view_t 
     strncpy(wash_session_status_view->wait_reason, wait_condition->reason_code,
             sizeof(wash_session_status_view->wait_reason) - 1);
     {
-        const char *last_reason = device_runtime_last_reason_code();
+        const char *last_reason = control_context_last_reason_code();
         strncpy(wash_session_status_view->reason_code,
                 last_reason[0] != '\0' ? last_reason : last_transition_record->reason_code,
                 sizeof(wash_session_status_view->reason_code) - 1);
     }
-    strncpy(wash_session_status_view->global_fault_reason, device_runtime_private_global_fault_reason(),
+    strncpy(wash_session_status_view->global_fault_reason, control_context_private_global_fault_reason(),
             sizeof(wash_session_status_view->global_fault_reason) - 1);
     {
         scheduler_t *bound_scheduler =
-            (scheduler_t *)device_runtime_bound_scheduler();
+            (scheduler_t *)control_context_bound_scheduler();
         if (scheduler_read_view(bound_scheduler, &wash_session_status_view->scheduler_view).ok)
         {
             wash_session_status_view->scheduler_view_available = true;
