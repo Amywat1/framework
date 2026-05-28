@@ -11,9 +11,7 @@ typedef struct app_instance_t
 {
     bool initialized;
     app_state_t state;
-    bool device_runtime_acquired;
     bool scheduler_created;
-    device_runtime_t device_runtime;
     scheduler_t *scheduler;
     background_alarm_monitor_t *background_alarm_monitor;
 } app_instance_t;
@@ -72,7 +70,6 @@ static operation_result_t create_alarm_monitor(const app_config_t *config)
 
     memset(&monitor_config, 0, sizeof(monitor_config));
     monitor_config.settings = config->background_alarm_monitor;
-    monitor_config.device_runtime = g_app_instance.device_runtime;
     monitor_config.sensor_port = config->sensor_port;
     return background_alarm_monitor_create(&g_app_instance.background_alarm_monitor, &monitor_config);
 }
@@ -115,7 +112,6 @@ static void build_status_view(app_status_view_t *status_view)
 
     memset(status_view, 0, sizeof(*status_view));
     status_view->state = g_app_instance.state;
-    status_view->device_runtime_acquired = g_app_instance.device_runtime_acquired;
     status_view->scheduler_created = g_app_instance.scheduler_created;
 
     if (g_app_instance.scheduler != 0 && scheduler_read_view(g_app_instance.scheduler, &status_view->scheduler_view).ok)
@@ -123,16 +119,13 @@ static void build_status_view(app_status_view_t *status_view)
         status_view->scheduler_view_available = true;
     }
 
-    if (g_app_instance.device_runtime_acquired && g_app_instance.device_runtime != 0)
+    domain_reason = device_runtime_last_reason_code();
+    if (domain_reason != 0 && domain_reason[0] != '\0')
     {
-        domain_reason = device_runtime_last_reason_code(g_app_instance.device_runtime);
-        if (domain_reason != 0 && domain_reason[0] != '\0')
-        {
-            status_view->domain_reason_available = true;
-            strncpy(status_view->domain_last_reason_code, domain_reason,
-                    sizeof(status_view->domain_last_reason_code) - 1);
-            status_view->domain_last_reason_code[sizeof(status_view->domain_last_reason_code) - 1] = '\0';
-        }
+        status_view->domain_reason_available = true;
+        strncpy(status_view->domain_last_reason_code, domain_reason,
+                sizeof(status_view->domain_last_reason_code) - 1);
+        status_view->domain_last_reason_code[sizeof(status_view->domain_last_reason_code) - 1] = '\0';
     }
 }
 
@@ -150,8 +143,6 @@ static void zero_borrowed_bindings(app_instance_t *instance)
 
     instance->scheduler = 0;
     instance->background_alarm_monitor = 0;
-    instance->device_runtime = 0;
-    instance->device_runtime_acquired = false;
     instance->scheduler_created = false;
 }
 
@@ -212,21 +203,16 @@ static operation_result_t destroy_owned_resources(void)
 
     if (g_app_instance.scheduler != 0)
     {
-        device_runtime_unbind_scheduler(g_app_instance.device_runtime);
+        device_runtime_unbind_scheduler();
         scheduler_destroy(g_app_instance.scheduler);
         g_app_instance.scheduler = 0;
     }
     g_app_instance.scheduler_created = false;
 
-    if (g_app_instance.device_runtime != 0)
+    release_result = device_runtime_deinit();
+    if (!release_result.ok)
     {
-        release_result = device_runtime_release(g_app_instance.device_runtime);
-        g_app_instance.device_runtime = 0;
-        g_app_instance.device_runtime_acquired = false;
-        if (!release_result.ok)
-        {
-            destroy_error_code = release_result.error_code;
-        }
+        destroy_error_code = release_result.error_code;
     }
 
     g_app_instance.initialized = false;
@@ -293,26 +279,24 @@ operation_result_t app_create(const app_config_t *config)
 
     memset(&g_app_instance, 0, sizeof(g_app_instance));
     g_app_instance.state = APP_STATE_UNAVAILABLE;
-    result = device_runtime_acquire(&g_app_instance.device_runtime);
-    if (!result.ok || g_app_instance.device_runtime == 0)
-    {
-        error_code_t error_code = result.ok ? ERROR_CODE_RESOURCE_UNAVAILABLE : result.error_code;
-        (void)destroy_owned_resources();
-        return operation_result_fail(error_code);
-    }
-    g_app_instance.device_runtime_acquired = true;
-
-    device_runtime_set_sensor_port(g_app_instance.device_runtime, config->sensor_port);
-    device_runtime_set_actuator_port(g_app_instance.device_runtime, config->actuator_port);
-
-    result = file_program_repository_init(g_app_instance.device_runtime, config->config_root);
+    result = device_runtime_init();
     if (!result.ok)
     {
         (void)destroy_owned_resources();
         return result;
     }
 
-    result = device_runtime_private_enter_stopped(g_app_instance.device_runtime);
+    device_runtime_set_sensor_port(config->sensor_port);
+    device_runtime_set_actuator_port(config->actuator_port);
+
+    result = file_program_repository_init(config->config_root);
+    if (!result.ok)
+    {
+        (void)destroy_owned_resources();
+        return result;
+    }
+
+    result = device_runtime_private_enter_stopped();
     if (!result.ok)
     {
         (void)destroy_owned_resources();
@@ -330,14 +314,14 @@ operation_result_t app_create(const app_config_t *config)
     scheduler_stdio.input = config->command_input;
     scheduler_stdio.output = config->command_output;
     scheduler_stdio.error = config->command_error;
-    scheduler_runtime_port_init_from_device_runtime(&scheduler_port, g_app_instance.device_runtime);
+    scheduler_runtime_port_init_from_device_runtime(&scheduler_port);
     g_app_instance.scheduler = scheduler_create(&scheduler_port, config->scheduler_config, &scheduler_stdio);
     if (g_app_instance.scheduler == 0)
     {
         (void)destroy_owned_resources();
         return operation_result_fail(ERROR_CODE_IO_FAILED);
     }
-    result = device_runtime_bind_scheduler(g_app_instance.device_runtime, g_app_instance.scheduler);
+    result = device_runtime_bind_scheduler(g_app_instance.scheduler);
     if (!result.ok)
     {
         (void)destroy_owned_resources();
@@ -363,7 +347,7 @@ operation_result_t app_run(void)
     {
         return operation_result_fail(ERROR_CODE_INVALID_STATE);
     }
-    if (g_app_instance.scheduler == 0 || g_app_instance.device_runtime == 0)
+    if (g_app_instance.scheduler == 0)
     {
         return operation_result_fail(ERROR_CODE_INVALID_STATE);
     }

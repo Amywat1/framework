@@ -14,7 +14,7 @@ int main(void)
     program_snapshot_service_args = test_build_program_snapshot_service_args(system_context);
     result = program_snapshot_service_capture(&program_snapshot_service_args, "standard_wash");
     TEST_ASSERT(result.ok);
-    TEST_ASSERT(device_runtime_private_runtime(system_context)->program_snapshot.validation_result == PROGRAM_SNAPSHOT_VALIDATION_VALID);
+    TEST_ASSERT(device_runtime_private_runtime_mutable()->program_snapshot.validation_result == PROGRAM_SNAPSHOT_VALIDATION_VALID);
 
     result = program_snapshot_service_capture(&program_snapshot_service_args, "invalid_program");
     TEST_ASSERT(!result.ok);

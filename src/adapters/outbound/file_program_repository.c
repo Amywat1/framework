@@ -98,12 +98,12 @@ static int validate_program_snapshot_impl(void *context, const char *program_id,
     return 0;
 }
 
-operation_result_t file_program_repository_init(device_runtime_t device_runtime, const char *config_root)
+operation_result_t file_program_repository_init(const char *config_root)
 {
     program_repository_port_t program_repository_port;
     char programs_root[320];
 
-    if (!device_runtime_require_active(device_runtime).ok)
+    if (!device_runtime_require_active().ok)
     {
         return operation_result_fail(ERROR_CODE_INVALID_STATE);
     }
@@ -129,12 +129,11 @@ operation_result_t file_program_repository_init(device_runtime_t device_runtime,
     program_repository_port.save_program = save_program_impl;
     program_repository_port.load_vehicle_type = load_vehicle_type_impl;
     program_repository_port.validate_program_snapshot = validate_program_snapshot_impl;
-    device_runtime_set_program_repository_port(device_runtime, &program_repository_port);
+    device_runtime_set_program_repository_port(&program_repository_port);
     return operation_result_ok();
 }
 
-void file_program_repository_set_runtime_program(device_runtime_t device_runtime, const wash_program_t *wash_program,
-                                                 int revision)
+void file_program_repository_set_runtime_program(const wash_program_t *wash_program, int revision)
 {
     file_repository_context_t *repository_context;
     const program_repository_port_t *program_repository_port;
@@ -143,7 +142,7 @@ void file_program_repository_set_runtime_program(device_runtime_t device_runtime
     {
         return;
     }
-    program_repository_port = device_runtime_program_repository_port(device_runtime);
+    program_repository_port = device_runtime_program_repository_port();
     if (program_repository_port == 0)
     {
         return;

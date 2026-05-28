@@ -9,18 +9,17 @@
 #include <string.h>
 #include <unistd.h>
 
+#include "application/coordinators/device_runtime.h"
 #include "application/use_cases/process_formal_command.h"
 #include "shared/error_codes.h"
 #include "src/platform/linux/scheduler_linux_internal.h"
 
 /**
  * @brief 根据最新上下文结果重建 formal command 响应行。
- * @param device_runtime 系统上下文句柄。
  * @param response_line 输出响应缓冲区。
  * @param response_line_size 输出缓冲区大小。
  */
-static void stdio_formal_command_adapter_rebuild_response(const device_runtime_t device_runtime, char *response_line,
-                                                          size_t response_line_size)
+static void stdio_formal_command_adapter_rebuild_response(char *response_line, size_t response_line_size)
 {
     const char *detail;
     const char *result_code;
@@ -30,11 +29,11 @@ static void stdio_formal_command_adapter_rebuild_response(const device_runtime_t
         return;
     }
 
-    result_code = device_runtime_last_result_code(device_runtime)[0] != '\0'
-                      ? device_runtime_last_result_code(device_runtime)
+    result_code = device_runtime_last_result_code()[0] != '\0'
+                      ? device_runtime_last_result_code()
                       : "accepted";
-    detail = device_runtime_last_reason_code(device_runtime)[0] != '\0'
-                 ? device_runtime_last_reason_code(device_runtime)
+    detail = device_runtime_last_reason_code()[0] != '\0'
+                 ? device_runtime_last_reason_code()
                  : "none";
     process_formal_command_format_response(response_line, response_line_size, result_code,
                                            process_formal_command_result_is_accepted(result_code), detail);
@@ -174,11 +173,9 @@ static operation_result_t stdio_formal_command_adapter_process_line(
     }
     memset(response_line, 0, response_line_size);
 
-    /* runtime_port.context 始终由 scheduler_runtime_port_init_from_device_runtime 写入 device_runtime_t */
-    device_runtime_t device_runtime = (device_runtime_t)scheduler->runtime_port.context;
     pending_before =
         scheduler->runtime_port.pending_trigger_count(scheduler->runtime_port.context);
-    result = process_formal_command_execute(device_runtime, command_line, response_line, response_line_size);
+    result = process_formal_command_execute(command_line, response_line, response_line_size);
     queued_work =
         scheduler->runtime_port.pending_trigger_count(scheduler->runtime_port.context) >
         pending_before;
@@ -190,7 +187,7 @@ static operation_result_t stdio_formal_command_adapter_process_line(
         {
             return result;
         }
-        stdio_formal_command_adapter_rebuild_response(device_runtime, response_line, response_line_size);
+        stdio_formal_command_adapter_rebuild_response(response_line, response_line_size);
     }
     if (!result.ok && response_line[0] == '\0')
     {

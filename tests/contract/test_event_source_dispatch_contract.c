@@ -5,19 +5,17 @@ int main(void)
 {
     scheduler_state_view_t app_state_view;
     simulated_driver_context_t driver_context;
-    device_runtime_t released_handle;
-    device_runtime_t system_context;
     scheduler_t *scheduler;
     char response_line[512];
     operation_result_t result;
 
-    test_setup_system_context(&system_context, &driver_context);
-    result = test_load_runtime_program_from_fixture(system_context,
+    test_setup_system_context(&driver_context);
+    result = test_load_runtime_program_from_fixture(
         "tests/fixtures/wash_step_control/program_v1_valid.json",
         0);
     TEST_ASSERT(result.ok);
 
-    scheduler = test_create_scheduler(system_context, 100ul);
+    scheduler = test_create_scheduler(100ul);
     TEST_ASSERT(scheduler != 0);
 
     TEST_ASSERT(test_scheduler_command(scheduler,
@@ -26,7 +24,7 @@ int main(void)
         sizeof(response_line)) == 0);
     TEST_ASSERT(strstr(response_line, "accepted=true") != 0);
     TEST_ASSERT(test_scheduler_notification(scheduler, 2u) == 0);
-    TEST_ASSERT(device_runtime_private_runtime(system_context)->wash_session.session_state != SESSION_STATE_RUNNING);
+    TEST_ASSERT(device_runtime_private_runtime_mutable()->wash_session.session_state != SESSION_STATE_RUNNING);
     result = scheduler_read_view(scheduler, &app_state_view);
     TEST_ASSERT(result.ok);
     TEST_ASSERT(app_state_view.metrics.notification_event_count == 2ul);
@@ -37,11 +35,11 @@ int main(void)
         response_line,
         sizeof(response_line)) == 0);
     TEST_ASSERT(strstr(response_line, "accepted=true") != 0);
-    TEST_ASSERT(device_runtime_private_runtime(system_context)->wash_session.session_state == SESSION_STATE_RUNNING);
+    TEST_ASSERT(device_runtime_private_runtime_mutable()->wash_session.session_state == SESSION_STATE_RUNNING);
 
-    test_release_system_context(system_context);
-    test_setup_system_context(&system_context, &driver_context);
-    scheduler = test_create_scheduler(system_context, 100ul);
+    test_release_system_context();
+    test_setup_system_context(&driver_context);
+    scheduler = test_create_scheduler(100ul);
     TEST_ASSERT(scheduler != 0);
     TEST_ASSERT(test_scheduler_exit(scheduler, false) == 0);
     result = scheduler_read_view(scheduler, &app_state_view);
@@ -50,11 +48,10 @@ int main(void)
     TEST_ASSERT(app_state_view.runtime_state == SCHEDULER_RUNTIME_STATE_STOPPED);
     TEST_ASSERT(app_state_view.exit_source_state == SCHEDULER_EVENT_SOURCE_DEGRADED);
 
-    released_handle = system_context;
-    test_release_system_context(system_context);
-    result = test_scheduler_read_bound_view(released_handle, &app_state_view);
+    /* 释放后，device_runtime_bound_scheduler 返回 0，test_scheduler_read_bound_view 应返回失败 */
+    test_release_system_context();
+    result = test_scheduler_read_bound_view(&app_state_view);
     TEST_ASSERT(!result.ok);
     TEST_ASSERT(result.error_code == ERROR_CODE_INVALID_STATE);
     return 0;
 }
-

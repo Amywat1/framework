@@ -55,7 +55,6 @@ typedef struct app_config_t
 typedef struct app_status_view_t
 {
     app_state_t state;
-    bool device_runtime_acquired;
     bool scheduler_created;
     bool scheduler_view_available;
     bool domain_reason_available;

@@ -38,10 +38,7 @@ static int assert_equivalent_programs(const wash_program_t *left, const wash_pro
 
 static int verify_direct_parse_repository_load_and_test_helper_match(void)
 {
-    simulated_driver_context_t repository_driver_context;
-    simulated_driver_context_t helper_driver_context;
-    device_runtime_t repository_context;
-    device_runtime_t helper_context;
+    simulated_driver_context_t driver_context;
     wash_program_t direct_program;
     wash_program_t repository_program;
     wash_program_t helper_program;
@@ -51,21 +48,20 @@ static int verify_direct_parse_repository_load_and_test_helper_match(void)
     result = json_program_parser_parse("tests/fixtures/wash_step_control/program_v1_valid.json", &direct_program);
     TEST_ASSERT(result.ok);
 
-    test_setup_system_context(&repository_context, &repository_driver_context);
-    TEST_ASSERT(test_load_program_via_repository(repository_context, "wash_step_control_v1", &repository_program) == 0);
+    test_setup_system_context(&driver_context);
+    TEST_ASSERT(test_load_program_via_repository("wash_step_control_v1", &repository_program) == 0);
     TEST_ASSERT(assert_equivalent_programs(&direct_program, &repository_program) == 0);
-    test_release_system_context(repository_context);
+    test_release_system_context();
 
-    test_setup_system_context(&helper_context, &helper_driver_context);
+    test_setup_system_context(&driver_context);
     result = test_load_runtime_program_from_fixture(
-        helper_context,
         "tests/fixtures/wash_step_control/program_v1_valid.json",
         &helper_program);
     TEST_ASSERT(result.ok);
-    TEST_ASSERT(test_load_program_via_repository(helper_context, "wash_step_control_v1", &cached_program) == 0);
+    TEST_ASSERT(test_load_program_via_repository("wash_step_control_v1", &cached_program) == 0);
     TEST_ASSERT(assert_equivalent_programs(&direct_program, &helper_program) == 0);
     TEST_ASSERT(assert_equivalent_programs(&helper_program, &cached_program) == 0);
-    test_release_system_context(helper_context);
+    test_release_system_context();
     return 0;
 }
 

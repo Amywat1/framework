@@ -6,8 +6,7 @@
 #include "shared/error_codes.h"
 #include "src/application/coordinators/device_runtime_private.h"
 
-operation_result_t query_wash_session_status_execute(const device_runtime_t device_runtime,
-                                                     wash_session_status_view_t *wash_session_status_view)
+operation_result_t query_wash_session_status_execute(wash_session_status_view_t *wash_session_status_view)
 {
     const state_transition_record_t *last_transition_record;
     operation_result_t result;
@@ -19,16 +18,16 @@ operation_result_t query_wash_session_status_execute(const device_runtime_t devi
     {
         return operation_result_fail(ERROR_CODE_INVALID_ARGUMENT);
     }
-    result = device_runtime_private_require_active(device_runtime);
+    result = device_runtime_require_active();
     if (!result.ok)
     {
         return result;
     }
     memset(wash_session_status_view, 0, sizeof(*wash_session_status_view));
-    wash_session = device_runtime_private_wash_session(device_runtime);
-    wash_execution = device_runtime_private_wash_execution(device_runtime);
-    wait_condition = device_runtime_private_wait_condition(device_runtime);
-    last_transition_record = device_runtime_private_last_transition_record(device_runtime);
+    wash_session = device_runtime_private_wash_session();
+    wash_execution = device_runtime_private_wash_execution();
+    wait_condition = device_runtime_wait_condition();
+    last_transition_record = device_runtime_private_last_transition_record();
     if (wash_session == 0 || wash_execution == 0 || wait_condition == 0 || last_transition_record == 0)
     {
         return operation_result_fail(ERROR_CODE_INVALID_STATE);
@@ -36,8 +35,8 @@ operation_result_t query_wash_session_status_execute(const device_runtime_t devi
 
     wash_session_status_view->has_active_session =
         (wash_session->session_state == SESSION_STATE_CREATED || wash_session->session_state == SESSION_STATE_RUNNING);
-    wash_session_status_view->device_state = device_runtime_private_device_state(device_runtime);
-    wash_session_status_view->global_fault_present = device_runtime_private_global_fault_present(device_runtime);
+    wash_session_status_view->device_state = device_runtime_private_device_state();
+    wash_session_status_view->global_fault_present = device_runtime_private_global_fault_present();
     wash_session_status_view->session_state = wash_session->session_state;
     wash_session_status_view->execution_state = wash_execution->execution_state;
     wash_session_status_view->lifecycle_state = wash_execution->lifecycle_state;
@@ -49,15 +48,17 @@ operation_result_t query_wash_session_status_execute(const device_runtime_t devi
             sizeof(wash_session_status_view->wait_condition_id) - 1);
     strncpy(wash_session_status_view->wait_reason, wait_condition->reason_code,
             sizeof(wash_session_status_view->wait_reason) - 1);
-    const char *last_reason = device_runtime_last_reason_code(device_runtime);
-    strncpy(wash_session_status_view->reason_code,
-            last_reason[0] != '\0' ? last_reason : last_transition_record->reason_code,
-            sizeof(wash_session_status_view->reason_code) - 1);
-    strncpy(wash_session_status_view->global_fault_reason, device_runtime_private_global_fault_reason(device_runtime),
+    {
+        const char *last_reason = device_runtime_last_reason_code();
+        strncpy(wash_session_status_view->reason_code,
+                last_reason[0] != '\0' ? last_reason : last_transition_record->reason_code,
+                sizeof(wash_session_status_view->reason_code) - 1);
+    }
+    strncpy(wash_session_status_view->global_fault_reason, device_runtime_private_global_fault_reason(),
             sizeof(wash_session_status_view->global_fault_reason) - 1);
     {
         scheduler_t *bound_scheduler =
-            (scheduler_t *)device_runtime_bound_scheduler(device_runtime);
+            (scheduler_t *)device_runtime_bound_scheduler();
         if (scheduler_read_view(bound_scheduler, &wash_session_status_view->scheduler_view).ok)
         {
             wash_session_status_view->scheduler_view_available = true;

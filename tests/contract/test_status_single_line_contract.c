@@ -77,7 +77,7 @@ static int extract_field_value(const char *response_line, const char *field_name
     return 0;
 }
 
-static int assert_status_single_line_matches_view(device_runtime_t system_context, device_state_t expected_device_state)
+static int assert_status_single_line_matches_view(device_state_t expected_device_state)
 {
     wash_session_status_view_t wash_session_status_view;
     char accepted_value[16];
@@ -91,11 +91,11 @@ static int assert_status_single_line_matches_view(device_runtime_t system_contex
     char state_value[32];
     operation_result_t result;
 
-    result = query_wash_session_status_execute(system_context, &wash_session_status_view);
+    result = query_wash_session_status_execute( &wash_session_status_view);
     TEST_ASSERT(result.ok);
     TEST_ASSERT(wash_session_status_view.device_state == expected_device_state);
 
-    result = test_process_command(system_context, "status", response_line, sizeof(response_line));
+    result = test_process_command( "status", response_line, sizeof(response_line));
     TEST_ASSERT(result.ok);
     TEST_ASSERT(strstr(response_line, "result=status accepted=true") != 0);
     TEST_ASSERT(strstr(response_line, "device=") != 0);
@@ -130,50 +130,47 @@ static int assert_status_single_line_matches_view(device_runtime_t system_contex
 static int verify_stopped_status_single_line_contract(void)
 {
     simulated_driver_context_t driver_context;
-    device_runtime_t system_context;
 
-    test_setup_system_context(&system_context, &driver_context);
-    TEST_ASSERT(assert_status_single_line_matches_view(system_context, DEVICE_STATE_STOPPED) == 0);
-    test_release_system_context(system_context);
+    test_setup_system_context( &driver_context);
+    TEST_ASSERT(assert_status_single_line_matches_view(DEVICE_STATE_STOPPED) == 0);
+    test_release_system_context();
     return 0;
 }
 
 static int verify_running_status_single_line_contract(void)
 {
     simulated_driver_context_t driver_context;
-    device_runtime_t system_context;
     operation_result_t result;
 
-    test_setup_system_context(&system_context, &driver_context);
-    result = test_load_runtime_program_from_fixture(system_context,
+    test_setup_system_context( &driver_context);
+    result = test_load_runtime_program_from_fixture(
         "tests/fixtures/wash_step_control/program_v1_valid.json",
         0);
     TEST_ASSERT(result.ok);
-    result = test_start_session_and_flush(system_context, "wash_step_control_v1");
+    result = test_start_session_and_flush( "wash_step_control_v1");
     TEST_ASSERT(result.ok);
 
-    TEST_ASSERT(assert_status_single_line_matches_view(system_context, DEVICE_STATE_RUNNING) == 0);
-    test_release_system_context(system_context);
+    TEST_ASSERT(assert_status_single_line_matches_view(DEVICE_STATE_RUNNING) == 0);
+    test_release_system_context();
     return 0;
 }
 
 static int verify_exception_status_single_line_contract(void)
 {
     simulated_driver_context_t driver_context;
-    device_runtime_t system_context;
     char response_line[512];
     operation_result_t result;
 
-    test_setup_system_context(&system_context, &driver_context);
-    result = test_process_command_and_flush(system_context,
+    test_setup_system_context( &driver_context);
+    result = test_process_command_and_flush(
         "fault E_STOP status-contract",
         response_line,
         sizeof(response_line));
     TEST_ASSERT(result.ok);
     TEST_ASSERT(strstr(response_line, "detail=global_fault_recorded") != 0);
 
-    TEST_ASSERT(assert_status_single_line_matches_view(system_context, DEVICE_STATE_EXCEPTION) == 0);
-    test_release_system_context(system_context);
+    TEST_ASSERT(assert_status_single_line_matches_view(DEVICE_STATE_EXCEPTION) == 0);
+    test_release_system_context();
     return 0;
 }
 

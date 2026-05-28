@@ -18,7 +18,6 @@ typedef struct background_alarm_snapshot_mailbox_t
 struct background_alarm_monitor_t
 {
     background_alarm_settings_t settings;
-    device_runtime_t device_runtime;
     const sensor_port_t *sensor_port;
     alarm_evaluator_t alarm_evaluator;
     background_alarm_snapshot_mailbox_t snapshot_mailbox;
@@ -187,7 +186,7 @@ static void background_alarm_monitor_detect_entry(worker_run_ctx_t *run_ctx, voi
         if (background_alarm_snapshot_mailbox_try_read(&monitor->snapshot_mailbox, &last_consumed_sequence,
                                                        &sensor_snapshot, &occurred_at_ms))
         {
-            (void)alarm_detect_job_process_snapshot(monitor->device_runtime, &monitor->alarm_evaluator,
+            (void)alarm_detect_job_process_snapshot(&monitor->alarm_evaluator,
                                                     &sensor_snapshot, occurred_at_ms);
             continue;
         }
@@ -207,7 +206,7 @@ operation_result_t background_alarm_monitor_create(background_alarm_monitor_t **
     }
     *monitor = 0;
     if (config->settings.enabled &&
-        (config->device_runtime == 0 || config->sensor_port == 0 || config->sensor_port->read_snapshot == 0 ||
+        (config->sensor_port == 0 || config->sensor_port->read_snapshot == 0 ||
          config->settings.io_sample_period_ms == 0ul || config->settings.detect_period_ms == 0ul))
     {
         return operation_result_fail(ERROR_CODE_INVALID_ARGUMENT);
@@ -220,7 +219,6 @@ operation_result_t background_alarm_monitor_create(background_alarm_monitor_t **
     }
 
     created_monitor->settings = config->settings;
-    created_monitor->device_runtime = config->device_runtime;
     created_monitor->sensor_port = config->sensor_port;
     alarm_evaluator_init(&created_monitor->alarm_evaluator);
     if (!background_alarm_snapshot_mailbox_init(&created_monitor->snapshot_mailbox))

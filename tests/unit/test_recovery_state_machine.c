@@ -5,13 +5,12 @@
 
 static int test_stop_only_recovery_stops_all(void)
 {
-    device_runtime_t system_context;
     simulated_driver_context_t driver_context;
     operation_result_t result;
 
-    test_setup_system_context(&system_context, &driver_context);
+    test_setup_system_context(&driver_context);
 
-    result = recovery_state_machine_execute(&device_runtime_private_runtime(system_context)->actuator_port,
+    result = recovery_state_machine_execute(&device_runtime_private_runtime_mutable()->actuator_port,
         0,
         RECOVERY_MODE_STOP_ONLY,
         0);
@@ -19,22 +18,21 @@ static int test_stop_only_recovery_stops_all(void)
     TEST_ASSERT(driver_context.stop_all_command_count == 1);
     TEST_ASSERT(driver_context.roof_home_command_count == 0);
 
-    test_release_system_context(system_context);
+    test_release_system_context();
     return 0;
 }
 
 static int test_homing_recovery_runs_stop_and_roof_home(void)
 {
     const char *failure_reason_code;
-    device_runtime_t system_context;
     simulated_driver_context_t driver_context;
     operation_result_t result;
 
-    test_setup_system_context(&system_context, &driver_context);
+    test_setup_system_context(&driver_context);
 
     failure_reason_code = 0;
-    result = recovery_state_machine_execute(&device_runtime_private_runtime(system_context)->actuator_port,
-        &device_runtime_private_runtime(system_context)->sensor_port,
+    result = recovery_state_machine_execute(&device_runtime_private_runtime_mutable()->actuator_port,
+        &device_runtime_private_runtime_mutable()->sensor_port,
         RECOVERY_MODE_HOME_ROOF_BRUSH,
         &failure_reason_code);
     TEST_ASSERT(result.ok);
@@ -42,30 +40,29 @@ static int test_homing_recovery_runs_stop_and_roof_home(void)
     TEST_ASSERT(driver_context.stop_all_command_count == 1);
     TEST_ASSERT(driver_context.roof_home_command_count == 1);
 
-    test_release_system_context(system_context);
+    test_release_system_context();
     return 0;
 }
 
 static int test_homing_recovery_reports_feedback_timeout(void)
 {
     const char *failure_reason_code;
-    device_runtime_t system_context;
     simulated_driver_context_t driver_context;
     operation_result_t result;
 
-    test_setup_system_context(&system_context, &driver_context);
+    test_setup_system_context(&driver_context);
     driver_context.roof_home_feedback_available = false;
 
     failure_reason_code = 0;
-    result = recovery_state_machine_execute(&device_runtime_private_runtime(system_context)->actuator_port,
-        &device_runtime_private_runtime(system_context)->sensor_port,
+    result = recovery_state_machine_execute(&device_runtime_private_runtime_mutable()->actuator_port,
+        &device_runtime_private_runtime_mutable()->sensor_port,
         RECOVERY_MODE_HOME_ROOF_BRUSH,
         &failure_reason_code);
     TEST_ASSERT(!result.ok);
     TEST_ASSERT(result.error_code == ERROR_CODE_TIMEOUT);
     TEST_ASSERT(strcmp(failure_reason_code, "roof_home_feedback_timeout") == 0);
 
-    test_release_system_context(system_context);
+    test_release_system_context();
     return 0;
 }
 

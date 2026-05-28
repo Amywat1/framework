@@ -73,22 +73,20 @@ void runtime_result_projection_set_transition(runtime_result_projection_t *runti
                            sizeof(runtime_result_projection->transition_reason_code), reason_code);
 }
 
-void runtime_event_recorder_set_latest_result(device_runtime_t device_runtime, const char *result_code,
-                                              const char *reason_code)
+void runtime_event_recorder_set_latest_result(const char *result_code, const char *reason_code)
 {
-    if (!device_runtime_private_require_active(device_runtime).ok)
+    if (!device_runtime_require_active().ok)
     {
         return;
     }
-    device_runtime_private_set_latest_result(device_runtime, result_code, reason_code);
+    device_runtime_private_set_latest_result(result_code, reason_code);
 }
 
-void runtime_event_recorder_apply_projection(device_runtime_t device_runtime,
-                                             const runtime_result_projection_t *runtime_result_projection)
+void runtime_event_recorder_apply_projection(const runtime_result_projection_t *runtime_result_projection)
 {
     state_transition_record_t *last_transition_record;
 
-    if (!device_runtime_private_require_active(device_runtime).ok)
+    if (!device_runtime_require_active().ok)
     {
         return;
     }
@@ -99,7 +97,7 @@ void runtime_event_recorder_apply_projection(device_runtime_t device_runtime,
 
     if (runtime_result_projection->updates_latest_result)
     {
-        runtime_event_recorder_set_latest_result(device_runtime, runtime_result_projection->latest_result_code,
+        runtime_event_recorder_set_latest_result(runtime_result_projection->latest_result_code,
                                                  runtime_result_projection->latest_reason_code);
     }
     if (!runtime_result_projection->records_transition)
@@ -107,7 +105,7 @@ void runtime_event_recorder_apply_projection(device_runtime_t device_runtime,
         return;
     }
 
-    last_transition_record = device_runtime_private_last_transition_record_mutable(device_runtime);
+    last_transition_record = device_runtime_private_last_transition_record_mutable();
     if (last_transition_record == 0)
     {
         return;
@@ -120,5 +118,5 @@ void runtime_event_recorder_apply_projection(device_runtime_t device_runtime,
                                  safe_runtime_field(runtime_result_projection->current_state),
                                  safe_runtime_field(runtime_result_projection->transition_result_code),
                                  safe_runtime_field(runtime_result_projection->transition_reason_code),
-                                 device_runtime_current_time_ms(device_runtime));
+                                 device_runtime_current_time_ms());
 }

@@ -39,7 +39,6 @@
 typedef struct test_runtime_binding_t
 {
     bool initialized;
-    device_runtime_t device_runtime;
     scheduler_t *scheduler;
     sensor_port_t sensor_port;
     actuator_port_t actuator_port;
@@ -52,20 +51,16 @@ static inline void test_init_scheduler_config(scheduler_config_t *scheduler_conf
 static inline void test_purge_stale_runtime_bindings(void)
 {
     if (g_test_runtime_binding.initialized
-        && !device_runtime_private_require_active(g_test_runtime_binding.device_runtime).ok)
+        && !device_runtime_require_active().ok)
     {
         memset(&g_test_runtime_binding, 0, sizeof(g_test_runtime_binding));
     }
 }
 
-static inline test_runtime_binding_t *test_find_runtime_binding(device_runtime_t device_runtime)
+static inline bool test_has_active_runtime_binding(void)
 {
     test_purge_stale_runtime_bindings();
-    if (g_test_runtime_binding.initialized && g_test_runtime_binding.device_runtime == device_runtime)
-    {
-        return &g_test_runtime_binding;
-    }
-    return 0;
+    return g_test_runtime_binding.initialized;
 }
 
 static inline test_runtime_binding_t *test_allocate_runtime_binding(void)
@@ -109,47 +104,43 @@ static inline operation_result_t test_bind_device_runtime_binding(test_runtime_b
     }
 
     test_bind_simulated_ports(driver_context, &binding->sensor_port, &binding->actuator_port);
-    result = device_runtime_acquire(&binding->device_runtime);
-    if (!result.ok || binding->device_runtime == 0)
-    {
-        return result.ok ? operation_result_fail(ERROR_CODE_RESOURCE_UNAVAILABLE) : result;
-    }
-
-    device_runtime_set_sensor_port(binding->device_runtime, &binding->sensor_port);
-    device_runtime_set_actuator_port(binding->device_runtime, &binding->actuator_port);
-    result = file_program_repository_init(binding->device_runtime, config_root);
+    result = device_runtime_init();
     if (!result.ok)
     {
-        (void)device_runtime_release(binding->device_runtime);
-        binding->device_runtime = 0;
         return result;
     }
 
-    result = device_runtime_private_enter_stopped(binding->device_runtime);
+    device_runtime_set_sensor_port(&binding->sensor_port);
+    device_runtime_set_actuator_port(&binding->actuator_port);
+    result = file_program_repository_init(config_root);
     if (!result.ok)
     {
-        (void)device_runtime_release(binding->device_runtime);
-        binding->device_runtime = 0;
+        (void)device_runtime_deinit();
+        return result;
+    }
+
+    result = device_runtime_private_enter_stopped();
+    if (!result.ok)
+    {
+        (void)device_runtime_deinit();
         return result;
     }
 
     memset(&scheduler_stdio, 0, sizeof(scheduler_stdio));
-    scheduler_runtime_port_init_from_device_runtime(&scheduler_port, binding->device_runtime);
+    scheduler_runtime_port_init_from_device_runtime(&scheduler_port);
     binding->scheduler = scheduler_create(&scheduler_port, scheduler_config, &scheduler_stdio);
     if (binding->scheduler == 0)
     {
-        (void)device_runtime_release(binding->device_runtime);
-        binding->device_runtime = 0;
+        (void)device_runtime_deinit();
         return operation_result_fail(ERROR_CODE_IO_FAILED);
     }
 
-    result = device_runtime_bind_scheduler(binding->device_runtime, binding->scheduler);
+    result = device_runtime_bind_scheduler(binding->scheduler);
     if (!result.ok)
     {
         scheduler_destroy(binding->scheduler);
         binding->scheduler = 0;
-        (void)device_runtime_release(binding->device_runtime);
-        binding->device_runtime = 0;
+        (void)device_runtime_deinit();
         return result;
     }
 
@@ -157,17 +148,11 @@ static inline operation_result_t test_bind_device_runtime_binding(test_runtime_b
     return operation_result_ok();
 }
 
-static inline void test_setup_device_runtime(device_runtime_t *device_runtime,
-                                             simulated_driver_context_t *driver_context)
+static inline void test_setup_device_runtime(simulated_driver_context_t *driver_context)
 {
     scheduler_config_t scheduler_config;
     test_runtime_binding_t *binding;
     operation_result_t result;
-
-    if (device_runtime == 0)
-    {
-        abort();
-    }
 
     binding = test_allocate_runtime_binding();
     if (binding == 0)
@@ -178,36 +163,34 @@ static inline void test_setup_device_runtime(device_runtime_t *device_runtime,
 
     test_init_scheduler_config(&scheduler_config, 100ul);
     result = test_bind_device_runtime_binding(binding, driver_context, &scheduler_config, "./configs");
-    if (!result.ok || binding->device_runtime == 0)
+    if (!result.ok)
     {
         fprintf(stderr, "FAILED TO CREATE device_runtime\n");
         abort();
     }
-    *device_runtime = binding->device_runtime;
 }
 
 /** @deprecated 使用 test_setup_device_runtime。 */
-static inline void test_setup_system_context(device_runtime_t *device_runtime,
-                                             simulated_driver_context_t *driver_context)
+static inline void test_setup_system_context(simulated_driver_context_t *driver_context)
 {
-    test_setup_device_runtime(device_runtime, driver_context);
+    test_setup_device_runtime(driver_context);
 }
 
-static inline void test_release_device_runtime(device_runtime_t device_runtime)
+static inline void test_release_device_runtime(void)
 {
     test_runtime_binding_t *binding;
     operation_result_t result;
 
-    binding = test_find_runtime_binding(device_runtime);
-    if (binding != 0)
+    binding = &g_test_runtime_binding;
+    if (binding->initialized)
     {
         if (binding->scheduler != 0)
         {
-            (void)device_runtime_unbind_scheduler(binding->device_runtime);
+            (void)device_runtime_unbind_scheduler();
             scheduler_destroy(binding->scheduler);
             binding->scheduler = 0;
         }
-        result = device_runtime_release(binding->device_runtime);
+        result = device_runtime_deinit();
         if (!result.ok)
         {
             fprintf(stderr, "FAILED TO RELEASE device_runtime\n");
@@ -217,7 +200,7 @@ static inline void test_release_device_runtime(device_runtime_t device_runtime)
         return;
     }
 
-    result = device_runtime_release(device_runtime);
+    result = device_runtime_deinit();
     if (!result.ok)
     {
         fprintf(stderr, "FAILED TO RELEASE device_runtime\n");
@@ -226,13 +209,12 @@ static inline void test_release_device_runtime(device_runtime_t device_runtime)
 }
 
 /** @deprecated 使用 test_release_device_runtime。 */
-static inline void test_release_system_context(device_runtime_t device_runtime)
+static inline void test_release_system_context(void)
 {
-    test_release_device_runtime(device_runtime);
+    test_release_device_runtime();
 }
 
-static inline operation_result_t test_load_runtime_program_from_fixture(device_runtime_t device_runtime,
-                                                                        const char *fixture_path,
+static inline operation_result_t test_load_runtime_program_from_fixture(const char *fixture_path,
                                                                         wash_program_t *wash_program)
 {
     operation_result_t result;
@@ -243,7 +225,7 @@ static inline operation_result_t test_load_runtime_program_from_fixture(device_r
     {
         return result;
     }
-    file_program_repository_set_runtime_program(device_runtime, &parsed_program, parsed_program.revision);
+    file_program_repository_set_runtime_program(&parsed_program, parsed_program.revision);
     if (wash_program != 0)
     {
         *wash_program = parsed_program;
@@ -251,9 +233,7 @@ static inline operation_result_t test_load_runtime_program_from_fixture(device_r
     return operation_result_ok();
 }
 
-static inline int test_load_program_via_repository(device_runtime_t device_runtime,
-                                                   const char *program_id,
-                                                   wash_program_t *wash_program)
+static inline int test_load_program_via_repository(const char *program_id, wash_program_t *wash_program)
 {
     const program_repository_port_t *program_repository_port;
 
@@ -262,7 +242,7 @@ static inline int test_load_program_via_repository(device_runtime_t device_runti
         return -1;
     }
 
-    program_repository_port = device_runtime_program_repository_port(device_runtime);
+    program_repository_port = device_runtime_program_repository_port();
     if (program_repository_port == 0 || program_repository_port->context == 0
         || program_repository_port->load_program == 0)
     {
@@ -272,8 +252,7 @@ static inline int test_load_program_via_repository(device_runtime_t device_runti
     return program_repository_port->load_program(program_repository_port->context, program_id, wash_program);
 }
 
-static inline void test_assign_trigger_identity(device_runtime_t device_runtime,
-                                                wash_trigger_event_t *wash_trigger_event)
+static inline void test_assign_trigger_identity(wash_trigger_event_t *wash_trigger_event)
 {
     if (wash_trigger_event == 0)
     {
@@ -281,39 +260,37 @@ static inline void test_assign_trigger_identity(device_runtime_t device_runtime,
     }
 
     snprintf(wash_trigger_event->trigger_id, sizeof(wash_trigger_event->trigger_id), "test-%lu-%u",
-             device_runtime_current_time_ms(device_runtime), device_runtime_pending_trigger_count(device_runtime));
+             device_runtime_current_time_ms(), device_runtime_pending_trigger_count());
     strncpy(wash_trigger_event->source, "test-helper", sizeof(wash_trigger_event->source) - 1);
 }
 
-static inline unsigned int has_pending_trigger_count(device_runtime_t device_runtime, const char *trigger_id)
+static inline unsigned int has_pending_trigger_count(const char *trigger_id)
 {
-    return device_runtime_count_pending_triggers_by_id(device_runtime, trigger_id);
+    return device_runtime_count_pending_triggers_by_id(trigger_id);
 }
 
-static inline unsigned int test_count_pending_trigger_type(const device_runtime_t device_runtime,
-                                                           trigger_type_t trigger_type)
+static inline unsigned int test_count_pending_trigger_type(trigger_type_t trigger_type)
 {
-    return device_runtime_count_pending_triggers_by_type(device_runtime, trigger_type);
+    return device_runtime_count_pending_triggers_by_type(trigger_type);
 }
 
-static inline operation_result_t test_submit_trigger_and_drain(device_runtime_t device_runtime,
-                                                              wash_trigger_event_t *wash_trigger_event)
+static inline operation_result_t test_submit_trigger_and_drain(wash_trigger_event_t *wash_trigger_event)
 {
     operation_result_t result;
 
     if (wash_trigger_event->trigger_id[0] == '\0')
     {
-        test_assign_trigger_identity(device_runtime, wash_trigger_event);
+        test_assign_trigger_identity(wash_trigger_event);
     }
-    result = control_tick_submit_trigger(device_runtime, wash_trigger_event);
+    result = control_tick_submit_trigger(wash_trigger_event);
     if (!result.ok)
     {
         return result;
     }
-    while (has_pending_trigger_count(device_runtime, wash_trigger_event->trigger_id) > 0u)
+    while (has_pending_trigger_count(wash_trigger_event->trigger_id) > 0u)
     {
-        result = control_tick_run(device_runtime);
-        if (!result.ok && has_pending_trigger_count(device_runtime, wash_trigger_event->trigger_id) > 0u)
+        result = control_tick_run();
+        if (!result.ok && has_pending_trigger_count(wash_trigger_event->trigger_id) > 0u)
         {
             return result;
         }
@@ -321,31 +298,30 @@ static inline operation_result_t test_submit_trigger_and_drain(device_runtime_t 
     return result;
 }
 
-static inline operation_result_t test_flush_pending_runtime(device_runtime_t device_runtime)
+static inline operation_result_t test_flush_pending_runtime(void)
 {
     operation_result_t result;
     unsigned int spin_guard;
 
     result = operation_result_ok();
     spin_guard = 0u;
-    while (device_runtime_has_pending_work(device_runtime) && spin_guard < 64u)
+    while (device_runtime_has_pending_work() && spin_guard < 64u)
     {
-        result = control_tick_run(device_runtime);
+        result = control_tick_run();
         if (!result.ok)
         {
             return result;
         }
         spin_guard += 1u;
     }
-    if (device_runtime_has_pending_work(device_runtime))
+    if (device_runtime_has_pending_work())
     {
         return operation_result_fail(ERROR_CODE_TIMEOUT);
     }
     return result;
 }
 
-static inline void test_rebuild_formal_response_line(device_runtime_t device_runtime, char *response_line,
-                                                     size_t response_line_size)
+static inline void test_rebuild_formal_response_line(char *response_line, size_t response_line_size)
 {
     const char *detail;
     const char *result_code;
@@ -355,193 +331,189 @@ static inline void test_rebuild_formal_response_line(device_runtime_t device_run
         return;
     }
 
-    result_code = device_runtime_last_result_code(device_runtime)[0] != '\0'
-                      ? device_runtime_last_result_code(device_runtime)
+    result_code = device_runtime_last_result_code()[0] != '\0'
+                      ? device_runtime_last_result_code()
                       : "accepted";
-    detail = device_runtime_last_reason_code(device_runtime)[0] != '\0' ? device_runtime_last_reason_code(device_runtime)
-                                                                      : "none";
+    detail = device_runtime_last_reason_code()[0] != '\0' ? device_runtime_last_reason_code()
+                                                          : "none";
     process_formal_command_format_response(response_line, response_line_size, result_code,
                                            process_formal_command_result_is_accepted(result_code), detail);
 }
 
-static inline operation_result_t test_process_command(device_runtime_t device_runtime, const char *command_line,
+static inline operation_result_t test_process_command(const char *command_line,
                                                     char *response_line, size_t response_line_size)
 {
-    return process_formal_command_execute(device_runtime, command_line, response_line, response_line_size);
+    return process_formal_command_execute(command_line, response_line, response_line_size);
 }
 
-static inline operation_result_t test_process_command_and_flush(device_runtime_t device_runtime,
-                                                                const char *command_line, char *response_line,
+static inline operation_result_t test_process_command_and_flush(const char *command_line, char *response_line,
                                                                 size_t response_line_size)
 {
     operation_result_t result;
     unsigned int pending_before;
 
-    pending_before = device_runtime_pending_trigger_count(device_runtime);
-    result = test_process_command(device_runtime, command_line, response_line, response_line_size);
+    pending_before = device_runtime_pending_trigger_count();
+    result = test_process_command(command_line, response_line, response_line_size);
     if (!result.ok)
     {
         return result;
     }
-    if (device_runtime_pending_trigger_count(device_runtime) > pending_before)
+    if (device_runtime_pending_trigger_count() > pending_before)
     {
-        result = test_flush_pending_runtime(device_runtime);
+        result = test_flush_pending_runtime();
         if (!result.ok)
         {
-            if (device_runtime_pending_trigger_count(device_runtime) <= pending_before)
+            if (device_runtime_pending_trigger_count() <= pending_before)
             {
-                test_rebuild_formal_response_line(device_runtime, response_line, response_line_size);
+                test_rebuild_formal_response_line(response_line, response_line_size);
             }
             return result;
         }
-        test_rebuild_formal_response_line(device_runtime, response_line, response_line_size);
+        test_rebuild_formal_response_line(response_line, response_line_size);
     }
     return result;
 }
 
-static inline operation_result_t test_clear_fault(device_runtime_t device_runtime)
+static inline operation_result_t test_clear_fault(void)
 {
     char response_line[512];
 
-    return test_process_command(device_runtime, "fault clear", response_line, sizeof(response_line));
+    return test_process_command("fault clear", response_line, sizeof(response_line));
 }
 
-static inline operation_result_t test_clear_fault_and_flush(device_runtime_t device_runtime)
+static inline operation_result_t test_clear_fault_and_flush(void)
 {
     char response_line[512];
 
-    return test_process_command_and_flush(device_runtime, "fault clear", response_line, sizeof(response_line));
+    return test_process_command_and_flush("fault clear", response_line, sizeof(response_line));
 }
 
-static inline operation_result_t test_homing_system(device_runtime_t device_runtime)
+static inline operation_result_t test_homing_system(void)
 {
     char response_line[512];
 
-    return test_process_command(device_runtime, "homing", response_line, sizeof(response_line));
+    return test_process_command("homing", response_line, sizeof(response_line));
 }
 
-static inline operation_result_t test_homing_system_and_flush(device_runtime_t device_runtime)
+static inline operation_result_t test_homing_system_and_flush(void)
 {
     char response_line[512];
 
-    return test_process_command_and_flush(device_runtime, "homing", response_line, sizeof(response_line));
+    return test_process_command_and_flush("homing", response_line, sizeof(response_line));
 }
 
-static inline operation_result_t test_ensure_idle_device_state(device_runtime_t device_runtime)
+static inline operation_result_t test_ensure_idle_device_state(void)
 {
     device_state_t device_state;
     operation_result_t result;
 
-    device_state = device_runtime_private_device_state(device_runtime);
+    device_state = device_runtime_private_device_state();
     if (device_state == DEVICE_STATE_IDLE)
     {
         return operation_result_ok();
     }
     if (device_state == DEVICE_STATE_EXCEPTION)
     {
-        result = test_clear_fault_and_flush(device_runtime);
+        result = test_clear_fault_and_flush();
         if (!result.ok)
         {
             return result;
         }
-        device_state = device_runtime_private_device_state(device_runtime);
+        device_state = device_runtime_private_device_state();
     }
     if (device_state != DEVICE_STATE_STOPPED)
     {
         return operation_result_fail(ERROR_CODE_INVALID_STATE);
     }
-    return test_homing_system_and_flush(device_runtime);
+    return test_homing_system_and_flush();
 }
 
-static inline operation_result_t test_start_session(device_runtime_t device_runtime, const char *program_id)
+static inline operation_result_t test_start_session(const char *program_id)
 {
     char command_line[256];
     char response_line[512];
     operation_result_t result;
 
-    result = test_ensure_idle_device_state(device_runtime);
+    result = test_ensure_idle_device_state();
     if (!result.ok)
     {
         return result;
     }
     snprintf(command_line, sizeof(command_line), "start %s", program_id != 0 ? program_id : "");
-    return test_process_command(device_runtime, command_line, response_line, sizeof(response_line));
+    return test_process_command(command_line, response_line, sizeof(response_line));
 }
 
-static inline operation_result_t test_start_session_and_flush(device_runtime_t device_runtime, const char *program_id)
+static inline operation_result_t test_start_session_and_flush(const char *program_id)
 {
     char command_line[256];
     char response_line[512];
     operation_result_t result;
 
-    result = test_ensure_idle_device_state(device_runtime);
+    result = test_ensure_idle_device_state();
     if (!result.ok)
     {
         return result;
     }
     snprintf(command_line, sizeof(command_line), "start %s", program_id != 0 ? program_id : "");
-    return test_process_command_and_flush(device_runtime, command_line, response_line, sizeof(response_line));
+    return test_process_command_and_flush(command_line, response_line, sizeof(response_line));
 }
 
-static inline operation_result_t test_submit_fault_with_reason(device_runtime_t device_runtime, const char *fault_code,
-                                                               const char *fault_reason)
+static inline operation_result_t test_submit_fault_with_reason(const char *fault_code, const char *fault_reason)
 {
     wash_trigger_event_t wash_trigger_event;
 
     wash_trigger_event_init(&wash_trigger_event, TRIGGER_TYPE_FAULT, 0, fault_code,
                             fault_reason != 0 ? fault_reason : "test-fault",
-                            device_runtime_current_time_ms(device_runtime));
-    return test_submit_trigger_and_drain(device_runtime, &wash_trigger_event);
+                            device_runtime_current_time_ms());
+    return test_submit_trigger_and_drain(&wash_trigger_event);
 }
 
-static inline operation_result_t test_submit_fault(device_runtime_t device_runtime, const char *fault_code)
+static inline operation_result_t test_submit_fault(const char *fault_code)
 {
-    return test_submit_fault_with_reason(device_runtime, fault_code, "test-fault");
+    return test_submit_fault_with_reason(fault_code, "test-fault");
 }
 
-static inline operation_result_t test_submit_fault_clear(device_runtime_t device_runtime)
+static inline operation_result_t test_submit_fault_clear(void)
 {
     wash_trigger_event_t wash_trigger_event;
 
     wash_trigger_event_init(&wash_trigger_event, TRIGGER_TYPE_FAULT, 0, "clear", 0,
-                            device_runtime_current_time_ms(device_runtime));
-    return test_submit_trigger_and_drain(device_runtime, &wash_trigger_event);
+                            device_runtime_current_time_ms());
+    return test_submit_trigger_and_drain(&wash_trigger_event);
 }
 
-static inline operation_result_t test_submit_stop(device_runtime_t device_runtime, const char *reason_code)
+static inline operation_result_t test_submit_stop(const char *reason_code)
 {
     wash_trigger_event_t wash_trigger_event;
 
     wash_trigger_event_init(&wash_trigger_event, TRIGGER_TYPE_STOP, 0, reason_code, "stop-command",
-                            device_runtime_current_time_ms(device_runtime));
-    return test_submit_trigger_and_drain(device_runtime, &wash_trigger_event);
+                            device_runtime_current_time_ms());
+    return test_submit_trigger_and_drain(&wash_trigger_event);
 }
 
-static inline operation_result_t test_tick(device_runtime_t device_runtime, unsigned long elapsed_ms)
+static inline operation_result_t test_tick(unsigned long elapsed_ms)
 {
-    control_tick_advance_time(device_runtime, elapsed_ms);
-    return control_tick_run(device_runtime);
+    control_tick_advance_time(elapsed_ms);
+    return control_tick_run();
 }
 
-static inline operation_result_t test_fire_timeout(device_runtime_t device_runtime, unsigned long elapsed_ms)
+static inline operation_result_t test_fire_timeout(unsigned long elapsed_ms)
 {
-    return test_tick(device_runtime, elapsed_ms);
+    return test_tick(elapsed_ms);
 }
 
-static inline scheduler_t *test_create_scheduler(device_runtime_t device_runtime, unsigned long control_period_ms)
+static inline scheduler_t *test_create_scheduler(unsigned long control_period_ms)
 {
-    test_runtime_binding_t *binding;
     scheduler_state_view_t status_view;
     operation_result_t result;
 
-    binding = test_find_runtime_binding(device_runtime);
-    if (binding == 0 || binding->scheduler == 0)
+    if (!g_test_runtime_binding.initialized || g_test_runtime_binding.scheduler == 0)
     {
-        fprintf(stderr, "FAILED TO FIND runtime binding for device_runtime\n");
+        fprintf(stderr, "FAILED TO FIND runtime binding\n");
         abort();
     }
 
-    result = scheduler_read_view(binding->scheduler, &status_view);
+    result = scheduler_read_view(g_test_runtime_binding.scheduler, &status_view);
     if (!result.ok)
     {
         fprintf(stderr, "FAILED TO READ scheduler state\n");
@@ -552,11 +524,10 @@ static inline scheduler_t *test_create_scheduler(device_runtime_t device_runtime
         fprintf(stderr, "UNEXPECTED scheduler control period\n");
         abort();
     }
-    return binding->scheduler;
+    return g_test_runtime_binding.scheduler;
 }
 
-static inline operation_result_t test_scheduler_read_bound_view(device_runtime_t device_runtime,
-                                                                scheduler_state_view_t *state_view)
+static inline operation_result_t test_scheduler_read_bound_view(scheduler_state_view_t *state_view)
 {
     scheduler_t *scheduler;
 
@@ -564,7 +535,7 @@ static inline operation_result_t test_scheduler_read_bound_view(device_runtime_t
     {
         return operation_result_fail(ERROR_CODE_INVALID_ARGUMENT);
     }
-    scheduler = (scheduler_t *)device_runtime_bound_scheduler(device_runtime);
+    scheduler = (scheduler_t *)device_runtime_bound_scheduler();
     if (scheduler == 0)
     {
         return operation_result_fail(ERROR_CODE_INVALID_STATE);
@@ -572,17 +543,12 @@ static inline operation_result_t test_scheduler_read_bound_view(device_runtime_t
     return scheduler_read_view(scheduler, state_view);
 }
 
-static inline scheduler_t *test_scheduler_create_unbound(device_runtime_t device_runtime,
-                                                         const scheduler_config_t *scheduler_config,
+static inline scheduler_t *test_scheduler_create_unbound(const scheduler_config_t *scheduler_config,
                                                          const scheduler_stdio_t *scheduler_stdio)
 {
     scheduler_runtime_port_t scheduler_port;
 
-    if (device_runtime == 0)
-    {
-        return 0;
-    }
-    scheduler_runtime_port_init_from_device_runtime(&scheduler_port, device_runtime);
+    scheduler_runtime_port_init_from_device_runtime(&scheduler_port);
     return scheduler_create(&scheduler_port, scheduler_config, scheduler_stdio);
 }
 
@@ -604,21 +570,19 @@ static inline void test_init_scheduler_config(scheduler_config_t *scheduler_conf
     scheduler_config->overrun_warning_threshold_ms = control_period_ms;
 }
 
-static inline program_snapshot_service_args_t test_build_program_snapshot_service_args(
-    device_runtime_t device_runtime)
+static inline program_snapshot_service_args_t test_build_program_snapshot_service_args(void)
 {
     program_snapshot_service_args_t program_snapshot_service_args;
 
-    device_runtime_private_build_program_snapshot_service_args(device_runtime,
-                                                                &program_snapshot_service_args);
+    device_runtime_private_build_program_snapshot_service_args(&program_snapshot_service_args);
     return program_snapshot_service_args;
 }
 
-static inline wash_session_service_args_t test_build_wash_session_service_args(device_runtime_t device_runtime)
+static inline wash_session_service_args_t test_build_wash_session_service_args(void)
 {
     wash_session_service_args_t wash_session_service_args;
 
-    device_runtime_private_build_session_service_args(device_runtime, &wash_session_service_args);
+    device_runtime_private_build_session_service_args(&wash_session_service_args);
     return wash_session_service_args;
 }
 
@@ -666,16 +630,16 @@ static inline int test_scheduler_exit(scheduler_t *scheduler, bool immediate)
     return 0;
 }
 
-static inline const char *test_latest_result_code(const device_runtime_t device_runtime)
+static inline const char *test_latest_result_code(void)
 {
-    return device_runtime_last_result_code(device_runtime)[0] != '\0' ? device_runtime_last_result_code(device_runtime)
-                                                                    : "none";
+    return device_runtime_last_result_code()[0] != '\0' ? device_runtime_last_result_code()
+                                                        : "none";
 }
 
-static inline const char *test_latest_reason_code(const device_runtime_t device_runtime)
+static inline const char *test_latest_reason_code(void)
 {
-    return device_runtime_last_reason_code(device_runtime)[0] != '\0' ? device_runtime_last_reason_code(device_runtime)
-                                                                    : "none";
+    return device_runtime_last_reason_code()[0] != '\0' ? device_runtime_last_reason_code()
+                                                        : "none";
 }
 
 #endif

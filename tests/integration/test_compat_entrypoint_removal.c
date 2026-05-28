@@ -65,25 +65,24 @@ static int verify_removed_compat_symbols(void)
 
 static int verify_formal_path_still_works(void)
 {
-    device_runtime_t system_context;
     simulated_driver_context_t driver_context;
     char response_line[512];
     operation_result_t result;
 
-    test_setup_system_context(&system_context, &driver_context);
-    result = test_load_runtime_program_from_fixture(system_context,
+    test_setup_system_context( &driver_context);
+    result = test_load_runtime_program_from_fixture(
         "tests/fixtures/wash_step_control/program_v1_valid.json",
         0);
     TEST_ASSERT(result.ok);
-    result = test_homing_system_and_flush(system_context);
+    result = test_homing_system_and_flush();
     TEST_ASSERT(result.ok);
-    result = test_process_command_and_flush(system_context,
+    result = test_process_command_and_flush(
         "start wash_step_control_v1",
         response_line,
         sizeof(response_line));
     TEST_ASSERT(result.ok);
     TEST_ASSERT(strstr(response_line, "accepted=true") != 0);
-    TEST_ASSERT(device_runtime_private_runtime(system_context)->wash_session.session_state == SESSION_STATE_RUNNING);
+    TEST_ASSERT(device_runtime_private_runtime_mutable()->wash_session.session_state == SESSION_STATE_RUNNING);
     return 0;
 }
 

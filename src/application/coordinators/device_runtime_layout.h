@@ -10,7 +10,6 @@
 /**
  * @file device_runtime_layout.h
  * @brief 暴露组合根运行时布局的白盒内部头，仅供单实例组合根实现与测试观察使用。
- * @note 本文件使用 C11 _Generic 泛型选择宏，要求 GCC 4.9+ 或等效 C11 兼容工具链。
  */
 typedef struct device_runtime_state_t
 {
@@ -46,17 +45,14 @@ typedef struct device_runtime_state_t
 
 typedef struct device_runtime_instance_t
 {
-    bool in_use;
+    bool initialized;
     device_runtime_state_t runtime;
 } device_runtime_instance_t;
 
-device_runtime_state_t *device_runtime_private_runtime_mutable(device_runtime_t device_runtime);
-const device_runtime_state_t *device_runtime_private_runtime_const(const device_runtime_t device_runtime);
+/** @brief 读取可变运行时状态；实例未激活时返回 `0`。 */
+device_runtime_state_t *device_runtime_private_runtime_mutable(void);
 
-#define device_runtime_private_runtime(device_runtime)                                                                 \
-    _Generic((device_runtime),                                                                                         \
-        const device_runtime_t: device_runtime_private_runtime_const,                                                  \
-        device_runtime_t: device_runtime_private_runtime_mutable,                                                      \
-        default: device_runtime_private_runtime_mutable)(device_runtime)
+/** @brief 读取只读运行时状态；实例未激活时返回 `0`。 */
+const device_runtime_state_t *device_runtime_private_runtime_const(void);
 
 #endif

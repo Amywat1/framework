@@ -12,15 +12,15 @@ typedef struct status_side_effect_snapshot_t {
     char last_reason_code[64];
 } status_side_effect_snapshot_t;
 
-static void capture_status_snapshot(const device_runtime_t system_context, status_side_effect_snapshot_t *snapshot)
+static void capture_status_snapshot(status_side_effect_snapshot_t *snapshot)
 {
     memset(snapshot, 0, sizeof(*snapshot));
-    snapshot->global_fault_present = device_runtime_private_runtime(system_context)->global_fault_present;
-    snapshot->pending_trigger_count = device_runtime_private_runtime(system_context)->pending_trigger_count;
-    snapshot->session_state = device_runtime_private_runtime(system_context)->wash_session.session_state;
-    snapshot->final_session_result = device_runtime_private_runtime(system_context)->wash_session.final_session_result;
-    strncpy(snapshot->last_result_code, device_runtime_private_runtime(system_context)->last_result_code, sizeof(snapshot->last_result_code) - 1);
-    strncpy(snapshot->last_reason_code, device_runtime_private_runtime(system_context)->last_reason_code, sizeof(snapshot->last_reason_code) - 1);
+    snapshot->global_fault_present = device_runtime_private_runtime_mutable()->global_fault_present;
+    snapshot->pending_trigger_count = device_runtime_private_runtime_mutable()->pending_trigger_count;
+    snapshot->session_state = device_runtime_private_runtime_mutable()->wash_session.session_state;
+    snapshot->final_session_result = device_runtime_private_runtime_mutable()->wash_session.final_session_result;
+    strncpy(snapshot->last_result_code, device_runtime_private_runtime_mutable()->last_result_code, sizeof(snapshot->last_result_code) - 1);
+    strncpy(snapshot->last_reason_code, device_runtime_private_runtime_mutable()->last_reason_code, sizeof(snapshot->last_reason_code) - 1);
 }
 
 static int assert_status_snapshot_equal(const status_side_effect_snapshot_t *left,
@@ -37,44 +37,43 @@ static int assert_status_snapshot_equal(const status_side_effect_snapshot_t *lef
 
 static int verify_status_command_has_no_side_effect(void)
 {
-    device_runtime_t system_context;
     simulated_driver_context_t driver_context;
     status_side_effect_snapshot_t before_snapshot;
     status_side_effect_snapshot_t after_snapshot;
     char response_line[512];
     operation_result_t result;
 
-    test_setup_system_context(&system_context, &driver_context);
-    result = test_load_runtime_program_from_fixture(system_context,
+    test_setup_system_context( &driver_context);
+    result = test_load_runtime_program_from_fixture(
         "tests/fixtures/wash_step_control/program_v1_valid.json",
         0);
     TEST_ASSERT(result.ok);
-    result = test_start_session_and_flush(system_context, "wash_step_control_v1");
+    result = test_start_session_and_flush( "wash_step_control_v1");
     TEST_ASSERT(result.ok);
 
-    capture_status_snapshot(system_context, &before_snapshot);
-    result = test_process_command(system_context, "status", response_line, sizeof(response_line));
+    capture_status_snapshot(&before_snapshot);
+    result = test_process_command( "status", response_line, sizeof(response_line));
     TEST_ASSERT(result.ok);
     TEST_ASSERT(strstr(response_line, "result=status accepted=true") != 0);
-    result = test_process_command(system_context, "status", response_line, sizeof(response_line));
+    result = test_process_command( "status", response_line, sizeof(response_line));
     TEST_ASSERT(result.ok);
-    capture_status_snapshot(system_context, &after_snapshot);
+    capture_status_snapshot(&after_snapshot);
 
     TEST_ASSERT(assert_status_snapshot_equal(&before_snapshot, &after_snapshot) == 0);
 
-    result = device_runtime_reset(system_context);
+    result = device_runtime_reset();
     TEST_ASSERT(result.ok);
-    result = query_wash_session_status_execute(system_context, &(wash_session_status_view_t){0});
+    result = query_wash_session_status_execute( &(wash_session_status_view_t){0});
     TEST_ASSERT(result.ok);
-    capture_status_snapshot(system_context, &after_snapshot);
+    capture_status_snapshot(&after_snapshot);
     TEST_ASSERT(after_snapshot.global_fault_present == false);
     TEST_ASSERT(after_snapshot.pending_trigger_count == 0u);
     TEST_ASSERT(after_snapshot.session_state == SESSION_STATE_NONE);
     TEST_ASSERT(after_snapshot.last_result_code[0] == '\0');
     TEST_ASSERT(after_snapshot.last_reason_code[0] == '\0');
 
-    test_release_system_context(system_context);
-    result = query_wash_session_status_execute(system_context, &(wash_session_status_view_t){0});
+    test_release_system_context();
+    result = query_wash_session_status_execute( &(wash_session_status_view_t){0});
     TEST_ASSERT(!result.ok);
     TEST_ASSERT(result.error_code == ERROR_CODE_INVALID_STATE);
     return 0;

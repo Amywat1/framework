@@ -6,12 +6,11 @@ int main(void)
     scheduler_state_view_t view_from_scheduler;
     scheduler_state_view_t view_from_context;
     simulated_driver_context_t driver_context;
-    device_runtime_t system_context;
     scheduler_t *scheduler;
     operation_result_t result;
 
-    test_setup_system_context(&system_context, &driver_context);
-    scheduler = test_create_scheduler(system_context, 100ul);
+    test_setup_system_context( &driver_context);
+    scheduler = test_create_scheduler( 100ul);
     TEST_ASSERT(scheduler != 0);
 
     result = scheduler_read_view(scheduler, &view_from_scheduler);
@@ -22,7 +21,7 @@ int main(void)
     TEST_ASSERT(view_from_scheduler.notification_source_state == SCHEDULER_EVENT_SOURCE_DEGRADED);
     TEST_ASSERT(view_from_scheduler.exit_source_state == SCHEDULER_EVENT_SOURCE_DEGRADED);
 
-    result = test_scheduler_read_bound_view(system_context, &view_from_context);
+    result = test_scheduler_read_bound_view( &view_from_context);
     TEST_ASSERT(result.ok);
     TEST_ASSERT(view_from_context.control_period_ms == 100ul);
     TEST_ASSERT(view_from_context.metrics.pending_trigger_count == 0u);
@@ -33,11 +32,11 @@ int main(void)
     TEST_ASSERT(view_from_scheduler.runtime_state == SCHEDULER_RUNTIME_STATE_RUNNING);
     TEST_ASSERT(view_from_scheduler.metrics.cycle_count == 1ul);
 
-    result = device_runtime_release(system_context);
+    result = device_runtime_deinit();
     TEST_ASSERT(!result.ok);
     TEST_ASSERT(result.error_code == ERROR_CODE_INVALID_STATE);
 
-    test_release_system_context(system_context);
+    test_release_system_context();
     return 0;
 }
 

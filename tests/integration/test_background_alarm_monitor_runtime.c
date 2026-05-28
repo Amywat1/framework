@@ -15,7 +15,7 @@ static void build_background_alarm_snapshot(sensor_snapshot_t *sensor_snapshot, 
     sensor_snapshot->estop_active = estop_active;
 }
 
-static int trigger_background_estop_fault(device_runtime_t system_context,
+static int trigger_background_estop_fault(
     alarm_evaluator_t *alarm_evaluator,
     sensor_snapshot_t *sensor_snapshot,
     unsigned long occurred_at_ms)
@@ -23,29 +23,29 @@ static int trigger_background_estop_fault(device_runtime_t system_context,
     operation_result_t result;
 
     build_background_alarm_snapshot(sensor_snapshot, true);
-    result = alarm_detect_job_process_snapshot(system_context, alarm_evaluator, sensor_snapshot, occurred_at_ms);
+    result = alarm_detect_job_process_snapshot(alarm_evaluator, sensor_snapshot, occurred_at_ms);
     TEST_ASSERT(result.ok);
-    TEST_ASSERT(device_runtime_private_external_trigger_count(system_context) == 1u);
+    TEST_ASSERT(device_runtime_private_external_trigger_count() == 1u);
 
-    result = control_tick_run(system_context);
+    result = control_tick_run();
     TEST_ASSERT(result.ok);
-    TEST_ASSERT(device_runtime_private_external_trigger_count(system_context) == 0u);
-    TEST_ASSERT(device_runtime_private_runtime(system_context)->device_state == DEVICE_STATE_EXCEPTION);
-    TEST_ASSERT(device_runtime_private_runtime(system_context)->global_fault_present);
-    TEST_ASSERT(strcmp(device_runtime_private_runtime(system_context)->global_fault_code, "estop_active") == 0);
-    TEST_ASSERT(strcmp(device_runtime_private_runtime(system_context)->global_fault_reason,
+    TEST_ASSERT(device_runtime_private_external_trigger_count() == 0u);
+    TEST_ASSERT(device_runtime_private_runtime_mutable()->device_state == DEVICE_STATE_EXCEPTION);
+    TEST_ASSERT(device_runtime_private_runtime_mutable()->global_fault_present);
+    TEST_ASSERT(strcmp(device_runtime_private_runtime_mutable()->global_fault_code, "estop_active") == 0);
+    TEST_ASSERT(strcmp(device_runtime_private_runtime_mutable()->global_fault_reason,
         "background-alarm-monitor") == 0);
-    TEST_ASSERT(strcmp(device_runtime_private_runtime(system_context)->last_result_code, "accepted") == 0);
-    TEST_ASSERT(strcmp(device_runtime_private_runtime(system_context)->last_reason_code, "global_fault_recorded") == 0);
-    TEST_ASSERT(device_runtime_private_runtime(system_context)->last_transition_record.trigger_type ==
+    TEST_ASSERT(strcmp(device_runtime_private_runtime_mutable()->last_result_code, "accepted") == 0);
+    TEST_ASSERT(strcmp(device_runtime_private_runtime_mutable()->last_reason_code, "global_fault_recorded") == 0);
+    TEST_ASSERT(device_runtime_private_runtime_mutable()->last_transition_record.trigger_type ==
         TRIGGER_TYPE_FAULT);
-    TEST_ASSERT(strcmp(device_runtime_private_runtime(system_context)->last_transition_record.previous_state, "idle")
+    TEST_ASSERT(strcmp(device_runtime_private_runtime_mutable()->last_transition_record.previous_state, "idle")
         == 0);
-    TEST_ASSERT(strcmp(device_runtime_private_runtime(system_context)->last_transition_record.current_state,
+    TEST_ASSERT(strcmp(device_runtime_private_runtime_mutable()->last_transition_record.current_state,
         "exception") == 0);
-    TEST_ASSERT(strcmp(device_runtime_private_runtime(system_context)->last_transition_record.result_code, "accepted")
+    TEST_ASSERT(strcmp(device_runtime_private_runtime_mutable()->last_transition_record.result_code, "accepted")
         == 0);
-    TEST_ASSERT(strcmp(device_runtime_private_runtime(system_context)->last_transition_record.reason_code,
+    TEST_ASSERT(strcmp(device_runtime_private_runtime_mutable()->last_transition_record.reason_code,
         "global_fault_recorded") == 0);
     return 0;
 }
@@ -55,44 +55,43 @@ static int verify_background_alarm_monitor_fault_queue_semantics(void)
     alarm_evaluator_t alarm_evaluator;
     simulated_driver_context_t driver_context;
     sensor_snapshot_t sensor_snapshot;
-    device_runtime_t system_context;
     unsigned long first_recorded_at_ms;
     operation_result_t result;
 
-    test_setup_system_context(&system_context, &driver_context);
+    test_setup_system_context( &driver_context);
     alarm_evaluator_init(&alarm_evaluator);
 
-    result = test_homing_system_and_flush(system_context);
+    result = test_homing_system_and_flush();
     TEST_ASSERT(result.ok);
-    TEST_ASSERT(device_runtime_private_runtime(system_context)->device_state == DEVICE_STATE_IDLE);
-    TEST_ASSERT(device_runtime_private_external_trigger_count(system_context) == 0u);
+    TEST_ASSERT(device_runtime_private_runtime_mutable()->device_state == DEVICE_STATE_IDLE);
+    TEST_ASSERT(device_runtime_private_external_trigger_count() == 0u);
 
-    TEST_ASSERT(trigger_background_estop_fault(system_context, &alarm_evaluator, &sensor_snapshot, 100ul) == 0);
-    first_recorded_at_ms = device_runtime_private_runtime(system_context)->last_transition_record.recorded_at_ms;
+    TEST_ASSERT(trigger_background_estop_fault(&alarm_evaluator, &sensor_snapshot, 100ul) == 0);
+    first_recorded_at_ms = device_runtime_private_runtime_mutable()->last_transition_record.recorded_at_ms;
 
-    result = alarm_detect_job_process_snapshot(system_context, &alarm_evaluator, &sensor_snapshot, 200ul);
+    result = alarm_detect_job_process_snapshot( &alarm_evaluator, &sensor_snapshot, 200ul);
     TEST_ASSERT(result.ok);
-    TEST_ASSERT(device_runtime_private_external_trigger_count(system_context) == 0u);
-    TEST_ASSERT(device_runtime_private_runtime(system_context)->last_transition_record.recorded_at_ms ==
+    TEST_ASSERT(device_runtime_private_external_trigger_count() == 0u);
+    TEST_ASSERT(device_runtime_private_runtime_mutable()->last_transition_record.recorded_at_ms ==
         first_recorded_at_ms);
 
     build_background_alarm_snapshot(&sensor_snapshot, false);
-    result = alarm_detect_job_process_snapshot(system_context, &alarm_evaluator, &sensor_snapshot, 300ul);
+    result = alarm_detect_job_process_snapshot( &alarm_evaluator, &sensor_snapshot, 300ul);
     TEST_ASSERT(result.ok);
-    TEST_ASSERT(device_runtime_private_external_trigger_count(system_context) == 0u);
-    TEST_ASSERT(device_runtime_private_runtime(system_context)->device_state == DEVICE_STATE_EXCEPTION);
-    TEST_ASSERT(device_runtime_private_runtime(system_context)->global_fault_present);
-    TEST_ASSERT(strcmp(device_runtime_private_runtime(system_context)->last_result_code, "accepted") == 0);
-    TEST_ASSERT(strcmp(device_runtime_private_runtime(system_context)->last_reason_code, "global_fault_recorded") == 0);
-    TEST_ASSERT(device_runtime_private_runtime(system_context)->last_transition_record.recorded_at_ms ==
+    TEST_ASSERT(device_runtime_private_external_trigger_count() == 0u);
+    TEST_ASSERT(device_runtime_private_runtime_mutable()->device_state == DEVICE_STATE_EXCEPTION);
+    TEST_ASSERT(device_runtime_private_runtime_mutable()->global_fault_present);
+    TEST_ASSERT(strcmp(device_runtime_private_runtime_mutable()->last_result_code, "accepted") == 0);
+    TEST_ASSERT(strcmp(device_runtime_private_runtime_mutable()->last_reason_code, "global_fault_recorded") == 0);
+    TEST_ASSERT(device_runtime_private_runtime_mutable()->last_transition_record.recorded_at_ms ==
         first_recorded_at_ms);
 
     build_background_alarm_snapshot(&sensor_snapshot, true);
-    result = alarm_detect_job_process_snapshot(system_context, &alarm_evaluator, &sensor_snapshot, 400ul);
+    result = alarm_detect_job_process_snapshot( &alarm_evaluator, &sensor_snapshot, 400ul);
     TEST_ASSERT(result.ok);
-    TEST_ASSERT(device_runtime_private_external_trigger_count(system_context) == 1u);
+    TEST_ASSERT(device_runtime_private_external_trigger_count() == 1u);
 
-    test_release_system_context(system_context);
+    test_release_system_context();
     return 0;
 }
 
@@ -102,17 +101,16 @@ static int verify_background_alarm_monitor_retries_after_queue_full(void)
     simulated_driver_context_t driver_context;
     sensor_snapshot_t sensor_snapshot;
     sensor_snapshot_t recovered_snapshot;
-    device_runtime_t system_context;
     wash_trigger_event_t wash_trigger_event;
     operation_result_t result;
     unsigned int index;
 
-    test_setup_system_context(&system_context, &driver_context);
+    test_setup_system_context( &driver_context);
     alarm_evaluator_init(&alarm_evaluator);
 
-    result = test_homing_system_and_flush(system_context);
+    result = test_homing_system_and_flush();
     TEST_ASSERT(result.ok);
-    TEST_ASSERT(device_runtime_private_runtime(system_context)->device_state == DEVICE_STATE_IDLE);
+    TEST_ASSERT(device_runtime_private_runtime_mutable()->device_state == DEVICE_STATE_IDLE);
 
     build_background_alarm_snapshot(&sensor_snapshot, true);
     for (index = 0u; index < MAX_EXTERNAL_TRIGGER_QUEUE_COUNT; ++index)
@@ -123,37 +121,37 @@ static int verify_background_alarm_monitor_retries_after_queue_full(void)
             "queue-fill",
             "test-queue-fill",
             100ul + (unsigned long)index);
-        result = device_runtime_private_enqueue_external_trigger(system_context, &wash_trigger_event);
+        result = device_runtime_private_enqueue_external_trigger( &wash_trigger_event);
         TEST_ASSERT(result.ok);
     }
 
-    TEST_ASSERT(device_runtime_private_external_trigger_count(system_context) == MAX_EXTERNAL_TRIGGER_QUEUE_COUNT);
+    TEST_ASSERT(device_runtime_private_external_trigger_count() == MAX_EXTERNAL_TRIGGER_QUEUE_COUNT);
 
-    result = alarm_detect_job_process_snapshot(system_context, &alarm_evaluator, &sensor_snapshot, 200ul);
+    result = alarm_detect_job_process_snapshot( &alarm_evaluator, &sensor_snapshot, 200ul);
     TEST_ASSERT(!result.ok);
     TEST_ASSERT(result.error_code == ERROR_CODE_RESOURCE_UNAVAILABLE);
-    TEST_ASSERT(device_runtime_private_external_trigger_count(system_context) == MAX_EXTERNAL_TRIGGER_QUEUE_COUNT);
+    TEST_ASSERT(device_runtime_private_external_trigger_count() == MAX_EXTERNAL_TRIGGER_QUEUE_COUNT);
 
-    TEST_ASSERT(device_runtime_private_try_pop_external_trigger(system_context, &wash_trigger_event));
-    TEST_ASSERT(device_runtime_private_external_trigger_count(system_context) == (MAX_EXTERNAL_TRIGGER_QUEUE_COUNT - 1u));
+    TEST_ASSERT(device_runtime_private_try_pop_external_trigger( &wash_trigger_event));
+    TEST_ASSERT(device_runtime_private_external_trigger_count() == (MAX_EXTERNAL_TRIGGER_QUEUE_COUNT - 1u));
 
     build_background_alarm_snapshot(&recovered_snapshot, false);
-    result = alarm_detect_job_process_snapshot(system_context, &alarm_evaluator, &recovered_snapshot, 300ul);
+    result = alarm_detect_job_process_snapshot( &alarm_evaluator, &recovered_snapshot, 300ul);
     TEST_ASSERT(result.ok);
-    TEST_ASSERT(device_runtime_private_external_trigger_count(system_context) == MAX_EXTERNAL_TRIGGER_QUEUE_COUNT);
+    TEST_ASSERT(device_runtime_private_external_trigger_count() == MAX_EXTERNAL_TRIGGER_QUEUE_COUNT);
     for (index = 0u; index < (MAX_EXTERNAL_TRIGGER_QUEUE_COUNT - 1u); ++index)
     {
-        TEST_ASSERT(device_runtime_private_try_pop_external_trigger(system_context, &wash_trigger_event));
+        TEST_ASSERT(device_runtime_private_try_pop_external_trigger( &wash_trigger_event));
         TEST_ASSERT(strcmp(wash_trigger_event.signal_code, "queue-fill") == 0);
     }
-    TEST_ASSERT(device_runtime_private_try_pop_external_trigger(system_context, &wash_trigger_event));
+    TEST_ASSERT(device_runtime_private_try_pop_external_trigger( &wash_trigger_event));
     TEST_ASSERT(wash_trigger_event.trigger_type == TRIGGER_TYPE_FAULT);
     TEST_ASSERT(strcmp(wash_trigger_event.signal_code, "estop_active") == 0);
     TEST_ASSERT(wash_trigger_event.occurred_at_ms == 200ul);
     TEST_ASSERT(strcmp(wash_trigger_event.source, "background-alarm-monitor") == 0);
-    TEST_ASSERT(device_runtime_private_external_trigger_count(system_context) == 0u);
+    TEST_ASSERT(device_runtime_private_external_trigger_count() == 0u);
 
-    test_release_system_context(system_context);
+    test_release_system_context();
     return 0;
 }
 
@@ -162,53 +160,52 @@ static int verify_background_alarm_monitor_recovery_path(void)
     alarm_evaluator_t alarm_evaluator;
     simulated_driver_context_t driver_context;
     sensor_snapshot_t sensor_snapshot;
-    device_runtime_t system_context;
     operation_result_t result;
 
-    test_setup_system_context(&system_context, &driver_context);
+    test_setup_system_context( &driver_context);
     alarm_evaluator_init(&alarm_evaluator);
 
-    result = test_homing_system_and_flush(system_context);
+    result = test_homing_system_and_flush();
     TEST_ASSERT(result.ok);
-    TEST_ASSERT(device_runtime_private_runtime(system_context)->device_state == DEVICE_STATE_IDLE);
+    TEST_ASSERT(device_runtime_private_runtime_mutable()->device_state == DEVICE_STATE_IDLE);
 
-    TEST_ASSERT(trigger_background_estop_fault(system_context, &alarm_evaluator, &sensor_snapshot, 100ul) == 0);
+    TEST_ASSERT(trigger_background_estop_fault(&alarm_evaluator, &sensor_snapshot, 100ul) == 0);
 
-    result = test_clear_fault_and_flush(system_context);
+    result = test_clear_fault_and_flush();
     TEST_ASSERT(result.ok);
-    TEST_ASSERT(device_runtime_private_runtime(system_context)->device_state == DEVICE_STATE_STOPPED);
-    TEST_ASSERT(!device_runtime_private_runtime(system_context)->global_fault_present);
-    TEST_ASSERT(strcmp(device_runtime_private_runtime(system_context)->last_result_code, "accepted") == 0);
-    TEST_ASSERT(strcmp(device_runtime_private_runtime(system_context)->last_reason_code, "global_fault_cleared") == 0);
-    TEST_ASSERT(device_runtime_private_runtime(system_context)->last_transition_record.trigger_type ==
+    TEST_ASSERT(device_runtime_private_runtime_mutable()->device_state == DEVICE_STATE_STOPPED);
+    TEST_ASSERT(!device_runtime_private_runtime_mutable()->global_fault_present);
+    TEST_ASSERT(strcmp(device_runtime_private_runtime_mutable()->last_result_code, "accepted") == 0);
+    TEST_ASSERT(strcmp(device_runtime_private_runtime_mutable()->last_reason_code, "global_fault_cleared") == 0);
+    TEST_ASSERT(device_runtime_private_runtime_mutable()->last_transition_record.trigger_type ==
         TRIGGER_TYPE_FAULT);
-    TEST_ASSERT(strcmp(device_runtime_private_runtime(system_context)->last_transition_record.previous_state,
+    TEST_ASSERT(strcmp(device_runtime_private_runtime_mutable()->last_transition_record.previous_state,
         "exception") == 0);
-    TEST_ASSERT(strcmp(device_runtime_private_runtime(system_context)->last_transition_record.current_state,
+    TEST_ASSERT(strcmp(device_runtime_private_runtime_mutable()->last_transition_record.current_state,
         "stopped") == 0);
-    TEST_ASSERT(strcmp(device_runtime_private_runtime(system_context)->last_transition_record.result_code, "accepted")
+    TEST_ASSERT(strcmp(device_runtime_private_runtime_mutable()->last_transition_record.result_code, "accepted")
         == 0);
-    TEST_ASSERT(strcmp(device_runtime_private_runtime(system_context)->last_transition_record.reason_code,
+    TEST_ASSERT(strcmp(device_runtime_private_runtime_mutable()->last_transition_record.reason_code,
         "global_fault_cleared") == 0);
 
-    result = test_homing_system_and_flush(system_context);
+    result = test_homing_system_and_flush();
     TEST_ASSERT(result.ok);
-    TEST_ASSERT(device_runtime_private_runtime(system_context)->device_state == DEVICE_STATE_IDLE);
-    TEST_ASSERT(!device_runtime_private_runtime(system_context)->global_fault_present);
-    TEST_ASSERT(strcmp(device_runtime_private_runtime(system_context)->last_result_code, "accepted") == 0);
-    TEST_ASSERT(strcmp(device_runtime_private_runtime(system_context)->last_reason_code, "homing_completed") == 0);
-    TEST_ASSERT(device_runtime_private_runtime(system_context)->last_transition_record.trigger_type ==
+    TEST_ASSERT(device_runtime_private_runtime_mutable()->device_state == DEVICE_STATE_IDLE);
+    TEST_ASSERT(!device_runtime_private_runtime_mutable()->global_fault_present);
+    TEST_ASSERT(strcmp(device_runtime_private_runtime_mutable()->last_result_code, "accepted") == 0);
+    TEST_ASSERT(strcmp(device_runtime_private_runtime_mutable()->last_reason_code, "homing_completed") == 0);
+    TEST_ASSERT(device_runtime_private_runtime_mutable()->last_transition_record.trigger_type ==
         TRIGGER_TYPE_HOMING);
-    TEST_ASSERT(strcmp(device_runtime_private_runtime(system_context)->last_transition_record.previous_state,
+    TEST_ASSERT(strcmp(device_runtime_private_runtime_mutable()->last_transition_record.previous_state,
         "stopped") == 0);
-    TEST_ASSERT(strcmp(device_runtime_private_runtime(system_context)->last_transition_record.current_state, "idle")
+    TEST_ASSERT(strcmp(device_runtime_private_runtime_mutable()->last_transition_record.current_state, "idle")
         == 0);
-    TEST_ASSERT(strcmp(device_runtime_private_runtime(system_context)->last_transition_record.result_code, "accepted")
+    TEST_ASSERT(strcmp(device_runtime_private_runtime_mutable()->last_transition_record.result_code, "accepted")
         == 0);
-    TEST_ASSERT(strcmp(device_runtime_private_runtime(system_context)->last_transition_record.reason_code,
+    TEST_ASSERT(strcmp(device_runtime_private_runtime_mutable()->last_transition_record.reason_code,
         "homing_completed") == 0);
 
-    test_release_system_context(system_context);
+    test_release_system_context();
     return 0;
 }
 
@@ -217,18 +214,17 @@ static int verify_background_alarm_monitor_external_fault_beats_pending_backlog(
     alarm_evaluator_t alarm_evaluator;
     simulated_driver_context_t driver_context;
     sensor_snapshot_t sensor_snapshot;
-    device_runtime_t system_context;
     wash_trigger_event_t wash_trigger_event;
     operation_result_t result;
     unsigned int pending_before;
     unsigned int index;
 
-    test_setup_system_context(&system_context, &driver_context);
+    test_setup_system_context( &driver_context);
     alarm_evaluator_init(&alarm_evaluator);
 
-    result = test_homing_system_and_flush(system_context);
+    result = test_homing_system_and_flush();
     TEST_ASSERT(result.ok);
-    TEST_ASSERT(device_runtime_private_runtime(system_context)->device_state == DEVICE_STATE_IDLE);
+    TEST_ASSERT(device_runtime_private_runtime_mutable()->device_state == DEVICE_STATE_IDLE);
 
     for (index = 0u; index < MAX_PENDING_TRIGGER_COUNT; ++index)
     {
@@ -238,28 +234,28 @@ static int verify_background_alarm_monitor_external_fault_beats_pending_backlog(
             "backlog-stop",
             "test-backlog-stop",
             100ul + (unsigned long)index);
-        result = device_runtime_append_trigger(system_context, &wash_trigger_event);
+        result = device_runtime_append_trigger( &wash_trigger_event);
         TEST_ASSERT(result.ok);
     }
-    pending_before = device_runtime_pending_trigger_count(system_context);
+    pending_before = device_runtime_pending_trigger_count();
     TEST_ASSERT(pending_before == MAX_PENDING_TRIGGER_COUNT);
 
     build_background_alarm_snapshot(&sensor_snapshot, true);
-    result = alarm_detect_job_process_snapshot(system_context, &alarm_evaluator, &sensor_snapshot, 200ul);
+    result = alarm_detect_job_process_snapshot( &alarm_evaluator, &sensor_snapshot, 200ul);
     TEST_ASSERT(result.ok);
-    TEST_ASSERT(device_runtime_private_external_trigger_count(system_context) == 1u);
+    TEST_ASSERT(device_runtime_private_external_trigger_count() == 1u);
 
-    result = control_tick_run(system_context);
+    result = control_tick_run();
     TEST_ASSERT(result.ok);
-    TEST_ASSERT(device_runtime_private_runtime(system_context)->device_state == DEVICE_STATE_EXCEPTION);
-    TEST_ASSERT(device_runtime_private_runtime(system_context)->global_fault_present);
-    TEST_ASSERT(strcmp(device_runtime_private_runtime(system_context)->global_fault_code, "estop_active") == 0);
-    TEST_ASSERT(device_runtime_private_runtime(system_context)->last_transition_record.trigger_type ==
+    TEST_ASSERT(device_runtime_private_runtime_mutable()->device_state == DEVICE_STATE_EXCEPTION);
+    TEST_ASSERT(device_runtime_private_runtime_mutable()->global_fault_present);
+    TEST_ASSERT(strcmp(device_runtime_private_runtime_mutable()->global_fault_code, "estop_active") == 0);
+    TEST_ASSERT(device_runtime_private_runtime_mutable()->last_transition_record.trigger_type ==
         TRIGGER_TYPE_FAULT);
-    TEST_ASSERT(device_runtime_pending_trigger_count(system_context) == pending_before);
-    TEST_ASSERT(device_runtime_private_external_trigger_count(system_context) == 0u);
+    TEST_ASSERT(device_runtime_pending_trigger_count() == pending_before);
+    TEST_ASSERT(device_runtime_private_external_trigger_count() == 0u);
 
-    test_release_system_context(system_context);
+    test_release_system_context();
     return 0;
 }
 

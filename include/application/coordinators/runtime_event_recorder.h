@@ -13,24 +13,20 @@
 /**
  * @brief 刷新最近一次事件的结果码与原因码。
  *
- * @param device_runtime 主控共享上下文，不能为空。
  * @param result_code 最近结果码；传入 `0` 时保持现有值。
  * @param reason_code 最近原因码；传入 `0` 时保持现有值。
  *
  * @note 本接口只维护最近一次对外投影，不解释会话最终结论。
  */
-void runtime_event_recorder_set_latest_result(device_runtime_t device_runtime, const char *result_code,
-                                              const char *reason_code);
+void runtime_event_recorder_set_latest_result(const char *result_code, const char *reason_code);
 
 /**
  * @brief 应用统一运行时结果投影。
  *
- * @param device_runtime 主控共享上下文，不能为空。
  * @param runtime_result_projection 统一运行时结果投影，不能为空。
  *
  * @note 本接口是最近结果与迁移记录的唯一正式落点，不负责修改会话最终结果。
  */
-void runtime_event_recorder_apply_projection(device_runtime_t device_runtime,
-                                             const runtime_result_projection_t *runtime_result_projection);
+void runtime_event_recorder_apply_projection(const runtime_result_projection_t *runtime_result_projection);
 
 #endif

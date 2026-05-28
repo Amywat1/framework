@@ -5,42 +5,45 @@
 
 static unsigned long adapter_current_time_ms(void *context)
 {
-    return device_runtime_current_time_ms((device_runtime_t)context);
+    (void)context;
+    return device_runtime_current_time_ms();
 }
 
 static unsigned int adapter_pending_trigger_count(void *context)
 {
-    return device_runtime_pending_trigger_count((device_runtime_t)context);
+    (void)context;
+    return device_runtime_pending_trigger_count();
 }
 
 static bool adapter_has_pending_work(void *context)
 {
-    return device_runtime_has_pending_work((device_runtime_t)context);
+    (void)context;
+    return device_runtime_has_pending_work();
 }
 
 static void adapter_advance_time(void *context, unsigned long elapsed_ms)
 {
-    control_tick_advance_time((device_runtime_t)context, elapsed_ms);
+    (void)context;
+    control_tick_advance_time(elapsed_ms);
 }
 
 static operation_result_t adapter_run_control_tick(void *context)
 {
-    return control_tick_run((device_runtime_t)context);
+    (void)context;
+    return control_tick_run();
 }
 
 /**
- * @brief 从 device_runtime 实例填充调度器运行时端口。
+ * @brief 从 device_runtime 单实例填充调度器运行时端口。
  * @param port 待写入端口，不能为空。
- * @param device_runtime 主控运行时句柄，不能为空。
  */
-void scheduler_runtime_port_init_from_device_runtime(scheduler_runtime_port_t *port,
-                                                     device_runtime_t device_runtime)
+void scheduler_runtime_port_init_from_device_runtime(scheduler_runtime_port_t *port)
 {
     if (port == 0)
     {
         return;
     }
-    port->context = (void *)device_runtime;
+    port->context = 0;
     port->current_time_ms = adapter_current_time_ms;
     port->pending_trigger_count = adapter_pending_trigger_count;
     port->has_pending_work = adapter_has_pending_work;

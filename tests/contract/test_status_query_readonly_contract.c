@@ -14,18 +14,18 @@ typedef struct readonly_snapshot_t {
     char global_fault_reason[128];
 } readonly_snapshot_t;
 
-static void capture_snapshot(const device_runtime_t system_context, readonly_snapshot_t *snapshot)
+static void capture_snapshot(readonly_snapshot_t *snapshot)
 {
     memset(snapshot, 0, sizeof(*snapshot));
-    snapshot->global_fault_present = device_runtime_private_runtime(system_context)->global_fault_present;
-    snapshot->pending_trigger_count = device_runtime_private_runtime(system_context)->pending_trigger_count;
-    snapshot->current_time_ms = device_runtime_private_runtime(system_context)->current_time_ms;
-    snapshot->session_state = device_runtime_private_runtime(system_context)->wash_session.session_state;
-    snapshot->execution_state = device_runtime_private_runtime(system_context)->wash_execution.execution_state;
-    snapshot->final_session_result = device_runtime_private_runtime(system_context)->wash_session.final_session_result;
-    strncpy(snapshot->last_result_code, device_runtime_private_runtime(system_context)->last_result_code, sizeof(snapshot->last_result_code) - 1);
-    strncpy(snapshot->last_reason_code, device_runtime_private_runtime(system_context)->last_reason_code, sizeof(snapshot->last_reason_code) - 1);
-    strncpy(snapshot->global_fault_reason, device_runtime_private_runtime(system_context)->global_fault_reason, sizeof(snapshot->global_fault_reason) - 1);
+    snapshot->global_fault_present = device_runtime_private_runtime_mutable()->global_fault_present;
+    snapshot->pending_trigger_count = device_runtime_private_runtime_mutable()->pending_trigger_count;
+    snapshot->current_time_ms = device_runtime_private_runtime_mutable()->current_time_ms;
+    snapshot->session_state = device_runtime_private_runtime_mutable()->wash_session.session_state;
+    snapshot->execution_state = device_runtime_private_runtime_mutable()->wash_execution.execution_state;
+    snapshot->final_session_result = device_runtime_private_runtime_mutable()->wash_session.final_session_result;
+    strncpy(snapshot->last_result_code, device_runtime_private_runtime_mutable()->last_result_code, sizeof(snapshot->last_result_code) - 1);
+    strncpy(snapshot->last_reason_code, device_runtime_private_runtime_mutable()->last_reason_code, sizeof(snapshot->last_reason_code) - 1);
+    strncpy(snapshot->global_fault_reason, device_runtime_private_runtime_mutable()->global_fault_reason, sizeof(snapshot->global_fault_reason) - 1);
 }
 
 static int assert_snapshot_equal(const readonly_snapshot_t *left, const readonly_snapshot_t *right)
@@ -44,31 +44,30 @@ static int assert_snapshot_equal(const readonly_snapshot_t *left, const readonly
 
 static int verify_status_query_is_readonly(void)
 {
-    device_runtime_t system_context;
     simulated_driver_context_t driver_context;
     wash_session_status_view_t wash_session_status_view;
     readonly_snapshot_t before_snapshot;
     readonly_snapshot_t after_snapshot;
     operation_result_t result;
 
-    test_setup_system_context(&system_context, &driver_context);
-    result = test_load_runtime_program_from_fixture(system_context,
+    test_setup_system_context( &driver_context);
+    result = test_load_runtime_program_from_fixture(
         "tests/fixtures/wash_step_control/program_v1_valid.json",
         0);
     TEST_ASSERT(result.ok);
-    result = test_start_session_and_flush(system_context, "wash_step_control_v1");
+    result = test_start_session_and_flush( "wash_step_control_v1");
     TEST_ASSERT(result.ok);
 
-    capture_snapshot(system_context, &before_snapshot);
-    result = query_wash_session_status_execute(system_context, &wash_session_status_view);
+    capture_snapshot(&before_snapshot);
+    result = query_wash_session_status_execute( &wash_session_status_view);
     TEST_ASSERT(result.ok);
-    result = query_wash_session_status_execute(system_context, &wash_session_status_view);
+    result = query_wash_session_status_execute( &wash_session_status_view);
     TEST_ASSERT(result.ok);
-    capture_snapshot(system_context, &after_snapshot);
+    capture_snapshot(&after_snapshot);
 
     TEST_ASSERT(assert_snapshot_equal(&before_snapshot, &after_snapshot) == 0);
     TEST_ASSERT(wash_session_status_view.session_state == SESSION_STATE_RUNNING);
-    test_release_system_context(system_context);
+    test_release_system_context();
     return 0;
 }
 
