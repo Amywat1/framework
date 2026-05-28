@@ -92,9 +92,8 @@ static void scheduler_refresh_source_states(scheduler_t *scheduler)
     {
         scheduler->command_source.source_state =
             scheduler->config.command_event_source_enabled
-                ? (stdio_formal_command_adapter_fd(&scheduler->command_adapter) >= 0
-                       ? SCHEDULER_EVENT_SOURCE_ENABLED
-                       : SCHEDULER_EVENT_SOURCE_DEGRADED)
+                ? (stdio_formal_command_adapter_fd(&scheduler->command_adapter) >= 0 ? SCHEDULER_EVENT_SOURCE_ENABLED
+                                                                                     : SCHEDULER_EVENT_SOURCE_DEGRADED)
                 : SCHEDULER_EVENT_SOURCE_DISABLED;
     }
     scheduler->notification_source.source_state =
@@ -109,16 +108,14 @@ static void scheduler_refresh_source_states(scheduler_t *scheduler)
  * @param reason_code 错误原因码。
  * @param terminal 是否同步切换到失败态。
  */
-void scheduler_record_error(scheduler_t *scheduler, const char *reason_code,
-                                       bool terminal)
+void scheduler_record_error(scheduler_t *scheduler, const char *reason_code, bool terminal)
 {
     if (scheduler == 0 || reason_code == 0)
     {
         return;
     }
 
-    strncpy(scheduler->metrics.last_error_reason, reason_code,
-            sizeof(scheduler->metrics.last_error_reason) - 1);
+    strncpy(scheduler->metrics.last_error_reason, reason_code, sizeof(scheduler->metrics.last_error_reason) - 1);
     scheduler->metrics.last_error_reason[sizeof(scheduler->metrics.last_error_reason) - 1] = '\0';
     if (terminal)
     {
@@ -147,7 +144,7 @@ void scheduler_update_pending_metric(scheduler_t *scheduler)
  * @param seen_time_ms 最近观测时间。
  */
 static void scheduler_note_source_event(scheduler_event_source_descriptor_t *source_descriptor,
-                                                   unsigned long event_count, unsigned long seen_time_ms)
+                                        unsigned long event_count, unsigned long seen_time_ms)
 {
     if (source_descriptor == 0)
     {
@@ -182,8 +179,7 @@ void scheduler_note_command_event(scheduler_t *scheduler, const char *command_li
  */
 static void scheduler_ensure_running_state(scheduler_t *scheduler)
 {
-    if (scheduler != 0 &&
-        scheduler->runtime_state == SCHEDULER_RUNTIME_STATE_INITIALIZED)
+    if (scheduler != 0 && scheduler->runtime_state == SCHEDULER_RUNTIME_STATE_INITIALIZED)
     {
         scheduler->runtime_state = SCHEDULER_RUNTIME_STATE_RUNNING;
     }
@@ -198,10 +194,8 @@ static void scheduler_ensure_running_state(scheduler_t *scheduler)
  * @param cycle_count_increment 周期计数增量。
  * @return 执行成功返回 `ok`，主循环失败时返回对应错误。
  */
-operation_result_t scheduler_execute_bounded_ticks(scheduler_t *scheduler,
-                                                             bool advance_time, unsigned long elapsed_ms,
-                                                             bool count_cycle,
-                                                             unsigned long cycle_count_increment)
+operation_result_t scheduler_execute_bounded_ticks(scheduler_t *scheduler, bool advance_time, unsigned long elapsed_ms,
+                                                   bool count_cycle, unsigned long cycle_count_increment)
 {
     operation_result_t result;
     unsigned int remaining_runs;
@@ -219,9 +213,7 @@ operation_result_t scheduler_execute_bounded_ticks(scheduler_t *scheduler,
         scheduler->runtime_port.advance_time(scheduler->runtime_port.context, elapsed_ms);
     }
 
-    remaining_runs = scheduler->config.max_triggers_per_tick > 0u
-                         ? scheduler->config.max_triggers_per_tick
-                         : 1u;
+    remaining_runs = scheduler->config.max_triggers_per_tick > 0u ? scheduler->config.max_triggers_per_tick : 1u;
     result = operation_result_ok();
     while (remaining_runs > 0u)
     {
@@ -244,10 +236,9 @@ operation_result_t scheduler_execute_bounded_ticks(scheduler_t *scheduler,
         }
     }
 
-    scheduler->last_cycle_duration_ms =
-        scheduler->forced_cycle_duration_ms > 0ul
-            ? scheduler->forced_cycle_duration_ms
-            : scheduler_elapsed_ms(scheduler) - cycle_start_ms;
+    scheduler->last_cycle_duration_ms = scheduler->forced_cycle_duration_ms > 0ul
+                                            ? scheduler->forced_cycle_duration_ms
+                                            : scheduler_elapsed_ms(scheduler) - cycle_start_ms;
     scheduler->forced_cycle_duration_ms = 0ul;
     if (count_cycle)
     {
@@ -295,8 +286,7 @@ static operation_result_t scheduler_handle_notification(scheduler_t *scheduler)
     scheduler->notification_snapshot.snapshot_version += notification_count;
     scheduler->notification_snapshot.captured_time_ms = seen_time_ms;
     scheduler->notification_snapshot.dirty = true;
-    scheduler_note_source_event(&scheduler->notification_source, notification_count,
-                                           seen_time_ms);
+    scheduler_note_source_event(&scheduler->notification_source, notification_count, seen_time_ms);
     return operation_result_ok();
 }
 
@@ -319,8 +309,7 @@ static operation_result_t scheduler_handle_exit(scheduler_t *scheduler)
     scheduler->metrics.exit_event_count += 1ul;
     scheduler_note_source_event(&scheduler->exit_source, 1ul, seen_time_ms);
 
-    if (scheduler->exit_immediate ||
-        scheduler->config.exit_mode == SCHEDULER_EXIT_MODE_DIRECT ||
+    if (scheduler->exit_immediate || scheduler->config.exit_mode == SCHEDULER_EXIT_MODE_DIRECT ||
         scheduler->config.bounded_drain_ticks == 0u)
     {
         scheduler->runtime_state = SCHEDULER_RUNTIME_STATE_STOPPED;
@@ -341,8 +330,7 @@ static operation_result_t scheduler_handle_exit(scheduler_t *scheduler)
  * @param signal_wakeup 是否向唤醒 fd 写入通知。
  * @return 请求成功返回 `ok`，写唤醒失败时返回对应错误。
  */
-operation_result_t scheduler_request_exit_internal(scheduler_t *scheduler,
-                                                             bool immediate, bool signal_wakeup)
+operation_result_t scheduler_request_exit_internal(scheduler_t *scheduler, bool immediate, bool signal_wakeup)
 {
     uint64_t wakeup_value;
     ssize_t write_result;
@@ -407,8 +395,7 @@ static operation_result_t scheduler_service_drain(scheduler_t *scheduler)
     }
 
     scheduler->drain_ticks_remaining -= 1u;
-    result = scheduler_execute_bounded_ticks(scheduler, true,
-                                                        scheduler->config.control_period_ms, false, 0ul);
+    result = scheduler_execute_bounded_ticks(scheduler, true, scheduler->config.control_period_ms, false, 0ul);
     if (!result.ok)
     {
         return result;
@@ -457,8 +444,7 @@ static operation_result_t scheduler_dispatch_ready_events(scheduler_t *scheduler
         }
         if (scheduler->pending_command_event)
         {
-            result = stdio_formal_command_adapter_handle_fd(&scheduler->command_adapter,
-                                                            scheduler,
+            result = stdio_formal_command_adapter_handle_fd(&scheduler->command_adapter, scheduler,
                                                             scheduler->failpoint_command_read);
             if (!result.ok)
             {
@@ -480,8 +466,8 @@ static operation_result_t scheduler_dispatch_ready_events(scheduler_t *scheduler
             unsigned long expirations = scheduler->pending_period_expirations;
 
             scheduler->pending_period_expirations = 0ul;
-            return scheduler_execute_bounded_ticks(
-                scheduler, true, scheduler->config.control_period_ms * expirations, true, 1ul);
+            return scheduler_execute_bounded_ticks(scheduler, true, scheduler->config.control_period_ms * expirations,
+                                                   true, 1ul);
         }
         break;
     }
@@ -585,8 +571,7 @@ static operation_result_t scheduler_register_epoll_fd(scheduler_t *scheduler, in
  * @param scheduler_config 待校验配置。
  * @return 配置合法返回 `ok`，否则返回参数错误。
  */
-static operation_result_t
-scheduler_validate_config(const scheduler_config_t *scheduler_config)
+static operation_result_t scheduler_validate_config(const scheduler_config_t *scheduler_config)
 {
     if (scheduler_config == 0)
     {
@@ -600,8 +585,7 @@ scheduler_validate_config(const scheduler_config_t *scheduler_config)
     {
         return operation_result_fail(ERROR_CODE_INVALID_ARGUMENT);
     }
-    if (scheduler_config->exit_mode == SCHEDULER_EXIT_MODE_BOUNDED_DRAIN &&
-        scheduler_config->bounded_drain_ticks == 0u)
+    if (scheduler_config->exit_mode == SCHEDULER_EXIT_MODE_BOUNDED_DRAIN && scheduler_config->bounded_drain_ticks == 0u)
     {
         return operation_result_fail(ERROR_CODE_INVALID_ARGUMENT);
     }
@@ -617,10 +601,9 @@ static void scheduler_linux_destroy_impl(scheduler_t *scheduler);
  * @param scheduler_stdio 可选标准输入输出绑定。
  * @return 创建成功返回调度器对象；失败时返回 `0`。
  */
-static scheduler_t *
-scheduler_linux_create_impl(const scheduler_runtime_port_t *runtime_port,
-                                       const scheduler_config_t *scheduler_config,
-                                       const scheduler_stdio_t *scheduler_stdio)
+static scheduler_t *scheduler_linux_create_impl(const scheduler_runtime_port_t *runtime_port,
+                                                const scheduler_config_t *scheduler_config,
+                                                const scheduler_stdio_t *scheduler_stdio)
 {
     scheduler_t *scheduler;
     struct itimerspec timer_spec;
@@ -721,18 +704,13 @@ static void scheduler_linux_destroy_impl(scheduler_t *scheduler)
     free(scheduler);
 }
 
-scheduler_t *scheduler_create(const scheduler_runtime_port_t *runtime_port,
-                                                    const scheduler_config_t *scheduler_config,
-                                                    const scheduler_stdio_t *scheduler_stdio)
+scheduler_t *scheduler_create(const scheduler_runtime_port_t *runtime_port, const scheduler_config_t *scheduler_config,
+                              const scheduler_stdio_t *scheduler_stdio)
 {
-    return scheduler_linux_create_impl(runtime_port, scheduler_config,
-                                                  scheduler_stdio);
+    return scheduler_linux_create_impl(runtime_port, scheduler_config, scheduler_stdio);
 }
 
-void scheduler_destroy(scheduler_t *scheduler)
-{
-    scheduler_linux_destroy_impl(scheduler);
-}
+void scheduler_destroy(scheduler_t *scheduler) { scheduler_linux_destroy_impl(scheduler); }
 
 operation_result_t scheduler_run(scheduler_t *scheduler)
 {
@@ -762,9 +740,8 @@ operation_result_t scheduler_run(scheduler_t *scheduler)
         }
     }
     scheduler->in_run_loop = false;
-    return scheduler->runtime_state == SCHEDULER_RUNTIME_STATE_FAILED
-               ? operation_result_fail(ERROR_CODE_IO_FAILED)
-               : operation_result_ok();
+    return scheduler->runtime_state == SCHEDULER_RUNTIME_STATE_FAILED ? operation_result_fail(ERROR_CODE_IO_FAILED)
+                                                                      : operation_result_ok();
 }
 
 operation_result_t scheduler_request_stop(scheduler_t *scheduler)
@@ -772,8 +749,7 @@ operation_result_t scheduler_request_stop(scheduler_t *scheduler)
     return scheduler_request_exit_internal(scheduler, false, true);
 }
 
-operation_result_t scheduler_read_view(const scheduler_t *scheduler,
-                                                  scheduler_state_view_t *state_view)
+operation_result_t scheduler_read_view(const scheduler_t *scheduler, scheduler_state_view_t *state_view)
 {
     if (scheduler == 0 || state_view == 0)
     {
@@ -792,9 +768,7 @@ operation_result_t scheduler_read_view(const scheduler_t *scheduler,
     return operation_result_ok();
 }
 
-
-operation_result_t scheduler_linux_test_inject_period(scheduler_t *scheduler,
-                                                                 unsigned int expiration_count)
+operation_result_t scheduler_linux_test_inject_period(scheduler_t *scheduler, unsigned int expiration_count)
 {
     if (scheduler == 0 || expiration_count == 0u)
     {
@@ -805,22 +779,19 @@ operation_result_t scheduler_linux_test_inject_period(scheduler_t *scheduler,
     return scheduler_dispatch_ready_events(scheduler);
 }
 
-operation_result_t scheduler_linux_test_inject_command(scheduler_t *scheduler,
-                                                                  const char *command_line, char *response_line,
-                                                                  size_t response_line_size)
+operation_result_t scheduler_linux_test_inject_command(scheduler_t *scheduler, const char *command_line,
+                                                       char *response_line, size_t response_line_size)
 {
     if (scheduler == 0 || command_line == 0)
     {
         return operation_result_fail(ERROR_CODE_INVALID_ARGUMENT);
     }
     scheduler_ensure_running_state(scheduler);
-    return stdio_formal_command_adapter_handle_command_event(&scheduler->command_adapter,
-                                                             scheduler, command_line, response_line,
-                                                             response_line_size, false);
+    return stdio_formal_command_adapter_handle_command_event(&scheduler->command_adapter, scheduler, command_line,
+                                                             response_line, response_line_size, false);
 }
 
-operation_result_t scheduler_linux_test_inject_notification(scheduler_t *scheduler,
-                                                                       unsigned int notification_count)
+operation_result_t scheduler_linux_test_inject_notification(scheduler_t *scheduler, unsigned int notification_count)
 {
     if (scheduler == 0 || notification_count == 0u)
     {
@@ -831,8 +802,7 @@ operation_result_t scheduler_linux_test_inject_notification(scheduler_t *schedul
     return scheduler_dispatch_ready_events(scheduler);
 }
 
-operation_result_t scheduler_linux_test_inject_exit(scheduler_t *scheduler,
-                                                               bool immediate)
+operation_result_t scheduler_linux_test_inject_exit(scheduler_t *scheduler, bool immediate)
 {
     operation_result_t result;
 
@@ -876,9 +846,8 @@ operation_result_t scheduler_linux_test_poll_once(scheduler_t *scheduler)
     return scheduler_dispatch_ready_events(scheduler);
 }
 
-void scheduler_linux_test_set_failpoint(
-    scheduler_t *scheduler,
-    scheduler_linux_test_failpoint_t scheduler_linux_test_failpoint, bool enabled)
+void scheduler_linux_test_set_failpoint(scheduler_t *scheduler,
+                                        scheduler_linux_test_failpoint_t scheduler_linux_test_failpoint, bool enabled)
 {
     if (scheduler == 0)
     {
@@ -908,8 +877,7 @@ void scheduler_linux_test_set_failpoint(
     }
 }
 
-void scheduler_linux_test_set_cycle_duration(scheduler_t *scheduler,
-                                                        unsigned long cycle_duration_ms)
+void scheduler_linux_test_set_cycle_duration(scheduler_t *scheduler, unsigned long cycle_duration_ms)
 {
     if (scheduler == 0)
     {

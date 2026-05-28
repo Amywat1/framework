@@ -20,7 +20,6 @@ typedef struct app_instance_t
 {
     bool initialized;
     app_state_t state;
-    bool scheduler_created;
     scheduler_t *scheduler;
     background_alarm_monitor_t *background_alarm_monitor;
 } app_instance_t;
@@ -107,23 +106,6 @@ static void destroy_alarm_monitor(void)
 }
 
 /**
- * @brief 清零借用的外部资源绑定。
- * @param instance 目标运行状态结构。
- * @details 仅在资源释放后调用，用于避免悬空指针。
- */
-static void zero_borrowed_bindings(app_instance_t *instance)
-{
-    if (instance == 0)
-    {
-        return;
-    }
-
-    instance->scheduler = 0;
-    instance->background_alarm_monitor = 0;
-    instance->scheduler_created = false;
-}
-
-/**
  * @brief 验证调度器配置有效性。
  * @param scheduler_config 待验证配置。
  * @return 配置合法时返回 `ok`，否则返回 `INVALID_ARGUMENT`。
@@ -151,19 +133,6 @@ static operation_result_t validate_scheduler_config(const scheduler_config_t *sc
 }
 
 /**
- * @brief 验证应用单实例是否已完成初始化。
- * @return 已初始化时返回 `ok`，否则返回失败结果。
- */
-static operation_result_t require_initialized(void)
-{
-    if (!g_app_instance.initialized)
-    {
-        return operation_result_fail(ERROR_CODE_INVALID_STATE);
-    }
-    return operation_result_ok();
-}
-
-/**
  * @brief 释放应用实例持有的所有资源。
  * @return 全部释放成功返回 `ok`，否则返回对应错误码。
  * @details 按调度器再到 control_context 的顺序释放资源。
@@ -184,8 +153,6 @@ static operation_result_t destroy_owned_resources(void)
         scheduler_destroy(g_app_instance.scheduler);
         g_app_instance.scheduler = 0;
     }
-    g_app_instance.scheduler_created = false;
-
     release_result = control_context_deinit();
     if (!release_result.ok)
     {
@@ -194,8 +161,6 @@ static operation_result_t destroy_owned_resources(void)
 
     g_app_instance.initialized = false;
     g_app_instance.state = APP_STATE_DESTROYED;
-
-    zero_borrowed_bindings(&g_app_instance);
     return destroy_error_code == ERROR_CODE_OK ? operation_result_ok() : operation_result_fail(destroy_error_code);
 }
 
@@ -305,7 +270,6 @@ operation_result_t app_create(const app_config_t *config)
         return result;
     }
 
-    g_app_instance.scheduler_created = true;
     g_app_instance.state = APP_STATE_CREATED;
     g_app_instance.initialized = true;
     return operation_result_ok();
@@ -315,10 +279,9 @@ operation_result_t app_run(void)
 {
     operation_result_t result;
 
-    result = require_initialized();
-    if (!result.ok)
+    if (!g_app_instance.initialized)
     {
-        return result;
+        return operation_result_fail(ERROR_CODE_INVALID_STATE);
     }
     if (g_app_instance.state != APP_STATE_CREATED)
     {

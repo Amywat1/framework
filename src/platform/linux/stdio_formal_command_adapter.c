@@ -29,12 +29,8 @@ static void stdio_formal_command_adapter_rebuild_response(char *response_line, s
         return;
     }
 
-    result_code = control_context_last_result_code()[0] != '\0'
-                      ? control_context_last_result_code()
-                      : "accepted";
-    detail = control_context_last_reason_code()[0] != '\0'
-                 ? control_context_last_reason_code()
-                 : "none";
+    result_code = control_context_last_result_code()[0] != '\0' ? control_context_last_result_code() : "accepted";
+    detail = control_context_last_reason_code()[0] != '\0' ? control_context_last_reason_code() : "none";
     process_formal_command_format_response(response_line, response_line_size, result_code,
                                            process_formal_command_result_is_accepted(result_code), detail);
 }
@@ -66,8 +62,8 @@ static bool stdio_formal_command_adapter_has_complete_line(const stdio_formal_co
  * @return 追加成功返回 `operation_result_ok()`。
  */
 static operation_result_t stdio_formal_command_adapter_append_bytes(stdio_formal_command_adapter_t *adapter,
-                                                                    scheduler_t *scheduler,
-                                                                    const char *bytes, size_t byte_count)
+                                                                    scheduler_t *scheduler, const char *bytes,
+                                                                    size_t byte_count)
 {
     if (adapter == 0 || scheduler == 0 || (bytes == 0 && byte_count > 0u))
     {
@@ -152,9 +148,10 @@ static bool stdio_formal_command_adapter_extract_line(stdio_formal_command_adapt
  * @param print_response 是否将响应写回标准输出。
  * @return 处理成功返回 `operation_result_ok()`。
  */
-static operation_result_t stdio_formal_command_adapter_process_line(
-    stdio_formal_command_adapter_t *adapter, scheduler_t *scheduler, const char *command_line,
-    char *response_line, size_t response_line_size, bool print_response)
+static operation_result_t stdio_formal_command_adapter_process_line(stdio_formal_command_adapter_t *adapter,
+                                                                    scheduler_t *scheduler, const char *command_line,
+                                                                    char *response_line, size_t response_line_size,
+                                                                    bool print_response)
 {
     char local_response[512];
     operation_result_t result;
@@ -173,14 +170,10 @@ static operation_result_t stdio_formal_command_adapter_process_line(
     }
     memset(response_line, 0, response_line_size);
 
-    pending_before =
-        scheduler->runtime_port.pending_trigger_count(scheduler->runtime_port.context);
+    pending_before = scheduler->runtime_port.pending_trigger_count(scheduler->runtime_port.context);
     result = process_formal_command_execute(command_line, response_line, response_line_size);
-    queued_work =
-        scheduler->runtime_port.pending_trigger_count(scheduler->runtime_port.context) >
-        pending_before;
-    if (result.ok && queued_work &&
-        scheduler->runtime_state == SCHEDULER_RUNTIME_STATE_RUNNING)
+    queued_work = scheduler->runtime_port.pending_trigger_count(scheduler->runtime_port.context) > pending_before;
+    if (result.ok && queued_work && scheduler->runtime_state == SCHEDULER_RUNTIME_STATE_RUNNING)
     {
         result = scheduler_execute_bounded_ticks(scheduler, false, 0ul, false, 0ul);
         if (!result.ok)
@@ -203,8 +196,7 @@ static operation_result_t stdio_formal_command_adapter_process_line(
     return operation_result_ok();
 }
 
-void stdio_formal_command_adapter_init(stdio_formal_command_adapter_t *adapter,
-                                       const scheduler_stdio_t *stdio_binding)
+void stdio_formal_command_adapter_init(stdio_formal_command_adapter_t *adapter, const scheduler_stdio_t *stdio_binding)
 {
     if (adapter == 0)
     {
@@ -260,8 +252,7 @@ int stdio_formal_command_adapter_fd(const stdio_formal_command_adapter_t *adapte
 }
 
 operation_result_t stdio_formal_command_adapter_handle_fd(stdio_formal_command_adapter_t *adapter,
-                                                          scheduler_t *scheduler,
-                                                          bool failpoint_command_read)
+                                                          scheduler_t *scheduler, bool failpoint_command_read)
 {
     char read_buffer[128];
     char command_line[256];
@@ -276,8 +267,7 @@ operation_result_t stdio_formal_command_adapter_handle_fd(stdio_formal_command_a
     if (stdio_formal_command_adapter_extract_line(adapter, command_line, sizeof(command_line)))
     {
         scheduler->pending_command_event = stdio_formal_command_adapter_has_complete_line(adapter);
-        result = stdio_formal_command_adapter_handle_command_event(adapter, scheduler, command_line, 0, 0u,
-                                                                   true);
+        result = stdio_formal_command_adapter_handle_command_event(adapter, scheduler, command_line, 0, 0u, true);
         if (!result.ok)
         {
             return result;
@@ -301,8 +291,7 @@ operation_result_t stdio_formal_command_adapter_handle_fd(stdio_formal_command_a
         read_count = read(adapter->command_fd, read_buffer, sizeof(read_buffer));
         if (read_count > 0)
         {
-            result = stdio_formal_command_adapter_append_bytes(adapter, scheduler, read_buffer,
-                                                               (size_t)read_count);
+            result = stdio_formal_command_adapter_append_bytes(adapter, scheduler, read_buffer, (size_t)read_count);
             if (!result.ok)
             {
                 return result;
@@ -326,8 +315,7 @@ operation_result_t stdio_formal_command_adapter_handle_fd(stdio_formal_command_a
     if (stdio_formal_command_adapter_extract_line(adapter, command_line, sizeof(command_line)))
     {
         scheduler->pending_command_event = stdio_formal_command_adapter_has_complete_line(adapter);
-        result = stdio_formal_command_adapter_handle_command_event(adapter, scheduler, command_line, 0, 0u,
-                                                                   true);
+        result = stdio_formal_command_adapter_handle_command_event(adapter, scheduler, command_line, 0, 0u, true);
         if (!result.ok)
         {
             return result;
@@ -340,9 +328,10 @@ operation_result_t stdio_formal_command_adapter_handle_fd(stdio_formal_command_a
     return operation_result_ok();
 }
 
-operation_result_t stdio_formal_command_adapter_handle_command_event(
-    stdio_formal_command_adapter_t *adapter, scheduler_t *scheduler, const char *command_line,
-    char *response_line, size_t response_line_size, bool print_response)
+operation_result_t stdio_formal_command_adapter_handle_command_event(stdio_formal_command_adapter_t *adapter,
+                                                                     scheduler_t *scheduler, const char *command_line,
+                                                                     char *response_line, size_t response_line_size,
+                                                                     bool print_response)
 {
     if (adapter == 0 || scheduler == 0 || command_line == 0)
     {
