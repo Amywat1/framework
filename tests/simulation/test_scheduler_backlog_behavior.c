@@ -12,7 +12,6 @@ int main(void)
     scheduler = test_create_scheduler( 100ul);
     TEST_ASSERT(scheduler != 0);
 
-    scheduler_linux_test_set_cycle_duration(scheduler, 250ul);
     result = scheduler_linux_test_inject_period(scheduler, 3u);
     TEST_ASSERT(result.ok);
     result = scheduler_read_view(scheduler, &app_state_view);
@@ -22,7 +21,6 @@ int main(void)
     TEST_ASSERT(app_state_view.metrics.consecutive_overrun_count == 1ul);
     TEST_ASSERT(control_context_current_time_ms() == 300ul);
 
-    scheduler_linux_test_set_cycle_duration(scheduler, 10ul);
     result = scheduler_linux_test_inject_period(scheduler, 1u);
     TEST_ASSERT(result.ok);
     result = scheduler_read_view(scheduler, &app_state_view);

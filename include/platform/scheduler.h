@@ -5,6 +5,8 @@
 #include <stdio.h>
 
 #include "application/coordinators/scheduler_runtime_port.h"
+#include "application/ports/inbound/command_port.h"
+#include "application/ports/outbound/scheduler_sync_port.h"
 #include "shared/result_types.h"
 
 /**
@@ -15,14 +17,24 @@
 typedef struct scheduler_t scheduler_t;
 
 /**
- * @brief 调度器使用的标准输入输出绑定。
+ * @brief 命令输入源端口：调度器通过此端口监听并分发命令行事件。
+ * @details 调用方负责在传入前完成 IO 使能（如设置非阻塞标志）。
+ *          调度器销毁时调用 restore 恢复 IO 状态。
  */
-typedef struct scheduler_stdio_t
+typedef struct command_source_port_t
 {
-    FILE *input;  /**< 命令输入流。 */
-    FILE *output; /**< 命令响应输出流。 */
-    FILE *error;  /**< 错误输出流。 */
-} scheduler_stdio_t;
+    int fd;                  /**< 注册到 epoll 的命令输入 fd；-1 表示无可用输入源。 */
+    /** @brief fd 可读时调用，读取数据并通过 command_port 分发命令。 */
+    operation_result_t (*on_readable)(void *context, const command_port_t *command_port,
+                                       bool *command_processed);
+    /** @brief 判断缓冲区是否还有待处理的完整命令行。 */
+    bool (*has_buffered_data)(void *context);
+    /** @brief 判断 EOF 已到达且缓冲区已耗尽。 */
+    bool (*is_eof_and_drained)(void *context);
+    /** @brief 恢复 IO 状态（如撤销非阻塞标志）。 */
+    void (*restore)(void *context);
+    void *context;           /**< 实现侧上下文指针。 */
+} command_source_port_t;
 
 /**
  * @brief 调度器当前运行态。
@@ -122,7 +134,7 @@ typedef struct scheduler_state_view_t
  */
 scheduler_t *scheduler_create(const scheduler_runtime_port_t *runtime_port,
                                                     const scheduler_config_t *scheduler_config,
-                                                    const scheduler_stdio_t *scheduler_stdio);
+                                                    const command_source_port_t *command_source_port);
 
 /**
  * @brief 销毁当前平台的调度器实例。
@@ -156,5 +168,21 @@ operation_result_t scheduler_request_stop(scheduler_t *scheduler);
  */
 operation_result_t scheduler_read_view(const scheduler_t *scheduler,
                                                   scheduler_state_view_t *state_view);
+
+/**
+ * @brief 构建指向指定调度器实例的同步执行出站端口。
+ *
+ * @param scheduler 调度器对象，不能为空。
+ * @return 填充完毕的同步执行端口；scheduler 为空时返回函数指针全为 `0` 的空端口。
+ */
+scheduler_sync_port_t scheduler_build_sync_port(scheduler_t *scheduler);
+
+/**
+ * @brief 设置调度器持有的命令处理入站端口。
+ *
+ * @param scheduler 调度器对象，不能为空。
+ * @param command_port 命令处理端口，不能为空。
+ */
+void scheduler_set_command_port(scheduler_t *scheduler, const command_port_t *command_port);
 
 #endif

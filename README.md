@@ -17,13 +17,13 @@
 如果第一次接触代码，建议按下面顺序阅读：
 
 1. `src/startup/main.c`
-2. `include/startup/app_bootstrap.h`
+2. `src/startup/app_bootstrap.h`
 3. `src/startup/app_bootstrap.c`
 4. `include/application/coordinators/control_context.h`
 5. `src/application/coordinators/control_context.c`
 6. `include/platform/scheduler.h`
 7. `src/platform/linux/scheduler_linux.c`
-8. `src/platform/linux/stdio_formal_command_adapter.c`
+8. `src/platform/linux/command_ingress_stdio_linux.c`
 9. `include/application/coordinators/control_tick.h`
 10. `src/application/coordinators/control_tick.c`
 11. `src/application/use_cases/process_formal_command.c`
@@ -83,7 +83,7 @@
 - 唤醒与退出流程
 - 调度状态和运行指标
 
-具体 stdin/stdout 命令来源适配由 `src/platform/linux/stdio_formal_command_adapter.c` 承担。调度器只感知“命令 fd 就绪”，不再直接处理命令缓冲、协议执行和响应输出。这层屏蔽了底层 `epoll`、`timerfd`、`eventfd` 等 Linux 细节，使上层只感知“被调度”而不直接依赖 OS 等待机制。
+具体 stdin/stdout 命令入站适配由 `src/platform/linux/command_ingress_stdio_linux.c` 承担。调度器只感知“命令 fd 就绪”，不再直接处理命令缓冲、协议执行和响应输出。这层屏蔽了底层 `epoll`、`timerfd`、`eventfd` 等 Linux 细节，使上层只感知“被调度”而不直接依赖 OS 等待机制。
 
 ### 5. 单拍运行内核
 
@@ -167,7 +167,7 @@
 
 命令主链路是：
 
-`stdin` -> `stdio_formal_command_adapter` -> `process_formal_command`
+`stdin` -> `command_ingress_stdio_linux` -> `process_formal_command`
 
 平台调度器只负责发现 stdin fd 就绪并触发适配器处理；适配器负责读取、缓冲、按行解析、调用正式命令用例并写回响应。
 
@@ -226,7 +226,7 @@
 - 应用引导层：`src/startup/app_bootstrap.c`
 - 运行时组合根：`src/application/coordinators/control_context.c`
 - 平台调度器：`src/platform/linux/scheduler_linux.c`
-- stdin 命令来源适配：`src/platform/linux/stdio_formal_command_adapter.c`
+- stdin 命令入站适配：`src/platform/linux/command_ingress_stdio_linux.c`
 - 单拍推进器：`src/application/coordinators/control_tick.c`
 - 正式命令入口：`src/application/use_cases/process_formal_command.c`
 - trigger 编排：`src/application/use_cases/process_wash_trigger.c`

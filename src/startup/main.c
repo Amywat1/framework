@@ -8,7 +8,7 @@
 #include "platform/drivers/simulated_gantry_driver.h"
 #include "platform/drivers/simulated_ro_water_driver.h"
 #include "platform/drivers/simulated_sensor_driver.h"
-#include "startup/app_bootstrap.h"
+#include "src/startup/app_bootstrap.h"
 
 #define CONTROL_PERIOD_MS 100ul
 #define BACKGROUND_ALARM_IO_PERIOD_MS 50ul
@@ -73,9 +73,9 @@ int main(void)
     app_config.command_output = stdout;
     app_config.command_error = stderr;
     app_config.config_root = "./configs";
-    app_config.background_alarm_monitor.enabled = true;
-    app_config.background_alarm_monitor.io_sample_period_ms = BACKGROUND_ALARM_IO_PERIOD_MS;
-    app_config.background_alarm_monitor.detect_period_ms = BACKGROUND_ALARM_DETECT_PERIOD_MS;
+    app_config.background_alarm_settings.enabled = true;
+    app_config.background_alarm_settings.io_sample_period_ms = BACKGROUND_ALARM_IO_PERIOD_MS;
+    app_config.background_alarm_settings.detect_period_ms = BACKGROUND_ALARM_DETECT_PERIOD_MS;
 
     result = app_create(&app_config);
     if (!result.ok)

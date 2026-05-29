@@ -503,46 +503,6 @@ static operation_result_t prepare_formal_command_request(const char *command_lin
     return operation_result_fail(ERROR_CODE_UNSUPPORTED);
 }
 
-/**
- * @brief 根据最终执行结果补全响应文本。
- * @param result 当前执行结果。
- * @param response_line 响应缓冲区。
- * @param response_line_size 缓冲区大小。
- * @return 原始执行结果。
- */
-static operation_result_t finalize_formal_command_response(operation_result_t result,
-                                                           char *response_line, size_t response_line_size)
-{
-    bool accepted;
-    const char *detail;
-    const char *result_code;
-
-    if (response_line == 0 || response_line_size == 0)
-    {
-        return operation_result_fail(ERROR_CODE_INVALID_ARGUMENT);
-    }
-
-    if (!result.ok)
-    {
-        result_code = error_code_to_string(result.error_code);
-        detail = control_context_last_reason_code()[0] != '\0'
-                     ? control_context_last_reason_code()
-                     : result_code;
-        process_formal_command_format_response(response_line, response_line_size, result_code, false, detail);
-        return result;
-    }
-
-    result_code = control_context_last_result_code()[0] != '\0'
-                      ? control_context_last_result_code()
-                      : "accepted";
-    detail = control_context_last_reason_code()[0] != '\0'
-                 ? control_context_last_reason_code()
-                 : "none";
-    accepted = process_formal_command_result_is_accepted(result_code);
-    process_formal_command_format_response(response_line, response_line_size, result_code, accepted, detail);
-    return result;
-}
-
 operation_result_t process_formal_command_execute(const char *command_line,
                                                   char *response_line, size_t response_line_size)
 {
@@ -567,9 +527,16 @@ operation_result_t process_formal_command_execute(const char *command_line,
     result = control_tick_submit_trigger(&formal_command_request.wash_trigger_event);
     if (!result.ok)
     {
+        const char *detail;
+
         remember_submit_rejection(formal_command_request.wash_trigger_event.trigger_type,
                                   "trigger_queue_full");
-        return finalize_formal_command_response(result, response_line, response_line_size);
+        detail = control_context_last_reason_code()[0] != '\0'
+                     ? control_context_last_reason_code()
+                     : error_code_to_string(result.error_code);
+        process_formal_command_format_response(response_line, response_line_size,
+                                               error_code_to_string(result.error_code), false, detail);
+        return result;
     }
     process_formal_command_format_response(response_line, response_line_size, "accepted", true, "queued");
     return result;

@@ -95,7 +95,6 @@ static inline operation_result_t test_bind_control_context_binding(test_runtime_
                                                                 const char *config_root)
 {
     scheduler_runtime_port_t scheduler_port;
-    scheduler_stdio_t scheduler_stdio;
     operation_result_t result;
 
     if (binding == 0 || driver_context == 0 || scheduler_config == 0 || config_root == 0)
@@ -126,9 +125,8 @@ static inline operation_result_t test_bind_control_context_binding(test_runtime_
         return result;
     }
 
-    memset(&scheduler_stdio, 0, sizeof(scheduler_stdio));
     scheduler_runtime_port_init_from_control_context(&scheduler_port);
-    binding->scheduler = scheduler_create(&scheduler_port, scheduler_config, &scheduler_stdio);
+    binding->scheduler = scheduler_create(&scheduler_port, scheduler_config, 0);
     if (binding->scheduler == 0)
     {
         (void)control_context_deinit();
@@ -544,12 +542,12 @@ static inline operation_result_t test_scheduler_read_bound_view(scheduler_state_
 }
 
 static inline scheduler_t *test_scheduler_create_unbound(const scheduler_config_t *scheduler_config,
-                                                         const scheduler_stdio_t *scheduler_stdio)
+                                                         const command_source_port_t *command_source_port)
 {
     scheduler_runtime_port_t scheduler_port;
 
     scheduler_runtime_port_init_from_control_context(&scheduler_port);
-    return scheduler_create(&scheduler_port, scheduler_config, scheduler_stdio);
+    return scheduler_create(&scheduler_port, scheduler_config, command_source_port);
 }
 
 static inline void test_init_scheduler_config(scheduler_config_t *scheduler_config, unsigned long control_period_ms)

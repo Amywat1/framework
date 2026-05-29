@@ -66,7 +66,6 @@ static int verify_second_acquire_is_rejected_until_release(void)
 static int verify_released_handle_is_rejected_by_runtime_paths(void)
 {
     scheduler_config_t scheduler_config;
-    scheduler_stdio_t scheduler_stdio;
     scheduler_state_view_t app_state_view;
     simulated_driver_context_t driver_context;
     wash_session_status_view_t wash_session_status_view;
@@ -110,10 +109,8 @@ static int verify_released_handle_is_rejected_by_runtime_paths(void)
     scheduler_config.bounded_drain_ticks = 4u;
     scheduler_config.max_triggers_per_tick = 1u;
     scheduler_config.overrun_warning_threshold_ms = 100ul;
-    memset(&scheduler_stdio, 0, sizeof(scheduler_stdio));
-
     /* 释放后创建调度器应失败（scheduler_runtime_port_init_from_control_context 会成功但调度器内部会失败） */
-    scheduler = test_scheduler_create_unbound(&scheduler_config, &scheduler_stdio);
+    scheduler = test_scheduler_create_unbound(&scheduler_config, 0);
     /* 注意：在单实例设计下，scheduler_runtime_port_init 始终成功，但 scheduler_create 仍应能创建
      * （调度器创建本身不依赖 control_context 状态）。此处仅验证 re-acquire 后可正常使用。*/
     if (scheduler != 0)
@@ -139,7 +136,6 @@ static int verify_released_handle_is_rejected_by_runtime_paths(void)
 static int verify_bound_scheduler_blocks_release_and_rebind(void)
 {
     scheduler_config_t scheduler_config;
-    scheduler_stdio_t scheduler_stdio;
     simulated_driver_context_t driver_context;
     scheduler_t *scheduler;
     scheduler_t *duplicate_scheduler;
@@ -154,10 +150,7 @@ static int verify_bound_scheduler_blocks_release_and_rebind(void)
     TEST_ASSERT(result.error_code == ERROR_CODE_INVALID_STATE);
 
     test_init_scheduler_config(&scheduler_config, 100ul);
-    memset(&scheduler_stdio, 0, sizeof(scheduler_stdio));
-    duplicate_scheduler = test_scheduler_create_unbound(
-        &scheduler_config,
-        &scheduler_stdio);
+    duplicate_scheduler = test_scheduler_create_unbound(&scheduler_config, 0);
     TEST_ASSERT(duplicate_scheduler == 0);
 
     test_release_system_context();

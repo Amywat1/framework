@@ -1,7 +1,35 @@
 {
   "permissions": {
     "allow": [
-      "Bash(wsl *)"
+      "Bash(wsl *)",
+      "Bash(git stash *)",
+      "Bash(git checkout *)",
+      "PowerShell(wsl -e bash -c \"cd '/mnt/c/Users/HUAWEI/Desktop/Code-M8/build' && gmake 2>&1 | tail -30\")",
+      "PowerShell(wsl -e bash -c \"cd '/mnt/c/Users/HUAWEI/Desktop/Code-M8/build' && gmake wash_controller 2>&1 | tail -10\")",
+      "PowerShell(wsl -e bash -c \"cd '/mnt/c/Users/HUAWEI/Desktop/Code-M8/build' && gmake wash_controller 2>&1 | tail -15\")",
+      "PowerShell(wsl -e bash -c \"cd '/mnt/c/Users/HUAWEI/Desktop/Code-M8/build' && gmake 2>&1 | grep -E 'error:|warning:|Built target|Error' | head -30\")",
+      "PowerShell(wsl -e bash -c \"cd '/mnt/c/Users/HUAWEI/Desktop/Code-M8/build' && gmake wash_controller 2>&1 | tail -6\")",
+      "Bash(git commit -m ' *)",
+      "Bash(mv \"include/application/coordinators/device_runtime.h\" \"include/application/coordinators/control_context.h\")",
+      "Bash(mv \"src/application/coordinators/device_runtime.c\" \"src/application/coordinators/control_context.c\")",
+      "Bash(mv \"src/application/coordinators/device_runtime_private.h\" \"src/application/coordinators/control_context_private.h\")",
+      "Bash(mv \"src/application/coordinators/device_runtime_layout.h\" \"src/application/coordinators/control_context_layout.h\")",
+      "Bash(python3)",
+      "Bash(python3 -c ' *)",
+      "Bash(cmake --build build --target wash_controller)",
+      "Read(//usr/local/**)",
+      "Read(//usr/**)",
+      "PowerShell(cmake *)",
+      "Bash(make wash_controller)",
+      "Read(//mingw64/**)",
+      "PowerShell(Test-Path *)",
+      "PowerShell(wsl --list --quiet 2>&1 | Select-Object -First 5)",
+      "PowerShell(wsl -d Ubuntu-24.04 -- bash -c \"cd /mnt/c/Users/HUAWEI/Desktop/Code-M8/build && gmake wash_controller 2>&1 | tail -30\")",
+      "PowerShell(git add *)",
+      "PowerShell(Copy-Item *)",
+      "PowerShell(Get-ChildItem *)",
+      "PowerShell(wsl -- cmake --build /mnt/c/Users/HUAWEI/Desktop/Code-M8/build --target wash_controller 2>&1 | Select-Object -Last 20)",
+      "PowerShell(wsl -- bash -c \"grep -r 'stdio_command_adapter[^_linux]' /mnt/c/Users/HUAWEI/Desktop/Code-M8/include/ /mnt/c/Users/HUAWEI/Desktop/Code-M8/src/ 2>/dev/null | grep -v '.claude/' | grep -v '_linux'\" 2>&1)"
     ]
   }
 }

@@ -12,19 +12,6 @@
  */
 
 /**
- * @brief Linux 调度器测试故障注入点。
- */
-typedef enum
-{
-    SCHEDULER_LINUX_TEST_FAIL_NONE = 0,
-    SCHEDULER_LINUX_TEST_FAIL_TIMER_READ,
-    SCHEDULER_LINUX_TEST_FAIL_WAKEUP_READ,
-    SCHEDULER_LINUX_TEST_FAIL_WAKEUP_WRITE,
-    SCHEDULER_LINUX_TEST_FAIL_COMMAND_READ,
-    SCHEDULER_LINUX_TEST_FAIL_CONTROL_TICK_RUN
-} scheduler_linux_test_failpoint_t;
-
-/**
  * @brief 在测试中注入一次周期触发。
  *
  * @param scheduler 调度器对象。
@@ -82,25 +69,5 @@ operation_result_t scheduler_linux_test_step(scheduler_t *scheduler);
  * @return 成功时返回 `operation_result_ok()`，失败时返回显式错误结果。
  */
 operation_result_t scheduler_linux_test_poll_once(scheduler_t *scheduler);
-
-/**
- * @brief 设置 Linux 调度器测试故障注入点。
- *
- * @param scheduler 调度器对象。
- * @param scheduler_linux_test_failpoint 目标故障点。
- * @param enabled 是否启用。
- */
-void scheduler_linux_test_set_failpoint(
-    scheduler_t *scheduler,
-    scheduler_linux_test_failpoint_t scheduler_linux_test_failpoint, bool enabled);
-
-/**
- * @brief 为测试覆盖强制设置本轮周期耗时。
- *
- * @param scheduler 调度器对象。
- * @param cycle_duration_ms 强制写入的周期耗时，单位毫秒。
- */
-void scheduler_linux_test_set_cycle_duration(scheduler_t *scheduler,
-                                                        unsigned long cycle_duration_ms);
 
 #endif

@@ -6,7 +6,6 @@
 #include <stdio.h>
 
 #include "platform/linux/scheduler_linux.h"
-#include "src/platform/linux/stdio_formal_command_adapter.h"
 
 typedef struct scheduler_event_source_descriptor_t
 {
@@ -28,7 +27,8 @@ struct scheduler_t
     scheduler_runtime_port_t runtime_port;
     scheduler_config_t config;
     scheduler_runtime_state_t runtime_state;
-    stdio_formal_command_adapter_t command_adapter;
+    command_source_port_t command_source_port;
+    command_port_t command_port;
     int epoll_fd;
     int timer_fd;
     int wakeup_fd;
@@ -43,17 +43,11 @@ struct scheduler_t
     unsigned long monotonic_epoch_ms;
     unsigned long last_cycle_start_ms;
     unsigned long last_cycle_duration_ms;
-    unsigned long forced_cycle_duration_ms;
     scheduler_metrics_t metrics;
     scheduler_event_source_descriptor_t command_source;
     scheduler_event_source_descriptor_t notification_source;
     scheduler_event_source_descriptor_t exit_source;
     scheduler_notification_snapshot_t notification_snapshot;
-    bool failpoint_timer_read;
-    bool failpoint_wakeup_read;
-    bool failpoint_wakeup_write;
-    bool failpoint_command_read;
-    bool failpoint_control_tick_run;
 };
 
 /**
@@ -72,11 +66,10 @@ void scheduler_record_error(scheduler_t *scheduler, const char *reason_code,
 void scheduler_update_pending_metric(scheduler_t *scheduler);
 
 /**
- * @brief 记录命令事件指标和观测日志。
+ * @brief 记录命令事件指标和观测时间。
  * @param scheduler 调度器实例。
- * @param command_line 命令行文本。
  */
-void scheduler_note_command_event(scheduler_t *scheduler, const char *command_line);
+void scheduler_note_command_event(scheduler_t *scheduler);
 
 /**
  * @brief 在限定次数内执行主循环 tick，并更新周期指标。

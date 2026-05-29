@@ -18,6 +18,7 @@ set(WASH_CORE_SOURCES
     domain/model/wash_trigger_event.c
     domain/services/fault_policy_service.c
     application/services/alarm_evaluator.c
+    application/services/command_dispatch.c
     domain/services/program_snapshot_service.c
     domain/services/recovery_state_machine.c
     domain/services/segment_control_service.c
@@ -26,7 +27,7 @@ set(WASH_CORE_SOURCES
     domain/services/wash_execution_service.c
     domain/services/wash_session_state_machine.c
     startup/app_bootstrap.c
-    application/coordinators/background_alarm_monitor.c
+    application/coordinators/alarm_monitor.c
     application/coordinators/control_tick.c
     application/coordinators/control_context.c
     application/coordinators/runtime_event_recorder.c
@@ -38,7 +39,7 @@ set(WASH_CORE_SOURCES
     adapters/outbound/file_program_repository.c
     adapters/config/json_program_parser.c
     platform/linux/scheduler_linux.c
-    platform/linux/stdio_formal_command_adapter.c
+    platform/linux/command_ingress_stdio_linux.c
     platform/linux/worker_thread_linux.c
     platform/drivers/simulated_driver_context.c
     platform/drivers/simulated_gantry_driver.c

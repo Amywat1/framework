@@ -92,8 +92,8 @@ static void scheduler_refresh_source_states(scheduler_t *scheduler)
     {
         scheduler->command_source.source_state =
             scheduler->config.command_event_source_enabled
-                ? (stdio_formal_command_adapter_fd(&scheduler->command_adapter) >= 0 ? SCHEDULER_EVENT_SOURCE_ENABLED
-                                                                                     : SCHEDULER_EVENT_SOURCE_DEGRADED)
+                ? (scheduler->command_source_port.fd >= 0 ? SCHEDULER_EVENT_SOURCE_ENABLED
+                                                          : SCHEDULER_EVENT_SOURCE_DEGRADED)
                 : SCHEDULER_EVENT_SOURCE_DISABLED;
     }
     scheduler->notification_source.source_state =
@@ -155,15 +155,14 @@ static void scheduler_note_source_event(scheduler_event_source_descriptor_t *sou
 }
 
 /**
- * @brief 记录命令事件指标和观测日志。
+ * @brief 记录命令事件指标和观测时间。
  * @param scheduler 调度器实例。
- * @param command_line 命令行文本。
  */
-void scheduler_note_command_event(scheduler_t *scheduler, const char *command_line)
+void scheduler_note_command_event(scheduler_t *scheduler)
 {
     unsigned long seen_time_ms;
 
-    if (scheduler == 0 || command_line == 0)
+    if (scheduler == 0)
     {
         return;
     }
@@ -217,11 +216,6 @@ operation_result_t scheduler_execute_bounded_ticks(scheduler_t *scheduler, bool 
     result = operation_result_ok();
     while (remaining_runs > 0u)
     {
-        if (scheduler->failpoint_control_tick_run)
-        {
-            scheduler_record_error(scheduler, "control_tick_run_failed", true);
-            return operation_result_fail(ERROR_CODE_IO_FAILED);
-        }
         result = scheduler->runtime_port.run_control_tick(scheduler->runtime_port.context);
         if (!result.ok)
         {
@@ -236,10 +230,7 @@ operation_result_t scheduler_execute_bounded_ticks(scheduler_t *scheduler, bool 
         }
     }
 
-    scheduler->last_cycle_duration_ms = scheduler->forced_cycle_duration_ms > 0ul
-                                            ? scheduler->forced_cycle_duration_ms
-                                            : scheduler_elapsed_ms(scheduler) - cycle_start_ms;
-    scheduler->forced_cycle_duration_ms = 0ul;
+    scheduler->last_cycle_duration_ms = scheduler_elapsed_ms(scheduler) - cycle_start_ms;
     if (count_cycle)
     {
         scheduler->metrics.cycle_count += cycle_count_increment;
@@ -347,11 +338,6 @@ operation_result_t scheduler_request_exit_internal(scheduler_t *scheduler, bool 
     {
         return operation_result_ok();
     }
-    if (scheduler->failpoint_wakeup_write)
-    {
-        scheduler_record_error(scheduler, "wakeup_write_failed", true);
-        return operation_result_fail(ERROR_CODE_IO_FAILED);
-    }
     if (scheduler->wakeup_fd < 0)
     {
         return operation_result_ok();
@@ -444,11 +430,25 @@ static operation_result_t scheduler_dispatch_ready_events(scheduler_t *scheduler
         }
         if (scheduler->pending_command_event)
         {
-            result = stdio_formal_command_adapter_handle_fd(&scheduler->command_adapter, scheduler,
-                                                            scheduler->failpoint_command_read);
+            bool command_processed = false;
+
+            result = scheduler->command_source_port.on_readable(scheduler->command_source_port.context,
+                                                                &scheduler->command_port, &command_processed);
             if (!result.ok)
             {
+                scheduler_record_error(scheduler, "command_handling_failed", true);
                 return result;
+            }
+            if (command_processed)
+            {
+                scheduler_note_command_event(scheduler);
+            }
+            scheduler->pending_command_event =
+                scheduler->command_source_port.has_buffered_data(scheduler->command_source_port.context);
+            if (scheduler->command_source_port.is_eof_and_drained(scheduler->command_source_port.context))
+            {
+                scheduler->command_source.source_state = SCHEDULER_EVENT_SOURCE_CLOSED;
+                return scheduler_request_exit_internal(scheduler, false, false);
             }
             continue;
         }
@@ -507,11 +507,6 @@ static operation_result_t scheduler_collect_ready_events(scheduler_t *scheduler)
         {
             uint64_t expirations;
 
-            if (scheduler->failpoint_timer_read)
-            {
-                scheduler_record_error(scheduler, "timer_read_failed", true);
-                return operation_result_fail(ERROR_CODE_IO_FAILED);
-            }
             if (read(scheduler->timer_fd, &expirations, sizeof(expirations)) < 0)
             {
                 scheduler_record_error(scheduler, "timer_read_failed", true);
@@ -524,11 +519,6 @@ static operation_result_t scheduler_collect_ready_events(scheduler_t *scheduler)
         {
             uint64_t wakeup_count;
 
-            if (scheduler->failpoint_wakeup_read)
-            {
-                scheduler_record_error(scheduler, "wakeup_read_failed", true);
-                return operation_result_fail(ERROR_CODE_IO_FAILED);
-            }
             if (read(scheduler->wakeup_fd, &wakeup_count, sizeof(wakeup_count)) < 0 && errno != EAGAIN)
             {
                 scheduler_record_error(scheduler, "wakeup_read_failed", true);
@@ -536,8 +526,7 @@ static operation_result_t scheduler_collect_ready_events(scheduler_t *scheduler)
             }
             continue;
         }
-        if (stdio_formal_command_adapter_fd(&scheduler->command_adapter) >= 0 &&
-            events[event_index].data.fd == stdio_formal_command_adapter_fd(&scheduler->command_adapter))
+        if (scheduler->command_source_port.fd >= 0 && events[event_index].data.fd == scheduler->command_source_port.fd)
         {
             scheduler->pending_command_event = true;
         }
@@ -598,17 +587,16 @@ static void scheduler_linux_destroy_impl(scheduler_t *scheduler);
  * @brief 创建 Linux 调度器内部实例。
  * @param runtime_port 调度器运行时端口，不能为空，各函数指针必须有效。
  * @param scheduler_config 调度器配置。
- * @param scheduler_stdio 可选标准输入输出绑定。
+ * @param command_source_port 可选命令输入源端口；为空时命令事件源处于降级态。
  * @return 创建成功返回调度器对象；失败时返回 `0`。
  */
 static scheduler_t *scheduler_linux_create_impl(const scheduler_runtime_port_t *runtime_port,
                                                 const scheduler_config_t *scheduler_config,
-                                                const scheduler_stdio_t *scheduler_stdio)
+                                                const command_source_port_t *command_source_port)
 {
     scheduler_t *scheduler;
     struct itimerspec timer_spec;
     operation_result_t result;
-    int command_fd;
 
     if (runtime_port == 0 || runtime_port->current_time_ms == 0 || runtime_port->run_control_tick == 0)
     {
@@ -627,13 +615,15 @@ static scheduler_t *scheduler_linux_create_impl(const scheduler_runtime_port_t *
     }
 
     scheduler->runtime_port = *runtime_port;
-
+    if (command_source_port != 0)
+    {
+        scheduler->command_source_port = *command_source_port;
+    }
     scheduler->config = *scheduler_config;
     scheduler->runtime_state = SCHEDULER_RUNTIME_STATE_INITIALIZED;
     scheduler->epoll_fd = -1;
     scheduler->timer_fd = -1;
     scheduler->wakeup_fd = -1;
-    stdio_formal_command_adapter_init(&scheduler->command_adapter, scheduler_stdio);
     scheduler->monotonic_epoch_ms = monotonic_now_ms();
     scheduler->command_source.source_kind = SCHEDULER_EVENT_SOURCE_COMMAND;
     scheduler->notification_source.source_kind = SCHEDULER_EVENT_SOURCE_NOTIFICATION;
@@ -663,18 +653,9 @@ static scheduler_t *scheduler_linux_create_impl(const scheduler_runtime_port_t *
         return 0;
     }
 
-    if (scheduler_config->command_event_source_enabled)
+    if (scheduler_config->command_event_source_enabled && scheduler->command_source_port.fd >= 0)
     {
-        command_fd = stdio_formal_command_adapter_enable(&scheduler->command_adapter);
-        if (command_fd >= 0)
-        {
-            if (!scheduler_register_epoll_fd(scheduler, command_fd).ok)
-            {
-                scheduler_linux_destroy_impl(scheduler);
-                return 0;
-            }
-        }
-        else if (stdio_formal_command_adapter_fd(&scheduler->command_adapter) >= 0)
+        if (!scheduler_register_epoll_fd(scheduler, scheduler->command_source_port.fd).ok)
         {
             scheduler_linux_destroy_impl(scheduler);
             return 0;
@@ -697,7 +678,10 @@ static void scheduler_linux_destroy_impl(scheduler_t *scheduler)
         return;
     }
 
-    stdio_formal_command_adapter_restore(&scheduler->command_adapter);
+    if (scheduler->command_source_port.restore != 0)
+    {
+        scheduler->command_source_port.restore(scheduler->command_source_port.context);
+    }
     close_fd_if_needed(&scheduler->timer_fd);
     close_fd_if_needed(&scheduler->wakeup_fd);
     close_fd_if_needed(&scheduler->epoll_fd);
@@ -705,9 +689,9 @@ static void scheduler_linux_destroy_impl(scheduler_t *scheduler)
 }
 
 scheduler_t *scheduler_create(const scheduler_runtime_port_t *runtime_port, const scheduler_config_t *scheduler_config,
-                              const scheduler_stdio_t *scheduler_stdio)
+                              const command_source_port_t *command_source_port)
 {
-    return scheduler_linux_create_impl(runtime_port, scheduler_config, scheduler_stdio);
+    return scheduler_linux_create_impl(runtime_port, scheduler_config, command_source_port);
 }
 
 void scheduler_destroy(scheduler_t *scheduler) { scheduler_linux_destroy_impl(scheduler); }
@@ -782,13 +766,21 @@ operation_result_t scheduler_linux_test_inject_period(scheduler_t *scheduler, un
 operation_result_t scheduler_linux_test_inject_command(scheduler_t *scheduler, const char *command_line,
                                                        char *response_line, size_t response_line_size)
 {
+    char local_response[512];
+
     if (scheduler == 0 || command_line == 0)
     {
         return operation_result_fail(ERROR_CODE_INVALID_ARGUMENT);
     }
+    if (scheduler->command_port.handle == 0)
+    {
+        return operation_result_ok();
+    }
     scheduler_ensure_running_state(scheduler);
-    return stdio_formal_command_adapter_handle_command_event(&scheduler->command_adapter, scheduler, command_line,
-                                                             response_line, response_line_size, false);
+    scheduler_note_command_event(scheduler);
+    return scheduler->command_port.handle(scheduler->command_port.context, command_line,
+                                          response_line != 0 ? response_line : local_response,
+                                          response_line != 0 ? response_line_size : sizeof(local_response));
 }
 
 operation_result_t scheduler_linux_test_inject_notification(scheduler_t *scheduler, unsigned int notification_count)
@@ -846,42 +838,42 @@ operation_result_t scheduler_linux_test_poll_once(scheduler_t *scheduler)
     return scheduler_dispatch_ready_events(scheduler);
 }
 
-void scheduler_linux_test_set_failpoint(scheduler_t *scheduler,
-                                        scheduler_linux_test_failpoint_t scheduler_linux_test_failpoint, bool enabled)
+static unsigned int scheduler_sync_pending_count(void *ctx)
 {
-    if (scheduler == 0)
-    {
-        return;
-    }
-
-    switch (scheduler_linux_test_failpoint)
-    {
-    case SCHEDULER_LINUX_TEST_FAIL_TIMER_READ:
-        scheduler->failpoint_timer_read = enabled;
-        break;
-    case SCHEDULER_LINUX_TEST_FAIL_WAKEUP_READ:
-        scheduler->failpoint_wakeup_read = enabled;
-        break;
-    case SCHEDULER_LINUX_TEST_FAIL_WAKEUP_WRITE:
-        scheduler->failpoint_wakeup_write = enabled;
-        break;
-    case SCHEDULER_LINUX_TEST_FAIL_COMMAND_READ:
-        scheduler->failpoint_command_read = enabled;
-        break;
-    case SCHEDULER_LINUX_TEST_FAIL_CONTROL_TICK_RUN:
-        scheduler->failpoint_control_tick_run = enabled;
-        break;
-    case SCHEDULER_LINUX_TEST_FAIL_NONE:
-    default:
-        break;
-    }
+    scheduler_t *s = (scheduler_t *)ctx;
+    return s->runtime_port.pending_trigger_count(s->runtime_port.context);
 }
 
-void scheduler_linux_test_set_cycle_duration(scheduler_t *scheduler, unsigned long cycle_duration_ms)
+static bool scheduler_sync_is_running(void *ctx)
 {
-    if (scheduler == 0)
+    return ((scheduler_t *)ctx)->runtime_state == SCHEDULER_RUNTIME_STATE_RUNNING;
+}
+
+static operation_result_t scheduler_sync_execute_ticks(void *ctx)
+{
+    return scheduler_execute_bounded_ticks((scheduler_t *)ctx, false, 0ul, false, 0ul);
+}
+
+scheduler_sync_port_t scheduler_build_sync_port(scheduler_t *scheduler)
+{
+    scheduler_sync_port_t port;
+
+    memset(&port, 0, sizeof(port));
+    if (scheduler != 0)
+    {
+        port.pending_trigger_count = scheduler_sync_pending_count;
+        port.is_running = scheduler_sync_is_running;
+        port.execute_bounded_ticks = scheduler_sync_execute_ticks;
+        port.context = scheduler;
+    }
+    return port;
+}
+
+void scheduler_set_command_port(scheduler_t *scheduler, const command_port_t *command_port)
+{
+    if (scheduler == 0 || command_port == 0)
     {
         return;
     }
-    scheduler->forced_cycle_duration_ms = cycle_duration_ms;
+    scheduler->command_port = *command_port;
 }
