@@ -462,13 +462,6 @@ static operation_result_t handle_timeout(void)
 
 operation_result_t process_wash_trigger_execute(const wash_trigger_event_t *wash_trigger_event)
 {
-    operation_result_t result;
-
-    result = control_context_require_active();
-    if (!result.ok)
-    {
-        return result;
-    }
     if (wash_trigger_event == 0)
     {
         return operation_result_fail(ERROR_CODE_INVALID_ARGUMENT);
@@ -501,12 +494,6 @@ operation_result_t process_wash_runtime_tick(void)
     operation_result_t result;
     wash_execution_service_args_t wash_execution_service_args;
     wash_execution_fact_t wash_execution_fact;
-
-    result = control_context_require_active();
-    if (!result.ok)
-    {
-        return result;
-    }
 
     wash_session = control_context_private_wash_session();
     if (wash_session == 0)

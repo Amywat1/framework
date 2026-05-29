@@ -15,12 +15,12 @@ typedef struct status_side_effect_snapshot_t {
 static void capture_status_snapshot(status_side_effect_snapshot_t *snapshot)
 {
     memset(snapshot, 0, sizeof(*snapshot));
-    snapshot->global_fault_present = control_context_private_runtime_mutable()->global_fault_present;
-    snapshot->pending_trigger_count = control_context_private_runtime_mutable()->pending_trigger_count;
-    snapshot->session_state = control_context_private_runtime_mutable()->wash_session.session_state;
-    snapshot->final_session_result = control_context_private_runtime_mutable()->wash_session.final_session_result;
-    strncpy(snapshot->last_result_code, control_context_private_runtime_mutable()->last_result_code, sizeof(snapshot->last_result_code) - 1);
-    strncpy(snapshot->last_reason_code, control_context_private_runtime_mutable()->last_reason_code, sizeof(snapshot->last_reason_code) - 1);
+    snapshot->global_fault_present = control_context_private_global_fault_present();
+    snapshot->pending_trigger_count = control_context_pending_trigger_count();
+    snapshot->session_state = control_context_private_wash_session()->session_state;
+    snapshot->final_session_result = control_context_private_wash_session()->final_session_result;
+    strncpy(snapshot->last_result_code, control_context_last_result_code(), sizeof(snapshot->last_result_code) - 1);
+    strncpy(snapshot->last_reason_code, control_context_last_reason_code(), sizeof(snapshot->last_reason_code) - 1);
 }
 
 static int assert_status_snapshot_equal(const status_side_effect_snapshot_t *left,

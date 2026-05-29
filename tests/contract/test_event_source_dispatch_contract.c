@@ -24,7 +24,7 @@ int main(void)
         sizeof(response_line)) == 0);
     TEST_ASSERT(strstr(response_line, "accepted=true") != 0);
     TEST_ASSERT(test_scheduler_notification(scheduler, 2u) == 0);
-    TEST_ASSERT(control_context_private_runtime_mutable()->wash_session.session_state != SESSION_STATE_RUNNING);
+    TEST_ASSERT(control_context_private_wash_session()->session_state != SESSION_STATE_RUNNING);
     result = scheduler_read_view(scheduler, &app_state_view);
     TEST_ASSERT(result.ok);
     TEST_ASSERT(app_state_view.metrics.notification_event_count == 2ul);
@@ -35,7 +35,7 @@ int main(void)
         response_line,
         sizeof(response_line)) == 0);
     TEST_ASSERT(strstr(response_line, "accepted=true") != 0);
-    TEST_ASSERT(control_context_private_runtime_mutable()->wash_session.session_state == SESSION_STATE_RUNNING);
+    TEST_ASSERT(control_context_private_wash_session()->session_state == SESSION_STATE_RUNNING);
 
     test_release_system_context();
     test_setup_system_context(&driver_context);

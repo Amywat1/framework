@@ -6,14 +6,16 @@
 static void mark_session_ready_for_completion(void)
 {
     int final_segment_index;
-    control_context_state_t *runtime;
+    wash_execution_t *wash_execution;
+    const program_snapshot_t *program_snapshot;
 
-    runtime = control_context_private_runtime_mutable();
-    final_segment_index = runtime->program_snapshot.frozen_program.segment_count - 1;
-    runtime->wash_execution.segment_index = final_segment_index;
-    runtime->wash_execution.execution_state = EXECUTION_STATE_COMPLETED;
-    runtime->wash_execution.lifecycle_state = SEGMENT_LIFECYCLE_COMPLETED;
-    runtime->wash_execution.execution_result = EXECUTION_RESULT_SEGMENT_COMPLETED;
+    program_snapshot = control_context_private_program_snapshot();
+    wash_execution = control_context_private_wash_execution_mutable();
+    final_segment_index = program_snapshot->frozen_program.segment_count - 1;
+    wash_execution->segment_index = final_segment_index;
+    wash_execution->execution_state = EXECUTION_STATE_COMPLETED;
+    wash_execution->lifecycle_state = SEGMENT_LIFECYCLE_COMPLETED;
+    wash_execution->execution_result = EXECUTION_RESULT_SEGMENT_COMPLETED;
 }
 
 static int verify_session_end_has_single_final_sink(void)
@@ -34,17 +36,17 @@ static int verify_session_end_has_single_final_sink(void)
     result = query_wash_session_status_execute( &wash_session_status_view);
     TEST_ASSERT(result.ok);
 
-    TEST_ASSERT(control_context_private_runtime_mutable()->wash_session.final_session_result == RESULT_CODE_MANUAL_ABORT);
-    TEST_ASSERT(control_context_private_runtime_mutable()->wash_session.session_state == SESSION_STATE_ABORTED);
-    TEST_ASSERT(control_context_private_runtime_mutable()->wash_execution.execution_result == EXECUTION_RESULT_STOPPED);
-    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->last_result_code, "aborted") == 0);
-    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->last_reason_code, "integration-stop") == 0);
-    TEST_ASSERT(control_context_private_runtime_mutable()->device_state == DEVICE_STATE_STOPPED);
+    TEST_ASSERT(control_context_private_wash_session()->final_session_result == RESULT_CODE_MANUAL_ABORT);
+    TEST_ASSERT(control_context_private_wash_session()->session_state == SESSION_STATE_ABORTED);
+    TEST_ASSERT(control_context_private_wash_execution()->execution_result == EXECUTION_RESULT_STOPPED);
+    TEST_ASSERT(strcmp(control_context_last_result_code(), "aborted") == 0);
+    TEST_ASSERT(strcmp(control_context_last_reason_code(), "integration-stop") == 0);
+    TEST_ASSERT(control_context_private_device_state() == DEVICE_STATE_STOPPED);
     TEST_ASSERT(strcmp(wash_session_status_view.reason_code, "integration-stop") == 0);
 
     result = query_wash_session_status_execute( &wash_session_status_view);
     TEST_ASSERT(result.ok);
-    TEST_ASSERT(control_context_private_runtime_mutable()->wash_session.final_session_result == RESULT_CODE_MANUAL_ABORT);
+    TEST_ASSERT(control_context_private_wash_session()->final_session_result == RESULT_CODE_MANUAL_ABORT);
     test_release_system_context();
     return 0;
 }
@@ -69,11 +71,11 @@ static int verify_completed_session_uses_success_final_result(void)
     result = query_wash_session_status_execute( &wash_session_status_view);
     TEST_ASSERT(result.ok);
 
-    TEST_ASSERT(control_context_private_runtime_mutable()->wash_session.session_state == SESSION_STATE_COMPLETED);
-    TEST_ASSERT(control_context_private_runtime_mutable()->wash_session.final_session_result == RESULT_CODE_SUCCESS);
-    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->last_result_code, "completed") == 0);
-    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->last_reason_code, "program_finished") == 0);
-    TEST_ASSERT(control_context_private_runtime_mutable()->device_state == DEVICE_STATE_IDLE);
+    TEST_ASSERT(control_context_private_wash_session()->session_state == SESSION_STATE_COMPLETED);
+    TEST_ASSERT(control_context_private_wash_session()->final_session_result == RESULT_CODE_SUCCESS);
+    TEST_ASSERT(strcmp(control_context_last_result_code(), "completed") == 0);
+    TEST_ASSERT(strcmp(control_context_last_reason_code(), "program_finished") == 0);
+    TEST_ASSERT(control_context_private_device_state() == DEVICE_STATE_IDLE);
     TEST_ASSERT(!wash_session_status_view.has_active_session);
     TEST_ASSERT(strcmp(wash_session_status_view.reason_code, "program_finished") == 0);
 

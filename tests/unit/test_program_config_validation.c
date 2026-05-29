@@ -242,10 +242,14 @@ static int test_repository_save_is_rejected_without_serializer(void)
     test_setup_system_context(&driver_context);
     result = json_program_parser_parse("tests/fixtures/wash_step_control/program_v1_valid.json", &wash_program);
     TEST_ASSERT(result.ok);
-    TEST_ASSERT(control_context_private_runtime_mutable()->program_repository_port.save_program != 0);
-    TEST_ASSERT(control_context_private_runtime_mutable()->program_repository_port.save_program(
-        control_context_private_runtime_mutable()->program_repository_port.context,
-        &wash_program) != 0);
+    {
+        const program_repository_port_t *program_repository_port;
+
+        program_repository_port = control_context_program_repository_port();
+        TEST_ASSERT(program_repository_port != 0);
+        TEST_ASSERT(program_repository_port->save_program != 0);
+        TEST_ASSERT(program_repository_port->save_program(program_repository_port->context, &wash_program) != 0);
+    }
     test_release_system_context();
     return 0;
 }

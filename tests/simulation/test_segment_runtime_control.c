@@ -29,7 +29,7 @@ int main(void)
     result = test_tick( 100);
     TEST_ASSERT(result.ok);
     TEST_ASSERT(driver_context.chemical_stop_command_count >= 1);
-    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->wash_execution.segment_id, "side_segment") == 0);
+    TEST_ASSERT(strcmp(control_context_private_wash_execution()->segment_id, "side_segment") == 0);
 
     driver_context.runtime_snapshot.position_snapshot.gantry_absolute_mm = 2000;
     result = test_tick( 100);

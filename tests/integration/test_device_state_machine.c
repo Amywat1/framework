@@ -66,11 +66,11 @@ static int verify_power_on_defaults_to_stopped_and_blocks_start(void)
         sizeof(response_line));
     TEST_ASSERT(!result.ok);
     TEST_ASSERT(strstr(response_line, "device_state_stopped") != 0);
-    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->last_result_code, "rejected") == 0);
-    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->last_reason_code, "device_state_stopped") == 0);
-    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->last_transition_record.result_code, "rejected") == 0);
-    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->last_transition_record.reason_code, "device_state_stopped") == 0);
-    TEST_ASSERT(control_context_private_runtime_mutable()->device_state == DEVICE_STATE_STOPPED);
+    TEST_ASSERT(strcmp(control_context_last_result_code(), "rejected") == 0);
+    TEST_ASSERT(strcmp(control_context_last_reason_code(), "device_state_stopped") == 0);
+    TEST_ASSERT(strcmp(control_context_private_last_transition_record()->result_code, "rejected") == 0);
+    TEST_ASSERT(strcmp(control_context_private_last_transition_record()->reason_code, "device_state_stopped") == 0);
+    TEST_ASSERT(control_context_private_device_state() == DEVICE_STATE_STOPPED);
 
     test_release_system_context();
     return 0;
@@ -85,7 +85,7 @@ static int verify_homing_rejected_from_idle(void)
     test_setup_system_context( &driver_context);
     result = test_homing_system_and_flush();
     TEST_ASSERT(result.ok);
-    TEST_ASSERT(control_context_private_runtime_mutable()->device_state == DEVICE_STATE_IDLE);
+    TEST_ASSERT(control_context_private_device_state() == DEVICE_STATE_IDLE);
 
     result = test_process_command_and_flush(
         "homing",
@@ -93,12 +93,12 @@ static int verify_homing_rejected_from_idle(void)
         sizeof(response_line));
     TEST_ASSERT(!result.ok);
     TEST_ASSERT(strstr(response_line, "detail=homing_requires_stopped") != 0);
-    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->last_result_code, "rejected") == 0);
-    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->last_reason_code, "homing_requires_stopped") == 0);
-    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->last_transition_record.result_code, "rejected") == 0);
-    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->last_transition_record.reason_code, "homing_requires_stopped") == 0);
-    TEST_ASSERT(control_context_private_runtime_mutable()->last_transition_record.trigger_type == TRIGGER_TYPE_HOMING);
-    TEST_ASSERT(control_context_private_runtime_mutable()->device_state == DEVICE_STATE_IDLE);
+    TEST_ASSERT(strcmp(control_context_last_result_code(), "rejected") == 0);
+    TEST_ASSERT(strcmp(control_context_last_reason_code(), "homing_requires_stopped") == 0);
+    TEST_ASSERT(strcmp(control_context_private_last_transition_record()->result_code, "rejected") == 0);
+    TEST_ASSERT(strcmp(control_context_private_last_transition_record()->reason_code, "homing_requires_stopped") == 0);
+    TEST_ASSERT(control_context_private_last_transition_record()->trigger_type == TRIGGER_TYPE_HOMING);
+    TEST_ASSERT(control_context_private_device_state() == DEVICE_STATE_IDLE);
 
     test_release_system_context();
     return 0;
@@ -118,11 +118,11 @@ static int verify_stop_rejected_from_stopped_and_idle(void)
         sizeof(response_line));
     TEST_ASSERT(!result.ok);
     TEST_ASSERT(strstr(response_line, "detail=stop_requires_running") != 0);
-    TEST_ASSERT(control_context_private_runtime_mutable()->device_state == DEVICE_STATE_STOPPED);
+    TEST_ASSERT(control_context_private_device_state() == DEVICE_STATE_STOPPED);
 
     result = test_homing_system_and_flush();
     TEST_ASSERT(result.ok);
-    TEST_ASSERT(control_context_private_runtime_mutable()->device_state == DEVICE_STATE_IDLE);
+    TEST_ASSERT(control_context_private_device_state() == DEVICE_STATE_IDLE);
 
     result = test_process_command_and_flush(
         "stop",
@@ -130,7 +130,7 @@ static int verify_stop_rejected_from_stopped_and_idle(void)
         sizeof(response_line));
     TEST_ASSERT(!result.ok);
     TEST_ASSERT(strstr(response_line, "detail=stop_requires_running") != 0);
-    TEST_ASSERT(control_context_private_runtime_mutable()->device_state == DEVICE_STATE_IDLE);
+    TEST_ASSERT(control_context_private_device_state() == DEVICE_STATE_IDLE);
 
     test_release_system_context();
     return 0;
@@ -150,11 +150,11 @@ static int verify_fault_clear_rejected_from_stopped_and_idle(void)
         sizeof(response_line));
     TEST_ASSERT(!result.ok);
     TEST_ASSERT(strstr(response_line, "detail=fault_clear_requires_exception") != 0);
-    TEST_ASSERT(control_context_private_runtime_mutable()->device_state == DEVICE_STATE_STOPPED);
+    TEST_ASSERT(control_context_private_device_state() == DEVICE_STATE_STOPPED);
 
     result = test_homing_system_and_flush();
     TEST_ASSERT(result.ok);
-    TEST_ASSERT(control_context_private_runtime_mutable()->device_state == DEVICE_STATE_IDLE);
+    TEST_ASSERT(control_context_private_device_state() == DEVICE_STATE_IDLE);
 
     result = test_process_command_and_flush(
         "fault clear",
@@ -162,7 +162,7 @@ static int verify_fault_clear_rejected_from_stopped_and_idle(void)
         sizeof(response_line));
     TEST_ASSERT(!result.ok);
     TEST_ASSERT(strstr(response_line, "detail=fault_clear_requires_exception") != 0);
-    TEST_ASSERT(control_context_private_runtime_mutable()->device_state == DEVICE_STATE_IDLE);
+    TEST_ASSERT(control_context_private_device_state() == DEVICE_STATE_IDLE);
 
     test_release_system_context();
     return 0;
@@ -175,18 +175,18 @@ static int verify_homing_clears_alarm_before_recovering(void)
 
     test_setup_system_context( &driver_context);
     control_context_private_set_global_fault( "STALE_FAULT", "stale-alarm");
-    TEST_ASSERT(control_context_private_runtime_mutable()->global_fault_present);
-    TEST_ASSERT(control_context_private_runtime_mutable()->device_state == DEVICE_STATE_STOPPED);
+    TEST_ASSERT(control_context_private_global_fault_present());
+    TEST_ASSERT(control_context_private_device_state() == DEVICE_STATE_STOPPED);
 
     result = test_homing_system_and_flush();
     TEST_ASSERT(result.ok);
-    TEST_ASSERT(!control_context_private_runtime_mutable()->global_fault_present);
-    TEST_ASSERT(control_context_private_runtime_mutable()->device_state == DEVICE_STATE_IDLE);
-    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->last_result_code, "accepted") == 0);
+    TEST_ASSERT(!control_context_private_global_fault_present());
+    TEST_ASSERT(control_context_private_device_state() == DEVICE_STATE_IDLE);
+    TEST_ASSERT(strcmp(control_context_last_result_code(), "accepted") == 0);
     TEST_ASSERT(strcmp(test_latest_reason_code(), "homing_completed") == 0);
-    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->last_transition_record.result_code, "accepted") == 0);
-    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->last_transition_record.reason_code, "homing_completed") == 0);
-    TEST_ASSERT(control_context_private_runtime_mutable()->last_transition_record.trigger_type == TRIGGER_TYPE_HOMING);
+    TEST_ASSERT(strcmp(control_context_private_last_transition_record()->result_code, "accepted") == 0);
+    TEST_ASSERT(strcmp(control_context_private_last_transition_record()->reason_code, "homing_completed") == 0);
+    TEST_ASSERT(control_context_private_last_transition_record()->trigger_type == TRIGGER_TYPE_HOMING);
 
     test_release_system_context();
     return 0;
@@ -208,26 +208,26 @@ static int verify_homing_success_runs_real_flow_and_returns_to_idle(void)
     TEST_ASSERT(result.ok);
     TEST_ASSERT(driver_context.stop_all_command_count == 1);
     TEST_ASSERT(driver_context.roof_home_command_count == 1);
-    TEST_ASSERT(control_context_private_runtime_mutable()->device_state == DEVICE_STATE_IDLE);
-    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->last_result_code, "accepted") == 0);
+    TEST_ASSERT(control_context_private_device_state() == DEVICE_STATE_IDLE);
+    TEST_ASSERT(strcmp(control_context_last_result_code(), "accepted") == 0);
     TEST_ASSERT(strcmp(test_latest_reason_code(), "homing_completed") == 0);
-    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->last_transition_record.result_code, "accepted") == 0);
-    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->last_transition_record.reason_code, "homing_completed") == 0);
-    TEST_ASSERT(control_context_private_runtime_mutable()->last_transition_record.trigger_type == TRIGGER_TYPE_HOMING);
+    TEST_ASSERT(strcmp(control_context_private_last_transition_record()->result_code, "accepted") == 0);
+    TEST_ASSERT(strcmp(control_context_private_last_transition_record()->reason_code, "homing_completed") == 0);
+    TEST_ASSERT(control_context_private_last_transition_record()->trigger_type == TRIGGER_TYPE_HOMING);
 
     result = test_start_session_and_flush( "wash_step_control_v1");
     TEST_ASSERT(result.ok);
-    TEST_ASSERT(control_context_private_runtime_mutable()->device_state == DEVICE_STATE_RUNNING);
+    TEST_ASSERT(control_context_private_device_state() == DEVICE_STATE_RUNNING);
 
-    final_segment_index = control_context_private_runtime_mutable()->program_snapshot.frozen_program.segment_count - 1;
-    control_context_private_runtime_mutable()->wash_execution.segment_index = final_segment_index;
-    control_context_private_runtime_mutable()->wash_execution.execution_state = EXECUTION_STATE_COMPLETED;
-    control_context_private_runtime_mutable()->wash_execution.lifecycle_state = SEGMENT_LIFECYCLE_COMPLETED;
+    final_segment_index = control_context_private_program_snapshot()->frozen_program.segment_count - 1;
+    control_context_private_wash_execution()->segment_index = final_segment_index;
+    control_context_private_wash_execution()->execution_state = EXECUTION_STATE_COMPLETED;
+    control_context_private_wash_execution()->lifecycle_state = SEGMENT_LIFECYCLE_COMPLETED;
 
     result = process_wash_runtime_tick();
     TEST_ASSERT(result.ok);
-    TEST_ASSERT(control_context_private_runtime_mutable()->wash_session.session_state == SESSION_STATE_COMPLETED);
-    TEST_ASSERT(control_context_private_runtime_mutable()->device_state == DEVICE_STATE_IDLE);
+    TEST_ASSERT(control_context_private_wash_session()->session_state == SESSION_STATE_COMPLETED);
+    TEST_ASSERT(control_context_private_device_state() == DEVICE_STATE_IDLE);
 
     test_release_system_context();
     return 0;
@@ -244,8 +244,8 @@ static int verify_homing_alarm_during_recovering_moves_device_to_exception(void)
 
     test_setup_system_context( &driver_context);
     memset(&homing_alarm_injection_context, 0, sizeof(homing_alarm_injection_context));
-    homing_alarm_injection_context.actuator_port = control_context_private_runtime_mutable()->actuator_port;
-    homing_alarm_injection_context.sensor_port = control_context_private_runtime_mutable()->sensor_port;
+    homing_alarm_injection_context.actuator_port = *control_context_private_actuator_port();
+    homing_alarm_injection_context.sensor_port = *control_context_private_sensor_port();
 
     actuator_port = homing_alarm_injection_context.actuator_port;
     actuator_port.context = &homing_alarm_injection_context;
@@ -264,8 +264,8 @@ static int verify_homing_alarm_during_recovering_moves_device_to_exception(void)
         sizeof(response_line));
     TEST_ASSERT(!result.ok);
     TEST_ASSERT(strstr(response_line, "detail=recovering_alarm_triggered") != 0);
-    TEST_ASSERT(control_context_private_runtime_mutable()->global_fault_present);
-    TEST_ASSERT(control_context_private_runtime_mutable()->device_state == DEVICE_STATE_EXCEPTION);
+    TEST_ASSERT(control_context_private_global_fault_present());
+    TEST_ASSERT(control_context_private_device_state() == DEVICE_STATE_EXCEPTION);
 
     test_release_system_context();
     return 0;
@@ -288,7 +288,7 @@ static int verify_homing_stop_all_failure_moves_device_to_exception(void)
     TEST_ASSERT(strstr(response_line, "detail=stop_all_failed") != 0);
     TEST_ASSERT(driver_context.stop_all_command_count == 0);
     TEST_ASSERT(driver_context.roof_home_command_count == 0);
-    TEST_ASSERT(control_context_private_runtime_mutable()->device_state == DEVICE_STATE_EXCEPTION);
+    TEST_ASSERT(control_context_private_device_state() == DEVICE_STATE_EXCEPTION);
 
     test_release_system_context();
     return 0;
@@ -311,7 +311,7 @@ static int verify_homing_roof_home_command_failure_moves_device_to_exception(voi
     TEST_ASSERT(strstr(response_line, "detail=roof_home_command_failed") != 0);
     TEST_ASSERT(driver_context.stop_all_command_count == 1);
     TEST_ASSERT(driver_context.roof_home_command_count == 0);
-    TEST_ASSERT(control_context_private_runtime_mutable()->device_state == DEVICE_STATE_EXCEPTION);
+    TEST_ASSERT(control_context_private_device_state() == DEVICE_STATE_EXCEPTION);
 
     test_release_system_context();
     return 0;
@@ -334,7 +334,7 @@ static int verify_homing_snapshot_failure_moves_device_to_exception(void)
     TEST_ASSERT(strstr(response_line, "detail=runtime_snapshot_unavailable") != 0);
     TEST_ASSERT(driver_context.stop_all_command_count == 1);
     TEST_ASSERT(driver_context.roof_home_command_count == 1);
-    TEST_ASSERT(control_context_private_runtime_mutable()->device_state == DEVICE_STATE_EXCEPTION);
+    TEST_ASSERT(control_context_private_device_state() == DEVICE_STATE_EXCEPTION);
 
     test_release_system_context();
     return 0;
@@ -357,7 +357,7 @@ static int verify_homing_feedback_timeout_moves_device_to_exception(void)
     TEST_ASSERT(strstr(response_line, "detail=roof_home_feedback_timeout") != 0);
     TEST_ASSERT(driver_context.stop_all_command_count == 1);
     TEST_ASSERT(driver_context.roof_home_command_count == 1);
-    TEST_ASSERT(control_context_private_runtime_mutable()->device_state == DEVICE_STATE_EXCEPTION);
+    TEST_ASSERT(control_context_private_device_state() == DEVICE_STATE_EXCEPTION);
 
     test_release_system_context();
     return 0;
@@ -381,7 +381,7 @@ static int verify_homing_not_reached_moves_device_to_exception(void)
     TEST_ASSERT(strstr(response_line, "detail=roof_home_not_reached") != 0);
     TEST_ASSERT(driver_context.stop_all_command_count == 1);
     TEST_ASSERT(driver_context.roof_home_command_count == 1);
-    TEST_ASSERT(control_context_private_runtime_mutable()->device_state == DEVICE_STATE_EXCEPTION);
+    TEST_ASSERT(control_context_private_device_state() == DEVICE_STATE_EXCEPTION);
 
     test_release_system_context();
     return 0;
@@ -399,12 +399,12 @@ static int verify_running_manual_stop_moves_device_to_stopped(void)
     TEST_ASSERT(result.ok);
     result = test_start_session_and_flush( "wash_step_control_v1");
     TEST_ASSERT(result.ok);
-    TEST_ASSERT(control_context_private_runtime_mutable()->device_state == DEVICE_STATE_RUNNING);
+    TEST_ASSERT(control_context_private_device_state() == DEVICE_STATE_RUNNING);
 
     result = test_submit_stop( "device-stop");
     TEST_ASSERT(result.ok);
-    TEST_ASSERT(control_context_private_runtime_mutable()->wash_session.session_state == SESSION_STATE_ABORTED);
-    TEST_ASSERT(control_context_private_runtime_mutable()->device_state == DEVICE_STATE_STOPPED);
+    TEST_ASSERT(control_context_private_wash_session()->session_state == SESSION_STATE_ABORTED);
+    TEST_ASSERT(control_context_private_device_state() == DEVICE_STATE_STOPPED);
 
     test_release_system_context();
     return 0;
@@ -421,7 +421,7 @@ static int verify_trigger_start_rejected_from_stopped_with_matrix_reason(void)
         "tests/fixtures/wash_step_control/program_v1_valid.json",
         0);
     TEST_ASSERT(result.ok);
-    TEST_ASSERT(control_context_private_runtime_mutable()->device_state == DEVICE_STATE_STOPPED);
+    TEST_ASSERT(control_context_private_device_state() == DEVICE_STATE_STOPPED);
 
     wash_trigger_event_init(&wash_trigger_event,
         TRIGGER_TYPE_START,
@@ -432,12 +432,12 @@ static int verify_trigger_start_rejected_from_stopped_with_matrix_reason(void)
     result = process_wash_trigger_execute( &wash_trigger_event);
     TEST_ASSERT(!result.ok);
     TEST_ASSERT(result.error_code == ERROR_CODE_INVALID_STATE);
-    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->last_result_code, "rejected") == 0);
-    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->last_reason_code, "device_state_stopped") == 0);
-    TEST_ASSERT(control_context_private_runtime_mutable()->last_transition_record.trigger_type == TRIGGER_TYPE_START);
-    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->last_transition_record.result_code, "rejected") == 0);
-    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->last_transition_record.reason_code, "device_state_stopped") == 0);
-    TEST_ASSERT(control_context_private_runtime_mutable()->device_state == DEVICE_STATE_STOPPED);
+    TEST_ASSERT(strcmp(control_context_last_result_code(), "rejected") == 0);
+    TEST_ASSERT(strcmp(control_context_last_reason_code(), "device_state_stopped") == 0);
+    TEST_ASSERT(control_context_private_last_transition_record()->trigger_type == TRIGGER_TYPE_START);
+    TEST_ASSERT(strcmp(control_context_private_last_transition_record()->result_code, "rejected") == 0);
+    TEST_ASSERT(strcmp(control_context_private_last_transition_record()->reason_code, "device_state_stopped") == 0);
+    TEST_ASSERT(control_context_private_device_state() == DEVICE_STATE_STOPPED);
 
     test_release_system_context();
     return 0;
@@ -456,7 +456,7 @@ static int verify_trigger_start_rejected_from_exception_with_matrix_reason(void)
     TEST_ASSERT(result.ok);
     result = test_submit_fault_with_reason( "E_STOP", "trigger-exception");
     TEST_ASSERT(result.ok);
-    TEST_ASSERT(control_context_private_runtime_mutable()->device_state == DEVICE_STATE_EXCEPTION);
+    TEST_ASSERT(control_context_private_device_state() == DEVICE_STATE_EXCEPTION);
 
     wash_trigger_event_init(&wash_trigger_event,
         TRIGGER_TYPE_START,
@@ -467,13 +467,13 @@ static int verify_trigger_start_rejected_from_exception_with_matrix_reason(void)
     result = process_wash_trigger_execute( &wash_trigger_event);
     TEST_ASSERT(!result.ok);
     TEST_ASSERT(result.error_code == ERROR_CODE_INVALID_STATE);
-    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->last_result_code, "rejected") == 0);
-    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->last_reason_code, "device_state_exception") == 0);
-    TEST_ASSERT(control_context_private_runtime_mutable()->last_transition_record.trigger_type == TRIGGER_TYPE_START);
-    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->last_transition_record.result_code, "rejected") == 0);
-    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->last_transition_record.reason_code, "device_state_exception") == 0);
-    TEST_ASSERT(control_context_private_runtime_mutable()->device_state == DEVICE_STATE_EXCEPTION);
-    TEST_ASSERT(control_context_private_runtime_mutable()->global_fault_present);
+    TEST_ASSERT(strcmp(control_context_last_result_code(), "rejected") == 0);
+    TEST_ASSERT(strcmp(control_context_last_reason_code(), "device_state_exception") == 0);
+    TEST_ASSERT(control_context_private_last_transition_record()->trigger_type == TRIGGER_TYPE_START);
+    TEST_ASSERT(strcmp(control_context_private_last_transition_record()->result_code, "rejected") == 0);
+    TEST_ASSERT(strcmp(control_context_private_last_transition_record()->reason_code, "device_state_exception") == 0);
+    TEST_ASSERT(control_context_private_device_state() == DEVICE_STATE_EXCEPTION);
+    TEST_ASSERT(control_context_private_global_fault_present());
 
     test_release_system_context();
     return 0;
@@ -491,7 +491,7 @@ static int verify_trigger_homing_rejected_from_idle_and_exception(void)
     test_setup_system_context( &driver_context);
     result = test_homing_system_and_flush();
     TEST_ASSERT(result.ok);
-    TEST_ASSERT(control_context_private_runtime_mutable()->device_state == DEVICE_STATE_IDLE);
+    TEST_ASSERT(control_context_private_device_state() == DEVICE_STATE_IDLE);
 
     wash_trigger_event_init(&wash_trigger_event,
         TRIGGER_TYPE_HOMING,
@@ -502,26 +502,26 @@ static int verify_trigger_homing_rejected_from_idle_and_exception(void)
     result = process_wash_trigger_execute( &wash_trigger_event);
     TEST_ASSERT(!result.ok);
     TEST_ASSERT(result.error_code == ERROR_CODE_INVALID_STATE);
-    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->last_result_code, "rejected") == 0);
-    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->last_reason_code, "homing_requires_stopped") == 0);
-    TEST_ASSERT(control_context_private_runtime_mutable()->last_transition_record.trigger_type == TRIGGER_TYPE_HOMING);
-    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->last_transition_record.result_code, "rejected") == 0);
-    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->last_transition_record.reason_code, "homing_requires_stopped") == 0);
-    TEST_ASSERT(control_context_private_runtime_mutable()->device_state == DEVICE_STATE_IDLE);
+    TEST_ASSERT(strcmp(control_context_last_result_code(), "rejected") == 0);
+    TEST_ASSERT(strcmp(control_context_last_reason_code(), "homing_requires_stopped") == 0);
+    TEST_ASSERT(control_context_private_last_transition_record()->trigger_type == TRIGGER_TYPE_HOMING);
+    TEST_ASSERT(strcmp(control_context_private_last_transition_record()->result_code, "rejected") == 0);
+    TEST_ASSERT(strcmp(control_context_private_last_transition_record()->reason_code, "homing_requires_stopped") == 0);
+    TEST_ASSERT(control_context_private_device_state() == DEVICE_STATE_IDLE);
 
     result = test_submit_fault_with_reason( "E_STOP", "trigger-homing-exception");
     TEST_ASSERT(result.ok);
-    TEST_ASSERT(control_context_private_runtime_mutable()->device_state == DEVICE_STATE_EXCEPTION);
+    TEST_ASSERT(control_context_private_device_state() == DEVICE_STATE_EXCEPTION);
 
     result = process_wash_trigger_execute( &wash_trigger_event);
     TEST_ASSERT(!result.ok);
     TEST_ASSERT(result.error_code == ERROR_CODE_INVALID_STATE);
-    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->last_result_code, "rejected") == 0);
-    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->last_reason_code, "homing_requires_stopped") == 0);
-    TEST_ASSERT(control_context_private_runtime_mutable()->last_transition_record.trigger_type == TRIGGER_TYPE_HOMING);
-    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->last_transition_record.result_code, "rejected") == 0);
-    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->last_transition_record.reason_code, "homing_requires_stopped") == 0);
-    TEST_ASSERT(control_context_private_runtime_mutable()->device_state == DEVICE_STATE_EXCEPTION);
+    TEST_ASSERT(strcmp(control_context_last_result_code(), "rejected") == 0);
+    TEST_ASSERT(strcmp(control_context_last_reason_code(), "homing_requires_stopped") == 0);
+    TEST_ASSERT(control_context_private_last_transition_record()->trigger_type == TRIGGER_TYPE_HOMING);
+    TEST_ASSERT(strcmp(control_context_private_last_transition_record()->result_code, "rejected") == 0);
+    TEST_ASSERT(strcmp(control_context_private_last_transition_record()->reason_code, "homing_requires_stopped") == 0);
+    TEST_ASSERT(control_context_private_device_state() == DEVICE_STATE_EXCEPTION);
 
     test_release_system_context();
     return 0;
@@ -537,7 +537,7 @@ static int verify_trigger_stop_rejected_from_stopped_and_idle(void)
     operation_result_t result;
 
     test_setup_system_context( &driver_context);
-    TEST_ASSERT(control_context_private_runtime_mutable()->device_state == DEVICE_STATE_STOPPED);
+    TEST_ASSERT(control_context_private_device_state() == DEVICE_STATE_STOPPED);
 
     wash_trigger_event_init(&wash_trigger_event,
         TRIGGER_TYPE_STOP,
@@ -548,26 +548,26 @@ static int verify_trigger_stop_rejected_from_stopped_and_idle(void)
     result = process_wash_trigger_execute( &wash_trigger_event);
     TEST_ASSERT(!result.ok);
     TEST_ASSERT(result.error_code == ERROR_CODE_INVALID_STATE);
-    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->last_result_code, "rejected") == 0);
-    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->last_reason_code, "stop_requires_running") == 0);
-    TEST_ASSERT(control_context_private_runtime_mutable()->last_transition_record.trigger_type == TRIGGER_TYPE_STOP);
-    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->last_transition_record.result_code, "rejected") == 0);
-    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->last_transition_record.reason_code, "stop_requires_running") == 0);
-    TEST_ASSERT(control_context_private_runtime_mutable()->device_state == DEVICE_STATE_STOPPED);
+    TEST_ASSERT(strcmp(control_context_last_result_code(), "rejected") == 0);
+    TEST_ASSERT(strcmp(control_context_last_reason_code(), "stop_requires_running") == 0);
+    TEST_ASSERT(control_context_private_last_transition_record()->trigger_type == TRIGGER_TYPE_STOP);
+    TEST_ASSERT(strcmp(control_context_private_last_transition_record()->result_code, "rejected") == 0);
+    TEST_ASSERT(strcmp(control_context_private_last_transition_record()->reason_code, "stop_requires_running") == 0);
+    TEST_ASSERT(control_context_private_device_state() == DEVICE_STATE_STOPPED);
 
     result = test_homing_system_and_flush();
     TEST_ASSERT(result.ok);
-    TEST_ASSERT(control_context_private_runtime_mutable()->device_state == DEVICE_STATE_IDLE);
+    TEST_ASSERT(control_context_private_device_state() == DEVICE_STATE_IDLE);
 
     result = process_wash_trigger_execute( &wash_trigger_event);
     TEST_ASSERT(!result.ok);
     TEST_ASSERT(result.error_code == ERROR_CODE_INVALID_STATE);
-    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->last_result_code, "rejected") == 0);
-    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->last_reason_code, "stop_requires_running") == 0);
-    TEST_ASSERT(control_context_private_runtime_mutable()->last_transition_record.trigger_type == TRIGGER_TYPE_STOP);
-    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->last_transition_record.result_code, "rejected") == 0);
-    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->last_transition_record.reason_code, "stop_requires_running") == 0);
-    TEST_ASSERT(control_context_private_runtime_mutable()->device_state == DEVICE_STATE_IDLE);
+    TEST_ASSERT(strcmp(control_context_last_result_code(), "rejected") == 0);
+    TEST_ASSERT(strcmp(control_context_last_reason_code(), "stop_requires_running") == 0);
+    TEST_ASSERT(control_context_private_last_transition_record()->trigger_type == TRIGGER_TYPE_STOP);
+    TEST_ASSERT(strcmp(control_context_private_last_transition_record()->result_code, "rejected") == 0);
+    TEST_ASSERT(strcmp(control_context_private_last_transition_record()->reason_code, "stop_requires_running") == 0);
+    TEST_ASSERT(control_context_private_device_state() == DEVICE_STATE_IDLE);
 
     test_release_system_context();
     return 0;
@@ -583,7 +583,7 @@ static int verify_trigger_fault_clear_rejected_from_stopped_and_idle(void)
     operation_result_t result;
 
     test_setup_system_context( &driver_context);
-    TEST_ASSERT(control_context_private_runtime_mutable()->device_state == DEVICE_STATE_STOPPED);
+    TEST_ASSERT(control_context_private_device_state() == DEVICE_STATE_STOPPED);
 
     wash_trigger_event_init(&wash_trigger_event,
         TRIGGER_TYPE_FAULT,
@@ -594,26 +594,26 @@ static int verify_trigger_fault_clear_rejected_from_stopped_and_idle(void)
     result = process_wash_trigger_execute( &wash_trigger_event);
     TEST_ASSERT(!result.ok);
     TEST_ASSERT(result.error_code == ERROR_CODE_INVALID_STATE);
-    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->last_result_code, "rejected") == 0);
-    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->last_reason_code, "fault_clear_requires_exception") == 0);
-    TEST_ASSERT(control_context_private_runtime_mutable()->last_transition_record.trigger_type == TRIGGER_TYPE_FAULT);
-    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->last_transition_record.result_code, "rejected") == 0);
-    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->last_transition_record.reason_code, "fault_clear_requires_exception") == 0);
-    TEST_ASSERT(control_context_private_runtime_mutable()->device_state == DEVICE_STATE_STOPPED);
+    TEST_ASSERT(strcmp(control_context_last_result_code(), "rejected") == 0);
+    TEST_ASSERT(strcmp(control_context_last_reason_code(), "fault_clear_requires_exception") == 0);
+    TEST_ASSERT(control_context_private_last_transition_record()->trigger_type == TRIGGER_TYPE_FAULT);
+    TEST_ASSERT(strcmp(control_context_private_last_transition_record()->result_code, "rejected") == 0);
+    TEST_ASSERT(strcmp(control_context_private_last_transition_record()->reason_code, "fault_clear_requires_exception") == 0);
+    TEST_ASSERT(control_context_private_device_state() == DEVICE_STATE_STOPPED);
 
     result = test_homing_system_and_flush();
     TEST_ASSERT(result.ok);
-    TEST_ASSERT(control_context_private_runtime_mutable()->device_state == DEVICE_STATE_IDLE);
+    TEST_ASSERT(control_context_private_device_state() == DEVICE_STATE_IDLE);
 
     result = process_wash_trigger_execute( &wash_trigger_event);
     TEST_ASSERT(!result.ok);
     TEST_ASSERT(result.error_code == ERROR_CODE_INVALID_STATE);
-    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->last_result_code, "rejected") == 0);
-    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->last_reason_code, "fault_clear_requires_exception") == 0);
-    TEST_ASSERT(control_context_private_runtime_mutable()->last_transition_record.trigger_type == TRIGGER_TYPE_FAULT);
-    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->last_transition_record.result_code, "rejected") == 0);
-    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->last_transition_record.reason_code, "fault_clear_requires_exception") == 0);
-    TEST_ASSERT(control_context_private_runtime_mutable()->device_state == DEVICE_STATE_IDLE);
+    TEST_ASSERT(strcmp(control_context_last_result_code(), "rejected") == 0);
+    TEST_ASSERT(strcmp(control_context_last_reason_code(), "fault_clear_requires_exception") == 0);
+    TEST_ASSERT(control_context_private_last_transition_record()->trigger_type == TRIGGER_TYPE_FAULT);
+    TEST_ASSERT(strcmp(control_context_private_last_transition_record()->result_code, "rejected") == 0);
+    TEST_ASSERT(strcmp(control_context_private_last_transition_record()->reason_code, "fault_clear_requires_exception") == 0);
+    TEST_ASSERT(control_context_private_device_state() == DEVICE_STATE_IDLE);
 
     test_release_system_context();
     return 0;
@@ -629,7 +629,7 @@ static int verify_trigger_homing_accepted_from_stopped(void)
     operation_result_t result;
 
     test_setup_system_context( &driver_context);
-    TEST_ASSERT(control_context_private_runtime_mutable()->device_state == DEVICE_STATE_STOPPED);
+    TEST_ASSERT(control_context_private_device_state() == DEVICE_STATE_STOPPED);
 
     wash_trigger_event_init(&wash_trigger_event,
         TRIGGER_TYPE_HOMING,
@@ -641,14 +641,14 @@ static int verify_trigger_homing_accepted_from_stopped(void)
     TEST_ASSERT(result.ok);
     TEST_ASSERT(driver_context.stop_all_command_count == 1);
     TEST_ASSERT(driver_context.roof_home_command_count == 1);
-    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->last_result_code, "accepted") == 0);
-    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->last_reason_code, "homing_completed") == 0);
-    TEST_ASSERT(control_context_private_runtime_mutable()->last_transition_record.trigger_type == TRIGGER_TYPE_HOMING);
-    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->last_transition_record.previous_state, "stopped") == 0);
-    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->last_transition_record.current_state, "idle") == 0);
-    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->last_transition_record.result_code, "accepted") == 0);
-    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->last_transition_record.reason_code, "homing_completed") == 0);
-    TEST_ASSERT(control_context_private_runtime_mutable()->device_state == DEVICE_STATE_IDLE);
+    TEST_ASSERT(strcmp(control_context_last_result_code(), "accepted") == 0);
+    TEST_ASSERT(strcmp(control_context_last_reason_code(), "homing_completed") == 0);
+    TEST_ASSERT(control_context_private_last_transition_record()->trigger_type == TRIGGER_TYPE_HOMING);
+    TEST_ASSERT(strcmp(control_context_private_last_transition_record()->previous_state, "stopped") == 0);
+    TEST_ASSERT(strcmp(control_context_private_last_transition_record()->current_state, "idle") == 0);
+    TEST_ASSERT(strcmp(control_context_private_last_transition_record()->result_code, "accepted") == 0);
+    TEST_ASSERT(strcmp(control_context_private_last_transition_record()->reason_code, "homing_completed") == 0);
+    TEST_ASSERT(control_context_private_device_state() == DEVICE_STATE_IDLE);
 
     test_release_system_context();
     return 0;
@@ -670,7 +670,7 @@ static int verify_trigger_start_accepted_from_idle(void)
     TEST_ASSERT(result.ok);
     result = test_homing_system_and_flush();
     TEST_ASSERT(result.ok);
-    TEST_ASSERT(control_context_private_runtime_mutable()->device_state == DEVICE_STATE_IDLE);
+    TEST_ASSERT(control_context_private_device_state() == DEVICE_STATE_IDLE);
 
     wash_trigger_event_init(&wash_trigger_event,
         TRIGGER_TYPE_START,
@@ -680,14 +680,14 @@ static int verify_trigger_start_accepted_from_idle(void)
         control_context_current_time_ms());
     result = process_wash_trigger_execute( &wash_trigger_event);
     TEST_ASSERT(result.ok);
-    TEST_ASSERT(control_context_private_runtime_mutable()->device_state == DEVICE_STATE_RUNNING);
-    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->last_result_code, "accepted") == 0);
-    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->last_reason_code, "session_started") == 0);
-    TEST_ASSERT(control_context_private_runtime_mutable()->last_transition_record.trigger_type == TRIGGER_TYPE_START);
-    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->last_transition_record.previous_state, "idle") == 0);
-    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->last_transition_record.current_state, "running") == 0);
-    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->last_transition_record.result_code, "accepted") == 0);
-    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->last_transition_record.reason_code, "session_started") == 0);
+    TEST_ASSERT(control_context_private_device_state() == DEVICE_STATE_RUNNING);
+    TEST_ASSERT(strcmp(control_context_last_result_code(), "accepted") == 0);
+    TEST_ASSERT(strcmp(control_context_last_reason_code(), "session_started") == 0);
+    TEST_ASSERT(control_context_private_last_transition_record()->trigger_type == TRIGGER_TYPE_START);
+    TEST_ASSERT(strcmp(control_context_private_last_transition_record()->previous_state, "idle") == 0);
+    TEST_ASSERT(strcmp(control_context_private_last_transition_record()->current_state, "running") == 0);
+    TEST_ASSERT(strcmp(control_context_private_last_transition_record()->result_code, "accepted") == 0);
+    TEST_ASSERT(strcmp(control_context_private_last_transition_record()->reason_code, "session_started") == 0);
 
     test_release_system_context();
     return 0;
@@ -709,7 +709,7 @@ static int verify_trigger_stop_accepted_from_running(void)
     TEST_ASSERT(result.ok);
     result = test_start_session_and_flush( "wash_step_control_v1");
     TEST_ASSERT(result.ok);
-    TEST_ASSERT(control_context_private_runtime_mutable()->device_state == DEVICE_STATE_RUNNING);
+    TEST_ASSERT(control_context_private_device_state() == DEVICE_STATE_RUNNING);
 
     wash_trigger_event_init(&wash_trigger_event,
         TRIGGER_TYPE_STOP,
@@ -719,15 +719,15 @@ static int verify_trigger_stop_accepted_from_running(void)
         control_context_current_time_ms());
     result = process_wash_trigger_execute( &wash_trigger_event);
     TEST_ASSERT(result.ok);
-    TEST_ASSERT(control_context_private_runtime_mutable()->wash_session.session_state == SESSION_STATE_ABORTED);
-    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->last_result_code, "aborted") == 0);
-    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->last_reason_code, "trigger-stop-accepted") == 0);
-    TEST_ASSERT(control_context_private_runtime_mutable()->last_transition_record.trigger_type == TRIGGER_TYPE_STOP);
-    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->last_transition_record.previous_state, "running") == 0);
-    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->last_transition_record.current_state, "stopped") == 0);
-    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->last_transition_record.result_code, "aborted") == 0);
-    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->last_transition_record.reason_code, "trigger-stop-accepted") == 0);
-    TEST_ASSERT(control_context_private_runtime_mutable()->device_state == DEVICE_STATE_STOPPED);
+    TEST_ASSERT(control_context_private_wash_session()->session_state == SESSION_STATE_ABORTED);
+    TEST_ASSERT(strcmp(control_context_last_result_code(), "aborted") == 0);
+    TEST_ASSERT(strcmp(control_context_last_reason_code(), "trigger-stop-accepted") == 0);
+    TEST_ASSERT(control_context_private_last_transition_record()->trigger_type == TRIGGER_TYPE_STOP);
+    TEST_ASSERT(strcmp(control_context_private_last_transition_record()->previous_state, "running") == 0);
+    TEST_ASSERT(strcmp(control_context_private_last_transition_record()->current_state, "stopped") == 0);
+    TEST_ASSERT(strcmp(control_context_private_last_transition_record()->result_code, "aborted") == 0);
+    TEST_ASSERT(strcmp(control_context_private_last_transition_record()->reason_code, "trigger-stop-accepted") == 0);
+    TEST_ASSERT(control_context_private_device_state() == DEVICE_STATE_STOPPED);
 
     test_release_system_context();
     return 0;
@@ -745,8 +745,8 @@ static int verify_trigger_fault_clear_accepted_from_exception(void)
     test_setup_system_context( &driver_context);
     result = test_submit_fault_with_reason( "E_STOP", "trigger-clear-exception");
     TEST_ASSERT(result.ok);
-    TEST_ASSERT(control_context_private_runtime_mutable()->device_state == DEVICE_STATE_EXCEPTION);
-    TEST_ASSERT(control_context_private_runtime_mutable()->global_fault_present);
+    TEST_ASSERT(control_context_private_device_state() == DEVICE_STATE_EXCEPTION);
+    TEST_ASSERT(control_context_private_global_fault_present());
 
     wash_trigger_event_init(&wash_trigger_event,
         TRIGGER_TYPE_FAULT,
@@ -756,15 +756,15 @@ static int verify_trigger_fault_clear_accepted_from_exception(void)
         control_context_current_time_ms());
     result = process_wash_trigger_execute( &wash_trigger_event);
     TEST_ASSERT(result.ok);
-    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->last_result_code, "accepted") == 0);
-    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->last_reason_code, "global_fault_cleared") == 0);
-    TEST_ASSERT(control_context_private_runtime_mutable()->last_transition_record.trigger_type == TRIGGER_TYPE_FAULT);
-    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->last_transition_record.previous_state, "exception") == 0);
-    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->last_transition_record.current_state, "stopped") == 0);
-    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->last_transition_record.result_code, "accepted") == 0);
-    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->last_transition_record.reason_code, "global_fault_cleared") == 0);
-    TEST_ASSERT(control_context_private_runtime_mutable()->device_state == DEVICE_STATE_STOPPED);
-    TEST_ASSERT(!control_context_private_runtime_mutable()->global_fault_present);
+    TEST_ASSERT(strcmp(control_context_last_result_code(), "accepted") == 0);
+    TEST_ASSERT(strcmp(control_context_last_reason_code(), "global_fault_cleared") == 0);
+    TEST_ASSERT(control_context_private_last_transition_record()->trigger_type == TRIGGER_TYPE_FAULT);
+    TEST_ASSERT(strcmp(control_context_private_last_transition_record()->previous_state, "exception") == 0);
+    TEST_ASSERT(strcmp(control_context_private_last_transition_record()->current_state, "stopped") == 0);
+    TEST_ASSERT(strcmp(control_context_private_last_transition_record()->result_code, "accepted") == 0);
+    TEST_ASSERT(strcmp(control_context_private_last_transition_record()->reason_code, "global_fault_cleared") == 0);
+    TEST_ASSERT(control_context_private_device_state() == DEVICE_STATE_STOPPED);
+    TEST_ASSERT(!control_context_private_global_fault_present());
 
     test_release_system_context();
     return 0;
@@ -783,8 +783,8 @@ static int verify_exception_requires_fault_clear_before_homing(void)
     TEST_ASSERT(result.ok);
     result = test_submit_fault_with_reason( "E_STOP", "device-exception");
     TEST_ASSERT(result.ok);
-    TEST_ASSERT(control_context_private_runtime_mutable()->device_state == DEVICE_STATE_EXCEPTION);
-    TEST_ASSERT(control_context_private_runtime_mutable()->global_fault_present);
+    TEST_ASSERT(control_context_private_device_state() == DEVICE_STATE_EXCEPTION);
+    TEST_ASSERT(control_context_private_global_fault_present());
 
     result = test_process_command_and_flush(
         "start wash_step_control_v1",
@@ -792,12 +792,12 @@ static int verify_exception_requires_fault_clear_before_homing(void)
         sizeof(response_line));
     TEST_ASSERT(!result.ok);
     TEST_ASSERT(strstr(response_line, "detail=device_state_exception") != 0);
-    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->last_result_code, "rejected") == 0);
-    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->last_reason_code, "device_state_exception") == 0);
-    TEST_ASSERT(control_context_private_runtime_mutable()->last_transition_record.trigger_type == TRIGGER_TYPE_START);
-    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->last_transition_record.result_code, "rejected") == 0);
-    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->last_transition_record.reason_code, "device_state_exception") == 0);
-    TEST_ASSERT(control_context_private_runtime_mutable()->device_state == DEVICE_STATE_EXCEPTION);
+    TEST_ASSERT(strcmp(control_context_last_result_code(), "rejected") == 0);
+    TEST_ASSERT(strcmp(control_context_last_reason_code(), "device_state_exception") == 0);
+    TEST_ASSERT(control_context_private_last_transition_record()->trigger_type == TRIGGER_TYPE_START);
+    TEST_ASSERT(strcmp(control_context_private_last_transition_record()->result_code, "rejected") == 0);
+    TEST_ASSERT(strcmp(control_context_private_last_transition_record()->reason_code, "device_state_exception") == 0);
+    TEST_ASSERT(control_context_private_device_state() == DEVICE_STATE_EXCEPTION);
 
     result = test_process_command_and_flush(
         "homing",
@@ -805,10 +805,10 @@ static int verify_exception_requires_fault_clear_before_homing(void)
         sizeof(response_line));
     TEST_ASSERT(!result.ok);
     TEST_ASSERT(strstr(response_line, "detail=homing_requires_stopped") != 0);
-    TEST_ASSERT(control_context_private_runtime_mutable()->last_transition_record.trigger_type == TRIGGER_TYPE_HOMING);
-    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->last_transition_record.result_code, "rejected") == 0);
-    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->last_transition_record.reason_code, "homing_requires_stopped") == 0);
-    TEST_ASSERT(control_context_private_runtime_mutable()->device_state == DEVICE_STATE_EXCEPTION);
+    TEST_ASSERT(control_context_private_last_transition_record()->trigger_type == TRIGGER_TYPE_HOMING);
+    TEST_ASSERT(strcmp(control_context_private_last_transition_record()->result_code, "rejected") == 0);
+    TEST_ASSERT(strcmp(control_context_private_last_transition_record()->reason_code, "homing_requires_stopped") == 0);
+    TEST_ASSERT(control_context_private_device_state() == DEVICE_STATE_EXCEPTION);
 
     result = test_process_command_and_flush(
         "stop",
@@ -816,12 +816,12 @@ static int verify_exception_requires_fault_clear_before_homing(void)
         sizeof(response_line));
     TEST_ASSERT(!result.ok);
     TEST_ASSERT(strstr(response_line, "detail=stop_requires_running") != 0);
-    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->last_result_code, "rejected") == 0);
-    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->last_reason_code, "stop_requires_running") == 0);
-    TEST_ASSERT(control_context_private_runtime_mutable()->last_transition_record.trigger_type == TRIGGER_TYPE_STOP);
-    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->last_transition_record.result_code, "rejected") == 0);
-    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->last_transition_record.reason_code, "stop_requires_running") == 0);
-    TEST_ASSERT(control_context_private_runtime_mutable()->device_state == DEVICE_STATE_EXCEPTION);
+    TEST_ASSERT(strcmp(control_context_last_result_code(), "rejected") == 0);
+    TEST_ASSERT(strcmp(control_context_last_reason_code(), "stop_requires_running") == 0);
+    TEST_ASSERT(control_context_private_last_transition_record()->trigger_type == TRIGGER_TYPE_STOP);
+    TEST_ASSERT(strcmp(control_context_private_last_transition_record()->result_code, "rejected") == 0);
+    TEST_ASSERT(strcmp(control_context_private_last_transition_record()->reason_code, "stop_requires_running") == 0);
+    TEST_ASSERT(control_context_private_device_state() == DEVICE_STATE_EXCEPTION);
 
     result = test_process_command_and_flush(
         "fault clear",
@@ -829,13 +829,13 @@ static int verify_exception_requires_fault_clear_before_homing(void)
         sizeof(response_line));
     TEST_ASSERT(result.ok);
     TEST_ASSERT(strstr(response_line, "result=accepted accepted=true detail=global_fault_cleared") != 0);
-    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->last_result_code, "accepted") == 0);
-    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->last_reason_code, "global_fault_cleared") == 0);
-    TEST_ASSERT(control_context_private_runtime_mutable()->last_transition_record.trigger_type == TRIGGER_TYPE_FAULT);
-    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->last_transition_record.result_code, "accepted") == 0);
-    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->last_transition_record.reason_code, "global_fault_cleared") == 0);
-    TEST_ASSERT(control_context_private_runtime_mutable()->device_state == DEVICE_STATE_STOPPED);
-    TEST_ASSERT(!control_context_private_runtime_mutable()->global_fault_present);
+    TEST_ASSERT(strcmp(control_context_last_result_code(), "accepted") == 0);
+    TEST_ASSERT(strcmp(control_context_last_reason_code(), "global_fault_cleared") == 0);
+    TEST_ASSERT(control_context_private_last_transition_record()->trigger_type == TRIGGER_TYPE_FAULT);
+    TEST_ASSERT(strcmp(control_context_private_last_transition_record()->result_code, "accepted") == 0);
+    TEST_ASSERT(strcmp(control_context_private_last_transition_record()->reason_code, "global_fault_cleared") == 0);
+    TEST_ASSERT(control_context_private_device_state() == DEVICE_STATE_STOPPED);
+    TEST_ASSERT(!control_context_private_global_fault_present());
 
     result = test_process_command_and_flush(
         "start wash_step_control_v1",
@@ -843,27 +843,27 @@ static int verify_exception_requires_fault_clear_before_homing(void)
         sizeof(response_line));
     TEST_ASSERT(!result.ok);
     TEST_ASSERT(strstr(response_line, "device_state_stopped") != 0);
-    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->last_reason_code, "device_state_stopped") == 0);
-    TEST_ASSERT(control_context_private_runtime_mutable()->last_transition_record.trigger_type == TRIGGER_TYPE_START);
-    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->last_transition_record.result_code, "rejected") == 0);
-    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->last_transition_record.reason_code, "device_state_stopped") == 0);
-    TEST_ASSERT(control_context_private_runtime_mutable()->device_state == DEVICE_STATE_STOPPED);
+    TEST_ASSERT(strcmp(control_context_last_reason_code(), "device_state_stopped") == 0);
+    TEST_ASSERT(control_context_private_last_transition_record()->trigger_type == TRIGGER_TYPE_START);
+    TEST_ASSERT(strcmp(control_context_private_last_transition_record()->result_code, "rejected") == 0);
+    TEST_ASSERT(strcmp(control_context_private_last_transition_record()->reason_code, "device_state_stopped") == 0);
+    TEST_ASSERT(control_context_private_device_state() == DEVICE_STATE_STOPPED);
 
     result = test_homing_system_and_flush();
     TEST_ASSERT(result.ok);
-    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->last_result_code, "accepted") == 0);
-    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->last_reason_code, "homing_completed") == 0);
-    TEST_ASSERT(control_context_private_runtime_mutable()->last_transition_record.trigger_type == TRIGGER_TYPE_HOMING);
-    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->last_transition_record.result_code, "accepted") == 0);
-    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->last_transition_record.reason_code, "homing_completed") == 0);
-    TEST_ASSERT(control_context_private_runtime_mutable()->device_state == DEVICE_STATE_IDLE);
+    TEST_ASSERT(strcmp(control_context_last_result_code(), "accepted") == 0);
+    TEST_ASSERT(strcmp(control_context_last_reason_code(), "homing_completed") == 0);
+    TEST_ASSERT(control_context_private_last_transition_record()->trigger_type == TRIGGER_TYPE_HOMING);
+    TEST_ASSERT(strcmp(control_context_private_last_transition_record()->result_code, "accepted") == 0);
+    TEST_ASSERT(strcmp(control_context_private_last_transition_record()->reason_code, "homing_completed") == 0);
+    TEST_ASSERT(control_context_private_device_state() == DEVICE_STATE_IDLE);
 
     result = test_process_command_and_flush(
         "start wash_step_control_v1",
         response_line,
         sizeof(response_line));
     TEST_ASSERT(result.ok);
-    TEST_ASSERT(control_context_private_runtime_mutable()->device_state == DEVICE_STATE_RUNNING);
+    TEST_ASSERT(control_context_private_device_state() == DEVICE_STATE_RUNNING);
 
     test_release_system_context();
     return 0;

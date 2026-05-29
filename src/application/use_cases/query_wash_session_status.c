@@ -9,7 +9,6 @@
 operation_result_t query_wash_session_status_execute(wash_session_status_view_t *wash_session_status_view)
 {
     const state_transition_record_t *last_transition_record;
-    operation_result_t result;
     const wash_execution_t *wash_execution;
     const wash_session_t *wash_session;
     const wait_condition_t *wait_condition;
@@ -18,20 +17,15 @@ operation_result_t query_wash_session_status_execute(wash_session_status_view_t 
     {
         return operation_result_fail(ERROR_CODE_INVALID_ARGUMENT);
     }
-    result = control_context_require_active();
-    if (!result.ok)
-    {
-        return result;
-    }
     memset(wash_session_status_view, 0, sizeof(*wash_session_status_view));
     wash_session = control_context_private_wash_session();
     wash_execution = control_context_private_wash_execution();
-    wait_condition = control_context_wait_condition();
-    last_transition_record = control_context_private_last_transition_record();
-    if (wash_session == 0 || wash_execution == 0 || wait_condition == 0 || last_transition_record == 0)
+    if (wash_session == 0 || wash_execution == 0)
     {
         return operation_result_fail(ERROR_CODE_INVALID_STATE);
     }
+    wait_condition = control_context_wait_condition();
+    last_transition_record = control_context_private_last_transition_record();
 
     wash_session_status_view->has_active_session =
         (wash_session->session_state == SESSION_STATE_CREATED || wash_session->session_state == SESSION_STATE_RUNNING);
@@ -57,8 +51,7 @@ operation_result_t query_wash_session_status_execute(wash_session_status_view_t 
     strncpy(wash_session_status_view->global_fault_reason, control_context_private_global_fault_reason(),
             sizeof(wash_session_status_view->global_fault_reason) - 1);
     {
-        scheduler_t *bound_scheduler =
-            (scheduler_t *)control_context_bound_scheduler();
+        scheduler_t *bound_scheduler = (scheduler_t *)control_context_bound_scheduler();
         if (scheduler_read_view(bound_scheduler, &wash_session_status_view->scheduler_view).ok)
         {
             wash_session_status_view->scheduler_view_available = true;

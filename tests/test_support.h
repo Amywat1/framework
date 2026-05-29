@@ -24,7 +24,6 @@
 #include "platform/scheduler.h"
 #include "domain/services/program_snapshot_service.h"
 #include "domain/services/wash_session_state_machine.h"
-#include "src/application/coordinators/control_context_layout.h"
 #include "src/application/coordinators/control_context_private.h"
 #include "shared/error_codes.h"
 
@@ -51,7 +50,7 @@ static inline void test_init_scheduler_config(scheduler_config_t *scheduler_conf
 static inline void test_purge_stale_runtime_bindings(void)
 {
     if (g_test_runtime_binding.initialized
-        && !control_context_require_active().ok)
+        && control_context_program_repository_port() == 0)
     {
         memset(&g_test_runtime_binding, 0, sizeof(g_test_runtime_binding));
     }

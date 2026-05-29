@@ -19,7 +19,7 @@ static int test_follow_loss_aborts_session(void)
     driver_context.runtime_snapshot.actuator_feedback.roof_brush_follow_ok = false;
     result = test_tick( 100);
     TEST_ASSERT(result.ok);
-    TEST_ASSERT(control_context_private_runtime_mutable()->wash_session.session_state == SESSION_STATE_ABORTED);
+    TEST_ASSERT(control_context_private_wash_session()->session_state == SESSION_STATE_ABORTED);
     TEST_ASSERT(strcmp(test_latest_reason_code(), "follow_lost") == 0);
     test_release_system_context();
     return 0;
@@ -45,12 +45,12 @@ static int test_exit_timeout_aborts_session(void)
     TEST_ASSERT(result.ok);
     result = test_tick( 6000);
     TEST_ASSERT(result.ok);
-    TEST_ASSERT(control_context_private_runtime_mutable()->wash_session.session_state == SESSION_STATE_ABORTED);
-    TEST_ASSERT(control_context_private_runtime_mutable()->wash_session.final_session_result == RESULT_CODE_EXIT_FAILED);
-    TEST_ASSERT(control_context_private_runtime_mutable()->wash_execution.execution_result == EXECUTION_RESULT_EXIT_TIMEOUT);
-    TEST_ASSERT(control_context_private_runtime_mutable()->device_state == DEVICE_STATE_EXCEPTION);
-    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->last_result_code, "aborted") == 0);
-    TEST_ASSERT(strcmp(control_context_private_runtime_mutable()->last_reason_code, "exit_timeout") == 0);
+    TEST_ASSERT(control_context_private_wash_session()->session_state == SESSION_STATE_ABORTED);
+    TEST_ASSERT(control_context_private_wash_session()->final_session_result == RESULT_CODE_EXIT_FAILED);
+    TEST_ASSERT(control_context_private_wash_execution()->execution_result == EXECUTION_RESULT_EXIT_TIMEOUT);
+    TEST_ASSERT(control_context_private_device_state() == DEVICE_STATE_EXCEPTION);
+    TEST_ASSERT(strcmp(control_context_last_result_code(), "aborted") == 0);
+    TEST_ASSERT(strcmp(control_context_last_reason_code(), "exit_timeout") == 0);
     TEST_ASSERT(strcmp(test_latest_reason_code(), "exit_timeout") == 0);
     test_release_system_context();
     return 0;
@@ -75,8 +75,8 @@ static int test_runtime_snapshot_read_failure_enters_safe_stop(void)
     result = test_tick( 100);
     TEST_ASSERT(result.ok);
     TEST_ASSERT(driver_context.stop_all_command_count == 2);
-    TEST_ASSERT(control_context_private_runtime_mutable()->wash_execution.execution_state == EXECUTION_STATE_ABORTED);
-    TEST_ASSERT(control_context_private_runtime_mutable()->wash_session.session_state == SESSION_STATE_ABORTED);
+    TEST_ASSERT(control_context_private_wash_execution()->execution_state == EXECUTION_STATE_ABORTED);
+    TEST_ASSERT(control_context_private_wash_session()->session_state == SESSION_STATE_ABORTED);
     TEST_ASSERT(strcmp(test_latest_reason_code(), "runtime_snapshot_unavailable") == 0);
 
     result = control_context_reset();
@@ -88,7 +88,7 @@ static int test_runtime_snapshot_read_failure_enters_safe_stop(void)
     TEST_ASSERT(result.ok);
     result = test_start_session_and_flush( "wash_step_control_v1");
     TEST_ASSERT(result.ok);
-    TEST_ASSERT(control_context_private_runtime_mutable()->wash_session.session_state == SESSION_STATE_RUNNING);
+    TEST_ASSERT(control_context_private_wash_session()->session_state == SESSION_STATE_RUNNING);
 
     test_release_system_context();
     result = query_wash_session_status_execute( &(wash_session_status_view_t){0});

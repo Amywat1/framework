@@ -17,8 +17,8 @@
  * @brief 声明主控运行期组合根接口。
  *
  * @note control_context 是进程内唯一的单实例模块，所有接口直接操作内部静态实例，
- *       无需外部传入句柄。调用方通过 `control_context_acquire()` 占用实例，
- *       通过 `control_context_release()` 归还占用。
+ *       无需外部传入句柄。生命周期由引导层 `control_context_init` / `control_context_deinit` 管理。
+ * @note 未激活时各接口可能返回失败、空指针或默认态；调用方须以返回值与判空为准，不得当作有效业务态。
  */
 
 /**
@@ -159,13 +159,6 @@ void control_context_unbind_scheduler(void);
  * @return 已绑定调度器对象；未绑定或上下文未激活时返回 `0`。
  */
 void *control_context_bound_scheduler(void);
-
-/**
- * @brief 校验主控当前是否处于激活状态。
- *
- * @return 实例激活时返回 `operation_result_ok()`；否则返回失败结果。
- */
-operation_result_t control_context_require_active(void);
 
 /**
  * @brief 读取指定索引处的待处理触发事件（只读）。

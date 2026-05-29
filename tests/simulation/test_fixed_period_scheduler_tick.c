@@ -25,11 +25,11 @@ int main(void)
         "start wash_step_control_v1",
         response_line,
         sizeof(response_line)) == 0);
-    TEST_ASSERT(control_context_private_runtime_mutable()->wash_execution.lifecycle_state == SEGMENT_LIFECYCLE_RUNNING);
+    TEST_ASSERT(control_context_private_wash_execution()->lifecycle_state == SEGMENT_LIFECYCLE_RUNNING);
     driver_context.runtime_snapshot.position_snapshot.gantry_absolute_mm = 9500;
     driver_context.runtime_snapshot.position_snapshot.tail_reached = true;
     TEST_ASSERT(test_scheduler_tick(scheduler, 1u) == 0);
-    TEST_ASSERT(control_context_private_runtime_mutable()->wash_execution.lifecycle_state == SEGMENT_LIFECYCLE_EXITING);
+    TEST_ASSERT(control_context_private_wash_execution()->lifecycle_state == SEGMENT_LIFECYCLE_EXITING);
 
     result = scheduler_read_view(scheduler, &app_state_view);
     TEST_ASSERT(result.ok);

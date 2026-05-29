@@ -57,6 +57,9 @@ bool control_context_private_global_fault_present(void);
 /** @brief 读取全局故障原因描述；实例未激活时返回空字符串。 */
 const char *control_context_private_global_fault_reason(void);
 
+/** @brief 读取全局故障码；实例未激活时返回空字符串。 */
+const char *control_context_private_global_fault_code(void);
+
 /**
  * @brief 设置全局故障信息。
  * @param fault_code   故障码（机器可读短标识），不能为空。

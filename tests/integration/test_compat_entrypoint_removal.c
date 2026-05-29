@@ -82,7 +82,7 @@ static int verify_formal_path_still_works(void)
         sizeof(response_line));
     TEST_ASSERT(result.ok);
     TEST_ASSERT(strstr(response_line, "accepted=true") != 0);
-    TEST_ASSERT(control_context_private_runtime_mutable()->wash_session.session_state == SESSION_STATE_RUNNING);
+    TEST_ASSERT(control_context_private_wash_session()->session_state == SESSION_STATE_RUNNING);
     return 0;
 }
 

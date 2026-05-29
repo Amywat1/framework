@@ -47,7 +47,7 @@ static int verify_bounded_drain_has_terminal_conclusion(void)
         response_line,
         sizeof(response_line));
     TEST_ASSERT(result.ok);
-    TEST_ASSERT(control_context_private_runtime_mutable()->pending_trigger_count == 1u);
+    TEST_ASSERT(control_context_pending_trigger_count() == 1u);
 
     TEST_ASSERT(test_scheduler_exit(scheduler, false) == 0);
     for (step_index = 0u; step_index < 8u; ++step_index) {

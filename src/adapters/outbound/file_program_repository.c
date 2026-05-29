@@ -103,10 +103,6 @@ operation_result_t file_program_repository_init(const char *config_root)
     program_repository_port_t program_repository_port;
     char programs_root[320];
 
-    if (!control_context_require_active().ok)
-    {
-        return operation_result_fail(ERROR_CODE_INVALID_STATE);
-    }
     if (config_root == 0 || config_root[0] == '\0')
     {
         return operation_result_fail(ERROR_CODE_INVALID_ARGUMENT);
@@ -130,6 +126,10 @@ operation_result_t file_program_repository_init(const char *config_root)
     program_repository_port.load_vehicle_type = load_vehicle_type_impl;
     program_repository_port.validate_program_snapshot = validate_program_snapshot_impl;
     control_context_set_program_repository_port(&program_repository_port);
+    if (control_context_program_repository_port() == 0)
+    {
+        return operation_result_fail(ERROR_CODE_INVALID_STATE);
+    }
     return operation_result_ok();
 }
 

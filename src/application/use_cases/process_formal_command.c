@@ -509,14 +509,6 @@ operation_result_t process_formal_command_execute(const char *command_line,
     formal_command_request_t formal_command_request;
     operation_result_t result;
 
-    result = control_context_require_active();
-    if (!result.ok)
-    {
-        process_formal_command_format_response(response_line, response_line_size, error_code_to_string(result.error_code), false,
-                          "invalid_control_context");
-        return result;
-    }
-
     result = prepare_formal_command_request(command_line, &formal_command_request, response_line,
                                             response_line_size);
     if (!result.ok || !formal_command_request.has_trigger || !formal_command_request.requires_queue)
@@ -529,6 +521,12 @@ operation_result_t process_formal_command_execute(const char *command_line,
     {
         const char *detail;
 
+        if (result.error_code == ERROR_CODE_INVALID_STATE)
+        {
+            process_formal_command_format_response(response_line, response_line_size, "invalid_state", false,
+                                                   "invalid_control_context");
+            return result;
+        }
         remember_submit_rejection(formal_command_request.wash_trigger_event.trigger_type,
                                   "trigger_queue_full");
         detail = control_context_last_reason_code()[0] != '\0'

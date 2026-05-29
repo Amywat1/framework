@@ -17,15 +17,15 @@ typedef struct readonly_snapshot_t {
 static void capture_snapshot(readonly_snapshot_t *snapshot)
 {
     memset(snapshot, 0, sizeof(*snapshot));
-    snapshot->global_fault_present = control_context_private_runtime_mutable()->global_fault_present;
-    snapshot->pending_trigger_count = control_context_private_runtime_mutable()->pending_trigger_count;
-    snapshot->current_time_ms = control_context_private_runtime_mutable()->current_time_ms;
-    snapshot->session_state = control_context_private_runtime_mutable()->wash_session.session_state;
-    snapshot->execution_state = control_context_private_runtime_mutable()->wash_execution.execution_state;
-    snapshot->final_session_result = control_context_private_runtime_mutable()->wash_session.final_session_result;
-    strncpy(snapshot->last_result_code, control_context_private_runtime_mutable()->last_result_code, sizeof(snapshot->last_result_code) - 1);
-    strncpy(snapshot->last_reason_code, control_context_private_runtime_mutable()->last_reason_code, sizeof(snapshot->last_reason_code) - 1);
-    strncpy(snapshot->global_fault_reason, control_context_private_runtime_mutable()->global_fault_reason, sizeof(snapshot->global_fault_reason) - 1);
+    snapshot->global_fault_present = control_context_private_global_fault_present();
+    snapshot->pending_trigger_count = control_context_pending_trigger_count();
+    snapshot->current_time_ms = control_context_current_time_ms();
+    snapshot->session_state = control_context_private_wash_session()->session_state;
+    snapshot->execution_state = control_context_private_wash_execution()->execution_state;
+    snapshot->final_session_result = control_context_private_wash_session()->final_session_result;
+    strncpy(snapshot->last_result_code, control_context_last_result_code(), sizeof(snapshot->last_result_code) - 1);
+    strncpy(snapshot->last_reason_code, control_context_last_reason_code(), sizeof(snapshot->last_reason_code) - 1);
+    strncpy(snapshot->global_fault_reason, control_context_private_global_fault_reason(), sizeof(snapshot->global_fault_reason) - 1);
 }
 
 static int assert_snapshot_equal(const readonly_snapshot_t *left, const readonly_snapshot_t *right)

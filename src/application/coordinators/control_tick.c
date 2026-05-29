@@ -2,6 +2,7 @@
 
 #include "application/coordinators/control_context.h"
 #include "application/use_cases/process_wash_trigger.h"
+#include "src/application/coordinators/control_context_private.h"
 #include "domain/services/trigger_priority_service.h"
 #include "shared/error_codes.h"
 #include "shared/timeouts.h"
@@ -42,8 +43,7 @@ static void enqueue_timeout_if_needed(void)
     {
         return;
     }
-    if (control_context_pending_trigger_count() >= MAX_PENDING_TRIGGER_COUNT ||
-        has_pending_timeout_trigger())
+    if (control_context_pending_trigger_count() >= MAX_PENDING_TRIGGER_COUNT || has_pending_timeout_trigger())
     {
         return;
     }
@@ -54,13 +54,6 @@ static void enqueue_timeout_if_needed(void)
 
 operation_result_t control_tick_submit_trigger(const wash_trigger_event_t *wash_trigger_event)
 {
-    operation_result_t result;
-
-    result = control_context_require_active();
-    if (!result.ok)
-    {
-        return result;
-    }
     if (wash_trigger_event == 0)
     {
         return operation_result_fail(ERROR_CODE_INVALID_ARGUMENT);
@@ -68,14 +61,7 @@ operation_result_t control_tick_submit_trigger(const wash_trigger_event_t *wash_
     return control_context_append_trigger(wash_trigger_event);
 }
 
-void control_tick_advance_time(unsigned long elapsed_ms)
-{
-    if (!control_context_require_active().ok)
-    {
-        return;
-    }
-    control_context_advance_time(elapsed_ms);
-}
+void control_tick_advance_time(unsigned long elapsed_ms) { control_context_advance_time(elapsed_ms); }
 
 operation_result_t control_tick_run(void)
 {
@@ -88,10 +74,9 @@ operation_result_t control_tick_run(void)
     const wash_trigger_event_t *best_candidate;
     operation_result_t result;
 
-    result = control_context_require_active();
-    if (!result.ok)
+    if (control_context_private_wash_session() == 0)
     {
-        return result;
+        return operation_result_fail(ERROR_CODE_INVALID_STATE);
     }
 
     /*

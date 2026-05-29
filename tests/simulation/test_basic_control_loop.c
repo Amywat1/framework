@@ -13,14 +13,14 @@ int main(void)
     TEST_ASSERT(result.ok);
     result = test_start_session_and_flush( "wash_step_control_v1");
     TEST_ASSERT(result.ok);
-    TEST_ASSERT(control_context_private_runtime_mutable()->wash_session.session_state == SESSION_STATE_RUNNING);
-    TEST_ASSERT(control_context_private_runtime_mutable()->wash_execution.lifecycle_state == SEGMENT_LIFECYCLE_RUNNING);
+    TEST_ASSERT(control_context_private_wash_session()->session_state == SESSION_STATE_RUNNING);
+    TEST_ASSERT(control_context_private_wash_execution()->lifecycle_state == SEGMENT_LIFECYCLE_RUNNING);
     TEST_ASSERT(driver_context.motion_command_count == 1);
     TEST_ASSERT(driver_context.stop_all_command_count == 1);
 
     result = test_tick( 100);
     TEST_ASSERT(result.ok);
-    TEST_ASSERT(control_context_private_runtime_mutable()->wash_execution.lifecycle_state == SEGMENT_LIFECYCLE_RUNNING);
+    TEST_ASSERT(control_context_private_wash_execution()->lifecycle_state == SEGMENT_LIFECYCLE_RUNNING);
     TEST_ASSERT(driver_context.motion_command_count == 1);
     TEST_ASSERT(driver_context.stop_all_command_count == 1);
 
@@ -28,12 +28,12 @@ int main(void)
     driver_context.runtime_snapshot.position_snapshot.tail_reached = true;
     result = test_tick( 100);
     TEST_ASSERT(result.ok);
-    TEST_ASSERT(control_context_private_runtime_mutable()->wash_execution.lifecycle_state == SEGMENT_LIFECYCLE_EXITING);
+    TEST_ASSERT(control_context_private_wash_execution()->lifecycle_state == SEGMENT_LIFECYCLE_EXITING);
 
     result = control_context_reset();
     TEST_ASSERT(result.ok);
-    TEST_ASSERT(control_context_private_runtime_mutable()->wash_session.session_state == SESSION_STATE_NONE);
-    TEST_ASSERT(control_context_private_runtime_mutable()->wash_execution.lifecycle_state == SEGMENT_LIFECYCLE_PENDING);
+    TEST_ASSERT(control_context_private_wash_session()->session_state == SESSION_STATE_NONE);
+    TEST_ASSERT(control_context_private_wash_execution()->lifecycle_state == SEGMENT_LIFECYCLE_PENDING);
     TEST_ASSERT(control_context_pending_trigger_count() == 0u);
 
     simulated_driver_context_init(&driver_context);
@@ -43,8 +43,8 @@ int main(void)
     TEST_ASSERT(result.ok);
     result = test_start_session_and_flush( "wash_step_control_v1");
     TEST_ASSERT(result.ok);
-    TEST_ASSERT(control_context_private_runtime_mutable()->wash_session.session_state == SESSION_STATE_RUNNING);
-    TEST_ASSERT(control_context_private_runtime_mutable()->wash_execution.lifecycle_state == SEGMENT_LIFECYCLE_RUNNING);
+    TEST_ASSERT(control_context_private_wash_session()->session_state == SESSION_STATE_RUNNING);
+    TEST_ASSERT(control_context_private_wash_execution()->lifecycle_state == SEGMENT_LIFECYCLE_RUNNING);
     TEST_ASSERT(driver_context.motion_command_count == 1);
 
     test_release_system_context();

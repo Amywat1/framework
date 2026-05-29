@@ -22,15 +22,15 @@ int main(void)
         sizeof(response_line));
     TEST_ASSERT(result.ok);
     TEST_ASSERT(strstr(response_line, "detail=queued") != 0);
-    TEST_ASSERT(control_context_private_runtime_mutable()->pending_trigger_count == 1u);
-    TEST_ASSERT(control_context_private_runtime_mutable()->wash_session.session_state != SESSION_STATE_RUNNING);
+    TEST_ASSERT(control_context_pending_trigger_count() == 1u);
+    TEST_ASSERT(control_context_private_wash_session()->session_state != SESSION_STATE_RUNNING);
 
     control_tick_advance_time( 100ul);
-    TEST_ASSERT(control_context_private_runtime_mutable()->current_time_ms == 100ul);
+    TEST_ASSERT(control_context_current_time_ms() == 100ul);
     result = control_tick_run();
     TEST_ASSERT(result.ok);
-    TEST_ASSERT(control_context_private_runtime_mutable()->pending_trigger_count == 0u);
-    TEST_ASSERT(control_context_private_runtime_mutable()->wash_session.session_state == SESSION_STATE_RUNNING);
+    TEST_ASSERT(control_context_pending_trigger_count() == 0u);
+    TEST_ASSERT(control_context_private_wash_session()->session_state == SESSION_STATE_RUNNING);
     return 0;
 }
 

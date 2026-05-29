@@ -179,7 +179,6 @@ static int read_text_file(const char *path, char *buffer, size_t buffer_size)
 static int verify_single_instance_file_adapters_rebind_cleanly(void)
 {
     const program_repository_port_t *program_repository_port;
-    const control_context_state_t *runtime;
     simulated_driver_context_t first_driver_context;
     simulated_driver_context_t second_driver_context;
     sensor_port_t first_sensor_port;
@@ -216,9 +215,7 @@ static int verify_single_instance_file_adapters_rebind_cleanly(void)
     TEST_ASSERT(strcmp(loaded_program.program_id, first_runtime_program.program_id) == 0);
     TEST_ASSERT(loaded_program.revision == 101);
 
-    runtime = control_context_private_runtime_mutable();
-    TEST_ASSERT(runtime != 0);
-    TEST_ASSERT(runtime->program_repository_port.context != 0);
+    TEST_ASSERT(program_repository_port->context != 0);
 
     result = control_context_deinit();
     TEST_ASSERT(result.ok);
@@ -247,9 +244,7 @@ static int verify_single_instance_file_adapters_rebind_cleanly(void)
     TEST_ASSERT(strcmp(loaded_program.program_id, second_runtime_program.program_id) == 0);
     TEST_ASSERT(loaded_program.revision == 202);
 
-    runtime = control_context_private_runtime_mutable();
-    TEST_ASSERT(runtime != 0);
-    TEST_ASSERT(runtime->program_repository_port.context != 0);
+    TEST_ASSERT(program_repository_port->context != 0);
 
     result = control_context_deinit();
     TEST_ASSERT(result.ok);
