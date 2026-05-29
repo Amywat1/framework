@@ -1,4 +1,4 @@
-#include "application/use_cases/process_wash_trigger.h"
+#include "application/use_cases/wash_control.h"
 #include "application/use_cases/query_wash_session_status.h"
 #include "tests/test_support.h"
 #include "src/application/coordinators/control_context_private.h"
@@ -72,11 +72,11 @@ static int verify_completed_business_cycle_path(void)
     wash_session_status_view_t wash_session_status_view;
     operation_result_t result;
 
-    test_setup_system_context( &driver_context);
-    result = test_load_runtime_program_from_fixture( TEST_PROGRAM_FIXTURE_PATH, 0);
+    test_setup_control_context( &driver_context);
+    result = test_load_program_from_fixture( TEST_PROGRAM_FIXTURE_PATH, 0);
     TEST_ASSERT(result.ok);
 
-    result = query_wash_session_status_execute( &wash_session_status_view);
+    result = query_wash_session_status( &wash_session_status_view);
     TEST_ASSERT(result.ok);
     TEST_ASSERT(!wash_session_status_view.has_active_session);
     TEST_ASSERT(wash_session_status_view.device_state == DEVICE_STATE_STOPPED);
@@ -85,7 +85,7 @@ static int verify_completed_business_cycle_path(void)
     install_recovering_probe(&recovering_probe_context);
     result = test_homing_system_and_flush();
     TEST_ASSERT(result.ok);
-    result = query_wash_session_status_execute( &wash_session_status_view);
+    result = query_wash_session_status( &wash_session_status_view);
     TEST_ASSERT(result.ok);
     TEST_ASSERT(recovering_probe_context.stop_all_observed_recovering);
     TEST_ASSERT(recovering_probe_context.home_roof_observed_recovering);
@@ -98,7 +98,7 @@ static int verify_completed_business_cycle_path(void)
 
     result = test_start_session_and_flush( TEST_PROGRAM_ID);
     TEST_ASSERT(result.ok);
-    result = query_wash_session_status_execute( &wash_session_status_view);
+    result = query_wash_session_status( &wash_session_status_view);
     TEST_ASSERT(result.ok);
     TEST_ASSERT(wash_session_status_view.has_active_session);
     TEST_ASSERT(wash_session_status_view.device_state == DEVICE_STATE_RUNNING);
@@ -106,9 +106,9 @@ static int verify_completed_business_cycle_path(void)
     TEST_ASSERT(wash_session_status_view.execution_state == EXECUTION_STATE_RUNNING);
 
     mark_session_ready_for_completion();
-    result = process_wash_runtime_tick();
+    result = advance_wash_session_program();
     TEST_ASSERT(result.ok);
-    result = query_wash_session_status_execute( &wash_session_status_view);
+    result = query_wash_session_status( &wash_session_status_view);
     TEST_ASSERT(result.ok);
     TEST_ASSERT(!wash_session_status_view.has_active_session);
     TEST_ASSERT(wash_session_status_view.device_state == DEVICE_STATE_IDLE);
@@ -118,7 +118,7 @@ static int verify_completed_business_cycle_path(void)
     TEST_ASSERT(strcmp(control_context_last_reason_code(), "program_finished") == 0);
     TEST_ASSERT(strcmp(wash_session_status_view.reason_code, "program_finished") == 0);
 
-    test_release_system_context();
+    test_release_control_context();
     return 0;
 }
 
@@ -128,22 +128,22 @@ static int verify_manual_stop_cycle_path(void)
     wash_session_status_view_t wash_session_status_view;
     operation_result_t result;
 
-    test_setup_system_context( &driver_context);
-    result = test_load_runtime_program_from_fixture( TEST_PROGRAM_FIXTURE_PATH, 0);
+    test_setup_control_context( &driver_context);
+    result = test_load_program_from_fixture( TEST_PROGRAM_FIXTURE_PATH, 0);
     TEST_ASSERT(result.ok);
     result = test_homing_system_and_flush();
     TEST_ASSERT(result.ok);
     result = test_start_session_and_flush( TEST_PROGRAM_ID);
     TEST_ASSERT(result.ok);
 
-    result = query_wash_session_status_execute( &wash_session_status_view);
+    result = query_wash_session_status( &wash_session_status_view);
     TEST_ASSERT(result.ok);
     TEST_ASSERT(wash_session_status_view.device_state == DEVICE_STATE_RUNNING);
     TEST_ASSERT(wash_session_status_view.session_state == SESSION_STATE_RUNNING);
 
     result = test_submit_stop( "manual-stop");
     TEST_ASSERT(result.ok);
-    result = query_wash_session_status_execute( &wash_session_status_view);
+    result = query_wash_session_status( &wash_session_status_view);
     TEST_ASSERT(result.ok);
     TEST_ASSERT(!wash_session_status_view.has_active_session);
     TEST_ASSERT(wash_session_status_view.device_state == DEVICE_STATE_STOPPED);
@@ -154,7 +154,7 @@ static int verify_manual_stop_cycle_path(void)
     TEST_ASSERT(strcmp(control_context_last_reason_code(), "manual-stop") == 0);
     TEST_ASSERT(strcmp(wash_session_status_view.reason_code, "manual-stop") == 0);
 
-    test_release_system_context();
+    test_release_control_context();
     return 0;
 }
 
@@ -165,8 +165,8 @@ static int verify_fault_clear_recovery_cycle_path(void)
     wash_session_status_view_t wash_session_status_view;
     operation_result_t result;
 
-    test_setup_system_context( &driver_context);
-    result = test_load_runtime_program_from_fixture( TEST_PROGRAM_FIXTURE_PATH, 0);
+    test_setup_control_context( &driver_context);
+    result = test_load_program_from_fixture( TEST_PROGRAM_FIXTURE_PATH, 0);
     TEST_ASSERT(result.ok);
     result = test_homing_system_and_flush();
     TEST_ASSERT(result.ok);
@@ -175,7 +175,7 @@ static int verify_fault_clear_recovery_cycle_path(void)
 
     result = test_submit_fault( "fault-e-stop");
     TEST_ASSERT(result.ok);
-    result = query_wash_session_status_execute( &wash_session_status_view);
+    result = query_wash_session_status( &wash_session_status_view);
     TEST_ASSERT(result.ok);
     TEST_ASSERT(!wash_session_status_view.has_active_session);
     TEST_ASSERT(wash_session_status_view.global_fault_present);
@@ -189,7 +189,7 @@ static int verify_fault_clear_recovery_cycle_path(void)
 
     result = test_clear_fault_and_flush();
     TEST_ASSERT(result.ok);
-    result = query_wash_session_status_execute( &wash_session_status_view);
+    result = query_wash_session_status( &wash_session_status_view);
     TEST_ASSERT(result.ok);
     TEST_ASSERT(!wash_session_status_view.global_fault_present);
     TEST_ASSERT(wash_session_status_view.device_state == DEVICE_STATE_STOPPED);
@@ -202,7 +202,7 @@ static int verify_fault_clear_recovery_cycle_path(void)
     install_recovering_probe(&recovering_probe_context);
     result = test_homing_system_and_flush();
     TEST_ASSERT(result.ok);
-    result = query_wash_session_status_execute( &wash_session_status_view);
+    result = query_wash_session_status( &wash_session_status_view);
     TEST_ASSERT(result.ok);
     TEST_ASSERT(recovering_probe_context.stop_all_observed_recovering);
     TEST_ASSERT(recovering_probe_context.home_roof_observed_recovering);
@@ -214,7 +214,7 @@ static int verify_fault_clear_recovery_cycle_path(void)
     TEST_ASSERT(strcmp(control_context_last_reason_code(), "homing_completed") == 0);
     TEST_ASSERT(strcmp(wash_session_status_view.reason_code, "homing_completed") == 0);
 
-    test_release_system_context();
+    test_release_control_context();
     return 0;
 }
 

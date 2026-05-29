@@ -3,7 +3,7 @@
 #include <string.h>
 
 #include "application/coordinators/control_context.h"
-#include "application/use_cases/process_formal_command.h"
+#include "application/use_cases/formal_command.h"
 #include "shared/error_codes.h"
 
 /**
@@ -31,7 +31,7 @@ static operation_result_t command_dispatch_handle(void *context, const char *com
 
     pending_before = dispatch->scheduler_sync_port.pending_trigger_count(dispatch->scheduler_sync_port.context);
 
-    result = process_formal_command_execute(command_line, response_line, response_line_size);
+    result = formal_command_execute(command_line, response_line, response_line_size);
 
     if (result.ok &&
         dispatch->scheduler_sync_port.pending_trigger_count(dispatch->scheduler_sync_port.context) > pending_before &&
@@ -44,8 +44,8 @@ static operation_result_t command_dispatch_handle(void *context, const char *com
         }
         result_code = control_context_last_result_code()[0] != '\0' ? control_context_last_result_code() : "accepted";
         detail = control_context_last_reason_code()[0] != '\0' ? control_context_last_reason_code() : "none";
-        process_formal_command_format_response(response_line, response_line_size, result_code,
-                                               process_formal_command_result_is_accepted(result_code), detail);
+        formal_command_format_response(response_line, response_line_size, result_code,
+                                               formal_command_result_is_accepted(result_code), detail);
         return operation_result_ok();
     }
 

@@ -10,8 +10,8 @@ static int verify_context_holds_shared_runtime_facts(void)
     unsigned int pending_trigger_count_before;
     unsigned long current_time_before;
 
-    test_setup_system_context( &driver_context);
-    result = test_load_runtime_program_from_fixture(
+    test_setup_control_context( &driver_context);
+    result = test_load_program_from_fixture(
         "tests/fixtures/wash_step_control/program_v1_valid.json",
         0);
     TEST_ASSERT(result.ok);
@@ -20,7 +20,7 @@ static int verify_context_holds_shared_runtime_facts(void)
 
     pending_trigger_count_before = control_context_pending_trigger_count();
     current_time_before = control_context_current_time_ms();
-    result = query_wash_session_status_execute( &wash_session_status_view);
+    result = query_wash_session_status( &wash_session_status_view);
     TEST_ASSERT(result.ok);
     TEST_ASSERT(wash_session_status_view.has_active_session);
     TEST_ASSERT(control_context_pending_trigger_count() == pending_trigger_count_before);
@@ -28,7 +28,7 @@ static int verify_context_holds_shared_runtime_facts(void)
     TEST_ASSERT(control_context_last_result_code()[0] != '\0');
     TEST_ASSERT(control_context_last_reason_code()[0] != '\0');
     TEST_ASSERT(control_context_private_wash_session()->session_state == SESSION_STATE_RUNNING);
-    test_release_system_context();
+    test_release_control_context();
     return 0;
 }
 
@@ -40,13 +40,13 @@ static int verify_public_lifecycle_preserves_bound_ports(void)
     program_repository_port_t program_repository_port_after;
     operation_result_t result;
 
-    test_setup_system_context( &driver_context);
+    test_setup_control_context( &driver_context);
     program_repository_port_ptr = control_context_program_repository_port();
     TEST_ASSERT(program_repository_port_ptr != 0);
     program_repository_port_before = *program_repository_port_ptr;
     TEST_ASSERT(program_repository_port_before.context != 0);
 
-    result = control_context_reset();
+    result = control_context_reset_runtime_keep_bindings();
     TEST_ASSERT(result.ok);
     program_repository_port_ptr = control_context_program_repository_port();
     TEST_ASSERT(program_repository_port_ptr != 0);
@@ -55,7 +55,7 @@ static int verify_public_lifecycle_preserves_bound_ports(void)
     TEST_ASSERT(control_context_pending_trigger_count() == 0u);
     TEST_ASSERT(control_context_current_time_ms() == 0ul);
 
-    test_release_system_context();
+    test_release_control_context();
     return 0;
 }
 
@@ -64,9 +64,9 @@ static int verify_release_clears_single_instance_and_invalidates_handle(void)
     simulated_driver_context_t driver_context;
     operation_result_t result;
 
-    test_setup_system_context( &driver_context);
+    test_setup_control_context( &driver_context);
 
-    test_release_system_context();
+    test_release_control_context();
     TEST_ASSERT(control_context_pending_trigger_count() == 0u);
     TEST_ASSERT(control_context_current_time_ms() == 0ul);
     TEST_ASSERT(control_context_program_repository_port() == 0);

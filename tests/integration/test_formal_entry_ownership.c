@@ -1,4 +1,4 @@
-#include "application/use_cases/process_formal_command.h"
+#include "application/use_cases/formal_command.h"
 #include "tests/test_support.h"
 #include "src/application/coordinators/control_context_private.h"
 
@@ -8,12 +8,12 @@ static int verify_formal_start_rejects_unavailable_program_from_idle(void)
     char response_line[512];
     operation_result_t result;
 
-    test_setup_system_context( &driver_context);
+    test_setup_control_context( &driver_context);
     result = test_homing_system_and_flush();
     TEST_ASSERT(result.ok);
     TEST_ASSERT(control_context_private_device_state() == DEVICE_STATE_IDLE);
 
-    result = process_formal_command_execute(
+    result = formal_command_execute(
         "start missing_program",
         response_line,
         sizeof(response_line));
@@ -31,7 +31,7 @@ static int verify_formal_start_rejects_unavailable_program_from_idle(void)
     TEST_ASSERT(strcmp(control_context_private_last_transition_record()->reason_code, "program_unavailable") == 0);
     TEST_ASSERT(control_context_private_device_state() == DEVICE_STATE_IDLE);
 
-    test_release_system_context();
+    test_release_control_context();
     return 0;
 }
 
@@ -42,8 +42,8 @@ static int verify_formal_start_rejects_invalid_program_from_idle(void)
     operation_result_t result;
     wash_program_t invalid_program;
 
-    test_setup_system_context( &driver_context);
-    result = test_load_runtime_program_from_fixture(
+    test_setup_control_context( &driver_context);
+    result = test_load_program_from_fixture(
         "tests/fixtures/wash_step_control/program_v1_valid.json",
         &invalid_program);
     TEST_ASSERT(result.ok);
@@ -55,7 +55,7 @@ static int verify_formal_start_rejects_invalid_program_from_idle(void)
     TEST_ASSERT(result.ok);
     TEST_ASSERT(control_context_private_device_state() == DEVICE_STATE_IDLE);
 
-    result = process_formal_command_execute(
+    result = formal_command_execute(
         "start invalid_runtime_program",
         response_line,
         sizeof(response_line));
@@ -73,7 +73,7 @@ static int verify_formal_start_rejects_invalid_program_from_idle(void)
     TEST_ASSERT(strcmp(control_context_private_last_transition_record()->reason_code, "program_invalid") == 0);
     TEST_ASSERT(control_context_private_device_state() == DEVICE_STATE_IDLE);
 
-    test_release_system_context();
+    test_release_control_context();
     return 0;
 }
 
@@ -83,8 +83,8 @@ static int verify_formal_start_rejects_when_global_fault_active_from_idle(void)
     char response_line[512];
     operation_result_t result;
 
-    test_setup_system_context( &driver_context);
-    result = test_load_runtime_program_from_fixture(
+    test_setup_control_context( &driver_context);
+    result = test_load_program_from_fixture(
         "tests/fixtures/wash_step_control/program_v1_valid.json",
         0);
     TEST_ASSERT(result.ok);
@@ -94,7 +94,7 @@ static int verify_formal_start_rejects_when_global_fault_active_from_idle(void)
     control_context_private_set_global_fault( "E_STOP", "forced-global-fault");
     control_context_private_set_device_state( DEVICE_STATE_IDLE);
 
-    result = process_formal_command_execute(
+    result = formal_command_execute(
         "start wash_step_control_v1",
         response_line,
         sizeof(response_line));
@@ -113,7 +113,7 @@ static int verify_formal_start_rejects_when_global_fault_active_from_idle(void)
     TEST_ASSERT(control_context_private_device_state() == DEVICE_STATE_IDLE);
     TEST_ASSERT(control_context_private_global_fault_present());
 
-    test_release_system_context();
+    test_release_control_context();
     return 0;
 }
 
@@ -123,8 +123,8 @@ static int verify_formal_start_rejects_when_running_session_exists(void)
     char response_line[512];
     operation_result_t result;
 
-    test_setup_system_context( &driver_context);
-    result = test_load_runtime_program_from_fixture(
+    test_setup_control_context( &driver_context);
+    result = test_load_program_from_fixture(
         "tests/fixtures/wash_step_control/program_v1_valid.json",
         0);
     TEST_ASSERT(result.ok);
@@ -136,7 +136,7 @@ static int verify_formal_start_rejects_when_running_session_exists(void)
 
     control_context_private_set_device_state( DEVICE_STATE_IDLE);
 
-    result = process_formal_command_execute(
+    result = formal_command_execute(
         "start wash_step_control_v1",
         response_line,
         sizeof(response_line));
@@ -149,7 +149,7 @@ static int verify_formal_start_rejects_when_running_session_exists(void)
     TEST_ASSERT(strcmp(control_context_private_last_transition_record()->reason_code, "running_session_exists") == 0);
     TEST_ASSERT(control_context_private_wash_session()->session_state == SESSION_STATE_RUNNING);
 
-    test_release_system_context();
+    test_release_control_context();
     return 0;
 }
 
@@ -159,15 +159,15 @@ static int verify_formal_command_execute_is_public_entry(void)
     char response_line[512];
     operation_result_t result;
 
-    test_setup_system_context( &driver_context);
-    result = test_load_runtime_program_from_fixture(
+    test_setup_control_context( &driver_context);
+    result = test_load_program_from_fixture(
         "tests/fixtures/wash_step_control/program_v1_valid.json",
         0);
     TEST_ASSERT(result.ok);
     result = test_homing_system_and_flush();
     TEST_ASSERT(result.ok);
 
-    result = process_formal_command_execute(
+    result = formal_command_execute(
         "start wash_step_control_v1",
         response_line,
         sizeof(response_line));
@@ -180,7 +180,7 @@ static int verify_formal_command_execute_is_public_entry(void)
     TEST_ASSERT(control_context_pending_trigger_count() == 0u);
     TEST_ASSERT(control_context_private_wash_session()->session_state == SESSION_STATE_RUNNING);
     TEST_ASSERT(control_context_last_reason_code()[0] != '\0');
-    test_release_system_context();
+    test_release_control_context();
     return 0;
 }
 
@@ -190,15 +190,15 @@ static int verify_cli_execute_uses_formal_entry(void)
     char response_line[512];
     operation_result_t result;
 
-    test_setup_system_context( &driver_context);
-    result = test_load_runtime_program_from_fixture(
+    test_setup_control_context( &driver_context);
+    result = test_load_program_from_fixture(
         "tests/fixtures/wash_step_control/program_v1_valid.json",
         0);
     TEST_ASSERT(result.ok);
     result = test_homing_system_and_flush();
     TEST_ASSERT(result.ok);
 
-    result = process_formal_command_execute(
+    result = formal_command_execute(
         "start wash_step_control_v1",
         response_line,
         sizeof(response_line));
@@ -211,7 +211,7 @@ static int verify_cli_execute_uses_formal_entry(void)
     TEST_ASSERT(control_context_pending_trigger_count() == 0u);
     TEST_ASSERT(control_context_private_wash_session()->session_state == SESSION_STATE_RUNNING);
     TEST_ASSERT(control_context_last_reason_code()[0] != '\0');
-    test_release_system_context();
+    test_release_control_context();
     return 0;
 }
 

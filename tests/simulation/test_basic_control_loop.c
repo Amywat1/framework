@@ -6,8 +6,8 @@ int main(void)
     simulated_driver_context_t driver_context;
     operation_result_t result;
 
-    test_setup_system_context( &driver_context);
-    result = test_load_runtime_program_from_fixture(
+    test_setup_control_context( &driver_context);
+    result = test_load_program_from_fixture(
         "tests/fixtures/wash_step_control/program_v1_valid.json",
         0);
     TEST_ASSERT(result.ok);
@@ -30,14 +30,14 @@ int main(void)
     TEST_ASSERT(result.ok);
     TEST_ASSERT(control_context_private_wash_execution()->lifecycle_state == SEGMENT_LIFECYCLE_EXITING);
 
-    result = control_context_reset();
+    result = control_context_reset_runtime_keep_bindings();
     TEST_ASSERT(result.ok);
     TEST_ASSERT(control_context_private_wash_session()->session_state == SESSION_STATE_NONE);
     TEST_ASSERT(control_context_private_wash_execution()->lifecycle_state == SEGMENT_LIFECYCLE_PENDING);
     TEST_ASSERT(control_context_pending_trigger_count() == 0u);
 
     simulated_driver_context_init(&driver_context);
-    result = test_load_runtime_program_from_fixture(
+    result = test_load_program_from_fixture(
         "tests/fixtures/wash_step_control/program_v1_valid.json",
         0);
     TEST_ASSERT(result.ok);
@@ -47,7 +47,7 @@ int main(void)
     TEST_ASSERT(control_context_private_wash_execution()->lifecycle_state == SEGMENT_LIFECYCLE_RUNNING);
     TEST_ASSERT(driver_context.motion_command_count == 1);
 
-    test_release_system_context();
+    test_release_control_context();
     result = test_tick( 100);
     TEST_ASSERT(!result.ok);
     TEST_ASSERT(result.error_code == ERROR_CODE_INVALID_STATE);

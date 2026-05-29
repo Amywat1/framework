@@ -50,8 +50,8 @@ static int verify_status_query_is_readonly(void)
     readonly_snapshot_t after_snapshot;
     operation_result_t result;
 
-    test_setup_system_context( &driver_context);
-    result = test_load_runtime_program_from_fixture(
+    test_setup_control_context( &driver_context);
+    result = test_load_program_from_fixture(
         "tests/fixtures/wash_step_control/program_v1_valid.json",
         0);
     TEST_ASSERT(result.ok);
@@ -59,15 +59,15 @@ static int verify_status_query_is_readonly(void)
     TEST_ASSERT(result.ok);
 
     capture_snapshot(&before_snapshot);
-    result = query_wash_session_status_execute( &wash_session_status_view);
+    result = query_wash_session_status( &wash_session_status_view);
     TEST_ASSERT(result.ok);
-    result = query_wash_session_status_execute( &wash_session_status_view);
+    result = query_wash_session_status( &wash_session_status_view);
     TEST_ASSERT(result.ok);
     capture_snapshot(&after_snapshot);
 
     TEST_ASSERT(assert_snapshot_equal(&before_snapshot, &after_snapshot) == 0);
     TEST_ASSERT(wash_session_status_view.session_state == SESSION_STATE_RUNNING);
-    test_release_system_context();
+    test_release_control_context();
     return 0;
 }
 

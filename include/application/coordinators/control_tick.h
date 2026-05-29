@@ -17,7 +17,7 @@
  *
  * @note 该函数不等待任何操作系统事件，也不拥有外层事件循环；何时调用由外层调度器决定。
  * @note 单拍内先消费后台外部触发收件箱，再注入到期超时并按触发优先级处理待处理队列。
- * @note 无论本拍是否处理触发，最后都会执行一次运行时 tick，用于持续评估段执行状态。
+ * @note 无论本拍是否处理触发，最后都会调用 `advance_wash_session_program()` 推进运行中会话的程序工步。
  * @note 组合根尚未 `control_context_init` 或已 `deinit` 时返回 `ERROR_CODE_INVALID_STATE`。
  */
 operation_result_t control_tick_run(void);

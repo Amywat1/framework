@@ -1,7 +1,7 @@
 #include <string.h>
 
-#include "application/use_cases/process_formal_command.h"
-#include "application/use_cases/process_wash_trigger.h"
+#include "application/use_cases/formal_command.h"
+#include "application/use_cases/wash_control.h"
 #include "application/use_cases/query_wash_session_status.h"
 #include "tests/test_support.h"
 #include "src/application/coordinators/control_context_private.h"
@@ -14,7 +14,7 @@ static int verify_calls_fail_before_acquire(void)
     char response_line[256];
 
     /* 未 acquire 时，所有接口应返回 INVALID_STATE */
-    result = control_context_reset();
+    result = control_context_reset_runtime_keep_bindings();
     TEST_ASSERT(!result.ok);
     TEST_ASSERT(result.error_code == ERROR_CODE_INVALID_STATE);
 
@@ -26,17 +26,17 @@ static int verify_calls_fail_before_acquire(void)
     TEST_ASSERT(!result.ok);
     TEST_ASSERT(result.error_code == ERROR_CODE_INVALID_STATE);
 
-    result = query_wash_session_status_execute(&wash_session_status_view);
+    result = query_wash_session_status(&wash_session_status_view);
     TEST_ASSERT(!result.ok);
     TEST_ASSERT(result.error_code == ERROR_CODE_INVALID_STATE);
 
     wash_trigger_event_init(&wash_trigger_event, TRIGGER_TYPE_STOP, 0, "invalid", "invalid", 0ul);
-    result = process_wash_trigger_execute(&wash_trigger_event);
+    result = dispatch_wash_control_trigger(&wash_trigger_event);
     TEST_ASSERT(!result.ok);
     TEST_ASSERT(result.error_code == ERROR_CODE_INVALID_STATE);
 
     memset(response_line, 0, sizeof(response_line));
-    result = process_formal_command_execute("status", response_line, sizeof(response_line));
+    result = formal_command_execute("status", response_line, sizeof(response_line));
     TEST_ASSERT(!result.ok);
     TEST_ASSERT(result.error_code == ERROR_CODE_INVALID_STATE);
     return 0;
@@ -74,8 +74,8 @@ static int verify_released_handle_is_rejected_by_runtime_paths(void)
     scheduler_t *scheduler;
     char response_line[256];
 
-    test_setup_system_context(&driver_context);
-    test_release_system_context();
+    test_setup_control_context(&driver_context);
+    test_release_control_context();
 
     /* 释放后所有接口应返回 INVALID_STATE */
     wash_trigger_event_init(&wash_trigger_event, TRIGGER_TYPE_STOP, 0, "released", "released", 0ul);
@@ -83,17 +83,17 @@ static int verify_released_handle_is_rejected_by_runtime_paths(void)
     TEST_ASSERT(!result.ok);
     TEST_ASSERT(result.error_code == ERROR_CODE_INVALID_STATE);
 
-    result = process_wash_trigger_execute(&wash_trigger_event);
+    result = dispatch_wash_control_trigger(&wash_trigger_event);
     TEST_ASSERT(!result.ok);
     TEST_ASSERT(result.error_code == ERROR_CODE_INVALID_STATE);
 
     memset(response_line, 0, sizeof(response_line));
-    result = process_formal_command_execute("status", response_line, sizeof(response_line));
+    result = formal_command_execute("status", response_line, sizeof(response_line));
     TEST_ASSERT(!result.ok);
     TEST_ASSERT(result.error_code == ERROR_CODE_INVALID_STATE);
     TEST_ASSERT(strstr(response_line, "result=invalid_state") != 0);
 
-    result = query_wash_session_status_execute(&wash_session_status_view);
+    result = query_wash_session_status(&wash_session_status_view);
     TEST_ASSERT(!result.ok);
     TEST_ASSERT(result.error_code == ERROR_CODE_INVALID_STATE);
     result = test_scheduler_read_bound_view(&app_state_view);
@@ -109,10 +109,8 @@ static int verify_released_handle_is_rejected_by_runtime_paths(void)
     scheduler_config.bounded_drain_ticks = 4u;
     scheduler_config.max_triggers_per_tick = 1u;
     scheduler_config.overrun_warning_threshold_ms = 100ul;
-    /* 释放后创建调度器应失败（scheduler_runtime_port_init_from_control_context 会成功但调度器内部会失败） */
+    /* 组合根已释放：scheduler_create / port 填充不校验 init 状态，对象仍可创建；业务入口已在上方断言拒绝。 */
     scheduler = test_scheduler_create_unbound(&scheduler_config, 0);
-    /* 注意：在单实例设计下，scheduler_runtime_port_init 始终成功，但 scheduler_create 仍应能创建
-     * （调度器创建本身不依赖 control_context 状态）。此处仅验证 re-acquire 后可正常使用。*/
     if (scheduler != 0)
     {
         scheduler_destroy(scheduler);
@@ -141,7 +139,7 @@ static int verify_bound_scheduler_blocks_release_and_rebind(void)
     scheduler_t *duplicate_scheduler;
     operation_result_t result;
 
-    test_setup_system_context(&driver_context);
+    test_setup_control_context(&driver_context);
     scheduler = test_create_scheduler(100ul);
     TEST_ASSERT(scheduler != 0);
 
@@ -153,7 +151,7 @@ static int verify_bound_scheduler_blocks_release_and_rebind(void)
     duplicate_scheduler = test_scheduler_create_unbound(&scheduler_config, 0);
     TEST_ASSERT(duplicate_scheduler == 0);
 
-    test_release_system_context();
+    test_release_control_context();
     return 0;
 }
 
@@ -257,23 +255,23 @@ static int verify_failed_program_import_does_not_bind_runtime_cache(void)
     wash_program_t wash_program;
     operation_result_t result;
 
-    test_setup_system_context(&driver_context);
+    test_setup_control_context(&driver_context);
 
-    result = test_load_runtime_program_from_fixture(
+    result = test_load_program_from_fixture(
         "tests/fixtures/wash_step_control/program_v1_invalid_json_syntax.json",
         &wash_program);
     TEST_ASSERT(!result.ok);
     TEST_ASSERT(result.error_code == ERROR_CODE_PARSE_FAILED);
     TEST_ASSERT(test_load_program_via_repository("broken_json", &wash_program) != 0);
 
-    result = test_load_runtime_program_from_fixture(
+    result = test_load_program_from_fixture(
         "tests/fixtures/wash_step_control/program_v1_invalid_stages_schema.json",
         &wash_program);
     TEST_ASSERT(!result.ok);
     TEST_ASSERT(result.error_code == ERROR_CODE_UNSUPPORTED);
     TEST_ASSERT(test_load_program_via_repository("legacy_stages_program", &wash_program) != 0);
 
-    test_release_system_context();
+    test_release_control_context();
     return 0;
 }
 

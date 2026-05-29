@@ -26,8 +26,8 @@
 8. `src/platform/linux/command_ingress_stdio_linux.c`
 9. `include/application/coordinators/control_tick.h`
 10. `src/application/coordinators/control_tick.c`
-11. `src/application/use_cases/process_formal_command.c`
-12. `src/application/use_cases/process_wash_trigger.c`
+11. `src/application/use_cases/formal_command.c`
+12. `src/application/use_cases/wash_control.c`
 13. `src/domain/services/wash_execution_service.c`
 
 这条顺序基本对应当前程序的真实运行链路。
@@ -158,8 +158,8 @@
 
 1. 检查当前等待条件是否已到期，必要时自动补一个 `TIMEOUT` trigger。
 2. 从待处理 trigger 队列中选出优先级最高的一个。
-3. 调用 `process_wash_trigger_execute()` 消费这个 trigger。
-4. 再调用 `process_wash_runtime_tick()` 推进一次当前 wash session 的运行态。
+3. 调用 `dispatch_wash_control_trigger()` 消费这个 trigger。
+4. 再调用 `advance_wash_session_program()` 推进一次当前洗车会话的程序工步。
 
 这意味着 trigger 消费和运行态推进是在同一拍中连续完成的。
 
@@ -228,8 +228,8 @@
 - 平台调度器：`src/platform/linux/scheduler_linux.c`
 - stdin 命令入站适配：`src/platform/linux/command_ingress_stdio_linux.c`
 - 单拍推进器：`src/application/coordinators/control_tick.c`
-- 正式命令入口：`src/application/use_cases/process_formal_command.c`
-- trigger 编排：`src/application/use_cases/process_wash_trigger.c`
+- 正式命令入口：`src/application/use_cases/formal_command.c`
+- trigger 编排：`src/application/use_cases/wash_control.c`
 - 状态查询：`src/application/use_cases/query_wash_session_status.c`
 - 程序仓储：`src/adapters/outbound/file_program_repository.c`
 - 程序解析：`src/adapters/config/json_program_parser.c`

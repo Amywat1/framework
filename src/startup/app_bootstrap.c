@@ -160,10 +160,7 @@ static operation_result_t bootstrap_start_alarm_monitor(void)
 /**
  * @brief 停止后台报警监控组件。
  */
-static void bootstrap_stop_alarm_monitor(void)
-{
-    alarm_monitor_stop(g_app_instance.alarm_monitor);
-}
+static void bootstrap_stop_alarm_monitor(void) { alarm_monitor_stop(g_app_instance.alarm_monitor); }
 
 /**
  * @brief 销毁后台报警监控组件。
@@ -202,8 +199,7 @@ static operation_result_t bootstrap_teardown_instance(void)
     }
 
     g_app_instance.state = APP_STATE_DESTROYED;
-    return teardown_error_code == ERROR_CODE_OK ? operation_result_ok()
-                                                : operation_result_fail(teardown_error_code);
+    return teardown_error_code == ERROR_CODE_OK ? operation_result_ok() : operation_result_fail(teardown_error_code);
 }
 
 void app_config_init(app_config_t *config)
@@ -253,7 +249,7 @@ operation_result_t app_create(const app_config_t *config)
         return result;
     }
 
-    result = control_context_private_enter_stopped();
+    result = control_context_private_mark_device_ready_stopped();
     if (!result.ok)
     {
         (void)bootstrap_teardown_instance();

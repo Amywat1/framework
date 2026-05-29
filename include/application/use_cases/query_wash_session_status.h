@@ -32,6 +32,6 @@ typedef struct wash_session_status_view_t
  * @param wash_session_status_view 输出状态视图，不能为空。
  * @return 查询成功返回 `operation_result_ok()`；实例未激活时返回失败结果。
  */
-operation_result_t query_wash_session_status_execute(wash_session_status_view_t *wash_session_status_view);
+operation_result_t query_wash_session_status(wash_session_status_view_t *wash_session_status_view);
 
 #endif

@@ -239,7 +239,7 @@ static int test_repository_save_is_rejected_without_serializer(void)
     wash_program_t wash_program;
     simulated_driver_context_t driver_context;
 
-    test_setup_system_context(&driver_context);
+    test_setup_control_context(&driver_context);
     result = json_program_parser_parse("tests/fixtures/wash_step_control/program_v1_valid.json", &wash_program);
     TEST_ASSERT(result.ok);
     {
@@ -250,7 +250,7 @@ static int test_repository_save_is_rejected_without_serializer(void)
         TEST_ASSERT(program_repository_port->save_program != 0);
         TEST_ASSERT(program_repository_port->save_program(program_repository_port->context, &wash_program) != 0);
     }
-    test_release_system_context();
+    test_release_control_context();
     return 0;
 }
 

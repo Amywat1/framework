@@ -52,7 +52,7 @@ static int verify_initialized_only_tracks_active_single_instance(void)
     result = control_context_init();
     TEST_ASSERT(result.ok);
 
-    result = control_context_reset();
+    result = control_context_reset_runtime_keep_bindings();
     TEST_ASSERT(result.ok);
 
     result = control_context_deinit();
@@ -72,12 +72,12 @@ static int verify_init_state_is_completed_by_runtime_creation_path(void)
     result = control_context_deinit();
     TEST_ASSERT(result.ok);
 
-    test_setup_system_context(&driver_context);
-    result = query_wash_session_status_execute(&wash_session_status_view);
+    test_setup_control_context(&driver_context);
+    result = query_wash_session_status(&wash_session_status_view);
     TEST_ASSERT(result.ok);
     TEST_ASSERT(wash_session_status_view.device_state == DEVICE_STATE_STOPPED);
     TEST_ASSERT(control_context_private_device_state() == DEVICE_STATE_STOPPED);
-    test_release_system_context();
+    test_release_control_context();
     return 0;
 }
 

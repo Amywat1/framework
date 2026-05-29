@@ -58,7 +58,7 @@ static int verify_background_alarm_monitor_fault_queue_semantics(void)
     unsigned long first_recorded_at_ms;
     operation_result_t result;
 
-    test_setup_system_context( &driver_context);
+    test_setup_control_context( &driver_context);
     alarm_evaluator_init(&alarm_evaluator);
 
     result = test_homing_system_and_flush();
@@ -91,7 +91,7 @@ static int verify_background_alarm_monitor_fault_queue_semantics(void)
     TEST_ASSERT(result.ok);
     TEST_ASSERT(control_context_private_external_trigger_count() == 1u);
 
-    test_release_system_context();
+    test_release_control_context();
     return 0;
 }
 
@@ -105,7 +105,7 @@ static int verify_background_alarm_monitor_retries_after_queue_full(void)
     operation_result_t result;
     unsigned int index;
 
-    test_setup_system_context( &driver_context);
+    test_setup_control_context( &driver_context);
     alarm_evaluator_init(&alarm_evaluator);
 
     result = test_homing_system_and_flush();
@@ -151,7 +151,7 @@ static int verify_background_alarm_monitor_retries_after_queue_full(void)
     TEST_ASSERT(strcmp(wash_trigger_event.source, "background-alarm-monitor") == 0);
     TEST_ASSERT(control_context_private_external_trigger_count() == 0u);
 
-    test_release_system_context();
+    test_release_control_context();
     return 0;
 }
 
@@ -162,7 +162,7 @@ static int verify_background_alarm_monitor_recovery_path(void)
     sensor_snapshot_t sensor_snapshot;
     operation_result_t result;
 
-    test_setup_system_context( &driver_context);
+    test_setup_control_context( &driver_context);
     alarm_evaluator_init(&alarm_evaluator);
 
     result = test_homing_system_and_flush();
@@ -205,7 +205,7 @@ static int verify_background_alarm_monitor_recovery_path(void)
     TEST_ASSERT(strcmp(control_context_private_last_transition_record()->reason_code,
         "homing_completed") == 0);
 
-    test_release_system_context();
+    test_release_control_context();
     return 0;
 }
 
@@ -219,7 +219,7 @@ static int verify_background_alarm_monitor_external_fault_beats_pending_backlog(
     unsigned int pending_before;
     unsigned int index;
 
-    test_setup_system_context( &driver_context);
+    test_setup_control_context( &driver_context);
     alarm_evaluator_init(&alarm_evaluator);
 
     result = test_homing_system_and_flush();
@@ -255,7 +255,7 @@ static int verify_background_alarm_monitor_external_fault_beats_pending_backlog(
     TEST_ASSERT(control_context_pending_trigger_count() == pending_before);
     TEST_ASSERT(control_context_private_external_trigger_count() == 0u);
 
-    test_release_system_context();
+    test_release_control_context();
     return 0;
 }
 

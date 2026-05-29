@@ -1,6 +1,6 @@
 #include <string.h>
 
-#include "application/use_cases/process_formal_command.h"
+#include "application/use_cases/formal_command.h"
 #include "application/use_cases/query_wash_session_status.h"
 #include "tests/test_support.h"
 #include "src/application/coordinators/control_context_private.h"
@@ -12,14 +12,14 @@ static int verify_reset_preserves_bound_ports_and_occupied_state(void)
     const program_repository_port_t *program_repository_port_after;
     operation_result_t result;
 
-    test_setup_system_context( &driver_context);
+    test_setup_control_context( &driver_context);
     control_tick_advance_time( 33ul);
 
     program_repository_port_before = control_context_program_repository_port();
     TEST_ASSERT(program_repository_port_before != 0);
     TEST_ASSERT(program_repository_port_before->context != 0);
 
-    result = control_context_reset();
+    result = control_context_reset_runtime_keep_bindings();
     TEST_ASSERT(result.ok);
     TEST_ASSERT(control_context_current_time_ms() == 0ul);
     TEST_ASSERT(control_context_pending_trigger_count() == 0u);
@@ -28,7 +28,7 @@ static int verify_reset_preserves_bound_ports_and_occupied_state(void)
     TEST_ASSERT(program_repository_port_after != 0);
     TEST_ASSERT(program_repository_port_after->context == program_repository_port_before->context);
 
-    test_release_system_context();
+    test_release_control_context();
     return 0;
 }
 
@@ -40,19 +40,19 @@ static int verify_release_invalidates_runtime_entrypoints(void)
     operation_result_t result;
     char response_line[256];
 
-    test_setup_system_context( &driver_context);
-    test_release_system_context();
+    test_setup_control_context( &driver_context);
+    test_release_control_context();
 
-    result = control_context_reset();
+    result = control_context_reset_runtime_keep_bindings();
     TEST_ASSERT(!result.ok);
     TEST_ASSERT(result.error_code == ERROR_CODE_INVALID_STATE);
 
-    result = query_wash_session_status_execute( &wash_session_status_view);
+    result = query_wash_session_status( &wash_session_status_view);
     TEST_ASSERT(!result.ok);
     TEST_ASSERT(result.error_code == ERROR_CODE_INVALID_STATE);
 
     memset(response_line, 0, sizeof(response_line));
-    result = process_formal_command_execute( "status", response_line, sizeof(response_line));
+    result = formal_command_execute( "status", response_line, sizeof(response_line));
     TEST_ASSERT(!result.ok);
     TEST_ASSERT(result.error_code == ERROR_CODE_INVALID_STATE);
     TEST_ASSERT(strstr(response_line, "result=invalid_state") != 0);

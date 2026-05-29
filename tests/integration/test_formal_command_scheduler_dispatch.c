@@ -10,8 +10,8 @@ int main(void)
     operation_result_t result;
     unsigned int pending_before;
 
-    test_setup_system_context( &driver_context);
-    result = test_load_runtime_program_from_fixture(
+    test_setup_control_context( &driver_context);
+    result = test_load_program_from_fixture(
         "tests/fixtures/wash_step_control/program_v1_valid.json",
         0);
     TEST_ASSERT(result.ok);
@@ -43,7 +43,7 @@ int main(void)
     TEST_ASSERT(result.ok);
     TEST_ASSERT(app_state_view.metrics.command_event_count == 3ul);
 
-    test_release_system_context();
+    test_release_control_context();
     return 0;
 }
 

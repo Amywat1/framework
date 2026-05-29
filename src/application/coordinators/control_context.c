@@ -4,7 +4,6 @@
 #include <string.h>
 
 #include "domain/model/program_snapshot.h"
-#include "domain/model/vehicle_type.h"
 #include "domain/model/wait_condition.h"
 #include "domain/model/wash_execution.h"
 #include "domain/model/wash_program.h"
@@ -17,12 +16,10 @@
 typedef struct control_context_state_t
 {
     wash_program_t wash_program;
-    vehicle_type_t vehicle_type;
     wash_session_t wash_session;
     wash_execution_t wash_execution;
     wait_condition_t wait_condition;
     program_snapshot_t program_snapshot;
-    runtime_snapshot_t runtime_snapshot;
     state_transition_record_t last_transition_record;
     wash_trigger_event_t pending_triggers[MAX_PENDING_TRIGGER_COUNT];
     wash_trigger_event_t external_triggers[MAX_EXTERNAL_TRIGGER_QUEUE_COUNT];
@@ -75,7 +72,6 @@ static void initialize_runtime_object(control_context_state_t *runtime)
     memset(runtime, 0, sizeof(*runtime));
     /* memset 将标量字段归零，但域模型对象有自己的非零初始语义，必须显式初始化。 */
     wash_program_init(&runtime->wash_program, "", "");
-    vehicle_type_init(&runtime->vehicle_type, "", "");
     wash_session_reset(&runtime->wash_session);
     wash_execution_reset(&runtime->wash_execution);
     wait_condition_reset(&runtime->wait_condition);
@@ -84,7 +80,7 @@ static void initialize_runtime_object(control_context_state_t *runtime)
 }
 
 
-operation_result_t control_context_private_enter_stopped(void)
+operation_result_t control_context_private_mark_device_ready_stopped(void)
 {
     control_context_state_t *runtime;
 
@@ -252,7 +248,7 @@ void control_context_private_set_latest_result(const char *result_code, const ch
  * @param result_code 最新结果码；传入 `0` 时保持现有结果码不变。
  * @param reason_code 最新原因码；传入 `0` 时保持现有原因码不变。
  */
-void control_context_private_apply_control_context_result(device_state_t device_state,
+void control_context_private_apply_device_state_outcome(device_state_t device_state,
                                                         const char *result_code, const char *reason_code)
 {
     control_context_private_set_device_state(device_state);
@@ -283,7 +279,7 @@ operation_result_t control_context_private_apply_start_accepted(wash_session_t *
     result = wash_execution_service_begin_next_segment(&wash_execution_service_args, &wash_execution_fact);
     if (result.ok)
     {
-        control_context_private_apply_control_context_result(DEVICE_STATE_RUNNING, "accepted",
+        control_context_private_apply_device_state_outcome(DEVICE_STATE_RUNNING, "accepted",
                                                            "session_started");
     }
     return result;
@@ -473,7 +469,7 @@ operation_result_t control_context_deinit(void)
     return operation_result_ok();
 }
 
-operation_result_t control_context_reset(void)
+operation_result_t control_context_reset_runtime_keep_bindings(void)
 {
     actuator_port_t actuator_port;
     program_repository_port_t program_repository_port;
@@ -497,7 +493,7 @@ operation_result_t control_context_reset(void)
     runtime->sensor_port = sensor_port;
     runtime->actuator_port = actuator_port;
     runtime->program_repository_port = program_repository_port;
-    return control_context_private_enter_stopped();
+    return control_context_private_mark_device_ready_stopped();
 }
 
 void control_context_set_sensor_port(const sensor_port_t *sensor_port)

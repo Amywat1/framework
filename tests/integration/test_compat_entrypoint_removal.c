@@ -58,7 +58,7 @@ static int verify_removed_compat_symbols(void)
     TEST_ASSERT(command_output_contains(command, "stop_wash_cycle_with_reason_execute") == 0);
     TEST_ASSERT(command_output_contains(command, "acknowledge_fault_execute") == 0);
     TEST_ASSERT(command_output_contains(command, "compatibility_trigger_runner_execute") == 0);
-    TEST_ASSERT(command_output_contains(command, "process_formal_command_execute") == 1);
+    TEST_ASSERT(command_output_contains(command, "formal_command_execute") == 1);
     TEST_ASSERT(command_output_contains(command, "cli_command_adapter_execute_formal_line") == 0);
     return 0;
 }
@@ -69,8 +69,8 @@ static int verify_formal_path_still_works(void)
     char response_line[512];
     operation_result_t result;
 
-    test_setup_system_context( &driver_context);
-    result = test_load_runtime_program_from_fixture(
+    test_setup_control_context( &driver_context);
+    result = test_load_program_from_fixture(
         "tests/fixtures/wash_step_control/program_v1_valid.json",
         0);
     TEST_ASSERT(result.ok);

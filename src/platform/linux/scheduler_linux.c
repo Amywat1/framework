@@ -134,7 +134,7 @@ void scheduler_update_pending_metric(scheduler_t *scheduler)
         return;
     }
     scheduler->metrics.pending_trigger_count =
-        scheduler->runtime_port.pending_trigger_count(scheduler->runtime_port.context);
+        scheduler->runtime_port.pending_trigger_count();
 }
 
 /**
@@ -167,7 +167,7 @@ void scheduler_note_command_event(scheduler_t *scheduler)
         return;
     }
 
-    seen_time_ms = scheduler->runtime_port.current_time_ms(scheduler->runtime_port.context);
+    seen_time_ms = scheduler->runtime_port.current_time_ms();
     scheduler->metrics.command_event_count += 1ul;
     scheduler_note_source_event(&scheduler->command_source, 1ul, seen_time_ms);
 }
@@ -209,14 +209,14 @@ operation_result_t scheduler_execute_bounded_ticks(scheduler_t *scheduler, bool 
     scheduler->last_cycle_start_ms = cycle_start_ms;
     if (advance_time)
     {
-        scheduler->runtime_port.advance_time(scheduler->runtime_port.context, elapsed_ms);
+        scheduler->runtime_port.advance_time(elapsed_ms);
     }
 
     remaining_runs = scheduler->config.max_triggers_per_tick > 0u ? scheduler->config.max_triggers_per_tick : 1u;
     result = operation_result_ok();
     while (remaining_runs > 0u)
     {
-        result = scheduler->runtime_port.run_control_tick(scheduler->runtime_port.context);
+        result = scheduler->runtime_port.run_control_tick();
         if (!result.ok)
         {
             scheduler_record_error(scheduler, "control_tick_run_failed", true);
@@ -224,7 +224,7 @@ operation_result_t scheduler_execute_bounded_ticks(scheduler_t *scheduler, bool 
         }
         remaining_runs -= 1u;
         if (remaining_runs == 0u ||
-            scheduler->runtime_port.pending_trigger_count(scheduler->runtime_port.context) == 0u)
+            scheduler->runtime_port.pending_trigger_count() == 0u)
         {
             break;
         }
@@ -272,7 +272,7 @@ static operation_result_t scheduler_handle_notification(scheduler_t *scheduler)
         return operation_result_ok();
     }
 
-    seen_time_ms = scheduler->runtime_port.current_time_ms(scheduler->runtime_port.context);
+    seen_time_ms = scheduler->runtime_port.current_time_ms();
     scheduler->metrics.notification_event_count += notification_count;
     scheduler->notification_snapshot.snapshot_version += notification_count;
     scheduler->notification_snapshot.captured_time_ms = seen_time_ms;
@@ -296,7 +296,7 @@ static operation_result_t scheduler_handle_exit(scheduler_t *scheduler)
     }
 
     scheduler->pending_exit_event = false;
-    seen_time_ms = scheduler->runtime_port.current_time_ms(scheduler->runtime_port.context);
+    seen_time_ms = scheduler->runtime_port.current_time_ms();
     scheduler->metrics.exit_event_count += 1ul;
     scheduler_note_source_event(&scheduler->exit_source, 1ul, seen_time_ms);
 
@@ -369,7 +369,7 @@ static operation_result_t scheduler_service_drain(scheduler_t *scheduler)
     {
         return operation_result_ok();
     }
-    if (!scheduler->runtime_port.has_pending_work(scheduler->runtime_port.context))
+    if (!scheduler->runtime_port.has_pending_work())
     {
         scheduler->runtime_state = SCHEDULER_RUNTIME_STATE_STOPPED;
         return operation_result_ok();
@@ -386,7 +386,7 @@ static operation_result_t scheduler_service_drain(scheduler_t *scheduler)
     {
         return result;
     }
-    if (!scheduler->runtime_port.has_pending_work(scheduler->runtime_port.context))
+    if (!scheduler->runtime_port.has_pending_work())
     {
         scheduler->runtime_state = SCHEDULER_RUNTIME_STATE_STOPPED;
     }
@@ -841,7 +841,7 @@ operation_result_t scheduler_linux_test_poll_once(scheduler_t *scheduler)
 static unsigned int scheduler_sync_pending_count(void *ctx)
 {
     scheduler_t *s = (scheduler_t *)ctx;
-    return s->runtime_port.pending_trigger_count(s->runtime_port.context);
+    return s->runtime_port.pending_trigger_count();
 }
 
 static bool scheduler_sync_is_running(void *ctx)

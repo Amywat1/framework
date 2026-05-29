@@ -8,8 +8,8 @@ static int test_follow_loss_aborts_session(void)
     operation_result_t result;
     simulated_driver_context_t driver_context;
 
-    test_setup_system_context( &driver_context);
-    result = test_load_runtime_program_from_fixture(
+    test_setup_control_context( &driver_context);
+    result = test_load_program_from_fixture(
         "tests/fixtures/wash_step_control/program_v1_valid.json",
         0);
     TEST_ASSERT(result.ok);
@@ -21,7 +21,7 @@ static int test_follow_loss_aborts_session(void)
     TEST_ASSERT(result.ok);
     TEST_ASSERT(control_context_private_wash_session()->session_state == SESSION_STATE_ABORTED);
     TEST_ASSERT(strcmp(test_latest_reason_code(), "follow_lost") == 0);
-    test_release_system_context();
+    test_release_control_context();
     return 0;
 }
 
@@ -30,8 +30,8 @@ static int test_exit_timeout_aborts_session(void)
     operation_result_t result;
     simulated_driver_context_t driver_context;
 
-    test_setup_system_context( &driver_context);
-    result = test_load_runtime_program_from_fixture(
+    test_setup_control_context( &driver_context);
+    result = test_load_program_from_fixture(
         "tests/fixtures/wash_step_control/program_v1_valid.json",
         0);
     TEST_ASSERT(result.ok);
@@ -52,7 +52,7 @@ static int test_exit_timeout_aborts_session(void)
     TEST_ASSERT(strcmp(control_context_last_result_code(), "aborted") == 0);
     TEST_ASSERT(strcmp(control_context_last_reason_code(), "exit_timeout") == 0);
     TEST_ASSERT(strcmp(test_latest_reason_code(), "exit_timeout") == 0);
-    test_release_system_context();
+    test_release_control_context();
     return 0;
 }
 
@@ -61,8 +61,8 @@ static int test_runtime_snapshot_read_failure_enters_safe_stop(void)
     operation_result_t result;
     simulated_driver_context_t driver_context;
 
-    test_setup_system_context( &driver_context);
-    result = test_load_runtime_program_from_fixture(
+    test_setup_control_context( &driver_context);
+    result = test_load_program_from_fixture(
         "tests/fixtures/wash_step_control/program_v1_valid.json",
         0);
     TEST_ASSERT(result.ok);
@@ -79,10 +79,10 @@ static int test_runtime_snapshot_read_failure_enters_safe_stop(void)
     TEST_ASSERT(control_context_private_wash_session()->session_state == SESSION_STATE_ABORTED);
     TEST_ASSERT(strcmp(test_latest_reason_code(), "runtime_snapshot_unavailable") == 0);
 
-    result = control_context_reset();
+    result = control_context_reset_runtime_keep_bindings();
     TEST_ASSERT(result.ok);
     simulated_driver_context_init(&driver_context);
-    result = test_load_runtime_program_from_fixture(
+    result = test_load_program_from_fixture(
         "tests/fixtures/wash_step_control/program_v1_valid.json",
         0);
     TEST_ASSERT(result.ok);
@@ -90,8 +90,8 @@ static int test_runtime_snapshot_read_failure_enters_safe_stop(void)
     TEST_ASSERT(result.ok);
     TEST_ASSERT(control_context_private_wash_session()->session_state == SESSION_STATE_RUNNING);
 
-    test_release_system_context();
-    result = query_wash_session_status_execute( &(wash_session_status_view_t){0});
+    test_release_control_context();
+    result = query_wash_session_status( &(wash_session_status_view_t){0});
     TEST_ASSERT(!result.ok);
     TEST_ASSERT(result.error_code == ERROR_CODE_INVALID_STATE);
     return 0;

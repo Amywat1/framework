@@ -2,7 +2,7 @@
 
 #include <string.h>
 
-#include "domain/model/runtime_state_text.h"
+#include "domain/model/wash_state_text.h"
 #include "domain/services/fault_policy_service.h"
 #include "domain/services/recovery_state_machine.h"
 #include "domain/services/segment_control_service.h"
@@ -105,14 +105,14 @@ static const wash_segment_t *current_segment(const wash_execution_service_args_t
  * @param[out] runtime_snapshot 输出运行时快照（位置、压力、温度等）
  * @return 读取成功返回 ok；接口缺失或 I/O 失败返回相应错误
  */
-static operation_result_t read_runtime_snapshot(wash_execution_service_args_t *wash_execution_service_args,
+static operation_result_t read_machine_snapshot(wash_execution_service_args_t *wash_execution_service_args,
                                                 runtime_snapshot_t *runtime_snapshot)
 {
-    if (wash_execution_service_args->sensor_port->read_runtime_snapshot == 0 || runtime_snapshot == 0)
+    if (wash_execution_service_args->sensor_port->read_machine_snapshot == 0 || runtime_snapshot == 0)
     {
         return operation_result_fail(ERROR_CODE_INVALID_ARGUMENT);
     }
-    if (wash_execution_service_args->sensor_port->read_runtime_snapshot(
+    if (wash_execution_service_args->sensor_port->read_machine_snapshot(
             wash_execution_service_args->sensor_port->context, runtime_snapshot) != 0)
     {
         return operation_result_fail(ERROR_CODE_IO_FAILED);
@@ -468,7 +468,7 @@ operation_result_t wash_execution_service_begin_next_segment(wash_execution_serv
     return operation_result_ok();
 }
 
-operation_result_t wash_execution_service_tick(wash_execution_service_args_t *wash_execution_service_args,
+operation_result_t wash_execution_service_advance_segment(wash_execution_service_args_t *wash_execution_service_args,
                                                wash_execution_fact_t *wash_execution_fact)
 {
     const wash_segment_t *wash_segment;
@@ -503,11 +503,11 @@ operation_result_t wash_execution_service_tick(wash_execution_service_args_t *wa
         return operation_result_ok();
     }
 
-    result = read_runtime_snapshot(wash_execution_service_args, &runtime_snapshot);
+    result = read_machine_snapshot(wash_execution_service_args, &runtime_snapshot);
     if (!result.ok)
     {
         return abort_with_recovery(wash_execution_service_args, EXECUTION_RESULT_FAULTED, EXECUTION_END_REASON_FAULT,
-                                   runtime_state_text_segment_lifecycle_state(
+                                   wash_state_text_segment_lifecycle_state(
                                        wash_execution_service_args->wash_execution->lifecycle_state),
                                    "aborted", "runtime_snapshot_unavailable", wash_execution_fact);
     }
@@ -609,7 +609,7 @@ operation_result_t wash_execution_service_handle_stop(wash_execution_service_arg
     write_field(wash_execution_service_args->wash_execution->reason_code,
                 sizeof(wash_execution_service_args->wash_execution->reason_code), reason_code);
     init_fact(wash_execution_fact, wash_execution_service_args->wash_execution,
-              runtime_state_text_segment_lifecycle_state(SEGMENT_LIFECYCLE_RUNNING), "aborted", "stopped",
+              wash_state_text_segment_lifecycle_state(SEGMENT_LIFECYCLE_RUNNING), "aborted", "stopped",
               reason_code);
     return operation_result_ok();
 }
@@ -638,7 +638,7 @@ operation_result_t wash_execution_service_handle_fault(wash_execution_service_ar
     write_field(wash_execution_service_args->wash_execution->reason_code,
                 sizeof(wash_execution_service_args->wash_execution->reason_code), reason_code);
     init_fact(wash_execution_fact, wash_execution_service_args->wash_execution,
-              runtime_state_text_segment_lifecycle_state(wash_execution_service_args->wash_execution->lifecycle_state),
+              wash_state_text_segment_lifecycle_state(wash_execution_service_args->wash_execution->lifecycle_state),
               "aborted", "faulted",
               reason_code);
     return operation_result_ok();

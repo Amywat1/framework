@@ -15,7 +15,7 @@ typedef struct simulated_driver_context_t
     pthread_mutex_t mutex;
     runtime_snapshot_t runtime_snapshot;
     /* precheck_service 预检字段：默认全通过，置反可覆盖触发对应拒绝路径 */
-    bool precheck_read_should_fail;    /**< 置 true 使 read_snapshot 返回 -1（独立于 read_runtime_snapshot）*/
+    bool precheck_read_should_fail;    /**< 置 true 使 read_snapshot 返回 -1（独立于 read_machine_snapshot）*/
     bool precheck_safety_should_fail;  /**< 置 true 可触发安全互锁拒绝 */
     bool precheck_estop_active;        /**< 置 true 可触发急停拒绝 */
     bool precheck_vehicle_absent;      /**< 置 true 可触发车辆未检测到拒绝 */

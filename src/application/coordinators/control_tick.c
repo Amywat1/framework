@@ -1,7 +1,7 @@
 #include "application/coordinators/control_tick.h"
 
 #include "application/coordinators/control_context.h"
-#include "application/use_cases/process_wash_trigger.h"
+#include "application/use_cases/wash_control.h"
 #include "src/application/coordinators/control_context_private.h"
 #include "domain/services/trigger_priority_service.h"
 #include "shared/error_codes.h"
@@ -85,12 +85,12 @@ operation_result_t control_tick_run(void)
      */
     if (control_context_try_pop_external_trigger(&external_event))
     {
-        result = process_wash_trigger_execute(&external_event);
+        result = dispatch_wash_control_trigger(&external_event);
         if (!result.ok)
         {
             return result;
         }
-        return process_wash_runtime_tick();
+        return advance_wash_session_program();
     }
 
     enqueue_timeout_if_needed();
@@ -115,12 +115,12 @@ operation_result_t control_tick_run(void)
         }
         selected_event = *selected_event_ref;
         control_context_remove_pending_trigger_at((unsigned int)best_index);
-        result = process_wash_trigger_execute(&selected_event);
+        result = dispatch_wash_control_trigger(&selected_event);
         if (!result.ok)
         {
             return result;
         }
     }
 
-    return process_wash_runtime_tick();
+    return advance_wash_session_program();
 }

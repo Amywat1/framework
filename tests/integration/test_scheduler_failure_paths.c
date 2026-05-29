@@ -6,8 +6,8 @@ static int verify_released_context_is_rejected_by_scheduler_boundary(void)
     simulated_driver_context_t driver_context;
     operation_result_t result;
 
-    test_setup_system_context(&driver_context);
-    test_release_system_context();
+    test_setup_control_context(&driver_context);
+    test_release_control_context();
 
     TEST_ASSERT(test_scheduler_create_unbound(0, 0) == 0);
     result = test_scheduler_read_bound_view(&app_state_view);

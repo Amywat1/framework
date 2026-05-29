@@ -1,4 +1,4 @@
-#include "application/use_cases/process_wash_trigger.h"
+#include "application/use_cases/wash_control.h"
 #include "application/use_cases/query_wash_session_status.h"
 #include "tests/test_support.h"
 #include "src/application/coordinators/control_context_private.h"
@@ -24,8 +24,8 @@ static int verify_session_end_has_single_final_sink(void)
     wash_session_status_view_t wash_session_status_view;
     operation_result_t result;
 
-    test_setup_system_context( &driver_context);
-    result = test_load_runtime_program_from_fixture(
+    test_setup_control_context( &driver_context);
+    result = test_load_program_from_fixture(
         "tests/fixtures/wash_step_control/program_v1_valid.json",
         0);
     TEST_ASSERT(result.ok);
@@ -33,7 +33,7 @@ static int verify_session_end_has_single_final_sink(void)
     TEST_ASSERT(result.ok);
     result = test_submit_stop( "integration-stop");
     TEST_ASSERT(result.ok);
-    result = query_wash_session_status_execute( &wash_session_status_view);
+    result = query_wash_session_status( &wash_session_status_view);
     TEST_ASSERT(result.ok);
 
     TEST_ASSERT(control_context_private_wash_session()->final_session_result == RESULT_CODE_MANUAL_ABORT);
@@ -44,10 +44,10 @@ static int verify_session_end_has_single_final_sink(void)
     TEST_ASSERT(control_context_private_device_state() == DEVICE_STATE_STOPPED);
     TEST_ASSERT(strcmp(wash_session_status_view.reason_code, "integration-stop") == 0);
 
-    result = query_wash_session_status_execute( &wash_session_status_view);
+    result = query_wash_session_status( &wash_session_status_view);
     TEST_ASSERT(result.ok);
     TEST_ASSERT(control_context_private_wash_session()->final_session_result == RESULT_CODE_MANUAL_ABORT);
-    test_release_system_context();
+    test_release_control_context();
     return 0;
 }
 
@@ -57,8 +57,8 @@ static int verify_completed_session_uses_success_final_result(void)
     wash_session_status_view_t wash_session_status_view;
     operation_result_t result;
 
-    test_setup_system_context( &driver_context);
-    result = test_load_runtime_program_from_fixture(
+    test_setup_control_context( &driver_context);
+    result = test_load_program_from_fixture(
         "tests/fixtures/wash_step_control/program_v1_valid.json",
         0);
     TEST_ASSERT(result.ok);
@@ -66,9 +66,9 @@ static int verify_completed_session_uses_success_final_result(void)
     TEST_ASSERT(result.ok);
 
     mark_session_ready_for_completion();
-    result = process_wash_runtime_tick();
+    result = advance_wash_session_program();
     TEST_ASSERT(result.ok);
-    result = query_wash_session_status_execute( &wash_session_status_view);
+    result = query_wash_session_status( &wash_session_status_view);
     TEST_ASSERT(result.ok);
 
     TEST_ASSERT(control_context_private_wash_session()->session_state == SESSION_STATE_COMPLETED);
@@ -79,7 +79,7 @@ static int verify_completed_session_uses_success_final_result(void)
     TEST_ASSERT(!wash_session_status_view.has_active_session);
     TEST_ASSERT(strcmp(wash_session_status_view.reason_code, "program_finished") == 0);
 
-    test_release_system_context();
+    test_release_control_context();
     return 0;
 }
 

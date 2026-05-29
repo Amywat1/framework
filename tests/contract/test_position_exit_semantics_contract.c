@@ -25,8 +25,8 @@ static int test_target_reached_is_not_exit_complete(void)
     operation_result_t result;
     simulated_driver_context_t driver_context;
 
-    test_setup_system_context( &driver_context);
-    result = test_load_runtime_program_from_fixture(
+    test_setup_control_context( &driver_context);
+    result = test_load_program_from_fixture(
         "tests/fixtures/wash_step_control/program_v1_valid.json",
         0);
     TEST_ASSERT(result.ok);
@@ -39,7 +39,7 @@ static int test_target_reached_is_not_exit_complete(void)
     TEST_ASSERT(result.ok);
     TEST_ASSERT(control_context_private_wash_execution()->lifecycle_state == SEGMENT_LIFECYCLE_EXITING);
     TEST_ASSERT(control_context_private_wash_session()->session_state == SESSION_STATE_RUNNING);
-    test_release_system_context();
+    test_release_control_context();
     return 0;
 }
 

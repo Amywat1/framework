@@ -8,7 +8,7 @@ int main(void)
     scheduler_t *scheduler;
     operation_result_t result;
 
-    test_setup_system_context( &driver_context);
+    test_setup_control_context( &driver_context);
     scheduler = test_create_scheduler( 100ul);
     TEST_ASSERT(scheduler != 0);
 
@@ -29,7 +29,7 @@ int main(void)
     TEST_ASSERT(app_state_view.metrics.consecutive_overrun_count == 0ul);
     TEST_ASSERT(control_context_current_time_ms() == 400ul);
 
-    test_release_system_context();
+    test_release_control_context();
     return 0;
 }
 

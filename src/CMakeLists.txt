@@ -10,7 +10,7 @@ set(WASH_CORE_SOURCES
     domain/model/vehicle_type.c
     domain/model/program_validation.c
     domain/model/program_snapshot.c
-    domain/model/runtime_state_text.c
+    domain/model/wash_state_text.c
     domain/model/state_transition_record.c
     domain/model/wait_condition.c
     domain/model/wash_execution.c
@@ -30,11 +30,11 @@ set(WASH_CORE_SOURCES
     application/coordinators/alarm_monitor.c
     application/coordinators/control_tick.c
     application/coordinators/control_context.c
-    application/coordinators/runtime_event_recorder.c
+    application/coordinators/control_outcome_recorder.c
     application/coordinators/scheduler_runtime_port.c
     application/jobs/alarm_detect_job.c
-    application/use_cases/process_formal_command.c
-    application/use_cases/process_wash_trigger.c
+    application/use_cases/formal_command.c
+    application/use_cases/wash_control.c
     application/use_cases/query_wash_session_status.c
     adapters/outbound/file_program_repository.c
     adapters/config/json_program_parser.c

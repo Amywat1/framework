@@ -1,4 +1,4 @@
-#include "application/use_cases/process_wash_trigger.h"
+#include "application/use_cases/wash_control.h"
 #include "application/use_cases/query_wash_session_status.h"
 #include "tests/test_support.h"
 #include "src/application/coordinators/control_context_private.h"
@@ -33,12 +33,12 @@ static int homing_alarm_injection_home_roof_brush(void *context, int timeout_ms)
         timeout_ms);
 }
 
-static int homing_alarm_injection_read_runtime_snapshot(void *context, runtime_snapshot_t *runtime_snapshot)
+static int homing_alarm_injection_read_machine_snapshot(void *context, runtime_snapshot_t *runtime_snapshot)
 {
     homing_alarm_injection_context_t *homing_alarm_injection_context;
 
     homing_alarm_injection_context = context;
-    return homing_alarm_injection_context->sensor_port.read_runtime_snapshot(
+    return homing_alarm_injection_context->sensor_port.read_machine_snapshot(
         homing_alarm_injection_context->sensor_port.context,
         runtime_snapshot);
 }
@@ -50,13 +50,13 @@ static int verify_power_on_defaults_to_stopped_and_blocks_start(void)
     wash_session_status_view_t wash_session_status_view;
     operation_result_t result;
 
-    test_setup_system_context( &driver_context);
-    result = test_load_runtime_program_from_fixture(
+    test_setup_control_context( &driver_context);
+    result = test_load_program_from_fixture(
         "tests/fixtures/wash_step_control/program_v1_valid.json",
         0);
     TEST_ASSERT(result.ok);
 
-    result = query_wash_session_status_execute( &wash_session_status_view);
+    result = query_wash_session_status( &wash_session_status_view);
     TEST_ASSERT(result.ok);
     TEST_ASSERT(wash_session_status_view.device_state == DEVICE_STATE_STOPPED);
 
@@ -72,7 +72,7 @@ static int verify_power_on_defaults_to_stopped_and_blocks_start(void)
     TEST_ASSERT(strcmp(control_context_private_last_transition_record()->reason_code, "device_state_stopped") == 0);
     TEST_ASSERT(control_context_private_device_state() == DEVICE_STATE_STOPPED);
 
-    test_release_system_context();
+    test_release_control_context();
     return 0;
 }
 
@@ -82,7 +82,7 @@ static int verify_homing_rejected_from_idle(void)
     simulated_driver_context_t driver_context;
     operation_result_t result;
 
-    test_setup_system_context( &driver_context);
+    test_setup_control_context( &driver_context);
     result = test_homing_system_and_flush();
     TEST_ASSERT(result.ok);
     TEST_ASSERT(control_context_private_device_state() == DEVICE_STATE_IDLE);
@@ -100,7 +100,7 @@ static int verify_homing_rejected_from_idle(void)
     TEST_ASSERT(control_context_private_last_transition_record()->trigger_type == TRIGGER_TYPE_HOMING);
     TEST_ASSERT(control_context_private_device_state() == DEVICE_STATE_IDLE);
 
-    test_release_system_context();
+    test_release_control_context();
     return 0;
 }
 
@@ -110,7 +110,7 @@ static int verify_stop_rejected_from_stopped_and_idle(void)
     simulated_driver_context_t driver_context;
     operation_result_t result;
 
-    test_setup_system_context( &driver_context);
+    test_setup_control_context( &driver_context);
 
     result = test_process_command_and_flush(
         "stop",
@@ -132,7 +132,7 @@ static int verify_stop_rejected_from_stopped_and_idle(void)
     TEST_ASSERT(strstr(response_line, "detail=stop_requires_running") != 0);
     TEST_ASSERT(control_context_private_device_state() == DEVICE_STATE_IDLE);
 
-    test_release_system_context();
+    test_release_control_context();
     return 0;
 }
 
@@ -142,7 +142,7 @@ static int verify_fault_clear_rejected_from_stopped_and_idle(void)
     simulated_driver_context_t driver_context;
     operation_result_t result;
 
-    test_setup_system_context( &driver_context);
+    test_setup_control_context( &driver_context);
 
     result = test_process_command_and_flush(
         "fault clear",
@@ -164,7 +164,7 @@ static int verify_fault_clear_rejected_from_stopped_and_idle(void)
     TEST_ASSERT(strstr(response_line, "detail=fault_clear_requires_exception") != 0);
     TEST_ASSERT(control_context_private_device_state() == DEVICE_STATE_IDLE);
 
-    test_release_system_context();
+    test_release_control_context();
     return 0;
 }
 
@@ -173,7 +173,7 @@ static int verify_homing_clears_alarm_before_recovering(void)
     simulated_driver_context_t driver_context;
     operation_result_t result;
 
-    test_setup_system_context( &driver_context);
+    test_setup_control_context( &driver_context);
     control_context_private_set_global_fault( "STALE_FAULT", "stale-alarm");
     TEST_ASSERT(control_context_private_global_fault_present());
     TEST_ASSERT(control_context_private_device_state() == DEVICE_STATE_STOPPED);
@@ -188,7 +188,7 @@ static int verify_homing_clears_alarm_before_recovering(void)
     TEST_ASSERT(strcmp(control_context_private_last_transition_record()->reason_code, "homing_completed") == 0);
     TEST_ASSERT(control_context_private_last_transition_record()->trigger_type == TRIGGER_TYPE_HOMING);
 
-    test_release_system_context();
+    test_release_control_context();
     return 0;
 }
 
@@ -198,8 +198,8 @@ static int verify_homing_success_runs_real_flow_and_returns_to_idle(void)
     simulated_driver_context_t driver_context;
     operation_result_t result;
 
-    test_setup_system_context( &driver_context);
-    result = test_load_runtime_program_from_fixture(
+    test_setup_control_context( &driver_context);
+    result = test_load_program_from_fixture(
         "tests/fixtures/wash_step_control/program_v1_valid.json",
         0);
     TEST_ASSERT(result.ok);
@@ -224,12 +224,12 @@ static int verify_homing_success_runs_real_flow_and_returns_to_idle(void)
     control_context_private_wash_execution()->execution_state = EXECUTION_STATE_COMPLETED;
     control_context_private_wash_execution()->lifecycle_state = SEGMENT_LIFECYCLE_COMPLETED;
 
-    result = process_wash_runtime_tick();
+    result = advance_wash_session_program();
     TEST_ASSERT(result.ok);
     TEST_ASSERT(control_context_private_wash_session()->session_state == SESSION_STATE_COMPLETED);
     TEST_ASSERT(control_context_private_device_state() == DEVICE_STATE_IDLE);
 
-    test_release_system_context();
+    test_release_control_context();
     return 0;
 }
 
@@ -242,7 +242,7 @@ static int verify_homing_alarm_during_recovering_moves_device_to_exception(void)
     simulated_driver_context_t driver_context;
     operation_result_t result;
 
-    test_setup_system_context( &driver_context);
+    test_setup_control_context( &driver_context);
     memset(&homing_alarm_injection_context, 0, sizeof(homing_alarm_injection_context));
     homing_alarm_injection_context.actuator_port = *control_context_private_actuator_port();
     homing_alarm_injection_context.sensor_port = *control_context_private_sensor_port();
@@ -255,7 +255,7 @@ static int verify_homing_alarm_during_recovering_moves_device_to_exception(void)
 
     sensor_port = homing_alarm_injection_context.sensor_port;
     sensor_port.context = &homing_alarm_injection_context;
-    sensor_port.read_runtime_snapshot = homing_alarm_injection_read_runtime_snapshot;
+    sensor_port.read_machine_snapshot = homing_alarm_injection_read_machine_snapshot;
     control_context_set_sensor_port( &sensor_port);
 
     result = test_process_command_and_flush(
@@ -267,7 +267,7 @@ static int verify_homing_alarm_during_recovering_moves_device_to_exception(void)
     TEST_ASSERT(control_context_private_global_fault_present());
     TEST_ASSERT(control_context_private_device_state() == DEVICE_STATE_EXCEPTION);
 
-    test_release_system_context();
+    test_release_control_context();
     return 0;
 }
 
@@ -277,7 +277,7 @@ static int verify_homing_stop_all_failure_moves_device_to_exception(void)
     simulated_driver_context_t driver_context;
     operation_result_t result;
 
-    test_setup_system_context( &driver_context);
+    test_setup_control_context( &driver_context);
     driver_context.stop_all_should_fail = true;
 
     result = test_process_command_and_flush(
@@ -290,7 +290,7 @@ static int verify_homing_stop_all_failure_moves_device_to_exception(void)
     TEST_ASSERT(driver_context.roof_home_command_count == 0);
     TEST_ASSERT(control_context_private_device_state() == DEVICE_STATE_EXCEPTION);
 
-    test_release_system_context();
+    test_release_control_context();
     return 0;
 }
 
@@ -300,7 +300,7 @@ static int verify_homing_roof_home_command_failure_moves_device_to_exception(voi
     simulated_driver_context_t driver_context;
     operation_result_t result;
 
-    test_setup_system_context( &driver_context);
+    test_setup_control_context( &driver_context);
     driver_context.roof_home_command_should_fail = true;
 
     result = test_process_command_and_flush(
@@ -313,7 +313,7 @@ static int verify_homing_roof_home_command_failure_moves_device_to_exception(voi
     TEST_ASSERT(driver_context.roof_home_command_count == 0);
     TEST_ASSERT(control_context_private_device_state() == DEVICE_STATE_EXCEPTION);
 
-    test_release_system_context();
+    test_release_control_context();
     return 0;
 }
 
@@ -323,7 +323,7 @@ static int verify_homing_snapshot_failure_moves_device_to_exception(void)
     simulated_driver_context_t driver_context;
     operation_result_t result;
 
-    test_setup_system_context( &driver_context);
+    test_setup_control_context( &driver_context);
     driver_context.runtime_snapshot_read_should_fail = true;
 
     result = test_process_command_and_flush(
@@ -336,7 +336,7 @@ static int verify_homing_snapshot_failure_moves_device_to_exception(void)
     TEST_ASSERT(driver_context.roof_home_command_count == 1);
     TEST_ASSERT(control_context_private_device_state() == DEVICE_STATE_EXCEPTION);
 
-    test_release_system_context();
+    test_release_control_context();
     return 0;
 }
 
@@ -346,7 +346,7 @@ static int verify_homing_feedback_timeout_moves_device_to_exception(void)
     simulated_driver_context_t driver_context;
     operation_result_t result;
 
-    test_setup_system_context( &driver_context);
+    test_setup_control_context( &driver_context);
     driver_context.roof_home_feedback_available = false;
 
     result = test_process_command_and_flush(
@@ -359,7 +359,7 @@ static int verify_homing_feedback_timeout_moves_device_to_exception(void)
     TEST_ASSERT(driver_context.roof_home_command_count == 1);
     TEST_ASSERT(control_context_private_device_state() == DEVICE_STATE_EXCEPTION);
 
-    test_release_system_context();
+    test_release_control_context();
     return 0;
 }
 
@@ -369,7 +369,7 @@ static int verify_homing_not_reached_moves_device_to_exception(void)
     simulated_driver_context_t driver_context;
     operation_result_t result;
 
-    test_setup_system_context( &driver_context);
+    test_setup_control_context( &driver_context);
     driver_context.roof_home_feedback_available = true;
     driver_context.roof_home_reached = false;
 
@@ -383,7 +383,7 @@ static int verify_homing_not_reached_moves_device_to_exception(void)
     TEST_ASSERT(driver_context.roof_home_command_count == 1);
     TEST_ASSERT(control_context_private_device_state() == DEVICE_STATE_EXCEPTION);
 
-    test_release_system_context();
+    test_release_control_context();
     return 0;
 }
 
@@ -392,8 +392,8 @@ static int verify_running_manual_stop_moves_device_to_stopped(void)
     simulated_driver_context_t driver_context;
     operation_result_t result;
 
-    test_setup_system_context( &driver_context);
-    result = test_load_runtime_program_from_fixture(
+    test_setup_control_context( &driver_context);
+    result = test_load_program_from_fixture(
         "tests/fixtures/wash_step_control/program_v1_valid.json",
         0);
     TEST_ASSERT(result.ok);
@@ -406,7 +406,7 @@ static int verify_running_manual_stop_moves_device_to_stopped(void)
     TEST_ASSERT(control_context_private_wash_session()->session_state == SESSION_STATE_ABORTED);
     TEST_ASSERT(control_context_private_device_state() == DEVICE_STATE_STOPPED);
 
-    test_release_system_context();
+    test_release_control_context();
     return 0;
 }
 
@@ -416,8 +416,8 @@ static int verify_trigger_start_rejected_from_stopped_with_matrix_reason(void)
     wash_trigger_event_t wash_trigger_event;
     operation_result_t result;
 
-    test_setup_system_context( &driver_context);
-    result = test_load_runtime_program_from_fixture(
+    test_setup_control_context( &driver_context);
+    result = test_load_program_from_fixture(
         "tests/fixtures/wash_step_control/program_v1_valid.json",
         0);
     TEST_ASSERT(result.ok);
@@ -429,7 +429,7 @@ static int verify_trigger_start_rejected_from_stopped_with_matrix_reason(void)
         0,
         "trigger-start",
         control_context_current_time_ms());
-    result = process_wash_trigger_execute( &wash_trigger_event);
+    result = dispatch_wash_control_trigger( &wash_trigger_event);
     TEST_ASSERT(!result.ok);
     TEST_ASSERT(result.error_code == ERROR_CODE_INVALID_STATE);
     TEST_ASSERT(strcmp(control_context_last_result_code(), "rejected") == 0);
@@ -439,7 +439,7 @@ static int verify_trigger_start_rejected_from_stopped_with_matrix_reason(void)
     TEST_ASSERT(strcmp(control_context_private_last_transition_record()->reason_code, "device_state_stopped") == 0);
     TEST_ASSERT(control_context_private_device_state() == DEVICE_STATE_STOPPED);
 
-    test_release_system_context();
+    test_release_control_context();
     return 0;
 }
 
@@ -449,8 +449,8 @@ static int verify_trigger_start_rejected_from_exception_with_matrix_reason(void)
     wash_trigger_event_t wash_trigger_event;
     operation_result_t result;
 
-    test_setup_system_context( &driver_context);
-    result = test_load_runtime_program_from_fixture(
+    test_setup_control_context( &driver_context);
+    result = test_load_program_from_fixture(
         "tests/fixtures/wash_step_control/program_v1_valid.json",
         0);
     TEST_ASSERT(result.ok);
@@ -464,7 +464,7 @@ static int verify_trigger_start_rejected_from_exception_with_matrix_reason(void)
         0,
         "trigger-start",
         control_context_current_time_ms());
-    result = process_wash_trigger_execute( &wash_trigger_event);
+    result = dispatch_wash_control_trigger( &wash_trigger_event);
     TEST_ASSERT(!result.ok);
     TEST_ASSERT(result.error_code == ERROR_CODE_INVALID_STATE);
     TEST_ASSERT(strcmp(control_context_last_result_code(), "rejected") == 0);
@@ -475,7 +475,7 @@ static int verify_trigger_start_rejected_from_exception_with_matrix_reason(void)
     TEST_ASSERT(control_context_private_device_state() == DEVICE_STATE_EXCEPTION);
     TEST_ASSERT(control_context_private_global_fault_present());
 
-    test_release_system_context();
+    test_release_control_context();
     return 0;
 }
 
@@ -488,7 +488,7 @@ static int verify_trigger_homing_rejected_from_idle_and_exception(void)
     wash_trigger_event_t wash_trigger_event;
     operation_result_t result;
 
-    test_setup_system_context( &driver_context);
+    test_setup_control_context( &driver_context);
     result = test_homing_system_and_flush();
     TEST_ASSERT(result.ok);
     TEST_ASSERT(control_context_private_device_state() == DEVICE_STATE_IDLE);
@@ -499,7 +499,7 @@ static int verify_trigger_homing_rejected_from_idle_and_exception(void)
         "homing",
         "trigger-homing",
         control_context_current_time_ms());
-    result = process_wash_trigger_execute( &wash_trigger_event);
+    result = dispatch_wash_control_trigger( &wash_trigger_event);
     TEST_ASSERT(!result.ok);
     TEST_ASSERT(result.error_code == ERROR_CODE_INVALID_STATE);
     TEST_ASSERT(strcmp(control_context_last_result_code(), "rejected") == 0);
@@ -513,7 +513,7 @@ static int verify_trigger_homing_rejected_from_idle_and_exception(void)
     TEST_ASSERT(result.ok);
     TEST_ASSERT(control_context_private_device_state() == DEVICE_STATE_EXCEPTION);
 
-    result = process_wash_trigger_execute( &wash_trigger_event);
+    result = dispatch_wash_control_trigger( &wash_trigger_event);
     TEST_ASSERT(!result.ok);
     TEST_ASSERT(result.error_code == ERROR_CODE_INVALID_STATE);
     TEST_ASSERT(strcmp(control_context_last_result_code(), "rejected") == 0);
@@ -523,7 +523,7 @@ static int verify_trigger_homing_rejected_from_idle_and_exception(void)
     TEST_ASSERT(strcmp(control_context_private_last_transition_record()->reason_code, "homing_requires_stopped") == 0);
     TEST_ASSERT(control_context_private_device_state() == DEVICE_STATE_EXCEPTION);
 
-    test_release_system_context();
+    test_release_control_context();
     return 0;
 }
 
@@ -536,7 +536,7 @@ static int verify_trigger_stop_rejected_from_stopped_and_idle(void)
     wash_trigger_event_t wash_trigger_event;
     operation_result_t result;
 
-    test_setup_system_context( &driver_context);
+    test_setup_control_context( &driver_context);
     TEST_ASSERT(control_context_private_device_state() == DEVICE_STATE_STOPPED);
 
     wash_trigger_event_init(&wash_trigger_event,
@@ -545,7 +545,7 @@ static int verify_trigger_stop_rejected_from_stopped_and_idle(void)
         "trigger-stop",
         "trigger-stop",
         control_context_current_time_ms());
-    result = process_wash_trigger_execute( &wash_trigger_event);
+    result = dispatch_wash_control_trigger( &wash_trigger_event);
     TEST_ASSERT(!result.ok);
     TEST_ASSERT(result.error_code == ERROR_CODE_INVALID_STATE);
     TEST_ASSERT(strcmp(control_context_last_result_code(), "rejected") == 0);
@@ -559,7 +559,7 @@ static int verify_trigger_stop_rejected_from_stopped_and_idle(void)
     TEST_ASSERT(result.ok);
     TEST_ASSERT(control_context_private_device_state() == DEVICE_STATE_IDLE);
 
-    result = process_wash_trigger_execute( &wash_trigger_event);
+    result = dispatch_wash_control_trigger( &wash_trigger_event);
     TEST_ASSERT(!result.ok);
     TEST_ASSERT(result.error_code == ERROR_CODE_INVALID_STATE);
     TEST_ASSERT(strcmp(control_context_last_result_code(), "rejected") == 0);
@@ -569,7 +569,7 @@ static int verify_trigger_stop_rejected_from_stopped_and_idle(void)
     TEST_ASSERT(strcmp(control_context_private_last_transition_record()->reason_code, "stop_requires_running") == 0);
     TEST_ASSERT(control_context_private_device_state() == DEVICE_STATE_IDLE);
 
-    test_release_system_context();
+    test_release_control_context();
     return 0;
 }
 
@@ -582,7 +582,7 @@ static int verify_trigger_fault_clear_rejected_from_stopped_and_idle(void)
     wash_trigger_event_t wash_trigger_event;
     operation_result_t result;
 
-    test_setup_system_context( &driver_context);
+    test_setup_control_context( &driver_context);
     TEST_ASSERT(control_context_private_device_state() == DEVICE_STATE_STOPPED);
 
     wash_trigger_event_init(&wash_trigger_event,
@@ -591,7 +591,7 @@ static int verify_trigger_fault_clear_rejected_from_stopped_and_idle(void)
         "clear",
         0,
         control_context_current_time_ms());
-    result = process_wash_trigger_execute( &wash_trigger_event);
+    result = dispatch_wash_control_trigger( &wash_trigger_event);
     TEST_ASSERT(!result.ok);
     TEST_ASSERT(result.error_code == ERROR_CODE_INVALID_STATE);
     TEST_ASSERT(strcmp(control_context_last_result_code(), "rejected") == 0);
@@ -605,7 +605,7 @@ static int verify_trigger_fault_clear_rejected_from_stopped_and_idle(void)
     TEST_ASSERT(result.ok);
     TEST_ASSERT(control_context_private_device_state() == DEVICE_STATE_IDLE);
 
-    result = process_wash_trigger_execute( &wash_trigger_event);
+    result = dispatch_wash_control_trigger( &wash_trigger_event);
     TEST_ASSERT(!result.ok);
     TEST_ASSERT(result.error_code == ERROR_CODE_INVALID_STATE);
     TEST_ASSERT(strcmp(control_context_last_result_code(), "rejected") == 0);
@@ -615,7 +615,7 @@ static int verify_trigger_fault_clear_rejected_from_stopped_and_idle(void)
     TEST_ASSERT(strcmp(control_context_private_last_transition_record()->reason_code, "fault_clear_requires_exception") == 0);
     TEST_ASSERT(control_context_private_device_state() == DEVICE_STATE_IDLE);
 
-    test_release_system_context();
+    test_release_control_context();
     return 0;
 }
 
@@ -628,7 +628,7 @@ static int verify_trigger_homing_accepted_from_stopped(void)
     wash_trigger_event_t wash_trigger_event;
     operation_result_t result;
 
-    test_setup_system_context( &driver_context);
+    test_setup_control_context( &driver_context);
     TEST_ASSERT(control_context_private_device_state() == DEVICE_STATE_STOPPED);
 
     wash_trigger_event_init(&wash_trigger_event,
@@ -637,7 +637,7 @@ static int verify_trigger_homing_accepted_from_stopped(void)
         "homing",
         "trigger-homing",
         control_context_current_time_ms());
-    result = process_wash_trigger_execute( &wash_trigger_event);
+    result = dispatch_wash_control_trigger( &wash_trigger_event);
     TEST_ASSERT(result.ok);
     TEST_ASSERT(driver_context.stop_all_command_count == 1);
     TEST_ASSERT(driver_context.roof_home_command_count == 1);
@@ -650,7 +650,7 @@ static int verify_trigger_homing_accepted_from_stopped(void)
     TEST_ASSERT(strcmp(control_context_private_last_transition_record()->reason_code, "homing_completed") == 0);
     TEST_ASSERT(control_context_private_device_state() == DEVICE_STATE_IDLE);
 
-    test_release_system_context();
+    test_release_control_context();
     return 0;
 }
 
@@ -663,8 +663,8 @@ static int verify_trigger_start_accepted_from_idle(void)
     wash_trigger_event_t wash_trigger_event;
     operation_result_t result;
 
-    test_setup_system_context( &driver_context);
-    result = test_load_runtime_program_from_fixture(
+    test_setup_control_context( &driver_context);
+    result = test_load_program_from_fixture(
         "tests/fixtures/wash_step_control/program_v1_valid.json",
         0);
     TEST_ASSERT(result.ok);
@@ -678,7 +678,7 @@ static int verify_trigger_start_accepted_from_idle(void)
         0,
         "trigger-start-accepted",
         control_context_current_time_ms());
-    result = process_wash_trigger_execute( &wash_trigger_event);
+    result = dispatch_wash_control_trigger( &wash_trigger_event);
     TEST_ASSERT(result.ok);
     TEST_ASSERT(control_context_private_device_state() == DEVICE_STATE_RUNNING);
     TEST_ASSERT(strcmp(control_context_last_result_code(), "accepted") == 0);
@@ -689,7 +689,7 @@ static int verify_trigger_start_accepted_from_idle(void)
     TEST_ASSERT(strcmp(control_context_private_last_transition_record()->result_code, "accepted") == 0);
     TEST_ASSERT(strcmp(control_context_private_last_transition_record()->reason_code, "session_started") == 0);
 
-    test_release_system_context();
+    test_release_control_context();
     return 0;
 }
 
@@ -702,8 +702,8 @@ static int verify_trigger_stop_accepted_from_running(void)
     wash_trigger_event_t wash_trigger_event;
     operation_result_t result;
 
-    test_setup_system_context( &driver_context);
-    result = test_load_runtime_program_from_fixture(
+    test_setup_control_context( &driver_context);
+    result = test_load_program_from_fixture(
         "tests/fixtures/wash_step_control/program_v1_valid.json",
         0);
     TEST_ASSERT(result.ok);
@@ -717,7 +717,7 @@ static int verify_trigger_stop_accepted_from_running(void)
         "trigger-stop-accepted",
         "trigger-stop",
         control_context_current_time_ms());
-    result = process_wash_trigger_execute( &wash_trigger_event);
+    result = dispatch_wash_control_trigger( &wash_trigger_event);
     TEST_ASSERT(result.ok);
     TEST_ASSERT(control_context_private_wash_session()->session_state == SESSION_STATE_ABORTED);
     TEST_ASSERT(strcmp(control_context_last_result_code(), "aborted") == 0);
@@ -729,7 +729,7 @@ static int verify_trigger_stop_accepted_from_running(void)
     TEST_ASSERT(strcmp(control_context_private_last_transition_record()->reason_code, "trigger-stop-accepted") == 0);
     TEST_ASSERT(control_context_private_device_state() == DEVICE_STATE_STOPPED);
 
-    test_release_system_context();
+    test_release_control_context();
     return 0;
 }
 
@@ -742,7 +742,7 @@ static int verify_trigger_fault_clear_accepted_from_exception(void)
     wash_trigger_event_t wash_trigger_event;
     operation_result_t result;
 
-    test_setup_system_context( &driver_context);
+    test_setup_control_context( &driver_context);
     result = test_submit_fault_with_reason( "E_STOP", "trigger-clear-exception");
     TEST_ASSERT(result.ok);
     TEST_ASSERT(control_context_private_device_state() == DEVICE_STATE_EXCEPTION);
@@ -754,7 +754,7 @@ static int verify_trigger_fault_clear_accepted_from_exception(void)
         "clear",
         0,
         control_context_current_time_ms());
-    result = process_wash_trigger_execute( &wash_trigger_event);
+    result = dispatch_wash_control_trigger( &wash_trigger_event);
     TEST_ASSERT(result.ok);
     TEST_ASSERT(strcmp(control_context_last_result_code(), "accepted") == 0);
     TEST_ASSERT(strcmp(control_context_last_reason_code(), "global_fault_cleared") == 0);
@@ -766,7 +766,7 @@ static int verify_trigger_fault_clear_accepted_from_exception(void)
     TEST_ASSERT(control_context_private_device_state() == DEVICE_STATE_STOPPED);
     TEST_ASSERT(!control_context_private_global_fault_present());
 
-    test_release_system_context();
+    test_release_control_context();
     return 0;
 }
 
@@ -776,8 +776,8 @@ static int verify_exception_requires_fault_clear_before_homing(void)
     simulated_driver_context_t driver_context;
     operation_result_t result;
 
-    test_setup_system_context( &driver_context);
-    result = test_load_runtime_program_from_fixture(
+    test_setup_control_context( &driver_context);
+    result = test_load_program_from_fixture(
         "tests/fixtures/wash_step_control/program_v1_valid.json",
         0);
     TEST_ASSERT(result.ok);
@@ -865,7 +865,7 @@ static int verify_exception_requires_fault_clear_before_homing(void)
     TEST_ASSERT(result.ok);
     TEST_ASSERT(control_context_private_device_state() == DEVICE_STATE_RUNNING);
 
-    test_release_system_context();
+    test_release_control_context();
     return 0;
 }
 

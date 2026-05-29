@@ -1,4 +1,4 @@
-#include "application/use_cases/process_formal_command.h"
+#include "application/use_cases/formal_command.h"
 #include "tests/test_support.h"
 #include "src/application/coordinators/control_context_private.h"
 
@@ -8,15 +8,15 @@ int main(void)
     simulated_driver_context_t driver_context;
     operation_result_t result;
 
-    test_setup_system_context( &driver_context);
-    result = test_load_runtime_program_from_fixture(
+    test_setup_control_context( &driver_context);
+    result = test_load_program_from_fixture(
         "tests/fixtures/wash_step_control/program_v1_valid.json",
         0);
     TEST_ASSERT(result.ok);
     result = test_homing_system_and_flush();
     TEST_ASSERT(result.ok);
 
-    result = process_formal_command_execute(
+    result = formal_command_execute(
         "start wash_step_control_v1",
         response_line,
         sizeof(response_line));

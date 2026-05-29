@@ -43,8 +43,8 @@ static int verify_status_command_has_no_side_effect(void)
     char response_line[512];
     operation_result_t result;
 
-    test_setup_system_context( &driver_context);
-    result = test_load_runtime_program_from_fixture(
+    test_setup_control_context( &driver_context);
+    result = test_load_program_from_fixture(
         "tests/fixtures/wash_step_control/program_v1_valid.json",
         0);
     TEST_ASSERT(result.ok);
@@ -61,9 +61,9 @@ static int verify_status_command_has_no_side_effect(void)
 
     TEST_ASSERT(assert_status_snapshot_equal(&before_snapshot, &after_snapshot) == 0);
 
-    result = control_context_reset();
+    result = control_context_reset_runtime_keep_bindings();
     TEST_ASSERT(result.ok);
-    result = query_wash_session_status_execute( &(wash_session_status_view_t){0});
+    result = query_wash_session_status( &(wash_session_status_view_t){0});
     TEST_ASSERT(result.ok);
     capture_status_snapshot(&after_snapshot);
     TEST_ASSERT(after_snapshot.global_fault_present == false);
@@ -72,8 +72,8 @@ static int verify_status_command_has_no_side_effect(void)
     TEST_ASSERT(after_snapshot.last_result_code[0] == '\0');
     TEST_ASSERT(after_snapshot.last_reason_code[0] == '\0');
 
-    test_release_system_context();
-    result = query_wash_session_status_execute( &(wash_session_status_view_t){0});
+    test_release_control_context();
+    result = query_wash_session_status( &(wash_session_status_view_t){0});
     TEST_ASSERT(!result.ok);
     TEST_ASSERT(result.error_code == ERROR_CODE_INVALID_STATE);
     return 0;

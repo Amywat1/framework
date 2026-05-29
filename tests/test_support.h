@@ -9,7 +9,7 @@
 #include "adapters/outbound/file_program_repository.h"
 #include "application/coordinators/control_tick.h"
 #include "application/coordinators/control_context.h"
-#include "application/use_cases/process_formal_command.h"
+#include "application/use_cases/formal_command.h"
 #include "application/use_cases/query_wash_session_status.h"
 #include "domain/model/wash_trigger_event.h"
 #include "platform/drivers/simulated_brush_driver.h"
@@ -117,7 +117,7 @@ static inline operation_result_t test_bind_control_context_binding(test_runtime_
         return result;
     }
 
-    result = control_context_private_enter_stopped();
+    result = control_context_private_mark_device_ready_stopped();
     if (!result.ok)
     {
         (void)control_context_deinit();
@@ -167,12 +167,6 @@ static inline void test_setup_control_context(simulated_driver_context_t *driver
     }
 }
 
-/** @deprecated 使用 test_setup_control_context。 */
-static inline void test_setup_system_context(simulated_driver_context_t *driver_context)
-{
-    test_setup_control_context(driver_context);
-}
-
 static inline void test_release_control_context(void)
 {
     test_runtime_binding_t *binding;
@@ -205,13 +199,7 @@ static inline void test_release_control_context(void)
     }
 }
 
-/** @deprecated 使用 test_release_control_context。 */
-static inline void test_release_system_context(void)
-{
-    test_release_control_context();
-}
-
-static inline operation_result_t test_load_runtime_program_from_fixture(const char *fixture_path,
+static inline operation_result_t test_load_program_from_fixture(const char *fixture_path,
                                                                         wash_program_t *wash_program)
 {
     operation_result_t result;
@@ -333,14 +321,14 @@ static inline void test_rebuild_formal_response_line(char *response_line, size_t
                       : "accepted";
     detail = control_context_last_reason_code()[0] != '\0' ? control_context_last_reason_code()
                                                           : "none";
-    process_formal_command_format_response(response_line, response_line_size, result_code,
-                                           process_formal_command_result_is_accepted(result_code), detail);
+    formal_command_format_response(response_line, response_line_size, result_code,
+                                           formal_command_result_is_accepted(result_code), detail);
 }
 
 static inline operation_result_t test_process_command(const char *command_line,
                                                     char *response_line, size_t response_line_size)
 {
-    return process_formal_command_execute(command_line, response_line, response_line_size);
+    return formal_command_execute(command_line, response_line, response_line_size);
 }
 
 static inline operation_result_t test_process_command_and_flush(const char *command_line, char *response_line,

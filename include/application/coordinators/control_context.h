@@ -3,7 +3,6 @@
 
 #include <stdbool.h>
 
-#include "application/coordinators/scheduler_runtime_port.h"
 #include "domain/model/domain_enums.h"
 #include "domain/model/wait_condition.h"
 #include "domain/model/wash_trigger_event.h"
@@ -42,7 +41,7 @@ operation_result_t control_context_deinit(void);
  *
  * @return 重置成功返回 `operation_result_ok()`；实例未激活时返回失败结果。
  */
-operation_result_t control_context_reset(void);
+operation_result_t control_context_reset_runtime_keep_bindings(void);
 
 /**
  * @brief 将传感器端口装配到主控上下文。
@@ -204,14 +203,5 @@ const wait_condition_t *control_context_wait_condition(void);
  * @param elapsed_ms 本次推进的毫秒数。
  */
 void control_context_advance_time(unsigned long elapsed_ms);
-
-/**
- * @brief 从 control_context 单实例填充调度器运行时端口。
- *
- * @details 由应用层提供的适配器，将 control_context 各项能力映射到
- *          `scheduler_runtime_port_t` 函数指针接口，供基础设施层调度器使用。
- * @param port 待写入端口，不能为空。
- */
-void scheduler_runtime_port_init_from_control_context(scheduler_runtime_port_t *port);
 
 #endif

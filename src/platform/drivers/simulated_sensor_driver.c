@@ -48,7 +48,7 @@ static int simulated_read_snapshot(void *context, sensor_snapshot_t *sensor_snap
     return 0;
 }
 
-static int simulated_read_runtime_snapshot(void *context, runtime_snapshot_t *runtime_snapshot)
+static int simulated_read_machine_snapshot(void *context, runtime_snapshot_t *runtime_snapshot)
 {
     simulated_driver_context_t *driver_context = (simulated_driver_context_t *)context;
 
@@ -71,7 +71,7 @@ static int simulated_read_runtime_snapshot(void *context, runtime_snapshot_t *ru
 int simulated_sensor_driver_bind(sensor_port_t *sensor_port, simulated_driver_context_t *driver_context)
 {
     sensor_port->context = driver_context;
-    sensor_port->read_runtime_snapshot = simulated_read_runtime_snapshot;
+    sensor_port->read_machine_snapshot = simulated_read_machine_snapshot;
     sensor_port->read_snapshot = simulated_read_snapshot;
     return 0;
 }

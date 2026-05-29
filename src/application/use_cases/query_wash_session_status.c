@@ -6,7 +6,7 @@
 #include "shared/error_codes.h"
 #include "src/application/coordinators/control_context_private.h"
 
-operation_result_t query_wash_session_status_execute(wash_session_status_view_t *wash_session_status_view)
+operation_result_t query_wash_session_status(wash_session_status_view_t *wash_session_status_view)
 {
     const state_transition_record_t *last_transition_record;
     const wash_execution_t *wash_execution;

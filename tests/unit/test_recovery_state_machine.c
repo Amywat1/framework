@@ -8,7 +8,7 @@ static int test_stop_only_recovery_stops_all(void)
     simulated_driver_context_t driver_context;
     operation_result_t result;
 
-    test_setup_system_context(&driver_context);
+    test_setup_control_context(&driver_context);
 
     result = recovery_state_machine_execute(control_context_private_actuator_port(),
         0,
@@ -18,7 +18,7 @@ static int test_stop_only_recovery_stops_all(void)
     TEST_ASSERT(driver_context.stop_all_command_count == 1);
     TEST_ASSERT(driver_context.roof_home_command_count == 0);
 
-    test_release_system_context();
+    test_release_control_context();
     return 0;
 }
 
@@ -28,7 +28,7 @@ static int test_homing_recovery_runs_stop_and_roof_home(void)
     simulated_driver_context_t driver_context;
     operation_result_t result;
 
-    test_setup_system_context(&driver_context);
+    test_setup_control_context(&driver_context);
 
     failure_reason_code = 0;
     result = recovery_state_machine_execute(control_context_private_actuator_port(),
@@ -40,7 +40,7 @@ static int test_homing_recovery_runs_stop_and_roof_home(void)
     TEST_ASSERT(driver_context.stop_all_command_count == 1);
     TEST_ASSERT(driver_context.roof_home_command_count == 1);
 
-    test_release_system_context();
+    test_release_control_context();
     return 0;
 }
 
@@ -50,7 +50,7 @@ static int test_homing_recovery_reports_feedback_timeout(void)
     simulated_driver_context_t driver_context;
     operation_result_t result;
 
-    test_setup_system_context(&driver_context);
+    test_setup_control_context(&driver_context);
     driver_context.roof_home_feedback_available = false;
 
     failure_reason_code = 0;
@@ -62,7 +62,7 @@ static int test_homing_recovery_reports_feedback_timeout(void)
     TEST_ASSERT(result.error_code == ERROR_CODE_TIMEOUT);
     TEST_ASSERT(strcmp(failure_reason_code, "roof_home_feedback_timeout") == 0);
 
-    test_release_system_context();
+    test_release_control_context();
     return 0;
 }
 

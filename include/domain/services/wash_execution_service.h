@@ -80,7 +80,7 @@ operation_result_t wash_execution_service_begin_next_segment(wash_execution_serv
  * @param wash_execution_fact 输出执行事实。
  * @return 成功返回 `operation_result_ok()`，执行失败时返回对应错误。
  */
-operation_result_t wash_execution_service_tick(wash_execution_service_args_t *wash_execution_service_args,
+operation_result_t wash_execution_service_advance_segment(wash_execution_service_args_t *wash_execution_service_args,
                                                wash_execution_fact_t *wash_execution_fact);
 /**
  * @brief 处理一次人工 stop 请求。

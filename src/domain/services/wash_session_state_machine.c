@@ -2,7 +2,7 @@
 
 #include <string.h>
 
-#include "domain/model/runtime_state_text.h"
+#include "domain/model/wash_state_text.h"
 #include "shared/error_codes.h"
 
 /**
@@ -96,14 +96,14 @@ operation_result_t wash_session_state_machine_start(wash_session_service_args_t 
         return operation_result_fail(ERROR_CODE_INVALID_STATE);
     }
 
-    previous_state = runtime_state_text_session_state(wash_session_service_args->wash_session->session_state);
+    previous_state = wash_state_text_session_state(wash_session_service_args->wash_session->session_state);
     *wash_session_service_args->next_session_sequence += 1;
     wash_session_create(wash_session_service_args->wash_session, program_id,
                         wash_session_service_args->program_snapshot->program_snapshot_id,
                         wash_session_service_args->current_time_ms, *wash_session_service_args->next_session_sequence);
     wash_session_start_running(wash_session_service_args->wash_session);
     init_transition_fact(wash_session_transition_fact, wash_session_service_args->wash_session, previous_state,
-                         runtime_state_text_session_state(wash_session_service_args->wash_session->session_state), "accepted",
+                         wash_state_text_session_state(wash_session_service_args->wash_session->session_state), "accepted",
                          "session_started");
     return operation_result_ok();
 }
@@ -126,11 +126,11 @@ operation_result_t wash_session_state_machine_complete(wash_session_service_args
         return operation_result_fail(ERROR_CODE_INVALID_ARGUMENT);
     }
 
-    previous_state = runtime_state_text_session_state(wash_session_service_args->wash_session->session_state);
+    previous_state = wash_state_text_session_state(wash_session_service_args->wash_session->session_state);
     wash_session_complete(wash_session_service_args->wash_session, result_code,
                           wash_session_service_args->current_time_ms);
     init_transition_fact(wash_session_transition_fact, wash_session_service_args->wash_session, previous_state,
-                         runtime_state_text_session_state(wash_session_service_args->wash_session->session_state), "completed",
+                         wash_state_text_session_state(wash_session_service_args->wash_session->session_state), "completed",
                          "program_finished");
     return operation_result_ok();
 }
@@ -154,11 +154,11 @@ operation_result_t wash_session_state_machine_abort(wash_session_service_args_t 
         return operation_result_fail(ERROR_CODE_INVALID_ARGUMENT);
     }
 
-    previous_state = runtime_state_text_session_state(wash_session_service_args->wash_session->session_state);
+    previous_state = wash_state_text_session_state(wash_session_service_args->wash_session->session_state);
     wash_session_abort(wash_session_service_args->wash_session, result_code, reason_code,
                        wash_session_service_args->current_time_ms);
     init_transition_fact(wash_session_transition_fact, wash_session_service_args->wash_session, previous_state,
-                         runtime_state_text_session_state(wash_session_service_args->wash_session->session_state), "aborted",
+                         wash_state_text_session_state(wash_session_service_args->wash_session->session_state), "aborted",
                          reason_code);
     return operation_result_ok();
 }

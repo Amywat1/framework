@@ -13,8 +13,8 @@ int main(void)
     char last_reason_code_before[64];
     operation_result_t result;
 
-    test_setup_system_context( &driver_context);
-    result = test_load_runtime_program_from_fixture(
+    test_setup_control_context( &driver_context);
+    result = test_load_program_from_fixture(
         "tests/fixtures/wash_step_control/program_v1_valid.json",
         0);
     TEST_ASSERT(result.ok);
@@ -29,7 +29,7 @@ int main(void)
         response_line,
         sizeof(response_line)) == 0);
 
-    result = query_wash_session_status_execute( &wash_session_status_view);
+    result = query_wash_session_status( &wash_session_status_view);
     TEST_ASSERT(result.ok);
     TEST_ASSERT(wash_session_status_view.has_active_session);
     TEST_ASSERT(wash_session_status_view.device_state == DEVICE_STATE_RUNNING);
@@ -43,7 +43,7 @@ int main(void)
     last_result_code_before[sizeof(last_result_code_before) - 1] = '\0';
     last_reason_code_before[sizeof(last_reason_code_before) - 1] = '\0';
 
-    result = query_wash_session_status_execute( &wash_session_status_view);
+    result = query_wash_session_status( &wash_session_status_view);
     TEST_ASSERT(result.ok);
     TEST_ASSERT(strcmp(control_context_last_result_code(), last_result_code_before) == 0);
     TEST_ASSERT(strcmp(control_context_last_reason_code(), last_reason_code_before) == 0);
@@ -51,15 +51,15 @@ int main(void)
 
     result = test_submit_stop( "status-stop");
     TEST_ASSERT(result.ok);
-    result = query_wash_session_status_execute( &wash_session_status_view);
+    result = query_wash_session_status( &wash_session_status_view);
     TEST_ASSERT(result.ok);
     TEST_ASSERT(!wash_session_status_view.has_active_session);
     TEST_ASSERT(wash_session_status_view.device_state == DEVICE_STATE_STOPPED);
     TEST_ASSERT(strcmp(wash_session_status_view.reason_code, "status-stop") == 0);
 
-    result = control_context_reset();
+    result = control_context_reset_runtime_keep_bindings();
     TEST_ASSERT(result.ok);
-    result = query_wash_session_status_execute( &wash_session_status_view);
+    result = query_wash_session_status( &wash_session_status_view);
     TEST_ASSERT(result.ok);
     TEST_ASSERT(!wash_session_status_view.has_active_session);
     TEST_ASSERT(wash_session_status_view.device_state == DEVICE_STATE_STOPPED);
@@ -67,15 +67,15 @@ int main(void)
     TEST_ASSERT(wash_session_status_view.scheduler_view_available);
     TEST_ASSERT(wash_session_status_view.reason_code[0] == '\0');
 
-    test_release_system_context();
-    result = query_wash_session_status_execute( &wash_session_status_view);
+    test_release_control_context();
+    result = query_wash_session_status( &wash_session_status_view);
     TEST_ASSERT(!result.ok);
     TEST_ASSERT(result.error_code == ERROR_CODE_INVALID_STATE);
 
-    test_setup_system_context( &driver_context);
+    test_setup_control_context( &driver_context);
     result = test_submit_fault_with_reason( "E_STOP", "idle-fault");
     TEST_ASSERT(result.ok);
-    result = query_wash_session_status_execute( &wash_session_status_view);
+    result = query_wash_session_status( &wash_session_status_view);
     TEST_ASSERT(result.ok);
     TEST_ASSERT(!wash_session_status_view.has_active_session);
     TEST_ASSERT(wash_session_status_view.device_state == DEVICE_STATE_EXCEPTION);
@@ -84,6 +84,6 @@ int main(void)
     TEST_ASSERT(strcmp(wash_session_status_view.global_fault_reason, "idle-fault") == 0);
     TEST_ASSERT(wash_session_status_view.scheduler_view_available);
 
-    test_release_system_context();
+    test_release_control_context();
     return 0;
 }

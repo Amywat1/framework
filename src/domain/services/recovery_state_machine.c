@@ -41,11 +41,11 @@ static operation_result_t confirm_roof_brush_home(const sensor_port_t *sensor_po
 {
     runtime_snapshot_t runtime_snapshot;
 
-    if (sensor_port == 0 || sensor_port->read_runtime_snapshot == 0)
+    if (sensor_port == 0 || sensor_port->read_machine_snapshot == 0)
     {
         return fail_with_reason(ERROR_CODE_INVALID_ARGUMENT, failure_reason_code, "runtime_snapshot_unavailable");
     }
-    if (sensor_port->read_runtime_snapshot(sensor_port->context, &runtime_snapshot) != 0)
+    if (sensor_port->read_machine_snapshot(sensor_port->context, &runtime_snapshot) != 0)
     {
         return fail_with_reason(ERROR_CODE_IO_FAILED, failure_reason_code, "runtime_snapshot_unavailable");
     }

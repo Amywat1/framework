@@ -91,7 +91,7 @@ static int assert_status_single_line_matches_view(device_state_t expected_device
     char state_value[32];
     operation_result_t result;
 
-    result = query_wash_session_status_execute( &wash_session_status_view);
+    result = query_wash_session_status( &wash_session_status_view);
     TEST_ASSERT(result.ok);
     TEST_ASSERT(wash_session_status_view.device_state == expected_device_state);
 
@@ -131,9 +131,9 @@ static int verify_stopped_status_single_line_contract(void)
 {
     simulated_driver_context_t driver_context;
 
-    test_setup_system_context( &driver_context);
+    test_setup_control_context( &driver_context);
     TEST_ASSERT(assert_status_single_line_matches_view(DEVICE_STATE_STOPPED) == 0);
-    test_release_system_context();
+    test_release_control_context();
     return 0;
 }
 
@@ -142,8 +142,8 @@ static int verify_running_status_single_line_contract(void)
     simulated_driver_context_t driver_context;
     operation_result_t result;
 
-    test_setup_system_context( &driver_context);
-    result = test_load_runtime_program_from_fixture(
+    test_setup_control_context( &driver_context);
+    result = test_load_program_from_fixture(
         "tests/fixtures/wash_step_control/program_v1_valid.json",
         0);
     TEST_ASSERT(result.ok);
@@ -151,7 +151,7 @@ static int verify_running_status_single_line_contract(void)
     TEST_ASSERT(result.ok);
 
     TEST_ASSERT(assert_status_single_line_matches_view(DEVICE_STATE_RUNNING) == 0);
-    test_release_system_context();
+    test_release_control_context();
     return 0;
 }
 
@@ -161,7 +161,7 @@ static int verify_exception_status_single_line_contract(void)
     char response_line[512];
     operation_result_t result;
 
-    test_setup_system_context( &driver_context);
+    test_setup_control_context( &driver_context);
     result = test_process_command_and_flush(
         "fault E_STOP status-contract",
         response_line,
@@ -170,7 +170,7 @@ static int verify_exception_status_single_line_contract(void)
     TEST_ASSERT(strstr(response_line, "detail=global_fault_recorded") != 0);
 
     TEST_ASSERT(assert_status_single_line_matches_view(DEVICE_STATE_EXCEPTION) == 0);
-    test_release_system_context();
+    test_release_control_context();
     return 0;
 }
 

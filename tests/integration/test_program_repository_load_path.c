@@ -48,20 +48,20 @@ static int verify_direct_parse_repository_load_and_test_helper_match(void)
     result = json_program_parser_parse("tests/fixtures/wash_step_control/program_v1_valid.json", &direct_program);
     TEST_ASSERT(result.ok);
 
-    test_setup_system_context(&driver_context);
+    test_setup_control_context(&driver_context);
     TEST_ASSERT(test_load_program_via_repository("wash_step_control_v1", &repository_program) == 0);
     TEST_ASSERT(assert_equivalent_programs(&direct_program, &repository_program) == 0);
-    test_release_system_context();
+    test_release_control_context();
 
-    test_setup_system_context(&driver_context);
-    result = test_load_runtime_program_from_fixture(
+    test_setup_control_context(&driver_context);
+    result = test_load_program_from_fixture(
         "tests/fixtures/wash_step_control/program_v1_valid.json",
         &helper_program);
     TEST_ASSERT(result.ok);
     TEST_ASSERT(test_load_program_via_repository("wash_step_control_v1", &cached_program) == 0);
     TEST_ASSERT(assert_equivalent_programs(&direct_program, &helper_program) == 0);
     TEST_ASSERT(assert_equivalent_programs(&helper_program, &cached_program) == 0);
-    test_release_system_context();
+    test_release_control_context();
     return 0;
 }
 

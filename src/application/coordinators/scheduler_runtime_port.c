@@ -3,33 +3,28 @@
 #include "application/coordinators/control_tick.h"
 #include "application/coordinators/control_context.h"
 
-static unsigned long adapter_current_time_ms(void *context)
+static unsigned long adapter_current_time_ms(void)
 {
-    (void)context;
     return control_context_current_time_ms();
 }
 
-static unsigned int adapter_pending_trigger_count(void *context)
+static unsigned int adapter_pending_trigger_count(void)
 {
-    (void)context;
     return control_context_pending_trigger_count();
 }
 
-static bool adapter_has_pending_work(void *context)
+static bool adapter_has_pending_work(void)
 {
-    (void)context;
     return control_context_has_pending_work();
 }
 
-static void adapter_advance_time(void *context, unsigned long elapsed_ms)
+static void adapter_advance_time(unsigned long elapsed_ms)
 {
-    (void)context;
     control_tick_advance_time(elapsed_ms);
 }
 
-static operation_result_t adapter_run_control_tick(void *context)
+static operation_result_t adapter_run_control_tick(void)
 {
-    (void)context;
     return control_tick_run();
 }
 
@@ -43,7 +38,6 @@ void scheduler_runtime_port_init_from_control_context(scheduler_runtime_port_t *
     {
         return;
     }
-    port->context = 0;
     port->current_time_ms = adapter_current_time_ms;
     port->pending_trigger_count = adapter_pending_trigger_count;
     port->has_pending_work = adapter_has_pending_work;

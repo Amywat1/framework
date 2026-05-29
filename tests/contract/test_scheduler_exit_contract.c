@@ -1,4 +1,4 @@
-#include "application/use_cases/process_formal_command.h"
+#include "application/use_cases/formal_command.h"
 #include "tests/test_support.h"
 #include "src/application/coordinators/control_context_private.h"
 
@@ -9,7 +9,7 @@ static int verify_immediate_exit_stops_without_drain(void)
     scheduler_t *scheduler;
     operation_result_t result;
 
-    test_setup_system_context( &driver_context);
+    test_setup_control_context( &driver_context);
     scheduler = test_create_scheduler( 100ul);
     TEST_ASSERT(scheduler != 0);
 
@@ -19,7 +19,7 @@ static int verify_immediate_exit_stops_without_drain(void)
     TEST_ASSERT(app_state_view.runtime_state == SCHEDULER_RUNTIME_STATE_STOPPED);
     TEST_ASSERT(app_state_view.metrics.exit_event_count == 1ul);
 
-    test_release_system_context();
+    test_release_control_context();
     return 0;
 }
 
@@ -32,8 +32,8 @@ static int verify_bounded_drain_has_terminal_conclusion(void)
     operation_result_t result;
     unsigned int step_index;
 
-    test_setup_system_context( &driver_context);
-    result = test_load_runtime_program_from_fixture(
+    test_setup_control_context( &driver_context);
+    result = test_load_program_from_fixture(
         "tests/fixtures/wash_step_control/program_v1_valid.json",
         0);
     TEST_ASSERT(result.ok);
@@ -42,7 +42,7 @@ static int verify_bounded_drain_has_terminal_conclusion(void)
 
     result = test_homing_system_and_flush();
     TEST_ASSERT(result.ok);
-    result = process_formal_command_execute(
+    result = formal_command_execute(
         "start wash_step_control_v1",
         response_line,
         sizeof(response_line));
@@ -70,7 +70,7 @@ static int verify_bounded_drain_has_terminal_conclusion(void)
         || app_state_view.runtime_state == SCHEDULER_RUNTIME_STATE_STOPPED);
     TEST_ASSERT(app_state_view.metrics.exit_event_count == 1ul);
 
-    test_release_system_context();
+    test_release_control_context();
     return 0;
 }
 

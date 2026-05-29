@@ -4,7 +4,6 @@
 #include "application/coordinators/control_context.h"
 #include "domain/model/program_snapshot.h"
 #include "domain/model/state_transition_record.h"
-#include "domain/model/vehicle_type.h"
 #include "domain/model/wait_condition.h"
 #include "domain/model/wash_execution.h"
 #include "domain/model/wash_program.h"
@@ -22,14 +21,14 @@
 
 /**
  * @file control_context_private.h
- * @brief 定义系统上下文协调层的私有内部接口。
+ * @brief 定义 control_context 组合根协调层的私有内部接口。
  */
 
 /**
  * @brief 将设备状态从 INIT 推进至 STOPPED，标志端口装配完成、设备就绪可接受命令。
  * @return 成功返回 `operation_result_ok()`；设备状态非 INIT 或实例未激活时返回失败。
  */
-operation_result_t control_context_private_enter_stopped(void);
+operation_result_t control_context_private_mark_device_ready_stopped(void);
 
 /** @name 设备状态与端口 */
 /** @{ */
@@ -90,7 +89,7 @@ void control_context_private_set_latest_result(const char *result_code, const ch
  * @param result_code 最新结果码；传入 `0` 时保持现有结果码不变。
  * @param reason_code 最新原因码；传入 `0` 时保持现有原因码不变。
  */
-void control_context_private_apply_control_context_result(device_state_t device_state,
+void control_context_private_apply_device_state_outcome(device_state_t device_state,
                                                         const char *result_code, const char *reason_code);
 /**
  * @brief 应用 start accepted 路径的会话启动落点。
