@@ -117,7 +117,7 @@ static inline operation_result_t test_bind_control_context_binding(test_runtime_
         return result;
     }
 
-    result = control_context_private_mark_device_ready_stopped();
+    result = control_context_mark_device_ready_stopped();
     if (!result.ok)
     {
         (void)control_context_deinit();

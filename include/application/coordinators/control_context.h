@@ -44,6 +44,14 @@ operation_result_t control_context_deinit(void);
 operation_result_t control_context_reset_runtime_keep_bindings(void);
 
 /**
+ * @brief 将设备状态从 INIT 推进至 STOPPED，标志端口装配完成、设备就绪可接受命令。
+ *
+ * @note 由引导层在端口绑定全部完成后显式调用；设备状态非 INIT 或实例未激活时返回失败。
+ * @return 成功返回 `operation_result_ok()`；前置条件不满足时返回失败结果。
+ */
+operation_result_t control_context_mark_device_ready_stopped(void);
+
+/**
  * @brief 将传感器端口装配到主控上下文。
  *
  * @param sensor_port 传感器端口；传入 `0` 时清空该端口。

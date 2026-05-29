@@ -7,7 +7,6 @@
 #include "application/coordinators/scheduler_runtime_port.h"
 #include "application/services/command_dispatch.h"
 #include "platform/linux/command_ingress_stdio_linux.h"
-#include "src/application/coordinators/control_context_private.h"
 
 typedef enum app_state_t
 {
@@ -27,7 +26,7 @@ typedef struct app_instance_t
     command_ingress_stdio_linux_t command_ingress;
 } app_instance_t;
 
-static app_instance_t g_app_instance;
+static app_instance_t s_app_instance;
 
 /**
  * @brief 判断单例是否处于可再次创建状态。
@@ -35,7 +34,7 @@ static app_instance_t g_app_instance;
  */
 static bool bootstrap_instance_is_reusable(void)
 {
-    return g_app_instance.state == APP_STATE_UNAVAILABLE || g_app_instance.state == APP_STATE_DESTROYED;
+    return s_app_instance.state == APP_STATE_UNAVAILABLE || s_app_instance.state == APP_STATE_DESTROYED;
 }
 
 /** @brief 判断字符串指针非空且内容非空。 */
@@ -133,7 +132,7 @@ static operation_result_t bootstrap_create_alarm_monitor(const app_config_t *con
 {
     alarm_monitor_config_t monitor_config;
 
-    if (g_app_instance.alarm_monitor != 0)
+    if (s_app_instance.alarm_monitor != 0)
     {
         return operation_result_ok();
     }
@@ -145,7 +144,7 @@ static operation_result_t bootstrap_create_alarm_monitor(const app_config_t *con
     memset(&monitor_config, 0, sizeof(monitor_config));
     monitor_config.settings = config->background_alarm_settings;
     monitor_config.sensor_port = config->sensor_port;
-    return alarm_monitor_create(&g_app_instance.alarm_monitor, &monitor_config);
+    return alarm_monitor_create(&s_app_instance.alarm_monitor, &monitor_config);
 }
 
 /**
@@ -154,21 +153,21 @@ static operation_result_t bootstrap_create_alarm_monitor(const app_config_t *con
  */
 static operation_result_t bootstrap_start_alarm_monitor(void)
 {
-    return alarm_monitor_start(g_app_instance.alarm_monitor);
+    return alarm_monitor_start(s_app_instance.alarm_monitor);
 }
 
 /**
  * @brief 停止后台报警监控组件。
  */
-static void bootstrap_stop_alarm_monitor(void) { alarm_monitor_stop(g_app_instance.alarm_monitor); }
+static void bootstrap_stop_alarm_monitor(void) { alarm_monitor_stop(s_app_instance.alarm_monitor); }
 
 /**
  * @brief 销毁后台报警监控组件。
  */
 static void bootstrap_destroy_alarm_monitor(void)
 {
-    alarm_monitor_destroy(g_app_instance.alarm_monitor);
-    g_app_instance.alarm_monitor = 0;
+    alarm_monitor_destroy(s_app_instance.alarm_monitor);
+    s_app_instance.alarm_monitor = 0;
 }
 
 /**
@@ -184,13 +183,13 @@ static operation_result_t bootstrap_teardown_instance(void)
 
     bootstrap_destroy_alarm_monitor();
 
-    command_ingress_stdio_linux_restore(&g_app_instance.command_ingress);
+    command_ingress_stdio_linux_restore(&s_app_instance.command_ingress);
 
-    if (g_app_instance.scheduler != 0)
+    if (s_app_instance.scheduler != 0)
     {
         control_context_unbind_scheduler();
-        scheduler_destroy(g_app_instance.scheduler);
-        g_app_instance.scheduler = 0;
+        scheduler_destroy(s_app_instance.scheduler);
+        s_app_instance.scheduler = 0;
     }
     deinit_result = control_context_deinit();
     if (!deinit_result.ok)
@@ -198,7 +197,7 @@ static operation_result_t bootstrap_teardown_instance(void)
         teardown_error_code = deinit_result.error_code;
     }
 
-    g_app_instance.state = APP_STATE_DESTROYED;
+    s_app_instance.state = APP_STATE_DESTROYED;
     return teardown_error_code == ERROR_CODE_OK ? operation_result_ok() : operation_result_fail(teardown_error_code);
 }
 
@@ -230,8 +229,8 @@ operation_result_t app_create(const app_config_t *config)
         return operation_result_fail(ERROR_CODE_RESOURCE_UNAVAILABLE);
     }
 
-    memset(&g_app_instance, 0, sizeof(g_app_instance));
-    g_app_instance.state = APP_STATE_UNAVAILABLE;
+    memset(&s_app_instance, 0, sizeof(s_app_instance));
+    s_app_instance.state = APP_STATE_UNAVAILABLE;
     result = control_context_init();
     if (!result.ok)
     {
@@ -249,7 +248,7 @@ operation_result_t app_create(const app_config_t *config)
         return result;
     }
 
-    result = control_context_private_mark_device_ready_stopped();
+    result = control_context_mark_device_ready_stopped();
     if (!result.ok)
     {
         (void)bootstrap_teardown_instance();
@@ -267,33 +266,33 @@ operation_result_t app_create(const app_config_t *config)
     command_ingress_stdio_binding.input = config->command_input;
     command_ingress_stdio_binding.output = config->command_output;
     command_ingress_stdio_binding.error = config->command_error;
-    command_ingress_stdio_linux_init(&g_app_instance.command_ingress, &command_ingress_stdio_binding);
+    command_ingress_stdio_linux_init(&s_app_instance.command_ingress, &command_ingress_stdio_binding);
     if (config->scheduler_config->command_event_source_enabled)
     {
-        command_ingress_stdio_linux_enable(&g_app_instance.command_ingress);
+        command_ingress_stdio_linux_enable(&s_app_instance.command_ingress);
     }
-    command_source_port = command_ingress_stdio_linux_as_source_port(&g_app_instance.command_ingress);
+    command_source_port = command_ingress_stdio_linux_as_source_port(&s_app_instance.command_ingress);
     scheduler_runtime_port_init_from_control_context(&scheduler_runtime_port);
-    g_app_instance.scheduler =
+    s_app_instance.scheduler =
         scheduler_create(&scheduler_runtime_port, config->scheduler_config, &command_source_port);
-    if (g_app_instance.scheduler == 0)
+    if (s_app_instance.scheduler == 0)
     {
         (void)bootstrap_teardown_instance();
         return operation_result_fail(ERROR_CODE_IO_FAILED);
     }
-    result = control_context_bind_scheduler(g_app_instance.scheduler);
+    result = control_context_bind_scheduler(s_app_instance.scheduler);
     if (!result.ok)
     {
         (void)bootstrap_teardown_instance();
         return result;
     }
 
-    scheduler_sync_port = scheduler_build_sync_port(g_app_instance.scheduler);
-    command_dispatch_init(&g_app_instance.command_dispatch, &scheduler_sync_port);
-    inbound_command_port = command_dispatch_as_port(&g_app_instance.command_dispatch);
-    scheduler_set_command_port(g_app_instance.scheduler, &inbound_command_port);
+    scheduler_sync_port = scheduler_build_sync_port(s_app_instance.scheduler);
+    command_dispatch_init(&s_app_instance.command_dispatch, &scheduler_sync_port);
+    inbound_command_port = command_dispatch_as_port(&s_app_instance.command_dispatch);
+    scheduler_set_command_port(s_app_instance.scheduler, &inbound_command_port);
 
-    g_app_instance.state = APP_STATE_CREATED;
+    s_app_instance.state = APP_STATE_CREATED;
     return operation_result_ok();
 }
 
@@ -301,26 +300,26 @@ operation_result_t app_run(void)
 {
     operation_result_t result;
 
-    if (g_app_instance.state != APP_STATE_CREATED)
+    if (s_app_instance.state != APP_STATE_CREATED)
     {
         return operation_result_fail(ERROR_CODE_INVALID_STATE);
     }
-    if (g_app_instance.scheduler == 0)
+    if (s_app_instance.scheduler == 0)
     {
         return operation_result_fail(ERROR_CODE_INVALID_STATE);
     }
 
-    g_app_instance.state = APP_STATE_RUNNING;
+    s_app_instance.state = APP_STATE_RUNNING;
     result = bootstrap_start_alarm_monitor();
     if (!result.ok)
     {
-        g_app_instance.state = APP_STATE_TERMINATED;
+        s_app_instance.state = APP_STATE_TERMINATED;
         return result;
     }
 
-    result = scheduler_run(g_app_instance.scheduler);
+    result = scheduler_run(s_app_instance.scheduler);
     bootstrap_stop_alarm_monitor();
-    g_app_instance.state = APP_STATE_TERMINATED;
+    s_app_instance.state = APP_STATE_TERMINATED;
     return result;
 }
 

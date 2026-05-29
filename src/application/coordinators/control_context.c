@@ -80,7 +80,7 @@ static void initialize_runtime_object(control_context_state_t *runtime)
 }
 
 
-operation_result_t control_context_private_mark_device_ready_stopped(void)
+operation_result_t control_context_mark_device_ready_stopped(void)
 {
     control_context_state_t *runtime;
 
@@ -493,7 +493,7 @@ operation_result_t control_context_reset_runtime_keep_bindings(void)
     runtime->sensor_port = sensor_port;
     runtime->actuator_port = actuator_port;
     runtime->program_repository_port = program_repository_port;
-    return control_context_private_mark_device_ready_stopped();
+    return control_context_mark_device_ready_stopped();
 }
 
 void control_context_set_sensor_port(const sensor_port_t *sensor_port)
