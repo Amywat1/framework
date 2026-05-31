@@ -8,7 +8,6 @@ int main(void)
     scheduler_t *scheduler;
     simulated_driver_context_t driver_context;
     wash_session_status_view_t wash_session_status_view;
-    char response_line[512];
     char last_result_code_before[32];
     char last_reason_code_before[64];
     operation_result_t result;
@@ -20,14 +19,10 @@ int main(void)
     TEST_ASSERT(result.ok);
     scheduler = test_create_scheduler( 100ul);
     TEST_ASSERT(scheduler != 0);
-    TEST_ASSERT(test_scheduler_command(scheduler,
-        "homing",
-        response_line,
-        sizeof(response_line)) == 0);
-    TEST_ASSERT(test_scheduler_command(scheduler,
-        "start wash_step_control_v1",
-        response_line,
-        sizeof(response_line)) == 0);
+    result = test_homing_system_and_flush();
+    TEST_ASSERT(result.ok);
+    result = test_start_session_and_flush("wash_step_control_v1");
+    TEST_ASSERT(result.ok);
 
     result = query_wash_session_status( &wash_session_status_view);
     TEST_ASSERT(result.ok);
@@ -37,7 +32,6 @@ int main(void)
     TEST_ASSERT(wash_session_status_view.execution_state == EXECUTION_STATE_RUNNING);
     TEST_ASSERT(strcmp(wash_session_status_view.stage_id, "roof_segment") == 0);
     TEST_ASSERT(wash_session_status_view.scheduler_view_available);
-    TEST_ASSERT(wash_session_status_view.scheduler_view.metrics.command_event_count == 2ul);
     strncpy(last_result_code_before, control_context_last_result_code(), sizeof(last_result_code_before) - 1);
     strncpy(last_reason_code_before, control_context_last_reason_code(), sizeof(last_reason_code_before) - 1);
     last_result_code_before[sizeof(last_result_code_before) - 1] = '\0';

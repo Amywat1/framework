@@ -30,10 +30,9 @@ int main(void)
     TEST_ASSERT(result.ok);
     TEST_ASSERT(app_state_view.metrics.exit_event_count == 1ul);
     TEST_ASSERT(app_state_view.metrics.cycle_count == 1ul);
-    TEST_ASSERT(app_state_view.runtime_state == SCHEDULER_RUNTIME_STATE_STOPPED
-        || app_state_view.runtime_state == SCHEDULER_RUNTIME_STATE_DRAINING);
+    TEST_ASSERT(app_state_view.state == SCHEDULER_RUN_STATE_STOPPED
+        || app_state_view.state == SCHEDULER_RUN_STATE_DRAINING);
 
     test_release_control_context();
     return 0;
 }
-

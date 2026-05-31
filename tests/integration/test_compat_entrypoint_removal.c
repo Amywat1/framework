@@ -58,7 +58,7 @@ static int verify_removed_compat_symbols(void)
     TEST_ASSERT(command_output_contains(command, "stop_wash_cycle_with_reason_execute") == 0);
     TEST_ASSERT(command_output_contains(command, "acknowledge_fault_execute") == 0);
     TEST_ASSERT(command_output_contains(command, "compatibility_trigger_runner_execute") == 0);
-    TEST_ASSERT(command_output_contains(command, "formal_command_execute") == 1);
+    TEST_ASSERT(command_output_contains(command, "line_command_execute") == 1);
     TEST_ASSERT(command_output_contains(command, "cli_command_adapter_execute_formal_line") == 0);
     return 0;
 }

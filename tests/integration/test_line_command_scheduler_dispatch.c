@@ -46,4 +46,3 @@ int main(void)
     test_release_control_context();
     return 0;
 }
-

@@ -9,7 +9,7 @@
 #include "adapters/outbound/file_program_repository.h"
 #include "application/coordinators/control_tick.h"
 #include "application/coordinators/control_context.h"
-#include "application/use_cases/formal_command.h"
+#include "application/use_cases/line_command.h"
 #include "application/use_cases/query_wash_session_status.h"
 #include "domain/model/wash_trigger_event.h"
 #include "platform/drivers/simulated_brush_driver.h"
@@ -124,7 +124,7 @@ static inline operation_result_t test_bind_control_context_binding(test_runtime_
         return result;
     }
 
-    scheduler_runtime_port_init_from_control_context(&scheduler_port);
+    scheduler_runtime_port_init(&scheduler_port);
     binding->scheduler = scheduler_create(&scheduler_port, scheduler_config, 0);
     if (binding->scheduler == 0)
     {
@@ -308,27 +308,13 @@ static inline operation_result_t test_flush_pending_runtime(void)
 
 static inline void test_rebuild_formal_response_line(char *response_line, size_t response_line_size)
 {
-    const char *detail;
-    const char *result_code;
-
-    if (response_line == 0 || response_line_size == 0u)
-    {
-        return;
-    }
-
-    result_code = control_context_last_result_code()[0] != '\0'
-                      ? control_context_last_result_code()
-                      : "accepted";
-    detail = control_context_last_reason_code()[0] != '\0' ? control_context_last_reason_code()
-                                                          : "none";
-    formal_command_format_response(response_line, response_line_size, result_code,
-                                           formal_command_result_is_accepted(result_code), detail);
+    line_command_format_response_from_context(response_line, response_line_size);
 }
 
 static inline operation_result_t test_process_command(const char *command_line,
                                                     char *response_line, size_t response_line_size)
 {
-    return formal_command_execute(command_line, response_line, response_line_size);
+    return line_command_execute(command_line, response_line, response_line_size);
 }
 
 static inline operation_result_t test_process_command_and_flush(const char *command_line, char *response_line,
@@ -533,7 +519,7 @@ static inline scheduler_t *test_scheduler_create_unbound(const scheduler_config_
 {
     scheduler_runtime_port_t scheduler_port;
 
-    scheduler_runtime_port_init_from_control_context(&scheduler_port);
+    scheduler_runtime_port_init(&scheduler_port);
     return scheduler_create(&scheduler_port, scheduler_config, command_source_port);
 }
 

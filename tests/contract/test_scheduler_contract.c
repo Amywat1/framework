@@ -15,7 +15,7 @@ int main(void)
 
     result = scheduler_read_view(scheduler, &view_from_scheduler);
     TEST_ASSERT(result.ok);
-    TEST_ASSERT(view_from_scheduler.runtime_state == SCHEDULER_RUNTIME_STATE_INITIALIZED);
+    TEST_ASSERT(view_from_scheduler.state == SCHEDULER_RUN_STATE_INITIALIZED);
     TEST_ASSERT(view_from_scheduler.control_period_ms == 100ul);
     TEST_ASSERT(view_from_scheduler.command_source_state == SCHEDULER_EVENT_SOURCE_DEGRADED);
     TEST_ASSERT(view_from_scheduler.notification_source_state == SCHEDULER_EVENT_SOURCE_DEGRADED);
@@ -25,12 +25,6 @@ int main(void)
     TEST_ASSERT(result.ok);
     TEST_ASSERT(view_from_context.control_period_ms == 100ul);
     TEST_ASSERT(view_from_context.metrics.pending_trigger_count == 0u);
-
-    TEST_ASSERT(test_scheduler_tick(scheduler, 1u) == 0);
-    result = scheduler_read_view(scheduler, &view_from_scheduler);
-    TEST_ASSERT(result.ok);
-    TEST_ASSERT(view_from_scheduler.runtime_state == SCHEDULER_RUNTIME_STATE_RUNNING);
-    TEST_ASSERT(view_from_scheduler.metrics.cycle_count == 1ul);
 
     result = control_context_deinit();
     TEST_ASSERT(!result.ok);

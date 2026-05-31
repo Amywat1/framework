@@ -2,8 +2,7 @@
 
 #include <string.h>
 
-#include "application/coordinators/control_context.h"
-#include "application/use_cases/formal_command.h"
+#include "application/use_cases/line_command.h"
 #include "shared/error_codes.h"
 
 /**
@@ -20,8 +19,6 @@ static operation_result_t command_dispatch_handle(void *context, const char *com
     command_dispatch_t *dispatch;
     unsigned int pending_before;
     operation_result_t result;
-    const char *result_code;
-    const char *detail;
 
     dispatch = (command_dispatch_t *)context;
     if (dispatch == 0 || command_line == 0 || response_line == 0 || response_line_size == 0u)
@@ -31,7 +28,7 @@ static operation_result_t command_dispatch_handle(void *context, const char *com
 
     pending_before = dispatch->scheduler_sync_port.pending_trigger_count(dispatch->scheduler_sync_port.context);
 
-    result = formal_command_execute(command_line, response_line, response_line_size);
+    result = line_command_execute(command_line, response_line, response_line_size);
 
     if (result.ok &&
         dispatch->scheduler_sync_port.pending_trigger_count(dispatch->scheduler_sync_port.context) > pending_before &&
@@ -42,10 +39,7 @@ static operation_result_t command_dispatch_handle(void *context, const char *com
         {
             return result;
         }
-        result_code = control_context_last_result_code()[0] != '\0' ? control_context_last_result_code() : "accepted";
-        detail = control_context_last_reason_code()[0] != '\0' ? control_context_last_reason_code() : "none";
-        formal_command_format_response(response_line, response_line_size, result_code,
-                                               formal_command_result_is_accepted(result_code), detail);
+        line_command_format_response_from_context(response_line, response_line_size);
         return operation_result_ok();
     }
 

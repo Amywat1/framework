@@ -54,12 +54,12 @@ typedef struct scheduler_runtime_port_t
 } scheduler_runtime_port_t;
 
 /**
- * @brief 从 control_context 单实例填充调度器运行时端口。
+ * @brief 填充调度器运行时端口，绑定 control_context 单实例。
  *
  * @details 将 control_context 各项能力映射到 `scheduler_runtime_port_t` 函数指针，
  *          供基础设施层调度器使用。
  * @param port 待写入端口，不能为空。
  */
-void scheduler_runtime_port_init_from_control_context(scheduler_runtime_port_t *port);
+void scheduler_runtime_port_init(scheduler_runtime_port_t *port);
 
 #endif

@@ -12,7 +12,7 @@
 #include "domain/services/wash_session_state_machine.h"
 #include "shared/error_codes.h"
 #include "src/application/coordinators/control_context_private.h"
-#include "src/application/use_cases/command_matrix_reason_codes.h"
+#include "src/application/use_cases/device_state_blocked_reasons.h"
 
 /**
  * @brief 从 control_context 构建会话服务参数。
@@ -202,7 +202,7 @@ static operation_result_t handle_homing(void)
         wash_trigger_event_init(&wash_trigger_event, TRIGGER_TYPE_HOMING, 0, "homing", "homing-command",
                                 control_context_current_time_ms());
         project_trigger_result(&wash_trigger_event, device_state, device_state, "rejected",
-                               command_matrix_running_session_exists_reason());
+                               device_state_running_session_blocked_reason());
         return operation_result_fail(ERROR_CODE_INVALID_STATE);
     }
     if (device_state != DEVICE_STATE_STOPPED)
@@ -210,7 +210,7 @@ static operation_result_t handle_homing(void)
         wash_trigger_event_init(&wash_trigger_event, TRIGGER_TYPE_HOMING, 0, "homing", "homing-command",
                                 control_context_current_time_ms());
         project_trigger_result(&wash_trigger_event, device_state, device_state, "rejected",
-                               command_matrix_homing_requires_stopped_reason());
+                               device_state_homing_blocked_reason());
         return operation_result_fail(ERROR_CODE_INVALID_STATE);
     }
 
@@ -259,7 +259,7 @@ static operation_result_t handle_start(const wash_trigger_event_t *wash_trigger_
     if (device_state != DEVICE_STATE_IDLE)
     {
         project_trigger_result(wash_trigger_event, device_state, device_state, "rejected",
-                               command_matrix_start_rejection_reason(device_state));
+                               device_state_start_blocked_reason(device_state));
         return operation_result_fail(ERROR_CODE_INVALID_STATE);
     }
     if (control_context_private_global_fault_present())
@@ -278,7 +278,7 @@ static operation_result_t handle_start(const wash_trigger_event_t *wash_trigger_
     if (wash_session_is_running(wash_session))
     {
         project_trigger_result(wash_trigger_event, device_state, device_state, "rejected",
-                               command_matrix_running_session_exists_reason());
+                               device_state_running_session_blocked_reason());
         return operation_result_fail(ERROR_CODE_INVALID_STATE);
     }
 
@@ -332,7 +332,7 @@ static operation_result_t handle_stop(const wash_trigger_event_t *wash_trigger_e
     if (device_state != DEVICE_STATE_RUNNING || !wash_session_is_running(wash_session))
     {
         project_trigger_result(wash_trigger_event, device_state, device_state, "rejected",
-                               command_matrix_stop_rejection_reason());
+                               device_state_stop_blocked_reason());
         return operation_result_fail(ERROR_CODE_INVALID_STATE);
     }
 
@@ -385,7 +385,7 @@ static operation_result_t handle_fault(const wash_trigger_event_t *wash_trigger_
         if (device_state != DEVICE_STATE_EXCEPTION)
         {
             project_trigger_result(wash_trigger_event, device_state, device_state, "rejected",
-                                   command_matrix_fault_clear_rejection_reason());
+                                   device_state_fault_clear_blocked_reason());
             return operation_result_fail(ERROR_CODE_INVALID_STATE);
         }
         control_context_private_clear_global_fault();

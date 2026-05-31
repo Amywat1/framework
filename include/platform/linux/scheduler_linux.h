@@ -19,7 +19,7 @@
  * @return 成功时返回 `operation_result_ok()`，失败时返回显式错误结果。
  */
 operation_result_t scheduler_linux_test_inject_period(scheduler_t *scheduler,
-                                                                 unsigned int expiration_count);
+                                                      unsigned int expiration_count);
 
 /**
  * @brief 在测试中注入一条命令行输入。
@@ -31,8 +31,8 @@ operation_result_t scheduler_linux_test_inject_period(scheduler_t *scheduler,
  * @return 成功时返回 `operation_result_ok()`，失败时返回显式错误结果。
  */
 operation_result_t scheduler_linux_test_inject_command(scheduler_t *scheduler,
-                                                                  const char *command_line, char *response_line,
-                                                                  size_t response_line_size);
+                                                       const char *command_line, char *response_line,
+                                                       size_t response_line_size);
 
 /**
  * @brief 在测试中注入通知事件。
@@ -42,7 +42,7 @@ operation_result_t scheduler_linux_test_inject_command(scheduler_t *scheduler,
  * @return 成功时返回 `operation_result_ok()`，失败时返回显式错误结果。
  */
 operation_result_t scheduler_linux_test_inject_notification(scheduler_t *scheduler,
-                                                                       unsigned int notification_count);
+                                                            unsigned int notification_count);
 
 /**
  * @brief 在测试中注入退出事件。
@@ -52,7 +52,7 @@ operation_result_t scheduler_linux_test_inject_notification(scheduler_t *schedul
  * @return 成功时返回 `operation_result_ok()`，失败时返回显式错误结果。
  */
 operation_result_t scheduler_linux_test_inject_exit(scheduler_t *scheduler,
-                                                               bool immediate);
+                                                    bool immediate);
 
 /**
  * @brief 在测试中推进一次调度器分发步骤。

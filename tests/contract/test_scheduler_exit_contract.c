@@ -1,4 +1,4 @@
-#include "application/use_cases/formal_command.h"
+#include "application/use_cases/line_command.h"
 #include "tests/test_support.h"
 #include "src/application/coordinators/control_context_private.h"
 
@@ -16,7 +16,7 @@ static int verify_immediate_exit_stops_without_drain(void)
     TEST_ASSERT(test_scheduler_exit(scheduler, true) == 0);
     result = scheduler_read_view(scheduler, &app_state_view);
     TEST_ASSERT(result.ok);
-    TEST_ASSERT(app_state_view.runtime_state == SCHEDULER_RUNTIME_STATE_STOPPED);
+    TEST_ASSERT(app_state_view.state == SCHEDULER_RUN_STATE_STOPPED);
     TEST_ASSERT(app_state_view.metrics.exit_event_count == 1ul);
 
     test_release_control_context();
@@ -42,7 +42,7 @@ static int verify_bounded_drain_has_terminal_conclusion(void)
 
     result = test_homing_system_and_flush();
     TEST_ASSERT(result.ok);
-    result = formal_command_execute(
+    result = line_command_execute(
         "start wash_step_control_v1",
         response_line,
         sizeof(response_line));
@@ -53,8 +53,8 @@ static int verify_bounded_drain_has_terminal_conclusion(void)
     for (step_index = 0u; step_index < 8u; ++step_index) {
         result = scheduler_read_view(scheduler, &app_state_view);
         TEST_ASSERT(result.ok);
-        if (app_state_view.runtime_state == SCHEDULER_RUNTIME_STATE_FAILED
-            || app_state_view.runtime_state == SCHEDULER_RUNTIME_STATE_STOPPED) {
+        if (app_state_view.state == SCHEDULER_RUN_STATE_FAILED
+            || app_state_view.state == SCHEDULER_RUN_STATE_STOPPED) {
             break;
         }
         result = scheduler_linux_test_step(scheduler);
@@ -66,8 +66,8 @@ static int verify_bounded_drain_has_terminal_conclusion(void)
 
     result = scheduler_read_view(scheduler, &app_state_view);
     TEST_ASSERT(result.ok);
-    TEST_ASSERT(app_state_view.runtime_state == SCHEDULER_RUNTIME_STATE_FAILED
-        || app_state_view.runtime_state == SCHEDULER_RUNTIME_STATE_STOPPED);
+    TEST_ASSERT(app_state_view.state == SCHEDULER_RUN_STATE_FAILED
+        || app_state_view.state == SCHEDULER_RUN_STATE_STOPPED);
     TEST_ASSERT(app_state_view.metrics.exit_event_count == 1ul);
 
     test_release_control_context();
@@ -84,4 +84,3 @@ int main(void)
     }
     return 0;
 }
-

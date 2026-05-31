@@ -5,7 +5,7 @@
 #include <stddef.h>
 #include <stdio.h>
 
-#include "platform/linux/scheduler_linux.h"
+#include "platform/scheduler.h"
 
 typedef struct scheduler_event_source_descriptor_t
 {
@@ -26,7 +26,7 @@ struct scheduler_t
 {
     scheduler_runtime_port_t runtime_port;
     scheduler_config_t config;
-    scheduler_runtime_state_t runtime_state;
+    scheduler_run_state_t state;
     command_source_port_t command_source_port;
     command_port_t command_port;
     int epoll_fd;

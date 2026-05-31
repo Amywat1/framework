@@ -6,7 +6,7 @@
 #include "application/coordinators/alarm_monitor.h"
 #include "application/coordinators/scheduler_runtime_port.h"
 #include "application/services/command_dispatch.h"
-#include "platform/linux/command_ingress_stdio_linux.h"
+#include "platform/linux/stdio_command_linux.h"
 
 typedef enum app_state_t
 {
@@ -23,7 +23,7 @@ typedef struct app_instance_t
     scheduler_t *scheduler;
     alarm_monitor_t *alarm_monitor;
     command_dispatch_t command_dispatch;
-    command_ingress_stdio_linux_t command_ingress;
+    stdio_command_linux_t stdio_command;
 } app_instance_t;
 
 static app_instance_t s_app_instance;
@@ -183,7 +183,7 @@ static operation_result_t bootstrap_teardown_instance(void)
 
     bootstrap_destroy_alarm_monitor();
 
-    command_ingress_stdio_linux_restore(&s_app_instance.command_ingress);
+    stdio_command_linux_restore(&s_app_instance.stdio_command);
 
     if (s_app_instance.scheduler != 0)
     {
@@ -201,6 +201,27 @@ static operation_result_t bootstrap_teardown_instance(void)
     return teardown_error_code == ERROR_CODE_OK ? operation_result_ok() : operation_result_fail(teardown_error_code);
 }
 
+/**
+ * @brief 将命令分发组件注册到调度器，接通 stdin 命令处理链路。
+ * @param scheduler 调度器实例，不能为空。
+ * @param dispatch 命令分发组件实例，不能为空。
+ */
+static void bootstrap_wire_command_path(scheduler_t *scheduler, command_dispatch_t *dispatch)
+{
+    scheduler_sync_port_t scheduler_sync_port;
+    command_port_t command_port;
+
+    if (scheduler == 0 || dispatch == 0)
+    {
+        return;
+    }
+
+    scheduler_sync_port = scheduler_build_sync_port(scheduler);
+    command_dispatch_init(dispatch, &scheduler_sync_port);
+    command_port = command_dispatch_as_port(dispatch);
+    scheduler_set_command_port(scheduler, &command_port);
+}
+
 void app_config_init(app_config_t *config)
 {
     if (config == 0)
@@ -212,11 +233,9 @@ void app_config_init(app_config_t *config)
 
 operation_result_t app_create(const app_config_t *config)
 {
-    command_ingress_stdio_binding_t command_ingress_stdio_binding;
+    stdio_command_io_t stdio_command_io;
     command_source_port_t command_source_port;
     scheduler_runtime_port_t scheduler_runtime_port;
-    scheduler_sync_port_t scheduler_sync_port;
-    command_port_t inbound_command_port;
     operation_result_t result;
 
     result = bootstrap_validate_config(config);
@@ -262,17 +281,17 @@ operation_result_t app_create(const app_config_t *config)
         return result;
     }
 
-    memset(&command_ingress_stdio_binding, 0, sizeof(command_ingress_stdio_binding));
-    command_ingress_stdio_binding.input = config->command_input;
-    command_ingress_stdio_binding.output = config->command_output;
-    command_ingress_stdio_binding.error = config->command_error;
-    command_ingress_stdio_linux_init(&s_app_instance.command_ingress, &command_ingress_stdio_binding);
+    memset(&stdio_command_io, 0, sizeof(stdio_command_io));
+    stdio_command_io.input = config->command_input;
+    stdio_command_io.output = config->command_output;
+    stdio_command_io.error = config->command_error;
+    stdio_command_linux_init(&s_app_instance.stdio_command, &stdio_command_io);
     if (config->scheduler_config->command_event_source_enabled)
     {
-        command_ingress_stdio_linux_enable(&s_app_instance.command_ingress);
+        stdio_command_linux_enable(&s_app_instance.stdio_command);
     }
-    command_source_port = command_ingress_stdio_linux_as_source_port(&s_app_instance.command_ingress);
-    scheduler_runtime_port_init_from_control_context(&scheduler_runtime_port);
+    command_source_port = stdio_command_linux_as_source_port(&s_app_instance.stdio_command);
+    scheduler_runtime_port_init(&scheduler_runtime_port);
     s_app_instance.scheduler =
         scheduler_create(&scheduler_runtime_port, config->scheduler_config, &command_source_port);
     if (s_app_instance.scheduler == 0)
@@ -287,10 +306,7 @@ operation_result_t app_create(const app_config_t *config)
         return result;
     }
 
-    scheduler_sync_port = scheduler_build_sync_port(s_app_instance.scheduler);
-    command_dispatch_init(&s_app_instance.command_dispatch, &scheduler_sync_port);
-    inbound_command_port = command_dispatch_as_port(&s_app_instance.command_dispatch);
-    scheduler_set_command_port(s_app_instance.scheduler, &inbound_command_port);
+    bootstrap_wire_command_path(s_app_instance.scheduler, &s_app_instance.command_dispatch);
 
     s_app_instance.state = APP_STATE_CREATED;
     return operation_result_ok();

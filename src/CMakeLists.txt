@@ -33,13 +33,13 @@ set(WASH_CORE_SOURCES
     application/coordinators/control_outcome_recorder.c
     application/coordinators/scheduler_runtime_port.c
     application/jobs/alarm_detect_job.c
-    application/use_cases/formal_command.c
+    application/use_cases/line_command.c
     application/use_cases/wash_control.c
     application/use_cases/query_wash_session_status.c
     adapters/outbound/file_program_repository.c
     adapters/config/json_program_parser.c
     platform/linux/scheduler_linux.c
-    platform/linux/command_ingress_stdio_linux.c
+    platform/linux/stdio_command_linux.c
     platform/linux/worker_thread_linux.c
     platform/drivers/simulated_driver_context.c
     platform/drivers/simulated_gantry_driver.c
@@ -55,7 +55,6 @@ target_include_directories(wash_core
     PUBLIC ${PROJECT_SOURCE_DIR}/include
     PRIVATE ${PROJECT_SOURCE_DIR}
             ${PROJECT_SOURCE_DIR}/third_party/cjson)
-find_package(Threads REQUIRED)
 if(NOT WIN32)
     target_link_libraries(wash_core PUBLIC m Threads::Threads)
 else()

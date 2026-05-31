@@ -5,6 +5,7 @@
 
 #include "domain/model/domain_enums.h"
 #include "domain/model/wait_condition.h"
+#include "domain/model/wash_session.h"
 #include "domain/model/wash_trigger_event.h"
 #include "domain/ports/actuator_port.h"
 #include "domain/ports/program_repository_port.h"
@@ -143,6 +144,20 @@ const char *control_context_last_result_code(void);
  * @return 最近原因码；无值时返回空字符串。
  */
 const char *control_context_last_reason_code(void);
+
+/**
+ * @brief 读取当前设备状态。
+ *
+ * @return 当前设备状态；实例未激活时返回 `DEVICE_STATE_STOPPED`。
+ */
+device_state_t control_context_device_state(void);
+
+/**
+ * @brief 读取当前洗车会话（只读）。
+ *
+ * @return 指向当前会话的只读指针；实例未激活时返回 `0`。
+ */
+const wash_session_t *control_context_wash_session(void);
 
 /**
  * @brief 绑定调度器到系统上下文，防止重复创建或提前释放。

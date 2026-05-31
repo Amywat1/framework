@@ -45,7 +45,7 @@ int main(void)
     result = scheduler_read_view(scheduler, &app_state_view);
     TEST_ASSERT(result.ok);
     TEST_ASSERT(app_state_view.metrics.exit_event_count == 1ul);
-    TEST_ASSERT(app_state_view.runtime_state == SCHEDULER_RUNTIME_STATE_STOPPED);
+    TEST_ASSERT(app_state_view.state == SCHEDULER_RUN_STATE_STOPPED);
     TEST_ASSERT(app_state_view.exit_source_state == SCHEDULER_EVENT_SOURCE_DEGRADED);
 
     /* 释放后，control_context_bound_scheduler 返回 0，test_scheduler_read_bound_view 应返回失败 */

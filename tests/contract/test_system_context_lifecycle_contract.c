@@ -1,6 +1,6 @@
 #include <string.h>
 
-#include "application/use_cases/formal_command.h"
+#include "application/use_cases/line_command.h"
 #include "application/use_cases/query_wash_session_status.h"
 #include "tests/test_support.h"
 #include "src/application/coordinators/control_context_private.h"
@@ -52,7 +52,7 @@ static int verify_release_invalidates_runtime_entrypoints(void)
     TEST_ASSERT(result.error_code == ERROR_CODE_INVALID_STATE);
 
     memset(response_line, 0, sizeof(response_line));
-    result = formal_command_execute( "status", response_line, sizeof(response_line));
+    result = line_command_execute( "status", response_line, sizeof(response_line));
     TEST_ASSERT(!result.ok);
     TEST_ASSERT(result.error_code == ERROR_CODE_INVALID_STATE);
     TEST_ASSERT(strstr(response_line, "result=invalid_state") != 0);

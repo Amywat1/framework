@@ -29,10 +29,10 @@ static operation_result_t adapter_run_control_tick(void)
 }
 
 /**
- * @brief 从 control_context 单实例填充调度器运行时端口。
+ * @brief 填充调度器运行时端口。
  * @param port 待写入端口，不能为空。
  */
-void scheduler_runtime_port_init_from_control_context(scheduler_runtime_port_t *port)
+void scheduler_runtime_port_init(scheduler_runtime_port_t *port)
 {
     if (port == 0)
     {

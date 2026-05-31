@@ -119,7 +119,7 @@ void scheduler_record_error(scheduler_t *scheduler, const char *reason_code, boo
     scheduler->metrics.last_error_reason[sizeof(scheduler->metrics.last_error_reason) - 1] = '\0';
     if (terminal)
     {
-        scheduler->runtime_state = SCHEDULER_RUNTIME_STATE_FAILED;
+        scheduler->state = SCHEDULER_RUN_STATE_FAILED;
     }
 }
 
@@ -133,8 +133,7 @@ void scheduler_update_pending_metric(scheduler_t *scheduler)
     {
         return;
     }
-    scheduler->metrics.pending_trigger_count =
-        scheduler->runtime_port.pending_trigger_count();
+    scheduler->metrics.pending_trigger_count = scheduler->runtime_port.pending_trigger_count();
 }
 
 /**
@@ -178,9 +177,9 @@ void scheduler_note_command_event(scheduler_t *scheduler)
  */
 static void scheduler_ensure_running_state(scheduler_t *scheduler)
 {
-    if (scheduler != 0 && scheduler->runtime_state == SCHEDULER_RUNTIME_STATE_INITIALIZED)
+    if (scheduler != 0 && scheduler->state == SCHEDULER_RUN_STATE_INITIALIZED)
     {
-        scheduler->runtime_state = SCHEDULER_RUNTIME_STATE_RUNNING;
+        scheduler->state = SCHEDULER_RUN_STATE_RUNNING;
     }
 }
 
@@ -223,8 +222,7 @@ operation_result_t scheduler_execute_bounded_ticks(scheduler_t *scheduler, bool 
             return result;
         }
         remaining_runs -= 1u;
-        if (remaining_runs == 0u ||
-            scheduler->runtime_port.pending_trigger_count() == 0u)
+        if (remaining_runs == 0u || scheduler->runtime_port.pending_trigger_count() == 0u)
         {
             break;
         }
@@ -303,11 +301,11 @@ static operation_result_t scheduler_handle_exit(scheduler_t *scheduler)
     if (scheduler->exit_immediate || scheduler->config.exit_mode == SCHEDULER_EXIT_MODE_DIRECT ||
         scheduler->config.bounded_drain_ticks == 0u)
     {
-        scheduler->runtime_state = SCHEDULER_RUNTIME_STATE_STOPPED;
+        scheduler->state = SCHEDULER_RUN_STATE_STOPPED;
     }
     else
     {
-        scheduler->runtime_state = SCHEDULER_RUNTIME_STATE_DRAINING;
+        scheduler->state = SCHEDULER_RUN_STATE_DRAINING;
         scheduler->drain_ticks_remaining = scheduler->config.bounded_drain_ticks;
     }
 
@@ -365,13 +363,13 @@ static operation_result_t scheduler_service_drain(scheduler_t *scheduler)
     {
         return operation_result_fail(ERROR_CODE_INVALID_ARGUMENT);
     }
-    if (scheduler->runtime_state != SCHEDULER_RUNTIME_STATE_DRAINING)
+    if (scheduler->state != SCHEDULER_RUN_STATE_DRAINING)
     {
         return operation_result_ok();
     }
     if (!scheduler->runtime_port.has_pending_work())
     {
-        scheduler->runtime_state = SCHEDULER_RUNTIME_STATE_STOPPED;
+        scheduler->state = SCHEDULER_RUN_STATE_STOPPED;
         return operation_result_ok();
     }
     if (scheduler->drain_ticks_remaining == 0u)
@@ -388,7 +386,7 @@ static operation_result_t scheduler_service_drain(scheduler_t *scheduler)
     }
     if (!scheduler->runtime_port.has_pending_work())
     {
-        scheduler->runtime_state = SCHEDULER_RUNTIME_STATE_STOPPED;
+        scheduler->state = SCHEDULER_RUN_STATE_STOPPED;
     }
     else if (scheduler->drain_ticks_remaining == 0u)
     {
@@ -418,13 +416,13 @@ static operation_result_t scheduler_dispatch_ready_events(scheduler_t *scheduler
         if (scheduler->pending_exit_event)
         {
             result = scheduler_handle_exit(scheduler);
-            if (!result.ok || scheduler->runtime_state == SCHEDULER_RUNTIME_STATE_STOPPED)
+            if (!result.ok || scheduler->state == SCHEDULER_RUN_STATE_STOPPED)
             {
                 return result;
             }
             continue;
         }
-        if (scheduler->runtime_state == SCHEDULER_RUNTIME_STATE_DRAINING)
+        if (scheduler->state == SCHEDULER_RUN_STATE_DRAINING)
         {
             return scheduler_service_drain(scheduler);
         }
@@ -581,18 +579,36 @@ static operation_result_t scheduler_validate_config(const scheduler_config_t *sc
     return operation_result_ok();
 }
 
-static void scheduler_linux_destroy_impl(scheduler_t *scheduler);
+/**
+ * @brief 销毁当前平台的调度器实例。
+ * @param scheduler 调度器对象；允许为 `0`。
+ */
+void scheduler_destroy(scheduler_t *scheduler)
+{
+    if (scheduler == 0)
+    {
+        return;
+    }
+
+    if (scheduler->command_source_port.restore != 0)
+    {
+        scheduler->command_source_port.restore(scheduler->command_source_port.context);
+    }
+    close_fd_if_needed(&scheduler->timer_fd);
+    close_fd_if_needed(&scheduler->wakeup_fd);
+    close_fd_if_needed(&scheduler->epoll_fd);
+    free(scheduler);
+}
 
 /**
- * @brief 创建 Linux 调度器内部实例。
+ * @brief 创建当前平台的调度器实例。
  * @param runtime_port 调度器运行时端口，不能为空，各函数指针必须有效。
  * @param scheduler_config 调度器配置。
  * @param command_source_port 可选命令输入源端口；为空时命令事件源处于降级态。
  * @return 创建成功返回调度器对象；失败时返回 `0`。
  */
-static scheduler_t *scheduler_linux_create_impl(const scheduler_runtime_port_t *runtime_port,
-                                                const scheduler_config_t *scheduler_config,
-                                                const command_source_port_t *command_source_port)
+scheduler_t *scheduler_create(const scheduler_runtime_port_t *runtime_port, const scheduler_config_t *scheduler_config,
+                              const command_source_port_t *command_source_port)
 {
     scheduler_t *scheduler;
     struct itimerspec timer_spec;
@@ -620,7 +636,7 @@ static scheduler_t *scheduler_linux_create_impl(const scheduler_runtime_port_t *
         scheduler->command_source_port = *command_source_port;
     }
     scheduler->config = *scheduler_config;
-    scheduler->runtime_state = SCHEDULER_RUNTIME_STATE_INITIALIZED;
+    scheduler->state = SCHEDULER_RUN_STATE_INITIALIZED;
     scheduler->epoll_fd = -1;
     scheduler->timer_fd = -1;
     scheduler->wakeup_fd = -1;
@@ -633,7 +649,7 @@ static scheduler_t *scheduler_linux_create_impl(const scheduler_runtime_port_t *
     scheduler->wakeup_fd = eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC);
     if (scheduler->epoll_fd < 0 || scheduler->timer_fd < 0 || scheduler->wakeup_fd < 0)
     {
-        scheduler_linux_destroy_impl(scheduler);
+        scheduler_destroy(scheduler);
         return 0;
     }
 
@@ -643,13 +659,13 @@ static scheduler_t *scheduler_linux_create_impl(const scheduler_runtime_port_t *
     timer_spec.it_interval = timer_spec.it_value;
     if (timerfd_settime(scheduler->timer_fd, 0, &timer_spec, 0) < 0)
     {
-        scheduler_linux_destroy_impl(scheduler);
+        scheduler_destroy(scheduler);
         return 0;
     }
     if (!scheduler_register_epoll_fd(scheduler, scheduler->timer_fd).ok ||
         !scheduler_register_epoll_fd(scheduler, scheduler->wakeup_fd).ok)
     {
-        scheduler_linux_destroy_impl(scheduler);
+        scheduler_destroy(scheduler);
         return 0;
     }
 
@@ -657,7 +673,7 @@ static scheduler_t *scheduler_linux_create_impl(const scheduler_runtime_port_t *
     {
         if (!scheduler_register_epoll_fd(scheduler, scheduler->command_source_port.fd).ok)
         {
-            scheduler_linux_destroy_impl(scheduler);
+            scheduler_destroy(scheduler);
             return 0;
         }
     }
@@ -666,35 +682,6 @@ static scheduler_t *scheduler_linux_create_impl(const scheduler_runtime_port_t *
     scheduler_update_pending_metric(scheduler);
     return scheduler;
 }
-
-/**
- * @brief 销毁 Linux 调度器内部实例。
- * @param scheduler 调度器对象；允许为 `0`。
- */
-static void scheduler_linux_destroy_impl(scheduler_t *scheduler)
-{
-    if (scheduler == 0)
-    {
-        return;
-    }
-
-    if (scheduler->command_source_port.restore != 0)
-    {
-        scheduler->command_source_port.restore(scheduler->command_source_port.context);
-    }
-    close_fd_if_needed(&scheduler->timer_fd);
-    close_fd_if_needed(&scheduler->wakeup_fd);
-    close_fd_if_needed(&scheduler->epoll_fd);
-    free(scheduler);
-}
-
-scheduler_t *scheduler_create(const scheduler_runtime_port_t *runtime_port, const scheduler_config_t *scheduler_config,
-                              const command_source_port_t *command_source_port)
-{
-    return scheduler_linux_create_impl(runtime_port, scheduler_config, command_source_port);
-}
-
-void scheduler_destroy(scheduler_t *scheduler) { scheduler_linux_destroy_impl(scheduler); }
 
 operation_result_t scheduler_run(scheduler_t *scheduler)
 {
@@ -707,8 +694,7 @@ operation_result_t scheduler_run(scheduler_t *scheduler)
 
     scheduler_ensure_running_state(scheduler);
     scheduler->in_run_loop = true;
-    while (scheduler->runtime_state == SCHEDULER_RUNTIME_STATE_RUNNING ||
-           scheduler->runtime_state == SCHEDULER_RUNTIME_STATE_DRAINING)
+    while (scheduler->state == SCHEDULER_RUN_STATE_RUNNING || scheduler->state == SCHEDULER_RUN_STATE_DRAINING)
     {
         result = scheduler_collect_ready_events(scheduler);
         if (!result.ok)
@@ -724,8 +710,8 @@ operation_result_t scheduler_run(scheduler_t *scheduler)
         }
     }
     scheduler->in_run_loop = false;
-    return scheduler->runtime_state == SCHEDULER_RUNTIME_STATE_FAILED ? operation_result_fail(ERROR_CODE_IO_FAILED)
-                                                                      : operation_result_ok();
+    return scheduler->state == SCHEDULER_RUN_STATE_FAILED ? operation_result_fail(ERROR_CODE_IO_FAILED)
+                                                      : operation_result_ok();
 }
 
 operation_result_t scheduler_request_stop(scheduler_t *scheduler)
@@ -741,7 +727,7 @@ operation_result_t scheduler_read_view(const scheduler_t *scheduler, scheduler_s
     }
 
     memset(state_view, 0, sizeof(*state_view));
-    state_view->runtime_state = scheduler->runtime_state;
+    state_view->state = scheduler->state;
     state_view->control_period_ms = scheduler->config.control_period_ms;
     state_view->last_cycle_start_ms = scheduler->last_cycle_start_ms;
     state_view->last_cycle_duration_ms = scheduler->last_cycle_duration_ms;
@@ -750,6 +736,43 @@ operation_result_t scheduler_read_view(const scheduler_t *scheduler, scheduler_s
     state_view->exit_source_state = scheduler->exit_source.source_state;
     state_view->metrics = scheduler->metrics;
     return operation_result_ok();
+}
+
+static unsigned int scheduler_sync_pending_count(void *ctx)
+{
+    scheduler_t *s = (scheduler_t *)ctx;
+    return s->runtime_port.pending_trigger_count();
+}
+
+static bool scheduler_sync_is_running(void *ctx) { return ((scheduler_t *)ctx)->state == SCHEDULER_RUN_STATE_RUNNING; }
+
+static operation_result_t scheduler_sync_execute_ticks(void *ctx)
+{
+    return scheduler_execute_bounded_ticks((scheduler_t *)ctx, false, 0ul, false, 0ul);
+}
+
+scheduler_sync_port_t scheduler_build_sync_port(scheduler_t *scheduler)
+{
+    scheduler_sync_port_t port;
+
+    memset(&port, 0, sizeof(port));
+    if (scheduler != 0)
+    {
+        port.pending_trigger_count = scheduler_sync_pending_count;
+        port.is_running = scheduler_sync_is_running;
+        port.execute_bounded_ticks = scheduler_sync_execute_ticks;
+        port.context = scheduler;
+    }
+    return port;
+}
+
+void scheduler_set_command_port(scheduler_t *scheduler, const command_port_t *command_port)
+{
+    if (scheduler == 0 || command_port == 0)
+    {
+        return;
+    }
+    scheduler->command_port = *command_port;
 }
 
 operation_result_t scheduler_linux_test_inject_period(scheduler_t *scheduler, unsigned int expiration_count)
@@ -836,44 +859,4 @@ operation_result_t scheduler_linux_test_poll_once(scheduler_t *scheduler)
         return result;
     }
     return scheduler_dispatch_ready_events(scheduler);
-}
-
-static unsigned int scheduler_sync_pending_count(void *ctx)
-{
-    scheduler_t *s = (scheduler_t *)ctx;
-    return s->runtime_port.pending_trigger_count();
-}
-
-static bool scheduler_sync_is_running(void *ctx)
-{
-    return ((scheduler_t *)ctx)->runtime_state == SCHEDULER_RUNTIME_STATE_RUNNING;
-}
-
-static operation_result_t scheduler_sync_execute_ticks(void *ctx)
-{
-    return scheduler_execute_bounded_ticks((scheduler_t *)ctx, false, 0ul, false, 0ul);
-}
-
-scheduler_sync_port_t scheduler_build_sync_port(scheduler_t *scheduler)
-{
-    scheduler_sync_port_t port;
-
-    memset(&port, 0, sizeof(port));
-    if (scheduler != 0)
-    {
-        port.pending_trigger_count = scheduler_sync_pending_count;
-        port.is_running = scheduler_sync_is_running;
-        port.execute_bounded_ticks = scheduler_sync_execute_ticks;
-        port.context = scheduler;
-    }
-    return port;
-}
-
-void scheduler_set_command_port(scheduler_t *scheduler, const command_port_t *command_port)
-{
-    if (scheduler == 0 || command_port == 0)
-    {
-        return;
-    }
-    scheduler->command_port = *command_port;
 }

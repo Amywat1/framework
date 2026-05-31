@@ -23,17 +23,16 @@ typedef struct scheduler_t scheduler_t;
  */
 typedef struct command_source_port_t
 {
-    int fd;                  /**< 注册到 epoll 的命令输入 fd；-1 表示无可用输入源。 */
+    int fd; /**< 注册到 epoll 的命令输入 fd；-1 表示无可用输入源。 */
     /** @brief fd 可读时调用，读取数据并通过 command_port 分发命令。 */
-    operation_result_t (*on_readable)(void *context, const command_port_t *command_port,
-                                       bool *command_processed);
+    operation_result_t (*on_readable)(void *context, const command_port_t *command_port, bool *command_processed);
     /** @brief 判断缓冲区是否还有待处理的完整命令行。 */
     bool (*has_buffered_data)(void *context);
     /** @brief 判断 EOF 已到达且缓冲区已耗尽。 */
     bool (*is_eof_and_drained)(void *context);
     /** @brief 恢复 IO 状态（如撤销非阻塞标志）。 */
     void (*restore)(void *context);
-    void *context;           /**< 实现侧上下文指针。 */
+    void *context; /**< 实现侧上下文指针。 */
 } command_source_port_t;
 
 /**
@@ -41,13 +40,13 @@ typedef struct command_source_port_t
  */
 typedef enum
 {
-    SCHEDULER_RUNTIME_STATE_UNAVAILABLE = 0,
-    SCHEDULER_RUNTIME_STATE_INITIALIZED,
-    SCHEDULER_RUNTIME_STATE_RUNNING,
-    SCHEDULER_RUNTIME_STATE_DRAINING,
-    SCHEDULER_RUNTIME_STATE_STOPPED,
-    SCHEDULER_RUNTIME_STATE_FAILED
-} scheduler_runtime_state_t;
+    SCHEDULER_RUN_STATE_UNAVAILABLE = 0,
+    SCHEDULER_RUN_STATE_INITIALIZED,
+    SCHEDULER_RUN_STATE_RUNNING,
+    SCHEDULER_RUN_STATE_DRAINING,
+    SCHEDULER_RUN_STATE_STOPPED,
+    SCHEDULER_RUN_STATE_FAILED
+} scheduler_run_state_t;
 
 /**
  * @brief 调度器管理的外部事件源类别。
@@ -114,7 +113,7 @@ typedef struct scheduler_metrics_t
  */
 typedef struct scheduler_state_view_t
 {
-    scheduler_runtime_state_t runtime_state;
+    scheduler_run_state_t state;
     unsigned long control_period_ms;
     unsigned long last_cycle_start_ms;
     unsigned long last_cycle_duration_ms;
@@ -132,9 +131,8 @@ typedef struct scheduler_state_view_t
  * @param scheduler_stdio 可选的标准输入输出绑定。
  * @return 成功时返回调度器对象；参数非法或底层资源初始化失败时返回 `0`。
  */
-scheduler_t *scheduler_create(const scheduler_runtime_port_t *runtime_port,
-                                                    const scheduler_config_t *scheduler_config,
-                                                    const command_source_port_t *command_source_port);
+scheduler_t *scheduler_create(const scheduler_runtime_port_t *runtime_port, const scheduler_config_t *scheduler_config,
+                              const command_source_port_t *command_source_port);
 
 /**
  * @brief 销毁当前平台的调度器实例。
@@ -166,8 +164,7 @@ operation_result_t scheduler_request_stop(scheduler_t *scheduler);
  * @param state_view 输出运行态视图。
  * @return 成功时返回 `operation_result_ok()`，失败时返回显式错误结果。
  */
-operation_result_t scheduler_read_view(const scheduler_t *scheduler,
-                                                  scheduler_state_view_t *state_view);
+operation_result_t scheduler_read_view(const scheduler_t *scheduler, scheduler_state_view_t *state_view);
 
 /**
  * @brief 构建指向指定调度器实例的同步执行出站端口。

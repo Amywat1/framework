@@ -23,10 +23,10 @@
 5. `src/application/coordinators/control_context.c`
 6. `include/platform/scheduler.h`
 7. `src/platform/linux/scheduler_linux.c`
-8. `src/platform/linux/command_ingress_stdio_linux.c`
+8. `src/platform/linux/stdio_command_linux.c`
 9. `include/application/coordinators/control_tick.h`
 10. `src/application/coordinators/control_tick.c`
-11. `src/application/use_cases/formal_command.c`
+11. `src/application/use_cases/line_command.c`
 12. `src/application/use_cases/wash_control.c`
 13. `src/domain/services/wash_execution_service.c`
 
@@ -83,7 +83,7 @@
 - 唤醒与退出流程
 - 调度状态和运行指标
 
-具体 stdin/stdout 命令入站适配由 `src/platform/linux/command_ingress_stdio_linux.c` 承担。调度器只感知“命令 fd 就绪”，不再直接处理命令缓冲、协议执行和响应输出。这层屏蔽了底层 `epoll`、`timerfd`、`eventfd` 等 Linux 细节，使上层只感知“被调度”而不直接依赖 OS 等待机制。
+具体 stdin/stdout 命令输入适配由 `src/platform/linux/stdio_command_linux.c` 承担。调度器只感知“命令 fd 就绪”，不再直接处理命令缓冲、协议执行和响应输出。这层屏蔽了底层 `epoll`、`timerfd`、`eventfd` 等 Linux 细节，使上层只感知“被调度”而不直接依赖 OS 等待机制。
 
 ### 5. 单拍运行内核
 
@@ -100,7 +100,7 @@
 
 应用层主要负责把输入、查询和流程推进组织成清晰的用例入口：
 
-- `process_formal_command`：把命令文本变成正式请求
+- `line_command`：把行文本命令解析为触发请求或 status 查询
 - `process_wash_trigger`：把 trigger 变成业务动作
 - `query_wash_session_status`：把当前运行态投影成可读状态
 
@@ -167,7 +167,7 @@
 
 命令主链路是：
 
-`stdin` -> `command_ingress_stdio_linux` -> `process_formal_command`
+`stdin` -> `stdio_command_linux` -> `line_command`
 
 平台调度器只负责发现 stdin fd 就绪并触发适配器处理；适配器负责读取、缓冲、按行解析、调用正式命令用例并写回响应。
 
@@ -226,9 +226,9 @@
 - 应用引导层：`src/startup/app_bootstrap.c`
 - 运行时组合根：`src/application/coordinators/control_context.c`
 - 平台调度器：`src/platform/linux/scheduler_linux.c`
-- stdin 命令入站适配：`src/platform/linux/command_ingress_stdio_linux.c`
+- stdin 命令输入适配：`src/platform/linux/stdio_command_linux.c`
 - 单拍推进器：`src/application/coordinators/control_tick.c`
-- 正式命令入口：`src/application/use_cases/formal_command.c`
+- 行文本命令入口：`src/application/use_cases/line_command.c`
 - trigger 编排：`src/application/use_cases/wash_control.c`
 - 状态查询：`src/application/use_cases/query_wash_session_status.c`
 - 程序仓储：`src/adapters/outbound/file_program_repository.c`

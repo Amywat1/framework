@@ -1,4 +1,4 @@
-#include "application/use_cases/formal_command.h"
+#include "application/use_cases/line_command.h"
 #include "tests/test_support.h"
 #include "src/application/coordinators/control_context_private.h"
 
@@ -13,7 +13,7 @@ static int verify_formal_start_rejects_unavailable_program_from_idle(void)
     TEST_ASSERT(result.ok);
     TEST_ASSERT(control_context_private_device_state() == DEVICE_STATE_IDLE);
 
-    result = formal_command_execute(
+    result = line_command_execute(
         "start missing_program",
         response_line,
         sizeof(response_line));
@@ -55,7 +55,7 @@ static int verify_formal_start_rejects_invalid_program_from_idle(void)
     TEST_ASSERT(result.ok);
     TEST_ASSERT(control_context_private_device_state() == DEVICE_STATE_IDLE);
 
-    result = formal_command_execute(
+    result = line_command_execute(
         "start invalid_runtime_program",
         response_line,
         sizeof(response_line));
@@ -94,7 +94,7 @@ static int verify_formal_start_rejects_when_global_fault_active_from_idle(void)
     control_context_private_set_global_fault( "E_STOP", "forced-global-fault");
     control_context_private_set_device_state( DEVICE_STATE_IDLE);
 
-    result = formal_command_execute(
+    result = line_command_execute(
         "start wash_step_control_v1",
         response_line,
         sizeof(response_line));
@@ -136,7 +136,7 @@ static int verify_formal_start_rejects_when_running_session_exists(void)
 
     control_context_private_set_device_state( DEVICE_STATE_IDLE);
 
-    result = formal_command_execute(
+    result = line_command_execute(
         "start wash_step_control_v1",
         response_line,
         sizeof(response_line));
@@ -153,7 +153,7 @@ static int verify_formal_start_rejects_when_running_session_exists(void)
     return 0;
 }
 
-static int verify_formal_command_execute_is_public_entry(void)
+static int verify_line_command_execute_is_public_entry(void)
 {
     simulated_driver_context_t driver_context;
     char response_line[512];
@@ -167,7 +167,7 @@ static int verify_formal_command_execute_is_public_entry(void)
     result = test_homing_system_and_flush();
     TEST_ASSERT(result.ok);
 
-    result = formal_command_execute(
+    result = line_command_execute(
         "start wash_step_control_v1",
         response_line,
         sizeof(response_line));
@@ -184,7 +184,7 @@ static int verify_formal_command_execute_is_public_entry(void)
     return 0;
 }
 
-static int verify_cli_execute_uses_formal_entry(void)
+static int verify_cli_execute_uses_line_command_entry(void)
 {
     simulated_driver_context_t driver_context;
     char response_line[512];
@@ -198,7 +198,7 @@ static int verify_cli_execute_uses_formal_entry(void)
     result = test_homing_system_and_flush();
     TEST_ASSERT(result.ok);
 
-    result = formal_command_execute(
+    result = line_command_execute(
         "start wash_step_control_v1",
         response_line,
         sizeof(response_line));
@@ -229,10 +229,10 @@ int main(void)
     if (verify_formal_start_rejects_when_running_session_exists() != 0) {
         return 1;
     }
-    if (verify_formal_command_execute_is_public_entry() != 0) {
+    if (verify_line_command_execute_is_public_entry() != 0) {
         return 1;
     }
-    if (verify_cli_execute_uses_formal_entry() != 0) {
+    if (verify_cli_execute_uses_line_command_entry() != 0) {
         return 1;
     }
     return 0;
