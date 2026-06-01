@@ -6,7 +6,7 @@
  */
 
 #include "ports/hal/hal_io_port.h"
-#include "driver/drv_io.h"
+#include "adapters/hal/linux_hw/drv/drv_io.h"
 
 static sw_err_t m8_do_set(io_do_t pin, bool val)
 {

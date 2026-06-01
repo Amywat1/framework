@@ -8,7 +8,7 @@
 #ifndef LOG_H
 #define LOG_H
 
-#include "middleware/snack_wrapper.h"
+#include "adapters/runtime/snack/snack_wrapper.h"
 
 /* -------------------------------------------------------------------------
  * 日志宏 — 自动附加 [文件:行号] 前缀

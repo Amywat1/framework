@@ -3,7 +3,7 @@
 #include "core/event_bus/event_bus.h"
 #include "domain/model/alarm_code.h"
 #include "domain/safety/alarm_core.h"
-#include "driver/drv_io.h"
+#include "adapters/hal/linux_hw/drv/drv_io.h"
 #include "ports/hal/hal_io_port.h"
 #include "ports/hal/hal_sensor_port.h"
 

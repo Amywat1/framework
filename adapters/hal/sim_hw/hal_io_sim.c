@@ -6,7 +6,7 @@
  */
 
 #include "ports/hal/hal_io_port.h"
-#include "driver/drv_io.h"
+#include "common/io_handle.h"
 
 #include <string.h>
 

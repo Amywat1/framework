@@ -11,7 +11,7 @@
 #ifndef ADAPTERS_HAL_LINUX_HW_M8_HAL_CTX_H
 #define ADAPTERS_HAL_LINUX_HW_M8_HAL_CTX_H
 
-#include "driver/drv_vfd.h"
+#include "adapters/hal/linux_hw/drv/drv_vfd.h"
 #include "common/sw_error.h"
 #include <stdint.h>
 #include <stdbool.h>

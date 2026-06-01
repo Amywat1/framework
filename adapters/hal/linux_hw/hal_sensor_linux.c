@@ -8,8 +8,8 @@
 #include "ports/hal/hal_sensor_port.h"
 #include "adapters/hal/linux_hw/m8_hal_ctx.h"
 #include "adapters/machine/m8/m8_signal_filter.h"
-#include "driver/drv_io.h"
-#include "driver/drv_vfd.h"
+#include "adapters/hal/linux_hw/drv/drv_io.h"
+#include "adapters/hal/linux_hw/drv/drv_vfd.h"
 #include "core/event_bus/event_bus.h"
 #include "common/log.h"
 

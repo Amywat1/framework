@@ -6,7 +6,7 @@
  */
 
 #include "adapters/runtime/snack/snack_runtime_adapter.h"
-#include "middleware/snack_wrapper.h"
+#include "adapters/runtime/snack/snack_wrapper.h"
 #include "log/mlog.h"
 #include "io_exp/demo.h"
 

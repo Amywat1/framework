@@ -16,7 +16,7 @@
 #include "ports/storage/deploy_store.h"
 #include "core/event_bus/event_bus.h"
 #include "common/event_types.h"
-#include "middleware/snack_wrapper.h"
+#include "adapters/runtime/snack/snack_wrapper.h"
 #include "common/log.h"
 #include <string.h>
 

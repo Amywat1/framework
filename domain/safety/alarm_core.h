@@ -16,11 +16,10 @@
 extern "C" {
 #endif
 
+#include "ports/safety/alarm_binding_port.h"
 #include "domain/model/safety_types.h"
 #include "domain/model/alarm_code.h"
 #include "common/sw_error.h"
-#include <stdint.h>
-#include <stdbool.h>
 
 /* -------------------------------------------------------------------------
  * 轮询周期（ms），由调用方保证
@@ -41,13 +40,7 @@ typedef struct
 } alarm_entry_t;
 
 /* -------------------------------------------------------------------------
- * 机型回调类型（由 m8_alarm_adapt 注入）
- * ------------------------------------------------------------------------- */
-typedef void (*alarm_poll_fn_t)(void);       /* IO 信号轮询，每 tick 调用 */
-typedef void (*alarm_emc_reset_fn_t)(void);  /* 急停复位动作序列 */
-
-/* -------------------------------------------------------------------------
- * 接口
+ * 接口（适配器侧接口见 ports/safety/alarm_binding_port.h）
  * ------------------------------------------------------------------------- */
 
 /**
@@ -56,34 +49,11 @@ typedef void (*alarm_emc_reset_fn_t)(void);  /* 急停复位动作序列 */
 sw_err_t alarm_core_init(void);
 
 /**
- * @brief  注册 IO 信号轮询回调（由 m8_alarm_adapt_init 调用）
- */
-void alarm_core_register_poll_fn(alarm_poll_fn_t fn);
-
-/**
- * @brief  注册急停复位回调
- */
-void alarm_core_register_emc_reset_fn(alarm_emc_reset_fn_t fn);
-
-/**
  * @brief  引擎时间片（每 ALARM_POLL_PERIOD_MS 调用一次）
  *         内部执行：① 调用 poll_fn ② 防抖计时 ③ AUTO 恢复计时
  * @param  elapsed_ms  自上次调用以来经过的时间（通常等于 ALARM_POLL_PERIOD_MS）
  */
 void alarm_core_tick_ms(int elapsed_ms);
-
-/**
- * @brief  设置 IO 轮询类报警的原始触发状态（由 poll_fn 调用）
- * @param  code         报警码
- * @param  triggered    当前是否触发
- * @param  just_notice  true = 强制降级为 NOTICE（硬件未安装场景）
- */
-void alarm_core_set_raw_trigger(uint16_t code, bool triggered, bool just_notice);
-
-/**
- * @brief  直接置位/清除报警（驱动事件直报，不经防抖）
- */
-void alarm_core_set_state(uint16_t code, bool active, bool just_notice);
 
 /**
  * @brief  查询指定报警是否激活

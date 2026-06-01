@@ -9,8 +9,8 @@
 #include "config/machine/m8_motor_table.h"
 #include "adapters/hal/linux_hw/m8_hal_ctx.h"
 #include "adapters/machine/m8/m8_signal_filter.h"
-#include "driver/drv_io.h"
-#include "driver/drv_vfd.h"
+#include "adapters/hal/linux_hw/drv/drv_io.h"
+#include "adapters/hal/linux_hw/drv/drv_vfd.h"
 #include "common/log.h"
 
 /* io-exp SDK 头文件不在仓库内，这里按实际用法声明脉冲计数接口。 */

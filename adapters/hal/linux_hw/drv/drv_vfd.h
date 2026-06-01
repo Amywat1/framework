@@ -19,7 +19,7 @@ extern "C" {
 
 #include "common/sw_types.h"
 #include "common/sw_error.h"
-#include "driver/drv_io.h"
+#include "adapters/hal/linux_hw/drv/drv_io.h"
 #include "modbus/modbus.h"
 
 /* -------------------------------------------------------------------------

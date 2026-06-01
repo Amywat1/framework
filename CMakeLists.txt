@@ -67,8 +67,8 @@ add_compile_options(
 # -------------------------------------------------------
 file(GLOB_RECURSE src CONFIGURE_DEPENDS
     app_main.cpp
+    apps/*.c apps/*.h
     common/*.c common/*.h
-    driver/*.c driver/*.h
     core/*.c core/*.h
     domain/*.c domain/*.h
     application/*.c application/*.h
@@ -86,6 +86,8 @@ list(FILTER src EXCLUDE REGEX ".*/sim_hw/.*")
 list(FILTER src EXCLUDE REGEX ".*/wiring_sim\.c$")
 # 场景测试文件不参与产品构建
 list(FILTER src EXCLUDE REGEX ".*/tests/.*")
+# snack_wrapper.cpp 符号由 snack SDK 库提供，不重复编译
+list(FILTER src EXCLUDE REGEX ".*/snack_wrapper\.cpp$")
 
 add_executable(${PROJECT_NAME} ${src})
 
@@ -177,7 +179,7 @@ if(BUILD_SIM)
 
         # 仿真构建使用 wiring_sim.c 完成依赖接线
         core/bootstrap/bootstrap.c
-        core/bootstrap/wiring_sim.c
+        apps/wash_controller/wiring_sim.c
 
         # 仿真 HAL 实现
         ports/*.c

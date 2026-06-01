@@ -64,7 +64,7 @@
 #  include "adapters/machine/m8/m8_boot_profile.h"
 #  include "adapters/machine/m8/m8_signal_filter.h"
 #  include "adapters/hal/linux_hw/m8_hal_ctx.h"
-#  include "driver/drv_io.h"
+#  include "adapters/hal/linux_hw/drv/drv_io.h"
 #endif
 
 /* 阶段六适配器：声明为 extern，避免包含 snack SDK 头文件 */

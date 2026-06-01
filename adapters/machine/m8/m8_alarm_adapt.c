@@ -17,7 +17,7 @@
  *          依赖：alarm_core（domain）、hal_sensor/motion/water/indicator（ports）
  */
 
-#include "domain/safety/alarm_core.h"
+#include "ports/safety/alarm_binding_port.h"
 #include "domain/model/alarm_code.h"
 #include "domain/device/water.h"
 #include "ports/hal/hal_sensor_port.h"

@@ -9,7 +9,7 @@
 
 #include "common/log.h"
 #include "core/event_bus/event_bus.h"
-#include "domain/safety/alarm_core.h"
+#include "ports/safety/alarm_binding_port.h"
 #include "ports/hal/hal_io_port.h"
 
 /* -------------------------------------------------------------------------

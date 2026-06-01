@@ -7,7 +7,7 @@
 
 #include "ports/hal/hal_water_port.h"
 #include "adapters/machine/m8/m8_machine_map.h"
-#include "driver/drv_io.h"
+#include "adapters/hal/linux_hw/drv/drv_io.h"
 
 static sw_err_t m8_pump_set(bool on)        { return drv_io_do_set(M8_DO_WATER_PUMP,     on); }
 static sw_err_t m8_curtain_set(bool on)     { return drv_io_do_set(M8_DO_WATER_CURTAIN,  on); }

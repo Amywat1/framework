@@ -9,7 +9,7 @@
  */
 
 #include "adapters/machine/m8/m8_machine_map.h"
-#include "driver/drv_io.h"
+#include "adapters/hal/linux_hw/drv/drv_io.h"
 #include "common/log.h"
 #include "common/sw_error.h"
 #include "io_exp/slave.h"       /* io_online_get()：启动阶段同步探测 IO 子板在线状态 */

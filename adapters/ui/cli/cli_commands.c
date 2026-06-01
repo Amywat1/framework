@@ -26,7 +26,7 @@
 #include "core/event_bus/event_bus.h"
 #include "domain/model/alarm_code.h"
 #include "domain/safety/alarm_core.h"
-#include "driver/drv_io.h"
+#include "adapters/hal/linux_hw/drv/drv_io.h"
 #include "ports/hal/hal_io_port.h"
 #include "service/dev_ctx/dev_ctx.h"
 #include "service/svc_param/svc_param.h"

@@ -9,7 +9,7 @@
 #include "config/machine/m8_machine_config.h"
 #include "common/sw_config.h"
 #include "adapters/machine/m8/m8_machine_map.h"
-#include "driver/drv_io.h"
+#include "adapters/hal/linux_hw/drv/drv_io.h"
 #include <pthread.h>
 #include <stdbool.h>
 

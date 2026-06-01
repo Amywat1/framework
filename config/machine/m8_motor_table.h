@@ -13,7 +13,7 @@
 
 #include "common/io_handle.h"
 #include "domain/model/alarm_code.h"
-#include "driver/drv_io.h"
+#include "adapters/hal/linux_hw/drv/drv_io.h"
 #include <stdbool.h>
 #include <stdint.h>
 

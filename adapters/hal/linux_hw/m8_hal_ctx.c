@@ -8,11 +8,11 @@
 #include "adapters/hal/linux_hw/m8_hal_ctx.h"
 #include "adapters/machine/m8/m8_machine_map.h"
 #include "config/machine/m8_vfd_table.h"
-#include "domain/safety/alarm_core.h"
+#include "ports/safety/alarm_binding_port.h"
 #include "domain/model/alarm_code.h"
-#include "driver/drv_vfd.h"
-#include "driver/drv_stepper.h"
-#include "driver/drv_io.h"
+#include "adapters/hal/linux_hw/drv/drv_vfd.h"
+#include "adapters/hal/linux_hw/drv/drv_stepper.h"
+#include "adapters/hal/linux_hw/drv/drv_io.h"
 #include "common/log.h"
 
 #include <string.h>

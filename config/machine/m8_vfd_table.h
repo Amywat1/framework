@@ -13,7 +13,7 @@
 #define CONFIG_MACHINE_M8_VFD_TABLE_H
 
 #include "config/machine/m8_machine_config.h"
-#include "driver/drv_io.h"
+#include "adapters/hal/linux_hw/drv/drv_io.h"
 
 /* -------------------------------------------------------------------------
  * 刷子 VFD（仅正转）
