@@ -29,7 +29,7 @@ int main(void)
     TEST_ASSERT(strcmp(control_context_last_result_code(), "accepted") == 0);
     TEST_ASSERT(strcmp(control_context_last_reason_code(), "global_fault_recorded") == 0);
     TEST_ASSERT(control_context_private_global_fault_present() == true);
-    TEST_ASSERT(control_context_private_global_fault_code()[sizeof(control_context_private_global_fault_code()) - 1] == '\0');
+    TEST_ASSERT(control_context_private_global_fault_code()[sizeof(long_fault_code) - 1] == '\0');
     TEST_ASSERT(strlen(control_context_private_global_fault_code()) == sizeof(long_fault_code) - 1);
     TEST_ASSERT(strcmp(control_context_private_global_fault_code(), long_fault_code) == 0);
 

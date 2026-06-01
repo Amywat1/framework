@@ -11,8 +11,6 @@
 #include "shared/timeouts.h"
 #include "src/application/coordinators/control_context_private.h"
 
-#define MAX_EXTERNAL_TRIGGER_QUEUE_COUNT 8u
-
 typedef struct control_context_state_t
 {
     wash_program_t wash_program;
@@ -411,6 +409,15 @@ const program_snapshot_t *control_context_private_program_snapshot(void)
     return &s_control_context_instance.state.program_snapshot;
 }
 
+unsigned int control_context_private_external_trigger_count(void)
+{
+    if (!s_control_context_instance.initialized)
+    {
+        return 0u;
+    }
+    return atomic_load(&s_control_context_instance.state.external_trigger_count);
+}
+
 operation_result_t control_context_private_enqueue_external_trigger(const wash_trigger_event_t *wash_trigger_event)
 {
     control_context_state_t *state;
@@ -457,7 +464,7 @@ operation_result_t control_context_deinit(void)
 {
     if (!s_control_context_instance.initialized)
     {
-        return operation_result_ok();
+        return operation_result_fail(ERROR_CODE_INVALID_STATE);
     }
     if (s_control_context_instance.state.scheduler_binding != 0)
     {

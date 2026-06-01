@@ -220,9 +220,9 @@ static int verify_homing_success_runs_real_flow_and_returns_to_idle(void)
     TEST_ASSERT(control_context_private_device_state() == DEVICE_STATE_RUNNING);
 
     final_segment_index = control_context_private_program_snapshot()->frozen_program.segment_count - 1;
-    control_context_private_wash_execution()->segment_index = final_segment_index;
-    control_context_private_wash_execution()->execution_state = EXECUTION_STATE_COMPLETED;
-    control_context_private_wash_execution()->lifecycle_state = SEGMENT_LIFECYCLE_COMPLETED;
+    control_context_private_wash_execution_mutable()->segment_index = final_segment_index;
+    control_context_private_wash_execution_mutable()->execution_state = EXECUTION_STATE_COMPLETED;
+    control_context_private_wash_execution_mutable()->lifecycle_state = SEGMENT_LIFECYCLE_COMPLETED;
 
     result = advance_wash_session_program();
     TEST_ASSERT(result.ok);

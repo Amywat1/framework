@@ -9,6 +9,7 @@
 #include "adapters/outbound/file_program_repository.h"
 #include "application/coordinators/control_tick.h"
 #include "application/coordinators/control_context.h"
+#include "application/services/command_dispatch.h"
 #include "application/use_cases/line_command.h"
 #include "application/use_cases/query_wash_session_status.h"
 #include "domain/model/wash_trigger_event.h"
@@ -39,6 +40,7 @@ typedef struct test_runtime_binding_t
 {
     bool initialized;
     scheduler_t *scheduler;
+    command_dispatch_t command_dispatch;
     sensor_port_t sensor_port;
     actuator_port_t actuator_port;
 } test_runtime_binding_t;
@@ -132,13 +134,13 @@ static inline operation_result_t test_bind_control_context_binding(test_runtime_
         return operation_result_fail(ERROR_CODE_IO_FAILED);
     }
 
-    result = control_context_bind_scheduler(binding->scheduler);
-    if (!result.ok)
     {
-        scheduler_destroy(binding->scheduler);
-        binding->scheduler = 0;
-        (void)control_context_deinit();
-        return result;
+        scheduler_sync_port_t scheduler_sync_port;
+        command_port_t command_port;
+        scheduler_sync_port = scheduler_build_sync_port(binding->scheduler);
+        command_dispatch_init(&binding->command_dispatch, &scheduler_sync_port);
+        command_port = command_dispatch_as_port(&binding->command_dispatch);
+        scheduler_set_command_port(binding->scheduler, &command_port);
     }
 
     binding->initialized = true;
@@ -177,7 +179,6 @@ static inline void test_release_control_context(void)
     {
         if (binding->scheduler != 0)
         {
-            (void)control_context_unbind_scheduler();
             scheduler_destroy(binding->scheduler);
             binding->scheduler = 0;
         }
@@ -188,14 +189,6 @@ static inline void test_release_control_context(void)
             abort();
         }
         memset(binding, 0, sizeof(*binding));
-        return;
-    }
-
-    result = control_context_deinit();
-    if (!result.ok)
-    {
-        fprintf(stderr, "FAILED TO RELEASE control_context\n");
-        abort();
     }
 }
 

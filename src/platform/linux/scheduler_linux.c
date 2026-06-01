@@ -590,6 +590,11 @@ void scheduler_destroy(scheduler_t *scheduler)
         return;
     }
 
+    if (scheduler->runtime_port.on_unbind != 0)
+    {
+        scheduler->runtime_port.on_unbind(scheduler);
+    }
+
     if (scheduler->command_source_port.restore != 0)
     {
         scheduler->command_source_port.restore(scheduler->command_source_port.context);
@@ -631,6 +636,7 @@ scheduler_t *scheduler_create(const scheduler_runtime_port_t *runtime_port, cons
     }
 
     scheduler->runtime_port = *runtime_port;
+    scheduler->command_source_port.fd = -1;
     if (command_source_port != 0)
     {
         scheduler->command_source_port = *command_source_port;
@@ -680,6 +686,17 @@ scheduler_t *scheduler_create(const scheduler_runtime_port_t *runtime_port, cons
 
     scheduler_refresh_source_states(scheduler);
     scheduler_update_pending_metric(scheduler);
+
+    if (runtime_port->on_bind != 0)
+    {
+        operation_result_t bind_result = runtime_port->on_bind(scheduler);
+        if (!bind_result.ok)
+        {
+            scheduler_destroy(scheduler);
+            return 0;
+        }
+    }
+
     return scheduler;
 }
 

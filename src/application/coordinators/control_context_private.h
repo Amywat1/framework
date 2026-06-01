@@ -24,6 +24,9 @@
  * @brief 定义 control_context 组合根协调层的私有内部接口。
  */
 
+/** @brief 外部触发收件箱队列容量上限。 */
+#define MAX_EXTERNAL_TRIGGER_QUEUE_COUNT 8u
+
 /** @name 设备状态与端口 */
 /** @{ */
 
@@ -136,6 +139,9 @@ const program_snapshot_t *control_context_private_program_snapshot(void);
 
 /** @name 时间与触发队列 */
 /** @{ */
+
+/** @brief 读取外部触发收件箱当前元素数量；实例未激活时返回 `0`。 */
+unsigned int control_context_private_external_trigger_count(void);
 
 /**
  * @brief 向后台线程专用的外部触发收件箱追加一个触发事件。

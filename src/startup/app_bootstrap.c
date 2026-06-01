@@ -6,7 +6,6 @@
 #include "application/coordinators/alarm_monitor.h"
 #include "application/coordinators/scheduler_runtime_port.h"
 #include "application/services/command_dispatch.h"
-#include "platform/linux/stdio_command_linux.h"
 
 typedef enum app_state_t
 {
@@ -23,7 +22,6 @@ typedef struct app_instance_t
     scheduler_t *scheduler;
     alarm_monitor_t *alarm_monitor;
     command_dispatch_t command_dispatch;
-    stdio_command_linux_t stdio_command;
 } app_instance_t;
 
 static app_instance_t s_app_instance;
@@ -183,11 +181,8 @@ static operation_result_t bootstrap_teardown_instance(void)
 
     bootstrap_destroy_alarm_monitor();
 
-    stdio_command_linux_restore(&s_app_instance.stdio_command);
-
     if (s_app_instance.scheduler != 0)
     {
-        control_context_unbind_scheduler();
         scheduler_destroy(s_app_instance.scheduler);
         s_app_instance.scheduler = 0;
     }
@@ -233,8 +228,6 @@ void app_config_init(app_config_t *config)
 
 operation_result_t app_create(const app_config_t *config)
 {
-    stdio_command_io_t stdio_command_io;
-    command_source_port_t command_source_port;
     scheduler_runtime_port_t scheduler_runtime_port;
     operation_result_t result;
 
@@ -281,29 +274,13 @@ operation_result_t app_create(const app_config_t *config)
         return result;
     }
 
-    memset(&stdio_command_io, 0, sizeof(stdio_command_io));
-    stdio_command_io.input = config->command_input;
-    stdio_command_io.output = config->command_output;
-    stdio_command_io.error = config->command_error;
-    stdio_command_linux_init(&s_app_instance.stdio_command, &stdio_command_io);
-    if (config->scheduler_config->command_event_source_enabled)
-    {
-        stdio_command_linux_enable(&s_app_instance.stdio_command);
-    }
-    command_source_port = stdio_command_linux_as_source_port(&s_app_instance.stdio_command);
     scheduler_runtime_port_init(&scheduler_runtime_port);
     s_app_instance.scheduler =
-        scheduler_create(&scheduler_runtime_port, config->scheduler_config, &command_source_port);
+        scheduler_create(&scheduler_runtime_port, config->scheduler_config, config->command_source_port);
     if (s_app_instance.scheduler == 0)
     {
         (void)bootstrap_teardown_instance();
         return operation_result_fail(ERROR_CODE_IO_FAILED);
-    }
-    result = control_context_bind_scheduler(s_app_instance.scheduler);
-    if (!result.ok)
-    {
-        (void)bootstrap_teardown_instance();
-        return result;
     }
 
     bootstrap_wire_command_path(s_app_instance.scheduler, &s_app_instance.command_dispatch);

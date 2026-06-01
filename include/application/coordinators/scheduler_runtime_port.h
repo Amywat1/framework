@@ -51,6 +51,19 @@ typedef struct scheduler_runtime_port_t
      * @return 成功时返回 `operation_result_ok()`，失败时返回显式错误结果。
      */
     operation_result_t (*run_control_tick)(void);
+
+    /**
+     * @brief 调度器创建时由平台层内部调用，用于防重复创建。
+     * @param scheduler_handle 当前调度器句柄，不能为空。
+     * @return 绑定成功返回 `operation_result_ok()`；已绑定或上下文未激活时返回失败。
+     */
+    operation_result_t (*on_bind)(void *scheduler_handle);
+
+    /**
+     * @brief 调度器销毁时由平台层内部调用；仅当句柄与当前绑定匹配时才解绑。
+     * @param scheduler_handle 当前调度器句柄，不能为空。
+     */
+    void (*on_unbind)(void *scheduler_handle);
 } scheduler_runtime_port_t;
 
 /**

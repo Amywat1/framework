@@ -132,7 +132,7 @@ static int verify_background_alarm_monitor_retries_after_queue_full(void)
     TEST_ASSERT(result.error_code == ERROR_CODE_RESOURCE_UNAVAILABLE);
     TEST_ASSERT(control_context_private_external_trigger_count() == MAX_EXTERNAL_TRIGGER_QUEUE_COUNT);
 
-    TEST_ASSERT(control_context_private_try_pop_external_trigger( &wash_trigger_event));
+    TEST_ASSERT(control_context_try_pop_external_trigger( &wash_trigger_event));
     TEST_ASSERT(control_context_private_external_trigger_count() == (MAX_EXTERNAL_TRIGGER_QUEUE_COUNT - 1u));
 
     build_background_alarm_snapshot(&recovered_snapshot, false);
@@ -141,10 +141,10 @@ static int verify_background_alarm_monitor_retries_after_queue_full(void)
     TEST_ASSERT(control_context_private_external_trigger_count() == MAX_EXTERNAL_TRIGGER_QUEUE_COUNT);
     for (index = 0u; index < (MAX_EXTERNAL_TRIGGER_QUEUE_COUNT - 1u); ++index)
     {
-        TEST_ASSERT(control_context_private_try_pop_external_trigger( &wash_trigger_event));
+        TEST_ASSERT(control_context_try_pop_external_trigger( &wash_trigger_event));
         TEST_ASSERT(strcmp(wash_trigger_event.signal_code, "queue-fill") == 0);
     }
-    TEST_ASSERT(control_context_private_try_pop_external_trigger( &wash_trigger_event));
+    TEST_ASSERT(control_context_try_pop_external_trigger( &wash_trigger_event));
     TEST_ASSERT(wash_trigger_event.trigger_type == TRIGGER_TYPE_FAULT);
     TEST_ASSERT(strcmp(wash_trigger_event.signal_code, "estop_active") == 0);
     TEST_ASSERT(wash_trigger_event.occurred_at_ms == 200ul);

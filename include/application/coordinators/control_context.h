@@ -31,9 +31,8 @@ operation_result_t control_context_init(void);
 /**
  * @brief 反初始化主控运行时，释放内部资源并重置状态。
  *
- * @note 未初始化时调用按幂等安全返回 `operation_result_ok()`。
- * @note 调度器仍绑定时返回失败结果。
- * @return 成功返回 `operation_result_ok()`；调度器未解绑时返回失败结果。
+ * @note 未初始化时调用返回 `INVALID_STATE`；调度器仍绑定时返回失败结果。
+ * @return 成功返回 `operation_result_ok()`；未初始化或调度器未解绑时返回失败结果。
  */
 operation_result_t control_context_deinit(void);
 
