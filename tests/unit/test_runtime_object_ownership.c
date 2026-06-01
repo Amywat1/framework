@@ -1,8 +1,8 @@
-﻿#include "domain/model/program_snapshot.h"
+#include "domain/model/program_snapshot.h"
 #include "domain/model/wait_condition.h"
 #include "domain/model/wash_execution.h"
 #include "domain/model/wash_session.h"
-#include "tests/test_support.h"
+#include "test_support.h"
 
 static int verify_wait_and_snapshot_do_not_overwrite_other_objects(void)
 {

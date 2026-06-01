@@ -1,9 +1,18 @@
 enable_testing()
 
+set(WASH_TEST_PRIVATE_INCLUDE_DIRS
+    ${PROJECT_SOURCE_DIR}/include
+    ${PROJECT_SOURCE_DIR}/tests
+    ${PROJECT_SOURCE_DIR}/tests/support
+    ${PROJECT_SOURCE_DIR}/src/core/runtime
+    ${PROJECT_SOURCE_DIR}/src/core/runtime/internal
+    ${PROJECT_SOURCE_DIR}/src/adapters/background
+    ${PROJECT_SOURCE_DIR}/src/adapters/os/linux)
+
 function(add_wash_test name source)
     add_executable(${name} ${source})
     target_link_libraries(${name} PRIVATE wash_core)
-    target_include_directories(${name} PRIVATE ${PROJECT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/include ${PROJECT_SOURCE_DIR}/tests)
+    target_include_directories(${name} PRIVATE ${WASH_TEST_PRIVATE_INCLUDE_DIRS})
     add_test(NAME ${name} COMMAND ${name})
     set_tests_properties(${name} PROPERTIES WORKING_DIRECTORY ${PROJECT_SOURCE_DIR})
 endfunction()
@@ -14,7 +23,7 @@ add_wash_test(test_unit_program_config_validation unit/test_program_config_valid
 add_wash_test(test_unit_recovery_state_machine unit/test_recovery_state_machine.c)
 add_wash_test(test_unit_service_arg_slices unit/test_service_arg_slices.c)
 add_wash_test(test_unit_runtime_object_ownership unit/test_runtime_object_ownership.c)
-add_wash_test(test_unit_system_context_lifecycle unit/test_system_context_lifecycle.c)
+add_wash_test(test_unit_control_context_lifecycle unit/test_control_context_lifecycle.c)
 add_wash_test(test_unit_alarm_evaluator unit/test_alarm_evaluator.c)
 add_wash_test(test_unit_worker_thread unit/test_worker_thread.c)
 
@@ -23,8 +32,8 @@ add_wash_test(test_contract_program_config_adapter contract/test_program_config_
 add_wash_test(test_contract_program_config_contract contract/test_program_config_contract.c)
 add_wash_test(test_contract_segment_runtime contract/test_segment_runtime_orchestration_contract.c)
 add_wash_test(test_contract_position_exit contract/test_position_exit_semantics_contract.c)
-add_wash_test(test_contract_system_context_boundary contract/test_system_context_boundary_contract.c)
-add_wash_test(test_contract_system_context_lifecycle contract/test_system_context_lifecycle_contract.c)
+add_wash_test(test_contract_control_context_boundary contract/test_control_context_boundary_contract.c)
+add_wash_test(test_contract_control_context_lifecycle contract/test_control_context_lifecycle_contract.c)
 add_wash_test(test_contract_trigger_runtime_ownership contract/test_trigger_runtime_ownership_contract.c)
 add_wash_test(test_contract_session_finalization contract/test_session_finalization_contract.c)
 add_wash_test(test_contract_status_query_readonly contract/test_status_query_readonly_contract.c)
@@ -52,7 +61,7 @@ add_wash_test(test_integration_status_query_no_side_effect integration/test_stat
 add_wash_test(test_integration_scheduler_failure_paths integration/test_scheduler_failure_paths.c)
 add_wash_test(test_integration_device_state_machine integration/test_device_state_machine.c)
 add_wash_test(test_integration_single_vehicle_business_cycle integration/test_single_vehicle_business_cycle.c)
-add_wash_test(test_integration_system_context_error_paths integration/test_system_context_error_paths.c)
+add_wash_test(test_integration_control_context_error_paths integration/test_control_context_error_paths.c)
 add_wash_test(test_integration_program_repository_load_path integration/test_program_repository_load_path.c)
 add_wash_test(test_integration_line_command_scheduler_dispatch integration/test_line_command_scheduler_dispatch.c)
 

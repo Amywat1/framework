@@ -1,4 +1,4 @@
-#include "tests/test_support.h"
+#include "test_support.h"
 
 static const char *device_state_label(device_state_t device_state)
 {

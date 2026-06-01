@@ -1,5 +1,5 @@
-#include "tests/test_support.h"
-#include "src/application/coordinators/control_context_private.h"
+#include "test_support.h"
+#include "runtime_fixture.h"
 
 static void complete_roof_segment(simulated_driver_context_t *driver_context)
 {

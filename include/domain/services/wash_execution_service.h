@@ -7,8 +7,8 @@
 #include "domain/model/wait_condition.h"
 #include "domain/model/wash_execution.h"
 #include "domain/model/wash_session.h"
-#include "domain/ports/actuator_port.h"
-#include "domain/ports/sensor_port.h"
+#include "ports/hal/actuator_port.h"
+#include "ports/hal/sensor_port.h"
 #include "shared/result_types.h"
 
 /**

@@ -3,9 +3,9 @@
 
 #include <stdbool.h>
 
-#include "application/coordinators/control_context.h"
+#include "core/runtime/control_context.h"
 #include "domain/model/domain_enums.h"
-#include "platform/scheduler.h"
+#include "core/scheduler/scheduler.h"
 #include "shared/result_types.h"
 
 typedef struct wash_session_status_view_t

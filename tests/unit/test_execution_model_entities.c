@@ -1,7 +1,7 @@
-﻿#include "domain/model/conditional_control.h"
+#include "domain/model/conditional_control.h"
 #include "domain/model/position_trigger.h"
 #include "domain/model/wash_segment.h"
-#include "tests/test_support.h"
+#include "test_support.h"
 
 static int test_valid_segment_entities(void)
 {

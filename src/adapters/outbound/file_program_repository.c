@@ -5,7 +5,7 @@
 #include <sys/stat.h>
 
 #include "adapters/config/json_program_parser.h"
-#include "application/coordinators/control_context.h"
+#include "core/runtime/control_context.h"
 #include "domain/model/program_snapshot.h"
 #include "domain/model/program_validation.h"
 #include "domain/model/vehicle_type.h"

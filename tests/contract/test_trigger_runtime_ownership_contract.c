@@ -1,9 +1,9 @@
-#include "application/coordinators/control_outcome_recorder.h"
-#include "application/coordinators/wash_control_outcome_projection.h"
+#include "core/runtime/control_outcome_recorder.h"
+#include "core/runtime/wash_control_outcome_projection.h"
 #include "application/use_cases/wash_control.h"
-#include "application/coordinators/control_tick.h"
-#include "tests/test_support.h"
-#include "src/application/coordinators/control_context_private.h"
+#include "core/tick/control_tick.h"
+#include "test_support.h"
+#include "runtime_fixture.h"
 
 static int verify_main_loop_owns_queue_and_time(void)
 {

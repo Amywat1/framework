@@ -1,4 +1,4 @@
-#include "tests/test_support.h"
+#include "test_support.h"
 
 static int assert_device_state_equals(device_state_t expected_device_state)
 {

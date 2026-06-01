@@ -1,6 +1,6 @@
 #include "domain/model/position_trigger.h"
-#include "tests/test_support.h"
-#include "src/application/coordinators/control_context_private.h"
+#include "test_support.h"
+#include "runtime_fixture.h"
 
 static int test_position_trigger_explains_start_and_stop(void)
 {

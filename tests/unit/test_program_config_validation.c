@@ -1,7 +1,7 @@
 #include "adapters/config/json_program_parser.h"
 #include "domain/model/program_validation.h"
-#include "tests/test_support.h"
-#include "src/application/coordinators/control_context_private.h"
+#include "test_support.h"
+#include "runtime_fixture.h"
 
 static int test_valid_program_fixture_passes(void)
 {
@@ -20,7 +20,7 @@ static int test_default_fields_are_applied_when_optional_members_are_missing(voi
     operation_result_t result;
     wash_program_t wash_program;
 
-    result = json_program_parser_parse("configs/programs/standard_wash.json", &wash_program);
+    result = json_program_parser_parse("assets/configs/programs/standard_wash.json", &wash_program);
     TEST_ASSERT(result.ok);
     TEST_ASSERT(wash_program.default_segment_timeout_ms == 15000);
     TEST_ASSERT(wash_program.default_exit_timeout_ms == 5000);

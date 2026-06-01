@@ -29,7 +29,12 @@
       "PowerShell(Copy-Item *)",
       "PowerShell(Get-ChildItem *)",
       "PowerShell(wsl -- cmake --build /mnt/c/Users/HUAWEI/Desktop/Code-M8/build --target wash_controller 2>&1 | Select-Object -Last 20)",
-      "PowerShell(wsl -- bash -c \"grep -r 'stdio_command_adapter[^_linux]' /mnt/c/Users/HUAWEI/Desktop/Code-M8/include/ /mnt/c/Users/HUAWEI/Desktop/Code-M8/src/ 2>/dev/null | grep -v '.claude/' | grep -v '_linux'\" 2>&1)"
+      "PowerShell(wsl -- bash -c \"grep -r 'stdio_command_adapter[^_linux]' /mnt/c/Users/HUAWEI/Desktop/Code-M8/include/ /mnt/c/Users/HUAWEI/Desktop/Code-M8/src/ 2>/dev/null | grep -v '.claude/' | grep -v '_linux'\" 2>&1)",
+      "Bash(git commit *)",
+      "Bash(git add *)",
+      "Bash(ls src/application/use_cases/internal/)",
+      "Bash(ls src/core/runtime/internal/)",
+      "Bash(python3 *)"
     ]
   }
 }

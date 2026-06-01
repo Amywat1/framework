@@ -1,7 +1,7 @@
 #include "application/use_cases/wash_control.h"
 #include "application/use_cases/query_wash_session_status.h"
-#include "tests/test_support.h"
-#include "src/application/coordinators/control_context_private.h"
+#include "test_support.h"
+#include "runtime_fixture.h"
 
 #define TEST_PROGRAM_FIXTURE_PATH "tests/fixtures/wash_step_control/program_v1_valid.json"
 #define TEST_PROGRAM_ID "wash_step_control_v1"

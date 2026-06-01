@@ -1,5 +1,5 @@
-#include "tests/test_support.h"
-#include "src/application/coordinators/control_context_private.h"
+#include "test_support.h"
+#include "runtime_fixture.h"
 
 #include "application/use_cases/query_wash_session_status.h"
 

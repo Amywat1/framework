@@ -1,0 +1,80 @@
+#include <string.h>
+
+#include "application/use_cases/line_command.h"
+#include "application/use_cases/query_wash_session_status.h"
+#include "test_support.h"
+#include "runtime_fixture.h"
+
+static int verify_reset_preserves_bound_ports_and_occupied_state(void)
+{
+    simulated_driver_context_t driver_context;
+    const program_repository_port_t *program_repository_port_before;
+    const program_repository_port_t *program_repository_port_after;
+    operation_result_t result;
+
+    test_setup_control_context( &driver_context);
+    control_tick_advance_time( 33ul);
+
+    program_repository_port_before = control_context_program_repository_port();
+    TEST_ASSERT(program_repository_port_before != 0);
+    TEST_ASSERT(program_repository_port_before->context != 0);
+
+    result = control_context_reset_runtime_keep_bindings();
+    TEST_ASSERT(result.ok);
+    TEST_ASSERT(control_context_current_time_ms() == 0ul);
+    TEST_ASSERT(control_context_pending_trigger_count() == 0u);
+
+    program_repository_port_after = control_context_program_repository_port();
+    TEST_ASSERT(program_repository_port_after != 0);
+    TEST_ASSERT(program_repository_port_after->context == program_repository_port_before->context);
+
+    test_release_control_context();
+    return 0;
+}
+
+static int verify_release_invalidates_runtime_entrypoints(void)
+{
+    simulated_driver_context_t driver_context;
+    wash_session_status_view_t wash_session_status_view;
+    wash_trigger_event_t wash_trigger_event;
+    operation_result_t result;
+    char response_line[256];
+
+    test_setup_control_context( &driver_context);
+    test_release_control_context();
+
+    result = control_context_reset_runtime_keep_bindings();
+    TEST_ASSERT(!result.ok);
+    TEST_ASSERT(result.error_code == ERROR_CODE_INVALID_STATE);
+
+    result = query_wash_session_status( &wash_session_status_view);
+    TEST_ASSERT(!result.ok);
+    TEST_ASSERT(result.error_code == ERROR_CODE_INVALID_STATE);
+
+    memset(response_line, 0, sizeof(response_line));
+    result = line_command_execute( "status", response_line, sizeof(response_line));
+    TEST_ASSERT(!result.ok);
+    TEST_ASSERT(result.error_code == ERROR_CODE_INVALID_STATE);
+    TEST_ASSERT(strstr(response_line, "result=invalid_state") != 0);
+
+    wash_trigger_event_init(&wash_trigger_event, TRIGGER_TYPE_STOP, 0, "released", "released", 0ul);
+    result = control_tick_submit_trigger( &wash_trigger_event);
+    TEST_ASSERT(!result.ok);
+    TEST_ASSERT(result.error_code == ERROR_CODE_INVALID_STATE);
+
+    result = control_tick_run();
+    TEST_ASSERT(!result.ok);
+    TEST_ASSERT(result.error_code == ERROR_CODE_INVALID_STATE);
+    return 0;
+}
+
+int main(void)
+{
+    if (verify_reset_preserves_bound_ports_and_occupied_state() != 0) {
+        return 1;
+    }
+    if (verify_release_invalidates_runtime_entrypoints() != 0) {
+        return 1;
+    }
+    return 0;
+}

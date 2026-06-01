@@ -1,8 +1,8 @@
 #ifndef DOMAIN_SERVICES_RECOVERY_STATE_MACHINE_H
 #define DOMAIN_SERVICES_RECOVERY_STATE_MACHINE_H
 
-#include "domain/ports/actuator_port.h"
-#include "domain/ports/sensor_port.h"
+#include "ports/hal/actuator_port.h"
+#include "ports/hal/sensor_port.h"
 #include "shared/result_types.h"
 
 /**

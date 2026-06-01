@@ -2,9 +2,9 @@
 
 #include <string.h>
 
-#include "platform/scheduler.h"
+#include "core/scheduler/scheduler.h"
 #include "shared/error_codes.h"
-#include "src/application/coordinators/control_context_private.h"
+#include "internal/control_context_private.h"
 
 operation_result_t query_wash_session_status(wash_session_status_view_t *wash_session_status_view)
 {

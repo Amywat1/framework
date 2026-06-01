@@ -2,8 +2,8 @@
 
 #include <string.h>
 
-#include "application/coordinators/control_outcome_recorder.h"
-#include "application/coordinators/wash_control_outcome_projection.h"
+#include "core/runtime/control_outcome_recorder.h"
+#include "core/runtime/wash_control_outcome_projection.h"
 #include "domain/model/wash_state_text.h"
 #include "domain/services/program_snapshot_service.h"
 #include "domain/services/recovery_state_machine.h"
@@ -11,8 +11,8 @@
 #include "domain/services/wash_execution_service.h"
 #include "domain/services/wash_session_state_machine.h"
 #include "shared/error_codes.h"
-#include "src/application/coordinators/control_context_private.h"
-#include "src/application/use_cases/device_state_blocked_reasons.h"
+#include "internal/control_context_private.h"
+#include "internal/device_state_blocked_reasons.h"
 
 /**
  * @brief 从 control_context 构建会话服务参数。

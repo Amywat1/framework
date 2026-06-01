@@ -1,5 +1,5 @@
-#include "tests/test_support.h"
-#include "src/application/coordinators/control_context_private.h"
+#include "test_support.h"
+#include "runtime_fixture.h"
 
 #include "domain/services/recovery_state_machine.h"
 

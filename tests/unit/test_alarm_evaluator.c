@@ -1,6 +1,6 @@
-#include "tests/test_support.h"
+#include "test_support.h"
 
-#include "application/services/alarm_evaluator.h"
+#include "adapters/background/alarm_evaluator.h"
 
 static void build_normal_snapshot(sensor_snapshot_t *sensor_snapshot)
 {

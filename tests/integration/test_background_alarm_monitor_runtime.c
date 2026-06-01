@@ -1,8 +1,8 @@
-#include "tests/test_support.h"
+#include "test_support.h"
 
-#include "application/services/alarm_evaluator.h"
-#include "src/application/coordinators/control_context_private.h"
-#include "src/application/jobs/alarm_detect_job.h"
+#include "adapters/background/alarm_evaluator.h"
+#include "runtime_fixture.h"
+#include "adapters/background/alarm_detect_job.h"
 
 static void build_background_alarm_snapshot(sensor_snapshot_t *sensor_snapshot, bool estop_active)
 {

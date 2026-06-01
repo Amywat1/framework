@@ -1,7 +1,7 @@
 #ifndef APPLICATION_USE_CASES_WASH_CONTROL_H
 #define APPLICATION_USE_CASES_WASH_CONTROL_H
 
-#include "application/coordinators/control_context.h"
+#include "core/runtime/control_context.h"
 #include "domain/model/wash_trigger_event.h"
 #include "shared/result_types.h"
 

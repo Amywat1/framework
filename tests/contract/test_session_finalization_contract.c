@@ -1,7 +1,7 @@
-#include "application/coordinators/control_outcome_recorder.h"
+#include "core/runtime/control_outcome_recorder.h"
 #include "application/use_cases/wash_control.h"
-#include "tests/test_support.h"
-#include "src/application/coordinators/control_context_private.h"
+#include "test_support.h"
+#include "runtime_fixture.h"
 
 static void mark_session_ready_for_completion(void)
 {

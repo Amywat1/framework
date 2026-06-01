@@ -1,6 +1,6 @@
-#include "tests/test_support.h"
-#include "src/application/coordinators/control_context_private.h"
-#include "src/platform/linux/scheduler_linux_internal.h"
+#include "test_support.h"
+#include "runtime_fixture.h"
+#include "scheduler_fixture.h"
 
 int main(void)
 {

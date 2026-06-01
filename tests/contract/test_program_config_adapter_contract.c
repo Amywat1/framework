@@ -1,5 +1,5 @@
 #include "adapters/config/json_program_parser.h"
-#include "tests/test_support.h"
+#include "test_support.h"
 
 int main(void)
 {
@@ -24,7 +24,7 @@ int main(void)
     TEST_ASSERT(strcmp(wash_program.program_name, "edge {cfg} \"ok\"") == 0);
     TEST_ASSERT(strcmp(wash_program.segments[0].segment_name, "roof {A} \"B\"") == 0);
 
-    result = json_program_parser_parse("configs/programs/standard_wash.json", &wash_program);
+    result = json_program_parser_parse("assets/configs/programs/standard_wash.json", &wash_program);
     TEST_ASSERT(result.ok);
     TEST_ASSERT(strcmp(wash_program.program_id, "standard_wash") == 0);
     TEST_ASSERT(wash_program.segment_count == 4);

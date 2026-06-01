@@ -17,7 +17,7 @@ set(WASH_CORE_SOURCES
     domain/model/wash_session.c
     domain/model/wash_trigger_event.c
     domain/services/fault_policy_service.c
-    application/services/alarm_evaluator.c
+    adapters/background/alarm_evaluator.c
     application/services/command_dispatch.c
     domain/services/program_snapshot_service.c
     domain/services/recovery_state_machine.c
@@ -26,34 +26,39 @@ set(WASH_CORE_SOURCES
     domain/services/wait_timeout_service.c
     domain/services/wash_execution_service.c
     domain/services/wash_session_state_machine.c
-    startup/app_bootstrap.c
-    application/coordinators/alarm_monitor.c
-    application/coordinators/control_tick.c
-    application/coordinators/control_context.c
-    application/coordinators/control_outcome_recorder.c
-    application/coordinators/scheduler_runtime_port.c
-    application/jobs/alarm_detect_job.c
+    core/bootstrap/app_bootstrap.c
+    adapters/background/alarm_monitor.c
+    core/tick/control_tick.c
+    core/runtime/control_context.c
+    core/runtime/control_outcome_recorder.c
+    core/runtime/scheduler_runtime_port.c
+    adapters/background/alarm_detect_job.c
     application/use_cases/line_command.c
     application/use_cases/wash_control.c
     application/use_cases/query_wash_session_status.c
     adapters/outbound/file_program_repository.c
     adapters/config/json_program_parser.c
-    platform/linux/scheduler_linux.c
-    platform/linux/stdio_command_linux.c
-    platform/linux/worker_thread_linux.c
-    platform/drivers/simulated_driver_context.c
-    platform/drivers/simulated_gantry_driver.c
-    platform/drivers/simulated_brush_driver.c
-    platform/drivers/simulated_chemical_driver.c
-    platform/drivers/simulated_ro_water_driver.c
-    platform/drivers/simulated_dryer_driver.c
-    platform/drivers/simulated_sensor_driver.c
+    adapters/os/linux/scheduler_linux.c
+    adapters/ui/cli/stdio_command_linux.c
+    adapters/os/linux/worker_thread_linux.c
+    adapters/hal/sim_hw/simulated_driver_context.c
+    adapters/hal/sim_hw/simulated_gantry_driver.c
+    adapters/hal/sim_hw/simulated_brush_driver.c
+    adapters/hal/sim_hw/simulated_chemical_driver.c
+    adapters/hal/sim_hw/simulated_ro_water_driver.c
+    adapters/hal/sim_hw/simulated_dryer_driver.c
+    adapters/hal/sim_hw/simulated_sensor_driver.c
 )
 
 add_library(wash_core STATIC ${WASH_CORE_SOURCES})
 target_include_directories(wash_core
     PUBLIC ${PROJECT_SOURCE_DIR}/include
     PRIVATE ${PROJECT_SOURCE_DIR}
+            ${PROJECT_SOURCE_DIR}/src/core/runtime
+            ${PROJECT_SOURCE_DIR}/src/core/runtime/internal
+            ${PROJECT_SOURCE_DIR}/src/adapters/background
+            ${PROJECT_SOURCE_DIR}/src/application/use_cases
+            ${PROJECT_SOURCE_DIR}/src/adapters/os/linux
             ${PROJECT_SOURCE_DIR}/third_party/cjson)
 if(NOT WIN32)
     target_link_libraries(wash_core PUBLIC m Threads::Threads)
@@ -61,6 +66,5 @@ else()
     target_link_libraries(wash_core PUBLIC Threads::Threads)
 endif()
 
-add_executable(wash_controller startup/main.c)
-target_include_directories(wash_controller PRIVATE ${PROJECT_SOURCE_DIR})
+add_executable(wash_controller ../apps/wash_controller/main.c)
 target_link_libraries(wash_controller PRIVATE wash_core)

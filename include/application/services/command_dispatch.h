@@ -1,8 +1,8 @@
 #ifndef APPLICATION_SERVICES_COMMAND_DISPATCH_H
 #define APPLICATION_SERVICES_COMMAND_DISPATCH_H
 
-#include "application/ports/inbound/command_port.h"
-#include "application/ports/outbound/scheduler_sync_port.h"
+#include "ports/application/inbound/command_port.h"
+#include "ports/application/outbound/scheduler_sync_port.h"
 
 /**
  * @file command_dispatch.h

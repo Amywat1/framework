@@ -5,7 +5,7 @@
 
 #include "domain/model/wash_execution.h"
 #include "domain/model/wash_segment.h"
-#include "domain/ports/sensor_port.h"
+#include "ports/hal/sensor_port.h"
 #include "shared/result_types.h"
 
 /**

@@ -4,13 +4,13 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "application/coordinators/control_outcome_recorder.h"
-#include "application/coordinators/wash_control_outcome_projection.h"
-#include "application/coordinators/control_tick.h"
+#include "core/runtime/control_outcome_recorder.h"
+#include "core/runtime/wash_control_outcome_projection.h"
+#include "core/tick/control_tick.h"
 #include "application/use_cases/query_wash_session_status.h"
 #include "domain/model/wash_state_text.h"
 #include "shared/error_codes.h"
-#include "src/application/use_cases/device_state_blocked_reasons.h"
+#include "internal/device_state_blocked_reasons.h"
 
 /**
  * @brief 行文本命令请求的解析结果

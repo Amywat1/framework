@@ -1,11 +1,11 @@
 #define _POSIX_C_SOURCE 200809L
 
-#include "tests/test_support.h"
+#include "test_support.h"
 
 #include <stdatomic.h>
 #include <time.h>
 
-#include "platform/worker_thread.h"
+#include "adapters/os/worker_thread.h"
 
 typedef struct waiting_worker_context_t
 {

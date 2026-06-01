@@ -16,16 +16,16 @@
 
 如果第一次接触代码，建议按下面顺序阅读：
 
-1. `src/startup/main.c`
-2. `src/startup/app_bootstrap.h`
-3. `src/startup/app_bootstrap.c`
-4. `include/application/coordinators/control_context.h`
-5. `src/application/coordinators/control_context.c`
-6. `include/platform/scheduler.h`
-7. `src/platform/linux/scheduler_linux.c`
-8. `src/platform/linux/stdio_command_linux.c`
-9. `include/application/coordinators/control_tick.h`
-10. `src/application/coordinators/control_tick.c`
+1. `apps/wash_controller/main.c`
+2. `include/core/bootstrap/app_bootstrap.h`
+3. `src/core/bootstrap/app_bootstrap.c`
+4. `include/core/runtime/control_context.h`
+5. `src/core/runtime/control_context.c`
+6. `include/core/scheduler/scheduler.h`
+7. `src/adapters/os/linux/scheduler_linux.c`
+8. `src/adapters/ui/cli/stdio_command_linux.c`
+9. `include/core/tick/control_tick.h`
+10. `src/core/tick/control_tick.c`
 11. `src/application/use_cases/line_command.c`
 12. `src/application/use_cases/wash_control.c`
 13. `src/domain/services/wash_execution_service.c`
@@ -36,7 +36,7 @@
 
 ### 1. 进程入口层
 
-`src/startup/main.c` 只负责最小化启动装配：
+`apps/wash_controller/main.c` 只负责最小化启动装配：
 
 - 初始化仿真驱动端口
 - 准备调度配置
@@ -76,14 +76,14 @@
 
 ### 4. 平台调度层
 
-`scheduler` 负责“什么时候推进业务”，不负责“业务上应该发生什么”。当前 Linux 实现位于 `src/platform/linux/scheduler_linux.c`，它统一管理：
+`scheduler` 负责“什么时候推进业务”，不负责“业务上应该发生什么”。当前 Linux 实现位于 `src/adapters/os/linux/scheduler_linux.c`，它统一管理：
 
 - 固定控制周期
 - 命令输入事件的 fd 就绪通知
 - 唤醒与退出流程
 - 调度状态和运行指标
 
-具体 stdin/stdout 命令输入适配由 `src/platform/linux/stdio_command_linux.c` 承担。调度器只感知“命令 fd 就绪”，不再直接处理命令缓冲、协议执行和响应输出。这层屏蔽了底层 `epoll`、`timerfd`、`eventfd` 等 Linux 细节，使上层只感知“被调度”而不直接依赖 OS 等待机制。
+具体 stdin/stdout 命令输入适配由 `src/adapters/ui/cli/stdio_command_linux.c` 承担。调度器只感知“命令 fd 就绪”，不再直接处理命令缓冲、协议执行和响应输出。这层屏蔽了底层 `epoll`、`timerfd`、`eventfd` 等 Linux 细节，使上层只感知“被调度”而不直接依赖 OS 等待机制。
 
 ### 5. 单拍运行内核
 
@@ -222,12 +222,12 @@
 
 ## 当前关键入口文件
 
-- 进程入口：`src/startup/main.c`
-- 应用引导层：`src/startup/app_bootstrap.c`
-- 运行时组合根：`src/application/coordinators/control_context.c`
-- 平台调度器：`src/platform/linux/scheduler_linux.c`
-- stdin 命令输入适配：`src/platform/linux/stdio_command_linux.c`
-- 单拍推进器：`src/application/coordinators/control_tick.c`
+- 进程入口：`apps/wash_controller/main.c`
+- 应用引导层：`src/core/bootstrap/app_bootstrap.c`
+- 运行时组合根：`src/core/runtime/control_context.c`
+- 平台调度器：`src/adapters/os/linux/scheduler_linux.c`
+- stdin 命令输入适配：`src/adapters/ui/cli/stdio_command_linux.c`
+- 单拍推进器：`src/core/tick/control_tick.c`
 - 行文本命令入口：`src/application/use_cases/line_command.c`
 - trigger 编排：`src/application/use_cases/wash_control.c`
 - 状态查询：`src/application/use_cases/query_wash_session_status.c`

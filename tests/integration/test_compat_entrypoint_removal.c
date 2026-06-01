@@ -3,8 +3,8 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "tests/test_support.h"
-#include "src/application/coordinators/control_context_private.h"
+#include "test_support.h"
+#include "runtime_fixture.h"
 
 #ifndef WASH_CORE_ARCHIVE_PATH
 #define WASH_CORE_ARCHIVE_PATH ""

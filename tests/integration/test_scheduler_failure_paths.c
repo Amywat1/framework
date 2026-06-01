@@ -1,4 +1,4 @@
-#include "tests/test_support.h"
+#include "test_support.h"
 
 static int verify_released_context_is_rejected_by_scheduler_boundary(void)
 {

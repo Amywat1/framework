@@ -1,4 +1,4 @@
-#include "tests/test_support.h"
+#include "test_support.h"
 
 static int assert_equivalent_programs(const wash_program_t *left, const wash_program_t *right)
 {

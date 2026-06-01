@@ -1,6 +1,6 @@
 #include "application/use_cases/line_command.h"
-#include "tests/test_support.h"
-#include "src/application/coordinators/control_context_private.h"
+#include "test_support.h"
+#include "runtime_fixture.h"
 
 int main(void)
 {

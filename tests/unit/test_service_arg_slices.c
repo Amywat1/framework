@@ -1,9 +1,9 @@
-﻿#include <stddef.h>
+#include <stddef.h>
 
 #include "domain/services/program_snapshot_service.h"
 #include "domain/services/wash_execution_service.h"
 #include "domain/services/wash_session_state_machine.h"
-#include "tests/test_support.h"
+#include "test_support.h"
 
 _Static_assert(offsetof(wash_session_service_args_t, current_time_ms) + sizeof(unsigned long)
         == sizeof(wash_session_service_args_t),
