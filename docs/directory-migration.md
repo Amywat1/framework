@@ -1,35 +1,57 @@
-# 目录迁移对照
+# ??????
 
-## 已完成（摘要）
+## ?????
 
-- startup → apps/、core/bootstrap
-- coordinators 控制核心 → core/runtime、core/tick
-- domain/ports → ports/hal、ports/storage
-- platform → adapters/os/linux、adapters/hal/sim_hw
-- configs → assets/configs
-- 后台报警 → adapters/background（含 alarm_detect_job）
-- test_support → tests/support
+```text
+apps/wash_controller/
+include/core/{bootstrap,runtime,scheduler,tick}/
+include/ports/{hal,storage,application/inbound,application/outbound}/
+include/adapters/{background,os,hal/sim_hw,ui/cli,config,outbound}/
+src/core/?src/adapters/?src/application/{services,use_cases/internal}/
+src/domain/
+assets/configs/
+tests/support/
+```
 
-**已删除目录**：include/platform、src/platform、application/coordinators、application/jobs。
+## ???????
 
-**已删除遗留头/源**（未进 CMake）：device_runtime、runtime_event_recorder、runtime_result_projection、重复 control_tick/scheduler_runtime_port、process_formal_command/process_wash_trigger 公开头。
+- startup ? apps/?core/bootstrap
+- coordinators ???? ? core/runtime?core/tick
+- domain/ports ? ports/hal?ports/storage
+- platform ? adapters/os/linux?adapters/hal/sim_hw?adapters/ui/cli
+- configs ? assets/configs
+- ???? ? adapters/background?? alarm_evaluator?alarm_detect_job?alarm_monitor?
+- test_support ? tests/support
+- application/ports ? ports/application/
 
-## 当前 application/
+**?????**?include/platform?src/platform?application/coordinators?application/jobs?application/ports????application/dto????
 
-- services/、use_cases/（internal/ 为 use case 私有头）
+**??????/?**??? CMake??device_runtime?runtime_event_recorder?runtime_result_projection??? control_tick/scheduler_runtime_port?process_formal_command/process_wash_trigger ????
 
-## 当前 ports/
+## ?? application/
 
-- hal/、storage/、application/inbound、application/outbound
+- services/command_dispatch
+- use_cases/line_command?wash_control?query_wash_session_status
+- use_cases/internal/device_state_blocked_reasons.h
 
-## 后台适配层（adapters/background）
+## ????
 
-- alarm_evaluator、alarm_detect_job、alarm_monitor
+| ?? | ?? |
+|------|------|
+| system_context | control_context |
+| process_wash_trigger | wash_control |
+| process_formal_command | line_command |
+| runtime_event_recorder | control_outcome_recorder |
 
-## 历史命名
+## ????
 
-system_context → control_context；process_wash_trigger → wash_control；process_formal_command → line_command。
-## 测试命名
+- `system_context` ????????? `control_context`?CMake ???????????
 
-- system_context 测试目标已重命名为 control_context（CMake 目标与源文件名一致）。
+## ??
 
+?????????
+
+```bash
+cmake -B build && cmake --build build
+ctest --test-dir build --output-on-failure
+```
