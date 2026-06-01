@@ -6,9 +6,9 @@
  */
 
 #include "domain/process/step_engine.h"
-#include "domain/device/brush.h"
-#include "domain/device/gantry.h"
-#include "domain/device/top_lift.h"
+#include "domain/device/unit/brush.h"
+#include "domain/device/unit/gantry.h"
+#include "domain/device/unit/top_lift.h"
 #include "domain/device/water.h"
 #include "domain/safety/alarm_core.h"
 #include "common/log.h"

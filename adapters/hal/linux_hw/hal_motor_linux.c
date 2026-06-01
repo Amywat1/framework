@@ -39,6 +39,54 @@ static const motor_cfg_t *find_cfg(int id)
     return NULL;
 }
 
+static sw_err_t get_encoder_counter_pin(const motor_cfg_t *cfg, int *p_board_id, int *p_pin_id)
+{
+    uint16_t raw;
+    int      board_id;
+
+    if ((cfg == NULL) || (p_board_id == NULL) || (p_pin_id == NULL))
+    {
+        return SW_ERR_PARAM;
+    }
+
+    raw = io_di_raw(cfg->encoder_io);
+    if (raw == IO_HANDLE_NULL)
+    {
+        return SW_ERR_PARAM;
+    }
+
+    board_id = (int)io_handle_board(raw);
+    if (board_id <= 0)
+    {
+        return SW_ERR_PARAM;
+    }
+
+    *p_board_id = board_id;
+    *p_pin_id   = (int)io_handle_pin(raw);
+    return SW_OK;
+}
+
+static bool m8_motor_encoder_counter_online(int id)
+{
+    const motor_cfg_t *cfg = find_cfg(id);
+    int                board_id;
+    int                pin_id;
+
+    if ((cfg == NULL) || !cfg->has_encoder ||
+        (cfg->encoder_backend != MOTOR_ENCODER_COUNTER))
+    {
+        return false;
+    }
+
+    if (get_encoder_counter_pin(cfg, &board_id, &pin_id) != SW_OK)
+    {
+        return false;
+    }
+
+    (void)pin_id;
+    return drv_io_board_is_online(board_id);
+}
+
 static sw_err_t set_vfd_output(int id, int speed_ref)
 {
     uint16_t   freq_hz = (uint16_t)((speed_ref >= 0) ? speed_ref : -speed_ref);
@@ -195,6 +243,7 @@ static sw_err_t m8_motor_read_hw_pulse(int id, uint32_t *p_value)
     int                raw;
     int                board_id;
     int                pin_id;
+    sw_err_t           ret;
 
     if ((cfg == NULL) || (p_value == NULL) || !cfg->has_encoder ||
         (cfg->encoder_backend != MOTOR_ENCODER_COUNTER))
@@ -202,8 +251,16 @@ static sw_err_t m8_motor_read_hw_pulse(int id, uint32_t *p_value)
         return SW_ERR_PARAM;
     }
 
-    board_id = (int)io_handle_board(io_di_raw(cfg->encoder_io));
-    pin_id   = (int)io_handle_pin(io_di_raw(cfg->encoder_io));
+    ret = get_encoder_counter_pin(cfg, &board_id, &pin_id);
+    if (ret != SW_OK)
+    {
+        return ret;
+    }
+    if (!drv_io_board_is_online(board_id))
+    {
+        return SW_ERR_COMM;
+    }
+
     raw      = io_pluse_read(board_id, pin_id);
     if ((raw < 0) || (raw == (int)0x0FFFFFFF))
     {
@@ -221,6 +278,7 @@ static sw_err_t m8_motor_clear_hw_pulse(int id)
     int                board_id;
     int                pin_id;
     int                ret;
+    sw_err_t           err;
 
     if ((cfg == NULL) || !cfg->has_encoder ||
         (cfg->encoder_backend != MOTOR_ENCODER_COUNTER))
@@ -228,8 +286,16 @@ static sw_err_t m8_motor_clear_hw_pulse(int id)
         return SW_ERR_PARAM;
     }
 
-    board_id = (int)io_handle_board(io_di_raw(cfg->encoder_io));
-    pin_id   = (int)io_handle_pin(io_di_raw(cfg->encoder_io));
+    err = get_encoder_counter_pin(cfg, &board_id, &pin_id);
+    if (err != SW_OK)
+    {
+        return err;
+    }
+    if (!drv_io_board_is_online(board_id))
+    {
+        return SW_ERR_COMM;
+    }
+
     ret      = io_SDO_write(board_id, 0x2005, pin_id, &data);
     return (ret >= 0) ? SW_OK : SW_ERR_COMM;
 }
@@ -287,13 +353,14 @@ static sw_err_t m8_motor_read_status(int id, uint16_t *p_status)
 }
 
 static const hal_motor_ops_t s_ops = {
-    .set_output     = m8_motor_set_output,
-    .at_fwd_limit   = m8_motor_at_fwd_limit,
-    .at_rev_limit   = m8_motor_at_rev_limit,
-    .read_hw_pulse  = m8_motor_read_hw_pulse,
-    .clear_hw_pulse = m8_motor_clear_hw_pulse,
-    .read_current   = m8_motor_read_current,
-    .read_status    = m8_motor_read_status,
+    .set_output             = m8_motor_set_output,
+    .at_fwd_limit           = m8_motor_at_fwd_limit,
+    .at_rev_limit           = m8_motor_at_rev_limit,
+    .encoder_counter_online = m8_motor_encoder_counter_online,
+    .read_hw_pulse          = m8_motor_read_hw_pulse,
+    .clear_hw_pulse         = m8_motor_clear_hw_pulse,
+    .read_current           = m8_motor_read_current,
+    .read_status            = m8_motor_read_status,
 };
 
 void hal_motor_linux_register(void)

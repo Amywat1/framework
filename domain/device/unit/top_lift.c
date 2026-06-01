@@ -5,7 +5,7 @@
  * @date    2026-04-10
  */
 
-#include "domain/device/top_lift.h"
+#include "domain/device/unit/top_lift.h"
 #include "domain/safety/interlock.h"
 #include "ports/hal/hal_motion_port.h"
 #include "ports/hal/hal_sensor_port.h"

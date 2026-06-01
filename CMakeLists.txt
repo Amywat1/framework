@@ -298,10 +298,13 @@ if(BUILD_SIM)
         domain/safety/alarm_core.c
         domain/safety/safety_fsm.c
         domain/safety/interlock.c
-        domain/device/motor.c
-        domain/device/brush.c
-        domain/device/gantry.c
-        domain/device/top_lift.c
+        domain/device/actuator/motor/motor.c
+        domain/device/actuator/motor/motor_encoder_internal.c
+        domain/device/actuator/motor/motor_monitor_internal.c
+        domain/device/actuator/motor/motor_tick_internal.c
+        domain/device/unit/brush.c
+        domain/device/unit/gantry.c
+        domain/device/unit/top_lift.c
         domain/device/water.c
         domain/process/step_engine.c
         domain/process/recipe.c

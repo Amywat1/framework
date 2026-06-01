@@ -8,7 +8,7 @@
 #include "application/orchestrators/report_aggregator.h"
 #include "core/scheduler/thread_registry.h"
 #include "service/dev_ctx/dev_ctx.h"
-#include "domain/device/gantry.h"
+#include "domain/device/unit/gantry.h"
 #include "domain/safety/alarm_core.h"
 #include "domain/model/alarm_code.h"
 #include "ports/cloud/report_port.h"

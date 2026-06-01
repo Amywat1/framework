@@ -5,8 +5,8 @@
  * @date    2026-04-10
  */
 
-#include "domain/device/brush.h"
-#include "domain/device/motor.h"
+#include "domain/device/unit/brush.h"
+#include "domain/device/actuator/motor/motor.h"
 #include "config/machine/m8_motor_table.h"
 #include "domain/safety/interlock.h"
 #include "ports/hal/hal_motion_port.h"

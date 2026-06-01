@@ -5,7 +5,13 @@
       "Bash(sed:*)",
       "Bash(cmake -B build_check_sim -DBUILD_SIM=ON -DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++)",
       "Bash(python3 -)",
-      "Bash(grep -n \"io_init\\\\|CAN\" D:/工作项目/M8/Code-M8/src/adapters/hal/linux_hw/*.c)"
+      "Bash(grep -n \"io_init\\\\|CAN\" D:/工作项目/M8/Code-M8/src/adapters/hal/linux_hw/*.c)",
+      "Bash(ls:*)",
+      "Bash(claude:*)",
+      "Bash(find domain/device/actuator domain/device/unit -type f)",
+      "Bash(dir /s /b domain\\\\device\\\\actuator domain\\\\device\\\\unit)",
+      "Bash(git add *)",
+      "Bash(git rm *)"
     ]
   }
 }

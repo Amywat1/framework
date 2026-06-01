@@ -15,9 +15,9 @@
 #include "domain/safety/alarm_core.h"
 #include "domain/model/alarm_code.h"
 #include "domain/model/wash_types.h"
-#include "domain/device/motor.h"
-#include "domain/device/brush.h"
-#include "domain/device/gantry.h"
+#include "domain/device/actuator/motor/motor.h"
+#include "domain/device/unit/brush.h"
+#include "domain/device/unit/gantry.h"
 #include "config/machine/m8_motor_table.h"
 #include "ports/hal/hal_motion_port.h"
 #include "ports/hal/hal_motor_port.h"
@@ -81,6 +81,11 @@ static bool mock_motor_at_rev_limit(int id)
     return (id == MOTOR_GANTRY) ? s_mock_rev_limit : false;
 }
 
+static bool mock_motor_encoder_counter_online(int id)
+{
+    return id == MOTOR_GANTRY;
+}
+
 static sw_err_t mock_motor_read_hw_pulse(int id, uint32_t *p_value)
 {
     (void)id;
@@ -109,13 +114,14 @@ static sw_err_t mock_motor_read_status(int id, uint16_t *p_status)
 }
 
 static const hal_motor_ops_t s_mock_motor_ops = {
-    .set_output      = mock_motor_set_output,
-    .at_fwd_limit    = mock_motor_at_fwd_limit,
-    .at_rev_limit    = mock_motor_at_rev_limit,
-    .read_hw_pulse   = mock_motor_read_hw_pulse,
-    .clear_hw_pulse  = mock_motor_clear_hw_pulse,
-    .read_current    = mock_motor_read_current,
-    .read_status     = mock_motor_read_status,
+    .set_output             = mock_motor_set_output,
+    .at_fwd_limit           = mock_motor_at_fwd_limit,
+    .at_rev_limit           = mock_motor_at_rev_limit,
+    .encoder_counter_online = mock_motor_encoder_counter_online,
+    .read_hw_pulse          = mock_motor_read_hw_pulse,
+    .clear_hw_pulse         = mock_motor_clear_hw_pulse,
+    .read_current           = mock_motor_read_current,
+    .read_status            = mock_motor_read_status,
 };
 
 /* 模拟 HAL 运动控制 */
