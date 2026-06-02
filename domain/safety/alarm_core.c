@@ -31,7 +31,6 @@ static const alarm_entry_t s_table[] = {
     /* VFD / 步进驱动故障 */
     { ALARM_CODE_VFD_GANTRY,     200, ALARM_LEVEL_ERROR,   1000, ALARM_RECOVER_DRIVE | ALARM_RECOVER_MANUAL, "龙门VFD故障" },
     { ALARM_CODE_VFD_BRUSH,      200, ALARM_LEVEL_ERROR,   1000, ALARM_RECOVER_DRIVE | ALARM_RECOVER_MANUAL, "刷子VFD故障" },
-    { ALARM_CODE_STEPPER_FAULT,  200, ALARM_LEVEL_ERROR,   1000, ALARM_RECOVER_DRIVE | ALARM_RECOVER_MANUAL, "步进驱动器故障" },
     /* 通信丢失 */
     { ALARM_CODE_MODBUS_GANTRY,  0,   ALARM_LEVEL_WARNING, 2000, ALARM_RECOVER_AUTO,                         "龙门Modbus通信丢失" },
     { ALARM_CODE_MODBUS_BRUSH,   0,   ALARM_LEVEL_WARNING, 2000, ALARM_RECOVER_AUTO,                         "刷子Modbus通信丢失" },

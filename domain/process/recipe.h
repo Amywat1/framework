@@ -34,7 +34,6 @@ typedef struct
     bool         water_prewash;      /* 预洗水路（泡沫+水帘）*/
     bool         water_brush;        /* 刷子冲水 */
     bool         water_highpres;     /* 高压冲洗 */
-    bool         top_lift_down;      /* 顶刷下降到洗车位置 */
     int32_t      exit_pos_pulse;     /* 退出条件：龙门脉冲位置（-1=不使用）*/
     bool         exit_at_fwd_limit;  /* 退出条件：到达前限位 */
     bool         exit_at_rev_limit;  /* 退出条件：到达后限位 */

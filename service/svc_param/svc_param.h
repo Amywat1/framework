@@ -27,7 +27,6 @@ extern "C" {
 #define PARAM_KEY_BRUSH_FREQ_SIDE   "brushFreqSide"     /* 侧刷频率（0.01Hz，默认 4500）*/
 #define PARAM_KEY_GANTRY_FREQ_SLOW  "gantryFreqSlow"    /* 龙门慢速（0.01Hz）*/
 #define PARAM_KEY_GANTRY_FREQ_FAST  "gantryFreqFast"    /* 龙门快速（0.01Hz）*/
-#define PARAM_KEY_TOP_LIFT_DOWN_PUL "topLiftDownPulses" /* 顶刷下降脉冲数（默认 500）*/
 #define PARAM_KEY_DEVICE_SN         "deviceSn"          /* 设备序列号 */
 
 /* -------------------------------------------------------------------------

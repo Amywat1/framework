@@ -38,7 +38,7 @@ static void build_payload(cloud_report_payload_t *p)
     /* 填充当前最高优先级报警码（遍历已知码）*/
     static const uint16_t s_priority_order[] = {
         ALARM_CODE_ESTOP,
-        ALARM_CODE_VFD_GANTRY, ALARM_CODE_VFD_BRUSH, ALARM_CODE_STEPPER_FAULT,
+        ALARM_CODE_VFD_GANTRY, ALARM_CODE_VFD_BRUSH,
         ALARM_CODE_GANTRY_CURRENT, ALARM_CODE_BRUSH_CURRENT,
         ALARM_CODE_GANTRY_FWD_LIM, ALARM_CODE_GANTRY_REV_LIM,
         ALARM_CODE_LIFT_UP_LIM,    ALARM_CODE_LIFT_DOWN_LIM,

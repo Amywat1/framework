@@ -133,21 +133,6 @@ static sw_err_t mock_brush_select(hal_brush_sel_t s) { (void)s; return SW_OK; }
 static sw_err_t mock_brush_run(uint16_t f)       { (void)f; return SW_OK; }
 static sw_err_t mock_brush_stop(void)            { return SW_OK; }
 static sw_err_t mock_brush_fault_reset(void)     { return SW_OK; }
-static sw_err_t mock_lift_up_start(uint32_t p)
-{
-    (void)p;
-    s_mock_lift_top    = true;
-    s_mock_lift_bottom = false;
-    return SW_OK;
-}
-static sw_err_t mock_lift_down_start(uint32_t p)
-{
-    (void)p;
-    s_mock_lift_bottom = true;
-    s_mock_lift_top    = false;
-    return SW_OK;
-}
-/* 说明：lift_at_top/bottom 属于传感器接口，不在 hal_motion_ops_t 中 */
 
 static const hal_motion_ops_t s_mock_motion_ops = {
     .gantry_fwd         = mock_gantry_fwd,
@@ -158,8 +143,6 @@ static const hal_motion_ops_t s_mock_motion_ops = {
     .brush_run          = mock_brush_run,
     .brush_stop         = mock_brush_stop,
     .brush_fault_reset  = mock_brush_fault_reset,
-    .lift_up_start      = mock_lift_up_start,
-    .lift_down_start    = mock_lift_down_start,
 };
 
 /* 模拟 HAL 水路控制 */

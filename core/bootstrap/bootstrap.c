@@ -17,7 +17,6 @@
 #include "domain/device/actuator/motor/motor.h"
 #include "domain/device/unit/brush.h"
 #include "domain/device/unit/gantry.h"
-#include "domain/device/unit/top_lift.h"
 #include "domain/device/water.h"
 #include "domain/device/gate.h"
 #include "application/orchestrators/emergency_handler.h"
@@ -137,7 +136,6 @@ static sw_err_t bootstrap_init_application(void)
     BOOT_CHECK(motor_init(),             "motor_init");
     BOOT_CHECK(brush_init(),             "brush_init");
     BOOT_CHECK(gantry_init(),            "gantry_init");
-    BOOT_CHECK(top_lift_init(),          "top_lift_init");
     BOOT_CHECK(water_init(),             "water_init");
     BOOT_CHECK(gate_init(),              "gate_init");
     BOOT_CHECK(emergency_handler_init(), "emergency_handler_init");

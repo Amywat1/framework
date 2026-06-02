@@ -29,14 +29,6 @@
 #define M8_IO_BOARD_COUNT       CFG_IO_BOARD_COUNT
 
 /* -------------------------------------------------------------------------
- * 步进电机脉冲参数
- * ------------------------------------------------------------------------- */
-#define M8_STEPPER_PULSE_US     CFG_STEPPER_PULSE_US
-#define M8_STEPPER_PULSE_BATCH  CFG_STEPPER_PULSE_BATCH
-#define M8_LIFT_UP_MAX_PULSES   CFG_LIFT_UP_MAX_PULSES
-#define M8_LIFT_DOWN_DEF_PULSES CFG_LIFT_DOWN_DEF_PULSES
-
-/* -------------------------------------------------------------------------
  * 接触器切换等待时间
  * ------------------------------------------------------------------------- */
 #define M8_BRUSH_CONTACTOR_WAIT_MS  CFG_BRUSH_CONTACTOR_WAIT_MS
@@ -62,9 +54,6 @@
 #define M8_DO_BRUSH_RST         M8_IO_DO_SIDE_BRUSH_RST
 #define M8_DO_TOP_BRUSH_ACT     M8_IO_DO_TOP_BRUSH_ACT
 #define M8_DO_SIDE_BRUSH_ACT    M8_IO_DO_SIDE_BRUSH_ACT
-#define M8_DO_LIFT_ENA          M8_IO_DO_TOP_LIFT_ENA
-#define M8_DO_LIFT_DIR          M8_IO_DO_TOP_LIFT_DIR
-#define M8_DO_LIFT_PUL          M8_IO_DO_TOP_LIFT_PUL
 
 /* -------------------------------------------------------------------------
  * 数字输入引脚别名

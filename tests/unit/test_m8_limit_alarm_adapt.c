@@ -179,9 +179,9 @@ static void test_dual_gantry_limits_trigger_alarm(void)
     printf("  PASS\n");
 }
 
-static void test_dual_lift_limits_trigger_alarm(void)
+static void test_dual_lift_limits_suppressed_without_install(void)
 {
-    printf("TC-3: dual lift limits trigger alarm\n");
+    printf("TC-3: dual lift limits suppressed when not installed\n");
 
     init_fixture();
     s_di_lift_up   = true;
@@ -191,8 +191,8 @@ static void test_dual_lift_limits_trigger_alarm(void)
 
     assert(m8_signal_is_active(M8_SIG_LIFT_UP_LIM));
     assert(m8_signal_is_active(M8_SIG_LIFT_DOWN_LIM));
-    assert(alarm_core_is_active(ALARM_CODE_LIFT_UP_LIM));
-    assert(alarm_core_is_active(ALARM_CODE_LIFT_DOWN_LIM));
+    assert(!alarm_core_is_active(ALARM_CODE_LIFT_UP_LIM));
+    assert(!alarm_core_is_active(ALARM_CODE_LIFT_DOWN_LIM));
 
     printf("  PASS\n");
 }
@@ -203,7 +203,7 @@ int main(void)
 
     test_single_limit_does_not_trigger_alarm();
     test_dual_gantry_limits_trigger_alarm();
-    test_dual_lift_limits_trigger_alarm();
+    test_dual_lift_limits_suppressed_without_install();
 
     printf("=== ALL PASSED ===\n");
     return 0;

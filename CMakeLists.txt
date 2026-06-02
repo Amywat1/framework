@@ -312,7 +312,6 @@ if(BUILD_SIM)
         domain/device/actuator/motor/motor_tick_internal.c
         domain/device/unit/brush.c
         domain/device/unit/gantry.c
-        domain/device/unit/top_lift.c
         domain/device/water.c
         application/orchestrators/wash_orchestrator.c
         core/scheduler/thread_registry.c

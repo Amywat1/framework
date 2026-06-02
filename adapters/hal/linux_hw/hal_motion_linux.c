@@ -1,6 +1,6 @@
 /**
  * @file    hal_motion_linux.c
- * @brief   运动控制 HAL 端口 — Linux 真机实现（龙门/刷子/顶刷升降）
+ * @brief   运动控制 HAL 端口 — Linux 真机实现（龙门/刷子）
  * @author  胡望伟
  * @date    2026-04-10
  */
@@ -8,9 +8,7 @@
 #include "ports/hal/hal_motion_port.h"
 #include "adapters/hal/linux_hw/m8_vfd_control.h"
 #include "adapters/machine/m8/m8_machine_map.h"
-#include "adapters/hal/linux_hw/drv/drv_stepper.h"
 #include "ports/hal/hal_io_port.h"
-#include "core/event_bus/event_bus.h"
 #include "common/log.h"
 #include "common/sw_error.h"
 
@@ -25,17 +23,6 @@ static sw_err_t io_do_set(io_do_t pin, bool val)
         return SW_ERR_NOT_INIT;
     }
     return ops->do_set(pin, val);
-}
-
-static bool io_di_read(io_di_t pin)
-{
-    const hal_io_ops_t *ops = hal_io_get_ops();
-
-    if ((ops == NULL) || (ops->di_read == NULL))
-    {
-        return false;
-    }
-    return ops->di_read(pin);
 }
 
 /* -------------------------------------------------------------------------
@@ -106,69 +93,6 @@ static sw_err_t m8_brush_fault_reset(void)
 }
 
 /* -------------------------------------------------------------------------
- * 顶刷升降当前在调用线程中同步执行。
- *
- * 动作完成后发布 EVT_COMP_LIFT_DONE 事件。
- * ------------------------------------------------------------------------- */
-static sw_err_t m8_lift_up_start(uint32_t pulses)
-{
-    uint32_t remaining = (pulses > 0U) ? pulses : M8_LIFT_UP_MAX_PULSES;
-    sw_err_t ret       = SW_OK;
-
-    (void)drv_stepper_enable();
-
-    while (remaining > 0U)
-    {
-        uint32_t batch = (remaining > M8_STEPPER_PULSE_BATCH)
-                         ? M8_STEPPER_PULSE_BATCH : remaining;
-
-        ret = drv_stepper_move(batch, STEPPER_DIR_UP, M8_STEPPER_PULSE_US);
-        if (ret != SW_OK) { break; }
-        remaining -= batch;
-
-        /* 每批后检查上限位 */
-        if (io_di_read(M8_DI_LIFT_UP_LIM))
-        {
-            LOG_INFO("hal_motion: lift_up reached top limit");
-            break;
-        }
-    }
-
-    (void)drv_stepper_disable();
-    (void)event_publish(EVT_COMP_LIFT_DONE, (uint32_t)ret);
-    return SW_OK;  /* 当前行为：先发布 EVT_COMP_LIFT_DONE，再返回 */
-}
-
-static sw_err_t m8_lift_down_start(uint32_t pulses)
-{
-    uint32_t remaining = (pulses > 0U) ? pulses : M8_LIFT_DOWN_DEF_PULSES;
-    sw_err_t ret       = SW_OK;
-
-    (void)drv_stepper_enable();
-
-    while (remaining > 0U)
-    {
-        uint32_t batch = (remaining > M8_STEPPER_PULSE_BATCH)
-                         ? M8_STEPPER_PULSE_BATCH : remaining;
-
-        ret = drv_stepper_move(batch, STEPPER_DIR_DOWN, M8_STEPPER_PULSE_US);
-        if (ret != SW_OK) { break; }
-        remaining -= batch;
-
-        /* 每批后检查下限位（防止过冲）*/
-        if (io_di_read(M8_DI_LIFT_DOWN_LIM))
-        {
-            LOG_INFO("hal_motion: lift_down reached bottom limit");
-            break;
-        }
-    }
-
-    (void)drv_stepper_disable();
-    (void)event_publish(EVT_COMP_LIFT_DONE, (uint32_t)ret);
-    return SW_OK;
-}
-
-/* -------------------------------------------------------------------------
  * 操作表 + 注册
  * ------------------------------------------------------------------------- */
 static const hal_motion_ops_t s_ops = {
@@ -180,8 +104,6 @@ static const hal_motion_ops_t s_ops = {
     .brush_run          = m8_brush_run,
     .brush_stop         = m8_brush_stop,
     .brush_fault_reset  = m8_brush_fault_reset,
-    .lift_up_start      = m8_lift_up_start,
-    .lift_down_start    = m8_lift_down_start,
 };
 
 void hal_motion_linux_register(void)

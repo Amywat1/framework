@@ -6,8 +6,6 @@
  */
 
 #include "ports/hal/hal_motion_port.h"
-#include "core/event_bus/event_bus.h"
-#include "common/event_types.h"
 #include "common/log.h"
 
 static sw_err_t sim_gantry_fwd(uint16_t freq_hz)
@@ -58,21 +56,6 @@ static sw_err_t sim_brush_fault_reset(void)
     return SW_OK;
 }
 
-static sw_err_t sim_lift_up_start(uint32_t pulses)
-{
-    LOG_INFO("sim_motion: lift_up_start pulses=%u", (unsigned)pulses);
-    /* 仿真中立即完成 */
-    (void)event_publish(EVT_COMP_LIFT_DONE, (uint32_t)SW_OK);
-    return SW_OK;
-}
-
-static sw_err_t sim_lift_down_start(uint32_t pulses)
-{
-    LOG_INFO("sim_motion: lift_down_start pulses=%u", (unsigned)pulses);
-    (void)event_publish(EVT_COMP_LIFT_DONE, (uint32_t)SW_OK);
-    return SW_OK;
-}
-
 static const hal_motion_ops_t s_ops = {
     .gantry_fwd         = sim_gantry_fwd,
     .gantry_rev         = sim_gantry_rev,
@@ -82,8 +65,6 @@ static const hal_motion_ops_t s_ops = {
     .brush_run          = sim_brush_run,
     .brush_stop         = sim_brush_stop,
     .brush_fault_reset  = sim_brush_fault_reset,
-    .lift_up_start      = sim_lift_up_start,
-    .lift_down_start    = sim_lift_down_start,
 };
 
 void hal_motion_sim_register(void)

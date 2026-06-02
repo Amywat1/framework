@@ -1,6 +1,6 @@
 /**
  * @file    m8_machine_config.h
- * @brief   M8 机型硬件参数（CAN 总线、Modbus、步进电机）
+ * @brief   M8 机型硬件参数（Modbus、时序）
  * @author  胡望伟
  * @date    2026-04-10
  *
@@ -25,14 +25,6 @@
 #define CFG_VFD_GANTRY_MODBUS_ADDR  2
 #define CFG_VFD_GANTRY_SERIAL_PORT  "/dev/ttyS1"
 #define CFG_VFD_GANTRY_BAUD         9600
-
-/* -------------------------------------------------------------------------
- * 步进电机脉冲参数
- * ------------------------------------------------------------------------- */
-#define CFG_STEPPER_PULSE_US        100U    /* 单脉冲宽度（µs），需按驱动器配置调整 */
-#define CFG_STEPPER_PULSE_BATCH     50U     /* 每批脉冲数（批后检查限位）*/
-#define CFG_LIFT_UP_MAX_PULSES      5000U   /* 上升最大脉冲数（限位兜底）*/
-#define CFG_LIFT_DOWN_DEF_PULSES    500U    /* 下降默认脉冲数（pulses=0 时使用）*/
 
 /* -------------------------------------------------------------------------
  * 接触器切换参数

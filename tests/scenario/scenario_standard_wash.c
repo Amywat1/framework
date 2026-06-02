@@ -21,7 +21,6 @@
 #include "domain/safety/safety_fsm.h"
 #include "domain/device/unit/brush.h"
 #include "domain/device/unit/gantry.h"
-#include "domain/device/unit/top_lift.h"
 #include "domain/device/water.h"
 #include "domain/device/gate.h"
 #include "domain/model/device_state.h"
@@ -158,7 +157,6 @@ static void scenario_setup(void)
     (void)motor_init();
     (void)brush_init();
     (void)gantry_init();
-    (void)top_lift_init();
     (void)water_init();
     (void)gate_init();
     (void)emergency_handler_init();

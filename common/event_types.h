@@ -81,12 +81,10 @@ typedef uint16_t event_type_t;
  * ------------------------------------------------------------------------- */
 #define EVT_COMP_ID_MOTOR_DONE       0U
 #define EVT_COMP_ID_HOME_DONE        1U
-#define EVT_COMP_ID_LIFT_DONE        2U
-#define EVT_COMP_ID_BRUSH_STARTED    3U
+#define EVT_COMP_ID_BRUSH_STARTED    2U
 
 #define EVT_COMP_MOTOR_DONE      EVT_MAKE(EVT_CAT_COMP, EVT_COMP_ID_MOTOR_DONE)
 #define EVT_COMP_HOME_DONE       EVT_MAKE(EVT_CAT_COMP, EVT_COMP_ID_HOME_DONE)
-#define EVT_COMP_LIFT_DONE       EVT_MAKE(EVT_CAT_COMP, EVT_COMP_ID_LIFT_DONE)
 #define EVT_COMP_BRUSH_STARTED   EVT_MAKE(EVT_CAT_COMP, EVT_COMP_ID_BRUSH_STARTED)
 
 /* -------------------------------------------------------------------------

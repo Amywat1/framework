@@ -10,7 +10,6 @@
 #include "adapters/machine/m8/m8_machine_map.h"
 #include "config/machine/m8_vfd_table.h"
 #include "adapters/hal/linux_hw/drv/drv_vfd.h"
-#include "adapters/hal/linux_hw/drv/drv_stepper.h"
 #include "ports/hal/hal_io_port.h"
 #include "common/log.h"
 
@@ -96,14 +95,6 @@ sw_err_t m8_linux_hw_init(void)
         return ret;
     }
     drv_vfd_register_event_cb(&s_vfd_gantry, gantry_vfd_event_cb);
-
-    /* 步进电机初始化 */
-    ret = drv_stepper_init();
-    if (ret != SW_OK)
-    {
-        LOG_ERROR("m8_linux_hw_init: drv_stepper_init failed");
-        return ret;
-    }
 
     LOG_INFO("m8_linux_hw_init ok");
     return SW_OK;

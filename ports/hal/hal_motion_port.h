@@ -4,7 +4,7 @@
  * @author  胡望伟
  * @date    2026-04-10
  *
- * @note    供 domain 与 application 控制龙门、刷子和顶刷升降使用，
+ * @note    供 domain 与 application 控制龙门、刷子使用，
  *          不直接依赖具体驱动或 SDK。
  */
 
@@ -62,25 +62,6 @@ typedef struct
 
     /** @brief 刷子 VFD 故障复位 */
     sw_err_t (*brush_fault_reset)(void);
-
-    /* 顶刷升降（步进电机，异步执行）*/
-
-    /**
-     * @brief  顶刷上升，直到上限位触发，完成后发布 EVT_COMP_LIFT_DONE
-     * @param  pulses  最大脉冲数（0 = 使用配置默认值）
-     *
-     * @note   当前实现运行在调用线程（`wash_worker_thread`）中。
-     *         分批发脉冲并检查限位，完成后发 EVT_COMP_LIFT_DONE 再返回。
-     */
-    sw_err_t (*lift_up_start)(uint32_t pulses);
-
-    /**
-     * @brief  顶刷下降指定脉冲数，完成后发布 EVT_COMP_LIFT_DONE
-     * @param  pulses  脉冲数（0 = 使用 M8_LIFT_DOWN_DEF_PULSES 默认值）
-     *
-     * @note   当前实现与 `lift_up_start` 的行为一致。
-     */
-    sw_err_t (*lift_down_start)(uint32_t pulses);
 } hal_motion_ops_t;
 
 /* -------------------------------------------------------------------------

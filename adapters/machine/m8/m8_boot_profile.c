@@ -73,11 +73,6 @@ void m8_assert_safe_outputs(void)
     (void)boot_do_set(M8_DO_BRUSH_FWD, false);
     (void)boot_do_set(M8_DO_BRUSH_RST, false);
 
-    /* 步进电机：禁用 */
-    (void)boot_do_set(M8_DO_LIFT_ENA, false);
-    (void)boot_do_set(M8_DO_LIFT_DIR, false);
-    (void)boot_do_set(M8_DO_LIFT_PUL, false);
-
     /* 水路全关 */
     (void)boot_do_set(M8_DO_WATER_PUMP,     false);
     (void)boot_do_set(M8_DO_WATER_CURTAIN,  false);

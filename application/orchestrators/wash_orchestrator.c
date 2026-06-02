@@ -12,7 +12,6 @@
 #include "domain/process/recipe.h"
 #include "domain/device/unit/brush.h"
 #include "domain/device/unit/gantry.h"
-#include "domain/device/unit/top_lift.h"
 #include "domain/device/water.h"
 #include "domain/safety/alarm_core.h"
 #include "core/event_bus/event_bus.h"
@@ -26,7 +25,6 @@
 
 #define WASH_STEP_TIMEOUT_MS    120000U
 #define STEP_POLL_INTERVAL_MS   50U
-#define LIFT_WAIT_TIMEOUT_MS    15000U
 
 static sem_t        s_start_sem;
 static atomic_bool  s_busy       = false;
@@ -37,27 +35,6 @@ static wash_mode_t  s_mode       = WASH_MODE_STANDARD;
 /* -------------------------------------------------------------------------
  * 单步执行（原 step_engine）
  * ------------------------------------------------------------------------- */
-static sw_err_t wait_lift_bottom(void)
-{
-    uint32_t elapsed_ms = 0U;
-
-    while (!top_lift_at_bottom())
-    {
-        if (atomic_load(&s_abort_req))
-        {
-            return SW_ERR_STATE;
-        }
-        usleep((unsigned long)STEP_POLL_INTERVAL_MS * 1000UL);
-        elapsed_ms += STEP_POLL_INTERVAL_MS;
-        if (elapsed_ms >= LIFT_WAIT_TIMEOUT_MS)
-        {
-            LOG_ERROR("wash_exec: wait_lift_bottom timeout");
-            return SW_ERR_TIMEOUT;
-        }
-    }
-    return SW_OK;
-}
-
 static sw_err_t apply_step(const wash_step_config_t *s, uint16_t brush_freq)
 {
     sw_err_t ret;
@@ -89,25 +66,6 @@ static sw_err_t apply_step(const wash_step_config_t *s, uint16_t brush_freq)
     else
     {
         (void)water_highpres_off();
-    }
-
-    if (s->top_lift_down)
-    {
-        ret = top_lift_down_start(0U);
-        if (ret != SW_OK)
-        {
-            LOG_ERROR("wash_exec: top_lift_down_start failed ret=%d", (int)ret);
-            return ret;
-        }
-        ret = wait_lift_bottom();
-        if (ret != SW_OK)
-        {
-            return ret;
-        }
-    }
-    else
-    {
-        (void)top_lift_up_start(0U);
     }
 
     if (s->brush_top_on)
@@ -281,7 +239,6 @@ static void *wash_worker_fn(void *arg)
         }
 
         wash_stop_all_outputs();
-        (void)top_lift_up_start(0U);
 
         dev_ctx_set_wash_progress(WASH_STEP_IDLE, s_mode);
 

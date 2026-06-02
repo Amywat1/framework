@@ -26,8 +26,6 @@ typedef enum
     MOTION_TYPE_GANTRY_FWD   = 0, /* 龙门前进 */
     MOTION_TYPE_GANTRY_REV,       /* 龙门后退 */
     MOTION_TYPE_BRUSH_SWITCH,     /* 刷子切换（接触器切换）*/
-    MOTION_TYPE_LIFT_UP,          /* 顶刷上升 */
-    MOTION_TYPE_LIFT_DOWN,        /* 顶刷下降 */
 } motion_type_t;
 
 /* -------------------------------------------------------------------------
