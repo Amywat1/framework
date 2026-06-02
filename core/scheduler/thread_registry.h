@@ -4,8 +4,9 @@
  * @author  胡望伟
  * @date    2026-04-10
  *
- * @note    各模块在 init() 阶段调用 thread_register() 登记自己的线程。
- *          core/bootstrap/bootstrap.c 最后调用 scheduler_start_all() 统一创建。
+ * @note    应用编排线程在 init() 阶段调用 thread_register() 登记；
+ *          bootstrap 最后调用 scheduler_start_all() 统一创建。
+ *          IO 读写后台线程（drv_io）由驱动模块自行管理，不在此注册。
  */
 
 #ifndef CORE_SCHEDULER_THREAD_REGISTRY_H

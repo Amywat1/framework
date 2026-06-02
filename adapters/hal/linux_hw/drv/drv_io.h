@@ -163,20 +163,20 @@ const char *drv_io_do_name(drv_io_do_t pin);
  * ------------------------------------------------------------------------- */
 /**
  * @brief  初始化 IO 子板驱动内部状态
- * @note   这里只做状态初始化，不再内部自建线程。
- *          IO 轮询线程由 bootstrap 配合 scheduler 统一注册和启动。
- *          本接口仅用于系统启动阶段初始化，不用于运行期复位。
- *          若测试场景需要重复调用本接口重置内部缓冲，调用方应在其后重新注册
- *          调试输入回调、子板状态回调和 panic 回调。
+ * @note   仅做状态初始化，不启动后台线程；线程由 drv_io_start() 启动。
+ *         本接口仅用于系统启动阶段，不用于运行期复位。
+ *         若测试场景需要重复调用本接口重置内部缓冲，调用方应在其后重新注册
+ *         调试输入回调、子板状态回调和 panic 回调，并再次调用 drv_io_start()。
  */
 sw_err_t drv_io_init(void);
 
 /**
- * @brief  IO 轮询线程入口
- * @param  arg  线程参数，当前固定传 NULL
- * @return 线程退出值，无业务语义
+ * @brief  启动 IO 读写后台线程（输入刷新 / 输出落地 / 在线检测）
+ * @note   由 IO 驱动模块自行创建 pthread，不经过 core/scheduler。
+ *         须在 drv_io_register_panic_cb() 等回调注册完成后调用。
+ * @retval SW_OK / SW_ERR_HW / SW_ERR_STATE（已启动）
  */
-void *drv_io_poll_loop(void *arg);
+sw_err_t drv_io_start(void);
 
 /**
  * @brief  立即将当前输出缓冲同步刷到硬件

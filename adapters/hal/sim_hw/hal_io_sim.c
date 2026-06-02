@@ -107,17 +107,98 @@ static void sim_register_board_status_cb(hal_io_board_status_cb_t cb)
     (void)cb;
 }
 
+static sw_err_t sim_io_init(void)
+{
+    memset(s_do_state, 0, sizeof(s_do_state));
+    memset(s_di_state, 0, sizeof(s_di_state));
+    return SW_OK;
+}
+
+static sw_err_t sim_io_start(void)
+{
+    return SW_OK;
+}
+
+static void sim_register_panic_cb(hal_io_panic_cb_t cb)
+{
+    (void)cb;
+}
+
+static sw_err_t sim_flush_outputs_now(void)
+{
+    return SW_OK;
+}
+
+static bool sim_board_is_online(int board_id)
+{
+    (void)board_id;
+    return true;
+}
+
+static bool sim_try_parse_di(const char *name, io_di_t *out)
+{
+    (void)name;
+    (void)out;
+    return false;
+}
+
+static bool sim_try_parse_do(const char *name, io_do_t *out)
+{
+    (void)name;
+    (void)out;
+    return false;
+}
+
+static const char *sim_di_name(io_di_t pin)
+{
+    (void)pin;
+    return NULL;
+}
+
+static const char *sim_do_name(io_do_t pin)
+{
+    (void)pin;
+    return NULL;
+}
+
+static int sim_board_count(void)
+{
+    return 1;
+}
+
+static sw_err_t sim_get_stats(int board_id, hal_io_stats_t *out)
+{
+    (void)board_id;
+    if (out == NULL)
+    {
+        return SW_ERR_PARAM;
+    }
+    memset(out, 0, sizeof(*out));
+    out->online = true;
+    return SW_OK;
+}
+
 static const hal_io_ops_t s_ops = {
+    .init                     = sim_io_init,
+    .start                    = sim_io_start,
+    .register_panic_cb        = sim_register_panic_cb,
+    .flush_outputs_now        = sim_flush_outputs_now,
+    .board_is_online          = sim_board_is_online,
     .do_set                   = sim_do_set,
     .di_read                  = sim_di_read,
     .register_debug_input_cb  = sim_register_debug_input_cb,
     .register_board_status_cb = sim_register_board_status_cb,
+    .try_parse_di             = sim_try_parse_di,
+    .try_parse_do             = sim_try_parse_do,
+    .di_name                  = sim_di_name,
+    .do_name                  = sim_do_name,
+    .board_count              = sim_board_count,
+    .get_stats                = sim_get_stats,
 };
 
 void hal_io_sim_register(void)
 {
-    memset(s_do_state, 0, sizeof(s_do_state));
-    memset(s_di_state, 0, sizeof(s_di_state));
     hal_io_register(&s_ops);
+    (void)sim_io_init();
     LOG_INFO("hal_io_sim: registered");
 }

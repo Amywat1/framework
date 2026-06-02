@@ -9,7 +9,7 @@
 #include "config/machine/m8_machine_config.h"
 #include "common/sw_config.h"
 #include "adapters/machine/m8/m8_machine_map.h"
-#include "adapters/hal/linux_hw/drv/drv_io.h"
+#include "ports/hal/hal_io_port.h"
 #include <pthread.h>
 #include <stdbool.h>
 
@@ -17,6 +17,17 @@ static pthread_mutex_t  s_light_mutex        = PTHREAD_MUTEX_INITIALIZER;
 static hal_light_state_t s_light_state       = HAL_LIGHT_OFF;
 static bool              s_blink_phase_on    = false;
 static unsigned int      s_blink_elapsed_ms  = 0U;
+
+static sw_err_t io_do_set(io_do_t pin, bool val)
+{
+    const hal_io_ops_t *ops = hal_io_get_ops();
+
+    if ((ops == NULL) || (ops->do_set == NULL))
+    {
+        return SW_ERR_NOT_INIT;
+    }
+    return ops->do_set(pin, val);
+}
 
 static bool indicator_is_blink_state(hal_light_state_t state)
 {
@@ -28,40 +39,40 @@ static bool indicator_is_blink_state(hal_light_state_t state)
 static void indicator_apply_outputs(hal_light_state_t state, bool blink_phase_on)
 {
     /* 先全灭再按状态点亮，防止多路同时亮 */
-    (void)drv_io_do_set(M8_DO_ENTRY_GREEN1, false);
-    (void)drv_io_do_set(M8_DO_ENTRY_GREEN2, false);
-    (void)drv_io_do_set(M8_DO_ENTRY_RED,    false);
-    (void)drv_io_do_set(M8_DO_ENTRY_YELLOW, false);
+    (void)io_do_set(M8_DO_ENTRY_GREEN1, false);
+    (void)io_do_set(M8_DO_ENTRY_GREEN2, false);
+    (void)io_do_set(M8_DO_ENTRY_RED,    false);
+    (void)io_do_set(M8_DO_ENTRY_YELLOW, false);
 
     switch (state)
     {
         case HAL_LIGHT_GREEN:
-            (void)drv_io_do_set(M8_DO_ENTRY_GREEN1, true);
-            (void)drv_io_do_set(M8_DO_ENTRY_GREEN2, true);
+            (void)io_do_set(M8_DO_ENTRY_GREEN1, true);
+            (void)io_do_set(M8_DO_ENTRY_GREEN2, true);
             break;
         case HAL_LIGHT_RED:
-            (void)drv_io_do_set(M8_DO_ENTRY_RED, true);
+            (void)io_do_set(M8_DO_ENTRY_RED, true);
             break;
         case HAL_LIGHT_YELLOW:
-            (void)drv_io_do_set(M8_DO_ENTRY_YELLOW, true);
+            (void)io_do_set(M8_DO_ENTRY_YELLOW, true);
             break;
         case HAL_LIGHT_GREEN_BLINK:
             if (blink_phase_on)
             {
-                (void)drv_io_do_set(M8_DO_ENTRY_GREEN1, true);
-                (void)drv_io_do_set(M8_DO_ENTRY_GREEN2, true);
+                (void)io_do_set(M8_DO_ENTRY_GREEN1, true);
+                (void)io_do_set(M8_DO_ENTRY_GREEN2, true);
             }
             break;
         case HAL_LIGHT_RED_BLINK:
             if (blink_phase_on)
             {
-                (void)drv_io_do_set(M8_DO_ENTRY_RED, true);
+                (void)io_do_set(M8_DO_ENTRY_RED, true);
             }
             break;
         case HAL_LIGHT_YELLOW_BLINK:
             if (blink_phase_on)
             {
-                (void)drv_io_do_set(M8_DO_ENTRY_YELLOW, true);
+                (void)io_do_set(M8_DO_ENTRY_YELLOW, true);
             }
             break;
         case HAL_LIGHT_OFF:
@@ -118,15 +129,15 @@ static void m8_entry_light_tick(void)
 
 static sw_err_t m8_rod_open(void)
 {
-    (void)drv_io_do_set(M8_DO_ROD_EXTEND,  false);
-    (void)drv_io_do_set(M8_DO_ROD_RETRACT, true);
+    (void)io_do_set(M8_DO_ROD_EXTEND,  false);
+    (void)io_do_set(M8_DO_ROD_RETRACT, true);
     return SW_OK;
 }
 
 static sw_err_t m8_rod_close(void)
 {
-    (void)drv_io_do_set(M8_DO_ROD_RETRACT, false);
-    (void)drv_io_do_set(M8_DO_ROD_EXTEND,  true);
+    (void)io_do_set(M8_DO_ROD_RETRACT, false);
+    (void)io_do_set(M8_DO_ROD_EXTEND,  true);
     return SW_OK;
 }
 

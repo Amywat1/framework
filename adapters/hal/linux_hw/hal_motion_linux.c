@@ -9,12 +9,34 @@
 #include "adapters/hal/linux_hw/m8_vfd_control.h"
 #include "adapters/machine/m8/m8_machine_map.h"
 #include "adapters/hal/linux_hw/drv/drv_stepper.h"
-#include "adapters/hal/linux_hw/drv/drv_io.h"
+#include "ports/hal/hal_io_port.h"
 #include "core/event_bus/event_bus.h"
 #include "common/log.h"
 #include "common/sw_error.h"
 
 #include <unistd.h>  /* usleep（接触器等待，非精度关键路径）*/
+
+static sw_err_t io_do_set(io_do_t pin, bool val)
+{
+    const hal_io_ops_t *ops = hal_io_get_ops();
+
+    if ((ops == NULL) || (ops->do_set == NULL))
+    {
+        return SW_ERR_NOT_INIT;
+    }
+    return ops->do_set(pin, val);
+}
+
+static bool io_di_read(io_di_t pin)
+{
+    const hal_io_ops_t *ops = hal_io_get_ops();
+
+    if ((ops == NULL) || (ops->di_read == NULL))
+    {
+        return false;
+    }
+    return ops->di_read(pin);
+}
 
 /* -------------------------------------------------------------------------
  * 龙门 VFD
@@ -51,17 +73,17 @@ static sw_err_t m8_brush_select(hal_brush_sel_t sel)
     }
 
     /* 先断开全部接触器，等 200ms 防止同时吸合 */
-    (void)drv_io_do_set(M8_DO_TOP_BRUSH_ACT,  false);
-    (void)drv_io_do_set(M8_DO_SIDE_BRUSH_ACT, false);
+    (void)io_do_set(M8_DO_TOP_BRUSH_ACT,  false);
+    (void)io_do_set(M8_DO_SIDE_BRUSH_ACT, false);
     usleep((unsigned long)M8_BRUSH_CONTACTOR_WAIT_MS * 1000UL);
 
     if (sel == HAL_BRUSH_TOP)
     {
-        (void)drv_io_do_set(M8_DO_TOP_BRUSH_ACT, true);
+        (void)io_do_set(M8_DO_TOP_BRUSH_ACT, true);
     }
     else
     {
-        (void)drv_io_do_set(M8_DO_SIDE_BRUSH_ACT, true);
+        (void)io_do_set(M8_DO_SIDE_BRUSH_ACT, true);
     }
 
     LOG_INFO("hal_motion: brush_select sel=%d", (int)sel);
@@ -105,7 +127,7 @@ static sw_err_t m8_lift_up_start(uint32_t pulses)
         remaining -= batch;
 
         /* 每批后检查上限位 */
-        if (drv_io_di_read(M8_DI_LIFT_UP_LIM))
+        if (io_di_read(M8_DI_LIFT_UP_LIM))
         {
             LOG_INFO("hal_motion: lift_up reached top limit");
             break;
@@ -134,7 +156,7 @@ static sw_err_t m8_lift_down_start(uint32_t pulses)
         remaining -= batch;
 
         /* 每批后检查下限位（防止过冲）*/
-        if (drv_io_di_read(M8_DI_LIFT_DOWN_LIM))
+        if (io_di_read(M8_DI_LIFT_DOWN_LIM))
         {
             LOG_INFO("hal_motion: lift_down reached bottom limit");
             break;

@@ -23,8 +23,8 @@
 #include "domain/model/alarm_code.h"
 #include "ports/cloud/command_port.h"
 #include "domain/safety/alarm_core.h"
-#include "adapters/hal/linux_hw/drv/drv_io.h"
 #include "ports/hal/hal_io_port.h"
+#include "common/io_handle.h"
 #include "service/dev_ctx/dev_ctx.h"
 #include "service/svc_param/svc_param.h"
 
@@ -256,7 +256,7 @@ int diag_cmd_handler(char *subcmd, char *p1, char *p2)
     if (strcmp(subcmd, "do") == 0)
     {
         const hal_io_ops_t *ops = hal_io_get_ops();
-        drv_io_do_t         pin = {0};
+        io_do_t             pin = {0};
         int                 val = 0;
 
         if ((p1 == NULL) || (p2 == NULL))
@@ -265,13 +265,13 @@ int diag_cmd_handler(char *subcmd, char *p1, char *p2)
             return 1;
         }
 
-        if ((ops == NULL) || (ops->do_set == NULL))
+        if ((ops == NULL) || (ops->do_set == NULL) || (ops->try_parse_do == NULL))
         {
             LOG_ERROR("diag do: hal_io ops not ready");
             return 1;
         }
 
-        if (!drv_io_try_parse_do(p1, &pin))
+        if (!ops->try_parse_do(p1, &pin))
         {
             LOG_ERROR("diag do: unknown DO name '%s'", p1);
             log_diag_do_usage();
@@ -280,9 +280,10 @@ int diag_cmd_handler(char *subcmd, char *p1, char *p2)
 
         val = atoi(p2);
         LOG_INFO("diag do: %s(board=%u,pin=%u) <= %d",
-                 drv_io_do_name(pin) != NULL ? drv_io_do_name(pin) : "DO_UNKNOWN",
-                 (unsigned)drv_io_handle_board(drv_io_do_raw(pin)),
-                 (unsigned)drv_io_handle_pin(drv_io_do_raw(pin)),
+                 (ops->do_name != NULL) && (ops->do_name(pin) != NULL)
+                     ? ops->do_name(pin) : "DO_UNKNOWN",
+                 (unsigned)io_handle_board(io_do_raw(pin)),
+                 (unsigned)io_handle_pin(io_do_raw(pin)),
                  val != 0);
         LOG_INFO("diag do: ret=%d", (int)ops->do_set(pin, val != 0));
         return 1;
@@ -291,7 +292,7 @@ int diag_cmd_handler(char *subcmd, char *p1, char *p2)
     if (strcmp(subcmd, "di") == 0)
     {
         const hal_io_ops_t *ops = hal_io_get_ops();
-        drv_io_di_t         pin = {0};
+        io_di_t             pin = {0};
         bool                val = false;
 
         if (p1 == NULL)
@@ -300,13 +301,13 @@ int diag_cmd_handler(char *subcmd, char *p1, char *p2)
             return 1;
         }
 
-        if ((ops == NULL) || (ops->di_read == NULL))
+        if ((ops == NULL) || (ops->di_read == NULL) || (ops->try_parse_di == NULL))
         {
             LOG_ERROR("diag di: hal_io ops not ready");
             return 1;
         }
 
-        if (!drv_io_try_parse_di(p1, &pin))
+        if (!ops->try_parse_di(p1, &pin))
         {
             LOG_ERROR("diag di: unknown DI name '%s'", p1);
             log_diag_di_usage();
@@ -315,17 +316,27 @@ int diag_cmd_handler(char *subcmd, char *p1, char *p2)
 
         val = ops->di_read(pin);
         LOG_INFO("diag di: %s(board=%u,pin=%u) = %d",
-                 drv_io_di_name(pin) != NULL ? drv_io_di_name(pin) : "DI_UNKNOWN",
-                 (unsigned)drv_io_handle_board(drv_io_di_raw(pin)),
-                 (unsigned)drv_io_handle_pin(drv_io_di_raw(pin)),
+                 (ops->di_name != NULL) && (ops->di_name(pin) != NULL)
+                     ? ops->di_name(pin) : "DI_UNKNOWN",
+                 (unsigned)io_handle_board(io_di_raw(pin)),
+                 (unsigned)io_handle_pin(io_di_raw(pin)),
                  (int)val);
         return 1;
     }
 
     if (strcmp(subcmd, "io") == 0)
     {
-        int first_board = 1;
-        int last_board  = drv_io_board_count();
+        const hal_io_ops_t *ops = hal_io_get_ops();
+        int                 first_board = 1;
+        int                 last_board  = 1;
+
+        if ((ops == NULL) || (ops->board_count == NULL) || (ops->get_stats == NULL))
+        {
+            LOG_ERROR("diag io: hal_io ops not ready");
+            return 1;
+        }
+
+        last_board = ops->board_count();
 
         if (p1 != NULL)
         {
@@ -333,7 +344,7 @@ int diag_cmd_handler(char *subcmd, char *p1, char *p2)
             last_board  = first_board;
         }
 
-        if ((first_board <= 0) || (last_board > drv_io_board_count()))
+        if ((first_board <= 0) || (last_board > ops->board_count()))
         {
             LOG_ERROR("diag io: invalid board id %d", first_board);
             log_diag_io_usage();
@@ -342,8 +353,8 @@ int diag_cmd_handler(char *subcmd, char *p1, char *p2)
 
         for (int board_id = first_board; board_id <= last_board; ++board_id)
         {
-            drv_io_stats_t stats = {0};
-            sw_err_t       ret   = drv_io_get_stats(board_id, &stats);
+            hal_io_stats_t stats = {0};
+            sw_err_t       ret   = ops->get_stats(board_id, &stats);
 
             if (ret != SW_OK)
             {

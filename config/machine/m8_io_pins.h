@@ -4,7 +4,7 @@
  * @author  胡望伟
  * @date    2026-06-01
  *
- * @note    引脚编号与 config/machine/m8_io_table.h 一致，供 motor/vfd 等配置表使用。
+ * @note    引脚编号由 config/machine/m8_io_table.h 展开生成，与 drv_io 名称表同源。
  */
 
 #ifndef CONFIG_MACHINE_M8_IO_PINS_H
@@ -12,17 +12,28 @@
 
 #include "common/io_handle.h"
 
-/* DI */
-#define M8_IO_DI_GANTRY_ENCODER_PULSE   IO_DI(1U, 12U)
-#define M8_IO_DI_GANTRY_FWD_LIM         IO_DI(1U, 13U)
-#define M8_IO_DI_GANTRY_REV_LIM         IO_DI(1U, 14U)
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-/* DO */
-#define M8_IO_DO_SIDE_BRUSH_FWD         IO_DO(1U, 11U)
-#define M8_IO_DO_SIDE_BRUSH_REV         IO_DO(1U, 12U)
-#define M8_IO_DO_SIDE_BRUSH_RST         IO_DO(1U, 13U)
-#define M8_IO_DO_GANTRY_FWD             IO_DO(1U, 14U)
-#define M8_IO_DO_GANTRY_REV             IO_DO(1U, 15U)
-#define M8_IO_DO_GANTRY_RST             IO_DO(1U, 16U)
+#define M8_IO_TABLE_DI(name, board, pin, desc) \
+    static const io_di_t M8_IO_DI_##name = IO_DI((board), (pin));
+
+#define DRV_IO_DI_DEF(name, board, pin, desc) M8_IO_TABLE_DI(name, board, pin, desc)
+#include "config/machine/m8_io_table.h"
+#undef DRV_IO_DI_DEF
+#undef M8_IO_TABLE_DI
+
+#define M8_IO_TABLE_DO(name, board, pin, desc) \
+    static const io_do_t M8_IO_DO_##name = IO_DO((board), (pin));
+
+#define DRV_IO_DO_DEF(name, board, pin, desc) M8_IO_TABLE_DO(name, board, pin, desc)
+#include "config/machine/m8_io_table.h"
+#undef DRV_IO_DO_DEF
+#undef M8_IO_TABLE_DO
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* CONFIG_MACHINE_M8_IO_PINS_H */

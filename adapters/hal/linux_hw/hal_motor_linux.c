@@ -10,13 +10,35 @@
 #include "adapters/hal/linux_hw/m8_vfd_control.h"
 #include "adapters/hal/linux_hw/m8_hal_ctx.h"
 #include "adapters/machine/m8/m8_signal_filter.h"
-#include "adapters/hal/linux_hw/drv/drv_io.h"
+#include "ports/hal/hal_io_port.h"
 #include "adapters/hal/linux_hw/drv/drv_vfd.h"
 #include "common/log.h"
 
 /* io-exp SDK 头文件不在仓库内，这里按实际用法声明脉冲计数接口。 */
 extern int io_pluse_read(int board_id, int pin_id);
 extern int io_SDO_write(int board_id, int index, int sub_index, int *data);
+
+static bool hal_io_board_online(int board_id)
+{
+    const hal_io_ops_t *ops = hal_io_get_ops();
+
+    if ((ops == NULL) || (ops->board_is_online == NULL))
+    {
+        return false;
+    }
+    return ops->board_is_online(board_id);
+}
+
+static bool hal_io_di_read_pin(io_di_t pin)
+{
+    const hal_io_ops_t *ops = hal_io_get_ops();
+
+    if ((ops == NULL) || (ops->di_read == NULL))
+    {
+        return false;
+    }
+    return ops->di_read(pin);
+}
 
 static bool is_do_valid(io_do_t pin)
 {
@@ -85,7 +107,7 @@ static bool m8_motor_encoder_counter_online(int id)
     }
 
     (void)pin_id;
-    return drv_io_board_is_online(board_id);
+    return hal_io_board_online(board_id);
 }
 
 static sw_err_t set_vfd_output(int id, int speed_ref)
@@ -140,7 +162,7 @@ static bool m8_motor_at_fwd_limit(int id)
      * config/machine/m8_signal_table.h，再改为读取滤波后的稳定态，
      * 不能长期停留在这里直接读原始 IO。
      */
-    return drv_io_di_read((drv_io_di_t)cfg->limit_io_cw);
+    return hal_io_di_read_pin(cfg->limit_io_cw);
 }
 
 static bool m8_motor_at_rev_limit(int id)
@@ -166,7 +188,7 @@ static bool m8_motor_at_rev_limit(int id)
      * 若后续新增其它 MOVE 类电机并带限位，必须先将对应 DI 接入
      * config/machine/m8_signal_table.h，再改为读取滤波后的稳定态。
      */
-    return drv_io_di_read((drv_io_di_t)cfg->limit_io_ccw);
+    return hal_io_di_read_pin(cfg->limit_io_ccw);
 }
 
 static sw_err_t m8_motor_read_hw_pulse(int id, uint32_t *p_value)
@@ -188,7 +210,7 @@ static sw_err_t m8_motor_read_hw_pulse(int id, uint32_t *p_value)
     {
         return ret;
     }
-    if (!drv_io_board_is_online(board_id))
+    if (!hal_io_board_online(board_id))
     {
         return SW_ERR_COMM;
     }
@@ -223,7 +245,7 @@ static sw_err_t m8_motor_clear_hw_pulse(int id)
     {
         return err;
     }
-    if (!drv_io_board_is_online(board_id))
+    if (!hal_io_board_online(board_id))
     {
         return SW_ERR_COMM;
     }

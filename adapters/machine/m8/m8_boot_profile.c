@@ -9,7 +9,7 @@
  */
 
 #include "adapters/machine/m8/m8_machine_map.h"
-#include "adapters/hal/linux_hw/drv/drv_io.h"
+#include "ports/hal/hal_io_port.h"
 #include "common/log.h"
 #include "common/sw_error.h"
 #include "io_exp/slave.h"       /* io_online_get()：启动阶段同步探测 IO 子板在线状态 */
@@ -18,6 +18,28 @@
 
 #define BOOT_IO_POLL_INTERVAL_MS    50U     /* 就绪轮询间隔（ms）*/
 #define BOOT_IO_TIMEOUT_MS          3000U   /* 最长等待时间（ms）*/
+
+static sw_err_t boot_do_set(io_do_t pin, bool val)
+{
+    const hal_io_ops_t *ops = hal_io_get_ops();
+
+    if ((ops == NULL) || (ops->do_set == NULL))
+    {
+        return SW_ERR_NOT_INIT;
+    }
+    return ops->do_set(pin, val);
+}
+
+static sw_err_t boot_flush_outputs(void)
+{
+    const hal_io_ops_t *ops = hal_io_get_ops();
+
+    if ((ops == NULL) || (ops->flush_outputs_now == NULL))
+    {
+        return SW_ERR_NOT_INIT;
+    }
+    return ops->flush_outputs_now();
+}
 
 /**
  * @brief  将所有数字输出置安全状态（关断）
@@ -29,44 +51,44 @@
 void m8_assert_safe_outputs(void)
 {
     /* 入口指示灯全灭 */
-    (void)drv_io_do_set(M8_DO_ENTRY_GREEN1, false);
-    (void)drv_io_do_set(M8_DO_ENTRY_GREEN2, false);
-    (void)drv_io_do_set(M8_DO_ENTRY_RED,    false);
-    (void)drv_io_do_set(M8_DO_ENTRY_YELLOW, false);
+    (void)boot_do_set(M8_DO_ENTRY_GREEN1, false);
+    (void)boot_do_set(M8_DO_ENTRY_GREEN2, false);
+    (void)boot_do_set(M8_DO_ENTRY_RED,    false);
+    (void)boot_do_set(M8_DO_ENTRY_YELLOW, false);
 
     /* 入口挡杆：伸出（拦截）*/
-    (void)drv_io_do_set(M8_DO_ROD_RETRACT, false);
-    (void)drv_io_do_set(M8_DO_ROD_EXTEND,  true);
+    (void)boot_do_set(M8_DO_ROD_RETRACT, false);
+    (void)boot_do_set(M8_DO_ROD_EXTEND,  true);
 
     /* 接触器全部断开 */
-    (void)drv_io_do_set(M8_DO_TOP_BRUSH_ACT,  false);
-    (void)drv_io_do_set(M8_DO_SIDE_BRUSH_ACT, false);
+    (void)boot_do_set(M8_DO_TOP_BRUSH_ACT,  false);
+    (void)boot_do_set(M8_DO_SIDE_BRUSH_ACT, false);
 
     /* 龙门 VFD 控制信号清零 */
-    (void)drv_io_do_set(M8_DO_GANTRY_FWD, false);
-    (void)drv_io_do_set(M8_DO_GANTRY_REV, false);
-    (void)drv_io_do_set(M8_DO_GANTRY_RST, false);
+    (void)boot_do_set(M8_DO_GANTRY_FWD, false);
+    (void)boot_do_set(M8_DO_GANTRY_REV, false);
+    (void)boot_do_set(M8_DO_GANTRY_RST, false);
 
     /* 刷子 VFD 控制信号清零 */
-    (void)drv_io_do_set(M8_DO_BRUSH_FWD, false);
-    (void)drv_io_do_set(M8_DO_BRUSH_RST, false);
+    (void)boot_do_set(M8_DO_BRUSH_FWD, false);
+    (void)boot_do_set(M8_DO_BRUSH_RST, false);
 
     /* 步进电机：禁用 */
-    (void)drv_io_do_set(M8_DO_LIFT_ENA, false);
-    (void)drv_io_do_set(M8_DO_LIFT_DIR, false);
-    (void)drv_io_do_set(M8_DO_LIFT_PUL, false);
+    (void)boot_do_set(M8_DO_LIFT_ENA, false);
+    (void)boot_do_set(M8_DO_LIFT_DIR, false);
+    (void)boot_do_set(M8_DO_LIFT_PUL, false);
 
     /* 水路全关 */
-    (void)drv_io_do_set(M8_DO_WATER_PUMP,     false);
-    (void)drv_io_do_set(M8_DO_WATER_CURTAIN,  false);
-    (void)drv_io_do_set(M8_DO_WATER_FOAM,     false);
-    (void)drv_io_do_set(M8_DO_WATER_BRUSH,    false);
-    (void)drv_io_do_set(M8_DO_WATER_HIGHPRES, false);
+    (void)boot_do_set(M8_DO_WATER_PUMP,     false);
+    (void)boot_do_set(M8_DO_WATER_CURTAIN,  false);
+    (void)boot_do_set(M8_DO_WATER_FOAM,     false);
+    (void)boot_do_set(M8_DO_WATER_BRUSH,    false);
+    (void)boot_do_set(M8_DO_WATER_HIGHPRES, false);
 
     /* 同步刷新到硬件：绕过后台线程，立即写 CAN 总线
      * 普通上电路径下可确保安全态在后续初始化前已落硬件；
      * panic 路径（fatal 回调 / 全板离线回调）下可确保 abort() 前输出已尽力发出 */
-    (void)drv_io_flush_outputs_now();
+    (void)boot_flush_outputs();
 }
 
 /**
@@ -105,7 +127,7 @@ static sw_err_t m8_wait_io_ready(void)
 }
 
 /**
- * @brief  M8 上电启动安全初始化（由 bootstrap 在 drv_io_init 之后调用）
+ * @brief  M8 上电启动安全初始化（由 bootstrap 在 hal_io init 之后调用）
  *
  * 返回值约定（设计为返回 SW_OK 即使 IO 超时）：
  *   - 若 IO 子板在超时内就绪：执行安全清零，返回 SW_OK。
@@ -125,7 +147,7 @@ sw_err_t m8_boot_profile_init(void)
     io_ret = m8_wait_io_ready();
     if (io_ret != SW_OK)
     {
-        /* 超时：告警但继续，后续由 drv_io / alarm 链路检测 IO 离线 */
+        /* 超时：告警但继续，后续由 hal_io / alarm 链路检测 IO 离线 */
         LOG_WARN("m8_boot: IO board not ready within %u ms, proceeding with alarm",
                  BOOT_IO_TIMEOUT_MS);
     }

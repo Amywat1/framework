@@ -4,7 +4,7 @@
  * @author  胡望伟
  * @date    2026-04-10
  *
- * @note    所有线程由 core/scheduler 统一创建，参数集中于此。
+ * @note    应用层线程由 core/scheduler 统一创建；IO 读写后台线程由 drv_io 自行管理。
  *          优先级适用于 SCHED_OTHER（范围 0~0）或 SCHED_FIFO（范围 1~99）。
  *          SCHED_OTHER 使用 nice 值（-20~19），此处用 0 = 默认。
  */
@@ -31,13 +31,10 @@
 #define THD_EVENT_DISPATCH_STACK     (16U * 1024U)
 #define THD_EVENT_DISPATCH_NICE      0
 
-/* IO 读写线程（SCHED_OTHER）*/
-#define THD_IO_RW_STACK              (16U * 1024U)
-
-/* IO 轮询线程（SCHED_OTHER）*/
+/* IO 轮询线程（SCHED_OTHER，经 scheduler 注册）*/
 #define THD_IO_POLL_STACK            (16U * 1024U)
 #define THD_IO_POLL_NICE             0
-#define THD_IO_POLL_PERIOD_MS        30U   /* 对应原 CFG_IO_UPDATE_FREQ_MS */
+#define THD_IO_POLL_PERIOD_MS        30U   /* 与 drv_io 刷新周期一致 */
 
 /* 洗车工作线程（SCHED_OTHER）*/
 #define THD_WASH_WORKER_STACK        (32U * 1024U)

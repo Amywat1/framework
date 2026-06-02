@@ -27,6 +27,7 @@
 #include "adapters/machine/m8/m8_alarm_adapt.h"
 #include "adapters/machine/m8/m8_signal_filter.h"
 #include "adapters/machine/m8/m8_io_poll.h"
+#include "ports/hal/hal_io_port.h"
 #include "ports/storage/deploy_store.h"
 #include "config/threading/thread_config.h"
 #include "common/time_util.h"
@@ -38,7 +39,6 @@
 #ifndef BUILD_SIM
 #  include "adapters/machine/m8/m8_boot_profile.h"
 #  include "adapters/hal/linux_hw/m8_hal_ctx.h"
-#  include "adapters/hal/linux_hw/drv/drv_io.h"
 extern void aliyun_command_adapter_init(void);
 extern void cli_adapter_init(void);
 #endif
@@ -81,12 +81,24 @@ static sw_err_t bootstrap_init_infra(void)
     BOOT_CHECK(event_bus_init(), "event_bus_init");
     event_bus_set_fatal_cb(system_panic_safe_stop);
 
-#ifndef BUILD_SIM
-    BOOT_CHECK(drv_io_init(), "drv_io_init");
-    drv_io_register_panic_cb(m8_assert_safe_outputs);
-#endif
-
     BOOT_CHECK(wiring(), "wiring");
+
+    {
+        const hal_io_ops_t *io = hal_io_get_ops();
+
+        if ((io == NULL) || (io->init == NULL))
+        {
+            LOG_ERROR("bootstrap: hal_io ops not registered");
+            return SW_ERR_NOT_INIT;
+        }
+        BOOT_CHECK(io->init(), "hal_io_init");
+#ifndef BUILD_SIM
+        if (io->register_panic_cb != NULL)
+        {
+            io->register_panic_cb(m8_assert_safe_outputs);
+        }
+#endif
+    }
 
 #ifndef BUILD_SIM
     BOOT_CHECK(m8_linux_hw_init(), "m8_linux_hw_init");
@@ -168,11 +180,14 @@ static sw_err_t bootstrap_start_threads(void)
                "register event_dispatch_thread");
 
 #ifndef BUILD_SIM
-    BOOT_CHECK(thread_register("io_rw",
-                               drv_io_poll_loop,
-                               SCHED_OTHER, 0,
-                               THD_IO_RW_STACK),
-               "register io_rw_thread");
+    {
+        const hal_io_ops_t *io = hal_io_get_ops();
+
+        if ((io != NULL) && (io->start != NULL))
+        {
+            BOOT_CHECK(io->start(), "hal_io_start");
+        }
+    }
 #endif
 
     BOOT_CHECK(m8_io_poll_register(), "register io_poll_thread");

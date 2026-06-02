@@ -6,6 +6,8 @@
         "drv_io_def.h": "c",
         "hal_io_port.h": "c",
         "drv_io.h": "c",
-        "m8_io_table.h": "c"
+        "m8_io_table.h": "c",
+        "m8_machine_config.h": "c",
+        "m8_io_config.h": "c"
     }
 }

@@ -21,14 +21,19 @@
 
 #include "common/log.h"
 #include "common/time_util.h"
-#include "config/machine/m8_machine_config.h"
+#include "config/machine/m8_io_config.h"
 #include "io_exp/slave.h"
 
 /* -------------------------------------------------------------------------
  * 内部常量
  * ------------------------------------------------------------------------- */
-#define IO_BOARD_MAX    7U      /* 最大子板数，含 0 号占位 */
-#define IO_PIN_COUNT    32U     /* 每块子板最多 32 个 IO 点 */
+#define IO_BOARD_MAX            7U      /* 最大子板数，含 0 号占位 */
+#define IO_PIN_COUNT            32U     /* 每块子板最多 32 个 IO 点 */
+#define IO_RW_STACK_BYTES       (16U * 1024U)   /* io_rw 线程栈，不经 scheduler */
+#define IO_UPDATE_FREQ_MS       30U     /* 输入/输出缓冲刷新周期（ms） */
+#define IO_CHECK_OFFLINE_MS     300U    /* 全部在线时的在线检测间隔（ms） */
+#define IO_CHECK_ONLINE_MS      2000U   /* 存在掉线子板时的重连检测间隔（ms） */
+#define IO_OFFLINE_CNT          3U      /* 连续无响应次数达到该值后判定掉线 */
 
 typedef struct
 {
@@ -70,6 +75,7 @@ static bool s_test_value[IO_BOARD_MAX][IO_PIN_COUNT + 1U]  = {{false}};
 static drv_io_debug_input_cb_t s_debug_input_cb = NULL;
 static void (*s_board_error_cb)(int board_id, bool offline) = NULL;
 static void (*s_panic_cb)(void) = NULL;
+static bool                   s_io_rw_started = false;
 
 /* -------------------------------------------------------------------------
  * 内部辅助
@@ -231,15 +237,14 @@ const char *drv_io_do_name(drv_io_do_t pin)
 }
 
 /* -------------------------------------------------------------------------
- * IO 轮询线程
- * 线程由 scheduler 统一创建，本文件只提供线程入口，不再在 drv_io_init() 内部自建线程。
+ * IO 读写后台线程（模块自管，不经 scheduler）
  * ------------------------------------------------------------------------- */
-void *drv_io_poll_loop(void *arg)
+static void *drv_io_poll_loop(void *arg)
 {
     uint16_t loop_cnt = 0U;
     uint8_t  offline_cnt[IO_BOARD_MAX]              = {0U};
     bool     offline_confirmed[IO_BOARD_MAX]        = {false};
-    int      check_interval_ms                      = CFG_IO_CHECK_OFFLINE_MS;
+    int      check_interval_ms                      = IO_CHECK_OFFLINE_MS;
 
     (void)arg;
 
@@ -252,7 +257,7 @@ void *drv_io_poll_loop(void *arg)
 
         for (int i = 1; i <= CFG_IO_BOARD_COUNT; ++i)
         {
-            int check_loops = check_interval_ms / CFG_IO_UPDATE_FREQ_MS;
+            int check_loops = check_interval_ms / IO_UPDATE_FREQ_MS;
             if (check_loops < 1)
             {
                 check_loops = 1;
@@ -301,10 +306,10 @@ void *drv_io_poll_loop(void *arg)
                 }
                 else
                 {
-                    if (offline_cnt[i] < (uint8_t)CFG_IO_OFFLINE_CNT)
+                    if (offline_cnt[i] < (uint8_t)IO_OFFLINE_CNT)
                     {
                         ++offline_cnt[i];
-                        if (offline_cnt[i] >= (uint8_t)CFG_IO_OFFLINE_CNT)
+                        if (offline_cnt[i] >= (uint8_t)IO_OFFLINE_CNT)
                         {
                             uint32_t now_ms = time_util_get_ms();
 
@@ -391,7 +396,7 @@ void *drv_io_poll_loop(void *arg)
                 ++offline_confirmed_count;
             }
 
-            usleep((unsigned int)(CFG_IO_UPDATE_FREQ_MS * 1000) / (unsigned int)CFG_IO_BOARD_COUNT);
+            usleep((unsigned int)(IO_UPDATE_FREQ_MS * 1000) / (unsigned int)CFG_IO_BOARD_COUNT);
         }
 
         /* 全板离线：先尽力置安全态，再交给 systemd 拉起进程 */
@@ -418,8 +423,8 @@ void *drv_io_poll_loop(void *arg)
         }
 
         check_interval_ms = (online_count == CFG_IO_BOARD_COUNT)
-                          ? CFG_IO_CHECK_OFFLINE_MS
-                          : CFG_IO_CHECK_ONLINE_MS;
+                          ? IO_CHECK_OFFLINE_MS
+                          : IO_CHECK_ONLINE_MS;
     }
 }
 
@@ -443,6 +448,33 @@ sw_err_t drv_io_init(void)
     s_panic_cb       = NULL;
 
     LOG_INFO("drv_io init ok, board_count=%d", CFG_IO_BOARD_COUNT);
+    return SW_OK;
+}
+
+sw_err_t drv_io_start(void)
+{
+    pthread_attr_t attr;
+    pthread_t      tid;
+
+    if (s_io_rw_started)
+    {
+        return SW_ERR_STATE;
+    }
+
+    pthread_attr_init(&attr);
+    (void)pthread_attr_setstacksize(&attr, (size_t)IO_RW_STACK_BYTES);
+
+    if (pthread_create(&tid, &attr, drv_io_poll_loop, NULL) != 0)
+    {
+        pthread_attr_destroy(&attr);
+        LOG_ERROR("drv_io_start: pthread_create failed");
+        return SW_ERR_HW;
+    }
+
+    pthread_detach(tid);
+    pthread_attr_destroy(&attr);
+    s_io_rw_started = true;
+    LOG_INFO("drv_io: io_rw thread started");
     return SW_OK;
 }
 

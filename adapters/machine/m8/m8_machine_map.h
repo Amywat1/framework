@@ -9,16 +9,16 @@
  *
  *          硬件参数（总线名、地址、脉冲宽度等）的唯一权威来源是
  *          config/machine/m8_machine_config.h。
- *          本文件只做两件事：
- *            1. 引入该配置文件（通过项目根路径）
- *            2. 为适配器层提供 DO/DI 引脚的 M8_ 前缀别名
+ *          IO 句柄来自 config/machine/m8_io_pins.h（与 m8_io_table.h 同源）。
+ *          本文件为适配器层提供 M8_ 前缀别名。
  */
 
 #ifndef ADAPTERS_MACHINE_M8_MACHINE_MAP_H
 #define ADAPTERS_MACHINE_M8_MACHINE_MAP_H
 
-#include "config/machine/m8_machine_config.h"  /* 唯一参数来源 */
-#include "adapters/hal/linux_hw/drv/drv_io.h"                      /* drv_io_do_t / drv_io_di_t 类型 */
+#include "config/machine/m8_machine_config.h"
+#include "config/machine/m8_io_config.h"
+#include "config/machine/m8_io_pins.h"
 
 /* -------------------------------------------------------------------------
  * IO 子板 CAN 总线参数 — 直接使用 CFG_* 宏（在此文件中作为 M8_ 别名）
@@ -42,38 +42,38 @@
 #define M8_BRUSH_CONTACTOR_WAIT_MS  CFG_BRUSH_CONTACTOR_WAIT_MS
 
 /* -------------------------------------------------------------------------
- * 数字输出引脚别名（图纸 DO 编号 → drv_io 枚举，仅提升可读性）
+ * 数字输出引脚别名
  * ------------------------------------------------------------------------- */
-#define M8_DO_ENTRY_GREEN1      DO_ENTRY_GREEN1
-#define M8_DO_ENTRY_GREEN2      DO_ENTRY_GREEN2
-#define M8_DO_ENTRY_RED         DO_ENTRY_RED
-#define M8_DO_ENTRY_YELLOW      DO_ENTRY_YELLOW
-#define M8_DO_ROD_EXTEND        DO_ROD_EXTEND
-#define M8_DO_ROD_RETRACT       DO_ROD_RETRACT
-#define M8_DO_WATER_PUMP        DO_WATER_PUMP
-#define M8_DO_WATER_CURTAIN     DO_WATER_CURTAIN
-#define M8_DO_WATER_FOAM        DO_WATER_FOAM
-#define M8_DO_WATER_BRUSH       DO_WATER_BRUSH
-#define M8_DO_WATER_HIGHPRES    DO_WATER_HIGHPRES
-#define M8_DO_GANTRY_FWD        DO_GANTRY_FWD
-#define M8_DO_GANTRY_REV        DO_GANTRY_REV
-#define M8_DO_GANTRY_RST        DO_GANTRY_RST
-#define M8_DO_BRUSH_FWD         DO_SIDE_BRUSH_FWD
-#define M8_DO_BRUSH_RST         DO_SIDE_BRUSH_RST
-#define M8_DO_TOP_BRUSH_ACT     DO_TOP_BRUSH_ACT    /* 接触器1：顶刷接 VFD */
-#define M8_DO_SIDE_BRUSH_ACT    DO_SIDE_BRUSH_ACT   /* 接触器2：侧刷接 VFD */
-#define M8_DO_LIFT_ENA          DO_TOP_LIFT_ENA
-#define M8_DO_LIFT_DIR          DO_TOP_LIFT_DIR
-#define M8_DO_LIFT_PUL          DO_TOP_LIFT_PUL
+#define M8_DO_ENTRY_GREEN1      M8_IO_DO_ENTRY_GREEN1
+#define M8_DO_ENTRY_GREEN2      M8_IO_DO_ENTRY_GREEN2
+#define M8_DO_ENTRY_RED         M8_IO_DO_ENTRY_RED
+#define M8_DO_ENTRY_YELLOW      M8_IO_DO_ENTRY_YELLOW
+#define M8_DO_ROD_EXTEND        M8_IO_DO_ROD_EXTEND
+#define M8_DO_ROD_RETRACT       M8_IO_DO_ROD_RETRACT
+#define M8_DO_WATER_PUMP        M8_IO_DO_WATER_PUMP
+#define M8_DO_WATER_CURTAIN     M8_IO_DO_WATER_CURTAIN
+#define M8_DO_WATER_FOAM        M8_IO_DO_WATER_FOAM
+#define M8_DO_WATER_BRUSH       M8_IO_DO_WATER_BRUSH
+#define M8_DO_WATER_HIGHPRES    M8_IO_DO_WATER_HIGHPRES
+#define M8_DO_GANTRY_FWD        M8_IO_DO_GANTRY_FWD
+#define M8_DO_GANTRY_REV        M8_IO_DO_GANTRY_REV
+#define M8_DO_GANTRY_RST        M8_IO_DO_GANTRY_RST
+#define M8_DO_BRUSH_FWD         M8_IO_DO_SIDE_BRUSH_FWD
+#define M8_DO_BRUSH_RST         M8_IO_DO_SIDE_BRUSH_RST
+#define M8_DO_TOP_BRUSH_ACT     M8_IO_DO_TOP_BRUSH_ACT
+#define M8_DO_SIDE_BRUSH_ACT    M8_IO_DO_SIDE_BRUSH_ACT
+#define M8_DO_LIFT_ENA          M8_IO_DO_TOP_LIFT_ENA
+#define M8_DO_LIFT_DIR          M8_IO_DO_TOP_LIFT_DIR
+#define M8_DO_LIFT_PUL          M8_IO_DO_TOP_LIFT_PUL
 
 /* -------------------------------------------------------------------------
  * 数字输入引脚别名
  * ------------------------------------------------------------------------- */
-#define M8_DI_GANTRY_FWD_LIM    DI_GANTRY_FWD_LIMIT
-#define M8_DI_GANTRY_REV_LIM    DI_GANTRY_REV_LIMIT
-#define M8_DI_LIFT_UP_LIM       DI_LIFT_UP_LIMIT
-#define M8_DI_LIFT_DOWN_LIM     DI_LIFT_DOWN_LIMIT
-#define M8_DI_ENCODER           DI_GANTRY_ENCODER_PULSE
-#define M8_DI_ESTOP             DI_ESTOP
+#define M8_DI_GANTRY_FWD_LIM    M8_IO_DI_GANTRY_FWD_LIMIT
+#define M8_DI_GANTRY_REV_LIM    M8_IO_DI_GANTRY_REV_LIMIT
+#define M8_DI_LIFT_UP_LIM       M8_IO_DI_LIFT_UP_LIMIT
+#define M8_DI_LIFT_DOWN_LIM     M8_IO_DI_LIFT_DOWN_LIMIT
+#define M8_DI_ENCODER           M8_IO_DI_GANTRY_ENCODER_PULSE
+#define M8_DI_ESTOP             M8_IO_DI_ESTOP
 
 #endif /* ADAPTERS_MACHINE_M8_MACHINE_MAP_H */

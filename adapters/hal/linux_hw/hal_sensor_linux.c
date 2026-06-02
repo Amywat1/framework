@@ -8,7 +8,7 @@
 #include "ports/hal/hal_sensor_port.h"
 #include "adapters/hal/linux_hw/m8_hal_ctx.h"
 #include "adapters/machine/m8/m8_signal_filter.h"
-#include "adapters/hal/linux_hw/drv/drv_io.h"
+#include "ports/hal/hal_io_port.h"
 #include "adapters/hal/linux_hw/drv/drv_vfd.h"
 #include "common/log.h"
 
@@ -17,7 +17,7 @@ static void m8_poll_input_events(void)
     /* 真机路径下编码器由硬件脉冲计数器完成，接口保留供报警轮询调用。 */
 }
 
-/* IO 子板在线状态变化回调（离线检测由 drv_io / alarm 链路负责） */
+/* IO 子板在线状态变化回调（离线检测由 hal_io / alarm 链路负责） */
 static void io_board_status_cb(int board_id, bool offline)
 {
     if (offline)
@@ -70,6 +70,11 @@ static const hal_sensor_ops_t s_ops = {
 
 void hal_sensor_linux_register(void)
 {
-    drv_io_register_board_error_cb(io_board_status_cb);
+    const hal_io_ops_t *ops = hal_io_get_ops();
+
+    if ((ops != NULL) && (ops->register_board_status_cb != NULL))
+    {
+        ops->register_board_status_cb(io_board_status_cb);
+    }
     hal_sensor_register(&s_ops);
 }

@@ -7,6 +7,7 @@
 
 #include "drv_stepper.h"
 #include "drv_io.h"
+#include "config/machine/m8_io_pins.h"
 #include "common/log.h"
 #include "config/machine/m8_machine_config.h"
 #include <time.h>
@@ -34,9 +35,9 @@ static void delay_us(uint32_t us)
 sw_err_t drv_stepper_init(void)
 {
     /* 上电：ENA 无效（禁用），清除方向和脉冲输出 */
-    (void)drv_io_do_set(DO_TOP_LIFT_ENA, STEPPER_ENA_INACTIVE);
-    (void)drv_io_do_set(DO_TOP_LIFT_DIR, false);
-    (void)drv_io_do_set(DO_TOP_LIFT_PUL, false);
+    (void)drv_io_do_set(M8_IO_DO_TOP_LIFT_ENA, STEPPER_ENA_INACTIVE);
+    (void)drv_io_do_set(M8_IO_DO_TOP_LIFT_DIR, false);
+    (void)drv_io_do_set(M8_IO_DO_TOP_LIFT_PUL, false);
 
     LOG_INFO("drv_stepper init ok");
     return SW_OK;
@@ -44,14 +45,14 @@ sw_err_t drv_stepper_init(void)
 
 sw_err_t drv_stepper_enable(void)
 {
-    (void)drv_io_do_set(DO_TOP_LIFT_ENA, STEPPER_ENA_ACTIVE);
+    (void)drv_io_do_set(M8_IO_DO_TOP_LIFT_ENA, STEPPER_ENA_ACTIVE);
     delay_us(5000U);  /* 使能后等待 5ms，让驱动器锁定 */
     return SW_OK;
 }
 
 sw_err_t drv_stepper_disable(void)
 {
-    (void)drv_io_do_set(DO_TOP_LIFT_ENA, STEPPER_ENA_INACTIVE);
+    (void)drv_io_do_set(M8_IO_DO_TOP_LIFT_ENA, STEPPER_ENA_INACTIVE);
     return SW_OK;
 }
 
@@ -66,15 +67,15 @@ sw_err_t drv_stepper_move(uint32_t pulses, drv_stepper_dir_t dir, uint32_t pulse
     }
 
     /* 设置方向 */
-    (void)drv_io_do_set(DO_TOP_LIFT_DIR,
+    (void)drv_io_do_set(M8_IO_DO_TOP_LIFT_DIR,
                         (dir == STEPPER_DIR_DOWN) ? true : false);
     delay_us(10U);   /* DIR 建立时间 */
 
     /* 发送脉冲序列（nanosleep 精度优于 usleep，适合 SCHED_FIFO 线程）*/
     for (i = 0U; i < pulses; i++) {
-        (void)drv_io_do_set(DO_TOP_LIFT_PUL, true);
+        (void)drv_io_do_set(M8_IO_DO_TOP_LIFT_PUL, true);
         delay_us(pulse_us);
-        (void)drv_io_do_set(DO_TOP_LIFT_PUL, false);
+        (void)drv_io_do_set(M8_IO_DO_TOP_LIFT_PUL, false);
         delay_us(pulse_us);
     }
 

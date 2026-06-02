@@ -11,10 +11,21 @@
 #include "config/machine/m8_vfd_table.h"
 #include "adapters/hal/linux_hw/drv/drv_vfd.h"
 #include "adapters/hal/linux_hw/drv/drv_stepper.h"
-#include "adapters/hal/linux_hw/drv/drv_io.h"
+#include "ports/hal/hal_io_port.h"
 #include "common/log.h"
 
 #include <string.h>
+
+static sw_err_t io_do_set(io_do_t pin, bool val)
+{
+    const hal_io_ops_t *ops = hal_io_get_ops();
+
+    if ((ops == NULL) || (ops->do_set == NULL))
+    {
+        return SW_ERR_NOT_INIT;
+    }
+    return ops->do_set(pin, val);
+}
 
 /* -------------------------------------------------------------------------
  * VFD 实例（静态分配，由 m8_linux_hw_init 初始化）
@@ -69,8 +80,8 @@ sw_err_t m8_linux_hw_init(void)
         return ret;
     }
     drv_vfd_register_event_cb(&s_vfd_brush, brush_vfd_event_cb);
-    (void)drv_io_do_set(M8_DO_TOP_BRUSH_ACT,  false);
-    (void)drv_io_do_set(M8_DO_SIDE_BRUSH_ACT, false);
+    (void)io_do_set(M8_DO_TOP_BRUSH_ACT,  false);
+    (void)io_do_set(M8_DO_SIDE_BRUSH_ACT, false);
 
     /* 龙门 VFD：支持正反转 */
     memset(&s_vfd_gantry, 0, sizeof(s_vfd_gantry));
