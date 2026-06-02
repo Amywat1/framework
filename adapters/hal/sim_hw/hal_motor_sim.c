@@ -8,26 +8,16 @@
 #include "ports/hal/hal_motor_port.h"
 #include "ports/hal/hal_sensor_port.h"
 #include "adapters/hal/sim_hw/sim_encoder_counter.h"
-#include "config/machine/m8_motor_table.h"
 #include "common/log.h"
 
-static int s_speed_ref[MOTOR_ID_MAX];
+#define SIM_MOTOR_GANTRY_ID    0
+#define SIM_MOTOR_SLOT_COUNT   1
 
-static const motor_cfg_t *find_cfg(int id)
-{
-    for (int i = 0; i < M8_MOTOR_TABLE_SIZE; i++)
-    {
-        if (m8_motor_table[i].id == id)
-        {
-            return &m8_motor_table[i];
-        }
-    }
-    return NULL;
-}
+static int s_speed_ref[SIM_MOTOR_SLOT_COUNT];
 
 static sw_err_t sim_motor_set_output(int id, int speed_ref)
 {
-    if ((id < 0) || (id >= MOTOR_ID_MAX))
+    if ((id < 0) || (id >= SIM_MOTOR_SLOT_COUNT))
     {
         return SW_ERR_PARAM;
     }
@@ -41,7 +31,7 @@ static bool sim_motor_at_fwd_limit(int id)
 {
     const hal_sensor_ops_t *ops = hal_sensor_get_ops();
 
-    if ((id == MOTOR_GANTRY) && (ops != NULL) && (ops->gantry_at_fwd_limit != NULL))
+    if ((id == SIM_MOTOR_GANTRY_ID) && (ops != NULL) && (ops->gantry_at_fwd_limit != NULL))
     {
         return ops->gantry_at_fwd_limit();
     }
@@ -52,7 +42,7 @@ static bool sim_motor_at_rev_limit(int id)
 {
     const hal_sensor_ops_t *ops = hal_sensor_get_ops();
 
-    if ((id == MOTOR_GANTRY) && (ops != NULL) && (ops->gantry_at_rev_limit != NULL))
+    if ((id == SIM_MOTOR_GANTRY_ID) && (ops != NULL) && (ops->gantry_at_rev_limit != NULL))
     {
         return ops->gantry_at_rev_limit();
     }
@@ -61,25 +51,12 @@ static bool sim_motor_at_rev_limit(int id)
 
 static bool sim_motor_encoder_counter_online(int id)
 {
-    const motor_cfg_t *cfg = find_cfg(id);
-
-    return (cfg != NULL) &&
-           cfg->has_encoder &&
-           (cfg->encoder_backend == MOTOR_ENCODER_COUNTER);
+    return (id == SIM_MOTOR_GANTRY_ID);
 }
 
 static sw_err_t sim_motor_read_hw_pulse(int id, uint32_t *p_value)
 {
-    const motor_cfg_t *cfg = NULL;
-
-    if ((id < 0) || (id >= MOTOR_ID_MAX) || (p_value == NULL))
-    {
-        return SW_ERR_PARAM;
-    }
-
-    cfg = find_cfg(id);
-    if ((cfg == NULL) || !cfg->has_encoder ||
-        (cfg->encoder_backend != MOTOR_ENCODER_COUNTER))
+    if ((id != SIM_MOTOR_GANTRY_ID) || (p_value == NULL))
     {
         return SW_ERR_PARAM;
     }
@@ -89,16 +66,7 @@ static sw_err_t sim_motor_read_hw_pulse(int id, uint32_t *p_value)
 
 static sw_err_t sim_motor_clear_hw_pulse(int id)
 {
-    const motor_cfg_t *cfg = NULL;
-
-    if ((id < 0) || (id >= MOTOR_ID_MAX))
-    {
-        return SW_ERR_PARAM;
-    }
-
-    cfg = find_cfg(id);
-    if ((cfg == NULL) || !cfg->has_encoder ||
-        (cfg->encoder_backend != MOTOR_ENCODER_COUNTER))
+    if (id != SIM_MOTOR_GANTRY_ID)
     {
         return SW_ERR_PARAM;
     }
@@ -133,7 +101,7 @@ static const hal_motor_ops_t s_ops = {
 
 void hal_motor_sim_register(void)
 {
-    for (int i = 0; i < MOTOR_ID_MAX; i++)
+    for (int i = 0; i < SIM_MOTOR_SLOT_COUNT; i++)
     {
         s_speed_ref[i] = 0;
     }

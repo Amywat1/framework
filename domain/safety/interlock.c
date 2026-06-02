@@ -9,11 +9,6 @@
 #include "domain/safety/alarm_core.h"
 #include "common/log.h"
 
-sw_err_t interlock_init(void)
-{
-    return SW_OK;
-}
-
 sw_err_t interlock_check_motion(motion_type_t type)
 {
     /* 最高优先级：ERROR 报警激活时禁止所有运动 */

@@ -35,6 +35,26 @@ device_context_t dev_ctx_snapshot(void)
     return snap;
 }
 
+dev_state_t dev_ctx_get_device_state(void)
+{
+    dev_state_t state;
+
+    pthread_mutex_lock(&s_mutex);
+    state = s_ctx.device_state;
+    pthread_mutex_unlock(&s_mutex);
+    return state;
+}
+
+safety_state_t dev_ctx_get_safety_state(void)
+{
+    safety_state_t state;
+
+    pthread_mutex_lock(&s_mutex);
+    state = s_ctx.safety_state;
+    pthread_mutex_unlock(&s_mutex);
+    return state;
+}
+
 void dev_ctx_set_device_state(dev_state_t state)
 {
     pthread_mutex_lock(&s_mutex);

@@ -7,6 +7,7 @@
 
 #include "ports/hal/hal_motor_port.h"
 #include "config/machine/m8_motor_table.h"
+#include "adapters/hal/linux_hw/m8_vfd_control.h"
 #include "adapters/hal/linux_hw/m8_hal_ctx.h"
 #include "adapters/machine/m8/m8_signal_filter.h"
 #include "adapters/hal/linux_hw/drv/drv_io.h"
@@ -89,73 +90,12 @@ static bool m8_motor_encoder_counter_online(int id)
 
 static sw_err_t set_vfd_output(int id, int speed_ref)
 {
-    uint16_t   freq_hz = (uint16_t)((speed_ref >= 0) ? speed_ref : -speed_ref);
-    drv_vfd_t *vfd;
-
     if (id == MOTOR_GANTRY)
     {
-        vfd = m8_ctx_vfd_gantry();
-        if (speed_ref > 0)
-        {
-            return drv_vfd_run_fwd(vfd, freq_hz);
-        }
-        if (speed_ref < 0)
-        {
-            return drv_vfd_run_rev(vfd, freq_hz);
-        }
-        return drv_vfd_stop(vfd);
+        return m8_vfd_gantry_set_speed(speed_ref);
     }
 
-    vfd = m8_ctx_vfd_brush();
-    if (speed_ref > 0)
-    {
-        return drv_vfd_run_fwd(vfd, freq_hz);
-    }
-    if (speed_ref < 0)
-    {
-        return drv_vfd_run_rev(vfd, freq_hz);
-    }
-    return drv_vfd_stop(vfd);
-}
-
-static sw_err_t set_km_output(const motor_cfg_t *cfg, int speed_ref)
-{
-    if (is_do_valid(cfg->io_cw))
-    {
-        (void)drv_io_do_set((drv_io_do_t)cfg->io_cw, speed_ref > 0);
-    }
-    if (is_do_valid(cfg->io_ccw))
-    {
-        (void)drv_io_do_set((drv_io_do_t)cfg->io_ccw, speed_ref < 0);
-    }
-    if ((speed_ref == 0) && is_do_valid(cfg->io_stop))
-    {
-        (void)drv_io_do_set((drv_io_do_t)cfg->io_stop, true);
-    }
-    return SW_OK;
-}
-
-static sw_err_t set_pulse_output(const motor_cfg_t *cfg, int speed_ref)
-{
-    if (speed_ref > 0)
-    {
-        if (is_do_valid(cfg->io_cw))
-        {
-            (void)drv_io_do_set((drv_io_do_t)cfg->io_cw, true);
-        }
-    }
-    else if (speed_ref < 0)
-    {
-        if (is_do_valid(cfg->io_ccw))
-        {
-            (void)drv_io_do_set((drv_io_do_t)cfg->io_ccw, true);
-        }
-    }
-    else if (is_do_valid(cfg->io_stop))
-    {
-        (void)drv_io_do_set((drv_io_do_t)cfg->io_stop, true);
-    }
-    return SW_OK;
+    return SW_ERR_PARAM;
 }
 
 static sw_err_t m8_motor_set_output(int id, int speed_ref)
@@ -167,21 +107,13 @@ static sw_err_t m8_motor_set_output(int id, int speed_ref)
         return SW_ERR_PARAM;
     }
 
-    switch (cfg->drv_type)
+    if (cfg->drv_type != MOTOR_DRV_VFD)
     {
-        case MOTOR_DRV_VFD:
-            return set_vfd_output(id, speed_ref);
-
-        case MOTOR_DRV_KM:
-            return set_km_output(cfg, speed_ref);
-
-        case MOTOR_DRV_PULSE:
-            return set_pulse_output(cfg, speed_ref);
-
-        default:
-            LOG_ERROR("hal_motor_linux: unsupported drv_type=%d", (int)cfg->drv_type);
-            return SW_ERR_NOT_SUPPORT;
+        LOG_ERROR("hal_motor_linux: unsupported drv_type=%d", (int)cfg->drv_type);
+        return SW_ERR_NOT_SUPPORT;
     }
+
+    return set_vfd_output(id, speed_ref);
 }
 
 static bool m8_motor_at_fwd_limit(int id)
@@ -314,12 +246,7 @@ static sw_err_t m8_motor_read_current(int id, uint16_t *p_current)
     {
         vfd = m8_ctx_vfd_gantry();
     }
-    else if ((id == MOTOR_BRUSH_TOP) || (id == MOTOR_BRUSH_SIDE))
-    {
-        vfd = m8_ctx_vfd_brush();
-    }
-
-    if (vfd == NULL)
+    else
     {
         return SW_ERR_PARAM;
     }
@@ -340,12 +267,7 @@ static sw_err_t m8_motor_read_status(int id, uint16_t *p_status)
     {
         vfd = m8_ctx_vfd_gantry();
     }
-    else if ((id == MOTOR_BRUSH_TOP) || (id == MOTOR_BRUSH_SIDE))
-    {
-        vfd = m8_ctx_vfd_brush();
-    }
-
-    if (vfd == NULL)
+    else
     {
         return SW_ERR_PARAM;
     }

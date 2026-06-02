@@ -5,8 +5,8 @@
  * @date    2026-04-10
  *
  * @note    safety_fsm 订阅 EVT_ALARM_TRIGGERED / EVT_ALARM_CLEARED，
- *          根据报警等级驱动安全状态机，并发布安全事件。
- *          safety_fsm 只发事件，不直接写 dev_ctx（由 safety_supervisor 完成）。
+ *          根据报警等级驱动安全状态机，同步 dev_ctx 并发布安全事件。
+ *          安全态以 dev_ctx 为唯一存储，本模块不维护镜像。
  *
  *          状态转移：
  *            OK ──ERROR 报警──→ LOCKOUT

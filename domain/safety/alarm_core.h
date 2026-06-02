@@ -16,10 +16,10 @@
 extern "C" {
 #endif
 
-#include "ports/safety/alarm_binding_port.h"
 #include "domain/model/safety_types.h"
 #include "domain/model/alarm_code.h"
 #include "common/sw_error.h"
+#include <stdbool.h>
 
 /* -------------------------------------------------------------------------
  * 轮询周期（ms），由调用方保证
@@ -40,7 +40,18 @@ typedef struct
 } alarm_entry_t;
 
 /* -------------------------------------------------------------------------
- * 接口（适配器侧接口见 ports/safety/alarm_binding_port.h）
+ * 适配器注入（机型 HAL 在启动时注册回调，轮询中推送原始触发状态）
+ * ------------------------------------------------------------------------- */
+typedef void (*alarm_poll_fn_t)(void);
+typedef void (*alarm_emc_reset_fn_t)(void);
+
+void alarm_core_register_poll_fn(alarm_poll_fn_t fn);
+void alarm_core_register_emc_reset_fn(alarm_emc_reset_fn_t fn);
+void alarm_core_set_raw_trigger(uint16_t code, bool triggered, bool just_notice);
+void alarm_core_set_state(uint16_t code, bool active, bool just_notice);
+
+/* -------------------------------------------------------------------------
+ * 引擎接口
  * ------------------------------------------------------------------------- */
 
 /**

@@ -192,8 +192,10 @@ if(BUILD_SIM)
         adapters/ui/mqtt_cmd/*.c
         adapters/ui/command_bridge.c
 
-        # M8 报警适配（通过 ports/ 访问 HAL，与 sim HAL 兼容）
+        # M8 机型：信号滤波 + 报警适配 + IO 轮询
+        adapters/machine/m8/m8_signal_filter.c
         adapters/machine/m8/m8_alarm_adapt.c
+        adapters/machine/m8/m8_io_poll.c
 
         # 仿真主入口 + 交互控制台
         tools/simulator/*.c
@@ -251,7 +253,8 @@ if(BUILD_SIM)
     #   sim_sources 去掉仿真主入口（tools/simulator/），由各测试自带 main()
     # -----------------------------------------------------------------------
     set(scenario_base ${sim_sources})
-    list(FILTER scenario_base EXCLUDE REGEX "tools/simulator/")
+    list(FILTER scenario_base EXCLUDE REGEX "tools/simulator/sim_main\\.c$")
+    list(FILTER scenario_base EXCLUDE REGEX "tools/simulator/sim_console\\.c$")
     list(FILTER scenario_base EXCLUDE REGEX "tests/")
 
     # -----------------------------------------------------------------------
@@ -265,6 +268,7 @@ if(BUILD_SIM)
             core/event_bus/event_bus.c
             ports/port_registry.c
             common/time_util.c
+            tools/simulator/snack_stub.c
         )
         target_include_directories(${name} PRIVATE ${test_includes})
         target_link_libraries(${name} PRIVATE pthread)
@@ -292,6 +296,7 @@ if(BUILD_SIM)
         tests/unit/test_safety_fsm.c
         domain/safety/alarm_core.c
         domain/safety/safety_fsm.c
+        service/dev_ctx/dev_ctx.c
     )
 
     # test_step_engine：event_bus + 安全域 + 设备组件 + 流程引擎（mock HAL 内联）
@@ -300,6 +305,7 @@ if(BUILD_SIM)
         domain/safety/alarm_core.c
         domain/safety/safety_fsm.c
         domain/safety/interlock.c
+        service/dev_ctx/dev_ctx.c
         domain/device/actuator/motor/motor.c
         domain/device/actuator/motor/motor_encoder_internal.c
         domain/device/actuator/motor/motor_monitor_internal.c
@@ -308,7 +314,9 @@ if(BUILD_SIM)
         domain/device/unit/gantry.c
         domain/device/unit/top_lift.c
         domain/device/water.c
-        domain/process/step_engine.c
+        application/orchestrators/wash_orchestrator.c
+        core/scheduler/thread_registry.c
+        service/svc_param/svc_param.c
         domain/process/recipe.c
     )
 

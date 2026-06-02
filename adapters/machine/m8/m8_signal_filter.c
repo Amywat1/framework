@@ -7,9 +7,10 @@
 
 #include "adapters/machine/m8/m8_signal_filter.h"
 
+#include "adapters/machine/m8/m8_feature_map.h"
 #include "common/log.h"
-#include "core/event_bus/event_bus.h"
-#include "ports/safety/alarm_binding_port.h"
+#include "domain/model/alarm_code.h"
+#include "domain/safety/alarm_core.h"
 #include "ports/hal/hal_io_port.h"
 
 /* -------------------------------------------------------------------------
@@ -25,6 +26,31 @@ typedef struct
 
 static signal_rt_t s_rt[M8_SIGNAL_TABLE_SIZE];
 static bool        s_ops_error_logged = false;
+
+/**
+ * @brief  双限位同时触发时判定为限位异常
+ */
+static void m8_sync_combo_limit_alarms(void)
+{
+    bool dual_gantry = m8_signal_is_active(M8_SIG_GANTRY_FWD_LIM)
+                    && m8_signal_is_active(M8_SIG_GANTRY_REV_LIM);
+
+    alarm_core_set_state(ALARM_CODE_GANTRY_FWD_LIM, dual_gantry, false);
+    alarm_core_set_state(ALARM_CODE_GANTRY_REV_LIM, dual_gantry, false);
+
+#if M8_FEAT_TOP_LIFT_INSTALLED
+    {
+        bool dual_lift = m8_signal_is_active(M8_SIG_LIFT_UP_LIM)
+                      && m8_signal_is_active(M8_SIG_LIFT_DOWN_LIM);
+
+        alarm_core_set_state(ALARM_CODE_LIFT_UP_LIM, dual_lift, false);
+        alarm_core_set_state(ALARM_CODE_LIFT_DOWN_LIM, dual_lift, false);
+    }
+#else
+    alarm_core_set_raw_trigger(ALARM_CODE_LIFT_UP_LIM, false, true);
+    alarm_core_set_raw_trigger(ALARM_CODE_LIFT_DOWN_LIM, false, true);
+#endif
+}
 
 void m8_signal_filter_init(void)
 {
@@ -89,27 +115,20 @@ void m8_signal_filter_tick(void)
             state_changed = true;
         }
 
-        /* 4. 仅在稳定态变化时发布事件 */
         if (state_changed)
         {
-            event_type_t evt = raw_active ? cfg->evt_active : cfg->evt_inactive;
-            if (evt != EVT_NONE)
-            {
-                (void)event_publish(evt, 0U);
-            }
-
             LOG_DEBUG("m8_signal_filter: sig=%d state=%s",
                       i, raw_active ? "ACTIVE" : "INACTIVE");
         }
 
-        /* 5. 将稳定态同步到报警引擎，报警层继续做策略级防抖 */
-        /* alarm_code == 0 表示该信号只参与滤波和事件发布，
-         * 不直接同步到 alarm_core；报警归属由更高层机器逻辑统一决定。 */
+        /* 4. 将稳定态同步到报警引擎 */
         if (cfg->alarm_code != 0U)
         {
             alarm_core_set_raw_trigger(cfg->alarm_code, rt->confirmed, false);
         }
     }
+
+    m8_sync_combo_limit_alarms();
 }
 
 bool m8_signal_is_active(m8_signal_id_t sig_id)

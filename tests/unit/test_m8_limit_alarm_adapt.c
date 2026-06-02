@@ -1,9 +1,9 @@
 #include "adapters/machine/m8/m8_alarm_adapt.h"
 #include "adapters/machine/m8/m8_signal_filter.h"
+#include "config/machine/m8_signal_table.h"
 #include "core/event_bus/event_bus.h"
 #include "domain/model/alarm_code.h"
 #include "domain/safety/alarm_core.h"
-#include "adapters/hal/linux_hw/drv/drv_io.h"
 #include "ports/hal/hal_io_port.h"
 #include "ports/hal/hal_sensor_port.h"
 
@@ -38,23 +38,23 @@ static bool mock_di_read(io_di_t pin)
 {
     uint16_t raw = io_di_raw(pin);
 
-    if (raw == io_di_raw(DI_ESTOP))
+    if (raw == io_di_raw(m8_signal_table[M8_SIG_ESTOP].io_id))
     {
         return s_di_estop;
     }
-    if (raw == io_di_raw(DI_GANTRY_FWD_LIMIT))
+    if (raw == io_di_raw(m8_signal_table[M8_SIG_GANTRY_FWD_LIM].io_id))
     {
         return s_di_gantry_fwd;
     }
-    if (raw == io_di_raw(DI_GANTRY_REAR_LIMIT))
+    if (raw == io_di_raw(m8_signal_table[M8_SIG_GANTRY_REV_LIM].io_id))
     {
         return s_di_gantry_rev;
     }
-    if (raw == io_di_raw(DI_TOP_LIFT_UP))
+    if (raw == io_di_raw(m8_signal_table[M8_SIG_LIFT_UP_LIM].io_id))
     {
         return s_di_lift_up;
     }
-    if (raw == io_di_raw(DI_TOP_LIFT_DOWN))
+    if (raw == io_di_raw(m8_signal_table[M8_SIG_LIFT_DOWN_LIM].io_id))
     {
         return s_di_lift_down;
     }

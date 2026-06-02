@@ -138,43 +138,6 @@ static bool motor_tick_is_limit_hit(const hal_motor_ops_t *ops, int id, int spee
     return (ops->at_rev_limit != NULL) && ops->at_rev_limit(id);
 }
 
-static bool motor_tick_handle_pulse_limit_locked(motor_tick_ctx_t  *tick,
-                                                 int                id,
-                                                 const motor_cfg_t *cfg,
-                                                 const motor_ctx_t *ctx)
-{
-    int32_t pos;
-
-    if ((tick == NULL) || (cfg == NULL) || (ctx == NULL) || !cfg->has_encoder)
-    {
-        return false;
-    }
-
-    if ((cfg->limit_mode != MOTOR_LIMIT_PULSE_MAX) &&
-        (cfg->limit_mode != MOTOR_LIMIT_PULSE_MIN_MAX))
-    {
-        return false;
-    }
-
-    pos = ctx->encoder_pos;
-    if ((cfg->limit_mode == MOTOR_LIMIT_PULSE_MIN_MAX) &&
-        (pos <= (int32_t)cfg->limit_pos_min))
-    {
-        LOG_WARN("motor[%s]: pos min limit reached", cfg->name);
-        motor_record_done_event_locked(tick, id, SW_OK);
-        return true;
-    }
-
-    if (pos >= (int32_t)cfg->limit_pos_max)
-    {
-        LOG_WARN("motor[%s]: pos max limit reached", cfg->name);
-        motor_record_done_event_locked(tick, id, SW_OK);
-        return true;
-    }
-
-    return false;
-}
-
 static bool motor_tick_handle_target_reached_locked(motor_tick_ctx_t  *tick,
                                                     int                id,
                                                     const motor_cfg_t *cfg,
@@ -275,11 +238,6 @@ static bool motor_tick_collect_done_locked(motor_tick_ctx_t      *tick,
         {
             LOG_INFO("motor[%s]: limit reached", cfg->name);
             motor_record_done_event_locked(tick, id, SW_OK);
-            continue;
-        }
-
-        if (motor_tick_handle_pulse_limit_locked(tick, id, cfg, ctx))
-        {
             continue;
         }
 

@@ -31,10 +31,22 @@ static uint32_t         s_q_count;
 static pthread_mutex_t  s_q_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 /* -------------------------------------------------------------------------
- * 订阅表 [event_type][slot]
+ * 订阅表 [category][local_id][slot]
  * ------------------------------------------------------------------------- */
-static event_handler_t  s_subs[EVT_MAX][EVENT_BUS_MAX_SUBS_PER_EVT];
+static event_handler_t  s_subs[EVT_CAT_MAX][EVT_PER_CAT_MAX][EVENT_BUS_MAX_SUBS_PER_EVT];
 static pthread_mutex_t  s_sub_mutex = PTHREAD_MUTEX_INITIALIZER;
+
+/**
+ * @brief  按复合编码定位订阅槽数组
+ * @param  type  已通过 event_type_is_valid 校验的事件类型
+ */
+static event_handler_t *subs_slot(event_type_t type)
+{
+    event_category_t cat = event_type_category(type);
+    uint8_t          id  = event_type_local_id(type);
+
+    return s_subs[cat][id];
+}
 
 /* -------------------------------------------------------------------------
  * 信号量（dispatch 线程等待事件入队）
@@ -155,7 +167,7 @@ sw_err_t event_publish(event_type_t type, uint32_t param)
     {
         return SW_ERR_NOT_INIT;
     }
-    if (type == EVT_NONE || type >= EVT_MAX)
+    if (!event_type_is_valid(type))
     {
         return SW_ERR_PARAM;
     }
@@ -211,33 +223,37 @@ sw_err_t event_subscribe(event_type_t type, event_handler_t handler)
     {
         return SW_ERR_NOT_INIT;
     }
-    if (type == EVT_NONE || type >= EVT_MAX || handler == NULL)
+    if (!event_type_is_valid(type) || handler == NULL)
     {
         return SW_ERR_PARAM;
     }
 
     pthread_mutex_lock(&s_sub_mutex);
 
-    for (uint32_t i = 0; i < EVENT_BUS_MAX_SUBS_PER_EVT; i++)
     {
-        if (s_subs[type][i] == handler)
+        event_handler_t *slot = subs_slot(type);
+
+        for (uint32_t i = 0; i < EVENT_BUS_MAX_SUBS_PER_EVT; i++)
         {
-            /* 重复订阅：幂等处理，直接返回 OK（不重复添加）*/
-            pthread_mutex_unlock(&s_sub_mutex);
-            return SW_OK;
+            if (slot[i] == handler)
+            {
+                /* 重复订阅：幂等处理，直接返回 OK（不重复添加）*/
+                pthread_mutex_unlock(&s_sub_mutex);
+                return SW_OK;
+            }
+            if (slot[i] == NULL)
+            {
+                slot[i]       = handler;
+                inserted      = 1;
+                break;
+            }
         }
-        if (s_subs[type][i] == NULL)
-        {
-            s_subs[type][i] = handler;
-            pthread_mutex_unlock(&s_sub_mutex);
-            inserted = 1;
-            break;
-        }
+
+        pthread_mutex_unlock(&s_sub_mutex);
     }
 
     if (!inserted)
     {
-        pthread_mutex_unlock(&s_sub_mutex);
         EVT_LOG_ERROR("subscriber table full for EVT type=%d", (int)type);
         return SW_ERR_OVERFLOW;
     }
@@ -246,6 +262,30 @@ sw_err_t event_subscribe(event_type_t type, event_handler_t handler)
     pthread_mutex_lock(&s_q_mutex);
     s_stats.subscribe_count++;
     pthread_mutex_unlock(&s_q_mutex);
+    return SW_OK;
+}
+
+/* -------------------------------------------------------------------------
+ * event_subscribe_table
+ * ------------------------------------------------------------------------- */
+sw_err_t event_subscribe_table(const event_subscription_t *subs, size_t count)
+{
+    sw_err_t ret;
+
+    if (subs == NULL)
+    {
+        return SW_ERR_PARAM;
+    }
+
+    for (size_t i = 0; i < count; i++)
+    {
+        ret = event_subscribe(subs[i].type, subs[i].handler);
+        if (ret != SW_OK)
+        {
+            return ret;
+        }
+    }
+
     return SW_OK;
 }
 
@@ -318,7 +358,10 @@ void event_bus_dispatch_loop(void)
 
         /* 复制 handler 快照（最小化持锁时间，避免 handler 内部 subscribe 死锁）*/
         pthread_mutex_lock(&s_sub_mutex);
-        memcpy(handlers, s_subs[dispatch_evt.type], sizeof(handlers));
+        if (event_type_is_valid(dispatch_evt.type))
+        {
+            memcpy(handlers, subs_slot(dispatch_evt.type), sizeof(handlers));
+        }
         pthread_mutex_unlock(&s_sub_mutex);
 
         /* 逐一回调 */

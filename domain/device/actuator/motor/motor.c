@@ -205,11 +205,6 @@ motor_monitor_source_t motor_get_monitor_source(const motor_cfg_t *cfg)
         return MOTOR_MON_SRC_VFD_GANTRY;
     }
 
-    if ((cfg->id == MOTOR_BRUSH_TOP) || (cfg->id == MOTOR_BRUSH_SIDE))
-    {
-        return MOTOR_MON_SRC_VFD_BRUSH;
-    }
-
     return MOTOR_MON_SRC_NONE;
 }
 

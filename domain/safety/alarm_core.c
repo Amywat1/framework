@@ -129,9 +129,10 @@ void alarm_core_set_raw_trigger(uint16_t code, bool triggered, bool just_notice)
 
 void alarm_core_set_state(uint16_t code, bool active, bool just_notice)
 {
-    int    idx     = find_idx(code);
-    bool          changed = false;
-    alarm_level_t lvl     = ALARM_LEVEL_NOTICE; /* 锁内捕获 */
+    int           idx           = find_idx(code);
+    bool          triggered_evt = false;
+    bool          cleared_evt   = false;
+    alarm_level_t lvl           = ALARM_LEVEL_NOTICE;
 
     if (idx < 0)
     {
@@ -145,29 +146,40 @@ void alarm_core_set_state(uint16_t code, bool active, bool just_notice)
 
     if (active && !s_rt[idx].active)
     {
-        /* 直报激活：绕过防抖，立即置位 */
         s_rt[idx].active              = true;
         s_rt[idx].debounce_elapsed_ms = 0;
         s_rt[idx].recover_elapsed_ms  = 0;
-        changed = true;
-        lvl     = get_effective_level(idx); /* 锁内读取，避免锁外竞争 */
+        triggered_evt = true;
+        lvl           = get_effective_level(idx);
     }
     else if (!active && s_rt[idx].active)
     {
-        /* 对于 MANUAL 恢复：此处不清除，等待 manual_reset() */
-        /* 对于 AUTO/DRIVE：重置恢复计时，由 tick 处理 recover_ms */
-        if (!(s_table[idx].recover & ALARM_RECOVER_MANUAL))
+        if (s_table[idx].recover & ALARM_RECOVER_DRIVE)
         {
-            s_rt[idx].recover_elapsed_ms = 0; /* tick 下一拍开始计时 */
+            /* 驱动直报清除：故障条件已由硬件/驱动确认消失 */
+            s_rt[idx].active              = false;
+            s_rt[idx].debounce_elapsed_ms = 0;
+            s_rt[idx].recover_elapsed_ms  = 0;
+            cleared_evt = true;
+        }
+        else if (!(s_table[idx].recover & ALARM_RECOVER_MANUAL))
+        {
+            s_rt[idx].recover_elapsed_ms = 0;
         }
     }
     pthread_mutex_unlock(&s_mutex);
 
-    if (changed)
+    if (triggered_evt)
     {
         (void)event_publish(EVT_ALARM_TRIGGERED, (uint32_t)code);
         LOG_WARN("alarm_core: TRIGGERED code=%u [%s] level=%d",
                  (unsigned)code, s_table[idx].desc, (int)lvl);
+    }
+    else if (cleared_evt)
+    {
+        (void)event_publish(EVT_ALARM_CLEARED, (uint32_t)code);
+        LOG_INFO("alarm_core: CLEARED code=%u [%s] (drive direct)",
+                 (unsigned)code, s_table[idx].desc);
     }
 }
 

@@ -1,98 +1,106 @@
 /**
  * @file    m8_alarm_adapt.c
- * @brief   M8 机型报警适配（IO 轮询 / VFD 故障直报 / 急停复位回调）
+ * @brief   M8 机型报警适配（非 DI 类采集 / 急停复位序列）
  * @author  胡望伟
  * @date    2026-04-10
  *
- * @note    本文件是机型特定代码的集中地：
- *          ① m8_signal_poll()：
- *              - 编码器事件轮询
- *              - IO 组合报警（如双限位同时触发）
- *              - 直接调用 get_vfd_fault_code() 读取 Modbus 故障寄存器，
- *                通过 alarm_core_set_state() 进入安全域（直报路径），并复用同次读取结果发布硬件事件
- *              - Modbus 通信丢失/恢复由 drv_vfd 的事件回调链路单独处理
- *          ② m8_emc_reset()：急停复位序列（停机 → 关水 → 复位驱动 → 关闭入口）
- *          初始化时将以上回调注册到 alarm_core。
- *
- *          依赖：alarm_core（domain）、hal_sensor/motion/water/indicator（ports）
+ * @note    DI 类信号由 m8_signal_filter 统一滤波并写入 alarm_core；
+ *          本文件仅负责 VFD 故障直报、水泵空转检测与急停复位动作。
  */
 
-#include "ports/safety/alarm_binding_port.h"
+#include "adapters/machine/m8/m8_alarm_adapt.h"
 #include "domain/model/alarm_code.h"
 #include "domain/device/water.h"
-#include "ports/hal/hal_sensor_port.h"
+#include "domain/safety/alarm_core.h"
 #include "ports/hal/hal_motion_port.h"
 #include "ports/hal/hal_indicator_port.h"
-#include "adapters/machine/m8/m8_feature_map.h"
-#include "core/event_bus/event_bus.h"
+#include "ports/hal/hal_sensor_port.h"
 #include "common/log.h"
 #include "common/sw_error.h"
 #include <unistd.h>
 
-/* -------------------------------------------------------------------------
- * VFD 故障事件去重状态
- * 仅在“无故障 -> 有故障”时发布 EVT_HW_VFD_*_FAULT，避免持续故障期间重复刷事件。
- * ------------------------------------------------------------------------- */
-static bool s_gantry_vfd_fault_reported = false;
-static bool s_brush_vfd_fault_reported  = false;
+#ifndef BUILD_SIM
+#include "adapters/hal/linux_hw/m8_hal_ctx.h"
+#include "adapters/hal/linux_hw/m8_vfd_control.h"
+#include "adapters/hal/linux_hw/drv/drv_vfd.h"
+#endif
 
-/* -------------------------------------------------------------------------
- * ① IO 信号轮询（每 ALARM_POLL_PERIOD_MS 由 alarm_core_tick_ms 调用）
- * ------------------------------------------------------------------------- */
+#define M8_BRUSH_CURRENT_HIGH_MA        800U
+#define M8_BRUSH_CURRENT_LOW_MA         50U
+#define M8_BRUSH_CURRENT_DELAY_MS       2000U
+#define M8_BRUSH_CURRENT_CONFIRM_MS     3000U
+
+#ifndef BUILD_SIM
+/**
+ * @brief  刷子 VFD 电流监测（原由 motor 层承担，现改由机型适配轮询）
+ */
+static void m8_brush_current_poll(void)
+{
+    static uint32_t s_run_ms      = 0U;
+    static uint32_t s_anomaly_ms  = 0U;
+    uint16_t        current       = 0U;
+    sw_err_t        ret;
+
+    if (!m8_vfd_brush_is_running())
+    {
+        s_run_ms     = 0U;
+        s_anomaly_ms = 0U;
+        return;
+    }
+
+    s_run_ms += (uint32_t)ALARM_POLL_PERIOD_MS;
+    if (s_run_ms < M8_BRUSH_CURRENT_DELAY_MS)
+    {
+        s_anomaly_ms = 0U;
+        return;
+    }
+
+    ret = drv_vfd_read_current(m8_ctx_vfd_brush(), &current);
+    if (ret != SW_OK)
+    {
+        return;
+    }
+
+    if ((current > M8_BRUSH_CURRENT_HIGH_MA) || (current < M8_BRUSH_CURRENT_LOW_MA))
+    {
+        s_anomaly_ms += (uint32_t)ALARM_POLL_PERIOD_MS;
+        if (s_anomaly_ms >= M8_BRUSH_CURRENT_CONFIRM_MS)
+        {
+            const hal_motion_ops_t *motion = hal_motion_get_ops();
+
+            LOG_WARN("m8_alarm_adapt: brush current anomaly %u mA", (unsigned)current);
+            alarm_core_set_state(ALARM_CODE_BRUSH_CURRENT, true, false);
+            if ((motion != NULL) && (motion->brush_stop != NULL))
+            {
+                (void)motion->brush_stop();
+            }
+            s_anomaly_ms = 0U;
+        }
+    }
+    else
+    {
+        s_anomaly_ms = 0U;
+    }
+}
+#endif /* BUILD_SIM */
+
+/**
+ * @brief  非 DI 类报警轮询（由 alarm_core_tick_ms 每周期调用）
+ */
 static void m8_signal_poll(void)
 {
     const hal_sensor_ops_t *sensor = hal_sensor_get_ops();
 
-    /* 输入事件链路：
-     *   - 真机：这里只提取编码器边沿，急停/限位由 m8_signal_filter_tick() 统一防抖并发布
-     *   - 仿真：保留原有 poll_input_events 逻辑，便于测试工具直接注入状态
-     */
-    sensor->poll_input_events();
+    if ((sensor != NULL) && (sensor->poll_input_events != NULL))
+    {
+        sensor->poll_input_events();
+    }
 
-    /* 真机中，单路急停/限位已由 m8_signal_filter_tick() 统一同步到 alarm_core。 */
-#ifdef BUILD_SIM
-    /* 仿真构建未接入 drv_io 信号滤波链路，这里保留单路原始状态同步。 */
-    alarm_core_set_raw_trigger(ALARM_CODE_ESTOP,
-                               sensor->is_estop_active(), false);
-    alarm_core_set_raw_trigger(ALARM_CODE_GANTRY_FWD_LIM,
-                               sensor->gantry_at_fwd_limit(), false);
-    alarm_core_set_raw_trigger(ALARM_CODE_GANTRY_REV_LIM,
-                               sensor->gantry_at_rev_limit(), false);
-#if M8_FEAT_TOP_LIFT_INSTALLED
-    alarm_core_set_raw_trigger(ALARM_CODE_LIFT_UP_LIM,
-                               sensor->lift_at_top(), false);
-    alarm_core_set_raw_trigger(ALARM_CODE_LIFT_DOWN_LIM,
-                               sensor->lift_at_bottom(), false);
-#else
-    alarm_core_set_raw_trigger(ALARM_CODE_LIFT_UP_LIM, false, true);
-    alarm_core_set_raw_trigger(ALARM_CODE_LIFT_DOWN_LIM, false, true);
-#endif
-#else
-    /* 真机中仅处理多信号组合逻辑。 */
-    /* 真机中单路限位只保留为滤波后的稳定事件，
-     * 限位故障报警在这里按组合条件统一判定。 */
-    bool fwd = sensor->gantry_at_fwd_limit();
-    bool rev = sensor->gantry_at_rev_limit();
-    alarm_core_set_state(ALARM_CODE_GANTRY_FWD_LIM, (fwd && rev), false);
-    alarm_core_set_state(ALARM_CODE_GANTRY_REV_LIM, (fwd && rev), false);
-
-#if M8_FEAT_TOP_LIFT_INSTALLED
-    bool up_lim   = sensor->lift_at_top();
-    bool down_lim = sensor->lift_at_bottom();
-    alarm_core_set_state(ALARM_CODE_LIFT_UP_LIM,   (up_lim && down_lim), false);
-    alarm_core_set_state(ALARM_CODE_LIFT_DOWN_LIM, (up_lim && down_lim), false);
-#else
-    /* 升降未安装：降级为 NOTICE，不触发停机 */
-    alarm_core_set_raw_trigger(ALARM_CODE_LIFT_UP_LIM, false, true);
-    alarm_core_set_raw_trigger(ALARM_CODE_LIFT_DOWN_LIM, false, true);
-#endif
-#endif
-
-    /* VFD 故障直报：
-     * Modbus 通信丢失/恢复报警由 drv_vfd → m8_hal_ctx → alarm_core 负责，
-     * 此处仅负责读取故障码并更新 VFD 故障状态。 */
+    /* VFD 故障直报 */
+    if (sensor != NULL)
     {
         uint16_t code = 0U;
+
         if (sensor->get_vfd_fault_code(HAL_VFD_GANTRY, &code) == SW_OK)
         {
             bool has_fault = (code != 0U);
@@ -100,22 +108,11 @@ static void m8_signal_poll(void)
             alarm_core_set_state(ALARM_CODE_VFD_GANTRY, has_fault, false);
             if (has_fault)
             {
-                if (!s_gantry_vfd_fault_reported)
-                {
-                    LOG_WARN("m8_alarm_adapt: gantry VFD fault code=0x%04X", (unsigned)code);
-                    (void)event_publish(EVT_HW_VFD_GANTRY_FAULT, ALARM_CODE_VFD_GANTRY);
-                    s_gantry_vfd_fault_reported = true;
-                }
-            }
-            else
-            {
-                s_gantry_vfd_fault_reported = false;
+                LOG_WARN("m8_alarm_adapt: gantry VFD fault code=0x%04X", (unsigned)code);
             }
         }
-        /* 通信失败时保持上一次 VFD 故障状态，避免误清除。 */
-    }
-    {
-        uint16_t code = 0U;
+
+        code = 0U;
         if (sensor->get_vfd_fault_code(HAL_VFD_BRUSH, &code) == SW_OK)
         {
             bool has_fault = (code != 0U);
@@ -123,40 +120,23 @@ static void m8_signal_poll(void)
             alarm_core_set_state(ALARM_CODE_VFD_BRUSH, has_fault, false);
             if (has_fault)
             {
-                if (!s_brush_vfd_fault_reported)
-                {
-                    LOG_WARN("m8_alarm_adapt: brush VFD fault code=0x%04X", (unsigned)code);
-                    (void)event_publish(EVT_HW_VFD_BRUSH_FAULT, ALARM_CODE_VFD_BRUSH);
-                    s_brush_vfd_fault_reported = true;
-                }
-            }
-            else
-            {
-                s_brush_vfd_fault_reported = false;
+                LOG_WARN("m8_alarm_adapt: brush VFD fault code=0x%04X", (unsigned)code);
             }
         }
-        /* 通信失败时保持上一次 VFD 故障状态，避免误清除。 */
     }
 
-    /* 水泵空转检测：泵已开启但无任何水阀打开。
-     * 利用 alarm_core 的触发防抖，只有持续超过配置时间才激活报警。 */
     alarm_core_set_raw_trigger(ALARM_CODE_PUMP_DRY_RUN,
                                water_is_pump_on() && !water_is_any_valve_open(),
                                false);
 
-    /* 指示灯闪烁 tick：由报警轮询周期统一驱动。 */
-    {
-        const hal_indicator_ops_t *indicator = hal_indicator_get_ops();
-        if ((indicator != NULL) && (indicator->entry_light_tick != NULL))
-        {
-            indicator->entry_light_tick();
-        }
-    }
+#ifndef BUILD_SIM
+    m8_brush_current_poll();
+#endif
 }
 
-/* -------------------------------------------------------------------------
- * ② 急停复位动作序列（由 alarm_core_manual_reset 调用）
- * ------------------------------------------------------------------------- */
+/**
+ * @brief  急停复位动作序列（由 alarm_core_manual_reset 调用）
+ */
 static void m8_emc_reset(void)
 {
     const hal_motion_ops_t    *motion    = hal_motion_get_ops();
@@ -164,33 +144,49 @@ static void m8_emc_reset(void)
 
     LOG_INFO("m8_alarm_adapt: EMC reset sequence start");
 
-    /* 步骤1：停止所有执行机构 */
-    (void)motion->gantry_stop();
-    (void)motion->brush_stop();
+    if (motion != NULL)
+    {
+        (void)motion->gantry_stop();
+        (void)motion->brush_stop();
+    }
 
-    /* 步骤2：关闭所有水路 */
     (void)water_all_off();
 
-    /* 步骤3：等待 VFD 完全停止后复位故障 */
     usleep(200U * 1000U);
-    (void)motion->gantry_fault_reset();
-    (void)motion->brush_fault_reset();
 
-    /* 步骤4：关闭入口（禁止新车进入，灯红色）*/
-    (void)indicator->rod_close();
-    (void)indicator->entry_light_set(HAL_LIGHT_RED);
+    if (motion != NULL)
+    {
+        (void)motion->gantry_fault_reset();
+        (void)motion->brush_fault_reset();
+    }
+
+    if (indicator != NULL)
+    {
+        (void)indicator->rod_close();
+        (void)indicator->entry_light_set(HAL_LIGHT_RED);
+    }
 
     LOG_INFO("m8_alarm_adapt: EMC reset sequence done");
 }
 
-/* -------------------------------------------------------------------------
- * 初始化：注册回调到 alarm_core
- * ------------------------------------------------------------------------- */
+void m8_alarm_on_vfd_comm_lost(bool is_brush)
+{
+    uint16_t code = is_brush ? ALARM_CODE_MODBUS_BRUSH : ALARM_CODE_MODBUS_GANTRY;
+
+    alarm_core_set_state(code, true, false);
+    LOG_WARN("m8_alarm_adapt: %s VFD Modbus comm lost", is_brush ? "brush" : "gantry");
+}
+
+void m8_alarm_on_vfd_comm_restored(bool is_brush)
+{
+    uint16_t code = is_brush ? ALARM_CODE_MODBUS_BRUSH : ALARM_CODE_MODBUS_GANTRY;
+
+    alarm_core_set_state(code, false, false);
+    LOG_INFO("m8_alarm_adapt: %s VFD Modbus comm restored", is_brush ? "brush" : "gantry");
+}
+
 sw_err_t m8_alarm_adapt_init(void)
 {
-    s_gantry_vfd_fault_reported = false;
-    s_brush_vfd_fault_reported  = false;
-
     alarm_core_register_poll_fn(m8_signal_poll);
     alarm_core_register_emc_reset_fn(m8_emc_reset);
 

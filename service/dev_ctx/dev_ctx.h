@@ -6,10 +6,10 @@
  *
  * @note    dev_ctx 是设备当前运行状态的集中只读视图，供上报/CLI 查询使用。
  *          写入权限严格分片，各字段只允许指定模块更新：
- *            device_state   → device_fsm
- *            safety_state   → safety_supervisor
+ *            device_state   → device_fsm（读写均经 dev_ctx，无镜像）
+ *            safety_state   → safety_fsm
  *            wash_progress  → wash_orchestrator
- *            alarm_state    → safety_supervisor
+ *            alarm_state    → safety_fsm
  *            cloud_status   → report_aggregator
  *          读取通过 dev_ctx_snapshot() 返回值拷贝，外部不持有指针。
  */
@@ -54,18 +54,28 @@ sw_err_t dev_ctx_init(void);
  */
 device_context_t dev_ctx_snapshot(void);
 
+/**
+ * @brief  读取设备 FSM 状态（线程安全）
+ */
+dev_state_t dev_ctx_get_device_state(void);
+
+/**
+ * @brief  读取安全域状态（线程安全）
+ */
+safety_state_t dev_ctx_get_safety_state(void);
+
 /* -- 分片写入接口（各自只允许对应模块调用）-- */
 
 /** @brief [device_fsm] 更新设备 FSM 状态 */
 void dev_ctx_set_device_state(dev_state_t state);
 
-/** @brief [safety_supervisor] 更新安全域状态 */
+/** @brief [safety_fsm] 更新安全域状态 */
 void dev_ctx_set_safety_state(safety_state_t state);
 
 /** @brief [wash_orchestrator] 更新当前洗车进度 */
 void dev_ctx_set_wash_progress(wash_step_t step, wash_mode_t mode);
 
-/** @brief [safety_supervisor] 更新 ERROR 报警标志 */
+/** @brief [safety_fsm] 更新 ERROR 报警标志 */
 void dev_ctx_set_alarm_state(bool has_error);
 
 /** @brief [report_aggregator] 更新云端连接状态 */

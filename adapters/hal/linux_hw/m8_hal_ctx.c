@@ -6,10 +6,9 @@
  */
 
 #include "adapters/hal/linux_hw/m8_hal_ctx.h"
+#include "adapters/machine/m8/m8_alarm_adapt.h"
 #include "adapters/machine/m8/m8_machine_map.h"
 #include "config/machine/m8_vfd_table.h"
-#include "ports/safety/alarm_binding_port.h"
-#include "domain/model/alarm_code.h"
 #include "adapters/hal/linux_hw/drv/drv_vfd.h"
 #include "adapters/hal/linux_hw/drv/drv_stepper.h"
 #include "adapters/hal/linux_hw/drv/drv_io.h"
@@ -30,13 +29,11 @@ static void brush_vfd_event_cb(int event_code)
 {
     if (event_code == DRV_VFD_EVT_COMM_LOST)
     {
-        alarm_core_set_state(ALARM_CODE_MODBUS_BRUSH, true, false);
-        LOG_WARN("m8_hal_ctx: brush VFD Modbus comm lost");
+        m8_alarm_on_vfd_comm_lost(true);
     }
     else if (event_code == DRV_VFD_EVT_COMM_RESTORED)
     {
-        alarm_core_set_state(ALARM_CODE_MODBUS_BRUSH, false, false);
-        LOG_INFO("m8_hal_ctx: brush VFD Modbus comm restored");
+        m8_alarm_on_vfd_comm_restored(true);
     }
 }
 
@@ -44,13 +41,11 @@ static void gantry_vfd_event_cb(int event_code)
 {
     if (event_code == DRV_VFD_EVT_COMM_LOST)
     {
-        alarm_core_set_state(ALARM_CODE_MODBUS_GANTRY, true, false);
-        LOG_WARN("m8_hal_ctx: gantry VFD Modbus comm lost");
+        m8_alarm_on_vfd_comm_lost(false);
     }
     else if (event_code == DRV_VFD_EVT_COMM_RESTORED)
     {
-        alarm_core_set_state(ALARM_CODE_MODBUS_GANTRY, false, false);
-        LOG_INFO("m8_hal_ctx: gantry VFD Modbus comm restored");
+        m8_alarm_on_vfd_comm_restored(false);
     }
 }
 

@@ -17,14 +17,11 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "application/usecases/home_device.h"
-#include "application/usecases/reset_fault.h"
-#include "application/usecases/start_wash.h"
-#include "application/usecases/stop_wash.h"
-#include "common/event_types.h"
 #include "common/log.h"
-#include "core/event_bus/event_bus.h"
+#include "domain/model/command.h"
+#include "domain/model/wash_types.h"
 #include "domain/model/alarm_code.h"
+#include "ports/cloud/command_port.h"
 #include "domain/safety/alarm_core.h"
 #include "adapters/hal/linux_hw/drv/drv_io.h"
 #include "ports/hal/hal_io_port.h"
@@ -47,6 +44,29 @@ static void log_diag_io_usage(void)
 {
     LOG_INFO("usage: diag io [BOARD_ID]");
     LOG_INFO("example: diag io 1");
+}
+
+/**
+ * @brief  经 command_port 注入设备命令（与云端/仿真控制台同一路径）
+ */
+static sw_err_t inject_device_cmd(cmd_type_t type, wash_mode_t mode)
+{
+    const command_port_ops_t *cp = command_port_get_ops();
+    cmd_t                       cmd;
+
+    if ((cp == NULL) || (cp->inject == NULL))
+    {
+        LOG_WARN("cli: command_port not registered");
+        return SW_ERR_NOT_INIT;
+    }
+
+    cmd.type = type;
+    if (type == CMD_START_WASH)
+    {
+        cmd.payload.start_wash.mode = mode;
+    }
+
+    return cp->inject(&cmd);
 }
 
 /* -------------------------------------------------------------------------
@@ -82,43 +102,43 @@ int device_cmd_handler(char *subcmd, char *p1, char *p2)
             mode = (wash_mode_t)atoi(p1);
         }
 
-        sw_err_t ret = start_wash(mode);
+        sw_err_t ret = inject_device_cmd(CMD_START_WASH, mode);
         LOG_INFO("device order mode=%d ret=%d", (int)mode, (int)ret);
         return 1;
     }
 
     if (strcmp(subcmd, "stop") == 0)
     {
-        (void)stop_wash();
-        LOG_INFO("device stop wash");
+        sw_err_t ret = inject_device_cmd(CMD_STOP_WASH, WASH_MODE_STANDARD);
+        LOG_INFO("device stop wash ret=%d", (int)ret);
         return 1;
     }
 
     if (strcmp(subcmd, "stop-op") == 0)
     {
-        (void)stop_operation();
-        LOG_INFO("device stop operation");
+        sw_err_t ret = inject_device_cmd(CMD_STOP_OPERATION, WASH_MODE_STANDARD);
+        LOG_INFO("device stop operation ret=%d", (int)ret);
         return 1;
     }
 
     if (strcmp(subcmd, "resume") == 0)
     {
-        (void)event_publish(EVT_CMD_RESUME_OPERATION, 0U);
-        LOG_INFO("device resume");
+        sw_err_t ret = inject_device_cmd(CMD_RESUME_OPERATION, WASH_MODE_STANDARD);
+        LOG_INFO("device resume ret=%d", (int)ret);
         return 1;
     }
 
     if (strcmp(subcmd, "reset") == 0)
     {
-        sw_err_t ret = reset_fault();
+        sw_err_t ret = inject_device_cmd(CMD_RESET_FAULT, WASH_MODE_STANDARD);
         LOG_INFO("device reset ret=%d", (int)ret);
         return 1;
     }
 
     if (strcmp(subcmd, "home") == 0)
     {
-        (void)home_device();
-        LOG_INFO("device home");
+        sw_err_t ret = inject_device_cmd(CMD_HOME_DEVICE, WASH_MODE_STANDARD);
+        LOG_INFO("device home ret=%d", (int)ret);
         return 1;
     }
 

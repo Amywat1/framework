@@ -14,6 +14,7 @@
  */
 
 #include "core/event_bus/event_bus.h"
+#include "config/threading/thread_config.h"
 #include "common/time_util.h"
 
 #include <assert.h>

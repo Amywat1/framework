@@ -6,9 +6,8 @@
  */
 
 #include "ports/hal/hal_motion_port.h"
-#include "adapters/hal/linux_hw/m8_hal_ctx.h"
+#include "adapters/hal/linux_hw/m8_vfd_control.h"
 #include "adapters/machine/m8/m8_machine_map.h"
-#include "adapters/hal/linux_hw/drv/drv_vfd.h"
 #include "adapters/hal/linux_hw/drv/drv_stepper.h"
 #include "adapters/hal/linux_hw/drv/drv_io.h"
 #include "core/event_bus/event_bus.h"
@@ -22,22 +21,22 @@
  * ------------------------------------------------------------------------- */
 static sw_err_t m8_gantry_fwd(uint16_t freq_hz)
 {
-    return drv_vfd_run_fwd(m8_ctx_vfd_gantry(), freq_hz);
+    return m8_vfd_gantry_set_speed((int)freq_hz);
 }
 
 static sw_err_t m8_gantry_rev(uint16_t freq_hz)
 {
-    return drv_vfd_run_rev(m8_ctx_vfd_gantry(), freq_hz);
+    return m8_vfd_gantry_set_speed(-(int)freq_hz);
 }
 
 static sw_err_t m8_gantry_stop(void)
 {
-    return drv_vfd_stop(m8_ctx_vfd_gantry());
+    return m8_vfd_gantry_set_speed(0);
 }
 
 static sw_err_t m8_gantry_fault_reset(void)
 {
-    return drv_vfd_fault_reset(m8_ctx_vfd_gantry());
+    return m8_vfd_gantry_fault_reset();
 }
 
 /* -------------------------------------------------------------------------
@@ -45,7 +44,7 @@ static sw_err_t m8_gantry_fault_reset(void)
  * ------------------------------------------------------------------------- */
 static sw_err_t m8_brush_select(hal_brush_sel_t sel)
 {
-    if (drv_vfd_get_state(m8_ctx_vfd_brush()) == DRV_VFD_STATE_FWD)
+    if (m8_vfd_brush_is_running())
     {
         LOG_ERROR("hal_motion: brush_select called while VFD running");
         return SW_ERR_STATE;
@@ -71,17 +70,17 @@ static sw_err_t m8_brush_select(hal_brush_sel_t sel)
 
 static sw_err_t m8_brush_run(uint16_t freq_hz)
 {
-    return drv_vfd_run_fwd(m8_ctx_vfd_brush(), freq_hz);
+    return m8_vfd_brush_set_speed((int)freq_hz);
 }
 
 static sw_err_t m8_brush_stop(void)
 {
-    return drv_vfd_stop(m8_ctx_vfd_brush());
+    return m8_vfd_brush_set_speed(0);
 }
 
 static sw_err_t m8_brush_fault_reset(void)
 {
-    return drv_vfd_fault_reset(m8_ctx_vfd_brush());
+    return m8_vfd_brush_fault_reset();
 }
 
 /* -------------------------------------------------------------------------

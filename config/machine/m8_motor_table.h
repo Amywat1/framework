@@ -12,24 +12,20 @@
 #define CONFIG_MACHINE_M8_MOTOR_TABLE_H
 
 #include "common/io_handle.h"
+#include "config/machine/m8_io_pins.h"
 #include "domain/model/alarm_code.h"
-#include "adapters/hal/linux_hw/drv/drv_io.h"
 #include <stdbool.h>
 #include <stdint.h>
 
 typedef enum
 {
     MOTOR_GANTRY = 0,
-    MOTOR_BRUSH_TOP,
-    MOTOR_BRUSH_SIDE,
     MOTOR_ID_MAX
 } motor_id_t;
 
 typedef enum
 {
     MOTOR_DRV_VFD = 0,
-    MOTOR_DRV_KM,
-    MOTOR_DRV_PULSE,
 } motor_drv_type_t;
 
 typedef enum
@@ -42,8 +38,6 @@ typedef enum
 {
     MOTOR_LIMIT_NONE = 0,
     MOTOR_LIMIT_SIGNAL,
-    MOTOR_LIMIT_PULSE_MAX,
-    MOTOR_LIMIT_PULSE_MIN_MAX,
 } motor_limit_mode_t;
 
 typedef enum
@@ -100,20 +94,20 @@ static const motor_cfg_t m8_motor_table[] = {
         .name            = "GANTRY",
         .drv_type        = MOTOR_DRV_VFD,
         .action_type     = MOTOR_ACTION_MOVE,
-        .io_cw           = DO_GANTRY_FWD,
-        .io_ccw          = DO_GANTRY_REV,
+        .io_cw           = M8_IO_DO_GANTRY_FWD,
+        .io_ccw          = M8_IO_DO_GANTRY_REV,
         .io_stop         = MOTOR_DO_NONE,
         .io_vel0         = MOTOR_DO_NONE,
         .io_vel1         = MOTOR_DO_NONE,
         .limit_mode      = MOTOR_LIMIT_SIGNAL,
-        .limit_io_cw     = DI_GANTRY_FWD_LIMIT,
-        .limit_io_ccw    = DI_GANTRY_REV_LIMIT,
+        .limit_io_cw     = M8_IO_DI_GANTRY_FWD_LIM,
+        .limit_io_ccw    = M8_IO_DI_GANTRY_REV_LIM,
         .limit_pos_min   = 0U,
         .limit_pos_max   = 0U,
         .timeout_ms      = 60000U,
         .has_encoder            = true,
         .encoder_backend        = MOTOR_ENCODER_COUNTER,
-        .encoder_io             = DI_GANTRY_ENCODER_PULSE,
+        .encoder_io             = M8_IO_DI_GANTRY_ENCODER_PULSE,
         .encoder_zero_io        = MOTOR_DI_NONE,
         .encoder_zero_confirm   = 0U,
         .encoder_err_threshold  = 5U,
@@ -125,68 +119,6 @@ static const motor_cfg_t m8_motor_table[] = {
         .current_confirm_ms     = 0U,
         .alarm_code_current     = ALARM_CODE_GANTRY_CURRENT,
         .alarm_code_fault       = ALARM_CODE_VFD_GANTRY,
-    },
-    {
-        .id              = MOTOR_BRUSH_TOP,
-        .name            = "BRUSH_TOP",
-        .drv_type        = MOTOR_DRV_VFD,
-        .action_type     = MOTOR_ACTION_HOLD,
-        .io_cw           = DO_SIDE_BRUSH_FWD,
-        .io_ccw          = DO_SIDE_BRUSH_REV,
-        .io_stop         = MOTOR_DO_NONE,
-        .io_vel0         = MOTOR_DO_NONE,
-        .io_vel1         = MOTOR_DO_NONE,
-        .limit_mode      = MOTOR_LIMIT_NONE,
-        .limit_io_cw     = MOTOR_DI_NONE,
-        .limit_io_ccw    = MOTOR_DI_NONE,
-        .limit_pos_min   = 0U,
-        .limit_pos_max   = 0U,
-        .timeout_ms      = MOTOR_TIMEOUT_FOREVER,
-        .has_encoder            = false,
-        .encoder_backend        = MOTOR_ENCODER_NONE,
-        .encoder_io             = MOTOR_DI_NONE,
-        .encoder_zero_io        = MOTOR_DI_NONE,
-        .encoder_zero_confirm   = 0U,
-        .encoder_err_threshold  = 0U,
-        .encoder_err_check_ms   = 0U,
-        .encoder_jump_threshold = 0U,
-        .current_high_threshold = 800U,
-        .current_low_threshold  = 50U,
-        .current_check_delay_ms = 2000U,
-        .current_confirm_ms     = 3000U,
-        .alarm_code_current     = ALARM_CODE_BRUSH_CURRENT,
-        .alarm_code_fault       = ALARM_CODE_VFD_BRUSH,
-    },
-    {
-        .id              = MOTOR_BRUSH_SIDE,
-        .name            = "BRUSH_SIDE",
-        .drv_type        = MOTOR_DRV_VFD,
-        .action_type     = MOTOR_ACTION_HOLD,
-        .io_cw           = DO_SIDE_BRUSH_FWD,
-        .io_ccw          = DO_SIDE_BRUSH_REV,
-        .io_stop         = MOTOR_DO_NONE,
-        .io_vel0         = MOTOR_DO_NONE,
-        .io_vel1         = MOTOR_DO_NONE,
-        .limit_mode      = MOTOR_LIMIT_NONE,
-        .limit_io_cw     = MOTOR_DI_NONE,
-        .limit_io_ccw    = MOTOR_DI_NONE,
-        .limit_pos_min   = 0U,
-        .limit_pos_max   = 0U,
-        .timeout_ms      = MOTOR_TIMEOUT_FOREVER,
-        .has_encoder            = false,
-        .encoder_backend        = MOTOR_ENCODER_NONE,
-        .encoder_io             = MOTOR_DI_NONE,
-        .encoder_zero_io        = MOTOR_DI_NONE,
-        .encoder_zero_confirm   = 0U,
-        .encoder_err_threshold  = 0U,
-        .encoder_err_check_ms   = 0U,
-        .encoder_jump_threshold = 0U,
-        .current_high_threshold = 800U,
-        .current_low_threshold  = 50U,
-        .current_check_delay_ms = 2000U,
-        .current_confirm_ms     = 3000U,
-        .alarm_code_current     = ALARM_CODE_BRUSH_CURRENT,
-        .alarm_code_fault       = ALARM_CODE_VFD_BRUSH,
     },
 };
 

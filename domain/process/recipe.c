@@ -8,6 +8,8 @@
 #include "domain/process/recipe.h"
 #include "common/sw_error.h"
 
+#include <stddef.h>
+
 /*
  * 配方数据通过 #include 装配，编译期静态只读。
  * include 路径约定：CMakeLists 须将 项目根目录加入 include_directories，

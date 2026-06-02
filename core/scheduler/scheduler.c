@@ -51,13 +51,6 @@ sw_err_t scheduler_start_all(void)
         pthread_detach(tid);
         pthread_attr_destroy(&attr);
 
-        /* SCHED_OTHER 线程通过 setpriority 设置 nice 值 */
-        if ((e->sched_policy == SCHED_OTHER) && (e->prio != 0))
-        {
-            /* tid 在 detach 后无法设置 nice，此处仅作占位
-             * 实际需要时改用 pthread_setschedparam + nice() 组合 */
-        }
-
         LOG_INFO("scheduler: started [%s]", e->name);
     }
 

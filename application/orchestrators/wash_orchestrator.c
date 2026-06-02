@@ -1,6 +1,6 @@
 /**
  * @file    wash_orchestrator.c
- * @brief   洗车流程编排器实现
+ * @brief   洗车流程编排器（含单步同步执行）
  * @author  胡望伟
  * @date    2026-04-10
  */
@@ -9,10 +9,9 @@
 #include "core/scheduler/thread_registry.h"
 #include "service/dev_ctx/dev_ctx.h"
 #include "service/svc_param/svc_param.h"
-#include "domain/process/step_engine.h"
 #include "domain/process/recipe.h"
-#include "domain/device/unit/gantry.h"
 #include "domain/device/unit/brush.h"
+#include "domain/device/unit/gantry.h"
 #include "domain/device/unit/top_lift.h"
 #include "domain/device/water.h"
 #include "domain/safety/alarm_core.h"
@@ -23,23 +22,219 @@
 #include <semaphore.h>
 #include <stdatomic.h>
 #include <unistd.h>
-#include <pthread.h>
 #include <sched.h>
 
-/* 单步最长超时（ms）*/
 #define WASH_STEP_TIMEOUT_MS    120000U
+#define STEP_POLL_INTERVAL_MS   50U
+#define LIFT_WAIT_TIMEOUT_MS    15000U
 
-/* -------------------------------------------------------------------------
- * 内部状态
- * ------------------------------------------------------------------------- */
 static sem_t        s_start_sem;
-static atomic_bool  s_busy      = false;
-static atomic_bool  s_terminate = false;
-static wash_mode_t  s_mode      = WASH_MODE_STANDARD;
+static atomic_bool  s_busy       = false;
+static atomic_bool  s_terminate  = false;
+static atomic_bool  s_abort_req  = false;
+static wash_mode_t  s_mode       = WASH_MODE_STANDARD;
 
 /* -------------------------------------------------------------------------
- * worker_thread 函数
+ * 单步执行（原 step_engine）
  * ------------------------------------------------------------------------- */
+static sw_err_t wait_lift_bottom(void)
+{
+    uint32_t elapsed_ms = 0U;
+
+    while (!top_lift_at_bottom())
+    {
+        if (atomic_load(&s_abort_req))
+        {
+            return SW_ERR_STATE;
+        }
+        usleep((unsigned long)STEP_POLL_INTERVAL_MS * 1000UL);
+        elapsed_ms += STEP_POLL_INTERVAL_MS;
+        if (elapsed_ms >= LIFT_WAIT_TIMEOUT_MS)
+        {
+            LOG_ERROR("wash_exec: wait_lift_bottom timeout");
+            return SW_ERR_TIMEOUT;
+        }
+    }
+    return SW_OK;
+}
+
+static sw_err_t apply_step(const wash_step_config_t *s, uint16_t brush_freq)
+{
+    sw_err_t ret;
+
+    LOG_INFO("wash_exec: apply [%s]", s->name);
+
+    if (s->water_prewash)
+    {
+        (void)water_prewash_on();
+    }
+    else
+    {
+        (void)water_prewash_off();
+    }
+
+    if (s->water_brush)
+    {
+        (void)water_brush_on();
+    }
+    else
+    {
+        (void)water_brush_off();
+    }
+
+    if (s->water_highpres)
+    {
+        (void)water_highpres_on();
+    }
+    else
+    {
+        (void)water_highpres_off();
+    }
+
+    if (s->top_lift_down)
+    {
+        ret = top_lift_down_start(0U);
+        if (ret != SW_OK)
+        {
+            LOG_ERROR("wash_exec: top_lift_down_start failed ret=%d", (int)ret);
+            return ret;
+        }
+        ret = wait_lift_bottom();
+        if (ret != SW_OK)
+        {
+            return ret;
+        }
+    }
+    else
+    {
+        (void)top_lift_up_start(0U);
+    }
+
+    if (s->brush_top_on)
+    {
+        ret = brush_start(BRUSH_ID_TOP, brush_freq);
+    }
+    else if (s->brush_side_on)
+    {
+        ret = brush_start(BRUSH_ID_SIDE, brush_freq);
+    }
+    else
+    {
+        ret = SW_OK;
+        (void)brush_stop();
+    }
+    if (ret != SW_OK)
+    {
+        LOG_WARN("wash_exec: brush_start failed ret=%d", (int)ret);
+    }
+
+    if (s->gantry_freq > 0U)
+    {
+        ret = s->gantry_fwd ? gantry_fwd(s->gantry_freq)
+                            : gantry_rev(s->gantry_freq);
+        if (ret != SW_OK)
+        {
+            LOG_ERROR("wash_exec: gantry start failed ret=%d", (int)ret);
+            return ret;
+        }
+    }
+    else
+    {
+        (void)gantry_stop();
+    }
+
+    return SW_OK;
+}
+
+static sw_err_t wait_exit(const wash_step_config_t *s, uint32_t timeout_ms)
+{
+    uint32_t elapsed_ms = 0U;
+
+    if ((s->step == WASH_STEP_ENTRY) || (s->step == WASH_STEP_COMPLETE))
+    {
+        return SW_OK;
+    }
+
+    while (true)
+    {
+        if (atomic_load(&s_abort_req))
+        {
+            LOG_WARN("wash_exec: aborted at [%s]", s->name);
+            return SW_ERR_STATE;
+        }
+
+        if (alarm_core_has_error())
+        {
+            LOG_ERROR("wash_exec: ERROR alarm at [%s]", s->name);
+            return SW_ERR_STATE;
+        }
+
+        if (s->exit_at_fwd_limit && gantry_at_fwd_limit())
+        {
+            LOG_INFO("wash_exec: [%s] exit - fwd limit", s->name);
+            break;
+        }
+        if (s->exit_at_rev_limit && gantry_at_rev_limit())
+        {
+            LOG_INFO("wash_exec: [%s] exit - rev limit", s->name);
+            break;
+        }
+        if ((s->exit_pos_pulse >= 0) &&
+            (gantry_get_pos() >= (int32_t)s->exit_pos_pulse))
+        {
+            LOG_INFO("wash_exec: [%s] exit - pos reached", s->name);
+            break;
+        }
+
+        usleep((unsigned long)STEP_POLL_INTERVAL_MS * 1000UL);
+        elapsed_ms += STEP_POLL_INTERVAL_MS;
+
+        if (elapsed_ms >= timeout_ms)
+        {
+            LOG_ERROR("wash_exec: [%s] timeout after %u ms",
+                      s->name, (unsigned)timeout_ms);
+            return SW_ERR_TIMEOUT;
+        }
+    }
+
+    return SW_OK;
+}
+
+sw_err_t wash_exec_step(const wash_step_config_t *step,
+                        uint32_t timeout_ms,
+                        uint16_t brush_freq)
+{
+    sw_err_t ret;
+
+    if (step == NULL)
+    {
+        return SW_ERR_PARAM;
+    }
+
+    ret = apply_step(step, brush_freq);
+    if (ret != SW_OK)
+    {
+        return ret;
+    }
+
+    return wait_exit(step, timeout_ms);
+}
+
+void wash_exec_clear_abort(void)
+{
+    atomic_store(&s_abort_req, false);
+}
+
+/* -------------------------------------------------------------------------
+ * worker_thread
+ * ------------------------------------------------------------------------- */
+static void wash_stop_all_outputs(void)
+{
+    (void)gantry_stop();
+    (void)brush_off();
+    (void)water_all_off();
+}
+
 static void *wash_worker_fn(void *arg)
 {
     (void)arg;
@@ -53,9 +248,9 @@ static void *wash_worker_fn(void *arg)
             break;
         }
 
-        /* 获取配方 */
         const wash_step_config_t *steps;
         int                       count;
+
         if (recipe_get(s_mode, &steps, &count) != SW_OK)
         {
             LOG_ERROR("wash_worker: recipe_get failed mode=%d", (int)s_mode);
@@ -64,24 +259,20 @@ static void *wash_worker_fn(void *arg)
             continue;
         }
 
-        /* 刷子频率（顶刷/侧刷共用，实际可按步骤区分）*/
         uint16_t brush_freq = (uint16_t)svc_param_get_int(
             PARAM_KEY_BRUSH_FREQ_TOP, 4500);
 
-        step_engine_clear_abort();
+        wash_exec_clear_abort();
         dev_ctx_set_wash_progress(WASH_STEP_IDLE, s_mode);
 
         LOG_INFO("wash_worker: start mode=%d steps=%d freq=%u",
                  (int)s_mode, count, (unsigned)brush_freq);
 
         sw_err_t result = SW_OK;
-        int      i;
-        for (i = 0; i < count; i++)
+        for (int i = 0; i < count; i++)
         {
             dev_ctx_set_wash_progress(steps[i].step, s_mode);
-            result = step_engine_exec_step(&steps[i],
-                                           WASH_STEP_TIMEOUT_MS,
-                                           brush_freq);
+            result = wash_exec_step(&steps[i], WASH_STEP_TIMEOUT_MS, brush_freq);
             if (result != SW_OK)
             {
                 LOG_ERROR("wash_worker: step[%d] failed ret=%d", i, (int)result);
@@ -89,11 +280,8 @@ static void *wash_worker_fn(void *arg)
             }
         }
 
-        /* 洗车结束：关停所有执行机构 */
-        (void)gantry_stop();
-        (void)brush_off();
-        (void)water_all_off();
-        (void)top_lift_up_start(0U); /* 归位顶刷，异步 */
+        wash_stop_all_outputs();
+        (void)top_lift_up_start(0U);
 
         dev_ctx_set_wash_progress(WASH_STEP_IDLE, s_mode);
 
@@ -116,27 +304,13 @@ static void *wash_worker_fn(void *arg)
 }
 
 /* -------------------------------------------------------------------------
- * 事件处理：LOCKOUT → 中止当前步骤
- * ------------------------------------------------------------------------- */
-static void on_safety_lockout(const event_t *evt)
-{
-    (void)evt;
-    if (atomic_load(&s_busy))
-    {
-        step_engine_abort();
-        LOG_WARN("wash_orchestrator: abort requested by LOCKOUT");
-    }
-}
-
-/* -------------------------------------------------------------------------
- * 接口实现
+ * 对外接口
  * ------------------------------------------------------------------------- */
 sw_err_t wash_orchestrator_init(void)
 {
-    sw_err_t ret;
-
     atomic_store(&s_busy,      false);
     atomic_store(&s_terminate, false);
+    atomic_store(&s_abort_req, false);
 
     if (sem_init(&s_start_sem, 0, 0) != 0)
     {
@@ -144,16 +318,12 @@ sw_err_t wash_orchestrator_init(void)
         return SW_ERR_HW;
     }
 
-    ret = step_engine_init();
-    if (ret != SW_OK) { return ret; }
-
-    ret = event_subscribe(EVT_SAFETY_LOCKOUT, on_safety_lockout);
-    if (ret != SW_OK) { return ret; }
-
-    /* 注册 worker_thread 到调度器（由 scheduler_start_all 创建）*/
-    ret = thread_register("wash_worker", wash_worker_fn,
-                          SCHED_OTHER, 0, THD_WASH_WORKER_STACK);
-    if (ret != SW_OK) { return ret; }
+    sw_err_t ret = thread_register("wash_worker", wash_worker_fn,
+                                   SCHED_OTHER, 0, THD_WASH_WORKER_STACK);
+    if (ret != SW_OK)
+    {
+        return ret;
+    }
 
     LOG_INFO("wash_orchestrator: init ok");
     return SW_OK;
@@ -180,11 +350,9 @@ sw_err_t wash_orchestrator_start(wash_mode_t mode)
 
 void wash_orchestrator_abort(void)
 {
-    if (atomic_load(&s_busy))
-    {
-        step_engine_abort();
-        LOG_WARN("wash_orchestrator: abort");
-    }
+    atomic_store(&s_abort_req, true);
+    wash_stop_all_outputs();
+    LOG_WARN("wash_orchestrator: abort");
 }
 
 bool wash_orchestrator_is_busy(void)

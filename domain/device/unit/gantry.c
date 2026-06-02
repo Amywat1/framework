@@ -71,7 +71,11 @@ sw_err_t gantry_init(void)
 {
     atomic_store(&s_homing, false);
 
-    sw_err_t ret = event_subscribe(EVT_COMP_MOTOR_DONE, on_gantry_done);
+    sw_err_t ret = event_subscribe_table(
+        (const event_subscription_t[]){
+            { EVT_COMP_MOTOR_DONE, on_gantry_done },
+        },
+        1U);
     if (ret != SW_OK)
     {
         LOG_ERROR("gantry_init: subscribe EVT_COMP_MOTOR_DONE failed");

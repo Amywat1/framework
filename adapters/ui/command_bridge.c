@@ -6,6 +6,7 @@
  */
 
 #include "adapters/ui/command_bridge.h"
+#include "application/command_guard.h"
 #include "ports/cloud/command_port.h"
 #include "core/event_bus/event_bus.h"
 #include "common/event_types.h"
@@ -16,9 +17,17 @@
  * ------------------------------------------------------------------------- */
 static sw_err_t bridge_inject(const cmd_t *cmd)
 {
+    sw_err_t ret;
+
     if (cmd == NULL)
     {
         return SW_ERR_PARAM;
+    }
+
+    ret = command_guard_check(cmd);
+    if (ret != SW_OK)
+    {
+        return ret;
     }
 
     switch (cmd->type)
@@ -42,15 +51,8 @@ static sw_err_t bridge_inject(const cmd_t *cmd)
     }
 }
 
-static void bridge_register_cb(command_inject_cb_t cb)
-{
-    /* 本实现直接写 event_bus，不使用回调机制；保留接口兼容性 */
-    (void)cb;
-}
-
 static const command_port_ops_t s_ops = {
-    .register_cb = bridge_register_cb,
-    .inject      = bridge_inject,
+    .inject = bridge_inject,
 };
 
 void command_bridge_register(void)

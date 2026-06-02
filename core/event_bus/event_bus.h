@@ -21,11 +21,19 @@ extern "C" {
 
 #include "common/event_types.h"
 #include "common/sw_error.h"
+#include <stddef.h>
 
 /* -------------------------------------------------------------------------
  * 事件处理函数类型
  * ------------------------------------------------------------------------- */
 typedef void (*event_handler_t)(const event_t *evt);
+
+/** 批量订阅表项 */
+typedef struct
+{
+    event_type_t    type;
+    event_handler_t handler;
+} event_subscription_t;
 
 /* -------------------------------------------------------------------------
  * 不可恢复故障（fatal）
@@ -107,7 +115,7 @@ sw_err_t event_bus_shutdown(void);
 
 /**
  * @brief  发布事件
- * @param  type   事件类型（不可为 EVT_NONE 或 >= EVT_MAX）
+ * @param  type   事件类型（须通过 event_type_is_valid 校验）
  * @param  param  简单载荷（报警码、错误码等；无载荷传 0）
  * @retval SW_OK
  * @retval SW_ERR_NOT_INIT  未调用 event_bus_init
@@ -127,6 +135,14 @@ sw_err_t event_publish(event_type_t type, uint32_t param);
  * @retval SW_ERR_OVERFLOW  该事件的订阅槽已满（见 EVENT_BUS_MAX_SUBS_PER_EVT）
  */
 sw_err_t event_subscribe(event_type_t type, event_handler_t handler);
+
+/**
+ * @brief  按表批量订阅（遇首个失败即返回）
+ * @param  subs   订阅表（type + handler）
+ * @param  count  表项数量
+ * @retval SW_OK / SW_ERR_NOT_INIT / SW_ERR_PARAM / SW_ERR_OVERFLOW
+ */
+sw_err_t event_subscribe_table(const event_subscription_t *subs, size_t count);
 
 /**
  * @brief  获取当前运行统计（线程安全，值拷贝）

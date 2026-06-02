@@ -16,31 +16,18 @@
 #include "core/event_bus/event_bus.h"
 #include "common/event_types.h"
 #include "common/log.h"
-#include <pthread.h>
 #include <stdbool.h>
 
-static dev_state_t     s_state       = DEV_STATE_INIT;
-static pthread_mutex_t s_mutex       = PTHREAD_MUTEX_INITIALIZER;
-/* true = 当前中止是用户主动发起（而非故障），EVT_WASH_ABORTED 时转 IDLE 而非 FAULT */
-static bool            s_manual_stop = false;
+/* true = 用户主动停止，EVT_WASH_ABORTED 时转 IDLE 而非 FAULT */
+static bool s_manual_stop = false;
 
-/* -------------------------------------------------------------------------
- * 内部辅助
- * ------------------------------------------------------------------------- */
 static dev_state_t get_state(void)
 {
-    dev_state_t st;
-    pthread_mutex_lock(&s_mutex);
-    st = s_state;
-    pthread_mutex_unlock(&s_mutex);
-    return st;
+    return dev_ctx_get_device_state();
 }
 
 static void set_state(dev_state_t new_state)
 {
-    pthread_mutex_lock(&s_mutex);
-    s_state = new_state;
-    pthread_mutex_unlock(&s_mutex);
     dev_ctx_set_device_state(new_state);
     LOG_INFO("device_fsm: → %d", (int)new_state);
 }
@@ -73,6 +60,22 @@ static void clear_manual_stop_flag(void)
     s_manual_stop = false;
 }
 
+/**
+ * @brief  过滤 command_guard 通过后、入队期间状态变化导致的过期命令
+ */
+static bool cmd_stale_for_state(dev_state_t expected)
+{
+    return get_state() != expected;
+}
+
+static bool cmd_stale_for_start_wash(void)
+{
+    device_context_t ctx = dev_ctx_snapshot();
+
+    return (ctx.safety_state != SAFETY_STATE_OK) ||
+           (ctx.device_state != DEV_STATE_IDLE);
+}
+
 /* -------------------------------------------------------------------------
  * 事件处理函数（在 event_dispatch_thread 上下文执行）
  * ------------------------------------------------------------------------- */
@@ -80,9 +83,8 @@ static void clear_manual_stop_flag(void)
 /* EVT_CMD_ORDER (param = wash_mode_t) */
 static void on_cmd_order(const event_t *evt)
 {
-    if (get_state() != DEV_STATE_IDLE)
+    if (cmd_stale_for_start_wash())
     {
-        LOG_WARN("device_fsm: ORDER ignored (not IDLE)");
         return;
     }
 
@@ -110,9 +112,8 @@ static void on_cmd_order(const event_t *evt)
 static void on_cmd_stop_op(const event_t *evt)
 {
     (void)evt;
-    if (get_state() != DEV_STATE_IDLE)
+    if (cmd_stale_for_state(DEV_STATE_IDLE))
     {
-        LOG_WARN("device_fsm: STOP_OPERATION ignored (not IDLE)");
         return;
     }
     set_state(DEV_STATE_STOP);
@@ -124,9 +125,8 @@ static void on_cmd_stop_op(const event_t *evt)
 static void on_cmd_resume_op(const event_t *evt)
 {
     (void)evt;
-    if (get_state() != DEV_STATE_STOP)
+    if (cmd_stale_for_state(DEV_STATE_STOP))
     {
-        LOG_WARN("device_fsm: RESUME_OPERATION ignored (not STOP)");
         return;
     }
     set_state(DEV_STATE_IDLE);
@@ -138,9 +138,8 @@ static void on_cmd_resume_op(const event_t *evt)
 static void on_cmd_reset_fault(const event_t *evt)
 {
     (void)evt;
-    if (get_state() != DEV_STATE_FAULT)
+    if (cmd_stale_for_state(DEV_STATE_FAULT))
     {
-        LOG_WARN("device_fsm: RESET_FAULT ignored (not FAULT)");
         return;
     }
 
@@ -163,9 +162,8 @@ static void on_cmd_reset_fault(const event_t *evt)
 static void on_cmd_home(const event_t *evt)
 {
     (void)evt;
-    if (get_state() != DEV_STATE_IDLE)
+    if (cmd_stale_for_state(DEV_STATE_IDLE))
     {
-        LOG_WARN("device_fsm: HOME_DEVICE ignored (not IDLE)");
         return;
     }
     /* 龙门归位（异步，EVT_COMP_HOME_DONE 时结束，状态保持 IDLE）*/
@@ -222,9 +220,8 @@ static void on_wash_done(const event_t *evt)
 static void on_cmd_stop_wash(const event_t *evt)
 {
     (void)evt;
-    if (get_state() != DEV_STATE_RUN)
+    if (cmd_stale_for_state(DEV_STATE_RUN))
     {
-        LOG_WARN("device_fsm: STOP_WASH ignored (not RUN)");
         return;
     }
     s_manual_stop = true; /* 标记为主动停止，EVT_WASH_ABORTED 时转 IDLE */
@@ -259,7 +256,7 @@ static void on_wash_aborted(const event_t *evt)
     }
 }
 
-/* EVT_SAFETY_LOCKOUT：紧急停机 */
+/* EVT_SAFETY_LOCKOUT：设备态转 FAULT（运动中止由 emergency_handler 负责） */
 static void on_safety_lockout(const event_t *evt)
 {
     (void)evt;
@@ -268,14 +265,6 @@ static void on_safety_lockout(const event_t *evt)
     if ((state == DEV_STATE_RUN) || (state == DEV_STATE_COMPLETE))
     {
         clear_manual_stop_flag();
-        if (state == DEV_STATE_RUN)
-        {
-            wash_orchestrator_abort();
-        }
-        else
-        {
-            (void)gantry_stop();
-        }
         set_state(DEV_STATE_FAULT);
         apply_fault_indicator();
         LOG_WARN("device_fsm: %d → FAULT (LOCKOUT)", (int)state);
@@ -287,38 +276,30 @@ static void on_safety_lockout(const event_t *evt)
  * ------------------------------------------------------------------------- */
 sw_err_t device_fsm_init(void)
 {
+    static const event_subscription_t s_subs[] = {
+        { EVT_CMD_ORDER,            on_cmd_order       },
+        { EVT_CMD_STOP_WASH,        on_cmd_stop_wash   },
+        { EVT_CMD_STOP_OPERATION,   on_cmd_stop_op     },
+        { EVT_CMD_RESUME_OPERATION, on_cmd_resume_op   },
+        { EVT_CMD_RESET_FAULT,      on_cmd_reset_fault },
+        { EVT_CMD_HOME_DEVICE,      on_cmd_home        },
+        { EVT_COMP_HOME_DONE,       on_home_done       },
+        { EVT_WASH_DONE,            on_wash_done       },
+        { EVT_WASH_ABORTED,         on_wash_aborted    },
+        { EVT_SAFETY_LOCKOUT,       on_safety_lockout  },
+    };
     sw_err_t ret;
 
     /* 所有组件已由 bootstrap 初始化完毕，直接进入 IDLE */
     set_state(DEV_STATE_IDLE);
     apply_idle_indicator();
 
-    ret = event_subscribe(EVT_CMD_ORDER,              on_cmd_order);
-    if (ret != SW_OK) { return ret; }
-    ret = event_subscribe(EVT_CMD_STOP_WASH,          on_cmd_stop_wash);
-    if (ret != SW_OK) { return ret; }
-    ret = event_subscribe(EVT_CMD_STOP_OPERATION,     on_cmd_stop_op);
-    if (ret != SW_OK) { return ret; }
-    ret = event_subscribe(EVT_CMD_RESUME_OPERATION,   on_cmd_resume_op);
-    if (ret != SW_OK) { return ret; }
-    ret = event_subscribe(EVT_CMD_RESET_FAULT,        on_cmd_reset_fault);
-    if (ret != SW_OK) { return ret; }
-    ret = event_subscribe(EVT_CMD_HOME_DEVICE,        on_cmd_home);
-    if (ret != SW_OK) { return ret; }
-    ret = event_subscribe(EVT_COMP_HOME_DONE,         on_home_done);
-    if (ret != SW_OK) { return ret; }
-    ret = event_subscribe(EVT_WASH_DONE,              on_wash_done);
-    if (ret != SW_OK) { return ret; }
-    ret = event_subscribe(EVT_WASH_ABORTED,           on_wash_aborted);
-    if (ret != SW_OK) { return ret; }
-    ret = event_subscribe(EVT_SAFETY_LOCKOUT,         on_safety_lockout);
-    if (ret != SW_OK) { return ret; }
+    ret = event_subscribe_table(s_subs, sizeof(s_subs) / sizeof(s_subs[0]));
+    if (ret != SW_OK)
+    {
+        return ret;
+    }
 
     LOG_INFO("device_fsm: init ok (IDLE)");
     return SW_OK;
-}
-
-dev_state_t device_fsm_get_state(void)
-{
-    return get_state();
 }

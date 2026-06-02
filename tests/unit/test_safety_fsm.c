@@ -9,6 +9,7 @@
  */
 
 #include "domain/safety/safety_fsm.h"
+#include "service/dev_ctx/dev_ctx.h"
 #include "domain/safety/alarm_core.h"
 #include "domain/model/alarm_code.h"
 #include "domain/model/safety_types.h"
@@ -157,6 +158,7 @@ int main(void)
     printf("=== test_safety_fsm ===\n");
 
     (void)event_bus_init();
+    (void)dev_ctx_init();
 
     test_estop_to_lockout();
     test_vfd_fault_to_lockout();

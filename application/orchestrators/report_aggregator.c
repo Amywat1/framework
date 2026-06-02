@@ -130,16 +130,24 @@ static void on_cloud_disconnected(const event_t *evt)
  * ------------------------------------------------------------------------- */
 sw_err_t report_aggregator_init(void)
 {
+    static const event_subscription_t s_subs[] = {
+        { EVT_CLOUD_CONNECTED,    on_cloud_connected    },
+        { EVT_CLOUD_DISCONNECTED, on_cloud_disconnected },
+    };
     sw_err_t ret;
 
-    ret = event_subscribe(EVT_CLOUD_CONNECTED,    on_cloud_connected);
-    if (ret != SW_OK) { return ret; }
-    ret = event_subscribe(EVT_CLOUD_DISCONNECTED, on_cloud_disconnected);
-    if (ret != SW_OK) { return ret; }
+    ret = event_subscribe_table(s_subs, sizeof(s_subs) / sizeof(s_subs[0]));
+    if (ret != SW_OK)
+    {
+        return ret;
+    }
 
     ret = thread_register("cloud", cloud_thread_fn,
                           SCHED_OTHER, 0, THD_CLOUD_STACK);
-    if (ret != SW_OK) { return ret; }
+    if (ret != SW_OK)
+    {
+        return ret;
+    }
 
     LOG_INFO("report_aggregator: init ok");
     return SW_OK;

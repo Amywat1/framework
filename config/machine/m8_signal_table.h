@@ -4,8 +4,8 @@
  * @author  胡望伟
  * @date    2026-04-13
  *
- * @note    每行定义一路 DI 信号的滤波参数、极性、事件绑定和报警绑定。
- *          新增信号时优先扩展本表，避免将防抖与极性规则散落到业务代码中。
+ * @note    每行定义一路 DI 信号的滤波参数、极性及报警绑定。
+ *          io_id 使用 IO_HANDLE_MAKE 常量编码，避免依赖 drv_io.h 复合字面量。
  */
 
 #ifndef CONFIG_MACHINE_M8_SIGNAL_TABLE_H
@@ -14,11 +14,16 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#include "common/event_types.h"
 #include "common/sw_types.h"
 #include "common/io_handle.h"
-#include "adapters/hal/linux_hw/drv/drv_io.h"
 #include "domain/model/alarm_code.h"
+
+/* 与 config/machine/m8_io_table.h 中 DI 点位一致（子板 1）*/
+#define M8_SIG_DI_ESTOP_RAW           IO_HANDLE_MAKE(IO_KIND_DI, 1U, 21U)
+#define M8_SIG_DI_GANTRY_FWD_RAW      IO_HANDLE_MAKE(IO_KIND_DI, 1U, 13U)
+#define M8_SIG_DI_GANTRY_REV_RAW      IO_HANDLE_MAKE(IO_KIND_DI, 1U, 14U)
+#define M8_SIG_DI_LIFT_UP_RAW         IO_HANDLE_MAKE(IO_KIND_DI, 1U, 15U)
+#define M8_SIG_DI_LIFT_DOWN_RAW       IO_HANDLE_MAKE(IO_KIND_DI, 1U, 16U)
 
 /* -------------------------------------------------------------------------
  * 信号标识
@@ -43,26 +48,19 @@ typedef struct
     bool           active_low;     /**< true=低电平有效（常闭接法） */
     uint8_t        trig_count;     /**< 触发确认次数 */
     uint8_t        release_count;  /**< 释放确认次数 */
-    event_type_t   evt_active;     /**< 确认触发时发布的事件 */
-    event_type_t   evt_inactive;   /**< 确认释放时发布的事件 */
     uint16_t       alarm_code;     /**< 关联报警码，0=不联动 */
 } m8_signal_cfg_t;
 
 /* -------------------------------------------------------------------------
  * 配置表
- *
- * 说明：
- *   1. 急停要求快速响应，因此触发 1 次确认、释放 3 次确认。
- *   2. 限位信号采用对称 3 次确认，抑制机械触点抖动。
- *   3. alarm_code 用于将滤波后的稳定状态同步给 alarm_core。
  * ------------------------------------------------------------------------- */
 static const m8_signal_cfg_t m8_signal_table[] = {
-/*  sig_id                  io_id                 active_low  trig  rel  evt_active              evt_inactive           alarm_code */
-    { M8_SIG_ESTOP,          DI_ESTOP,             true,       1U,   3U,  EVT_HW_ESTOP_ON,        EVT_HW_ESTOP_OFF,      ALARM_CODE_ESTOP          },
-    { M8_SIG_GANTRY_FWD_LIM, DI_GANTRY_FWD_LIMIT,  false,      3U,   3U,  EVT_HW_GANTRY_FWD_LIM, EVT_NONE,              0U                        },
-    { M8_SIG_GANTRY_REV_LIM, DI_GANTRY_REV_LIMIT,  false,      3U,   3U,  EVT_HW_GANTRY_REV_LIM, EVT_NONE,              0U                        },
-    { M8_SIG_LIFT_UP_LIM,    DI_LIFT_UP_LIMIT,     false,      3U,   3U,  EVT_HW_LIFT_UP_LIM,    EVT_NONE,              0U                        },
-    { M8_SIG_LIFT_DOWN_LIM,  DI_LIFT_DOWN_LIMIT,   false,      3U,   3U,  EVT_HW_LIFT_DOWN_LIM,  EVT_NONE,              0U                        },
+/*  sig_id                  io_id                       active_low  trig  rel  alarm_code */
+    { M8_SIG_ESTOP,          { M8_SIG_DI_ESTOP_RAW },      true,       1U,   3U,  ALARM_CODE_ESTOP          },
+    { M8_SIG_GANTRY_FWD_LIM, { M8_SIG_DI_GANTRY_FWD_RAW }, false,      3U,   3U,  0U                        },
+    { M8_SIG_GANTRY_REV_LIM, { M8_SIG_DI_GANTRY_REV_RAW }, false,      3U,   3U,  0U                        },
+    { M8_SIG_LIFT_UP_LIM,    { M8_SIG_DI_LIFT_UP_RAW },    false,      3U,   3U,  0U                        },
+    { M8_SIG_LIFT_DOWN_LIM,  { M8_SIG_DI_LIFT_DOWN_RAW },  false,      3U,   3U,  0U                        },
 };
 
 #define M8_SIGNAL_TABLE_SIZE  ((int)ARRAY_SIZE(m8_signal_table))

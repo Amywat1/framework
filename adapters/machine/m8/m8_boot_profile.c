@@ -125,7 +125,7 @@ sw_err_t m8_boot_profile_init(void)
     io_ret = m8_wait_io_ready();
     if (io_ret != SW_OK)
     {
-        /* 超时：告警但继续，后续报警系统会检测 IO 离线并发布 EVT_HW_IO_OFFLINE */
+        /* 超时：告警但继续，后续由 drv_io / alarm 链路检测 IO 离线 */
         LOG_WARN("m8_boot: IO board not ready within %u ms, proceeding with alarm",
                  BOOT_IO_TIMEOUT_MS);
     }

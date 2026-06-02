@@ -13,12 +13,23 @@ extern "C" {
 #endif
 
 #include "common/sw_error.h"
+#include <stdbool.h>
 
 /**
  * @brief  初始化 M8 报警适配（注册 IO 轮询和急停复位回调到 alarm_core）
  * @note   须在 alarm_core_init() 之后调用
  */
 sw_err_t m8_alarm_adapt_init(void);
+
+/**
+ * @brief  VFD Modbus 通信丢失（由 m8_hal_ctx 驱动回调触发）
+ */
+void m8_alarm_on_vfd_comm_lost(bool is_brush);
+
+/**
+ * @brief  VFD Modbus 通信恢复
+ */
+void m8_alarm_on_vfd_comm_restored(bool is_brush);
 
 #ifdef __cplusplus
 }

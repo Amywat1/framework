@@ -6,8 +6,6 @@
  */
 
 #include "domain/device/unit/brush.h"
-#include "domain/device/actuator/motor/motor.h"
-#include "config/machine/m8_motor_table.h"
 #include "domain/safety/interlock.h"
 #include "ports/hal/hal_motion_port.h"
 #include "core/event_bus/event_bus.h"
@@ -29,7 +27,6 @@ sw_err_t brush_start(brush_id_t id, uint16_t freq_hz)
 {
     const hal_motion_ops_t *ops = hal_motion_get_ops();
     sw_err_t                ret;
-    int                     motor_id;
 
     if (id == BRUSH_ID_NONE)
     {
@@ -51,7 +48,7 @@ sw_err_t brush_start(brush_id_t id, uint16_t freq_hz)
     if (s_is_running && (s_active_brush != id))
     {
         LOG_INFO("brush: switching %d -> %d", (int)s_active_brush, (int)id);
-        ret = motor_hold((s_active_brush == BRUSH_ID_TOP) ? MOTOR_BRUSH_TOP : MOTOR_BRUSH_SIDE, 0);
+        ret = ops->brush_stop();
         if (ret != SW_OK)
         {
             LOG_ERROR("brush_start: stop failed ret=%d", (int)ret);
@@ -73,12 +70,10 @@ sw_err_t brush_start(brush_id_t id, uint16_t freq_hz)
         s_active_brush = id;
     }
 
-    /* 启动 VFD：通过 motor 层统一下发 */
-    motor_id = (id == BRUSH_ID_TOP) ? MOTOR_BRUSH_TOP : MOTOR_BRUSH_SIDE;
-    ret = motor_hold(motor_id, (int)freq_hz);
+    ret = ops->brush_run(freq_hz);
     if (ret != SW_OK)
     {
-        LOG_ERROR("brush_start: motor_hold failed ret=%d", (int)ret);
+        LOG_ERROR("brush_start: brush_run failed ret=%d", (int)ret);
         return ret;
     }
 
@@ -91,14 +86,15 @@ sw_err_t brush_start(brush_id_t id, uint16_t freq_hz)
 
 sw_err_t brush_stop(void)
 {
-    sw_err_t ret;
+    const hal_motion_ops_t *ops = hal_motion_get_ops();
+    sw_err_t                ret;
 
     if (!s_is_running)
     {
         return SW_OK;
     }
 
-    ret = motor_hold((s_active_brush == BRUSH_ID_TOP) ? MOTOR_BRUSH_TOP : MOTOR_BRUSH_SIDE, 0);
+    ret = ops->brush_stop();
     if (ret == SW_OK)
     {
         s_is_running = false;

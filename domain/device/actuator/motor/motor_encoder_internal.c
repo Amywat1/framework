@@ -10,8 +10,6 @@
 
 #include "domain/device/actuator/motor/motor_internal.h"
 
-#include "core/event_bus/event_bus.h"
-#include "common/event_types.h"
 #include "common/time_util.h"
 #include "common/log.h"
 
@@ -29,11 +27,6 @@ static bool motor_has_zero_sensor(const motor_cfg_t *cfg)
            (cfg->encoder_zero_confirm > 0U);
 }
 
-static void motor_publish_encoder_event(int id, int info)
-{
-    (void)event_publish(EVT_HW_ENCODER_ERR, MOTOR_EVENT_PARAM_PACK(id, info));
-}
-
 static void motor_clear_encoder_error_locked(int id, const motor_cfg_t *cfg, motor_ctx_t *ctx)
 {
     if ((cfg == NULL) || (ctx == NULL) || !ctx->encoder_err_reported)
@@ -42,7 +35,7 @@ static void motor_clear_encoder_error_locked(int id, const motor_cfg_t *cfg, mot
     }
 
     ctx->encoder_err_reported = false;
-    motor_publish_encoder_event(id, 0);
+    (void)id;
 }
 
 static void motor_encoder_begin_counting_locked(int id,
@@ -247,7 +240,6 @@ static void encoder_check_anomaly_locked(int id,
             ctx->encoder_err_reported = true;
             LOG_WARN("motor[%s]: encoder jump detected diff=%d",
                      cfg->name, (int)diff);
-            motor_publish_encoder_event(id, ctx->stored_dir);
         }
         ctx->encoder_check_snapshot = ctx->encoder_pos;
         return;
@@ -266,7 +258,6 @@ static void encoder_check_anomaly_locked(int id,
             ctx->encoder_err_reported = true;
             LOG_WARN("motor[%s]: encoder no change cnt=%u",
                      cfg->name, (unsigned)ctx->encoder_no_change_cnt);
-            motor_publish_encoder_event(id, ctx->stored_dir);
         }
     }
     else

@@ -10,7 +10,6 @@
 #include "adapters/machine/m8/m8_signal_filter.h"
 #include "adapters/hal/linux_hw/drv/drv_io.h"
 #include "adapters/hal/linux_hw/drv/drv_vfd.h"
-#include "core/event_bus/event_bus.h"
 #include "common/log.h"
 
 static void m8_poll_input_events(void)
@@ -18,11 +17,17 @@ static void m8_poll_input_events(void)
     /* 真机路径下编码器由硬件脉冲计数器完成，接口保留供报警轮询调用。 */
 }
 
-/* IO 子板在线状态变化回调 */
+/* IO 子板在线状态变化回调（离线检测由 drv_io / alarm 链路负责） */
 static void io_board_status_cb(int board_id, bool offline)
 {
-    (void)event_publish(offline ? EVT_HW_IO_OFFLINE : EVT_HW_IO_ONLINE,
-                        (uint32_t)board_id);
+    if (offline)
+    {
+        LOG_WARN("hal_sensor: IO board %d offline", board_id);
+    }
+    else
+    {
+        LOG_INFO("hal_sensor: IO board %d online", board_id);
+    }
 }
 
 /* -------------------------------------------------------------------------

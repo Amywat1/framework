@@ -9,6 +9,7 @@
 #define DOMAIN_DEVICE_MOTOR_INTERNAL_H
 
 #include "domain/device/actuator/motor/motor.h"
+#include "config/machine/m8_motor_table.h"
 #include "ports/hal/hal_motor_port.h"
 #include "common/sw_error.h"
 
@@ -57,7 +58,6 @@ typedef enum
 {
     MOTOR_MON_SRC_NONE = 0,
     MOTOR_MON_SRC_VFD_GANTRY,
-    MOTOR_MON_SRC_VFD_BRUSH,
     MOTOR_MON_SRC_MAX
 } motor_monitor_source_t;
 

@@ -4,9 +4,8 @@
  * @author  胡望伟
  * @date    2026-04-10
  *
- * @note    实现 command_port_ops_t.inject()，将 cmd_t 转换为 EVT_CMD_* 事件。
- *          命令来源（MQTT、BLE、CLI 等）只需持有 command_port 接口，
- *          无需直接依赖 event_bus。
+ * @note    实现 command_port_ops_t.inject()：command_guard 校验 → 发布 EVT_CMD_*。
+ *          CLI / MQTT / 仿真控制台等统一经 command_port 注入，不直接依赖 event_bus。
  */
 
 #ifndef ADAPTERS_UI_COMMAND_BRIDGE_H

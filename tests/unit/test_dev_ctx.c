@@ -53,7 +53,7 @@ static void test_set_device_state_isolated(void)
 
     /* 先写一些非默认值到其他字段 */
     dev_ctx_set_safety_state(SAFETY_STATE_LOCKOUT);
-    dev_ctx_set_wash_progress(WASH_STEP_FOAM, WASH_MODE_QUICK);
+    dev_ctx_set_wash_progress(WASH_STEP_PREWASH, WASH_MODE_QUICK);
     dev_ctx_set_alarm_state(true);
     dev_ctx_set_cloud_status(true);
 
@@ -63,7 +63,7 @@ static void test_set_device_state_isolated(void)
 
     assert(ctx.device_state    == DEV_STATE_RUN);
     assert(ctx.safety_state    == SAFETY_STATE_LOCKOUT);
-    assert(ctx.wash_step       == WASH_STEP_FOAM);
+    assert(ctx.wash_step       == WASH_STEP_PREWASH);
     assert(ctx.wash_mode       == WASH_MODE_QUICK);
     assert(ctx.has_error_alarm == true);
     assert(ctx.cloud_connected == true);
@@ -80,10 +80,10 @@ static void test_set_wash_progress(void)
 
     (void)dev_ctx_init();
 
-    dev_ctx_set_wash_progress(WASH_STEP_RINSE, WASH_MODE_QUICK);
+    dev_ctx_set_wash_progress(WASH_STEP_RINSE_REV, WASH_MODE_QUICK);
     device_context_t ctx = dev_ctx_snapshot();
 
-    assert(ctx.wash_step == WASH_STEP_RINSE);
+    assert(ctx.wash_step == WASH_STEP_RINSE_REV);
     assert(ctx.wash_mode == WASH_MODE_QUICK);
 
     /* 再次修改 */
@@ -154,7 +154,7 @@ static atomic_int s_stop_flag = 0;
 /* 两组合法值 */
 static const dev_state_t    k_states[2]  = { DEV_STATE_IDLE, DEV_STATE_RUN };
 static const safety_state_t k_safety[2]  = { SAFETY_STATE_OK, SAFETY_STATE_LOCKOUT };
-static const wash_step_t    k_steps[2]   = { WASH_STEP_IDLE, WASH_STEP_FOAM };
+static const wash_step_t    k_steps[2]   = { WASH_STEP_IDLE, WASH_STEP_PREWASH };
 static const wash_mode_t    k_modes[2]   = { WASH_MODE_STANDARD, WASH_MODE_QUICK };
 
 static void *writer_fn(void *arg)

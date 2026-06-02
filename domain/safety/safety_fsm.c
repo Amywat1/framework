@@ -7,20 +7,22 @@
 
 #include "domain/safety/safety_fsm.h"
 #include "domain/safety/alarm_core.h"
+#include "service/dev_ctx/dev_ctx.h"
 #include "core/event_bus/event_bus.h"
 #include "common/event_types.h"
 #include "common/log.h"
-#include <pthread.h>
 
-/* -------------------------------------------------------------------------
- * 内部状态
- * ------------------------------------------------------------------------- */
-static safety_state_t  s_state  = SAFETY_STATE_OK;
-static pthread_mutex_t s_mutex  = PTHREAD_MUTEX_INITIALIZER;
+/**
+ * @brief  同步 ERROR 级报警标志到 dev_ctx
+ */
+static void sync_dev_ctx_alarm(void)
+{
+    dev_ctx_set_alarm_state(alarm_core_has_error());
+}
 
-/* -------------------------------------------------------------------------
- * 内部：根据当前激活报警重新计算状态并发布事件（调用时不持锁）
- * ------------------------------------------------------------------------- */
+/**
+ * @brief  根据当前激活报警重新计算状态，更新 dev_ctx 并发布事件
+ */
 static void do_reevaluate(void)
 {
     safety_state_t new_state;
@@ -39,17 +41,16 @@ static void do_reevaluate(void)
         new_state = SAFETY_STATE_OK;
     }
 
-    pthread_mutex_lock(&s_mutex);
-    old_state = s_state;
-    s_state   = new_state;
-    pthread_mutex_unlock(&s_mutex);
+    sync_dev_ctx_alarm();
 
+    old_state = dev_ctx_get_safety_state();
     if (new_state == old_state)
     {
         return;
     }
 
-    /* 发布安全状态变化事件 */
+    dev_ctx_set_safety_state(new_state);
+
     if (new_state == SAFETY_STATE_LOCKOUT)
     {
         (void)event_publish(EVT_SAFETY_LOCKOUT, 0U);
@@ -67,43 +68,34 @@ static void do_reevaluate(void)
     }
 }
 
-/* -------------------------------------------------------------------------
- * 事件处理函数（在 event_dispatch_thread 上下文调用）
- * ------------------------------------------------------------------------- */
 static void on_alarm_triggered(const event_t *evt)
 {
+    (void)evt;
     do_reevaluate();
-    (void)evt; /* code 在 do_reevaluate 内部通过 alarm_core 查询，此处不需要 */
 }
 
 static void on_alarm_cleared(const event_t *evt)
 {
-    do_reevaluate();
     (void)evt;
+    do_reevaluate();
 }
 
-/* -------------------------------------------------------------------------
- * 接口实现
- * ------------------------------------------------------------------------- */
 sw_err_t safety_fsm_init(void)
 {
+    static const event_subscription_t s_alarm_subs[] = {
+        { EVT_ALARM_TRIGGERED, on_alarm_triggered },
+        { EVT_ALARM_CLEARED,   on_alarm_cleared   },
+    };
     sw_err_t ret;
 
-    pthread_mutex_lock(&s_mutex);
-    s_state = SAFETY_STATE_OK;
-    pthread_mutex_unlock(&s_mutex);
+    dev_ctx_set_safety_state(SAFETY_STATE_OK);
+    sync_dev_ctx_alarm();
 
-    ret = event_subscribe(EVT_ALARM_TRIGGERED, on_alarm_triggered);
+    ret = event_subscribe_table(s_alarm_subs,
+                                sizeof(s_alarm_subs) / sizeof(s_alarm_subs[0]));
     if (ret != SW_OK)
     {
-        LOG_ERROR("safety_fsm_init: subscribe EVT_ALARM_TRIGGERED failed");
-        return ret;
-    }
-
-    ret = event_subscribe(EVT_ALARM_CLEARED, on_alarm_cleared);
-    if (ret != SW_OK)
-    {
-        LOG_ERROR("safety_fsm_init: subscribe EVT_ALARM_CLEARED failed");
+        LOG_ERROR("safety_fsm_init: subscribe failed");
         return ret;
     }
 
@@ -113,11 +105,7 @@ sw_err_t safety_fsm_init(void)
 
 safety_state_t safety_fsm_get_state(void)
 {
-    safety_state_t state;
-    pthread_mutex_lock(&s_mutex);
-    state = s_state;
-    pthread_mutex_unlock(&s_mutex);
-    return state;
+    return dev_ctx_get_safety_state();
 }
 
 void safety_fsm_reevaluate(void)

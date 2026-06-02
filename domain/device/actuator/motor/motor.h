@@ -42,15 +42,8 @@ typedef enum
 #define MOTOR_EVENT_PARAM_INFO(param_)     ((int)((int16_t)(((param_) >> 16) & 0xFFFFU)))
 
 sw_err_t      motor_init(void);
-sw_err_t      motor_hold(int id, int speed_ref);
 sw_err_t      motor_move(int id, int speed_ref);
-sw_err_t      motor_move_pos(int id, int speed_ref, int32_t target_pos);
-sw_err_t      motor_move_time(int id, int speed_ref, uint32_t duration_ms);
-sw_err_t      motor_pause(int id);
-sw_err_t      motor_resume(int id);
 sw_err_t      motor_stop(int id);
-sw_err_t      motor_reset_fault(int id);
-motor_state_t motor_get_state(int id);
 int32_t       motor_get_pos(int id);
 sw_err_t      motor_clear_encoder(int id);
 void         *motor_tick_loop(void *arg);

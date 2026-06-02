@@ -23,7 +23,7 @@
 #define EVENT_BUS_MAX_SUBS_PER_EVT   8U
 
 /* -------------------------------------------------------------------------
- * 线程配置（共 7 条）
+ * 线程配置
  * 调度策略：SCHED_OTHER（普通线程）/ SCHED_FIFO（实时线程）
  * ------------------------------------------------------------------------- */
 
@@ -39,11 +39,6 @@
 #define THD_IO_POLL_NICE             0
 #define THD_IO_POLL_PERIOD_MS        30U   /* 对应原 CFG_IO_UPDATE_FREQ_MS */
 
-/* 设备 FSM 线程（SCHED_OTHER）*/
-#define THD_FSM_STACK                (32U * 1024U)
-#define THD_FSM_NICE                 0
-#define THD_FSM_PERIOD_MS            100U
-
 /* 洗车工作线程（SCHED_OTHER）*/
 #define THD_WASH_WORKER_STACK        (32U * 1024U)
 #define THD_WASH_WORKER_NICE         0
@@ -52,10 +47,6 @@
 #define THD_CLOUD_STACK              (32U * 1024U)
 #define THD_CLOUD_NICE               0
 #define THD_CLOUD_REPORT_PERIOD_MS   500U  /* 状态上报周期 */
-
-/* 步进电机线程（SCHED_FIFO，高精度脉冲）*/
-#define THD_STEPPER_STACK            (16U * 1024U)
-#define THD_STEPPER_FIFO_PRIO        60    /* SCHED_FIFO 优先级，1~99 */
 
 /* 电机状态机线程（SCHED_OTHER） */
 #define THD_MOTOR_TICK_STACK         (16U * 1024U)

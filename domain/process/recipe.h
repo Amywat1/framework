@@ -16,6 +16,7 @@ extern "C" {
 #endif
 
 #include "domain/model/wash_types.h"
+#include "common/sw_error.h"
 #include <stdint.h>
 #include <stdbool.h>
 

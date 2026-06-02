@@ -74,20 +74,20 @@ typedef struct
 #define DRV_IO_DI(board_, pin_)    drv_io_di_t{DRV_IO_HANDLE_MAKE(DRV_IO_KIND_DI, board_, pin_)}
 #define DRV_IO_DO(board_, pin_)    drv_io_do_t{DRV_IO_HANDLE_MAKE(DRV_IO_KIND_DO, board_, pin_)}
 #else
-#define DRV_IO_DI(board_, pin_)    ((drv_io_di_t)IO_DI(board_, pin_))
-#define DRV_IO_DO(board_, pin_)    ((drv_io_do_t)IO_DO(board_, pin_))
+#define DRV_IO_DI(board_, pin_)    ((io_di_t){ .raw = IO_HANDLE_MAKE(IO_KIND_DI, (board_), (pin_)) })
+#define DRV_IO_DO(board_, pin_)    ((io_do_t){ .raw = IO_HANDLE_MAKE(IO_KIND_DO, (board_), (pin_)) })
 #endif
 
 /* -------------------------------------------------------------------------
  * 通过唯一总表生成 DI / DO 常量
  * ------------------------------------------------------------------------- */
 #define DRV_IO_DI_DEF(name, board, pin, desc) \
-    static const drv_io_di_t DI_##name = DRV_IO_DI(board, pin);
+    static const drv_io_di_t DI_##name = { IO_HANDLE_MAKE(IO_KIND_DI, (board), (pin)) };
 #include "config/machine/m8_io_table.h"
 #undef DRV_IO_DI_DEF
 
 #define DRV_IO_DO_DEF(name, board, pin, desc) \
-    static const drv_io_do_t DO_##name = DRV_IO_DO(board, pin);
+    static const drv_io_do_t DO_##name = { IO_HANDLE_MAKE(IO_KIND_DO, (board), (pin)) };
 #include "config/machine/m8_io_table.h"
 #undef DRV_IO_DO_DEF
 

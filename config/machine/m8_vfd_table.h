@@ -13,7 +13,7 @@
 #define CONFIG_MACHINE_M8_VFD_TABLE_H
 
 #include "config/machine/m8_machine_config.h"
-#include "adapters/hal/linux_hw/drv/drv_io.h"
+#include "config/machine/m8_io_pins.h"
 
 /* -------------------------------------------------------------------------
  * 刷子 VFD（仅正转）
@@ -21,10 +21,10 @@
 #define M8_VFD_BRUSH_SERIAL_PORT   CFG_VFD_BRUSH_SERIAL_PORT
 #define M8_VFD_BRUSH_BAUD          CFG_VFD_BRUSH_BAUD
 #define M8_VFD_BRUSH_ADDR          CFG_VFD_BRUSH_MODBUS_ADDR
-#define M8_VFD_BRUSH_PIN_FWD       DO_SIDE_BRUSH_FWD
+#define M8_VFD_BRUSH_PIN_FWD       M8_IO_DO_SIDE_BRUSH_FWD
 #define M8_VFD_BRUSH_HAS_REV       false
-#define M8_VFD_BRUSH_PIN_REV       DO_SIDE_BRUSH_FWD   /* 仅作占位，has_rev=false 时忽略 */
-#define M8_VFD_BRUSH_PIN_RST       DO_SIDE_BRUSH_RST
+#define M8_VFD_BRUSH_PIN_REV       M8_IO_DO_SIDE_BRUSH_FWD   /* 仅作占位，has_rev=false 时忽略 */
+#define M8_VFD_BRUSH_PIN_RST       M8_IO_DO_SIDE_BRUSH_RST
 
 /* -------------------------------------------------------------------------
  * 龙门 VFD（支持正反转）
@@ -32,9 +32,9 @@
 #define M8_VFD_GANTRY_SERIAL_PORT  CFG_VFD_GANTRY_SERIAL_PORT
 #define M8_VFD_GANTRY_BAUD         CFG_VFD_GANTRY_BAUD
 #define M8_VFD_GANTRY_ADDR         CFG_VFD_GANTRY_MODBUS_ADDR
-#define M8_VFD_GANTRY_PIN_FWD      DO_GANTRY_FWD
+#define M8_VFD_GANTRY_PIN_FWD      M8_IO_DO_GANTRY_FWD
 #define M8_VFD_GANTRY_HAS_REV      true
-#define M8_VFD_GANTRY_PIN_REV      DO_GANTRY_REV
-#define M8_VFD_GANTRY_PIN_RST      DO_GANTRY_RST
+#define M8_VFD_GANTRY_PIN_REV      M8_IO_DO_GANTRY_REV
+#define M8_VFD_GANTRY_PIN_RST      M8_IO_DO_GANTRY_RST
 
 #endif /* CONFIG_MACHINE_M8_VFD_TABLE_H */

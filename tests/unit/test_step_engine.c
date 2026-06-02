@@ -10,7 +10,7 @@
  *          - 通过时间推进（模拟 poll 间隔）验证步骤完成和超时
  */
 
-#include "domain/process/step_engine.h"
+#include "application/orchestrators/wash_orchestrator.h"
 #include "domain/process/recipe.h"
 #include "domain/safety/alarm_core.h"
 #include "domain/model/alarm_code.h"
@@ -199,7 +199,7 @@ static void test_step_normal_fwd_limit(void)
     printf("TC-1: step normal completion (fwd limit)\n");
     reset_mock_state();
     (void)alarm_core_init();
-    step_engine_clear_abort();
+    wash_exec_clear_abort();
 
     /* 构造一个 PREWASH 步骤：龙门前进，退出条件=前限位 */
     wash_step_config_t step = {
@@ -213,13 +213,13 @@ static void test_step_normal_fwd_limit(void)
     };
 
     /* 在另一个线程中延迟触发前限位... 此处简化：
-     * step_engine_exec_step 的 wait_exit 每 50ms poll 一次，
+     * wash_exec_step 的 wait_exit 每 50ms poll 一次，
      * 通过超时短+提前触发限位来测试正常退出路径。
      *
      * 实际做法：设置极短超时+预设限位=true（立即退出）*/
     s_mock_fwd_limit = true; /* 预设：进入 wait_exit 第一次 poll 就满足 */
 
-    sw_err_t ret = step_engine_exec_step(&step, 1000U, 4500U);
+    sw_err_t ret = wash_exec_step(&step, 1000U, 4500U);
     assert(ret == SW_OK);
 
     printf("  PASS\n");
@@ -231,7 +231,7 @@ static void test_step_timeout(void)
     printf("TC-2: step timeout\n");
     reset_mock_state();
     (void)alarm_core_init();
-    step_engine_clear_abort();
+    wash_exec_clear_abort();
 
     /* 设置极短超时（60ms < poll 间隔 50ms × 2 = 100ms），限位永远不触发 */
     wash_step_config_t step = {
@@ -243,7 +243,7 @@ static void test_step_timeout(void)
         .exit_pos_pulse   = -1,
     };
 
-    sw_err_t ret = step_engine_exec_step(&step, 60U /* ms */, 4500U);
+    sw_err_t ret = wash_exec_step(&step, 60U /* ms */, 4500U);
     assert(ret == SW_ERR_TIMEOUT);
 
     printf("  PASS\n");
@@ -255,7 +255,7 @@ static void test_step_abort_on_alarm(void)
     printf("TC-3: abort on ERROR alarm\n");
     reset_mock_state();
     (void)alarm_core_init();
-    step_engine_clear_abort();
+    wash_exec_clear_abort();
 
     /* 预设：第一次 poll 时急停已激活 */
     alarm_core_set_state(ALARM_CODE_ESTOP, true, false);
@@ -269,21 +269,21 @@ static void test_step_abort_on_alarm(void)
         .exit_pos_pulse   = -1,
     };
 
-    sw_err_t ret = step_engine_exec_step(&step, 5000U, 4500U);
+    sw_err_t ret = wash_exec_step(&step, 5000U, 4500U);
     assert(ret == SW_ERR_STATE);
 
     printf("  PASS\n");
 }
 
-/* TC-4：step_engine_abort() 中止当前步骤 */
+/* TC-4：wash_orchestrator_abort() 中止当前步骤 */
 static void test_step_abort_flag(void)
 {
-    printf("TC-4: step_engine_abort() flag\n");
+    printf("TC-4: wash_orchestrator_abort() flag\n");
     reset_mock_state();
     (void)alarm_core_init();
 
     /* 预设中止标志 */
-    step_engine_abort();
+    wash_orchestrator_abort();
 
     wash_step_config_t step = {
         .step             = WASH_STEP_PREWASH,
@@ -294,13 +294,13 @@ static void test_step_abort_flag(void)
         .exit_pos_pulse   = -1,
     };
 
-    sw_err_t ret = step_engine_exec_step(&step, 5000U, 4500U);
+    sw_err_t ret = wash_exec_step(&step, 5000U, 4500U);
     assert(ret == SW_ERR_STATE);
 
     /* 清除后正常执行 */
-    step_engine_clear_abort();
+    wash_exec_clear_abort();
     s_mock_fwd_limit = true;
-    ret = step_engine_exec_step(&step, 5000U, 4500U);
+    ret = wash_exec_step(&step, 5000U, 4500U);
     assert(ret == SW_OK);
 
     printf("  PASS\n");
@@ -312,7 +312,7 @@ static void test_entry_complete_immediate(void)
     printf("TC-5: ENTRY/COMPLETE immediate return\n");
     reset_mock_state();
     (void)alarm_core_init();
-    step_engine_clear_abort();
+    wash_exec_clear_abort();
 
     wash_step_config_t entry = {
         .step = WASH_STEP_ENTRY,
@@ -323,8 +323,8 @@ static void test_entry_complete_immediate(void)
         .name = "完成",
     };
 
-    assert(step_engine_exec_step(&entry,    1000U, 0U) == SW_OK);
-    assert(step_engine_exec_step(&complete, 1000U, 0U) == SW_OK);
+    assert(wash_exec_step(&entry,    1000U, 0U) == SW_OK);
+    assert(wash_exec_step(&complete, 1000U, 0U) == SW_OK);
 
     printf("  PASS\n");
 }
@@ -348,7 +348,7 @@ int main(void)
     (void)motor_init();
     (void)brush_init();
     (void)gantry_init();
-    (void)step_engine_init();
+    wash_exec_clear_abort();
 
     test_step_normal_fwd_limit();
     test_step_timeout();
