@@ -4,7 +4,7 @@
  * @author  胡望伟
  * @date    2026-04-10
  *
- * @note    通过 hal_water_port 接口控制，同步接口（水阀为瞬时开关）。
+ * @note    硬件输出通过 water_actuator_ops 注入，domain 不依赖 HAL。
  */
 
 #ifndef DOMAIN_DEVICE_WATER_H
@@ -14,63 +14,73 @@
 extern "C" {
 #endif
 
+#include "domain/device/water_channel.h"
 #include "common/sw_error.h"
 #include <stdbool.h>
 
-/* -------------------------------------------------------------------------
- * 接口
- * ------------------------------------------------------------------------- */
+/** 水路执行器输出回调（由 machine 适配层实现） */
+typedef sw_err_t (*water_slot_set_fn)(water_channel_t ch, water_slot_t slot, bool on);
+
+typedef struct
+{
+    water_slot_set_fn slot_set;
+} water_actuator_ops_t;
 
 /**
- * @brief  初始化水路组件（关闭所有水路）
+ * @brief  初始化水路组件并注入执行器（关闭所有水路）
+ * @param  ops  执行器操作表，slot_set 不可为 NULL
  */
-sw_err_t water_init(void);
+sw_err_t water_init(const water_actuator_ops_t *ops);
 
 /**
- * @brief  开启预洗（水泵 + 泡沫 + 水帘）
+ * @brief  开启预洗（先开泡沫阀和水帘阀，延时后开泵）
  */
 sw_err_t water_prewash_on(void);
 
 /**
- * @brief  关闭预洗（泡沫 + 水帘）
- * @note   若关闭后系统中已无其他水路在用，会自动停止水泵；否则保留水泵给后续步骤。
+ * @brief  关闭预洗（关泡沫阀和水帘阀）
+ * @note   若关闭后已无其他水阀开启，则自动停泵并等待管路泄压。
  */
 sw_err_t water_prewash_off(void);
 
 /**
- * @brief  开启刷子冲水（水泵 + 刷子水阀）
+ * @brief  开启刷子冲水（先开刷子水阀，延时后开泵）
  */
 sw_err_t water_brush_on(void);
 
 /**
  * @brief  关闭刷子冲水
+ * @note   若关闭后已无其他水阀开启，则自动停泵并等待管路泄压。
  */
 sw_err_t water_brush_off(void);
 
 /**
- * @brief  开启高压冲洗（水泵 + 高压阀）
+ * @brief  开启高压冲洗（先开高压阀，延时后开泵）
  */
 sw_err_t water_highpres_on(void);
 
 /**
  * @brief  关闭高压冲洗
+ * @note   若关闭后已无其他水阀开启，则自动停泵并等待管路泄压。
  */
 sw_err_t water_highpres_off(void);
 
 /**
- * @brief  关闭所有水路（水泵 + 全部水阀）
+ * @brief  关闭所有水路（先停泵并等待管路泄压，再关全部水阀）
  */
 sw_err_t water_all_off(void);
 
 /**
  * @brief  查询水泵是否处于运行状态
- * @note   供报警轮询检测泵空转异常使用。
+ * @note   此接口为只读查询，可由报警轮询线程并发调用。
+ * @return true 表示水泵运行中
  */
 bool water_is_pump_on(void);
 
 /**
  * @brief  查询是否有任何水阀处于打开状态
- * @note   供报警轮询检测泵空转异常使用。
+ * @note   此接口为只读查询，可由报警轮询线程并发调用。
+ * @return true 表示至少一个水阀已开启
  */
 bool water_is_any_valve_open(void);
 

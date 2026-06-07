@@ -16,7 +16,7 @@ extern void hal_motor_sim_register(void);
 extern void hal_sensor_sim_register(void);
 extern void hal_io_sim_register(void);
 extern void hal_vfd_sim_register(void);
-extern void hal_water_sim_register(void);
+extern void hal_do_group_sim_register(void);
 extern void hal_indicator_sim_register(void);
 
 /* 存储适配器（与真机相同，使用相同 JSON 文件路径）*/
@@ -34,7 +34,7 @@ sw_err_t wiring(void)
     hal_sensor_sim_register();
     hal_io_sim_register();
     hal_vfd_sim_register();
-    hal_water_sim_register();
+    hal_do_group_sim_register();
     hal_indicator_sim_register();
 
     /* 存储 port → JSON 文件实现（仿真也使用持久化参数）*/

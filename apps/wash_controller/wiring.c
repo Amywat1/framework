@@ -21,7 +21,7 @@ extern void hal_motor_linux_register(void);
 extern void hal_sensor_linux_register(void);
 extern void hal_io_linux_register(void);
 extern void hal_vfd_linux_register(void);
-extern void hal_water_linux_register(void);
+extern void hal_do_group_linux_register(void);
 extern void hal_indicator_linux_register(void);
 
 /* -------------------------------------------------------------------------
@@ -48,7 +48,7 @@ sw_err_t wiring(void)
     hal_sensor_linux_register();
     hal_io_linux_register();
     hal_vfd_linux_register();
-    hal_water_linux_register();
+    hal_do_group_linux_register();
     hal_indicator_linux_register();
 
     /* 存储 port → JSON 文件实现 */

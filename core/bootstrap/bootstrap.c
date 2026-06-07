@@ -26,6 +26,7 @@
 #include "adapters/machine/m8/m8_alarm_adapt.h"
 #include "adapters/machine/m8/m8_signal_filter.h"
 #include "adapters/machine/m8/m8_io_poll.h"
+#include "adapters/machine/m8/m8_water_setup.h"
 #include "ports/hal/hal_io_port.h"
 #include "ports/hal/hal_vfd_port.h"
 #include "ports/storage/deploy_store.h"
@@ -148,7 +149,7 @@ static sw_err_t bootstrap_init_application(void)
     BOOT_CHECK(motor_init(),             "motor_init");
     BOOT_CHECK(brush_init(),             "brush_init");
     BOOT_CHECK(gantry_init(),            "gantry_init");
-    BOOT_CHECK(water_init(),             "water_init");
+    BOOT_CHECK(m8_water_setup(),         "m8_water_setup");
     BOOT_CHECK(gate_init(),              "gate_init");
     BOOT_CHECK(emergency_handler_init(), "emergency_handler_init");
     BOOT_CHECK(device_fsm_init(),        "device_fsm_init");

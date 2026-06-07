@@ -30,6 +30,7 @@
 #include "application/orchestrators/device_fsm.h"
 #include "adapters/hal/sim_hw/hal_sensor_sim.h"
 #include "adapters/machine/m8/m8_alarm_adapt.h"
+#include "adapters/machine/m8/m8_water_setup.h"
 #include "adapters/machine/m8/m8_signal_filter.h"
 #include "domain/device/actuator/motor/motor.h"
 #include "common/event_types.h"
@@ -45,7 +46,7 @@
 extern void hal_motion_sim_register(void);
 extern void hal_motor_sim_register(void);
 extern void hal_io_sim_register(void);
-extern void hal_water_sim_register(void);
+extern void hal_do_group_sim_register(void);
 extern void hal_indicator_sim_register(void);
 
 /* -------------------------------------------------------------------------
@@ -138,7 +139,7 @@ static void scenario_setup(void)
     hal_motion_sim_register();
     hal_motor_sim_register();
     hal_sensor_sim_register();
-    hal_water_sim_register();
+    hal_do_group_sim_register();
     hal_indicator_sim_register();
 
     /* 预设传感器：升降在下限位；龙门限位由 inject 线程按步骤注入 */
@@ -157,7 +158,7 @@ static void scenario_setup(void)
     (void)motor_init();
     (void)brush_init();
     (void)gantry_init();
-    (void)water_init();
+    (void)m8_water_setup();
     (void)gate_init();
     (void)emergency_handler_init();
     (void)device_fsm_init();

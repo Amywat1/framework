@@ -196,6 +196,7 @@ if(BUILD_SIM)
         adapters/machine/m8/m8_signal_filter.c
         adapters/machine/m8/m8_alarm_adapt.c
         adapters/machine/m8/m8_io_poll.c
+        adapters/machine/m8/m8_water_setup.c
 
         # 仿真主入口 + 交互控制台
         tools/simulator/*.c

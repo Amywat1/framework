@@ -23,7 +23,8 @@
 #include "ports/hal/hal_motor_port.h"
 #include "ports/hal/hal_sensor_port.h"
 #include "ports/hal/hal_vfd_port.h"
-#include "ports/hal/hal_water_port.h"
+#include "domain/device/water.h"
+#include "domain/device/water_channel.h"
 #include "core/event_bus/event_bus.h"
 #include "common/sw_error.h"
 #include <assert.h>
@@ -153,22 +154,14 @@ static const hal_motion_ops_t s_mock_motion_ops = {
     .brush_fault_reset  = mock_brush_fault_reset,
 };
 
-/* 模拟 HAL 水路控制 */
-static sw_err_t mock_pump_set(bool on)         { (void)on; return SW_OK; }
-static sw_err_t mock_curtain_set(bool on)      { (void)on; return SW_OK; }
-static sw_err_t mock_foam_set(bool on)         { (void)on; return SW_OK; }
-static sw_err_t mock_brush_water_set(bool on)  { (void)on; return SW_OK; }
-static sw_err_t mock_highpres_set(bool on)     { (void)on; return SW_OK; }
-static sw_err_t mock_water_all_off(void)        { return SW_OK; }
-
-static const hal_water_ops_t s_mock_water_ops = {
-    .pump_set        = mock_pump_set,
-    .curtain_set     = mock_curtain_set,
-    .foam_set        = mock_foam_set,
-    .brush_water_set = mock_brush_water_set,
-    .highpres_set    = mock_highpres_set,
-    .all_off         = mock_water_all_off,
-};
+/* 模拟水路执行器 */
+static sw_err_t mock_water_slot_set(water_channel_t ch, water_slot_t slot, bool on)
+{
+    (void)ch;
+    (void)slot;
+    (void)on;
+    return SW_OK;
+}
 
 static void reset_mock_state(void)
 {
@@ -332,14 +325,13 @@ int main(void)
     hal_motor_register(&s_mock_motor_ops);
     hal_sensor_register(&s_mock_sensor_ops);
     hal_vfd_register(&s_mock_vfd_ops);
-    hal_water_register(&s_mock_water_ops);
-
     /* 初始化基础组件 */
     (void)event_bus_init();
     (void)alarm_core_init();
     (void)motor_init();
     (void)brush_init();
     (void)gantry_init();
+    (void)water_init(&(water_actuator_ops_t){ .slot_set = mock_water_slot_set });
     wash_exec_clear_abort();
 
     test_step_normal_fwd_limit();

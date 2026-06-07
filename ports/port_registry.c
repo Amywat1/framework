@@ -15,7 +15,7 @@
 #include "ports/hal/hal_sensor_port.h"
 #include "ports/hal/hal_io_port.h"
 #include "ports/hal/hal_vfd_port.h"
-#include "ports/hal/hal_water_port.h"
+#include "ports/hal/hal_do_group_port.h"
 #include "ports/hal/hal_indicator_port.h"
 #include "ports/cloud/report_port.h"
 #include "ports/cloud/command_port.h"
@@ -63,12 +63,12 @@ void hal_vfd_register(const hal_vfd_ops_t *ops) { s_vfd_ops = ops; }
 const hal_vfd_ops_t *hal_vfd_get_ops(void)      { return s_vfd_ops; }
 
 /* -------------------------------------------------------------------------
- * HAL — 水路
+ * HAL — DO 组×槽位
  * ------------------------------------------------------------------------- */
-static const hal_water_ops_t *s_water_ops;
+static const hal_do_group_ops_t *s_do_group_ops;
 
-void hal_water_register(const hal_water_ops_t *ops) { s_water_ops = ops; }
-const hal_water_ops_t *hal_water_get_ops(void)      { return s_water_ops; }
+void hal_do_group_register(const hal_do_group_ops_t *ops) { s_do_group_ops = ops; }
+const hal_do_group_ops_t *hal_do_group_get_ops(void)      { return s_do_group_ops; }
 
 /* -------------------------------------------------------------------------
  * HAL — 指示灯
