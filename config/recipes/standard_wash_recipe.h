@@ -7,7 +7,7 @@
  * @note    本文件仅供 domain/process/recipe.c 通过 #include 装配，
  *          不直接被其他模块包含。调用方须先定义 wash_step_config_t。
  *
- *          频率单位：0.01Hz（士林 VFD 约定），例：2500 = 25.00Hz。
+ *          频率单位：0.01Hz，例：2500 = 25.00Hz。
  */
 
 #ifndef CONFIG_RECIPES_STANDARD_WASH_H

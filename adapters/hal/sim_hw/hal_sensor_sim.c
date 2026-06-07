@@ -58,18 +58,6 @@ static bool sim_is_estop_active(void)
 
 static void sim_poll_input_events(void)
 {
-    /* 编码器等非表驱动 DI 事件可在此扩展；限位/急停由 signal_filter 处理。 */
-}
-
-static sw_err_t sim_get_vfd_fault_code(hal_vfd_id_t vfd_id, uint16_t *p_code)
-{
-    (void)vfd_id;
-    if (p_code == NULL)
-    {
-        return SW_ERR_PARAM;
-    }
-    *p_code = 0U;
-    return SW_OK;
 }
 
 static const hal_sensor_ops_t s_ops = {
@@ -79,7 +67,6 @@ static const hal_sensor_ops_t s_ops = {
     .lift_at_bottom       = sim_lift_at_bottom,
     .is_estop_active      = sim_is_estop_active,
     .poll_input_events    = sim_poll_input_events,
-    .get_vfd_fault_code   = sim_get_vfd_fault_code,
 };
 
 void hal_sensor_sim_register(void)

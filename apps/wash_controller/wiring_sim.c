@@ -15,6 +15,7 @@ extern void hal_motion_sim_register(void);
 extern void hal_motor_sim_register(void);
 extern void hal_sensor_sim_register(void);
 extern void hal_io_sim_register(void);
+extern void hal_vfd_sim_register(void);
 extern void hal_water_sim_register(void);
 extern void hal_indicator_sim_register(void);
 
@@ -32,6 +33,7 @@ sw_err_t wiring(void)
     hal_motor_sim_register();
     hal_sensor_sim_register();
     hal_io_sim_register();
+    hal_vfd_sim_register();
     hal_water_sim_register();
     hal_indicator_sim_register();
 

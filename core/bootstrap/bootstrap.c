@@ -27,6 +27,7 @@
 #include "adapters/machine/m8/m8_signal_filter.h"
 #include "adapters/machine/m8/m8_io_poll.h"
 #include "ports/hal/hal_io_port.h"
+#include "ports/hal/hal_vfd_port.h"
 #include "ports/storage/deploy_store.h"
 #include "config/threading/thread_config.h"
 #include "common/time_util.h"
@@ -37,7 +38,7 @@
 
 #ifndef BUILD_SIM
 #  include "adapters/machine/m8/m8_boot_profile.h"
-#  include "adapters/hal/linux_hw/m8_hal_ctx.h"
+#  include "adapters/machine/m8/m8_vfd_setup.h"
 extern void aliyun_command_adapter_init(void);
 extern void cli_adapter_init(void);
 #endif
@@ -99,8 +100,19 @@ static sw_err_t bootstrap_init_infra(void)
 #endif
     }
 
+    {
+        const hal_vfd_ops_t *vfd = hal_vfd_get_ops();
+
+        if ((vfd == NULL) || (vfd->init == NULL))
+        {
+            LOG_ERROR("bootstrap: hal_vfd ops not registered");
+            return SW_ERR_NOT_INIT;
+        }
+        BOOT_CHECK(vfd->init(), "hal_vfd_init");
+    }
+
 #ifndef BUILD_SIM
-    BOOT_CHECK(m8_linux_hw_init(), "m8_linux_hw_init");
+    BOOT_CHECK(m8_vfd_setup(), "m8_vfd_setup");
 #endif
 
     {

@@ -11,7 +11,9 @@
       "Bash(find domain/device/actuator domain/device/unit -type f)",
       "Bash(dir /s /b domain\\\\device\\\\actuator domain\\\\device\\\\unit)",
       "Bash(git add *)",
-      "Bash(git rm *)"
+      "Bash(git rm *)",
+      "Bash(git commit -m ' *)",
+      "Skill(code-review)"
     ]
   }
 }

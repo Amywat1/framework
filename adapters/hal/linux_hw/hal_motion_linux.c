@@ -6,13 +6,13 @@
  */
 
 #include "ports/hal/hal_motion_port.h"
-#include "adapters/hal/linux_hw/m8_vfd_control.h"
-#include "adapters/machine/m8/m8_machine_map.h"
+#include "ports/hal/hal_vfd_port.h"
 #include "ports/hal/hal_io_port.h"
+#include "adapters/machine/m8/m8_machine_map.h"
 #include "common/log.h"
 #include "common/sw_error.h"
 
-#include <unistd.h>  /* usleep（接触器等待，非精度关键路径）*/
+#include <unistd.h>
 
 static sw_err_t io_do_set(io_do_t pin, bool val)
 {
@@ -25,42 +25,75 @@ static sw_err_t io_do_set(io_do_t pin, bool val)
     return ops->do_set(pin, val);
 }
 
-/* -------------------------------------------------------------------------
- * 龙门 VFD
- * ------------------------------------------------------------------------- */
+static sw_err_t vfd_set_speed(hal_vfd_id_t id, int speed_ref)
+{
+    const hal_vfd_ops_t *vfd = hal_vfd_get_ops();
+
+    if (vfd == NULL)
+    {
+        return SW_ERR_NOT_INIT;
+    }
+    if (speed_ref > 0)
+    {
+        if (vfd->run_fwd == NULL)
+        {
+            return SW_ERR_NOT_INIT;
+        }
+        return vfd->run_fwd(id, (uint16_t)speed_ref);
+    }
+    if (speed_ref < 0)
+    {
+        if (vfd->run_rev == NULL)
+        {
+            return SW_ERR_NOT_INIT;
+        }
+        return vfd->run_rev(id, (uint16_t)(-speed_ref));
+    }
+    if (vfd->stop == NULL)
+    {
+        return SW_ERR_NOT_INIT;
+    }
+    return vfd->stop(id);
+}
+
 static sw_err_t m8_gantry_fwd(uint16_t freq_hz)
 {
-    return m8_vfd_gantry_set_speed((int)freq_hz);
+    return vfd_set_speed(HAL_VFD_GANTRY, (int)freq_hz);
 }
 
 static sw_err_t m8_gantry_rev(uint16_t freq_hz)
 {
-    return m8_vfd_gantry_set_speed(-(int)freq_hz);
+    return vfd_set_speed(HAL_VFD_GANTRY, -(int)freq_hz);
 }
 
 static sw_err_t m8_gantry_stop(void)
 {
-    return m8_vfd_gantry_set_speed(0);
+    return vfd_set_speed(HAL_VFD_GANTRY, 0);
 }
 
 static sw_err_t m8_gantry_fault_reset(void)
 {
-    return m8_vfd_gantry_fault_reset();
+    const hal_vfd_ops_t *vfd = hal_vfd_get_ops();
+
+    if ((vfd == NULL) || (vfd->fault_reset == NULL))
+    {
+        return SW_ERR_NOT_INIT;
+    }
+    return vfd->fault_reset(HAL_VFD_GANTRY);
 }
 
-/* -------------------------------------------------------------------------
- * 刷子 VFD + 接触器
- * ------------------------------------------------------------------------- */
 static sw_err_t m8_brush_select(hal_brush_sel_t sel)
 {
-    if (m8_vfd_brush_is_running())
+    const hal_vfd_ops_t *vfd = hal_vfd_get_ops();
+
+    if ((vfd != NULL) && (vfd->get_state != NULL) &&
+        (vfd->get_state(HAL_VFD_BRUSH) == HAL_VFD_STATE_FWD))
     {
         LOG_ERROR("hal_motion: brush_select called while VFD running");
         return SW_ERR_STATE;
     }
 
-    /* 先断开全部接触器，等 200ms 防止同时吸合 */
-    (void)io_do_set(M8_DO_TOP_BRUSH_ACT,  false);
+    (void)io_do_set(M8_DO_TOP_BRUSH_ACT, false);
     (void)io_do_set(M8_DO_SIDE_BRUSH_ACT, false);
     usleep((unsigned long)M8_BRUSH_CONTACTOR_WAIT_MS * 1000UL);
 
@@ -79,22 +112,25 @@ static sw_err_t m8_brush_select(hal_brush_sel_t sel)
 
 static sw_err_t m8_brush_run(uint16_t freq_hz)
 {
-    return m8_vfd_brush_set_speed((int)freq_hz);
+    return vfd_set_speed(HAL_VFD_BRUSH, (int)freq_hz);
 }
 
 static sw_err_t m8_brush_stop(void)
 {
-    return m8_vfd_brush_set_speed(0);
+    return vfd_set_speed(HAL_VFD_BRUSH, 0);
 }
 
 static sw_err_t m8_brush_fault_reset(void)
 {
-    return m8_vfd_brush_fault_reset();
+    const hal_vfd_ops_t *vfd = hal_vfd_get_ops();
+
+    if ((vfd == NULL) || (vfd->fault_reset == NULL))
+    {
+        return SW_ERR_NOT_INIT;
+    }
+    return vfd->fault_reset(HAL_VFD_BRUSH);
 }
 
-/* -------------------------------------------------------------------------
- * 操作表 + 注册
- * ------------------------------------------------------------------------- */
 static const hal_motion_ops_t s_ops = {
     .gantry_fwd         = m8_gantry_fwd,
     .gantry_rev         = m8_gantry_rev,

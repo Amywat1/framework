@@ -22,6 +22,7 @@
 #include "ports/hal/hal_motion_port.h"
 #include "ports/hal/hal_motor_port.h"
 #include "ports/hal/hal_sensor_port.h"
+#include "ports/hal/hal_vfd_port.h"
 #include "ports/hal/hal_water_port.h"
 #include "core/event_bus/event_bus.h"
 #include "common/sw_error.h"
@@ -47,12 +48,6 @@ static bool mock_lift_at_top(void)         { return s_mock_lift_top; }
 static bool mock_lift_at_bottom(void)      { return s_mock_lift_bottom; }
 static bool mock_is_estop_active(void)     { return s_mock_estop; }
 static void mock_poll_input_events(void)   {}
-static sw_err_t mock_get_vfd_fault_code(hal_vfd_id_t id, uint16_t *p_code)
-{
-    (void)id;
-    if (p_code != NULL) { *p_code = 0U; }
-    return SW_OK;
-}
 
 static const hal_sensor_ops_t s_mock_sensor_ops = {
     .gantry_at_fwd_limit  = mock_gantry_at_fwd_limit,
@@ -61,7 +56,20 @@ static const hal_sensor_ops_t s_mock_sensor_ops = {
     .lift_at_bottom       = mock_lift_at_bottom,
     .is_estop_active      = mock_is_estop_active,
     .poll_input_events    = mock_poll_input_events,
-    .get_vfd_fault_code   = mock_get_vfd_fault_code,
+};
+
+static sw_err_t mock_vfd_get_fault_code(hal_vfd_id_t id, uint16_t *p_code)
+{
+    (void)id;
+    if (p_code != NULL)
+    {
+        *p_code = 0U;
+    }
+    return SW_OK;
+}
+
+static const hal_vfd_ops_t s_mock_vfd_ops = {
+    .get_fault_code = mock_vfd_get_fault_code,
 };
 
 static sw_err_t mock_motor_set_output(int id, int speed_ref)
@@ -323,6 +331,7 @@ int main(void)
     hal_motion_register(&s_mock_motion_ops);
     hal_motor_register(&s_mock_motor_ops);
     hal_sensor_register(&s_mock_sensor_ops);
+    hal_vfd_register(&s_mock_vfd_ops);
     hal_water_register(&s_mock_water_ops);
 
     /* 初始化基础组件 */

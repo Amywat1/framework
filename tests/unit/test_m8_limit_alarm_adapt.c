@@ -6,6 +6,7 @@
 #include "domain/safety/alarm_core.h"
 #include "ports/hal/hal_io_port.h"
 #include "ports/hal/hal_sensor_port.h"
+#include "ports/hal/hal_vfd_port.h"
 
 #include <assert.h>
 #include <stdbool.h>
@@ -101,12 +102,16 @@ static void mock_poll_input_events(void)
 {
 }
 
-static sw_err_t mock_get_vfd_fault_code(hal_vfd_id_t vfd_id, uint16_t *p_code)
+static sw_err_t mock_vfd_get_fault_code(hal_vfd_id_t vfd_id, uint16_t *p_code)
 {
     (void)vfd_id;
     (void)p_code;
     return SW_ERR_COMM;
 }
+
+static const hal_vfd_ops_t s_vfd_ops = {
+    .get_fault_code = mock_vfd_get_fault_code,
+};
 
 static const hal_io_ops_t s_io_ops = {
     .do_set                   = mock_do_set,
@@ -122,7 +127,6 @@ static const hal_sensor_ops_t s_sensor_ops = {
     .lift_at_bottom      = mock_lift_at_bottom,
     .is_estop_active     = mock_is_estop_active,
     .poll_input_events   = mock_poll_input_events,
-    .get_vfd_fault_code  = mock_get_vfd_fault_code,
 };
 
 static void run_filter_ticks(int count)
@@ -140,6 +144,7 @@ static void init_fixture(void)
     (void)event_bus_init();
     hal_io_register(&s_io_ops);
     hal_sensor_register(&s_sensor_ops);
+    hal_vfd_register(&s_vfd_ops);
     (void)alarm_core_init();
     m8_signal_filter_init();
     (void)m8_alarm_adapt_init();

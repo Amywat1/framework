@@ -5,7 +5,7 @@
  * @date    2026-04-10
  *
  * @note    此文件只做 port→adapter 注册，不执行任何硬件初始化。
- *          硬件初始化（drv_io_init / m8_linux_hw_init）由 bootstrap.c 负责，
+ *          硬件初始化（hal_io.init / hal_vfd.init）由 bootstrap.c 负责，
  *          保证初始化顺序可控。
  *          CMake BUILD_SIM=ON 时使用 wiring_sim.c 替换本文件。
  */
@@ -20,6 +20,7 @@ extern void hal_motion_linux_register(void);
 extern void hal_motor_linux_register(void);
 extern void hal_sensor_linux_register(void);
 extern void hal_io_linux_register(void);
+extern void hal_vfd_linux_register(void);
 extern void hal_water_linux_register(void);
 extern void hal_indicator_linux_register(void);
 
@@ -46,6 +47,7 @@ sw_err_t wiring(void)
     hal_motor_linux_register();
     hal_sensor_linux_register();
     hal_io_linux_register();
+    hal_vfd_linux_register();
     hal_water_linux_register();
     hal_indicator_linux_register();
 

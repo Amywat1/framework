@@ -7,11 +7,9 @@
 
 #include "ports/hal/hal_motor_port.h"
 #include "config/machine/m8_motor_table.h"
-#include "adapters/hal/linux_hw/m8_vfd_control.h"
-#include "adapters/hal/linux_hw/m8_hal_ctx.h"
+#include "ports/hal/hal_vfd_port.h"
 #include "adapters/machine/m8/m8_signal_filter.h"
 #include "ports/hal/hal_io_port.h"
-#include "adapters/hal/linux_hw/drv/drv_vfd.h"
 #include "common/log.h"
 
 /* io-exp SDK 头文件不在仓库内，这里按实际用法声明脉冲计数接口。 */
@@ -112,9 +110,35 @@ static bool m8_motor_encoder_counter_online(int id)
 
 static sw_err_t set_vfd_output(int id, int speed_ref)
 {
+    const hal_vfd_ops_t *vfd = hal_vfd_get_ops();
+
+    if (vfd == NULL)
+    {
+        return SW_ERR_NOT_INIT;
+    }
     if (id == MOTOR_GANTRY)
     {
-        return m8_vfd_gantry_set_speed(speed_ref);
+        if (speed_ref > 0)
+        {
+            if (vfd->run_fwd == NULL)
+            {
+                return SW_ERR_NOT_INIT;
+            }
+            return vfd->run_fwd(HAL_VFD_GANTRY, (uint16_t)speed_ref);
+        }
+        if (speed_ref < 0)
+        {
+            if (vfd->run_rev == NULL)
+            {
+                return SW_ERR_NOT_INIT;
+            }
+            return vfd->run_rev(HAL_VFD_GANTRY, (uint16_t)(-speed_ref));
+        }
+        if (vfd->stop == NULL)
+        {
+            return SW_ERR_NOT_INIT;
+        }
+        return vfd->stop(HAL_VFD_GANTRY);
     }
 
     return SW_ERR_PARAM;
@@ -256,44 +280,42 @@ static sw_err_t m8_motor_clear_hw_pulse(int id)
 
 static sw_err_t m8_motor_read_current(int id, uint16_t *p_current)
 {
-    const motor_cfg_t *cfg = find_cfg(id);
-    drv_vfd_t         *vfd = NULL;
+    const motor_cfg_t   *cfg = find_cfg(id);
+    const hal_vfd_ops_t *vfd = hal_vfd_get_ops();
 
     if ((cfg == NULL) || (p_current == NULL) || (cfg->drv_type != MOTOR_DRV_VFD))
     {
         return SW_ERR_PARAM;
     }
-
-    if (id == MOTOR_GANTRY)
-    {
-        vfd = m8_ctx_vfd_gantry();
-    }
-    else
+    if (id != MOTOR_GANTRY)
     {
         return SW_ERR_PARAM;
     }
-    return drv_vfd_read_current(vfd, p_current);
+    if ((vfd == NULL) || (vfd->read_current == NULL))
+    {
+        return SW_ERR_NOT_INIT;
+    }
+    return vfd->read_current(HAL_VFD_GANTRY, p_current);
 }
 
 static sw_err_t m8_motor_read_status(int id, uint16_t *p_status)
 {
-    const motor_cfg_t *cfg = find_cfg(id);
-    drv_vfd_t         *vfd = NULL;
+    const motor_cfg_t   *cfg = find_cfg(id);
+    const hal_vfd_ops_t *vfd = hal_vfd_get_ops();
 
     if ((cfg == NULL) || (p_status == NULL) || (cfg->drv_type != MOTOR_DRV_VFD))
     {
         return SW_ERR_PARAM;
     }
-
-    if (id == MOTOR_GANTRY)
-    {
-        vfd = m8_ctx_vfd_gantry();
-    }
-    else
+    if (id != MOTOR_GANTRY)
     {
         return SW_ERR_PARAM;
     }
-    return drv_vfd_read_status(vfd, p_status);
+    if ((vfd == NULL) || (vfd->read_status == NULL))
+    {
+        return SW_ERR_NOT_INIT;
+    }
+    return vfd->read_status(HAL_VFD_GANTRY, p_status);
 }
 
 static const hal_motor_ops_t s_ops = {

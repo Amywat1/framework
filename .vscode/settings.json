@@ -8,6 +8,7 @@
         "drv_io.h": "c",
         "m8_io_table.h": "c",
         "m8_machine_config.h": "c",
-        "m8_io_config.h": "c"
+        "m8_io_config.h": "c",
+        "log.h": "c"
     }
 }
