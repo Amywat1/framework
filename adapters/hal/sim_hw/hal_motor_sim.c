@@ -6,7 +6,8 @@
  */
 
 #include "ports/hal/hal_motor_port.h"
-#include "ports/hal/hal_sensor_port.h"
+#include "adapters/machine/m8/m8_signal_filter.h"
+#include "config/machine/m8_signal_table.h"
 #include "adapters/hal/sim_hw/sim_encoder_counter.h"
 #include "common/log.h"
 
@@ -29,22 +30,18 @@ static sw_err_t sim_motor_set_output(int id, int speed_ref)
 
 static bool sim_motor_at_fwd_limit(int id)
 {
-    const hal_sensor_ops_t *ops = hal_sensor_get_ops();
-
-    if ((id == SIM_MOTOR_GANTRY_ID) && (ops != NULL) && (ops->gantry_at_fwd_limit != NULL))
+    if (id == SIM_MOTOR_GANTRY_ID)
     {
-        return ops->gantry_at_fwd_limit();
+        return m8_signal_is_active(M8_SIG_GANTRY_FWD_LIM);
     }
     return false;
 }
 
 static bool sim_motor_at_rev_limit(int id)
 {
-    const hal_sensor_ops_t *ops = hal_sensor_get_ops();
-
-    if ((id == SIM_MOTOR_GANTRY_ID) && (ops != NULL) && (ops->gantry_at_rev_limit != NULL))
+    if (id == SIM_MOTOR_GANTRY_ID)
     {
-        return ops->gantry_at_rev_limit();
+        return m8_signal_is_active(M8_SIG_GANTRY_REV_LIM);
     }
     return false;
 }

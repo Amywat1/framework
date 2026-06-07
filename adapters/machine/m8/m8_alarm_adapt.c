@@ -6,12 +6,13 @@
  */
 
 #include "adapters/machine/m8/m8_alarm_adapt.h"
+#include "adapters/machine/m8/m8_feature_map.h"
+#include "adapters/machine/m8/m8_signal_filter.h"
 #include "domain/model/alarm_code.h"
 #include "domain/device/water.h"
 #include "domain/safety/alarm_core.h"
 #include "ports/hal/hal_motion_port.h"
 #include "ports/hal/hal_indicator_port.h"
-#include "ports/hal/hal_sensor_port.h"
 #include "ports/hal/hal_vfd_port.h"
 #include "common/log.h"
 #include "common/sw_error.h"
@@ -28,18 +29,42 @@
 static uint8_t s_brush_startup_events = 0U;   /* 刷子启动后收到的 CURRENT_UPDATE 事件计数 */
 static uint8_t s_brush_anomaly_events = 0U;   /* 连续异常事件计数 */
 
+/**
+ * @brief  双限位同时触发时判定为限位异常
+ */
+static void m8_sync_combo_limit_alarms(void)
+{
+    bool dual_gantry = m8_signal_is_active(M8_SIG_GANTRY_FWD_LIM)
+                    && m8_signal_is_active(M8_SIG_GANTRY_REV_LIM);
+
+    alarm_core_set_state(ALARM_CODE_GANTRY_FWD_LIM, dual_gantry, false);
+    alarm_core_set_state(ALARM_CODE_GANTRY_REV_LIM, dual_gantry, false);
+
+#if M8_FEAT_TOP_LIFT_INSTALLED
+    {
+        bool dual_lift = m8_signal_is_active(M8_SIG_LIFT_UP_LIM)
+                      && m8_signal_is_active(M8_SIG_LIFT_DOWN_LIM);
+
+        alarm_core_set_state(ALARM_CODE_LIFT_UP_LIM, dual_lift, false);
+        alarm_core_set_state(ALARM_CODE_LIFT_DOWN_LIM, dual_lift, false);
+    }
+#else
+    alarm_core_set_raw_trigger(ALARM_CODE_LIFT_UP_LIM, false, true);
+    alarm_core_set_raw_trigger(ALARM_CODE_LIFT_DOWN_LIM, false, true);
+#endif
+}
+
 static void m8_signal_poll(void)
 {
-    const hal_sensor_ops_t *sensor = hal_sensor_get_ops();
-
-    if ((sensor != NULL) && (sensor->poll_input_events != NULL))
-    {
-        sensor->poll_input_events();
-    }
-
     /* VFD 故障码和电流检测已由 drv_vfd monitor worker 内部轮询，
      * 状态变化通过 event_cb → m8_alarm_on_vfd_fault/current_update 主动上报。
      * 此处无需 Modbus IO，io_poll 路径纯 DI 采集。*/
+
+    alarm_core_set_raw_trigger(ALARM_CODE_ESTOP,
+                               m8_signal_is_active(M8_SIG_ESTOP),
+                               false);
+
+    m8_sync_combo_limit_alarms();
 
     alarm_core_set_raw_trigger(ALARM_CODE_PUMP_DRY_RUN,
                                water_is_pump_on() && !water_is_any_valve_open(),

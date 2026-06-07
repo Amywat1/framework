@@ -1,11 +1,11 @@
 /**
  * @file    m8_signal_table.h
- * @brief   M8 信号滤波配置表（编译期只读）
+ * @brief   M8 DI 信号滤波配置表（编译期只读）
  * @author  胡望伟
  * @date    2026-04-13
  *
- * @note    每行定义一路 DI 信号的滤波参数、极性及报警绑定。
- *          io_id 使用 IO_HANDLE_MAKE 常量编码，避免依赖 drv_io.h 复合字面量。
+ * @note    每行定义一路 DI 的 IO 绑定、极性与防抖参数；不含报警语义。
+ *          DI 句柄复用 config/machine/m8_io_pins.h（与 m8_io_table.h 同源）。
  */
 
 #ifndef CONFIG_MACHINE_M8_SIGNAL_TABLE_H
@@ -16,14 +16,7 @@
 
 #include "common/sw_types.h"
 #include "common/io_handle.h"
-#include "domain/model/alarm_code.h"
-
-/* 与 config/machine/m8_io_table.h 中 DI 点位一致（子板 1）*/
-#define M8_SIG_DI_ESTOP_RAW           IO_HANDLE_MAKE(IO_KIND_DI, 1U, 21U)
-#define M8_SIG_DI_GANTRY_FWD_RAW      IO_HANDLE_MAKE(IO_KIND_DI, 1U, 13U)
-#define M8_SIG_DI_GANTRY_REV_RAW      IO_HANDLE_MAKE(IO_KIND_DI, 1U, 14U)
-#define M8_SIG_DI_LIFT_UP_RAW         IO_HANDLE_MAKE(IO_KIND_DI, 1U, 15U)
-#define M8_SIG_DI_LIFT_DOWN_RAW       IO_HANDLE_MAKE(IO_KIND_DI, 1U, 16U)
+#include "config/machine/m8_io_pins.h"
 
 /* -------------------------------------------------------------------------
  * 信号标识
@@ -39,30 +32,21 @@ typedef enum
 } m8_signal_id_t;
 
 /* -------------------------------------------------------------------------
- * 单路信号配置
+ * 单路信号配置（行下标即为对应的 m8_signal_id_t 枚举值）
  * ------------------------------------------------------------------------- */
 typedef struct
 {
-    m8_signal_id_t sig_id;         /**< 信号标识 */
-    io_di_t        io_id;          /**< DI 句柄 */
-    bool           active_low;     /**< true=低电平有效（常闭接法） */
-    uint8_t        trig_count;     /**< 触发确认次数 */
-    uint8_t        release_count;  /**< 释放确认次数 */
-    uint16_t       alarm_code;     /**< 关联报警码，0=不联动 */
+    io_di_t  io_id;          /**< DI 句柄 */
+    bool     active_low;     /**< true=低电平有效（常闭接法） */
+    uint8_t  trig_count;     /**< 触发确认次数 */
+    uint8_t  release_count;  /**< 释放确认次数 */
 } m8_signal_cfg_t;
 
 /* -------------------------------------------------------------------------
- * 配置表
+ * 配置表（定义在 m8_signal_table.c，行下标与 m8_signal_id_t 枚举值严格对应）
  * ------------------------------------------------------------------------- */
-static const m8_signal_cfg_t m8_signal_table[] = {
-/*  sig_id                  io_id                       active_low  trig  rel  alarm_code */
-    { M8_SIG_ESTOP,          { M8_SIG_DI_ESTOP_RAW },      true,       1U,   3U,  ALARM_CODE_ESTOP          },
-    { M8_SIG_GANTRY_FWD_LIM, { M8_SIG_DI_GANTRY_FWD_RAW }, false,      3U,   3U,  0U                        },
-    { M8_SIG_GANTRY_REV_LIM, { M8_SIG_DI_GANTRY_REV_RAW }, false,      3U,   3U,  0U                        },
-    { M8_SIG_LIFT_UP_LIM,    { M8_SIG_DI_LIFT_UP_RAW },    false,      3U,   3U,  0U                        },
-    { M8_SIG_LIFT_DOWN_LIM,  { M8_SIG_DI_LIFT_DOWN_RAW },  false,      3U,   3U,  0U                        },
-};
+extern const m8_signal_cfg_t m8_signal_table[M8_SIG_MAX];
 
-#define M8_SIGNAL_TABLE_SIZE  ((int)ARRAY_SIZE(m8_signal_table))
+#define M8_SIGNAL_TABLE_SIZE  ((int)M8_SIG_MAX)
 
 #endif /* CONFIG_MACHINE_M8_SIGNAL_TABLE_H */

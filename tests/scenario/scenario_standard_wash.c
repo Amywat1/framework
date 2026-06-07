@@ -30,8 +30,10 @@
 #include "application/orchestrators/device_fsm.h"
 #include "adapters/hal/sim_hw/hal_sensor_sim.h"
 #include "adapters/machine/m8/m8_alarm_adapt.h"
-#include "adapters/machine/m8/m8_water_setup.h"
+#include "adapters/machine/m8/m8_sensor_setup.h"
 #include "adapters/machine/m8/m8_signal_filter.h"
+#include "adapters/machine/m8/m8_signal_sim.h"
+#include "adapters/machine/m8/m8_water_setup.h"
 #include "domain/device/actuator/motor/motor.h"
 #include "common/event_types.h"
 #include "common/time_util.h"
@@ -87,20 +89,20 @@ static void *scenario_limit_inject_fn(void *arg)
             case WASH_STEP_PREWASH:
             case WASH_STEP_BRUSH_TOP_FWD:
             case WASH_STEP_HIGHPRES_FWD:
-                hal_sensor_sim_set_fwd_limit(true);
-                hal_sensor_sim_set_rev_limit(false);
+                m8_signal_sim_set_fwd_limit(true);
+                m8_signal_sim_set_rev_limit(false);
                 break;
 
             case WASH_STEP_BRUSH_SIDE_REV:
             case WASH_STEP_RINSE_REV:
             case WASH_STEP_HOME:
-                hal_sensor_sim_set_fwd_limit(false);
-                hal_sensor_sim_set_rev_limit(true);
+                m8_signal_sim_set_fwd_limit(false);
+                m8_signal_sim_set_rev_limit(true);
                 break;
 
             default:
-                hal_sensor_sim_set_fwd_limit(false);
-                hal_sensor_sim_set_rev_limit(false);
+                m8_signal_sim_set_fwd_limit(false);
+                m8_signal_sim_set_rev_limit(false);
                 break;
         }
 
@@ -142,17 +144,18 @@ static void scenario_setup(void)
     hal_do_group_sim_register();
     hal_indicator_sim_register();
 
-    /* 预设传感器：升降在下限位；龙门限位由 inject 线程按步骤注入 */
-    hal_sensor_sim_set_lift_bottom(true);
-    hal_sensor_sim_set_fwd_limit(false);
-    hal_sensor_sim_set_rev_limit(false);
-
     /* 初始化各子系统（顺序与 bootstrap.c 保持一致）*/
     time_util_init();
     (void)event_bus_init();
     (void)dev_ctx_init();
     (void)alarm_core_init();
-    m8_signal_filter_init();
+    (void)m8_sensor_setup();
+    m8_signal_sim_reset_all();
+
+    /* 预设传感器：升降在下限位；龙门限位由 inject 线程按步骤注入 */
+    m8_signal_sim_set_lift_bottom(true);
+    m8_signal_sim_set_fwd_limit(false);
+    m8_signal_sim_set_rev_limit(false);
     (void)m8_alarm_adapt_init();
     (void)safety_fsm_init();
     (void)motor_init();

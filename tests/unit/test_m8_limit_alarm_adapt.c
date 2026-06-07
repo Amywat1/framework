@@ -5,7 +5,8 @@
 #include "domain/model/alarm_code.h"
 #include "domain/safety/alarm_core.h"
 #include "ports/hal/hal_io_port.h"
-#include "ports/hal/hal_sensor_port.h"
+#include "adapters/hal/sim_hw/hal_sensor_sim.h"
+#include "adapters/machine/m8/m8_sensor_setup.h"
 #include "ports/hal/hal_vfd_port.h"
 
 #include <assert.h>
@@ -73,35 +74,6 @@ static void mock_register_board_status_cb(hal_io_board_status_cb_t cb)
     (void)cb;
 }
 
-static bool mock_gantry_at_fwd_limit(void)
-{
-    return m8_signal_is_active(M8_SIG_GANTRY_FWD_LIM);
-}
-
-static bool mock_gantry_at_rev_limit(void)
-{
-    return m8_signal_is_active(M8_SIG_GANTRY_REV_LIM);
-}
-
-static bool mock_lift_at_top(void)
-{
-    return m8_signal_is_active(M8_SIG_LIFT_UP_LIM);
-}
-
-static bool mock_lift_at_bottom(void)
-{
-    return m8_signal_is_active(M8_SIG_LIFT_DOWN_LIM);
-}
-
-static bool mock_is_estop_active(void)
-{
-    return m8_signal_is_active(M8_SIG_ESTOP);
-}
-
-static void mock_poll_input_events(void)
-{
-}
-
 static sw_err_t mock_vfd_get_fault_code(hal_vfd_id_t vfd_id, uint16_t *p_code)
 {
     (void)vfd_id;
@@ -120,15 +92,6 @@ static const hal_io_ops_t s_io_ops = {
     .register_board_status_cb = mock_register_board_status_cb,
 };
 
-static const hal_sensor_ops_t s_sensor_ops = {
-    .gantry_at_fwd_limit = mock_gantry_at_fwd_limit,
-    .gantry_at_rev_limit = mock_gantry_at_rev_limit,
-    .lift_at_top         = mock_lift_at_top,
-    .lift_at_bottom      = mock_lift_at_bottom,
-    .is_estop_active     = mock_is_estop_active,
-    .poll_input_events   = mock_poll_input_events,
-};
-
 static void run_filter_ticks(int count)
 {
     for (int i = 0; i < count; i++)
@@ -143,10 +106,10 @@ static void init_fixture(void)
     reset_inputs();
     (void)event_bus_init();
     hal_io_register(&s_io_ops);
-    hal_sensor_register(&s_sensor_ops);
+    hal_sensor_sim_register();
     hal_vfd_register(&s_vfd_ops);
     (void)alarm_core_init();
-    m8_signal_filter_init();
+    (void)m8_sensor_setup();
     (void)m8_alarm_adapt_init();
 }
 

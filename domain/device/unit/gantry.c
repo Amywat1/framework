@@ -9,7 +9,8 @@
 #include "domain/device/actuator/motor/motor.h"
 #include "config/machine/m8_motor_table.h"
 #include "domain/safety/interlock.h"
-#include "ports/hal/hal_sensor_port.h"
+#include "adapters/machine/m8/m8_signal_filter.h"
+#include "config/machine/m8_signal_table.h"
 #include "core/event_bus/event_bus.h"
 #include "common/event_types.h"
 #include "common/log.h"
@@ -128,8 +129,7 @@ sw_err_t gantry_stop(void)
 
 sw_err_t gantry_home_start(uint16_t freq_hz)
 {
-    const hal_sensor_ops_t *s_ops = hal_sensor_get_ops();
-    sw_err_t                ret;
+    sw_err_t ret;
 
     ret = interlock_check_motion(MOTION_TYPE_GANTRY_REV);
     if (ret != SW_OK)
@@ -144,7 +144,7 @@ sw_err_t gantry_home_start(uint16_t freq_hz)
     }
 
     /* 若已在后限位，立即完成 */
-    if (s_ops->gantry_at_rev_limit())
+    if (m8_signal_is_active(M8_SIG_GANTRY_REV_LIM))
     {
         ret = motor_clear_encoder(MOTOR_GANTRY);
         if (ret != SW_OK)
@@ -173,12 +173,12 @@ sw_err_t gantry_home_start(uint16_t freq_hz)
 
 bool gantry_at_fwd_limit(void)
 {
-    return hal_sensor_get_ops()->gantry_at_fwd_limit();
+    return m8_signal_is_active(M8_SIG_GANTRY_FWD_LIM);
 }
 
 bool gantry_at_rev_limit(void)
 {
-    return hal_sensor_get_ops()->gantry_at_rev_limit();
+    return m8_signal_is_active(M8_SIG_GANTRY_REV_LIM);
 }
 
 int32_t gantry_get_pos(void)

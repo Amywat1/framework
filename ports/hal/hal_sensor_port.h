@@ -1,10 +1,12 @@
 /**
  * @file    hal_sensor_port.h
- * @brief   传感器与状态查询 HAL 端口接口
+ * @brief   DI 通道滤波 HAL 端口（不含业务语义）
  * @author  胡望伟
  * @date    2026-04-10
  *
- * @note    包含限位开关、急停等接口；VFD 诊断见 hal_vfd_port。
+ * @note    对原始 DI 做极性转换与计数防抖，输出稳定逻辑态；
+ *          业务映射与报警联动由 machine 层完成。
+ *          通道绑定由 hal_sensor_linux_bind / hal_sensor_sim_bind 完成。
  */
 
 #ifndef PORTS_HAL_SENSOR_PORT_H
@@ -14,22 +16,41 @@
 extern "C" {
 #endif
 
+#include "common/io_handle.h"
 #include "common/sw_error.h"
 #include <stdbool.h>
 #include <stdint.h>
 
+/** 最大滤波通道数（channel 编号 0 .. HAL_SENSOR_CHANNEL_MAX-1） */
+#define HAL_SENSOR_CHANNEL_MAX  16U
+
+typedef uint8_t hal_sensor_channel_t;
+
+/**
+ * @brief  单通道滤波绑定参数
+ */
 typedef struct
 {
-    bool (*gantry_at_fwd_limit)(void);
-    bool (*gantry_at_rev_limit)(void);
-    bool (*lift_at_top)(void);
-    bool (*lift_at_bottom)(void);
-    bool (*is_estop_active)(void);
-    void (*poll_input_events)(void);
+    io_di_t  pin;             /**< DI 句柄；IO_HANDLE_NULL 表示未安装 */
+    bool     active_low;      /**< true=低电平有效 */
+    uint8_t  trig_count;      /**< 触发确认连续采样次数 */
+    uint8_t  release_count;   /**< 释放确认连续采样次数 */
+} hal_sensor_bind_cfg_t;
+
+typedef struct
+{
+    /** @brief  初始化内部运行时状态 */
+    sw_err_t (*init)(void);
+
+    /** @brief  执行一轮全通道滤波（由 io_poll 周期调用） */
+    void (*tick)(void);
+
+    /** @brief  查询通道滤波后的稳定逻辑态 */
+    bool (*is_active)(hal_sensor_channel_t ch);
 } hal_sensor_ops_t;
 
-void                    hal_sensor_register(const hal_sensor_ops_t *ops);
-const hal_sensor_ops_t *hal_sensor_get_ops(void);
+void                        hal_sensor_register(const hal_sensor_ops_t *ops);
+const hal_sensor_ops_t     *hal_sensor_get_ops(void);
 
 #ifdef __cplusplus
 }

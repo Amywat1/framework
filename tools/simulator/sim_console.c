@@ -9,7 +9,8 @@
 #include "ports/cloud/command_port.h"
 #include "domain/model/command.h"
 #include "domain/model/wash_types.h"
-#include "adapters/hal/sim_hw/hal_sensor_sim.h"
+#include "adapters/machine/m8/m8_signal_sim.h"
+#include "adapters/hal/sim_hw/sim_encoder_counter.h"
 #include "common/log.h"
 #include <stdio.h>
 #include <string.h>
@@ -73,11 +74,11 @@ static void handle_line(char *line)
             return;
         }
         bool val = (atoi(tok[2]) != 0);
-        if      (strcmp(tok[1], "fwd")         == 0) { hal_sensor_sim_set_fwd_limit(val); }
-        else if (strcmp(tok[1], "rev")         == 0) { hal_sensor_sim_set_rev_limit(val); }
-        else if (strcmp(tok[1], "estop")       == 0) { hal_sensor_sim_set_estop(val); }
-        else if (strcmp(tok[1], "lift_top")    == 0) { hal_sensor_sim_set_lift_top(val); }
-        else if (strcmp(tok[1], "lift_bottom") == 0) { hal_sensor_sim_set_lift_bottom(val); }
+        if      (strcmp(tok[1], "fwd")         == 0) { m8_signal_sim_set_fwd_limit(val); }
+        else if (strcmp(tok[1], "rev")         == 0) { m8_signal_sim_set_rev_limit(val); }
+        else if (strcmp(tok[1], "estop")       == 0) { m8_signal_sim_set_estop(val); }
+        else if (strcmp(tok[1], "lift_top")    == 0) { m8_signal_sim_set_lift_top(val); }
+        else if (strcmp(tok[1], "lift_bottom") == 0) { m8_signal_sim_set_lift_bottom(val); }
         else { printf("unknown sensor: %s\n", tok[1]); }
         printf("[sim] sensor %s = %d\n", tok[1], (int)val);
         return;
@@ -87,7 +88,7 @@ static void handle_line(char *line)
     if (strcmp(tok[0], "encoder") == 0)
     {
         int delta = (n >= 2) ? atoi(tok[1]) : 1;
-        hal_sensor_sim_encoder_tick(delta);
+        sim_encoder_counter_add_pulse(0, delta);
         printf("[sim] encoder tick delta=%d\n", delta);
         return;
     }

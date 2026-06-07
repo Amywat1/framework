@@ -76,12 +76,14 @@ file(GLOB_RECURSE src CONFIGURE_DEPENDS
     adapters/*.cpp
     adapters/*.c adapters/*.h
     service/*.c service/*.h
-    config/*.h
+    config/*.c config/*.h
     tests/*.c tests/*.h
 )
 
 # sim_hw 适配器不参与嵌入式构建
 list(FILTER src EXCLUDE REGEX ".*/sim_hw/.*")
+# 仿真信号注入仅用于 BUILD_SIM
+list(FILTER src EXCLUDE REGEX ".*/m8_signal_sim\\.c$")
 # sim wiring only participates in BUILD_SIM
 list(FILTER src EXCLUDE REGEX ".*/wiring_sim\.c$")
 # 场景测试文件不参与产品构建
@@ -192,8 +194,13 @@ if(BUILD_SIM)
         adapters/ui/mqtt_cmd/*.c
         adapters/ui/command_bridge.c
 
+        # M8 机型配置表
+        config/machine/m8_signal_table.c
+
         # M8 机型：信号滤波 + 报警适配 + IO 轮询
         adapters/machine/m8/m8_signal_filter.c
+        adapters/machine/m8/m8_signal_sim.c
+        adapters/machine/m8/m8_sensor_setup.c
         adapters/machine/m8/m8_alarm_adapt.c
         adapters/machine/m8/m8_io_poll.c
         adapters/machine/m8/m8_water_setup.c
@@ -314,6 +321,7 @@ if(BUILD_SIM)
         domain/device/unit/brush.c
         domain/device/unit/gantry.c
         domain/device/water.c
+        adapters/machine/m8/m8_signal_filter.c
         application/orchestrators/wash_orchestrator.c
         core/scheduler/thread_registry.c
         service/svc_param/svc_param.c
@@ -329,7 +337,10 @@ if(BUILD_SIM)
     add_unit_test(test_m8_limit_alarm_adapt
         tests/unit/test_m8_limit_alarm_adapt.c
         domain/safety/alarm_core.c
+        adapters/hal/sim_hw/hal_sensor_sim.c
         adapters/machine/m8/m8_signal_filter.c
+        adapters/machine/m8/m8_sensor_setup.c
+        config/machine/m8_signal_table.c
         adapters/machine/m8/m8_alarm_adapt.c
         domain/device/water.c
     )

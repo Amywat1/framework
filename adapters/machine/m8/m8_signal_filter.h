@@ -1,6 +1,6 @@
 /**
  * @file    m8_signal_filter.h
- * @brief   M8 表驱动信号滤波接口
+ * @brief   M8 滤波信号查询接口
  * @author  胡望伟
  * @date    2026-04-13
  */
@@ -17,14 +17,8 @@ extern "C" {
 #include "config/machine/m8_signal_table.h"
 
 /**
- * @brief  初始化信号滤波运行时状态
- * @note   由 bootstrap 在 alarm_core_init() 之后调用。
- */
-void m8_signal_filter_init(void);
-
-/**
- * @brief  执行一次信号滤波时间片
- * @note   周期由外部调用方保证，当前设计为 10ms 一次。
+ * @brief  执行一次 hal_sensor 滤波时间片
+ * @note   周期由外部调用方保证，当前设计为 ALARM_POLL_PERIOD_MS 一次。
  */
 void m8_signal_filter_tick(void);
 

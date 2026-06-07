@@ -24,9 +24,12 @@
 #include "application/orchestrators/wash_orchestrator.h"
 #include "application/orchestrators/report_aggregator.h"
 #include "adapters/machine/m8/m8_alarm_adapt.h"
-#include "adapters/machine/m8/m8_signal_filter.h"
 #include "adapters/machine/m8/m8_io_poll.h"
+#include "adapters/machine/m8/m8_sensor_setup.h"
 #include "adapters/machine/m8/m8_water_setup.h"
+#ifdef BUILD_SIM
+#  include "adapters/machine/m8/m8_signal_sim.h"
+#endif
 #include "ports/hal/hal_io_port.h"
 #include "ports/hal/hal_vfd_port.h"
 #include "ports/storage/deploy_store.h"
@@ -137,7 +140,13 @@ static sw_err_t bootstrap_init_safety(void)
 #endif
 
     BOOT_CHECK(alarm_core_init(), "alarm_core_init");
-    m8_signal_filter_init();
+    BOOT_CHECK(m8_sensor_setup(), "m8_sensor_setup");
+#ifdef BUILD_SIM
+    m8_signal_sim_reset_all();
+#endif
+    /* 预热采样：在线程启动前将 s_rt[].confirmed 同步到当前 DI 状态，
+     * 消除上电时限位已触发但 confirmed=false 的竞争窗口 */
+    BOOT_CHECK(m8_sensor_warmup(), "m8_sensor_warmup");
     BOOT_CHECK(m8_alarm_adapt_init(), "m8_alarm_adapt_init");
     BOOT_CHECK(safety_fsm_init(), "safety_fsm_init");
     return SW_OK;

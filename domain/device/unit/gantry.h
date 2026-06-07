@@ -4,7 +4,7 @@
  * @author  胡望伟
  * @date    2026-04-10
  *
- * @note    通过 hal_motion_port + hal_sensor_port 接口控制，不依赖驱动层。
+ * @note    通过 motor 管理层与 m8_signal_filter 查询限位，不依赖驱动层。
  *          位置值统一由 motor 管理层对外提供，兼容事件驱动和硬件计数器两种模式。
  *          gantry_home_start() 非阻塞：启动后退，事件驱动停止并发 EVT_COMP_HOME_DONE。
  */

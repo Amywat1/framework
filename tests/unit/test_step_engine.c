@@ -22,6 +22,7 @@
 #include "ports/hal/hal_motion_port.h"
 #include "ports/hal/hal_motor_port.h"
 #include "ports/hal/hal_sensor_port.h"
+#include "adapters/machine/m8/m8_signal_filter.h"
 #include "ports/hal/hal_vfd_port.h"
 #include "domain/device/water.h"
 #include "domain/device/water_channel.h"
@@ -42,21 +43,33 @@ static bool s_mock_lift_bottom = false;
 static bool s_mock_estop       = false;
 static int  s_mock_gantry_pos  = 0;
 
-/* 模拟 HAL 传感器 */
-static bool mock_gantry_at_fwd_limit(void) { return s_mock_fwd_limit; }
-static bool mock_gantry_at_rev_limit(void) { return s_mock_rev_limit; }
-static bool mock_lift_at_top(void)         { return s_mock_lift_top; }
-static bool mock_lift_at_bottom(void)      { return s_mock_lift_bottom; }
-static bool mock_is_estop_active(void)     { return s_mock_estop; }
-static void mock_poll_input_events(void)   {}
+/* 模拟 HAL 传感器（通道号与 M8_SIG_* 对齐） */
+static bool mock_sensor_is_active(hal_sensor_channel_t ch)
+{
+    switch (ch)
+    {
+        case M8_SIG_ESTOP:          return s_mock_estop;
+        case M8_SIG_GANTRY_FWD_LIM: return s_mock_fwd_limit;
+        case M8_SIG_GANTRY_REV_LIM: return s_mock_rev_limit;
+        case M8_SIG_LIFT_UP_LIM:    return s_mock_lift_top;
+        case M8_SIG_LIFT_DOWN_LIM:  return s_mock_lift_bottom;
+        default:                    return false;
+    }
+}
+
+static sw_err_t mock_sensor_init(void)
+{
+    return SW_OK;
+}
+
+static void mock_sensor_tick(void)
+{
+}
 
 static const hal_sensor_ops_t s_mock_sensor_ops = {
-    .gantry_at_fwd_limit  = mock_gantry_at_fwd_limit,
-    .gantry_at_rev_limit  = mock_gantry_at_rev_limit,
-    .lift_at_top          = mock_lift_at_top,
-    .lift_at_bottom       = mock_lift_at_bottom,
-    .is_estop_active      = mock_is_estop_active,
-    .poll_input_events    = mock_poll_input_events,
+    .init      = mock_sensor_init,
+    .tick      = mock_sensor_tick,
+    .is_active = mock_sensor_is_active,
 };
 
 static sw_err_t mock_vfd_get_fault_code(hal_vfd_id_t id, uint16_t *p_code)
