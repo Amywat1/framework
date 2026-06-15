@@ -4,7 +4,7 @@
  * @author  胡望伟
  * @date    2026-04-10
  *
- * @note    仅供 adapters/hal/linux_hw/ 和 adapters/machine/m8/ 内部使用。
+ * @note    仅供 adapters/machine/m8/ 及同类机型 HAL 适配器内部使用。
  *          domain/ 和 application/ 层不得直接包含此文件。
  *
  *          硬件参数（总线名、地址、脉冲宽度等）的唯一权威来源是

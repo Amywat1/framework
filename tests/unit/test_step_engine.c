@@ -19,7 +19,6 @@
 #include "domain/device/unit/brush.h"
 #include "domain/device/unit/gantry.h"
 #include "config/machine/m8_motor_table.h"
-#include "ports/hal/hal_motion_port.h"
 #include "ports/hal/hal_motor_port.h"
 #include "ports/hal/hal_sensor_port.h"
 #include "adapters/machine/m8/m8_signal_filter.h"
@@ -144,27 +143,6 @@ static const hal_motor_ops_t s_mock_motor_ops = {
     .clear_hw_pulse         = mock_motor_clear_hw_pulse,
     .read_current           = mock_motor_read_current,
     .read_status            = mock_motor_read_status,
-};
-
-/* 模拟 HAL 运动控制 */
-static sw_err_t mock_gantry_fwd(uint16_t f)     { (void)f; return SW_OK; }
-static sw_err_t mock_gantry_rev(uint16_t f)     { (void)f; return SW_OK; }
-static sw_err_t mock_gantry_stop(void)           { return SW_OK; }
-static sw_err_t mock_gantry_fault_reset(void)    { return SW_OK; }
-static sw_err_t mock_brush_select(hal_brush_sel_t s) { (void)s; return SW_OK; }
-static sw_err_t mock_brush_run(uint16_t f)       { (void)f; return SW_OK; }
-static sw_err_t mock_brush_stop(void)            { return SW_OK; }
-static sw_err_t mock_brush_fault_reset(void)     { return SW_OK; }
-
-static const hal_motion_ops_t s_mock_motion_ops = {
-    .gantry_fwd         = mock_gantry_fwd,
-    .gantry_rev         = mock_gantry_rev,
-    .gantry_stop        = mock_gantry_stop,
-    .gantry_fault_reset = mock_gantry_fault_reset,
-    .brush_select       = mock_brush_select,
-    .brush_run          = mock_brush_run,
-    .brush_stop         = mock_brush_stop,
-    .brush_fault_reset  = mock_brush_fault_reset,
 };
 
 /* 模拟水路执行器 */
@@ -334,7 +312,6 @@ int main(void)
     printf("=== test_step_engine ===\n");
 
     /* 注册模拟 HAL */
-    hal_motion_register(&s_mock_motion_ops);
     hal_motor_register(&s_mock_motor_ops);
     hal_sensor_register(&s_mock_sensor_ops);
     hal_vfd_register(&s_mock_vfd_ops);

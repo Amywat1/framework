@@ -10,25 +10,15 @@
  *          调用方应在使用前做 assert(ops != NULL) 检查。
  */
 
-#include "ports/hal/hal_motion_port.h"
 #include "ports/hal/hal_motor_port.h"
 #include "ports/hal/hal_sensor_port.h"
 #include "ports/hal/hal_io_port.h"
 #include "ports/hal/hal_vfd_port.h"
 #include "ports/hal/hal_do_group_port.h"
-#include "ports/hal/hal_indicator_port.h"
 #include "ports/cloud/report_port.h"
 #include "ports/cloud/command_port.h"
 #include "ports/storage/param_store.h"
 #include "ports/storage/deploy_store.h"
-
-/* -------------------------------------------------------------------------
- * HAL — 运动控制
- * ------------------------------------------------------------------------- */
-static const hal_motion_ops_t *s_motion_ops;
-
-void hal_motion_register(const hal_motion_ops_t *ops) { s_motion_ops = ops; }
-const hal_motion_ops_t *hal_motion_get_ops(void)      { return s_motion_ops; }
 
 /* -------------------------------------------------------------------------
  * HAL — 通用电机
@@ -69,14 +59,6 @@ static const hal_do_group_ops_t *s_do_group_ops;
 
 void hal_do_group_register(const hal_do_group_ops_t *ops) { s_do_group_ops = ops; }
 const hal_do_group_ops_t *hal_do_group_get_ops(void)      { return s_do_group_ops; }
-
-/* -------------------------------------------------------------------------
- * HAL — 指示灯
- * ------------------------------------------------------------------------- */
-static const hal_indicator_ops_t *s_indicator_ops;
-
-void hal_indicator_register(const hal_indicator_ops_t *ops) { s_indicator_ops = ops; }
-const hal_indicator_ops_t *hal_indicator_get_ops(void)      { return s_indicator_ops; }
 
 /* -------------------------------------------------------------------------
  * 云端 — 上报

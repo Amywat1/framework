@@ -4,8 +4,7 @@
  * @author  胡望伟
  * @date    2026-04-10
  *
- * @note    通过 hal_motion_port 接口控制，不直接依赖驱动层。
- *          接触器切换互锁（先停 VFD，等 200ms）由 HAL 层实现。
+ * @note    当前未接入硬件控制；brush_start() 返回 SW_ERR_NOT_SUPPORT。
  */
 
 #ifndef DOMAIN_DEVICE_BRUSH_H

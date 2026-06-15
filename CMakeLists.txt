@@ -337,12 +337,20 @@ if(BUILD_SIM)
     add_unit_test(test_m8_limit_alarm_adapt
         tests/unit/test_m8_limit_alarm_adapt.c
         domain/safety/alarm_core.c
+        domain/safety/interlock.c
         adapters/hal/sim_hw/hal_sensor_sim.c
         adapters/machine/m8/m8_signal_filter.c
         adapters/machine/m8/m8_sensor_setup.c
         config/machine/m8_signal_table.c
         adapters/machine/m8/m8_alarm_adapt.c
         domain/device/water.c
+        domain/device/gate.c
+        domain/device/unit/brush.c
+        domain/device/unit/gantry.c
+        domain/device/actuator/motor/motor.c
+        domain/device/actuator/motor/motor_encoder_internal.c
+        domain/device/actuator/motor/motor_monitor_internal.c
+        domain/device/actuator/motor/motor_tick_internal.c
     )
 
     # -----------------------------------------------------------------------

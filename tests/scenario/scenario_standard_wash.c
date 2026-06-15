@@ -45,11 +45,9 @@
 #include <stdbool.h>
 
 /* sim HAL 注册函数（无专用头文件，使用 extern 声明）*/
-extern void hal_motion_sim_register(void);
 extern void hal_motor_sim_register(void);
 extern void hal_io_sim_register(void);
 extern void hal_do_group_sim_register(void);
-extern void hal_indicator_sim_register(void);
 
 /* -------------------------------------------------------------------------
  * 场景内部线程入口（不依赖 bootstrap 中的局部静态函数）
@@ -138,11 +136,9 @@ static void scenario_setup(void)
 {
     /* 注册 sim HAL 适配器 */
     hal_io_sim_register();
-    hal_motion_sim_register();
     hal_motor_sim_register();
     hal_sensor_sim_register();
     hal_do_group_sim_register();
-    hal_indicator_sim_register();
 
     /* 初始化各子系统（顺序与 bootstrap.c 保持一致）*/
     time_util_init();

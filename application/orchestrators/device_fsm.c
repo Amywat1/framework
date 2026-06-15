@@ -35,24 +35,24 @@ static void set_state(dev_state_t new_state)
 static void apply_idle_indicator(void)
 {
     (void)gate_allow();
-    (void)gate_set_light(HAL_LIGHT_GREEN_BLINK);
+    (void)gate_set_light(GATE_LIGHT_GREEN_BLINK);
 }
 
 static void apply_run_indicator(void)
 {
     (void)gate_block();
-    (void)gate_set_light(HAL_LIGHT_YELLOW_BLINK);
+    (void)gate_set_light(GATE_LIGHT_YELLOW_BLINK);
 }
 
 static void apply_fault_indicator(void)
 {
     (void)gate_block();
-    (void)gate_set_light(HAL_LIGHT_RED_BLINK);
+    (void)gate_set_light(GATE_LIGHT_RED_BLINK);
 }
 
 static void apply_stop_indicator(void)
 {
-    (void)gate_set_light(HAL_LIGHT_OFF);
+    (void)gate_set_light(GATE_LIGHT_OFF);
 }
 
 static void clear_manual_stop_flag(void)
@@ -174,7 +174,7 @@ static void on_cmd_home(const event_t *evt)
     }
     set_state(DEV_STATE_COMPLETE);
     (void)gate_block();
-    (void)gate_set_light(HAL_LIGHT_YELLOW_BLINK);
+    (void)gate_set_light(GATE_LIGHT_YELLOW_BLINK);
     LOG_INFO("device_fsm: IDLE → COMPLETE (homing started)");
 }
 

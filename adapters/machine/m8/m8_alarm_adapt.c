@@ -10,9 +10,10 @@
 #include "adapters/machine/m8/m8_signal_filter.h"
 #include "domain/model/alarm_code.h"
 #include "domain/device/water.h"
+#include "domain/device/unit/gantry.h"
+#include "domain/device/unit/brush.h"
+#include "domain/device/gate.h"
 #include "domain/safety/alarm_core.h"
-#include "ports/hal/hal_motion_port.h"
-#include "ports/hal/hal_indicator_port.h"
 #include "ports/hal/hal_vfd_port.h"
 #include "common/log.h"
 #include "common/sw_error.h"
@@ -73,32 +74,24 @@ static void m8_signal_poll(void)
 
 static void m8_emc_reset(void)
 {
-    const hal_motion_ops_t    *motion    = hal_motion_get_ops();
-    const hal_indicator_ops_t *indicator = hal_indicator_get_ops();
+    const hal_vfd_ops_t *vfd = hal_vfd_get_ops();
 
     LOG_INFO("m8_alarm_adapt: EMC reset sequence start");
 
-    if (motion != NULL)
-    {
-        (void)motion->gantry_stop();
-        (void)motion->brush_stop();
-    }
-
+    (void)gantry_stop();
+    (void)brush_stop();
     (void)water_all_off();
 
     usleep(200U * 1000U);
 
-    if (motion != NULL)
+    if ((vfd != NULL) && (vfd->fault_reset != NULL))
     {
-        (void)motion->gantry_fault_reset();
-        (void)motion->brush_fault_reset();
+        (void)vfd->fault_reset(HAL_VFD_GANTRY);
+        (void)vfd->fault_reset(HAL_VFD_BRUSH);
     }
 
-    if (indicator != NULL)
-    {
-        (void)indicator->rod_close();
-        (void)indicator->entry_light_set(HAL_LIGHT_RED);
-    }
+    (void)gate_block();
+    (void)gate_set_light(GATE_LIGHT_RED);
 
     LOG_INFO("m8_alarm_adapt: EMC reset sequence done");
 }
@@ -172,14 +165,9 @@ void m8_alarm_on_vfd_current_update(bool is_brush)
         s_brush_anomaly_events++;
         if (s_brush_anomaly_events >= M8_BRUSH_CURRENT_CONFIRM_EVENTS)
         {
-            const hal_motion_ops_t *motion = hal_motion_get_ops();
-
             LOG_WARN("m8_alarm_adapt: brush current anomaly %u mA", (unsigned)current);
             alarm_core_set_state(ALARM_CODE_BRUSH_CURRENT, true, false);
-            if ((motion != NULL) && (motion->brush_stop != NULL))
-            {
-                (void)motion->brush_stop();
-            }
+            (void)brush_stop();
             s_brush_anomaly_events = 0U;
         }
     }
