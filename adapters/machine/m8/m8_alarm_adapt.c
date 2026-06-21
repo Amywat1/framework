@@ -17,6 +17,7 @@
 #include "config/machine/m8_motor_table.h"
 #include "domain/safety/alarm_core.h"
 #include "ports/hal/hal_vfd_port.h"
+#include "config/machine/m8_vfd_table.h"
 #include "common/log.h"
 #include "common/sw_error.h"
 #include <unistd.h>

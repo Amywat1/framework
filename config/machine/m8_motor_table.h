@@ -13,6 +13,7 @@
 
 #include "common/io_handle.h"
 #include "config/machine/m8_io_pins.h"
+#include "config/machine/m8_vfd_table.h"
 #include "domain/model/alarm_code.h"
 #include <stdbool.h>
 #include <stdint.h>
@@ -56,6 +57,11 @@ typedef struct
     const char          *name;
     motor_drv_type_t     drv_type;
     motor_action_type_t  action_type;
+    /**
+     * @brief  HAL VFD 实例 id（MOTOR_DRV_VFD 时必填，否则填 HAL_VFD_ID_NONE）
+     * @note   取值见 config/machine/m8_vfd_table.h 中 HAL_VFD_GANTRY / HAL_VFD_BRUSH
+     */
+    int                  vfd_id;
 
     io_do_t              io_cw;
     io_do_t              io_ccw;
@@ -93,6 +99,7 @@ static const motor_cfg_t m8_motor_table[] = {
         .id              = MOTOR_GANTRY,
         .name            = "GANTRY",
         .drv_type        = MOTOR_DRV_VFD,
+        .vfd_id          = HAL_VFD_GANTRY,
         .action_type     = MOTOR_ACTION_MOVE,
         .io_cw           = M8_IO_DO_GANTRY_FWD,
         .io_ccw          = M8_IO_DO_GANTRY_REV,

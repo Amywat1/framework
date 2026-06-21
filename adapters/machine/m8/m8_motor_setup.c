@@ -8,7 +8,6 @@
 #include "adapters/machine/m8/m8_motor_setup.h"
 #include "config/machine/m8_motor_table.h"
 #include "ports/hal/hal_motor_bind.h"
-#include "ports/hal/hal_vfd_port.h"
 #include "common/log.h"
 
 #ifdef BUILD_SIM
@@ -54,24 +53,13 @@ sw_err_t m8_motor_setup(void)
     for (int i = 0; i < M8_MOTOR_TABLE_SIZE; i++)
     {
         const motor_cfg_t *mcfg = &m8_motor_table[i];
-        int                vfd_backend_id;
 
         if (mcfg->drv_type != MOTOR_DRV_VFD)
         {
             continue;
         }
 
-        if (mcfg->id == MOTOR_GANTRY)
-        {
-            vfd_backend_id = (int)HAL_VFD_GANTRY;
-        }
-        else
-        {
-            LOG_ERROR("m8_motor_setup: no vfd backend for motor id=%d", mcfg->id);
-            return SW_ERR_PARAM;
-        }
-
-        ret = bind_motor_entry(mcfg, vfd_backend_id);
+        ret = bind_motor_entry(mcfg, mcfg->vfd_id);
         if (ret != SW_OK)
         {
             LOG_ERROR("m8_motor_setup: bind id=%d failed ret=%d", mcfg->id, (int)ret);
