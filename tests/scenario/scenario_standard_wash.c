@@ -20,7 +20,6 @@
 #include "domain/device/unit/brush.h"
 #include "domain/device/unit/gantry.h"
 #include "domain/device/water.h"
-#include "domain/device/gate.h"
 #include "domain/model/device_state.h"
 #include "domain/model/wash_types.h"
 #include "application/orchestrators/wash_orchestrator.h"
@@ -163,7 +162,6 @@ static void scenario_setup(void)
     (void)brush_init();
     (void)gantry_init();
     (void)m8_water_setup();
-    (void)gate_init();
     (void)emergency_handler_init();
     (void)device_fsm_init();
     (void)wash_orchestrator_init();
