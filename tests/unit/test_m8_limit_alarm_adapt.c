@@ -5,7 +5,7 @@
 #include "domain/model/alarm_code.h"
 #include "domain/safety/alarm_core.h"
 #include "ports/hal/hal_io_port.h"
-#include "adapters/hal/sim_hw/hal_sensor_sim.h"
+#include "adapters/hal/generic/hal_sensor.h"
 #include "adapters/machine/m8/m8_sensor_setup.h"
 #include "ports/hal/hal_vfd_port.h"
 
@@ -106,7 +106,7 @@ static void init_fixture(void)
     reset_inputs();
     (void)event_bus_init();
     hal_io_register(&s_io_ops);
-    hal_sensor_sim_register();
+    hal_sensor_generic_register();
     hal_vfd_register(&s_vfd_ops);
     (void)alarm_core_init();
     (void)m8_sensor_setup();

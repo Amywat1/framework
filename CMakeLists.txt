@@ -183,9 +183,11 @@ if(BUILD_SIM)
         core/bootstrap/bootstrap.c
         apps/wash_controller/wiring_sim.c
 
-        # 仿真 HAL 实现
+        # 仿真 HAL 实现（sim_hw：io/vfd/motor 专属；generic：sensor/do_group 共用）
         ports/*.c
         adapters/hal/sim_hw/*.c
+        adapters/hal/generic/hal_sensor.c
+        adapters/hal/generic/hal_do_group.c
 
         # 存储适配器（param + deploy，路径可能与真机不同但接口相同）
         adapters/storage/json/*.c
@@ -339,7 +341,7 @@ if(BUILD_SIM)
         tests/unit/test_m8_limit_alarm_adapt.c
         domain/safety/alarm_core.c
         domain/safety/interlock.c
-        adapters/hal/sim_hw/hal_sensor_sim.c
+        adapters/hal/generic/hal_sensor.c
         adapters/machine/m8/m8_signal_filter.c
         adapters/machine/m8/m8_sensor_setup.c
         config/machine/m8_signal_table.c

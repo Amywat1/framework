@@ -5,7 +5,7 @@
  * @date    2026-04-10
  *
  * @note    仅提供 group / slot 编号与 DO 读写；业务映射由 machine 层完成。
- *          DO 绑定由 hal_do_group_bind（generic）/ hal_do_group_sim_bind（sim）完成。
+ *          DO 绑定由 adapters/hal/generic/hal_do_group.h 中的 hal_do_group_bind() 完成。
  */
 
 #ifndef PORTS_HAL_DO_GROUP_PORT_H

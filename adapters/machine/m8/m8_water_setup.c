@@ -30,21 +30,13 @@ static const m8_water_bind_row_t s_m8_water_bind_table[] = {
 #define M8_WATER_BIND_TABLE_COUNT \
     ((unsigned)(sizeof(s_m8_water_bind_table) / sizeof(s_m8_water_bind_table[0])))
 
-#ifdef BUILD_SIM
-#  include "adapters/hal/sim_hw/hal_do_group_sim.h"
-#else
-#  include "adapters/hal/generic/hal_do_group.h"
-#endif
+#include "adapters/hal/generic/hal_do_group.h"
 
 static sw_err_t m8_bind_group_slot(hal_do_group_t group,
                                    hal_do_slot_t  slot,
                                    io_do_t        pin)
 {
-#ifdef BUILD_SIM
-    return hal_do_group_sim_bind(group, slot, pin);
-#else
     return hal_do_group_bind(group, slot, pin);
-#endif
 }
 
 static sw_err_t m8_apply_bind_table(void)

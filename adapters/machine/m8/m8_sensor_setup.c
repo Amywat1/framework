@@ -10,11 +10,7 @@
 #include "ports/hal/hal_sensor_port.h"
 #include "common/log.h"
 
-#ifdef BUILD_SIM
-#  include "adapters/hal/sim_hw/hal_sensor_sim.h"
-#else
-#  include "adapters/hal/generic/hal_sensor.h"
-#endif
+#include "adapters/hal/generic/hal_sensor.h"
 
 _Static_assert((unsigned)M8_SIG_MAX <= HAL_SENSOR_CHANNEL_MAX,
                "M8_SIG_MAX 超过 HAL_SENSOR_CHANNEL_MAX，需扩大 hal_sensor 通道上限");
@@ -22,11 +18,7 @@ _Static_assert((unsigned)M8_SIG_MAX <= HAL_SENSOR_CHANNEL_MAX,
 static sw_err_t m8_bind_channel(hal_sensor_channel_t         ch,
                                 const hal_sensor_bind_cfg_t *cfg)
 {
-#ifdef BUILD_SIM
-    return hal_sensor_sim_bind(ch, cfg);
-#else
     return hal_sensor_bind(ch, cfg);
-#endif
 }
 
 static sw_err_t m8_apply_signal_table(void)

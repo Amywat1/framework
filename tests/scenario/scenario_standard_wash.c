@@ -28,7 +28,7 @@
 #include "application/orchestrators/wash_orchestrator.h"
 #include "application/orchestrators/emergency_handler.h"
 #include "application/orchestrators/device_fsm.h"
-#include "adapters/hal/sim_hw/hal_sensor_sim.h"
+#include "adapters/hal/generic/hal_sensor.h"
 #include "adapters/machine/m8/m8_alarm_adapt.h"
 #include "adapters/machine/m8/m8_sensor_setup.h"
 #include "adapters/machine/m8/m8_signal_filter.h"
@@ -50,7 +50,7 @@
 extern void hal_motor_sim_register(void);
 extern void hal_io_sim_register(void);
 extern void hal_vfd_sim_register(void);
-extern void hal_do_group_sim_register(void);
+extern void hal_do_group_generic_register(void);
 
 /* -------------------------------------------------------------------------
  * 场景内部线程入口（不依赖 bootstrap 中的局部静态函数）
@@ -141,8 +141,8 @@ static void scenario_setup(void)
     hal_io_sim_register();
     hal_vfd_sim_register();
     hal_motor_sim_register();
-    hal_sensor_sim_register();
-    hal_do_group_sim_register();
+    hal_sensor_generic_register();
+    hal_do_group_generic_register();
     {
         const hal_vfd_ops_t *vfd = hal_vfd_get_ops();
 

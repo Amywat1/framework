@@ -6,7 +6,7 @@
  *
  * @note    对原始 DI 做极性转换与计数防抖，输出稳定逻辑态；
  *          业务映射与报警联动由 machine 层完成。
- *          通道绑定由 hal_sensor_bind（generic）/ hal_sensor_sim_bind（sim）完成。
+ *          通道绑定由 adapters/hal/generic/hal_sensor.h 中的 hal_sensor_bind() 完成。
  */
 
 #ifndef PORTS_HAL_SENSOR_PORT_H
