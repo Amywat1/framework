@@ -1,7 +1,7 @@
 /**
  * @file    aliyun_command_adapter.c
  * @brief   阿里云 MQTT 命令下行适配器
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-04-10
  *
  * @note    负责 MQTT 协议层（初始化连接、注册接收回调）。

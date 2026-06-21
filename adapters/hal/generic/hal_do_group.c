@@ -1,7 +1,7 @@
 /**
  * @file    hal_do_group.c
  * @brief   DO 组×槽位 HAL 端口实现（依赖 hal_io_port，无平台 SDK）
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-04-10
  */
 

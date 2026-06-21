@@ -1,7 +1,7 @@
 /**
  * @file    m8_io_pins.h
  * @brief   M8 机型 IO 句柄常量（config 层，不依赖 drv_io.h）
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-06-01
  *
  * @note    引脚编号由 config/machine/m8_io_table.h 展开生成，与 drv_io 名称表同源。

@@ -1,7 +1,7 @@
 /**
  * @file    command_port.h
  * @brief   外部命令接入端口接口（MQTT 下行 / CLI / BLE 等统一注入点）
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-04-10
  *
  * @note    各命令来源（aliyun_command_adapter、cli、sim_console 等）解析命令后，

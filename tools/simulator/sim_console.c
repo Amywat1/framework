@@ -1,7 +1,7 @@
 /**
  * @file    sim_console.c
  * @brief   仿真交互控制台（stdin 命令 → 注入传感器状态 / 命令事件）
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-04-10
  */
 

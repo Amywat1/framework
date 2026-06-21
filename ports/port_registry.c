@@ -1,7 +1,7 @@
 /**
  * @file    port_registry.c
  * @brief   所有端口注册器实现（register / get_ops 函数的统一存放）
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-04-10
  *
  * @note    bootstrap/wiring.c 在启动时调用各 xxx_register()，

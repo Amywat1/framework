@@ -1,7 +1,7 @@
 /**
  * @file    wash_types.h
  * @brief   洗车流程相关领域类型定义
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-04-10
  */
 

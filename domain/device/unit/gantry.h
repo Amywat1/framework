@@ -1,7 +1,7 @@
 /**
  * @file    gantry.h
  * @brief   龙门行走设备接口
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-04-10
  *
  * @note    通过 motor 管理层与 m8_signal_filter 查询限位，不依赖驱动层。

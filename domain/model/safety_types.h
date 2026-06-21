@@ -1,7 +1,7 @@
 /**
  * @file    safety_types.h
  * @brief   安全域相关类型定义
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-04-10
  */
 

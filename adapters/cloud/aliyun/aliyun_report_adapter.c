@@ -1,7 +1,7 @@
 /**
  * @file    aliyun_report_adapter.c
  * @brief   阿里云 MQTT 状态上报适配器（实现 cloud_report_ops_t）
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-04-10
  */
 

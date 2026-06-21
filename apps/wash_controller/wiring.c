@@ -1,7 +1,7 @@
 /**
  * @file    wiring.c
  * @brief   依赖注入实现（真机：linux_hw / generic HAL 适配器）
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-04-10
  *
  * @note    此文件只做 port→adapter 注册，不执行任何硬件初始化。

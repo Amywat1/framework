@@ -1,7 +1,7 @@
 /**
  * @file    report_aggregator.h
  * @brief   云端状态上报聚合器接口
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-04-10
  *
  * @note    定时读取 dev_ctx_snapshot()，通过 report_port 接口上报。

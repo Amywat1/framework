@@ -1,7 +1,7 @@
 /**
  * @file    json_param_store.c
  * @brief   基于 JSON 的参数存储适配器实现
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-04-10
  *
  * @note    通过 param_store 端口访问本适配器，使上层不感知底层存储细节。

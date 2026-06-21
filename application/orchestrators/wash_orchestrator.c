@@ -1,7 +1,7 @@
 /**
  * @file    wash_orchestrator.c
  * @brief   洗车流程编排器（含单步同步执行）
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-04-10
  */
 

@@ -1,7 +1,7 @@
 /**
  * @file    hal_vfd_linux.c
  * @brief   变频器 HAL 端口 Linux 真机实现（通用 drv_vfd 转发）
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-06-01
  */
 

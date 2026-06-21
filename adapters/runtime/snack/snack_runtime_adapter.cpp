@@ -1,7 +1,7 @@
 /**
  * @file    snack_runtime_adapter.cpp
  * @brief   snack 运行时适配实现
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-04-10
  */
 

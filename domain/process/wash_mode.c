@@ -1,7 +1,7 @@
 /**
  * @file    wash_mode.c
  * @brief   洗车模式管理实现
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-04-10
  */
 

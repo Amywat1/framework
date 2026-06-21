@@ -1,7 +1,7 @@
 /**
  * @file    hal_vfd_sim.c
  * @brief   变频器 HAL 仿真实现
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-06-01
  */
 

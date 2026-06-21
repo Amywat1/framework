@@ -1,7 +1,7 @@
 /**
  * @file    water.c
  * @brief   水路设备实现
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-04-10
  */
 

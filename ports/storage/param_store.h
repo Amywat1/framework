@@ -1,7 +1,7 @@
 /**
  * @file    param_store.h
  * @brief   运行期参数存储端口接口（键值读写 + 持久化）
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-04-10
  *
  * @note    service/svc_param 在内部调用此接口，屏蔽 JSON/SQLite 等存储细节。

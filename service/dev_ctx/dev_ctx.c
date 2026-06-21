@@ -1,7 +1,7 @@
 /**
  * @file    dev_ctx.c
  * @brief   设备状态快照实现
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-04-10
  */
 

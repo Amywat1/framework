@@ -1,7 +1,7 @@
 /**
  * @file    json_deploy_store_cfg.h
  * @brief   JSON 部署配置文件路径（adapter 级常量）
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-04-10
  */
 

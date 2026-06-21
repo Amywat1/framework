@@ -1,7 +1,7 @@
 /**
  * @file    m8_io_config.h
  * @brief   M8 机型 IO 子板硬件连接参数
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-06-01
  *
  * @note    引脚定义见 m8_io_table.h / m8_io_pins.h。

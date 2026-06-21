@@ -1,7 +1,7 @@
 /**
  * @file    m8_signal_filter.h
  * @brief   M8 滤波信号查询接口
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-04-13
  */
 

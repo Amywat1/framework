@@ -1,7 +1,7 @@
 /**
  * @file    m8_signal_table.c
  * @brief   M8 DI 信号滤波配置表定义
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-06-07
  *
  * @note    行下标与 m8_signal_id_t 枚举值严格对应；新增信号时须同步扩充此表。

@@ -1,7 +1,7 @@
 /**
  * @file    command_bridge.h
  * @brief   命令端口桥接适配器接口（command_port → event_bus）
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-04-10
  *
  * @note    实现 command_port_ops_t.inject()：command_guard 校验 → 发布 EVT_CMD_*。

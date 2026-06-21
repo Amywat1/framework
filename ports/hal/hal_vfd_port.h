@@ -1,7 +1,7 @@
 /**
  * @file    hal_vfd_port.h
  * @brief   变频器 HAL 端口接口（模块对外唯一入口）
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-06-01
  *
  * @note    业务层与其它 HAL 适配器仅通过本接口访问 VFD；

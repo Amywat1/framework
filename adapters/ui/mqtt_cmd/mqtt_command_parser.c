@@ -1,7 +1,7 @@
 /**
  * @file    mqtt_command_parser.c
  * @brief   MQTT 命令解析器实现（纯 JSON→cmd_t，不依赖 MQTT SDK）
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-04-10
  */
 

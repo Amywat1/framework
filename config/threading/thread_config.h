@@ -1,7 +1,7 @@
 /**
  * @file    thread_config.h
  * @brief   线程统一配置（优先级 / 栈大小 / 周期 / 事件总线参数）
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-04-10
  *
  * @note    应用层线程由 core/scheduler 统一创建；IO 读写后台线程由 drv_io 自行管理。

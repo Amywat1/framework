@@ -1,7 +1,7 @@
 /**
  * @file    m8_boot_profile.c
  * @brief   M8 上电安全初始化
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-04-10
  *
  * @note    在 bootstrap 早期执行。

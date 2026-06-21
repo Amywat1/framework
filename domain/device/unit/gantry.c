@@ -1,7 +1,7 @@
 /**
  * @file    gantry.c
  * @brief   龙门行走设备实现
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-04-10
  */
 

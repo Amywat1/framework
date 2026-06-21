@@ -1,7 +1,7 @@
 /**
  * @file    time_util.h
  * @brief   单调时钟工具（毫秒级时间戳）
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-04-10
  *
  * @note    基于 CLOCK_MONOTONIC，不受系统时间调整影响。

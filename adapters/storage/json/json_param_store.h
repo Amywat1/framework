@@ -1,7 +1,7 @@
 /**
  * @file    json_param_store.h
  * @brief   JSON 文件参数存储适配器接口
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-04-10
  *
  * @note    实现 param_store_ops_t，底层使用 cJSON + fopen 读写 JSON 文件。

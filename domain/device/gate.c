@@ -1,7 +1,7 @@
 /**
  * @file    gate.c
  * @brief   入口挡杆与指示灯设备实现
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-04-10
  */
 

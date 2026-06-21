@@ -1,7 +1,7 @@
 /**
  * @file    bootstrap.c
  * @brief   系统完整启动序列实现
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-04-10
  */
 

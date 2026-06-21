@@ -1,7 +1,7 @@
 /**
  * @file    hal_vfd_linux.h
  * @brief   Linux 真机 VFD HAL 内部接口（仅供机型适配层绑定实例）
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-06-01
  *
  * @note    仅供 adapters/machine/ 在 bootstrap 阶段调用；

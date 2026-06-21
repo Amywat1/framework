@@ -1,7 +1,7 @@
 /**
  * @file    bootstrap.h
  * @brief   系统启动入口接口
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-04-10
  *
  * @note    bootstrap_run() 完成所有模块初始化并启动全部线程，

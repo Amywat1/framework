@@ -1,7 +1,7 @@
 /**
  * @file    wiring.h
  * @brief   依赖接线接口
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-04-10
  *
  * @note    真机构建使用 wiring.c。

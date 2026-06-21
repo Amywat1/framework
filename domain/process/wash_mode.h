@@ -1,7 +1,7 @@
 /**
  * @file    wash_mode.h
  * @brief   洗车模式管理接口
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-04-10
  *
  * @note    负责当前洗车模式的读取与校验，解耦 svc_param 直接调用。

@@ -1,7 +1,7 @@
 /**
  * @file    deploy_store.h
  * @brief   部署期配置存储端口接口（只读）
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-04-10
  *
  * @note    存储设备 SN、站点 ID、服务器地址等出厂写入的只读配置。

@@ -1,7 +1,7 @@
 /**
  * @file    alarm_core.c
  * @brief   报警核心引擎实现
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-04-10
  *
  * @note    报警表编译期内嵌在本文件中。

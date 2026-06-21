@@ -1,7 +1,7 @@
 /**
  * @file    snack_wrapper.h
  * @brief   snack SDK C 语言封装接口（日志、MQTT 阿里云、音乐、BLE）
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-04-08
  */
 

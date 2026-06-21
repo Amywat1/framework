@@ -1,7 +1,7 @@
 /**
  * @file    test_dev_ctx.c
  * @brief   dev_ctx 单元测试
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-04-10
  *
  * @note    测试策略：

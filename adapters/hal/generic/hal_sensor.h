@@ -1,7 +1,7 @@
 /**
  * @file    hal_sensor.h
  * @brief   DI 通道滤波 HAL 内部接口（仅供机型适配层绑定通道）
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-04-10
  *
  * @note    仅供 adapters/machine/ 在 bootstrap 阶段调用；

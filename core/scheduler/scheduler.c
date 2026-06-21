@@ -1,7 +1,7 @@
 /**
  * @file    scheduler.c
  * @brief   线程调度器实现
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-04-10
  */
 

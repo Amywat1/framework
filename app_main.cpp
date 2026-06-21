@@ -1,7 +1,7 @@
 /**
  * @file    app_main.cpp
  * @brief   应用入口回调（snack 运行时调用的 app_main，而非 main）
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-04-10
  *
  * @note    通过运行时适配器接入 snack 运行时相关能力，

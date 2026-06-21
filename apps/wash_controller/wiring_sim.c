@@ -1,7 +1,7 @@
 /**
  * @file    wiring_sim.c
  * @brief   仿真构建的依赖接线实现
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-04-10
  *
  * @note    注册仿真 HAL、JSON 存储以及 BUILD_SIM 使用的命令桥接实现。

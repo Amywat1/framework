@@ -1,7 +1,7 @@
 /**
  * @file    m8_vfd_setup.h
  * @brief   M8 机型 VFD 绑定初始化
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-06-01
  */
 

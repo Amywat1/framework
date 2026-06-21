@@ -1,7 +1,7 @@
 /**
  * @file    test_step_engine.c
  * @brief   step_engine 单元测试（使用模拟 HAL）
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-04-10
  *
  * @note    测试策略：

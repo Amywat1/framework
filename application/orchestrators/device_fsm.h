@@ -1,7 +1,7 @@
 /**
  * @file    device_fsm.h
  * @brief   设备状态机接口
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-04-10
  *
  * @note    状态切换由事件驱动完成；设备态存储于 dev_ctx，本模块不维护镜像。

@@ -1,7 +1,7 @@
 /**
  * @file    scenario_limit_error.c
  * @brief   场景测试：限位异常报警触发与自动恢复
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-04-10
  *
  * @note    测试策略：

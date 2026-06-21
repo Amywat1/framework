@@ -1,7 +1,7 @@
 /**
  * @file    event_types.h
  * @brief   统一事件类型定义（分类编码 + event_t 结构体）
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-04-10
  *
  * @note    event_type_t 采用「类别 | 类内编号」复合编码：

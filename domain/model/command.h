@@ -1,7 +1,7 @@
 /**
  * @file    command.h
  * @brief   统一命令类型定义（CLI / MQTT / 按钮 → 同一套命令结构）
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-04-10
  */
 

@@ -1,7 +1,7 @@
 /**
  * @file    m8_signal_table.h
  * @brief   M8 DI 信号滤波配置表（编译期只读）
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-04-13
  *
  * @note    每行定义一路 DI 的 IO 绑定、极性与防抖参数；不含报警语义。

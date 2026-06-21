@@ -1,7 +1,7 @@
 /**
  * @file    emergency_handler.c
  * @brief   安全 LOCKOUT 统一动作处理
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-06-01
  */
 

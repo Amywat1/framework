@@ -1,7 +1,7 @@
 /**
  * @file    m8_water_setup.c
  * @brief   M8 机型水路绑定表应用与 domain 执行器注入
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-06-07
  */
 

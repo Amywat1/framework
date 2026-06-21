@@ -1,7 +1,7 @@
 /**
  * @file    recipe.c
  * @brief   洗车配方实现（装配编译期步骤表）
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-04-10
  */
 

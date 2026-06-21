@@ -1,7 +1,7 @@
 /**
  * @file    mqtt_command_parser.h
  * @brief   MQTT 命令解析器接口（纯 JSON 文本 → cmd_t）
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-04-10
  *
  * @note    不依赖 MQTT SDK 及任何云平台头文件，可被任意命令来源复用。

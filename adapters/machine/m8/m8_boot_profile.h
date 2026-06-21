@@ -1,7 +1,7 @@
 /**
  * @file    m8_boot_profile.h
  * @brief   M8 上电安全初始化接口
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-04-10
  */
 

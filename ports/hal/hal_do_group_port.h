@@ -1,7 +1,7 @@
 /**
  * @file    hal_do_group_port.h
  * @brief   DO 组×槽位 HAL 端口（二维逻辑绑定表，不含业务语义）
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-04-10
  *
  * @note    仅提供 group / slot 编号与 DO 读写；业务映射由 machine 层完成。

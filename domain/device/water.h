@@ -1,7 +1,7 @@
 /**
  * @file    water.h
  * @brief   水路设备接口（泵 / 水帘 / 泡沫 / 刷子冲水 / 高压）
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-04-10
  *
  * @note    硬件输出通过 water_actuator_ops 注入，domain 不依赖 HAL。

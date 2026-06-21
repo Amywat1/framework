@@ -1,7 +1,7 @@
 /**
  * @file    wash_orchestrator.h
  * @brief   洗车流程编排器接口
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-04-10
  *
  * @note    wash_worker_thread 由 scheduler 创建；单步同步执行与轮询等待均在本模块内完成，

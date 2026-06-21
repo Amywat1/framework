@@ -1,7 +1,7 @@
 /**
  * @file    dev_ctx.h
  * @brief   设备状态快照接口（统一只读视图）
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-04-10
  *
  * @note    dev_ctx 是设备当前运行状态的集中只读视图，供上报/CLI 查询使用。

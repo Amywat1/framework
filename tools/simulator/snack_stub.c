@@ -1,7 +1,7 @@
 /**
  * @file    snack_stub.c
  * @brief   BUILD_SIM 使用的 snack SDK 兼容桩
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-04-10
  *
  * @note    仿真构建不会链接 snack SDK。

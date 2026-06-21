@@ -1,7 +1,7 @@
 /**
  * @file    command_guard.h
  * @brief   外部命令同步准入校验（command_port 注入前调用）
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-06-01
  *
  * @note    读取 dev_ctx 判断当前是否允许下达命令；不负责事件投递与状态编排。

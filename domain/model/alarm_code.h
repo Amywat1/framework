@@ -1,7 +1,7 @@
 /**
  * @file    alarm_code.h
  * @brief   M8 报警码常量定义
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-04-10
  *
  * @note    报警码仅定义编号语义，不含任何逻辑。

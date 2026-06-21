@@ -1,7 +1,7 @@
 /**
  * @file    water_channel.h
  * @brief   水路名称与执行器槽位（domain 语义，数值与 machine/HAL group×slot 对齐）
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-06-07
  */
 

@@ -1,7 +1,7 @@
 /**
  * @file    snack_runtime_adapter.h
  * @brief   snack 运行时适配接口
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-04-10
  *
  * @note    负责接入 snack 运行环境相关的外围能力，

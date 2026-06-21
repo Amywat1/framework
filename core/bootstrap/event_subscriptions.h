@@ -1,7 +1,7 @@
 /**
  * @file    event_subscriptions.h
  * @brief   事件订阅关系一览（生产代码）
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-06-01
  *
  * @note    订阅注册分散在各模块 *_init() 中；本文件仅作全局索引。

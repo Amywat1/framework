@@ -1,7 +1,7 @@
 /**
  * @file    device_state.h
  * @brief   设备顶层状态与命令类型定义
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-04-10
  */
 

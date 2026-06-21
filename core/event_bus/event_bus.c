@@ -1,7 +1,7 @@
 /**
  * @file    event_bus.c
  * @brief   统一事件总线实现
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-04-10
  */
 

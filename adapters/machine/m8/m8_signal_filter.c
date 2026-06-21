@@ -1,7 +1,7 @@
 /**
  * @file    m8_signal_filter.c
  * @brief   M8 滤波信号查询（滤波由 hal_sensor 完成）
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-04-13
  */
 

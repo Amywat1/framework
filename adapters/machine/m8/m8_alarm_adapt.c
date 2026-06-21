@@ -1,7 +1,7 @@
 /**
  * @file    m8_alarm_adapt.c
  * @brief   M8 机型报警适配（非 DI 类采集 / 急停复位序列）
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-04-10
  */
 

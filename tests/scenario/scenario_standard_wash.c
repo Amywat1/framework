@@ -1,7 +1,7 @@
 /**
  * @file    scenario_standard_wash.c
  * @brief   场景测试：标准洗车流程（完整事件驱动路径，sim HAL）
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-04-10
  *
  * @note    测试策略：

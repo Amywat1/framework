@@ -1,7 +1,7 @@
 /**
  * @file    command_guard.c
  * @brief   外部命令同步准入校验实现
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-06-01
  */
 

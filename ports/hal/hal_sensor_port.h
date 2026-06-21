@@ -1,7 +1,7 @@
 /**
  * @file    hal_sensor_port.h
  * @brief   DI 通道滤波 HAL 端口（不含业务语义）
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-04-10
  *
  * @note    对原始 DI 做极性转换与计数防抖，输出稳定逻辑态；

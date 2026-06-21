@@ -1,7 +1,7 @@
 /**
  * @file    time_util.c
  * @brief   单调时钟工具实现（Linux CLOCK_MONOTONIC）
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-04-10
  */
 

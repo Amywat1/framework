@@ -1,7 +1,7 @@
 /**
  * @file    svc_param.c
  * @brief   运行时参数管理实现（通过 param_store_ops 端口访问存储）
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-04-10
  *
  * @note    svc_param 是业务语义层，不直接操作存储介质。

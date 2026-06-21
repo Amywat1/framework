@@ -1,7 +1,7 @@
 /**
  * @file    scenario_estop.c
  * @brief   场景测试：急停触发 → 安全 LOCKOUT → 手动复位 → OK
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-04-10
  *
  * @note    测试策略：

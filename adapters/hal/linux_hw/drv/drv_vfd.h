@@ -1,7 +1,7 @@
 /**
  * @file    drv_vfd.h
  * @brief   变频器驱动接口（Modbus RTU + IO 数字量控制，handle 参数化）
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-04-08
  *
  * @note    驱动层只描述 VFD 的 Modbus 读写与 IO 启停/复位方式，

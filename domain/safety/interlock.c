@@ -1,7 +1,7 @@
 /**
  * @file    interlock.c
  * @brief   运动互锁条件检查实现
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-04-10
  */
 

@@ -1,7 +1,7 @@
 /**
  * @file    m8_sensor_setup.c
  * @brief   M8 机型 DI 通道绑定表应用
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-06-07
  */
 

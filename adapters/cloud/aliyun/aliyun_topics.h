@@ -1,7 +1,7 @@
 /**
  * @file    aliyun_topics.h
  * @brief   阿里云 MQTT Topic 与 JSON 字段名定义
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-04-10
  *
  * @note    简化版 Topic，用于 M8 设备与云端通信。

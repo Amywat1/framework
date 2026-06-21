@@ -1,7 +1,7 @@
 /**
  * @file    m8_machine_map.h
  * @brief   M8 机型硬件映射（引脚别名 + 从 m8_machine_config.h 引入参数常量）
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-04-10
  *
  * @note    仅供 adapters/machine/m8/ 及同类机型 HAL 适配器内部使用。

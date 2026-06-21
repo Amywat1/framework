@@ -1,7 +1,7 @@
 /**
  * @file    report_port.h
  * @brief   云端状态上报端口接口
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-04-10
  *
  * @note    application/report_aggregator 通过此接口上报设备状态，

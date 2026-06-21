@@ -1,7 +1,7 @@
 /**
  * @file    brush.h
  * @brief   刷子设备接口（顶刷 / 侧刷 VFD 及接触器管理）
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-04-10
  *
  * @note    当前未接入硬件控制；brush_start() 返回 SW_ERR_NOT_SUPPORT。

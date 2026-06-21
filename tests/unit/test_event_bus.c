@@ -1,7 +1,7 @@
 /**
  * @file    test_event_bus.c
  * @brief   event_bus 单元测试
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-04-10
  *
  * @note    编译命令（在项目根目录执行）：

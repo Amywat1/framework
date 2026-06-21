@@ -1,7 +1,7 @@
 /**
  * @file    gate.h
  * @brief   入口挡杆与指示灯设备接口
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-04-10
  *
  * @note    当前未接入硬件控制；接口保留供状态机调用，实际操作均为空实现。

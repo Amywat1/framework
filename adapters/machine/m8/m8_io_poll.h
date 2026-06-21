@@ -1,7 +1,7 @@
 /**
  * @file    m8_io_poll.h
  * @brief   M8 IO 轮询线程注册
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-06-01
  */
 

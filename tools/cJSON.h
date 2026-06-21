@@ -1,7 +1,7 @@
 /**
  * @file    tools/cJSON.h
  * @brief   cJSON 转发头（根据构建目标选择来源）
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-04-10
  *
  * @note    嵌入式目标（BUILD_SIM 未定义）：

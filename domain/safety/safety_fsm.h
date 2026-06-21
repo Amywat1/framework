@@ -1,7 +1,7 @@
 /**
  * @file    safety_fsm.h
  * @brief   安全状态机接口（OK / WARNING / LOCKOUT）
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-04-10
  *
  * @note    safety_fsm 订阅 EVT_ALARM_TRIGGERED / EVT_ALARM_CLEARED，

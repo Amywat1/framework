@@ -1,7 +1,7 @@
 /**
  * @file    m8_machine_config.h
  * @brief   M8 机型硬件参数（Modbus、时序）
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-04-10
  *
  * @note    本文件只含与硬件物理连接相关的常量（总线名、波特率、地址、

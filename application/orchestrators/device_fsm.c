@@ -1,7 +1,7 @@
 /**
  * @file    device_fsm.c
  * @brief   设备顶层有限状态机实现（事件驱动）
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-04-10
  */
 

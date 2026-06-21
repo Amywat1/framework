@@ -1,7 +1,7 @@
 /**
  * @file    alarm_core.h
  * @brief   报警核心引擎接口（防抖 / 等级 / 恢复策略，数据与引擎分离）
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-04-10
  *
  * @note    配置表内嵌于 alarm_core.c，机型特定触发逻辑通过回调注入。

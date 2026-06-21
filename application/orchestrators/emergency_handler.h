@@ -1,7 +1,7 @@
 /**
  * @file    emergency_handler.h
  * @brief   安全 LOCKOUT 统一动作处理
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-06-01
  *
  * @note    LOCKOUT 时调用 wash_orchestrator_abort() 中止洗车并停止输出。

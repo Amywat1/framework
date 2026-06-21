@@ -1,7 +1,7 @@
 /**
  * @file    m8_feature_map.h
  * @brief   M8 机型功能安装矩阵（从 m8_features.h 引入，不重复定义）
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-04-10
  *
  * @note    功能开关的唯一权威来源是 config/features/m8_features.h。

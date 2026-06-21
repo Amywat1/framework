@@ -1,7 +1,7 @@
 /**
  * @file    m8_vfd_setup.c
  * @brief   M8 机型 VFD 实例绑定与事件接线
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-06-01
  */
 

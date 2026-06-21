@@ -1,7 +1,7 @@
 /**
  * @file    quick_wash_recipe.h
  * @brief   M8 快洗步骤配置表（6 步，无预洗）
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-04-10
  *
  * @note    本文件仅供 domain/process/recipe.c 通过 #include 装配。

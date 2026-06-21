@@ -1,7 +1,7 @@
 /**
  * @file    json_param_store_cfg.h
  * @brief   JSON 参数文件路径配置（adapter 级常量，不对外暴露）
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-04-10
  *
  * @note    仅供 json_param_store.c 使用。

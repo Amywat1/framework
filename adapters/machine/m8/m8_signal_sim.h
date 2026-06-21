@@ -1,7 +1,7 @@
 /**
  * @file    m8_signal_sim.h
  * @brief   M8 信号仿真注入接口（供 tools/simulator/ 与场景测试使用）
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-06-07
  */
 

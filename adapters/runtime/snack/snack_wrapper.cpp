@@ -1,7 +1,7 @@
 /**
  * @file    snack_wrapper.cpp
  * @brief   snack SDK 封装实现（阿里云 MQTT、日志、音乐、BLE）
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-04-08
  */
 

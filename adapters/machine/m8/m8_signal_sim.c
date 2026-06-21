@@ -1,7 +1,7 @@
 /**
  * @file    m8_signal_sim.c
  * @brief   M8 信号仿真注入实现
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-06-07
  */
 

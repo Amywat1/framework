@@ -1,7 +1,7 @@
 /**
  * @file    json_deploy_store.c
  * @brief   JSON 文件部署配置存储适配器（只读，实现 deploy_store_ops_t）
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-04-10
  *
  * @note    读取 config/deployment/device.json，出厂写入，运行期只读。

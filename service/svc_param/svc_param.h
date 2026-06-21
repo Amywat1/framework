@@ -1,7 +1,7 @@
 /**
  * @file    svc_param.h
  * @brief   运行时参数服务接口
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-04-10
  *
  * @note    对外提供统一的参数访问接口。

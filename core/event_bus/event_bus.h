@@ -1,7 +1,7 @@
 /**
  * @file    event_bus.h
  * @brief   统一事件总线接口
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-04-10
  *
  * @note    设计原则：

@@ -1,7 +1,7 @@
 /**
  * @file    test_safety_fsm.c
  * @brief   safety_fsm 单元测试
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-04-10
  *
  * @note    本测试直接驱动 alarm_core，并显式调用 safety_fsm_reevaluate()，

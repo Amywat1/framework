@@ -1,7 +1,7 @@
 /**
  * @file    m8_alarm_adapt.h
  * @brief   M8 报警适配初始化接口
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-04-10
  */
 

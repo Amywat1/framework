@@ -1,7 +1,7 @@
 /**
  * @file    thread_registry.h
  * @brief   线程注册表接口（统一管理所有线程参数）
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-04-10
  *
  * @note    应用编排线程在 init() 阶段调用 thread_register() 登记；

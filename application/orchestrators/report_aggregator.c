@@ -1,7 +1,7 @@
 /**
  * @file    report_aggregator.c
  * @brief   云端状态上报聚合器实现
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-04-10
  */
 

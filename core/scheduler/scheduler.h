@@ -1,7 +1,7 @@
 /**
  * @file    scheduler.h
  * @brief   线程调度器接口（统一 pthread 创建）
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-04-10
  */
 

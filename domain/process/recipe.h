@@ -1,7 +1,7 @@
 /**
  * @file    recipe.h
  * @brief   洗车配方接口（步骤表 + 查询）
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-04-10
  *
  * @note    WashStepConfig_t 定义在本文件；配方数据存储在 config/recipes/ 中，

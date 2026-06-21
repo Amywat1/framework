@@ -1,7 +1,7 @@
 /**
  * @file    m8_water_table.h
  * @brief   M8 水路绑定行类型定义
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-06-07
  *
  * @note    增删改水路 DO 映射只改 m8_water_setup.c 中的 s_m8_water_bind_table。

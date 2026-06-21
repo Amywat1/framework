@@ -1,7 +1,7 @@
 /**
  * @file    interlock.h
  * @brief   运动互锁条件检查接口
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-04-10
  *
  * @note    在执行任何运动指令前调用 interlock_check_motion()。

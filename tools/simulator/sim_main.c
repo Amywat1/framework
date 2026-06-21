@@ -1,7 +1,7 @@
 /**
  * @file    sim_main.c
  * @brief   BUILD_SIM 使用的 PC 仿真入口
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-04-10
  *
  * @note    启动 bootstrap，拉起仿真控制台，

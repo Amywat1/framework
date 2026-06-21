@@ -1,7 +1,7 @@
 /**
  * @file    m8_features.h
  * @brief   M8 机型功能安装开关
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-04-10
  *
  * @note    本文件定义哪些机械/通信功能已安装。

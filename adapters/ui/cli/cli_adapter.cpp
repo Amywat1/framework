@@ -1,7 +1,7 @@
 /**
  * @file    cli_adapter.cpp
  * @brief   CLI 命令域注册
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-04-10
  *
  * @note    注册 device、safety、param、diag 四个命令域。

@@ -1,7 +1,7 @@
 /**
  * @file    standard_wash_recipe.h
  * @brief   M8 标准洗步骤配置表（8 步）
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-04-10
  *
  * @note    本文件仅供 domain/process/recipe.c 通过 #include 装配，

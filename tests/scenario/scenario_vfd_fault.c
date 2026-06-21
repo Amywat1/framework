@@ -1,7 +1,7 @@
 /**
  * @file    scenario_vfd_fault.c
  * @brief   场景测试：VFD 故障 → LOCKOUT → 故障清除 → 复位 → OK
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-04-10
  *
  * @note    测试策略：

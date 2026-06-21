@@ -1,7 +1,7 @@
 /**
  * @file    vfd_types.h
  * @brief   VFD 中立类型与事件码（供 ports 与 adapters 共用）
- * @author  胡望伟
+ * @author  HUWANGWEI
  * @date    2026-06-01
  */
 
