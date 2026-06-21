@@ -7,7 +7,7 @@
 
 #include "adapters/hal/linux_hw/hal_vfd_linux.h"
 #include "ports/hal/hal_vfd_port.h"
-#include "ports/hal/hal_io_port.h"
+#include "adapters/hal/linux_hw/drv/drv_io.h"
 #include "adapters/hal/linux_hw/drv/drv_vfd.h"
 
 #include <string.h>
@@ -19,13 +19,7 @@ static bool       s_vfd_bound[VFD_LINUX_SLOT_COUNT];
 
 static sw_err_t vfd_do_set(io_do_t pin, bool val)
 {
-    const hal_io_ops_t *ops = hal_io_get_ops();
-
-    if ((ops == NULL) || (ops->do_set == NULL))
-    {
-        return SW_ERR_NOT_INIT;
-    }
-    return ops->do_set(pin, val);
+    return drv_io_do_set((drv_io_do_t)pin, val);
 }
 
 static bool vfd_id_valid(hal_vfd_id_t id)

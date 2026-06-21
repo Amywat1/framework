@@ -24,7 +24,7 @@ adapters/hal/
 │   │   ├── drv_io       CAN IO 子板：输入刷新、输出落地、在线检测、全板掉线恢复
 │   │   └── drv_vfd      变频器 Modbus RTU：多实例、自动重连、RST 脉冲保护
 │   ├── hal_io_linux     将 drv_io 注册为 hal_io_port 的实现
-│   └── hal_vfd_linux    将 drv_vfd 注册为 hal_vfd_port 的实现，提供逐实例初始化接口
+│   └── hal_vfd_linux    将 drv_vfd 注册为 hal_vfd_port 的实现，VFD 方向 DO 写直接调用 drv_io
 │
 ├── generic/         组合层——不依赖任何 SDK，只通过 port 接口操作
 │   ├── hal_motor        电机控制：支持 VFD 与纯 DO 两种驱动方式
