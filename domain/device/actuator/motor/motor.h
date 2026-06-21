@@ -44,6 +44,7 @@ typedef enum
 sw_err_t      motor_init(void);
 sw_err_t      motor_move(int id, int speed_ref);
 sw_err_t      motor_stop(int id);
+sw_err_t      motor_fault_reset(int id);
 int32_t       motor_get_pos(int id);
 sw_err_t      motor_clear_encoder(int id);
 void         *motor_tick_loop(void *arg);

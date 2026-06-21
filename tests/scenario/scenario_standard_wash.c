@@ -34,7 +34,9 @@
 #include "adapters/machine/m8/m8_signal_filter.h"
 #include "adapters/machine/m8/m8_signal_sim.h"
 #include "adapters/machine/m8/m8_water_setup.h"
+#include "adapters/machine/m8/m8_motor_setup.h"
 #include "domain/device/actuator/motor/motor.h"
+#include "ports/hal/hal_vfd_port.h"
 #include "common/event_types.h"
 #include "common/time_util.h"
 #include "config/threading/thread_config.h"
@@ -47,6 +49,7 @@
 /* sim HAL 注册函数（无专用头文件，使用 extern 声明）*/
 extern void hal_motor_sim_register(void);
 extern void hal_io_sim_register(void);
+extern void hal_vfd_sim_register(void);
 extern void hal_do_group_sim_register(void);
 
 /* -------------------------------------------------------------------------
@@ -136,9 +139,19 @@ static void scenario_setup(void)
 {
     /* 注册 sim HAL 适配器 */
     hal_io_sim_register();
+    hal_vfd_sim_register();
     hal_motor_sim_register();
     hal_sensor_sim_register();
     hal_do_group_sim_register();
+    {
+        const hal_vfd_ops_t *vfd = hal_vfd_get_ops();
+
+        if ((vfd != NULL) && (vfd->init != NULL))
+        {
+            (void)vfd->init();
+        }
+    }
+    (void)m8_motor_setup();
 
     /* 初始化各子系统（顺序与 bootstrap.c 保持一致）*/
     time_util_init();

@@ -669,6 +669,17 @@ out:
     return ret;
 }
 
+sw_err_t motor_fault_reset(int id)
+{
+    const hal_motor_ops_t *ops = hal_motor_get_ops();
+
+    if ((ops == NULL) || (ops->fault_reset == NULL))
+    {
+        return SW_ERR_NOT_SUPPORT;
+    }
+    return ops->fault_reset(id);
+}
+
 sw_err_t motor_reset_fault(int id)
 {
     const motor_cfg_t *cfg;

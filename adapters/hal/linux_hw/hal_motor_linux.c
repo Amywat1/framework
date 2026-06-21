@@ -5,42 +5,57 @@
  * @date    2026-04-13
  */
 
+#include "adapters/hal/linux_hw/hal_motor_linux.h"
 #include "ports/hal/hal_motor_port.h"
-#include "config/machine/m8_motor_table.h"
 #include "ports/hal/hal_vfd_port.h"
-#include "adapters/machine/m8/m8_signal_filter.h"
 #include "ports/hal/hal_io_port.h"
 #include "common/log.h"
+
+#include <string.h>
 
 /* io-exp SDK 头文件不在仓库内，这里按实际用法声明脉冲计数接口。 */
 extern int io_pluse_read(int board_id, int pin_id);
 extern int io_SDO_write(int board_id, int index, int sub_index, int *data);
 
-static bool hal_io_board_online(int board_id)
+typedef struct
 {
-    const hal_io_ops_t *ops = hal_io_get_ops();
+    bool                 bound;
+    hal_motor_bind_cfg_t cfg;
+} motor_bind_slot_t;
 
-    if ((ops == NULL) || (ops->board_is_online == NULL))
+static motor_bind_slot_t s_slot[HAL_MOTOR_BIND_SLOT_MAX];
+
+static sw_err_t motor_do_set(io_do_t pin, bool val)
+{
+    const hal_io_ops_t *io = hal_io_get_ops();
+
+    if ((io == NULL) || (io->do_set == NULL))
+    {
+        return SW_ERR_NOT_INIT;
+    }
+    return io->do_set(pin, val);
+}
+
+static bool motor_di_read(io_di_t pin)
+{
+    const hal_io_ops_t *io = hal_io_get_ops();
+
+    if ((io == NULL) || (io->di_read == NULL))
     {
         return false;
     }
-    return ops->board_is_online(board_id);
+    return io->di_read(pin);
 }
 
-static bool hal_io_di_read_pin(io_di_t pin)
+static bool motor_board_is_online(int board_id)
 {
-    const hal_io_ops_t *ops = hal_io_get_ops();
+    const hal_io_ops_t *io = hal_io_get_ops();
 
-    if ((ops == NULL) || (ops->di_read == NULL))
+    if ((io == NULL) || (io->board_is_online == NULL))
     {
         return false;
     }
-    return ops->di_read(pin);
-}
-
-static bool is_do_valid(io_do_t pin)
-{
-    return io_do_raw(pin) != IO_HANDLE_NULL;
+    return io->board_is_online(board_id);
 }
 
 static bool is_di_valid(io_di_t pin)
@@ -48,34 +63,34 @@ static bool is_di_valid(io_di_t pin)
     return io_di_raw(pin) != IO_HANDLE_NULL;
 }
 
-static const motor_cfg_t *find_cfg(int id)
+static bool is_do_valid(io_do_t pin)
 {
-    for (int i = 0; i < M8_MOTOR_TABLE_SIZE; i++)
-    {
-        if (m8_motor_table[i].id == id)
-        {
-            return &m8_motor_table[i];
-        }
-    }
-    return NULL;
+    return io_do_raw(pin) != IO_HANDLE_NULL;
 }
 
-static sw_err_t get_encoder_counter_pin(const motor_cfg_t *cfg, int *p_board_id, int *p_pin_id)
+static motor_bind_slot_t *slot_by_id(int id)
+{
+    if ((id < 0) || (id >= HAL_MOTOR_BIND_SLOT_MAX) || !s_slot[id].bound)
+    {
+        return NULL;
+    }
+    return &s_slot[id];
+}
+
+static sw_err_t get_encoder_counter_pin(const hal_motor_bind_cfg_t *cfg,
+                                        int *p_board_id,
+                                        int *p_pin_id)
 {
     uint16_t raw;
     int      board_id;
 
-    if ((cfg == NULL) || (p_board_id == NULL) || (p_pin_id == NULL))
+    if ((cfg == NULL) || (p_board_id == NULL) || (p_pin_id == NULL) ||
+        !cfg->has_encoder || !is_di_valid(cfg->encoder_io))
     {
         return SW_ERR_PARAM;
     }
 
-    raw = io_di_raw(cfg->encoder_io);
-    if (raw == IO_HANDLE_NULL)
-    {
-        return SW_ERR_PARAM;
-    }
-
+    raw      = io_di_raw(cfg->encoder_io);
     board_id = (int)io_handle_board(raw);
     if (board_id <= 0)
     {
@@ -87,159 +102,176 @@ static sw_err_t get_encoder_counter_pin(const motor_cfg_t *cfg, int *p_board_id,
     return SW_OK;
 }
 
-static bool m8_motor_encoder_counter_online(int id)
+static sw_err_t set_vfd_output(const hal_motor_bind_cfg_t *cfg, int speed_ref)
 {
-    const motor_cfg_t *cfg = find_cfg(id);
+    const hal_vfd_ops_t *vfd = hal_vfd_get_ops();
+    hal_vfd_id_t         vfd_id;
+
+    if ((cfg == NULL) || (cfg->vfd_backend_id < 0))
+    {
+        return SW_ERR_PARAM;
+    }
+    if (vfd == NULL)
+    {
+        return SW_ERR_NOT_INIT;
+    }
+
+    vfd_id = (hal_vfd_id_t)cfg->vfd_backend_id;
+
+    if (speed_ref > 0)
+    {
+        if (vfd->run_fwd == NULL)
+        {
+            return SW_ERR_NOT_INIT;
+        }
+        return vfd->run_fwd(vfd_id, (uint16_t)speed_ref);
+    }
+    if (speed_ref < 0)
+    {
+        if (vfd->run_rev == NULL)
+        {
+            return SW_ERR_NOT_INIT;
+        }
+        return vfd->run_rev(vfd_id, (uint16_t)(-speed_ref));
+    }
+    if (vfd->stop == NULL)
+    {
+        return SW_ERR_NOT_INIT;
+    }
+    return vfd->stop(vfd_id);
+}
+
+static sw_err_t set_do_output(const hal_motor_bind_cfg_t *cfg, int speed_ref)
+{
+    sw_err_t ret = SW_OK;
+
+    if (speed_ref > 0)
+    {
+        if (is_do_valid(cfg->io_cw))
+        {
+            ret = motor_do_set(cfg->io_cw, true);
+        }
+        if ((ret == SW_OK) && is_do_valid(cfg->io_ccw))
+        {
+            ret = motor_do_set(cfg->io_ccw, false);
+        }
+        return ret;
+    }
+    if (speed_ref < 0)
+    {
+        if (is_do_valid(cfg->io_ccw))
+        {
+            ret = motor_do_set(cfg->io_ccw, true);
+        }
+        if ((ret == SW_OK) && is_do_valid(cfg->io_cw))
+        {
+            ret = motor_do_set(cfg->io_cw, false);
+        }
+        return ret;
+    }
+
+    if (is_do_valid(cfg->io_cw))
+    {
+        ret = motor_do_set(cfg->io_cw, false);
+    }
+    if ((ret == SW_OK) && is_do_valid(cfg->io_ccw))
+    {
+        ret = motor_do_set(cfg->io_ccw, false);
+    }
+    if ((ret == SW_OK) && is_do_valid(cfg->io_stop))
+    {
+        ret = motor_do_set(cfg->io_stop, true);
+    }
+    return ret;
+}
+
+static sw_err_t hal_motor_set_output(int id, int speed_ref)
+{
+    motor_bind_slot_t *slot = slot_by_id(id);
+
+    if (slot == NULL)
+    {
+        return SW_ERR_NOT_INIT;
+    }
+
+    if (slot->cfg.drv_type == HAL_MOTOR_DRV_VFD)
+    {
+        return set_vfd_output(&slot->cfg, speed_ref);
+    }
+    if (slot->cfg.drv_type == HAL_MOTOR_DRV_DO)
+    {
+        return set_do_output(&slot->cfg, speed_ref);
+    }
+
+    return SW_ERR_NOT_SUPPORT;
+}
+
+static bool hal_motor_at_fwd_limit(int id)
+{
+    motor_bind_slot_t *slot = slot_by_id(id);
+
+    if ((slot == NULL) || !is_di_valid(slot->cfg.limit_io_cw))
+    {
+        return false;
+    }
+    return motor_di_read(slot->cfg.limit_io_cw);
+}
+
+static bool hal_motor_at_rev_limit(int id)
+{
+    motor_bind_slot_t *slot = slot_by_id(id);
+
+    if ((slot == NULL) || !is_di_valid(slot->cfg.limit_io_ccw))
+    {
+        return false;
+    }
+    return motor_di_read(slot->cfg.limit_io_ccw);
+}
+
+static bool hal_motor_encoder_counter_online(int id)
+{
+    motor_bind_slot_t *slot = slot_by_id(id);
     int                board_id;
     int                pin_id;
 
-    if ((cfg == NULL) || !cfg->has_encoder ||
-        (cfg->encoder_backend != MOTOR_ENCODER_COUNTER))
+    if ((slot == NULL) || !slot->cfg.has_encoder)
     {
         return false;
     }
 
-    if (get_encoder_counter_pin(cfg, &board_id, &pin_id) != SW_OK)
+    if (get_encoder_counter_pin(&slot->cfg, &board_id, &pin_id) != SW_OK)
     {
         return false;
     }
 
     (void)pin_id;
-    return hal_io_board_online(board_id);
+    return motor_board_is_online(board_id);
 }
 
-static sw_err_t set_vfd_output(int id, int speed_ref)
+static sw_err_t hal_motor_read_hw_pulse(int id, uint32_t *p_value)
 {
-    const hal_vfd_ops_t *vfd = hal_vfd_get_ops();
-
-    if (vfd == NULL)
-    {
-        return SW_ERR_NOT_INIT;
-    }
-    if (id == MOTOR_GANTRY)
-    {
-        if (speed_ref > 0)
-        {
-            if (vfd->run_fwd == NULL)
-            {
-                return SW_ERR_NOT_INIT;
-            }
-            return vfd->run_fwd(HAL_VFD_GANTRY, (uint16_t)speed_ref);
-        }
-        if (speed_ref < 0)
-        {
-            if (vfd->run_rev == NULL)
-            {
-                return SW_ERR_NOT_INIT;
-            }
-            return vfd->run_rev(HAL_VFD_GANTRY, (uint16_t)(-speed_ref));
-        }
-        if (vfd->stop == NULL)
-        {
-            return SW_ERR_NOT_INIT;
-        }
-        return vfd->stop(HAL_VFD_GANTRY);
-    }
-
-    return SW_ERR_PARAM;
-}
-
-static sw_err_t m8_motor_set_output(int id, int speed_ref)
-{
-    const motor_cfg_t *cfg = find_cfg(id);
-
-    if (cfg == NULL)
-    {
-        return SW_ERR_PARAM;
-    }
-
-    if (cfg->drv_type != MOTOR_DRV_VFD)
-    {
-        LOG_ERROR("hal_motor_linux: unsupported drv_type=%d", (int)cfg->drv_type);
-        return SW_ERR_NOT_SUPPORT;
-    }
-
-    return set_vfd_output(id, speed_ref);
-}
-
-static bool m8_motor_at_fwd_limit(int id)
-{
-    const motor_cfg_t *cfg = find_cfg(id);
-
-    if (cfg == NULL)
-    {
-        return false;
-    }
-
-    if (id == MOTOR_GANTRY)
-    {
-        return m8_signal_is_active(M8_SIG_GANTRY_FWD_LIM);
-    }
-
-    if (!is_di_valid(cfg->limit_io_cw))
-    {
-        return false;
-    }
-    /*
-     * 当前仅龙门限位已接入 m8_signal_filter。
-     * 若后续新增其它 MOVE 类电机并带限位，必须先将对应 DI 接入
-     * config/machine/m8_signal_table.h，再改为读取滤波后的稳定态，
-     * 不能长期停留在这里直接读原始 IO。
-     */
-    return hal_io_di_read_pin(cfg->limit_io_cw);
-}
-
-static bool m8_motor_at_rev_limit(int id)
-{
-    const motor_cfg_t *cfg = find_cfg(id);
-
-    if (cfg == NULL)
-    {
-        return false;
-    }
-
-    if (id == MOTOR_GANTRY)
-    {
-        return m8_signal_is_active(M8_SIG_GANTRY_REV_LIM);
-    }
-
-    if (!is_di_valid(cfg->limit_io_ccw))
-    {
-        return false;
-    }
-    /*
-     * 当前仅龙门限位已接入 m8_signal_filter。
-     * 若后续新增其它 MOVE 类电机并带限位，必须先将对应 DI 接入
-     * config/machine/m8_signal_table.h，再改为读取滤波后的稳定态。
-     */
-    return hal_io_di_read_pin(cfg->limit_io_ccw);
-}
-
-static sw_err_t m8_motor_read_hw_pulse(int id, uint32_t *p_value)
-{
-    const motor_cfg_t *cfg = find_cfg(id);
+    motor_bind_slot_t *slot = slot_by_id(id);
     int                raw;
     int                board_id;
     int                pin_id;
     sw_err_t           ret;
 
-    if ((cfg == NULL) || (p_value == NULL) || !cfg->has_encoder ||
-        (cfg->encoder_backend != MOTOR_ENCODER_COUNTER))
+    if ((slot == NULL) || (p_value == NULL) || !slot->cfg.has_encoder)
     {
         return SW_ERR_PARAM;
     }
 
-    ret = get_encoder_counter_pin(cfg, &board_id, &pin_id);
+    ret = get_encoder_counter_pin(&slot->cfg, &board_id, &pin_id);
     if (ret != SW_OK)
     {
         return ret;
     }
-    if (!hal_io_board_online(board_id))
+    if (!motor_board_is_online(board_id))
     {
         return SW_ERR_COMM;
     }
 
-    raw      = io_pluse_read(board_id, pin_id);
+    raw = io_pluse_read(board_id, pin_id);
     if ((raw < 0) || (raw == (int)0x0FFFFFFF))
     {
         return SW_ERR_COMM;
@@ -249,45 +281,42 @@ static sw_err_t m8_motor_read_hw_pulse(int id, uint32_t *p_value)
     return SW_OK;
 }
 
-static sw_err_t m8_motor_clear_hw_pulse(int id)
+static sw_err_t hal_motor_clear_hw_pulse(int id)
 {
-    const motor_cfg_t *cfg = find_cfg(id);
-    int                data     = 0;
+    motor_bind_slot_t *slot = slot_by_id(id);
+    int                data = 0;
     int                board_id;
     int                pin_id;
     int                ret;
     sw_err_t           err;
 
-    if ((cfg == NULL) || !cfg->has_encoder ||
-        (cfg->encoder_backend != MOTOR_ENCODER_COUNTER))
+    if ((slot == NULL) || !slot->cfg.has_encoder)
     {
         return SW_ERR_PARAM;
     }
 
-    err = get_encoder_counter_pin(cfg, &board_id, &pin_id);
+    err = get_encoder_counter_pin(&slot->cfg, &board_id, &pin_id);
     if (err != SW_OK)
     {
         return err;
     }
-    if (!hal_io_board_online(board_id))
+    if (!motor_board_is_online(board_id))
     {
         return SW_ERR_COMM;
     }
 
-    ret      = io_SDO_write(board_id, 0x2005, pin_id, &data);
+    ret = io_SDO_write(board_id, 0x2005, pin_id, &data);
     return (ret >= 0) ? SW_OK : SW_ERR_COMM;
 }
 
-static sw_err_t m8_motor_read_current(int id, uint16_t *p_current)
+static sw_err_t hal_motor_read_current(int id, uint16_t *p_current)
 {
-    const motor_cfg_t   *cfg = find_cfg(id);
-    const hal_vfd_ops_t *vfd = hal_vfd_get_ops();
+    motor_bind_slot_t   *slot = slot_by_id(id);
+    const hal_vfd_ops_t *vfd  = hal_vfd_get_ops();
 
-    if ((cfg == NULL) || (p_current == NULL) || (cfg->drv_type != MOTOR_DRV_VFD))
-    {
-        return SW_ERR_PARAM;
-    }
-    if (id != MOTOR_GANTRY)
+    if ((slot == NULL) || (p_current == NULL) ||
+        (slot->cfg.drv_type != HAL_MOTOR_DRV_VFD) ||
+        (slot->cfg.vfd_backend_id < 0))
     {
         return SW_ERR_PARAM;
     }
@@ -295,19 +324,18 @@ static sw_err_t m8_motor_read_current(int id, uint16_t *p_current)
     {
         return SW_ERR_NOT_INIT;
     }
-    return vfd->read_current(HAL_VFD_GANTRY, p_current);
+
+    return vfd->read_current((hal_vfd_id_t)slot->cfg.vfd_backend_id, p_current);
 }
 
-static sw_err_t m8_motor_read_status(int id, uint16_t *p_status)
+static sw_err_t hal_motor_read_status(int id, uint16_t *p_status)
 {
-    const motor_cfg_t   *cfg = find_cfg(id);
-    const hal_vfd_ops_t *vfd = hal_vfd_get_ops();
+    motor_bind_slot_t   *slot = slot_by_id(id);
+    const hal_vfd_ops_t *vfd  = hal_vfd_get_ops();
 
-    if ((cfg == NULL) || (p_status == NULL) || (cfg->drv_type != MOTOR_DRV_VFD))
-    {
-        return SW_ERR_PARAM;
-    }
-    if (id != MOTOR_GANTRY)
+    if ((slot == NULL) || (p_status == NULL) ||
+        (slot->cfg.drv_type != HAL_MOTOR_DRV_VFD) ||
+        (slot->cfg.vfd_backend_id < 0))
     {
         return SW_ERR_PARAM;
     }
@@ -315,18 +343,58 @@ static sw_err_t m8_motor_read_status(int id, uint16_t *p_status)
     {
         return SW_ERR_NOT_INIT;
     }
-    return vfd->read_status(HAL_VFD_GANTRY, p_status);
+
+    return vfd->read_status((hal_vfd_id_t)slot->cfg.vfd_backend_id, p_status);
+}
+
+static sw_err_t hal_motor_fault_reset(int id)
+{
+    motor_bind_slot_t   *slot = slot_by_id(id);
+    const hal_vfd_ops_t *vfd  = hal_vfd_get_ops();
+
+    if ((slot == NULL) || (slot->cfg.drv_type != HAL_MOTOR_DRV_VFD) ||
+        (slot->cfg.vfd_backend_id < 0))
+    {
+        return SW_ERR_PARAM;
+    }
+    if ((vfd == NULL) || (vfd->fault_reset == NULL))
+    {
+        return SW_ERR_NOT_INIT;
+    }
+
+    return vfd->fault_reset((hal_vfd_id_t)slot->cfg.vfd_backend_id);
+}
+
+sw_err_t hal_motor_linux_bind(int motor_id, const hal_motor_bind_cfg_t *cfg)
+{
+    motor_bind_slot_t *slot;
+
+    if ((cfg == NULL) || (motor_id < 0) || (motor_id >= HAL_MOTOR_BIND_SLOT_MAX))
+    {
+        return SW_ERR_PARAM;
+    }
+    if ((cfg->drv_type == HAL_MOTOR_DRV_VFD) &&
+        (cfg->vfd_backend_id < 0))
+    {
+        return SW_ERR_PARAM;
+    }
+
+    slot        = &s_slot[motor_id];
+    slot->cfg   = *cfg;
+    slot->bound = true;
+    return SW_OK;
 }
 
 static const hal_motor_ops_t s_ops = {
-    .set_output             = m8_motor_set_output,
-    .at_fwd_limit           = m8_motor_at_fwd_limit,
-    .at_rev_limit           = m8_motor_at_rev_limit,
-    .encoder_counter_online = m8_motor_encoder_counter_online,
-    .read_hw_pulse          = m8_motor_read_hw_pulse,
-    .clear_hw_pulse         = m8_motor_clear_hw_pulse,
-    .read_current           = m8_motor_read_current,
-    .read_status            = m8_motor_read_status,
+    .set_output             = hal_motor_set_output,
+    .at_fwd_limit           = hal_motor_at_fwd_limit,
+    .at_rev_limit           = hal_motor_at_rev_limit,
+    .encoder_counter_online = hal_motor_encoder_counter_online,
+    .read_hw_pulse          = hal_motor_read_hw_pulse,
+    .clear_hw_pulse         = hal_motor_clear_hw_pulse,
+    .read_current           = hal_motor_read_current,
+    .read_status            = hal_motor_read_status,
+    .fault_reset            = hal_motor_fault_reset,
 };
 
 void hal_motor_linux_register(void)

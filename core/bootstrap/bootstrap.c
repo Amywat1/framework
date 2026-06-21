@@ -27,6 +27,7 @@
 #include "adapters/machine/m8/m8_io_poll.h"
 #include "adapters/machine/m8/m8_sensor_setup.h"
 #include "adapters/machine/m8/m8_water_setup.h"
+#include "adapters/machine/m8/m8_motor_setup.h"
 #ifdef BUILD_SIM
 #  include "adapters/machine/m8/m8_signal_sim.h"
 #endif
@@ -118,6 +119,7 @@ static sw_err_t bootstrap_init_infra(void)
 #ifndef BUILD_SIM
     BOOT_CHECK(m8_vfd_setup(), "m8_vfd_setup");
 #endif
+    BOOT_CHECK(m8_motor_setup(), "m8_motor_setup");
 
     {
         sw_err_t r = svc_param_init();

@@ -13,6 +13,8 @@
 #include "domain/device/unit/gantry.h"
 #include "domain/device/unit/brush.h"
 #include "domain/device/gate.h"
+#include "domain/device/actuator/motor/motor.h"
+#include "config/machine/m8_motor_table.h"
 #include "domain/safety/alarm_core.h"
 #include "ports/hal/hal_vfd_port.h"
 #include "common/log.h"
@@ -84,9 +86,10 @@ static void m8_emc_reset(void)
 
     usleep(200U * 1000U);
 
+    (void)motor_fault_reset(MOTOR_GANTRY);
+
     if ((vfd != NULL) && (vfd->fault_reset != NULL))
     {
-        (void)vfd->fault_reset(HAL_VFD_GANTRY);
         (void)vfd->fault_reset(HAL_VFD_BRUSH);
     }
 
