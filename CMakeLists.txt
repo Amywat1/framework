@@ -199,12 +199,9 @@ if(BUILD_SIM)
         # M8 机型配置表
         config/machine/m8_signal_table.c
 
-        # M8 机型：信号滤波 + 报警适配 + IO 轮询
-        adapters/machine/m8/m8_signal_filter.c
+        # M8 机型适配
+        adapters/machine/m8/m8_sensor.c
         adapters/machine/m8/m8_signal_sim.c
-        adapters/machine/m8/m8_sensor_setup.c
-        adapters/machine/m8/m8_alarm_adapt.c
-        adapters/machine/m8/m8_io_poll.c
         adapters/machine/m8/m8_motor_setup.c
         adapters/machine/m8/m8_water_setup.c
 
@@ -307,7 +304,9 @@ if(BUILD_SIM)
         domain/device/unit/brush.c
         domain/device/unit/gantry.c
         domain/device/water.c
-        adapters/machine/m8/m8_signal_filter.c
+        adapters/machine/m8/m8_sensor.c
+        adapters/hal/generic/hal_sensor.c
+        config/machine/m8_signal_table.c
         application/orchestrators/wash_orchestrator.c
         core/scheduler/thread_registry.c
         service/svc_param/svc_param.c

@@ -7,7 +7,6 @@
 
 #include "adapters/machine/m8/m8_vfd_setup.h"
 #include "adapters/hal/linux_hw/hal_vfd_linux.h"
-#include "adapters/machine/m8/m8_machine_map.h"
 #include "config/machine/m8_vfd_table.h"
 #include "ports/hal/hal_io_port.h"
 #include "common/vfd_types.h"
@@ -41,8 +40,8 @@ sw_err_t m8_vfd_setup(void)
         LOG_ERROR("m8_vfd_setup: brush init failed");
         return ret;
     }
-    (void)io_do_set(M8_DO_TOP_BRUSH_ACT, false);
-    (void)io_do_set(M8_DO_SIDE_BRUSH_ACT, false);
+    (void)io_do_set(M8_IO_DO_TOP_BRUSH_ACT, false);
+    (void)io_do_set(M8_IO_DO_SIDE_BRUSH_ACT, false);
 
     ret = hal_vfd_linux_instance_init(HAL_VFD_GANTRY,
                                       M8_VFD_GANTRY_SERIAL_PORT,

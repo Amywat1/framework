@@ -21,8 +21,7 @@
 #include "application/orchestrators/device_fsm.h"
 #include "application/orchestrators/wash_orchestrator.h"
 #include "application/orchestrators/report_aggregator.h"
-#include "adapters/machine/m8/m8_io_poll.h"
-#include "adapters/machine/m8/m8_sensor_setup.h"
+#include "adapters/machine/m8/m8_sensor.h"
 #include "adapters/machine/m8/m8_water_setup.h"
 #include "adapters/machine/m8/m8_motor_setup.h"
 #ifdef BUILD_SIM
@@ -204,7 +203,7 @@ static sw_err_t bootstrap_start_threads(void)
     }
 #endif
 
-    BOOT_CHECK(m8_io_poll_register(), "register io_poll_thread");
+    BOOT_CHECK(m8_sensor_poll_register(), "register io_poll_thread");
 
     BOOT_CHECK(thread_register("motor_tick",
                                motor_tick_loop,

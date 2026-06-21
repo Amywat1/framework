@@ -19,7 +19,7 @@
 #include "config/machine/m8_motor_table.h"
 #include "ports/hal/hal_motor_port.h"
 #include "ports/hal/hal_sensor_port.h"
-#include "adapters/machine/m8/m8_signal_filter.h"
+#include "adapters/machine/m8/m8_sensor.h"
 #include "ports/hal/hal_vfd_port.h"
 #include "domain/device/water.h"
 #include "domain/device/water_channel.h"

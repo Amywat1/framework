@@ -8,7 +8,7 @@
 #include "domain/device/unit/gantry.h"
 #include "domain/device/actuator/motor/motor.h"
 #include "config/machine/m8_motor_table.h"
-#include "adapters/machine/m8/m8_signal_filter.h"
+#include "adapters/machine/m8/m8_sensor.h"
 #include "config/machine/m8_signal_table.h"
 #include "core/event_bus/event_bus.h"
 #include "common/event_types.h"
