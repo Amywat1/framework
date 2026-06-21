@@ -13,7 +13,7 @@
 #ifdef BUILD_SIM
 #  include "adapters/hal/sim_hw/hal_motor_sim.h"
 #else
-#  include "adapters/hal/linux_hw/hal_motor_linux.h"
+#  include "adapters/hal/generic/hal_motor.h"
 #endif
 
 static sw_err_t bind_motor_entry(const motor_cfg_t *mcfg, int vfd_backend_id)
@@ -42,7 +42,7 @@ static sw_err_t bind_motor_entry(const motor_cfg_t *mcfg, int vfd_backend_id)
 #ifdef BUILD_SIM
     return hal_motor_sim_bind(mcfg->id, &bind);
 #else
-    return hal_motor_linux_bind(mcfg->id, &bind);
+    return hal_motor_bind(mcfg->id, &bind);
 #endif
 }
 

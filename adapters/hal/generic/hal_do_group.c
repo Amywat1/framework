@@ -1,11 +1,11 @@
 /**
- * @file    hal_do_group_linux.c
- * @brief   DO 组×槽位 HAL Linux 真机实现
+ * @file    hal_do_group.c
+ * @brief   DO 组×槽位 HAL 端口实现（依赖 hal_io_port，无平台 SDK）
  * @author  胡望伟
  * @date    2026-04-10
  */
 
-#include "adapters/hal/linux_hw/hal_do_group_linux.h"
+#include "adapters/hal/generic/hal_do_group.h"
 #include "ports/hal/hal_do_group_port.h"
 #include "ports/hal/hal_io_port.h"
 #include "common/io_handle.h"
@@ -34,9 +34,9 @@ static bool slot_valid(hal_do_slot_t slot)
     return (slot < HAL_DO_SLOT_MAX);
 }
 
-sw_err_t hal_do_group_linux_bind(hal_do_group_t group,
-                                 hal_do_slot_t  slot,
-                                 io_do_t        pin)
+sw_err_t hal_do_group_bind(hal_do_group_t group,
+                           hal_do_slot_t  slot,
+                           io_do_t        pin)
 {
     if (!group_valid(group) || !slot_valid(slot))
     {
@@ -94,7 +94,7 @@ static const hal_do_group_ops_t s_ops = {
     .all_off  = do_group_all_off,
 };
 
-void hal_do_group_linux_register(void)
+void hal_do_group_generic_register(void)
 {
     hal_do_group_register(&s_ops);
 }

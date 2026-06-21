@@ -1,6 +1,6 @@
 /**
  * @file    wiring.c
- * @brief   依赖注入实现（真机：linux_hw HAL 适配器）
+ * @brief   依赖注入实现（真机：linux_hw / generic HAL 适配器）
  * @author  胡望伟
  * @date    2026-04-10
  *
@@ -16,11 +16,11 @@
 /* -------------------------------------------------------------------------
  * HAL 适配器注册函数声明
  * ------------------------------------------------------------------------- */
-extern void hal_motor_linux_register(void);
-extern void hal_sensor_linux_register(void);
+extern void hal_motor_generic_register(void);
+extern void hal_sensor_generic_register(void);
 extern void hal_io_linux_register(void);
 extern void hal_vfd_linux_register(void);
-extern void hal_do_group_linux_register(void);
+extern void hal_do_group_generic_register(void);
 
 /* -------------------------------------------------------------------------
  * 存储适配器注册函数声明
@@ -40,12 +40,12 @@ extern void command_bridge_register(void);
 
 sw_err_t wiring(void)
 {
-    /* HAL port → linux_hw 实现 */
-    hal_motor_linux_register();
-    hal_sensor_linux_register();
+    /* HAL port → 实现注册（io/vfd: linux_hw；motor/sensor/do_group: generic） */
+    hal_motor_generic_register();
+    hal_sensor_generic_register();
     hal_io_linux_register();
     hal_vfd_linux_register();
-    hal_do_group_linux_register();
+    hal_do_group_generic_register();
 
     /* 存储 port → JSON 文件实现 */
     json_param_store_register();

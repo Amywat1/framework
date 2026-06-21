@@ -1,11 +1,11 @@
 /**
- * @file    hal_sensor_linux.c
- * @brief   DI 通道滤波 HAL Linux 真机实现
+ * @file    hal_sensor.c
+ * @brief   DI 通道滤波 HAL 端口实现（依赖 hal_io_port，无平台 SDK）
  * @author  胡望伟
  * @date    2026-04-10
  */
 
-#include "adapters/hal/linux_hw/hal_sensor_linux.h"
+#include "adapters/hal/generic/hal_sensor.h"
 #include "ports/hal/hal_sensor_port.h"
 #include "ports/hal/hal_io_port.h"
 #include "common/log.h"
@@ -42,8 +42,8 @@ static bool bind_cfg_valid(const hal_sensor_bind_cfg_t *cfg)
     return true;
 }
 
-sw_err_t hal_sensor_linux_bind(hal_sensor_channel_t         ch,
-                               const hal_sensor_bind_cfg_t *cfg)
+sw_err_t hal_sensor_bind(hal_sensor_channel_t         ch,
+                         const hal_sensor_bind_cfg_t *cfg)
 {
     if (!channel_valid(ch) || !bind_cfg_valid(cfg))
     {
@@ -76,7 +76,7 @@ static void sensor_tick(void)
     {
         if (!s_ops_error_logged)
         {
-            LOG_ERROR("hal_sensor_linux: hal_io ops not ready");
+            LOG_ERROR("hal_sensor: hal_io ops not ready");
             s_ops_error_logged = true;
         }
         return;
@@ -137,7 +137,7 @@ static const hal_sensor_ops_t s_ops = {
     .is_active = sensor_is_active,
 };
 
-void hal_sensor_linux_register(void)
+void hal_sensor_generic_register(void)
 {
     hal_sensor_register(&s_ops);
 }

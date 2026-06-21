@@ -13,7 +13,7 @@
 #ifdef BUILD_SIM
 #  include "adapters/hal/sim_hw/hal_sensor_sim.h"
 #else
-#  include "adapters/hal/linux_hw/hal_sensor_linux.h"
+#  include "adapters/hal/generic/hal_sensor.h"
 #endif
 
 _Static_assert((unsigned)M8_SIG_MAX <= HAL_SENSOR_CHANNEL_MAX,
@@ -25,7 +25,7 @@ static sw_err_t m8_bind_channel(hal_sensor_channel_t         ch,
 #ifdef BUILD_SIM
     return hal_sensor_sim_bind(ch, cfg);
 #else
-    return hal_sensor_linux_bind(ch, cfg);
+    return hal_sensor_bind(ch, cfg);
 #endif
 }
 

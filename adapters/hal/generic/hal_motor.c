@@ -1,11 +1,11 @@
 /**
- * @file    hal_motor_linux.c
- * @brief   通用电机 HAL 端口 Linux 真机实现
+ * @file    hal_motor.c
+ * @brief   通用电机 HAL 端口实现（依赖 hal_io_port / hal_vfd_port，无平台 SDK）
  * @author  HUWANGWEI
  * @date    2026-04-13
  */
 
-#include "adapters/hal/linux_hw/hal_motor_linux.h"
+#include "adapters/hal/generic/hal_motor.h"
 #include "ports/hal/hal_motor_port.h"
 #include "ports/hal/hal_vfd_port.h"
 #include "ports/hal/hal_io_port.h"
@@ -365,7 +365,7 @@ static sw_err_t hal_motor_fault_reset(int id)
     return vfd->fault_reset((hal_vfd_id_t)slot->cfg.vfd_backend_id);
 }
 
-sw_err_t hal_motor_linux_bind(int motor_id, const hal_motor_bind_cfg_t *cfg)
+sw_err_t hal_motor_bind(int motor_id, const hal_motor_bind_cfg_t *cfg)
 {
     motor_bind_slot_t *slot;
 
@@ -397,7 +397,7 @@ static const hal_motor_ops_t s_ops = {
     .fault_reset            = hal_motor_fault_reset,
 };
 
-void hal_motor_linux_register(void)
+void hal_motor_generic_register(void)
 {
     hal_motor_register(&s_ops);
 }
