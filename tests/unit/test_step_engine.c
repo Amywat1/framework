@@ -288,7 +288,9 @@ int main(void)
     (void)motor_init();
     (void)brush_init();
     (void)gantry_init();
-    (void)water_init(&(water_actuator_ops_t){ .slot_set = mock_water_slot_set });
+    (void)water_init(
+        &(water_cfg_t){ .valve_open_delay_ms = 0U, .pump_stop_delay_ms = 0U },
+        &(water_actuator_ops_t){ .slot_set = mock_water_slot_set });
     wash_exec_clear_abort();
 
     test_step_normal_fwd_limit();

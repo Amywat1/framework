@@ -9,6 +9,7 @@
 #include "domain/device/water.h"
 #include "ports/hal/hal_do_group_port.h"
 #include "config/machine/m8_water_table.h"
+#include "config/machine/m8_machine_config.h"
 #include "common/log.h"
 #include <assert.h>
 
@@ -85,9 +86,14 @@ sw_err_t m8_water_setup(void)
         return ret;
     }
 
-    ret = water_init(&(water_actuator_ops_t){
-        .slot_set = m8_water_slot_set,
-    });
+    ret = water_init(
+        &(water_cfg_t){
+            .valve_open_delay_ms = CFG_WATER_VALVE_OPEN_DELAY_MS,
+            .pump_stop_delay_ms  = CFG_WATER_PUMP_STOP_DELAY_MS,
+        },
+        &(water_actuator_ops_t){
+            .slot_set = m8_water_slot_set,
+        });
     if (ret != SW_OK)
     {
         LOG_ERROR("m8_water_setup: water_init failed ret=%d", (int)ret);

@@ -8,8 +8,6 @@
 #include "domain/device/unit/gantry.h"
 #include "domain/device/actuator/motor/motor.h"
 #include "config/machine/m8_motor_table.h"
-#include "adapters/machine/m8/m8_sensor.h"
-#include "config/machine/m8_signal_table.h"
 #include "core/event_bus/event_bus.h"
 #include "common/event_types.h"
 #include "common/log.h"
@@ -125,7 +123,7 @@ sw_err_t gantry_home_start(uint16_t freq_hz)
     }
 
     /* 若已在后限位，立即完成 */
-    if (m8_signal_is_active(M8_SIG_GANTRY_REV_LIM))
+    if (motor_at_rev_limit(MOTOR_GANTRY))
     {
         ret = motor_clear_encoder(MOTOR_GANTRY);
         if (ret != SW_OK)
@@ -154,12 +152,12 @@ sw_err_t gantry_home_start(uint16_t freq_hz)
 
 bool gantry_at_fwd_limit(void)
 {
-    return m8_signal_is_active(M8_SIG_GANTRY_FWD_LIM);
+    return motor_at_fwd_limit(MOTOR_GANTRY);
 }
 
 bool gantry_at_rev_limit(void)
 {
-    return m8_signal_is_active(M8_SIG_GANTRY_REV_LIM);
+    return motor_at_rev_limit(MOTOR_GANTRY);
 }
 
 int32_t gantry_get_pos(void)

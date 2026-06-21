@@ -776,3 +776,25 @@ sw_err_t motor_clear_encoder(int id)
     pthread_mutex_unlock(&s_mutex);
     return ret;
 }
+
+bool motor_at_fwd_limit(int id)
+{
+    const hal_motor_ops_t *ops = hal_motor_get_ops();
+
+    if ((ops == NULL) || (ops->at_fwd_limit == NULL))
+    {
+        return false;
+    }
+    return ops->at_fwd_limit(id);
+}
+
+bool motor_at_rev_limit(int id)
+{
+    const hal_motor_ops_t *ops = hal_motor_get_ops();
+
+    if ((ops == NULL) || (ops->at_rev_limit == NULL))
+    {
+        return false;
+    }
+    return ops->at_rev_limit(id);
+}

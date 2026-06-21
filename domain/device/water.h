@@ -17,6 +17,7 @@ extern "C" {
 #include "domain/device/water_channel.h"
 #include "common/sw_error.h"
 #include <stdbool.h>
+#include <stdint.h>
 
 /** 水路执行器输出回调（由 machine 适配层实现） */
 typedef sw_err_t (*water_slot_set_fn)(water_channel_t ch, water_slot_t slot, bool on);
@@ -26,11 +27,19 @@ typedef struct
     water_slot_set_fn slot_set;
 } water_actuator_ops_t;
 
+/** 水路时序配置（由 machine 适配层注入，domain 不依赖机型常量） */
+typedef struct
+{
+    uint32_t valve_open_delay_ms;  /**< 开阀后等待阀体到位再开泵（ms）*/
+    uint32_t pump_stop_delay_ms;   /**< 关泵后等待管路泄压再关阀（ms）*/
+} water_cfg_t;
+
 /**
- * @brief  初始化水路组件并注入执行器（关闭所有水路）
+ * @brief  初始化水路组件并注入时序配置与执行器（关闭所有水路）
+ * @param  cfg  时序配置，不可为 NULL
  * @param  ops  执行器操作表，slot_set 不可为 NULL
  */
-sw_err_t water_init(const water_actuator_ops_t *ops);
+sw_err_t water_init(const water_cfg_t *cfg, const water_actuator_ops_t *ops);
 
 /**
  * @brief  开启预洗（先开泡沫阀和水帘阀，延时后开泵）

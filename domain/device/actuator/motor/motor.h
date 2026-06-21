@@ -14,6 +14,7 @@ extern "C" {
 
 #include "common/sw_error.h"
 #include <stdint.h>
+#include <stdbool.h>
 
 typedef enum
 {
@@ -47,6 +48,8 @@ sw_err_t      motor_stop(int id);
 sw_err_t      motor_fault_reset(int id);
 int32_t       motor_get_pos(int id);
 sw_err_t      motor_clear_encoder(int id);
+bool          motor_at_fwd_limit(int id);
+bool          motor_at_rev_limit(int id);
 void         *motor_tick_loop(void *arg);
 
 #ifdef __cplusplus

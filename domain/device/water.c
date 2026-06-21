@@ -6,12 +6,12 @@
  */
 
 #include "domain/device/water.h"
-#include "config/machine/m8_machine_config.h"
 #include "common/log.h"
 #include <pthread.h>
 #include <unistd.h>
 
 static pthread_mutex_t       s_mutex = PTHREAD_MUTEX_INITIALIZER;
+static water_cfg_t           s_cfg;
 static water_actuator_ops_t  s_actuator;
 static bool                  s_actuator_ready = false;
 
@@ -195,7 +195,7 @@ static sw_err_t safe_pump_off(void)
     ret = set_pump_output(false);
     if (ret == SW_OK)
     {
-        water_delay_ms(CFG_WATER_PUMP_STOP_DELAY_MS);
+        water_delay_ms(s_cfg.pump_stop_delay_ms);
     }
     return ret;
 }
@@ -231,15 +231,16 @@ static void reset_states(void)
     pthread_mutex_unlock(&s_mutex);
 }
 
-sw_err_t water_init(const water_actuator_ops_t *ops)
+sw_err_t water_init(const water_cfg_t *cfg, const water_actuator_ops_t *ops)
 {
     sw_err_t ret;
 
-    if ((ops == NULL) || (ops->slot_set == NULL))
+    if ((cfg == NULL) || (ops == NULL) || (ops->slot_set == NULL))
     {
         return SW_ERR_PARAM;
     }
 
+    s_cfg            = *cfg;
     s_actuator       = *ops;
     s_actuator_ready = true;  /* 先置 true，使内部调 water_all_off 时通过 check_actuator */
     reset_states();
@@ -274,7 +275,7 @@ sw_err_t water_prewash_on(void)
         return ret;
     }
 
-    water_delay_ms(CFG_WATER_VALVE_OPEN_DELAY_MS);
+    water_delay_ms(s_cfg.valve_open_delay_ms);
     ret = ensure_pump_on();
     if (ret != SW_OK)
     {
@@ -335,7 +336,7 @@ sw_err_t water_brush_on(void)
         return ret;
     }
 
-    water_delay_ms(CFG_WATER_VALVE_OPEN_DELAY_MS);
+    water_delay_ms(s_cfg.valve_open_delay_ms);
     ret = ensure_pump_on();
     if (ret != SW_OK)
     {
@@ -386,7 +387,7 @@ sw_err_t water_highpres_on(void)
         return ret;
     }
 
-    water_delay_ms(CFG_WATER_VALVE_OPEN_DELAY_MS);
+    water_delay_ms(s_cfg.valve_open_delay_ms);
     ret = ensure_pump_on();
     if (ret != SW_OK)
     {
@@ -442,7 +443,7 @@ sw_err_t water_all_off(void)
 
     if (was_pump_on)
     {
-        water_delay_ms(CFG_WATER_PUMP_STOP_DELAY_MS);
+        water_delay_ms(s_cfg.pump_stop_delay_ms);
     }
 
     ret = set_curtain_output(false);
