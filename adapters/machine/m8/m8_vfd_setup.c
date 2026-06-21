@@ -24,16 +24,6 @@ static sw_err_t io_do_set(io_do_t pin, bool val)
     return ops->do_set(pin, val);
 }
 
-static void brush_vfd_event_cb(int event_code)
-{
-    (void)event_code;
-}
-
-static void gantry_vfd_event_cb(int event_code)
-{
-    (void)event_code;
-}
-
 sw_err_t m8_vfd_setup(void)
 {
     sw_err_t ret;
@@ -51,7 +41,6 @@ sw_err_t m8_vfd_setup(void)
         LOG_ERROR("m8_vfd_setup: brush init failed");
         return ret;
     }
-    hal_vfd_linux_instance_register_event_cb(HAL_VFD_BRUSH, brush_vfd_event_cb);
     (void)io_do_set(M8_DO_TOP_BRUSH_ACT, false);
     (void)io_do_set(M8_DO_SIDE_BRUSH_ACT, false);
 
@@ -68,8 +57,6 @@ sw_err_t m8_vfd_setup(void)
         LOG_ERROR("m8_vfd_setup: gantry init failed");
         return ret;
     }
-    hal_vfd_linux_instance_register_event_cb(HAL_VFD_GANTRY, gantry_vfd_event_cb);
-
     LOG_INFO("m8_vfd_setup ok");
     return SW_OK;
 }

@@ -135,6 +135,12 @@ static bool sim_board_is_online(int board_id)
     return true;
 }
 
+static sw_err_t sim_wait_boards_online(uint32_t timeout_ms)
+{
+    (void)timeout_ms;
+    return SW_OK;
+}
+
 static bool sim_try_parse_di(const char *name, io_di_t *out)
 {
     (void)name;
@@ -184,6 +190,7 @@ static const hal_io_ops_t s_ops = {
     .register_panic_cb        = sim_register_panic_cb,
     .flush_outputs_now        = sim_flush_outputs_now,
     .board_is_online          = sim_board_is_online,
+    .wait_boards_online       = sim_wait_boards_online,
     .do_set                   = sim_do_set,
     .di_read                  = sim_di_read,
     .register_debug_input_cb  = sim_register_debug_input_cb,

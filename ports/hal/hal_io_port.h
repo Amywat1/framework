@@ -59,8 +59,16 @@ typedef struct
     /** @brief  立即将输出缓冲刷到硬件 */
     sw_err_t (*flush_outputs_now)(void);
 
-    /** @brief  查询 IO 子板是否在线 */
+    /** @brief  查询 IO 子板是否在线（读缓存，后台线程更新） */
     bool (*board_is_online)(int board_id);
+
+    /**
+     * @brief  同步轮询等待所有 IO 子板就绪（启动阶段使用，后台线程启动前可调用）
+     * @param  timeout_ms  最长等待时间（ms）
+     * @retval SW_OK           所有子板在超时内就绪
+     * @retval SW_ERR_TIMEOUT  超时仍有子板离线
+     */
+    sw_err_t (*wait_boards_online)(uint32_t timeout_ms);
 
     sw_err_t (*do_set)(io_do_t pin, bool val);
     bool     (*di_read)(io_di_t pin);

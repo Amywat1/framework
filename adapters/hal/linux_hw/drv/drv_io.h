@@ -215,6 +215,14 @@ void drv_io_register_debug_input_cb(drv_io_debug_input_cb_t cb);
 bool drv_io_board_is_online(int board_id);
 
 /**
+ * @brief  同步轮询等待所有 IO 子板就绪（启动阶段，后台线程启动前可调用）
+ * @param  timeout_ms  最长等待时间（ms）
+ * @retval SW_OK           所有子板在超时内就绪
+ * @retval SW_ERR_TIMEOUT  超时仍有子板离线
+ */
+sw_err_t drv_io_wait_boards_online(uint32_t timeout_ms);
+
+/**
  * @brief  注册子板在线状态变化回调
  * @param  cb  回调参数：board_id，offline=true 表示掉线，false 表示恢复
  */

@@ -8,16 +8,11 @@
  *          通过轮询等待 IO 子板就绪，并在正常启动前强制所有输出进入安全状态。
  */
 
-#include "adapters/machine/m8/m8_machine_map.h"
 #include "ports/hal/hal_io_port.h"
 #include "common/log.h"
 #include "common/sw_error.h"
-#include "io_exp/slave.h"       /* io_online_get()：启动阶段同步探测 IO 子板在线状态 */
 
-#include <unistd.h>
-
-#define BOOT_IO_POLL_INTERVAL_MS    50U     /* 就绪轮询间隔（ms）*/
-#define BOOT_IO_TIMEOUT_MS          3000U   /* 最长等待时间（ms）*/
+#define BOOT_IO_TIMEOUT_MS  3000U   /* IO 子板就绪最长等待时间（ms）*/
 
 static sw_err_t boot_do_set(io_do_t pin, bool val)
 {
@@ -41,84 +36,46 @@ static sw_err_t boot_flush_outputs(void)
     return ops->flush_outputs_now();
 }
 
+/* X-macro 从 m8_io_table.h 自动展开所有 DO 引脚；新增引脚无需额外维护 */
+static const io_do_t s_all_do_pins[] = {
+#define DRV_IO_DO_DEF(name, board, pin, desc) IO_DO((board), (pin)),
+#include "config/machine/m8_io_table.h"
+#undef DRV_IO_DO_DEF
+};
+
 /**
- * @brief  将所有数字输出置安全状态（关断）
+ * @brief  将所有数字输出置安全状态（统一关断）
  *
- * 上电后硬件输出不确定，此函数强制清零所有 DO，
- * 确保电机、水泵、接触器等处于安全状态后再执行后续初始化。
- * 同时作为 panic handler 的兜底调用（不依赖 event_bus，可在总线失效后直接调用）。
+ * 遍历全部 DO 引脚，统一置 false（不输出），然后同步刷新到硬件。
+ * 可在 panic 路径安全调用，不依赖 event_bus。
  */
 void m8_assert_safe_outputs(void)
 {
-    /* 入口指示灯全灭 */
-    (void)boot_do_set(M8_DO_ENTRY_GREEN1, false);
-    (void)boot_do_set(M8_DO_ENTRY_GREEN2, false);
-    (void)boot_do_set(M8_DO_ENTRY_RED,    false);
-    (void)boot_do_set(M8_DO_ENTRY_YELLOW, false);
+    for (unsigned i = 0U; i < (unsigned)(sizeof(s_all_do_pins) / sizeof(s_all_do_pins[0])); i++)
+    {
+        (void)boot_do_set(s_all_do_pins[i], false);
+    }
 
-    /* 入口挡杆：伸出（拦截）*/
-    (void)boot_do_set(M8_DO_ROD_RETRACT, false);
-    (void)boot_do_set(M8_DO_ROD_EXTEND,  true);
-
-    /* 接触器全部断开 */
-    (void)boot_do_set(M8_DO_TOP_BRUSH_ACT,  false);
-    (void)boot_do_set(M8_DO_SIDE_BRUSH_ACT, false);
-
-    /* 龙门 VFD 控制信号清零 */
-    (void)boot_do_set(M8_DO_GANTRY_FWD, false);
-    (void)boot_do_set(M8_DO_GANTRY_REV, false);
-    (void)boot_do_set(M8_DO_GANTRY_RST, false);
-
-    /* 刷子 VFD 控制信号清零 */
-    (void)boot_do_set(M8_DO_BRUSH_FWD, false);
-    (void)boot_do_set(M8_DO_BRUSH_RST, false);
-
-    /* 水路全关 */
-    (void)boot_do_set(M8_DO_WATER_PUMP,     false);
-    (void)boot_do_set(M8_DO_WATER_CURTAIN,  false);
-    (void)boot_do_set(M8_DO_WATER_FOAM,     false);
-    (void)boot_do_set(M8_DO_WATER_BRUSH,    false);
-    (void)boot_do_set(M8_DO_WATER_HIGHPRES, false);
-
-    /* 同步刷新到硬件：绕过后台线程，立即写 CAN 总线
-     * 普通上电路径下可确保安全态在后续初始化前已落硬件；
-     * panic 路径（fatal 回调 / 全板离线回调）下可确保 abort() 前输出已尽力发出 */
+    /* 同步刷新到硬件：绕过后台线程，立即写 CAN 总线 */
     (void)boot_flush_outputs();
 }
 
 /**
  * @brief  等待所有 IO 子板就绪
- * @retval SW_OK        所有子板就绪
- * @retval SW_ERR_TIMEOUT 超时（可降级运行或报错）
+ * @retval SW_OK          所有子板就绪
+ * @retval SW_ERR_TIMEOUT 超时
+ * @retval SW_ERR_NOT_INIT HAL 未注册
  */
 static sw_err_t m8_wait_io_ready(void)
 {
-    uint32_t elapsed_ms = 0U;
+    const hal_io_ops_t *ops = hal_io_get_ops();
 
-    while (elapsed_ms < BOOT_IO_TIMEOUT_MS)
+    if ((ops == NULL) || (ops->wait_boards_online == NULL))
     {
-        bool all_online = true;
-        for (int i = 1; i <= M8_IO_BOARD_COUNT; i++)
-        {
-            if (io_online_get(i) <= 0)
-            {
-                all_online = false;
-                break;
-            }
-        }
-
-        if (all_online)
-        {
-            LOG_INFO("m8_boot: all IO boards online in %u ms", elapsed_ms);
-            return SW_OK;
-        }
-
-        usleep((unsigned long)BOOT_IO_POLL_INTERVAL_MS * 1000UL);
-        elapsed_ms += BOOT_IO_POLL_INTERVAL_MS;
+        return SW_ERR_NOT_INIT;
     }
 
-    LOG_ERROR("m8_boot: IO board not ready after %u ms", BOOT_IO_TIMEOUT_MS);
-    return SW_ERR_TIMEOUT;
+    return ops->wait_boards_online(BOOT_IO_TIMEOUT_MS);
 }
 
 /**
@@ -137,8 +94,7 @@ sw_err_t m8_boot_profile_init(void)
 {
     sw_err_t io_ret;
 
-    /* 1. 等待 IO 子板就绪
-     *    注意：此阶段 IO 后台线程尚未启动，因此直接通过 SDK 同步探测在线状态。 */
+    /* 1. 等待 IO 子板就绪（HAL wait_boards_online 同步轮询，后台线程启动前可安全调用）*/
     io_ret = m8_wait_io_ready();
     if (io_ret != SW_OK)
     {

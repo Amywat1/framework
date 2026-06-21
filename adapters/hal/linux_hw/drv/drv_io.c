@@ -589,6 +589,37 @@ bool drv_io_board_is_online(int board_id)
     return s_board_online[board_id];
 }
 
+#define DRV_IO_WAIT_POLL_MS  50U    /* 子板就绪轮询间隔（ms）*/
+
+sw_err_t drv_io_wait_boards_online(uint32_t timeout_ms)
+{
+    uint32_t elapsed_ms = 0U;
+
+    while (elapsed_ms < timeout_ms)
+    {
+        bool all_online = true;
+
+        for (int i = 1; i <= CFG_IO_BOARD_COUNT; i++)
+        {
+            if (io_online_get(i) <= 0)
+            {
+                all_online = false;
+                break;
+            }
+        }
+
+        if (all_online)
+        {
+            return SW_OK;
+        }
+
+        usleep((unsigned long)DRV_IO_WAIT_POLL_MS * 1000UL);
+        elapsed_ms += DRV_IO_WAIT_POLL_MS;
+    }
+
+    return SW_ERR_TIMEOUT;
+}
+
 void drv_io_register_board_error_cb(void (*cb)(int board_id, bool offline))
 {
     s_board_error_cb = cb;

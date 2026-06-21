@@ -33,6 +33,11 @@ static bool board_is_online(int board_id)
     return drv_io_board_is_online(board_id);
 }
 
+static sw_err_t wait_boards_online(uint32_t timeout_ms)
+{
+    return drv_io_wait_boards_online(timeout_ms);
+}
+
 static sw_err_t do_set(io_do_t pin, bool val)
 {
     return drv_io_do_set((drv_io_do_t)pin, val);
@@ -116,6 +121,7 @@ static const hal_io_ops_t s_ops = {
     .register_panic_cb        = register_panic_cb,
     .flush_outputs_now        = flush_outputs_now,
     .board_is_online          = board_is_online,
+    .wait_boards_online       = wait_boards_online,
     .do_set                   = do_set,
     .di_read                  = di_read,
     .register_debug_input_cb  = register_debug_input_cb,

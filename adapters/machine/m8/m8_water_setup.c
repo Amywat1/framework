@@ -18,18 +18,6 @@ _Static_assert((unsigned)WCH_COUNT        <= HAL_DO_GROUP_MAX,
 _Static_assert((unsigned)WATER_SLOT_COUNT <= HAL_DO_SLOT_MAX,
                "WATER_SLOT_COUNT 超过 HAL_DO_SLOT_MAX，需相应扩大 hal_do_group 上限");
 
-/* 增删改水路 DO 映射只改此表 */
-static const m8_water_bind_row_t s_m8_water_bind_table[] = {
-    { WCH_SHARED,   WATER_SLOT_PUMP,        M8_IO_DO_WATER_PUMP     },
-    { WCH_CURTAIN,  WATER_SLOT_WATER_VALVE, M8_IO_DO_WATER_CURTAIN  },
-    { WCH_FOAM,     WATER_SLOT_WATER_VALVE, M8_IO_DO_WATER_FOAM     },
-    { WCH_BRUSH,    WATER_SLOT_WATER_VALVE, M8_IO_DO_WATER_BRUSH    },
-    { WCH_HIGHPRES, WATER_SLOT_WATER_VALVE, M8_IO_DO_WATER_HIGHPRES },
-};
-
-#define M8_WATER_BIND_TABLE_COUNT \
-    ((unsigned)(sizeof(s_m8_water_bind_table) / sizeof(s_m8_water_bind_table[0])))
-
 #include "adapters/hal/generic/hal_do_group.h"
 
 static sw_err_t m8_bind_group_slot(hal_do_group_t group,
@@ -43,7 +31,7 @@ static sw_err_t m8_apply_bind_table(void)
 {
     for (unsigned i = 0U; i < M8_WATER_BIND_TABLE_COUNT; i++)
     {
-        const m8_water_bind_row_t *row = &s_m8_water_bind_table[i];
+        const m8_water_bind_row_t *row = &m8_water_bind_table[i];
         sw_err_t ret;
 
         if (((unsigned)row->channel >= WCH_COUNT)
