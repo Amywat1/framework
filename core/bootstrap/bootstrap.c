@@ -12,8 +12,6 @@
 #include "core/scheduler/scheduler.h"
 #include "service/svc_param/svc_param.h"
 #include "service/dev_ctx/dev_ctx.h"
-#include "domain/safety/alarm_core.h"
-#include "domain/safety/safety_fsm.h"
 #include "domain/device/actuator/motor/motor.h"
 #include "domain/device/unit/brush.h"
 #include "domain/device/unit/gantry.h"
@@ -23,7 +21,6 @@
 #include "application/orchestrators/device_fsm.h"
 #include "application/orchestrators/wash_orchestrator.h"
 #include "application/orchestrators/report_aggregator.h"
-#include "adapters/machine/m8/m8_alarm_adapt.h"
 #include "adapters/machine/m8/m8_io_poll.h"
 #include "adapters/machine/m8/m8_sensor_setup.h"
 #include "adapters/machine/m8/m8_water_setup.h"
@@ -134,23 +131,18 @@ static sw_err_t bootstrap_init_infra(void)
     return SW_OK;
 }
 
-/** 硬件安全态与报警链路 */
+/** 传感器初始化 */
 static sw_err_t bootstrap_init_safety(void)
 {
 #ifndef BUILD_SIM
     BOOT_CHECK(m8_boot_profile_init(), "m8_boot_profile_init");
 #endif
 
-    BOOT_CHECK(alarm_core_init(), "alarm_core_init");
     BOOT_CHECK(m8_sensor_setup(), "m8_sensor_setup");
 #ifdef BUILD_SIM
     m8_signal_sim_reset_all();
 #endif
-    /* 预热采样：在线程启动前将 s_rt[].confirmed 同步到当前 DI 状态，
-     * 消除上电时限位已触发但 confirmed=false 的竞争窗口 */
     BOOT_CHECK(m8_sensor_warmup(), "m8_sensor_warmup");
-    BOOT_CHECK(m8_alarm_adapt_init(), "m8_alarm_adapt_init");
-    BOOT_CHECK(safety_fsm_init(), "safety_fsm_init");
     return SW_OK;
 }
 

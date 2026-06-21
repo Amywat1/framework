@@ -9,8 +9,6 @@
 #include "core/scheduler/thread_registry.h"
 #include "service/dev_ctx/dev_ctx.h"
 #include "domain/device/unit/gantry.h"
-#include "domain/safety/alarm_core.h"
-#include "domain/model/alarm_code.h"
 #include "ports/cloud/report_port.h"
 #include "core/event_bus/event_bus.h"
 #include "config/threading/thread_config.h"
@@ -32,27 +30,7 @@ static void build_payload(cloud_report_payload_t *p)
     p->wash_mode      = (uint8_t)ctx.wash_mode;
     p->wash_step      = (uint8_t)ctx.wash_step;
     p->gantry_pos     = gantry_get_pos();
-    p->has_alarm      = ctx.has_error_alarm;
     p->cloud_connected = ctx.cloud_connected;
-
-    /* 填充当前最高优先级报警码（遍历已知码）*/
-    static const uint16_t s_priority_order[] = {
-        ALARM_CODE_ESTOP,
-        ALARM_CODE_VFD_GANTRY, ALARM_CODE_VFD_BRUSH,
-        ALARM_CODE_GANTRY_CURRENT, ALARM_CODE_BRUSH_CURRENT,
-        ALARM_CODE_GANTRY_FWD_LIM, ALARM_CODE_GANTRY_REV_LIM,
-        ALARM_CODE_LIFT_UP_LIM,    ALARM_CODE_LIFT_DOWN_LIM,
-        ALARM_CODE_MODBUS_GANTRY,  ALARM_CODE_MODBUS_BRUSH,
-        ALARM_CODE_MQTT_OFFLINE,
-    };
-    for (size_t i = 0; i < sizeof(s_priority_order) / sizeof(s_priority_order[0]); i++)
-    {
-        if (alarm_core_is_active(s_priority_order[i]))
-        {
-            p->alarm_code = s_priority_order[i];
-            break;
-        }
-    }
 }
 
 /* -------------------------------------------------------------------------

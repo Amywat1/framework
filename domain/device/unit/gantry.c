@@ -8,7 +8,6 @@
 #include "domain/device/unit/gantry.h"
 #include "domain/device/actuator/motor/motor.h"
 #include "config/machine/m8_motor_table.h"
-#include "domain/safety/interlock.h"
 #include "adapters/machine/m8/m8_signal_filter.h"
 #include "config/machine/m8_signal_table.h"
 #include "core/event_bus/event_bus.h"
@@ -89,12 +88,6 @@ sw_err_t gantry_init(void)
 
 sw_err_t gantry_fwd(uint16_t freq_hz)
 {
-    sw_err_t ret = interlock_check_motion(MOTION_TYPE_GANTRY_FWD);
-    if (ret != SW_OK)
-    {
-        return ret;
-    }
-
     atomic_store(&s_homing, false);
     if (freq_hz == 0U)
     {
@@ -106,12 +99,6 @@ sw_err_t gantry_fwd(uint16_t freq_hz)
 
 sw_err_t gantry_rev(uint16_t freq_hz)
 {
-    sw_err_t ret = interlock_check_motion(MOTION_TYPE_GANTRY_REV);
-    if (ret != SW_OK)
-    {
-        return ret;
-    }
-
     atomic_store(&s_homing, false);
     if (freq_hz == 0U)
     {
@@ -130,12 +117,6 @@ sw_err_t gantry_stop(void)
 sw_err_t gantry_home_start(uint16_t freq_hz)
 {
     sw_err_t ret;
-
-    ret = interlock_check_motion(MOTION_TYPE_GANTRY_REV);
-    if (ret != SW_OK)
-    {
-        return ret;
-    }
 
     if (atomic_load(&s_homing))
     {

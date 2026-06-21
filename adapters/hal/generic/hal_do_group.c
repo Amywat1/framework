@@ -9,6 +9,7 @@
 #include "ports/hal/hal_do_group_port.h"
 #include "ports/hal/hal_io_port.h"
 #include "common/io_handle.h"
+#include <stddef.h>
 
 static io_do_t s_pin[HAL_DO_GROUP_MAX][HAL_DO_SLOT_MAX];
 static bool    s_bound[HAL_DO_GROUP_MAX][HAL_DO_SLOT_MAX];

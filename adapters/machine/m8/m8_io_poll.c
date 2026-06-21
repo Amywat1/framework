@@ -8,7 +8,6 @@
 #include "adapters/machine/m8/m8_io_poll.h"
 #include "adapters/machine/m8/m8_signal_filter.h"
 #include "core/scheduler/thread_registry.h"
-#include "domain/safety/alarm_core.h"
 #include "config/threading/thread_config.h"
 #include <sched.h>
 #include <unistd.h>
@@ -21,8 +20,7 @@ static void *io_poll_thread_fn(void *arg)
     {
         m8_signal_filter_tick();
 
-        alarm_core_tick_ms(ALARM_POLL_PERIOD_MS);
-        usleep((unsigned long)ALARM_POLL_PERIOD_MS * 1000UL);
+        usleep((unsigned long)THD_IO_POLL_PERIOD_MS * 1000UL);
     }
 
     return NULL;

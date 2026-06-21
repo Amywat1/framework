@@ -8,7 +8,6 @@
 #include "application/command_guard.h"
 #include "service/dev_ctx/dev_ctx.h"
 #include "domain/model/device_state.h"
-#include "domain/model/safety_types.h"
 #include "common/log.h"
 
 sw_err_t command_guard_check(const cmd_t *cmd)
@@ -25,12 +24,6 @@ sw_err_t command_guard_check(const cmd_t *cmd)
     switch (cmd->type)
     {
         case CMD_START_WASH:
-            if (ctx.safety_state != SAFETY_STATE_OK)
-            {
-                LOG_WARN("command_guard: START_WASH rejected (safety=%d)",
-                         (int)ctx.safety_state);
-                return SW_ERR_STATE;
-            }
             if (ctx.device_state != DEV_STATE_IDLE)
             {
                 LOG_WARN("command_guard: START_WASH rejected (device=%d)",

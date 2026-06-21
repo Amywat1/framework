@@ -22,7 +22,6 @@ extern "C" {
 #endif
 
 #include "domain/model/device_state.h"
-#include "domain/model/safety_types.h"
 #include "domain/model/wash_types.h"
 #include "common/sw_error.h"
 #include <stdbool.h>
@@ -33,10 +32,8 @@ extern "C" {
 typedef struct
 {
     dev_state_t    device_state;    /* 设备 FSM 状态 */
-    safety_state_t safety_state;    /* 安全域状态 */
     wash_step_t    wash_step;       /* 当前洗车步骤（IDLE = 不在洗车中）*/
     wash_mode_t    wash_mode;       /* 当前洗车模式 */
-    bool           has_error_alarm; /* 是否有 ERROR 级报警激活 */
     bool           cloud_connected; /* 云端 MQTT 连接状态 */
 } device_context_t;
 
@@ -59,24 +56,13 @@ device_context_t dev_ctx_snapshot(void);
  */
 dev_state_t dev_ctx_get_device_state(void);
 
-/**
- * @brief  读取安全域状态（线程安全）
- */
-safety_state_t dev_ctx_get_safety_state(void);
-
 /* -- 分片写入接口（各自只允许对应模块调用）-- */
 
 /** @brief [device_fsm] 更新设备 FSM 状态 */
 void dev_ctx_set_device_state(dev_state_t state);
 
-/** @brief [safety_fsm] 更新安全域状态 */
-void dev_ctx_set_safety_state(safety_state_t state);
-
 /** @brief [wash_orchestrator] 更新当前洗车进度 */
 void dev_ctx_set_wash_progress(wash_step_t step, wash_mode_t mode);
-
-/** @brief [safety_fsm] 更新 ERROR 报警标志 */
-void dev_ctx_set_alarm_state(bool has_error);
 
 /** @brief [report_aggregator] 更新云端连接状态 */
 void dev_ctx_set_cloud_status(bool connected);

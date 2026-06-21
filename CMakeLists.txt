@@ -296,26 +296,9 @@ if(BUILD_SIM)
         tests/unit/test_event_bus.c
     )
 
-    # test_alarm_core：event_bus + alarm_core
-    add_unit_test(test_alarm_core
-        tests/unit/test_alarm_core.c
-        domain/safety/alarm_core.c
-    )
-
-    # test_safety_fsm：event_bus + alarm_core + safety_fsm
-    add_unit_test(test_safety_fsm
-        tests/unit/test_safety_fsm.c
-        domain/safety/alarm_core.c
-        domain/safety/safety_fsm.c
-        service/dev_ctx/dev_ctx.c
-    )
-
-    # test_step_engine：event_bus + 安全域 + 设备组件 + 流程引擎（mock HAL 内联）
+    # test_step_engine：event_bus + 设备组件 + 流程引擎（mock HAL 内联）
     add_unit_test(test_step_engine
         tests/unit/test_step_engine.c
-        domain/safety/alarm_core.c
-        domain/safety/safety_fsm.c
-        domain/safety/interlock.c
         service/dev_ctx/dev_ctx.c
         domain/device/actuator/motor/motor.c
         domain/device/actuator/motor/motor_encoder_internal.c
@@ -337,32 +320,10 @@ if(BUILD_SIM)
         service/dev_ctx/dev_ctx.c
     )
 
-    add_unit_test(test_m8_limit_alarm_adapt
-        tests/unit/test_m8_limit_alarm_adapt.c
-        domain/safety/alarm_core.c
-        domain/safety/interlock.c
-        adapters/hal/generic/hal_sensor.c
-        adapters/machine/m8/m8_signal_filter.c
-        adapters/machine/m8/m8_sensor_setup.c
-        config/machine/m8_signal_table.c
-        adapters/machine/m8/m8_alarm_adapt.c
-        domain/device/water.c
-        domain/device/gate.c
-        domain/device/unit/brush.c
-        domain/device/unit/gantry.c
-        domain/device/actuator/motor/motor.c
-        domain/device/actuator/motor/motor_encoder_internal.c
-        domain/device/actuator/motor/motor_monitor_internal.c
-        domain/device/actuator/motor/motor_tick_internal.c
-    )
-
     # -----------------------------------------------------------------------
     # 场景集成测试（链接完整 sim 栈，每个测试自带 main()）
     # -----------------------------------------------------------------------
     foreach(scenario
-            scenario_estop
-            scenario_vfd_fault
-            scenario_limit_error
             scenario_standard_wash)
 
         add_executable(${scenario}
@@ -380,6 +341,6 @@ if(BUILD_SIM)
 
     endforeach()
 
-    message(STATUS "Tests registered: 5 unit + 4 scenario (run with: ctest --test-dir build_sim -V)")
+    message(STATUS "Tests registered: 3 unit + 1 scenario (run with: ctest --test-dir build_sim -V)")
 
 endif()

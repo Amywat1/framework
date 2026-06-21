@@ -18,7 +18,6 @@ sw_err_t dev_ctx_init(void)
     pthread_mutex_lock(&s_mutex);
     memset(&s_ctx, 0, sizeof(s_ctx));
     s_ctx.device_state  = DEV_STATE_INIT;
-    s_ctx.safety_state  = SAFETY_STATE_OK;
     s_ctx.wash_step     = WASH_STEP_IDLE;
     s_ctx.wash_mode     = WASH_MODE_STANDARD;
     pthread_mutex_unlock(&s_mutex);
@@ -45,27 +44,10 @@ dev_state_t dev_ctx_get_device_state(void)
     return state;
 }
 
-safety_state_t dev_ctx_get_safety_state(void)
-{
-    safety_state_t state;
-
-    pthread_mutex_lock(&s_mutex);
-    state = s_ctx.safety_state;
-    pthread_mutex_unlock(&s_mutex);
-    return state;
-}
-
 void dev_ctx_set_device_state(dev_state_t state)
 {
     pthread_mutex_lock(&s_mutex);
     s_ctx.device_state = state;
-    pthread_mutex_unlock(&s_mutex);
-}
-
-void dev_ctx_set_safety_state(safety_state_t state)
-{
-    pthread_mutex_lock(&s_mutex);
-    s_ctx.safety_state = state;
     pthread_mutex_unlock(&s_mutex);
 }
 
@@ -74,13 +56,6 @@ void dev_ctx_set_wash_progress(wash_step_t step, wash_mode_t mode)
     pthread_mutex_lock(&s_mutex);
     s_ctx.wash_step = step;
     s_ctx.wash_mode = mode;
-    pthread_mutex_unlock(&s_mutex);
-}
-
-void dev_ctx_set_alarm_state(bool has_error)
-{
-    pthread_mutex_lock(&s_mutex);
-    s_ctx.has_error_alarm = has_error;
     pthread_mutex_unlock(&s_mutex);
 }
 

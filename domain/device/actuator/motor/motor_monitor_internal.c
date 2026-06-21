@@ -9,7 +9,6 @@
 
 #include "domain/device/actuator/motor/motor_internal.h"
 
-#include "domain/safety/alarm_core.h"
 #include "common/time_util.h"
 #include "config/threading/thread_config.h"
 #include "common/log.h"
@@ -202,8 +201,7 @@ void motor_monitor_apply_faults_locked(const motor_monitor_job_t jobs[MOTOR_MON_
     for (int source = MOTOR_MON_SRC_NONE + 1; source < MOTOR_MON_SRC_MAX; source++)
     {
         const motor_monitor_job_t *job          = &jobs[source];
-        bool                       should_fault = false;
-        uint16_t                   alarm_code   = 0U;
+        bool should_fault = false;
 
         if (!job->used)
         {
@@ -232,30 +230,14 @@ void motor_monitor_apply_faults_locked(const motor_monitor_job_t jobs[MOTOR_MON_
                                                   job,
                                                   elapsed_ms,
                                                   THD_MOTOR_TICK_PERIOD_MS);
-            if (fault == MOTOR_MON_FAULT_CURRENT)
+            if ((fault == MOTOR_MON_FAULT_CURRENT) || (fault == MOTOR_MON_FAULT_STATUS))
             {
                 should_fault = true;
-                if (cfg->alarm_code_current != 0U)
-                {
-                    alarm_code = cfg->alarm_code_current;
-                }
-            }
-            else if (fault == MOTOR_MON_FAULT_STATUS)
-            {
-                should_fault = true;
-                if (cfg->alarm_code_fault != 0U)
-                {
-                    alarm_code = cfg->alarm_code_fault;
-                }
             }
         }
 
         if (should_fault)
         {
-            if (alarm_code != 0U)
-            {
-                alarm_core_set_state(alarm_code, true, false);
-            }
             motor_apply_source_fault_locked((motor_monitor_source_t)source, ops);
         }
     }

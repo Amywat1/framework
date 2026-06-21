@@ -7,7 +7,6 @@
 
 #include "adapters/machine/m8/m8_vfd_setup.h"
 #include "adapters/hal/linux_hw/hal_vfd_linux.h"
-#include "adapters/machine/m8/m8_alarm_adapt.h"
 #include "adapters/machine/m8/m8_machine_map.h"
 #include "config/machine/m8_vfd_table.h"
 #include "ports/hal/hal_io_port.h"
@@ -27,46 +26,12 @@ static sw_err_t io_do_set(io_do_t pin, bool val)
 
 static void brush_vfd_event_cb(int event_code)
 {
-    if (event_code == HAL_VFD_EVT_COMM_LOST)
-    {
-        m8_alarm_on_vfd_comm_lost(true);
-    }
-    else if (event_code == HAL_VFD_EVT_COMM_RESTORED)
-    {
-        m8_alarm_on_vfd_comm_restored(true);
-    }
-    else if (event_code == HAL_VFD_EVT_FAULT_DETECTED)
-    {
-        m8_alarm_on_vfd_fault(true, true);
-    }
-    else if (event_code == HAL_VFD_EVT_FAULT_CLEARED)
-    {
-        m8_alarm_on_vfd_fault(true, false);
-    }
-    else if (event_code == HAL_VFD_EVT_CURRENT_UPDATE)
-    {
-        m8_alarm_on_vfd_current_update(true);
-    }
+    (void)event_code;
 }
 
 static void gantry_vfd_event_cb(int event_code)
 {
-    if (event_code == HAL_VFD_EVT_COMM_LOST)
-    {
-        m8_alarm_on_vfd_comm_lost(false);
-    }
-    else if (event_code == HAL_VFD_EVT_COMM_RESTORED)
-    {
-        m8_alarm_on_vfd_comm_restored(false);
-    }
-    else if (event_code == HAL_VFD_EVT_FAULT_DETECTED)
-    {
-        m8_alarm_on_vfd_fault(false, true);
-    }
-    else if (event_code == HAL_VFD_EVT_FAULT_CLEARED)
-    {
-        m8_alarm_on_vfd_fault(false, false);
-    }
+    (void)event_code;
 }
 
 sw_err_t m8_vfd_setup(void)

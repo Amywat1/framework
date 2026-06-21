@@ -6,7 +6,6 @@
  */
 
 #include "domain/device/unit/brush.h"
-#include "domain/safety/interlock.h"
 #include "common/log.h"
 
 static brush_id_t s_active_brush = BRUSH_ID_NONE;
@@ -22,8 +21,6 @@ sw_err_t brush_init(void)
 
 sw_err_t brush_start(brush_id_t id, uint16_t freq_hz)
 {
-    sw_err_t ret;
-
     if (id == BRUSH_ID_NONE)
     {
         return SW_ERR_PARAM;
@@ -31,12 +28,6 @@ sw_err_t brush_start(brush_id_t id, uint16_t freq_hz)
     if (freq_hz == 0U)
     {
         return brush_stop();
-    }
-
-    ret = interlock_check_motion(MOTION_TYPE_BRUSH_SWITCH);
-    if (ret != SW_OK)
-    {
-        return ret;
     }
 
     (void)id;

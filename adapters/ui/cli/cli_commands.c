@@ -20,9 +20,7 @@
 #include "common/log.h"
 #include "domain/model/command.h"
 #include "domain/model/wash_types.h"
-#include "domain/model/alarm_code.h"
 #include "ports/cloud/command_port.h"
-#include "domain/safety/alarm_core.h"
 #include "ports/hal/hal_io_port.h"
 #include "common/io_handle.h"
 #include "service/dev_ctx/dev_ctx.h"
@@ -84,12 +82,10 @@ int device_cmd_handler(char *subcmd, char *p1, char *p2)
     if (strcmp(subcmd, "status") == 0)
     {
         device_context_t ctx = dev_ctx_snapshot();
-        LOG_INFO("device: state=%d safety=%d step=%d mode=%d alarm=%d cloud=%d",
+        LOG_INFO("device: state=%d step=%d mode=%d cloud=%d",
                  (int)ctx.device_state,
-                 (int)ctx.safety_state,
                  (int)ctx.wash_step,
                  (int)ctx.wash_mode,
-                 (int)ctx.has_error_alarm,
                  (int)ctx.cloud_connected);
         return 1;
     }
@@ -146,51 +142,15 @@ int device_cmd_handler(char *subcmd, char *p1, char *p2)
 }
 
 /* -------------------------------------------------------------------------
- * safety 命令域
+ * safety 命令域（报警功能已禁用）
  * ------------------------------------------------------------------------- */
 int safety_cmd_handler(char *subcmd, char *p1, char *p2)
 {
+    (void)subcmd;
     (void)p1;
     (void)p2;
-
-    if (subcmd == NULL)
-    {
-        return 0;
-    }
-
-    if (strcmp(subcmd, "status") == 0)
-    {
-        LOG_INFO("safety: has_error=%d has_warning=%d",
-                 (int)alarm_core_has_error(),
-                 (int)alarm_core_has_warning());
-
-        static const uint16_t codes[] = {
-            ALARM_CODE_ESTOP,
-            ALARM_CODE_GANTRY_FWD_LIM, ALARM_CODE_GANTRY_REV_LIM,
-            ALARM_CODE_VFD_GANTRY, ALARM_CODE_VFD_BRUSH,
-            ALARM_CODE_GANTRY_CURRENT, ALARM_CODE_BRUSH_CURRENT,
-            ALARM_CODE_MODBUS_GANTRY, ALARM_CODE_MODBUS_BRUSH,
-            ALARM_CODE_MQTT_OFFLINE,
-        };
-
-        for (size_t i = 0; i < sizeof(codes) / sizeof(codes[0]); ++i)
-        {
-            if (alarm_core_is_active(codes[i]))
-            {
-                LOG_INFO("  ACTIVE: code=%u", (unsigned)codes[i]);
-            }
-        }
-        return 1;
-    }
-
-    if (strcmp(subcmd, "reset") == 0)
-    {
-        alarm_core_manual_reset();
-        LOG_INFO("safety: manual reset done");
-        return 1;
-    }
-
-    return 0;
+    LOG_INFO("safety: alarm disabled");
+    return 1;
 }
 
 /* -------------------------------------------------------------------------
@@ -389,11 +349,9 @@ int diag_cmd_handler(char *subcmd, char *p1, char *p2)
     if (strcmp(subcmd, "state") == 0)
     {
         device_context_t ctx = dev_ctx_snapshot();
-        LOG_INFO("diag state: dev=%d safety=%d step=%d alarm=%d",
+        LOG_INFO("diag state: dev=%d step=%d",
                  (int)ctx.device_state,
-                 (int)ctx.safety_state,
-                 (int)ctx.wash_step,
-                 (int)ctx.has_error_alarm);
+                 (int)ctx.wash_step);
         return 1;
     }
 

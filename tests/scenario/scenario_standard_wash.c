@@ -17,8 +17,6 @@
 #include "core/scheduler/thread_registry.h"
 #include "core/scheduler/scheduler.h"
 #include "service/dev_ctx/dev_ctx.h"
-#include "domain/safety/alarm_core.h"
-#include "domain/safety/safety_fsm.h"
 #include "domain/device/unit/brush.h"
 #include "domain/device/unit/gantry.h"
 #include "domain/device/water.h"
@@ -29,7 +27,6 @@
 #include "application/orchestrators/emergency_handler.h"
 #include "application/orchestrators/device_fsm.h"
 #include "adapters/hal/generic/hal_sensor.h"
-#include "adapters/machine/m8/m8_alarm_adapt.h"
 #include "adapters/machine/m8/m8_sensor_setup.h"
 #include "adapters/machine/m8/m8_signal_filter.h"
 #include "adapters/machine/m8/m8_signal_sim.h"
@@ -68,8 +65,7 @@ static void *scenario_io_poll_fn(void *arg)
     while (true)
     {
         m8_signal_filter_tick();
-        alarm_core_tick_ms(ALARM_POLL_PERIOD_MS);
-        usleep((unsigned long)ALARM_POLL_PERIOD_MS * 1000UL);
+        usleep((unsigned long)THD_IO_POLL_PERIOD_MS * 1000UL);
     }
     return NULL;
 }
@@ -157,7 +153,6 @@ static void scenario_setup(void)
     time_util_init();
     (void)event_bus_init();
     (void)dev_ctx_init();
-    (void)alarm_core_init();
     (void)m8_sensor_setup();
     m8_signal_sim_reset_all();
 
@@ -165,8 +160,6 @@ static void scenario_setup(void)
     m8_signal_sim_set_lift_bottom(true);
     m8_signal_sim_set_fwd_limit(false);
     m8_signal_sim_set_rev_limit(false);
-    (void)m8_alarm_adapt_init();
-    (void)safety_fsm_init();
     (void)motor_init();
     (void)brush_init();
     (void)gantry_init();

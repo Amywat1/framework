@@ -13,7 +13,6 @@
 #include "domain/device/unit/brush.h"
 #include "domain/device/unit/gantry.h"
 #include "domain/device/water.h"
-#include "domain/safety/alarm_core.h"
 #include "core/event_bus/event_bus.h"
 #include "config/threading/thread_config.h"
 #include "common/event_types.h"
@@ -118,12 +117,6 @@ static sw_err_t wait_exit(const wash_step_config_t *s, uint32_t timeout_ms)
         if (atomic_load(&s_abort_req))
         {
             LOG_WARN("wash_exec: aborted at [%s]", s->name);
-            return SW_ERR_STATE;
-        }
-
-        if (alarm_core_has_error())
-        {
-            LOG_ERROR("wash_exec: ERROR alarm at [%s]", s->name);
             return SW_ERR_STATE;
         }
 
@@ -293,12 +286,6 @@ sw_err_t wash_orchestrator_start(wash_mode_t mode)
         LOG_WARN("wash_orchestrator_start: busy");
         return SW_ERR_BUSY;
     }
-    if (alarm_core_has_error())
-    {
-        LOG_ERROR("wash_orchestrator_start: ERROR alarm active");
-        return SW_ERR_STATE;
-    }
-
     s_mode = mode;
     atomic_store(&s_busy, true);
     sem_post(&s_start_sem);

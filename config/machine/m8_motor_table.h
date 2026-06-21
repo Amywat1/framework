@@ -14,7 +14,6 @@
 #include "common/io_handle.h"
 #include "config/machine/m8_io_pins.h"
 #include "config/machine/m8_vfd_table.h"
-#include "domain/model/alarm_code.h"
 #include <stdbool.h>
 #include <stdint.h>
 
@@ -90,8 +89,6 @@ typedef struct
     uint16_t             current_low_threshold;
     uint16_t             current_check_delay_ms;
     uint16_t             current_confirm_ms;
-    uint16_t             alarm_code_current;
-    uint16_t             alarm_code_fault;
 } motor_cfg_t;
 
 static const motor_cfg_t m8_motor_table[] = {
@@ -124,8 +121,6 @@ static const motor_cfg_t m8_motor_table[] = {
         .current_low_threshold  = 0U,
         .current_check_delay_ms = 0U,
         .current_confirm_ms     = 0U,
-        .alarm_code_current     = ALARM_CODE_GANTRY_CURRENT,
-        .alarm_code_fault       = ALARM_CODE_VFD_GANTRY,
     },
 };
 

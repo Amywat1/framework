@@ -11,8 +11,6 @@
 #include "service/svc_param/svc_param.h"
 #include "domain/device/gate.h"
 #include "domain/device/unit/gantry.h"
-#include "domain/safety/alarm_core.h"
-#include "domain/safety/safety_fsm.h"
 #include "core/event_bus/event_bus.h"
 #include "common/event_types.h"
 #include "common/log.h"
@@ -70,10 +68,7 @@ static bool cmd_stale_for_state(dev_state_t expected)
 
 static bool cmd_stale_for_start_wash(void)
 {
-    device_context_t ctx = dev_ctx_snapshot();
-
-    return (ctx.safety_state != SAFETY_STATE_OK) ||
-           (ctx.device_state != DEV_STATE_IDLE);
+    return get_state() != DEV_STATE_IDLE;
 }
 
 /* -------------------------------------------------------------------------
@@ -143,19 +138,9 @@ static void on_cmd_reset_fault(const event_t *evt)
         return;
     }
 
-    alarm_core_manual_reset();
-    safety_fsm_reevaluate();
-
-    if (!alarm_core_has_error())
-    {
-        set_state(DEV_STATE_IDLE);
-        apply_idle_indicator();
-        LOG_INFO("device_fsm: FAULT → IDLE (reset ok)");
-    }
-    else
-    {
-        LOG_WARN("device_fsm: RESET_FAULT: alarm still active");
-    }
+    set_state(DEV_STATE_IDLE);
+    apply_idle_indicator();
+    LOG_INFO("device_fsm: FAULT → IDLE (reset)");
 }
 
 /* EVT_CMD_HOME_DEVICE */

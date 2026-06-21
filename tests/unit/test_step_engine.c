@@ -12,8 +12,6 @@
 
 #include "application/orchestrators/wash_orchestrator.h"
 #include "domain/process/recipe.h"
-#include "domain/safety/alarm_core.h"
-#include "domain/model/alarm_code.h"
 #include "domain/model/wash_types.h"
 #include "domain/device/actuator/motor/motor.h"
 #include "domain/device/unit/brush.h"
@@ -173,7 +171,6 @@ static void test_step_normal_fwd_limit(void)
 {
     printf("TC-1: step normal completion (fwd limit)\n");
     reset_mock_state();
-    (void)alarm_core_init();
     wash_exec_clear_abort();
 
     /* 构造一个 PREWASH 步骤：龙门前进，退出条件=前限位 */
@@ -205,7 +202,6 @@ static void test_step_timeout(void)
 {
     printf("TC-2: step timeout\n");
     reset_mock_state();
-    (void)alarm_core_init();
     wash_exec_clear_abort();
 
     /* 设置极短超时（60ms < poll 间隔 50ms × 2 = 100ms），限位永远不触发 */
@@ -224,38 +220,11 @@ static void test_step_timeout(void)
     printf("  PASS\n");
 }
 
-/* TC-3：步骤中急停触发 → SW_ERR_STATE */
-static void test_step_abort_on_alarm(void)
-{
-    printf("TC-3: abort on ERROR alarm\n");
-    reset_mock_state();
-    (void)alarm_core_init();
-    wash_exec_clear_abort();
-
-    /* 预设：第一次 poll 时急停已激活 */
-    alarm_core_set_state(ALARM_CODE_ESTOP, true, false);
-
-    wash_step_config_t step = {
-        .step             = WASH_STEP_PREWASH,
-        .name             = "预洗(带报警)",
-        .gantry_freq      = 2500U,
-        .gantry_fwd       = true,
-        .exit_at_fwd_limit = true,
-        .exit_pos_pulse   = -1,
-    };
-
-    sw_err_t ret = wash_exec_step(&step, 5000U, 4500U);
-    assert(ret == SW_ERR_STATE);
-
-    printf("  PASS\n");
-}
-
-/* TC-4：wash_orchestrator_abort() 中止当前步骤 */
+/* TC-3：wash_orchestrator_abort() 中止当前步骤 */
 static void test_step_abort_flag(void)
 {
-    printf("TC-4: wash_orchestrator_abort() flag\n");
+    printf("TC-3: wash_orchestrator_abort() flag\n");
     reset_mock_state();
-    (void)alarm_core_init();
 
     /* 预设中止标志 */
     wash_orchestrator_abort();
@@ -281,12 +250,11 @@ static void test_step_abort_flag(void)
     printf("  PASS\n");
 }
 
-/* TC-5：ENTRY / COMPLETE 步骤无需等待（立即返回 SW_OK）*/
+/* TC-4：ENTRY / COMPLETE 步骤无需等待（立即返回 SW_OK）*/
 static void test_entry_complete_immediate(void)
 {
-    printf("TC-5: ENTRY/COMPLETE immediate return\n");
+    printf("TC-4: ENTRY/COMPLETE immediate return\n");
     reset_mock_state();
-    (void)alarm_core_init();
     wash_exec_clear_abort();
 
     wash_step_config_t entry = {
@@ -317,7 +285,6 @@ int main(void)
     hal_vfd_register(&s_mock_vfd_ops);
     /* 初始化基础组件 */
     (void)event_bus_init();
-    (void)alarm_core_init();
     (void)motor_init();
     (void)brush_init();
     (void)gantry_init();
@@ -326,7 +293,6 @@ int main(void)
 
     test_step_normal_fwd_limit();
     test_step_timeout();
-    test_step_abort_on_alarm();
     test_step_abort_flag();
     test_entry_complete_immediate();
 
