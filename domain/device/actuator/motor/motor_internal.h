@@ -99,8 +99,10 @@ bool               motor_encoder_board_is_online(const hal_motor_ops_t *ops,
 void               motor_enter_fault_locked(int id,
                                             const motor_cfg_t *cfg,
                                             const hal_motor_ops_t *ops);
-/* 返回 true 表示已写入完成事件参数，调用方应传入非空 event_param。 */
-bool               motor_finish_locked(int id, sw_err_t result, uint32_t *event_param);
+/* 返回 true 表示需要向上层发出完成通知（由 motor_tick 在锁外调用回调）。 */
+bool               motor_finish_locked(int id, sw_err_t result);
+/* 在锁外调用，触发已注册的完成回调。 */
+void               motor_notify_done(int id, sw_err_t result);
 
 void               motor_encoder_update_locked(int id,
                                                const hal_motor_ops_t *ops,

@@ -50,26 +50,20 @@ typedef uint16_t event_type_t;
 
 /* -------------------------------------------------------------------------
  * HW 类（adapters/hal、signal_filter 发布）
+ * 限位信号（GANTRY_FWD/REV_LIM、LIFT_UP/DOWN_LIM）由 motor_tick 直接轮询，
+ * 不经过事件总线。
  * ------------------------------------------------------------------------- */
 #define EVT_HW_ID_ESTOP_ON           0U
 #define EVT_HW_ID_ESTOP_OFF          1U
-#define EVT_HW_ID_GANTRY_FWD_LIM     2U
-#define EVT_HW_ID_GANTRY_REV_LIM     3U
-#define EVT_HW_ID_LIFT_UP_LIM        4U
-#define EVT_HW_ID_LIFT_DOWN_LIM      5U
-#define EVT_HW_ID_ENCODER_ERR        6U
-#define EVT_HW_ID_IO_OFFLINE         7U
-#define EVT_HW_ID_IO_ONLINE          8U
-#define EVT_HW_ID_VFD_BRUSH_FAULT     9U
-#define EVT_HW_ID_VFD_GANTRY_FAULT   10U
-/* 预留 11~31 */
+#define EVT_HW_ID_ENCODER_ERR        2U
+#define EVT_HW_ID_IO_OFFLINE         3U
+#define EVT_HW_ID_IO_ONLINE          4U
+#define EVT_HW_ID_VFD_BRUSH_FAULT    5U
+#define EVT_HW_ID_VFD_GANTRY_FAULT   6U
+/* 预留 7~31 */
 
 #define EVT_HW_ESTOP_ON          EVT_MAKE(EVT_CAT_HW, EVT_HW_ID_ESTOP_ON)
 #define EVT_HW_ESTOP_OFF         EVT_MAKE(EVT_CAT_HW, EVT_HW_ID_ESTOP_OFF)
-#define EVT_HW_GANTRY_FWD_LIM    EVT_MAKE(EVT_CAT_HW, EVT_HW_ID_GANTRY_FWD_LIM)
-#define EVT_HW_GANTRY_REV_LIM    EVT_MAKE(EVT_CAT_HW, EVT_HW_ID_GANTRY_REV_LIM)
-#define EVT_HW_LIFT_UP_LIM       EVT_MAKE(EVT_CAT_HW, EVT_HW_ID_LIFT_UP_LIM)
-#define EVT_HW_LIFT_DOWN_LIM     EVT_MAKE(EVT_CAT_HW, EVT_HW_ID_LIFT_DOWN_LIM)
 #define EVT_HW_ENCODER_ERR       EVT_MAKE(EVT_CAT_HW, EVT_HW_ID_ENCODER_ERR)
 #define EVT_HW_IO_OFFLINE        EVT_MAKE(EVT_CAT_HW, EVT_HW_ID_IO_OFFLINE)
 #define EVT_HW_IO_ONLINE         EVT_MAKE(EVT_CAT_HW, EVT_HW_ID_IO_ONLINE)
@@ -78,14 +72,13 @@ typedef uint16_t event_type_t;
 
 /* -------------------------------------------------------------------------
  * COMP 类（domain/device 发布）
+ * 电机单次动作完成（MOTOR_DONE）和刷子启动（BRUSH_STARTED）属于域内完成通知，
+ * 改由 motor_set_done_cb 回调传递，不经过事件总线。
  * ------------------------------------------------------------------------- */
-#define EVT_COMP_ID_MOTOR_DONE       0U
-#define EVT_COMP_ID_HOME_DONE        1U
-#define EVT_COMP_ID_BRUSH_STARTED    2U
+#define EVT_COMP_ID_HOME_DONE        0U
+/* 预留 1~31 */
 
-#define EVT_COMP_MOTOR_DONE      EVT_MAKE(EVT_CAT_COMP, EVT_COMP_ID_MOTOR_DONE)
 #define EVT_COMP_HOME_DONE       EVT_MAKE(EVT_CAT_COMP, EVT_COMP_ID_HOME_DONE)
-#define EVT_COMP_BRUSH_STARTED   EVT_MAKE(EVT_CAT_COMP, EVT_COMP_ID_BRUSH_STARTED)
 
 /* -------------------------------------------------------------------------
  * SAFETY 类（domain/safety/safety_fsm 发布）

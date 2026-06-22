@@ -15,24 +15,21 @@
 
 /*
  * 位置来源：统一委托给 motor 管理层。
- * 事件驱动模式下，motor_tick_loop 会定时同步 HAL 外部位置；
+ * motor_tick_loop 定时同步 HAL 外部位置；
  * 将来切到硬件脉冲计数器模式时，上层无需改动。
  */
 static atomic_bool s_homing = false; /* 正在归位中 */
 
 /* -------------------------------------------------------------------------
- * 事件处理（由 event_dispatch_thread 调用）
+ * motor 完成回调（由 motor_tick 线程在释放锁后调用）
  * ------------------------------------------------------------------------- */
-static void on_gantry_done(const event_t *evt)
+static void on_motor_done(int motor_id, sw_err_t result, void *ctx)
 {
-    int      motor_id = MOTOR_DONE_PARAM_ID(evt->param);
-    sw_err_t result   = MOTOR_DONE_PARAM_RESULT(evt->param);
     sw_err_t clear_ret;
+    (void)ctx;
 
-    if (motor_id != MOTOR_GANTRY)
-    {
-        return;
-    }
+    /* motor_set_done_cb 已按 motor_id 注册，此处无需过滤 */
+    (void)motor_id;
 
     if (!atomic_load(&s_homing))
     {
@@ -67,16 +64,14 @@ static void on_gantry_done(const event_t *evt)
  * ------------------------------------------------------------------------- */
 sw_err_t gantry_init(void)
 {
+    sw_err_t ret;
+
     atomic_store(&s_homing, false);
 
-    sw_err_t ret = event_subscribe_table(
-        (const event_subscription_t[]){
-            { EVT_COMP_MOTOR_DONE, on_gantry_done },
-        },
-        1U);
+    ret = motor_set_done_cb(MOTOR_GANTRY, on_motor_done, NULL);
     if (ret != SW_OK)
     {
-        LOG_ERROR("gantry_init: subscribe EVT_COMP_MOTOR_DONE failed");
+        LOG_ERROR("gantry_init: motor_set_done_cb failed ret=%d", (int)ret);
         return ret;
     }
 

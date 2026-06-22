@@ -71,12 +71,14 @@ typedef void (*event_bus_fatal_cb_t)(event_bus_fatal_reason_t reason, int sys_er
  * ------------------------------------------------------------------------- */
 typedef struct
 {
-    uint32_t published_count;      /* 成功入队的事件数 */
+    uint32_t published_count;      /* 成功入队的事件数（高 + 普通） */
     uint32_t dispatched_count;     /* 成功出队并进入分发的事件数 */
     uint32_t dropped_count;        /* 因队列满丢弃的事件数 */
     uint32_t subscribe_count;      /* 已登记的订阅槽数量 */
-    uint32_t queue_depth;          /* 当前队列深度 */
-    uint32_t queue_peak_depth;     /* 历史最大队列深度 */
+    uint32_t queue_depth;          /* 普通队列当前深度 */
+    uint32_t queue_peak_depth;     /* 普通队列历史最大深度 */
+    uint32_t hi_queue_depth;       /* 高优先级队列当前深度 */
+    uint32_t hi_queue_peak_depth;  /* 高优先级队列历史最大深度 */
     uint32_t sem_post_fail_count;  /* sem_post 失败次数 */
     uint32_t sem_wait_fail_count;  /* sem_wait 非 EINTR 失败次数 */
 } event_bus_stats_t;

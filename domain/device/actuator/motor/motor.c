@@ -18,6 +18,9 @@ static const motor_cfg_t *s_cfg_map[MOTOR_ID_MAX];
 motor_ctx_t        s_ctx[MOTOR_ID_MAX];
 bool               s_initialized = false;
 
+static motor_done_cb_t s_done_cbs[MOTOR_ID_MAX];
+static void           *s_done_cb_ctxs[MOTOR_ID_MAX];
+
 /* =========================================================================
  * 基础工具函数（仅做查询和轻量判断）
  * ========================================================================= */
@@ -493,8 +496,8 @@ static sw_err_t motor_run_timed_command(int id, int speed_ref, uint32_t duration
     return ret;
 }
 
-/* 返回 true 表示已写入完成事件参数，调用方应传入非空 event_param。 */
-bool motor_finish_locked(int id, sw_err_t result, uint32_t *event_param)
+/* 返回 true 表示需要向上层发出完成通知（由 motor_tick 在锁外调用回调）。 */
+bool motor_finish_locked(int id, sw_err_t result)
 {
     const motor_cfg_t *cfg = motor_get_cfg_locked(id);
     sw_err_t           stop_ret;
@@ -505,12 +508,27 @@ bool motor_finish_locked(int id, sw_err_t result, uint32_t *event_param)
         result = stop_ret;
     }
 
-    if (motor_should_publish_done_event(cfg) && (event_param != NULL))
+    return motor_should_publish_done_event(cfg);
+}
+
+/* 在 motor_tick 释放锁后调用，触发已注册的完成回调。 */
+void motor_notify_done(int id, sw_err_t result)
+{
+    motor_done_cb_t cb;
+    void           *ctx;
+
+    if ((id < 0) || (id >= MOTOR_ID_MAX))
     {
-        *event_param = MOTOR_DONE_PARAM_PACK(id, result);
-        return true;
+        return;
     }
-    return false;
+
+    cb  = s_done_cbs[id];
+    ctx = s_done_cb_ctxs[id];
+
+    if (cb != NULL)
+    {
+        cb(id, result, ctx);
+    }
 }
 
 /* =========================================================================
@@ -797,4 +815,16 @@ bool motor_at_rev_limit(int id)
         return false;
     }
     return ops->at_rev_limit(id);
+}
+
+sw_err_t motor_set_done_cb(int motor_id, motor_done_cb_t cb, void *ctx)
+{
+    if ((motor_id < 0) || (motor_id >= MOTOR_ID_MAX))
+    {
+        return SW_ERR_PARAM;
+    }
+
+    s_done_cbs[motor_id]     = cb;
+    s_done_cb_ctxs[motor_id] = ctx;
+    return SW_OK;
 }

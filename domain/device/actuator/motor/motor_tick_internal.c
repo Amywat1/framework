@@ -9,8 +9,6 @@
 
 #include "domain/device/actuator/motor/motor_internal.h"
 
-#include "core/event_bus/event_bus.h"
-#include "common/event_types.h"
 #include "common/time_util.h"
 #include "common/log.h"
 #include "config/threading/thread_config.h"
@@ -23,7 +21,8 @@ typedef struct
     encoder_hw_job_t    encoder_jobs[MOTOR_ID_MAX];
     const motor_cfg_t  *encoder_cfgs[MOTOR_ID_MAX];
     motor_monitor_job_t monitor_jobs[MOTOR_MON_SRC_MAX];
-    uint32_t            done_params[MOTOR_ID_MAX];
+    int                 done_ids[MOTOR_ID_MAX];
+    sw_err_t            done_results[MOTOR_ID_MAX];
     int                 done_count;
 } motor_tick_ctx_t;
 
@@ -34,8 +33,10 @@ static void motor_record_done_event_locked(motor_tick_ctx_t *tick, int id, sw_er
         return;
     }
 
-    if (motor_finish_locked(id, result, &tick->done_params[tick->done_count]))
+    if (motor_finish_locked(id, result))
     {
+        tick->done_ids[tick->done_count]     = id;
+        tick->done_results[tick->done_count] = result;
         tick->done_count++;
     }
 }
@@ -260,7 +261,7 @@ static bool motor_tick_collect_done_locked(motor_tick_ctx_t      *tick,
     return true;
 }
 
-static void motor_tick_publish_done_events(const motor_tick_ctx_t *tick)
+static void motor_tick_notify_done(const motor_tick_ctx_t *tick)
 {
     if (tick == NULL)
     {
@@ -269,7 +270,7 @@ static void motor_tick_publish_done_events(const motor_tick_ctx_t *tick)
 
     for (int i = 0; i < tick->done_count; i++)
     {
-        (void)event_publish(EVT_COMP_MOTOR_DONE, tick->done_params[i]);
+        motor_notify_done(tick->done_ids[i], tick->done_results[i]);
     }
 }
 
@@ -315,7 +316,7 @@ void *motor_tick_loop(void *arg)
         }
         pthread_mutex_unlock(&s_mutex);
 
-        motor_tick_publish_done_events(&tick);
+        motor_tick_notify_done(&tick);
         usleep((unsigned long)THD_MOTOR_TICK_PERIOD_MS * 1000UL);
     }
 }
