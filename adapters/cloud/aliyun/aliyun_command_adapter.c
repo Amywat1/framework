@@ -6,17 +6,16 @@
  *
  * @note    负责 MQTT 协议层（初始化连接、注册接收回调）。
  *          命令语义解析委托给 mqtt_command_parser。
- *          解析结果通过 command_port.inject() 注入，不直接调用 event_bus，
- *          保持 adapters → ports 单向依赖。
+ *          解析结果通过 command_port.inject() 注入，保持 adapters → ports 单向依赖。
+ *          EVT_CLOUD_CONNECTED 由调用方（bootstrap）根据返回值决定是否发布。
  */
 
+#include "adapters/cloud/aliyun/aliyun_command_adapter.h"
 #include "adapters/cloud/aliyun/aliyun_topics.h"
 #include "adapters/ui/mqtt_cmd/mqtt_command_parser.h"
 #include "ports/cloud/command_port.h"
 #include "ports/storage/deploy_store.h"
-#include "core/event_bus/event_bus.h"
-#include "common/event_types.h"
-#include "adapters/runtime/snack/snack_wrapper.h"
+#include "adapters/sdk/snack/snack_wrapper.h"
 #include "common/log.h"
 #include <string.h>
 
@@ -50,7 +49,7 @@ static void mqtt_recv_cb(const char *msg)
 /* -------------------------------------------------------------------------
  * 初始化：连接 MQTT 并注册消息接收回调
  * ------------------------------------------------------------------------- */
-void aliyun_command_adapter_init(void)
+bool aliyun_command_adapter_init(void)
 {
     const deploy_store_ops_t *ds = deploy_store_get_ops();
     char product_key[64]   = "M8_PRODUCT_KEY";
@@ -67,11 +66,10 @@ void aliyun_command_adapter_init(void)
     if (aliyun_mqtt_init(product_key, device_sn, device_secret) == 0)
     {
         mqtt_recv_handler_set(mqtt_recv_cb);
-        (void)event_publish(EVT_CLOUD_CONNECTED, 0U);
         LOG_INFO("aliyun_cmd: MQTT connected, sn=%s", device_sn);
+        return true;
     }
-    else
-    {
-        LOG_WARN("aliyun_cmd: MQTT init failed, running offline");
-    }
+
+    LOG_WARN("aliyun_cmd: MQTT init failed, running offline");
+    return false;
 }

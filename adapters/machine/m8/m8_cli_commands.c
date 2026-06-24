@@ -1,17 +1,13 @@
-/**
+﻿/**
  * @file    cli_commands.c
- * @brief   CLI 命令处理实现
+ * @brief   CLI 鍛戒护澶勭悊瀹炵幇
  * @author  HUWANGWEI
  * @date    2026-04-10
  *
- * @note    提供统一的 CLI 命令入口：
- *          - device：设备状态查询与命令下发
- *          - safety：报警与急停状态查询、复位
- *          - param：参数读写与持久化
- *          - diag：底层硬件诊断
- */
+ * @note    鎻愪緵缁熶竴鐨?CLI 鍛戒护鍏ュ彛锛? *          - device锛氳澶囩姸鎬佹煡璇笌鍛戒护涓嬪彂
+ *          - safety锛氭姤璀︿笌鎬ュ仠鐘舵€佹煡璇€佸浣? *          - param锛氬弬鏁拌鍐欎笌鎸佷箙鍖? *          - diag锛氬簳灞傜‖浠惰瘖鏂? */
 
-#include "adapters/ui/cli/cli_commands.h"
+#include "adapters/machine/m8/m8_cli_commands.h"
 
 #include <stdint.h>
 #include <stdlib.h>
@@ -45,8 +41,7 @@ static void log_diag_io_usage(void)
 }
 
 /**
- * @brief  经 command_port 注入设备命令（与云端/仿真控制台同一路径）
- */
+ * @brief  缁?command_port 娉ㄥ叆璁惧鍛戒护锛堜笌浜戠/浠跨湡鎺у埗鍙板悓涓€璺緞锛? */
 static sw_err_t inject_device_cmd(cmd_type_t type, wash_mode_t mode)
 {
     const command_port_ops_t *cp = command_port_get_ops();
@@ -68,8 +63,7 @@ static sw_err_t inject_device_cmd(cmd_type_t type, wash_mode_t mode)
 }
 
 /* -------------------------------------------------------------------------
- * device 命令域
- * ------------------------------------------------------------------------- */
+ * device 鍛戒护鍩? * ------------------------------------------------------------------------- */
 int device_cmd_handler(char *subcmd, char *p1, char *p2)
 {
     (void)p2;
@@ -142,7 +136,7 @@ int device_cmd_handler(char *subcmd, char *p1, char *p2)
 }
 
 /* -------------------------------------------------------------------------
- * safety 命令域（报警功能已禁用）
+ * safety 鍛戒护鍩燂紙鎶ヨ鍔熻兘宸茬鐢級
  * ------------------------------------------------------------------------- */
 int safety_cmd_handler(char *subcmd, char *p1, char *p2)
 {
@@ -154,8 +148,7 @@ int safety_cmd_handler(char *subcmd, char *p1, char *p2)
 }
 
 /* -------------------------------------------------------------------------
- * param 命令域
- * ------------------------------------------------------------------------- */
+ * param 鍛戒护鍩? * ------------------------------------------------------------------------- */
 int param_cmd_handler(char *subcmd, char *p1, char *p2)
 {
     if (subcmd == NULL)
@@ -204,8 +197,7 @@ int param_cmd_handler(char *subcmd, char *p1, char *p2)
 }
 
 /* -------------------------------------------------------------------------
- * diag 命令域
- * ------------------------------------------------------------------------- */
+ * diag 鍛戒护鍩? * ------------------------------------------------------------------------- */
 int diag_cmd_handler(char *subcmd, char *p1, char *p2)
 {
     if (subcmd == NULL)

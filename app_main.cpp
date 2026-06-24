@@ -13,8 +13,8 @@
 #include "common/sw_version.h"
 #include "common/log.h"
 #include "config/machine/m8_machine_config.h"
-#include "adapters/runtime/snack/snack_runtime_adapter.h"
-#include "adapters/runtime/snack/snack_wrapper.h"
+#include "adapters/machine/m8/m8_runtime_adapter.h"
+#include "adapters/sdk/snack/snack_wrapper.h"
 #include "io_exp/demo.h"
 #include <unistd.h>
 
@@ -36,7 +36,7 @@ int app_main(int, char **)
 
     set_log_level(6);
     set_app_version((char *)APP_NAME, (char *)APP_VERSION);
-    snack_runtime_adapter_init();
+    m8_runtime_adapter_init();
 
     /* 先初始化 io_exp SDK 的 CAN 总线访问，再进入后续模块初始化 */
     io_ret = io_init(CFG_IO_CAN_BUS, CFG_IO_CAN_BAUD, CFG_IO_SELF_NODE, CFG_IO_BOARD_COUNT);

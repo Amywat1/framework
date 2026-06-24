@@ -1,12 +1,15 @@
 /**
- * @file    snack_runtime_adapter.cpp
- * @brief   snack 运行时适配实现
+ * @file    m8_runtime_adapter.cpp
+ * @brief   M8 机型运行时适配实现
  * @author  HUWANGWEI
- * @date    2026-04-10
+ * @date    2026-06-23
+ *
+ * @note    从 /home/neardi/tool/frp/frpc.ini 读取远程调试端口，
+ *          并注册 IO 子板日志回调。此为 M8 设备专属配置。
  */
 
-#include "adapters/runtime/snack/snack_runtime_adapter.h"
-#include "adapters/runtime/snack/snack_wrapper.h"
+#include "adapters/machine/m8/m8_runtime_adapter.h"
+#include "adapters/sdk/snack/snack_wrapper.h"
 #include "log/mlog.h"
 #include "io_exp/demo.h"
 
@@ -32,7 +35,7 @@ static int snack_io_log(const char *fmt, ...)
 }
 
 /* -------------------------------------------------------------------------
- * 调试远程端口读取
+ * 从 frpc.ini 读取远程调试端口
  * ------------------------------------------------------------------------- */
 static int load_remote_port(const std::string &filename)
 {
@@ -55,7 +58,7 @@ static int load_remote_port(const std::string &filename)
 /* -------------------------------------------------------------------------
  * 对外接口
  * ------------------------------------------------------------------------- */
-void snack_runtime_adapter_init(void)
+void m8_runtime_adapter_init(void)
 {
     set_remote_port(load_remote_port("/home/neardi/tool/frp/frpc.ini"));
     io_logApi_set(snack_io_log);

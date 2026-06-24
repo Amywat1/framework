@@ -1,14 +1,12 @@
 /**
- * @file    cli_commands.h
- * @brief   CLI 命令处理函数声明
+ * @file    m8_cli_commands.h
+ * @brief   M8 机型 CLI 命令处理函数声明
  * @author  HUWANGWEI
  * @date    2026-04-10
- *
- * @note    由 `cli_adapter.cpp` 调用。
  */
 
-#ifndef ADAPTERS_UI_CLI_COMMANDS_H
-#define ADAPTERS_UI_CLI_COMMANDS_H
+#ifndef ADAPTERS_MACHINE_M8_CLI_COMMANDS_H
+#define ADAPTERS_MACHINE_M8_CLI_COMMANDS_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -30,4 +28,4 @@ int diag_cmd_handler(char *subcmd, char *p1, char *p2);
 }
 #endif
 
-#endif /* ADAPTERS_UI_CLI_COMMANDS_H */
+#endif /* ADAPTERS_MACHINE_M8_CLI_COMMANDS_H */

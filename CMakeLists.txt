@@ -88,7 +88,7 @@ list(FILTER src EXCLUDE REGEX ".*/m8_signal_sim\\.c$")
 list(FILTER src EXCLUDE REGEX ".*/wiring_sim\.c$")
 # 场景测试文件不参与产品构建
 list(FILTER src EXCLUDE REGEX ".*/tests/.*")
-# snack_wrapper.cpp 符号由 snack SDK 库提供，不重复编译
+# snack_wrapper.cpp 符号由 snack SDK 库提供，不重复编译（新路径 adapters/sdk/snack/）
 list(FILTER src EXCLUDE REGEX ".*/snack_wrapper\.cpp$")
 
 add_executable(${PROJECT_NAME} ${src})

@@ -39,8 +39,9 @@
 #ifndef BUILD_SIM
 #  include "adapters/machine/m8/m8_boot_profile.h"
 #  include "adapters/machine/m8/m8_vfd_setup.h"
-extern void aliyun_command_adapter_init(void);
-extern void cli_adapter_init(void);
+#  include "adapters/machine/m8/m8_cli_setup.h"
+#  include "adapters/cloud/aliyun/aliyun_command_adapter.h"
+#  include "common/event_types.h"
 #endif
 
 #define BOOT_CHECK(call, msg)                               \
@@ -174,8 +175,11 @@ static sw_err_t bootstrap_init_adapters(void)
     }
 
 #ifndef BUILD_SIM
-    aliyun_command_adapter_init();
-    cli_adapter_init();
+    if (aliyun_command_adapter_init())
+    {
+        (void)event_publish(EVT_CLOUD_CONNECTED, 0U);
+    }
+    m8_cli_setup();
 #endif
 
     return SW_OK;

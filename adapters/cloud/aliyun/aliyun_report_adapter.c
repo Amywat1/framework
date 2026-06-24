@@ -7,7 +7,7 @@
 
 #include "adapters/cloud/aliyun/aliyun_topics.h"
 #include "ports/cloud/report_port.h"
-#include "adapters/runtime/snack/snack_wrapper.h"
+#include "adapters/sdk/snack/snack_wrapper.h"
 #include "common/log.h"
 #include <stdio.h>
 #include <string.h>
