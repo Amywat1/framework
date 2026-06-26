@@ -44,10 +44,10 @@ static void test_set_device_state_isolated(void)
     dev_ctx_set_wash_progress(WASH_STEP_PREWASH, WASH_MODE_QUICK);
     dev_ctx_set_cloud_status(true);
 
-    dev_ctx_set_device_state(DEV_STATE_RUN);
+    dev_ctx_set_device_state(DEV_STATE_RUNNING);
     device_context_t ctx = dev_ctx_snapshot();
 
-    assert(ctx.device_state    == DEV_STATE_RUN);
+    assert(ctx.device_state    == DEV_STATE_RUNNING);
     assert(ctx.wash_step       == WASH_STEP_PREWASH);
     assert(ctx.wash_mode       == WASH_MODE_QUICK);
     assert(ctx.cloud_connected == true);
@@ -126,7 +126,7 @@ static void test_cloud_status_toggle(void)
 
 static atomic_int s_stop_flag = 0;
 
-static const dev_state_t k_states[2] = { DEV_STATE_IDLE, DEV_STATE_RUN };
+static const dev_state_t k_states[2] = { DEV_STATE_IDLE, DEV_STATE_RUNNING };
 static const wash_step_t k_steps[2]  = { WASH_STEP_IDLE, WASH_STEP_PREWASH };
 static const wash_mode_t k_modes[2]  = { WASH_MODE_STANDARD, WASH_MODE_QUICK };
 

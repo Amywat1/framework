@@ -192,7 +192,7 @@ static void tc1_normal_complete(void)
     (void)event_publish(EVT_CMD_ORDER, (uint32_t)WASH_MODE_STANDARD);
 
     /* 等待 FSM 进入 RUN */
-    assert(wait_for_state(DEV_STATE_RUN, 500U));
+    assert(wait_for_state(DEV_STATE_RUNNING, 500U));
     printf("  → RUN\n");
 
     /* 等待洗车结束（所有步骤 50ms/步 × 8 步 ≈ 400ms；余量 3s）*/
@@ -213,7 +213,7 @@ static void tc2_manual_stop(void)
 
     /* 启动洗车 */
     (void)event_publish(EVT_CMD_ORDER, (uint32_t)WASH_MODE_STANDARD);
-    assert(wait_for_state(DEV_STATE_RUN, 500U));
+    assert(wait_for_state(DEV_STATE_RUNNING, 500U));
     printf("  → RUN\n");
 
     /* 在洗车进行中发布手动停止 */

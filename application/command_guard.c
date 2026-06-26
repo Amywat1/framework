@@ -33,7 +33,7 @@ sw_err_t command_guard_check(const cmd_t *cmd)
             return SW_OK;
 
         case CMD_STOP_WASH:
-            if (ctx.device_state != DEV_STATE_RUN)
+            if (ctx.device_state != DEV_STATE_RUNNING)
             {
                 LOG_WARN("command_guard: STOP_WASH rejected (device=%d)",
                          (int)ctx.device_state);
@@ -69,7 +69,7 @@ sw_err_t command_guard_check(const cmd_t *cmd)
             return SW_OK;
 
         case CMD_HOME_DEVICE:
-            if (ctx.device_state != DEV_STATE_IDLE)
+            if (ctx.device_state != DEV_STATE_FAULT)
             {
                 LOG_WARN("command_guard: HOME_DEVICE rejected (device=%d)",
                          (int)ctx.device_state);

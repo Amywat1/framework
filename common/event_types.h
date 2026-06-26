@@ -86,10 +86,12 @@ typedef uint16_t event_type_t;
 #define EVT_SAFETY_ID_LOCKOUT        0U
 #define EVT_SAFETY_ID_WARNING        1U
 #define EVT_SAFETY_ID_CLEARED        2U
+#define EVT_SAFETY_ID_HOME_DONE      3U  /* 安全归位完成（emergency_handler 发布）*/
 
 #define EVT_SAFETY_LOCKOUT       EVT_MAKE(EVT_CAT_SAFETY, EVT_SAFETY_ID_LOCKOUT)
 #define EVT_SAFETY_WARNING       EVT_MAKE(EVT_CAT_SAFETY, EVT_SAFETY_ID_WARNING)
 #define EVT_SAFETY_CLEARED       EVT_MAKE(EVT_CAT_SAFETY, EVT_SAFETY_ID_CLEARED)
+#define EVT_SAFETY_HOME_DONE     EVT_MAKE(EVT_CAT_SAFETY, EVT_SAFETY_ID_HOME_DONE)
 
 /* -------------------------------------------------------------------------
  * ALARM 类（domain/safety/alarm_core 发布）

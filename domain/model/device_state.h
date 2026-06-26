@@ -17,12 +17,13 @@ extern "C" {
  * ------------------------------------------------------------------------- */
 typedef enum
 {
-    DEV_STATE_INIT     = 0, /* 系统初始化中 */
-    DEV_STATE_IDLE,         /* 空闲，等待订单 */
-    DEV_STATE_RUN,          /* 洗车进行中 */
-    DEV_STATE_COMPLETE,     /* 归位中（手动归位或流程收尾归位）*/
-    DEV_STATE_FAULT,        /* 故障停机，等待复位 */
-    DEV_STATE_STOP,         /* 运营关闭（人工停止运营）*/
+    DEV_STATE_INIT       = 0, /* 系统初始化中（device_fsm_init 前）*/
+    DEV_STATE_IDLE,           /* 待机，等待订单 */
+    DEV_STATE_RUNNING,        /* 洗车进行中 */
+    DEV_STATE_SUSPENDING,     /* 安全归位中：故障/急停后过渡态，emergency_handler 负责执行 */
+    DEV_STATE_FAULT,          /* 故障停机，等待归位或复位指令 */
+    DEV_STATE_HOMING,         /* 归位中：人工触发完整归位，wash_orchestrator 负责执行 */
+    DEV_STATE_STOP,           /* 运营关闭（人工停止运营）*/
 } dev_state_t;
 
 #ifdef __cplusplus
