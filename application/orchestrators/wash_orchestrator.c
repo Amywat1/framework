@@ -210,8 +210,7 @@ static void *wash_worker_fn(void *arg)
             continue;
         }
 
-        uint16_t brush_freq = (uint16_t)svc_param_get_int(
-            PARAM_KEY_BRUSH_FREQ_TOP, 4500);
+        uint16_t brush_freq = (uint16_t)svc_param_get_int("brushFreqTop", 4500);
 
         wash_exec_clear_abort();
         dev_ctx_set_wash_progress(WASH_STEP_IDLE, s_mode);

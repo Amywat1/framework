@@ -8,7 +8,10 @@
  */
 
 #include "adapters/storage/json/json_param_store.h"
-#include "adapters/storage/json/json_param_store_cfg.h"
+
+#ifndef PARAM_STORE_JSON_FILE_PATH
+#define PARAM_STORE_JSON_FILE_PATH   "/home/neardi/m8/params.json"
+#endif
 #include "ports/storage/param_store.h"
 #include "common/log.h"
 #include "tools/cJSON.h"

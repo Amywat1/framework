@@ -9,7 +9,10 @@
  *          调用方应提供硬编码默认值。
  */
 
-#include "adapters/storage/json/json_deploy_store_cfg.h"
+#ifndef DEPLOY_STORE_JSON_FILE_PATH
+#define DEPLOY_STORE_JSON_FILE_PATH  "/home/neardi/m8/device.json"
+#endif
+
 #include "ports/storage/deploy_store.h"
 #include "common/log.h"
 #include "tools/cJSON.h"

@@ -23,11 +23,7 @@ extern "C" {
  * service 层不感知具体路径。
  * ------------------------------------------------------------------------- */
 #define PARAM_KEY_WASH_MODE         "washMode"          /* 洗车模式（wash_mode_t）*/
-#define PARAM_KEY_BRUSH_FREQ_TOP    "brushFreqTop"      /* 顶刷频率（0.01Hz，默认 4500）*/
-#define PARAM_KEY_BRUSH_FREQ_SIDE   "brushFreqSide"     /* 侧刷频率（0.01Hz，默认 4500）*/
-#define PARAM_KEY_GANTRY_FREQ_SLOW  "gantryFreqSlow"    /* 龙门慢速（0.01Hz）*/
-#define PARAM_KEY_GANTRY_FREQ_FAST  "gantryFreqFast"    /* 龙门快速（0.01Hz）*/
-#define PARAM_KEY_DEVICE_SN         "deviceSn"          /* 设备序列号 */
+/* 待规划：洗车单量（washCount）*/
 
 /* -------------------------------------------------------------------------
  * 接口
