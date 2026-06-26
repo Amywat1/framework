@@ -12,20 +12,27 @@
 #include "common/log.h"
 #include <pthread.h>
 #include <stdbool.h>
+#include <string.h>
 
 /* -------------------------------------------------------------------------
- * 报警定义表（静态配置，示例集）
- * 行下标即活跃集 s_active[] 的下标；新增报警在此追加即可。
+ * 内置兜底目录（仅安全必需项）
+ *   仅在 JSON 目录加载失败时生效，保证安全报警链不失效；不追求覆盖全部报警。
+ *   长期应只保留 CRITICAL 类安全报警；普通报警缺失时降级为「不报」是可接受的
+ *   故障安全行为，强于「整表为空导致急停也不报」。
  * ------------------------------------------------------------------------- */
-static const alarm_def_t s_alarm_defs[] = {
-    { ALARM_CODE_ESTOP,              ALARM_LEVEL_CRITICAL, ALARM_CLEAR_AUTO_STATIC, "急停按钮触发" },
-    { ALARM_CODE_SIDE_BRUSH_OVERLOAD, ALARM_LEVEL_MAJOR,   ALARM_CLEAR_AUTO_STATIC, "侧刷电机过载" },
-    { ALARM_CODE_FAN_FAULT,          ALARM_LEVEL_MINOR,    ALARM_CLEAR_AUTO_STATIC, "风机报警反馈" },
+static const alarm_def_t s_fallback_defs[] = {
+    { ALARM_CODE_MAKE(2, 17, 9), ALARM_LEVEL_CRITICAL, ALARM_CLEAR_AUTO_STATIC, "急停按钮触发(兜底)" },
 };
 
-#define ALARM_DEF_COUNT  (sizeof(s_alarm_defs) / sizeof(s_alarm_defs[0]))
+#define ALARM_FALLBACK_COUNT  (sizeof(s_fallback_defs) / sizeof(s_fallback_defs[0]))
 
-static bool            s_active[ALARM_DEF_COUNT];
+/* -------------------------------------------------------------------------
+ * 报警目录（运行期可加载，固定容量）+ 活跃集
+ *   s_catalog 下标即 s_active 下标；s_count 为当前有效条目数。
+ * ------------------------------------------------------------------------- */
+static alarm_def_t     s_catalog[ALARM_CATALOG_MAX];
+static unsigned        s_count;
+static bool            s_active[ALARM_CATALOG_MAX];
 static pthread_mutex_t s_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 /* -------------------------------------------------------------------------
@@ -35,9 +42,9 @@ static pthread_mutex_t s_mutex = PTHREAD_MUTEX_INITIALIZER;
 /** @brief  按报警码查定义表下标；未找到返回 -1 */
 static int find_index(uint32_t alarm_code)
 {
-    for (int i = 0; i < (int)ALARM_DEF_COUNT; ++i)
+    for (int i = 0; i < (int)s_count; ++i)
     {
-        if (s_alarm_defs[i].code == alarm_code)
+        if (s_catalog[i].code == alarm_code)
         {
             return i;
         }
@@ -67,7 +74,7 @@ sw_err_t alarm_core_trigger(uint32_t alarm_code)
 
     if (idx < 0)
     {
-        LOG_WARN("alarm_core: trigger unknown code=0x%06X", (unsigned)alarm_code);
+        LOG_WARN("alarm_core: trigger unknown code=%06u", (unsigned)alarm_code);
         return SW_ERR_PARAM;
     }
 
@@ -77,8 +84,8 @@ sw_err_t alarm_core_trigger(uint32_t alarm_code)
 
     if (changed)
     {
-        LOG_WARN("alarm_core: TRIGGERED 0x%06X (%s)",
-                 (unsigned)alarm_code, s_alarm_defs[idx].desc);
+        LOG_WARN("alarm_core: TRIGGERED %06u (%s)",
+                 (unsigned)alarm_code, s_catalog[idx].desc);
         (void)event_publish(EVT_ALARM_TRIGGERED, alarm_code);
     }
     return SW_OK;
@@ -91,7 +98,7 @@ sw_err_t alarm_core_clear(uint32_t alarm_code)
 
     if (idx < 0)
     {
-        LOG_WARN("alarm_core: clear unknown code=0x%06X", (unsigned)alarm_code);
+        LOG_WARN("alarm_core: clear unknown code=%06u", (unsigned)alarm_code);
         return SW_ERR_PARAM;
     }
 
@@ -101,8 +108,8 @@ sw_err_t alarm_core_clear(uint32_t alarm_code)
 
     if (changed)
     {
-        LOG_INFO("alarm_core: CLEARED 0x%06X (%s)",
-                 (unsigned)alarm_code, s_alarm_defs[idx].desc);
+        LOG_INFO("alarm_core: CLEARED %06u (%s)",
+                 (unsigned)alarm_code, s_catalog[idx].desc);
         (void)event_publish(EVT_ALARM_CLEARED, alarm_code);
     }
     return SW_OK;
@@ -113,11 +120,11 @@ safety_state_t alarm_core_safety_state(void)
     int highest = -1; /* 活跃集中的最高等级 */
 
     pthread_mutex_lock(&s_mutex);
-    for (int i = 0; i < (int)ALARM_DEF_COUNT; ++i)
+    for (int i = 0; i < (int)s_count; ++i)
     {
-        if (s_active[i] && ((int)s_alarm_defs[i].level > highest))
+        if (s_active[i] && ((int)s_catalog[i].level > highest))
         {
-            highest = (int)s_alarm_defs[i].level;
+            highest = (int)s_catalog[i].level;
         }
     }
     pthread_mutex_unlock(&s_mutex);
@@ -139,17 +146,43 @@ uint32_t alarm_core_top_code(void)
     uint32_t code    = ALARM_CODE_NONE;
 
     pthread_mutex_lock(&s_mutex);
-    for (int i = 0; i < (int)ALARM_DEF_COUNT; ++i)
+    for (int i = 0; i < (int)s_count; ++i)
     {
-        if (s_active[i] && ((int)s_alarm_defs[i].level > highest))
+        if (s_active[i] && ((int)s_catalog[i].level > highest))
         {
-            highest = (int)s_alarm_defs[i].level;
-            code    = s_alarm_defs[i].code;
+            highest = (int)s_catalog[i].level;
+            code    = s_catalog[i].code;
         }
     }
     pthread_mutex_unlock(&s_mutex);
 
     return code;
+}
+
+sw_err_t alarm_core_load(const alarm_def_t *defs, unsigned count)
+{
+    if (defs == NULL)
+    {
+        return SW_ERR_PARAM;
+    }
+    if (count > ALARM_CATALOG_MAX)
+    {
+        LOG_ERROR("alarm_core: catalog too large (%u > %u)",
+                  count, (unsigned)ALARM_CATALOG_MAX);
+        return SW_ERR_OVERFLOW;
+    }
+
+    pthread_mutex_lock(&s_mutex);
+    memcpy(s_catalog, defs, (size_t)count * sizeof(s_catalog[0]));
+    s_count = count;
+    for (unsigned i = 0; i < ALARM_CATALOG_MAX; ++i)
+    {
+        s_active[i] = false;
+    }
+    pthread_mutex_unlock(&s_mutex);
+
+    LOG_INFO("alarm_core: catalog loaded, defs=%u", count);
+    return SW_OK;
 }
 
 sw_err_t alarm_core_init(void)
@@ -159,14 +192,11 @@ sw_err_t alarm_core_init(void)
         .clear   = alarm_core_clear,
     };
 
-    pthread_mutex_lock(&s_mutex);
-    for (int i = 0; i < (int)ALARM_DEF_COUNT; ++i)
-    {
-        s_active[i] = false;
-    }
-    pthread_mutex_unlock(&s_mutex);
+    /* 先装载内置兜底目录，保证任何时刻安全报警链可用；随后 bootstrap 用
+     * JSON 目录整表替换。load 同时清空活跃集。*/
+    (void)alarm_core_load(s_fallback_defs, (unsigned)ALARM_FALLBACK_COUNT);
 
     alarm_binding_register(&s_binding_ops);
-    LOG_INFO("alarm_core: init ok, defs=%d", (int)ALARM_DEF_COUNT);
+    LOG_INFO("alarm_core: init ok (兜底目录 defs=%u)", (unsigned)s_count);
     return SW_OK;
 }

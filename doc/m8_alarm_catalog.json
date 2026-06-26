@@ -1,0 +1,11 @@
+{
+  "alarm_catalog": {
+    "schema_version": "1.0",
+    "comment": "M8 报警目录：增删改报警定义的唯一来源。code 编码规则见 doc/报警编码规范.md；level=MINOR|MAJOR|CRITICAL；clear=AUTO|LATCHED。信号→报警码的检测绑定不在此处，属机型检测层（adapters/machine/m8/m8_alarm_adapt.c）。",
+    "alarms": [
+      { "code": 201709, "level": "CRITICAL", "clear": "AUTO",    "desc": "急停按钮触发" },
+      { "code": 201101, "level": "MAJOR",    "clear": "LATCHED", "desc": "侧刷电机过载" },
+      { "code": 400303, "level": "MINOR",    "clear": "AUTO",    "desc": "风机报警反馈" }
+    ]
+  }
+}

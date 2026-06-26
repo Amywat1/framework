@@ -5,7 +5,10 @@
  * @date    2026-06-26
  *
  * @note    alarm_core 是 domain/safety 的报警权威事实源：
- *            - 持有静态报警定义表（报警码 → 等级/清除方式）
+ *            - 持有报警目录（报警码 → 等级/清除方式/描述）；目录是数据，
+ *              由外部经 alarm_core_load() 注入（来源为 JSON 配置）
+ *            - alarm_core_init() 先装载「内置兜底目录」（安全必需项），保证
+ *              即使配置加载失败也不会丢失安全报警；随后 load 成功则整表替换
  *            - 维护活跃报警集（同一报警码同一时刻至多一个活跃实例）
  *            - 激活/清除时发布 EVT_ALARM_TRIGGERED / EVT_ALARM_CLEARED
  *          安全态（OK/WARNING/LOCKOUT）由本模块按活跃集最高等级派生，
@@ -27,10 +30,21 @@ extern "C" {
 #include <stdint.h>
 
 /**
- * @brief  初始化报警核心并注册 alarm_binding_port 实现
+ * @brief  初始化报警核心：装载内置兜底目录、清空活跃集、注册 alarm_binding_port
  * @retval SW_OK
+ * @note   兜底目录仅含安全必需项（至少 CRITICAL 类）；正常应在 init 后再用
+ *         alarm_core_load() 以完整 JSON 目录整表替换。
  */
 sw_err_t alarm_core_init(void);
+
+/**
+ * @brief  加载报警目录（整表替换；通常由 bootstrap 用 JSON 解析结果调用）
+ * @param  defs   报警定义数组
+ * @param  count  条目数
+ * @retval SW_OK / SW_ERR_PARAM（defs 为空）/ SW_ERR_OVERFLOW（count 超过 ALARM_CATALOG_MAX）
+ * @note   替换目录的同时清空活跃集；应在报警触发开始前（启动阶段）调用。
+ */
+sw_err_t alarm_core_load(const alarm_def_t *defs, unsigned count);
 
 /**
  * @brief  置位报警（alarm_binding_port.trigger 实现；线程安全）

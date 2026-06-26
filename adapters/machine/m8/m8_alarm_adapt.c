@@ -14,7 +14,16 @@
 #include <stdbool.h>
 
 /* -------------------------------------------------------------------------
- * 信号 → 报警码映射表（示例集，每行一个报警源）
+ * 本机型会上报的报警码（标识值）
+ *   报警「定义」（等级/清除/描述）在 doc/m8_alarm_catalog.json，与此处靠 code
+ *   数值对齐；此处只声明「M8 检测到什么时报哪个码」，属机型检测层职责。
+ * ------------------------------------------------------------------------- */
+#define M8_ALM_ESTOP               ALARM_CODE_MAKE(2, 17, 9)  /* 201709 急停 */
+#define M8_ALM_SIDE_BRUSH_OVERLOAD ALARM_CODE_MAKE(2, 11, 1)  /* 201101 侧刷过载 */
+#define M8_ALM_FAN_FAULT           ALARM_CODE_MAKE(4, 3,  3)  /* 400303 风机报警 */
+
+/* -------------------------------------------------------------------------
+ * 信号 → 报警码映射表（电平直检型，每行一个报警源）
  * ------------------------------------------------------------------------- */
 typedef struct
 {
@@ -23,9 +32,9 @@ typedef struct
 } m8_alarm_map_t;
 
 static const m8_alarm_map_t s_alarm_map[] = {
-    { M8_SIG_ESTOP,              ALARM_CODE_ESTOP },
-    { M8_SIG_SIDE_BRUSH_OVERLOAD, ALARM_CODE_SIDE_BRUSH_OVERLOAD },
-    { M8_SIG_FAN_ALARM,          ALARM_CODE_FAN_FAULT },
+    { M8_SIG_ESTOP,               M8_ALM_ESTOP },
+    { M8_SIG_SIDE_BRUSH_OVERLOAD, M8_ALM_SIDE_BRUSH_OVERLOAD },
+    { M8_SIG_FAN_ALARM,           M8_ALM_FAN_FAULT },
 };
 
 #define M8_ALARM_MAP_COUNT  (sizeof(s_alarm_map) / sizeof(s_alarm_map[0]))

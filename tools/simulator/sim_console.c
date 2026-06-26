@@ -43,7 +43,7 @@ static void inject_cmd(cmd_type_t type, wash_mode_t mode)
 static void print_state(void)
 {
     device_context_t ctx = dev_ctx_snapshot();
-    printf("[state] device=%d step=%d mode=%d cloud=%d safety=%d alarm=%d code=0x%06X\n",
+    printf("[state] device=%d step=%d mode=%d cloud=%d safety=%d alarm=%d code=%06u\n",
            (int)ctx.device_state,
            (int)ctx.wash_step, (int)ctx.wash_mode,
            (int)ctx.cloud_connected,

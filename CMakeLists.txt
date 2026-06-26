@@ -235,6 +235,8 @@ if(BUILD_SIM)
         endif()
 
         target_compile_options(M8_sim PRIVATE -Wall -Wextra -Werror -g)
+        target_compile_definitions(M8_sim PRIVATE
+            M8_ALARM_CONFIG_PATH="${CMAKE_SOURCE_DIR}/doc/m8_alarm_catalog.json")
 
         message(STATUS "BUILD_SIM enabled 鈫?target M8_sim")
     else()
@@ -416,6 +418,8 @@ if(BUILD_SIM)
             target_link_libraries(${scenario} PRIVATE pthread)
         endif()
         target_compile_options(${scenario} PRIVATE -Wall -Wextra -Werror -g)
+        target_compile_definitions(${scenario} PRIVATE
+            M8_ALARM_CONFIG_PATH="${CMAKE_SOURCE_DIR}/doc/m8_alarm_catalog.json")
         add_test(NAME ${scenario} COMMAND ${scenario})
 
     endforeach()
