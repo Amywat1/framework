@@ -31,6 +31,9 @@ static void build_payload(cloud_report_payload_t *p)
     p->wash_step      = (uint8_t)ctx.wash_step;
     p->gantry_pos     = gantry_get_pos();
     p->cloud_connected = ctx.cloud_connected;
+    p->safety_state   = (uint8_t)ctx.safety_state;
+    p->has_alarm      = ctx.has_alarm;
+    p->alarm_code     = ctx.alarm_code;
 }
 
 /* -------------------------------------------------------------------------

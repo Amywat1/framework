@@ -23,11 +23,13 @@
  * ------------------------------------------------------------------------- */
 typedef enum
 {
-    M8_SIG_ESTOP = 0,         /* 急停 */
-    M8_SIG_GANTRY_FWD_LIM,    /* 龙门前限位 */
-    M8_SIG_GANTRY_REV_LIM,    /* 龙门后限位 */
-    M8_SIG_LIFT_UP_LIM,       /* 顶刷升降上限位 */
-    M8_SIG_LIFT_DOWN_LIM,     /* 顶刷升降下限位 */
+    M8_SIG_ESTOP = 0,            /* 急停 */
+    M8_SIG_GANTRY_FWD_LIM,       /* 龙门前限位 */
+    M8_SIG_GANTRY_REV_LIM,       /* 龙门后限位 */
+    M8_SIG_LIFT_UP_LIM,          /* 顶刷升降上限位 */
+    M8_SIG_LIFT_DOWN_LIM,        /* 顶刷升降下限位 */
+    M8_SIG_SIDE_BRUSH_OVERLOAD,  /* 侧刷过载（报警源）*/
+    M8_SIG_FAN_ALARM,            /* 风机报警反馈（报警源）*/
     M8_SIG_MAX
 } m8_signal_id_t;
 

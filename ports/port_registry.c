@@ -19,6 +19,7 @@
 #include "ports/cloud/command_port.h"
 #include "ports/storage/param_store.h"
 #include "ports/storage/deploy_store.h"
+#include "ports/safety/alarm_binding_port.h"
 
 /* -------------------------------------------------------------------------
  * HAL — 通用电机
@@ -91,3 +92,11 @@ static const deploy_store_ops_t *s_deploy_ops;
 
 void deploy_store_register(const deploy_store_ops_t *ops) { s_deploy_ops = ops; }
 const deploy_store_ops_t *deploy_store_get_ops(void)      { return s_deploy_ops; }
+
+/* -------------------------------------------------------------------------
+ * 安全 — 报警绑定（adapters/machine → domain/safety）
+ * ------------------------------------------------------------------------- */
+static const alarm_binding_ops_t *s_alarm_binding_ops;
+
+void alarm_binding_register(const alarm_binding_ops_t *ops) { s_alarm_binding_ops = ops; }
+const alarm_binding_ops_t *alarm_binding_get_ops(void)      { return s_alarm_binding_ops; }

@@ -43,10 +43,12 @@ static void inject_cmd(cmd_type_t type, wash_mode_t mode)
 static void print_state(void)
 {
     device_context_t ctx = dev_ctx_snapshot();
-    printf("[state] device=%d step=%d mode=%d cloud=%d\n",
+    printf("[state] device=%d step=%d mode=%d cloud=%d safety=%d alarm=%d code=0x%06X\n",
            (int)ctx.device_state,
            (int)ctx.wash_step, (int)ctx.wash_mode,
-           (int)ctx.cloud_connected);
+           (int)ctx.cloud_connected,
+           (int)ctx.safety_state, (int)ctx.has_alarm,
+           (unsigned)ctx.alarm_code);
 }
 
 /* -------------------------------------------------------------------------
@@ -70,7 +72,7 @@ static void handle_line(char *line)
     {
         if ((n < 3) || (tok[1] == NULL) || (tok[2] == NULL))
         {
-            printf("usage: sensor <fwd|rev|estop|lift_top|lift_bottom> <0|1>\n");
+            printf("usage: sensor <fwd|rev|estop|lift_top|lift_bottom|overload|fan> <0|1>\n");
             return;
         }
         bool val = (atoi(tok[2]) != 0);
@@ -79,6 +81,8 @@ static void handle_line(char *line)
         else if (strcmp(tok[1], "estop")       == 0) { m8_signal_sim_set_estop(val); }
         else if (strcmp(tok[1], "lift_top")    == 0) { m8_signal_sim_set_lift_top(val); }
         else if (strcmp(tok[1], "lift_bottom") == 0) { m8_signal_sim_set_lift_bottom(val); }
+        else if (strcmp(tok[1], "overload")    == 0) { m8_signal_sim_set_active(M8_SIG_SIDE_BRUSH_OVERLOAD, val); }
+        else if (strcmp(tok[1], "fan")         == 0) { m8_signal_sim_set_active(M8_SIG_FAN_ALARM, val); }
         else { printf("unknown sensor: %s\n", tok[1]); }
         printf("[sim] sensor %s = %d\n", tok[1], (int)val);
         return;
@@ -134,7 +138,7 @@ static void handle_line(char *line)
     if (strcmp(tok[0], "help") == 0)
     {
         printf("Commands:\n");
-        printf("  sensor <fwd|rev|estop|lift_top|lift_bottom> <0|1>\n");
+        printf("  sensor <fwd|rev|estop|lift_top|lift_bottom|overload|fan> <0|1>\n");
         printf("  encoder [+N|-N]\n");
         printf("  cmd <order [0|1]|stop|stop-op|resume|reset|home>\n");
         printf("  state\n");

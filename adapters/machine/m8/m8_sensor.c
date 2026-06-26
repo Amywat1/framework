@@ -6,6 +6,7 @@
  */
 
 #include "adapters/machine/m8/m8_sensor.h"
+#include "adapters/machine/m8/m8_alarm_adapt.h"
 #include "config/machine/m8_signal_table.h"
 #include "ports/hal/hal_sensor_port.h"
 #include "core/scheduler/thread_registry.h"
@@ -117,6 +118,7 @@ static void *sensor_poll_thread_fn(void *arg)
     while (true)
     {
         m8_signal_filter_tick();
+        m8_alarm_adapt_poll(); /* 信号防抖后做报警边沿检测 */
         usleep((unsigned long)THD_IO_POLL_PERIOD_MS * 1000UL);
     }
 

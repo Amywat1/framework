@@ -20,7 +20,11 @@
 #include "application/orchestrators/device_fsm.h"
 #include "application/orchestrators/wash_orchestrator.h"
 #include "application/orchestrators/report_aggregator.h"
+#include "application/orchestrators/safety_supervisor.h"
+#include "domain/safety/alarm_core.h"
+#include "domain/safety/safety_fsm.h"
 #include "adapters/machine/m8/m8_sensor.h"
+#include "adapters/machine/m8/m8_alarm_adapt.h"
 #include "adapters/machine/m8/m8_water_setup.h"
 #include "adapters/machine/m8/m8_motor_setup.h"
 #ifdef BUILD_SIM
@@ -152,6 +156,11 @@ static sw_err_t bootstrap_init_application(void)
     BOOT_CHECK(brush_init(),             "brush_init");
     BOOT_CHECK(gantry_init(),            "gantry_init");
     BOOT_CHECK(m8_water_setup(),         "m8_water_setup");
+    /* 安全/报警域：alarm_core 先注册绑定端口，再依次接好状态机、监督器、机型适配 */
+    BOOT_CHECK(alarm_core_init(),        "alarm_core_init");
+    BOOT_CHECK(safety_fsm_init(),        "safety_fsm_init");
+    BOOT_CHECK(safety_supervisor_init(), "safety_supervisor_init");
+    BOOT_CHECK(m8_alarm_adapt_init(),    "m8_alarm_adapt_init");
     BOOT_CHECK(emergency_handler_init(), "emergency_handler_init");
     BOOT_CHECK(device_fsm_init(),        "device_fsm_init");
     BOOT_CHECK(wash_orchestrator_init(), "wash_orchestrator_init");

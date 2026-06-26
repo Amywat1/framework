@@ -29,6 +29,9 @@ typedef struct
     uint8_t  wash_step;      /* wash_step_t 枚举值 */
     int32_t  gantry_pos;     /* 龙门当前位置（脉冲数）*/
     bool     cloud_connected;
+    uint8_t  safety_state;   /* safety_state_t 枚举值 */
+    bool     has_alarm;      /* 是否存在活跃报警 */
+    uint32_t alarm_code;     /* 当前最高等级活跃报警码（无则 0）*/
 } cloud_report_payload_t;
 
 /* -------------------------------------------------------------------------

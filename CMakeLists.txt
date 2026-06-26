@@ -201,6 +201,7 @@ if(BUILD_SIM)
 
         # M8 机型适配
         adapters/machine/m8/m8_sensor.c
+        adapters/machine/m8/m8_alarm_adapt.c
         adapters/machine/m8/m8_signal_sim.c
         adapters/machine/m8/m8_motor_setup.c
         adapters/machine/m8/m8_water_setup.c
@@ -305,6 +306,7 @@ if(BUILD_SIM)
         domain/device/unit/gantry.c
         domain/device/water.c
         adapters/machine/m8/m8_sensor.c
+        adapters/machine/m8/m8_alarm_adapt.c
         adapters/hal/generic/hal_sensor.c
         config/machine/m8_signal_table.c
         application/orchestrators/wash_orchestrator.c

@@ -65,3 +65,18 @@ void dev_ctx_set_cloud_status(bool connected)
     s_ctx.cloud_connected = connected;
     pthread_mutex_unlock(&s_mutex);
 }
+
+void dev_ctx_set_safety_state(safety_state_t state)
+{
+    pthread_mutex_lock(&s_mutex);
+    s_ctx.safety_state = state;
+    pthread_mutex_unlock(&s_mutex);
+}
+
+void dev_ctx_set_alarm_state(bool has_alarm, uint32_t alarm_code)
+{
+    pthread_mutex_lock(&s_mutex);
+    s_ctx.has_alarm  = has_alarm;
+    s_ctx.alarm_code = alarm_code;
+    pthread_mutex_unlock(&s_mutex);
+}
