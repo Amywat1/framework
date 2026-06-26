@@ -1,0 +1,468 @@
+program:
+  schema_version: "1.0"
+  id: m8_normal_wash
+  name: M8 普通洗（四趟主刷 + 两趟吹风）
+
+  # 方案级参数
+  params:
+    gantry_tail_min_pos:     150    # 车尾检测最小龙门位置（脉冲），防止误触发
+    gantry_side_stop_offset:  60    # 过车尾后侧刷停转的额外偏移量（脉冲）
+    gantry_rear_near_pos:    150    # 接近后限位区域阈值（脉冲），用于关闭水帘
+
+  # ─── 坐标轴 ────────────────────────────────────────────────────────────
+  axes:
+    gantry:
+      type: physical
+      encoder: GANTRY_ENCODER_PULSE
+      unit: pulse
+      pulse_per_mm: 1.0           # 硬件层按实际机械参数配置
+
+  # ─── 位置标记 ──────────────────────────────────────────────────────────
+  markers:
+    car_tail:
+      type: latch
+      axis: gantry
+      on: {signal: RADAR_CAR_TAIL, edge: rising}
+      # 硬件层：雷达 ADC 超过阈值持续 5 次后，RADAR_CAR_TAIL 信号置高
+
+  # ─── 联锁层 ────────────────────────────────────────────────────────────
+  interlocks:
+    - id: estop
+      condition: "ESTOP == 1"
+      action: halt_all
+      priority: 0
+      reset_condition: "ESTOP == 0"
+      auto_reset: false
+
+    - id: bumper_left
+      condition: "BUMPER_LEFT == 1"
+      action: halt_all
+      priority: 1
+      reset_condition: "BUMPER_LEFT == 0"
+      auto_reset: false
+
+    - id: bumper_right
+      condition: "BUMPER_RIGHT == 1"
+      action: halt_all
+      priority: 1
+      reset_condition: "BUMPER_RIGHT == 0"
+      auto_reset: false
+
+    - id: top_brush_collision
+      condition: "TOP_BRUSH_COLLISION == 1"
+      action: halt_phase
+      priority: 2
+      reset_condition: "TOP_BRUSH_COLLISION == 0"
+      auto_reset: true
+
+    - id: gantry_pause_slope
+      # 硬件层：顶刷目标位置变化斜率超阈值时置高，跟踪误差收敛后清零
+      condition: "GANTRY_PAUSE_REQUEST == 1"
+      action: custom_action
+      actions:
+        - io_set: {channel: GANTRY_FWD, value: 0}
+        - io_set: {channel: GANTRY_REV, value: 0}
+      priority: 3
+      reset_condition: "GANTRY_PAUSE_REQUEST == 0"
+      auto_reset: true
+
+  # ─── 阶段列表 ──────────────────────────────────────────────────────────
+  phases:
+
+    # ══════════════════════════════════════════════════════════════════════
+    # 0. 准备：顶刷启转预热（对应 step_gantry_zero_and_brush_rotation）
+    # ══════════════════════════════════════════════════════════════════════
+    - id: prepare
+      name: 洗车准备
+      direction: none
+      entry_guard: "true"
+      exit_guard: "phase.elapsed_ms >= 2000"
+      timeout_ms: 10000
+      on_timeout: halt_phase
+      on_exit: []
+
+      lanes:
+        - id: top_brush_lane
+          steps:
+            - id: top_brush_start
+              type: event
+              trigger: {type: condition, expr: "true"}
+              actions:
+                - io_set: {channel: TOP_BRUSH_FOLLOW_EN, value: 1}  # 使能硬件层升降跟随
+                - io_set: {channel: TOP_BRUSH_ROT,       value: 1}
+              done: {type: actions_complete}
+              on_error: halt_phase
+
+    # ══════════════════════════════════════════════════════════════════════
+    # 1. 第一趟：前进泡沫 + 顶刷跟随 + 雷达扫描车尾
+    #    （对应 step_forward_wash_car_top）
+    # ══════════════════════════════════════════════════════════════════════
+    - id: pass1_fwd_foam
+      name: 第一趟-前进泡沫
+      direction: forward
+      entry_guard: "GANTRY_REV_LIMIT == 1"
+      exit_guard: "GANTRY_FWD_LIMIT == 1"
+      timeout_ms: 120000
+      on_timeout: halt_phase
+      on_exit:
+        - io_set: {channel: GANTRY_FWD,          value: 0}
+        - io_set: {channel: TOP_BRUSH_FOLLOW_EN, value: 0}  # 禁用硬件层升降跟随
+        - io_set: {channel: TOP_BRUSH_ROT,       value: 0}
+        - io_set: {channel: WATER_CURTAIN,       value: 0}
+        - io_set: {channel: WATER_TOP_FOAM,      value: 0}
+        - io_set: {channel: WATER_BUTTOM_FOAM,   value: 0}
+
+      lanes:
+        # 龙门通道：全程前进
+        - id: gantry_lane
+          steps:
+            - id: gantry_fwd
+              type: event
+              trigger: {type: condition, expr: "true"}
+              actions:
+                - io_set: {channel: GANTRY_REV, value: 0}
+                - io_set: {channel: GANTRY_FWD, value: 1}
+              done: {type: trigger_exit}
+              on_error: halt_phase
+
+        # 水帘通道：全程开启
+        - id: curtain_lane
+          steps:
+            - id: curtain_on
+              type: event
+              trigger: {type: condition, expr: "true"}
+              actions:
+                - io_set: {channel: WATER_CURTAIN, value: 1}
+              done: {type: actions_complete}
+              on_error: skip
+
+        # 泡沫通道：3 秒后开泡沫，检测到车尾后关闭
+        - id: foam_lane
+          steps:
+            - id: foam_on
+              type: event
+              trigger: {type: condition, expr: "phase.elapsed_ms >= 3000"}
+              actions:
+                - io_set: {channel: WATER_TOP_FOAM,    value: 1}
+                - io_set: {channel: WATER_BUTTOM_FOAM, value: 1}
+              done: {type: actions_complete}
+              on_error: skip
+
+            - id: foam_off_at_tail
+              type: event
+              trigger: {type: signal, signal: RADAR_CAR_TAIL, edge: rising}
+              guard: "axes.gantry.position >= $gantry_tail_min_pos"
+              actions:
+                - io_set: {channel: WATER_CURTAIN,     value: 0}
+                - io_set: {channel: WATER_TOP_FOAM,    value: 0}
+                - io_set: {channel: WATER_BUTTOM_FOAM, value: 0}
+              done: {type: actions_complete}
+              on_error: skip
+              after: [foam_on]
+
+        # 升降通道：到达前限位后升起（跟随逻辑由硬件层 TOP_BRUSH_FOLLOW_EN 驱动）
+        - id: lifter_lane
+          steps:
+            - id: lifter_to_up
+              type: event
+              trigger: {type: signal, signal: GANTRY_FWD_LIMIT, edge: rising}
+              actions:
+                - io_set: {channel: LIFTER_DOWN, value: 0}
+                - io_set: {channel: LIFTER_UP,   value: 1}
+              done: {type: signal, signal: LIFT_UP_LIMIT, state: 1, timeout_ms: 10000}
+              on_error: halt_phase
+
+    # ══════════════════════════════════════════════════════════════════════
+    # 2. 第二趟：后退侧刷 + 高压水
+    #    （对应 step_backward_wash_car_side）
+    # ══════════════════════════════════════════════════════════════════════
+    - id: pass2_rev_side
+      name: 第二趟-后退侧刷
+      direction: backward
+      entry_guard: "GANTRY_FWD_LIMIT == 1"
+      exit_guard: "GANTRY_REV_LIMIT == 1"
+      timeout_ms: 120000
+      on_timeout: halt_phase
+      on_exit:
+        - io_set: {channel: GANTRY_REV,            value: 0}
+        - io_set: {channel: SIDE_BRUSH_ROT,         value: 0}
+        - io_set: {channel: WATER_HIGHPRES_TOP,     value: 0}
+        - io_set: {channel: WATER_HIGHPRES_BOTTOM,  value: 0}
+
+      lanes:
+        # 升降通道：确保顶刷在最高位后龙门才可后退
+        - id: lifter_lane
+          steps:
+            - id: lifter_ensure_up
+              type: event
+              trigger: {type: condition, expr: "LIFT_UP_LIMIT == 0"}
+              actions:
+                - io_set: {channel: LIFTER_DOWN, value: 0}
+                - io_set: {channel: LIFTER_UP,   value: 1}
+              done: {type: signal, signal: LIFT_UP_LIMIT, state: 1, timeout_ms: 15000}
+              on_error: halt_phase
+
+        # 龙门通道：顶刷到上位（LIFT_UP_LIMIT == 1）后才启动后退
+        # 直接检查目标状态，兼容顶刷已在上位和需要上升两种情况
+        - id: gantry_lane
+          steps:
+            - id: gantry_rev
+              type: event
+              trigger: {type: condition, expr: "LIFT_UP_LIMIT == 1"}
+              actions:
+                - io_set: {channel: GANTRY_FWD, value: 0}
+                - io_set: {channel: GANTRY_REV, value: 1}
+              done: {type: trigger_exit}
+              on_error: halt_phase
+
+        # 侧刷通道：进入阶段 3 秒后启侧刷和顶部高压
+        - id: side_brush_lane
+          steps:
+            - id: side_brush_start
+              type: event
+              trigger: {type: condition, expr: "phase.elapsed_ms >= 3000"}
+              actions:
+                - io_set: {channel: SIDE_BRUSH_ROT,     value: 1}
+                - io_set: {channel: WATER_HIGHPRES_TOP,  value: 1}
+              done: {type: actions_complete}
+              on_error: degrade
+
+        # 底部高压通道：顶刷到位（龙门启动）后等 8 秒再开底部高压
+        - id: highpres_bottom_lane
+          steps:
+            - id: highpres_bottom_on
+              type: event
+              trigger: {type: condition, expr: "LIFT_UP_LIMIT == 1"}
+              actions:
+                - wait_time: {ms: 8000}
+                - io_set: {channel: WATER_HIGHPRES_BOTTOM, value: 1}
+              done: {type: actions_complete}
+              on_error: skip
+
+    # ══════════════════════════════════════════════════════════════════════
+    # 3. 第三趟：前进侧刷（过车尾后停刷）
+    #    （对应 step_forward_wash_car_side）
+    # ══════════════════════════════════════════════════════════════════════
+    - id: pass3_fwd_side
+      name: 第三趟-前进侧刷
+      direction: forward
+      entry_guard: "GANTRY_REV_LIMIT == 1"
+      exit_guard: "GANTRY_FWD_LIMIT == 1"
+      timeout_ms: 60000
+      on_timeout: halt_phase
+      on_enter:
+        - io_set: {channel: SIDE_BRUSH_ROT,        value: 1}
+        - io_set: {channel: WATER_HIGHPRES_TOP,    value: 1}
+        - io_set: {channel: WATER_HIGHPRES_BOTTOM, value: 1}
+      on_exit:
+        - io_set: {channel: GANTRY_FWD,            value: 0}
+        - io_set: {channel: SIDE_BRUSH_ROT,         value: 0}
+        - io_set: {channel: WATER_HIGHPRES_TOP,     value: 0}
+        - io_set: {channel: WATER_HIGHPRES_BOTTOM,  value: 0}
+
+      lanes:
+        - id: gantry_lane
+          steps:
+            - id: gantry_fwd
+              type: event
+              trigger: {type: condition, expr: "true"}
+              actions:
+                - io_set: {channel: GANTRY_REV, value: 0}
+                - io_set: {channel: GANTRY_FWD, value: 1}
+              done: {type: trigger_exit}
+              on_error: halt_phase
+
+        # 侧刷通道：经过车尾偏移量后停侧刷和高压水（启动由 on_enter 完成）
+        - id: side_brush_lane
+          steps:
+            - id: side_brush_stop_at_tail
+              type: event
+              trigger:
+                type: condition
+                expr: >
+                  markers.car_tail.valid AND
+                  axes.gantry.position >= markers.car_tail.position + $gantry_side_stop_offset
+              actions:
+                - io_set: {channel: SIDE_BRUSH_ROT,        value: 0}
+                - io_set: {channel: WATER_HIGHPRES_TOP,    value: 0}
+                - io_set: {channel: WATER_HIGHPRES_BOTTOM, value: 0}
+              done: {type: actions_complete}
+              on_error: skip
+
+    # ══════════════════════════════════════════════════════════════════════
+    # 4. 第四趟：后退高压冲洗
+    #    （对应 step_backward_water）
+    # ══════════════════════════════════════════════════════════════════════
+    - id: pass4_rev_rinse
+      name: 第四趟-高压冲洗
+      direction: backward
+      entry_guard: "GANTRY_FWD_LIMIT == 1"
+      exit_guard: "GANTRY_REV_LIMIT == 1"
+      timeout_ms: 60000
+      on_timeout: halt_phase
+      on_exit:
+        - io_set: {channel: GANTRY_REV,            value: 0}
+        - io_set: {channel: TOP_BRUSH_ROT,         value: 0}
+        - io_set: {channel: WATER_HIGHPRES_TOP,    value: 0}
+        - io_set: {channel: WATER_HIGHPRES_BOTTOM, value: 0}
+        - io_set: {channel: WATER_CURTAIN,         value: 0}
+
+      lanes:
+        - id: gantry_lane
+          steps:
+            - id: gantry_rev
+              type: event
+              trigger: {type: condition, expr: "true"}
+              actions:
+                - io_set: {channel: GANTRY_FWD, value: 0}
+                - io_set: {channel: GANTRY_REV, value: 1}
+              done: {type: trigger_exit}
+              on_error: halt_phase
+
+        # 顶刷中速旋转配合冲洗（CMD_FORWARD_S_1 = value 2）
+        - id: top_brush_lane
+          steps:
+            - id: top_brush_medium
+              type: event
+              trigger: {type: condition, expr: "true"}
+              actions:
+                - io_set: {channel: TOP_BRUSH_ROT, value: 2}
+              done: {type: actions_complete}
+              on_error: skip
+
+        # 水路通道：8 秒后开高压水 + 水帘；接近后限位前关闭水帘
+        - id: water_lane
+          steps:
+            - id: water_on
+              type: event
+              trigger: {type: condition, expr: "phase.elapsed_ms >= 8000"}
+              actions:
+                - io_set: {channel: WATER_HIGHPRES_TOP,    value: 1}
+                - io_set: {channel: WATER_HIGHPRES_BOTTOM, value: 1}
+                - io_set: {channel: WATER_CURTAIN,         value: 1}
+              done: {type: actions_complete}
+              on_error: skip
+
+            - id: curtain_off_near_home
+              type: event
+              trigger:
+                type: condition
+                expr: "axes.gantry.position <= $gantry_rear_near_pos"
+              actions:
+                - io_set: {channel: WATER_CURTAIN, value: 0}
+              done: {type: actions_complete}
+              on_error: skip
+              after: [water_on]
+
+    # ══════════════════════════════════════════════════════════════════════
+    # 5. 第五趟：前进吹风（吹至车尾位置）
+    #    （对应 step_forward_drying）
+    # ══════════════════════════════════════════════════════════════════════
+    - id: pass5_fwd_dry
+      name: 第五趟-前进吹风
+      direction: forward
+      entry_guard: "GANTRY_REV_LIMIT == 1"
+      exit_guard: >
+        (markers.car_tail.valid AND axes.gantry.position >= markers.car_tail.position)
+        OR GANTRY_FWD_LIMIT == 1
+      timeout_ms: 60000
+      on_timeout: halt_phase
+      on_enter:
+        - io_set: {channel: DRYER_RUN, value: 1}   # 进入阶段立即启动吹风机
+      on_exit:
+        - io_set: {channel: GANTRY_FWD, value: 0}
+
+      lanes:
+        # 吹风机启动 8 秒后龙门开始前进
+        - id: gantry_lane
+          steps:
+            - id: gantry_fwd
+              type: event
+              trigger: {type: condition, expr: "phase.elapsed_ms >= 8000"}
+              actions:
+                - io_set: {channel: GANTRY_REV, value: 0}
+                - io_set: {channel: GANTRY_FWD, value: 1}
+              done: {type: trigger_exit}
+              on_error: halt_phase
+
+    # ══════════════════════════════════════════════════════════════════════
+    # 6. 第六趟：后退吹风（吹至后限位）
+    #    （对应 step_backward_drying）
+    # ══════════════════════════════════════════════════════════════════════
+    - id: pass6_rev_dry
+      name: 第六趟-后退吹风
+      direction: backward
+      entry_guard: >
+        (markers.car_tail.valid AND axes.gantry.position >= markers.car_tail.position)
+        OR GANTRY_FWD_LIMIT == 1
+      exit_guard: "GANTRY_REV_LIMIT == 1"
+      timeout_ms: 60000
+      on_timeout: halt_phase
+      on_exit:
+        - io_set: {channel: GANTRY_REV, value: 0}
+        - io_set: {channel: DRYER_RUN,  value: 0}
+
+      lanes:
+        - id: gantry_lane
+          steps:
+            - id: gantry_rev
+              type: event
+              trigger: {type: condition, expr: "true"}
+              actions:
+                - io_set: {channel: GANTRY_FWD, value: 0}
+                - io_set: {channel: GANTRY_REV, value: 1}
+              done: {type: trigger_exit}
+              on_error: halt_phase
+
+    # ══════════════════════════════════════════════════════════════════════
+    # 7. 归位：升降 + 龙门归位 + 释放后轮锁止
+    #    （对应 step_dev_back_home）
+    # ══════════════════════════════════════════════════════════════════════
+    - id: homing
+      name: 归位
+      direction: none
+      entry_guard: "GANTRY_REV_LIMIT == 1"
+      exit_guard: "GANTRY_REV_LIMIT == 1 AND REAR_LOCK_HOME == 1"
+      timeout_ms: 60000
+      on_timeout: halt_phase
+      on_exit:
+        - io_set: {channel: LIFTER_UP,  value: 0}
+        - io_set: {channel: GANTRY_REV, value: 0}
+
+      lanes:
+        # 升降通道：确保顶刷在最高位
+        - id: lifter_lane
+          steps:
+            - id: lifter_to_up
+              type: event
+              trigger: {type: condition, expr: "LIFT_UP_LIMIT == 0"}
+              actions:
+                - io_set: {channel: LIFTER_DOWN, value: 0}
+                - io_set: {channel: LIFTER_UP,   value: 1}
+              done: {type: signal, signal: LIFT_UP_LIMIT, state: 1, timeout_ms: 15000}
+              on_error: halt_phase
+
+        # 龙门通道：确保龙门在后限位（通常已在，作安全兜底）
+        - id: gantry_lane
+          steps:
+            - id: gantry_to_home
+              type: event
+              trigger: {type: condition, expr: "GANTRY_REV_LIMIT == 0"}
+              actions:
+                - io_set: {channel: GANTRY_FWD, value: 0}
+                - io_set: {channel: GANTRY_REV, value: 1}
+              done: {type: signal, signal: GANTRY_REV_LIMIT, state: 1, timeout_ms: 30000}
+              on_error: halt_phase
+
+        # 锁止通道：龙门到后限位后再释放后轮锁止，防止车辆倾倒
+        - id: wheel_lock_lane
+          steps:
+            - id: release_wheel_lock
+              type: event
+              trigger:
+                type: condition
+                expr: "GANTRY_REV_LIMIT == 1 AND REAR_LOCK_HOME == 0"
+              actions:
+                - io_set: {channel: PUTTER_REV, value: 1}
+              done: {type: signal, signal: REAR_LOCK_HOME, state: 1, timeout_ms: 15000}
+              on_error: degrade

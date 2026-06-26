@@ -320,6 +320,84 @@ if(BUILD_SIM)
     )
 
     # -----------------------------------------------------------------------
+    # 方案 JSON 自动再生：YAML 更新时自动重新生成 JSON
+    #   - 有 python3+pyyaml：YAML 修改后 cmake --build 即触发再生
+    #   - 无 python3：使用已提交的 JSON，跳过自动生成（固件构建/CI 不需要 python）
+    #   - 手动强制重生：cmake --build build_sim --target gen_engine_config
+    # -----------------------------------------------------------------------
+    set(ENGINE_YAML "${CMAKE_SOURCE_DIR}/doc/m8_normal_wash_program.yaml")
+    set(ENGINE_JSON "${CMAKE_SOURCE_DIR}/doc/m8_normal_wash_program.json")
+
+    find_program(PYTHON3_EXECUTABLE NAMES python3 python)
+    if(PYTHON3_EXECUTABLE)
+        add_custom_command(
+            OUTPUT  ${ENGINE_JSON}
+            COMMAND ${PYTHON3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/yaml2json.py
+                    ${ENGINE_YAML} ${ENGINE_JSON}
+            DEPENDS ${ENGINE_YAML} ${CMAKE_SOURCE_DIR}/tools/yaml2json.py
+            COMMENT "Regenerating engine config JSON from YAML"
+            VERBATIM)
+        # 手动触发目标（也接受 OUTPUT 依赖，不重复转换）
+        add_custom_target(gen_engine_config DEPENDS ${ENGINE_JSON})
+    endif()
+
+    # -----------------------------------------------------------------------
+    # 通用控制引擎单元测试（domain/engine + JSON 加载器经 cJSON）
+    # -----------------------------------------------------------------------
+    add_unit_test(test_engine_expr
+        tests/unit/test_engine_expr.c
+        domain/engine/engine_expr.c
+    )
+    target_link_libraries(test_engine_expr PRIVATE m)
+
+    add_unit_test(test_engine_config
+        tests/unit/test_engine_config.c
+        adapters/storage/json/engine_program_json.c
+        domain/engine/engine_model.c
+        domain/engine/engine_expr.c
+    )
+    target_link_libraries(test_engine_config PRIVATE m ${CJSON_LIBRARIES})
+    target_compile_definitions(test_engine_config PRIVATE
+        M8_CONFIG_PATH="${CMAKE_SOURCE_DIR}/doc/m8_normal_wash_program.json")
+    if(PYTHON3_EXECUTABLE)
+        add_dependencies(test_engine_config gen_engine_config)
+    endif()
+
+    add_unit_test(test_engine_runtime
+        tests/unit/test_engine_runtime.c
+        domain/engine/engine.c
+        domain/engine/engine_io.c
+        adapters/storage/json/engine_program_json.c
+        domain/engine/engine_model.c
+        domain/engine/engine_expr.c
+        adapters/hal/sim_hw/engine_io_sim.c
+    )
+    target_link_libraries(test_engine_runtime PRIVATE m ${CJSON_LIBRARIES})
+
+    # -----------------------------------------------------------------------
+    # 引擎端到端场景（仅链接引擎 + JSON 加载器 + sim IO 后端 + 设备模型）
+    # -----------------------------------------------------------------------
+    add_executable(scenario_engine_normal_wash
+        tests/scenario/scenario_engine_normal_wash.c
+        tests/support/m8_device_model.c
+        domain/engine/engine.c
+        domain/engine/engine_io.c
+        adapters/storage/json/engine_program_json.c
+        domain/engine/engine_model.c
+        domain/engine/engine_expr.c
+        adapters/hal/sim_hw/engine_io_sim.c
+    )
+    target_include_directories(scenario_engine_normal_wash PRIVATE ${test_includes})
+    target_link_libraries(scenario_engine_normal_wash PRIVATE pthread m ${CJSON_LIBRARIES})
+    target_compile_options(scenario_engine_normal_wash PRIVATE -Wall -Wextra -Werror -g)
+    target_compile_definitions(scenario_engine_normal_wash PRIVATE
+        M8_CONFIG_PATH="${CMAKE_SOURCE_DIR}/doc/m8_normal_wash_program.json")
+    add_test(NAME scenario_engine_normal_wash COMMAND scenario_engine_normal_wash)
+    if(PYTHON3_EXECUTABLE)
+        add_dependencies(scenario_engine_normal_wash gen_engine_config)
+    endif()
+
+    # -----------------------------------------------------------------------
     # 场景集成测试（链接完整 sim 栈，每个测试自带 main()）
     # -----------------------------------------------------------------------
     foreach(scenario
@@ -340,6 +418,6 @@ if(BUILD_SIM)
 
     endforeach()
 
-    message(STATUS "Tests registered: 3 unit + 1 scenario (run with: ctest --test-dir build_sim -V)")
+    message(STATUS "Tests registered: 6 unit + 2 scenario (run with: ctest --test-dir build_sim -V)")
 
 endif()

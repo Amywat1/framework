@@ -1,0 +1,1021 @@
+{
+  "program": {
+    "schema_version": "1.0",
+    "id": "m8_normal_wash",
+    "name": "M8 普通洗（四趟主刷 + 两趟吹风）",
+    "params": {
+      "gantry_tail_min_pos": 150,
+      "gantry_side_stop_offset": 60,
+      "gantry_rear_near_pos": 150
+    },
+    "axes": {
+      "gantry": {
+        "type": "physical",
+        "encoder": "GANTRY_ENCODER_PULSE",
+        "unit": "pulse",
+        "pulse_per_mm": 1.0
+      }
+    },
+    "markers": {
+      "car_tail": {
+        "type": "latch",
+        "axis": "gantry",
+        "on": {
+          "signal": "RADAR_CAR_TAIL",
+          "edge": "rising"
+        }
+      }
+    },
+    "interlocks": [
+      {
+        "id": "estop",
+        "condition": "ESTOP == 1",
+        "action": "halt_all",
+        "priority": 0,
+        "reset_condition": "ESTOP == 0",
+        "auto_reset": false
+      },
+      {
+        "id": "bumper_left",
+        "condition": "BUMPER_LEFT == 1",
+        "action": "halt_all",
+        "priority": 1,
+        "reset_condition": "BUMPER_LEFT == 0",
+        "auto_reset": false
+      },
+      {
+        "id": "bumper_right",
+        "condition": "BUMPER_RIGHT == 1",
+        "action": "halt_all",
+        "priority": 1,
+        "reset_condition": "BUMPER_RIGHT == 0",
+        "auto_reset": false
+      },
+      {
+        "id": "top_brush_collision",
+        "condition": "TOP_BRUSH_COLLISION == 1",
+        "action": "halt_phase",
+        "priority": 2,
+        "reset_condition": "TOP_BRUSH_COLLISION == 0",
+        "auto_reset": true
+      },
+      {
+        "id": "gantry_pause_slope",
+        "condition": "GANTRY_PAUSE_REQUEST == 1",
+        "action": "custom_action",
+        "actions": [
+          {
+            "io_set": {
+              "channel": "GANTRY_FWD",
+              "value": 0
+            }
+          },
+          {
+            "io_set": {
+              "channel": "GANTRY_REV",
+              "value": 0
+            }
+          }
+        ],
+        "priority": 3,
+        "reset_condition": "GANTRY_PAUSE_REQUEST == 0",
+        "auto_reset": true
+      }
+    ],
+    "phases": [
+      {
+        "id": "prepare",
+        "name": "洗车准备",
+        "direction": "none",
+        "entry_guard": "true",
+        "exit_guard": "phase.elapsed_ms >= 2000",
+        "timeout_ms": 10000,
+        "on_timeout": "halt_phase",
+        "on_exit": [],
+        "lanes": [
+          {
+            "id": "top_brush_lane",
+            "steps": [
+              {
+                "id": "top_brush_start",
+                "type": "event",
+                "trigger": {
+                  "type": "condition",
+                  "expr": "true"
+                },
+                "actions": [
+                  {
+                    "io_set": {
+                      "channel": "TOP_BRUSH_FOLLOW_EN",
+                      "value": 1
+                    }
+                  },
+                  {
+                    "io_set": {
+                      "channel": "TOP_BRUSH_ROT",
+                      "value": 1
+                    }
+                  }
+                ],
+                "done": {
+                  "type": "actions_complete"
+                },
+                "on_error": "halt_phase"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "pass1_fwd_foam",
+        "name": "第一趟-前进泡沫",
+        "direction": "forward",
+        "entry_guard": "GANTRY_REV_LIMIT == 1",
+        "exit_guard": "GANTRY_FWD_LIMIT == 1",
+        "timeout_ms": 120000,
+        "on_timeout": "halt_phase",
+        "on_exit": [
+          {
+            "io_set": {
+              "channel": "GANTRY_FWD",
+              "value": 0
+            }
+          },
+          {
+            "io_set": {
+              "channel": "TOP_BRUSH_FOLLOW_EN",
+              "value": 0
+            }
+          },
+          {
+            "io_set": {
+              "channel": "TOP_BRUSH_ROT",
+              "value": 0
+            }
+          },
+          {
+            "io_set": {
+              "channel": "WATER_CURTAIN",
+              "value": 0
+            }
+          },
+          {
+            "io_set": {
+              "channel": "WATER_TOP_FOAM",
+              "value": 0
+            }
+          },
+          {
+            "io_set": {
+              "channel": "WATER_BUTTOM_FOAM",
+              "value": 0
+            }
+          }
+        ],
+        "lanes": [
+          {
+            "id": "gantry_lane",
+            "steps": [
+              {
+                "id": "gantry_fwd",
+                "type": "event",
+                "trigger": {
+                  "type": "condition",
+                  "expr": "true"
+                },
+                "actions": [
+                  {
+                    "io_set": {
+                      "channel": "GANTRY_REV",
+                      "value": 0
+                    }
+                  },
+                  {
+                    "io_set": {
+                      "channel": "GANTRY_FWD",
+                      "value": 1
+                    }
+                  }
+                ],
+                "done": {
+                  "type": "trigger_exit"
+                },
+                "on_error": "halt_phase"
+              }
+            ]
+          },
+          {
+            "id": "curtain_lane",
+            "steps": [
+              {
+                "id": "curtain_on",
+                "type": "event",
+                "trigger": {
+                  "type": "condition",
+                  "expr": "true"
+                },
+                "actions": [
+                  {
+                    "io_set": {
+                      "channel": "WATER_CURTAIN",
+                      "value": 1
+                    }
+                  }
+                ],
+                "done": {
+                  "type": "actions_complete"
+                },
+                "on_error": "skip"
+              }
+            ]
+          },
+          {
+            "id": "foam_lane",
+            "steps": [
+              {
+                "id": "foam_on",
+                "type": "event",
+                "trigger": {
+                  "type": "condition",
+                  "expr": "phase.elapsed_ms >= 3000"
+                },
+                "actions": [
+                  {
+                    "io_set": {
+                      "channel": "WATER_TOP_FOAM",
+                      "value": 1
+                    }
+                  },
+                  {
+                    "io_set": {
+                      "channel": "WATER_BUTTOM_FOAM",
+                      "value": 1
+                    }
+                  }
+                ],
+                "done": {
+                  "type": "actions_complete"
+                },
+                "on_error": "skip"
+              },
+              {
+                "id": "foam_off_at_tail",
+                "type": "event",
+                "trigger": {
+                  "type": "signal",
+                  "signal": "RADAR_CAR_TAIL",
+                  "edge": "rising"
+                },
+                "guard": "axes.gantry.position >= $gantry_tail_min_pos",
+                "actions": [
+                  {
+                    "io_set": {
+                      "channel": "WATER_CURTAIN",
+                      "value": 0
+                    }
+                  },
+                  {
+                    "io_set": {
+                      "channel": "WATER_TOP_FOAM",
+                      "value": 0
+                    }
+                  },
+                  {
+                    "io_set": {
+                      "channel": "WATER_BUTTOM_FOAM",
+                      "value": 0
+                    }
+                  }
+                ],
+                "done": {
+                  "type": "actions_complete"
+                },
+                "on_error": "skip",
+                "after": [
+                  "foam_on"
+                ]
+              }
+            ]
+          },
+          {
+            "id": "lifter_lane",
+            "steps": [
+              {
+                "id": "lifter_to_up",
+                "type": "event",
+                "trigger": {
+                  "type": "signal",
+                  "signal": "GANTRY_FWD_LIMIT",
+                  "edge": "rising"
+                },
+                "actions": [
+                  {
+                    "io_set": {
+                      "channel": "LIFTER_DOWN",
+                      "value": 0
+                    }
+                  },
+                  {
+                    "io_set": {
+                      "channel": "LIFTER_UP",
+                      "value": 1
+                    }
+                  }
+                ],
+                "done": {
+                  "type": "signal",
+                  "signal": "LIFT_UP_LIMIT",
+                  "state": 1,
+                  "timeout_ms": 10000
+                },
+                "on_error": "halt_phase"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "pass2_rev_side",
+        "name": "第二趟-后退侧刷",
+        "direction": "backward",
+        "entry_guard": "GANTRY_FWD_LIMIT == 1",
+        "exit_guard": "GANTRY_REV_LIMIT == 1",
+        "timeout_ms": 120000,
+        "on_timeout": "halt_phase",
+        "on_exit": [
+          {
+            "io_set": {
+              "channel": "GANTRY_REV",
+              "value": 0
+            }
+          },
+          {
+            "io_set": {
+              "channel": "SIDE_BRUSH_ROT",
+              "value": 0
+            }
+          },
+          {
+            "io_set": {
+              "channel": "WATER_HIGHPRES_TOP",
+              "value": 0
+            }
+          },
+          {
+            "io_set": {
+              "channel": "WATER_HIGHPRES_BOTTOM",
+              "value": 0
+            }
+          }
+        ],
+        "lanes": [
+          {
+            "id": "lifter_lane",
+            "steps": [
+              {
+                "id": "lifter_ensure_up",
+                "type": "event",
+                "trigger": {
+                  "type": "condition",
+                  "expr": "LIFT_UP_LIMIT == 0"
+                },
+                "actions": [
+                  {
+                    "io_set": {
+                      "channel": "LIFTER_DOWN",
+                      "value": 0
+                    }
+                  },
+                  {
+                    "io_set": {
+                      "channel": "LIFTER_UP",
+                      "value": 1
+                    }
+                  }
+                ],
+                "done": {
+                  "type": "signal",
+                  "signal": "LIFT_UP_LIMIT",
+                  "state": 1,
+                  "timeout_ms": 15000
+                },
+                "on_error": "halt_phase"
+              }
+            ]
+          },
+          {
+            "id": "gantry_lane",
+            "steps": [
+              {
+                "id": "gantry_rev",
+                "type": "event",
+                "trigger": {
+                  "type": "condition",
+                  "expr": "LIFT_UP_LIMIT == 1"
+                },
+                "actions": [
+                  {
+                    "io_set": {
+                      "channel": "GANTRY_FWD",
+                      "value": 0
+                    }
+                  },
+                  {
+                    "io_set": {
+                      "channel": "GANTRY_REV",
+                      "value": 1
+                    }
+                  }
+                ],
+                "done": {
+                  "type": "trigger_exit"
+                },
+                "on_error": "halt_phase"
+              }
+            ]
+          },
+          {
+            "id": "side_brush_lane",
+            "steps": [
+              {
+                "id": "side_brush_start",
+                "type": "event",
+                "trigger": {
+                  "type": "condition",
+                  "expr": "phase.elapsed_ms >= 3000"
+                },
+                "actions": [
+                  {
+                    "io_set": {
+                      "channel": "SIDE_BRUSH_ROT",
+                      "value": 1
+                    }
+                  },
+                  {
+                    "io_set": {
+                      "channel": "WATER_HIGHPRES_TOP",
+                      "value": 1
+                    }
+                  }
+                ],
+                "done": {
+                  "type": "actions_complete"
+                },
+                "on_error": "degrade"
+              }
+            ]
+          },
+          {
+            "id": "highpres_bottom_lane",
+            "steps": [
+              {
+                "id": "highpres_bottom_on",
+                "type": "event",
+                "trigger": {
+                  "type": "condition",
+                  "expr": "LIFT_UP_LIMIT == 1"
+                },
+                "actions": [
+                  {
+                    "wait_time": {
+                      "ms": 8000
+                    }
+                  },
+                  {
+                    "io_set": {
+                      "channel": "WATER_HIGHPRES_BOTTOM",
+                      "value": 1
+                    }
+                  }
+                ],
+                "done": {
+                  "type": "actions_complete"
+                },
+                "on_error": "skip"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "pass3_fwd_side",
+        "name": "第三趟-前进侧刷",
+        "direction": "forward",
+        "entry_guard": "GANTRY_REV_LIMIT == 1",
+        "exit_guard": "GANTRY_FWD_LIMIT == 1",
+        "timeout_ms": 60000,
+        "on_timeout": "halt_phase",
+        "on_enter": [
+          {
+            "io_set": {
+              "channel": "SIDE_BRUSH_ROT",
+              "value": 1
+            }
+          },
+          {
+            "io_set": {
+              "channel": "WATER_HIGHPRES_TOP",
+              "value": 1
+            }
+          },
+          {
+            "io_set": {
+              "channel": "WATER_HIGHPRES_BOTTOM",
+              "value": 1
+            }
+          }
+        ],
+        "on_exit": [
+          {
+            "io_set": {
+              "channel": "GANTRY_FWD",
+              "value": 0
+            }
+          },
+          {
+            "io_set": {
+              "channel": "SIDE_BRUSH_ROT",
+              "value": 0
+            }
+          },
+          {
+            "io_set": {
+              "channel": "WATER_HIGHPRES_TOP",
+              "value": 0
+            }
+          },
+          {
+            "io_set": {
+              "channel": "WATER_HIGHPRES_BOTTOM",
+              "value": 0
+            }
+          }
+        ],
+        "lanes": [
+          {
+            "id": "gantry_lane",
+            "steps": [
+              {
+                "id": "gantry_fwd",
+                "type": "event",
+                "trigger": {
+                  "type": "condition",
+                  "expr": "true"
+                },
+                "actions": [
+                  {
+                    "io_set": {
+                      "channel": "GANTRY_REV",
+                      "value": 0
+                    }
+                  },
+                  {
+                    "io_set": {
+                      "channel": "GANTRY_FWD",
+                      "value": 1
+                    }
+                  }
+                ],
+                "done": {
+                  "type": "trigger_exit"
+                },
+                "on_error": "halt_phase"
+              }
+            ]
+          },
+          {
+            "id": "side_brush_lane",
+            "steps": [
+              {
+                "id": "side_brush_stop_at_tail",
+                "type": "event",
+                "trigger": {
+                  "type": "condition",
+                  "expr": "markers.car_tail.valid AND axes.gantry.position >= markers.car_tail.position + $gantry_side_stop_offset\n"
+                },
+                "actions": [
+                  {
+                    "io_set": {
+                      "channel": "SIDE_BRUSH_ROT",
+                      "value": 0
+                    }
+                  },
+                  {
+                    "io_set": {
+                      "channel": "WATER_HIGHPRES_TOP",
+                      "value": 0
+                    }
+                  },
+                  {
+                    "io_set": {
+                      "channel": "WATER_HIGHPRES_BOTTOM",
+                      "value": 0
+                    }
+                  }
+                ],
+                "done": {
+                  "type": "actions_complete"
+                },
+                "on_error": "skip"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "pass4_rev_rinse",
+        "name": "第四趟-高压冲洗",
+        "direction": "backward",
+        "entry_guard": "GANTRY_FWD_LIMIT == 1",
+        "exit_guard": "GANTRY_REV_LIMIT == 1",
+        "timeout_ms": 60000,
+        "on_timeout": "halt_phase",
+        "on_exit": [
+          {
+            "io_set": {
+              "channel": "GANTRY_REV",
+              "value": 0
+            }
+          },
+          {
+            "io_set": {
+              "channel": "TOP_BRUSH_ROT",
+              "value": 0
+            }
+          },
+          {
+            "io_set": {
+              "channel": "WATER_HIGHPRES_TOP",
+              "value": 0
+            }
+          },
+          {
+            "io_set": {
+              "channel": "WATER_HIGHPRES_BOTTOM",
+              "value": 0
+            }
+          },
+          {
+            "io_set": {
+              "channel": "WATER_CURTAIN",
+              "value": 0
+            }
+          }
+        ],
+        "lanes": [
+          {
+            "id": "gantry_lane",
+            "steps": [
+              {
+                "id": "gantry_rev",
+                "type": "event",
+                "trigger": {
+                  "type": "condition",
+                  "expr": "true"
+                },
+                "actions": [
+                  {
+                    "io_set": {
+                      "channel": "GANTRY_FWD",
+                      "value": 0
+                    }
+                  },
+                  {
+                    "io_set": {
+                      "channel": "GANTRY_REV",
+                      "value": 1
+                    }
+                  }
+                ],
+                "done": {
+                  "type": "trigger_exit"
+                },
+                "on_error": "halt_phase"
+              }
+            ]
+          },
+          {
+            "id": "top_brush_lane",
+            "steps": [
+              {
+                "id": "top_brush_medium",
+                "type": "event",
+                "trigger": {
+                  "type": "condition",
+                  "expr": "true"
+                },
+                "actions": [
+                  {
+                    "io_set": {
+                      "channel": "TOP_BRUSH_ROT",
+                      "value": 2
+                    }
+                  }
+                ],
+                "done": {
+                  "type": "actions_complete"
+                },
+                "on_error": "skip"
+              }
+            ]
+          },
+          {
+            "id": "water_lane",
+            "steps": [
+              {
+                "id": "water_on",
+                "type": "event",
+                "trigger": {
+                  "type": "condition",
+                  "expr": "phase.elapsed_ms >= 8000"
+                },
+                "actions": [
+                  {
+                    "io_set": {
+                      "channel": "WATER_HIGHPRES_TOP",
+                      "value": 1
+                    }
+                  },
+                  {
+                    "io_set": {
+                      "channel": "WATER_HIGHPRES_BOTTOM",
+                      "value": 1
+                    }
+                  },
+                  {
+                    "io_set": {
+                      "channel": "WATER_CURTAIN",
+                      "value": 1
+                    }
+                  }
+                ],
+                "done": {
+                  "type": "actions_complete"
+                },
+                "on_error": "skip"
+              },
+              {
+                "id": "curtain_off_near_home",
+                "type": "event",
+                "trigger": {
+                  "type": "condition",
+                  "expr": "axes.gantry.position <= $gantry_rear_near_pos"
+                },
+                "actions": [
+                  {
+                    "io_set": {
+                      "channel": "WATER_CURTAIN",
+                      "value": 0
+                    }
+                  }
+                ],
+                "done": {
+                  "type": "actions_complete"
+                },
+                "on_error": "skip",
+                "after": [
+                  "water_on"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "pass5_fwd_dry",
+        "name": "第五趟-前进吹风",
+        "direction": "forward",
+        "entry_guard": "GANTRY_REV_LIMIT == 1",
+        "exit_guard": "(markers.car_tail.valid AND axes.gantry.position >= markers.car_tail.position) OR GANTRY_FWD_LIMIT == 1\n",
+        "timeout_ms": 60000,
+        "on_timeout": "halt_phase",
+        "on_enter": [
+          {
+            "io_set": {
+              "channel": "DRYER_RUN",
+              "value": 1
+            }
+          }
+        ],
+        "on_exit": [
+          {
+            "io_set": {
+              "channel": "GANTRY_FWD",
+              "value": 0
+            }
+          }
+        ],
+        "lanes": [
+          {
+            "id": "gantry_lane",
+            "steps": [
+              {
+                "id": "gantry_fwd",
+                "type": "event",
+                "trigger": {
+                  "type": "condition",
+                  "expr": "phase.elapsed_ms >= 8000"
+                },
+                "actions": [
+                  {
+                    "io_set": {
+                      "channel": "GANTRY_REV",
+                      "value": 0
+                    }
+                  },
+                  {
+                    "io_set": {
+                      "channel": "GANTRY_FWD",
+                      "value": 1
+                    }
+                  }
+                ],
+                "done": {
+                  "type": "trigger_exit"
+                },
+                "on_error": "halt_phase"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "pass6_rev_dry",
+        "name": "第六趟-后退吹风",
+        "direction": "backward",
+        "entry_guard": "(markers.car_tail.valid AND axes.gantry.position >= markers.car_tail.position) OR GANTRY_FWD_LIMIT == 1\n",
+        "exit_guard": "GANTRY_REV_LIMIT == 1",
+        "timeout_ms": 60000,
+        "on_timeout": "halt_phase",
+        "on_exit": [
+          {
+            "io_set": {
+              "channel": "GANTRY_REV",
+              "value": 0
+            }
+          },
+          {
+            "io_set": {
+              "channel": "DRYER_RUN",
+              "value": 0
+            }
+          }
+        ],
+        "lanes": [
+          {
+            "id": "gantry_lane",
+            "steps": [
+              {
+                "id": "gantry_rev",
+                "type": "event",
+                "trigger": {
+                  "type": "condition",
+                  "expr": "true"
+                },
+                "actions": [
+                  {
+                    "io_set": {
+                      "channel": "GANTRY_FWD",
+                      "value": 0
+                    }
+                  },
+                  {
+                    "io_set": {
+                      "channel": "GANTRY_REV",
+                      "value": 1
+                    }
+                  }
+                ],
+                "done": {
+                  "type": "trigger_exit"
+                },
+                "on_error": "halt_phase"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "homing",
+        "name": "归位",
+        "direction": "none",
+        "entry_guard": "GANTRY_REV_LIMIT == 1",
+        "exit_guard": "GANTRY_REV_LIMIT == 1 AND REAR_LOCK_HOME == 1",
+        "timeout_ms": 60000,
+        "on_timeout": "halt_phase",
+        "on_exit": [
+          {
+            "io_set": {
+              "channel": "LIFTER_UP",
+              "value": 0
+            }
+          },
+          {
+            "io_set": {
+              "channel": "GANTRY_REV",
+              "value": 0
+            }
+          }
+        ],
+        "lanes": [
+          {
+            "id": "lifter_lane",
+            "steps": [
+              {
+                "id": "lifter_to_up",
+                "type": "event",
+                "trigger": {
+                  "type": "condition",
+                  "expr": "LIFT_UP_LIMIT == 0"
+                },
+                "actions": [
+                  {
+                    "io_set": {
+                      "channel": "LIFTER_DOWN",
+                      "value": 0
+                    }
+                  },
+                  {
+                    "io_set": {
+                      "channel": "LIFTER_UP",
+                      "value": 1
+                    }
+                  }
+                ],
+                "done": {
+                  "type": "signal",
+                  "signal": "LIFT_UP_LIMIT",
+                  "state": 1,
+                  "timeout_ms": 15000
+                },
+                "on_error": "halt_phase"
+              }
+            ]
+          },
+          {
+            "id": "gantry_lane",
+            "steps": [
+              {
+                "id": "gantry_to_home",
+                "type": "event",
+                "trigger": {
+                  "type": "condition",
+                  "expr": "GANTRY_REV_LIMIT == 0"
+                },
+                "actions": [
+                  {
+                    "io_set": {
+                      "channel": "GANTRY_FWD",
+                      "value": 0
+                    }
+                  },
+                  {
+                    "io_set": {
+                      "channel": "GANTRY_REV",
+                      "value": 1
+                    }
+                  }
+                ],
+                "done": {
+                  "type": "signal",
+                  "signal": "GANTRY_REV_LIMIT",
+                  "state": 1,
+                  "timeout_ms": 30000
+                },
+                "on_error": "halt_phase"
+              }
+            ]
+          },
+          {
+            "id": "wheel_lock_lane",
+            "steps": [
+              {
+                "id": "release_wheel_lock",
+                "type": "event",
+                "trigger": {
+                  "type": "condition",
+                  "expr": "GANTRY_REV_LIMIT == 1 AND REAR_LOCK_HOME == 0"
+                },
+                "actions": [
+                  {
+                    "io_set": {
+                      "channel": "PUTTER_REV",
+                      "value": 1
+                    }
+                  }
+                ],
+                "done": {
+                  "type": "signal",
+                  "signal": "REAR_LOCK_HOME",
+                  "state": 1,
+                  "timeout_ms": 15000
+                },
+                "on_error": "degrade"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
