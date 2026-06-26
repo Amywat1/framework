@@ -8,10 +8,13 @@
 #include "domain/engine/engine.h"
 #include "adapters/storage/json/engine_program_json.h"
 #include "adapters/hal/sim_hw/engine_io_sim.h"
+#include "unity.h"
 
-#include <assert.h>
 #include <stdio.h>
 #include <string.h>
+
+void setUp(void)    { engine_io_sim_reset(); }
+void tearDown(void) {}
 
 /* 装载一个方案字符串（JSON）并启动引擎 */
 static engine_t *start_program(const char *json)
@@ -20,12 +23,12 @@ static engine_t *start_program(const char *json)
     char err[160] = { 0 };
     engine_program_t *p = engine_program_load_json_string(json, err, sizeof(err));
     if (p == NULL) { printf("  解析失败: %s\n", err); }
-    assert(p != NULL);
+    TEST_ASSERT_NOT_NULL(p);
 
     engine_t *e = engine_create();
-    assert(e != NULL);
-    assert(engine_load_program(e, p) == SW_OK);
-    assert(engine_start(e) == SW_OK);
+    TEST_ASSERT_NOT_NULL(e);
+    TEST_ASSERT_EQUAL_INT(SW_OK, engine_load_program(e, p));
+    TEST_ASSERT_EQUAL_INT(SW_OK, engine_start(e));
     return e;
 }
 
@@ -37,7 +40,6 @@ static void tick_n(engine_t *e, unsigned n, uint32_t dt)
 /* ---- wait_time + after + actions_complete ---- */
 static void test_wait_and_after(void)
 {
-    printf("test_wait_and_after\n");
     static const char *json =
         "{\"program\":{\"schema_version\":\"1.0\",\"id\":\"tA\",\"phases\":["
         "{\"id\":\"p0\",\"entry_guard\":\"true\",\"exit_guard\":\"EXIT == 1\",\"timeout_ms\":100000,"
@@ -51,23 +53,21 @@ static void test_wait_and_after(void)
     engine_t *e = start_program(json);
 
     tick_n(e, 5U, 100U);
-    assert(engine_io_sim_get_output("AOUT") == 0);
+    TEST_ASSERT_EQUAL_INT(0, engine_io_sim_get_output("AOUT"));
 
     tick_n(e, 7U, 100U);
-    assert(engine_io_sim_get_output("AOUT") == 1);
-    assert(engine_io_sim_get_output("BOUT") == 0);
+    TEST_ASSERT_EQUAL_INT(1, engine_io_sim_get_output("AOUT"));
+    TEST_ASSERT_EQUAL_INT(0, engine_io_sim_get_output("BOUT"));
 
     tick_n(e, 25U, 100U);
-    assert(engine_io_sim_get_output("BOUT") == 1);
+    TEST_ASSERT_EQUAL_INT(1, engine_io_sim_get_output("BOUT"));
 
     engine_destroy(e);
-    printf("  PASS\n");
 }
 
 /* ---- signal rising 触发 ---- */
 static void test_signal_edge(void)
 {
-    printf("test_signal_edge\n");
     static const char *json =
         "{\"program\":{\"schema_version\":\"1.0\",\"id\":\"tS\",\"phases\":["
         "{\"id\":\"p0\",\"entry_guard\":\"true\",\"exit_guard\":\"EXIT == 1\",\"timeout_ms\":100000,"
@@ -79,20 +79,18 @@ static void test_signal_edge(void)
 
     engine_io_sim_set_signal("SIG", 0);
     tick_n(e, 3U, 100U);
-    assert(engine_io_sim_get_output("ROUT") == 0);
+    TEST_ASSERT_EQUAL_INT(0, engine_io_sim_get_output("ROUT"));
 
     engine_io_sim_set_signal("SIG", 1);
     tick_n(e, 1U, 100U);
-    assert(engine_io_sim_get_output("ROUT") == 1);
+    TEST_ASSERT_EQUAL_INT(1, engine_io_sim_get_output("ROUT"));
 
     engine_destroy(e);
-    printf("  PASS\n");
 }
 
 /* ---- 持续输出（trigger_exit）+ on_exit 清零 + 阶段推进 ---- */
 static void test_trigger_exit_and_on_exit(void)
 {
-    printf("test_trigger_exit_and_on_exit\n");
     static const char *json =
         "{\"program\":{\"schema_version\":\"1.0\",\"id\":\"tT\",\"phases\":["
         "{\"id\":\"p0\",\"entry_guard\":\"true\",\"exit_guard\":\"EXIT == 1\",\"timeout_ms\":100000,"
@@ -104,22 +102,20 @@ static void test_trigger_exit_and_on_exit(void)
     engine_t *e = start_program(json);
 
     tick_n(e, 3U, 100U);
-    assert(engine_io_sim_get_output("GOUT") == 1);
-    assert(engine_state(e) == ENGINE_STATE_RUNNING);
+    TEST_ASSERT_EQUAL_INT(1, engine_io_sim_get_output("GOUT"));
+    TEST_ASSERT_EQUAL_INT(ENGINE_STATE_RUNNING, engine_state(e));
 
     engine_io_sim_set_signal("EXIT", 1);
     tick_n(e, 1U, 100U);
-    assert(engine_io_sim_get_output("GOUT") == 0);
-    assert(engine_state(e) == ENGINE_STATE_DONE);
+    TEST_ASSERT_EQUAL_INT(0, engine_io_sim_get_output("GOUT"));
+    TEST_ASSERT_EQUAL_INT(ENGINE_STATE_DONE, engine_state(e));
 
     engine_destroy(e);
-    printf("  PASS\n");
 }
 
 /* ---- 阶段串行 + done signal 超时 → on_error ---- */
 static void test_phase_serial_and_done_timeout(void)
 {
-    printf("test_phase_serial_and_done_timeout\n");
     static const char *json =
         "{\"program\":{\"schema_version\":\"1.0\",\"id\":\"tP\",\"phases\":["
         "{\"id\":\"p0\",\"entry_guard\":\"true\",\"exit_guard\":\"EXIT0 == 1\",\"timeout_ms\":100000,"
@@ -137,27 +133,25 @@ static void test_phase_serial_and_done_timeout(void)
     engine_t *e = start_program(json);
 
     tick_n(e, 2U, 100U);
-    assert(engine_io_sim_get_output("POUT") == 0);
-    assert(engine_current_phase(e) == 0);
+    TEST_ASSERT_EQUAL_INT(0, engine_io_sim_get_output("POUT"));
+    TEST_ASSERT_EQUAL_INT(0, engine_current_phase(e));
 
     tick_n(e, 8U, 100U);
-    assert(engine_state(e) == ENGINE_STATE_RUNNING);
-    assert(engine_current_phase(e) == 0);
+    TEST_ASSERT_EQUAL_INT(ENGINE_STATE_RUNNING, engine_state(e));
+    TEST_ASSERT_EQUAL_INT(0, engine_current_phase(e));
 
     engine_io_sim_set_signal("EXIT0", 1);
     tick_n(e, 2U, 100U);
-    assert(engine_current_phase(e) == 1);
-    assert(engine_io_sim_get_output("POUT") == 1);
-    assert(engine_io_sim_get_output("S1OUT") == 1);
+    TEST_ASSERT_EQUAL_INT(1, engine_current_phase(e));
+    TEST_ASSERT_EQUAL_INT(1, engine_io_sim_get_output("POUT"));
+    TEST_ASSERT_EQUAL_INT(1, engine_io_sim_get_output("S1OUT"));
 
     engine_destroy(e);
-    printf("  PASS\n");
 }
 
 /* ---- 联锁 halt_all ---- */
 static void test_interlock_halt_all(void)
 {
-    printf("test_interlock_halt_all\n");
     static const char *json =
         "{\"program\":{\"schema_version\":\"1.0\",\"id\":\"tI\","
         "\"interlocks\":[{\"id\":\"estop\",\"condition\":\"ESTOP == 1\",\"action\":\"halt_all\","
@@ -170,21 +164,19 @@ static void test_interlock_halt_all(void)
     engine_t *e = start_program(json);
 
     tick_n(e, 2U, 100U);
-    assert(engine_io_sim_get_output("XOUT") == 1);
+    TEST_ASSERT_EQUAL_INT(1, engine_io_sim_get_output("XOUT"));
 
     engine_io_sim_set_signal("ESTOP", 1);
     tick_n(e, 1U, 100U);
-    assert(engine_state(e) == ENGINE_STATE_HALTED);
-    assert(engine_io_sim_get_output("XOUT") == 0);
+    TEST_ASSERT_EQUAL_INT(ENGINE_STATE_HALTED, engine_state(e));
+    TEST_ASSERT_EQUAL_INT(0, engine_io_sim_get_output("XOUT"));
 
     engine_destroy(e);
-    printf("  PASS\n");
 }
 
 /* ---- 联锁 halt_phase + recover ---- */
 static void test_interlock_halt_phase(void)
 {
-    printf("test_interlock_halt_phase\n");
     static const char *json =
         "{\"program\":{\"schema_version\":\"1.0\",\"id\":\"tH\","
         "\"interlocks\":[{\"id\":\"coll\",\"condition\":\"HP == 1\",\"action\":\"halt_phase\","
@@ -198,27 +190,25 @@ static void test_interlock_halt_phase(void)
     engine_t *e = start_program(json);
 
     tick_n(e, 2U, 100U);
-    assert(engine_io_sim_get_output("YOUT") == 1);
+    TEST_ASSERT_EQUAL_INT(1, engine_io_sim_get_output("YOUT"));
 
     engine_io_sim_set_signal("HP", 1);
     tick_n(e, 1U, 100U);
-    assert(engine_state(e) == ENGINE_STATE_PHASE_HALTED);
-    assert(engine_io_sim_get_output("YOUT") == 0);
+    TEST_ASSERT_EQUAL_INT(ENGINE_STATE_PHASE_HALTED, engine_state(e));
+    TEST_ASSERT_EQUAL_INT(0, engine_io_sim_get_output("YOUT"));
 
     engine_io_sim_set_signal("HP", 0);
-    assert(engine_recover(e) == SW_OK);
+    TEST_ASSERT_EQUAL_INT(SW_OK, engine_recover(e));
     tick_n(e, 1U, 100U);
-    assert(engine_state(e) == ENGINE_STATE_RUNNING);
-    assert(engine_io_sim_get_output("YOUT") == 1);
+    TEST_ASSERT_EQUAL_INT(ENGINE_STATE_RUNNING, engine_state(e));
+    TEST_ASSERT_EQUAL_INT(1, engine_io_sim_get_output("YOUT"));
 
     engine_destroy(e);
-    printf("  PASS\n");
 }
 
 /* ---- 联锁 custom_action ---- */
 static void test_interlock_custom(void)
 {
-    printf("test_interlock_custom\n");
     static const char *json =
         "{\"program\":{\"schema_version\":\"1.0\",\"id\":\"tC\","
         "\"interlocks\":[{\"id\":\"ca\",\"condition\":\"CA == 1\",\"action\":\"custom_action\","
@@ -232,28 +222,26 @@ static void test_interlock_custom(void)
     engine_t *e = start_program(json);
 
     tick_n(e, 1U, 100U);
-    assert(engine_io_sim_get_output("COUT") == 0);
+    TEST_ASSERT_EQUAL_INT(0, engine_io_sim_get_output("COUT"));
 
     engine_io_sim_set_signal("CA", 1);
     tick_n(e, 1U, 100U);
-    assert(engine_io_sim_get_output("COUT") == 5);
-    assert(engine_state(e) == ENGINE_STATE_RUNNING);
+    TEST_ASSERT_EQUAL_INT(5, engine_io_sim_get_output("COUT"));
+    TEST_ASSERT_EQUAL_INT(ENGINE_STATE_RUNNING, engine_state(e));
 
     engine_io_sim_set_signal("CA", 0);
     tick_n(e, 1U, 100U);
     engine_io_sim_set_output("COUT", 0);
     engine_io_sim_set_signal("CA", 1);
     tick_n(e, 1U, 100U);
-    assert(engine_io_sim_get_output("COUT") == 5);
+    TEST_ASSERT_EQUAL_INT(5, engine_io_sim_get_output("COUT"));
 
     engine_destroy(e);
-    printf("  PASS\n");
 }
 
 /* ---- 标记锁存 + 写一次保护 ---- */
 static void test_marker_latch_once(void)
 {
-    printf("test_marker_latch_once\n");
     static const char *json =
         "{\"program\":{\"schema_version\":\"1.0\",\"id\":\"tM\","
         "\"axes\":{\"g\":{\"type\":\"physical\",\"encoder\":\"ENC\",\"pulse_per_mm\":1.0}},"
@@ -279,26 +267,22 @@ static void test_marker_latch_once(void)
     engine_io_sim_set_signal("TAIL", 1);
     tick_n(e, 2U, 100U);
 
-    assert(engine_state(e) == ENGINE_STATE_DONE);
+    TEST_ASSERT_EQUAL_INT(ENGINE_STATE_DONE, engine_state(e));
 
     engine_destroy(e);
-    printf("  PASS\n");
 }
 
 int main(void)
 {
-    printf("=== test_engine_runtime ===\n");
     engine_io_sim_register();
-
-    test_wait_and_after();
-    test_signal_edge();
-    test_trigger_exit_and_on_exit();
-    test_phase_serial_and_done_timeout();
-    test_interlock_halt_all();
-    test_interlock_halt_phase();
-    test_interlock_custom();
-    test_marker_latch_once();
-
-    printf("=== ALL PASSED ===\n");
-    return 0;
+    UNITY_BEGIN();
+    RUN_TEST(test_wait_and_after);
+    RUN_TEST(test_signal_edge);
+    RUN_TEST(test_trigger_exit_and_on_exit);
+    RUN_TEST(test_phase_serial_and_done_timeout);
+    RUN_TEST(test_interlock_halt_all);
+    RUN_TEST(test_interlock_halt_phase);
+    RUN_TEST(test_interlock_custom);
+    RUN_TEST(test_marker_latch_once);
+    return UNITY_END();
 }

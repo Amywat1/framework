@@ -246,12 +246,16 @@ if(BUILD_SIM)
         add_executable(${name}
             ${test_src}
             ${ARGN}
+            tools/unity/unity.c
             core/event_bus/event_bus.c
             ports/port_registry.c
             common/time_util.c
             tools/simulator/snack_stub.c
         )
-        target_include_directories(${name} PRIVATE ${test_includes})
+        target_include_directories(${name} PRIVATE
+            ${test_includes}
+            ${CMAKE_SOURCE_DIR}/tools/unity
+        )
         target_link_libraries(${name} PRIVATE pthread)
         target_compile_options(${name} PRIVATE -Wall -Wextra -Werror -g)
         add_test(NAME ${name} COMMAND ${name})
@@ -363,8 +367,12 @@ if(BUILD_SIM)
         domain/engine/engine_expr.c
         adapters/hal/sim_hw/engine_io_sim.c
         tools/cJSON.c
+        tools/unity/unity.c
     )
-    target_include_directories(scenario_engine_normal_wash PRIVATE ${test_includes})
+    target_include_directories(scenario_engine_normal_wash PRIVATE
+        ${test_includes}
+        ${CMAKE_SOURCE_DIR}/tools/unity
+    )
     target_link_libraries(scenario_engine_normal_wash PRIVATE pthread m)
     target_compile_options(scenario_engine_normal_wash PRIVATE -Wall -Wextra -Werror -g)
     target_compile_definitions(scenario_engine_normal_wash PRIVATE

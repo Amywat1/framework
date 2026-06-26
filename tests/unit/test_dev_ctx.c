@@ -8,28 +8,26 @@
 #include "service/dev_ctx/dev_ctx.h"
 #include "domain/model/device_state.h"
 #include "domain/model/wash_types.h"
-#include <assert.h>
-#include <stdio.h>
+#include "unity.h"
+
 #include <stdbool.h>
 #include <pthread.h>
 #include <stdatomic.h>
+
+void setUp(void)    { (void)dev_ctx_init(); }
+void tearDown(void) {}
 
 /* -------------------------------------------------------------------------
  * TC-1：init 后各字段为安全初始值
  * ------------------------------------------------------------------------- */
 static void test_init_defaults(void)
 {
-    printf("TC-1: init defaults\n");
-
-    (void)dev_ctx_init();
     device_context_t ctx = dev_ctx_snapshot();
 
-    assert(ctx.device_state  == DEV_STATE_INIT);
-    assert(ctx.wash_step     == WASH_STEP_IDLE);
-    assert(ctx.wash_mode     == WASH_MODE_STANDARD);
-    assert(ctx.cloud_connected == false);
-
-    printf("  PASS\n");
+    TEST_ASSERT_EQUAL_INT(DEV_STATE_INIT,     ctx.device_state);
+    TEST_ASSERT_EQUAL_INT(WASH_STEP_IDLE,     ctx.wash_step);
+    TEST_ASSERT_EQUAL_INT(WASH_MODE_STANDARD, ctx.wash_mode);
+    TEST_ASSERT_FALSE(ctx.cloud_connected);
 }
 
 /* -------------------------------------------------------------------------
@@ -37,22 +35,15 @@ static void test_init_defaults(void)
  * ------------------------------------------------------------------------- */
 static void test_set_device_state_isolated(void)
 {
-    printf("TC-2: set_device_state isolated\n");
-
-    (void)dev_ctx_init();
-
     dev_ctx_set_wash_progress(WASH_STEP_PREWASH, WASH_MODE_QUICK);
     dev_ctx_set_cloud_status(true);
-
     dev_ctx_set_device_state(DEV_STATE_RUNNING);
+
     device_context_t ctx = dev_ctx_snapshot();
-
-    assert(ctx.device_state    == DEV_STATE_RUNNING);
-    assert(ctx.wash_step       == WASH_STEP_PREWASH);
-    assert(ctx.wash_mode       == WASH_MODE_QUICK);
-    assert(ctx.cloud_connected == true);
-
-    printf("  PASS\n");
+    TEST_ASSERT_EQUAL_INT(DEV_STATE_RUNNING,  ctx.device_state);
+    TEST_ASSERT_EQUAL_INT(WASH_STEP_PREWASH,  ctx.wash_step);
+    TEST_ASSERT_EQUAL_INT(WASH_MODE_QUICK,    ctx.wash_mode);
+    TEST_ASSERT_TRUE(ctx.cloud_connected);
 }
 
 /* -------------------------------------------------------------------------
@@ -60,22 +51,15 @@ static void test_set_device_state_isolated(void)
  * ------------------------------------------------------------------------- */
 static void test_set_wash_progress(void)
 {
-    printf("TC-3: set_wash_progress updates both fields\n");
-
-    (void)dev_ctx_init();
-
     dev_ctx_set_wash_progress(WASH_STEP_RINSE_REV, WASH_MODE_QUICK);
     device_context_t ctx = dev_ctx_snapshot();
-
-    assert(ctx.wash_step == WASH_STEP_RINSE_REV);
-    assert(ctx.wash_mode == WASH_MODE_QUICK);
+    TEST_ASSERT_EQUAL_INT(WASH_STEP_RINSE_REV, ctx.wash_step);
+    TEST_ASSERT_EQUAL_INT(WASH_MODE_QUICK,     ctx.wash_mode);
 
     dev_ctx_set_wash_progress(WASH_STEP_IDLE, WASH_MODE_STANDARD);
     ctx = dev_ctx_snapshot();
-    assert(ctx.wash_step == WASH_STEP_IDLE);
-    assert(ctx.wash_mode == WASH_MODE_STANDARD);
-
-    printf("  PASS\n");
+    TEST_ASSERT_EQUAL_INT(WASH_STEP_IDLE,     ctx.wash_step);
+    TEST_ASSERT_EQUAL_INT(WASH_MODE_STANDARD, ctx.wash_mode);
 }
 
 /* -------------------------------------------------------------------------
@@ -83,20 +67,15 @@ static void test_set_wash_progress(void)
  * ------------------------------------------------------------------------- */
 static void test_snapshot_is_copy(void)
 {
-    printf("TC-4: snapshot returns value copy\n");
-
-    (void)dev_ctx_init();
     dev_ctx_set_device_state(DEV_STATE_IDLE);
 
     device_context_t snap1 = dev_ctx_snapshot();
-    assert(snap1.device_state == DEV_STATE_IDLE);
+    TEST_ASSERT_EQUAL_INT(DEV_STATE_IDLE, snap1.device_state);
 
-    snap1.device_state = DEV_STATE_FAULT;
+    snap1.device_state = DEV_STATE_FAULT;  /* 改快照 */
 
     device_context_t snap2 = dev_ctx_snapshot();
-    assert(snap2.device_state == DEV_STATE_IDLE);
-
-    printf("  PASS\n");
+    TEST_ASSERT_EQUAL_INT(DEV_STATE_IDLE, snap2.device_state);  /* 内部未变 */
 }
 
 /* -------------------------------------------------------------------------
@@ -104,27 +83,21 @@ static void test_snapshot_is_copy(void)
  * ------------------------------------------------------------------------- */
 static void test_cloud_status_toggle(void)
 {
-    printf("TC-5: cloud_status toggle\n");
-
-    (void)dev_ctx_init();
-
     dev_ctx_set_cloud_status(true);
-    device_context_t ctx = dev_ctx_snapshot();
-    assert(ctx.cloud_connected == true);
+    TEST_ASSERT_TRUE(dev_ctx_snapshot().cloud_connected);
 
     dev_ctx_set_cloud_status(false);
-    ctx = dev_ctx_snapshot();
-    assert(ctx.cloud_connected == false);
-
-    printf("  PASS\n");
+    TEST_ASSERT_FALSE(dev_ctx_snapshot().cloud_connected);
 }
 
 /* -------------------------------------------------------------------------
  * TC-6：并发读写一致性
+ * 线程内不使用 Unity 断言（longjmp 跨线程不安全），改为标志位+主线程检查
  * ------------------------------------------------------------------------- */
-#define CONCURRENT_ITER     50000
+#define CONCURRENT_ITER  50000
 
-static atomic_int s_stop_flag = 0;
+static atomic_int s_stop_flag   = 0;
+static volatile int s_reader_error = 0;  /* 线程检测到非法状态时置 1 */
 
 static const dev_state_t k_states[2] = { DEV_STATE_IDLE, DEV_STATE_RUNNING };
 static const wash_step_t k_steps[2]  = { WASH_STEP_IDLE, WASH_STEP_PREWASH };
@@ -151,45 +124,39 @@ static void *reader_fn(void *arg)
     while (!atomic_load(&s_stop_flag))
     {
         device_context_t ctx = dev_ctx_snapshot();
-
-        assert(ctx.device_state == k_states[0] || ctx.device_state == k_states[1]);
-        assert(ctx.wash_step    == k_steps[0]  || ctx.wash_step    == k_steps[1]);
-        assert(ctx.wash_mode    == k_modes[0]  || ctx.wash_mode    == k_modes[1]);
+        if ((ctx.device_state != k_states[0] && ctx.device_state != k_states[1]) ||
+            (ctx.wash_step    != k_steps[0]  && ctx.wash_step    != k_steps[1])  ||
+            (ctx.wash_mode    != k_modes[0]  && ctx.wash_mode    != k_modes[1]))
+        {
+            s_reader_error = 1;
+            return NULL;
+        }
     }
     return NULL;
 }
 
 static void test_concurrent_read_write(void)
 {
-    printf("TC-6: concurrent read/write consistency\n");
-
-    (void)dev_ctx_init();
     atomic_store(&s_stop_flag, 0);
+    s_reader_error = 0;
 
     pthread_t writer, reader;
     pthread_create(&writer, NULL, writer_fn, NULL);
     pthread_create(&reader, NULL, reader_fn, NULL);
-
     pthread_join(writer, NULL);
     pthread_join(reader, NULL);
 
-    printf("  PASS\n");
+    TEST_ASSERT_FALSE_MESSAGE(s_reader_error, "并发读写检测到非法状态");
 }
 
-/* -------------------------------------------------------------------------
- * 主函数
- * ------------------------------------------------------------------------- */
 int main(void)
 {
-    printf("=== test_dev_ctx ===\n");
-
-    test_init_defaults();
-    test_set_device_state_isolated();
-    test_set_wash_progress();
-    test_snapshot_is_copy();
-    test_cloud_status_toggle();
-    test_concurrent_read_write();
-
-    printf("=== ALL PASSED ===\n");
-    return 0;
+    UNITY_BEGIN();
+    RUN_TEST(test_init_defaults);
+    RUN_TEST(test_set_device_state_isolated);
+    RUN_TEST(test_set_wash_progress);
+    RUN_TEST(test_snapshot_is_copy);
+    RUN_TEST(test_cloud_status_toggle);
+    RUN_TEST(test_concurrent_read_write);
+    return UNITY_END();
 }

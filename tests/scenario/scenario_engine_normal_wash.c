@@ -12,8 +12,8 @@
 #include "adapters/storage/json/engine_program_json.h"
 #include "adapters/hal/sim_hw/engine_io_sim.h"
 #include "tests/support/m8_device_model.h"
+#include "unity.h"
 
-#include <assert.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -26,44 +26,42 @@
 
 static int out(const char *name) { return engine_io_sim_get_output(name); }
 
-int main(int argc, char **argv)
+void setUp(void)
 {
-    printf("=== scenario_engine_normal_wash ===\n");
-
-    const char *path = (argc > 1) ? argv[1] : M8_CONFIG_PATH;
-
     engine_io_sim_register();
     engine_io_sim_reset();
     m8_device_model_init();
+}
 
+void tearDown(void) {}
+
+static void test_engine_normal_wash(void)
+{
     engine_t *e = engine_create();
-    assert(e != NULL);
+    TEST_ASSERT_NOT_NULL(e);
 
     char err[200] = { 0 };
-    engine_program_t *prog = engine_program_load_json_file(path, err, sizeof(err));
-    if (prog == NULL)
-    {
-        printf("  装载失败(%s): %s\n", path, err);
-    }
-    assert(prog != NULL);
-    assert(engine_load_program(e, prog) == SW_OK);
-    assert(engine_start(e) == SW_OK);
+    engine_program_t *prog = engine_program_load_json_file(M8_CONFIG_PATH, err, sizeof(err));
+    if (prog == NULL) { printf("  装载失败(%s): %s\n", M8_CONFIG_PATH, err); }
+    TEST_ASSERT_NOT_NULL(prog);
+    TEST_ASSERT_EQUAL_INT(SW_OK, engine_load_program(e, prog));
+    TEST_ASSERT_EQUAL_INT(SW_OK, engine_start(e));
 
     /* 跑通全流程，沿途采集关键事实 */
-    int  max_phase   = 0;
-    bool saw_foam_on = false;
-    bool saw_foam_off = false;
-    bool saw_side_on  = false;
-    bool saw_side_off_pass3 = false;
-    bool saw_dryer_on = false;
-    bool saw_top_medium = false;
-    bool ever_halted  = false;
+    int  max_phase            = 0;
+    bool saw_foam_on          = false;
+    bool saw_foam_off         = false;
+    bool saw_side_on          = false;
+    bool saw_side_off_pass3   = false;
+    bool saw_dryer_on         = false;
+    bool saw_top_medium       = false;
+    bool ever_halted          = false;
 
     /* prepare 阶段断言：顶刷旋转 + 升降跟随使能 */
     engine_tick(e, SCN_DT_MS);
     m8_device_model_tick(SCN_DT_MS);
-    assert(engine_current_phase_id(e) != NULL);
-    assert(strcmp(engine_current_phase_id(e), "prepare") == 0);
+    TEST_ASSERT_NOT_NULL(engine_current_phase_id(e));
+    TEST_ASSERT_EQUAL_STRING("prepare", engine_current_phase_id(e));
 
     for (unsigned i = 0U; i < SCN_MAX_TICKS; ++i)
     {
@@ -81,8 +79,8 @@ int main(int argc, char **argv)
         {
             if (strcmp(id, "prepare") == 0)
             {
-                assert(out("TOP_BRUSH_ROT") == 1);
-                assert(out("TOP_BRUSH_FOLLOW_EN") == 1);
+                TEST_ASSERT_EQUAL_INT(1, out("TOP_BRUSH_ROT"));
+                TEST_ASSERT_EQUAL_INT(1, out("TOP_BRUSH_FOLLOW_EN"));
             }
             else if (strcmp(id, "pass1_fwd_foam") == 0)
             {
@@ -113,33 +111,31 @@ int main(int argc, char **argv)
     }
 
     /* 全流程结果 */
-    assert(!ever_halted);
-    assert(engine_state(e) == ENGINE_STATE_DONE);
-    printf("  全部 8 阶段跑通，引擎到达 DONE\n");
+    TEST_ASSERT_FALSE_MESSAGE(ever_halted, "引擎意外进入 HALTED 状态");
+    TEST_ASSERT_EQUAL_INT_MESSAGE(ENGINE_STATE_DONE, engine_state(e), "引擎未到达 DONE");
 
     /* 各阶段关键事实 */
-    assert(saw_foam_on);
-    printf("  pass1: 泡沫开启 OK\n");
-    assert(saw_foam_off);
-    printf("  pass1: 检测车尾后泡沫关闭 OK\n");
-    assert(saw_side_on);
-    printf("  pass2: 侧刷开启 OK\n");
-    assert(saw_side_off_pass3);
-    printf("  pass3: 过车尾后侧刷停转 OK\n");
-    assert(saw_top_medium);
-    printf("  pass4: 顶刷中速(value=2) OK\n");
-    assert(saw_dryer_on);
-    printf("  pass5/6: 吹风机开启 OK\n");
+    TEST_ASSERT_TRUE_MESSAGE(saw_foam_on,        "pass1: 泡沫未开启");
+    TEST_ASSERT_TRUE_MESSAGE(saw_foam_off,       "pass1: 检测车尾后泡沫未关闭");
+    TEST_ASSERT_TRUE_MESSAGE(saw_side_on,        "pass2: 侧刷未开启");
+    TEST_ASSERT_TRUE_MESSAGE(saw_side_off_pass3, "pass3: 过车尾后侧刷未停转");
+    TEST_ASSERT_TRUE_MESSAGE(saw_top_medium,     "pass4: 顶刷中速(value=2)未出现");
+    TEST_ASSERT_TRUE_MESSAGE(saw_dryer_on,       "pass5/6: 吹风机未开启");
 
-    /* 归位终态：龙门停、吹风停、升降复位、后轮锁归位 */
-    assert(out("GANTRY_REV") == 0);
-    assert(out("GANTRY_FWD") == 0);
-    assert(out("DRYER_RUN") == 0);
-    assert(out("LIFTER_UP") == 0);
-    assert(engine_io_sim_get_signal("REAR_LOCK_HOME") == 1);
-    printf("  homing: 终态安全（龙门停/吹风停/升降复位/后轮锁归位）OK\n");
+    /* 归位终态 */
+    TEST_ASSERT_EQUAL_INT_MESSAGE(0, out("GANTRY_REV"), "homing: 龙门反转未停");
+    TEST_ASSERT_EQUAL_INT_MESSAGE(0, out("GANTRY_FWD"), "homing: 龙门正转未停");
+    TEST_ASSERT_EQUAL_INT_MESSAGE(0, out("DRYER_RUN"),  "homing: 吹风机未停");
+    TEST_ASSERT_EQUAL_INT_MESSAGE(0, out("LIFTER_UP"),  "homing: 升降未复位");
+    TEST_ASSERT_EQUAL_INT_MESSAGE(1, engine_io_sim_get_signal("REAR_LOCK_HOME"),
+                                  "homing: 后轮锁未归位");
 
     engine_destroy(e);
-    printf("=== ALL PASSED ===\n");
-    return 0;
+}
+
+int main(void)
+{
+    UNITY_BEGIN();
+    RUN_TEST(test_engine_normal_wash);
+    return UNITY_END();
 }
