@@ -79,6 +79,8 @@ file(GLOB_RECURSE src CONFIGURE_DEPENDS
     config/*.c config/*.h
     tests/*.c tests/*.h
 )
+# 内置 cJSON（替代 snack SDK 路径，真机/sim 统一使用同一份源码）
+list(APPEND src ${CMAKE_SOURCE_DIR}/tools/cJSON.c)
 
 # sim_hw 适配器不参与嵌入式构建
 list(FILTER src EXCLUDE REGEX ".*/sim_hw/.*")
@@ -140,32 +142,6 @@ if(BUILD_SIM)
     add_compile_definitions(BUILD_SIM=1)
 
     # -----------------------------------------------------------------------
-    # cJSON：sim 构建使用系统 libcjson（嵌入式目标由 snack SDK 提供）
-    # 安装方式：sudo apt install libcjson-dev
-    # -----------------------------------------------------------------------
-    find_package(PkgConfig QUIET)
-    if(PkgConfig_FOUND)
-        pkg_check_modules(CJSON QUIET libcjson)
-    endif()
-    if(NOT CJSON_FOUND)
-        find_path(CJSON_INCLUDE_DIR NAMES cJSON.h PATH_SUFFIXES cjson)
-        find_library(CJSON_LIBRARY  NAMES cjson)
-        if(CJSON_INCLUDE_DIR AND CJSON_LIBRARY)
-            set(CJSON_FOUND TRUE)
-            set(CJSON_INCLUDE_DIRS  ${CJSON_INCLUDE_DIR})
-            set(CJSON_LIBRARIES     ${CJSON_LIBRARY})
-        endif()
-    endif()
-    if(CJSON_FOUND)
-        message(STATUS "cJSON found → ${CJSON_LIBRARIES}")
-    else()
-        message(FATAL_ERROR
-            "cJSON not found — M8_sim 构建需要 libcjson。\n"
-            "  Ubuntu/Debian: sudo apt install libcjson-dev\n"
-            "  或指定路径:    cmake -DCJSON_DIR=<path> ...")
-    endif()
-
-    # -----------------------------------------------------------------------
     # sim 构建源文件：明确列出，避免误拉入真机专属文件
     # -----------------------------------------------------------------------
     file(GLOB_RECURSE sim_sources CONFIGURE_DEPENDS
@@ -212,6 +188,8 @@ if(BUILD_SIM)
         # 公共层
         common/*.c
     )
+    # 内置 cJSON（替代系统 libcjson-dev）
+    list(APPEND sim_sources ${CMAKE_SOURCE_DIR}/tools/cJSON.c)
 
     # 排除仿真不需要或有真机依赖的文件
     list(FILTER sim_sources EXCLUDE REGEX ".*/linux_hw/.*")
@@ -227,12 +205,7 @@ if(BUILD_SIM)
             ${CMAKE_SOURCE_DIR}/tools/simulator
         )
 
-        if(CJSON_FOUND)
-            target_include_directories(M8_sim PRIVATE ${CJSON_INCLUDE_DIRS})
-            target_link_libraries(M8_sim PRIVATE pthread ${CJSON_LIBRARIES})
-        else()
-            target_link_libraries(M8_sim PRIVATE pthread)
-        endif()
+        target_link_libraries(M8_sim PRIVATE pthread)
 
         target_compile_options(M8_sim PRIVATE -Wall -Wextra -Werror -g)
         target_compile_definitions(M8_sim PRIVATE
@@ -255,9 +228,6 @@ if(BUILD_SIM)
     set(test_includes
         ${CMAKE_SOURCE_DIR}
     )
-    if(CJSON_FOUND)
-        list(APPEND test_includes ${CJSON_INCLUDE_DIRS})
-    endif()
 
     # -----------------------------------------------------------------------
     # 场景测试的基础源文件集：
@@ -359,8 +329,9 @@ if(BUILD_SIM)
         adapters/storage/json/engine_program_json.c
         domain/engine/engine_model.c
         domain/engine/engine_expr.c
+        tools/cJSON.c
     )
-    target_link_libraries(test_engine_config PRIVATE m ${CJSON_LIBRARIES})
+    target_link_libraries(test_engine_config PRIVATE m)
     target_compile_definitions(test_engine_config PRIVATE
         M8_CONFIG_PATH="${CMAKE_SOURCE_DIR}/doc/m8_normal_wash_program.json")
     if(PYTHON3_EXECUTABLE)
@@ -375,8 +346,9 @@ if(BUILD_SIM)
         domain/engine/engine_model.c
         domain/engine/engine_expr.c
         adapters/hal/sim_hw/engine_io_sim.c
+        tools/cJSON.c
     )
-    target_link_libraries(test_engine_runtime PRIVATE m ${CJSON_LIBRARIES})
+    target_link_libraries(test_engine_runtime PRIVATE m)
 
     # -----------------------------------------------------------------------
     # 引擎端到端场景（仅链接引擎 + JSON 加载器 + sim IO 后端 + 设备模型）
@@ -390,9 +362,10 @@ if(BUILD_SIM)
         domain/engine/engine_model.c
         domain/engine/engine_expr.c
         adapters/hal/sim_hw/engine_io_sim.c
+        tools/cJSON.c
     )
     target_include_directories(scenario_engine_normal_wash PRIVATE ${test_includes})
-    target_link_libraries(scenario_engine_normal_wash PRIVATE pthread m ${CJSON_LIBRARIES})
+    target_link_libraries(scenario_engine_normal_wash PRIVATE pthread m)
     target_compile_options(scenario_engine_normal_wash PRIVATE -Wall -Wextra -Werror -g)
     target_compile_definitions(scenario_engine_normal_wash PRIVATE
         M8_CONFIG_PATH="${CMAKE_SOURCE_DIR}/doc/m8_normal_wash_program.json")
@@ -412,11 +385,7 @@ if(BUILD_SIM)
             ${scenario_base}
         )
         target_include_directories(${scenario} PRIVATE ${test_includes})
-        if(CJSON_FOUND)
-            target_link_libraries(${scenario} PRIVATE pthread ${CJSON_LIBRARIES})
-        else()
-            target_link_libraries(${scenario} PRIVATE pthread)
-        endif()
+        target_link_libraries(${scenario} PRIVATE pthread)
         target_compile_options(${scenario} PRIVATE -Wall -Wextra -Werror -g)
         target_compile_definitions(${scenario} PRIVATE
             M8_ALARM_CONFIG_PATH="${CMAKE_SOURCE_DIR}/doc/m8_alarm_catalog.json")
