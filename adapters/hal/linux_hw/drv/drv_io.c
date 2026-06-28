@@ -21,7 +21,7 @@
 
 #include "common/log.h"
 #include "common/time_util.h"
-#include "config/machine/m8_io_config.h"
+#include "config/machine/m8_machine_config.h"
 #include "io_exp/slave.h"
 
 /* -------------------------------------------------------------------------
@@ -45,13 +45,13 @@ typedef struct
  * 通过总表生成名称映射
  * ------------------------------------------------------------------------- */
 static const drv_io_name_entry_t s_di_name_table[] = {
-#define DRV_IO_DI_DEF(name, board, pin, desc) { "DI_" #name, DRV_IO_HANDLE_MAKE(DRV_IO_KIND_DI, board, pin) },
+#define DRV_IO_DI_DEF(name, board, pin, desc) { "DI_" #name, IO_HANDLE_MAKE(IO_KIND_DI, board, pin) },
 #include "config/machine/m8_io_table.h"
 #undef DRV_IO_DI_DEF
 };
 
 static const drv_io_name_entry_t s_do_name_table[] = {
-#define DRV_IO_DO_DEF(name, board, pin, desc) { "DO_" #name, DRV_IO_HANDLE_MAKE(DRV_IO_KIND_DO, board, pin) },
+#define DRV_IO_DO_DEF(name, board, pin, desc) { "DO_" #name, IO_HANDLE_MAKE(IO_KIND_DO, board, pin) },
 #include "config/machine/m8_io_table.h"
 #undef DRV_IO_DO_DEF
 };
@@ -82,10 +82,10 @@ static bool                   s_io_rw_started = false;
  * ------------------------------------------------------------------------- */
 static bool drv_io_is_valid_di_raw(uint16_t raw)
 {
-    int board_id = (int)drv_io_handle_board(raw);
-    int pin_id   = (int)drv_io_handle_pin(raw);
+    int board_id = (int)io_handle_board(raw);
+    int pin_id   = (int)io_handle_pin(raw);
 
-    return (drv_io_handle_kind(raw) == DRV_IO_KIND_DI)
+    return (io_handle_kind(raw) == IO_KIND_DI)
         && (board_id > 0)
         && (board_id < (int)IO_BOARD_MAX)
         && (pin_id > 0)
@@ -94,10 +94,10 @@ static bool drv_io_is_valid_di_raw(uint16_t raw)
 
 static bool drv_io_is_valid_do_raw(uint16_t raw)
 {
-    int board_id = (int)drv_io_handle_board(raw);
-    int pin_id   = (int)drv_io_handle_pin(raw);
+    int board_id = (int)io_handle_board(raw);
+    int pin_id   = (int)io_handle_pin(raw);
 
-    return (drv_io_handle_kind(raw) == DRV_IO_KIND_DO)
+    return (io_handle_kind(raw) == IO_KIND_DO)
         && (board_id > 0)
         && (board_id < (int)IO_BOARD_MAX)
         && (pin_id > 0)
@@ -182,9 +182,9 @@ static const char *drv_io_find_canonical_name(const drv_io_name_entry_t *table,
 /* -------------------------------------------------------------------------
  * 名称解析 / 可读名称
  * ------------------------------------------------------------------------- */
-bool drv_io_try_parse_di(const char *name, drv_io_di_t *out)
+bool drv_io_try_parse_di(const char *name, io_di_t *out)
 {
-    uint16_t raw = DRV_IO_NULL;
+    uint16_t raw = IO_HANDLE_NULL;
 
     if (!drv_io_find_name(s_di_name_table,
                           sizeof(s_di_name_table) / sizeof(s_di_name_table[0]),
@@ -202,9 +202,9 @@ bool drv_io_try_parse_di(const char *name, drv_io_di_t *out)
     return true;
 }
 
-bool drv_io_try_parse_do(const char *name, drv_io_do_t *out)
+bool drv_io_try_parse_do(const char *name, io_do_t *out)
 {
-    uint16_t raw = DRV_IO_NULL;
+    uint16_t raw = IO_HANDLE_NULL;
 
     if (!drv_io_find_name(s_do_name_table,
                           sizeof(s_do_name_table) / sizeof(s_do_name_table[0]),
@@ -222,18 +222,18 @@ bool drv_io_try_parse_do(const char *name, drv_io_do_t *out)
     return true;
 }
 
-const char *drv_io_di_name(drv_io_di_t pin)
+const char *drv_io_di_name(io_di_t pin)
 {
     return drv_io_find_canonical_name(s_di_name_table,
                                       sizeof(s_di_name_table) / sizeof(s_di_name_table[0]),
-                                      drv_io_di_raw(pin));
+                                      io_di_raw(pin));
 }
 
-const char *drv_io_do_name(drv_io_do_t pin)
+const char *drv_io_do_name(io_do_t pin)
 {
     return drv_io_find_canonical_name(s_do_name_table,
                                       sizeof(s_do_name_table) / sizeof(s_do_name_table[0]),
-                                      drv_io_do_raw(pin));
+                                      io_do_raw(pin));
 }
 
 /* -------------------------------------------------------------------------
@@ -375,7 +375,7 @@ static void *drv_io_poll_loop(void *arg)
                         {
                             if (((changed >> bit) & 1U) != 0U)
                             {
-                                drv_io_di_t pin       = drv_io_di_make((uint16_t)i, (uint16_t)(bit + 1));
+                                io_di_t pin       = io_di_make((uint16_t)i, (uint16_t)(bit + 1));
                                 bool        new_state = (bool)((s_input_buf[i] >> bit) & 1U);
                                 if (s_debug_input_cb != NULL)
                                 {
@@ -478,11 +478,11 @@ sw_err_t drv_io_start(void)
     return SW_OK;
 }
 
-sw_err_t drv_io_do_set(drv_io_do_t pin, bool val)
+sw_err_t drv_io_do_set(io_do_t pin, bool val)
 {
-    uint16_t raw      = drv_io_do_raw(pin);
-    int      board_id = (int)drv_io_handle_board(raw);
-    int      pin_id   = (int)drv_io_handle_pin(raw);
+    uint16_t raw      = io_do_raw(pin);
+    int      board_id = (int)io_handle_board(raw);
+    int      pin_id   = (int)io_handle_pin(raw);
     int      bit      = pin_id - 1;
     unsigned int prev_out = 0U;
 
@@ -554,11 +554,11 @@ sw_err_t drv_io_flush_outputs_now(void)
     return SW_OK;
 }
 
-bool drv_io_di_read(drv_io_di_t pin)
+bool drv_io_di_read(io_di_t pin)
 {
-    uint16_t raw      = drv_io_di_raw(pin);
-    int      board_id = (int)drv_io_handle_board(raw);
-    int      pin_id   = (int)drv_io_handle_pin(raw);
+    uint16_t raw      = io_di_raw(pin);
+    int      board_id = (int)io_handle_board(raw);
+    int      pin_id   = (int)io_handle_pin(raw);
 
     if (!drv_io_is_valid_di_raw(raw))
     {
@@ -630,11 +630,11 @@ void drv_io_register_panic_cb(void (*cb)(void))
     s_panic_cb = cb;
 }
 
-void drv_io_set_test_override(drv_io_di_t pin, int value)
+void drv_io_set_test_override(io_di_t pin, int value)
 {
-    uint16_t raw      = drv_io_di_raw(pin);
-    int      board_id = (int)drv_io_handle_board(raw);
-    int      pin_id   = (int)drv_io_handle_pin(raw);
+    uint16_t raw      = io_di_raw(pin);
+    int      board_id = (int)io_handle_board(raw);
+    int      pin_id   = (int)io_handle_pin(raw);
 
     if (!drv_io_is_valid_di_raw(raw))
     {
@@ -652,11 +652,11 @@ void drv_io_set_test_override(drv_io_di_t pin, int value)
     }
 }
 
-void drv_io_clear_test_override(drv_io_di_t pin)
+void drv_io_clear_test_override(io_di_t pin)
 {
-    uint16_t raw      = drv_io_di_raw(pin);
-    int      board_id = (int)drv_io_handle_board(raw);
-    int      pin_id   = (int)drv_io_handle_pin(raw);
+    uint16_t raw      = io_di_raw(pin);
+    int      board_id = (int)io_handle_board(raw);
+    int      pin_id   = (int)io_handle_pin(raw);
 
     if (!drv_io_is_valid_di_raw(raw))
     {

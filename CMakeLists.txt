@@ -315,17 +315,20 @@ if(BUILD_SIM)
         domain/engine/engine_expr.c
     )
     target_link_libraries(test_engine_expr PRIVATE m)
+    target_compile_definitions(test_engine_expr PRIVATE UNITY_INCLUDE_DOUBLE)
 
     add_unit_test(test_engine_config
         tests/unit/test_engine_config.c
         adapters/storage/json/engine_program_json.c
+        ports/storage/engine_program_loader_port.c
         domain/engine/engine_model.c
         domain/engine/engine_expr.c
         tools/cJSON.c
     )
     target_link_libraries(test_engine_config PRIVATE m)
     target_compile_definitions(test_engine_config PRIVATE
-        M8_CONFIG_PATH="${CMAKE_SOURCE_DIR}/doc/m8_normal_wash_program.json")
+        M8_CONFIG_PATH="${CMAKE_SOURCE_DIR}/doc/m8_normal_wash_program.json"
+        UNITY_INCLUDE_DOUBLE)
     if(PYTHON3_EXECUTABLE)
         add_dependencies(test_engine_config gen_engine_config)
     endif()
@@ -335,6 +338,7 @@ if(BUILD_SIM)
         domain/engine/engine.c
         domain/engine/engine_io.c
         adapters/storage/json/engine_program_json.c
+        ports/storage/engine_program_loader_port.c
         domain/engine/engine_model.c
         domain/engine/engine_expr.c
         adapters/hal/sim_hw/engine_io_sim.c
@@ -351,6 +355,7 @@ if(BUILD_SIM)
         domain/engine/engine.c
         domain/engine/engine_io.c
         adapters/storage/json/engine_program_json.c
+        ports/storage/engine_program_loader_port.c
         domain/engine/engine_model.c
         domain/engine/engine_expr.c
         adapters/hal/sim_hw/engine_io_sim.c

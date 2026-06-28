@@ -40,12 +40,12 @@ static sw_err_t wait_boards_online(uint32_t timeout_ms)
 
 static sw_err_t do_set(io_do_t pin, bool val)
 {
-    return drv_io_do_set((drv_io_do_t)pin, val);
+    return drv_io_do_set(pin, val);
 }
 
 static bool di_read(io_di_t pin)
 {
-    return drv_io_di_read((drv_io_di_t)pin);
+    return drv_io_di_read(pin);
 }
 
 static void register_debug_input_cb(hal_io_debug_input_cb_t cb)
@@ -60,22 +60,22 @@ static void register_board_status_cb(hal_io_board_status_cb_t cb)
 
 static bool try_parse_di(const char *name, io_di_t *out)
 {
-    return drv_io_try_parse_di(name, (drv_io_di_t *)out);
+    return drv_io_try_parse_di(name, out);
 }
 
 static bool try_parse_do(const char *name, io_do_t *out)
 {
-    return drv_io_try_parse_do(name, (drv_io_do_t *)out);
+    return drv_io_try_parse_do(name, out);
 }
 
 static const char *di_name(io_di_t pin)
 {
-    return drv_io_di_name((drv_io_di_t)pin);
+    return drv_io_di_name(pin);
 }
 
 static const char *do_name(io_do_t pin)
 {
-    return drv_io_do_name((drv_io_do_t)pin);
+    return drv_io_do_name(pin);
 }
 
 static int board_count(void)

@@ -5,8 +5,8 @@
  * @date    2026-04-07
  *
  * @note    工程内部唯一 IO 标识为强类型句柄：
- *          - `drv_io_di_t`：数字输入句柄
- *          - `drv_io_do_t`：数字输出句柄
+ *          - `io_di_t`：数字输入句柄（来自 common/io_handle.h）
+ *          - `io_do_t`：数字输出句柄（来自 common/io_handle.h）
  *
  *          句柄底层为 16 位编码，包含：
  *          - bit15：类型位，0=DI，1=DO
@@ -29,27 +29,6 @@ extern "C" {
 #include "common/sw_types.h"
 #include "common/io_handle.h"
 
-/* -------------------------------------------------------------------------
- * 句柄编码规则
- * ------------------------------------------------------------------------- */
-#define DRV_IO_NULL                 IO_HANDLE_NULL
-#define DRV_IO_KIND_SHIFT           IO_KIND_SHIFT
-#define DRV_IO_KIND_MASK            IO_KIND_MASK
-#define DRV_IO_KIND_DI              IO_KIND_DI
-#define DRV_IO_KIND_DO              IO_KIND_DO
-#define DRV_IO_HANDLE_BOARD_SHIFT   IO_HANDLE_BOARD_SHIFT
-#define DRV_IO_HANDLE_BOARD_MASK    IO_HANDLE_BOARD_MASK
-#define DRV_IO_HANDLE_PIN_MASK      IO_HANDLE_PIN_MASK
-#define DRV_IO_HANDLE_MAKE(kind_, board_, pin_)  IO_HANDLE_MAKE(kind_, board_, pin_)
-
-/* -------------------------------------------------------------------------
- * 强类型句柄
- * ------------------------------------------------------------------------- */
-typedef io_di_t drv_io_di_t;
-typedef io_do_t drv_io_do_t;
-
-typedef void (*drv_io_debug_input_cb_t)(drv_io_di_t pin, bool state);
-
 /** IO 驱动运行时统计（按子板，近似快照） */
 typedef struct
 {
@@ -70,65 +49,6 @@ typedef struct
     uint32_t last_output_snapshot;  /**< 最近一次输出快照 */
 } drv_io_stats_t;
 
-#ifdef __cplusplus
-#define DRV_IO_DI(board_, pin_)    drv_io_di_t{DRV_IO_HANDLE_MAKE(DRV_IO_KIND_DI, board_, pin_)}
-#define DRV_IO_DO(board_, pin_)    drv_io_do_t{DRV_IO_HANDLE_MAKE(DRV_IO_KIND_DO, board_, pin_)}
-#else
-#define DRV_IO_DI(board_, pin_)    ((io_di_t){ .raw = IO_HANDLE_MAKE(IO_KIND_DI, (board_), (pin_)) })
-#define DRV_IO_DO(board_, pin_)    ((io_do_t){ .raw = IO_HANDLE_MAKE(IO_KIND_DO, (board_), (pin_)) })
-#endif
-
-/* -------------------------------------------------------------------------
- * 通过唯一总表生成 DI / DO 常量
- * ------------------------------------------------------------------------- */
-#define DRV_IO_DI_DEF(name, board, pin, desc) \
-    static const drv_io_di_t DI_##name = { IO_HANDLE_MAKE(IO_KIND_DI, (board), (pin)) };
-#include "config/machine/m8_io_table.h"
-#undef DRV_IO_DI_DEF
-
-#define DRV_IO_DO_DEF(name, board, pin, desc) \
-    static const drv_io_do_t DO_##name = { IO_HANDLE_MAKE(IO_KIND_DO, (board), (pin)) };
-#include "config/machine/m8_io_table.h"
-#undef DRV_IO_DO_DEF
-
-/* -------------------------------------------------------------------------
- * 基础构造 / 拆解
- * ------------------------------------------------------------------------- */
-static inline drv_io_di_t drv_io_di_make(uint16_t board_id, uint16_t pin_id)
-{
-    return (drv_io_di_t)io_di_make(board_id, pin_id);
-}
-
-static inline drv_io_do_t drv_io_do_make(uint16_t board_id, uint16_t pin_id)
-{
-    return (drv_io_do_t)io_do_make(board_id, pin_id);
-}
-
-static inline uint16_t drv_io_di_raw(drv_io_di_t pin)
-{
-    return io_di_raw((io_di_t)pin);
-}
-
-static inline uint16_t drv_io_do_raw(drv_io_do_t pin)
-{
-    return io_do_raw((io_do_t)pin);
-}
-
-static inline uint16_t drv_io_handle_kind(uint16_t raw)
-{
-    return io_handle_kind(raw);
-}
-
-static inline uint16_t drv_io_handle_board(uint16_t raw)
-{
-    return io_handle_board(raw);
-}
-
-static inline uint16_t drv_io_handle_pin(uint16_t raw)
-{
-    return io_handle_pin(raw);
-}
-
 /* -------------------------------------------------------------------------
  * 名称解析 / 可读名称
  * ------------------------------------------------------------------------- */
@@ -137,26 +57,26 @@ static inline uint16_t drv_io_handle_pin(uint16_t raw)
  * @note   支持 `DI_XXX` / `XXX` / `M8_DI_XXX` 三种写法。
  * @retval true=解析成功
  */
-bool drv_io_try_parse_di(const char *name, drv_io_di_t *out);
+bool drv_io_try_parse_di(const char *name, io_di_t *out);
 
 /**
  * @brief  解析 DO 名称为句柄
  * @note   支持 `DO_XXX` / `XXX` / `M8_DO_XXX` 三种写法。
  * @retval true=解析成功
  */
-bool drv_io_try_parse_do(const char *name, drv_io_do_t *out);
+bool drv_io_try_parse_do(const char *name, io_do_t *out);
 
 /**
  * @brief  获取 DI 句柄对应的标准名称
  * @retval 返回形如 `DI_ESTOP` 的静态字符串；未知句柄返回 NULL
  */
-const char *drv_io_di_name(drv_io_di_t pin);
+const char *drv_io_di_name(io_di_t pin);
 
 /**
  * @brief  获取 DO 句柄对应的标准名称
  * @retval 返回形如 `DO_WATER_PUMP` 的静态字符串；未知句柄返回 NULL
  */
-const char *drv_io_do_name(drv_io_do_t pin);
+const char *drv_io_do_name(io_do_t pin);
 
 /* -------------------------------------------------------------------------
  * 基础接口
@@ -190,14 +110,16 @@ sw_err_t drv_io_flush_outputs_now(void);
  * @param  pin  输出句柄
  * @param  val  true=ON，false=OFF
  */
-sw_err_t drv_io_do_set(drv_io_do_t pin, bool val);
+sw_err_t drv_io_do_set(io_do_t pin, bool val);
 
 /**
  * @brief  读取数字输入缓存
  * @param  pin  输入句柄
  * @retval true=ON，false=OFF
  */
-bool drv_io_di_read(drv_io_di_t pin);
+bool drv_io_di_read(io_di_t pin);
+
+typedef void (*drv_io_debug_input_cb_t)(io_di_t pin, bool state);
 
 /**
  * @brief  注册输入变化调试回调
@@ -241,13 +163,13 @@ void drv_io_register_panic_cb(void (*cb)(void));
  * @param  pin    DI 句柄
  * @param  value  0=强制 OFF，1=强制 ON，其它值=清除覆盖
  */
-void drv_io_set_test_override(drv_io_di_t pin, int value);
+void drv_io_set_test_override(io_di_t pin, int value);
 
 /**
  * @brief  清除 DI 测试覆盖
  * @param  pin  DI 句柄
  */
-void drv_io_clear_test_override(drv_io_di_t pin);
+void drv_io_clear_test_override(io_di_t pin);
 
 /**
  * @brief  获取指定子板的 IO 运行时统计

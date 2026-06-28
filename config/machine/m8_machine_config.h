@@ -1,6 +1,6 @@
 /**
  * @file    m8_machine_config.h
- * @brief   M8 机型硬件参数（Modbus、时序）
+ * @brief   M8 机型硬件参数（CAN 总线、Modbus、时序）
  * @author  HUWANGWEI
  * @date    2026-04-10
  *
@@ -10,6 +10,14 @@
 
 #ifndef CONFIG_MACHINE_M8_MACHINE_CONFIG_H
 #define CONFIG_MACHINE_M8_MACHINE_CONFIG_H
+
+/* -------------------------------------------------------------------------
+ * IO 子板 CAN 总线参数
+ * ------------------------------------------------------------------------- */
+#define CFG_IO_CAN_BUS              "can0"
+#define CFG_IO_CAN_BAUD             1000000
+#define CFG_IO_SELF_NODE            0x10
+#define CFG_IO_BOARD_COUNT          1       /* M8 共 1 块 IO 子板 */
 
 /* -------------------------------------------------------------------------
  * 刷子 VFD Modbus RTU 参数

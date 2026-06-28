@@ -19,7 +19,7 @@ static bool       s_vfd_bound[VFD_LINUX_SLOT_COUNT];
 
 static sw_err_t vfd_do_set(io_do_t pin, bool val)
 {
-    return drv_io_do_set((drv_io_do_t)pin, val);
+    return drv_io_do_set(pin, val);
 }
 
 static bool vfd_id_valid(hal_vfd_id_t id)

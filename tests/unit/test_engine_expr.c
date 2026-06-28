@@ -64,7 +64,7 @@ static bool eval_b(const char *text)
 }
 
 /* 求值数值：要求成功 */
-static double eval_n(const char *text)
+static double __attribute__((unused)) eval_n(const char *text)
 {
     engine_expr_t *e = engine_expr_compile(text);
     TEST_ASSERT_NOT_NULL(e);

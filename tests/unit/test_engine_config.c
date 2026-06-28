@@ -39,7 +39,7 @@ static const engine_step_t *find_step(const engine_lane_t *ln, const char *id)
     return NULL;
 }
 
-static double find_param(const engine_program_t *p, const char *name)
+static double __attribute__((unused)) find_param(const engine_program_t *p, const char *name)
 {
     for (unsigned i = 0U; i < p->param_count; ++i)
     {
