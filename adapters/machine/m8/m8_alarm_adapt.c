@@ -24,16 +24,6 @@ typedef enum
 } m8_alarm_idx_t;
 
 /* -------------------------------------------------------------------------
- * 报警定义表（传给 alarm_binding_port.load_catalog，替换兜底目录）
- * ------------------------------------------------------------------------- */
-static const alarm_def_t s_alarm_defs[] = {
-#define X(pin, al, tr, rl, maj, idx, nat, lvl, clr, desc) \
-    { ALARM_CODE_MAKE(maj, idx, nat), (lvl), (clr), (desc) },
-    M8_HW_ALARM_TABLE(X)
-#undef X
-};
-
-/* -------------------------------------------------------------------------
  * 静态配置（pin / 极性 / 防抖参数 / 报警码，供 poll 使用）
  * ------------------------------------------------------------------------- */
 typedef struct
@@ -70,23 +60,8 @@ static alarm_filter_t s_filter[M8_HW_ALARM_COUNT];
 
 sw_err_t m8_alarm_adapt_init(void)
 {
-    const alarm_binding_ops_t *ops = alarm_binding_get_ops();
-
-    if (ops == NULL)
-    {
-        LOG_ERROR("m8_alarm_adapt: alarm_binding_port not registered");
-        return SW_ERR_NOT_INIT;
-    }
-
-    /* 向 alarm_core 注册本机型完整报警目录，替换内置兜底目录 */
-    sw_err_t r = ops->load_catalog(s_alarm_defs, (unsigned)M8_HW_ALARM_COUNT);
-    if (r != SW_OK)
-    {
-        LOG_ERROR("m8_alarm_adapt: load_catalog failed ret=%d", (int)r);
-        return r;
-    }
-
-    /* 预热滤波：读取当前 DI 值直接填满计数器，消除上电延迟 */
+    /* 目录由 m8_alarm_init() 已注入，此处只做 DI 防抖预热：
+     * 读取当前 DI 值直接填满计数器，消除上电边沿误触发 */
     const hal_io_ops_t *io = hal_io_get_ops();
     for (int i = 0; i < (int)M8_HW_ALARM_COUNT; ++i)
     {

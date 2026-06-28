@@ -24,7 +24,9 @@
 #include "domain/safety/alarm_core.h"
 #include "domain/safety/safety_fsm.h"
 #include "adapters/machine/m8/m8_sensor.h"
+#include "adapters/machine/m8/m8_alarm_init.h"
 #include "adapters/machine/m8/m8_alarm_adapt.h"
+#include "adapters/machine/m8/m8_comm_watchdog.h"
 #include "adapters/machine/m8/m8_water_setup.h"
 #include "adapters/machine/m8/m8_motor_setup.h"
 #ifdef BUILD_SIM
@@ -156,14 +158,19 @@ static sw_err_t bootstrap_init_application(void)
     BOOT_CHECK(brush_init(),             "brush_init");
     BOOT_CHECK(gantry_init(),            "gantry_init");
     BOOT_CHECK(m8_water_setup(),         "m8_water_setup");
-    /* 安全/报警域：alarm_core 先装兜底目录+注册端口，加载 JSON 目录整表替换，
-     * 再依次接好状态机、监督器、机型适配 */
-    /* alarm_core_init() 装载内置兜底目录并注册端口；
-     * m8_alarm_adapt_init() 随后通过端口加载完整机型目录替换兜底 */
-    BOOT_CHECK(alarm_core_init(),        "alarm_core_init");
-    BOOT_CHECK(safety_fsm_init(),        "safety_fsm_init");
-    BOOT_CHECK(safety_supervisor_init(), "safety_supervisor_init");
-    BOOT_CHECK(m8_alarm_adapt_init(),    "m8_alarm_adapt_init");
+    /* 安全/报警域初始化顺序：
+     *   ① alarm_core_init()        注册 alarm_binding_port，目录初始为空
+     *   ② safety_fsm_init()        订阅 EVT_ALARM_*
+     *   ③ safety_supervisor_init() 订阅 EVT_SAFETY_* / EVT_ALARM_*
+     *   ④ m8_alarm_init()          合并三张表一次注入完整目录（须在 poll 前完成）
+     *   ⑤ m8_alarm_adapt_init()    DI 防抖预热（目录已就绪）
+     *   ⑥ m8_comm_watchdog_init()  心跳时间戳初始化（给设备 timeout_ms 窗口首次通讯）*/
+    BOOT_CHECK(alarm_core_init(),          "alarm_core_init");
+    BOOT_CHECK(safety_fsm_init(),          "safety_fsm_init");
+    BOOT_CHECK(safety_supervisor_init(),   "safety_supervisor_init");
+    BOOT_CHECK(m8_alarm_init(),            "m8_alarm_init");
+    BOOT_CHECK(m8_alarm_adapt_init(),      "m8_alarm_adapt_init");
+    BOOT_CHECK(m8_comm_watchdog_init(),    "m8_comm_watchdog_init");
     BOOT_CHECK(emergency_handler_init(), "emergency_handler_init");
     BOOT_CHECK(device_fsm_init(),        "device_fsm_init");
     BOOT_CHECK(wash_orchestrator_init(), "wash_orchestrator_init");
@@ -217,7 +224,7 @@ static sw_err_t bootstrap_start_threads(void)
     }
 #endif
 
-    BOOT_CHECK(m8_sensor_poll_register(), "register io_poll_thread");
+    BOOT_CHECK(m8_sensor_poll_start(), "m8_sensor_poll_start");
 
     BOOT_CHECK(thread_register("motor_tick",
                                motor_tick_loop,

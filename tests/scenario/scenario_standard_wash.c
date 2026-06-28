@@ -37,6 +37,10 @@
 #include "common/time_util.h"
 #include "config/threading/thread_config.h"
 #include <assert.h>
+
+/* IO 轮询线程参数（场景测试本地使用，不依赖全局 thread_config）*/
+#define SCENARIO_IO_POLL_PERIOD_MS  20U
+#define SCENARIO_IO_POLL_STACK      (16U * 1024U)
 #include <stdio.h>
 #include <unistd.h>
 #include <sched.h>
@@ -70,7 +74,7 @@ static void *scenario_io_poll_fn(void *arg)
     while (true)
     {
         m8_signal_filter_tick();
-        usleep((unsigned long)THD_IO_POLL_PERIOD_MS * 1000UL);
+        usleep((unsigned long)SCENARIO_IO_POLL_PERIOD_MS * 1000UL);
     }
     return NULL;
 }
@@ -177,9 +181,9 @@ static void scenario_setup(void)
     (void)thread_register("event_dispatch", scenario_dispatch_fn,
                           SCHED_OTHER, 0, THD_EVENT_DISPATCH_STACK);
     (void)thread_register("io_poll",        scenario_io_poll_fn,
-                          SCHED_OTHER, 0, THD_IO_POLL_STACK);
+                          SCHED_OTHER, 0, SCENARIO_IO_POLL_STACK);
     (void)thread_register("limit_inject", scenario_limit_inject_fn,
-                          SCHED_OTHER, 0, THD_IO_POLL_STACK);
+                          SCHED_OTHER, 0, SCENARIO_IO_POLL_STACK);
     (void)scheduler_start_all();
 
     /* 等待线程就绪 */

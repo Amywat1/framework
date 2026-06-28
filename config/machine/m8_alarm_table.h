@@ -60,6 +60,7 @@
 #define ALM_SENSE_REAR_LOCK_HOME     20U /**< 后轮锁紧机构原点 */
 #define ALM_SENSE_FOAM_LEVEL         21U /**< 泡沫液位 */
 #define ALM_SENSE_WAX_LEVEL          22U /**< 水蜡液位 */
+#define ALM_SENSE_PUMP_OVL           23U /**< 水泵过载 */
 
 /* -------------------------------------------------------------------------
  * 大类3 执行元件（气缸/阀/接触器）
@@ -90,14 +91,44 @@
  *     level                 clear                    desc
  * ========================================================================= */
 #define M8_HW_ALARM_TABLE(X) \
+    /* --- 安全触发（trig=1 立即响应，rel=3 缓释，AUTO_STATIC）--- */ \
     X(M8_IO_DI_ESTOP,               true,  1U, 3U, \
-      ALM_C_SENSE, ALM_SENSE_ESTOP,         ALM_N_SAFETY,   \
+      ALM_C_SENSE, ALM_SENSE_ESTOP,            ALM_N_SAFETY,   \
       ALARM_LEVEL_CRITICAL, ALARM_CLEAR_AUTO_STATIC, "急停按钮触发") \
+    X(M8_IO_DI_TOP_BRUSH_COLLISION, true,  1U, 3U, \
+      ALM_C_SENSE, ALM_SENSE_TOP_BRUSH_BUMPER, ALM_N_SAFETY,   \
+      ALARM_LEVEL_CRITICAL, ALARM_CLEAR_AUTO_STATIC, "顶刷防撞触发") \
+    X(M8_IO_DI_BUMPER_LEFT,         true,  1U, 3U, \
+      ALM_C_SENSE, ALM_SENSE_BUMPER_LEFT,      ALM_N_SAFETY,   \
+      ALARM_LEVEL_CRITICAL, ALARM_CLEAR_AUTO_STATIC, "左防撞胶条触发") \
+    X(M8_IO_DI_BUMPER_ROD_LEFT,     true,  1U, 3U, \
+      ALM_C_SENSE, ALM_SENSE_BUMPER_ROD_LEFT,  ALM_N_SAFETY,   \
+      ALARM_LEVEL_CRITICAL, ALARM_CLEAR_AUTO_STATIC, "左防撞杆触发") \
+    X(M8_IO_DI_BUMPER_RIGHT,        true,  1U, 3U, \
+      ALM_C_SENSE, ALM_SENSE_BUMPER_RIGHT,     ALM_N_SAFETY,   \
+      ALARM_LEVEL_CRITICAL, ALARM_CLEAR_AUTO_STATIC, "右防撞胶条触发") \
+    X(M8_IO_DI_BUMPER_ROD_RIGHT,    true,  1U, 3U, \
+      ALM_C_SENSE, ALM_SENSE_BUMPER_ROD_RIGHT, ALM_N_SAFETY,   \
+      ALARM_LEVEL_CRITICAL, ALARM_CLEAR_AUTO_STATIC, "右防撞杆触发") \
+    /* --- 过载（trig=3 防抖，LATCHED 须人工复位）--- */ \
+    X(M8_IO_DI_TOP_BRUSH_OVERLOAD,  false, 3U, 3U, \
+      ALM_C_SENSE, ALM_SENSE_TOP_BRUSH_OVL,    ALM_N_OVERLOAD, \
+      ALARM_LEVEL_MAJOR,    ALARM_CLEAR_LATCHED,     "顶刷电机过载") \
     X(M8_IO_DI_SIDE_BRUSH_OVERLOAD, false, 3U, 3U, \
-      ALM_C_SENSE, ALM_SENSE_SIDE_BRUSH_OVL, ALM_N_OVERLOAD, \
+      ALM_C_SENSE, ALM_SENSE_SIDE_BRUSH_OVL,   ALM_N_OVERLOAD, \
       ALARM_LEVEL_MAJOR,    ALARM_CLEAR_LATCHED,     "侧刷电机过载") \
+    X(M8_IO_DI_WATER_PUMP_OVERLOAD, false, 3U, 3U, \
+      ALM_C_SENSE, ALM_SENSE_PUMP_OVL,         ALM_N_OVERLOAD, \
+      ALARM_LEVEL_MAJOR,    ALARM_CLEAR_LATCHED,     "水泵过载") \
+    /* --- 变频器/控制硬件报警 DI 反馈（trig=3，LATCHED）--- */ \
+    X(M8_IO_DI_GANTRY_ALARM,        false, 3U, 3U, \
+      ALM_C_CTRL,  ALM_CTRL_GANTRY_VFD,       ALM_N_HW_FAULT, \
+      ALARM_LEVEL_CRITICAL, ALARM_CLEAR_LATCHED,     "龙门变频器报警反馈") \
+    X(M8_IO_DI_SIDE_BRUSH_ALARM,    false, 3U, 3U, \
+      ALM_C_CTRL,  ALM_CTRL_BRUSH_VFD,        ALM_N_HW_FAULT, \
+      ALARM_LEVEL_MAJOR,    ALARM_CLEAR_LATCHED,     "侧刷变频器报警反馈") \
     X(M8_IO_DI_FAN_ALARM,           false, 3U, 3U, \
-      ALM_C_CTRL,  ALM_CTRL_FAN_VFD,        ALM_N_HW_FAULT, \
+      ALM_C_CTRL,  ALM_CTRL_FAN_VFD,          ALM_N_HW_FAULT, \
       ALARM_LEVEL_MINOR,    ALARM_CLEAR_AUTO_STATIC, "风机报警反馈")
 
 #endif /* CONFIG_MACHINE_M8_ALARM_TABLE_H */

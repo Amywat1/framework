@@ -177,7 +177,9 @@ if(BUILD_SIM)
 
         # M8 机型适配
         adapters/machine/m8/m8_sensor.c
+        adapters/machine/m8/m8_alarm_init.c
         adapters/machine/m8/m8_alarm_adapt.c
+        adapters/machine/m8/m8_comm_watchdog.c
         adapters/machine/m8/m8_signal_sim.c
         adapters/machine/m8/m8_motor_setup.c
         adapters/machine/m8/m8_water_setup.c

@@ -25,7 +25,6 @@ static void test_init_defaults(void)
     device_context_t ctx = dev_ctx_snapshot();
 
     TEST_ASSERT_EQUAL_INT(DEV_STATE_INIT,     ctx.device_state);
-    TEST_ASSERT_EQUAL_INT(WASH_STEP_IDLE,     ctx.wash_step);
     TEST_ASSERT_EQUAL_INT(WASH_MODE_STANDARD, ctx.wash_mode);
     TEST_ASSERT_FALSE(ctx.cloud_connected);
 }
@@ -35,31 +34,26 @@ static void test_init_defaults(void)
  * ------------------------------------------------------------------------- */
 static void test_set_device_state_isolated(void)
 {
-    dev_ctx_set_wash_progress(WASH_STEP_PREWASH, WASH_MODE_QUICK);
+    dev_ctx_set_wash_mode(WASH_MODE_QUICK);
     dev_ctx_set_cloud_status(true);
     dev_ctx_set_device_state(DEV_STATE_RUNNING);
 
     device_context_t ctx = dev_ctx_snapshot();
-    TEST_ASSERT_EQUAL_INT(DEV_STATE_RUNNING,  ctx.device_state);
-    TEST_ASSERT_EQUAL_INT(WASH_STEP_PREWASH,  ctx.wash_step);
-    TEST_ASSERT_EQUAL_INT(WASH_MODE_QUICK,    ctx.wash_mode);
+    TEST_ASSERT_EQUAL_INT(DEV_STATE_RUNNING, ctx.device_state);
+    TEST_ASSERT_EQUAL_INT(WASH_MODE_QUICK,   ctx.wash_mode);
     TEST_ASSERT_TRUE(ctx.cloud_connected);
 }
 
 /* -------------------------------------------------------------------------
- * TC-3：set_wash_progress 同时更新 step 和 mode
+ * TC-3：set_wash_mode 更新 wash_mode
  * ------------------------------------------------------------------------- */
-static void test_set_wash_progress(void)
+static void test_set_wash_mode(void)
 {
-    dev_ctx_set_wash_progress(WASH_STEP_RINSE_REV, WASH_MODE_QUICK);
-    device_context_t ctx = dev_ctx_snapshot();
-    TEST_ASSERT_EQUAL_INT(WASH_STEP_RINSE_REV, ctx.wash_step);
-    TEST_ASSERT_EQUAL_INT(WASH_MODE_QUICK,     ctx.wash_mode);
+    dev_ctx_set_wash_mode(WASH_MODE_QUICK);
+    TEST_ASSERT_EQUAL_INT(WASH_MODE_QUICK,    dev_ctx_snapshot().wash_mode);
 
-    dev_ctx_set_wash_progress(WASH_STEP_IDLE, WASH_MODE_STANDARD);
-    ctx = dev_ctx_snapshot();
-    TEST_ASSERT_EQUAL_INT(WASH_STEP_IDLE,     ctx.wash_step);
-    TEST_ASSERT_EQUAL_INT(WASH_MODE_STANDARD, ctx.wash_mode);
+    dev_ctx_set_wash_mode(WASH_MODE_STANDARD);
+    TEST_ASSERT_EQUAL_INT(WASH_MODE_STANDARD, dev_ctx_snapshot().wash_mode);
 }
 
 /* -------------------------------------------------------------------------
@@ -100,7 +94,6 @@ static atomic_int s_stop_flag   = 0;
 static volatile int s_reader_error = 0;  /* 线程检测到非法状态时置 1 */
 
 static const dev_state_t k_states[2] = { DEV_STATE_IDLE, DEV_STATE_RUNNING };
-static const wash_step_t k_steps[2]  = { WASH_STEP_IDLE, WASH_STEP_PREWASH };
 static const wash_mode_t k_modes[2]  = { WASH_MODE_STANDARD, WASH_MODE_QUICK };
 
 static void *writer_fn(void *arg)
@@ -110,7 +103,7 @@ static void *writer_fn(void *arg)
     for (int i = 0; i < CONCURRENT_ITER; i++)
     {
         dev_ctx_set_device_state(k_states[idx]);
-        dev_ctx_set_wash_progress(k_steps[idx], k_modes[idx]);
+        dev_ctx_set_wash_mode(k_modes[idx]);
         dev_ctx_set_cloud_status((idx == 0));
         idx ^= 1;
     }
@@ -125,7 +118,6 @@ static void *reader_fn(void *arg)
     {
         device_context_t ctx = dev_ctx_snapshot();
         if ((ctx.device_state != k_states[0] && ctx.device_state != k_states[1]) ||
-            (ctx.wash_step    != k_steps[0]  && ctx.wash_step    != k_steps[1])  ||
             (ctx.wash_mode    != k_modes[0]  && ctx.wash_mode    != k_modes[1]))
         {
             s_reader_error = 1;
@@ -154,7 +146,7 @@ int main(void)
     UNITY_BEGIN();
     RUN_TEST(test_init_defaults);
     RUN_TEST(test_set_device_state_isolated);
-    RUN_TEST(test_set_wash_progress);
+    RUN_TEST(test_set_wash_mode);
     RUN_TEST(test_snapshot_is_copy);
     RUN_TEST(test_cloud_status_toggle);
     RUN_TEST(test_concurrent_read_write);
