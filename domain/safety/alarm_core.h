@@ -37,11 +37,11 @@ extern "C" {
 sw_err_t alarm_core_init(void);
 
 /**
- * @brief  加载报警目录（整表替换；通常由 bootstrap 用 JSON 解析结果调用）
+ * @brief  加载报警目录（整表替换；由机型适配器通过 alarm_binding_port.load_catalog 在 init 阶段调用）
  * @param  defs   报警定义数组
  * @param  count  条目数
  * @retval SW_OK / SW_ERR_PARAM（defs 为空）/ SW_ERR_OVERFLOW（count 超过 ALARM_CATALOG_MAX）
- * @note   替换目录的同时清空活跃集；应在报警触发开始前（启动阶段）调用。
+ * @note   替换目录的同时清空活跃集；仅限 poll 线程启动前（init 阶段）调用，不支持运行时重载。
  */
 sw_err_t alarm_core_load(const alarm_def_t *defs, unsigned count);
 
@@ -72,6 +72,14 @@ safety_state_t alarm_core_safety_state(void);
  * @retval 活跃报警码；无活跃报警时返回 ALARM_CODE_NONE
  */
 uint32_t alarm_core_top_code(void);
+
+/**
+ * @brief  强制清除所有活跃报警（含锁存报警），用于 CMD_RESET_FAULT 人工复位
+ * @retval SW_OK（无论是否有活跃报警均返回 OK）
+ * @note   清除后发布一次 EVT_ALARM_CLEARED 触发 safety_fsm 重新聚合安全态。
+ *         须在 alarm_core_load() 完成后调用。
+ */
+sw_err_t alarm_core_reset_alarms(void);
 
 #ifdef __cplusplus
 }

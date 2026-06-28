@@ -42,6 +42,7 @@
 #include "service/dev_ctx/dev_ctx.h"
 #include "service/svc_param/svc_param.h"
 #include "domain/device/unit/gantry.h"
+#include "domain/safety/alarm_core.h"
 #include "core/event_bus/event_bus.h"
 #include "common/event_types.h"
 #include "common/log.h"
@@ -244,16 +245,18 @@ static void on_home_done(const event_t *evt)
     }
 }
 
-/* EVT_CMD_RESET_FAULT：直接复位，跳过归位（适用于假报警、传感器误触发等场景）
- *   FAULT → IDLE */
+/* EVT_CMD_RESET_FAULT：人工复位报警并解除设备停机态
+ *   - 强制清除所有活跃报警（含 LATCHED 锁存报警）
+ *   - FAULT → IDLE（从 WARNING+IDLE 触发时设备状态不变）*/
 static void on_cmd_reset_fault(const event_t *evt)
 {
     (void)evt;
-    if (get_state() != DEV_STATE_FAULT)
+    /* 无论设备处于 FAULT 还是 WARNING+IDLE，都先强制清除所有锁存报警 */
+    (void)alarm_core_reset_alarms();
+    if (get_state() == DEV_STATE_FAULT)
     {
-        return;
+        set_state(DEV_STATE_IDLE);
     }
-    set_state(DEV_STATE_IDLE);
 }
 
 /* EVT_CMD_STOP_OPERATION：运营暂停（仅允许从 IDLE 切换）

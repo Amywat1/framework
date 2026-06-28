@@ -60,10 +60,14 @@ sw_err_t command_guard_check(const cmd_t *cmd)
             return SW_OK;
 
         case CMD_RESET_FAULT:
-            if (ctx.device_state != DEV_STATE_FAULT)
+            /* DEV_STATE_FAULT：CRITICAL 报警归位后等待人工确认
+             * DEV_STATE_IDLE + WARNING：MAJOR LATCHED 报警需人工复位（无法自动清除）*/
+            if (ctx.device_state != DEV_STATE_FAULT &&
+                !(ctx.device_state == DEV_STATE_IDLE &&
+                  ctx.safety_state == SAFETY_STATE_WARNING))
             {
-                LOG_WARN("command_guard: RESET_FAULT rejected (device=%d)",
-                         (int)ctx.device_state);
+                LOG_WARN("command_guard: RESET_FAULT rejected (device=%d, safety=%d)",
+                         (int)ctx.device_state, (int)ctx.safety_state);
                 return SW_ERR_STATE;
             }
             return SW_OK;

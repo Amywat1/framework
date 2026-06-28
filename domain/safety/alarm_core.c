@@ -17,6 +17,8 @@
 /* -------------------------------------------------------------------------
  * 报警目录（运行期可加载，固定容量）+ 活跃集
  *   s_catalog 下标即 s_active 下标；s_count 为当前有效条目数。
+ *   s_catalog 仅在 alarm_core_load()（init 阶段，poll 前）写入；
+ *   poll 期间只读，因此 find_index() / 清除方式检查可在锁外安全访问。
  * ------------------------------------------------------------------------- */
 static alarm_def_t     s_catalog[ALARM_CATALOG_MAX];
 static unsigned        s_count;
@@ -49,6 +51,28 @@ static bool set_active_locked(int idx, bool active)
     }
     s_active[idx] = active;
     return true;
+}
+
+/**
+ * @brief  在持锁环境下扫描活跃集，输出最高等级和对应报警码
+ * @param  out_level  输出最高等级（无活跃报警时为 -1），可传 NULL
+ * @param  out_code   输出最高等级报警码（无活跃报警时为 ALARM_CODE_NONE），可传 NULL
+ */
+static void scan_active_locked(int *out_level, uint32_t *out_code)
+{
+    int      highest = -1;
+    uint32_t code    = ALARM_CODE_NONE;
+
+    for (int i = 0; i < (int)s_count; ++i)
+    {
+        if (s_active[i] && ((int)s_catalog[i].level > highest))
+        {
+            highest = (int)s_catalog[i].level;
+            code    = s_catalog[i].code;
+        }
+    }
+    if (out_level != NULL) { *out_level = highest; }
+    if (out_code  != NULL) { *out_code  = code;    }
 }
 
 /* -------------------------------------------------------------------------
@@ -90,6 +114,12 @@ sw_err_t alarm_core_clear(uint32_t alarm_code)
         return SW_ERR_PARAM;
     }
 
+    /* 锁存报警忽略自动清除请求；须经 CMD_RESET_FAULT → alarm_core_reset_alarms() 人工复位 */
+    if (s_catalog[idx].clear == ALARM_CLEAR_LATCHED)
+    {
+        return SW_OK;
+    }
+
     pthread_mutex_lock(&s_mutex);
     changed = set_active_locked(idx, false);
     pthread_mutex_unlock(&s_mutex);
@@ -105,43 +135,23 @@ sw_err_t alarm_core_clear(uint32_t alarm_code)
 
 safety_state_t alarm_core_safety_state(void)
 {
-    int highest = -1; /* 活跃集中的最高等级 */
+    int highest;
 
     pthread_mutex_lock(&s_mutex);
-    for (int i = 0; i < (int)s_count; ++i)
-    {
-        if (s_active[i] && ((int)s_catalog[i].level > highest))
-        {
-            highest = (int)s_catalog[i].level;
-        }
-    }
+    scan_active_locked(&highest, NULL);
     pthread_mutex_unlock(&s_mutex);
 
-    if (highest == (int)ALARM_LEVEL_CRITICAL)
-    {
-        return SAFETY_STATE_LOCKOUT;
-    }
-    if (highest == (int)ALARM_LEVEL_MAJOR)
-    {
-        return SAFETY_STATE_WARNING;
-    }
+    if (highest == (int)ALARM_LEVEL_CRITICAL) { return SAFETY_STATE_LOCKOUT; }
+    if (highest == (int)ALARM_LEVEL_MAJOR)    { return SAFETY_STATE_WARNING;  }
     return SAFETY_STATE_OK; /* MINOR 或无活跃报警 */
 }
 
 uint32_t alarm_core_top_code(void)
 {
-    int      highest = -1;
-    uint32_t code    = ALARM_CODE_NONE;
+    uint32_t code;
 
     pthread_mutex_lock(&s_mutex);
-    for (int i = 0; i < (int)s_count; ++i)
-    {
-        if (s_active[i] && ((int)s_catalog[i].level > highest))
-        {
-            highest = (int)s_catalog[i].level;
-            code    = s_catalog[i].code;
-        }
-    }
+    scan_active_locked(NULL, &code);
     pthread_mutex_unlock(&s_mutex);
 
     return code;
@@ -163,13 +173,38 @@ sw_err_t alarm_core_load(const alarm_def_t *defs, unsigned count)
     pthread_mutex_lock(&s_mutex);
     memcpy(s_catalog, defs, (size_t)count * sizeof(s_catalog[0]));
     s_count = count;
-    for (unsigned i = 0; i < ALARM_CATALOG_MAX; ++i)
-    {
-        s_active[i] = false;
-    }
+    memset(s_active, 0, sizeof(s_active));
     pthread_mutex_unlock(&s_mutex);
 
     LOG_INFO("alarm_core: catalog loaded, defs=%u", count);
+    return SW_OK;
+}
+
+sw_err_t alarm_core_reset_alarms(void)
+{
+    uint32_t codes[ALARM_CATALOG_MAX];
+    unsigned cleared = 0U;
+
+    pthread_mutex_lock(&s_mutex);
+    for (unsigned i = 0; i < s_count; ++i)
+    {
+        if (s_active[i])
+        {
+            codes[cleared++] = s_catalog[i].code;
+            s_active[i]      = false;
+        }
+    }
+    pthread_mutex_unlock(&s_mutex);
+
+    for (unsigned i = 0; i < cleared; ++i)
+    {
+        LOG_INFO("alarm_core: RESET %06u", (unsigned)codes[i]);
+    }
+    if (cleared > 0U)
+    {
+        /* 单次广播触发 safety_fsm 和 safety_supervisor 重新聚合安全态 */
+        (void)event_publish(EVT_ALARM_CLEARED, ALARM_CODE_NONE);
+    }
     return SW_OK;
 }
 
