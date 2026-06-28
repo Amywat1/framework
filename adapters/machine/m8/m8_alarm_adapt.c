@@ -8,21 +8,9 @@
 #include "adapters/machine/m8/m8_alarm_adapt.h"
 #include "ports/safety/alarm_binding_port.h"
 #include "ports/hal/hal_io_port.h"
-#include "domain/model/alarm_code.h"
-#include "config/machine/m8_io_pins.h"
+#include "config/machine/m8_alarm_table.h"
 #include "common/log.h"
 #include <stdbool.h>
-
-/* -------------------------------------------------------------------------
- * 硬件 DI 报警总表（增删改只改此处，一行对应一个报警源）
- *
- * 列：pin          active_low  trig_max  rel_max
- *     大类  编号  性质  等级                   清除方式                 描述
- * ------------------------------------------------------------------------- */
-#define M8_HW_ALARM_TABLE(X) \
-    X(M8_IO_DI_ESTOP,               true,  1U, 3U, 2, 17, 9, ALARM_LEVEL_CRITICAL, ALARM_CLEAR_AUTO_STATIC, "急停按钮触发") \
-    X(M8_IO_DI_SIDE_BRUSH_OVERLOAD, false, 3U, 3U, 2, 11, 1, ALARM_LEVEL_MAJOR,    ALARM_CLEAR_LATCHED,     "侧刷电机过载") \
-    X(M8_IO_DI_FAN_ALARM,           false, 3U, 3U, 4,  3, 3, ALARM_LEVEL_MINOR,    ALARM_CLEAR_AUTO_STATIC, "风机报警反馈")
 
 /* -------------------------------------------------------------------------
  * 编译期推导报警源数量
