@@ -4,10 +4,10 @@
  * @author  HUWANGWEI
  * @date    2026-06-26
  *
- * @note    维护 M8 DI 信号到报警码的映射表，周期性读取防抖后的信号电平，
- *          在电平翻转时通过 ports/safety/alarm_binding_port 把报警激活/清除
- *          推入 domain/safety/alarm_core。本适配器只依赖端口，不直接依赖
- *          domain/safety 实现。
+ * @note    自包含的 M8 报警检测适配器：通过 X-macro 单表同时定义 DI 引脚、
+ *          极性、独立防抖参数（trig/rel 计数）与报警定义（码/等级/清除/描述）。
+ *          poll 直接读原始 DI（hal_io_port），内部独立防抖，不依赖 m8_sensor。
+ *          init 时通过 alarm_binding_port.load_catalog 向 alarm_core 注册目录。
  */
 
 #ifndef ADAPTERS_MACHINE_M8_ALARM_ADAPT_H
@@ -27,9 +27,9 @@ extern "C" {
 sw_err_t m8_alarm_adapt_init(void);
 
 /**
- * @brief  执行一次报警信号轮询（边沿检测 + 激活/清除）
- * @note   由 io_poll 线程在 m8_signal_filter_tick() 之后周期调用；
- *         场景测试可在 filter tick 后直接调用以替代线程
+ * @brief  执行一次报警信号轮询（独立防抖 + 边沿检测 + 激活/清除）
+ * @note   由 io_poll 线程周期调用；与 m8_signal_filter_tick() 无顺序依赖。
+ *         场景测试可直接调用以替代线程
  */
 void m8_alarm_adapt_poll(void);
 

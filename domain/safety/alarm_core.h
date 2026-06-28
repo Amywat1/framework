@@ -5,10 +5,10 @@
  * @date    2026-06-26
  *
  * @note    alarm_core 是 domain/safety 的报警权威事实源：
- *            - 持有报警目录（报警码 → 等级/清除方式/描述）；目录是数据，
- *              由外部经 alarm_core_load() 注入（来源为 JSON 配置）
- *            - alarm_core_init() 先装载「内置兜底目录」（安全必需项），保证
- *              即使配置加载失败也不会丢失安全报警；随后 load 成功则整表替换
+ *            - 持有报警目录（报警码 → 等级/清除方式/描述）；目录在
+ *              alarm_core_init() 后为空，由机型适配器通过 alarm_binding_port.
+ *              load_catalog() 注入（编译期 X-macro 静态数组，保证注入必成功）
+ *            - 目录注入前 trigger/clear 对任何码返回 SW_ERR_PARAM（安全行为）
  *            - 维护活跃报警集（同一报警码同一时刻至多一个活跃实例）
  *            - 激活/清除时发布 EVT_ALARM_TRIGGERED / EVT_ALARM_CLEARED
  *          安全态（OK/WARNING/LOCKOUT）由本模块按活跃集最高等级派生，
@@ -30,10 +30,9 @@ extern "C" {
 #include <stdint.h>
 
 /**
- * @brief  初始化报警核心：装载内置兜底目录、清空活跃集、注册 alarm_binding_port
+ * @brief  初始化报警核心：清空活跃集、注册 alarm_binding_port
  * @retval SW_OK
- * @note   兜底目录仅含安全必需项（至少 CRITICAL 类）；正常应在 init 后再用
- *         alarm_core_load() 以完整 JSON 目录整表替换。
+ * @note   init 后目录为空；机型适配器须在首次 poll 前通过 load_catalog 注入完整目录。
  */
 sw_err_t alarm_core_init(void);
 

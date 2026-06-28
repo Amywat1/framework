@@ -9,8 +9,8 @@
  *          大类：1 动力 / 2 感知 / 3 执行 / 4 控制 / 9 软件；编码规则与完整目录
  *          见 doc/报警编码规范.md。
  *          本头文件只定义「类型」（等级/清除方式/定义项），不再罗列具体报警码——
- *          报警目录（code/level/clear/desc）是数据，唯一来源为 JSON
- *          （doc/m8_alarm_catalog.json），由 alarm_core 在启动时加载。
+ *          报警目录（code/level/clear/desc）是数据，由机型检测适配器（adapters/machine）
+ *          在 init 时通过 alarm_binding_port.load_catalog 注入 alarm_core。
  *          「信号→报警码」的检测绑定属机型层，见 adapters/machine 的检测适配器。
  *          本头位于 domain/model（共享类型层），adapters/machine 可包含它；但禁止
  *          包含 domain/safety 的实现头文件。

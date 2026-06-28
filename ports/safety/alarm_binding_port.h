@@ -17,6 +17,7 @@ extern "C" {
 #endif
 
 #include "common/sw_error.h"
+#include "domain/model/alarm_code.h"
 #include <stdint.h>
 
 /* -------------------------------------------------------------------------
@@ -37,6 +38,14 @@ typedef struct
      * @retval SW_OK / SW_ERR_PARAM（未知报警码）
      */
     sw_err_t (*clear)(uint32_t alarm_code);
+
+    /**
+     * @brief  加载报警目录（整表替换；由机型适配器在 init 时调用）
+     * @param  defs   报警定义数组
+     * @param  count  条目数
+     * @retval SW_OK / SW_ERR_PARAM / SW_ERR_OVERFLOW
+     */
+    sw_err_t (*load_catalog)(const alarm_def_t *defs, unsigned count);
 } alarm_binding_ops_t;
 
 /* -------------------------------------------------------------------------

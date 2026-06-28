@@ -15,18 +15,6 @@
 #include <string.h>
 
 /* -------------------------------------------------------------------------
- * 内置兜底目录（仅安全必需项）
- *   仅在 JSON 目录加载失败时生效，保证安全报警链不失效；不追求覆盖全部报警。
- *   长期应只保留 CRITICAL 类安全报警；普通报警缺失时降级为「不报」是可接受的
- *   故障安全行为，强于「整表为空导致急停也不报」。
- * ------------------------------------------------------------------------- */
-static const alarm_def_t s_fallback_defs[] = {
-    { ALARM_CODE_MAKE(2, 17, 9), ALARM_LEVEL_CRITICAL, ALARM_CLEAR_AUTO_STATIC, "急停按钮触发(兜底)" },
-};
-
-#define ALARM_FALLBACK_COUNT  (sizeof(s_fallback_defs) / sizeof(s_fallback_defs[0]))
-
-/* -------------------------------------------------------------------------
  * 报警目录（运行期可加载，固定容量）+ 活跃集
  *   s_catalog 下标即 s_active 下标；s_count 为当前有效条目数。
  * ------------------------------------------------------------------------- */
@@ -188,15 +176,14 @@ sw_err_t alarm_core_load(const alarm_def_t *defs, unsigned count)
 sw_err_t alarm_core_init(void)
 {
     static const alarm_binding_ops_t s_binding_ops = {
-        .trigger = alarm_core_trigger,
-        .clear   = alarm_core_clear,
+        .trigger      = alarm_core_trigger,
+        .clear        = alarm_core_clear,
+        .load_catalog = alarm_core_load,
     };
 
-    /* 先装载内置兜底目录，保证任何时刻安全报警链可用；随后 bootstrap 用
-     * JSON 目录整表替换。load 同时清空活跃集。*/
-    (void)alarm_core_load(s_fallback_defs, (unsigned)ALARM_FALLBACK_COUNT);
-
+    /* 目录由机型适配器（m8_alarm_adapt_init）通过端口 load_catalog 注入；
+     * 注入前目录为空，trigger/clear 对任何码均返回 SW_ERR_PARAM（安全行为）。*/
     alarm_binding_register(&s_binding_ops);
-    LOG_INFO("alarm_core: init ok (兜底目录 defs=%u)", (unsigned)s_count);
+    LOG_INFO("alarm_core: init ok");
     return SW_OK;
 }

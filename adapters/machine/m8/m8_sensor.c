@@ -118,7 +118,7 @@ static void *sensor_poll_thread_fn(void *arg)
     while (true)
     {
         m8_signal_filter_tick();
-        m8_alarm_adapt_poll(); /* 信号防抖后做报警边沿检测 */
+        m8_alarm_adapt_poll(); /* 报警信号独立轮询（内部自带防抖，与 filter_tick 无顺序依赖）*/
         usleep((unsigned long)THD_IO_POLL_PERIOD_MS * 1000UL);
     }
 

@@ -23,7 +23,6 @@
 #include "application/orchestrators/safety_supervisor.h"
 #include "domain/safety/alarm_core.h"
 #include "domain/safety/safety_fsm.h"
-#include "adapters/storage/json/alarm_catalog_json.h"
 #include "adapters/machine/m8/m8_sensor.h"
 #include "adapters/machine/m8/m8_alarm_adapt.h"
 #include "adapters/machine/m8/m8_water_setup.h"
@@ -47,12 +46,6 @@
 #  include "adapters/machine/m8/m8_cli_setup.h"
 #  include "adapters/cloud/aliyun/aliyun_command_adapter.h"
 #  include "common/event_types.h"
-#endif
-
-/* 报警目录 JSON 路径：sim 由 CMake 注入绝对路径；真机默认部署路径
- * （与引擎配置同属尚未统一的部署路径问题，先占位）。*/
-#ifndef M8_ALARM_CONFIG_PATH
-#  define M8_ALARM_CONFIG_PATH "/etc/m8/m8_alarm_catalog.json"
 #endif
 
 #define BOOT_CHECK(call, msg)                               \
@@ -165,24 +158,9 @@ static sw_err_t bootstrap_init_application(void)
     BOOT_CHECK(m8_water_setup(),         "m8_water_setup");
     /* 安全/报警域：alarm_core 先装兜底目录+注册端口，加载 JSON 目录整表替换，
      * 再依次接好状态机、监督器、机型适配 */
+    /* alarm_core_init() 装载内置兜底目录并注册端口；
+     * m8_alarm_adapt_init() 随后通过端口加载完整机型目录替换兜底 */
     BOOT_CHECK(alarm_core_init(),        "alarm_core_init");
-    {
-        /* static：避免在启动栈上放下 ALARM_CATALOG_MAX 条定义；启动期单线程安全 */
-        static alarm_def_t s_alarm_defs[ALARM_CATALOG_MAX];
-        unsigned cnt = 0U;
-        char     cerr[160];
-        sw_err_t lr  = alarm_catalog_load_json_file(M8_ALARM_CONFIG_PATH,
-                                                    s_alarm_defs, ALARM_CATALOG_MAX,
-                                                    &cnt, cerr, sizeof(cerr));
-        if (lr == SW_OK)
-        {
-            (void)alarm_core_load(s_alarm_defs, cnt);
-        }
-        else
-        {
-            LOG_ERROR("bootstrap: alarm catalog 加载失败(%s)，保留内置兜底目录", cerr);
-        }
-    }
     BOOT_CHECK(safety_fsm_init(),        "safety_fsm_init");
     BOOT_CHECK(safety_supervisor_init(), "safety_supervisor_init");
     BOOT_CHECK(m8_alarm_adapt_init(),    "m8_alarm_adapt_init");

@@ -212,7 +212,6 @@ if(BUILD_SIM)
 
         target_compile_options(M8_sim PRIVATE -Wall -Wextra -Werror -g)
         target_compile_definitions(M8_sim PRIVATE
-            M8_ALARM_CONFIG_PATH="${CMAKE_SOURCE_DIR}/doc/m8_alarm_catalog.json"
             WASH_PROGRAM_NORMAL_PATH="${CMAKE_SOURCE_DIR}/doc/m8_normal_wash_program.json"
             WASH_PROGRAM_QUICK_PATH="${CMAKE_SOURCE_DIR}/doc/m8_normal_wash_program.json")
 
@@ -389,7 +388,6 @@ if(BUILD_SIM)
         target_link_libraries(${scenario} PRIVATE pthread)
         target_compile_options(${scenario} PRIVATE -Wall -Wextra -Werror -g)
         target_compile_definitions(${scenario} PRIVATE
-            M8_ALARM_CONFIG_PATH="${CMAKE_SOURCE_DIR}/doc/m8_alarm_catalog.json"
             WASH_PROGRAM_NORMAL_PATH="${CMAKE_SOURCE_DIR}/doc/m8_normal_wash_program.json"
             WASH_PROGRAM_QUICK_PATH="${CMAKE_SOURCE_DIR}/doc/m8_normal_wash_program.json")
         add_test(NAME ${scenario} COMMAND ${scenario})
