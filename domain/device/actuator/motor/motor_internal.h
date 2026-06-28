@@ -17,6 +17,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#define MOTOR_TICK_PERIOD_MS               10U
 #define MOTOR_ENCODER_CLEAR_RETRY_MAX      3U
 #define MOTOR_ENCODER_CLEAR_RETRY_DELAY_US 2000U
 #define MOTOR_VFD_STATUS_RUNNING_MASK      0x0001U

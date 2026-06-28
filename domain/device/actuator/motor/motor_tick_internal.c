@@ -11,10 +11,12 @@
 
 #include "common/time_util.h"
 #include "common/log.h"
-#include "config/threading/thread_config.h"
 
+#include <pthread.h>
 #include <string.h>
 #include <unistd.h>
+
+#define MOTOR_TICK_STACK_SIZE   (16U * 1024U)
 
 typedef struct
 {
@@ -274,7 +276,7 @@ static void motor_tick_notify_done(const motor_tick_ctx_t *tick)
     }
 }
 
-void *motor_tick_loop(void *arg)
+static void *motor_tick_loop(void *arg)
 {
     (void)arg;
 
@@ -290,7 +292,7 @@ void *motor_tick_loop(void *arg)
         if (!motor_tick_prepare_locked(&tick, ops, now_ms))
         {
             pthread_mutex_unlock(&s_mutex);
-            usleep((unsigned long)THD_MOTOR_TICK_PERIOD_MS * 1000UL);
+            usleep((unsigned long)MOTOR_TICK_PERIOD_MS * 1000UL);
             continue;
         }
         pthread_mutex_unlock(&s_mutex);
@@ -303,7 +305,7 @@ void *motor_tick_loop(void *arg)
             !s_initialized)
         {
             pthread_mutex_unlock(&s_mutex);
-            usleep((unsigned long)THD_MOTOR_TICK_PERIOD_MS * 1000UL);
+            usleep((unsigned long)MOTOR_TICK_PERIOD_MS * 1000UL);
             continue;
         }
 
@@ -311,12 +313,35 @@ void *motor_tick_loop(void *arg)
         if (!motor_tick_collect_done_locked(&tick, ops))
         {
             pthread_mutex_unlock(&s_mutex);
-            usleep((unsigned long)THD_MOTOR_TICK_PERIOD_MS * 1000UL);
+            usleep((unsigned long)MOTOR_TICK_PERIOD_MS * 1000UL);
             continue;
         }
         pthread_mutex_unlock(&s_mutex);
 
         motor_tick_notify_done(&tick);
-        usleep((unsigned long)THD_MOTOR_TICK_PERIOD_MS * 1000UL);
+        usleep((unsigned long)MOTOR_TICK_PERIOD_MS * 1000UL);
     }
+
+    return NULL;
+}
+
+sw_err_t motor_tick_start(void)
+{
+    pthread_attr_t attr;
+    pthread_t      tid;
+
+    pthread_attr_init(&attr);
+    pthread_attr_setstacksize(&attr, MOTOR_TICK_STACK_SIZE);
+
+    if (pthread_create(&tid, &attr, motor_tick_loop, NULL) != 0)
+    {
+        pthread_attr_destroy(&attr);
+        LOG_ERROR("motor_tick_start: pthread_create failed");
+        return SW_ERR_HW;
+    }
+
+    pthread_attr_destroy(&attr);
+    pthread_detach(tid);
+    LOG_INFO("motor_tick_start: motor_tick thread started");
+    return SW_OK;
 }

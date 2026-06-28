@@ -6,17 +6,17 @@
  */
 
 #include "adapters/machine/m8/m8_sensor.h"
-#include "adapters/machine/m8/m8_alarm_adapt.h"
 #include "config/machine/m8_signal_table.h"
 #include "ports/hal/hal_sensor_port.h"
-#include "core/scheduler/thread_registry.h"
-#include "config/threading/thread_config.h"
 #include "common/log.h"
 
 #include "adapters/hal/generic/hal_sensor.h"
 
-#include <sched.h>
+#include <pthread.h>
 #include <unistd.h>
+
+#define SENSOR_POLL_PERIOD_MS   30U
+#define SENSOR_POLL_STACK_SIZE  (16U * 1024U)
 
 _Static_assert((unsigned)M8_SIG_MAX <= HAL_SENSOR_CHANNEL_MAX,
                "M8_SIG_MAX 超过 HAL_SENSOR_CHANNEL_MAX，需扩大 hal_sensor 通道上限");
@@ -118,20 +118,31 @@ static void *sensor_poll_thread_fn(void *arg)
     while (true)
     {
         m8_signal_filter_tick();
-        m8_alarm_adapt_poll(); /* 报警信号独立轮询（内部自带防抖，与 filter_tick 无顺序依赖）*/
-        usleep((unsigned long)THD_IO_POLL_PERIOD_MS * 1000UL);
+        usleep((unsigned long)SENSOR_POLL_PERIOD_MS * 1000UL);
     }
 
     return NULL;
 }
 
-sw_err_t m8_sensor_poll_register(void)
+sw_err_t m8_sensor_poll_start(void)
 {
-    return thread_register("io_poll",
-                           sensor_poll_thread_fn,
-                           SCHED_OTHER,
-                           0,
-                           THD_IO_POLL_STACK);
+    pthread_attr_t attr;
+    pthread_t      tid;
+
+    pthread_attr_init(&attr);
+    pthread_attr_setstacksize(&attr, SENSOR_POLL_STACK_SIZE);
+
+    if (pthread_create(&tid, &attr, sensor_poll_thread_fn, NULL) != 0)
+    {
+        pthread_attr_destroy(&attr);
+        LOG_ERROR("m8_sensor_poll_start: pthread_create failed");
+        return SW_ERR_HW;
+    }
+
+    pthread_attr_destroy(&attr);
+    pthread_detach(tid);
+    LOG_INFO("m8_sensor_poll_start: io_poll thread started");
+    return SW_OK;
 }
 
 /* -------------------------------------------------------------------------

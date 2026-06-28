@@ -225,12 +225,9 @@ static sw_err_t bootstrap_start_threads(void)
 #endif
 
     BOOT_CHECK(m8_sensor_poll_start(), "m8_sensor_poll_start");
+    BOOT_CHECK(m8_alarm_adapt_poll_start(), "m8_alarm_adapt_poll_start");
 
-    BOOT_CHECK(thread_register("motor_tick",
-                               motor_tick_loop,
-                               SCHED_OTHER, 0,
-                               THD_MOTOR_TICK_STACK),
-               "register motor_tick_thread");
+    BOOT_CHECK(motor_tick_start(), "motor_tick_start");
 
     BOOT_CHECK(scheduler_start_all(), "scheduler_start_all");
     return SW_OK;

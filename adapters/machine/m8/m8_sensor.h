@@ -31,10 +31,10 @@ sw_err_t m8_sensor_setup(void);
 sw_err_t m8_sensor_warmup(void);
 
 /**
- * @brief  注册 IO 轮询线程（周期调用 m8_signal_filter_tick）
- * @note   须在 m8_sensor_setup() 之后调用
+ * @brief  启动 IO 轮询线程（周期调用 m8_signal_filter_tick 和 m8_alarm_adapt_poll）
+ * @note   须在 m8_sensor_setup() 之后调用；线程自管，不经 scheduler
  */
-sw_err_t m8_sensor_poll_register(void);
+sw_err_t m8_sensor_poll_start(void);
 
 /**
  * @brief  执行一次 hal_sensor 滤波时间片

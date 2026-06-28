@@ -10,7 +10,6 @@
 #include "domain/device/actuator/motor/motor_internal.h"
 
 #include "common/time_util.h"
-#include "config/threading/thread_config.h"
 #include "common/log.h"
 
 typedef enum
@@ -229,7 +228,7 @@ void motor_monitor_apply_faults_locked(const motor_monitor_job_t jobs[MOTOR_MON_
                                                   ctx,
                                                   job,
                                                   elapsed_ms,
-                                                  THD_MOTOR_TICK_PERIOD_MS);
+                                                  MOTOR_TICK_PERIOD_MS);
             if ((fault == MOTOR_MON_FAULT_CURRENT) || (fault == MOTOR_MON_FAULT_STATUS))
             {
                 should_fault = true;

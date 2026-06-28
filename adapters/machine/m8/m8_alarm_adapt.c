@@ -10,7 +10,12 @@
 #include "ports/hal/hal_io_port.h"
 #include "config/machine/m8_alarm_table.h"
 #include "common/log.h"
+#include <pthread.h>
 #include <stdbool.h>
+#include <unistd.h>
+
+#define ALARM_POLL_PERIOD_MS   30U
+#define ALARM_POLL_STACK_SIZE  (16U * 1024U)
 
 /* -------------------------------------------------------------------------
  * 编译期推导报警源数量
@@ -122,4 +127,38 @@ void m8_alarm_adapt_poll(void)
         if (debounced) { (void)ops->trigger(s_cfg[i].code); }
         else           { (void)ops->clear(s_cfg[i].code);   }
     }
+}
+
+static void *alarm_poll_thread_fn(void *arg)
+{
+    (void)arg;
+
+    while (true)
+    {
+        m8_alarm_adapt_poll();
+        usleep((unsigned long)ALARM_POLL_PERIOD_MS * 1000UL);
+    }
+
+    return NULL;
+}
+
+sw_err_t m8_alarm_adapt_poll_start(void)
+{
+    pthread_attr_t attr;
+    pthread_t      tid;
+
+    pthread_attr_init(&attr);
+    pthread_attr_setstacksize(&attr, ALARM_POLL_STACK_SIZE);
+
+    if (pthread_create(&tid, &attr, alarm_poll_thread_fn, NULL) != 0)
+    {
+        pthread_attr_destroy(&attr);
+        LOG_ERROR("m8_alarm_adapt_poll_start: pthread_create failed");
+        return SW_ERR_HW;
+    }
+
+    pthread_attr_destroy(&attr);
+    pthread_detach(tid);
+    LOG_INFO("m8_alarm_adapt_poll_start: alarm_poll thread started");
+    return SW_OK;
 }

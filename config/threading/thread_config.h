@@ -34,11 +34,6 @@
 #define THD_EVENT_DISPATCH_STACK     (16U * 1024U)
 #define THD_EVENT_DISPATCH_NICE      0
 
-/* IO 轮询线程（SCHED_OTHER，经 scheduler 注册）*/
-#define THD_IO_POLL_STACK            (16U * 1024U)
-#define THD_IO_POLL_NICE             0
-#define THD_IO_POLL_PERIOD_MS        30U   /* 与 drv_io 刷新周期一致 */
-
 /* 洗车工作线程（SCHED_OTHER）*/
 #define THD_WASH_WORKER_STACK        (32U * 1024U)
 #define THD_WASH_WORKER_NICE         0
@@ -47,10 +42,5 @@
 #define THD_CLOUD_STACK              (32U * 1024U)
 #define THD_CLOUD_NICE               0
 #define THD_CLOUD_REPORT_PERIOD_MS   500U  /* 状态上报周期 */
-
-/* 电机状态机线程（SCHED_OTHER） */
-#define THD_MOTOR_TICK_STACK         (16U * 1024U)
-#define THD_MOTOR_TICK_NICE          0
-#define THD_MOTOR_TICK_PERIOD_MS     10U
 
 #endif /* CONFIG_THREADING_THREAD_CONFIG_H */

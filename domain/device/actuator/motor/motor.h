@@ -37,6 +37,7 @@ typedef enum
 typedef void (*motor_done_cb_t)(int motor_id, sw_err_t result, void *ctx);
 
 sw_err_t      motor_init(void);
+sw_err_t      motor_tick_start(void);
 sw_err_t      motor_move(int id, int speed_ref);
 sw_err_t      motor_stop(int id);
 sw_err_t      motor_fault_reset(int id);
@@ -44,7 +45,6 @@ int32_t       motor_get_pos(int id);
 sw_err_t      motor_clear_encoder(int id);
 bool          motor_at_fwd_limit(int id);
 bool          motor_at_rev_limit(int id);
-void         *motor_tick_loop(void *arg);
 
 /**
  * @brief  注册电机动作完成回调

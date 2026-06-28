@@ -28,10 +28,15 @@ sw_err_t m8_alarm_adapt_init(void);
 
 /**
  * @brief  执行一次报警信号轮询（独立防抖 + 边沿检测 + 激活/清除）
- * @note   由 io_poll 线程周期调用；与 m8_signal_filter_tick() 无顺序依赖。
- *         场景测试可直接调用以替代线程
+ * @note   场景测试可直接调用以替代线程
  */
 void m8_alarm_adapt_poll(void);
+
+/**
+ * @brief  启动报警轮询线程（模块自管，不经 scheduler）
+ * @note   须在 m8_alarm_adapt_init() 之后调用
+ */
+sw_err_t m8_alarm_adapt_poll_start(void);
 
 #ifdef __cplusplus
 }
