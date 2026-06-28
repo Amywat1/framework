@@ -5,7 +5,7 @@
  * @date    2026-04-10
  */
 
-#include "service/dev_ctx/dev_ctx.h"
+#include "infrastructure/services/dev_ctx/dev_ctx.h"
 #include "domain/model/device_state.h"
 #include "domain/model/wash_types.h"
 #include "unity.h"

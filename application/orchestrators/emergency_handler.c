@@ -27,7 +27,7 @@
 #include "application/orchestrators/emergency_handler.h"
 #include "application/orchestrators/wash_orchestrator.h"
 #include "domain/device/unit/brush.h"
-#include "core/event_bus/event_bus.h"
+#include "infrastructure/event_bus/event_bus.h"
 #include "common/event_types.h"
 #include "common/log.h"
 #include "common/sw_error.h"

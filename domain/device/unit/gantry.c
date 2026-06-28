@@ -7,8 +7,8 @@
 
 #include "domain/device/unit/gantry.h"
 #include "domain/device/actuator/motor/motor.h"
-#include "config/machine/m8_motor_table.h"
-#include "core/event_bus/event_bus.h"
+#include "machines/m8/config/m8_motor_table.h"
+#include "infrastructure/event_bus/event_bus.h"
 #include "common/event_types.h"
 #include "common/log.h"
 #include <stdatomic.h>

@@ -6,7 +6,7 @@
  */
 
 #include "application/command_guard.h"
-#include "service/dev_ctx/dev_ctx.h"
+#include "infrastructure/services/dev_ctx/dev_ctx.h"
 #include "domain/model/device_state.h"
 #include "common/log.h"
 

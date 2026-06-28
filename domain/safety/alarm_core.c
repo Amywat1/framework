@@ -7,7 +7,7 @@
 
 #include "domain/safety/alarm_core.h"
 #include "ports/safety/alarm_binding_port.h"
-#include "core/event_bus/event_bus.h"
+#include "infrastructure/event_bus/event_bus.h"
 #include "common/event_types.h"
 #include "common/log.h"
 #include <pthread.h>

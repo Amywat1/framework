@@ -37,8 +37,8 @@
 #include "domain/device/unit/gantry.h"
 #include "domain/device/unit/brush.h"
 #include "domain/device/water.h"
-#include "service/svc_param/svc_param.h"
-#include "adapters/machine/m8/m8_sensor.h"
+#include "infrastructure/services/svc_param/svc_param.h"
+#include "machines/m8/adapters/setup/m8_sensor.h"
 #include "common/log.h"
 
 #include <string.h>

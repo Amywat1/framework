@@ -7,7 +7,7 @@
 
 #include "adapters/ui/mqtt_cmd/mqtt_command_parser.h"
 #include "common/log.h"
-#include "tools/cJSON.h"
+#include "third_party/cJSON/cJSON.h"
 #include <string.h>
 
 bool mqtt_command_parse(const char *json_str, cmd_t *out_cmd)

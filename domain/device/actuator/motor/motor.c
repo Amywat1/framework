@@ -7,7 +7,7 @@
 
 #include "domain/device/actuator/motor/motor_internal.h"
 
-#include "config/machine/m8_motor_table.h"
+#include "machines/m8/config/m8_motor_table.h"
 #include "common/time_util.h"
 #include "common/log.h"
 

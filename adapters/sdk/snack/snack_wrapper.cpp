@@ -9,7 +9,7 @@
 #include "log/mlog.h"
 #include "cli/cli.h"
 #include "music/music.h"
-#include "tools/cJSON.h"
+#include "third_party/cJSON/cJSON.h"
 #include "aliot/aiot.h"
 #include "ble.h"
 #include <stdarg.h>

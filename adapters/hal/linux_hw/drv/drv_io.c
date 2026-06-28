@@ -21,7 +21,7 @@
 
 #include "common/log.h"
 #include "common/time_util.h"
-#include "config/machine/m8_machine_config.h"
+#include "machines/m8/config/m8_machine_config.h"
 #include "io_exp/slave.h"
 
 /* -------------------------------------------------------------------------
@@ -46,13 +46,13 @@ typedef struct
  * ------------------------------------------------------------------------- */
 static const drv_io_name_entry_t s_di_name_table[] = {
 #define DRV_IO_DI_DEF(name, board, pin, desc) { "DI_" #name, IO_HANDLE_MAKE(IO_KIND_DI, board, pin) },
-#include "config/machine/m8_io_table.h"
+#include "machines/m8/config/m8_io_table.h"
 #undef DRV_IO_DI_DEF
 };
 
 static const drv_io_name_entry_t s_do_name_table[] = {
 #define DRV_IO_DO_DEF(name, board, pin, desc) { "DO_" #name, IO_HANDLE_MAKE(IO_KIND_DO, board, pin) },
-#include "config/machine/m8_io_table.h"
+#include "machines/m8/config/m8_io_table.h"
 #undef DRV_IO_DO_DEF
 };
 

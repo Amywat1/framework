@@ -12,14 +12,14 @@
  */
 
 #include "application/orchestrators/wash_orchestrator.h"
-#include "core/scheduler/thread_registry.h"
-#include "service/dev_ctx/dev_ctx.h"
+#include "infrastructure/scheduler/thread_registry.h"
+#include "infrastructure/services/dev_ctx/dev_ctx.h"
 #include "domain/device/unit/brush.h"
 #include "domain/device/unit/gantry.h"
 #include "domain/device/water.h"
 #include "domain/engine/engine.h"
 #include "ports/storage/engine_program_loader_port.h"
-#include "core/event_bus/event_bus.h"
+#include "infrastructure/event_bus/event_bus.h"
 #include "config/threading/thread_config.h"
 #include "common/event_types.h"
 #include "common/log.h"

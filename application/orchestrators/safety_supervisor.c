@@ -9,8 +9,8 @@
 #include "domain/safety/alarm_core.h"
 #include "domain/model/safety_types.h"
 #include "domain/model/alarm_code.h"
-#include "service/dev_ctx/dev_ctx.h"
-#include "core/event_bus/event_bus.h"
+#include "infrastructure/services/dev_ctx/dev_ctx.h"
+#include "infrastructure/event_bus/event_bus.h"
 #include "common/event_types.h"
 #include "common/log.h"
 

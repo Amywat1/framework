@@ -5,7 +5,7 @@
  * @date    2026-04-10
  */
 
-#include "core/event_bus/event_bus.h"
+#include "infrastructure/event_bus/event_bus.h"
 #include "config/threading/thread_config.h"
 #include "common/time_util.h"
 #include "unity.h"

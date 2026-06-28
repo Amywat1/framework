@@ -15,7 +15,7 @@
 
 #include "ports/storage/deploy_store.h"
 #include "common/log.h"
-#include "tools/cJSON.h"
+#include "third_party/cJSON/cJSON.h"
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>

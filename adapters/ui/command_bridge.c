@@ -8,7 +8,7 @@
 #include "adapters/ui/command_bridge.h"
 #include "application/command_guard.h"
 #include "ports/cloud/command_port.h"
-#include "core/event_bus/event_bus.h"
+#include "infrastructure/event_bus/event_bus.h"
 #include "common/event_types.h"
 #include "common/log.h"
 

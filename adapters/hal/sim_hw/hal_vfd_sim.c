@@ -6,7 +6,7 @@
  */
 
 #include "ports/hal/hal_vfd_port.h"
-#include "config/machine/m8_vfd_table.h"
+#include "machines/m8/config/m8_vfd_table.h"
 #include "common/log.h"
 
 static hal_vfd_state_t s_state[2];

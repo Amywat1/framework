@@ -67,20 +67,21 @@ add_compile_options(
 # -------------------------------------------------------
 file(GLOB_RECURSE src CONFIGURE_DEPENDS
     app_main.cpp
-    apps/*.c apps/*.h
+    platform/*.c platform/*.h
     common/*.c common/*.h
-    core/*.c core/*.h
+    infrastructure/*.c infrastructure/*.h
     domain/*.c domain/*.h
     application/*.c application/*.h
     ports/*.c ports/*.h
     adapters/*.cpp
     adapters/*.c adapters/*.h
-    service/*.c service/*.h
     config/*.c config/*.h
+    machines/*.cpp
+    machines/*.c machines/*.h
     tests/*.c tests/*.h
 )
 # 内置 cJSON（替代 snack SDK 路径，真机/sim 统一使用同一份源码）
-list(APPEND src ${CMAKE_SOURCE_DIR}/tools/cJSON.c)
+list(APPEND src ${CMAKE_SOURCE_DIR}/third_party/cJSON/cJSON.c)
 
 # sim_hw 适配器不参与嵌入式构建
 list(FILTER src EXCLUDE REGEX ".*/sim_hw/.*")
@@ -148,16 +149,15 @@ if(BUILD_SIM)
         # 领域核心（纯逻辑，无硬件依赖）
         domain/*.c
         application/*.c
-        service/*.c
+        infrastructure/services/*.c
 
         # 事件总线 + 调度器
-        core/event_bus/*.c
-        core/scheduler/*.c
-        core/runtime/*.c
+        infrastructure/event_bus/*.c
+        infrastructure/scheduler/*.c
 
         # 仿真构建使用 wiring_sim.c 完成依赖接线
-        core/bootstrap/bootstrap.c
-        apps/wash_controller/wiring_sim.c
+        infrastructure/bootstrap/bootstrap.c
+        platform/main/wiring_sim.c
 
         # 仿真 HAL 实现（sim_hw：io/vfd/motor 专属；generic：sensor/do_group 共用）
         ports/*.c
@@ -173,25 +173,25 @@ if(BUILD_SIM)
         adapters/ui/command_bridge.c
 
         # M8 机型配置表
-        config/machine/m8_signal_table.c
+        machines/m8/config/m8_signal_table.c
 
         # M8 机型适配
-        adapters/machine/m8/m8_sensor.c
-        adapters/machine/m8/m8_alarm_init.c
-        adapters/machine/m8/m8_alarm_adapt.c
-        adapters/machine/m8/m8_comm_watchdog.c
-        adapters/machine/m8/m8_signal_sim.c
-        adapters/machine/m8/m8_motor_setup.c
-        adapters/machine/m8/m8_water_setup.c
+        machines/m8/adapters/alarm/m8_alarm_init.c
+        machines/m8/adapters/alarm/m8_alarm_adapt.c
+        machines/m8/adapters/alarm/m8_comm_watchdog.c
+        machines/m8/adapters/setup/m8_sensor.c
+        machines/m8/adapters/setup/m8_motor_setup.c
+        machines/m8/adapters/setup/m8_water_setup.c
+        machines/m8/adapters/m8_signal_sim.c
 
         # 仿真主入口 + 交互控制台
-        tools/simulator/*.c
+        platform/sim/*.c
 
         # 公共层
         common/*.c
     )
     # 内置 cJSON（替代系统 libcjson-dev）
-    list(APPEND sim_sources ${CMAKE_SOURCE_DIR}/tools/cJSON.c)
+    list(APPEND sim_sources ${CMAKE_SOURCE_DIR}/third_party/cJSON/cJSON.c)
 
     # 排除仿真不需要或有真机依赖的文件
     list(FILTER sim_sources EXCLUDE REGEX ".*/linux_hw/.*")
@@ -207,7 +207,7 @@ if(BUILD_SIM)
 
         target_include_directories(M8_sim PRIVATE
             ${CMAKE_SOURCE_DIR}
-            ${CMAKE_SOURCE_DIR}/tools/simulator
+            ${CMAKE_SOURCE_DIR}/platform/sim
         )
 
         target_link_libraries(M8_sim PRIVATE pthread)
@@ -237,11 +237,11 @@ if(BUILD_SIM)
 
     # -----------------------------------------------------------------------
     # 场景测试的基础源文件集：
-    #   sim_sources 去掉仿真主入口（tools/simulator/），由各测试自带 main()
+    #   sim_sources 去掉仿真主入口（platform/sim/），由各测试自带 main()
     # -----------------------------------------------------------------------
     set(scenario_base ${sim_sources})
-    list(FILTER scenario_base EXCLUDE REGEX "tools/simulator/sim_main\\.c$")
-    list(FILTER scenario_base EXCLUDE REGEX "tools/simulator/sim_console\\.c$")
+    list(FILTER scenario_base EXCLUDE REGEX "platform/sim/sim_main\\.c$")
+    list(FILTER scenario_base EXCLUDE REGEX "platform/sim/sim_console\\.c$")
     list(FILTER scenario_base EXCLUDE REGEX "tests/")
 
     # -----------------------------------------------------------------------
@@ -252,15 +252,15 @@ if(BUILD_SIM)
         add_executable(${name}
             ${test_src}
             ${ARGN}
-            tools/unity/unity.c
-            core/event_bus/event_bus.c
+            third_party/unity/unity.c
+            infrastructure/event_bus/event_bus.c
             ports/port_registry.c
             common/time_util.c
-            tools/simulator/snack_stub.c
+            platform/sim/snack_stub.c
         )
         target_include_directories(${name} PRIVATE
             ${test_includes}
-            ${CMAKE_SOURCE_DIR}/tools/unity
+            ${CMAKE_SOURCE_DIR}/third_party/unity
         )
         target_link_libraries(${name} PRIVATE pthread)
         target_compile_options(${name} PRIVATE -Wall -Wextra -Werror -g)
@@ -283,7 +283,7 @@ if(BUILD_SIM)
     # test_dev_ctx：只测 dev_ctx 快照与并发写
     add_unit_test(test_dev_ctx
         tests/unit/test_dev_ctx.c
-        service/dev_ctx/dev_ctx.c
+        infrastructure/services/dev_ctx/dev_ctx.c
     )
 
     # -----------------------------------------------------------------------
@@ -324,7 +324,7 @@ if(BUILD_SIM)
         ports/storage/engine_program_loader_port.c
         domain/engine/engine_model.c
         domain/engine/engine_expr.c
-        tools/cJSON.c
+        third_party/cJSON/cJSON.c
     )
     target_link_libraries(test_engine_config PRIVATE m)
     target_compile_definitions(test_engine_config PRIVATE
@@ -343,7 +343,7 @@ if(BUILD_SIM)
         domain/engine/engine_model.c
         domain/engine/engine_expr.c
         adapters/hal/sim_hw/engine_io_sim.c
-        tools/cJSON.c
+        third_party/cJSON/cJSON.c
     )
     target_link_libraries(test_engine_runtime PRIVATE m)
 
@@ -360,12 +360,12 @@ if(BUILD_SIM)
         domain/engine/engine_model.c
         domain/engine/engine_expr.c
         adapters/hal/sim_hw/engine_io_sim.c
-        tools/cJSON.c
-        tools/unity/unity.c
+        third_party/cJSON/cJSON.c
+        third_party/unity/unity.c
     )
     target_include_directories(scenario_engine_normal_wash PRIVATE
         ${test_includes}
-        ${CMAKE_SOURCE_DIR}/tools/unity
+        ${CMAKE_SOURCE_DIR}/third_party/unity
     )
     target_link_libraries(scenario_engine_normal_wash PRIVATE pthread m)
     target_compile_options(scenario_engine_normal_wash PRIVATE -Wall -Wextra -Werror -g)

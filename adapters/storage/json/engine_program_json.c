@@ -8,7 +8,7 @@
 #include "adapters/storage/json/engine_program_json.h"
 #include "ports/storage/engine_program_loader_port.h"
 #include "domain/engine/engine_expr.h"
-#include "tools/cJSON.h"
+#include "third_party/cJSON/cJSON.h"
 
 #include <stdlib.h>
 #include <string.h>

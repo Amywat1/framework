@@ -6,10 +6,10 @@
  */
 
 #include "application/orchestrators/report_aggregator.h"
-#include "core/scheduler/thread_registry.h"
-#include "service/dev_ctx/dev_ctx.h"
+#include "infrastructure/scheduler/thread_registry.h"
+#include "infrastructure/services/dev_ctx/dev_ctx.h"
 #include "ports/cloud/report_port.h"
-#include "core/event_bus/event_bus.h"
+#include "infrastructure/event_bus/event_bus.h"
 #include "config/threading/thread_config.h"
 #include "common/event_types.h"
 #include "common/log.h"

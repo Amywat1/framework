@@ -8,7 +8,7 @@
 #include "domain/safety/safety_fsm.h"
 #include "domain/safety/alarm_core.h"
 #include "domain/model/safety_types.h"
-#include "core/event_bus/event_bus.h"
+#include "infrastructure/event_bus/event_bus.h"
 #include "common/event_types.h"
 #include "common/log.h"
 

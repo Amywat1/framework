@@ -9,11 +9,11 @@
  *          CLI 注册由 bootstrap 统一完成。
  */
 
-#include "core/bootstrap/bootstrap.h"
+#include "infrastructure/bootstrap/bootstrap.h"
 #include "common/sw_version.h"
 #include "common/log.h"
-#include "config/machine/m8_machine_config.h"
-#include "adapters/machine/m8/m8_runtime_adapter.h"
+#include "machines/m8/config/m8_machine_config.h"
+#include "machines/m8/adapters/m8_runtime_adapter.h"
 #include "adapters/sdk/snack/snack_wrapper.h"
 #include "io_exp/demo.h"
 #include <unistd.h>
