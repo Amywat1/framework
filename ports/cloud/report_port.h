@@ -26,7 +26,6 @@ typedef struct
 {
     uint8_t  dev_state;      /* dev_state_t 枚举值 */
     uint8_t  wash_mode;      /* wash_mode_t 枚举值 */
-    uint8_t  wash_step;      /* wash_step_t 枚举值 */
     int32_t  gantry_pos;     /* 龙门当前位置（脉冲数）*/
     bool     cloud_connected;
     uint8_t  safety_state;   /* safety_state_t 枚举值 */

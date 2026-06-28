@@ -8,7 +8,6 @@
 #include "application/orchestrators/report_aggregator.h"
 #include "core/scheduler/thread_registry.h"
 #include "service/dev_ctx/dev_ctx.h"
-#include "domain/device/unit/gantry.h"
 #include "ports/cloud/report_port.h"
 #include "core/event_bus/event_bus.h"
 #include "config/threading/thread_config.h"
@@ -28,8 +27,7 @@ static void build_payload(cloud_report_payload_t *p)
     memset(p, 0, sizeof(*p));
     p->dev_state      = (uint8_t)ctx.device_state;
     p->wash_mode      = (uint8_t)ctx.wash_mode;
-    p->wash_step      = (uint8_t)ctx.wash_step;
-    p->gantry_pos     = gantry_get_pos();
+    p->gantry_pos     = ctx.gantry_pos;
     p->cloud_connected = ctx.cloud_connected;
     p->safety_state   = (uint8_t)ctx.safety_state;
     p->has_alarm      = ctx.has_alarm;

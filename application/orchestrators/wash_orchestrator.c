@@ -121,8 +121,7 @@ static void *wash_worker_fn(void *arg)
             continue;
         }
 
-        /* TODO: 将 engine_current_phase_id() 映射为 wash_step_t 以细化进度上报 */
-        dev_ctx_set_wash_progress(WASH_STEP_IDLE, s_mode);
+        dev_ctx_set_wash_mode(s_mode);
 
         LOG_INFO("wash_worker: start mode=%d path=%s", (int)s_mode, prog_path);
 
@@ -161,6 +160,7 @@ static void *wash_worker_fn(void *arg)
 
             /* 将当前方向发布给外部读取者（无指针跨线程，原子安全） */
             atomic_store(&s_current_direction, (int)engine_current_direction(e));
+            dev_ctx_set_gantry_pos(gantry_get_pos());
 
             engine_run_state_t st = engine_state(e);
 
@@ -199,7 +199,7 @@ static void *wash_worker_fn(void *arg)
         engine_destroy(e);
 
         wash_stop_all_outputs();
-        dev_ctx_set_wash_progress(WASH_STEP_IDLE, s_mode);
+        dev_ctx_set_wash_mode(s_mode);
 
         bool aborted = atomic_load(&s_abort_req);
         if ((final_state == ENGINE_STATE_DONE) && !aborted && (total_ms < WASH_TOTAL_TIMEOUT_MS))

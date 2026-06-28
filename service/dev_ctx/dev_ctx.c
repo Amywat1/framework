@@ -18,7 +18,6 @@ sw_err_t dev_ctx_init(void)
     pthread_mutex_lock(&s_mutex);
     memset(&s_ctx, 0, sizeof(s_ctx));
     s_ctx.device_state  = DEV_STATE_INIT;
-    s_ctx.wash_step     = WASH_STEP_IDLE;
     s_ctx.wash_mode     = WASH_MODE_STANDARD;
     pthread_mutex_unlock(&s_mutex);
     LOG_INFO("dev_ctx: init ok");
@@ -51,11 +50,17 @@ void dev_ctx_set_device_state(dev_state_t state)
     pthread_mutex_unlock(&s_mutex);
 }
 
-void dev_ctx_set_wash_progress(wash_step_t step, wash_mode_t mode)
+void dev_ctx_set_wash_mode(wash_mode_t mode)
 {
     pthread_mutex_lock(&s_mutex);
-    s_ctx.wash_step = step;
     s_ctx.wash_mode = mode;
+    pthread_mutex_unlock(&s_mutex);
+}
+
+void dev_ctx_set_gantry_pos(int32_t pos)
+{
+    pthread_mutex_lock(&s_mutex);
+    s_ctx.gantry_pos = pos;
     pthread_mutex_unlock(&s_mutex);
 }
 

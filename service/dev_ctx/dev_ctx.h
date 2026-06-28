@@ -8,7 +8,8 @@
  *          写入权限严格分片，各字段只允许指定模块更新：
  *            device_state   → device_fsm（读写均经 dev_ctx，无镜像）
  *            safety_state   → safety_fsm
- *            wash_progress  → wash_orchestrator
+ *            wash_mode      → wash_orchestrator
+ *            gantry_pos     → wash_orchestrator（tick 循环写入，非洗车期保留最后值）
  *            alarm_state    → safety_fsm
  *            cloud_status   → report_aggregator
  *          读取通过 dev_ctx_snapshot() 返回值拷贝，外部不持有指针。
@@ -34,8 +35,8 @@ extern "C" {
 typedef struct
 {
     dev_state_t    device_state;    /* 设备 FSM 状态 */
-    wash_step_t    wash_step;       /* 当前洗车步骤（IDLE = 不在洗车中）*/
     wash_mode_t    wash_mode;       /* 当前洗车模式 */
+    int32_t        gantry_pos;      /* 龙门当前位置（脉冲数，非洗车期为最后已知值）*/
     bool           cloud_connected; /* 云端 MQTT 连接状态 */
     safety_state_t safety_state;    /* 安全态（OK/WARNING/LOCKOUT）*/
     bool           has_alarm;       /* 是否存在活跃报警 */
@@ -66,8 +67,11 @@ dev_state_t dev_ctx_get_device_state(void);
 /** @brief [device_fsm] 更新设备 FSM 状态 */
 void dev_ctx_set_device_state(dev_state_t state);
 
-/** @brief [wash_orchestrator] 更新当前洗车进度 */
-void dev_ctx_set_wash_progress(wash_step_t step, wash_mode_t mode);
+/** @brief [wash_orchestrator] 更新当前洗车模式 */
+void dev_ctx_set_wash_mode(wash_mode_t mode);
+
+/** @brief [wash_orchestrator] 更新龙门位置（tick 循环调用）*/
+void dev_ctx_set_gantry_pos(int32_t pos);
 
 /** @brief [report_aggregator] 更新云端连接状态 */
 void dev_ctx_set_cloud_status(bool connected);
