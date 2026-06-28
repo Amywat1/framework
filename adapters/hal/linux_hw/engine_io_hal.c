@@ -9,6 +9,8 @@
  *   DI 信号（read_signal）
  *     GANTRY_FWD_LIMIT   → gantry_at_fwd_limit()
  *     GANTRY_REV_LIMIT   → gantry_at_rev_limit()
+ *     LIFT_UP_LIMIT      → m8_signal_is_active(M8_SIG_LIFT_UP_LIM)
+ *     REAR_LOCK_HOME     → m8_signal_is_active(M8_SIG_REAR_LOCK_HOME)
  *     其余               → [stub] 返回 0，待接入真实 DI 读取 API
  *
  *   坐标轴（read_axis）
@@ -36,6 +38,7 @@
 #include "domain/device/unit/brush.h"
 #include "domain/device/water.h"
 #include "service/svc_param/svc_param.h"
+#include "adapters/machine/m8/m8_sensor.h"
 #include "common/log.h"
 
 #include <string.h>
@@ -142,16 +145,22 @@ static int hal_read_signal(const char *name)
         return gantry_at_rev_limit() ? 1 : 0;
     }
 
+    if (strcmp(name, "LIFT_UP_LIMIT") == 0)
+    {
+        return m8_signal_is_active(M8_SIG_LIFT_UP_LIM) ? 1 : 0;
+    }
+    if (strcmp(name, "REAR_LOCK_HOME") == 0)
+    {
+        return m8_signal_is_active(M8_SIG_REAR_LOCK_HOME) ? 1 : 0;
+    }
+
     /* --- [stub] 以下信号待接入真实 DI 读取 API --- */
-    /* TODO: 使用 m8_signal_is_active(name) 或对应 HAL DI 接口替换 */
-    if ((strcmp(name, "ESTOP")              == 0) ||
-        (strcmp(name, "BUMPER_LEFT")        == 0) ||
-        (strcmp(name, "BUMPER_RIGHT")       == 0) ||
+    if ((strcmp(name, "ESTOP")               == 0) ||
+        (strcmp(name, "BUMPER_LEFT")         == 0) ||
+        (strcmp(name, "BUMPER_RIGHT")        == 0) ||
         (strcmp(name, "TOP_BRUSH_COLLISION") == 0) ||
         (strcmp(name, "GANTRY_PAUSE_REQUEST") == 0) ||
-        (strcmp(name, "RADAR_CAR_TAIL")     == 0) ||
-        (strcmp(name, "LIFT_UP_LIMIT")      == 0) ||
-        (strcmp(name, "REAR_LOCK_HOME")     == 0))
+        (strcmp(name, "RADAR_CAR_TAIL")      == 0))
     {
         return 0;
     }

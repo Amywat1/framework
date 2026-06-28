@@ -53,6 +53,11 @@ void m8_signal_sim_set_estop(bool active)
     m8_signal_sim_set_active(M8_SIG_ESTOP, active);
 }
 
+void m8_signal_sim_set_rear_lock_home(bool active)
+{
+    m8_signal_sim_set_active(M8_SIG_REAR_LOCK_HOME, active);
+}
+
 void m8_signal_sim_reset_all(void)
 {
     for (int i = 0; i < M8_SIGNAL_TABLE_SIZE; ++i)

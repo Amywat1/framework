@@ -93,18 +93,17 @@ static void *scenario_limit_inject_fn(void *arg)
         switch (dir)
         {
             case ENGINE_DIR_FORWARD:
+                /* 前进时设前限位，保留后限位供下一阶段 entry_guard 使用 */
                 m8_signal_sim_set_fwd_limit(true);
-                m8_signal_sim_set_rev_limit(false);
                 break;
 
             case ENGINE_DIR_BACKWARD:
-                m8_signal_sim_set_fwd_limit(false);
+                /* 后退时设后限位，保留前限位供下一阶段 entry_guard 使用 */
                 m8_signal_sim_set_rev_limit(true);
                 break;
 
             default:
-                m8_signal_sim_set_fwd_limit(false);
-                m8_signal_sim_set_rev_limit(false);
+                /* 非运动阶段：保持当前限位状态不变 */
                 break;
         }
 
@@ -165,10 +164,11 @@ static void scenario_setup(void)
     (void)m8_sensor_setup();
     m8_signal_sim_reset_all();
 
-    /* 预设传感器：升降在下限位；龙门限位由 inject 线程按步骤注入 */
+    /* 预设传感器：龙门在后限位（归位位置），升降在上限位，后轮锁在原点 */
     m8_signal_sim_set_lift_bottom(true);
-    m8_signal_sim_set_fwd_limit(false);
-    m8_signal_sim_set_rev_limit(false);
+    m8_signal_sim_set_rev_limit(true);         /* 龙门初始归位 */
+    m8_signal_sim_set_lift_top(true);          /* 升降初始在上限位，跳过 homing 中的升降步骤 */
+    m8_signal_sim_set_rear_lock_home(true);    /* 后轮锁初始在原点，满足 homing 退出条件 */
     (void)motor_init();
     (void)brush_init();
     (void)gantry_init();
@@ -206,8 +206,8 @@ static void tc1_normal_complete(void)
     assert(wait_for_state(DEV_STATE_RUNNING, 500U));
     printf("  → RUN\n");
 
-    /* 等待洗车结束（所有步骤 50ms/步 × 8 步 ≈ 400ms；余量 3s）*/
-    assert(wait_for_state(DEV_STATE_IDLE, 3000U));
+    /* 等待洗车结束（prepare 2s + 7 个运动阶段 × ~100ms；余量 5s）*/
+    assert(wait_for_state(DEV_STATE_IDLE, 5000U));
     printf("  → IDLE (wash done)\n");
 
     printf("  PASS\n");

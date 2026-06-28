@@ -28,6 +28,7 @@ void m8_signal_sim_set_rev_limit(bool active);
 void m8_signal_sim_set_lift_top(bool active);
 void m8_signal_sim_set_lift_bottom(bool active);
 void m8_signal_sim_set_estop(bool active);
+void m8_signal_sim_set_rear_lock_home(bool active);
 
 /** @brief  将全部信号置为逻辑释放态 */
 void m8_signal_sim_reset_all(void);
