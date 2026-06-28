@@ -23,6 +23,7 @@
 #include "domain/model/device_state.h"
 #include "domain/model/wash_types.h"
 #include "application/orchestrators/wash_orchestrator.h"
+#include "domain/engine/engine_model.h"  /* engine_direction_t，供下方 extern 使用 */
 #include "application/orchestrators/emergency_handler.h"
 #include "application/orchestrators/device_fsm.h"
 #include "adapters/hal/generic/hal_sensor.h"
@@ -46,6 +47,12 @@ extern void hal_motor_sim_register(void);
 extern void hal_io_sim_register(void);
 extern void hal_vfd_sim_register(void);
 extern void hal_do_group_generic_register(void);
+/* 引擎 IO 后端（桥接 engine IO 接口到设备驱动 API） */
+extern void engine_io_hal_register(void);
+/* 方案加载器（JSON 格式实现注册到 engine_program_loader_port） */
+extern void engine_program_json_register_loader(void);
+/* 测试辅助：读取当前引擎阶段行进方向，不在公开头文件中声明 */
+extern engine_direction_t wash_orchestrator_current_direction(void);
 
 /* -------------------------------------------------------------------------
  * 场景内部线程入口（不依赖 bootstrap 中的局部静态函数）
@@ -69,7 +76,7 @@ static void *scenario_io_poll_fn(void *arg)
 }
 
 /**
- * @brief  按当前洗车步骤注入单路限位，避免双限位同时触发组合报警
+ * @brief  按引擎当前阶段行进方向注入限位信号，避免双限位同时触发组合报警
  */
 static void *scenario_limit_inject_fn(void *arg)
 {
@@ -77,20 +84,16 @@ static void *scenario_limit_inject_fn(void *arg)
 
     while (true)
     {
-        wash_step_t step = dev_ctx_snapshot().wash_step;
+        engine_direction_t dir = wash_orchestrator_current_direction();
 
-        switch (step)
+        switch (dir)
         {
-            case WASH_STEP_PREWASH:
-            case WASH_STEP_BRUSH_TOP_FWD:
-            case WASH_STEP_HIGHPRES_FWD:
+            case ENGINE_DIR_FORWARD:
                 m8_signal_sim_set_fwd_limit(true);
                 m8_signal_sim_set_rev_limit(false);
                 break;
 
-            case WASH_STEP_BRUSH_SIDE_REV:
-            case WASH_STEP_RINSE_REV:
-            case WASH_STEP_HOME:
+            case ENGINE_DIR_BACKWARD:
                 m8_signal_sim_set_fwd_limit(false);
                 m8_signal_sim_set_rev_limit(true);
                 break;
@@ -137,6 +140,10 @@ static void scenario_setup(void)
     hal_motor_sim_register();
     hal_sensor_generic_register();
     hal_do_group_generic_register();
+    /* 引擎 IO 后端：桥接到 gantry/brush/water 设备驱动 */
+    engine_io_hal_register();
+    /* 方案加载器：JSON 格式 → engine_program_loader_port */
+    engine_program_json_register_loader();
     {
         const hal_vfd_ops_t *vfd = hal_vfd_get_ops();
 

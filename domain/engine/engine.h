@@ -79,6 +79,9 @@ int engine_current_phase(const engine_t *e);
 /** @brief  当前阶段 id（未运行返回 NULL） */
 const char *engine_current_phase_id(const engine_t *e);
 
+/** @brief  当前阶段行进方向（未运行或无方向返回 ENGINE_DIR_NONE） */
+engine_direction_t engine_current_direction(const engine_t *e);
+
 #ifdef __cplusplus
 }
 #endif

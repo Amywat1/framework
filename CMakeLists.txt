@@ -197,6 +197,9 @@ if(BUILD_SIM)
     list(FILTER sim_sources EXCLUDE REGEX "cli_adapter\\.cpp")
     list(FILTER sim_sources EXCLUDE REGEX "m8_boot_profile\\.c")
 
+    # engine_io_hal：桥接 engine IO 接口到设备驱动（sim/prod 均可用，linux_hw 排除后手动补回）
+    list(APPEND sim_sources ${CMAKE_SOURCE_DIR}/adapters/hal/linux_hw/engine_io_hal.c)
+
     if(sim_sources)
         add_executable(M8_sim ${sim_sources})
 
@@ -209,7 +212,9 @@ if(BUILD_SIM)
 
         target_compile_options(M8_sim PRIVATE -Wall -Wextra -Werror -g)
         target_compile_definitions(M8_sim PRIVATE
-            M8_ALARM_CONFIG_PATH="${CMAKE_SOURCE_DIR}/doc/m8_alarm_catalog.json")
+            M8_ALARM_CONFIG_PATH="${CMAKE_SOURCE_DIR}/doc/m8_alarm_catalog.json"
+            WASH_PROGRAM_NORMAL_PATH="${CMAKE_SOURCE_DIR}/doc/m8_normal_wash_program.json"
+            WASH_PROGRAM_QUICK_PATH="${CMAKE_SOURCE_DIR}/doc/m8_normal_wash_program.json")
 
         message(STATUS "BUILD_SIM enabled 鈫?target M8_sim")
     else()
@@ -270,26 +275,9 @@ if(BUILD_SIM)
         tests/unit/test_event_bus.c
     )
 
-    # test_step_engine：event_bus + 设备组件 + 流程引擎（mock HAL 内联）
-    add_unit_test(test_step_engine
-        tests/unit/test_step_engine.c
-        service/dev_ctx/dev_ctx.c
-        domain/device/actuator/motor/motor.c
-        domain/device/actuator/motor/motor_encoder_internal.c
-        domain/device/actuator/motor/motor_monitor_internal.c
-        domain/device/actuator/motor/motor_tick_internal.c
-        domain/device/unit/brush.c
-        domain/device/unit/gantry.c
-        domain/device/water.c
-        adapters/machine/m8/m8_sensor.c
-        adapters/machine/m8/m8_alarm_adapt.c
-        adapters/hal/generic/hal_sensor.c
-        config/machine/m8_signal_table.c
-        application/orchestrators/wash_orchestrator.c
-        core/scheduler/thread_registry.c
-        service/svc_param/svc_param.c
-        domain/process/recipe.c
-    )
+    # test_step_engine：已移除（测试的 wash_exec_step/wash_exec_clear_abort
+    # 在迁移到 domain/engine 后已从 wash_orchestrator 删除）
+    # TODO: 补写 test_engine_orchestrator 覆盖新的 engine 驱动洗车路径
 
     # test_dev_ctx：只测 dev_ctx 快照与并发写
     add_unit_test(test_dev_ctx
@@ -396,11 +384,13 @@ if(BUILD_SIM)
         target_link_libraries(${scenario} PRIVATE pthread)
         target_compile_options(${scenario} PRIVATE -Wall -Wextra -Werror -g)
         target_compile_definitions(${scenario} PRIVATE
-            M8_ALARM_CONFIG_PATH="${CMAKE_SOURCE_DIR}/doc/m8_alarm_catalog.json")
+            M8_ALARM_CONFIG_PATH="${CMAKE_SOURCE_DIR}/doc/m8_alarm_catalog.json"
+            WASH_PROGRAM_NORMAL_PATH="${CMAKE_SOURCE_DIR}/doc/m8_normal_wash_program.json"
+            WASH_PROGRAM_QUICK_PATH="${CMAKE_SOURCE_DIR}/doc/m8_normal_wash_program.json")
         add_test(NAME ${scenario} COMMAND ${scenario})
 
     endforeach()
 
-    message(STATUS "Tests registered: 6 unit + 2 scenario (run with: ctest --test-dir build_sim -V)")
+    message(STATUS "Tests registered: 5 unit + 2 scenario (run with: ctest --test-dir build_sim -V)")
 
 endif()

@@ -37,6 +37,11 @@ engine_program_t *engine_program_load_json_string(const char *json, char *err, u
  */
 engine_program_t *engine_program_load_json_file(const char *path, char *err, unsigned errsz);
 
+/**
+ * @brief  将 JSON 加载器注册到 engine_program_loader_port（由 wiring 调用一次）
+ */
+void engine_program_json_register_loader(void);
+
 #ifdef __cplusplus
 }
 #endif

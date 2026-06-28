@@ -831,12 +831,45 @@ sw_err_t engine_recover(engine_t *e)
     {
         return SW_ERR_STATE;
     }
-    e->state = ENGINE_STATE_RUNNING;
-    if (!enter_phase(e, e->cur_phase))
+
+    /* 重置 halt_phase 联锁的活跃标志，强制下一拍重新评估条件。
+     * 若碰撞仍在 → 立即再触发 PHASE_HALTED；
+     * 若已消除  → 正常恢复执行。
+     * halt_all 联锁不重置（其触发结果为 HALTED，走不到此处）。 */
+    for (unsigned i = 0U; i < e->prog->interlock_count; ++i)
     {
-        e->state = ENGINE_STATE_HALTED;
-        return SW_ERR_NOMEM;
+        if (e->prog->interlocks[i].action == ENGINE_ILK_HALT_PHASE)
+        {
+            e->ilk_active[i] = false;
+        }
     }
+
+    /* 保留 DONE/SKIPPED 步骤，将中途暂停的步骤回退至 ARMED 使其重新执行动作输出。
+     * on_exit 已在 do_halt_phase 时执行，此处重新 on_enter 恢复阶段初始输出。
+     * 不重置 phase_elapsed，避免每次 recover 重启超时时钟（最大时长不得扩大）。*/
+    for (unsigned i = 0U; i < e->lane_count; ++i)
+    {
+        for (unsigned j = 0U; j < e->lanes[i].count; ++j)
+        {
+            rt_step_t *rt = &e->lanes[i].steps[j];
+            if ((rt->state == RT_RUNNING) || (rt->state == RT_WAIT_DONE))
+            {
+                rt->state          = RT_ARMED;
+                rt->action_idx     = 0U;
+                rt->waiting        = false;
+                rt->wait_remaining = 0U;
+                rt->done_elapsed   = 0U;
+            }
+        }
+    }
+
+    if (e->cur_def != NULL)
+    {
+        run_actions_now(e->cur_def->on_enter, e->cur_def->on_enter_count);
+    }
+
+    e->phase_entered = true;
+    e->state         = ENGINE_STATE_RUNNING;
     return SW_OK;
 }
 
@@ -867,4 +900,13 @@ void engine_destroy(engine_t *e)
         engine_program_free(e->prog);
     }
     free(e);
+}
+
+engine_direction_t engine_current_direction(const engine_t *e)
+{
+    if ((e == NULL) || (e->cur_def == NULL))
+    {
+        return ENGINE_DIR_NONE;
+    }
+    return e->cur_def->direction;
 }

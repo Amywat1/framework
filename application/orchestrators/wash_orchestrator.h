@@ -4,8 +4,10 @@
  * @author  HUWANGWEI
  * @date    2026-04-10
  *
- * @note    wash_worker_thread 由 scheduler 创建；单步同步执行与轮询等待均在本模块内完成，
- *          完成后发布 EVT_WASH_DONE / EVT_WASH_ABORTED。
+ * @note    wash_worker_thread 由 scheduler 创建；引擎以固定周期 tick 驱动
+ *          方案 JSON 描述的洗车流程，完成后发布 EVT_WASH_DONE / EVT_WASH_ABORTED。
+ *          engine_io 后端须在 wash_orchestrator_init() 前由调用方注册
+ *          （真机：engine_io_hal_register()，仿真：engine_io_sim_register()）。
  */
 
 #ifndef APPLICATION_WASH_ORCHESTRATOR_H
@@ -16,18 +18,20 @@ extern "C" {
 #endif
 
 #include "domain/model/wash_types.h"
-#include "domain/process/recipe.h"
 #include "common/sw_error.h"
 #include <stdbool.h>
-#include <stdint.h>
 
 /**
  * @brief  初始化洗车编排器（注册 worker_thread）
+ * @pre    engine_io 后端已注册
  */
 sw_err_t wash_orchestrator_init(void);
 
 /**
  * @brief  启动洗车流程（唤醒 worker_thread）
+ * @param  mode  洗车模式
+ * @retval SW_OK       启动成功
+ * @retval SW_ERR_BUSY 上一次洗车尚未完成
  */
 sw_err_t wash_orchestrator_start(wash_mode_t mode);
 
@@ -40,18 +44,6 @@ void wash_orchestrator_abort(void);
  * @brief  查询洗车流程是否正在进行
  */
 bool wash_orchestrator_is_busy(void);
-
-/**
- * @brief  同步执行一个洗车步骤（wash_worker 与单元测试使用）
- */
-sw_err_t wash_exec_step(const wash_step_config_t *step,
-                        uint32_t timeout_ms,
-                        uint16_t brush_freq);
-
-/**
- * @brief  清除步骤中止标志（新一轮洗车开始前调用）
- */
-void wash_exec_clear_abort(void);
 
 #ifdef __cplusplus
 }

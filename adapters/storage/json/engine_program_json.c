@@ -6,6 +6,7 @@
  */
 
 #include "adapters/storage/json/engine_program_json.h"
+#include "ports/storage/engine_program_loader_port.h"
 #include "domain/engine/engine_expr.h"
 #include "tools/cJSON.h"
 
@@ -561,4 +562,13 @@ engine_program_t *engine_program_load_json_file(const char *path, char *err, uns
     engine_program_t *prog = engine_program_load_json_string(buf, err, errsz);
     free(buf);
     return prog;
+}
+
+static const engine_program_loader_ops_t s_json_loader_ops = {
+    .load = engine_program_load_json_file,
+};
+
+void engine_program_json_register_loader(void)
+{
+    engine_program_loader_register(&s_json_loader_ops);
 }
