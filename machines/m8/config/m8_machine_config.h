@@ -18,6 +18,7 @@
 #define CFG_IO_CAN_BAUD             1000000
 #define CFG_IO_SELF_NODE            0x10
 #define CFG_IO_BOARD_COUNT          1       /* M8 共 1 块 IO 子板 */
+#define CFG_IO_PIN_COUNT            32      /* 每块 IO 子板的 IO 点数 */
 
 /* -------------------------------------------------------------------------
  * 刷子 VFD Modbus RTU 参数

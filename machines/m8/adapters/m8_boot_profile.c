@@ -44,10 +44,11 @@ static const io_do_t s_all_do_pins[] = {
 };
 
 /**
- * @brief  将所有数字输出置安全状态（统一关断）
+ * @brief  将所有数字输出置安全状态（统一关断并同步刷新到硬件）
  *
- * 遍历全部 DO 引脚，统一置 false（不输出），然后同步刷新到硬件。
- * 可在 panic 路径安全调用，不依赖 event_bus。
+ * 遍历全部 DO 引脚统一置 false，然后立即 flush。
+ * 在 drv_io 全板离线 panic 路径中，flush 因子板离线为 no-op，
+ * 但 drv_io 在 panic_cb 返回后会无条件写缓冲，硬件仍进入安全态。
  */
 void m8_assert_safe_outputs(void)
 {
@@ -56,7 +57,6 @@ void m8_assert_safe_outputs(void)
         (void)boot_do_set(s_all_do_pins[i], false);
     }
 
-    /* 同步刷新到硬件：绕过后台线程，立即写 CAN 总线 */
     (void)boot_flush_outputs();
 }
 

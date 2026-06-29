@@ -72,8 +72,7 @@ void m8_comm_watchdog_poll(void)
     uint32_t now = time_util_get_ms();
     for (int i = 0; i < (int)COMM_DEV_COUNT; ++i)
     {
-        /* 判断超时：注意 uint32_t 减法对溢回（回绕）天然正确 */
-        bool lost = ((now - s_last_hb_ms[i]) > s_cfg[i].timeout_ms);
+        bool lost = (time_elapsed_ms(s_last_hb_ms[i], now) > s_cfg[i].timeout_ms);
         if (lost)
         {
             (void)ops->trigger(s_cfg[i].alarm_code);

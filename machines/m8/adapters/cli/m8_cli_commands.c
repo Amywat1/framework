@@ -314,7 +314,7 @@ int diag_cmd_handler(char *subcmd, char *p1, char *p2)
                 continue;
             }
 
-            LOG_INFO("diag io: board=%d online=%d dirty=%d off=%u recover=%u in_refresh=%u out_req=%u out_flush=%u resend=%u",
+            LOG_INFO("diag io: board=%d online=%d dirty=%d off=%u recover=%u in_refresh=%u out_req=%u out_flush=%u",
                      board_id,
                      (int)stats.online,
                      (int)stats.dirty_pending,
@@ -322,8 +322,7 @@ int diag_cmd_handler(char *subcmd, char *p1, char *p2)
                      (unsigned)stats.online_recover_count,
                      (unsigned)stats.input_refresh_count,
                      (unsigned)stats.output_request_count,
-                     (unsigned)stats.output_flush_count,
-                     (unsigned)stats.output_resend_count);
+                     (unsigned)stats.output_flush_count);
             LOG_INFO("diag io: board=%d last_online=%u last_offline=%u last_in=%u last_req=%u last_flush=%u in=0x%08X out=0x%08X",
                      board_id,
                      (unsigned)stats.last_online_ms,

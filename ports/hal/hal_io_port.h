@@ -31,7 +31,6 @@ typedef struct
     uint32_t input_refresh_count;
     uint32_t output_request_count;
     uint32_t output_flush_count;
-    uint32_t output_resend_count;
     uint32_t last_online_ms;
     uint32_t last_offline_ms;
     uint32_t last_input_refresh_ms;

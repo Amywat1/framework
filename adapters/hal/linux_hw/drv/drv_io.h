@@ -12,8 +12,6 @@
  *          - bit15：类型位，0=DI，1=DO
  *          - bit14~8：子板号
  *          - bit7~0：引脚号
- *
- *          `config/machine/m8_io_table.h` 是唯一 IO 定义总表。
  */
 
 #ifndef DRV_IO_H
@@ -24,10 +22,18 @@ extern "C" {
 #endif
 
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 #include "common/sw_error.h"
 #include "common/sw_types.h"
 #include "common/io_handle.h"
+
+/** IO 名称表条目（由调用方用 X-macro 展开后传入驱动） */
+typedef struct
+{
+    const char *name; /**< 标准名称，如 "DI_ESTOP" */
+    uint16_t    raw;  /**< 句柄底层编码 */
+} drv_io_name_entry_t;
 
 /** IO 驱动运行时统计（按子板，近似快照） */
 typedef struct
@@ -39,7 +45,6 @@ typedef struct
     uint32_t input_refresh_count;   /**< 输入缓存刷新次数 */
     uint32_t output_request_count;  /**< 输出状态变更请求次数 */
     uint32_t output_flush_count;    /**< 输出实际写硬件次数 */
-    uint32_t output_resend_count;   /**< 板卡恢复在线后的输出重发次数 */
     uint32_t last_online_ms;        /**< 最近一次恢复在线时间戳 */
     uint32_t last_offline_ms;       /**< 最近一次确认离线时间戳 */
     uint32_t last_input_refresh_ms; /**< 最近一次输入缓存刷新时间戳 */
@@ -54,14 +59,14 @@ typedef struct
  * ------------------------------------------------------------------------- */
 /**
  * @brief  解析 DI 名称为句柄
- * @note   支持 `DI_XXX` / `XXX` / `M8_DI_XXX` 三种写法。
+ * @note   支持 `DI_XXX`（完整名称）/ `XXX`（省略前缀）两种写法。
  * @retval true=解析成功
  */
 bool drv_io_try_parse_di(const char *name, io_di_t *out);
 
 /**
  * @brief  解析 DO 名称为句柄
- * @note   支持 `DO_XXX` / `XXX` / `M8_DO_XXX` 三种写法。
+ * @note   支持 `DO_XXX`（完整名称）/ `XXX`（省略前缀）两种写法。
  * @retval true=解析成功
  */
 bool drv_io_try_parse_do(const char *name, io_do_t *out);
@@ -81,14 +86,33 @@ const char *drv_io_do_name(io_do_t pin);
 /* -------------------------------------------------------------------------
  * 基础接口
  * ------------------------------------------------------------------------- */
+
+/**
+ * @brief  IO 子板驱动初始化配置
+ * @note   board_count 须小于驱动内部上限（7）；pin_count 须不大于硬件上限（32）。
+ *         di_table/do_table 为名称映射表，由调用方用 X-macro 展开后传入；
+ *         允许传 NULL + 0，此时名称查找接口均返回失败/NULL。
+ */
+typedef struct
+{
+    int board_count; /**< 实际使用的 IO 子板数量 */
+    int pin_count;   /**< 每块子板的 IO 点数 */
+    const drv_io_name_entry_t *di_table; /**< DI 名称映射表 */
+    size_t                     di_count; /**< DI 表条目数 */
+    const drv_io_name_entry_t *do_table; /**< DO 名称映射表 */
+    size_t                     do_count; /**< DO 表条目数 */
+} drv_io_cfg_t;
+
 /**
  * @brief  初始化 IO 子板驱动内部状态
+ * @param  cfg  驱动配置，不可为 NULL
  * @note   仅做状态初始化，不启动后台线程；线程由 drv_io_start() 启动。
  *         本接口仅用于系统启动阶段，不用于运行期复位。
  *         若测试场景需要重复调用本接口重置内部缓冲，调用方应在其后重新注册
  *         调试输入回调、子板状态回调和 panic 回调，并再次调用 drv_io_start()。
+ * @retval SW_OK / SW_ERR_PARAM（cfg 为 NULL 或参数越界）
  */
-sw_err_t drv_io_init(void);
+sw_err_t drv_io_init(const drv_io_cfg_t *cfg);
 
 /**
  * @brief  启动 IO 读写后台线程（输入刷新 / 输出落地 / 在线检测）
@@ -152,8 +176,10 @@ void drv_io_register_board_error_cb(void (*cb)(int board_id, bool offline));
 
 /**
  * @brief  注册全板离线 panic 回调
- * @note   检测到全部 IO 子板确认掉线时，drv_io 会先调用该回调准备安全态，
- *         然后执行 flush + abort，由 systemd 负责拉起进程。
+ * @note   检测到全部 IO 子板确认掉线时调用。
+ *         回调应通过 drv_io_do_set 将输出缓冲设为安全态，
+ *         不应自行调用 flush（flush 由 drv_io 在回调返回后无条件执行）。
+ *         flush 完成后进程 abort，由 systemd 负责拉起。
  */
 void drv_io_register_panic_cb(void (*cb)(void));
 

@@ -220,7 +220,7 @@ uint32_t motor_calc_elapsed_ms_locked(const motor_ctx_t *ctx, uint32_t now_ms)
         return 0U;
     }
 
-    elapsed_ms = now_ms - ctx->start_ms;
+    elapsed_ms = time_elapsed_ms(ctx->start_ms, now_ms);
     if (elapsed_ms >= ctx->paused_total_ms)
     {
         elapsed_ms -= ctx->paused_total_ms;
@@ -654,10 +654,7 @@ sw_err_t motor_resume(int id)
     }
 
     now_ms = time_util_get_ms();
-    if (now_ms >= ctx->pause_start_ms)
-    {
-        ctx->paused_total_ms += (now_ms - ctx->pause_start_ms);
-    }
+    ctx->paused_total_ms += time_elapsed_ms(ctx->pause_start_ms, now_ms);
 
     ret = motor_apply_output_locked(id, cfg, ops, ctx->speed_ref);
     if (ret == SW_OK)

@@ -8,11 +8,31 @@ IndentWidth: 4
 TabWidth: 4
 UseTab: Never
 
+# 禁止返回类型主动换行（但 ColumnLimit 可能会覆盖）
+AlwaysBreakAfterReturnType: None
+
+#大幅提高“返回类型单独一行”的惩罚值
+PenaltyReturnTypeOnItsOwnLine: 10000
+
 # 行宽上限
 ColumnLimit: 120
 
-# 花括号风格（Allman：左花括号独占一行，符合嵌入式 C 习惯）
-BreakBeforeBraces: Allman
+# 花括号风格
+BreakBeforeBraces: Custom
+BraceWrapping:
+  AfterFunction: true          # 函数定义后花括号换行（独占一行）
+  AfterControlStatement: Never # if/for/while/switch 花括号不换行
+  AfterStruct: false           # 结构体定义后不换行
+  AfterEnum: false             # 枚举定义后不换行
+  AfterClass: false            # 类定义后不换行
+  BeforeElse: false            # else 与前面 } 同行
+  BeforeCatch: false           # catch 与前面 } 同行
+  AfterCaseLabel: false        # case 标签的换行不额外处理
+
+AlignConsecutiveAssignments: Consecutive   # 变量赋值等号对齐
+AlignConsecutiveDeclarations: Consecutive  # 变量声明类型对齐
+AlignConsecutiveMacros: AcrossComments  # 宏定义数值对齐（跨注释块，如 #define 间的 /** */）
+AlignEscapedNewlines: Right              # 宏续行 \ 对齐到 ColumnLimit 列
 
 # 控制语句花括号不得省略
 InsertBraces: true
@@ -24,11 +44,13 @@ PointerAlignment: Right
 AlignAfterOpenBracket: Align
 BinPackArguments: false
 BinPackParameters: false
+AllowAllParametersOfDeclarationOnNextLine: false
 
 # 注释对齐
 AlignTrailingComments:
   Kind: Always
   OverEmptyLines: 1
+SpacesBeforeTrailingComments: 10 # 设置最小间距
 
 # include 排序
 SortIncludes: CaseInsensitive
@@ -43,3 +65,4 @@ AllowShortFunctionsOnASingleLine: None
 AllowShortIfStatementsOnASingleLine: Never
 AllowShortLoopsOnASingleLine: false
 AllowShortCaseLabelsOnASingleLine: false
+AllowShortBlocksOnASingleLine: Empty      # 空 {} 与控制语句合并为一行

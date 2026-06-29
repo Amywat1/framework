@@ -21,9 +21,11 @@
 adapters/hal/
 ├── linux_hw/        平台层——依赖真机 SDK（CAN IO 子板库、Modbus 库）
 │   ├── drv/             硬件 SDK 的直接封装，仅供本目录内部使用
-│   │   ├── drv_io       CAN IO 子板：输入刷新、输出落地、在线检测、全板掉线恢复
+│   │   ├── drv_io       CAN IO 子板：输入刷新、输出落地、上线/下线对称防抖、
+│   │   │                全板离线触发 panic（写安全态后 abort）；配置通过 drv_io_cfg_t 注入
 │   │   └── drv_vfd      变频器 Modbus RTU：多实例、自动重连、RST 脉冲保护
-│   ├── hal_io_linux     将 drv_io 注册为 hal_io_port 的实现
+│   ├── hal_io_linux     用 X-macro 展开 m8_io_table.h 构建 IO 名称表，通过 drv_io_cfg_t
+│   │                    注入 drv_io，并将 drv_io 注册为 hal_io_port 的实现
 │   └── hal_vfd_linux    将 drv_vfd 注册为 hal_vfd_port 的实现，VFD 方向 DO 写直接调用 drv_io
 │
 ├── generic/         组合层——不依赖任何 SDK，只通过 port 接口操作
@@ -89,8 +91,10 @@ port 层只使用 `typedef int hal_vfd_id_t`，不含机型名称。
 
 ## 可靠性设计要点
 
-- **drv_io**：输出写入先存缓冲，后台线程异步落地；子板掉线后恢复时自动重发输出状态；
-  全板离线触发 panic 回调，由系统完成安全态落地后 abort。
+- **drv_io**：输出写入先存缓冲，后台线程异步落地；上线和下线均采用对称防抖
+  （各需连续 N 次检测才确认状态变化），防止 CAN 总线抖动误触发；子板恢复上线后
+  自动重发输出状态；全板离线时先调用 panic_cb（由调用方将输出缓冲置安全态），
+  再无条件写入全部子板（不依赖在线状态），最后 abort 由 systemd 拉起进程。
 - **drv_vfd**：Modbus 断连后自动重试；RST 脉冲宽度由 drv 内部 worker 控制，
   不阻塞调用方；故障码和电流值缓存在 drv 内，读取无 Modbus IO。
 - **hal_sensor**：计数式防抖，触发/释放分别配置确认次数，

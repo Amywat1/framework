@@ -215,7 +215,7 @@ static void encoder_check_anomaly_locked(int id,
     }
 
     if ((cfg->encoder_err_check_ms == 0U) ||
-        ((now_ms - ctx->encoder_check_ms) < cfg->encoder_err_check_ms))
+        (time_elapsed_ms(ctx->encoder_check_ms, now_ms) < cfg->encoder_err_check_ms))
     {
         return;
     }
@@ -290,7 +290,7 @@ void motor_encoder_update_locked(int id,
         motor_encoder_begin_counting_locked(id, cfg, ctx, now_ms);
     }
     else if (ctx->encoder_counting &&
-             ((now_ms - ctx->stop_timestamp_ms) > 1000U))
+             (time_elapsed_ms(ctx->stop_timestamp_ms, now_ms) > 1000U))
     {
         motor_encoder_end_counting_locked(id, cfg, ctx);
     }

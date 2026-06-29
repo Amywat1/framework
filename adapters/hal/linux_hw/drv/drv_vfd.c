@@ -195,7 +195,7 @@ static void vfd_rst_worker_tick(uint32_t now_ms)
 
         /* RST 脉冲处理（加锁保护与 drv_vfd_fault_reset 的竞争）*/
         (void)pthread_mutex_lock(&vfd->rst_mutex);
-        if (vfd->rst_active && ((now_ms - vfd->rst_start_ms) >= VFD_FAULT_RESET_PULSE_MS))
+        if (vfd->rst_active && (time_elapsed_ms(vfd->rst_start_ms, now_ms) >= VFD_FAULT_RESET_PULSE_MS))
         {
             vfd_do_set(vfd, vfd->pin_rst, false);
             vfd->rst_active = false;

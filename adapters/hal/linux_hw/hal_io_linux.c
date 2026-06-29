@@ -7,10 +7,43 @@
 
 #include "ports/hal/hal_io_port.h"
 #include "adapters/hal/linux_hw/drv/drv_io.h"
+#include "machines/m8/config/m8_machine_config.h"
+#include "machines/m8/config/m8_io_table.h"
+#include <string.h>
+
+/* hal_io_stats_t 与 drv_io_stats_t 字段完全镜像，get_stats 用 memcpy 复制。
+ * 若两者大小不同，说明其中一方新增了字段但另一方未同步，编译时报错提醒维护。*/
+_Static_assert(sizeof(hal_io_stats_t) == sizeof(drv_io_stats_t),
+               "hal_io_stats_t and drv_io_stats_t must remain identical");
+
+/* -------------------------------------------------------------------------
+ * M8 IO 名称映射表（通过 X-macro 展开 m8_io_table.h 生成）
+ * ------------------------------------------------------------------------- */
+static const drv_io_name_entry_t s_di_table[] = {
+#define DRV_IO_DI_DEF(name, board, pin, desc) \
+    { "DI_" #name, IO_HANDLE_MAKE(IO_KIND_DI, board, pin) },
+#include "machines/m8/config/m8_io_table.h"
+#undef DRV_IO_DI_DEF
+};
+
+static const drv_io_name_entry_t s_do_table[] = {
+#define DRV_IO_DO_DEF(name, board, pin, desc) \
+    { "DO_" #name, IO_HANDLE_MAKE(IO_KIND_DO, board, pin) },
+#include "machines/m8/config/m8_io_table.h"
+#undef DRV_IO_DO_DEF
+};
 
 static sw_err_t io_init(void)
 {
-    return drv_io_init();
+    static const drv_io_cfg_t s_cfg = {
+        .board_count = CFG_IO_BOARD_COUNT,
+        .pin_count   = CFG_IO_PIN_COUNT,
+        .di_table    = s_di_table,
+        .di_count    = sizeof(s_di_table) / sizeof(s_di_table[0]),
+        .do_table    = s_do_table,
+        .do_count    = sizeof(s_do_table) / sizeof(s_do_table[0]),
+    };
+    return drv_io_init(&s_cfg);
 }
 
 static sw_err_t io_start(void)
@@ -97,21 +130,7 @@ static sw_err_t get_stats(int board_id, hal_io_stats_t *out)
         return SW_ERR_PARAM;
     }
 
-    out->online                = raw.online;
-    out->dirty_pending         = raw.dirty_pending;
-    out->offline_count         = raw.offline_count;
-    out->online_recover_count  = raw.online_recover_count;
-    out->input_refresh_count   = raw.input_refresh_count;
-    out->output_request_count  = raw.output_request_count;
-    out->output_flush_count    = raw.output_flush_count;
-    out->output_resend_count   = raw.output_resend_count;
-    out->last_online_ms        = raw.last_online_ms;
-    out->last_offline_ms       = raw.last_offline_ms;
-    out->last_input_refresh_ms = raw.last_input_refresh_ms;
-    out->last_output_req_ms    = raw.last_output_req_ms;
-    out->last_output_flush_ms  = raw.last_output_flush_ms;
-    out->last_input_snapshot   = raw.last_input_snapshot;
-    out->last_output_snapshot  = raw.last_output_snapshot;
+    memcpy(out, &raw, sizeof(*out));
     return SW_OK;
 }
 
