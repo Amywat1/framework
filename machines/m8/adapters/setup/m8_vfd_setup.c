@@ -32,7 +32,6 @@ sw_err_t m8_vfd_setup(void)
                                       M8_VFD_BRUSH_BAUD,
                                       M8_VFD_BRUSH_ADDR,
                                       M8_VFD_BRUSH_PIN_FWD,
-                                      M8_VFD_BRUSH_HAS_REV,
                                       M8_VFD_BRUSH_PIN_REV,
                                       M8_VFD_BRUSH_PIN_RST);
     if (ret != SW_OK)
@@ -48,7 +47,6 @@ sw_err_t m8_vfd_setup(void)
                                       M8_VFD_GANTRY_BAUD,
                                       M8_VFD_GANTRY_ADDR,
                                       M8_VFD_GANTRY_PIN_FWD,
-                                      M8_VFD_GANTRY_HAS_REV,
                                       M8_VFD_GANTRY_PIN_REV,
                                       M8_VFD_GANTRY_PIN_RST);
     if (ret != SW_OK)

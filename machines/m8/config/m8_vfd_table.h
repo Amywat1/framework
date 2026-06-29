@@ -30,8 +30,7 @@
 #define M8_VFD_BRUSH_BAUD          CFG_VFD_BRUSH_BAUD
 #define M8_VFD_BRUSH_ADDR          CFG_VFD_BRUSH_MODBUS_ADDR
 #define M8_VFD_BRUSH_PIN_FWD       M8_IO_DO_SIDE_BRUSH_FWD
-#define M8_VFD_BRUSH_HAS_REV       false
-#define M8_VFD_BRUSH_PIN_REV       M8_IO_DO_SIDE_BRUSH_FWD   /* 仅作占位，has_rev=false 时忽略 */
+#define M8_VFD_BRUSH_PIN_REV       ((io_do_t){IO_HANDLE_NULL})   /* 刷子仅正转，无反转引脚 */
 #define M8_VFD_BRUSH_PIN_RST       M8_IO_DO_SIDE_BRUSH_RST
 
 /* -------------------------------------------------------------------------
@@ -41,7 +40,6 @@
 #define M8_VFD_GANTRY_BAUD         CFG_VFD_GANTRY_BAUD
 #define M8_VFD_GANTRY_ADDR         CFG_VFD_GANTRY_MODBUS_ADDR
 #define M8_VFD_GANTRY_PIN_FWD      M8_IO_DO_GANTRY_FWD
-#define M8_VFD_GANTRY_HAS_REV      true
 #define M8_VFD_GANTRY_PIN_REV      M8_IO_DO_GANTRY_REV
 #define M8_VFD_GANTRY_PIN_RST      M8_IO_DO_GANTRY_RST
 
