@@ -10,11 +10,12 @@
 #include "infrastructure/bootstrap/wiring.h"
 #include "common/log.h"
 
-/* sim HAL 适配器（io/vfd/motor：sim 专属；sensor/do_group：generic 共用） */
+/* sim HAL 适配器（io/vfd/voice/motor：sim 专属；sensor/do_group：generic 共用） */
 extern void hal_motor_sim_register(void);
 extern void hal_sensor_generic_register(void);
 extern void hal_io_sim_register(void);
 extern void hal_vfd_sim_register(void);
+extern void hal_voice_sim_register(void);
 extern void hal_do_group_generic_register(void);
 
 /* 引擎 IO 后端（桥接 engine IO 接口到设备驱动 API） */
@@ -31,11 +32,12 @@ extern void command_bridge_register(void);
 
 sw_err_t wiring(void)
 {
-    /* HAL port 注册（io/vfd/motor: sim_hw；sensor/do_group: generic） */
+    /* HAL port 注册（io/vfd/voice/motor: sim_hw；sensor/do_group: generic） */
     hal_motor_sim_register();
     hal_sensor_generic_register();
     hal_io_sim_register();
     hal_vfd_sim_register();
+    hal_voice_sim_register();
     hal_do_group_generic_register();
 
     /* 存储 port → JSON 文件实现（仿真也使用持久化参数）*/

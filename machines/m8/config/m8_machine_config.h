@@ -52,4 +52,11 @@
  * ------------------------------------------------------------------------- */
 #define CFG_ENTRY_LIGHT_BLINK_HALF_MS    200U   /* 闪烁半周期（亮/灭各持续时长，ms）*/
 
+/* -------------------------------------------------------------------------
+ * 语音模块 Modbus RTU 参数
+ * ------------------------------------------------------------------------- */
+#define CFG_VOICE_SERIAL_PORT   "/dev/ttyS2"
+#define CFG_VOICE_BAUD          9600
+#define CFG_VOICE_MODBUS_ADDR   1
+
 #endif /* CONFIG_MACHINE_M8_MACHINE_CONFIG_H */

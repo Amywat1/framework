@@ -20,6 +20,7 @@ extern void hal_motor_generic_register(void);
 extern void hal_sensor_generic_register(void);
 extern void hal_io_linux_register(void);
 extern void hal_vfd_linux_register(void);
+extern void hal_voice_linux_register(void);
 extern void hal_do_group_generic_register(void);
 
 /* -------------------------------------------------------------------------
@@ -40,11 +41,12 @@ extern void command_bridge_register(void);
 
 sw_err_t wiring(void)
 {
-    /* HAL port → 实现注册（io/vfd: linux_hw；motor/sensor/do_group: generic） */
+    /* HAL port → 实现注册（io/vfd/voice: linux_hw；motor/sensor/do_group: generic） */
     hal_motor_generic_register();
     hal_sensor_generic_register();
     hal_io_linux_register();
     hal_vfd_linux_register();
+    hal_voice_linux_register();
     hal_do_group_generic_register();
 
     /* 存储 port → JSON 文件实现 */

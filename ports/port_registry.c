@@ -15,6 +15,7 @@
 #include "ports/hal/hal_io_port.h"
 #include "ports/hal/hal_vfd_port.h"
 #include "ports/hal/hal_do_group_port.h"
+#include "ports/hal/hal_voice_port.h"
 #include "ports/cloud/report_port.h"
 #include "ports/cloud/command_port.h"
 #include "ports/storage/param_store.h"
@@ -92,6 +93,14 @@ static const deploy_store_ops_t *s_deploy_ops;
 
 void deploy_store_register(const deploy_store_ops_t *ops) { s_deploy_ops = ops; }
 const deploy_store_ops_t *deploy_store_get_ops(void)      { return s_deploy_ops; }
+
+/* -------------------------------------------------------------------------
+ * HAL — 语音模块
+ * ------------------------------------------------------------------------- */
+static const hal_voice_ops_t *s_voice_ops;
+
+void hal_voice_register(const hal_voice_ops_t *ops) { s_voice_ops = ops; }
+const hal_voice_ops_t *hal_voice_get_ops(void)      { return s_voice_ops; }
 
 /* -------------------------------------------------------------------------
  * 安全 — 报警绑定（adapters/machine → domain/safety）

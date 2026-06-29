@@ -34,6 +34,7 @@
 #endif
 #include "ports/hal/hal_io_port.h"
 #include "ports/hal/hal_vfd_port.h"
+#include "ports/hal/hal_voice_port.h"
 #include "ports/storage/deploy_store.h"
 #include "config/threading/thread_config.h"
 #include "common/time_util.h"
@@ -45,6 +46,7 @@
 #ifndef BUILD_SIM
 #  include "machines/m8/adapters/m8_boot_profile.h"
 #  include "machines/m8/adapters/setup/m8_vfd_setup.h"
+#  include "machines/m8/adapters/setup/m8_voice_setup.h"
 #  include "machines/m8/adapters/cli/m8_cli_setup.h"
 #  include "adapters/cloud/aliyun/aliyun_command_adapter.h"
 #  include "common/event_types.h"
@@ -118,8 +120,20 @@ static sw_err_t bootstrap_init_infra(void)
         BOOT_CHECK(vfd->init(), "hal_vfd_init");
     }
 
+    {
+        const hal_voice_ops_t *voice = hal_voice_get_ops();
+
+        if ((voice == NULL) || (voice->init == NULL))
+        {
+            LOG_ERROR("bootstrap: hal_voice ops not registered");
+            return SW_ERR_NOT_INIT;
+        }
+        BOOT_CHECK(voice->init(), "hal_voice_init");
+    }
+
 #ifndef BUILD_SIM
-    BOOT_CHECK(m8_vfd_setup(), "m8_vfd_setup");
+    BOOT_CHECK(m8_vfd_setup(),   "m8_vfd_setup");
+    BOOT_CHECK(m8_voice_setup(), "m8_voice_setup");
 #endif
     BOOT_CHECK(m8_motor_setup(), "m8_motor_setup");
 
