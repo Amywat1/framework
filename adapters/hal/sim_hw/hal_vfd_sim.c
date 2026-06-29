@@ -30,11 +30,7 @@ static sw_err_t sim_run_fwd(hal_vfd_id_t id, uint16_t freq_hz)
     {
         return SW_ERR_PARAM;
     }
-    if (freq_hz == 0U)
-    {
-        s_state[id] = HAL_VFD_STATE_STOPPED;
-        return SW_OK;
-    }
+    (void)freq_hz;
     s_state[id] = HAL_VFD_STATE_FWD;
     return SW_OK;
 }
@@ -45,11 +41,7 @@ static sw_err_t sim_run_rev(hal_vfd_id_t id, uint16_t freq_hz)
     {
         return SW_ERR_PARAM;
     }
-    if (freq_hz == 0U)
-    {
-        s_state[id] = HAL_VFD_STATE_STOPPED;
-        return SW_OK;
-    }
+    (void)freq_hz;
     s_state[id] = HAL_VFD_STATE_REV;
     return SW_OK;
 }

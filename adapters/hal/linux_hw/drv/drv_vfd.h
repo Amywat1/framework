@@ -192,7 +192,7 @@ sw_err_t drv_vfd_fault_reset(drv_vfd_t *vfd);
  * @retval     DRV_VFD_STATE_REV     gear < 0（反转中）
  * @retval     DRV_VFD_STATE_STOPPED gear == 0 或 vfd 为 NULL
  */
-drv_vfd_state_t drv_vfd_get_state(const drv_vfd_t *vfd);
+drv_vfd_state_t drv_vfd_get_state(drv_vfd_t *vfd);
 
 /**
  * @brief  实时读取故障码（发起 Modbus IO），成功时同步更新内部缓存和 fault_active
@@ -260,7 +260,7 @@ uint16_t drv_vfd_get_cached_current(drv_vfd_t *vfd);
  *                   DRV_VFD_MON_NONE 停止所有周期读取，DRV_VFD_MON_ALL 全部开启
  * @retval     SW_OK           设置成功
  * @retval     SW_ERR_NOT_INIT vfd 未初始化
- * @note   初始化后默认 DRV_VFD_MON_ALL；单字节写操作天然原子，无需互斥锁；
+ * @note   初始化后默认 DRV_VFD_MON_ALL；写操作在 rst_mutex 保护下执行，
  *         最多延迟一个 VFD_SLOW_POLL_MS 周期生效
  */
 sw_err_t drv_vfd_set_monitor_mask(drv_vfd_t *vfd, drv_vfd_monitor_mask_t mask);

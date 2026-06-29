@@ -417,7 +417,13 @@ static void vfd_spd_io_clear(drv_vfd_t *vfd)
 
 static void vfd_spd_io_apply(drv_vfd_t *vfd, uint8_t abs_gear)
 {
-    uint8_t spd_state = vfd->spd_cfg[abs_gear - 1U];
+    uint8_t spd_state;
+
+    if ((abs_gear == 0U) || (abs_gear > (uint8_t)VFD_GEAR_MAX)) {
+        LOG_ERROR("drv_vfd: vfd_spd_io_apply 非法挡位 abs_gear=%u", (unsigned)abs_gear);
+        return;
+    }
+    spd_state = vfd->spd_cfg[abs_gear - 1U];
     vfd_do_set(vfd, vfd->pin_spd1, (spd_state & 0x01U) != 0U);
     vfd_do_set(vfd, vfd->pin_spd2, (spd_state & 0x02U) != 0U);
 }
@@ -472,8 +478,9 @@ static void vfd_monitor_tick(uint32_t now_ms)
         }
 
         /* RST 脉冲到期拉低 + 方向切换延迟到期执行，共用 rst_mutex；
-         * 同时取 gear 快照，供锁外慢速轮询判断运行状态，避免数据竞争 */
-        drv_vfd_gear_t gear_snap;
+         * 同时取 gear/monitor_mask 快照，供锁外慢速轮询使用，避免数据竞争 */
+        drv_vfd_gear_t         gear_snap;
+        drv_vfd_monitor_mask_t mask_snap;
 
         (void)pthread_mutex_lock(&vfd->rst_mutex);
         if (vfd->rst_active && (time_elapsed_ms(vfd->rst_start_ms, now_ms) >= VFD_FAULT_RESET_PULSE_MS)) {
@@ -486,13 +493,16 @@ static void vfd_monitor_tick(uint32_t now_ms)
             vfd->pending_gear = VFD_GEAR_STOP;
         }
         gear_snap = vfd->gear;
+        mask_snap = vfd->monitor_mask;
         (void)pthread_mutex_unlock(&vfd->rst_mutex);
 
         /* 慢速轮询：用绝对时间差判断，避免 Modbus 超时导致间隔偏慢 */
+        /* TODO: 当 FAULT 和 CURRENT 均启用时，可合并为一次 modbus_read_registers
+         * 读取 0x2102~0x2104（3 个寄存器），将最大阻塞时间从 1s 降至 500ms */
         if (time_elapsed_ms(vfd->last_slow_poll_ms, now_ms) >= VFD_SLOW_POLL_MS) {
             vfd->last_slow_poll_ms = now_ms;
 
-            if ((vfd->monitor_mask & DRV_VFD_MON_FAULT) != 0U) {
+            if ((mask_snap & DRV_VFD_MON_FAULT) != 0U) {
                 uint16_t code = 0U;
 
                 if (mb_read_reg(vfd, VFD_REG_FAULT_CODE, &code) == SW_OK) {
@@ -501,7 +511,7 @@ static void vfd_monitor_tick(uint32_t now_ms)
             }
 
             /* 仅运行中才采集电流，停止时保留上次缓存值 */
-            if (((vfd->monitor_mask & DRV_VFD_MON_CURRENT) != 0U) && (gear_snap != VFD_GEAR_STOP)) {
+            if (((mask_snap & DRV_VFD_MON_CURRENT) != 0U) && (gear_snap != VFD_GEAR_STOP)) {
                 uint16_t   cur = 0U;
                 void     (*cb)(int);
 
@@ -599,7 +609,8 @@ sw_err_t drv_vfd_init(drv_vfd_t        *vfd,
     if (pthread_mutex_init(&vfd->rst_mutex, NULL) != 0) {
         LOG_ERROR("drv_vfd_init[addr=%d]: rst_mutex init failed", modbus_addr);
         vfd_bus_port_unbind(vfd->bus_lock);
-        vfd->bus_lock = NULL;
+        vfd->bus_lock    = NULL;
+        vfd->serial_port = NULL;
         return SW_ERR_HW;
     }
 
@@ -608,7 +619,8 @@ sw_err_t drv_vfd_init(drv_vfd_t        *vfd,
     if (ret != SW_OK) {
         (void)pthread_mutex_destroy(&vfd->rst_mutex);
         vfd_bus_port_unbind(vfd->bus_lock);
-        vfd->bus_lock = NULL;
+        vfd->bus_lock    = NULL;
+        vfd->serial_port = NULL;
         return ret;
     }
 
@@ -632,9 +644,10 @@ sw_err_t drv_vfd_init(drv_vfd_t        *vfd,
         (void)pthread_mutex_destroy(&vfd->rst_mutex);
         modbus_close(vfd->mb);
         modbus_free(vfd->mb);
-        vfd->mb = NULL;
+        vfd->mb          = NULL;
         vfd_bus_port_unbind(vfd->bus_lock);
-        vfd->bus_lock = NULL;
+        vfd->bus_lock    = NULL;
+        vfd->serial_port = NULL;
         return ret;
     }
 
@@ -646,9 +659,10 @@ sw_err_t drv_vfd_init(drv_vfd_t        *vfd,
         (void)pthread_mutex_destroy(&vfd->rst_mutex);
         modbus_close(vfd->mb);
         modbus_free(vfd->mb);
-        vfd->mb = NULL;
+        vfd->mb          = NULL;
         vfd_bus_port_unbind(vfd->bus_lock);
-        vfd->bus_lock = NULL;
+        vfd->bus_lock    = NULL;
+        vfd->serial_port = NULL;
         return ret;
     }
 
@@ -797,15 +811,20 @@ sw_err_t drv_vfd_fault_reset(drv_vfd_t *vfd)
     return SW_OK;
 }
 
-drv_vfd_state_t drv_vfd_get_state(const drv_vfd_t *vfd)
+drv_vfd_state_t drv_vfd_get_state(drv_vfd_t *vfd)
 {
+    drv_vfd_gear_t gear;
+
     if (vfd == NULL) {
         return DRV_VFD_STATE_STOPPED;
     }
-    if (vfd->gear > 0) {
+    (void)pthread_mutex_lock(&vfd->rst_mutex);
+    gear = vfd->gear;
+    (void)pthread_mutex_unlock(&vfd->rst_mutex);
+    if (gear > 0) {
         return DRV_VFD_STATE_FWD;
     }
-    if (vfd->gear < 0) {
+    if (gear < 0) {
         return DRV_VFD_STATE_REV;
     }
     return DRV_VFD_STATE_STOPPED;
@@ -857,7 +876,9 @@ sw_err_t drv_vfd_read_status(drv_vfd_t *vfd, uint16_t *p_status)
 void drv_vfd_register_event_cb(drv_vfd_t *vfd, void (*cb)(int event_code))
 {
     if (vfd != NULL) {
+        (void)pthread_mutex_lock(&vfd->rst_mutex);
         vfd->event_cb = cb;
+        (void)pthread_mutex_unlock(&vfd->rst_mutex);
     }
 }
 
@@ -892,6 +913,8 @@ sw_err_t drv_vfd_set_monitor_mask(drv_vfd_t *vfd, drv_vfd_monitor_mask_t mask)
     if (!vfd_is_initialized(vfd)) {
         return SW_ERR_NOT_INIT;
     }
+    (void)pthread_mutex_lock(&vfd->rst_mutex);
     vfd->monitor_mask = mask;
+    (void)pthread_mutex_unlock(&vfd->rst_mutex);
     return SW_OK;
 }
