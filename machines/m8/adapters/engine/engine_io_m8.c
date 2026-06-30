@@ -1,6 +1,6 @@
 /**
- * @file    engine_io_hal.c
- * @brief   引擎 IO 后端：真机 HAL 桥接实现
+ * @file    engine_io_m8.c
+ * @brief   M8 机型引擎 IO 后端实现
  * @author  huwangwei
  * @date    2026-06-27
  *
@@ -32,7 +32,7 @@
  *   标注 [stub] 的通道在实现真实驱动前输出 LOG_WARN，不操作硬件。
  */
 
-#include "adapters/hal/linux_hw/engine_io_hal.h"
+#include "machines/m8/adapters/engine/engine_io_m8.h"
 #include "domain/engine/engine_io.h"
 #include "domain/device/unit/gantry.h"
 #include "domain/device/unit/brush.h"
@@ -165,7 +165,7 @@ static int hal_read_signal(const char *name)
         return 0;
     }
 
-    LOG_WARN("engine_io_hal: unknown signal [%s]", name);
+    LOG_WARN("engine_io_m8: unknown signal [%s]", name);
     return 0;
 }
 
@@ -188,7 +188,7 @@ static sw_err_t hal_read_axis(const char *name, double *out_pos,
         return SW_OK;
     }
 
-    LOG_WARN("engine_io_hal: unknown axis [%s]", name);
+    LOG_WARN("engine_io_m8: unknown axis [%s]", name);
     *out_pos   = 0.0;
     *out_speed = 0.0;
     *out_valid = false;
@@ -268,32 +268,32 @@ static void hal_write_output(const char *name, int value)
     if ((strcmp(name, "LIFTER_UP")   == 0) ||
         (strcmp(name, "LIFTER_DOWN") == 0))
     {
-        LOG_WARN("engine_io_hal: [stub] lifter [%s]=%d (not connected)", name, value);
+        LOG_WARN("engine_io_m8: [stub] lifter [%s]=%d (not connected)", name, value);
         return;
     }
 
     /* --- [stub] 吹风机：待实现 dryer 驱动 --- */
     if (strcmp(name, "DRYER_RUN") == 0)
     {
-        LOG_WARN("engine_io_hal: [stub] dryer [%s]=%d (not connected)", name, value);
+        LOG_WARN("engine_io_m8: [stub] dryer [%s]=%d (not connected)", name, value);
         return;
     }
 
     /* --- [stub] 后轮锁推杆：待实现 putter 驱动 --- */
     if (strcmp(name, "PUTTER_REV") == 0)
     {
-        LOG_WARN("engine_io_hal: [stub] putter [%s]=%d (not connected)", name, value);
+        LOG_WARN("engine_io_m8: [stub] putter [%s]=%d (not connected)", name, value);
         return;
     }
 
     /* --- [stub] 顶刷随动使能：待接入随动控制器 --- */
     if (strcmp(name, "TOP_BRUSH_FOLLOW_EN") == 0)
     {
-        LOG_WARN("engine_io_hal: [stub] follow_en [%s]=%d (not connected)", name, value);
+        LOG_WARN("engine_io_m8: [stub] follow_en [%s]=%d (not connected)", name, value);
         return;
     }
 
-    LOG_WARN("engine_io_hal: unknown DO channel [%s]=%d", name, value);
+    LOG_WARN("engine_io_m8: unknown DO channel [%s]=%d", name, value);
 }
 
 /* -------------------------------------------------------------------------
@@ -305,7 +305,7 @@ static const engine_io_ops_t s_hal_ops = {
     .write_output = hal_write_output,
 };
 
-void engine_io_hal_register(void)
+void engine_io_m8_register(void)
 {
     engine_io_register(&s_hal_ops);
 }

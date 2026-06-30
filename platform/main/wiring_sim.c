@@ -18,8 +18,8 @@ extern void hal_vfd_sim_register(void);
 extern void hal_voice_sim_register(void);
 extern void hal_do_group_generic_register(void);
 
-/* 引擎 IO 后端（桥接 engine IO 接口到设备驱动 API） */
-extern void engine_io_hal_register(void);
+/* 引擎 IO 后端（M8 机型：桥接 engine IO 接口到设备驱动 API） */
+extern void engine_io_m8_register(void);
 /* 方案加载器（JSON 格式实现注册到 engine_program_loader_port） */
 extern void engine_program_json_register_loader(void);
 
@@ -47,8 +47,8 @@ sw_err_t wiring(void)
     /* 命令 port → event_bus 桥接 */
     command_bridge_register();
 
-    /* 引擎 IO 后端：桥接 engine IO 接口到 gantry/brush/water 设备驱动 */
-    engine_io_hal_register();
+    /* 引擎 IO 后端：M8 机型桥接 engine IO 接口到 gantry/brush/water 设备驱动 */
+    engine_io_m8_register();
     /* 方案加载器：JSON 格式 → engine_program_loader_port */
     engine_program_json_register_loader();
 

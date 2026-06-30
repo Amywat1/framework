@@ -182,6 +182,7 @@ if(BUILD_SIM)
         machines/m8/adapters/setup/m8_sensor.c
         machines/m8/adapters/setup/m8_motor_setup.c
         machines/m8/adapters/setup/m8_water_setup.c
+        machines/m8/adapters/engine/engine_io_m8.c
         machines/m8/adapters/m8_signal_sim.c
 
         # 仿真主入口 + 交互控制台
@@ -199,8 +200,6 @@ if(BUILD_SIM)
     list(FILTER sim_sources EXCLUDE REGEX "cli_adapter\\.cpp")
     list(FILTER sim_sources EXCLUDE REGEX "m8_boot_profile\\.c")
 
-    # engine_io_hal：桥接 engine IO 接口到设备驱动（sim/prod 均可用，linux_hw 排除后手动补回）
-    list(APPEND sim_sources ${CMAKE_SOURCE_DIR}/adapters/hal/linux_hw/engine_io_hal.c)
 
     if(sim_sources)
         add_executable(M8_sim ${sim_sources})

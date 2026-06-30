@@ -7,7 +7,7 @@
  * @note    wash_worker_thread 由 scheduler 创建；引擎以固定周期 tick 驱动
  *          方案 JSON 描述的洗车流程，完成后发布 EVT_WASH_DONE / EVT_WASH_ABORTED。
  *          engine_io 后端须在 wash_orchestrator_init() 前由调用方注册
- *          （真机：engine_io_hal_register()，仿真：engine_io_sim_register()）。
+ *          （M8 真机：engine_io_m8_register()，仿真：engine_io_sim_register()）。
  */
 
 #ifndef APPLICATION_WASH_ORCHESTRATOR_H

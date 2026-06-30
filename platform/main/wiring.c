@@ -35,6 +35,11 @@ extern void json_deploy_store_register(void);
 extern void aliyun_report_adapter_register(void);
 
 /* -------------------------------------------------------------------------
+ * 引擎 IO 后端注册函数声明
+ * ------------------------------------------------------------------------- */
+extern void engine_io_m8_register(void);
+
+/* -------------------------------------------------------------------------
  * 命令桥接适配器注册函数声明
  * ------------------------------------------------------------------------- */
 extern void command_bridge_register(void);
@@ -58,6 +63,9 @@ sw_err_t wiring(void)
 
     /* 命令 port → event_bus 桥接 */
     command_bridge_register();
+
+    /* 引擎 IO 后端：M8 机型桥接 engine IO 接口到 gantry/brush/water 设备驱动 */
+    engine_io_m8_register();
 
     LOG_INFO("wiring: all adapters registered");
     return SW_OK;
