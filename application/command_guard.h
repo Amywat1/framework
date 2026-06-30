@@ -14,7 +14,7 @@
 extern "C" {
 #endif
 
-#include "domain/model/command.h"
+#include "ports/cloud/command_port.h"
 #include "common/sw_error.h"
 
 /**

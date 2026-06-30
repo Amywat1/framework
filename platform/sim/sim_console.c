@@ -7,8 +7,6 @@
 
 #include "infrastructure/services/dev_ctx/dev_ctx.h"
 #include "ports/cloud/command_port.h"
-#include "domain/model/command.h"
-#include "domain/model/wash_types.h"
 #include "machines/m8/adapters/m8_signal_sim.h"
 #include "adapters/hal/sim_hw/sim_encoder_counter.h"
 #include "common/log.h"

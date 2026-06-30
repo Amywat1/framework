@@ -1,5 +1,5 @@
 /**
- * @file    command_bridge.h
+ * @file    event_bridge.h
  * @brief   命令端口桥接适配器接口（command_port → event_bus）
  * @author  HUWANGWEI
  * @date    2026-04-10
@@ -8,8 +8,8 @@
  *          CLI / MQTT / 仿真控制台等统一经 command_port 注入，不直接依赖 event_bus。
  */
 
-#ifndef ADAPTERS_UI_COMMAND_BRIDGE_H
-#define ADAPTERS_UI_COMMAND_BRIDGE_H
+#ifndef ADAPTERS_COMMAND_EVENT_BRIDGE_H
+#define ADAPTERS_COMMAND_EVENT_BRIDGE_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -24,4 +24,4 @@ void command_bridge_register(void);
 }
 #endif
 
-#endif /* ADAPTERS_UI_COMMAND_BRIDGE_H */
+#endif /* ADAPTERS_COMMAND_EVENT_BRIDGE_H */

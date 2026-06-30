@@ -1,6 +1,6 @@
 /**
- * @file    cli_adapter.h
- * @brief   CLI SDK（cli/cli.h）封装接口
+ * @file    snack_cli.h
+ * @brief   snack CLI SDK（cli/cli.h）封装接口
  * @author  HUWANGWEI
  * @date    2026-06-23
  *
@@ -8,8 +8,8 @@
  *          可跨项目复用，不含任何机型命令逻辑。
  */
 
-#ifndef ADAPTERS_SDK_CLI_ADAPTER_H
-#define ADAPTERS_SDK_CLI_ADAPTER_H
+#ifndef MIDDLEWARE_SNACK_CLI_H
+#define MIDDLEWARE_SNACK_CLI_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -35,4 +35,4 @@ char *cli_adapter_get(int idx);
 }
 #endif
 
-#endif /* ADAPTERS_SDK_CLI_ADAPTER_H */
+#endif /* MIDDLEWARE_SNACK_CLI_H */

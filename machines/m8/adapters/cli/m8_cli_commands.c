@@ -14,8 +14,6 @@
 #include <string.h>
 
 #include "common/log.h"
-#include "domain/model/command.h"
-#include "domain/model/wash_types.h"
 #include "ports/cloud/command_port.h"
 #include "ports/hal/hal_io_port.h"
 #include "common/io_handle.h"

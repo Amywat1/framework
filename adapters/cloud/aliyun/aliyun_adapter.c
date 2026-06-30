@@ -6,7 +6,7 @@
  */
 
 #include "adapters/cloud/aliyun/aliyun_adapter.h"
-#include "adapters/ui/mqtt_cmd/mqtt_command_parser.h"
+#include "adapters/command/command_parser.h"
 #include "ports/cloud/command_port.h"
 #include "ports/cloud/report_port.h"
 #include "ports/storage/deploy_store.h"
@@ -42,7 +42,7 @@ static void mqtt_recv_cb(const char *msg)
     cmd_t                      cmd;
     const command_port_ops_t  *cp = command_port_get_ops();
 
-    if (!mqtt_command_parse(msg, &cmd))
+    if (!command_parse(msg, &cmd))
     {
         LOG_WARN("aliyun: parse failed: %.80s", msg);
         return;

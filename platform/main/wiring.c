@@ -36,10 +36,7 @@ extern void json_deploy_store_register(void);
  * ------------------------------------------------------------------------- */
 extern void engine_io_m8_register(void);
 
-/* -------------------------------------------------------------------------
- * 命令桥接适配器注册函数声明
- * ------------------------------------------------------------------------- */
-extern void command_bridge_register(void);
+#include "adapters/command/event_bridge.h"
 
 sw_err_t wiring(void)
 {

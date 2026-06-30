@@ -1,11 +1,11 @@
 /**
- * @file    command_bridge.c
+ * @file    event_bridge.c
  * @brief   命令端口桥接适配器实现
  * @author  HUWANGWEI
  * @date    2026-04-10
  */
 
-#include "adapters/ui/command_bridge.h"
+#include "adapters/command/event_bridge.h"
 #include "application/command_guard.h"
 #include "ports/cloud/command_port.h"
 #include "infrastructure/event_bus/event_bus.h"

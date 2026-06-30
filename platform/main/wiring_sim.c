@@ -27,8 +27,7 @@ extern void engine_program_json_register_loader(void);
 extern void json_param_store_register(void);
 extern void json_deploy_store_register(void);
 
-/* 命令桥接（与真机相同）*/
-extern void command_bridge_register(void);
+#include "adapters/command/event_bridge.h"
 
 sw_err_t wiring(void)
 {
