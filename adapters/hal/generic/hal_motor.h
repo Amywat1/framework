@@ -6,8 +6,9 @@
  *
  * @note    仅供 adapters/machine/ 在 bootstrap 阶段调用；
  *          业务层仍通过 hal_motor_port 访问。
- *          本文件不含任何平台专属 SDK 依赖，可用于任何已注册
- *          hal_io_port 与 hal_vfd_port 的目标平台。
+ *          本文件不含任何平台专属 SDK 依赖，也不依赖 hal_vfd_port；
+ *          VFD 速度控制及诊断操作通过绑定时注入的回调实现，可用于任何
+ *          已注册 hal_io_port 的目标平台。
  */
 
 #ifndef ADAPTERS_HAL_GENERIC_HAL_MOTOR_H

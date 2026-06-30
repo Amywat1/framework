@@ -8,7 +8,6 @@
 #include "adapters/hal/sim_hw/hal_motor_sim.h"
 #include "ports/hal/hal_motor_port.h"
 #include "ports/hal/hal_io_port.h"
-#include "ports/hal/hal_vfd_port.h"
 #include "adapters/hal/sim_hw/sim_encoder_counter.h"
 #include "common/log.h"
 
@@ -48,55 +47,6 @@ static bool sim_di_read(io_di_t pin)
     return ops->di_read(pin);
 }
 
-static sw_err_t set_vfd_output(const hal_motor_bind_cfg_t *cfg, int speed_ref)
-{
-    const hal_vfd_ops_t *vfd = hal_vfd_get_ops();
-    hal_vfd_id_t         vfd_id;
-    sw_err_t             ret;
-
-    if ((cfg == NULL) || (cfg->vfd_backend_id < 0))
-    {
-        return SW_ERR_PARAM;
-    }
-    if (vfd == NULL)
-    {
-        return SW_ERR_NOT_INIT;
-    }
-
-    vfd_id = (hal_vfd_id_t)cfg->vfd_backend_id;
-
-    if (speed_ref > 0)
-    {
-        if ((vfd->set_freq == NULL) || (vfd->run == NULL))
-        {
-            return SW_ERR_NOT_INIT;
-        }
-        ret = vfd->set_freq(vfd_id, (uint16_t)speed_ref);
-        if (ret != SW_OK)
-        {
-            return ret;
-        }
-        return vfd->run(vfd_id, (hal_vfd_gear_t)1);
-    }
-    if (speed_ref < 0)
-    {
-        if ((vfd->set_freq == NULL) || (vfd->run == NULL))
-        {
-            return SW_ERR_NOT_INIT;
-        }
-        ret = vfd->set_freq(vfd_id, (uint16_t)(-speed_ref));
-        if (ret != SW_OK)
-        {
-            return ret;
-        }
-        return vfd->run(vfd_id, (hal_vfd_gear_t)-1);
-    }
-    if (vfd->stop == NULL)
-    {
-        return SW_ERR_NOT_INIT;
-    }
-    return vfd->stop(vfd_id);
-}
 
 static sw_err_t sim_motor_set_output(int id, int speed_ref)
 {
@@ -108,9 +58,9 @@ static sw_err_t sim_motor_set_output(int id, int speed_ref)
         return SW_ERR_NOT_INIT;
     }
 
-    if (slot->cfg.drv_type == HAL_MOTOR_DRV_VFD)
+    if (slot->cfg.set_speed != NULL)
     {
-        ret = set_vfd_output(&slot->cfg, speed_ref);
+        ret = slot->cfg.set_speed(speed_ref, slot->cfg.drv_ctx);
     }
     else
     {
@@ -147,12 +97,6 @@ static bool sim_motor_at_rev_limit(int id)
     return sim_di_read(slot->cfg.limit_io_ccw);
 }
 
-static bool sim_motor_encoder_counter_online(int id)
-{
-    motor_sim_slot_t *slot = slot_by_id(id);
-
-    return (slot != NULL) && slot->cfg.has_encoder;
-}
 
 static sw_err_t sim_motor_read_hw_pulse(int id, uint32_t *p_value)
 {
@@ -180,58 +124,32 @@ static sw_err_t sim_motor_clear_hw_pulse(int id)
 
 static sw_err_t sim_motor_read_current(int id, uint16_t *p_current)
 {
-    motor_sim_slot_t    *slot = slot_by_id(id);
-    const hal_vfd_ops_t *vfd  = hal_vfd_get_ops();
+    motor_sim_slot_t *slot = slot_by_id(id);
 
-    if ((slot == NULL) || (p_current == NULL) ||
-        (slot->cfg.drv_type != HAL_MOTOR_DRV_VFD) ||
-        (slot->cfg.vfd_backend_id < 0))
-    {
-        return SW_ERR_PARAM;
-    }
-    if ((vfd == NULL) || (vfd->get_cached == NULL))
-    {
-        return SW_ERR_NOT_INIT;
-    }
+    if ((slot == NULL) || (p_current == NULL)) { return SW_ERR_PARAM; }
+    if (slot->cfg.read_current == NULL)        { return SW_ERR_NOT_SUPPORT; }
 
-    return vfd->get_cached((hal_vfd_id_t)slot->cfg.vfd_backend_id, HAL_VFD_REG_CURRENT, p_current);
+    return slot->cfg.read_current(p_current, slot->cfg.drv_ctx);
 }
 
 static sw_err_t sim_motor_read_status(int id, uint16_t *p_status)
 {
-    motor_sim_slot_t    *slot = slot_by_id(id);
-    const hal_vfd_ops_t *vfd  = hal_vfd_get_ops();
+    motor_sim_slot_t *slot = slot_by_id(id);
 
-    if ((slot == NULL) || (p_status == NULL) ||
-        (slot->cfg.drv_type != HAL_MOTOR_DRV_VFD) ||
-        (slot->cfg.vfd_backend_id < 0))
-    {
-        return SW_ERR_PARAM;
-    }
-    if ((vfd == NULL) || (vfd->read == NULL))
-    {
-        return SW_ERR_NOT_INIT;
-    }
+    if ((slot == NULL) || (p_status == NULL)) { return SW_ERR_PARAM; }
+    if (slot->cfg.read_status == NULL)        { return SW_ERR_NOT_SUPPORT; }
 
-    return vfd->read((hal_vfd_id_t)slot->cfg.vfd_backend_id, HAL_VFD_REG_STATE, p_status);
+    return slot->cfg.read_status(p_status, slot->cfg.drv_ctx);
 }
 
 static sw_err_t sim_motor_fault_reset(int id)
 {
-    motor_sim_slot_t    *slot = slot_by_id(id);
-    const hal_vfd_ops_t *vfd  = hal_vfd_get_ops();
+    motor_sim_slot_t *slot = slot_by_id(id);
 
-    if ((slot == NULL) || (slot->cfg.drv_type != HAL_MOTOR_DRV_VFD) ||
-        (slot->cfg.vfd_backend_id < 0))
-    {
-        return SW_ERR_PARAM;
-    }
-    if ((vfd == NULL) || (vfd->fault_reset == NULL))
-    {
-        return SW_ERR_NOT_INIT;
-    }
+    if (slot == NULL)                  { return SW_ERR_PARAM; }
+    if (slot->cfg.fault_reset == NULL) { return SW_ERR_NOT_SUPPORT; }
 
-    return vfd->fault_reset((hal_vfd_id_t)slot->cfg.vfd_backend_id);
+    return slot->cfg.fault_reset(slot->cfg.drv_ctx);
 }
 
 sw_err_t hal_motor_sim_bind(int motor_id, const hal_motor_bind_cfg_t *cfg)
@@ -239,11 +157,6 @@ sw_err_t hal_motor_sim_bind(int motor_id, const hal_motor_bind_cfg_t *cfg)
     motor_sim_slot_t *slot;
 
     if ((cfg == NULL) || (motor_id < 0) || (motor_id >= HAL_MOTOR_BIND_SLOT_MAX))
-    {
-        return SW_ERR_PARAM;
-    }
-    if ((cfg->drv_type == HAL_MOTOR_DRV_VFD) &&
-        (cfg->vfd_backend_id < 0))
     {
         return SW_ERR_PARAM;
     }
@@ -259,7 +172,6 @@ static const hal_motor_ops_t s_ops = {
     .set_output             = sim_motor_set_output,
     .at_fwd_limit           = sim_motor_at_fwd_limit,
     .at_rev_limit           = sim_motor_at_rev_limit,
-    .encoder_counter_online = sim_motor_encoder_counter_online,
     .read_hw_pulse          = sim_motor_read_hw_pulse,
     .clear_hw_pulse         = sim_motor_clear_hw_pulse,
     .read_current           = sim_motor_read_current,

@@ -13,39 +13,55 @@ extern "C" {
 #endif
 
 #include "common/io_handle.h"
+#include "common/sw_error.h"
 #include <stdbool.h>
+#include <stdint.h>
 
-#define HAL_MOTOR_BIND_SLOT_MAX        8
-/** @brief VFD 后端未绑定时使用（仅 HAL_MOTOR_DRV_DO 或占位） */
-#define HAL_MOTOR_VFD_BACKEND_NONE     (-1)
+#define HAL_MOTOR_BIND_SLOT_MAX  8
 
-typedef enum
-{
-    HAL_MOTOR_DRV_VFD = 0,
-    HAL_MOTOR_DRV_DO,
-} hal_motor_drv_type_t;
+/**
+ * @brief  速度输出回调（VFD 运行 / 停止）
+ * @param  speed_ref  >0 正转，<0 反转，0 停止；绝对值为频率或速度量纲（由注入方定义）
+ * @param  ctx        注入方传入的上下文（如 vfd_id）
+ */
+typedef sw_err_t (*hal_motor_set_speed_fn)(int speed_ref, void *ctx);
+
+/**
+ * @brief  读取单个数值回调（电流 / 状态字）
+ * @param  p_val  输出缓冲
+ * @param  ctx    注入方传入的上下文
+ */
+typedef sw_err_t (*hal_motor_read_val_fn)(uint16_t *p_val, void *ctx);
+
+/**
+ * @brief  无参数动作回调（故障复位）
+ * @param  ctx  注入方传入的上下文
+ */
+typedef sw_err_t (*hal_motor_action_fn)(void *ctx);
 
 typedef struct
 {
-    hal_motor_drv_type_t drv_type;
-
     /**
-     * @brief  VFD 后端实例 id（HAL_MOTOR_DRV_VFD 时必填）
-     * @note   取值由机型 setup 填入，对应 hal_vfd_port 实例标识
+     * @brief  速度输出回调；NULL 时退化为纯 DO 方向控制
+     * @note   有 VFD 的项目由机型 setup 注入；无 VFD 的项目保持 NULL
      */
-    int         vfd_backend_id;
+    hal_motor_set_speed_fn set_speed;
+    hal_motor_read_val_fn  read_current; /**< 读负载电流；NULL → SW_ERR_NOT_SUPPORT */
+    hal_motor_read_val_fn  read_status;  /**< 读运行状态字；NULL → SW_ERR_NOT_SUPPORT */
+    hal_motor_action_fn    fault_reset;  /**< 故障复位；NULL → SW_ERR_NOT_SUPPORT */
+    void                  *drv_ctx;      /**< 透传给上述四个回调的上下文 */
 
-    io_do_t     io_cw;
-    io_do_t     io_ccw;
-    io_do_t     io_stop;
-    io_do_t     io_vel0;
-    io_do_t     io_vel1;
+    io_do_t  io_cw;
+    io_do_t  io_ccw;
+    io_do_t  io_stop;
+    io_do_t  io_vel0;
+    io_do_t  io_vel1;
 
-    io_di_t     limit_io_cw;
-    io_di_t     limit_io_ccw;
+    io_di_t  limit_io_cw;
+    io_di_t  limit_io_ccw;
 
-    bool        has_encoder;
-    io_di_t     encoder_io;
+    bool     has_encoder;
+    io_di_t  encoder_io;
 } hal_motor_bind_cfg_t;
 
 #ifdef __cplusplus

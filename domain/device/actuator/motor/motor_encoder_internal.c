@@ -81,7 +81,7 @@ static void encoder_apply_hw_counter_sample_locked(const motor_cfg_t *cfg,
 {
     uint32_t diff;
 
-    if ((cfg == NULL) || (ctx == NULL) || (job == NULL) || !job->read_valid)
+    if ((cfg == NULL) || (ctx == NULL) || (job == NULL) || (job->read_ret != SW_OK))
     {
         return;
     }
@@ -302,17 +302,10 @@ void motor_encoder_schedule_hw_job_locked(encoder_hw_job_t jobs[MOTOR_ID_MAX],
                                           const motor_cfg_t *cfg,
                                           const motor_ctx_t *ctx)
 {
+    (void)ops;
+
     if ((cfg == NULL) || (ctx == NULL) || !motor_needs_encoder_hw_io(cfg))
     {
-        return;
-    }
-
-    if (!motor_encoder_board_is_online(ops, id, cfg))
-    {
-        if (ctx->encoder_hw_last_valid || ctx->zero_clear_pending)
-        {
-            jobs[id].board_offline = true;
-        }
         return;
     }
 
@@ -332,18 +325,10 @@ void motor_encoder_execute_hw_job(const hal_motor_ops_t *ops,
                                   int id,
                                   encoder_hw_job_t *job)
 {
+    (void)cfg;
+
     if (job == NULL)
     {
-        return;
-    }
-
-    if ((cfg != NULL) && !motor_encoder_board_is_online(ops, id, cfg))
-    {
-        job->board_offline = true;
-        if (job->need_clear)
-        {
-            job->clear_ret = SW_ERR_COMM;
-        }
         return;
     }
 
@@ -379,6 +364,11 @@ void motor_encoder_execute_hw_job(const hal_motor_ops_t *ops,
             }
         }
 
+        if (job->clear_ret == SW_ERR_COMM)
+        {
+            job->board_offline = true;
+        }
+
         if (job->clear_ret == SW_OK)
         {
             job->clear_baseline_valid =
@@ -393,7 +383,11 @@ void motor_encoder_execute_hw_job(const hal_motor_ops_t *ops,
         {
             return;
         }
-        job->read_valid = (ops->read_hw_pulse(id, &job->read_value) == SW_OK);
+        job->read_ret = ops->read_hw_pulse(id, &job->read_value);
+        if (job->read_ret == SW_ERR_COMM)
+        {
+            job->board_offline = true;
+        }
     }
 }
 

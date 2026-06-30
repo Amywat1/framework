@@ -84,7 +84,6 @@ static const hal_vfd_ops_t s_mock_vfd_ops = {
 static sw_err_t mock_motor_set_output(int id, int speed_ref)         { (void)id; (void)speed_ref; return SW_OK; }
 static bool     mock_motor_at_fwd_limit(int id)                      { return (id == MOTOR_GANTRY) ? s_mock_fwd_limit : false; }
 static bool     mock_motor_at_rev_limit(int id)                      { return (id == MOTOR_GANTRY) ? s_mock_rev_limit : false; }
-static bool     mock_motor_encoder_counter_online(int id)            { return id == MOTOR_GANTRY; }
 static sw_err_t mock_motor_read_hw_pulse(int id, uint32_t *p_value)  { (void)id; (void)p_value; return SW_ERR_PARAM; }
 static sw_err_t mock_motor_clear_hw_pulse(int id)                    { (void)id; return SW_ERR_PARAM; }
 static sw_err_t mock_motor_read_current(int id, uint16_t *p_current) { (void)id; (void)p_current; return SW_ERR_PARAM; }
@@ -94,7 +93,6 @@ static const hal_motor_ops_t s_mock_motor_ops = {
     .set_output             = mock_motor_set_output,
     .at_fwd_limit           = mock_motor_at_fwd_limit,
     .at_rev_limit           = mock_motor_at_rev_limit,
-    .encoder_counter_online = mock_motor_encoder_counter_online,
     .read_hw_pulse          = mock_motor_read_hw_pulse,
     .clear_hw_pulse         = mock_motor_clear_hw_pulse,
     .read_current           = mock_motor_read_current,

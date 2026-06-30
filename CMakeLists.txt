@@ -457,6 +457,52 @@ if(BUILD_SIM)
     target_compile_options(test_drv_io PRIVATE -Wall -Wextra -Werror -g)
     add_test(NAME test_drv_io COMMAND test_drv_io)
 
-    message(STATUS "Tests registered: 8 unit + 2 scenario (run with: ctest --test-dir build_sim -V)")
+    # -----------------------------------------------------------------------
+    # HAL 通用适配层单元测试（mock hal_io_ops_t，无硬件依赖）
+    # -----------------------------------------------------------------------
+
+    # test_hal_sensor：DI 通道滤波防抖逻辑
+    add_unit_test(test_hal_sensor
+        tests/unit/test_hal_sensor.c
+        adapters/hal/generic/hal_sensor.c
+    )
+
+    # test_hal_motor：通用电机 HAL（DO 输出 / 限位 / 脉冲 / 回调）
+    add_unit_test(test_hal_motor
+        tests/unit/test_hal_motor.c
+        adapters/hal/generic/hal_motor.c
+    )
+
+    # test_hal_do_group：DO 组×槽位绑定与输出
+    add_unit_test(test_hal_do_group
+        tests/unit/test_hal_do_group.c
+        adapters/hal/generic/hal_do_group.c
+    )
+
+    # -----------------------------------------------------------------------
+    # HAL 仿真层单元测试（纯内存实现，无硬件依赖）
+    # -----------------------------------------------------------------------
+
+    # test_hal_io_sim：IO 仿真后端（DI/DO/脉冲计数器）
+    add_unit_test(test_hal_io_sim
+        tests/unit/test_hal_io_sim.c
+        adapters/hal/sim_hw/hal_io_sim.c
+    )
+
+    # test_hal_motor_sim：电机仿真 HAL（依赖 hal_io_sim + sim_encoder_counter）
+    add_unit_test(test_hal_motor_sim
+        tests/unit/test_hal_motor_sim.c
+        adapters/hal/sim_hw/hal_motor_sim.c
+        adapters/hal/sim_hw/hal_io_sim.c
+        adapters/hal/sim_hw/sim_encoder_counter.c
+    )
+
+    # test_hal_vfd_sim：变频器仿真 HAL（状态机 + 参数校验）
+    add_unit_test(test_hal_vfd_sim
+        tests/unit/test_hal_vfd_sim.c
+        adapters/hal/sim_hw/hal_vfd_sim.c
+    )
+
+    message(STATUS "Tests registered: 14 unit + 2 scenario (run with: ctest --test-dir build_sim -V)")
 
 endif()

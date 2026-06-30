@@ -14,6 +14,9 @@ extern "C" {
 #include <stdbool.h>
 #include <stdint.h>
 
+/** @brief  注册 hal_io_sim 实现到 hal_io_port 并完成初始化 */
+void hal_io_sim_register(void);
+
 /**
  * @brief  设置仿真 DI 原始电平（极性转换由 signal_filter 处理）
  * @param  pin    DI 句柄

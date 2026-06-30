@@ -21,8 +21,7 @@ typedef struct
     sw_err_t (*set_output)(int id, int speed_ref);
     bool     (*at_fwd_limit)(int id);
     bool     (*at_rev_limit)(int id);
-    bool     (*encoder_counter_online)(int id);           /* 码盘计数链路当前是否在线 */
-    sw_err_t (*read_hw_pulse)(int id, uint32_t *p_value);  /* 读取硬件脉冲计数器原始值 */
+    sw_err_t (*read_hw_pulse)(int id, uint32_t *p_value);  /* 读取硬件脉冲计数器；SW_ERR_COMM 表示链路离线 */
     sw_err_t (*clear_hw_pulse)(int id);                    /* 清零硬件脉冲计数器 */
     sw_err_t (*read_current)(int id, uint16_t *p_current); /* 读取电机负载电流，单位 0.01A */
     sw_err_t (*read_status)(int id, uint16_t *p_status);   /* 读取电机实际运行状态字 */

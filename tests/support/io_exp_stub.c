@@ -6,6 +6,7 @@
  */
 
 #include "io_exp/slave.h"
+#include "io_exp/demo.h"
 
 int io_online_get(int id)
 {
@@ -23,4 +24,20 @@ void io_write_all_s(int id, int val)
 {
     (void)id;
     (void)val;
+}
+
+int io_pluse_read(int board_id, int pin_id)
+{
+    (void)board_id;
+    (void)pin_id;
+    return -1;
+}
+
+int io_SDO_write(int board_id, int index, int sub_index, int *data)
+{
+    (void)board_id;
+    (void)index;
+    (void)sub_index;
+    (void)data;
+    return 0;
 }

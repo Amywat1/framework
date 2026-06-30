@@ -238,20 +238,6 @@ bool motor_needs_encoder_hw_io(const motor_cfg_t *cfg)
     return (cfg != NULL) && (cfg->encoder_backend == MOTOR_ENCODER_COUNTER);
 }
 
-bool motor_encoder_board_is_online(const hal_motor_ops_t *ops,
-                                   int id,
-                                   const motor_cfg_t *cfg)
-{
-    if (!motor_needs_encoder_hw_io(cfg))
-    {
-        return true;
-    }
-    if ((ops == NULL) || (ops->encoder_counter_online == NULL))
-    {
-        return true;
-    }
-    return ops->encoder_counter_online(id);
-}
 
 static int motor_dir_from_speed_ref(int speed_ref)
 {
@@ -771,11 +757,6 @@ sw_err_t motor_clear_encoder(int id)
     memset(&job, 0, sizeof(job));
     job.need_clear = true;
     pthread_mutex_unlock(&s_mutex);
-
-    if (!motor_encoder_board_is_online(ops, id, cfg))
-    {
-        return SW_ERR_COMM;
-    }
 
     motor_encoder_execute_hw_job(ops, cfg, id, &job);
 

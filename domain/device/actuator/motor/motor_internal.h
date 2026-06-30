@@ -75,7 +75,7 @@ typedef struct
 typedef struct
 {
     bool     need_read;
-    bool     read_valid;
+    sw_err_t read_ret;    /* SW_OK=成功；SW_ERR_COMM=链路离线；其它=参数/初始化错误 */
     uint32_t read_value;
     bool     need_clear;
     bool     board_offline;
@@ -94,9 +94,6 @@ bool               motor_is_running_state(motor_state_t state);
 motor_monitor_source_t motor_get_monitor_source(const motor_cfg_t *cfg);
 uint32_t           motor_calc_elapsed_ms_locked(const motor_ctx_t *ctx, uint32_t now_ms);
 bool               motor_needs_encoder_hw_io(const motor_cfg_t *cfg);
-bool               motor_encoder_board_is_online(const hal_motor_ops_t *ops,
-                                                 int id,
-                                                 const motor_cfg_t *cfg);
 void               motor_enter_fault_locked(int id,
                                             const motor_cfg_t *cfg,
                                             const hal_motor_ops_t *ops);
