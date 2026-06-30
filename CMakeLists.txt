@@ -168,9 +168,8 @@ if(BUILD_SIM)
         # 存储适配器（param + deploy，路径可能与真机不同但接口相同）
         adapters/storage/json/*.c
 
-        # UI 适配器（mqtt_command_parser + command_bridge，无 snack 依赖）
-        adapters/ui/mqtt_cmd/*.c
-        adapters/ui/command_bridge.c
+        # 命令处理器（command_port inbound port 实现，无 snack 依赖）
+        infrastructure/services/command/*.c
 
         # M8 机型配置表
         machines/m8/config/m8_signal_table.c

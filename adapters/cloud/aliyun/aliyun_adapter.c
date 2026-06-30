@@ -6,7 +6,7 @@
  */
 
 #include "adapters/cloud/aliyun/aliyun_adapter.h"
-#include "adapters/command/command_parser.h"
+#include "adapters/cloud/aliyun/mqtt_command_parser.h"
 #include "ports/cloud/command_port.h"
 #include "ports/cloud/report_port.h"
 #include "ports/storage/deploy_store.h"

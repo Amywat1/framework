@@ -1,14 +1,12 @@
 /**
- * @file    command_parser.h
- * @brief   命令解析器接口（JSON 文本 → cmd_t，平台无关）
+ * @file    mqtt_command_parser.h
+ * @brief   阿里云 MQTT 命令解析器接口（JSON 文本 → cmd_t）
  * @author  HUWANGWEI
  * @date    2026-04-10
- *
- * @note    不依赖任何云平台或传输层头文件，可被 MQTT / CLI / BLE 等任意命令来源复用。
  */
 
-#ifndef ADAPTERS_COMMAND_PARSER_H
-#define ADAPTERS_COMMAND_PARSER_H
+#ifndef ADAPTERS_CLOUD_ALIYUN_MQTT_COMMAND_PARSER_H
+#define ADAPTERS_CLOUD_ALIYUN_MQTT_COMMAND_PARSER_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -43,4 +41,4 @@ bool command_parse(const char *json_str, cmd_t *out_cmd);
 }
 #endif
 
-#endif /* ADAPTERS_COMMAND_PARSER_H */
+#endif /* ADAPTERS_CLOUD_ALIYUN_MQTT_COMMAND_PARSER_H */

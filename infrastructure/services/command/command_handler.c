@@ -1,11 +1,11 @@
 /**
- * @file    event_bridge.c
- * @brief   命令端口桥接适配器实现
+ * @file    command_handler.c
+ * @brief   命令处理器实现（command_port → command_guard → event_bus）
  * @author  HUWANGWEI
  * @date    2026-04-10
  */
 
-#include "adapters/command/event_bridge.h"
+#include "infrastructure/services/command/command_handler.h"
 #include "application/command_guard.h"
 #include "ports/cloud/command_port.h"
 #include "infrastructure/event_bus/event_bus.h"
@@ -46,7 +46,7 @@ static sw_err_t bridge_inject(const cmd_t *cmd)
         case CMD_HOME_DEVICE:
             return event_publish(EVT_CMD_HOME_DEVICE, 0U);
         default:
-            LOG_WARN("command_bridge: unknown cmd type=%d", (int)cmd->type);
+            LOG_WARN("command_handler: unknown cmd type=%d", (int)cmd->type);
             return SW_ERR_PARAM;
     }
 }
@@ -55,8 +55,8 @@ static const command_port_ops_t s_ops = {
     .inject = bridge_inject,
 };
 
-void command_bridge_register(void)
+void command_handler_register(void)
 {
     command_port_register(&s_ops);
-    LOG_INFO("command_bridge: registered");
+    LOG_INFO("command_handler: registered");
 }

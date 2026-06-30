@@ -1,11 +1,11 @@
 /**
- * @file    command_parser.c
- * @brief   命令解析器实现（JSON→cmd_t，平台无关）
+ * @file    mqtt_command_parser.c
+ * @brief   阿里云 MQTT 命令解析器实现（JSON→cmd_t）
  * @author  HUWANGWEI
  * @date    2026-04-10
  */
 
-#include "adapters/command/command_parser.h"
+#include "adapters/cloud/aliyun/mqtt_command_parser.h"
 #include "common/log.h"
 #include "third_party/cJSON/cJSON.h"
 #include <string.h>

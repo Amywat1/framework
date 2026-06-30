@@ -36,7 +36,7 @@ extern void json_deploy_store_register(void);
  * ------------------------------------------------------------------------- */
 extern void engine_io_m8_register(void);
 
-#include "adapters/command/event_bridge.h"
+#include "infrastructure/services/command/command_handler.h"
 
 sw_err_t wiring(void)
 {
@@ -55,8 +55,8 @@ sw_err_t wiring(void)
     /* 云端上报 port → 阿里云 MQTT 实现 */
     aliyun_report_adapter_register();
 
-    /* 命令 port → event_bus 桥接 */
-    command_bridge_register();
+    /* 命令 port → command_handler（校验 + event_bus 路由）*/
+    command_handler_register();
 
     /* 引擎 IO 后端：M8 机型桥接 engine IO 接口到 gantry/brush/water 设备驱动 */
     engine_io_m8_register();
