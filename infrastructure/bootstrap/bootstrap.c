@@ -48,7 +48,7 @@
 #  include "machines/m8/adapters/setup/m8_vfd_setup.h"
 #  include "machines/m8/adapters/setup/m8_voice_setup.h"
 #  include "machines/m8/adapters/cli/m8_cli_setup.h"
-#  include "adapters/cloud/aliyun/aliyun_command_adapter.h"
+#  include "adapters/cloud/aliyun/aliyun_adapter.h"
 #  include "common/event_types.h"
 #endif
 

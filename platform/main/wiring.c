@@ -29,10 +29,7 @@ extern void hal_do_group_generic_register(void);
 extern void json_param_store_register(void);
 extern void json_deploy_store_register(void);
 
-/* -------------------------------------------------------------------------
- * 云端上报适配器注册函数声明
- * ------------------------------------------------------------------------- */
-extern void aliyun_report_adapter_register(void);
+#include "adapters/cloud/aliyun/aliyun_adapter.h"
 
 /* -------------------------------------------------------------------------
  * 引擎 IO 后端注册函数声明
