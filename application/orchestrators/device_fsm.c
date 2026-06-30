@@ -41,7 +41,7 @@
 #include "application/orchestrators/wash_orchestrator.h"
 #include "infrastructure/services/dev_ctx/dev_ctx.h"
 #include "infrastructure/services/svc_param/svc_param.h"
-#include "domain/device/unit/gantry.h"
+#include "domain/device/mechanism/gantry.h"
 #include "domain/safety/alarm_core.h"
 #include "infrastructure/event_bus/event_bus.h"
 #include "common/event_types.h"

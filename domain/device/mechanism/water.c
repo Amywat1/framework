@@ -5,7 +5,7 @@
  * @date    2026-04-10
  */
 
-#include "domain/device/water.h"
+#include "domain/device/mechanism/water.h"
 #include "common/log.h"
 #include <pthread.h>
 #include <unistd.h>
@@ -114,7 +114,7 @@ static sw_err_t slot_output(water_channel_t ch, water_slot_t slot, bool on)
 
 static sw_err_t set_pump_output(bool on)
 {
-    sw_err_t ret = slot_output(WCH_SHARED, WATER_SLOT_PUMP, on);
+    sw_err_t ret = slot_output(WATER_CH_SHARED, WATER_SLOT_PUMP, on);
 
     if (ret == SW_OK)
     {
@@ -125,7 +125,7 @@ static sw_err_t set_pump_output(bool on)
 
 static sw_err_t set_curtain_output(bool on)
 {
-    sw_err_t ret = slot_output(WCH_CURTAIN, WATER_SLOT_WATER_VALVE, on);
+    sw_err_t ret = slot_output(WATER_CH_CURTAIN, WATER_SLOT_WATER_VALVE, on);
 
     if (ret == SW_OK)
     {
@@ -136,7 +136,7 @@ static sw_err_t set_curtain_output(bool on)
 
 static sw_err_t set_foam_output(bool on)
 {
-    sw_err_t ret = slot_output(WCH_FOAM, WATER_SLOT_WATER_VALVE, on);
+    sw_err_t ret = slot_output(WATER_CH_FOAM, WATER_SLOT_WATER_VALVE, on);
 
     if (ret == SW_OK)
     {
@@ -147,7 +147,7 @@ static sw_err_t set_foam_output(bool on)
 
 static sw_err_t set_brush_output(bool on)
 {
-    sw_err_t ret = slot_output(WCH_BRUSH, WATER_SLOT_WATER_VALVE, on);
+    sw_err_t ret = slot_output(WATER_CH_BRUSH, WATER_SLOT_WATER_VALVE, on);
 
     if (ret == SW_OK)
     {
@@ -158,7 +158,7 @@ static sw_err_t set_brush_output(bool on)
 
 static sw_err_t set_highpres_output(bool on)
 {
-    sw_err_t ret = slot_output(WCH_HIGHPRES, WATER_SLOT_WATER_VALVE, on);
+    sw_err_t ret = slot_output(WATER_CH_HIGHPRES, WATER_SLOT_WATER_VALVE, on);
 
     if (ret == SW_OK)
     {

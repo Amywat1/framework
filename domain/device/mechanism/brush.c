@@ -7,7 +7,7 @@
  * @note    硬件驱动通过 brush_actuator_ops_t 注入，brush.c 不引用任何 HAL 或 motor 符号。
  */
 
-#include "domain/device/unit/brush.h"
+#include "domain/device/mechanism/brush.h"
 #include "common/log.h"
 
 static brush_actuator_ops_t s_ops;

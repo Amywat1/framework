@@ -7,7 +7,7 @@
  * @note    硬件驱动通过 gantry_actuator_ops_t 注入，gantry.c 不引用任何 HAL 或 motor 符号。
  */
 
-#include "domain/device/unit/gantry.h"
+#include "domain/device/mechanism/gantry.h"
 #include "infrastructure/event_bus/event_bus.h"
 #include "common/event_types.h"
 #include "common/log.h"
@@ -20,7 +20,7 @@ static atomic_bool           s_homing      = false;
 /* -------------------------------------------------------------------------
  * 内部：运动完成回调（由 ops.set_done_cb 注册给执行机构）
  * ------------------------------------------------------------------------- */
-static void on_move_done(sw_err_t result)
+static void on_home_move_done(sw_err_t result)
 {
     sw_err_t clear_ret;
 
@@ -74,7 +74,7 @@ sw_err_t gantry_init(const gantry_actuator_ops_t *ops)
     s_ops = *ops;
     atomic_store(&s_homing, false);
 
-    ret = s_ops.set_done_cb(on_move_done);
+    ret = s_ops.set_done_cb(on_home_move_done);
     if (ret != SW_OK)
     {
         LOG_ERROR("gantry_init: set_done_cb failed ret=%d", (int)ret);
@@ -187,13 +187,10 @@ int32_t gantry_get_pos(void)
     return s_ops.get_pos();
 }
 
-void gantry_reset_pos(void)
+sw_err_t gantry_clear_pos(void)
 {
-    if (!s_initialized) { return; }
-    if (s_ops.clear_pos() != SW_OK)
-    {
-        LOG_WARN("gantry_reset_pos: failed");
-    }
+    if (!s_initialized) { return SW_ERR_NOT_INIT; }
+    return s_ops.clear_pos();
 }
 
 bool gantry_is_running(void)

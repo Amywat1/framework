@@ -124,9 +124,12 @@ bool gantry_at_rev_limit(void);
 int32_t gantry_get_pos(void);
 
 /**
- * @brief  重置位置计数（归位完成后由 home 逻辑调用）
+ * @brief  清零位置计数（归位完成后由 home 逻辑调用）
+ * @retval SW_OK           清零成功
+ * @retval SW_ERR_NOT_INIT 组件未初始化
+ * @retval 其它            执行器返回的错误码
  */
-void gantry_reset_pos(void);
+sw_err_t gantry_clear_pos(void);
 
 /**
  * @brief  查询龙门是否正在运动

@@ -6,7 +6,7 @@
  */
 
 #include "machines/m8/adapters/setup/m8_water_setup.h"
-#include "domain/device/water.h"
+#include "domain/device/mechanism/water.h"
 #include "ports/hal/hal_do_group_port.h"
 #include "machines/m8/config/m8_water_table.h"
 #include "machines/m8/config/m8_machine_config.h"
@@ -14,8 +14,8 @@
 #include <assert.h>
 
 /* 编译期断言：确保水路枚举不超出 HAL 二维表上限 */
-_Static_assert((unsigned)WCH_COUNT        <= HAL_DO_GROUP_MAX,
-               "WCH_COUNT 超过 HAL_DO_GROUP_MAX，需相应扩大 hal_do_group 上限");
+_Static_assert((unsigned)WATER_CH_COUNT    <= HAL_DO_GROUP_MAX,
+               "WATER_CH_COUNT 超过 HAL_DO_GROUP_MAX，需相应扩大 hal_do_group 上限");
 _Static_assert((unsigned)WATER_SLOT_COUNT <= HAL_DO_SLOT_MAX,
                "WATER_SLOT_COUNT 超过 HAL_DO_SLOT_MAX，需相应扩大 hal_do_group 上限");
 
@@ -35,7 +35,7 @@ static sw_err_t m8_apply_bind_table(void)
         const m8_water_bind_row_t *row = &m8_water_bind_table[i];
         sw_err_t ret;
 
-        if (((unsigned)row->channel >= WCH_COUNT)
+        if (((unsigned)row->channel >= WATER_CH_COUNT)
             || ((unsigned)row->slot >= WATER_SLOT_COUNT))
         {
             return SW_ERR_PARAM;
@@ -61,7 +61,7 @@ static sw_err_t m8_water_slot_set(water_channel_t ch, water_slot_t slot, bool on
     {
         return SW_ERR_NOT_INIT;
     }
-    if (((unsigned)ch >= WCH_COUNT) || ((unsigned)slot >= WATER_SLOT_COUNT))
+    if (((unsigned)ch >= WATER_CH_COUNT) || ((unsigned)slot >= WATER_SLOT_COUNT))
     {
         return SW_ERR_PARAM;
     }

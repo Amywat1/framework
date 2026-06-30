@@ -10,7 +10,7 @@
  */
 
 #include "machines/m8/adapters/setup/m8_brush_setup.h"
-#include "domain/device/unit/brush.h"
+#include "domain/device/mechanism/brush.h"
 #include "domain/device/actuator/motor/motor.h"
 #include "machines/m8/config/m8_motor_table.h"
 #include "ports/hal/hal_io_port.h"

@@ -14,7 +14,7 @@
 extern "C" {
 #endif
 
-#include "domain/device/water_channel.h"
+#include "domain/device/mechanism/water_channel.h"
 #include "common/sw_error.h"
 #include <stdbool.h>
 #include <stdint.h>

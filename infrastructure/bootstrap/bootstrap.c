@@ -13,7 +13,7 @@
 #include "infrastructure/services/svc_param/svc_param.h"
 #include "infrastructure/services/dev_ctx/dev_ctx.h"
 #include "domain/device/actuator/motor/motor.h"
-#include "domain/device/water.h"
+#include "domain/device/mechanism/water.h"
 #include "application/orchestrators/emergency_handler.h"
 #include "application/orchestrators/device_fsm.h"
 #include "application/orchestrators/wash_orchestrator.h"

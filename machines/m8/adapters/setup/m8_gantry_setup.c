@@ -6,7 +6,7 @@
  */
 
 #include "machines/m8/adapters/setup/m8_gantry_setup.h"
-#include "domain/device/unit/gantry.h"
+#include "domain/device/mechanism/gantry.h"
 #include "domain/device/actuator/motor/motor.h"
 #include "machines/m8/config/m8_motor_table.h"
 

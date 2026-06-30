@@ -25,9 +25,9 @@
 
 #include "machines/m8/adapters/engine/engine_io_m8.h"
 #include "domain/engine/engine_io.h"
-#include "domain/device/unit/gantry.h"
-#include "domain/device/unit/brush.h"
-#include "domain/device/water.h"
+#include "domain/device/mechanism/gantry.h"
+#include "domain/device/mechanism/brush.h"
+#include "domain/device/mechanism/water.h"
 #include "infrastructure/services/svc_param/svc_param.h"
 #include "machines/m8/adapters/setup/m8_sensor.h"
 #include "common/log.h"

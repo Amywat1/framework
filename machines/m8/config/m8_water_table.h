@@ -11,7 +11,7 @@
 #ifndef CONFIG_MACHINE_M8_WATER_TABLE_H
 #define CONFIG_MACHINE_M8_WATER_TABLE_H
 
-#include "domain/device/water_channel.h"
+#include "domain/device/mechanism/water_channel.h"
 #include "machines/m8/config/m8_io_pins.h"
 #include "common/io_handle.h"
 
@@ -27,11 +27,11 @@ typedef struct
  * 绑定表（增删改水路 DO 映射只改此处）
  * ------------------------------------------------------------------------- */
 static const m8_water_bind_row_t m8_water_bind_table[] = {
-    { WCH_SHARED,   WATER_SLOT_PUMP,        M8_IO_DO_WATER_PUMP     },
-    { WCH_CURTAIN,  WATER_SLOT_WATER_VALVE, M8_IO_DO_WATER_CURTAIN  },
-    { WCH_FOAM,     WATER_SLOT_WATER_VALVE, M8_IO_DO_WATER_FOAM     },
-    { WCH_BRUSH,    WATER_SLOT_WATER_VALVE, M8_IO_DO_WATER_BRUSH    },
-    { WCH_HIGHPRES, WATER_SLOT_WATER_VALVE, M8_IO_DO_WATER_HIGHPRES },
+    { WATER_CH_SHARED,   WATER_SLOT_PUMP,        M8_IO_DO_WATER_PUMP     },
+    { WATER_CH_CURTAIN,  WATER_SLOT_WATER_VALVE, M8_IO_DO_WATER_CURTAIN  },
+    { WATER_CH_FOAM,     WATER_SLOT_WATER_VALVE, M8_IO_DO_WATER_FOAM     },
+    { WATER_CH_BRUSH,    WATER_SLOT_WATER_VALVE, M8_IO_DO_WATER_BRUSH    },
+    { WATER_CH_HIGHPRES, WATER_SLOT_WATER_VALVE, M8_IO_DO_WATER_HIGHPRES },
 };
 
 #define M8_WATER_BIND_TABLE_COUNT \

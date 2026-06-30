@@ -96,6 +96,12 @@ typedef struct
     uint32_t clear_baseline;
 } encoder_hw_job_t;
 
+/* ── motor 模块内部共享全局变量 ─────────────────────────────────────────────
+ * 以下变量定义于 motor.c，由 motor_tick_internal.c / motor_encoder_internal.c /
+ * motor_monitor_internal.c 通过此头文件共享访问。
+ * 注：此处 s_ 前缀表示"motor 模块私有"（不暴露给模块外），而非 C 语言 static 含义；
+ *     本头文件仅被 motor*.c 包含，依靠文件级别的包含约束实现访问隔离。
+ * ─────────────────────────────────────────────────────────────────────────── */
 extern pthread_mutex_t    s_mutex;
 extern motor_ctx_t        s_ctx[MOTOR_ID_MAX];
 extern bool               s_initialized;

@@ -15,12 +15,12 @@ extern "C" {
 /** 水路名称（同时作为 HAL do_group 编号） */
 typedef enum
 {
-    WCH_SHARED = 0,   /**< 全机共享（主泵等） */
-    WCH_CURTAIN,      /**< 水帘 */
-    WCH_FOAM,         /**< 泡沫 */
-    WCH_BRUSH,        /**< 侧刷冲水 */
-    WCH_HIGHPRES,     /**< 高压 */
-    WCH_COUNT,
+    WATER_CH_SHARED = 0,   /**< 全机共享（主泵等） */
+    WATER_CH_CURTAIN,      /**< 水帘 */
+    WATER_CH_FOAM,         /**< 泡沫 */
+    WATER_CH_BRUSH,        /**< 侧刷冲水 */
+    WATER_CH_HIGHPRES,     /**< 高压 */
+    WATER_CH_COUNT,
 } water_channel_t;
 
 /** 水路内执行器槽位（同时作为 HAL do_slot 编号） */
