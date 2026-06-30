@@ -396,6 +396,68 @@ if(BUILD_SIM)
 
     endforeach()
 
-    message(STATUS "Tests registered: 5 unit + 2 scenario (run with: ctest --test-dir build_sim -V)")
+    # -----------------------------------------------------------------------
+    # 驱动层单元测试（使用 Modbus / io_exp 桩替代真实硬件库）
+    #
+    # 关键设计：
+    #   - tests/stubs/ 目录下的假头文件（modbus/modbus.h 等）通过优先 include
+    #     路径覆盖真实库头，使驱动源码不改动即可链接桩实现
+    #   - 测试不调用 drv_io_start，io_exp 桩函数只用于满足链接器，不会被执行
+    #   - drv_vfd 的 monitor worker 线程会启动，但测试中立即设置 MON_NONE 防止
+    #     后台 Modbus 调用干扰桩计数
+    # -----------------------------------------------------------------------
+    set(drv_stub_includes
+        ${CMAKE_SOURCE_DIR}/tests/stubs   # 假 modbus/io_exp 头文件（优先于系统路径）
+        ${CMAKE_SOURCE_DIR}
+        ${CMAKE_SOURCE_DIR}/third_party/unity
+    )
+
+    set(drv_common_src
+        common/time_util.c
+        platform/sim/snack_stub.c
+        third_party/unity/unity.c
+    )
+
+    set(modbus_stub_src
+        tests/support/modbus_stub.c
+    )
+
+    # test_drv_vfd：变频器驱动单元测试
+    add_executable(test_drv_vfd
+        tests/unit/test_drv_vfd.c
+        adapters/hal/linux_hw/drv/drv_vfd.c
+        ${modbus_stub_src}
+        ${drv_common_src}
+    )
+    target_include_directories(test_drv_vfd PRIVATE ${drv_stub_includes})
+    target_link_libraries(test_drv_vfd PRIVATE pthread)
+    target_compile_options(test_drv_vfd PRIVATE -Wall -Wextra -Werror -g)
+    add_test(NAME test_drv_vfd COMMAND test_drv_vfd)
+
+    # test_drv_voice：语音模块驱动单元测试
+    add_executable(test_drv_voice
+        tests/unit/test_drv_voice.c
+        adapters/hal/linux_hw/drv/drv_voice.c
+        ${modbus_stub_src}
+        ${drv_common_src}
+    )
+    target_include_directories(test_drv_voice PRIVATE ${drv_stub_includes})
+    target_link_libraries(test_drv_voice PRIVATE pthread)
+    target_compile_options(test_drv_voice PRIVATE -Wall -Wextra -Werror -g)
+    add_test(NAME test_drv_voice COMMAND test_drv_voice)
+
+    # test_drv_io：CAN IO 子板驱动单元测试
+    add_executable(test_drv_io
+        tests/unit/test_drv_io.c
+        adapters/hal/linux_hw/drv/drv_io.c
+        tests/support/io_exp_stub.c
+        ${drv_common_src}
+    )
+    target_include_directories(test_drv_io PRIVATE ${drv_stub_includes})
+    target_link_libraries(test_drv_io PRIVATE pthread)
+    target_compile_options(test_drv_io PRIVATE -Wall -Wextra -Werror -g)
+    add_test(NAME test_drv_io COMMAND test_drv_io)
+
+    message(STATUS "Tests registered: 8 unit + 2 scenario (run with: ctest --test-dir build_sim -V)")
 
 endif()

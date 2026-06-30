@@ -129,45 +129,32 @@ sw_err_t hal_vfd_linux_instance_set_monitor_mask(hal_vfd_id_t id, drv_vfd_monito
 
 /* -------------------------------------------------------------------------
  * hal_vfd_ops_t 内部实现（对接 hal_vfd_port 注册机制）
- * run_fwd/run_rev/stop 转发至新接口，频率与挡位分离设置
  * ------------------------------------------------------------------------- */
 static sw_err_t vfd_init(void)
 {
     return SW_OK;
 }
 
-static sw_err_t vfd_run_fwd(hal_vfd_id_t id, uint16_t freq_hz)
+static sw_err_t vfd_run(hal_vfd_id_t id, hal_vfd_gear_t gear)
 {
     drv_vfd_t *vfd = vfd_by_id(id);
-    sw_err_t   ret;
 
     if (vfd == NULL)
     {
         return SW_ERR_NOT_INIT;
     }
-    ret = drv_vfd_set_freq(vfd, freq_hz);
-    if (ret != SW_OK)
-    {
-        return ret;
-    }
-    return drv_vfd_run(vfd, VFD_GEAR_FWD_1);
+    return drv_vfd_run(vfd, (drv_vfd_gear_t)gear);
 }
 
-static sw_err_t vfd_run_rev(hal_vfd_id_t id, uint16_t freq_hz)
+static sw_err_t vfd_set_freq(hal_vfd_id_t id, uint16_t freq_hz)
 {
     drv_vfd_t *vfd = vfd_by_id(id);
-    sw_err_t   ret;
 
     if (vfd == NULL)
     {
         return SW_ERR_NOT_INIT;
     }
-    ret = drv_vfd_set_freq(vfd, freq_hz);
-    if (ret != SW_OK)
-    {
-        return ret;
-    }
-    return drv_vfd_run(vfd, VFD_GEAR_REV_1);
+    return drv_vfd_set_freq(vfd, freq_hz);
 }
 
 static sw_err_t vfd_stop(hal_vfd_id_t id)
@@ -247,8 +234,8 @@ static void vfd_register_event_cb(hal_vfd_id_t id, void (*cb)(int event_code))
 
 static const hal_vfd_ops_t s_ops = {
     .init               = vfd_init,
-    .run_fwd            = vfd_run_fwd,
-    .run_rev            = vfd_run_rev,
+    .run                = vfd_run,
+    .set_freq           = vfd_set_freq,
     .stop               = vfd_stop,
     .fault_reset        = vfd_fault_reset,
     .get_state          = vfd_get_state,

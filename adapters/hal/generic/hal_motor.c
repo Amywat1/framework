@@ -106,6 +106,7 @@ static sw_err_t set_vfd_output(const hal_motor_bind_cfg_t *cfg, int speed_ref)
 {
     const hal_vfd_ops_t *vfd = hal_vfd_get_ops();
     hal_vfd_id_t         vfd_id;
+    sw_err_t             ret;
 
     if ((cfg == NULL) || (cfg->vfd_backend_id < 0))
     {
@@ -120,19 +121,29 @@ static sw_err_t set_vfd_output(const hal_motor_bind_cfg_t *cfg, int speed_ref)
 
     if (speed_ref > 0)
     {
-        if (vfd->run_fwd == NULL)
+        if ((vfd->set_freq == NULL) || (vfd->run == NULL))
         {
             return SW_ERR_NOT_INIT;
         }
-        return vfd->run_fwd(vfd_id, (uint16_t)speed_ref);
+        ret = vfd->set_freq(vfd_id, (uint16_t)speed_ref);
+        if (ret != SW_OK)
+        {
+            return ret;
+        }
+        return vfd->run(vfd_id, (hal_vfd_gear_t)1);
     }
     if (speed_ref < 0)
     {
-        if (vfd->run_rev == NULL)
+        if ((vfd->set_freq == NULL) || (vfd->run == NULL))
         {
             return SW_ERR_NOT_INIT;
         }
-        return vfd->run_rev(vfd_id, (uint16_t)(-speed_ref));
+        ret = vfd->set_freq(vfd_id, (uint16_t)(-speed_ref));
+        if (ret != SW_OK)
+        {
+            return ret;
+        }
+        return vfd->run(vfd_id, (hal_vfd_gear_t)-1);
     }
     if (vfd->stop == NULL)
     {

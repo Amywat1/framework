@@ -390,6 +390,8 @@ static void *drv_io_poll_loop(void *arg)
         /* 有子板掉线则不允许设备启动，加大检测周期为了减少日志输出 */
         check_interval_ms = (online_count == s_board_count) ? IO_CHECK_OFFLINE_MS : IO_CHECK_ONLINE_MS;
     }
+
+    return NULL; /* 不可达：while(1) 永不退出，满足编译器对非 void 函数的返回要求 */
 }
 
 /* -------------------------------------------------------------------------

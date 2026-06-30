@@ -31,8 +31,8 @@ typedef struct
     /** @brief  初始化全部 VFD 实例（Modbus 连接 + DO 安全态） */
     sw_err_t (*init)(void);
 
-    sw_err_t (*run_fwd)(hal_vfd_id_t id, uint16_t freq_hz);
-    sw_err_t (*run_rev)(hal_vfd_id_t id, uint16_t freq_hz);
+    sw_err_t (*run)(hal_vfd_id_t id, hal_vfd_gear_t gear);
+    sw_err_t (*set_freq)(hal_vfd_id_t id, uint16_t freq_hz);
     sw_err_t (*stop)(hal_vfd_id_t id);
     sw_err_t (*fault_reset)(hal_vfd_id_t id);
 

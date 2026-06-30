@@ -206,6 +206,7 @@ sw_err_t drv_voice_init(drv_voice_t *v, const char *serial_port, int baud, int m
     ret = voice_mb_ctx_create(v);
     if (ret != SW_OK) {
         (void)pthread_mutex_destroy(&v->mb_mutex);
+        v->serial_port = NULL; /* 清零，确保 voice_is_initialized 返回 false */
         return ret;
     }
 

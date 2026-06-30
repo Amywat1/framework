@@ -36,7 +36,7 @@ extern "C" {
  * 正值=正转，负值=反转，0=停止；绝对值为速度挡位（1=最低，VFD_GEAR_MAX=最高）
  * 两路速度 IO 可组合 3 个有效挡（(0,0) 保留为停止态）
  * ------------------------------------------------------------------------- */
-typedef int8_t drv_vfd_gear_t;
+typedef hal_vfd_gear_t drv_vfd_gear_t;
 
 #define VFD_GEAR_STOP  ((drv_vfd_gear_t)0)
 #define VFD_GEAR_FWD_1 ((drv_vfd_gear_t)1)
@@ -76,32 +76,32 @@ typedef sw_err_t (*drv_vfd_do_set_fn)(io_do_t pin, bool val);
 typedef struct {
     modbus_t      *mb;
     io_do_t        pin_fwd;
-    io_do_t        pin_rev;               /* IO_HANDLE_NULL 表示不支持反转 */
+    io_do_t        pin_rev;                 /* IO_HANDLE_NULL 表示不支持反转 */
     io_do_t        pin_rst;
-    io_do_t        pin_spd1;              /* 速度 IO1；IO_HANDLE_NULL 表示未配置 */
-    io_do_t        pin_spd2;              /* 速度 IO2；IO_HANDLE_NULL 表示未配置 */
-    uint8_t        spd_cfg[VFD_GEAR_MAX]; /* 挡位 1~3 对应 IO 状态，由 drv_vfd_config_speed_io 写入 */
-    bool           spd_io_ready;          /* 内部：drv_vfd_config_speed_io 已完成配置 */
-    drv_vfd_gear_t gear;                  /* 内部：当前挡位，0=停止 */
+    io_do_t        pin_spd1;                /* 速度 IO1；IO_HANDLE_NULL 表示未配置 */
+    io_do_t        pin_spd2;                /* 速度 IO2；IO_HANDLE_NULL 表示未配置 */
+    uint8_t        spd_cfg[VFD_GEAR_MAX];   /* 挡位 1~3 对应 IO 状态，由 drv_vfd_config_speed_io 写入 */
+    bool           spd_io_ready;            /* 内部：drv_vfd_config_speed_io 已完成配置 */
+    drv_vfd_gear_t gear;                    /* 内部：当前挡位，0=停止 */
     void (*event_cb)(int event_code);
-    uint16_t          comm_fail_count;    /* 内部：连续 Modbus 失败计数 */
-    bool              comm_ok;            /* 内部：当前通信是否正常 */
-    const char       *serial_port;
-    int               baud;
-    int               modbus_addr;
-    drv_vfd_do_set_fn do_set;
-    void             *bus_lock;            /* 内部：同 serial_port 实例共享的 Modbus 互斥锁 */
-    bool              rst_active;          /* 内部：RST 脉冲进行中 */
-    uint32_t          rst_start_ms;        /* 内部：RST 脉冲起始时刻（单调时钟 ms） */
-    drv_vfd_gear_t    pending_gear;        /* 内部：方向切换等待中的目标挡位，GEAR_STOP 表示无待处理 */
-    uint32_t          dir_change_start_ms; /* 内部：方向切换开始等待时刻（单调时钟 ms） */
-    pthread_mutex_t   rst_mutex;           /* 内部：保护 RST 脉冲与方向切换状态 */
-    bool              mb_connected;        /* 内部：Modbus 连接已建立 */
-    uint16_t          cached_fault_code;   /* 外部只读：故障码缓存，0=无故障 */
-    uint16_t          cached_current;      /* 外部只读：电流缓存（0.01A） */
-    bool              fault_active;        /* 外部只读：cached_fault_code != 0 */
-    uint32_t               last_slow_poll_ms;  /* 内部：上次慢速轮询时刻，用于绝对时间比较 */
-    drv_vfd_monitor_mask_t monitor_mask;       /* 控制哪些项被周期读取；由 drv_vfd_set_monitor_mask 写 */
+    uint16_t               comm_fail_count; /* 内部：连续 Modbus 失败计数 */
+    bool                   comm_ok;         /* 内部：当前通信是否正常 */
+    const char            *serial_port;
+    int                    baud;
+    int                    modbus_addr;
+    drv_vfd_do_set_fn      do_set;
+    void                  *bus_lock;            /* 内部：同 serial_port 实例共享的 Modbus 互斥锁 */
+    bool                   rst_active;          /* 内部：RST 脉冲进行中 */
+    uint32_t               rst_start_ms;        /* 内部：RST 脉冲起始时刻（单调时钟 ms） */
+    drv_vfd_gear_t         pending_gear;        /* 内部：方向切换等待中的目标挡位，GEAR_STOP 表示无待处理 */
+    uint32_t               dir_change_start_ms; /* 内部：方向切换开始等待时刻（单调时钟 ms） */
+    pthread_mutex_t        rst_mutex;           /* 内部：保护 RST 脉冲与方向切换状态 */
+    bool                   mb_connected;        /* 内部：Modbus 连接已建立 */
+    uint16_t               cached_fault_code;   /* 外部只读：故障码缓存，0=无故障 */
+    uint16_t               cached_current;      /* 外部只读：电流缓存（0.01A） */
+    bool                   fault_active;        /* 外部只读：cached_fault_code != 0 */
+    uint32_t               last_slow_poll_ms;   /* 内部：上次慢速轮询时刻，用于绝对时间比较 */
+    drv_vfd_monitor_mask_t monitor_mask;        /* 控制哪些项被周期读取；由 drv_vfd_set_monitor_mask 写 */
 } drv_vfd_t;
 
 /**
@@ -188,9 +188,9 @@ sw_err_t drv_vfd_fault_reset(drv_vfd_t *vfd);
 /**
  * @brief  获取当前运行状态，从 gear 字段派生
  * @param[in]  vfd  VFD 实例指针，可为 NULL（返回 STOPPED）
- * @retval     DRV_VFD_STATE_FWD     gear > 0（正转中）
- * @retval     DRV_VFD_STATE_REV     gear < 0（反转中）
- * @retval     DRV_VFD_STATE_STOPPED gear == 0 或 vfd 为 NULL
+ * @retval     HAL_VFD_STATE_FWD     gear > 0（正转中）
+ * @retval     HAL_VFD_STATE_REV     gear < 0（反转中）
+ * @retval     HAL_VFD_STATE_STOPPED gear == 0 或 vfd 为 NULL
  */
 drv_vfd_state_t drv_vfd_get_state(drv_vfd_t *vfd);
 
@@ -232,7 +232,7 @@ sw_err_t drv_vfd_read_status(drv_vfd_t *vfd, uint16_t *p_status);
 /**
  * @brief  注册 VFD 事件回调，驱动在通信状态变化或故障状态变化时调用
  * @param[in]  vfd  VFD 实例指针
- * @param[in]  cb   回调函数，传入事件码（DRV_VFD_EVT_*）；传 NULL 可注销回调
+ * @param[in]  cb   回调函数，传入事件码（HAL_VFD_EVT_*）；传 NULL 可注销回调
  * @note   回调在 monitor worker 线程或调用 drv_vfd_get_fault_code 的线程中触发，
  *         须保证回调函数线程安全；回调内禁止反向调用本驱动写接口（死锁风险）
  */

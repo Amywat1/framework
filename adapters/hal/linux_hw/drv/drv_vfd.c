@@ -29,14 +29,14 @@
 #define VFD_REG_FAULT_CODE VFD_SHIHLIN_REG_FAULT_CODE
 #define VFD_REG_CURRENT    VFD_SHIHLIN_REG_CURRENT
 
-#define VFD_FAULT_RESET_PULSE_MS  200U
-#define VFD_MONITOR_POLL_MS       20U    /* monitor worker 轮询周期 */
-#define VFD_SLOW_POLL_MS          2000U  /* 故障码 / 电流慢速轮询间隔 */
-#define VFD_MONITOR_INST_MAX      4U     /* monitor worker 支持的最大 VFD 实例数 */
-#define VFD_MODBUS_TIMEOUT_US     500000U /* Modbus 响应超时 500ms */
-#define VFD_COMM_FAIL_RECONNECT   50U    /* 连续失败 N 次后重建 Modbus 连接 */
-#define VFD_COMM_FAIL_NOTIFY      3U     /* 连续失败 N 次后通知上层 */
-#define VFD_DIR_SWITCH_DELAY_MS   500U   /* 方向切换等待时间，留余量给电机减速 */
+#define VFD_FAULT_RESET_PULSE_MS 200U
+#define VFD_MONITOR_POLL_MS      20U     /* monitor worker 轮询周期 */
+#define VFD_SLOW_POLL_MS         2000U   /* 故障码 / 电流慢速轮询间隔 */
+#define VFD_MONITOR_INST_MAX     10U     /* monitor worker 支持的最大 VFD 实例数 */
+#define VFD_MODBUS_TIMEOUT_US    100000U /* Modbus 响应超时 100ms */
+#define VFD_COMM_FAIL_RECONNECT  50U     /* 连续失败 N 次后重建 Modbus 连接 */
+#define VFD_COMM_FAIL_NOTIFY     3U      /* 连续失败 N 次后通知上层 */
+#define VFD_DIR_SWITCH_DELAY_MS  300U    /* 方向切换等待时间，留余量给电机减速 */
 
 #define VFD_BUS_PORT_MAX      4U
 #define VFD_BUS_PORT_PATH_MAX 64U
@@ -51,13 +51,13 @@ typedef struct {
     bool            in_use;
 } vfd_bus_port_t;
 
-static vfd_bus_port_t  s_bus_ports[VFD_BUS_PORT_MAX];
+static vfd_bus_port_t s_bus_ports[VFD_BUS_PORT_MAX];
 /* 保护全局表 s_bus_ports / s_monitor_list / s_monitor_running */
-static pthread_mutex_t s_global_mutex   = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t s_global_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-static bool          s_monitor_running  = false;
-static drv_vfd_t    *s_monitor_list[VFD_MONITOR_INST_MAX];
-static size_t        s_monitor_count    = 0U;
+static bool       s_monitor_running = false;
+static drv_vfd_t *s_monitor_list[VFD_MONITOR_INST_MAX];
+static size_t     s_monitor_count = 0U;
 
 /* -------------------------------------------------------------------------
  * 总线端口表管理
@@ -101,9 +101,9 @@ static sw_err_t vfd_bus_port_bind(const char *serial_port, int baud, void **out_
     (void)memset(s_bus_ports[free_idx].port_path, 0, sizeof(s_bus_ports[free_idx].port_path));
     (void)strncpy(s_bus_ports[free_idx].port_path, serial_port, VFD_BUS_PORT_PATH_MAX - 1U);
     s_bus_ports[free_idx].port_path[VFD_BUS_PORT_PATH_MAX - 1U] = '\0';
-    s_bus_ports[free_idx].baud                                   = baud;
-    s_bus_ports[free_idx].ref_count                              = 1U;
-    s_bus_ports[free_idx].mutex_inited                           = false;
+    s_bus_ports[free_idx].baud                                  = baud;
+    s_bus_ports[free_idx].ref_count                             = 1U;
+    s_bus_ports[free_idx].mutex_inited                          = false;
 
     /* 先初始化 mutex，成功后才标记 in_use=true，避免并发调用拿到未初始化的 mutex */
     if (pthread_mutex_init(&s_bus_ports[free_idx].mutex, NULL) != 0) {
@@ -298,7 +298,7 @@ static sw_err_t mb_execute(drv_vfd_t *vfd, mb_op_t *op)
     bool             notify_restored = false;
     bool             need_reconnect  = false;
     pthread_mutex_t *bus_mtx;
-    void           (*cb)(int);
+    void (*cb)(int);
 
     if (!vfd_is_initialized(vfd)) {
         return SW_ERR_NOT_INIT;
@@ -313,7 +313,7 @@ static sw_err_t mb_execute(drv_vfd_t *vfd, mb_op_t *op)
         cb = vfd->event_cb;
         (void)pthread_mutex_unlock(bus_mtx);
         if (notify_lost && (cb != NULL)) {
-            cb(DRV_VFD_EVT_COMM_LOST);
+            cb(HAL_VFD_EVT_COMM_LOST);
         }
         return SW_ERR_COMM;
     }
@@ -322,7 +322,7 @@ static sw_err_t mb_execute(drv_vfd_t *vfd, mb_op_t *op)
         rc = modbus_write_register(vfd->mb, (int)op->addr, (int)op->wval);
     } else {
         uint16_t buf = 0U;
-        rc = modbus_read_registers(vfd->mb, (int)op->addr, 1, &buf);
+        rc           = modbus_read_registers(vfd->mb, (int)op->addr, 1, &buf);
         if (rc >= 0) {
             op->rval = buf;
         }
@@ -336,9 +336,11 @@ static sw_err_t mb_execute(drv_vfd_t *vfd, mb_op_t *op)
         cb = vfd->event_cb;
         (void)pthread_mutex_unlock(bus_mtx);
         LOG_ERROR("drv_vfd[addr=%d]: Modbus %s reg 0x%04X failed",
-                  vfd->modbus_addr, op->is_write ? "write" : "read", op->addr);
+                  vfd->modbus_addr,
+                  op->is_write ? "write" : "read",
+                  op->addr);
         if (notify_lost && (cb != NULL)) {
-            cb(DRV_VFD_EVT_COMM_LOST);
+            cb(HAL_VFD_EVT_COMM_LOST);
         }
         return SW_ERR_COMM;
     }
@@ -347,21 +349,21 @@ static sw_err_t mb_execute(drv_vfd_t *vfd, mb_op_t *op)
     cb = vfd->event_cb;
     (void)pthread_mutex_unlock(bus_mtx);
     if (notify_restored && (cb != NULL)) {
-        cb(DRV_VFD_EVT_COMM_RESTORED);
+        cb(HAL_VFD_EVT_COMM_RESTORED);
     }
     return SW_OK;
 }
 
 static sw_err_t mb_write_reg(drv_vfd_t *vfd, uint16_t addr, uint16_t val)
 {
-    mb_op_t op = { true, addr, val, 0U };
+    mb_op_t op = {true, addr, val, 0U};
     return mb_execute(vfd, &op);
 }
 
 static sw_err_t mb_read_reg(drv_vfd_t *vfd, uint16_t addr, uint16_t *p_val)
 {
     sw_err_t ret;
-    mb_op_t  op = { false, addr, 0U, 0U };
+    mb_op_t  op = {false, addr, 0U, 0U};
 
     if (p_val == NULL) {
         return SW_ERR_PARAM;
@@ -378,28 +380,28 @@ static sw_err_t mb_read_reg(drv_vfd_t *vfd, uint16_t addr, uint16_t *p_val)
  * ------------------------------------------------------------------------- */
 static void vfd_update_fault_state(drv_vfd_t *vfd, uint16_t code)
 {
-    bool          fire_detected = false;
-    bool          fire_cleared  = false;
-    bool          now_fault     = (code != 0U);
-    void        (*cb)(int);
+    bool fire_detected = false;
+    bool fire_cleared  = false;
+    bool now_fault     = (code != 0U);
+    void (*cb)(int);
 
     (void)pthread_mutex_lock(&vfd->rst_mutex);
     vfd->cached_fault_code = code;
     if (now_fault && !vfd->fault_active) {
         vfd->fault_active = true;
-        fire_detected = true;
+        fire_detected     = true;
     } else if (!now_fault && vfd->fault_active) {
         vfd->fault_active = false;
-        fire_cleared = true;
+        fire_cleared      = true;
     }
     cb = vfd->event_cb;
     (void)pthread_mutex_unlock(&vfd->rst_mutex);
 
     if (cb != NULL) {
         if (fire_detected) {
-            cb(DRV_VFD_EVT_FAULT_DETECTED);
+            cb(HAL_VFD_EVT_FAULT_DETECTED);
         } else if (fire_cleared) {
-            cb(DRV_VFD_EVT_FAULT_CLEARED);
+            cb(HAL_VFD_EVT_FAULT_CLEARED);
         }
     }
 }
@@ -458,20 +460,10 @@ static void vfd_apply_gear_locked(drv_vfd_t *vfd, drv_vfd_gear_t gear)
  * ------------------------------------------------------------------------- */
 static void vfd_monitor_tick(uint32_t now_ms)
 {
-    size_t     i;
-    size_t     count;
-    drv_vfd_t *list_snap[VFD_MONITOR_INST_MAX];
+    size_t i;
 
-    /* 在全局锁内完整复制指针列表，防止并发 drv_vfd_init 写 s_monitor_list 时的数据竞争 */
-    (void)pthread_mutex_lock(&s_global_mutex);
-    count = s_monitor_count;
-    for (i = 0U; i < count; i++) {
-        list_snap[i] = s_monitor_list[i];
-    }
-    (void)pthread_mutex_unlock(&s_global_mutex);
-
-    for (i = 0U; i < count; i++) {
-        drv_vfd_t *vfd = list_snap[i];
+    for (i = 0U; i < s_monitor_count; i++) {
+        drv_vfd_t *vfd = s_monitor_list[i];
 
         if (vfd == NULL) {
             continue;
@@ -498,7 +490,7 @@ static void vfd_monitor_tick(uint32_t now_ms)
 
         /* 慢速轮询：用绝对时间差判断，避免 Modbus 超时导致间隔偏慢 */
         /* TODO: 当 FAULT 和 CURRENT 均启用时，可合并为一次 modbus_read_registers
-         * 读取 0x2102~0x2104（3 个寄存器），将最大阻塞时间从 1s 降至 500ms */
+         * 读取 0x2102~0x2104（3 个寄存器），可缩短阻塞时间 */
         if (time_elapsed_ms(vfd->last_slow_poll_ms, now_ms) >= VFD_SLOW_POLL_MS) {
             vfd->last_slow_poll_ms = now_ms;
 
@@ -512,16 +504,16 @@ static void vfd_monitor_tick(uint32_t now_ms)
 
             /* 仅运行中才采集电流，停止时保留上次缓存值 */
             if (((mask_snap & DRV_VFD_MON_CURRENT) != 0U) && (gear_snap != VFD_GEAR_STOP)) {
-                uint16_t   cur = 0U;
-                void     (*cb)(int);
+                uint16_t cur = 0U;
+                void (*cb)(int);
 
                 if (mb_read_reg(vfd, VFD_REG_CURRENT, &cur) == SW_OK) {
                     (void)pthread_mutex_lock(&vfd->rst_mutex);
                     vfd->cached_current = cur;
-                    cb = vfd->event_cb;
+                    cb                  = vfd->event_cb;
                     (void)pthread_mutex_unlock(&vfd->rst_mutex);
                     if (cb != NULL) {
-                        cb(DRV_VFD_EVT_CURRENT_UPDATE);
+                        cb(HAL_VFD_EVT_CURRENT_UPDATE);
                     }
                 }
             }
@@ -590,9 +582,9 @@ sw_err_t drv_vfd_init(drv_vfd_t        *vfd,
         return ret;
     }
 
-    vfd->pin_fwd           = pin_fwd;
-    vfd->pin_rev           = pin_rev;
-    vfd->pin_rst           = pin_rst;
+    vfd->pin_fwd = pin_fwd;
+    vfd->pin_rev = pin_rev;
+    vfd->pin_rst = pin_rst;
     /* pin_spd1/spd2/spd_cfg/spd_io_ready 由 memset 零初始化，表示速度 IO 尚未配置 */
     vfd->gear              = VFD_GEAR_STOP;
     vfd->event_cb          = NULL;
@@ -644,7 +636,7 @@ sw_err_t drv_vfd_init(drv_vfd_t        *vfd,
         (void)pthread_mutex_destroy(&vfd->rst_mutex);
         modbus_close(vfd->mb);
         modbus_free(vfd->mb);
-        vfd->mb          = NULL;
+        vfd->mb = NULL;
         vfd_bus_port_unbind(vfd->bus_lock);
         vfd->bus_lock    = NULL;
         vfd->serial_port = NULL;
@@ -659,7 +651,7 @@ sw_err_t drv_vfd_init(drv_vfd_t        *vfd,
         (void)pthread_mutex_destroy(&vfd->rst_mutex);
         modbus_close(vfd->mb);
         modbus_free(vfd->mb);
-        vfd->mb          = NULL;
+        vfd->mb = NULL;
         vfd_bus_port_unbind(vfd->bus_lock);
         vfd->bus_lock    = NULL;
         vfd->serial_port = NULL;
@@ -670,10 +662,10 @@ sw_err_t drv_vfd_init(drv_vfd_t        *vfd,
     return SW_OK;
 }
 
-sw_err_t drv_vfd_config_speed_io(drv_vfd_t     *vfd,
-                                  io_do_t        pin_spd1,
-                                  io_do_t        pin_spd2,
-                                  const uint8_t  spd_cfg[VFD_GEAR_MAX])
+sw_err_t drv_vfd_config_speed_io(drv_vfd_t    *vfd,
+                                 io_do_t       pin_spd1,
+                                 io_do_t       pin_spd2,
+                                 const uint8_t spd_cfg[VFD_GEAR_MAX])
 {
     uint8_t i;
 
@@ -689,7 +681,8 @@ sw_err_t drv_vfd_config_speed_io(drv_vfd_t     *vfd,
     for (i = 0U; i < (uint8_t)VFD_GEAR_MAX; i++) {
         if (spd_cfg[i] == 0U) {
             LOG_ERROR("drv_vfd_config_speed_io[addr=%d]: gear %u uses VFD_SPD_IO(0,0), conflicts with stop",
-                      vfd->modbus_addr, (unsigned)(i + 1U));
+                      vfd->modbus_addr,
+                      (unsigned)(i + 1U));
             return SW_ERR_PARAM;
         }
     }
@@ -816,18 +809,18 @@ drv_vfd_state_t drv_vfd_get_state(drv_vfd_t *vfd)
     drv_vfd_gear_t gear;
 
     if (vfd == NULL) {
-        return DRV_VFD_STATE_STOPPED;
+        return HAL_VFD_STATE_STOPPED;
     }
     (void)pthread_mutex_lock(&vfd->rst_mutex);
     gear = vfd->gear;
     (void)pthread_mutex_unlock(&vfd->rst_mutex);
     if (gear > 0) {
-        return DRV_VFD_STATE_FWD;
+        return HAL_VFD_STATE_FWD;
     }
     if (gear < 0) {
-        return DRV_VFD_STATE_REV;
+        return HAL_VFD_STATE_REV;
     }
-    return DRV_VFD_STATE_STOPPED;
+    return HAL_VFD_STATE_STOPPED;
 }
 
 sw_err_t drv_vfd_get_fault_code(drv_vfd_t *vfd, uint16_t *p_code)

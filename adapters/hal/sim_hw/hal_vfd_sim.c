@@ -24,25 +24,38 @@ static bool sim_id_valid(hal_vfd_id_t id)
     return (id == HAL_VFD_GANTRY) || (id == HAL_VFD_BRUSH);
 }
 
-static sw_err_t sim_run_fwd(hal_vfd_id_t id, uint16_t freq_hz)
+static sw_err_t sim_run(hal_vfd_id_t id, hal_vfd_gear_t gear)
+{
+    if (!sim_id_valid(id))
+    {
+        return SW_ERR_PARAM;
+    }
+    if ((gear < 0) && (id != HAL_VFD_GANTRY))
+    {
+        return SW_ERR_PARAM;
+    }
+    if (gear > 0)
+    {
+        s_state[id] = HAL_VFD_STATE_FWD;
+    }
+    else if (gear < 0)
+    {
+        s_state[id] = HAL_VFD_STATE_REV;
+    }
+    else
+    {
+        s_state[id] = HAL_VFD_STATE_STOPPED;
+    }
+    return SW_OK;
+}
+
+static sw_err_t sim_set_freq(hal_vfd_id_t id, uint16_t freq_hz)
 {
     if (!sim_id_valid(id))
     {
         return SW_ERR_PARAM;
     }
     (void)freq_hz;
-    s_state[id] = HAL_VFD_STATE_FWD;
-    return SW_OK;
-}
-
-static sw_err_t sim_run_rev(hal_vfd_id_t id, uint16_t freq_hz)
-{
-    if (id != HAL_VFD_GANTRY)
-    {
-        return SW_ERR_PARAM;
-    }
-    (void)freq_hz;
-    s_state[id] = HAL_VFD_STATE_REV;
     return SW_OK;
 }
 
@@ -113,8 +126,8 @@ static void sim_register_event_cb(hal_vfd_id_t id, void (*cb)(int event_code))
 
 static const hal_vfd_ops_t s_ops = {
     .init               = sim_vfd_init,
-    .run_fwd            = sim_run_fwd,
-    .run_rev            = sim_run_rev,
+    .run                = sim_run,
+    .set_freq           = sim_set_freq,
     .stop               = sim_stop,
     .fault_reset        = sim_fault_reset,
     .get_state          = sim_get_state,
