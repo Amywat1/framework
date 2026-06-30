@@ -10,6 +10,8 @@
 #include "domain/device/actuator/motor/motor.h"
 #include "machines/m8/config/m8_motor_table.h"
 
+#include <stddef.h>
+
 /* -------------------------------------------------------------------------
  * 运动完成回调桥接
  * motor_done_cb_t(int motor_id, sw_err_t, void*) → gantry_done_fn(sw_err_t)

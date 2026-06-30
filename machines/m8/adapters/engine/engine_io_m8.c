@@ -31,12 +31,10 @@
 #include "infrastructure/services/svc_param/svc_param.h"
 #include "machines/m8/adapters/setup/m8_sensor.h"
 #include "common/log.h"
+#include "common/sw_types.h"
 
 #include <string.h>
-#include <stddef.h>
 #include <stdint.h>
-
-#define ARRAY_SIZE(a) (sizeof(a) / sizeof((a)[0]))
 
 /* =========================================================================
  * DO 状态变量

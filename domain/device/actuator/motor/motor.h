@@ -22,9 +22,6 @@ typedef enum
     MOTOR_STATE_PENDING, /**< 等待 post_stop_delay 到期后由 tick 调 pre_start 并启动 */
     MOTOR_STATE_HOLD,
     MOTOR_STATE_MOVE,
-    MOTOR_STATE_MOVE_POS,
-    MOTOR_STATE_MOVE_TIME,
-    MOTOR_STATE_PAUSE,
     MOTOR_STATE_FAULT,
     MOTOR_STATE_MAX
 } motor_state_t;
@@ -89,7 +86,7 @@ bool          motor_at_rev_limit(int id);
 motor_state_t motor_get_state(int id);
 
 /**
- * @brief  查询电机是否正在运行（HOLD / MOVE / MOVE_POS / MOVE_TIME）
+ * @brief  查询电机是否正在运行（HOLD / MOVE）
  * @note   PENDING（延迟启动中）不计入运行，FAULT / IDLE 均返回 false。
  */
 bool          motor_is_running(int id);

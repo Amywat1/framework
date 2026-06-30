@@ -17,6 +17,9 @@
 #include "machines/m8/config/m8_io_pins.h"
 #include "common/log.h"
 
+#include <stddef.h>
+#include <stdint.h>
+
 /* -------------------------------------------------------------------------
  * brush_id → motor_id 映射表
  * 新增独立电机的刷子：追加一条记录，motor_id 填对应的新 motor ID。

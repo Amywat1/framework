@@ -12,6 +12,7 @@
 #include "machines/m8/config/m8_machine_config.h"
 #include "common/log.h"
 #include <assert.h>
+#include <stddef.h>
 
 /* 编译期断言：确保水路枚举不超出 HAL 二维表上限 */
 _Static_assert((unsigned)WATER_CH_COUNT    <= HAL_DO_GROUP_MAX,

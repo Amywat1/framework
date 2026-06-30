@@ -27,16 +27,11 @@ typedef struct
 {
     /* ── 运行状态 ────────────────────────────────── */
     motor_state_t state;
-    motor_state_t paused_from;
     int           speed_ref;
     int           applied_speed_ref;
     int           stored_dir;
-    int32_t       target_pos;
-    uint32_t      move_time_ms;
     uint32_t      start_ms;
     uint32_t      stop_timestamp_ms;  /* motor_stop_locked 写入；0 表示从未停过 */
-    uint32_t      pause_start_ms;
-    uint32_t      paused_total_ms;
 
     /* ── 编码器 ───────────────────────────────────── */
     int32_t       encoder_pos;
@@ -44,8 +39,7 @@ typedef struct
     bool          encoder_hw_last_valid;
     bool          encoder_counting;
 
-    uint8_t       zero_confirm_cnt;
-    bool          zero_clear_pending;
+    bool          clear_retry_pending;  /* HW 清零失败，下一 tick 重试 */
 
     int32_t       encoder_check_snapshot;
     uint32_t      encoder_check_ms;
@@ -78,6 +72,7 @@ typedef struct
 {
     bool     used;
     int      sample_motor_id;
+    bool     need_current;   /* 任一关联电机配置了电流阈值时为 true */
     bool     current_valid;
     bool     status_valid;
     uint16_t current;

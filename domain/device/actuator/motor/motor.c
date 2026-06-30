@@ -34,52 +34,24 @@ static const bool s_transition[MOTOR_STATE_MAX][MOTOR_STATE_MAX] = {
         [MOTOR_STATE_PENDING]   = true,
         [MOTOR_STATE_HOLD]      = true,
         [MOTOR_STATE_MOVE]      = true,
-        [MOTOR_STATE_MOVE_POS]  = true,
-        [MOTOR_STATE_MOVE_TIME] = true,
         [MOTOR_STATE_FAULT]     = true,
     },
     [MOTOR_STATE_PENDING] = {
-        [MOTOR_STATE_IDLE]      = true,  /* stop() 取消等待 */
-        [MOTOR_STATE_PENDING]   = true,  /* 更新 pending 参数 */
-        [MOTOR_STATE_HOLD]      = true,  /* tick 延迟到期后启动 */
-        [MOTOR_STATE_MOVE]      = true,  /* tick 延迟到期后启动 */
+        [MOTOR_STATE_IDLE]      = true,
+        [MOTOR_STATE_PENDING]   = true,
+        [MOTOR_STATE_HOLD]      = true,
+        [MOTOR_STATE_MOVE]      = true,
         [MOTOR_STATE_FAULT]     = true,
     },
     [MOTOR_STATE_HOLD] = {
         [MOTOR_STATE_IDLE]      = true,
-        [MOTOR_STATE_PENDING]   = true,  /* 运行中切换（停 VFD → 等延迟 → pre_start → 重启）*/
+        [MOTOR_STATE_PENDING]   = true,
         [MOTOR_STATE_HOLD]      = true,
         [MOTOR_STATE_FAULT]     = true,
     },
     [MOTOR_STATE_MOVE] = {
         [MOTOR_STATE_IDLE]      = true,
         [MOTOR_STATE_MOVE]      = true,
-        [MOTOR_STATE_MOVE_POS]  = true,
-        [MOTOR_STATE_MOVE_TIME] = true,
-        [MOTOR_STATE_PAUSE]     = true,
-        [MOTOR_STATE_FAULT]     = true,
-    },
-    [MOTOR_STATE_MOVE_POS] = {
-        [MOTOR_STATE_IDLE]      = true,
-        [MOTOR_STATE_MOVE]      = true,
-        [MOTOR_STATE_MOVE_POS]  = true,
-        [MOTOR_STATE_MOVE_TIME] = true,
-        [MOTOR_STATE_PAUSE]     = true,
-        [MOTOR_STATE_FAULT]     = true,
-    },
-    [MOTOR_STATE_MOVE_TIME] = {
-        [MOTOR_STATE_IDLE]      = true,
-        [MOTOR_STATE_MOVE]      = true,
-        [MOTOR_STATE_MOVE_POS]  = true,
-        [MOTOR_STATE_MOVE_TIME] = true,
-        [MOTOR_STATE_PAUSE]     = true,
-        [MOTOR_STATE_FAULT]     = true,
-    },
-    [MOTOR_STATE_PAUSE] = {
-        [MOTOR_STATE_IDLE]      = true,
-        [MOTOR_STATE_MOVE]      = true,
-        [MOTOR_STATE_MOVE_POS]  = true,
-        [MOTOR_STATE_MOVE_TIME] = true,
         [MOTOR_STATE_FAULT]     = true,
     },
     [MOTOR_STATE_FAULT] = {
@@ -198,9 +170,7 @@ static sw_err_t motor_require_hw_encoder_cfg_locked(int id,
 
 bool motor_is_move_state(motor_state_t state)
 {
-    return (state == MOTOR_STATE_MOVE) ||
-           (state == MOTOR_STATE_MOVE_POS) ||
-           (state == MOTOR_STATE_MOVE_TIME);
+    return (state == MOTOR_STATE_MOVE);
 }
 
 bool motor_is_running_state(motor_state_t state)
@@ -229,24 +199,12 @@ motor_monitor_source_t motor_get_monitor_source(const motor_cfg_t *cfg)
 
 uint32_t motor_calc_elapsed_ms_locked(const motor_ctx_t *ctx, uint32_t now_ms)
 {
-    uint32_t elapsed_ms;
-
-    if (ctx == NULL)
+    if ((ctx == NULL) || (ctx->start_ms == 0U))
     {
         return 0U;
     }
 
-    elapsed_ms = time_elapsed_ms(ctx->start_ms, now_ms);
-    if (elapsed_ms >= ctx->paused_total_ms)
-    {
-        elapsed_ms -= ctx->paused_total_ms;
-    }
-    else
-    {
-        elapsed_ms = 0U;
-    }
-
-    return elapsed_ms;
+    return time_elapsed_ms(ctx->start_ms, now_ms);
 }
 
 bool motor_needs_encoder_hw_io(const motor_cfg_t *cfg)
@@ -348,11 +306,14 @@ static sw_err_t motor_apply_output_locked(int id,
     return SW_OK;
 }
 
-static sw_err_t motor_start_locked(int id,
-                                   motor_state_t new_state,
-                                   int speed_ref,
-                                   int32_t target_pos,
-                                   uint32_t move_time_ms)
+static void motor_reset_run_monitor_locked(motor_ctx_t *ctx)
+{
+    ctx->current_anomaly_ms = 0U;
+    ctx->state_mismatch_ms  = 0U;
+    ctx->load_current       = 0U;
+}
+
+static sw_err_t motor_start_locked(int id, motor_state_t new_state, int speed_ref)
 {
     const motor_cfg_t      *cfg = motor_get_cfg_locked(id);
     const hal_motor_ops_t *ops = hal_motor_get_ops();
@@ -369,7 +330,7 @@ static sw_err_t motor_start_locked(int id,
     }
 
     ctx = &s_ctx[id];
-    if ((ctx->state == MOTOR_STATE_PAUSE) || (ctx->state == MOTOR_STATE_FAULT))
+    if (ctx->state == MOTOR_STATE_FAULT)
     {
         return SW_ERR_STATE;
     }
@@ -386,17 +347,11 @@ static sw_err_t motor_start_locked(int id,
         return ret;
     }
 
-    ctx->speed_ref          = speed_ref;
-    ctx->stored_dir         = motor_dir_from_speed_ref(speed_ref);
-    ctx->target_pos         = target_pos;
-    ctx->move_time_ms       = move_time_ms;
-    ctx->start_ms           = time_util_get_ms();
-    ctx->stop_timestamp_ms  = 0U;
-    ctx->pause_start_ms     = 0U;
-    ctx->paused_total_ms    = 0U;
-    ctx->current_anomaly_ms = 0U;
-    ctx->state_mismatch_ms  = 0U;
-    ctx->load_current       = 0U;
+    ctx->speed_ref         = speed_ref;
+    ctx->stored_dir        = motor_dir_from_speed_ref(speed_ref);
+    ctx->start_ms          = time_util_get_ms();
+    ctx->stop_timestamp_ms = 0U;
+    motor_reset_run_monitor_locked(ctx);
     return motor_set_state_locked(id, cfg, new_state);
 }
 
@@ -426,15 +381,9 @@ static sw_err_t motor_stop_locked(int id)
 
     ctx->speed_ref          = 0;
     ctx->applied_speed_ref  = 0;
-    ctx->target_pos         = 0;
-    ctx->move_time_ms       = 0U;
     ctx->start_ms           = 0U;
     ctx->stop_timestamp_ms  = time_util_get_ms();
-    ctx->pause_start_ms     = 0U;
-    ctx->paused_total_ms    = 0U;
-    ctx->current_anomaly_ms = 0U;
-    ctx->state_mismatch_ms  = 0U;
-    ctx->load_current       = 0U;
+    motor_reset_run_monitor_locked(ctx);
     return motor_set_state_locked(id, cfg, MOTOR_STATE_IDLE);
 }
 
@@ -449,15 +398,10 @@ void motor_enter_fault_locked(int id,
         (void)ops->set_output(id, 0);
     }
 
-    ctx->speed_ref          = 0;
-    ctx->applied_speed_ref  = 0;
-    ctx->target_pos         = 0;
-    ctx->move_time_ms       = 0U;
-    ctx->pause_start_ms     = 0U;
-    ctx->paused_total_ms    = 0U;
-    ctx->stop_timestamp_ms  = time_util_get_ms();
-    ctx->current_anomaly_ms = 0U;
-    ctx->state_mismatch_ms  = 0U;
+    ctx->speed_ref         = 0;
+    ctx->applied_speed_ref = 0;
+    ctx->stop_timestamp_ms = time_util_get_ms();
+    motor_reset_run_monitor_locked(ctx);
 
     (void)motor_set_state_locked(id, cfg, MOTOR_STATE_FAULT);
 }
@@ -491,7 +435,7 @@ static sw_err_t motor_start_or_pend_locked(int id, motor_state_t target, int spe
 
     if ((cfg->post_stop_delay_ms == 0U) && (s_pre_start_fns[id] == NULL))
     {
-        return motor_start_locked(id, target, speed_ref, 0, 0U);
+        return motor_start_locked(id, target, speed_ref);
     }
 
     now_ms = time_util_get_ms();
@@ -537,15 +481,11 @@ static sw_err_t motor_gear_pend_locked(int id, motor_state_t target, int8_t gear
     {
         sw_err_t ret = motor_apply_gear_locked(id, cfg, ops, gear);
         if (ret != SW_OK) { return ret; }
-        ctx->speed_ref    = (int)gear;
-        ctx->stored_dir   = 1;
-        ctx->start_ms     = time_util_get_ms();
-        ctx->stop_timestamp_ms  = 0U;
-        ctx->pause_start_ms     = 0U;
-        ctx->paused_total_ms    = 0U;
-        ctx->current_anomaly_ms = 0U;
-        ctx->state_mismatch_ms  = 0U;
-        ctx->load_current       = 0U;
+        ctx->speed_ref         = (int)gear;
+        ctx->stored_dir        = 1;
+        ctx->start_ms          = time_util_get_ms();
+        ctx->stop_timestamp_ms = 0U;
+        motor_reset_run_monitor_locked(ctx);
         return motor_set_state_locked(id, cfg, target);
     }
 
@@ -596,34 +536,6 @@ static sw_err_t motor_run_hold_or_move_command(int id,
         ret = motor_start_or_pend_locked(id, target_state, speed_ref);
     }
 
-    pthread_mutex_unlock(&s_mutex);
-    return ret;
-}
-
-static sw_err_t motor_run_position_command(int id, int speed_ref, int32_t target_pos)
-{
-    sw_err_t           ret;
-
-    pthread_mutex_lock(&s_mutex);
-    ret = motor_require_action_cfg_locked(id, MOTOR_ACTION_MOVE, true, NULL);
-    if (ret == SW_OK)
-    {
-        ret = motor_start_locked(id, MOTOR_STATE_MOVE_POS, speed_ref, target_pos, 0U);
-    }
-    pthread_mutex_unlock(&s_mutex);
-    return ret;
-}
-
-static sw_err_t motor_run_timed_command(int id, int speed_ref, uint32_t duration_ms)
-{
-    sw_err_t           ret;
-
-    pthread_mutex_lock(&s_mutex);
-    ret = motor_require_action_cfg_locked(id, MOTOR_ACTION_MOVE, false, NULL);
-    if (ret == SW_OK)
-    {
-        ret = motor_start_locked(id, MOTOR_STATE_MOVE_TIME, speed_ref, 0, duration_ms);
-    }
     pthread_mutex_unlock(&s_mutex);
     return ret;
 }
@@ -718,87 +630,6 @@ sw_err_t motor_move(int id, int speed_ref)
                                           speed_ref);
 }
 
-sw_err_t motor_move_pos(int id, int speed_ref, int32_t target_pos)
-{
-    return motor_run_position_command(id, speed_ref, target_pos);
-}
-
-sw_err_t motor_move_time(int id, int speed_ref, uint32_t duration_ms)
-{
-    if (duration_ms == 0U)
-    {
-        return SW_ERR_PARAM;
-    }
-
-    return motor_run_timed_command(id, speed_ref, duration_ms);
-}
-
-sw_err_t motor_pause(int id)
-{
-    const motor_cfg_t      *cfg;
-    const hal_motor_ops_t *ops = hal_motor_get_ops();
-    motor_ctx_t           *ctx;
-    sw_err_t               ret;
-
-    pthread_mutex_lock(&s_mutex);
-    ret = motor_require_runtime_cfg_locked(id, &ctx, &cfg);
-    if (ret != SW_OK)
-    {
-        goto out;
-    }
-    if (!motor_is_move_state(ctx->state))
-    {
-        ret = SW_ERR_STATE;
-        goto out;
-    }
-
-    ctx->paused_from    = ctx->state;
-    ctx->pause_start_ms = time_util_get_ms();
-    ret = motor_apply_output_locked(id, cfg, ops, 0);
-    if (ret == SW_OK)
-    {
-        ctx->stop_timestamp_ms = ctx->pause_start_ms;
-        (void)motor_set_state_locked(id, cfg, MOTOR_STATE_PAUSE);
-    }
-out:
-    pthread_mutex_unlock(&s_mutex);
-    return ret;
-}
-
-sw_err_t motor_resume(int id)
-{
-    const motor_cfg_t      *cfg;
-    const hal_motor_ops_t *ops = hal_motor_get_ops();
-    motor_ctx_t           *ctx;
-    sw_err_t               ret;
-    uint32_t               now_ms;
-
-    pthread_mutex_lock(&s_mutex);
-    ret = motor_require_runtime_cfg_locked(id, &ctx, &cfg);
-    if (ret != SW_OK)
-    {
-        goto out;
-    }
-    if (ctx->state != MOTOR_STATE_PAUSE)
-    {
-        ret = SW_ERR_STATE;
-        goto out;
-    }
-
-    now_ms = time_util_get_ms();
-    ctx->paused_total_ms += time_elapsed_ms(ctx->pause_start_ms, now_ms);
-
-    ret = motor_apply_output_locked(id, cfg, ops, ctx->speed_ref);
-    if (ret == SW_OK)
-    {
-        (void)motor_set_state_locked(id, cfg, ctx->paused_from);
-        ctx->pause_start_ms = 0U;
-    }
-out:
-    pthread_mutex_unlock(&s_mutex);
-    return ret;
-}
-
 sw_err_t motor_stop(int id)
 {
     sw_err_t ret;
@@ -825,32 +656,6 @@ sw_err_t motor_fault_reset(int id)
         return SW_ERR_NOT_SUPPORT;
     }
     return ops->fault_reset(id);
-}
-
-sw_err_t motor_reset_fault(int id)
-{
-    const motor_cfg_t *cfg;
-    motor_ctx_t       *ctx;
-    sw_err_t           ret;
-
-    pthread_mutex_lock(&s_mutex);
-    ret = motor_require_runtime_cfg_locked(id, &ctx, &cfg);
-    if (ret != SW_OK)
-    {
-        goto out;
-    }
-
-    if (ctx->state == MOTOR_STATE_FAULT)
-    {
-        memset(ctx, 0, sizeof(*ctx));
-        ctx->state = MOTOR_STATE_FAULT;
-        (void)motor_set_state_locked(id, cfg, MOTOR_STATE_IDLE);
-        LOG_INFO("motor[%s]: fault reset", cfg->name);
-    }
-    ret = SW_OK;
-out:
-    pthread_mutex_unlock(&s_mutex);
-    return ret;
 }
 
 motor_state_t motor_get_state(int id)
@@ -1000,34 +805,13 @@ sw_err_t motor_apply_pending_start_locked(int id, int speed_ref,
 
     ctx->speed_ref          = ctx->pending_is_gear ? (int)ctx->pending_gear_ref : speed_ref;
     ctx->stored_dir         = (ctx->speed_ref > 0) ? 1 : ((ctx->speed_ref < 0) ? -1 : 0);
-    ctx->target_pos         = 0;
-    ctx->move_time_ms       = 0U;
     ctx->start_ms           = now_ms;
     ctx->stop_timestamp_ms  = 0U;
-    ctx->pause_start_ms     = 0U;
-    ctx->paused_total_ms    = 0U;
-    ctx->current_anomaly_ms = 0U;
-    ctx->state_mismatch_ms  = 0U;
-    ctx->load_current       = 0U;
+    motor_reset_run_monitor_locked(ctx);
     ctx->pending_is_gear    = false;
-    ctx->pending_gear_ref   = 0U;
+    ctx->pending_gear_ref   = 0;
 
     return motor_set_state_locked(id, cfg, target);
-}
-
-motor_state_t motor_get_state(int id)
-{
-    motor_state_t      state = MOTOR_STATE_FAULT;
-    const motor_cfg_t *cfg   = NULL;
-    motor_ctx_t       *ctx   = NULL;
-
-    pthread_mutex_lock(&s_mutex);
-    if (motor_require_runtime_cfg_locked(id, &ctx, &cfg) == SW_OK)
-    {
-        state = ctx->state;
-    }
-    pthread_mutex_unlock(&s_mutex);
-    return state;
 }
 
 bool motor_is_running(int id)

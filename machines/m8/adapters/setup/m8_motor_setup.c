@@ -12,6 +12,7 @@
 #include "common/vfd_types.h"
 #include "common/log.h"
 
+#include <stddef.h>
 #include <stdint.h>
 
 #ifdef BUILD_SIM

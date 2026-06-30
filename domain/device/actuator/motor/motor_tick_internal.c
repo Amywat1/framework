@@ -178,55 +178,6 @@ static bool motor_tick_is_limit_hit(const hal_motor_ops_t *ops, int id, int spee
     return (ops->at_rev_limit != NULL) && ops->at_rev_limit(id);
 }
 
-static bool motor_tick_handle_target_reached_locked(motor_tick_ctx_t  *tick,
-                                                    int                id,
-                                                    const motor_cfg_t *cfg,
-                                                    const motor_ctx_t *ctx)
-{
-    int32_t pos;
-    bool    reached;
-
-    if ((tick == NULL) || (cfg == NULL) || (ctx == NULL) ||
-        (ctx->state != MOTOR_STATE_MOVE_POS) || !cfg->has_encoder)
-    {
-        return false;
-    }
-
-    pos = ctx->encoder_pos;
-    reached = ((ctx->speed_ref > 0) && (pos >= ctx->target_pos)) ||
-              ((ctx->speed_ref < 0) && (pos <= ctx->target_pos));
-    if (!reached)
-    {
-        return false;
-    }
-
-    LOG_INFO("motor[%s]: position reached target=%d actual=%d",
-             cfg->name, (int)ctx->target_pos, (int)pos);
-    motor_record_done_event_locked(tick, id, SW_OK);
-    return true;
-}
-
-static bool motor_tick_handle_move_time_locked(motor_tick_ctx_t  *tick,
-                                               int                id,
-                                               const motor_cfg_t *cfg,
-                                               const motor_ctx_t *ctx,
-                                               uint32_t           elapsed_ms)
-{
-    (void)id;
-
-    if ((tick == NULL) || (cfg == NULL) || (ctx == NULL) ||
-        (ctx->state != MOTOR_STATE_MOVE_TIME) ||
-        (elapsed_ms < ctx->move_time_ms))
-    {
-        return false;
-    }
-
-    LOG_INFO("motor[%s]: move_time reached %u ms",
-             cfg->name, (unsigned)ctx->move_time_ms);
-    motor_record_done_event_locked(tick, id, SW_OK);
-    return true;
-}
-
 static bool motor_tick_handle_timeout_locked(motor_tick_ctx_t  *tick,
                                              int                id,
                                              const motor_cfg_t *cfg,
@@ -278,16 +229,6 @@ static bool motor_tick_collect_done_locked(motor_tick_ctx_t      *tick,
         {
             LOG_INFO("motor[%s]: limit reached", cfg->name);
             motor_record_done_event_locked(tick, id, SW_OK);
-            continue;
-        }
-
-        if (motor_tick_handle_target_reached_locked(tick, id, cfg, ctx))
-        {
-            continue;
-        }
-
-        if (motor_tick_handle_move_time_locked(tick, id, cfg, ctx, elapsed_ms))
-        {
             continue;
         }
 

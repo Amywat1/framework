@@ -10,6 +10,8 @@
 #include "domain/model/device_state.h"
 #include "common/log.h"
 
+#include <stddef.h>
+
 sw_err_t command_guard_check(const cmd_t *cmd)
 {
     device_context_t ctx;

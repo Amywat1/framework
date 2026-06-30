@@ -72,16 +72,12 @@ typedef struct
     motor_limit_mode_t   limit_mode;
     io_di_t              limit_io_cw;
     io_di_t              limit_io_ccw;
-    uint16_t             limit_pos_min;
-    uint16_t             limit_pos_max;
 
     uint32_t             timeout_ms;
 
     bool                     has_encoder;
     motor_encoder_backend_t  encoder_backend;
     io_di_t              encoder_io;
-    io_di_t              encoder_zero_io;
-    uint8_t              encoder_zero_confirm;
     uint8_t              encoder_err_threshold;
     uint16_t             encoder_err_check_ms;
     uint16_t             encoder_jump_threshold;
@@ -111,14 +107,10 @@ static const motor_cfg_t m8_motor_table[] = {
         .limit_mode      = MOTOR_LIMIT_NONE,
         .limit_io_cw     = MOTOR_DI_NONE,
         .limit_io_ccw    = MOTOR_DI_NONE,
-        .limit_pos_min   = 0U,
-        .limit_pos_max   = 0U,
         .timeout_ms      = MOTOR_TIMEOUT_FOREVER,
         .has_encoder            = false,
         .encoder_backend        = MOTOR_ENCODER_NONE,
         .encoder_io             = MOTOR_DI_NONE,
-        .encoder_zero_io        = MOTOR_DI_NONE,
-        .encoder_zero_confirm   = 0U,
         .encoder_err_threshold  = 0U,
         .encoder_err_check_ms   = 0U,
         .encoder_jump_threshold = 0U,
@@ -142,14 +134,10 @@ static const motor_cfg_t m8_motor_table[] = {
         .limit_mode      = MOTOR_LIMIT_SIGNAL,
         .limit_io_cw     = M8_IO_DI_GANTRY_FWD_LIMIT,
         .limit_io_ccw    = M8_IO_DI_GANTRY_REV_LIMIT,
-        .limit_pos_min   = 0U,
-        .limit_pos_max   = 0U,
         .timeout_ms      = 60000U,
         .has_encoder            = true,
         .encoder_backend        = MOTOR_ENCODER_COUNTER,
         .encoder_io             = M8_IO_DI_GANTRY_ENCODER_PULSE,
-        .encoder_zero_io        = MOTOR_DI_NONE,
-        .encoder_zero_confirm   = 0U,
         .encoder_err_threshold  = 5U,
         .encoder_err_check_ms   = 400U,
         .encoder_jump_threshold = 0U,

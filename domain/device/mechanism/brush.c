@@ -10,6 +10,8 @@
 #include "domain/device/mechanism/brush.h"
 #include "common/log.h"
 
+#include <stddef.h>
+
 static brush_actuator_ops_t s_ops;
 static bool                 s_initialized  = false;
 static brush_id_t           s_active_brush = BRUSH_ID_NONE;

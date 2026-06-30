@@ -19,6 +19,12 @@ typedef enum
     MOTOR_MON_FAULT_STATUS,
 } motor_monitor_fault_t;
 
+static bool motor_cfg_has_current_monitor(const motor_cfg_t *cfg)
+{
+    return (cfg != NULL) &&
+           ((cfg->current_high_threshold > 0U) || (cfg->current_low_threshold > 0U));
+}
+
 static motor_monitor_fault_t motor_apply_vfd_sample_locked(const motor_cfg_t   *cfg,
                                                            motor_ctx_t         *ctx,
                                                            const motor_monitor_job_t *job,
@@ -40,7 +46,7 @@ static motor_monitor_fault_t motor_apply_vfd_sample_locked(const motor_cfg_t   *
         return MOTOR_MON_FAULT_NONE;
     }
 
-    if (job->current_valid)
+    if (job->current_valid && motor_cfg_has_current_monitor(cfg))
     {
         ctx->load_current = job->current;
 
@@ -161,10 +167,16 @@ void motor_monitor_schedule_job_locked(motor_monitor_job_t jobs[MOTOR_MON_SRC_MA
     {
         jobs[source].used            = true;
         jobs[source].sample_motor_id = cfg->id;
+        jobs[source].need_current    = false;
         jobs[source].current_valid   = false;
         jobs[source].status_valid    = false;
         jobs[source].current         = 0U;
         jobs[source].status          = 0U;
+    }
+
+    if (motor_cfg_has_current_monitor(cfg))
+    {
+        jobs[source].need_current = true;
     }
 }
 
@@ -180,7 +192,7 @@ void motor_monitor_collect_samples(motor_monitor_job_t jobs[MOTOR_MON_SRC_MAX],
             continue;
         }
 
-        if (ops->read_current != NULL)
+        if (job->need_current && (ops->read_current != NULL))
         {
             job->current_valid =
                 (ops->read_current(job->sample_motor_id, &job->current) == SW_OK);

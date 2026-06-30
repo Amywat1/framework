@@ -12,6 +12,8 @@
 #include "ports/hal/hal_io_port.h"
 #include "common/log.h"
 
+#include <stddef.h>
+
 #define SENSOR_STABLE_COUNT_MAX  255U
 
 typedef struct

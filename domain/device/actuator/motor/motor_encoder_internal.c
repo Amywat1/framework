@@ -4,7 +4,7 @@
  * @author  HUWANGWEI
  * @date    2026-04-14
  *
- * @note    本文件只处理编码器计数、清零、零位确认和异常检测。
+ * @note    本文件只处理编码器计数、清零和异常检测。
  *          调用方负责决定是否已持有 s_mutex，并按接口注释传入上下文。
  */
 
@@ -18,13 +18,6 @@
 static bool motor_has_valid_encoder(const motor_cfg_t *cfg)
 {
     return (cfg != NULL) && cfg->has_encoder;
-}
-
-static bool motor_has_zero_sensor(const motor_cfg_t *cfg)
-{
-    return motor_has_valid_encoder(cfg) &&
-           (io_di_raw(cfg->encoder_zero_io) != IO_HANDLE_NULL) &&
-           (cfg->encoder_zero_confirm > 0U);
 }
 
 static void motor_clear_encoder_error_locked(int id, const motor_cfg_t *cfg, motor_ctx_t *ctx)
@@ -51,7 +44,6 @@ static void motor_encoder_begin_counting_locked(int id,
     if (!ctx->encoder_counting)
     {
         ctx->encoder_counting       = true;
-        ctx->zero_confirm_cnt       = 0U;
         ctx->encoder_no_change_cnt  = 0U;
         ctx->encoder_check_ms       = now_ms;
         ctx->encoder_check_snapshot = ctx->encoder_pos;
@@ -69,7 +61,6 @@ static void motor_encoder_end_counting_locked(int id,
     }
 
     ctx->encoder_counting       = false;
-    ctx->zero_confirm_cnt       = 0U;
     ctx->encoder_no_change_cnt  = 0U;
     ctx->encoder_check_snapshot = ctx->encoder_pos;
     motor_clear_encoder_error_locked(id, cfg, ctx);
@@ -123,7 +114,7 @@ static void encoder_apply_hw_clear_result_locked(int id,
 
     if (job->clear_ret != SW_OK)
     {
-        ctx->zero_clear_pending = true;
+        ctx->clear_retry_pending = true;
         LOG_WARN("motor[%s]: clear_hw_pulse failed ret=%d", cfg->name, (int)job->clear_ret);
         return;
     }
@@ -140,8 +131,7 @@ static void encoder_apply_hw_clear_result_locked(int id,
     }
 
     ctx->encoder_pos            = 0;
-    ctx->zero_clear_pending     = false;
-    ctx->zero_confirm_cnt       = 0U;
+    ctx->clear_retry_pending    = false;
     ctx->encoder_check_snapshot = 0;
     ctx->encoder_check_ms       = time_util_get_ms();
     ctx->encoder_no_change_cnt  = 0U;
@@ -160,45 +150,6 @@ static void encoder_handle_board_offline_locked(const motor_cfg_t *cfg,
 
     ctx->encoder_hw_last       = 0U;
     ctx->encoder_hw_last_valid = false;
-}
-
-static void encoder_check_zero_locked(int id,
-                                      const hal_motor_ops_t *ops,
-                                      const motor_cfg_t *cfg,
-                                      motor_ctx_t *ctx)
-{
-    bool at_zero;
-
-    if ((cfg == NULL) || (ctx == NULL) || !motor_has_zero_sensor(cfg))
-    {
-        return;
-    }
-
-    if (!ctx->encoder_counting)
-    {
-        ctx->zero_confirm_cnt = 0U;
-        return;
-    }
-
-    at_zero = (ops != NULL) && (ops->at_rev_limit != NULL) && ops->at_rev_limit(id);
-    if (at_zero)
-    {
-        if (ctx->zero_confirm_cnt < cfg->encoder_zero_confirm)
-        {
-            ctx->zero_confirm_cnt++;
-        }
-        if (ctx->zero_confirm_cnt == cfg->encoder_zero_confirm)
-        {
-            if (motor_needs_encoder_hw_io(cfg))
-            {
-                ctx->zero_clear_pending = true;
-            }
-        }
-    }
-    else
-    {
-        ctx->zero_confirm_cnt = 0U;
-    }
 }
 
 static void encoder_check_anomaly_locked(int id,
@@ -309,7 +260,7 @@ void motor_encoder_schedule_hw_job_locked(encoder_hw_job_t jobs[MOTOR_ID_MAX],
         return;
     }
 
-    if (ctx->zero_clear_pending)
+    if (ctx->clear_retry_pending)
     {
         jobs[id].need_clear = true;
         jobs[id].need_read  = false;
@@ -406,6 +357,8 @@ void motor_encoder_finalize_locked(int id,
                                    uint32_t now_ms,
                                    const encoder_hw_job_t *job)
 {
+    (void)ops;
+
     if ((cfg == NULL) || (ctx == NULL))
     {
         return;
@@ -428,6 +381,5 @@ void motor_encoder_finalize_locked(int id,
         }
     }
 
-    encoder_check_zero_locked(id, ops, cfg, ctx);
     encoder_check_anomaly_locked(id, cfg, ctx, now_ms);
 }

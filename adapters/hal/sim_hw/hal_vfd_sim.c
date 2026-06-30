@@ -9,6 +9,8 @@
 #include "machines/m8/config/m8_vfd_table.h"
 #include "common/log.h"
 
+#include <stddef.h>
+
 static hal_vfd_state_t s_state[2];
 
 static sw_err_t sim_vfd_init(void)

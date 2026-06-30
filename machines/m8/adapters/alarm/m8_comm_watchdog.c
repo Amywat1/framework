@@ -10,6 +10,7 @@
 #include "common/time_util.h"
 #include "common/log.h"
 #include <stdbool.h>
+#include <stddef.h>
 
 /* -------------------------------------------------------------------------
  * 编译期推导设备数量

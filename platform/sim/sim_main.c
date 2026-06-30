@@ -13,6 +13,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <signal.h>
+#include <stdbool.h>
 #include <unistd.h>
 
 /* 声明控制台线程入口（sim_console.c 提供）*/
