@@ -26,6 +26,11 @@ typedef struct
     int                 done_ids[MOTOR_ID_MAX];
     sw_err_t            done_results[MOTOR_ID_MAX];
     int                 done_count;
+    /* PENDING 延迟到期的电机（在锁外调 pre_start 回调，再在锁内应用启动）*/
+    int                 pending_ids[MOTOR_ID_MAX];
+    int                 pending_speeds[MOTOR_ID_MAX];
+    motor_state_t       pending_targets[MOTOR_ID_MAX];
+    int                 pending_count;
 } motor_tick_ctx_t;
 
 static void motor_record_done_event_locked(motor_tick_ctx_t *tick, int id, sw_err_t result)
@@ -51,6 +56,37 @@ static void motor_tick_reset(motor_tick_ctx_t *tick)
     }
 
     memset(tick, 0, sizeof(*tick));
+}
+
+static void motor_tick_identify_pending_locked(motor_tick_ctx_t *tick, uint32_t now_ms)
+{
+    for (int id = 0; id < MOTOR_ID_MAX; id++)
+    {
+        const motor_cfg_t *cfg = motor_get_cfg_locked(id);
+        const motor_ctx_t *ctx = &s_ctx[id];
+        bool               ready;
+
+        if ((cfg == NULL) || (ctx->state != MOTOR_STATE_PENDING))
+        {
+            continue;
+        }
+
+        /* stop_timestamp_ms == 0 表示从未运行过，延迟视为已满足 */
+        ready = (ctx->stop_timestamp_ms == 0U) ||
+                (time_elapsed_ms(ctx->stop_timestamp_ms, now_ms) >= cfg->post_stop_delay_ms);
+        if (!ready)
+        {
+            continue;
+        }
+
+        if (tick->pending_count < MOTOR_ID_MAX)
+        {
+            tick->pending_ids[tick->pending_count]     = id;
+            tick->pending_speeds[tick->pending_count]  = ctx->pending_speed_ref;
+            tick->pending_targets[tick->pending_count] = ctx->pending_target_state;
+            tick->pending_count++;
+        }
+    }
 }
 
 static bool motor_tick_prepare_locked(motor_tick_ctx_t      *tick,
@@ -79,6 +115,7 @@ static bool motor_tick_prepare_locked(motor_tick_ctx_t      *tick,
         motor_monitor_schedule_job_locked(tick->monitor_jobs, cfg, ctx);
     }
 
+    motor_tick_identify_pending_locked(tick, now_ms);
     return true;
 }
 
@@ -263,6 +300,57 @@ static bool motor_tick_collect_done_locked(motor_tick_ctx_t      *tick,
     return true;
 }
 
+/* 在锁外调用 pre_start 回调（避免回调内部持锁导致死锁）*/
+static void motor_tick_call_pre_start_cbs(const motor_tick_ctx_t *tick)
+{
+    if (tick == NULL)
+    {
+        return;
+    }
+
+    for (int i = 0; i < tick->pending_count; i++)
+    {
+        int id = tick->pending_ids[i];
+
+        if ((id >= 0) && (id < MOTOR_ID_MAX) && (s_pre_start_fns[id] != NULL))
+        {
+            (void)s_pre_start_fns[id](id,
+                                      tick->pending_speeds[i],
+                                      s_pre_start_ctxs[id]);
+        }
+    }
+}
+
+/* 在锁内应用 PENDING → HOLD/MOVE 启动（回调已在锁外完成）*/
+static void motor_tick_apply_pending_starts_locked(const motor_tick_ctx_t *tick,
+                                                    uint32_t                now_ms)
+{
+    if (tick == NULL)
+    {
+        return;
+    }
+
+    for (int i = 0; i < tick->pending_count; i++)
+    {
+        int id = tick->pending_ids[i];
+
+        if ((id < 0) || (id >= MOTOR_ID_MAX))
+        {
+            continue;
+        }
+        /* 重新检查：锁外期间可能已被 motor_stop() 取消 */
+        if (s_ctx[id].state != MOTOR_STATE_PENDING)
+        {
+            continue;
+        }
+
+        (void)motor_apply_pending_start_locked(id,
+                                               tick->pending_speeds[i],
+                                               tick->pending_targets[i],
+                                               now_ms);
+    }
+}
+
 static void motor_tick_notify_done(const motor_tick_ctx_t *tick)
 {
     if (tick == NULL)
@@ -276,6 +364,23 @@ static void motor_tick_notify_done(const motor_tick_ctx_t *tick)
     }
 }
 
+/* motor_tick_loop 每 10ms 执行一次，分两个加锁区：
+ *
+ *  ┌─ 加锁 ──────────────────────────────────────────────────────────────────┐
+ *  │  prepare：读编码器软状态 / 调度 IO 任务 / 识别 PENDING 已到期的电机      │
+ *  └─ 解锁 ──────────────────────────────────────────────────────────────────┘
+ *       ↓（无锁，耗时 IO 操作）
+ *  执行编码器 HW 读写 / VFD 电流与状态采样 / pre_start 回调（接触器切换等）
+ *       ↓
+ *  ┌─ 加锁 ──────────────────────────────────────────────────────────────────┐
+ *  │  写回编码器结果 → 应用 VFD 故障 → 启动 PENDING 电机 → 收集完成事件      │
+ *  └─ 解锁 ──────────────────────────────────────────────────────────────────┘
+ *       ↓（无锁）
+ *  触发完成回调（motor_done_cb_t）
+ *
+ *  两次加锁的原因：HW IO（编码器 / VFD 读写、pre_start 回调）必须在无锁下执行，
+ *  避免阻塞其他调用方；状态变更（写回、故障、启动、完成）则必须在锁内保证原子性。
+ */
 static void *motor_tick_loop(void *arg)
 {
     (void)arg;
@@ -284,10 +389,11 @@ static void *motor_tick_loop(void *arg)
     {
         motor_tick_ctx_t       tick;
         uint32_t               now_ms = time_util_get_ms();
-        const hal_motor_ops_t *ops = hal_motor_get_ops();
+        const hal_motor_ops_t *ops    = hal_motor_get_ops();
 
         motor_tick_reset(&tick);
 
+        /* ── 加锁区一：读状态、调度任务、识别 PENDING ── */
         pthread_mutex_lock(&s_mutex);
         if (!motor_tick_prepare_locked(&tick, ops, now_ms))
         {
@@ -297,19 +403,21 @@ static void *motor_tick_loop(void *arg)
         }
         pthread_mutex_unlock(&s_mutex);
 
+        /* ── 无锁区：执行 IO 操作（可阻塞，不持锁）── */
         motor_tick_execute_encoder_jobs(&tick, ops);
         motor_monitor_collect_samples(tick.monitor_jobs, ops);
+        motor_tick_call_pre_start_cbs(&tick);
 
+        /* ── 加锁区二：写回结果、应用故障、启动 PENDING、收集完成 ── */
         pthread_mutex_lock(&s_mutex);
-        if (!motor_tick_finalize_encoder_locked(&tick, ops) ||
-            !s_initialized)
+        if (!motor_tick_finalize_encoder_locked(&tick, ops) || !s_initialized)
         {
             pthread_mutex_unlock(&s_mutex);
             usleep((unsigned long)MOTOR_TICK_PERIOD_MS * 1000UL);
             continue;
         }
-
         motor_monitor_apply_faults_locked(tick.monitor_jobs, ops);
+        motor_tick_apply_pending_starts_locked(&tick, now_ms);
         if (!motor_tick_collect_done_locked(&tick, ops))
         {
             pthread_mutex_unlock(&s_mutex);
@@ -318,6 +426,7 @@ static void *motor_tick_loop(void *arg)
         }
         pthread_mutex_unlock(&s_mutex);
 
+        /* ── 无锁区：触发完成回调 ── */
         motor_tick_notify_done(&tick);
         usleep((unsigned long)MOTOR_TICK_PERIOD_MS * 1000UL);
     }

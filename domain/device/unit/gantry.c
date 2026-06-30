@@ -167,3 +167,18 @@ void gantry_reset_pos(void)
         LOG_WARN("gantry_reset_pos: clear encoder failed");
     }
 }
+
+bool gantry_is_running(void)
+{
+    return motor_is_running(MOTOR_GANTRY);
+}
+
+bool gantry_is_fault(void)
+{
+    return motor_get_state(MOTOR_GANTRY) == MOTOR_STATE_FAULT;
+}
+
+uint16_t gantry_get_current(void)
+{
+    return motor_get_current(MOTOR_GANTRY);
+}

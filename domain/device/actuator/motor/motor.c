@@ -21,6 +21,9 @@ bool               s_initialized = false;
 static motor_done_cb_t s_done_cbs[MOTOR_ID_MAX];
 static void           *s_done_cb_ctxs[MOTOR_ID_MAX];
 
+motor_pre_start_fn s_pre_start_fns[MOTOR_ID_MAX];
+void              *s_pre_start_ctxs[MOTOR_ID_MAX];
+
 /* =========================================================================
  * 基础工具函数（仅做查询和轻量判断）
  * ========================================================================= */
@@ -28,14 +31,23 @@ static void           *s_done_cb_ctxs[MOTOR_ID_MAX];
 static const bool s_transition[MOTOR_STATE_MAX][MOTOR_STATE_MAX] = {
     [MOTOR_STATE_IDLE] = {
         [MOTOR_STATE_IDLE]      = true,
+        [MOTOR_STATE_PENDING]   = true,
         [MOTOR_STATE_HOLD]      = true,
         [MOTOR_STATE_MOVE]      = true,
         [MOTOR_STATE_MOVE_POS]  = true,
         [MOTOR_STATE_MOVE_TIME] = true,
         [MOTOR_STATE_FAULT]     = true,
     },
+    [MOTOR_STATE_PENDING] = {
+        [MOTOR_STATE_IDLE]      = true,  /* stop() 取消等待 */
+        [MOTOR_STATE_PENDING]   = true,  /* 更新 pending 参数 */
+        [MOTOR_STATE_HOLD]      = true,  /* tick 延迟到期后启动 */
+        [MOTOR_STATE_MOVE]      = true,  /* tick 延迟到期后启动 */
+        [MOTOR_STATE_FAULT]     = true,
+    },
     [MOTOR_STATE_HOLD] = {
         [MOTOR_STATE_IDLE]      = true,
+        [MOTOR_STATE_PENDING]   = true,  /* 运行中切换（停 VFD → 等延迟 → pre_start → 重启）*/
         [MOTOR_STATE_HOLD]      = true,
         [MOTOR_STATE_FAULT]     = true,
     },
@@ -430,6 +442,55 @@ static bool motor_should_publish_done_event(const motor_cfg_t *cfg)
     return (cfg != NULL) && (cfg->action_type == MOTOR_ACTION_MOVE);
 }
 
+/* 若该电机配置了 post_stop_delay 或注册了 pre_start 回调，则进入 PENDING 状态，
+ * 由 motor_tick 在延迟满足后调 pre_start 回调并真正启动；否则直接启动。
+ *
+ * 状态迁移路径：
+ *   无需等待              → motor_start_locked()（直接 IDLE/HOLD → HOLD/MOVE）
+ *   RUNNING + 需等待      → 清零 VFD 输出，记录 stop_timestamp_ms，→ PENDING
+ *   已在 PENDING          → 仅更新目标参数（保留原计时，不重置延迟）
+ *   IDLE   + 需等待/回调  → → PENDING（stop_timestamp_ms==0 时 tick 下拍立即触发）
+ */
+static sw_err_t motor_start_or_pend_locked(int id, motor_state_t target, int speed_ref)
+{
+    const motor_cfg_t     *cfg = motor_get_cfg_locked(id);
+    const hal_motor_ops_t *ops = hal_motor_get_ops();
+    motor_ctx_t           *ctx;
+    uint32_t               now_ms;
+
+    if ((cfg == NULL) || !s_initialized)
+    {
+        return SW_ERR_NOT_INIT;
+    }
+    ctx = &s_ctx[id];
+
+    if ((cfg->post_stop_delay_ms == 0U) && (s_pre_start_fns[id] == NULL))
+    {
+        return motor_start_locked(id, target, speed_ref, 0, 0U);
+    }
+
+    now_ms = time_util_get_ms();
+
+    if (motor_is_running_state(ctx->state))
+    {
+        /* 清零 VFD 输出；状态仍为 HOLD/MOVE，下方统一迁移至 PENDING */
+        (void)motor_apply_output_locked(id, cfg, ops, 0);
+        ctx->stop_timestamp_ms = now_ms;
+    }
+
+    if (ctx->state == MOTOR_STATE_PENDING)
+    {
+        /* 已排队等待：更新目标参数，不重置延迟计时 */
+        ctx->pending_speed_ref    = speed_ref;
+        ctx->pending_target_state = target;
+        return SW_OK;
+    }
+
+    ctx->pending_speed_ref    = speed_ref;
+    ctx->pending_target_state = target;
+    return motor_set_state_locked(id, cfg, MOTOR_STATE_PENDING);
+}
+
 static sw_err_t motor_run_hold_or_move_command(int id,
                                                motor_action_type_t action_type,
                                                motor_state_t target_state,
@@ -451,7 +512,7 @@ static sw_err_t motor_run_hold_or_move_command(int id,
     }
     else
     {
-        ret = motor_start_locked(id, target_state, speed_ref, 0, 0U);
+        ret = motor_start_or_pend_locked(id, target_state, speed_ref);
     }
 
     pthread_mutex_unlock(&s_mutex);
@@ -809,4 +870,102 @@ sw_err_t motor_set_done_cb(int motor_id, motor_done_cb_t cb, void *ctx)
     s_done_cbs[motor_id]     = cb;
     s_done_cb_ctxs[motor_id] = ctx;
     return SW_OK;
+}
+
+sw_err_t motor_set_pre_start_cb(int motor_id, motor_pre_start_fn cb, void *ctx)
+{
+    if ((motor_id < 0) || (motor_id >= MOTOR_ID_MAX))
+    {
+        return SW_ERR_PARAM;
+    }
+
+    s_pre_start_fns[motor_id]  = cb;
+    s_pre_start_ctxs[motor_id] = ctx;
+    return SW_OK;
+}
+
+sw_err_t motor_apply_pending_start_locked(int id, int speed_ref,
+                                           motor_state_t target,
+                                           uint32_t now_ms)
+{
+    const motor_cfg_t     *cfg = motor_get_cfg_locked(id);
+    const hal_motor_ops_t *ops = hal_motor_get_ops();
+    motor_ctx_t           *ctx;
+    sw_err_t               ret;
+
+    if ((cfg == NULL) || !s_initialized)
+    {
+        return SW_ERR_NOT_INIT;
+    }
+    ctx = &s_ctx[id];
+
+    if (ctx->state != MOTOR_STATE_PENDING)
+    {
+        return SW_ERR_STATE;
+    }
+
+    ret = motor_apply_output_locked(id, cfg, ops, speed_ref);
+    if (ret != SW_OK)
+    {
+        return ret;
+    }
+
+    ctx->speed_ref          = speed_ref;
+    ctx->stored_dir         = (speed_ref > 0) ? 1 : ((speed_ref < 0) ? -1 : 0);
+    ctx->target_pos         = 0;
+    ctx->move_time_ms       = 0U;
+    ctx->start_ms           = now_ms;
+    ctx->stop_timestamp_ms  = 0U;
+    ctx->pause_start_ms     = 0U;
+    ctx->paused_total_ms    = 0U;
+    ctx->current_anomaly_ms = 0U;
+    ctx->state_mismatch_ms  = 0U;
+    ctx->load_current       = 0U;
+
+    return motor_set_state_locked(id, cfg, target);
+}
+
+motor_state_t motor_get_state(int id)
+{
+    motor_state_t      state = MOTOR_STATE_FAULT;
+    const motor_cfg_t *cfg   = NULL;
+    motor_ctx_t       *ctx   = NULL;
+
+    pthread_mutex_lock(&s_mutex);
+    if (motor_require_runtime_cfg_locked(id, &ctx, &cfg) == SW_OK)
+    {
+        state = ctx->state;
+    }
+    pthread_mutex_unlock(&s_mutex);
+    return state;
+}
+
+bool motor_is_running(int id)
+{
+    bool               running = false;
+    const motor_cfg_t *cfg     = NULL;
+    motor_ctx_t       *ctx     = NULL;
+
+    pthread_mutex_lock(&s_mutex);
+    if (motor_require_runtime_cfg_locked(id, &ctx, &cfg) == SW_OK)
+    {
+        running = motor_is_running_state(ctx->state);
+    }
+    pthread_mutex_unlock(&s_mutex);
+    return running;
+}
+
+uint16_t motor_get_current(int id)
+{
+    uint16_t           current = 0U;
+    const motor_cfg_t *cfg     = NULL;
+    motor_ctx_t       *ctx     = NULL;
+
+    pthread_mutex_lock(&s_mutex);
+    if (motor_require_runtime_cfg_locked(id, &ctx, &cfg) == SW_OK)
+    {
+        current = ctx->load_current;
+    }
+    pthread_mutex_unlock(&s_mutex);
+    return current;
 }

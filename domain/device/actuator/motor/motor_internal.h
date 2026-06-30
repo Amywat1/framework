@@ -25,6 +25,7 @@
 
 typedef struct
 {
+    /* ── 运行状态 ────────────────────────────────── */
     motor_state_t state;
     motor_state_t paused_from;
     int           speed_ref;
@@ -33,10 +34,11 @@ typedef struct
     int32_t       target_pos;
     uint32_t      move_time_ms;
     uint32_t      start_ms;
-    uint32_t      stop_timestamp_ms;
+    uint32_t      stop_timestamp_ms;  /* motor_stop_locked 写入；0 表示从未停过 */
     uint32_t      pause_start_ms;
     uint32_t      paused_total_ms;
 
+    /* ── 编码器 ───────────────────────────────────── */
     int32_t       encoder_pos;
     uint32_t      encoder_hw_last;
     bool          encoder_hw_last_valid;
@@ -50,9 +52,16 @@ typedef struct
     uint8_t       encoder_no_change_cnt;
     bool          encoder_err_reported;
 
+    /* ── VFD 监测 ─────────────────────────────────── */
     uint16_t      load_current;
     uint32_t      current_anomaly_ms;
     uint32_t      state_mismatch_ms;
+
+    /* ── PENDING（延迟启动排队）────────────────────
+     *  motor_start_or_pend_locked 写入；
+     *  tick 在 stop_timestamp_ms + post_stop_delay_ms 到期后读取并真正启动 */
+    int           pending_speed_ref;
+    motor_state_t pending_target_state;
 } motor_ctx_t;
 
 typedef enum
@@ -89,6 +98,10 @@ extern pthread_mutex_t    s_mutex;
 extern motor_ctx_t        s_ctx[MOTOR_ID_MAX];
 extern bool               s_initialized;
 
+/* pre_start 回调注册表（motor.c 中定义，motor_tick 读取）*/
+extern motor_pre_start_fn s_pre_start_fns[MOTOR_ID_MAX];
+extern void              *s_pre_start_ctxs[MOTOR_ID_MAX];
+
 const motor_cfg_t *motor_get_cfg_locked(int id);
 bool               motor_is_move_state(motor_state_t state);
 bool               motor_is_running_state(motor_state_t state);
@@ -102,6 +115,17 @@ void               motor_enter_fault_locked(int id,
 bool               motor_finish_locked(int id, sw_err_t result);
 /* 在锁外调用，触发已注册的完成回调。 */
 void               motor_notify_done(int id, sw_err_t result);
+
+/**
+ * @brief  从 PENDING 状态真正启动电机（tick 在 pre_start 回调之后调用，持有 s_mutex）
+ * @param  id        电机 ID
+ * @param  speed_ref 目标速度
+ * @param  target    目标状态（MOTOR_STATE_HOLD 或 MOTOR_STATE_MOVE）
+ * @param  now_ms    当前时间戳
+ */
+sw_err_t           motor_apply_pending_start_locked(int id, int speed_ref,
+                                                    motor_state_t target,
+                                                    uint32_t now_ms);
 
 void               motor_encoder_update_locked(int id,
                                                const hal_motor_ops_t *ops,

@@ -90,6 +90,10 @@ typedef struct
     uint16_t             current_low_threshold;
     uint16_t             current_check_delay_ms;
     uint16_t             current_confirm_ms;
+
+    /** 停止后再次启动前的最短等待时间（ms）；0 = 无延迟。
+     *  用于共享 VFD + 接触器方案：VFD 完全停止前不得切换接触器。 */
+    uint32_t             post_stop_delay_ms;
 } motor_cfg_t;
 
 static const motor_cfg_t m8_motor_table[] = {
@@ -122,6 +126,7 @@ static const motor_cfg_t m8_motor_table[] = {
         .current_low_threshold  = 0U,
         .current_check_delay_ms = 0U,
         .current_confirm_ms     = 0U,
+        .post_stop_delay_ms     = 200U, /* VFD 停止后等待接触器切换 */
     },
     {
         .id              = MOTOR_GANTRY,
@@ -152,6 +157,7 @@ static const motor_cfg_t m8_motor_table[] = {
         .current_low_threshold  = 0U,
         .current_check_delay_ms = 0U,
         .current_confirm_ms     = 0U,
+        .post_stop_delay_ms     = 0U,
     },
 };
 

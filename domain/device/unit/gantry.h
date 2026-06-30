@@ -76,6 +76,21 @@ int32_t gantry_get_pos(void);
  */
 void gantry_reset_pos(void);
 
+/**
+ * @brief  查询龙门是否正在运动
+ */
+bool gantry_is_running(void);
+
+/**
+ * @brief  查询龙门 VFD 是否处于故障态
+ */
+bool gantry_is_fault(void);
+
+/**
+ * @brief  获取龙门 VFD 负载电流（motor_tick 周期采样，单位 0.1A；未运行时返回 0）
+ */
+uint16_t gantry_get_current(void);
+
 #ifdef __cplusplus
 }
 #endif
