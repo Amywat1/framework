@@ -88,33 +88,25 @@ static hal_vfd_state_t sim_get_state(hal_vfd_id_t id)
     return s_state[id];
 }
 
-static sw_err_t sim_get_fault_code(hal_vfd_id_t id, uint16_t *p_code)
+static sw_err_t sim_read(hal_vfd_id_t id, hal_vfd_reg_t reg, uint16_t *p_val)
 {
-    if (!sim_id_valid(id) || (p_code == NULL))
+    if (!sim_id_valid(id) || (p_val == NULL))
     {
         return SW_ERR_PARAM;
     }
-    *p_code = 0U;
+    (void)reg;
+    *p_val = 0U;
     return SW_OK;
 }
 
-static sw_err_t sim_read_current(hal_vfd_id_t id, uint16_t *p_current)
+static sw_err_t sim_get_cached(hal_vfd_id_t id, hal_vfd_reg_t reg, uint16_t *p_val)
 {
-    if (!sim_id_valid(id) || (p_current == NULL))
+    if (!sim_id_valid(id) || (p_val == NULL))
     {
         return SW_ERR_PARAM;
     }
-    *p_current = 0U;
-    return SW_OK;
-}
-
-static sw_err_t sim_read_status(hal_vfd_id_t id, uint16_t *p_status)
-{
-    if (!sim_id_valid(id) || (p_status == NULL))
-    {
-        return SW_ERR_PARAM;
-    }
-    *p_status = 0U;
+    (void)reg;
+    *p_val = 0U;
     return SW_OK;
 }
 
@@ -131,9 +123,8 @@ static const hal_vfd_ops_t s_ops = {
     .stop               = sim_stop,
     .fault_reset        = sim_fault_reset,
     .get_state          = sim_get_state,
-    .get_fault_code     = sim_get_fault_code,
-    .read_current       = sim_read_current,
-    .read_status        = sim_read_status,
+    .read               = sim_read,
+    .get_cached         = sim_get_cached,
     .register_event_cb  = sim_register_event_cb,
 };
 

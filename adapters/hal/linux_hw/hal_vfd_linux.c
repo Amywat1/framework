@@ -103,7 +103,7 @@ sw_err_t hal_vfd_linux_instance_set_freq(hal_vfd_id_t id, uint16_t freq_hz)
     {
         return SW_ERR_NOT_INIT;
     }
-    return drv_vfd_set_freq(vfd, freq_hz);
+    return drv_vfd_write(vfd, DRV_VFD_REG_FREQ, freq_hz);
 }
 
 void hal_vfd_linux_instance_register_event_cb(hal_vfd_id_t id, void (*cb)(int event_code))
@@ -154,7 +154,7 @@ static sw_err_t vfd_set_freq(hal_vfd_id_t id, uint16_t freq_hz)
     {
         return SW_ERR_NOT_INIT;
     }
-    return drv_vfd_set_freq(vfd, freq_hz);
+    return drv_vfd_write(vfd, DRV_VFD_REG_FREQ, freq_hz);
 }
 
 static sw_err_t vfd_stop(hal_vfd_id_t id)
@@ -190,41 +190,27 @@ static hal_vfd_state_t vfd_get_state(hal_vfd_id_t id)
     return drv_vfd_get_state(vfd);
 }
 
-/* 返回 monitor worker 维护的缓存值，无 Modbus IO，不阻塞调用方 */
-static sw_err_t vfd_get_fault_code(hal_vfd_id_t id, uint16_t *p_code)
+static sw_err_t vfd_read(hal_vfd_id_t id, hal_vfd_reg_t reg, uint16_t *p_val)
 {
     drv_vfd_t *vfd = vfd_by_id(id);
 
-    if ((vfd == NULL) || (p_code == NULL))
+    if ((vfd == NULL) || (p_val == NULL))
     {
         return SW_ERR_NOT_INIT;
     }
-    *p_code = drv_vfd_get_cached_fault_code(vfd);
-    return SW_OK;
+    return drv_vfd_read(vfd, (drv_vfd_reg_t)reg, p_val);
 }
 
-/* 返回 monitor worker 维护的缓存值，无 Modbus IO，不阻塞调用方 */
-static sw_err_t vfd_read_current(hal_vfd_id_t id, uint16_t *p_current)
+static sw_err_t vfd_get_cached(hal_vfd_id_t id, hal_vfd_reg_t reg, uint16_t *p_val)
 {
     drv_vfd_t *vfd = vfd_by_id(id);
 
-    if ((vfd == NULL) || (p_current == NULL))
+    if ((vfd == NULL) || (p_val == NULL))
     {
         return SW_ERR_NOT_INIT;
     }
-    *p_current = drv_vfd_get_cached_current(vfd);
+    *p_val = drv_vfd_get_cached(vfd, (drv_vfd_reg_t)reg);
     return SW_OK;
-}
-
-static sw_err_t vfd_read_status(hal_vfd_id_t id, uint16_t *p_status)
-{
-    drv_vfd_t *vfd = vfd_by_id(id);
-
-    if (vfd == NULL)
-    {
-        return SW_ERR_NOT_INIT;
-    }
-    return drv_vfd_read_status(vfd, p_status);
 }
 
 static void vfd_register_event_cb(hal_vfd_id_t id, void (*cb)(int event_code))
@@ -239,9 +225,8 @@ static const hal_vfd_ops_t s_ops = {
     .stop               = vfd_stop,
     .fault_reset        = vfd_fault_reset,
     .get_state          = vfd_get_state,
-    .get_fault_code     = vfd_get_fault_code,
-    .read_current       = vfd_read_current,
-    .read_status        = vfd_read_status,
+    .read               = vfd_read,
+    .get_cached         = vfd_get_cached,
     .register_event_cb  = vfd_register_event_cb,
 };
 

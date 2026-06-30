@@ -189,12 +189,12 @@ static sw_err_t sim_motor_read_current(int id, uint16_t *p_current)
     {
         return SW_ERR_PARAM;
     }
-    if ((vfd == NULL) || (vfd->read_current == NULL))
+    if ((vfd == NULL) || (vfd->get_cached == NULL))
     {
         return SW_ERR_NOT_INIT;
     }
 
-    return vfd->read_current((hal_vfd_id_t)slot->cfg.vfd_backend_id, p_current);
+    return vfd->get_cached((hal_vfd_id_t)slot->cfg.vfd_backend_id, HAL_VFD_REG_CURRENT, p_current);
 }
 
 static sw_err_t sim_motor_read_status(int id, uint16_t *p_status)
@@ -208,12 +208,12 @@ static sw_err_t sim_motor_read_status(int id, uint16_t *p_status)
     {
         return SW_ERR_PARAM;
     }
-    if ((vfd == NULL) || (vfd->read_status == NULL))
+    if ((vfd == NULL) || (vfd->read == NULL))
     {
         return SW_ERR_NOT_INIT;
     }
 
-    return vfd->read_status((hal_vfd_id_t)slot->cfg.vfd_backend_id, p_status);
+    return vfd->read((hal_vfd_id_t)slot->cfg.vfd_backend_id, HAL_VFD_REG_STATE, p_status);
 }
 
 static sw_err_t sim_motor_fault_reset(int id)

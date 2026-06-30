@@ -38,9 +38,10 @@ typedef struct
 
     hal_vfd_state_t (*get_state)(hal_vfd_id_t id);
 
-    sw_err_t (*get_fault_code)(hal_vfd_id_t id, uint16_t *p_code);
-    sw_err_t (*read_current)(hal_vfd_id_t id, uint16_t *p_current);
-    sw_err_t (*read_status)(hal_vfd_id_t id, uint16_t *p_status);
+    /** @brief  实时读寄存器（发起 Modbus IO），支持 STATE / FAULT_CODE / CURRENT */
+    sw_err_t (*read)(hal_vfd_id_t id, hal_vfd_reg_t reg, uint16_t *p_val);
+    /** @brief  读缓存值（无 Modbus IO），支持 FAULT_CODE / CURRENT */
+    sw_err_t (*get_cached)(hal_vfd_id_t id, hal_vfd_reg_t reg, uint16_t *p_val);
 
     void (*register_event_cb)(hal_vfd_id_t id, void (*cb)(int event_code));
 } hal_vfd_ops_t;

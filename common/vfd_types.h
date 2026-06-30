@@ -19,6 +19,18 @@ extern "C" {
  */
 typedef int8_t hal_vfd_gear_t;
 
+/**
+ * VFD 寄存器操作枚举（供 hal_vfd_ops_t read / get_cached 使用）
+ * 各操作支持的 reg 值见各函数注释
+ */
+typedef enum {
+    HAL_VFD_REG_STATE,        /* VFD 运行状态字（只读）*/
+    HAL_VFD_REG_FAULT_CODE,   /* 故障码（只读，monitor 周期缓存）*/
+    HAL_VFD_REG_CURRENT,      /* 输出电流，0.01A（只读，monitor 周期缓存）*/
+    HAL_VFD_REG_FREQ,         /* 目标频率 Hz（只写；须厂商定义 VFD_REG_FREQ_SET）*/
+    HAL_VFD_REG_CLEAR_FAULT,  /* 清除故障（只写；须厂商定义 VFD_REG_CLEAR_FAULT）*/
+} hal_vfd_reg_t;
+
 /** VFD 运行状态 */
 typedef enum
 {

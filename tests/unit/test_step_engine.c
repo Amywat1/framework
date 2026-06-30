@@ -62,15 +62,23 @@ static const hal_sensor_ops_t s_mock_sensor_ops = {
     .is_active = mock_sensor_is_active,
 };
 
-static sw_err_t mock_vfd_get_fault_code(hal_vfd_id_t id, uint16_t *p_code)
+static sw_err_t mock_vfd_read(hal_vfd_id_t id, hal_vfd_reg_t reg, uint16_t *p_val)
 {
-    (void)id;
-    if (p_code != NULL) { *p_code = 0U; }
+    (void)id; (void)reg;
+    if (p_val != NULL) { *p_val = 0U; }
+    return SW_OK;
+}
+
+static sw_err_t mock_vfd_get_cached(hal_vfd_id_t id, hal_vfd_reg_t reg, uint16_t *p_val)
+{
+    (void)id; (void)reg;
+    if (p_val != NULL) { *p_val = 0U; }
     return SW_OK;
 }
 
 static const hal_vfd_ops_t s_mock_vfd_ops = {
-    .get_fault_code = mock_vfd_get_fault_code,
+    .read       = mock_vfd_read,
+    .get_cached = mock_vfd_get_cached,
 };
 
 static sw_err_t mock_motor_set_output(int id, int speed_ref)         { (void)id; (void)speed_ref; return SW_OK; }
