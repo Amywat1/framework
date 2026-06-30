@@ -142,7 +142,7 @@ static sw_err_t sim_motor_read_status(int id, uint16_t *p_status)
     return slot->cfg.read_status(p_status, slot->cfg.drv_ctx);
 }
 
-static sw_err_t sim_motor_set_gear(int id, uint8_t gear)
+static sw_err_t sim_motor_set_gear(int id, int8_t gear)
 {
     motor_sim_slot_t *slot = slot_by_id(id);
 

@@ -113,6 +113,24 @@ static const brush_actuator_ops_t s_mock_brush_ops = {
     .stop       = mock_brush_stop,
 };
 
+static sw_err_t mock_gantry_move_freq(int s)         { return motor_move(MOTOR_GANTRY, s); }
+static sw_err_t mock_gantry_stop(void)               { return motor_stop(MOTOR_GANTRY); }
+static sw_err_t mock_gantry_set_done_cb(gantry_done_fn cb) { (void)cb; return SW_OK; }
+static int32_t  mock_gantry_get_pos(void)            { return motor_get_pos(MOTOR_GANTRY); }
+static sw_err_t mock_gantry_clear_pos(void)          { return motor_clear_encoder(MOTOR_GANTRY); }
+static bool     mock_gantry_at_fwd_limit(void)       { return s_mock_fwd_limit; }
+static bool     mock_gantry_at_rev_limit(void)       { return s_mock_rev_limit; }
+
+static const gantry_actuator_ops_t s_mock_gantry_ops = {
+    .move_freq    = mock_gantry_move_freq,
+    .stop         = mock_gantry_stop,
+    .set_done_cb  = mock_gantry_set_done_cb,
+    .get_pos      = mock_gantry_get_pos,
+    .clear_pos    = mock_gantry_clear_pos,
+    .at_fwd_limit = mock_gantry_at_fwd_limit,
+    .at_rev_limit = mock_gantry_at_rev_limit,
+};
+
 static void reset_mock_state(void)
 {
     s_mock_fwd_limit   = false;
@@ -211,7 +229,7 @@ int main(void)
     (void)event_bus_init();
     (void)motor_init();
     (void)brush_init(&s_mock_brush_ops);
-    (void)gantry_init();
+    (void)gantry_init(&s_mock_gantry_ops);
     (void)water_init(
         &(water_cfg_t){ .valve_open_delay_ms = 0U, .pump_stop_delay_ms = 0U },
         &(water_actuator_ops_t){ .slot_set = mock_water_slot_set });

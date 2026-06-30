@@ -301,7 +301,7 @@ static sw_err_t motor_set_state_locked(int id, const motor_cfg_t *cfg, motor_sta
 static sw_err_t motor_apply_gear_locked(int id,
                                          const motor_cfg_t *cfg,
                                          const hal_motor_ops_t *ops,
-                                         uint8_t gear)
+                                         int8_t gear)
 {
     sw_err_t ret;
 
@@ -519,7 +519,7 @@ static sw_err_t motor_start_or_pend_locked(int id, motor_state_t target, int spe
 /* 挡位模式版本：逻辑与 motor_start_or_pend_locked 相同，区别在于
  * 进入 PENDING 后记录 pending_is_gear=true + pending_gear_ref，
  * 由 motor_apply_pending_start_locked 走 set_gear 路径。 */
-static sw_err_t motor_gear_pend_locked(int id, motor_state_t target, uint8_t gear)
+static sw_err_t motor_gear_pend_locked(int id, motor_state_t target, int8_t gear)
 {
     const motor_cfg_t     *cfg = motor_get_cfg_locked(id);
     const hal_motor_ops_t *ops = hal_motor_get_ops();
@@ -1077,7 +1077,32 @@ sw_err_t motor_hold_gear(int id, motor_gear_t gear)
         return ret;
     }
 
-    ret = motor_gear_pend_locked(id, MOTOR_STATE_HOLD, (uint8_t)gear);
+    ret = motor_gear_pend_locked(id, MOTOR_STATE_HOLD, (int8_t)gear);
+    pthread_mutex_unlock(&s_mutex);
+    return ret;
+}
+
+sw_err_t motor_move_gear(int id, motor_gear_t gear, bool fwd)
+{
+    sw_err_t ret;
+    int8_t   gear_dir;
+
+    if (gear < MOTOR_GEAR_1)
+    {
+        return SW_ERR_PARAM;
+    }
+
+    gear_dir = fwd ? (int8_t)gear : -(int8_t)gear;
+
+    pthread_mutex_lock(&s_mutex);
+    ret = motor_require_action_cfg_locked(id, MOTOR_ACTION_MOVE, false, NULL);
+    if (ret != SW_OK)
+    {
+        pthread_mutex_unlock(&s_mutex);
+        return ret;
+    }
+
+    ret = motor_gear_pend_locked(id, MOTOR_STATE_MOVE, gear_dir);
     pthread_mutex_unlock(&s_mutex);
     return ret;
 }

@@ -32,6 +32,7 @@
 #include "machines/m8/adapters/setup/m8_water_setup.h"
 #include "machines/m8/adapters/setup/m8_motor_setup.h"
 #include "machines/m8/adapters/setup/m8_brush_setup.h"
+#include "machines/m8/adapters/setup/m8_gantry_setup.h"
 #include "domain/device/actuator/motor/motor.h"
 #include "ports/hal/hal_vfd_port.h"
 #include "common/event_types.h"
@@ -172,7 +173,7 @@ static void scenario_setup(void)
     m8_signal_sim_set_rear_lock_home(true);    /* 后轮锁初始在原点，满足 homing 退出条件 */
     (void)motor_init();
     (void)m8_brush_setup();
-    (void)gantry_init();
+    (void)m8_gantry_setup();
     (void)m8_water_setup();
     (void)emergency_handler_init();
     (void)device_fsm_init();

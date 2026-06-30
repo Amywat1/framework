@@ -13,7 +13,6 @@
 #include "infrastructure/services/svc_param/svc_param.h"
 #include "infrastructure/services/dev_ctx/dev_ctx.h"
 #include "domain/device/actuator/motor/motor.h"
-#include "domain/device/unit/gantry.h"
 #include "domain/device/water.h"
 #include "application/orchestrators/emergency_handler.h"
 #include "application/orchestrators/device_fsm.h"
@@ -29,6 +28,7 @@
 #include "machines/m8/adapters/setup/m8_water_setup.h"
 #include "machines/m8/adapters/setup/m8_motor_setup.h"
 #include "machines/m8/adapters/setup/m8_brush_setup.h"
+#include "machines/m8/adapters/setup/m8_gantry_setup.h"
 #ifdef BUILD_SIM
 #  include "machines/m8/adapters/m8_signal_sim.h"
 #endif
@@ -170,7 +170,7 @@ static sw_err_t bootstrap_init_application(void)
 {
     BOOT_CHECK(motor_init(),             "motor_init");
     BOOT_CHECK(m8_brush_setup(),         "m8_brush_setup");
-    BOOT_CHECK(gantry_init(),            "gantry_init");
+    BOOT_CHECK(m8_gantry_setup(),        "m8_gantry_setup");
     BOOT_CHECK(m8_water_setup(),         "m8_water_setup");
     /* 安全/报警域初始化顺序：
      *   ① alarm_core_init()        注册 alarm_binding_port，目录初始为空

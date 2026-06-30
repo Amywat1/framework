@@ -1,35 +1,28 @@
 /**
  * @file    gantry.c
- * @brief   龙门行走设备实现
+ * @brief   龙门行走设备实现（机构级逻辑，无硬件依赖）
  * @author  HUWANGWEI
  * @date    2026-04-10
+ *
+ * @note    硬件驱动通过 gantry_actuator_ops_t 注入，gantry.c 不引用任何 HAL 或 motor 符号。
  */
 
 #include "domain/device/unit/gantry.h"
-#include "domain/device/actuator/motor/motor.h"
-#include "machines/m8/config/m8_motor_table.h"
 #include "infrastructure/event_bus/event_bus.h"
 #include "common/event_types.h"
 #include "common/log.h"
 #include <stdatomic.h>
 
-/*
- * 位置来源：统一委托给 motor 管理层。
- * motor_tick_loop 定时同步 HAL 外部位置；
- * 将来切到硬件脉冲计数器模式时，上层无需改动。
- */
-static atomic_bool s_homing = false; /* 正在归位中 */
+static gantry_actuator_ops_t s_ops;
+static bool                  s_initialized = false;
+static atomic_bool           s_homing      = false;
 
 /* -------------------------------------------------------------------------
- * motor 完成回调（由 motor_tick 线程在释放锁后调用）
+ * 内部：运动完成回调（由 ops.set_done_cb 注册给执行机构）
  * ------------------------------------------------------------------------- */
-static void on_motor_done(int motor_id, sw_err_t result, void *ctx)
+static void on_move_done(sw_err_t result)
 {
     sw_err_t clear_ret;
-    (void)ctx;
-
-    /* motor_set_done_cb 已按 motor_id 注册，此处无需过滤 */
-    (void)motor_id;
 
     if (!atomic_load(&s_homing))
     {
@@ -40,7 +33,7 @@ static void on_motor_done(int motor_id, sw_err_t result, void *ctx)
 
     if (result == SW_OK)
     {
-        clear_ret = motor_clear_encoder(MOTOR_GANTRY);
+        clear_ret = s_ops.clear_pos();
         if (clear_ret == SW_OK)
         {
             LOG_INFO("gantry: home done");
@@ -48,7 +41,7 @@ static void on_motor_done(int motor_id, sw_err_t result, void *ctx)
         else
         {
             result = clear_ret;
-            LOG_WARN("gantry: home clear encoder failed ret=%d", (int)clear_ret);
+            LOG_WARN("gantry: home clear pos failed ret=%d", (int)clear_ret);
         }
     }
     else
@@ -62,54 +55,87 @@ static void on_motor_done(int motor_id, sw_err_t result, void *ctx)
 /* -------------------------------------------------------------------------
  * 接口实现
  * ------------------------------------------------------------------------- */
-sw_err_t gantry_init(void)
+sw_err_t gantry_init(const gantry_actuator_ops_t *ops)
 {
     sw_err_t ret;
 
+    if ((ops == NULL)                 ||
+        (ops->move_freq   == NULL)    ||
+        (ops->stop        == NULL)    ||
+        (ops->set_done_cb == NULL)    ||
+        (ops->get_pos     == NULL)    ||
+        (ops->clear_pos   == NULL)    ||
+        (ops->at_fwd_limit == NULL)   ||
+        (ops->at_rev_limit == NULL))
+    {
+        return SW_ERR_PARAM;
+    }
+
+    s_ops = *ops;
     atomic_store(&s_homing, false);
 
-    ret = motor_set_done_cb(MOTOR_GANTRY, on_motor_done, NULL);
+    ret = s_ops.set_done_cb(on_move_done);
     if (ret != SW_OK)
     {
-        LOG_ERROR("gantry_init: motor_set_done_cb failed ret=%d", (int)ret);
+        LOG_ERROR("gantry_init: set_done_cb failed ret=%d", (int)ret);
         return ret;
     }
 
+    s_initialized = true;
     LOG_INFO("gantry: init ok");
     return SW_OK;
 }
 
 sw_err_t gantry_fwd(uint16_t freq_hz)
 {
+    if (!s_initialized) { return SW_ERR_NOT_INIT; }
     atomic_store(&s_homing, false);
-    if (freq_hz == 0U)
-    {
-        return motor_stop(MOTOR_GANTRY);
-    }
+    if (freq_hz == 0U) { return s_ops.stop(); }
     LOG_INFO("gantry: fwd freq=%u", (unsigned)freq_hz);
-    return motor_move(MOTOR_GANTRY, (int)freq_hz);
+    return s_ops.move_freq((int)freq_hz);
 }
 
 sw_err_t gantry_rev(uint16_t freq_hz)
 {
+    if (!s_initialized) { return SW_ERR_NOT_INIT; }
     atomic_store(&s_homing, false);
-    if (freq_hz == 0U)
-    {
-        return motor_stop(MOTOR_GANTRY);
-    }
+    if (freq_hz == 0U) { return s_ops.stop(); }
     LOG_INFO("gantry: rev freq=%u", (unsigned)freq_hz);
-    return motor_move(MOTOR_GANTRY, -(int)freq_hz);
+    return s_ops.move_freq(-(int)freq_hz);
+}
+
+sw_err_t gantry_fwd_gear(uint8_t gear)
+{
+    if (!s_initialized) { return SW_ERR_NOT_INIT; }
+    if (s_ops.move_gear == NULL) { return SW_ERR_NOT_SUPPORT; }
+    atomic_store(&s_homing, false);
+    if (gear == 0U) { return s_ops.stop(); }
+    LOG_INFO("gantry: fwd gear=%u", (unsigned)gear);
+    return s_ops.move_gear((int8_t)gear);
+}
+
+sw_err_t gantry_rev_gear(uint8_t gear)
+{
+    if (!s_initialized) { return SW_ERR_NOT_INIT; }
+    if (s_ops.move_gear == NULL) { return SW_ERR_NOT_SUPPORT; }
+    atomic_store(&s_homing, false);
+    if (gear == 0U) { return s_ops.stop(); }
+    LOG_INFO("gantry: rev gear=%u", (unsigned)gear);
+    return s_ops.move_gear(-(int8_t)gear);
 }
 
 sw_err_t gantry_stop(void)
 {
+    if (!s_initialized) { return SW_ERR_NOT_INIT; }
     atomic_store(&s_homing, false);
-    return motor_stop(MOTOR_GANTRY);
+    return s_ops.stop();
 }
 
 sw_err_t gantry_home_start(uint16_t freq_hz)
 {
     sw_err_t ret;
+
+    if (!s_initialized) { return SW_ERR_NOT_INIT; }
 
     if (atomic_load(&s_homing))
     {
@@ -117,13 +143,12 @@ sw_err_t gantry_home_start(uint16_t freq_hz)
         return SW_ERR_BUSY;
     }
 
-    /* 若已在后限位，立即完成 */
-    if (motor_at_rev_limit(MOTOR_GANTRY))
+    if (s_ops.at_rev_limit())
     {
-        ret = motor_clear_encoder(MOTOR_GANTRY);
+        ret = s_ops.clear_pos();
         if (ret != SW_OK)
         {
-            LOG_WARN("gantry_home_start: clear encoder failed ret=%d", (int)ret);
+            LOG_WARN("gantry_home_start: clear pos failed ret=%d", (int)ret);
             return ret;
         }
         (void)event_publish(EVT_COMP_HOME_DONE, 0U);
@@ -132,12 +157,11 @@ sw_err_t gantry_home_start(uint16_t freq_hz)
     }
 
     atomic_store(&s_homing, true);
-
-    ret = motor_move(MOTOR_GANTRY, -(int)freq_hz);
+    ret = s_ops.move_freq(-(int)freq_hz);
     if (ret != SW_OK)
     {
         atomic_store(&s_homing, false);
-        LOG_ERROR("gantry_home_start: motor_move failed ret=%d", (int)ret);
+        LOG_ERROR("gantry_home_start: move_freq failed ret=%d", (int)ret);
         return ret;
     }
 
@@ -147,38 +171,45 @@ sw_err_t gantry_home_start(uint16_t freq_hz)
 
 bool gantry_at_fwd_limit(void)
 {
-    return motor_at_fwd_limit(MOTOR_GANTRY);
+    if (!s_initialized) { return false; }
+    return s_ops.at_fwd_limit();
 }
 
 bool gantry_at_rev_limit(void)
 {
-    return motor_at_rev_limit(MOTOR_GANTRY);
+    if (!s_initialized) { return false; }
+    return s_ops.at_rev_limit();
 }
 
 int32_t gantry_get_pos(void)
 {
-    return motor_get_pos(MOTOR_GANTRY);
+    if (!s_initialized) { return -1; }
+    return s_ops.get_pos();
 }
 
 void gantry_reset_pos(void)
 {
-    if (motor_clear_encoder(MOTOR_GANTRY) != SW_OK)
+    if (!s_initialized) { return; }
+    if (s_ops.clear_pos() != SW_OK)
     {
-        LOG_WARN("gantry_reset_pos: clear encoder failed");
+        LOG_WARN("gantry_reset_pos: failed");
     }
 }
 
 bool gantry_is_running(void)
 {
-    return motor_is_running(MOTOR_GANTRY);
+    if (!s_initialized || (s_ops.is_running == NULL)) { return false; }
+    return s_ops.is_running();
 }
 
 bool gantry_is_fault(void)
 {
-    return motor_get_state(MOTOR_GANTRY) == MOTOR_STATE_FAULT;
+    if (!s_initialized || (s_ops.is_fault == NULL)) { return false; }
+    return s_ops.is_fault();
 }
 
 uint16_t gantry_get_current(void)
 {
-    return motor_get_current(MOTOR_GANTRY);
+    if (!s_initialized || (s_ops.get_current == NULL)) { return 0U; }
+    return s_ops.get_current();
 }

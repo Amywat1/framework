@@ -63,7 +63,7 @@ typedef struct
     int           pending_speed_ref;     /* 频率模式：速度参考值 */
     motor_state_t pending_target_state;
     bool          pending_is_gear;       /* true = 挡位模式，false = 频率模式 */
-    uint8_t       pending_gear_ref;      /* 挡位模式：挡位号（MOTOR_GEAR_x 强转）*/
+    int8_t        pending_gear_ref;      /* 挡位模式：正=正转，负=反转，abs=挡位号 */
 } motor_ctx_t;
 
 typedef enum

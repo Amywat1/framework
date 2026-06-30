@@ -62,11 +62,19 @@ sw_err_t      motor_tick_start(void);
 sw_err_t      motor_hold(int id, int speed_ref);
 
 /**
- * @brief  以挡位模式持续运行电机（MOTOR_ACTION_HOLD 类型专用）
+ * @brief  以挡位模式持续运行电机（MOTOR_ACTION_HOLD 类型专用，始终正转）
  * @param  id    电机 ID
  * @param  gear  目标挡位（MOTOR_GEAR_1 = 最低档）
  */
 sw_err_t      motor_hold_gear(int id, motor_gear_t gear);
+
+/**
+ * @brief  以挡位模式运动（MOTOR_ACTION_MOVE 类型专用）
+ * @param  id    电机 ID
+ * @param  gear  目标挡位（MOTOR_GEAR_1 = 最低档）
+ * @param  fwd   true=正转，false=反转
+ */
+sw_err_t      motor_move_gear(int id, motor_gear_t gear, bool fwd);
 sw_err_t      motor_move(int id, int speed_ref);
 sw_err_t      motor_stop(int id);
 sw_err_t      motor_fault_reset(int id);
