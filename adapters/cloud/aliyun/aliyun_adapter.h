@@ -8,18 +8,23 @@
 #ifndef ADAPTERS_CLOUD_ALIYUN_ADAPTER_H
 #define ADAPTERS_CLOUD_ALIYUN_ADAPTER_H
 
+#include "ports/cloud/command_port.h"
 #include <stdbool.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+/** 命令解析器函数指针类型：JSON 字符串 → cmd_t */
+typedef bool (*aliyun_cmd_parser_fn_t)(const char *json, cmd_t *out_cmd);
+
 /**
  * @brief  初始化阿里云 MQTT 连接并注册命令下行回调
+ * @param  parser  命令解析函数，由调用方注入（机型特有的 action→cmd_t 映射）
  * @retval true   MQTT 连接成功
  * @retval false  连接失败，进入离线模式
  */
-bool aliyun_command_adapter_init(void);
+bool aliyun_command_adapter_init(aliyun_cmd_parser_fn_t parser);
 
 /**
  * @brief  注册阿里云状态上报实现到 cloud_report_port

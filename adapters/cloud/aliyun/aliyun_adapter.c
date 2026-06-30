@@ -6,7 +6,6 @@
  */
 
 #include "adapters/cloud/aliyun/aliyun_adapter.h"
-#include "adapters/cloud/aliyun/mqtt_command_parser.h"
 #include "ports/cloud/command_port.h"
 #include "ports/cloud/report_port.h"
 #include "ports/storage/deploy_store.h"
@@ -34,6 +33,9 @@
 /* 上报 Topic（启动时从 deploy_store 加载） */
 static char s_topic_up[128] = "";
 
+/* 命令解析器（由 aliyun_command_adapter_init 注入） */
+static aliyun_cmd_parser_fn_t s_cmd_parser = NULL;
+
 /* -------------------------------------------------------------------------
  * 命令下行
  * ------------------------------------------------------------------------- */
@@ -42,7 +44,7 @@ static void mqtt_recv_cb(const char *msg)
     cmd_t                      cmd;
     const command_port_ops_t  *cp = command_port_get_ops();
 
-    if (!command_parse(msg, &cmd))
+    if ((s_cmd_parser == NULL) || !s_cmd_parser(msg, &cmd))
     {
         LOG_WARN("aliyun: parse failed: %.80s", msg);
         return;
@@ -57,12 +59,14 @@ static void mqtt_recv_cb(const char *msg)
     (void)cp->inject(&cmd);
 }
 
-bool aliyun_command_adapter_init(void)
+bool aliyun_command_adapter_init(aliyun_cmd_parser_fn_t parser)
 {
     const deploy_store_ops_t *ds = deploy_store_get_ops();
     char product_key[64]   = "";
     char device_sn[64]     = "";
     char device_secret[64] = "";
+
+    s_cmd_parser = parser;
 
     if (ds != NULL)
     {
