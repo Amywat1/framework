@@ -14,17 +14,25 @@ extern "C" {
 
 #include "common/io_handle.h"
 #include "common/sw_error.h"
+#include "common/vfd_types.h"
 #include <stdbool.h>
 #include <stdint.h>
 
 #define HAL_MOTOR_BIND_SLOT_MAX  8
 
 /**
- * @brief  速度输出回调（VFD 运行 / 停止）
- * @param  speed_ref  >0 正转，<0 反转，0 停止；绝对值为频率或速度量纲（由注入方定义）
+ * @brief  频率速度回调（VFD 频率模式启停）
+ * @param  speed_ref  >0 正转，<0 反转，0 停止；绝对值为频率量纲（由注入方定义）
  * @param  ctx        注入方传入的上下文（如 vfd_id）
  */
 typedef sw_err_t (*hal_motor_set_speed_fn)(int speed_ref, void *ctx);
+
+/**
+ * @brief  挡位控制回调（VFD 挡位模式启动）
+ * @param  gear  正值=正转，负值=反转，0=停止；绝对值为挡位号（1=最低档）
+ * @param  ctx   注入方传入的上下文
+ */
+typedef sw_err_t (*hal_motor_set_gear_fn)(hal_vfd_gear_t gear, void *ctx);
 
 /**
  * @brief  读取单个数值回调（电流 / 状态字）
@@ -42,10 +50,14 @@ typedef sw_err_t (*hal_motor_action_fn)(void *ctx);
 typedef struct
 {
     /**
-     * @brief  速度输出回调；NULL 时退化为纯 DO 方向控制
-     * @note   有 VFD 的项目由机型 setup 注入；无 VFD 的项目保持 NULL
+     * @brief  频率速度输出回调；NULL 时退化为纯 DO 方向控制
+     * @note   有 VFD 频率模式的项目由机型 setup 注入；无 VFD 的项目保持 NULL
      */
     hal_motor_set_speed_fn set_speed;
+    /**
+     * @brief  挡位控制回调；NULL → motor_hold_gear 返回 SW_ERR_NOT_SUPPORT
+     */
+    hal_motor_set_gear_fn  set_gear;
     hal_motor_read_val_fn  read_current; /**< 读负载电流；NULL → SW_ERR_NOT_SUPPORT */
     hal_motor_read_val_fn  read_status;  /**< 读运行状态字；NULL → SW_ERR_NOT_SUPPORT */
     hal_motor_action_fn    fault_reset;  /**< 故障复位；NULL → SW_ERR_NOT_SUPPORT */

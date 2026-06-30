@@ -46,9 +46,27 @@ typedef void (*motor_done_cb_t)(int motor_id, sw_err_t result, void *ctx);
  */
 typedef sw_err_t (*motor_pre_start_fn)(int motor_id, int speed_ref, void *ctx);
 
+/**
+ * 通用速度挡位枚举（machine 适配层负责映射到 HAL VFD 的具体挡位寄存器值）
+ */
+typedef enum
+{
+    MOTOR_GEAR_1 = 1,
+    MOTOR_GEAR_2,
+    MOTOR_GEAR_3,
+    MOTOR_GEAR_4,
+} motor_gear_t;
+
 sw_err_t      motor_init(void);
 sw_err_t      motor_tick_start(void);
 sw_err_t      motor_hold(int id, int speed_ref);
+
+/**
+ * @brief  以挡位模式持续运行电机（MOTOR_ACTION_HOLD 类型专用）
+ * @param  id    电机 ID
+ * @param  gear  目标挡位（MOTOR_GEAR_1 = 最低档）
+ */
+sw_err_t      motor_hold_gear(int id, motor_gear_t gear);
 sw_err_t      motor_move(int id, int speed_ref);
 sw_err_t      motor_stop(int id);
 sw_err_t      motor_fault_reset(int id);

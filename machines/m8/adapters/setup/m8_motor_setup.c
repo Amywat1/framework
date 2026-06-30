@@ -68,6 +68,20 @@ static sw_err_t m8_vfd_read_status(uint16_t *p_val, void *ctx)
     return vfd->read(vfd_id, HAL_VFD_REG_STATE, p_val);
 }
 
+static sw_err_t m8_vfd_set_gear(hal_vfd_gear_t gear, void *ctx)
+{
+    const hal_vfd_ops_t *vfd    = hal_vfd_get_ops();
+    hal_vfd_id_t         vfd_id = (hal_vfd_id_t)(intptr_t)ctx;
+
+    if ((vfd == NULL) || (vfd->run == NULL)) { return SW_ERR_NOT_INIT; }
+    if (gear == 0)
+    {
+        if (vfd->stop == NULL) { return SW_ERR_NOT_INIT; }
+        return vfd->stop(vfd_id);
+    }
+    return vfd->run(vfd_id, gear);
+}
+
 static sw_err_t m8_vfd_fault_reset(void *ctx)
 {
     const hal_vfd_ops_t *vfd    = hal_vfd_get_ops();
@@ -89,6 +103,7 @@ static sw_err_t bind_motor_entry(const motor_cfg_t *mcfg)
 
     bind = (hal_motor_bind_cfg_t){
         .set_speed    = m8_vfd_set_speed,
+        .set_gear     = m8_vfd_set_gear,
         .read_current = m8_vfd_read_current,
         .read_status  = m8_vfd_read_status,
         .fault_reset  = m8_vfd_fault_reset,

@@ -18,7 +18,8 @@ extern "C" {
 
 typedef struct
 {
-    sw_err_t (*set_output)(int id, int speed_ref);
+    sw_err_t (*set_output)(int id, int speed_ref); /**< 频率模式：speed_ref >0 正转，<0 反转，0 停止 */
+    sw_err_t (*set_gear)(int id, uint8_t gear);    /**< 挡位模式：gear 为挡位号（1=最低档）；不支持时为 NULL */
     bool     (*at_fwd_limit)(int id);
     bool     (*at_rev_limit)(int id);
     sw_err_t (*read_hw_pulse)(int id, uint32_t *p_value);  /* 读取硬件脉冲计数器；SW_ERR_COMM 表示链路离线 */

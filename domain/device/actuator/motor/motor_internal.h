@@ -58,10 +58,12 @@ typedef struct
     uint32_t      state_mismatch_ms;
 
     /* ── PENDING（延迟启动排队）────────────────────
-     *  motor_start_or_pend_locked 写入；
+     *  motor_start_or_pend_locked / motor_gear_pend_locked 写入；
      *  tick 在 stop_timestamp_ms + post_stop_delay_ms 到期后读取并真正启动 */
-    int           pending_speed_ref;
+    int           pending_speed_ref;     /* 频率模式：速度参考值 */
     motor_state_t pending_target_state;
+    bool          pending_is_gear;       /* true = 挡位模式，false = 频率模式 */
+    uint8_t       pending_gear_ref;      /* 挡位模式：挡位号（MOTOR_GEAR_x 强转）*/
 } motor_ctx_t;
 
 typedef enum

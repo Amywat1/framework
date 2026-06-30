@@ -298,6 +298,31 @@ static sw_err_t motor_set_state_locked(int id, const motor_cfg_t *cfg, motor_sta
     return SW_OK;
 }
 
+static sw_err_t motor_apply_gear_locked(int id,
+                                         const motor_cfg_t *cfg,
+                                         const hal_motor_ops_t *ops,
+                                         uint8_t gear)
+{
+    sw_err_t ret;
+
+    if ((ops == NULL) || (ops->set_gear == NULL))
+    {
+        LOG_ERROR("motor[%s]: set_gear not supported", cfg->name);
+        return SW_ERR_NOT_SUPPORT;
+    }
+
+    ret = ops->set_gear(id, gear);
+    if (ret != SW_OK)
+    {
+        LOG_ERROR("motor[%s]: set_gear failed ret=%d", cfg->name, (int)ret);
+        (void)motor_set_state_locked(id, cfg, MOTOR_STATE_FAULT);
+        return ret;
+    }
+
+    s_ctx[id].applied_speed_ref = (int)gear; /* 借用字段记录当前挡位，便于调试 */
+    return SW_OK;
+}
+
 static sw_err_t motor_apply_output_locked(int id,
                                           const motor_cfg_t *cfg,
                                           const hal_motor_ops_t *ops,
@@ -487,6 +512,62 @@ static sw_err_t motor_start_or_pend_locked(int id, motor_state_t target, int spe
     }
 
     ctx->pending_speed_ref    = speed_ref;
+    ctx->pending_target_state = target;
+    return motor_set_state_locked(id, cfg, MOTOR_STATE_PENDING);
+}
+
+/* 挡位模式版本：逻辑与 motor_start_or_pend_locked 相同，区别在于
+ * 进入 PENDING 后记录 pending_is_gear=true + pending_gear_ref，
+ * 由 motor_apply_pending_start_locked 走 set_gear 路径。 */
+static sw_err_t motor_gear_pend_locked(int id, motor_state_t target, uint8_t gear)
+{
+    const motor_cfg_t     *cfg = motor_get_cfg_locked(id);
+    const hal_motor_ops_t *ops = hal_motor_get_ops();
+    motor_ctx_t           *ctx;
+    uint32_t               now_ms;
+
+    if ((cfg == NULL) || !s_initialized)
+    {
+        return SW_ERR_NOT_INIT;
+    }
+    ctx = &s_ctx[id];
+
+    /* 无需延迟且无 pre_start 回调：直接输出挡位 */
+    if ((cfg->post_stop_delay_ms == 0U) && (s_pre_start_fns[id] == NULL))
+    {
+        sw_err_t ret = motor_apply_gear_locked(id, cfg, ops, gear);
+        if (ret != SW_OK) { return ret; }
+        ctx->speed_ref    = (int)gear;
+        ctx->stored_dir   = 1;
+        ctx->start_ms     = time_util_get_ms();
+        ctx->stop_timestamp_ms  = 0U;
+        ctx->pause_start_ms     = 0U;
+        ctx->paused_total_ms    = 0U;
+        ctx->current_anomaly_ms = 0U;
+        ctx->state_mismatch_ms  = 0U;
+        ctx->load_current       = 0U;
+        return motor_set_state_locked(id, cfg, target);
+    }
+
+    now_ms = time_util_get_ms();
+
+    if (motor_is_running_state(ctx->state))
+    {
+        (void)motor_apply_output_locked(id, cfg, ops, 0);
+        ctx->stop_timestamp_ms = now_ms;
+    }
+
+    if (ctx->state == MOTOR_STATE_PENDING)
+    {
+        ctx->pending_is_gear      = true;
+        ctx->pending_gear_ref     = gear;
+        ctx->pending_target_state = target;
+        return SW_OK;
+    }
+
+    ctx->pending_is_gear      = true;
+    ctx->pending_gear_ref     = gear;
+    ctx->pending_speed_ref    = 0;
     ctx->pending_target_state = target;
     return motor_set_state_locked(id, cfg, MOTOR_STATE_PENDING);
 }
@@ -904,14 +985,21 @@ sw_err_t motor_apply_pending_start_locked(int id, int speed_ref,
         return SW_ERR_STATE;
     }
 
-    ret = motor_apply_output_locked(id, cfg, ops, speed_ref);
+    if (ctx->pending_is_gear)
+    {
+        ret = motor_apply_gear_locked(id, cfg, ops, ctx->pending_gear_ref);
+    }
+    else
+    {
+        ret = motor_apply_output_locked(id, cfg, ops, speed_ref);
+    }
     if (ret != SW_OK)
     {
         return ret;
     }
 
-    ctx->speed_ref          = speed_ref;
-    ctx->stored_dir         = (speed_ref > 0) ? 1 : ((speed_ref < 0) ? -1 : 0);
+    ctx->speed_ref          = ctx->pending_is_gear ? (int)ctx->pending_gear_ref : speed_ref;
+    ctx->stored_dir         = (ctx->speed_ref > 0) ? 1 : ((ctx->speed_ref < 0) ? -1 : 0);
     ctx->target_pos         = 0;
     ctx->move_time_ms       = 0U;
     ctx->start_ms           = now_ms;
@@ -921,6 +1009,8 @@ sw_err_t motor_apply_pending_start_locked(int id, int speed_ref,
     ctx->current_anomaly_ms = 0U;
     ctx->state_mismatch_ms  = 0U;
     ctx->load_current       = 0U;
+    ctx->pending_is_gear    = false;
+    ctx->pending_gear_ref   = 0U;
 
     return motor_set_state_locked(id, cfg, target);
 }
@@ -968,4 +1058,26 @@ uint16_t motor_get_current(int id)
     }
     pthread_mutex_unlock(&s_mutex);
     return current;
+}
+
+sw_err_t motor_hold_gear(int id, motor_gear_t gear)
+{
+    sw_err_t ret;
+
+    if (gear < MOTOR_GEAR_1)
+    {
+        return SW_ERR_PARAM;
+    }
+
+    pthread_mutex_lock(&s_mutex);
+    ret = motor_require_action_cfg_locked(id, MOTOR_ACTION_HOLD, false, NULL);
+    if (ret != SW_OK)
+    {
+        pthread_mutex_unlock(&s_mutex);
+        return ret;
+    }
+
+    ret = motor_gear_pend_locked(id, MOTOR_STATE_HOLD, (uint8_t)gear);
+    pthread_mutex_unlock(&s_mutex);
+    return ret;
 }

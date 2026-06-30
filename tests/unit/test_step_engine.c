@@ -105,6 +105,14 @@ static sw_err_t mock_water_slot_set(water_channel_t ch, water_slot_t slot, bool 
     return SW_OK;
 }
 
+static sw_err_t mock_brush_start_freq(brush_id_t id, uint16_t f) { (void)id; (void)f; return SW_OK; }
+static sw_err_t mock_brush_stop(brush_id_t id)                   { (void)id; return SW_OK; }
+
+static const brush_actuator_ops_t s_mock_brush_ops = {
+    .start_freq = mock_brush_start_freq,
+    .stop       = mock_brush_stop,
+};
+
 static void reset_mock_state(void)
 {
     s_mock_fwd_limit   = false;
@@ -202,7 +210,7 @@ int main(void)
     hal_vfd_register(&s_mock_vfd_ops);
     (void)event_bus_init();
     (void)motor_init();
-    (void)brush_init();
+    (void)brush_init(&s_mock_brush_ops);
     (void)gantry_init();
     (void)water_init(
         &(water_cfg_t){ .valve_open_delay_ms = 0U, .pump_stop_delay_ms = 0U },
