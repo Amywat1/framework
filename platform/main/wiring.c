@@ -30,6 +30,7 @@ extern void json_param_store_register(void);
 extern void json_deploy_store_register(void);
 
 #include "adapters/cloud/aliyun/aliyun_adapter.h"
+#include "machines/m8/adapters/cloud/report_builder.h"
 
 /* -------------------------------------------------------------------------
  * 引擎 IO 后端注册函数声明
@@ -52,8 +53,8 @@ sw_err_t wiring(void)
     json_param_store_register();
     json_deploy_store_register();
 
-    /* 云端上报 port → 阿里云 MQTT 实现 */
-    aliyun_report_adapter_register();
+    /* 云端上报 port → 阿里云 MQTT 实现（注入 M8 上报 JSON 构建器）*/
+    aliyun_report_adapter_register(m8_build_report_json);
 
     /* 命令 port → command_handler（校验 + event_bus 路由）*/
     command_handler_register();

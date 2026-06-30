@@ -14,16 +14,6 @@
 #include <stdio.h>
 #include <string.h>
 
-/* -------------------------------------------------------------------------
- * 上报 JSON 字段名
- * ------------------------------------------------------------------------- */
-#define FIELD_DEV_STATE     "devState"
-#define FIELD_WASH_MODE     "washMode"
-#define FIELD_GANTRY_POS    "gantryPos"
-#define FIELD_HAS_ALARM     "hasAlarm"
-#define FIELD_ALARM_CODE    "alarmCode"
-#define FIELD_CLOUD_CONN    "cloudConn"
-
 /* deploy_store 键名 */
 #define DEPLOY_KEY_PRODUCT_KEY    "productKey"
 #define DEPLOY_KEY_DEVICE_SN      "deviceSn"
@@ -35,6 +25,9 @@ static char s_topic_up[128] = "";
 
 /* 命令解析器（由 aliyun_command_adapter_init 注入） */
 static aliyun_cmd_parser_fn_t s_cmd_parser = NULL;
+
+/* 上报 JSON 构建器（由 aliyun_report_adapter_register 注入） */
+static aliyun_report_builder_fn_t s_report_builder = NULL;
 
 /* -------------------------------------------------------------------------
  * 命令下行
@@ -90,22 +83,6 @@ bool aliyun_command_adapter_init(aliyun_cmd_parser_fn_t parser)
 /* -------------------------------------------------------------------------
  * 状态上报
  * ------------------------------------------------------------------------- */
-static sw_err_t build_json(const cloud_report_payload_t *p,
-                            char *buf, size_t buf_size)
-{
-    int n = snprintf(buf, buf_size,
-                     "{\"%s\":%d,\"%s\":%d,\"%s\":%d,"
-                     "\"%s\":%s,\"%s\":%u,\"%s\":%s}",
-                     FIELD_DEV_STATE,   (int)p->dev_state,
-                     FIELD_WASH_MODE,   (int)p->wash_mode,
-                     FIELD_GANTRY_POS,  (int)p->gantry_pos,
-                     FIELD_HAS_ALARM,   p->has_alarm ? "true" : "false",
-                     FIELD_ALARM_CODE,  (unsigned)p->alarm_code,
-                     FIELD_CLOUD_CONN,  p->cloud_connected ? "true" : "false");
-
-    return ((n > 0) && ((size_t)n < buf_size)) ? SW_OK : SW_ERR_PARAM;
-}
-
 static sw_err_t adapter_report(const cloud_report_payload_t *payload)
 {
     char buf[256];
@@ -114,7 +91,8 @@ static sw_err_t adapter_report(const cloud_report_payload_t *payload)
     {
         return SW_ERR_COMM;
     }
-    if (build_json(payload, buf, sizeof(buf)) != SW_OK)
+    if ((s_report_builder == NULL) ||
+        (s_report_builder(payload, buf, sizeof(buf)) != SW_OK))
     {
         LOG_ERROR("aliyun: json build failed");
         return SW_ERR_PARAM;
@@ -137,8 +115,9 @@ static const cloud_report_ops_t s_ops = {
     .is_connected = adapter_is_connected,
 };
 
-void aliyun_report_adapter_register(void)
+void aliyun_report_adapter_register(aliyun_report_builder_fn_t builder)
 {
+    s_report_builder = builder;
     cloud_report_register(&s_ops);
     LOG_INFO("aliyun: report adapter registered");
 }
