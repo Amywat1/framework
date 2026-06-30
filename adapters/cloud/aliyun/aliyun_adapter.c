@@ -16,22 +16,23 @@
 #include <string.h>
 
 /* -------------------------------------------------------------------------
- * MQTT Topic 与 JSON 字段名（模块内部常量）
+ * 上报 JSON 字段名
  * ------------------------------------------------------------------------- */
-#define TOPIC_PROPERTY_UP   "/m8/property/up"
-#define TOPIC_CMD_DOWN      "/m8/cmd"
-
 #define FIELD_DEV_STATE     "devState"
 #define FIELD_WASH_MODE     "washMode"
-#define FIELD_WASH_STEP     "washStep"
 #define FIELD_GANTRY_POS    "gantryPos"
 #define FIELD_HAS_ALARM     "hasAlarm"
 #define FIELD_ALARM_CODE    "alarmCode"
 #define FIELD_CLOUD_CONN    "cloudConn"
 
+/* deploy_store 键名 */
 #define DEPLOY_KEY_PRODUCT_KEY    "productKey"
 #define DEPLOY_KEY_DEVICE_SN      "deviceSn"
 #define DEPLOY_KEY_DEVICE_SECRET  "deviceSecret"
+#define DEPLOY_KEY_TOPIC_UP       "topicPropertyUp"
+
+/* 上报 Topic（启动时从 deploy_store 加载） */
+static char s_topic_up[128] = "";
 
 /* -------------------------------------------------------------------------
  * 命令下行
@@ -59,15 +60,16 @@ static void mqtt_recv_cb(const char *msg)
 bool aliyun_command_adapter_init(void)
 {
     const deploy_store_ops_t *ds = deploy_store_get_ops();
-    char product_key[64]   = "M8_PRODUCT_KEY";
-    char device_sn[64]     = "M8_UNKNOWN";
-    char device_secret[64] = "M8_DEVICE_SECRET";
+    char product_key[64]   = "";
+    char device_sn[64]     = "";
+    char device_secret[64] = "";
 
     if (ds != NULL)
     {
         (void)ds->get(DEPLOY_KEY_PRODUCT_KEY,   product_key,   sizeof(product_key));
         (void)ds->get(DEPLOY_KEY_DEVICE_SN,     device_sn,     sizeof(device_sn));
         (void)ds->get(DEPLOY_KEY_DEVICE_SECRET, device_secret, sizeof(device_secret));
+        (void)ds->get(DEPLOY_KEY_TOPIC_UP,      s_topic_up,    sizeof(s_topic_up));
     }
 
     if (aliyun_mqtt_init(product_key, device_sn, device_secret) == 0)
@@ -113,7 +115,7 @@ static sw_err_t adapter_report(const cloud_report_payload_t *payload)
         LOG_ERROR("aliyun: json build failed");
         return SW_ERR_PARAM;
     }
-    if (net_mqtt_send((char *)TOPIC_PROPERTY_UP, buf) != 0)
+    if (net_mqtt_send(s_topic_up, buf) != 0)
     {
         LOG_WARN("aliyun: send failed");
         return SW_ERR_COMM;
