@@ -4,32 +4,23 @@
  * @author  huwangwei
  * @date    2026-06-27
  *
- * @note    通道名与硬件 API 的映射关系：
+ * @note    通道映射集中在三张静态表中：
  *
- *   DI 信号（read_signal）
- *     GANTRY_FWD_LIMIT   → gantry_at_fwd_limit()
- *     GANTRY_REV_LIMIT   → gantry_at_rev_limit()
- *     LIFT_UP_LIMIT      → m8_signal_is_active(M8_SIG_LIFT_UP_LIM)
- *     REAR_LOCK_HOME     → m8_signal_is_active(M8_SIG_REAR_LOCK_HOME)
- *     其余               → [stub] 返回 0，待接入真实 DI 读取 API
+ *   s_signal_table  — DI 信号：名称 → 读取函数（NULL 表示 stub，返回 0）
+ *   s_axis_table    — 坐标轴：名称 → 读取函数
+ *   s_output_table  — DO 输出：名称 → 状态变量指针 + 分组刷新函数
+ *                     （状态指针为 NULL 表示 stub，仅输出 LOG_WARN）
  *
- *   坐标轴（read_axis）
- *     "gantry"           → gantry_get_pos() / 速度固定 0
+ *   新增 / 删除 / 修改通道时，只需在对应表中增删一行，无需改动分发逻辑。
  *
- *   DO 通道（write_output）
- *     GANTRY_FWD / GANTRY_REV  → gantry_fwd/rev(svc_param "gantryFreqWash")
- *     TOP_BRUSH_ROT             → brush_start(TOP, freq)：1=低速 2=中速 0=停
- *     SIDE_BRUSH_ROT            → brush_start(SIDE, freq)：1=开 0=停
- *     WATER_CURTAIN/TOP_FOAM/BUTTOM_FOAM → water_prewash_on/off()（三通道任一为 1 开，全 0 关）
- *     WATER_HIGHPRES_TOP/BOTTOM        → water_highpres_on/off()（两通道任一为 1 开，全 0 关）
- *     注：以分组 API 近似实现，单阀粒度暂不支持；
- *         待 water 驱动增加 water_valve_set() 接口后精确对应。
- *     LIFTER_UP / LIFTER_DOWN   → [stub] 升降机驱动待实现
- *     DRYER_RUN                 → [stub] 吹风机驱动待实现
- *     PUTTER_REV                → [stub] 后轮锁推杆待实现
- *     TOP_BRUSH_FOLLOW_EN       → [stub] 随动控制待实现
+ *   DO 分组刷新说明：
+ *     apply_gantry()         — GANTRY_FWD / GANTRY_REV 互斥，两变量共享
+ *     apply_brush()          — TOP_BRUSH_ROT 优先；SIDE 仅在 TOP 停止时生效
+ *     apply_water_prewash()  — WATER_CURTAIN / TOP_FOAM / BUTTOM_FOAM 任一为 1 则开
+ *     apply_water_highpres() — WATER_HIGHPRES_TOP / BOTTOM 任一为 1 则开
+ *     TODO: water 驱动增加 water_valve_set() 后改为逐阀精确控制
  *
- *   标注 [stub] 的通道在实现真实驱动前输出 LOG_WARN，不操作硬件。
+ *   标注 [stub] 的通道待实现真实驱动后，将 NULL 替换为真实实现即可。
  */
 
 #include "machines/m8/adapters/engine/engine_io_m8.h"
@@ -42,14 +33,28 @@
 #include "common/log.h"
 
 #include <string.h>
+#include <stddef.h>
 #include <stdint.h>
 
-/* -------------------------------------------------------------------------
- * 龙门方向状态（避免 FWD=0 时误停正在后退的龙门）
- * ------------------------------------------------------------------------- */
-static int s_gantry_fwd = 0;
-static int s_gantry_rev = 0;
+#define ARRAY_SIZE(a) (sizeof(a) / sizeof((a)[0]))
 
+/* =========================================================================
+ * DO 状态变量
+ * 同组通道共享 apply 函数，各自持有独立状态变量，避免一方清零时误停另一方。
+ * ========================================================================= */
+static int s_gantry_fwd     = 0;
+static int s_gantry_rev     = 0;
+static int s_top_brush_rot  = 0;
+static int s_side_brush_rot = 0;
+static int s_water_curtain  = 0;
+static int s_water_top_foam = 0;
+static int s_water_btm_foam = 0;
+static int s_water_hp_top   = 0;
+static int s_water_hp_btm   = 0;
+
+/* =========================================================================
+ * DO 分组刷新函数
+ * ========================================================================= */
 static void apply_gantry(void)
 {
     uint16_t freq = (uint16_t)svc_param_get_int("gantryFreqWash", 3000);
@@ -66,12 +71,6 @@ static void apply_gantry(void)
         (void)gantry_stop();
     }
 }
-
-/* -------------------------------------------------------------------------
- * 刷子档位状态（TOP 和 SIDE 互斥，避免一方清零时意外停另一方）
- * ------------------------------------------------------------------------- */
-static int s_top_brush_rot  = 0;
-static int s_side_brush_rot = 0;
 
 static void apply_brush(void)
 {
@@ -97,16 +96,6 @@ static void apply_brush(void)
     }
 }
 
-/* -------------------------------------------------------------------------
- * 水路通道状态（prewash 组 / highpres 组，分组 API 近似映射）
- * TODO: water 驱动增加 water_valve_set() 后改为逐阀精确控制
- * ------------------------------------------------------------------------- */
-static int s_water_curtain  = 0;
-static int s_water_top_foam = 0;
-static int s_water_btm_foam = 0;
-static int s_water_hp_top   = 0;
-static int s_water_hp_btm   = 0;
-
 static void apply_water_prewash(void)
 {
     if ((s_water_curtain > 0) || (s_water_top_foam > 0) || (s_water_btm_foam > 0))
@@ -131,47 +120,105 @@ static void apply_water_highpres(void)
     }
 }
 
-/* -------------------------------------------------------------------------
- * read_signal 实现
- * ------------------------------------------------------------------------- */
+/* =========================================================================
+ * DI 信号表
+ * fn == NULL → stub，分发函数直接返回 0，不打印 warn。
+ * ========================================================================= */
+typedef int (*signal_fn_t)(void);
+
+typedef struct
+{
+    const char   *name;
+    signal_fn_t   fn;
+} signal_entry_t;
+
+static int read_gantry_fwd_limit(void) { return gantry_at_fwd_limit() ? 1 : 0; }
+static int read_gantry_rev_limit(void) { return gantry_at_rev_limit() ? 1 : 0; }
+static int read_lift_up_limit(void)    { return m8_signal_is_active(M8_SIG_LIFT_UP_LIM) ? 1 : 0; }
+static int read_rear_lock_home(void)   { return m8_signal_is_active(M8_SIG_REAR_LOCK_HOME) ? 1 : 0; }
+
+static const signal_entry_t s_signal_table[] = {
+    { "GANTRY_FWD_LIMIT",     read_gantry_fwd_limit },
+    { "GANTRY_REV_LIMIT",     read_gantry_rev_limit },
+    { "LIFT_UP_LIMIT",        read_lift_up_limit    },
+    { "REAR_LOCK_HOME",       read_rear_lock_home   },
+    /* [stub] 待接入真实 DI 读取 API */
+    { "ESTOP",                NULL },
+    { "BUMPER_LEFT",          NULL },
+    { "BUMPER_RIGHT",         NULL },
+    { "TOP_BRUSH_COLLISION",  NULL },
+    { "GANTRY_PAUSE_REQUEST", NULL },
+    { "RADAR_CAR_TAIL",       NULL },
+};
+
+/* =========================================================================
+ * 坐标轴表
+ * ========================================================================= */
+typedef sw_err_t (*axis_fn_t)(double *pos, double *speed, bool *valid);
+
+typedef struct
+{
+    const char *name;
+    axis_fn_t   fn;
+} axis_entry_t;
+
+static sw_err_t read_gantry_axis(double *pos, double *speed, bool *valid)
+{
+    *pos   = (double)gantry_get_pos();
+    *speed = 0.0;   /* TODO: 接入龙门速度反馈 */
+    *valid = true;
+    return SW_OK;
+}
+
+static const axis_entry_t s_axis_table[] = {
+    { "gantry", read_gantry_axis },
+};
+
+/* =========================================================================
+ * DO 输出表
+ * p_state == NULL → stub，分发函数输出 LOG_WARN 后返回。
+ * ========================================================================= */
+typedef struct
+{
+    const char *name;
+    int        *p_state;
+    void      (*apply)(void);
+} output_entry_t;
+
+static const output_entry_t s_output_table[] = {
+    { "GANTRY_FWD",            &s_gantry_fwd,       apply_gantry         },
+    { "GANTRY_REV",            &s_gantry_rev,       apply_gantry         },
+    { "TOP_BRUSH_ROT",         &s_top_brush_rot,    apply_brush          },
+    { "SIDE_BRUSH_ROT",        &s_side_brush_rot,   apply_brush          },
+    { "WATER_CURTAIN",         &s_water_curtain,    apply_water_prewash  },
+    { "WATER_TOP_FOAM",        &s_water_top_foam,   apply_water_prewash  },
+    { "WATER_BUTTOM_FOAM",     &s_water_btm_foam,   apply_water_prewash  },
+    { "WATER_HIGHPRES_TOP",    &s_water_hp_top,     apply_water_highpres },
+    { "WATER_HIGHPRES_BOTTOM", &s_water_hp_btm,     apply_water_highpres },
+    /* [stub] 待实现对应驱动后替换为真实实现 */
+    { "LIFTER_UP",             NULL, NULL },
+    { "LIFTER_DOWN",           NULL, NULL },
+    { "DRYER_RUN",             NULL, NULL },
+    { "PUTTER_REV",            NULL, NULL },
+    { "TOP_BRUSH_FOLLOW_EN",   NULL, NULL },
+};
+
+/* =========================================================================
+ * 分发函数
+ * ========================================================================= */
 static int hal_read_signal(const char *name)
 {
-    if (strcmp(name, "GANTRY_FWD_LIMIT") == 0)
+    for (size_t i = 0; i < ARRAY_SIZE(s_signal_table); i++)
     {
-        return gantry_at_fwd_limit() ? 1 : 0;
+        if (strcmp(name, s_signal_table[i].name) == 0)
+        {
+            return s_signal_table[i].fn ? s_signal_table[i].fn() : 0;
+        }
     }
-    if (strcmp(name, "GANTRY_REV_LIMIT") == 0)
-    {
-        return gantry_at_rev_limit() ? 1 : 0;
-    }
-
-    if (strcmp(name, "LIFT_UP_LIMIT") == 0)
-    {
-        return m8_signal_is_active(M8_SIG_LIFT_UP_LIM) ? 1 : 0;
-    }
-    if (strcmp(name, "REAR_LOCK_HOME") == 0)
-    {
-        return m8_signal_is_active(M8_SIG_REAR_LOCK_HOME) ? 1 : 0;
-    }
-
-    /* --- [stub] 以下信号待接入真实 DI 读取 API --- */
-    if ((strcmp(name, "ESTOP")               == 0) ||
-        (strcmp(name, "BUMPER_LEFT")         == 0) ||
-        (strcmp(name, "BUMPER_RIGHT")        == 0) ||
-        (strcmp(name, "TOP_BRUSH_COLLISION") == 0) ||
-        (strcmp(name, "GANTRY_PAUSE_REQUEST") == 0) ||
-        (strcmp(name, "RADAR_CAR_TAIL")      == 0))
-    {
-        return 0;
-    }
-
     LOG_WARN("engine_io_m8: unknown signal [%s]", name);
     return 0;
 }
 
-/* -------------------------------------------------------------------------
- * read_axis 实现
- * ------------------------------------------------------------------------- */
 static sw_err_t hal_read_axis(const char *name, double *out_pos,
                               double *out_speed, bool *out_valid)
 {
@@ -179,15 +226,13 @@ static sw_err_t hal_read_axis(const char *name, double *out_pos,
     {
         return SW_ERR_PARAM;
     }
-
-    if (strcmp(name, "gantry") == 0)
+    for (size_t i = 0; i < ARRAY_SIZE(s_axis_table); i++)
     {
-        *out_pos   = (double)gantry_get_pos();
-        *out_speed = 0.0;  /* TODO: 接入龙门速度反馈 */
-        *out_valid = true;
-        return SW_OK;
+        if (strcmp(name, s_axis_table[i].name) == 0)
+        {
+            return s_axis_table[i].fn(out_pos, out_speed, out_valid);
+        }
     }
-
     LOG_WARN("engine_io_m8: unknown axis [%s]", name);
     *out_pos   = 0.0;
     *out_speed = 0.0;
@@ -195,111 +240,29 @@ static sw_err_t hal_read_axis(const char *name, double *out_pos,
     return SW_ERR_PARAM;
 }
 
-/* -------------------------------------------------------------------------
- * write_output 实现
- * ------------------------------------------------------------------------- */
 static void hal_write_output(const char *name, int value)
 {
-    /* 龙门 */
-    if (strcmp(name, "GANTRY_FWD") == 0)
+    for (size_t i = 0; i < ARRAY_SIZE(s_output_table); i++)
     {
-        s_gantry_fwd = value;
-        apply_gantry();
-        return;
+        if (strcmp(name, s_output_table[i].name) == 0)
+        {
+            if (s_output_table[i].p_state == NULL)
+            {
+                LOG_WARN("engine_io_m8: [stub] [%s]=%d (not connected)", name, value);
+                return;
+            }
+            *s_output_table[i].p_state = value;
+            s_output_table[i].apply();
+            return;
+        }
     }
-    if (strcmp(name, "GANTRY_REV") == 0)
-    {
-        s_gantry_rev = value;
-        apply_gantry();
-        return;
-    }
-
-    /* 顶刷（多档位：0=停，1=低速，2=中速） */
-    if (strcmp(name, "TOP_BRUSH_ROT") == 0)
-    {
-        s_top_brush_rot = value;
-        apply_brush();
-        return;
-    }
-
-    /* 侧刷（0=停，1=转） */
-    if (strcmp(name, "SIDE_BRUSH_ROT") == 0)
-    {
-        s_side_brush_rot = value;
-        apply_brush();
-        return;
-    }
-
-    /* 水路：以分组 API 近似实现（单阀粒度待 water_valve_set() 接口就绪后精确化）
-     * prewash 组：WATER_CURTAIN / WATER_TOP_FOAM / WATER_BUTTOM_FOAM
-     * highpres 组：WATER_HIGHPRES_TOP / WATER_HIGHPRES_BOTTOM */
-    if (strcmp(name, "WATER_CURTAIN") == 0)
-    {
-        s_water_curtain = value;
-        apply_water_prewash();
-        return;
-    }
-    if (strcmp(name, "WATER_TOP_FOAM") == 0)
-    {
-        s_water_top_foam = value;
-        apply_water_prewash();
-        return;
-    }
-    if (strcmp(name, "WATER_BUTTOM_FOAM") == 0)
-    {
-        s_water_btm_foam = value;
-        apply_water_prewash();
-        return;
-    }
-    if (strcmp(name, "WATER_HIGHPRES_TOP") == 0)
-    {
-        s_water_hp_top = value;
-        apply_water_highpres();
-        return;
-    }
-    if (strcmp(name, "WATER_HIGHPRES_BOTTOM") == 0)
-    {
-        s_water_hp_btm = value;
-        apply_water_highpres();
-        return;
-    }
-
-    /* --- [stub] 升降机：待实现 lifter 驱动 --- */
-    if ((strcmp(name, "LIFTER_UP")   == 0) ||
-        (strcmp(name, "LIFTER_DOWN") == 0))
-    {
-        LOG_WARN("engine_io_m8: [stub] lifter [%s]=%d (not connected)", name, value);
-        return;
-    }
-
-    /* --- [stub] 吹风机：待实现 dryer 驱动 --- */
-    if (strcmp(name, "DRYER_RUN") == 0)
-    {
-        LOG_WARN("engine_io_m8: [stub] dryer [%s]=%d (not connected)", name, value);
-        return;
-    }
-
-    /* --- [stub] 后轮锁推杆：待实现 putter 驱动 --- */
-    if (strcmp(name, "PUTTER_REV") == 0)
-    {
-        LOG_WARN("engine_io_m8: [stub] putter [%s]=%d (not connected)", name, value);
-        return;
-    }
-
-    /* --- [stub] 顶刷随动使能：待接入随动控制器 --- */
-    if (strcmp(name, "TOP_BRUSH_FOLLOW_EN") == 0)
-    {
-        LOG_WARN("engine_io_m8: [stub] follow_en [%s]=%d (not connected)", name, value);
-        return;
-    }
-
     LOG_WARN("engine_io_m8: unknown DO channel [%s]=%d", name, value);
 }
 
-/* -------------------------------------------------------------------------
+/* =========================================================================
  * 注册
- * ------------------------------------------------------------------------- */
-static const engine_io_ops_t s_hal_ops = {
+ * ========================================================================= */
+static const engine_io_ops_t s_ops = {
     .read_signal  = hal_read_signal,
     .read_axis    = hal_read_axis,
     .write_output = hal_write_output,
@@ -307,5 +270,5 @@ static const engine_io_ops_t s_hal_ops = {
 
 void engine_io_m8_register(void)
 {
-    engine_io_register(&s_hal_ops);
+    engine_io_register(&s_ops);
 }

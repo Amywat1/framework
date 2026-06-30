@@ -13,7 +13,27 @@
       "Bash(git add *)",
       "Bash(git rm *)",
       "Bash(git commit -m ' *)",
-      "Skill(code-review)"
+      "Skill(code-review)",
+      "Bash(xargs grep -l \"cli::\")",
+      "PowerShell(Remove-Item *)",
+      "PowerShell(wsl -d Ubuntu-24.04 -- bash -c \"cd '/mnt/d/工作项目/M8/Code-M8' && rm -rf build_sim && cmake -B build_sim -DBUILD_SIM=ON 2>&1 && cmake --build build_sim -j4 2>&1\")",
+      "PowerShell(wsl -d Ubuntu-24.04 -- bash -c \"cd '/mnt/d/工作项目/M8/Code-M8' && ctest --test-dir build_sim -V 2>&1 | tail -15\")",
+      "WebSearch",
+      "WebFetch(domain:github.com)",
+      "Bash(xargs grep -l \"m8_assert_safe_outputs\")",
+      "Bash(xargs grep -l \"M8_DI_\\\\|M8_DO_\\\\|drv_io_name_matches\\\\|drv_io_strip_machine_prefix\")",
+      "Bash(git -C /d/工作项目/M8/Code-M8 show master:adapters/hal/linux_hw/drv/drv_io.c)",
+      "Bash(git ls-tree *)",
+      "Bash(git -C /d/工作项目/M8/Code-M8 log --oneline master..feature/refactor-framework)",
+      "Bash(git -C /d/工作项目/M8/Code-M8 diff HEAD~3 HEAD -- adapters/hal/linux_hw/drv/drv_io.c)",
+      "Bash(git -C /d/工作项目/M8/Code-M8 diff d343b29~1 d343b29 -- adapters/hal/linux_hw/drv/drv_io.c)",
+      "Bash(git -C /d/工作项目/M8/Code-M8 show d343b29 --stat)",
+      "Bash(git -C /d/工作项目/M8/Code-M8 log --oneline --all -- machines/m8/adapters/m8_boot_profile.c)",
+      "Bash(git -C /d/工作项目/M8/Code-M8 show HEAD:adapters/hal/linux_hw/drv/drv_io.c)",
+      "Bash(xargs grep -l \"drv_io\\\\|hal_io\")",
+      "Bash(git diff *)",
+      "Read(//tmp/**)",
+      "Read(//c/Users/HUAWEI/AppData/Local/Temp/**)"
     ]
   }
 }

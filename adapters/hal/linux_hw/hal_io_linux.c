@@ -134,6 +134,16 @@ static sw_err_t get_stats(int board_id, hal_io_stats_t *out)
     return SW_OK;
 }
 
+static int pulse_read(io_di_t pin)
+{
+    return drv_io_pulse_read(pin);
+}
+
+static sw_err_t pulse_clear(io_di_t pin)
+{
+    return drv_io_pulse_clear(pin);
+}
+
 static const hal_io_ops_t s_ops = {
     .init                     = io_init,
     .start                    = io_start,
@@ -151,6 +161,8 @@ static const hal_io_ops_t s_ops = {
     .do_name                  = do_name,
     .board_count              = board_count,
     .get_stats                = get_stats,
+    .pulse_read               = pulse_read,
+    .pulse_clear              = pulse_clear,
 };
 
 void hal_io_linux_register(void)

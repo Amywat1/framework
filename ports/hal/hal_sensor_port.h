@@ -22,7 +22,7 @@ extern "C" {
 #include <stdint.h>
 
 /** 最大滤波通道数（channel 编号 0 .. HAL_SENSOR_CHANNEL_MAX-1） */
-#define HAL_SENSOR_CHANNEL_MAX  16U
+#define HAL_SENSOR_CHANNEL_MAX  128U
 
 typedef uint8_t hal_sensor_channel_t;
 
@@ -42,7 +42,7 @@ typedef struct
     /** @brief  初始化内部运行时状态 */
     sw_err_t (*init)(void);
 
-    /** @brief  执行一轮全通道滤波（由 io_poll 周期调用） */
+    /** @brief  执行一轮全通道滤波（由调度层周期调用） */
     void (*tick)(void);
 
     /** @brief  查询通道滤波后的稳定逻辑态 */

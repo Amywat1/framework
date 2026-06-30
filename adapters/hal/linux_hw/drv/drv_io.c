@@ -17,6 +17,8 @@
 #include "common/log.h"
 #include "common/time_util.h"
 #include "io_exp/slave.h"
+#include "io_exp/demo.h"
+
 
 #include <pthread.h>
 #include <stdlib.h>
@@ -635,4 +637,33 @@ sw_err_t drv_io_get_stats(int board_id, drv_io_stats_t *out)
 int drv_io_board_count(void)
 {
     return s_board_count;
+}
+
+int drv_io_pulse_read(io_di_t pin)
+{
+    uint16_t raw      = io_di_raw(pin);
+    int      board_id = (int)io_handle_board(raw);
+    int      pin_id   = (int)io_handle_pin(raw);
+
+    if (!drv_io_is_valid_di_raw(raw))
+    {
+        return -1;
+    }
+
+    return io_pluse_read(board_id, pin_id);
+}
+
+sw_err_t drv_io_pulse_clear(io_di_t pin)
+{
+    uint16_t raw      = io_di_raw(pin);
+    int      board_id = (int)io_handle_board(raw);
+    int      pin_id   = (int)io_handle_pin(raw);
+    int      data     = 0;
+
+    if (!drv_io_is_valid_di_raw(raw))
+    {
+        return SW_ERR_PARAM;
+    }
+
+    return (io_SDO_write(board_id, 0x2005, pin_id, &data) >= 0) ? SW_OK : SW_ERR_COMM;
 }

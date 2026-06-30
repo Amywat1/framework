@@ -212,6 +212,27 @@ sw_err_t drv_io_get_stats(int board_id, drv_io_stats_t *out);
  */
 int drv_io_board_count(void);
 
+/* -------------------------------------------------------------------------
+ * 脉冲计数器接口（编码器，底层调用 io_exp/demo.h 中的 SDK 接口）
+ * ------------------------------------------------------------------------- */
+
+/**
+ * @brief  读取 DI 引脚对应的硬件脉冲计数器
+ * @param  pin  DI 句柄；须为有效编码器输入引脚
+ * @retval >= 0  当前计数值
+ * @retval < 0 或 0x0FFFFFFF  读取失败或计数器溢出/无效
+ */
+int drv_io_pulse_read(io_di_t pin);
+
+/**
+ * @brief  清零 DI 引脚对应的硬件脉冲计数器（通过 CANopen SDO 对象 0x2005）
+ * @param  pin  DI 句柄；须为有效编码器输入引脚
+ * @retval SW_OK       清零成功
+ * @retval SW_ERR_PARAM  引脚无效
+ * @retval SW_ERR_COMM   SDO 写入失败
+ */
+sw_err_t drv_io_pulse_clear(io_di_t pin);
+
 #ifdef __cplusplus
 }
 #endif

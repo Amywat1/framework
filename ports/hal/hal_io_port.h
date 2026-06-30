@@ -88,6 +88,12 @@ typedef struct
 
     /** @brief  子板运行时统计 */
     sw_err_t (*get_stats)(int board_id, hal_io_stats_t *out);
+
+    /** @brief  读取 DI 引脚的硬件脉冲计数器；负值或 0x0FFFFFFF 表示读取失败 */
+    int      (*pulse_read)(io_di_t pin);
+
+    /** @brief  清零 DI 引脚的硬件脉冲计数器 */
+    sw_err_t (*pulse_clear)(io_di_t pin);
 } hal_io_ops_t;
 
 void                    hal_io_register(const hal_io_ops_t *ops);

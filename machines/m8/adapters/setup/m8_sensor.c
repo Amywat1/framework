@@ -15,7 +15,7 @@
 #include <pthread.h>
 #include <unistd.h>
 
-#define SENSOR_POLL_PERIOD_MS   30U
+#define SENSOR_POLL_PERIOD_MS   50U
 #define SENSOR_POLL_STACK_SIZE  (16U * 1024U)
 
 _Static_assert((unsigned)M8_SIG_MAX <= HAL_SENSOR_CHANNEL_MAX,

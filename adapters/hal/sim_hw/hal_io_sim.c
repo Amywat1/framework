@@ -15,8 +15,9 @@
 #define SIM_IO_BOARD_MAX    8U
 #define SIM_IO_PIN_COUNT    32U
 
-static bool s_do_state[SIM_IO_BOARD_MAX][SIM_IO_PIN_COUNT + 1U];
-static bool s_di_state[SIM_IO_BOARD_MAX][SIM_IO_PIN_COUNT + 1U];
+static bool     s_do_state[SIM_IO_BOARD_MAX][SIM_IO_PIN_COUNT + 1U];
+static bool     s_di_state[SIM_IO_BOARD_MAX][SIM_IO_PIN_COUNT + 1U];
+static uint32_t s_pulse_counter[SIM_IO_BOARD_MAX][SIM_IO_PIN_COUNT + 1U];
 
 static bool sim_is_valid_di(io_di_t pin)
 {
@@ -111,6 +112,7 @@ static sw_err_t sim_io_init(void)
 {
     memset(s_do_state, 0, sizeof(s_do_state));
     memset(s_di_state, 0, sizeof(s_di_state));
+    memset(s_pulse_counter, 0, sizeof(s_pulse_counter));
     return SW_OK;
 }
 
@@ -172,6 +174,46 @@ static int sim_board_count(void)
     return 1;
 }
 
+static int sim_pulse_read(io_di_t pin)
+{
+    uint16_t board = io_handle_board(io_di_raw(pin));
+    uint16_t p     = io_handle_pin(io_di_raw(pin));
+
+    if (!sim_is_valid_di(pin))
+    {
+        return -1;
+    }
+
+    return (int)s_pulse_counter[board][p];
+}
+
+static sw_err_t sim_pulse_clear(io_di_t pin)
+{
+    uint16_t board = io_handle_board(io_di_raw(pin));
+    uint16_t p     = io_handle_pin(io_di_raw(pin));
+
+    if (!sim_is_valid_di(pin))
+    {
+        return SW_ERR_PARAM;
+    }
+
+    s_pulse_counter[board][p] = 0U;
+    return SW_OK;
+}
+
+void hal_io_sim_set_pulse_counter(io_di_t pin, uint32_t value)
+{
+    uint16_t board = io_handle_board(io_di_raw(pin));
+    uint16_t p     = io_handle_pin(io_di_raw(pin));
+
+    if (!sim_is_valid_di(pin))
+    {
+        return;
+    }
+
+    s_pulse_counter[board][p] = value;
+}
+
 static sw_err_t sim_get_stats(int board_id, hal_io_stats_t *out)
 {
     (void)board_id;
@@ -201,6 +243,8 @@ static const hal_io_ops_t s_ops = {
     .do_name                  = sim_do_name,
     .board_count              = sim_board_count,
     .get_stats                = sim_get_stats,
+    .pulse_read               = sim_pulse_read,
+    .pulse_clear              = sim_pulse_clear,
 };
 
 void hal_io_sim_register(void)

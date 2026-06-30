@@ -12,6 +12,7 @@ extern "C" {
 
 #include "common/io_handle.h"
 #include <stdbool.h>
+#include <stdint.h>
 
 /**
  * @brief  设置仿真 DI 原始电平（极性转换由 signal_filter 处理）
@@ -19,6 +20,13 @@ extern "C" {
  * @param  level  true=高电平，false=低电平
  */
 void hal_io_sim_set_di_level(io_di_t pin, bool level);
+
+/**
+ * @brief  设置仿真脉冲计数器值（供编码器仿真与测试使用）
+ * @param  pin    DI 句柄（须为有效仿真引脚）
+ * @param  value  计数值
+ */
+void hal_io_sim_set_pulse_counter(io_di_t pin, uint32_t value);
 
 #ifdef __cplusplus
 }
