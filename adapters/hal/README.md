@@ -22,22 +22,30 @@ adapters/hal/
 ├── linux_hw/        平台层——依赖真机 SDK（CAN IO 子板库、Modbus 库）
 │   ├── drv/             硬件 SDK 的直接封装，仅供本目录内部使用
 │   │   ├── drv_io       CAN IO 子板：输入刷新、输出落地、上线/下线对称防抖、
-│   │   │                全板离线触发 panic（写安全态后 abort）；配置通过 drv_io_cfg_t 注入
-│   │   └── drv_vfd      变频器 Modbus RTU：多实例、自动重连、RST 脉冲保护
+│   │   │                全板离线触发 panic（写安全态后 abort）；配置通过 drv_io_cfg_t 注入；
+│   │   │                透出 pulse_read / pulse_clear 供编码器硬件脉冲计数使用
+│   │   ├── drv_vfd      变频器 Modbus RTU：多实例、自动重连、方向切换延时保护、
+│   │   │                RST 脉冲或 Modbus 写寄存器两路故障复位
+│   │   └── drv_voice    语音模块 Modbus RTU：播放/暂停/音量控制、通信失败自动重连
 │   ├── hal_io_linux     用 X-macro 展开 m8_io_table.h 构建 IO 名称表，通过 drv_io_cfg_t
 │   │                    注入 drv_io，并将 drv_io 注册为 hal_io_port 的实现
-│   └── hal_vfd_linux    将 drv_vfd 注册为 hal_vfd_port 的实现，VFD 方向 DO 写直接调用 drv_io
+│   ├── hal_vfd_linux    将 drv_vfd 实例数组注册为 hal_vfd_port 的实现
+│   └── hal_voice_linux  将 drv_voice 实例注册为 hal_voice_port 的实现
 │
 ├── generic/         组合层——不依赖任何 SDK，只通过 port 接口操作
-│   ├── hal_motor        电机控制：支持 VFD 与纯 DO 两种驱动方式
+│   ├── hal_motor        电机控制：set_speed / read_current / read_status / fault_reset
+│   │                    通过绑定时注入的回调实现，无 VFD 项目将回调置 NULL 退化为纯 DO 控制
 │   ├── hal_sensor       DI 防抖滤波：计数式确认/释放，逐通道参数化
 │   └── hal_do_group     DO 分组输出：group × slot 二维映射
 │
-└── sim_hw/          仿真层——替换平台层供测试使用
-    ├── hal_io_sim       IO 状态数组，外部注入 DI 值以模拟传感器输入
+└── sim_hw/          仿真层——替换平台层供 sim 构建和单元测试使用
+    ├── hal_io_sim       IO 状态数组，外部注入 DI 值以模拟传感器输入；
+    │                    包含独立脉冲计数器数组，实现 pulse_read / pulse_clear 仿真
     ├── hal_vfd_sim      VFD 状态机，记录当前转向供场景断言使用
     ├── hal_motor_sim    电机仿真，用 sim_encoder_counter 替代硬件脉冲读取
-    └── sim_encoder_counter  场景测试通过此接口注入仿真脉冲
+    ├── hal_voice_sim    语音模块仿真，指令静默丢弃（无音频输出），返回 SW_OK
+    ├── engine_io_sim    引擎通用 IO 仿真后端，供 engine_runtime 单元测试和场景测试使用
+    └── sim_encoder_counter  仿真编码器脉冲源；测试通过 sim_encoder_counter_add_pulse 注入脉冲
 ```
 
 **端口定义在 `ports/hal/`（与本目录同级）：**
@@ -70,7 +78,8 @@ adapters/hal/
 ```
 bootstrap 阶段
   m8_motor_setup()
-    └── hal_motor_bind(motor_id, &cfg)   ← 注入 VFD 实例 id、IO 引脚、编码器参数
+    └── hal_motor_bind(motor_id, &cfg)   ← 注入 VFD 回调（set_speed / read_current 等）、
+                                            drv_ctx（如 vfd_id）、IO 引脚、编码器参数
   m8_sensor_setup()
     └── hal_sensor_bind(ch, &cfg)        ← 注入 DI 引脚、极性、防抖计数
   m8_water_setup()
@@ -78,14 +87,16 @@ bootstrap 阶段
 
 运行期
   motor_move(MOTOR_GANTRY, speed)
-    └── hal_motor_port → generic/hal_motor → 查 slot → hal_vfd_port.run_fwd()
+    └── hal_motor_port → generic/hal_motor → 查 slot → cfg.set_speed(speed, drv_ctx)
+                                                          （set_speed 为 NULL 时走 DO 方向控制）
 ```
 
 bind 函数只在 bootstrap 阶段由 `adapters/machine/<机型>/` 调用，
 业务层永远不接触 bind 接口。
-bind 配置结构体定义在 `ports/hal/hal_motor_bind.h`，
-其中 `vfd_backend_id` 的具体取值由机型配置层定义（见 `config/machine/m8_vfd_table.h`），
-port 层只使用 `typedef int hal_vfd_id_t`，不含机型名称。
+bind 配置结构体定义在 `ports/hal/hal_motor_bind.h`；
+VFD 操作（速度设定、电流读取、故障复位等）通过 `hal_motor_bind_cfg_t` 中的四个函数指针
+（`set_speed` / `read_current` / `read_status` / `fault_reset`）和透传上下文 `drv_ctx` 注入，
+`generic/hal_motor` 本身不依赖 `hal_vfd_port`，实现与 VFD 的彻底解耦。
 
 ---
 
