@@ -66,6 +66,14 @@ typedef uint8_t drv_vfd_monitor_mask_t;
 #define DRV_VFD_MON_CURRENT ((drv_vfd_monitor_mask_t)0x02U) /* 周期读取电流 */
 #define DRV_VFD_MON_ALL     ((drv_vfd_monitor_mask_t)0x03U) /* 全部开启（默认）*/
 
+/* drv_vfd_reg_t 是 hal_vfd_reg_t 的驱动层别名；DRV_VFD_REG_* 与 HAL_VFD_REG_* 等价 */
+typedef hal_vfd_reg_t drv_vfd_reg_t;
+#define DRV_VFD_REG_STATE       HAL_VFD_REG_STATE
+#define DRV_VFD_REG_FAULT_CODE  HAL_VFD_REG_FAULT_CODE
+#define DRV_VFD_REG_CURRENT     HAL_VFD_REG_CURRENT
+#define DRV_VFD_REG_FREQ        HAL_VFD_REG_FREQ
+#define DRV_VFD_REG_CLEAR_FAULT HAL_VFD_REG_CLEAR_FAULT
+
 /** DO 写回调类型，由 hal_vfd_linux 注入，用于驱动操作底层引脚 */
 typedef sw_err_t (*drv_vfd_do_set_fn)(io_do_t pin, bool val);
 
@@ -165,16 +173,6 @@ sw_err_t drv_vfd_config_speed_io(drv_vfd_t    *vfd,
 sw_err_t drv_vfd_run(drv_vfd_t *vfd, drv_vfd_gear_t gear);
 
 /**
- * @brief  通过 Modbus 设置变频器目标频率，与挡位 IO 控制完全独立
- * @param[in]  vfd      已完成 drv_vfd_init 的 VFD 实例
- * @param[in]  freq_hz  目标频率（Hz）
- * @retval     SW_OK           设置成功
- * @retval     SW_ERR_NOT_INIT vfd 未初始化
- * @retval     SW_ERR_COMM     Modbus 写操作失败
- */
-sw_err_t drv_vfd_set_freq(drv_vfd_t *vfd, uint16_t freq_hz);
-
-/**
  * @brief  启动故障复位脉冲（非阻塞），复位前先确保所有运行输出关断
  * @param[in]  vfd  已完成 drv_vfd_init 的 VFD 实例
  * @retval     SW_OK           复位脉冲已启动
@@ -195,39 +193,32 @@ sw_err_t drv_vfd_fault_reset(drv_vfd_t *vfd);
 drv_vfd_state_t drv_vfd_get_state(drv_vfd_t *vfd);
 
 /**
- * @brief  实时读取故障码（发起 Modbus IO），成功时同步更新内部缓存和 fault_active
- * @param[in]  vfd     已完成 drv_vfd_init 的 VFD 实例
- * @param[out] p_code  输出故障码，0 表示无故障，不可为 NULL
- * @retval     SW_OK           读取成功，*p_code 有效
- * @retval     SW_ERR_PARAM    vfd 或 p_code 为 NULL
- * @retval     SW_ERR_NOT_INIT vfd 未初始化
- * @retval     SW_ERR_COMM     Modbus 读操作失败
- * @note   适用于主动确认状态（如复位前验证）；
- *         高频轮询请改用 drv_vfd_get_cached_fault_code（无 Modbus IO）
+ * @brief  实时读取寄存器（发起 Modbus IO）
+ * @param[in]  vfd  已初始化的 VFD 实例
+ * @param[in]  reg  支持 STATE / FAULT_CODE / CURRENT；FREQ / CLEAR_FAULT 不可读
+ * @param[out] p_val 输出值，不可为 NULL
+ * @retval  SW_OK / SW_ERR_PARAM / SW_ERR_NOT_INIT / SW_ERR_COMM
+ * @note   读 FAULT_CODE 成功时同步更新内部缓存和 fault_active
  */
-sw_err_t drv_vfd_get_fault_code(drv_vfd_t *vfd, uint16_t *p_code);
+sw_err_t drv_vfd_read(drv_vfd_t *vfd, drv_vfd_reg_t reg, uint16_t *p_val);
 
 /**
- * @brief  实时读取电机电流（发起 Modbus IO）
- * @param[in]  vfd       已完成 drv_vfd_init 的 VFD 实例
- * @param[out] p_current 输出电流值（单位 0.01A），不可为 NULL
- * @retval     SW_OK           读取成功
- * @retval     SW_ERR_PARAM    vfd 或 p_current 为 NULL
- * @retval     SW_ERR_NOT_INIT vfd 未初始化
- * @retval     SW_ERR_COMM     Modbus 读操作失败
+ * @brief  写寄存器（发起 Modbus IO）
+ * @param[in]  vfd  已初始化的 VFD 实例
+ * @param[in]  reg  FREQ：须厂商定义 VFD_REG_FREQ_SET；
+ *                  CLEAR_FAULT：须厂商定义 VFD_REG_CLEAR_FAULT，val 参数忽略
+ * @param[in]  val  写入值（CLEAR_FAULT 时忽略，数据由厂商宏定义决定）
+ * @retval  SW_OK / SW_ERR_PARAM / SW_ERR_NOT_INIT / SW_ERR_COMM
  */
-sw_err_t drv_vfd_read_current(drv_vfd_t *vfd, uint16_t *p_current);
+sw_err_t drv_vfd_write(drv_vfd_t *vfd, drv_vfd_reg_t reg, uint16_t val);
 
 /**
- * @brief  实时读取 VFD 状态字（发起 Modbus IO）
- * @param[in]  vfd      已完成 drv_vfd_init 的 VFD 实例
- * @param[out] p_status 输出状态字原始值，不可为 NULL；具体位含义见厂家手册
- * @retval     SW_OK           读取成功
- * @retval     SW_ERR_PARAM    vfd 或 p_status 为 NULL
- * @retval     SW_ERR_NOT_INIT vfd 未初始化
- * @retval     SW_ERR_COMM     Modbus 读操作失败
+ * @brief  读缓存值（无 Modbus IO，由 monitor worker 周期更新）
+ * @param[in]  vfd  VFD 实例，可为 NULL
+ * @param[in]  reg  支持 FAULT_CODE / CURRENT；其余 reg 返回 0
+ * @retval  缓存值；vfd 为 NULL 或 reg 不适用时返回 0
  */
-sw_err_t drv_vfd_read_status(drv_vfd_t *vfd, uint16_t *p_status);
+uint16_t drv_vfd_get_cached(drv_vfd_t *vfd, drv_vfd_reg_t reg);
 
 /**
  * @brief  注册 VFD 事件回调，驱动在通信状态变化或故障状态变化时调用
@@ -237,21 +228,6 @@ sw_err_t drv_vfd_read_status(drv_vfd_t *vfd, uint16_t *p_status);
  *         须保证回调函数线程安全；回调内禁止反向调用本驱动写接口（死锁风险）
  */
 void drv_vfd_register_event_cb(drv_vfd_t *vfd, void (*cb)(int event_code));
-
-/**
- * @brief  读取故障码缓存，无 Modbus IO，由 monitor worker 每 2s 更新一次
- * @param[in]  vfd  VFD 实例指针，可为 NULL
- * @retval  缓存的故障码，0 表示无故障；vfd 为 NULL 时返回 0
- * @note   适合高频轮询；实时性不如 drv_vfd_get_fault_code
- */
-uint16_t drv_vfd_get_cached_fault_code(drv_vfd_t *vfd);
-
-/**
- * @brief  读取电流缓存，无 Modbus IO，由 monitor worker 在运行中定期更新
- * @param[in]  vfd  VFD 实例指针，可为 NULL
- * @retval  缓存的电流值（0.01A）；vfd 为 NULL 或 VFD 处于停止态时返回 0
- */
-uint16_t drv_vfd_get_cached_current(drv_vfd_t *vfd);
 
 /**
  * @brief  设置 monitor worker 的读取项掩码，控制哪些 Modbus 信息被周期读取

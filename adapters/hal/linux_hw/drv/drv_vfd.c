@@ -17,17 +17,42 @@
 #include <unistd.h>
 
 /* -------------------------------------------------------------------------
- * Modbus 寄存器地址（按厂家区分；切换厂家时改下方别名）
+ * 厂商寄存器地址（编译时选择，取消注释当前厂商块并注释其余）
+ * VFD_REG_FREQ_SET    ：未定义时 drv_vfd_write(REG_FREQ) 返回 SW_ERR_PARAM
+ * VFD_REG_CLEAR_FAULT ：未定义时 drv_vfd_fault_reset 仅依赖 IO 复位（pin_rst），
+ *                       两者均无则返回 SW_ERR_PARAM
  * ------------------------------------------------------------------------- */
-#define VFD_SHIHLIN_REG_FREQ_SET   0x2001U
-#define VFD_SHIHLIN_REG_STATUS     0x2100U
-#define VFD_SHIHLIN_REG_FAULT_CODE 0x2102U
-#define VFD_SHIHLIN_REG_CURRENT    0x2104U
 
-#define VFD_REG_FREQ_SET   VFD_SHIHLIN_REG_FREQ_SET
-#define VFD_REG_STATUS     VFD_SHIHLIN_REG_STATUS
-#define VFD_REG_FAULT_CODE VFD_SHIHLIN_REG_FAULT_CODE
-#define VFD_REG_CURRENT    VFD_SHIHLIN_REG_CURRENT
+/* //伟创 VFD
+#define VFD_REG_STATE        0x1001U
+#define VFD_REG_FAULT_CODE   0x1007U
+#define VFD_REG_CURRENT      0x1004U
+#define VFD_REG_CLEAR_FAULT  0x1101U
+#define VFD_DATA_CLEAR_FAULT 0xA5A5U
+*/
+
+/* //台达 VFD
+#define VFD_REG_STATE        0x2226U
+#define VFD_REG_FAULT_CODE   0x2100U
+#define VFD_REG_CURRENT      0x2104U
+#define VFD_REG_FREQ_SET     0x2103U
+#define VFD_REG_CLEAR_FAULT  0x2002U
+#define VFD_DATA_CLEAR_FAULT 0x0002U
+*/
+
+/* //士林 VFD（清故障数据 0x1101 写入控制寄存器 0x1000）*/
+#define VFD_REG_STATE        0x1001U
+#define VFD_REG_FAULT_CODE   0x1007U
+#define VFD_REG_CURRENT      0x1004U
+#define VFD_REG_CLEAR_FAULT  0x1000U
+#define VFD_DATA_CLEAR_FAULT 0x1101U
+
+
+/* 翌腾 VFD（当前使用；无 Modbus 清故障寄存器，fault_reset 须配置 pin_rst IO 复位）
+#define VFD_REG_STATE      0x1304U
+#define VFD_REG_FAULT_CODE 0x1300U
+#define VFD_REG_CURRENT    0x1206U
+*/
 
 #define VFD_FAULT_RESET_PULSE_MS 200U
 #define VFD_MONITOR_POLL_MS      20U     /* monitor worker 轮询周期 */
@@ -770,16 +795,10 @@ sw_err_t drv_vfd_run(drv_vfd_t *vfd, drv_vfd_gear_t gear)
     return SW_OK;
 }
 
-sw_err_t drv_vfd_set_freq(drv_vfd_t *vfd, uint16_t freq_hz)
-{
-    if (!vfd_is_initialized(vfd)) {
-        return SW_ERR_NOT_INIT;
-    }
-    return mb_write_reg(vfd, VFD_REG_FREQ_SET, freq_hz);
-}
-
 sw_err_t drv_vfd_fault_reset(drv_vfd_t *vfd)
 {
+    bool io_reset;
+
     if (!vfd_is_initialized(vfd)) {
         return SW_ERR_NOT_INIT;
     }
@@ -795,13 +814,26 @@ sw_err_t drv_vfd_fault_reset(drv_vfd_t *vfd)
     vfd->gear         = VFD_GEAR_STOP;
     vfd->pending_gear = VFD_GEAR_STOP;
 
-    vfd_do_set(vfd, vfd->pin_rst, true);
-    vfd->rst_start_ms = time_util_get_ms();
-    vfd->rst_active   = true;
+    io_reset = (vfd->pin_rst.raw != IO_HANDLE_NULL);
+    if (io_reset) {
+        vfd_do_set(vfd, vfd->pin_rst, true);
+        vfd->rst_start_ms = time_util_get_ms();
+        vfd->rst_active   = true;
+    }
 
     (void)pthread_mutex_unlock(&vfd->rst_mutex);
 
-    return SW_OK;
+    if (io_reset) {
+        return SW_OK;
+    }
+
+#ifdef VFD_REG_CLEAR_FAULT
+    return mb_write_reg(vfd, VFD_REG_CLEAR_FAULT, VFD_DATA_CLEAR_FAULT);
+#else
+    LOG_ERROR("drv_vfd[addr=%d]: fault_reset: pin_rst 未配置且厂商未定义 Modbus 清故障寄存器",
+              vfd->modbus_addr);
+    return SW_ERR_PARAM;
+#endif
 }
 
 drv_vfd_state_t drv_vfd_get_state(drv_vfd_t *vfd)
@@ -823,47 +855,76 @@ drv_vfd_state_t drv_vfd_get_state(drv_vfd_t *vfd)
     return HAL_VFD_STATE_STOPPED;
 }
 
-sw_err_t drv_vfd_get_fault_code(drv_vfd_t *vfd, uint16_t *p_code)
+sw_err_t drv_vfd_read(drv_vfd_t *vfd, drv_vfd_reg_t reg, uint16_t *p_val)
 {
     sw_err_t ret;
-    uint16_t code = 0U;
+    uint16_t addr;
+    uint16_t val = 0U;
 
-    if ((vfd == NULL) || (p_code == NULL)) {
+    if ((vfd == NULL) || (p_val == NULL)) {
         return SW_ERR_PARAM;
     }
     if (!vfd_is_initialized(vfd)) {
         return SW_ERR_NOT_INIT;
     }
 
-    ret = mb_read_reg(vfd, VFD_REG_FAULT_CODE, &code);
+    switch (reg) {
+        case DRV_VFD_REG_STATE:      addr = VFD_REG_STATE;      break;
+        case DRV_VFD_REG_FAULT_CODE: addr = VFD_REG_FAULT_CODE; break;
+        case DRV_VFD_REG_CURRENT:    addr = VFD_REG_CURRENT;    break;
+        default:
+            return SW_ERR_PARAM;
+    }
+
+    ret = mb_read_reg(vfd, addr, &val);
     if (ret == SW_OK) {
-        *p_code = code;
-        /* 同步缓存和 fault_active，保持与 monitor worker 维护的状态一致 */
-        vfd_update_fault_state(vfd, code);
+        *p_val = val;
+        if (reg == DRV_VFD_REG_FAULT_CODE) {
+            vfd_update_fault_state(vfd, val);
+        }
     }
     return ret;
 }
 
-sw_err_t drv_vfd_read_current(drv_vfd_t *vfd, uint16_t *p_current)
+sw_err_t drv_vfd_write(drv_vfd_t *vfd, drv_vfd_reg_t reg, uint16_t val)
 {
-    if ((vfd == NULL) || (p_current == NULL)) {
-        return SW_ERR_PARAM;
-    }
     if (!vfd_is_initialized(vfd)) {
         return SW_ERR_NOT_INIT;
     }
-    return mb_read_reg(vfd, VFD_REG_CURRENT, p_current);
+
+    /* val 仅在 DRV_VFD_REG_FREQ 分支使用；未定义 VFD_REG_FREQ_SET 时标记已使用防止警告 */
+    (void)val;
+
+    switch (reg) {
+#ifdef VFD_REG_FREQ_SET
+        case DRV_VFD_REG_FREQ:
+            return mb_write_reg(vfd, VFD_REG_FREQ_SET, val);
+#endif
+#ifdef VFD_REG_CLEAR_FAULT
+        case DRV_VFD_REG_CLEAR_FAULT:
+            return mb_write_reg(vfd, VFD_REG_CLEAR_FAULT, VFD_DATA_CLEAR_FAULT);
+#endif
+        default:
+            return SW_ERR_PARAM;
+    }
 }
 
-sw_err_t drv_vfd_read_status(drv_vfd_t *vfd, uint16_t *p_status)
+uint16_t drv_vfd_get_cached(drv_vfd_t *vfd, drv_vfd_reg_t reg)
 {
-    if ((vfd == NULL) || (p_status == NULL)) {
-        return SW_ERR_PARAM;
+    uint16_t val;
+
+    if (vfd == NULL) {
+        return 0U;
     }
-    if (!vfd_is_initialized(vfd)) {
-        return SW_ERR_NOT_INIT;
+
+    (void)pthread_mutex_lock(&vfd->rst_mutex);
+    switch (reg) {
+        case DRV_VFD_REG_FAULT_CODE: val = vfd->cached_fault_code; break;
+        case DRV_VFD_REG_CURRENT:    val = vfd->cached_current;    break;
+        default:                     val = 0U;                     break;
     }
-    return mb_read_reg(vfd, VFD_REG_STATUS, p_status);
+    (void)pthread_mutex_unlock(&vfd->rst_mutex);
+    return val;
 }
 
 void drv_vfd_register_event_cb(drv_vfd_t *vfd, void (*cb)(int event_code))
@@ -873,32 +934,6 @@ void drv_vfd_register_event_cb(drv_vfd_t *vfd, void (*cb)(int event_code))
         vfd->event_cb = cb;
         (void)pthread_mutex_unlock(&vfd->rst_mutex);
     }
-}
-
-uint16_t drv_vfd_get_cached_fault_code(drv_vfd_t *vfd)
-{
-    uint16_t val;
-
-    if (vfd == NULL) {
-        return 0U;
-    }
-    (void)pthread_mutex_lock(&vfd->rst_mutex);
-    val = vfd->cached_fault_code;
-    (void)pthread_mutex_unlock(&vfd->rst_mutex);
-    return val;
-}
-
-uint16_t drv_vfd_get_cached_current(drv_vfd_t *vfd)
-{
-    uint16_t val;
-
-    if (vfd == NULL) {
-        return 0U;
-    }
-    (void)pthread_mutex_lock(&vfd->rst_mutex);
-    val = vfd->cached_current;
-    (void)pthread_mutex_unlock(&vfd->rst_mutex);
-    return val;
 }
 
 sw_err_t drv_vfd_set_monitor_mask(drv_vfd_t *vfd, drv_vfd_monitor_mask_t mask)
