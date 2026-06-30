@@ -198,7 +198,7 @@ if(BUILD_SIM)
     # 排除仿真不需要或有真机依赖的文件
     list(FILTER sim_sources EXCLUDE REGEX ".*/linux_hw/.*")
     list(FILTER sim_sources EXCLUDE REGEX ".*/aliyun/.*")
-    list(FILTER sim_sources EXCLUDE REGEX "snack_cli\\.cpp")
+
     list(FILTER sim_sources EXCLUDE REGEX "m8_boot_profile\\.c")
 
 

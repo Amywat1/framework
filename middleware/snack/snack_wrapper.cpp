@@ -1,6 +1,6 @@
 /**
  * @file    snack_wrapper.cpp
- * @brief   snack SDK 封装实现（阿里云 MQTT、日志、音乐、BLE）
+ * @brief   snack SDK 封装实现（日志、阿里云 MQTT、音乐、BLE、CLI）
  * @author  HUWANGWEI
  * @date    2026-04-08
  */
@@ -206,4 +206,22 @@ void ble_debug_channel_send(char *data)
 void osal_debug_callback_regist(int (*callback)(char *fun, char *param_1, char *param_2))
 {
     s_osal_debug_cb = callback;
+}
+
+/* -------------------------------------------------------------------------
+ * CLI
+ * ------------------------------------------------------------------------- */
+void cli_adapter_init(void)
+{
+    cli::init();
+}
+
+void cli_adapter_add(int (*cmd_fn)(void))
+{
+    cli::add(cmd_fn);
+}
+
+char *cli_adapter_get(int idx)
+{
+    return cli::get(idx);
 }
