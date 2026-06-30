@@ -38,6 +38,7 @@ typedef void (*motor_done_cb_t)(int motor_id, sw_err_t result, void *ctx);
 
 sw_err_t      motor_init(void);
 sw_err_t      motor_tick_start(void);
+sw_err_t      motor_hold(int id, int speed_ref);
 sw_err_t      motor_move(int id, int speed_ref);
 sw_err_t      motor_stop(int id);
 sw_err_t      motor_fault_reset(int id);

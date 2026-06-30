@@ -69,6 +69,17 @@ static sw_err_t m8_water_slot_set(water_channel_t ch, water_slot_t slot, bool on
     return ops->slot_set((hal_do_group_t)ch, (hal_do_slot_t)slot, on);
 }
 
+static sw_err_t m8_water_all_off(void)
+{
+    const hal_do_group_ops_t *ops = hal_do_group_get_ops();
+
+    if ((ops == NULL) || (ops->all_off == NULL))
+    {
+        return SW_ERR_NOT_INIT;
+    }
+    return ops->all_off();
+}
+
 sw_err_t m8_water_setup(void)
 {
     sw_err_t ret;
@@ -93,6 +104,7 @@ sw_err_t m8_water_setup(void)
         },
         &(water_actuator_ops_t){
             .slot_set = m8_water_slot_set,
+            .all_off  = m8_water_all_off,
         });
     if (ret != SW_OK)
     {

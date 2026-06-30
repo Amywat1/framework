@@ -59,6 +59,7 @@ typedef enum
 {
     MOTOR_MON_SRC_NONE = 0,
     MOTOR_MON_SRC_VFD_GANTRY,
+    MOTOR_MON_SRC_VFD_BRUSH,
     MOTOR_MON_SRC_MAX
 } motor_monitor_source_t;
 

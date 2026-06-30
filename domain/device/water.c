@@ -446,25 +446,43 @@ sw_err_t water_all_off(void)
         water_delay_ms(s_cfg.pump_stop_delay_ms);
     }
 
-    ret = set_curtain_output(false);
-    if ((first_err == SW_OK) && (ret != SW_OK))
+    /* 优先使用 hal_do_group.all_off 一次性关闭全部 DO（含泵，重复关闭幂等） */
+    if (s_actuator.all_off != NULL)
     {
-        first_err = ret;
+        ret = s_actuator.all_off();
+        if ((first_err == SW_OK) && (ret != SW_OK))
+        {
+            first_err = ret;
+        }
+        pthread_mutex_lock(&s_mutex);
+        s_curtain_on  = false;
+        s_foam_on     = false;
+        s_brush_on    = false;
+        s_highpres_on = false;
+        pthread_mutex_unlock(&s_mutex);
     }
-    ret = set_foam_output(false);
-    if ((first_err == SW_OK) && (ret != SW_OK))
+    else
     {
-        first_err = ret;
-    }
-    ret = set_brush_output(false);
-    if ((first_err == SW_OK) && (ret != SW_OK))
-    {
-        first_err = ret;
-    }
-    ret = set_highpres_output(false);
-    if ((first_err == SW_OK) && (ret != SW_OK))
-    {
-        first_err = ret;
+        ret = set_curtain_output(false);
+        if ((first_err == SW_OK) && (ret != SW_OK))
+        {
+            first_err = ret;
+        }
+        ret = set_foam_output(false);
+        if ((first_err == SW_OK) && (ret != SW_OK))
+        {
+            first_err = ret;
+        }
+        ret = set_brush_output(false);
+        if ((first_err == SW_OK) && (ret != SW_OK))
+        {
+            first_err = ret;
+        }
+        ret = set_highpres_output(false);
+        if ((first_err == SW_OK) && (ret != SW_OK))
+        {
+            first_err = ret;
+        }
     }
 
     if (first_err == SW_OK)

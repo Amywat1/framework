@@ -25,6 +25,7 @@ typedef sw_err_t (*water_slot_set_fn)(water_channel_t ch, water_slot_t slot, boo
 typedef struct
 {
     water_slot_set_fn slot_set;
+    sw_err_t        (*all_off)(void); /**< 可选；关闭全部已绑定 DO（对应 hal_do_group.all_off）*/
 } water_actuator_ops_t;
 
 /** 水路时序配置（由 machine 适配层注入，domain 不依赖机型常量） */

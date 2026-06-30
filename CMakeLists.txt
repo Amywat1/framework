@@ -182,6 +182,7 @@ if(BUILD_SIM)
         machines/m8/adapters/setup/m8_sensor.c
         machines/m8/adapters/setup/m8_motor_setup.c
         machines/m8/adapters/setup/m8_water_setup.c
+        machines/m8/adapters/setup/m8_brush_setup.c
         machines/m8/adapters/engine/engine_io_m8.c
         machines/m8/adapters/m8_signal_sim.c
 

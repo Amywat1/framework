@@ -20,6 +20,7 @@
 typedef enum
 {
     MOTOR_GANTRY = 0,
+    MOTOR_BRUSH  = 1,
     MOTOR_ID_MAX
 } motor_id_t;
 
@@ -92,6 +93,36 @@ typedef struct
 } motor_cfg_t;
 
 static const motor_cfg_t m8_motor_table[] = {
+    {
+        .id              = MOTOR_BRUSH,
+        .name            = "BRUSH",
+        .drv_type        = MOTOR_DRV_VFD,
+        .vfd_id          = HAL_VFD_BRUSH,
+        .action_type     = MOTOR_ACTION_HOLD,
+        .io_cw           = M8_IO_DO_SIDE_BRUSH_FWD,
+        .io_ccw          = MOTOR_DO_NONE,          /* 刷子仅正转，无反转引脚 */
+        .io_stop         = M8_IO_DO_SIDE_BRUSH_RST,
+        .io_vel0         = MOTOR_DO_NONE,
+        .io_vel1         = MOTOR_DO_NONE,
+        .limit_mode      = MOTOR_LIMIT_NONE,
+        .limit_io_cw     = MOTOR_DI_NONE,
+        .limit_io_ccw    = MOTOR_DI_NONE,
+        .limit_pos_min   = 0U,
+        .limit_pos_max   = 0U,
+        .timeout_ms      = MOTOR_TIMEOUT_FOREVER,
+        .has_encoder            = false,
+        .encoder_backend        = MOTOR_ENCODER_NONE,
+        .encoder_io             = MOTOR_DI_NONE,
+        .encoder_zero_io        = MOTOR_DI_NONE,
+        .encoder_zero_confirm   = 0U,
+        .encoder_err_threshold  = 0U,
+        .encoder_err_check_ms   = 0U,
+        .encoder_jump_threshold = 0U,
+        .current_high_threshold = 0U,
+        .current_low_threshold  = 0U,
+        .current_check_delay_ms = 0U,
+        .current_confirm_ms     = 0U,
+    },
     {
         .id              = MOTOR_GANTRY,
         .name            = "GANTRY",
