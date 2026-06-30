@@ -9,7 +9,7 @@
  */
 
 #include "machines/m8/adapters/cli/m8_cli_setup.h"
-#include "adapters/sdk/cli/cli_adapter.h"
+#include "middleware/snack/snack_cli.h"
 #include "machines/m8/adapters/cli/m8_cli_commands.h"
 #include <string.h>
 

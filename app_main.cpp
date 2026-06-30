@@ -14,7 +14,7 @@
 #include "common/log.h"
 #include "machines/m8/config/m8_machine_config.h"
 #include "machines/m8/adapters/m8_runtime_adapter.h"
-#include "adapters/sdk/snack/snack_wrapper.h"
+#include "middleware/snack/snack_log.h"
 #include "io_exp/demo.h"
 #include <unistd.h>
 

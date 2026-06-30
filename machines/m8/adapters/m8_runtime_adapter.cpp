@@ -9,7 +9,6 @@
  */
 
 #include "machines/m8/adapters/m8_runtime_adapter.h"
-#include "adapters/sdk/snack/snack_wrapper.h"
 #include "log/mlog.h"
 #include "io_exp/demo.h"
 

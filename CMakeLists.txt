@@ -91,7 +91,7 @@ list(FILTER src EXCLUDE REGEX ".*/m8_signal_sim\\.c$")
 list(FILTER src EXCLUDE REGEX ".*/wiring_sim\.c$")
 # 场景测试文件不参与产品构建
 list(FILTER src EXCLUDE REGEX ".*/tests/.*")
-# snack_wrapper.cpp 符号由 snack SDK 库提供，不重复编译（新路径 adapters/sdk/snack/）
+# snack_wrapper.cpp 符号由 snack SDK 库提供，不重复编译（路径 middleware/snack/）
 list(FILTER src EXCLUDE REGEX ".*/snack_wrapper\.cpp$")
 
 add_executable(${PROJECT_NAME} ${src})
@@ -198,7 +198,7 @@ if(BUILD_SIM)
     # 排除仿真不需要或有真机依赖的文件
     list(FILTER sim_sources EXCLUDE REGEX ".*/linux_hw/.*")
     list(FILTER sim_sources EXCLUDE REGEX ".*/aliyun/.*")
-    list(FILTER sim_sources EXCLUDE REGEX "cli_adapter\\.cpp")
+    list(FILTER sim_sources EXCLUDE REGEX "snack_cli\\.cpp")
     list(FILTER sim_sources EXCLUDE REGEX "m8_boot_profile\\.c")
 
 

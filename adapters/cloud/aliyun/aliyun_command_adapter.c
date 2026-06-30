@@ -15,7 +15,7 @@
 #include "adapters/ui/mqtt_cmd/mqtt_command_parser.h"
 #include "ports/cloud/command_port.h"
 #include "ports/storage/deploy_store.h"
-#include "adapters/sdk/snack/snack_wrapper.h"
+#include "middleware/snack/snack_mqtt.h"
 #include "common/log.h"
 #include <string.h>
 

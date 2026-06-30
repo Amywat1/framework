@@ -5,7 +5,7 @@
  * @date    2026-06-23
  *
  * @note    M8 专属的 snack SDK 运行时配置（远程调试端口、IO 子板日志回调）。
- *          不可跨机型复用；通用 SDK 封装见 adapters/sdk/snack/snack_wrapper.h。
+ *          不可跨机型复用；通用 SDK 封装见 middleware/snack/snack_wrapper.h。
  */
 
 #ifndef ADAPTERS_MACHINE_M8_RUNTIME_ADAPTER_H
