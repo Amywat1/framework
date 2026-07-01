@@ -68,13 +68,13 @@ static sw_err_t m8_brush_do_set(brush_id_t id, bool on)
 /* -------------------------------------------------------------------------
  * motor pre_start 回调：VFD 停止延迟满足后完成接触器切换
  * ------------------------------------------------------------------------- */
-static sw_err_t m8_brush_pre_start(int motor_id, int speed_ref, void *ctx)
+static sw_err_t m8_brush_pre_start(int motor_id, int start_arg, void *ctx)
 {
     brush_id_t new_id = brush_get_active();
     sw_err_t   ret    = SW_OK;
 
     (void)motor_id;
-    (void)speed_ref;
+    (void)start_arg;
     (void)ctx;
 
     if (new_id == BRUSH_ID_NONE) { return SW_ERR_PARAM; }
@@ -146,7 +146,7 @@ static uint16_t m8_brush_get_current(brush_id_t id)
     int motor_id = find_motor_id(id);
 
     if (motor_id < 0) { return 0U; }
-    return motor_get_current(motor_id);
+    return motor_get_load_current(motor_id);
 }
 
 static const brush_actuator_ops_t s_brush_ops = {

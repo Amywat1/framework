@@ -132,14 +132,23 @@ static sw_err_t sim_motor_read_current(int id, uint16_t *p_current)
     return slot->cfg.read_current(p_current, slot->cfg.drv_ctx);
 }
 
-static sw_err_t sim_motor_read_status(int id, uint16_t *p_status)
+#define VFD_STATUS_RUNNING_BIT 0x0001U
+
+static sw_err_t sim_motor_read_running(int id, bool *p_is_running)
 {
     motor_sim_slot_t *slot = slot_by_id(id);
+    uint16_t          status;
+    sw_err_t          ret;
 
-    if ((slot == NULL) || (p_status == NULL)) { return SW_ERR_PARAM; }
-    if (slot->cfg.read_status == NULL)        { return SW_ERR_NOT_SUPPORT; }
+    if ((slot == NULL) || (p_is_running == NULL)) { return SW_ERR_PARAM; }
+    if (slot->cfg.read_status == NULL)             { return SW_ERR_NOT_SUPPORT; }
 
-    return slot->cfg.read_status(p_status, slot->cfg.drv_ctx);
+    ret = slot->cfg.read_status(&status, slot->cfg.drv_ctx);
+    if (ret != SW_OK) {
+        return ret;
+    }
+    *p_is_running = ((status & VFD_STATUS_RUNNING_BIT) != 0U);
+    return SW_OK;
 }
 
 static sw_err_t sim_motor_set_gear(int id, int8_t gear)
@@ -192,7 +201,7 @@ static const hal_motor_ops_t s_ops = {
     .read_hw_pulse          = sim_motor_read_hw_pulse,
     .clear_hw_pulse         = sim_motor_clear_hw_pulse,
     .read_current           = sim_motor_read_current,
-    .read_status            = sim_motor_read_status,
+    .read_running           = sim_motor_read_running,
     .fault_reset            = sim_motor_fault_reset,
 };
 

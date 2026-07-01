@@ -68,7 +68,7 @@ static bool     m8_gantry_at_fwd_limit(void)  { return motor_at_fwd_limit(MOTOR_
 static bool     m8_gantry_at_rev_limit(void)  { return motor_at_rev_limit(MOTOR_GANTRY); }
 static bool     m8_gantry_is_running(void)    { return motor_is_running(MOTOR_GANTRY); }
 static bool     m8_gantry_is_fault(void)      { return motor_get_state(MOTOR_GANTRY) == MOTOR_STATE_FAULT; }
-static uint16_t m8_gantry_get_current(void)   { return motor_get_current(MOTOR_GANTRY); }
+static uint16_t m8_gantry_get_current(void)   { return motor_get_load_current(MOTOR_GANTRY); }
 
 static const gantry_actuator_ops_t s_gantry_ops = {
     .move_freq     = m8_gantry_move_freq,

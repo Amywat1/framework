@@ -25,7 +25,7 @@ typedef struct
     sw_err_t (*read_hw_pulse)(int id, uint32_t *p_value);  /* 读取硬件脉冲计数器；SW_ERR_COMM 表示链路离线 */
     sw_err_t (*clear_hw_pulse)(int id);                    /* 清零硬件脉冲计数器 */
     sw_err_t (*read_current)(int id, uint16_t *p_current); /* 读取电机负载电流，单位 0.01A */
-    sw_err_t (*read_status)(int id, uint16_t *p_status);   /* 读取电机实际运行状态字 */
+    sw_err_t (*read_running)(int id, bool *p_is_running);  /* 查询驱动器是否确认在运行；SW_OK+true=运行，SW_OK+false=停止，其它=通信失败 */
     sw_err_t (*fault_reset)(int id);                       /* 驱动层故障复位（如 VFD RST 脉冲） */
 } hal_motor_ops_t;
 

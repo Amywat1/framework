@@ -91,7 +91,7 @@ static sw_err_t mock_read_current(uint16_t *p, void *ctx)
 static sw_err_t mock_read_status(uint16_t *p, void *ctx)
 {
     (void)ctx;
-    *p = 5678U;
+    *p = 0x0001U; /* bit 0 = running */
     return SW_OK;
 }
 
@@ -317,22 +317,22 @@ static void test_read_current_with_callback(void)
     TEST_ASSERT_EQUAL_UINT16(1234U, val);
 }
 
-static void test_read_status_no_callback(void)
+static void test_read_running_no_callback(void)
 {
-    uint16_t val;
+    bool is_running;
     TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_SUPPORT,
-        hal_motor_get_ops()->read_status(0, &val));
+        hal_motor_get_ops()->read_running(0, &is_running));
 }
 
-static void test_read_status_with_callback(void)
+static void test_read_running_with_callback(void)
 {
-    uint16_t val = 0;
-    hal_motor_bind_cfg_t cfg = k_base_cfg;
+    bool                 is_running = false;
+    hal_motor_bind_cfg_t cfg        = k_base_cfg;
     cfg.read_status = mock_read_status;
     hal_motor_bind(0, &cfg);
 
-    TEST_ASSERT_EQUAL_INT(SW_OK, hal_motor_get_ops()->read_status(0, &val));
-    TEST_ASSERT_EQUAL_UINT16(5678U, val);
+    TEST_ASSERT_EQUAL_INT(SW_OK, hal_motor_get_ops()->read_running(0, &is_running));
+    TEST_ASSERT_TRUE(is_running);
 }
 
 static void test_fault_reset_no_callback(void)
@@ -385,12 +385,12 @@ static void test_read_current_null_ptr(void)
     TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, hal_motor_get_ops()->read_current(0, NULL));
 }
 
-static void test_read_status_null_ptr(void)
+static void test_read_running_null_ptr(void)
 {
     hal_motor_bind_cfg_t cfg = k_base_cfg;
     cfg.read_status = mock_read_status;
     hal_motor_bind(0, &cfg);
-    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, hal_motor_get_ops()->read_status(0, NULL));
+    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, hal_motor_get_ops()->read_running(0, NULL));
 }
 
 /* IO 操作集不包含 do_set，set_output 应返回 SW_ERR_NOT_INIT */
@@ -486,8 +486,8 @@ int main(void)
 
     RUN_TEST(test_read_current_no_callback);
     RUN_TEST(test_read_current_with_callback);
-    RUN_TEST(test_read_status_no_callback);
-    RUN_TEST(test_read_status_with_callback);
+    RUN_TEST(test_read_running_no_callback);
+    RUN_TEST(test_read_running_with_callback);
     RUN_TEST(test_fault_reset_no_callback);
     RUN_TEST(test_fault_reset_with_callback);
 
@@ -496,7 +496,7 @@ int main(void)
 
     RUN_TEST(test_at_rev_limit_false);
     RUN_TEST(test_read_current_null_ptr);
-    RUN_TEST(test_read_status_null_ptr);
+    RUN_TEST(test_read_running_null_ptr);
     RUN_TEST(test_set_output_no_io_do_set);
     RUN_TEST(test_read_hw_pulse_no_pulse_read_op);
     RUN_TEST(test_clear_hw_pulse_no_pulse_clear_op);

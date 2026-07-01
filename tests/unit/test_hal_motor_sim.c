@@ -249,11 +249,11 @@ static void test_encoder_accumulates_multiple_adds(void)
     TEST_ASSERT_EQUAL_UINT32(350U, val);
 }
 
-static void test_read_status_no_callback(void)
+static void test_read_running_no_callback(void)
 {
-    uint16_t val;
+    bool is_running;
     TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_SUPPORT,
-        hal_motor_get_ops()->read_status(0, &val));
+        hal_motor_get_ops()->read_running(0, &is_running));
 }
 
 int main(void)
@@ -285,7 +285,7 @@ int main(void)
     RUN_TEST(test_at_fwd_limit_null_di_returns_false);
     RUN_TEST(test_read_hw_pulse_null_ptr);
     RUN_TEST(test_encoder_accumulates_multiple_adds);
-    RUN_TEST(test_read_status_no_callback);
+    RUN_TEST(test_read_running_no_callback);
 
     return UNITY_END();
 }

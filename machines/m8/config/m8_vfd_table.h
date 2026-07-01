@@ -22,6 +22,7 @@
 #define HAL_VFD_ID_NONE    (-1)
 #define HAL_VFD_GANTRY      0
 #define HAL_VFD_BRUSH       1
+#define HAL_VFD_ID_MAX      2  /* M8 VFD 实例总数 */
 
 /* -------------------------------------------------------------------------
  * 刷子 VFD（仅正转）

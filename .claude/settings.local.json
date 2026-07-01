@@ -33,7 +33,17 @@
       "Bash(xargs grep -l \"drv_io\\\\|hal_io\")",
       "Bash(git diff *)",
       "Read(//tmp/**)",
-      "Read(//c/Users/HUAWEI/AppData/Local/Temp/**)"
+      "Read(//c/Users/HUAWEI/AppData/Local/Temp/**)",
+      "Bash(mkdir -p adapters/command)",
+      "Bash(git mv *)",
+      "Bash(rmdir adapters/ui/mqtt_cmd adapters/ui)",
+      "Bash(cmake --build . -j4)",
+      "PowerShell($c = \\(Get-Command cmake -ErrorAction SilentlyContinue\\); if \\($c\\) { \"cmake: $\\($c.Source\\)\" } else { \"no cmake\" }; $m = \\(Get-Command mingw32-make,make,ninja -ErrorAction SilentlyContinue\\); $m | ForEach-Object { \"$\\($_.Name\\): $\\($_.Source\\)\" }; if \\(Test-Path \"D:\\\\工作项目\\\\M8\\\\Code-M8\\\\build_sim\\\\CMakeCache.txt\"\\) { Select-String -Path \"D:\\\\工作项目\\\\M8\\\\Code-M8\\\\build_sim\\\\CMakeCache.txt\" -Pattern \"CMAKE_MAKE_PROGRAM|CMAKE_GENERATOR:|CMAKE_C_COMPILER:|CMAKE_CXX_COMPILER:\" | ForEach-Object { $_.Line } })",
+      "PowerShell($w = Get-Command wsl -ErrorAction SilentlyContinue; if \\($w\\) { \"wsl present\"; wsl -e sh -c \"command -v cc gmake cmake gcc 2>/dev/null; echo rc=$?\" } else { \"no wsl\" })",
+      "PowerShell(wsl -e sh -c \"command -v cmake gmake make gcc; echo '---'; cd /mnt/d/工作项目/M8/Code-M8/build_sim 2>/dev/null && ls Makefile && echo OK_DIR || echo BAD_DIR\")",
+      "PowerShell(wsl -e sh -c \"cd /mnt/d/工作项目/M8/Code-M8/build_sim && cmake --build . --target test_hal_motor test_hal_motor_sim -j4 2>&1 | tail -50\")",
+      "PowerShell(wsl -e sh -c \"cd /mnt/d/工作项目/M8/Code-M8/build_sim && cmake --build . --target M8_sim -j4 2>&1 | grep -Ei 'motor|error|warning|Built target|Linking' | tail -60\")",
+      "PowerShell(wsl -e sh -c \"cd /mnt/d/工作项目/M8/Code-M8/build_sim && cmake --build . -j4 2>&1 | grep -Ei 'error|warning|Built target' | tail -40; echo '===CTEST==='; ctest --output-on-failure 2>&1 | tail -30\")"
     ]
   }
 }
