@@ -33,7 +33,7 @@ typedef struct
 
     /**
      * @brief  按键名读取配置值
-     * @param  key       配置键名（如 "deviceSn"、"mqttServer"）
+     * @param  key       配置键名（如 "deviceName"、"topicPropertyUp"）
      * @param  buf       输出缓冲区
      * @param  buf_size  缓冲区大小
      * @retval SW_OK / SW_ERR_PARAM（键不存在）

@@ -16,7 +16,7 @@
 
 /* deploy_store 键名 */
 #define DEPLOY_KEY_PRODUCT_KEY    "productKey"
-#define DEPLOY_KEY_DEVICE_SN      "deviceSn"
+#define DEPLOY_KEY_DEVICE_SN      "deviceName"
 #define DEPLOY_KEY_DEVICE_SECRET  "deviceSecret"
 #define DEPLOY_KEY_TOPIC_UP       "topicPropertyUp"
 
@@ -66,7 +66,13 @@ bool aliyun_command_adapter_init(aliyun_cmd_parser_fn_t parser)
         (void)ds->get(DEPLOY_KEY_PRODUCT_KEY,   product_key,   sizeof(product_key));
         (void)ds->get(DEPLOY_KEY_DEVICE_SN,     device_sn,     sizeof(device_sn));
         (void)ds->get(DEPLOY_KEY_DEVICE_SECRET, device_secret, sizeof(device_secret));
-        (void)ds->get(DEPLOY_KEY_TOPIC_UP,      s_topic_up,    sizeof(s_topic_up));
+
+        if ((ds->get(DEPLOY_KEY_TOPIC_UP, s_topic_up, sizeof(s_topic_up)) != SW_OK) ||
+            (s_topic_up[0] == '\0'))
+        {
+            LOG_ERROR("aliyun: deploy config missing key=%s", DEPLOY_KEY_TOPIC_UP);
+            return false;
+        }
     }
 
     if (aliyun_mqtt_init(product_key, device_sn, device_secret) == 0)
