@@ -98,6 +98,7 @@ add_executable(${PROJECT_NAME} ${src})
 
 target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_SOURCE_DIR}                         # 项目根目录：common/ driver/ domain/ ports/ adapters/ 等均在此
+    ${CMAKE_SOURCE_DIR}/middleware/mcc/motor_control_core-1.0.0-aarch64/include
     /usr/local/include/snack
     /usr/local/include/snack/canfestival
     ${BLE_LIB_INCLUDE_DIRS}
@@ -105,6 +106,7 @@ target_include_directories(${PROJECT_NAME} PRIVATE
 )
 
 target_link_libraries(${PROJECT_NAME} PRIVATE
+    ${CMAKE_SOURCE_DIR}/middleware/mcc/motor_control_core-1.0.0-aarch64/lib/libmotor_control_core.a
     snack
     io-exp
     canfestival
@@ -141,6 +143,8 @@ endif() # NOT BUILD_SIM
 # ======================================================================
 if(BUILD_SIM)
     add_compile_definitions(BUILD_SIM=1)
+
+    set(MCC_INCLUDE ${CMAKE_SOURCE_DIR}/middleware/mcc/motor_control_core-1.0.0-aarch64/include)
 
     # -----------------------------------------------------------------------
     # sim 构建源文件：明确列出，避免误拉入真机专属文件
@@ -196,6 +200,9 @@ if(BUILD_SIM)
     # 内置 cJSON（替代系统 libcjson-dev）
     list(APPEND sim_sources ${CMAKE_SOURCE_DIR}/third_party/cJSON/cJSON.c)
 
+    # MCC 仿真桩（替代 aarch64 预编译库，供 x86_64 sim 构建使用）
+    list(APPEND sim_sources ${CMAKE_SOURCE_DIR}/middleware/mcc/motor_control_core_sim.c)
+
     # 排除仿真不需要或有真机依赖的文件
     list(FILTER sim_sources EXCLUDE REGEX ".*/linux_hw/.*")
     list(FILTER sim_sources EXCLUDE REGEX ".*/aliyun/.*")
@@ -209,6 +216,7 @@ if(BUILD_SIM)
         target_include_directories(M8_sim PRIVATE
             ${CMAKE_SOURCE_DIR}
             ${CMAKE_SOURCE_DIR}/platform/sim
+            ${MCC_INCLUDE}
         )
 
         target_link_libraries(M8_sim PRIVATE pthread)
@@ -234,6 +242,7 @@ if(BUILD_SIM)
     # -----------------------------------------------------------------------
     set(test_includes
         ${CMAKE_SOURCE_DIR}
+        ${MCC_INCLUDE}
     )
 
     # -----------------------------------------------------------------------

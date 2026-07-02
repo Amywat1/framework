@@ -217,9 +217,9 @@ static void on_cmd_home(const event_t *evt)
         return;
     }
 
-    if (gantry_home_start(4000U) != SW_OK)  /* 4000 = 40.00 Hz 慢速 */
+    if (gantry_home() != SW_OK)
     {
-        LOG_WARN("device_fsm: gantry_home_start failed");
+        LOG_WARN("device_fsm: gantry_home failed");
         return;
     }
     set_state(DEV_STATE_HOMING);

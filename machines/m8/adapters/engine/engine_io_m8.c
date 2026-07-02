@@ -28,8 +28,8 @@
 #include "domain/device/mechanism/gantry.h"
 #include "domain/device/mechanism/brush.h"
 #include "domain/device/mechanism/water.h"
-#include "infrastructure/services/svc_param/svc_param.h"
 #include "machines/m8/adapters/setup/m8_sensor.h"
+#include "machines/m8/config/m8_signal_table.h"
 #include "common/log.h"
 #include "common/sw_types.h"
 
@@ -55,14 +55,13 @@ static int s_water_hp_btm   = 0;
  * ========================================================================= */
 static void apply_gantry(void)
 {
-    uint16_t freq = (uint16_t)svc_param_get_int("gantryFreqWash", 3000);
     if (s_gantry_fwd > 0)
     {
-        (void)gantry_fwd(freq);
+        (void)gantry_move_fwd(1, NULL);
     }
     else if (s_gantry_rev > 0)
     {
-        (void)gantry_rev(freq);
+        (void)gantry_move_rev(1, NULL);
     }
     else
     {
@@ -74,23 +73,21 @@ static void apply_brush(void)
 {
     if (s_top_brush_rot == 2)
     {
-        /* 中速（pass4 高压冲洗段）*/
-        uint16_t freq = (uint16_t)svc_param_get_int("brushFreqTopMed", 5500);
-        (void)brush_start(BRUSH_ID_TOP, freq);
+        /* 中速（pass4 高压冲洗段，挡位 2 = 45 Hz）*/
+        (void)brush_start(BRUSH_TOP, 2);
     }
     else if (s_top_brush_rot == 1)
     {
-        uint16_t freq = (uint16_t)svc_param_get_int("brushFreqTop", 4500);
-        (void)brush_start(BRUSH_ID_TOP, freq);
+        /* 正常洗车（挡位 1 = 35 Hz）*/
+        (void)brush_start(BRUSH_TOP, 1);
     }
     else if (s_side_brush_rot > 0)
     {
-        uint16_t freq = (uint16_t)svc_param_get_int("brushFreqSide", 4500);
-        (void)brush_start(BRUSH_ID_SIDE, freq);
+        (void)brush_start(BRUSH_SIDE, 1);
     }
     else
     {
-        (void)brush_off();
+        (void)brush_stop();
     }
 }
 
@@ -130,8 +127,8 @@ typedef struct
     signal_fn_t   fn;
 } signal_entry_t;
 
-static int read_gantry_fwd_limit(void) { return gantry_at_fwd_limit() ? 1 : 0; }
-static int read_gantry_rev_limit(void) { return gantry_at_rev_limit() ? 1 : 0; }
+static int read_gantry_fwd_limit(void) { return m8_signal_is_active(M8_SIG_GANTRY_FWD_LIM) ? 1 : 0; }
+static int read_gantry_rev_limit(void) { return m8_signal_is_active(M8_SIG_GANTRY_REV_LIM) ? 1 : 0; }
 static int read_lift_up_limit(void)    { return m8_signal_is_active(M8_SIG_LIFT_UP_LIM) ? 1 : 0; }
 static int read_rear_lock_home(void)   { return m8_signal_is_active(M8_SIG_REAR_LOCK_HOME) ? 1 : 0; }
 
@@ -162,7 +159,7 @@ typedef struct
 
 static sw_err_t read_gantry_axis(double *pos, double *speed, bool *valid)
 {
-    *pos   = (double)gantry_get_pos();
+    *pos   = (double)gantry_position();
     *speed = 0.0;   /* TODO: 接入龙门速度反馈 */
     *valid = true;
     return SW_OK;

@@ -124,7 +124,7 @@
     X(M8_IO_DI_GANTRY_ALARM,        false, 3U, 3U, \
       ALM_C_CTRL,  ALM_CTRL_GANTRY_VFD,       ALM_N_HW_FAULT, \
       ALARM_LEVEL_CRITICAL, ALARM_CLEAR_LATCHED,     "龙门变频器报警反馈") \
-    X(M8_IO_DI_SIDE_BRUSH_ALARM,    false, 3U, 3U, \
+    X(M8_IO_DI_BRUSH_ALARM,         false, 3U, 3U, \
       ALM_C_CTRL,  ALM_CTRL_BRUSH_VFD,        ALM_N_HW_FAULT, \
       ALARM_LEVEL_MAJOR,    ALARM_CLEAR_LATCHED,     "侧刷变频器报警反馈") \
     X(M8_IO_DI_FAN_ALARM,           false, 3U, 3U, \

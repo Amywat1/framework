@@ -30,10 +30,9 @@
 #include "machines/m8/adapters/setup/m8_sensor.h"
 #include "machines/m8/adapters/m8_signal_sim.h"
 #include "machines/m8/adapters/setup/m8_water_setup.h"
-#include "machines/m8/adapters/setup/m8_motor_setup.h"
 #include "machines/m8/adapters/setup/m8_brush_setup.h"
 #include "machines/m8/adapters/setup/m8_gantry_setup.h"
-#include "domain/device/actuator/motor/motor.h"
+#include "machines/m8/adapters/setup/m8_motor_tick.h"
 #include "ports/hal/hal_vfd_port.h"
 #include "common/event_types.h"
 #include "common/time_util.h"
@@ -157,8 +156,6 @@ static void scenario_setup(void)
             (void)vfd->init();
         }
     }
-    (void)m8_motor_setup();
-
     /* 初始化各子系统（顺序与 bootstrap.c 保持一致）*/
     time_util_init();
     (void)event_bus_init();
@@ -171,10 +168,10 @@ static void scenario_setup(void)
     m8_signal_sim_set_rev_limit(true);         /* 龙门初始归位 */
     m8_signal_sim_set_lift_top(true);          /* 升降初始在上限位，跳过 homing 中的升降步骤 */
     m8_signal_sim_set_rear_lock_home(true);    /* 后轮锁初始在原点，满足 homing 退出条件 */
-    (void)motor_init();
     (void)m8_brush_setup();
     (void)m8_gantry_setup();
     (void)m8_water_setup();
+    (void)m8_motor_tick_start();
     (void)emergency_handler_init();
     (void)device_fsm_init();
     (void)wash_orchestrator_init();

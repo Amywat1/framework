@@ -58,7 +58,7 @@ static atomic_int   s_current_direction;
 static void wash_stop_all_outputs(void)
 {
     (void)gantry_stop();
-    (void)brush_off();
+    (void)brush_stop();
     (void)water_all_off();
 }
 
@@ -160,7 +160,7 @@ static void *wash_worker_fn(void *arg)
 
             /* 将当前方向发布给外部读取者（无指针跨线程，原子安全） */
             atomic_store(&s_current_direction, (int)engine_current_direction(e));
-            dev_ctx_set_gantry_pos(gantry_get_pos());
+            dev_ctx_set_gantry_pos((int32_t)gantry_position());
 
             engine_run_state_t st = engine_state(e);
 

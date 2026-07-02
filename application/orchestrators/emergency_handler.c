@@ -40,7 +40,7 @@ static bool s_estop_active = false;
  * ------------------------------------------------------------------------- */
 static void do_safety_home(void)
 {
-    brush_off();    /* 停 VFD + 重置接触器 */
+    (void)brush_stop();    /* 停 VFD，接触器保持当前位置（刷子已停转） */
     (void)event_publish(EVT_SAFETY_HOME_DONE, (uint32_t)SW_OK);
     LOG_INFO("emergency_handler: safety home done");
 }
