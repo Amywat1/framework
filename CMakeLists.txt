@@ -191,6 +191,11 @@ if(BUILD_SIM)
         machines/m8/adapters/engine/engine_io_m8.c
         machines/m8/adapters/m8_signal_sim.c
 
+        # M8 物模型点表 + 云端上报/下行分发（纯逻辑，不依赖 snack/aliyun）
+        machines/m8/adapters/cloud/m8_tsl_table.c
+        machines/m8/adapters/cloud/report_builder.c
+        machines/m8/adapters/cloud/mqtt_command_parser.c
+
         # 仿真主入口 + 交互控制台
         platform/sim/*.c
 
@@ -294,6 +299,21 @@ if(BUILD_SIM)
     add_unit_test(test_dev_ctx
         tests/unit/test_dev_ctx.c
         infrastructure/services/dev_ctx/dev_ctx.c
+    )
+
+    # test_m8_tsl_table：M8 物模型点位表上行序列化 + 下行分发
+    add_unit_test(test_m8_tsl_table
+        tests/unit/test_m8_tsl_table.c
+        machines/m8/adapters/cloud/m8_tsl_table.c
+        machines/m8/adapters/cloud/report_builder.c
+        machines/m8/adapters/cloud/mqtt_command_parser.c
+        machines/m8/adapters/setup/m8_sensor.c
+        machines/m8/config/m8_signal_table.c
+        adapters/hal/generic/hal_sensor.c
+        infrastructure/services/dev_ctx/dev_ctx.c
+        application/orchestrators/report_aggregator.c
+        infrastructure/scheduler/thread_registry.c
+        third_party/cJSON/cJSON.c
     )
 
     # -----------------------------------------------------------------------
@@ -514,6 +534,24 @@ if(BUILD_SIM)
         adapters/hal/sim_hw/hal_vfd_sim.c
     )
 
-    message(STATUS "Tests registered: 14 unit + 2 scenario (run with: ctest --test-dir build_sim -V)")
+    # -----------------------------------------------------------------------
+    # 机构领域层单元测试（使用 MCC 仿真桩替代 aarch64 预编译库）
+    # -----------------------------------------------------------------------
+
+    # test_gantry：龙门行走机构领域层（初始化 / 运动命令 / 状态映射 / 故障恢复）
+    add_unit_test(test_gantry
+        tests/unit/test_gantry.c
+        domain/device/mechanism/gantry.c
+        middleware/mcc/motor_control_core_sim.c
+    )
+
+    # test_brush：刷子机构领域层（接触器时序 / 启停 / 刷子切换 / 调速 / 故障）
+    add_unit_test(test_brush
+        tests/unit/test_brush.c
+        domain/device/mechanism/brush.c
+        middleware/mcc/motor_control_core_sim.c
+    )
+
+    message(STATUS "Tests registered: 17 unit + 2 scenario (run with: ctest --test-dir build_sim -V)")
 
 endif()
