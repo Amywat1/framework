@@ -8,7 +8,6 @@
 #ifndef ADAPTERS_CLOUD_ALIYUN_ADAPTER_H
 #define ADAPTERS_CLOUD_ALIYUN_ADAPTER_H
 
-#include "ports/cloud/command_port.h"
 #include "ports/cloud/report_port.h"
 #include "common/sw_error.h"
 #include <stddef.h>
@@ -18,8 +17,8 @@
 extern "C" {
 #endif
 
-/** 命令解析器函数指针类型：JSON 字符串 → cmd_t */
-typedef bool (*aliyun_cmd_parser_fn_t)(const char *json, cmd_t *out_cmd);
+/** 命令分发器函数指针类型：处理一条下行 JSON 消息（可携带多个物模型属性）*/
+typedef void (*aliyun_cmd_dispatch_fn_t)(const char *json);
 
 /** 上报 JSON 构建器函数指针类型：cloud_report_payload_t → JSON 字符串 */
 typedef sw_err_t (*aliyun_report_builder_fn_t)(const cloud_report_payload_t *p,
@@ -27,11 +26,11 @@ typedef sw_err_t (*aliyun_report_builder_fn_t)(const cloud_report_payload_t *p,
 
 /**
  * @brief  初始化阿里云 MQTT 连接并注册命令下行回调
- * @param  parser  命令解析函数，由调用方注入（机型特有的 action→cmd_t 映射）
+ * @param  dispatch  命令分发函数，由调用方注入（机型特有的物模型点位分发）
  * @retval true   MQTT 连接成功
  * @retval false  连接失败，进入离线模式
  */
-bool aliyun_command_adapter_init(aliyun_cmd_parser_fn_t parser);
+bool aliyun_command_adapter_init(aliyun_cmd_dispatch_fn_t dispatch);
 
 /**
  * @brief  注册阿里云状态上报实现到 cloud_report_port

@@ -6,7 +6,6 @@
  */
 
 #include "adapters/cloud/aliyun/aliyun_adapter.h"
-#include "ports/cloud/command_port.h"
 #include "ports/cloud/report_port.h"
 #include "ports/storage/deploy_store.h"
 #include "middleware/snack/snack_mqtt.h"
@@ -23,8 +22,8 @@
 /* 上报 Topic（启动时从 deploy_store 加载） */
 static char s_topic_up[128] = "";
 
-/* 命令解析器（由 aliyun_command_adapter_init 注入） */
-static aliyun_cmd_parser_fn_t s_cmd_parser = NULL;
+/* 命令分发器（由 aliyun_command_adapter_init 注入） */
+static aliyun_cmd_dispatch_fn_t s_cmd_dispatch = NULL;
 
 /* 上报 JSON 构建器（由 aliyun_report_adapter_register 注入） */
 static aliyun_report_builder_fn_t s_report_builder = NULL;
@@ -34,32 +33,23 @@ static aliyun_report_builder_fn_t s_report_builder = NULL;
  * ------------------------------------------------------------------------- */
 static void mqtt_recv_cb(const char *msg)
 {
-    cmd_t                      cmd;
-    const command_port_ops_t  *cp = command_port_get_ops();
-
-    if ((s_cmd_parser == NULL) || !s_cmd_parser(msg, &cmd))
+    if (s_cmd_dispatch == NULL)
     {
-        LOG_WARN("aliyun: parse failed: %.80s", msg);
+        LOG_WARN("aliyun: dispatch not registered");
         return;
     }
 
-    if (cp == NULL)
-    {
-        LOG_WARN("aliyun: command_port not registered");
-        return;
-    }
-
-    (void)cp->inject(&cmd);
+    s_cmd_dispatch(msg);
 }
 
-bool aliyun_command_adapter_init(aliyun_cmd_parser_fn_t parser)
+bool aliyun_command_adapter_init(aliyun_cmd_dispatch_fn_t dispatch)
 {
     const deploy_store_ops_t *ds = deploy_store_get_ops();
     char product_key[64]   = "";
     char device_sn[64]     = "";
     char device_secret[64] = "";
 
-    s_cmd_parser = parser;
+    s_cmd_dispatch = dispatch;
 
     if (ds != NULL)
     {

@@ -48,7 +48,7 @@
 #  include "machines/m8/adapters/setup/m8_voice_setup.h"
 #  include "machines/m8/adapters/cli/m8_cli_setup.h"
 #  include "adapters/cloud/aliyun/aliyun_adapter.h"
-#  include "machines/m8/adapters/cloud/mqtt_command_parser.h"
+#  include "machines/m8/adapters/cloud/m8_tsl_table.h"
 #  include "common/event_types.h"
 #endif
 
@@ -205,7 +205,7 @@ static sw_err_t bootstrap_init_adapters(void)
     }
 
 #ifndef BUILD_SIM
-    if (aliyun_command_adapter_init(m8_mqtt_command_parse))
+    if (aliyun_command_adapter_init(m8_tsl_command_dispatch))
     {
         (void)event_publish(EVT_CLOUD_CONNECTED, 0U);
     }

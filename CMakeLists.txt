@@ -191,10 +191,12 @@ if(BUILD_SIM)
         machines/m8/adapters/engine/engine_io_m8.c
         machines/m8/adapters/m8_signal_sim.c
 
-        # M8 物模型点表 + 云端上报/下行分发（纯逻辑，不依赖 snack/aliyun）
+        # 物模型点表通用引擎（机型无关，纯逻辑，不依赖 snack/aliyun）
+        adapters/cloud/tsl/tsl_report.c
+        adapters/cloud/tsl/tsl_command.c
+
+        # M8 物模型点表（含接入通用引擎的上报/下行适配函数）
         machines/m8/adapters/cloud/m8_tsl_table.c
-        machines/m8/adapters/cloud/report_builder.c
-        machines/m8/adapters/cloud/mqtt_command_parser.c
 
         # 仿真主入口 + 交互控制台
         platform/sim/*.c
@@ -304,9 +306,9 @@ if(BUILD_SIM)
     # test_m8_tsl_table：M8 物模型点位表上行序列化 + 下行分发
     add_unit_test(test_m8_tsl_table
         tests/unit/test_m8_tsl_table.c
+        adapters/cloud/tsl/tsl_report.c
+        adapters/cloud/tsl/tsl_command.c
         machines/m8/adapters/cloud/m8_tsl_table.c
-        machines/m8/adapters/cloud/report_builder.c
-        machines/m8/adapters/cloud/mqtt_command_parser.c
         machines/m8/adapters/setup/m8_sensor.c
         machines/m8/config/m8_signal_table.c
         adapters/hal/generic/hal_sensor.c

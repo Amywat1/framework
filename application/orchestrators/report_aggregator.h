@@ -22,6 +22,12 @@ extern "C" {
  */
 sw_err_t report_aggregator_init(void);
 
+/**
+ * @brief  立即执行一次状态上报，不等待周期定时器
+ * @note   供 cmd_sync 等"立即重新上报全部点位"场景调用；云端未连接时忽略
+ */
+void report_aggregator_request_resync(void);
+
 #ifdef __cplusplus
 }
 #endif

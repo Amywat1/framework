@@ -30,7 +30,7 @@ extern void json_param_store_register(void);
 extern void json_deploy_store_register(void);
 
 #include "adapters/cloud/aliyun/aliyun_adapter.h"
-#include "machines/m8/adapters/cloud/report_builder.h"
+#include "machines/m8/adapters/cloud/m8_tsl_table.h"
 
 /* -------------------------------------------------------------------------
  * 引擎 IO 后端注册函数声明

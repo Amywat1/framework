@@ -35,6 +35,28 @@ static void build_payload(cloud_report_payload_t *p)
 }
 
 /* -------------------------------------------------------------------------
+ * 上报一次（供周期线程与 report_aggregator_request_resync 共用）
+ * ------------------------------------------------------------------------- */
+static void report_once(void)
+{
+    const cloud_report_ops_t *ops = cloud_report_get_ops();
+
+    if ((ops == NULL) || !ops->is_connected())
+    {
+        return; /* 未注册或离线：不发送，避免无用错误日志 */
+    }
+
+    cloud_report_payload_t payload;
+    build_payload(&payload);
+
+    sw_err_t ret = ops->report(&payload);
+    if ((ret != SW_OK) && (ret != SW_ERR_COMM))
+    {
+        LOG_WARN("report_aggregator: report failed ret=%d", (int)ret);
+    }
+}
+
+/* -------------------------------------------------------------------------
  * cloud_thread 函数（周期性上报）
  * ------------------------------------------------------------------------- */
 static void *cloud_thread_fn(void *arg)
@@ -69,22 +91,15 @@ static void *cloud_thread_fn(void *arg)
             }
         }
 
-        if (!now_connected)
-        {
-            continue; /* 离线时不发送，避免无用错误日志 */
-        }
-
-        cloud_report_payload_t payload;
-        build_payload(&payload);
-
-        sw_err_t ret = ops->report(&payload);
-        if ((ret != SW_OK) && (ret != SW_ERR_COMM))
-        {
-            LOG_WARN("report_aggregator: report failed ret=%d", (int)ret);
-        }
+        report_once();
     }
 
     return NULL;
+}
+
+void report_aggregator_request_resync(void)
+{
+    report_once();
 }
 
 /* -------------------------------------------------------------------------
