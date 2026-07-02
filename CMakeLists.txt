@@ -554,6 +554,26 @@ if(BUILD_SIM)
         middleware/mcc/motor_control_core_sim.c
     )
 
-    message(STATUS "Tests registered: 17 unit + 2 scenario (run with: ctest --test-dir build_sim -V)")
+    # test_fan：风机机构领域层（IO回调 / 启停 / 报警故障 / 复位脉冲时序）
+    add_unit_test(test_fan
+        tests/unit/test_fan.c
+        domain/device/mechanism/fan.c
+    )
+
+    # test_lift：顶刷升降机构领域层（FORWARD=上升 / 状态映射 / 故障恢复）
+    add_unit_test(test_lift
+        tests/unit/test_lift.c
+        domain/device/mechanism/lift.c
+        middleware/mcc/motor_control_core_sim.c
+    )
+
+    # test_rear_lock：后轮锁止机构领域层（FORWARD=锁止 / 状态映射 / 故障恢复）
+    add_unit_test(test_rear_lock
+        tests/unit/test_rear_lock.c
+        domain/device/mechanism/rear_lock.c
+        middleware/mcc/motor_control_core_sim.c
+    )
+
+    message(STATUS "Tests registered: 20 unit + 2 scenario (run with: ctest --test-dir build_sim -V)")
 
 endif()

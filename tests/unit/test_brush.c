@@ -176,19 +176,19 @@ void test_brush_not_init_state_idle(void)
 void test_brush_init_null_exec(void)
 {
     TEST_ASSERT_EQUAL(SW_ERR_PARAM,
-        brush_init(NULL, &s_contactor_ops, &s_contactor_cfg));
+        brush_init(NULL, 0, &s_contactor_ops, &s_contactor_cfg));
 }
 
 void test_brush_init_null_ops(void)
 {
     TEST_ASSERT_EQUAL(SW_ERR_PARAM,
-        brush_init(&s_exec, NULL, &s_contactor_cfg));
+        brush_init(&s_exec, 0, NULL, &s_contactor_cfg));
 }
 
 void test_brush_init_null_cfg(void)
 {
     TEST_ASSERT_EQUAL(SW_ERR_PARAM,
-        brush_init(&s_exec, &s_contactor_ops, NULL));
+        brush_init(&s_exec, 0, &s_contactor_ops, NULL));
 }
 
 void test_brush_init_null_set_on(void)
@@ -196,7 +196,7 @@ void test_brush_init_null_set_on(void)
     brush_contactor_ops_t ops = s_contactor_ops;
     ops.set_on = NULL;
     TEST_ASSERT_EQUAL(SW_ERR_PARAM,
-        brush_init(&s_exec, &ops, &s_contactor_cfg));
+        brush_init(&s_exec, 0, &ops, &s_contactor_cfg));
 }
 
 void test_brush_init_null_set_off(void)
@@ -204,24 +204,24 @@ void test_brush_init_null_set_off(void)
     brush_contactor_ops_t ops = s_contactor_ops;
     ops.set_off = NULL;
     TEST_ASSERT_EQUAL(SW_ERR_PARAM,
-        brush_init(&s_exec, &ops, &s_contactor_cfg));
+        brush_init(&s_exec, 0, &ops, &s_contactor_cfg));
 }
 
 void test_brush_init_ok(void)
 {
     TEST_ASSERT_EQUAL(SW_OK,
-        brush_init(&s_exec, &s_contactor_ops, &s_contactor_cfg));
+        brush_init(&s_exec, 0, &s_contactor_ops, &s_contactor_cfg));
 }
 
 void test_brush_init_state_idle(void)
 {
-    brush_init(&s_exec, &s_contactor_ops, &s_contactor_cfg);
+    brush_init(&s_exec, 0, &s_contactor_ops, &s_contactor_cfg);
     TEST_ASSERT_EQUAL(BRUSH_STATE_IDLE, brush_state());
 }
 
 void test_brush_init_contactor_not_engaged(void)
 {
-    brush_init(&s_exec, &s_contactor_ops, &s_contactor_cfg);
+    brush_init(&s_exec, 0, &s_contactor_ops, &s_contactor_cfg);
     TEST_ASSERT_FALSE(brush_contactor_engaged());
 }
 
@@ -231,7 +231,7 @@ void test_brush_init_contactor_not_engaged(void)
 
 void test_brush_start_side_enters_contactor_on(void)
 {
-    brush_init(&s_exec, &s_contactor_ops, &s_contactor_cfg);
+    brush_init(&s_exec, 0, &s_contactor_ops, &s_contactor_cfg);
     TEST_ASSERT_EQUAL(SW_OK, brush_start(BRUSH_SIDE, 1));
     /* 接触器尚未吸合：brush_start → begin_contactor_on → CONTACTOR_ON */
     TEST_ASSERT_EQUAL(BRUSH_STATE_CONTACTOR_ON, brush_state());
@@ -240,7 +240,7 @@ void test_brush_start_side_enters_contactor_on(void)
 
 void test_brush_start_side_tick_to_running(void)
 {
-    brush_init(&s_exec, &s_contactor_ops, &s_contactor_cfg);
+    brush_init(&s_exec, 0, &s_contactor_ops, &s_contactor_cfg);
     brush_start(BRUSH_SIDE, 1);
     /* tick 1：CONTACTOR_ON → STARTING（close_ms=0 立即满足） */
     brush_tick();
@@ -252,7 +252,7 @@ void test_brush_start_side_tick_to_running(void)
 
 void test_brush_start_top_tick_to_running(void)
 {
-    brush_init(&s_exec, &s_contactor_ops, &s_contactor_cfg);
+    brush_init(&s_exec, 0, &s_contactor_ops, &s_contactor_cfg);
     start_brush_to_running(BRUSH_TOP, 1);
     TEST_ASSERT_EQUAL(BRUSH_TOP, brush_selected());
 }
@@ -263,14 +263,14 @@ void test_brush_start_top_tick_to_running(void)
 
 void test_brush_stop_from_idle_ok(void)
 {
-    brush_init(&s_exec, &s_contactor_ops, &s_contactor_cfg);
+    brush_init(&s_exec, 0, &s_contactor_ops, &s_contactor_cfg);
     TEST_ASSERT_EQUAL(SW_OK, brush_stop());
     TEST_ASSERT_EQUAL(BRUSH_STATE_IDLE, brush_state());
 }
 
 void test_brush_stop_from_running_enters_stopping(void)
 {
-    brush_init(&s_exec, &s_contactor_ops, &s_contactor_cfg);
+    brush_init(&s_exec, 0, &s_contactor_ops, &s_contactor_cfg);
     start_brush_to_running(BRUSH_SIDE, 1);
 
     TEST_ASSERT_EQUAL(SW_OK, brush_stop());
@@ -280,7 +280,7 @@ void test_brush_stop_from_running_enters_stopping(void)
 
 void test_brush_stop_tick_to_idle(void)
 {
-    brush_init(&s_exec, &s_contactor_ops, &s_contactor_cfg);
+    brush_init(&s_exec, 0, &s_contactor_ops, &s_contactor_cfg);
     start_brush_to_running(BRUSH_SIDE, 1);
 
     brush_stop();
@@ -294,7 +294,7 @@ void test_brush_stop_tick_to_idle(void)
 
 void test_brush_stop_from_contactor_on_then_idle(void)
 {
-    brush_init(&s_exec, &s_contactor_ops, &s_contactor_cfg);
+    brush_init(&s_exec, 0, &s_contactor_ops, &s_contactor_cfg);
     /* 触发 brush_start → CONTACTOR_ON，然后立即 stop */
     brush_start(BRUSH_SIDE, 1);
     TEST_ASSERT_EQUAL(BRUSH_STATE_CONTACTOR_ON, brush_state());
@@ -314,7 +314,7 @@ void test_brush_stop_from_contactor_on_then_idle(void)
 
 void test_brush_restart_same_brush_directly_starting(void)
 {
-    brush_init(&s_exec, &s_contactor_ops, &s_contactor_cfg);
+    brush_init(&s_exec, 0, &s_contactor_ops, &s_contactor_cfg);
     /* 首次启动到 RUNNING 再停止，接触器保持在 BRUSH_SIDE */
     start_brush_to_running(BRUSH_SIDE, 1);
     brush_stop();
@@ -335,7 +335,7 @@ void test_brush_restart_same_brush_directly_starting(void)
 
 void test_brush_restart_same_brush_tick_to_running(void)
 {
-    brush_init(&s_exec, &s_contactor_ops, &s_contactor_cfg);
+    brush_init(&s_exec, 0, &s_contactor_ops, &s_contactor_cfg);
     start_brush_to_running(BRUSH_SIDE, 1);
     brush_stop();
     brush_tick();
@@ -351,7 +351,7 @@ void test_brush_restart_same_brush_tick_to_running(void)
 
 void test_brush_speed_change_same_brush_stays_running(void)
 {
-    brush_init(&s_exec, &s_contactor_ops, &s_contactor_cfg);
+    brush_init(&s_exec, 0, &s_contactor_ops, &s_contactor_cfg);
     start_brush_to_running(BRUSH_SIDE, 1);
 
     reset_mock_counters();
@@ -367,7 +367,7 @@ void test_brush_speed_change_same_brush_stays_running(void)
 
 void test_brush_speed_change_updates_target_freq(void)
 {
-    brush_init(&s_exec, &s_contactor_ops, &s_contactor_cfg);
+    brush_init(&s_exec, 0, &s_contactor_ops, &s_contactor_cfg);
     start_brush_to_running(BRUSH_SIDE, 1);
 
     brush_start(BRUSH_SIDE, 2);
@@ -381,7 +381,7 @@ void test_brush_speed_change_updates_target_freq(void)
 
 void test_brush_switch_from_running_enters_stopping(void)
 {
-    brush_init(&s_exec, &s_contactor_ops, &s_contactor_cfg);
+    brush_init(&s_exec, 0, &s_contactor_ops, &s_contactor_cfg);
     start_brush_to_running(BRUSH_SIDE, 1);
 
     reset_mock_counters();
@@ -393,7 +393,7 @@ void test_brush_switch_from_running_enters_stopping(void)
 
 void test_brush_switch_full_sequence(void)
 {
-    brush_init(&s_exec, &s_contactor_ops, &s_contactor_cfg);
+    brush_init(&s_exec, 0, &s_contactor_ops, &s_contactor_cfg);
     start_brush_to_running(BRUSH_SIDE, 1);
 
     reset_mock_counters();
@@ -424,7 +424,7 @@ void test_brush_switch_full_sequence(void)
 void test_brush_switch_from_idle_with_wrong_contactor(void)
 {
     /* 从 IDLE 状态、接触器已在 SIDE 位置，启动 TOP → 先断开再吸合 */
-    brush_init(&s_exec, &s_contactor_ops, &s_contactor_cfg);
+    brush_init(&s_exec, 0, &s_contactor_ops, &s_contactor_cfg);
     /* 首次到 RUNNING 再停到 IDLE，接触器留在 SIDE */
     start_brush_to_running(BRUSH_SIDE, 1);
     brush_stop();
@@ -461,7 +461,7 @@ void test_brush_switch_from_idle_with_wrong_contactor(void)
 
 void test_brush_fault_detected_by_tick(void)
 {
-    brush_init(&s_exec, &s_contactor_ops, &s_contactor_cfg);
+    brush_init(&s_exec, 0, &s_contactor_ops, &s_contactor_cfg);
     start_brush_to_running(BRUSH_SIDE, 1);
 
     /* 直接注入故障状态 */
@@ -472,7 +472,7 @@ void test_brush_fault_detected_by_tick(void)
 
 void test_brush_estop_detected_by_tick(void)
 {
-    brush_init(&s_exec, &s_contactor_ops, &s_contactor_cfg);
+    brush_init(&s_exec, 0, &s_contactor_ops, &s_contactor_cfg);
     start_brush_to_running(BRUSH_SIDE, 1);
 
     s_exec.m[0].phase = MOTOR_PHASE_ESTOP;
@@ -482,7 +482,7 @@ void test_brush_estop_detected_by_tick(void)
 
 void test_brush_fault_blocks_start(void)
 {
-    brush_init(&s_exec, &s_contactor_ops, &s_contactor_cfg);
+    brush_init(&s_exec, 0, &s_contactor_ops, &s_contactor_cfg);
     start_brush_to_running(BRUSH_SIDE, 1);
     s_exec.m[0].phase = MOTOR_PHASE_FAULT;
     brush_tick();
@@ -492,7 +492,7 @@ void test_brush_fault_blocks_start(void)
 
 void test_brush_fault_blocks_stop(void)
 {
-    brush_init(&s_exec, &s_contactor_ops, &s_contactor_cfg);
+    brush_init(&s_exec, 0, &s_contactor_ops, &s_contactor_cfg);
     start_brush_to_running(BRUSH_SIDE, 1);
     s_exec.m[0].phase = MOTOR_PHASE_FAULT;
     brush_tick();
@@ -502,7 +502,7 @@ void test_brush_fault_blocks_stop(void)
 
 void test_brush_fault_code_reflected(void)
 {
-    brush_init(&s_exec, &s_contactor_ops, &s_contactor_cfg);
+    brush_init(&s_exec, 0, &s_contactor_ops, &s_contactor_cfg);
     s_exec.m[0].phase      = MOTOR_PHASE_FAULT;
     s_exec.m[0].fault_code = MOTOR_FAULT_OVERCURRENT;
     brush_tick();
@@ -516,7 +516,7 @@ void test_brush_fault_code_reflected(void)
 
 void test_brush_first_start_calls_set_on(void)
 {
-    brush_init(&s_exec, &s_contactor_ops, &s_contactor_cfg);
+    brush_init(&s_exec, 0, &s_contactor_ops, &s_contactor_cfg);
     reset_mock_counters();
 
     brush_start(BRUSH_SIDE, 1);
@@ -528,7 +528,7 @@ void test_brush_first_start_calls_set_on(void)
 
 void test_brush_start_invalid_id_returns_err_param(void)
 {
-    brush_init(&s_exec, &s_contactor_ops, &s_contactor_cfg);
+    brush_init(&s_exec, 0, &s_contactor_ops, &s_contactor_cfg);
     TEST_ASSERT_EQUAL(SW_ERR_PARAM, brush_start(BRUSH_ID_MAX, 1));
 }
 
