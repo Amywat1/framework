@@ -5,8 +5,7 @@
  * 封装 motor_executor_t，提供方向感知的行走控制接口。
  * 支持：按限位到位、按时间运行、连续运行、按位置到位（需已建立编码器基准）。
  *
- * 调用方须以固定节拍调用 gantry_tick()（推荐 20ms）。
- * 本模块内部驱动 motor_tick()，调用方无需另外调用。
+ * motor_tick() 由机型层统一调度，调用方无需另行调用。
  */
 #ifndef DOMAIN_DEVICE_MECHANISM_GANTRY_H
 #define DOMAIN_DEVICE_MECHANISM_GANTRY_H
@@ -41,12 +40,13 @@ typedef enum {
 /* ----------------------- 公共 API ----------------------- */
 
 /**
- * @brief 初始化龙门模块，注入已完成 motor_init 的执行器。
+ * @brief 初始化龙门模块，注入执行器及所在电机索引。
  *
- * @param exec  已完成 motor_init 的执行器，龙门模块独占 motor 0。
+ * @param exec   共享 motor_executor_t，须已完成 motor_init。
+ * @param motor  本模块对应的电机索引（由机型层分配）。
  * @return SW_OK 成功；SW_ERR_PARAM 参数非法。
  */
-sw_err_t gantry_init(motor_executor_t *exec);
+sw_err_t gantry_init(motor_executor_t *exec, int motor);
 
 /**
  * @brief 命令龙门向前运动（异步）。
@@ -86,13 +86,6 @@ sw_err_t gantry_stop(void);
  *         SW_ERR_STATE 当前处于故障态。
  */
 sw_err_t gantry_home(void);
-
-/**
- * @brief 龙门模块周期处理，须以固定节拍调用（推荐 20ms）。
- *
- * 内部同时驱动 motor_tick()，调用方无需单独调用。
- */
-void gantry_tick(void);
 
 /**
  * @brief 查询龙门当前状态。

@@ -6,8 +6,8 @@
  * 本模块负责"停止变频器 → 断电旧接触器 → 通电新接触器 → 重启变频器"的
  * 完整时序，对外仅暴露 brush_start / brush_stop / brush_tick 三个核心接口。
  *
- * 调用方须以固定节拍调用 brush_tick()（推荐与电机 tick 节拍一致）。
- * 本模块内部持有并驱动 motor_executor_t，调用方无需另外调用 motor_tick()。
+ * 调用方须以固定节拍调用 brush_tick()（推荐 20ms）驱动接触器状态机。
+ * motor_tick() 由机型层统一调度，调用方无需另行调用。
  */
 #ifndef DOMAIN_DEVICE_MECHANISM_BRUSH_H
 #define DOMAIN_DEVICE_MECHANISM_BRUSH_H
@@ -78,7 +78,8 @@ typedef struct {
 /**
  * @brief 初始化刷子模块。
  *
- * @param exec          已完成 motor_init 的执行器，刷子模块独占 motor 0。
+ * @param exec          共享 motor_executor_t，须已完成 motor_init。
+ * @param motor         本模块对应的电机索引（由机型层分配）。
  * @param contactor_ops 接触器操作回调，set_on 和 set_off 均不得为 NULL。
  * @param contactor_cfg 接触器时序配置，不得为 NULL。
  * @return SW_OK 成功；SW_ERR_PARAM 参数非法。
@@ -87,6 +88,7 @@ typedef struct {
  *       初始化后接触器处于未吸合状态，首次 brush_start() 将按需通电接触器。
  */
 sw_err_t brush_init(motor_executor_t           *exec,
+                    int                         motor,
                     const brush_contactor_ops_t *contactor_ops,
                     const brush_contactor_cfg_t *contactor_cfg);
 
@@ -122,7 +124,7 @@ sw_err_t brush_stop(void);
 /**
  * @brief 刷子模块周期处理，须以固定节拍调用（推荐 20ms）。
  *
- * 内部同时驱动 motor_tick() 和刷子状态机，调用方无需单独调用 motor_tick()。
+ * 驱动接触器切换状态机；motor_tick() 由机型层统一调度。
  */
 void brush_tick(void);
 

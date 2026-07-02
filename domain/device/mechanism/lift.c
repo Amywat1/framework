@@ -1,13 +1,13 @@
 /**
- * @file    gantry.c
- * @brief   龙门行走机构领域层实现。
+ * @file    lift.c
+ * @brief   顶刷升降机构领域层实现。
  *
- * 以 motor_executor_t 为底层，提供方向感知的行走控制。
- * 编码器基准建立、限位停止、故障恢复均由 MCC 执行器负责，
+ * 以 motor_executor_t 为底层，提供方向感知的升降控制。
+ * 限位停止、编码器基准建立、故障恢复均由 MCC 执行器负责，
  * 本层仅做方向映射与状态聚合。
  */
 
-#include "domain/device/mechanism/gantry.h"
+#include "domain/device/mechanism/lift.h"
 #include <stddef.h>
 
 /* -------------------- 静态模块状态 -------------------- */
@@ -17,7 +17,7 @@ static int               s_motor;
 
 /* -------------------- 公共 API -------------------- */
 
-sw_err_t gantry_init(motor_executor_t *exec, int motor)
+sw_err_t lift_init(motor_executor_t *exec, int motor)
 {
     if (exec == NULL) {
         return SW_ERR_PARAM;
@@ -27,14 +27,14 @@ sw_err_t gantry_init(motor_executor_t *exec, int motor)
     return SW_OK;
 }
 
-sw_err_t gantry_move_fwd(int speed_gear, const motor_move_spec_t *spec)
+sw_err_t lift_up(int speed_gear, const motor_move_spec_t *spec)
 {
     motor_cmd_result_t r;
 
     if (s_exec == NULL) {
         return SW_ERR_NOT_INIT;
     }
-    if (gantry_state() == GANTRY_STATE_FAULT) {
+    if (lift_state() == LIFT_STATE_FAULT) {
         return SW_ERR_STATE;
     }
 
@@ -46,14 +46,14 @@ sw_err_t gantry_move_fwd(int speed_gear, const motor_move_spec_t *spec)
     return motor_cmd_ok(r) ? SW_OK : SW_ERR_STATE;
 }
 
-sw_err_t gantry_move_rev(int speed_gear, const motor_move_spec_t *spec)
+sw_err_t lift_down(int speed_gear, const motor_move_spec_t *spec)
 {
     motor_cmd_result_t r;
 
     if (s_exec == NULL) {
         return SW_ERR_NOT_INIT;
     }
-    if (gantry_state() == GANTRY_STATE_FAULT) {
+    if (lift_state() == LIFT_STATE_FAULT) {
         return SW_ERR_STATE;
     }
 
@@ -65,7 +65,7 @@ sw_err_t gantry_move_rev(int speed_gear, const motor_move_spec_t *spec)
     return motor_cmd_ok(r) ? SW_OK : SW_ERR_STATE;
 }
 
-sw_err_t gantry_stop(void)
+sw_err_t lift_stop(void)
 {
     if (s_exec == NULL) {
         return SW_ERR_NOT_INIT;
@@ -74,24 +74,24 @@ sw_err_t gantry_stop(void)
     return SW_OK;
 }
 
-sw_err_t gantry_home(void)
+sw_err_t lift_home(void)
 {
     if (s_exec == NULL) {
         return SW_ERR_NOT_INIT;
     }
-    if (gantry_state() == GANTRY_STATE_FAULT) {
+    if (lift_state() == LIFT_STATE_FAULT) {
         return SW_ERR_STATE;
     }
     (void)motor_home(s_exec, s_motor);
     return SW_OK;
 }
 
-gantry_state_t gantry_state(void)
+lift_state_t lift_state(void)
 {
     motor_phase_t ph;
 
     if (s_exec == NULL) {
-        return GANTRY_STATE_IDLE;
+        return LIFT_STATE_IDLE;
     }
 
     ph = motor_phase(s_exec, s_motor);
@@ -99,27 +99,27 @@ gantry_state_t gantry_state(void)
     case MOTOR_PHASE_STOPPED:
     case MOTOR_PHASE_WAITING_START:
     case MOTOR_PHASE_PAUSED:
-        return GANTRY_STATE_IDLE;
+        return LIFT_STATE_IDLE;
 
     case MOTOR_PHASE_RUNNING:
         return (motor_direction(s_exec, s_motor) == MOTOR_DIR_FORWARD)
-               ? GANTRY_STATE_MOVING_FWD
-               : GANTRY_STATE_MOVING_REV;
+               ? LIFT_STATE_LIFTING
+               : LIFT_STATE_LOWERING;
 
     case MOTOR_PHASE_DECELERATING:
     case MOTOR_PHASE_REVERSAL_WAIT:
-        return GANTRY_STATE_STOPPING;
+        return LIFT_STATE_STOPPING;
 
     case MOTOR_PHASE_FAULT:
     case MOTOR_PHASE_ESTOP:
-        return GANTRY_STATE_FAULT;
+        return LIFT_STATE_FAULT;
 
     default:
-        return GANTRY_STATE_IDLE;
+        return LIFT_STATE_IDLE;
     }
 }
 
-int64_t gantry_position(void)
+int64_t lift_position(void)
 {
     if (s_exec == NULL) {
         return 0;
@@ -127,7 +127,7 @@ int64_t gantry_position(void)
     return motor_position(s_exec, s_motor);
 }
 
-motor_fault_code_t gantry_fault_code(void)
+motor_fault_code_t lift_fault_code(void)
 {
     if (s_exec == NULL) {
         return MOTOR_FAULT_NONE;
@@ -135,7 +135,7 @@ motor_fault_code_t gantry_fault_code(void)
     return motor_fault_code(s_exec, s_motor);
 }
 
-sw_err_t gantry_recover(motor_recovery_step_t step)
+sw_err_t lift_recover(motor_recovery_step_t step)
 {
     if (s_exec == NULL) {
         return SW_ERR_NOT_INIT;

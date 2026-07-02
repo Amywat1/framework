@@ -28,6 +28,9 @@
 #include "domain/device/mechanism/gantry.h"
 #include "domain/device/mechanism/brush.h"
 #include "domain/device/mechanism/water.h"
+#include "domain/device/mechanism/lift.h"
+#include "domain/device/mechanism/rear_lock.h"
+#include "domain/device/mechanism/fan.h"
 #include "machines/m8/adapters/setup/m8_sensor.h"
 #include "machines/m8/config/m8_signal_table.h"
 #include "common/log.h"
@@ -49,6 +52,10 @@ static int s_water_top_foam = 0;
 static int s_water_btm_foam = 0;
 static int s_water_hp_top   = 0;
 static int s_water_hp_btm   = 0;
+static int s_lifter_up      = 0;
+static int s_lifter_down    = 0;
+static int s_dryer_run      = 0;
+static int s_putter_rev     = 0;
 
 /* =========================================================================
  * DO 分组刷新函数
@@ -112,6 +119,46 @@ static void apply_water_highpres(void)
     else
     {
         (void)water_highpres_off();
+    }
+}
+
+static void apply_lifter(void)
+{
+    if (s_lifter_up > 0)
+    {
+        (void)lift_up(0, NULL);
+    }
+    else if (s_lifter_down > 0)
+    {
+        (void)lift_down(0, NULL);
+    }
+    else
+    {
+        (void)lift_stop();
+    }
+}
+
+static void apply_dryer(void)
+{
+    if (s_dryer_run > 0)
+    {
+        (void)fan_start();
+    }
+    else
+    {
+        (void)fan_stop();
+    }
+}
+
+static void apply_putter(void)
+{
+    if (s_putter_rev > 0)
+    {
+        (void)rear_lock_release(0, NULL);
+    }
+    else
+    {
+        (void)rear_lock_stop();
     }
 }
 
@@ -190,11 +237,11 @@ static const output_entry_t s_output_table[] = {
     { "WATER_BUTTOM_FOAM",     &s_water_btm_foam,   apply_water_prewash  },
     { "WATER_HIGHPRES_TOP",    &s_water_hp_top,     apply_water_highpres },
     { "WATER_HIGHPRES_BOTTOM", &s_water_hp_btm,     apply_water_highpres },
+    { "LIFTER_UP",             &s_lifter_up,   apply_lifter },
+    { "LIFTER_DOWN",           &s_lifter_down, apply_lifter },
+    { "DRYER_RUN",             &s_dryer_run,   apply_dryer  },
+    { "PUTTER_REV",            &s_putter_rev,  apply_putter },
     /* [stub] 待实现对应驱动后替换为真实实现 */
-    { "LIFTER_UP",             NULL, NULL },
-    { "LIFTER_DOWN",           NULL, NULL },
-    { "DRYER_RUN",             NULL, NULL },
-    { "PUTTER_REV",            NULL, NULL },
     { "TOP_BRUSH_FOLLOW_EN",   NULL, NULL },
 };
 

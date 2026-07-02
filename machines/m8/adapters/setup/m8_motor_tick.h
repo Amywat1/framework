@@ -2,15 +2,15 @@
  * @file    m8_motor_tick.h
  * @brief   M8 电机 tick 统一调度管理器。
  *
- * 各电机模块（刷子、龙门、升降等）在 setup 阶段通过 m8_motor_tick_register()
- * 注册各自的 tick 函数，bootstrap 最后统一调用 m8_motor_tick_start() 启动
- * 单一后台线程按固定节拍依次调用所有已注册函数。
+ * 通用周期 tick 调度管理器。
+ * 所有需要以固定节拍调度的函数均通过 m8_motor_tick_register() 注册，
+ * bootstrap 最后统一调用 m8_motor_tick_start() 启动单一后台线程。
  *
  * 调用顺序：
- *   1. m8_brush_setup()  → m8_motor_tick_register(brush_tick)
- *   2. m8_gantry_setup() → m8_motor_tick_register(gantry_tick)
- *   3. ...
- *   4. m8_motor_tick_start()  ← bootstrap_start_threads 中调用
+ *   1. m8_motor_exec_init() → m8_motor_tick_register(m8_motor_exec_tick)
+ *   2. m8_brush_setup()     → m8_motor_tick_register(brush_tick)
+ *   3. m8_fan_setup()       → m8_motor_tick_register(fan_tick)
+ *   4. m8_motor_tick_start()
  */
 #ifndef MACHINES_M8_ADAPTERS_SETUP_M8_MOTOR_TICK_H
 #define MACHINES_M8_ADAPTERS_SETUP_M8_MOTOR_TICK_H
@@ -21,8 +21,8 @@
 extern "C" {
 #endif
 
-/** 最多可注册的 tick 函数数量（刷子 + 龙门 + 升降 + 备用）*/
-#define M8_MOTOR_TICK_MAX  4
+/** 最多可注册的 tick 函数数量（motor_exec_tick + brush_tick + fan_tick + 备用）*/
+#define M8_MOTOR_TICK_MAX  8
 
 /**
  * @brief 注册一个电机 tick 函数，在 tick 线程中按注册顺序依次调用。

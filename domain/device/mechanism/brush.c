@@ -13,6 +13,7 @@
 /* -------------------- 静态模块状态 -------------------- */
 
 static motor_executor_t      *s_exec;
+static int                    s_motor;
 static brush_contactor_ops_t  s_contactor_ops;
 static brush_contactor_cfg_t  s_contactor_cfg;
 
@@ -55,6 +56,7 @@ static void begin_contactor_on(void)
 /* -------------------- 公共 API -------------------- */
 
 sw_err_t brush_init(motor_executor_t           *exec,
+                    int                         motor,
                     const brush_contactor_ops_t *contactor_ops,
                     const brush_contactor_cfg_t *contactor_cfg)
 {
@@ -66,6 +68,7 @@ sw_err_t brush_init(motor_executor_t           *exec,
     }
 
     s_exec             = exec;
+    s_motor            = motor;
     s_contactor_ops    = *contactor_ops;
     s_contactor_cfg    = *contactor_cfg;
     s_state            = BRUSH_STATE_IDLE;
@@ -94,12 +97,12 @@ sw_err_t brush_start(brush_id_t id, int speed_gear)
     case BRUSH_STATE_RUNNING:
         if (s_selected == id) {
             /* 同一刷子：仅调速，无需切换 */
-            (void)motor_set_speed(s_exec, 0,
+            (void)motor_set_speed(s_exec, s_motor,
                                   motor_speed_gear(speed_gear),
                                   MOTOR_DIR_FORWARD);
         } else {
             /* 不同刷子：先停，tick 检测到停止后再切换 */
-            (void)motor_stop(s_exec, 0);
+            (void)motor_stop(s_exec, s_motor);
             s_start_pending = true;
             s_state         = BRUSH_STATE_STOPPING;
         }
@@ -116,7 +119,7 @@ sw_err_t brush_start(brush_id_t id, int speed_gear)
             s_start_pending = true;
         } else {
             /* 接触器已在正确位置，直接启动变频器 */
-            (void)motor_run_continuous(s_exec, 0,
+            (void)motor_run_continuous(s_exec, s_motor,
                                        motor_speed_gear(speed_gear),
                                        MOTOR_DIR_FORWARD);
             s_state = BRUSH_STATE_STARTING;
@@ -147,7 +150,7 @@ sw_err_t brush_stop(void)
         return SW_OK;
     }
 
-    (void)motor_stop(s_exec, 0);
+    (void)motor_stop(s_exec, s_motor);
     s_state = BRUSH_STATE_STOPPING;
     return SW_OK;
 }
@@ -158,9 +161,7 @@ void brush_tick(void)
         return;
     }
 
-    motor_tick(s_exec);
-
-    motor_phase_t ph = motor_phase(s_exec, 0);
+    motor_phase_t ph = motor_phase(s_exec, s_motor);
 
     /* 故障/急停：任意态下立即转故障 */
     if ((ph == MOTOR_PHASE_FAULT) || (ph == MOTOR_PHASE_ESTOP)) {
@@ -181,7 +182,7 @@ void brush_tick(void)
                 begin_contactor_off();
             } else if (s_start_pending) {
                 /* 同接触器，直接重启变频器 */
-                (void)motor_run_continuous(s_exec, 0,
+                (void)motor_run_continuous(s_exec, s_motor,
                                            motor_speed_gear(s_target_gear),
                                            MOTOR_DIR_FORWARD);
                 s_start_pending = false;
@@ -204,7 +205,7 @@ void brush_tick(void)
                 /* 接触器吸合期间目标刷子发生变更，需重新切换 */
                 begin_contactor_off();
             } else if (s_start_pending) {
-                (void)motor_run_continuous(s_exec, 0,
+                (void)motor_run_continuous(s_exec, s_motor,
                                            motor_speed_gear(s_target_gear),
                                            MOTOR_DIR_FORWARD);
                 s_start_pending = false;
@@ -249,5 +250,5 @@ motor_fault_code_t brush_fault_code(void)
     if (s_exec == NULL) {
         return MOTOR_FAULT_NONE;
     }
-    return motor_fault_code(s_exec, 0);
+    return motor_fault_code(s_exec, s_motor);
 }
