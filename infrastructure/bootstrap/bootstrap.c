@@ -12,7 +12,6 @@
 #include "infrastructure/scheduler/scheduler.h"
 #include "infrastructure/services/svc_param/svc_param.h"
 #include "infrastructure/services/dev_ctx/dev_ctx.h"
-#include "domain/device/actuator/motor/motor.h"
 #include "domain/device/mechanism/water.h"
 #include "application/orchestrators/emergency_handler.h"
 #include "application/orchestrators/device_fsm.h"
@@ -26,9 +25,9 @@
 #include "machines/m8/adapters/alarm/m8_alarm_adapt.h"
 #include "machines/m8/adapters/alarm/m8_comm_watchdog.h"
 #include "machines/m8/adapters/setup/m8_water_setup.h"
-#include "machines/m8/adapters/setup/m8_motor_setup.h"
 #include "machines/m8/adapters/setup/m8_brush_setup.h"
 #include "machines/m8/adapters/setup/m8_gantry_setup.h"
+#include "machines/m8/adapters/setup/m8_motor_tick.h"
 #ifdef BUILD_SIM
 #  include "machines/m8/adapters/m8_signal_sim.h"
 #endif
@@ -136,8 +135,6 @@ static sw_err_t bootstrap_init_infra(void)
     BOOT_CHECK(m8_vfd_setup(),   "m8_vfd_setup");
     BOOT_CHECK(m8_voice_setup(), "m8_voice_setup");
 #endif
-    BOOT_CHECK(m8_motor_setup(), "m8_motor_setup");
-
     {
         sw_err_t r = svc_param_init();
         if ((r != SW_OK) && (r != SW_ERR_STORAGE))
@@ -169,7 +166,6 @@ static sw_err_t bootstrap_init_safety(void)
 /** 设备域与应用编排 */
 static sw_err_t bootstrap_init_application(void)
 {
-    BOOT_CHECK(motor_init(),             "motor_init");
     BOOT_CHECK(m8_brush_setup(),         "m8_brush_setup");
     BOOT_CHECK(m8_gantry_setup(),        "m8_gantry_setup");
     BOOT_CHECK(m8_water_setup(),         "m8_water_setup");
@@ -242,7 +238,7 @@ static sw_err_t bootstrap_start_threads(void)
     BOOT_CHECK(m8_sensor_poll_start(), "m8_sensor_poll_start");
     BOOT_CHECK(m8_alarm_adapt_poll_start(), "m8_alarm_adapt_poll_start");
 
-    BOOT_CHECK(motor_tick_start(), "motor_tick_start");
+    BOOT_CHECK(m8_motor_tick_start(), "m8_motor_tick_start");
 
     BOOT_CHECK(scheduler_start_all(), "scheduler_start_all");
     return SW_OK;

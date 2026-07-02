@@ -63,6 +63,6 @@ DRV_IO_DO_DEF(FAN_START,            1, 23, "风机启动")
 DRV_IO_DO_DEF(FAN_RESET,            1, 24, "风机复位")
 DRV_IO_DO_DEF(GANTRY_HIGH_SPEED,    1, 25, "龙门行走高速")
 DRV_IO_DO_DEF(PARAM_SEL,            1, 27, "参数选择(H27)")
-DRV_IO_DO_DEF(SIDE_BRUSH_ACT,       1, 28, "接触器 1—侧刷接 VFD(H28)")
-DRV_IO_DO_DEF(TOP_BRUSH_ACT,        1, 29, "接触器 2—顶刷接 VFD(H29)")
+DRV_IO_DO_DEF(SIDE_BRUSH_ACT,       1, 28, "接触器 1—侧刷接")
+DRV_IO_DO_DEF(TOP_BRUSH_ACT,        1, 29, "接触器 2—顶刷接")
 #endif
