@@ -29,6 +29,10 @@ BraceWrapping:
   BeforeCatch: false           # catch 与前面 } 同行
   AfterCaseLabel: false        # case 标签的换行不额外处理
 
+# designated 初始化：.field = { 保持同行，避免嵌套结构体异常换行与过度缩进
+BreakBeforeBinaryOperators: All
+Cpp11BracedListStyle: true
+
 AlignArrayOfStructures: Left               # 结构体数组初始化按列左对齐
 AlignConsecutiveAssignments: Consecutive   # 变量赋值等号对齐
 AlignConsecutiveDeclarations: Consecutive  # 变量声明类型对齐

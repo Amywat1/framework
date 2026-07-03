@@ -6,13 +6,8 @@
  * motor_executor_t，由 m8_motor_exec_init() 统一完成 motor_init，
  * m8_motor_exec_start() 启动后台线程按 20ms 节拍调用 motor_tick 推进全部 6 个轴。
  *
- * 电机索引：
- *   M8_MOTOR_GANTRY     = 0   龙门行走
- *   M8_MOTOR_BRUSH_SIDE = 1   侧刷（与顶刷共用 VFD，靠接触器切换）
- *   M8_MOTOR_BRUSH_TOP  = 2   顶刷（与侧刷共用 VFD，靠接触器切换）
- *   M8_MOTOR_LIFT       = 3   顶刷升降
- *   M8_MOTOR_REAR_LOCK  = 4   后轮锁止推杆
- *   M8_MOTOR_FAN        = 5   风机 VFD
+ * 电机索引见 m8_motor_id_t；增删电机时仅需在 M8_MOTOR_COUNT 哨兵前插入一项，
+ * 电机总数由枚举自动推导，无需手动维护数量宏。
  *
  * 侧刷/顶刷通过各自的 motor_driver_t::prepare 回调驱动接触器切换时序
  * （m8_motor_exec.c 内部实现），并以 MOTOR_INTERLOCK_MUTEX 双向互锁保证
@@ -37,18 +32,16 @@
 extern "C" {
 #endif
 
-/** 龙门行走电机索引 */
-#define M8_MOTOR_GANTRY     0
-/** 侧刷电机索引（与顶刷共用 VFD，靠接触器切换） */
-#define M8_MOTOR_BRUSH_SIDE 1
-/** 顶刷电机索引（与侧刷共用 VFD，靠接触器切换） */
-#define M8_MOTOR_BRUSH_TOP  2
-/** 顶刷升降继电器电机索引 */
-#define M8_MOTOR_LIFT       3
-/** 后轮锁止继电器电机索引 */
-#define M8_MOTOR_REAR_LOCK  4
-/** 风机 VFD 电机索引 */
-#define M8_MOTOR_FAN        5
+/** @brief M8 机型电机索引（M8_MOTOR_COUNT 为总数哨兵，非有效电机编号）。 */
+typedef enum {
+    M8_MOTOR_GANTRY = 0, /**< 龙门行走 */
+    M8_MOTOR_BRUSH_SIDE, /**< 侧刷（与顶刷共用 VFD，靠接触器切换） */
+    M8_MOTOR_BRUSH_TOP,  /**< 顶刷（与侧刷共用 VFD，靠接触器切换） */
+    M8_MOTOR_LIFT,       /**< 顶刷升降 */
+    M8_MOTOR_REAR_LOCK,  /**< 后轮锁止推杆 */
+    M8_MOTOR_FAN,        /**< 风机 VFD */
+    M8_MOTOR_COUNT       /**< 电机总数 */
+} m8_motor_id_t;
 
 /**
  * @brief 初始化共享 motor_executor_t，配置全部 6 路电机。
