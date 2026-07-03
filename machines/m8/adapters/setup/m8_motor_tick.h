@@ -8,9 +8,7 @@
  *
  * 调用顺序：
  *   1. m8_motor_exec_init() → m8_motor_tick_register(m8_motor_exec_tick)
- *   2. m8_brush_setup()     → m8_motor_tick_register(brush_tick)
- *   3. m8_fan_setup()       → m8_motor_tick_register(fan_tick)
- *   4. m8_motor_tick_start()
+ *   2. m8_motor_tick_start()
  */
 #ifndef MACHINES_M8_ADAPTERS_SETUP_M8_MOTOR_TICK_H
 #define MACHINES_M8_ADAPTERS_SETUP_M8_MOTOR_TICK_H
@@ -21,7 +19,7 @@
 extern "C" {
 #endif
 
-/** 最多可注册的 tick 函数数量（motor_exec_tick + brush_tick + fan_tick + 备用）*/
+/** 最多可注册的 tick 函数数量（motor_exec_tick + 备用）*/
 #define M8_MOTOR_TICK_MAX  8
 
 /**

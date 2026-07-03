@@ -2,137 +2,84 @@
  * @file    brush.c
  * @brief   刷子机构领域层实现。
  *
- * 状态机驱动接触器切换时序，确保变频器完全停止后才操作接触器，
- * 并在接触器稳定后再重启变频器，防止带载切换损坏设备。
+ * 侧刷/顶刷的接触器切换时序完全由 MCC（motor_executor_t 的 prepare + 互锁）
+ * 管理，本层仅负责把 brush_id_t 映射到对应的电机索引并转发命令。
  */
 
 #include "domain/device/mechanism/brush.h"
 #include <stddef.h>
-#include <time.h>
 
 /* -------------------- 静态模块状态 -------------------- */
 
-static motor_executor_t      *s_exec;
-static int                    s_motor;
-static brush_contactor_ops_t  s_contactor_ops;
-static brush_contactor_cfg_t  s_contactor_cfg;
-
-static brush_state_t s_state             = BRUSH_STATE_IDLE;
-static brush_id_t    s_selected          = BRUSH_SIDE;  /* 当前接触器已吸合的刷子 */
-static bool          s_contactor_engaged = false;       /* 接触器是否已吸合 */
-static brush_id_t    s_target_id         = BRUSH_SIDE;  /* 下一次要运行的刷子 */
-static int           s_target_gear       = 0;
-static bool          s_start_pending     = false;       /* 停止/切换后需自动重启 */
-static uint64_t      s_contactor_until   = 0;           /* 接触器等待截止时刻（ms） */
+static motor_executor_t *s_exec;
+static int                s_motor[BRUSH_ID_MAX];
+static brush_id_t         s_last_id = BRUSH_SIDE;
 
 /* -------------------- 内部工具 -------------------- */
 
-static uint64_t now_ms(void)
+static brush_state_t phase_to_state(motor_phase_t ph)
 {
-    struct timespec ts;
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-    return (uint64_t)ts.tv_sec * 1000U + (uint64_t)ts.tv_nsec / 1000000U;
-}
+    switch (ph) {
+    case MOTOR_PHASE_RUNNING:
+        return BRUSH_STATE_RUNNING;
 
-/* 断开当前接触器，进入 CONTACTOR_OFF 等待 */
-static void begin_contactor_off(void)
-{
-    (void)s_contactor_ops.set_off(s_contactor_ops.ctx, s_selected);
-    s_contactor_engaged = false;
-    s_contactor_until   = now_ms() + s_contactor_cfg.release_ms;
-    s_state             = BRUSH_STATE_CONTACTOR_OFF;
-}
+    case MOTOR_PHASE_DECELERATING:
+    case MOTOR_PHASE_REVERSAL_WAIT:
+        return BRUSH_STATE_STOPPING;
 
-/* 吸合目标接触器，进入 CONTACTOR_ON 等待 */
-static void begin_contactor_on(void)
-{
-    (void)s_contactor_ops.set_on(s_contactor_ops.ctx, s_target_id);
-    s_selected          = s_target_id;
-    s_contactor_engaged = true;
-    s_contactor_until   = now_ms() + s_contactor_cfg.close_ms;
-    s_state             = BRUSH_STATE_CONTACTOR_ON;
+    case MOTOR_PHASE_FAULT:
+    case MOTOR_PHASE_ESTOP:
+        return BRUSH_STATE_FAULT;
+
+    default:
+        return BRUSH_STATE_IDLE;
+    }
 }
 
 /* -------------------- 公共 API -------------------- */
 
-sw_err_t brush_init(motor_executor_t           *exec,
-                    int                         motor,
-                    const brush_contactor_ops_t *contactor_ops,
-                    const brush_contactor_cfg_t *contactor_cfg)
+sw_err_t brush_init(motor_executor_t *exec, int motor_side, int motor_top)
 {
-    if ((exec == NULL) || (contactor_ops == NULL) || (contactor_cfg == NULL)) {
+    if (exec == NULL) {
         return SW_ERR_PARAM;
     }
-    if ((contactor_ops->set_on == NULL) || (contactor_ops->set_off == NULL)) {
-        return SW_ERR_PARAM;
-    }
-
-    s_exec             = exec;
-    s_motor            = motor;
-    s_contactor_ops    = *contactor_ops;
-    s_contactor_cfg    = *contactor_cfg;
-    s_state            = BRUSH_STATE_IDLE;
-    s_contactor_engaged = false;
-    s_start_pending    = false;
-
+    s_exec               = exec;
+    s_motor[BRUSH_SIDE]  = motor_side;
+    s_motor[BRUSH_TOP]   = motor_top;
+    s_last_id            = BRUSH_SIDE;
     return SW_OK;
 }
 
 sw_err_t brush_start(brush_id_t id, int speed_gear)
 {
+    int target;
+    int other;
+    motor_cmd_result_t r;
+
     if (s_exec == NULL) {
         return SW_ERR_NOT_INIT;
     }
     if ((unsigned)id >= (unsigned)BRUSH_ID_MAX) {
         return SW_ERR_PARAM;
     }
-    if (s_state == BRUSH_STATE_FAULT) {
+    if (brush_state() == BRUSH_STATE_FAULT) {
         return SW_ERR_STATE;
     }
 
-    s_target_id   = id;
-    s_target_gear = speed_gear;
+    s_last_id = id;
+    target    = s_motor[id];
+    other     = s_motor[(id == BRUSH_SIDE) ? BRUSH_TOP : BRUSH_SIDE];
 
-    switch (s_state) {
-    case BRUSH_STATE_RUNNING:
-        if (s_selected == id) {
-            /* 同一刷子：仅调速，无需切换 */
-            (void)motor_set_speed(s_exec, s_motor,
-                                  motor_speed_gear(speed_gear),
-                                  MOTOR_DIR_FORWARD);
-        } else {
-            /* 不同刷子：先停，tick 检测到停止后再切换 */
-            (void)motor_stop(s_exec, s_motor);
-            s_start_pending = true;
-            s_state         = BRUSH_STATE_STOPPING;
-        }
-        break;
-
-    case BRUSH_STATE_IDLE:
-        if (!s_contactor_engaged) {
-            /* 首次启动或接触器未吸合：直接吸合目标接触器 */
-            begin_contactor_on();
-            s_start_pending = true;
-        } else if (s_selected != id) {
-            /* 需切换接触器：先断开 */
-            begin_contactor_off();
-            s_start_pending = true;
-        } else {
-            /* 接触器已在正确位置，直接启动变频器 */
-            (void)motor_run_continuous(s_exec, s_motor,
-                                       motor_speed_gear(speed_gear),
-                                       MOTOR_DIR_FORWARD);
-            s_state = BRUSH_STATE_STARTING;
-        }
-        break;
-
-    default:
-        /* 其余过渡态：记录目标，tick 完成当前动作后自动重启 */
-        s_start_pending = true;
-        break;
+    if (motor_phase(s_exec, target) == MOTOR_PHASE_RUNNING) {
+        /* 目标刷子已在运行：仅调速，无需触碰另一路或接触器 */
+        r = motor_set_speed(s_exec, target, motor_speed_gear(speed_gear), MOTOR_DIR_FORWARD);
+        return motor_cmd_ok(r) ? SW_OK : SW_ERR_STATE;
     }
 
-    return SW_OK;
+    /* 先停止另一路（若在运行），MCC 自动处理冷却排队与接触器切换 */
+    (void)motor_stop(s_exec, other);
+    r = motor_run_continuous(s_exec, target, motor_speed_gear(speed_gear), MOTOR_DIR_FORWARD);
+    return motor_cmd_ok(r) ? SW_OK : SW_ERR_STATE;
 }
 
 sw_err_t brush_stop(void)
@@ -140,115 +87,54 @@ sw_err_t brush_stop(void)
     if (s_exec == NULL) {
         return SW_ERR_NOT_INIT;
     }
-    if (s_state == BRUSH_STATE_FAULT) {
+    if (brush_state() == BRUSH_STATE_FAULT) {
         return SW_ERR_STATE;
     }
-
-    s_start_pending = false;
-
-    if ((s_state == BRUSH_STATE_IDLE) || (s_state == BRUSH_STATE_STOPPING)) {
-        return SW_OK;
-    }
-
-    (void)motor_stop(s_exec, s_motor);
-    s_state = BRUSH_STATE_STOPPING;
+    (void)motor_stop(s_exec, s_motor[BRUSH_SIDE]);
+    (void)motor_stop(s_exec, s_motor[BRUSH_TOP]);
     return SW_OK;
-}
-
-void brush_tick(void)
-{
-    if (s_exec == NULL) {
-        return;
-    }
-
-    motor_phase_t ph = motor_phase(s_exec, s_motor);
-
-    /* 故障/急停：任意态下立即转故障 */
-    if ((ph == MOTOR_PHASE_FAULT) || (ph == MOTOR_PHASE_ESTOP)) {
-        s_state         = BRUSH_STATE_FAULT;
-        s_start_pending = false;
-        return;
-    }
-
-    switch (s_state) {
-    case BRUSH_STATE_IDLE:
-    case BRUSH_STATE_RUNNING:
-        break;
-
-    case BRUSH_STATE_STOPPING:
-        if (ph == MOTOR_PHASE_STOPPED) {
-            if (s_start_pending && s_contactor_engaged && (s_selected != s_target_id)) {
-                /* 需要切换接触器 */
-                begin_contactor_off();
-            } else if (s_start_pending) {
-                /* 同接触器，直接重启变频器 */
-                (void)motor_run_continuous(s_exec, s_motor,
-                                           motor_speed_gear(s_target_gear),
-                                           MOTOR_DIR_FORWARD);
-                s_start_pending = false;
-                s_state         = BRUSH_STATE_STARTING;
-            } else {
-                s_state = BRUSH_STATE_IDLE;
-            }
-        }
-        break;
-
-    case BRUSH_STATE_CONTACTOR_OFF:
-        if (now_ms() >= s_contactor_until) {
-            begin_contactor_on();
-        }
-        break;
-
-    case BRUSH_STATE_CONTACTOR_ON:
-        if (now_ms() >= s_contactor_until) {
-            if (s_target_id != s_selected) {
-                /* 接触器吸合期间目标刷子发生变更，需重新切换 */
-                begin_contactor_off();
-            } else if (s_start_pending) {
-                (void)motor_run_continuous(s_exec, s_motor,
-                                           motor_speed_gear(s_target_gear),
-                                           MOTOR_DIR_FORWARD);
-                s_start_pending = false;
-                s_state         = BRUSH_STATE_STARTING;
-            } else {
-                s_state = BRUSH_STATE_IDLE;
-            }
-        }
-        break;
-
-    case BRUSH_STATE_STARTING:
-        if (ph == MOTOR_PHASE_RUNNING) {
-            s_state = BRUSH_STATE_RUNNING;
-        }
-        break;
-
-    case BRUSH_STATE_FAULT:
-        break;
-
-    default:
-        break;
-    }
 }
 
 brush_state_t brush_state(void)
 {
-    return s_state;
+    brush_state_t side_state;
+    brush_state_t top_state;
+
+    if (s_exec == NULL) {
+        return BRUSH_STATE_IDLE;
+    }
+
+    side_state = phase_to_state(motor_phase(s_exec, s_motor[BRUSH_SIDE]));
+    top_state  = phase_to_state(motor_phase(s_exec, s_motor[BRUSH_TOP]));
+
+    if ((side_state == BRUSH_STATE_FAULT) || (top_state == BRUSH_STATE_FAULT)) {
+        return BRUSH_STATE_FAULT;
+    }
+    if ((side_state == BRUSH_STATE_RUNNING) || (top_state == BRUSH_STATE_RUNNING)) {
+        return BRUSH_STATE_RUNNING;
+    }
+    if ((side_state == BRUSH_STATE_STOPPING) || (top_state == BRUSH_STATE_STOPPING)) {
+        return BRUSH_STATE_STOPPING;
+    }
+    return BRUSH_STATE_IDLE;
 }
 
 brush_id_t brush_selected(void)
 {
-    return s_selected;
-}
-
-bool brush_contactor_engaged(void)
-{
-    return s_contactor_engaged;
+    return s_last_id;
 }
 
 motor_fault_code_t brush_fault_code(void)
 {
+    motor_fault_code_t fc;
+
     if (s_exec == NULL) {
         return MOTOR_FAULT_NONE;
     }
-    return motor_fault_code(s_exec, s_motor);
+
+    fc = motor_fault_code(s_exec, s_motor[BRUSH_SIDE]);
+    if (fc != MOTOR_FAULT_NONE) {
+        return fc;
+    }
+    return motor_fault_code(s_exec, s_motor[BRUSH_TOP]);
 }

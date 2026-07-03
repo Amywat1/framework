@@ -550,11 +550,18 @@ if(BUILD_SIM)
         middleware/mcc/motor_control_core_sim.c
     )
 
-    # test_brush：刷子机构领域层（接触器时序 / 启停 / 刷子切换 / 调速 / 故障）
+    # test_brush：刷子机构领域层（薄封装 / 启停 / 调速 / 状态映射 / 故障恢复）
     add_unit_test(test_brush
         tests/unit/test_brush.c
         domain/device/mechanism/brush.c
         middleware/mcc/motor_control_core_sim.c
+    )
+
+    # test_contactor_switch：接触器切换时序（纯逻辑，供 m8_motor_exec.c 的
+    # prepare() 回调使用，不依赖 MCC）
+    add_unit_test(test_contactor_switch
+        tests/unit/test_contactor_switch.c
+        domain/device/mechanism/contactor_switch.c
     )
 
     # test_fan：风机机构领域层（初始化 / 启停 / 状态映射 / 故障恢复）
@@ -578,6 +585,6 @@ if(BUILD_SIM)
         middleware/mcc/motor_control_core_sim.c
     )
 
-    message(STATUS "Tests registered: 20 unit + 2 scenario (run with: ctest --test-dir build_sim -V)")
+    message(STATUS "Tests registered: 21 unit + 2 scenario (run with: ctest --test-dir build_sim -V)")
 
 endif()

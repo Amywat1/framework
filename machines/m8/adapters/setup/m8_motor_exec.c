@@ -2,9 +2,10 @@
  * @file    m8_motor_exec.c
  * @brief   M8 机型共享电机执行器实现。
  *
- * 将龙门（VFD）、刷子（VFD）、升降（继电器）、后轮锁止（继电器）、风机（VFD）
- * 五路电机统一配置进同一 motor_executor_t，motor_tick 只需调用一次即可推进全部轴。
- * 限位传感器通过共享 sensors.limit 回调按电机索引分派。
+ * 将龙门（VFD）、侧刷/顶刷（共用 VFD，接触器切换）、升降（继电器）、
+ * 后轮锁止（继电器）、风机（VFD）六路电机统一配置进同一 motor_executor_t，
+ * motor_tick 只需调用一次即可推进全部轴。限位传感器通过共享 sensors.limit
+ * 回调按电机索引分派。
  */
 
 #include "machines/m8/adapters/setup/m8_motor_exec.h"
@@ -16,6 +17,7 @@
 #include "machines/m8/config/m8_fan_config.h"
 #include "machines/m8/config/m8_io_pins.h"
 #include "machines/m8/config/m8_vfd_table.h"
+#include "domain/device/mechanism/contactor_switch.h"
 #include "ports/hal/hal_vfd_port.h"
 #include "ports/hal/hal_io_port.h"
 #include "common/vfd_types.h"
@@ -24,8 +26,8 @@
 #include <string.h>
 #include <time.h>
 
-/** 共享执行器管理的电机/驱动器总数（龙门、刷子、升降、后轮锁止、风机） */
-#define M8_MOTOR_COUNT  5U
+/** 共享执行器管理的电机/驱动器总数（龙门、侧刷、顶刷、升降、后轮锁止、风机） */
+#define M8_MOTOR_COUNT  6U
 
 /* =========================================================================
  * 辅助：DO 写
@@ -44,6 +46,18 @@ static sw_err_t io_do_set(io_do_t pin, bool val)
 static uint16_t centi_hz_to_hz(int freq_centi_hz)
 {
     return (uint16_t)((freq_centi_hz + 99) / 100);
+}
+
+/* =========================================================================
+ * 时间源（全局单一时钟，提前定义供接触器切换 prepare 回调使用）
+ * ========================================================================= */
+
+static uint64_t m8_now_ms(void *ctx)
+{
+    struct timespec ts;
+    (void)ctx;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (uint64_t)ts.tv_sec * 1000U + (uint64_t)ts.tv_nsec / 1000000U;
 }
 
 /* =========================================================================
@@ -159,8 +173,14 @@ static int gantry_current(void *ctx)
 }
 
 /* =========================================================================
- * 驱动器 1：刷子 VFD（仅正转，无高速 DO）
+ * 驱动器 1/2：侧刷/顶刷 VFD（仅正转，无高速 DO，共用一台物理 VFD，
+ * 靠接触器切换选中对象——两个驱动器实例的 set_output/cutoff/is_running/
+ * current 完全相同，只有 prepare 不同）
  * ========================================================================= */
+
+/** 接触器切换的输出对象编号（与物理 VFD 电机身份无关，仅供 contactor_switch 使用） */
+#define BRUSH_CONTACTOR_SIDE  0
+#define BRUSH_CONTACTOR_TOP   1
 
 static void brush_set_output(void *ctx, int freq_centi_hz, motor_direction_t dir)
 {
@@ -192,8 +212,40 @@ static int brush_current(void *ctx)
     return vfd_current_id(HAL_VFD_BRUSH);
 }
 
+/* -------------------- 接触器切换：仅 prepare 不同的部分 -------------------- */
+
+static contactor_switch_t s_brush_contactor;
+
+static void brush_contactor_engage(void *ctx, int output_id)
+{
+    (void)ctx;
+    (void)io_do_set((output_id == BRUSH_CONTACTOR_SIDE) ? M8_IO_DO_SIDE_BRUSH_ACT
+                                                         : M8_IO_DO_TOP_BRUSH_ACT,
+                     true);
+}
+
+static void brush_contactor_release(void *ctx, int output_id)
+{
+    (void)ctx;
+    (void)io_do_set((output_id == BRUSH_CONTACTOR_SIDE) ? M8_IO_DO_SIDE_BRUSH_ACT
+                                                         : M8_IO_DO_TOP_BRUSH_ACT,
+                     false);
+}
+
+static bool brush_side_prepare(void *ctx)
+{
+    (void)ctx;
+    return contactor_switch_prepare(&s_brush_contactor, BRUSH_CONTACTOR_SIDE, m8_now_ms(NULL));
+}
+
+static bool brush_top_prepare(void *ctx)
+{
+    (void)ctx;
+    return contactor_switch_prepare(&s_brush_contactor, BRUSH_CONTACTOR_TOP, m8_now_ms(NULL));
+}
+
 /* =========================================================================
- * 驱动器 4：风机 VFD（仅正转，无高速 DO，与龙门/刷子共用 485 总线）
+ * 驱动器 5：风机 VFD（仅正转，无高速 DO，与龙门/刷子共用 485 总线）
  * ========================================================================= */
 
 static void fan_set_output(void *ctx, int freq_centi_hz, motor_direction_t dir)
@@ -253,7 +305,7 @@ static void relay_cutoff_pins(io_do_t pin_fwd, io_do_t pin_bwd, bool *running)
 }
 
 /* =========================================================================
- * 驱动器 2：升降继电器
+ * 驱动器 3：升降继电器
  * ========================================================================= */
 
 static bool s_lift_running = false;
@@ -284,7 +336,7 @@ static bool lift_is_running(void *ctx)
 }
 
 /* =========================================================================
- * 驱动器 3：后轮锁止继电器
+ * 驱动器 4：后轮锁止继电器
  * ========================================================================= */
 
 static bool s_rear_lock_running = false;
@@ -364,8 +416,9 @@ static bool m8_all_limits(void *ctx, int motor, motor_limit_kind_t kind)
         default:                 return false;
         }
 
-    case M8_MOTOR_BRUSH:
-        /* 刷子电机无硬限位 */
+    case M8_MOTOR_BRUSH_SIDE:
+    case M8_MOTOR_BRUSH_TOP:
+        /* 侧刷/顶刷电机无硬限位 */
         return false;
 
     case M8_MOTOR_LIFT:
@@ -404,18 +457,6 @@ static bool m8_estop_active(void *ctx)
 }
 
 /* =========================================================================
- * 时间源（全局单一时钟）
- * ========================================================================= */
-
-static uint64_t m8_now_ms(void *ctx)
-{
-    struct timespec ts;
-    (void)ctx;
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-    return (uint64_t)ts.tv_sec * 1000U + (uint64_t)ts.tv_nsec / 1000000U;
-}
-
-/* =========================================================================
  * 静态 MCC 对象
  * ========================================================================= */
 
@@ -430,7 +471,8 @@ static motor_encoder_t s_gantry_encoder = {
 /* 编码器数组：长度必须等于电机数，无编码器的电机填 NULL */
 static motor_encoder_t * const s_encoders[M8_MOTOR_COUNT] = {
     &s_gantry_encoder, /* M8_MOTOR_GANTRY */
-    NULL,              /* M8_MOTOR_BRUSH */
+    NULL,              /* M8_MOTOR_BRUSH_SIDE */
+    NULL,              /* M8_MOTOR_BRUSH_TOP */
     NULL,              /* M8_MOTOR_LIFT */
     NULL,              /* M8_MOTOR_REAR_LOCK */
     NULL,              /* M8_MOTOR_FAN */
@@ -446,11 +488,21 @@ static motor_driver_t s_drv_gantry = {
     .ctx        = NULL,
 };
 
-static motor_driver_t s_drv_brush = {
+static motor_driver_t s_drv_brush_side = {
     .set_output = brush_set_output,
     .cutoff     = brush_cutoff,
     .reset      = brush_reset,
-    .prepare    = NULL,
+    .prepare    = brush_side_prepare,
+    .is_running = brush_is_running,
+    .current    = brush_current,
+    .ctx        = NULL,
+};
+
+static motor_driver_t s_drv_brush_top = {
+    .set_output = brush_set_output,
+    .cutoff     = brush_cutoff,
+    .reset      = brush_reset,
+    .prepare    = brush_top_prepare,
     .is_running = brush_is_running,
     .current    = brush_current,
     .ctx        = NULL,
@@ -487,11 +539,12 @@ static motor_driver_t s_drv_fan = {
 };
 
 static motor_driver_t * const s_drivers[M8_MOTOR_COUNT] = {
-    &s_drv_gantry,    /* driver 0 → M8_MOTOR_GANTRY */
-    &s_drv_brush,     /* driver 1 → M8_MOTOR_BRUSH */
-    &s_drv_lift,      /* driver 2 → M8_MOTOR_LIFT */
-    &s_drv_rear_lock, /* driver 3 → M8_MOTOR_REAR_LOCK */
-    &s_drv_fan,       /* driver 4 → M8_MOTOR_FAN */
+    &s_drv_gantry,     /* driver 0 → M8_MOTOR_GANTRY */
+    &s_drv_brush_side, /* driver 1 → M8_MOTOR_BRUSH_SIDE */
+    &s_drv_brush_top,  /* driver 2 → M8_MOTOR_BRUSH_TOP */
+    &s_drv_lift,       /* driver 3 → M8_MOTOR_LIFT */
+    &s_drv_rear_lock,  /* driver 4 → M8_MOTOR_REAR_LOCK */
+    &s_drv_fan,        /* driver 5 → M8_MOTOR_FAN */
 };
 
 static motor_clock_t s_clock = {
@@ -547,9 +600,17 @@ sw_err_t m8_motor_exec_init(void)
     memset(&cfg, 0, sizeof(cfg));
     cfg.motor_count     = M8_MOTOR_COUNT;
     cfg.driver_count    = M8_MOTOR_COUNT;
-    cfg.interlock_count = 0;
     cfg.tick_ms         = CFG_GANTRY_TICK_MS;   /* 所有电机共用 20ms 节拍 */
     cfg.watchdog_ms     = CFG_GANTRY_WATCHDOG_MS;
+
+    /* 侧刷/顶刷共用一台 VFD，双向互斥：任一方运行相关态时另一方不可启动 */
+    cfg.interlocks[0].kind = MOTOR_INTERLOCK_MUTEX;
+    cfg.interlocks[0].a    = M8_MOTOR_BRUSH_SIDE;
+    cfg.interlocks[0].b    = M8_MOTOR_BRUSH_TOP;
+    cfg.interlocks[1].kind = MOTOR_INTERLOCK_MUTEX;
+    cfg.interlocks[1].a    = M8_MOTOR_BRUSH_TOP;
+    cfg.interlocks[1].b    = M8_MOTOR_BRUSH_SIDE;
+    cfg.interlock_count    = 2;
 
     /* --- 电机 0：龙门行走 VFD --- */
     m = &cfg.motors[M8_MOTOR_GANTRY];
@@ -571,11 +632,13 @@ sw_err_t m8_motor_exec_init(void)
     m->mon.monitor_current  = false;
     m->mon.monitor_feedback = false;
 
-    /* --- 电机 1：刷子 VFD（侧刷/顶刷共用接触器切换）--- */
-    m = &cfg.motors[M8_MOTOR_BRUSH];
-    m->driver_index        = M8_MOTOR_BRUSH;
+    /* --- 电机 1/2：侧刷/顶刷 VFD（共用一台物理驱动器，靠接触器切换，
+     *     prep_required 触发 prepare() 完成切换后才允许进入 RUNNING）--- */
+    m = &cfg.motors[M8_MOTOR_BRUSH_SIDE];
+    m->driver_index        = M8_MOTOR_BRUSH_SIDE;
     m->has_encoder         = false;
     m->cap_position_move   = false;
+    m->prep_required       = true;
     m->cooldown_ms         = CFG_BRUSH_COOLDOWN_MS;
     m->reversal_stop_ms    = 0;
     m->accel_ms            = CFG_BRUSH_ACCEL_MS;
@@ -595,7 +658,11 @@ sw_err_t m8_motor_exec_init(void)
     m->mon.startup_delay_ms   = CFG_BRUSH_CUR_STARTUP_DELAY_MS;
     m->mon.monitor_feedback   = false;
 
-    /* --- 电机 2：升降继电器 --- */
+    m = &cfg.motors[M8_MOTOR_BRUSH_TOP];
+    *m = cfg.motors[M8_MOTOR_BRUSH_SIDE];
+    m->driver_index         = M8_MOTOR_BRUSH_TOP;
+
+    /* --- 电机 3：升降继电器 --- */
     m = &cfg.motors[M8_MOTOR_LIFT];
     m->driver_index        = M8_MOTOR_LIFT;
     m->has_encoder         = false;
@@ -609,7 +676,7 @@ sw_err_t m8_motor_exec_init(void)
     m->gear_freq[0]        = CFG_LIFT_GEAR_FREQ;
     m->gear_count          = CFG_LIFT_GEAR_COUNT;
 
-    /* --- 电机 3：后轮锁止继电器 --- */
+    /* --- 电机 4：后轮锁止继电器 --- */
     m = &cfg.motors[M8_MOTOR_REAR_LOCK];
     m->driver_index        = M8_MOTOR_REAR_LOCK;
     m->has_encoder         = false;
@@ -623,7 +690,7 @@ sw_err_t m8_motor_exec_init(void)
     m->gear_freq[0]        = CFG_REAR_LOCK_GEAR_FREQ;
     m->gear_count          = CFG_REAR_LOCK_GEAR_COUNT;
 
-    /* --- 电机 4：风机 VFD --- */
+    /* --- 电机 5：风机 VFD --- */
     m = &cfg.motors[M8_MOTOR_FAN];
     m->driver_index        = M8_MOTOR_FAN;
     m->has_encoder          = false;
@@ -639,6 +706,24 @@ sw_err_t m8_motor_exec_init(void)
     m->mon.monitor_current  = false;
     m->mon.monitor_feedback = false;
 
+    /* --- 侧刷/顶刷接触器切换时序 --- */
+    {
+        const contactor_ops_t   ops = {
+            .engage  = brush_contactor_engage,
+            .release = brush_contactor_release,
+            .ctx     = NULL,
+        };
+        const contactor_timing_t timing = {
+            .release_ms = CFG_BRUSH_CONTACTOR_RELEASE_MS,
+            .close_ms   = CFG_BRUSH_CONTACTOR_CLOSE_MS,
+        };
+        ret = contactor_switch_init(&s_brush_contactor, &ops, timing, BRUSH_CONTACTOR_SIDE);
+        if (ret != SW_OK) {
+            LOG_ERROR("m8_motor_exec_init: contactor_switch_init failed ret=%d", (int)ret);
+            return ret;
+        }
+    }
+
     /* --- 端口集合 --- */
     memset(&ports, 0, sizeof(ports));
     ports.clock    = &s_clock;
@@ -653,13 +738,13 @@ sw_err_t m8_motor_exec_init(void)
         return SW_ERR_HW;
     }
 
-    /* 注册唯一的电机 tick：每 20ms 推进全部 4 轴 */
+    /* 注册唯一的电机 tick：每 20ms 推进全部 6 轴 */
     ret = m8_motor_tick_register(m8_motor_exec_tick);
     if (ret != SW_OK) {
         LOG_ERROR("m8_motor_exec_init: m8_motor_tick_register 失败 ret=%d", (int)ret);
         return ret;
     }
 
-    LOG_INFO("m8_motor_exec_init ok (5 motors, 1 tick)");
+    LOG_INFO("m8_motor_exec_init ok (6 motors, 1 tick)");
     return SW_OK;
 }
