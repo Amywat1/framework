@@ -9,7 +9,6 @@
  */
 
 #include "machines/m8/adapters/setup/m8_motor_exec.h"
-#include "machines/m8/adapters/setup/m8_motor_tick.h"
 #include "machines/m8/config/m8_gantry_config.h"
 #include "machines/m8/config/m8_brush_config.h"
 #include "machines/m8/config/m8_lift_config.h"
@@ -17,7 +16,6 @@
 #include "machines/m8/config/m8_fan_config.h"
 #include "machines/m8/config/m8_io_pins.h"
 #include "machines/m8/config/m8_vfd_table.h"
-#include "domain/device/mechanism/contactor_switch.h"
 #include "ports/hal/hal_vfd_port.h"
 #include "ports/hal/hal_io_port.h"
 #include "common/vfd_types.h"
@@ -25,6 +23,8 @@
 #include <stddef.h>
 #include <string.h>
 #include <time.h>
+#include <pthread.h>
+#include <unistd.h>
 
 /** 共享执行器管理的电机/驱动器总数（龙门、侧刷、顶刷、升降、后轮锁止、风机） */
 #define M8_MOTOR_COUNT  6U
@@ -178,7 +178,7 @@ static int gantry_current(void *ctx)
  * current 完全相同，只有 prepare 不同）
  * ========================================================================= */
 
-/** 接触器切换的输出对象编号（与物理 VFD 电机身份无关，仅供 contactor_switch 使用） */
+/** 接触器切换的输出对象编号（与物理 VFD 电机身份无关，仅供接触器切换状态机使用） */
 #define BRUSH_CONTACTOR_SIDE  0
 #define BRUSH_CONTACTOR_TOP   1
 
@@ -212,36 +212,83 @@ static int brush_current(void *ctx)
     return vfd_current_id(HAL_VFD_BRUSH);
 }
 
-/* -------------------- 接触器切换：仅 prepare 不同的部分 -------------------- */
+/* -------------------- 接触器切换：仅 prepare 不同的部分 --------------------
+ * 两阶段非阻塞切换时序：断电旧接触器（等 CFG_BRUSH_CONTACTOR_RELEASE_MS）→
+ * 通电新接触器（等 CFG_BRUSH_CONTACTOR_CLOSE_MS）→ 完成。与 MCC 在
+ * WAITING_START 阶段逐 tick 轮询 prepare() 的契约对应，只比较时间戳，不阻塞。
+ * ------------------------------------------------------------------------- */
 
-static contactor_switch_t s_brush_contactor;
+typedef enum {
+    BRUSH_CONTACTOR_PHASE_IDLE,      /* 默认值 0：上电默认状态 */
+    BRUSH_CONTACTOR_PHASE_RELEASING,
+    BRUSH_CONTACTOR_PHASE_ENGAGING,
+} brush_contactor_phase_t;
 
-static void brush_contactor_engage(void *ctx, int output_id)
+/* 零初始化即等价于 phase=IDLE、current_id=BRUSH_CONTACTOR_SIDE，无需显式 init */
+static brush_contactor_phase_t s_contactor_phase;
+static int                     s_contactor_current_id;
+static uint64_t                s_contactor_until_ms;
+
+static void brush_contactor_set(int output_id, bool on)
 {
-    (void)ctx;
     (void)io_do_set((output_id == BRUSH_CONTACTOR_SIDE) ? M8_IO_DO_SIDE_BRUSH_ACT
                                                          : M8_IO_DO_TOP_BRUSH_ACT,
-                     true);
+                     on);
 }
 
-static void brush_contactor_release(void *ctx, int output_id)
+static bool brush_contactor_prepare(int target_id)
 {
-    (void)ctx;
-    (void)io_do_set((output_id == BRUSH_CONTACTOR_SIDE) ? M8_IO_DO_SIDE_BRUSH_ACT
-                                                         : M8_IO_DO_TOP_BRUSH_ACT,
-                     false);
+    uint64_t now_ms = m8_now_ms(NULL);
+
+    switch (s_contactor_phase) {
+    case BRUSH_CONTACTOR_PHASE_IDLE:
+        if (s_contactor_current_id == target_id) {
+            return true;
+        }
+        brush_contactor_set(s_contactor_current_id, false);
+        s_contactor_phase    = BRUSH_CONTACTOR_PHASE_RELEASING;
+        s_contactor_until_ms = now_ms + CFG_BRUSH_CONTACTOR_RELEASE_MS;
+        return false;
+
+    case BRUSH_CONTACTOR_PHASE_RELEASING:
+        if (now_ms < s_contactor_until_ms) {
+            return false;
+        }
+        brush_contactor_set(target_id, true);
+        s_contactor_current_id = target_id;
+        s_contactor_phase      = BRUSH_CONTACTOR_PHASE_ENGAGING;
+        s_contactor_until_ms   = now_ms + CFG_BRUSH_CONTACTOR_CLOSE_MS;
+        return false;
+
+    case BRUSH_CONTACTOR_PHASE_ENGAGING:
+        if (target_id != s_contactor_current_id) {
+            /* 吸合等待期间目标又变更，需重新切换 */
+            brush_contactor_set(s_contactor_current_id, false);
+            s_contactor_phase    = BRUSH_CONTACTOR_PHASE_RELEASING;
+            s_contactor_until_ms = now_ms + CFG_BRUSH_CONTACTOR_RELEASE_MS;
+            return false;
+        }
+        if (now_ms < s_contactor_until_ms) {
+            return false;
+        }
+        s_contactor_phase = BRUSH_CONTACTOR_PHASE_IDLE;
+        return true;
+
+    default:
+        return false;
+    }
 }
 
 static bool brush_side_prepare(void *ctx)
 {
     (void)ctx;
-    return contactor_switch_prepare(&s_brush_contactor, BRUSH_CONTACTOR_SIDE, m8_now_ms(NULL));
+    return brush_contactor_prepare(BRUSH_CONTACTOR_SIDE);
 }
 
 static bool brush_top_prepare(void *ctx)
 {
     (void)ctx;
-    return contactor_switch_prepare(&s_brush_contactor, BRUSH_CONTACTOR_TOP, m8_now_ms(NULL));
+    return brush_contactor_prepare(BRUSH_CONTACTOR_TOP);
 }
 
 /* =========================================================================
@@ -563,12 +610,23 @@ static motor_estop_t s_estop = {
 };
 
 /* =========================================================================
- * tick：m8_motor_exec_tick 注册后，由 tick 线程每 20ms 调用一次
+ * tick 后台线程：按 20ms 节拍推进共享执行器
  * ========================================================================= */
 
-static void m8_motor_exec_tick(void)
+/** 每次 tick 循环的休眠间隔（ms） */
+#define MOTOR_TICK_INTERVAL_MS  20U
+
+/** tick 线程栈大小 */
+#define MOTOR_TICK_STACK_SIZE   (16U * 1024U)
+
+static void *m8_motor_tick_thread_fn(void *arg)
 {
-    motor_tick(&s_exec);
+    (void)arg;
+    for (;;) {
+        motor_tick(&s_exec);
+        usleep((unsigned long)MOTOR_TICK_INTERVAL_MS * 1000UL);
+    }
+    return NULL;
 }
 
 /* =========================================================================
@@ -582,7 +640,6 @@ motor_executor_t *m8_motor_exec_get(void)
 
 sw_err_t m8_motor_exec_init(void)
 {
-    sw_err_t ret;
     motor_config_t cfg;
     motor_motor_cfg_t *m;
     motor_ports_t ports;
@@ -706,24 +763,6 @@ sw_err_t m8_motor_exec_init(void)
     m->mon.monitor_current  = false;
     m->mon.monitor_feedback = false;
 
-    /* --- 侧刷/顶刷接触器切换时序 --- */
-    {
-        const contactor_ops_t   ops = {
-            .engage  = brush_contactor_engage,
-            .release = brush_contactor_release,
-            .ctx     = NULL,
-        };
-        const contactor_timing_t timing = {
-            .release_ms = CFG_BRUSH_CONTACTOR_RELEASE_MS,
-            .close_ms   = CFG_BRUSH_CONTACTOR_CLOSE_MS,
-        };
-        ret = contactor_switch_init(&s_brush_contactor, &ops, timing, BRUSH_CONTACTOR_SIDE);
-        if (ret != SW_OK) {
-            LOG_ERROR("m8_motor_exec_init: contactor_switch_init failed ret=%d", (int)ret);
-            return ret;
-        }
-    }
-
     /* --- 端口集合 --- */
     memset(&ports, 0, sizeof(ports));
     ports.clock    = &s_clock;
@@ -738,13 +777,26 @@ sw_err_t m8_motor_exec_init(void)
         return SW_ERR_HW;
     }
 
-    /* 注册唯一的电机 tick：每 20ms 推进全部 6 轴 */
-    ret = m8_motor_tick_register(m8_motor_exec_tick);
-    if (ret != SW_OK) {
-        LOG_ERROR("m8_motor_exec_init: m8_motor_tick_register 失败 ret=%d", (int)ret);
-        return ret;
+    LOG_INFO("m8_motor_exec_init ok (6 motors)");
+    return SW_OK;
+}
+
+sw_err_t m8_motor_exec_start(void)
+{
+    pthread_attr_t attr;
+    pthread_t      tid;
+
+    pthread_attr_init(&attr);
+    pthread_attr_setstacksize(&attr, MOTOR_TICK_STACK_SIZE);
+
+    if (pthread_create(&tid, &attr, m8_motor_tick_thread_fn, NULL) != 0) {
+        pthread_attr_destroy(&attr);
+        LOG_ERROR("m8_motor_exec_start: pthread_create 失败");
+        return SW_ERR_HW;
     }
 
-    LOG_INFO("m8_motor_exec_init ok (6 motors, 1 tick)");
+    pthread_attr_destroy(&attr);
+    pthread_detach(tid);
+    LOG_INFO("m8_motor_exec_start: tick 线程已启动，间隔 %ums", MOTOR_TICK_INTERVAL_MS);
     return SW_OK;
 }

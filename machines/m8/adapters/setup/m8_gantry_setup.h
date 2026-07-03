@@ -28,7 +28,7 @@ extern "C" {
  *   3. 注册编码器端口回调（调用 hal_io pulse_read / pulse_clear）；
  *   4. 注册限位端口回调（GANTRY_FWD_LIMIT / GANTRY_REV_LIMIT DI）；
  *   5. 调用 gantry_init() 注入执行器；
- *   6. 调用 m8_motor_tick_register(gantry_tick) 注册到统一 tick 管理器。
+ *   6. tick 由 m8_motor_exec_start() 统一驱动，无需单独注册。
  *
  * @return SW_OK 成功；SW_ERR_NOT_INIT 前置依赖未就绪；SW_ERR_HW 初始化失败。
  */

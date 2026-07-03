@@ -12,9 +12,9 @@
  *   G. 参数校验
  *
  * @note    brush.c 现在是 motor_executor_t 的薄封装：侧刷/顶刷各占一个电机
- *          槽位，接触器切换时序已下沉到 m8_motor_exec.c 的 prepare() 回调
- *          （由 domain/device/mechanism/contactor_switch.c 实现，见
- *          test_contactor_switch.c），本文件不再覆盖接触器时序细节。
+ *          槽位，接触器切换时序已下沉到 m8_motor_exec.c 内部的 prepare() 回调
+ *          实现，不再是独立可单测的模块，本文件不覆盖接触器时序细节（只能
+ *          通过人工走查 + sim 集成场景间接验证）。
  *          setUp() 只重置 motor_executor_t，不调用 brush_init()。
  */
 

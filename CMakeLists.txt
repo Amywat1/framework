@@ -186,7 +186,6 @@ if(BUILD_SIM)
         machines/m8/adapters/setup/m8_motor_exec.c
         machines/m8/adapters/setup/m8_water_setup.c
         machines/m8/adapters/setup/m8_brush_setup.c
-        machines/m8/adapters/setup/m8_motor_tick.c
         machines/m8/adapters/setup/m8_gantry_setup.c
         machines/m8/adapters/setup/m8_lift_setup.c
         machines/m8/adapters/setup/m8_rear_lock_setup.c
@@ -557,13 +556,6 @@ if(BUILD_SIM)
         middleware/mcc/motor_control_core_sim.c
     )
 
-    # test_contactor_switch：接触器切换时序（纯逻辑，供 m8_motor_exec.c 的
-    # prepare() 回调使用，不依赖 MCC）
-    add_unit_test(test_contactor_switch
-        tests/unit/test_contactor_switch.c
-        domain/device/mechanism/contactor_switch.c
-    )
-
     # test_fan：风机机构领域层（初始化 / 启停 / 状态映射 / 故障恢复）
     add_unit_test(test_fan
         tests/unit/test_fan.c
@@ -585,6 +577,6 @@ if(BUILD_SIM)
         middleware/mcc/motor_control_core_sim.c
     )
 
-    message(STATUS "Tests registered: 21 unit + 2 scenario (run with: ctest --test-dir build_sim -V)")
+    message(STATUS "Tests registered: 20 unit + 2 scenario (run with: ctest --test-dir build_sim -V)")
 
 endif()

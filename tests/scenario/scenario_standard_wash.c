@@ -32,7 +32,7 @@
 #include "machines/m8/adapters/setup/m8_water_setup.h"
 #include "machines/m8/adapters/setup/m8_brush_setup.h"
 #include "machines/m8/adapters/setup/m8_gantry_setup.h"
-#include "machines/m8/adapters/setup/m8_motor_tick.h"
+#include "machines/m8/adapters/setup/m8_motor_exec.h"
 #include "ports/hal/hal_vfd_port.h"
 #include "common/event_types.h"
 #include "common/time_util.h"
@@ -171,7 +171,7 @@ static void scenario_setup(void)
     (void)m8_brush_setup();
     (void)m8_gantry_setup();
     (void)m8_water_setup();
-    (void)m8_motor_tick_start();
+    (void)m8_motor_exec_start();
     (void)emergency_handler_init();
     (void)device_fsm_init();
     (void)wash_orchestrator_init();

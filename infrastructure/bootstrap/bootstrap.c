@@ -31,7 +31,6 @@
 #include "machines/m8/adapters/setup/m8_lift_setup.h"
 #include "machines/m8/adapters/setup/m8_rear_lock_setup.h"
 #include "machines/m8/adapters/setup/m8_fan_setup.h"
-#include "machines/m8/adapters/setup/m8_motor_tick.h"
 #ifdef BUILD_SIM
 #  include "machines/m8/adapters/m8_signal_sim.h"
 #endif
@@ -246,7 +245,7 @@ static sw_err_t bootstrap_start_threads(void)
     BOOT_CHECK(m8_sensor_poll_start(), "m8_sensor_poll_start");
     BOOT_CHECK(m8_alarm_adapt_poll_start(), "m8_alarm_adapt_poll_start");
 
-    BOOT_CHECK(m8_motor_tick_start(), "m8_motor_tick_start");
+    BOOT_CHECK(m8_motor_exec_start(), "m8_motor_exec_start");
 
     BOOT_CHECK(scheduler_start_all(), "scheduler_start_all");
     return SW_OK;
