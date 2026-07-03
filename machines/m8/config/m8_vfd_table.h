@@ -22,7 +22,8 @@
 #define HAL_VFD_ID_NONE    (-1)
 #define HAL_VFD_GANTRY      0
 #define HAL_VFD_BRUSH       1
-#define HAL_VFD_ID_MAX      2  /* M8 VFD 实例总数 */
+#define HAL_VFD_FAN         2
+#define HAL_VFD_ID_MAX      3  /* M8 VFD 实例总数 */
 
 /* -------------------------------------------------------------------------
  * 刷子 VFD（仅正转）
@@ -43,5 +44,15 @@
 #define M8_VFD_GANTRY_PIN_FWD      M8_IO_DO_GANTRY_FWD
 #define M8_VFD_GANTRY_PIN_REV      M8_IO_DO_GANTRY_REV
 #define M8_VFD_GANTRY_PIN_RST      M8_IO_DO_GANTRY_RST
+
+/* -------------------------------------------------------------------------
+ * 风机 VFD（仅正转）
+ * ------------------------------------------------------------------------- */
+#define M8_VFD_FAN_SERIAL_PORT     CFG_VFD_FAN_SERIAL_PORT
+#define M8_VFD_FAN_BAUD            CFG_VFD_FAN_BAUD
+#define M8_VFD_FAN_ADDR            CFG_VFD_FAN_MODBUS_ADDR
+#define M8_VFD_FAN_PIN_FWD         M8_IO_DO_FAN_START
+#define M8_VFD_FAN_PIN_REV         ((io_do_t){IO_HANDLE_NULL})   /* 风机仅正转，无反转引脚 */
+#define M8_VFD_FAN_PIN_RST         M8_IO_DO_FAN_RESET
 
 #endif /* CONFIG_MACHINE_M8_VFD_TABLE_H */

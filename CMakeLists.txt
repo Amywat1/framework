@@ -183,11 +183,14 @@ if(BUILD_SIM)
         machines/m8/adapters/alarm/m8_alarm_adapt.c
         machines/m8/adapters/alarm/m8_comm_watchdog.c
         machines/m8/adapters/setup/m8_sensor.c
-        machines/m8/adapters/setup/m8_motor_setup.c
+        machines/m8/adapters/setup/m8_motor_exec.c
         machines/m8/adapters/setup/m8_water_setup.c
         machines/m8/adapters/setup/m8_brush_setup.c
         machines/m8/adapters/setup/m8_motor_tick.c
         machines/m8/adapters/setup/m8_gantry_setup.c
+        machines/m8/adapters/setup/m8_lift_setup.c
+        machines/m8/adapters/setup/m8_rear_lock_setup.c
+        machines/m8/adapters/setup/m8_fan_setup.c
         machines/m8/adapters/engine/engine_io_m8.c
         machines/m8/adapters/m8_signal_sim.c
 
@@ -554,10 +557,11 @@ if(BUILD_SIM)
         middleware/mcc/motor_control_core_sim.c
     )
 
-    # test_fan：风机机构领域层（IO回调 / 启停 / 报警故障 / 复位脉冲时序）
+    # test_fan：风机机构领域层（初始化 / 启停 / 状态映射 / 故障恢复）
     add_unit_test(test_fan
         tests/unit/test_fan.c
         domain/device/mechanism/fan.c
+        middleware/mcc/motor_control_core_sim.c
     )
 
     # test_lift：顶刷升降机构领域层（FORWARD=上升 / 状态映射 / 故障恢复）

@@ -25,8 +25,12 @@
 #include "machines/m8/adapters/alarm/m8_alarm_adapt.h"
 #include "machines/m8/adapters/alarm/m8_comm_watchdog.h"
 #include "machines/m8/adapters/setup/m8_water_setup.h"
+#include "machines/m8/adapters/setup/m8_motor_exec.h"
 #include "machines/m8/adapters/setup/m8_brush_setup.h"
 #include "machines/m8/adapters/setup/m8_gantry_setup.h"
+#include "machines/m8/adapters/setup/m8_lift_setup.h"
+#include "machines/m8/adapters/setup/m8_rear_lock_setup.h"
+#include "machines/m8/adapters/setup/m8_fan_setup.h"
 #include "machines/m8/adapters/setup/m8_motor_tick.h"
 #ifdef BUILD_SIM
 #  include "machines/m8/adapters/m8_signal_sim.h"
@@ -166,8 +170,12 @@ static sw_err_t bootstrap_init_safety(void)
 /** 设备域与应用编排 */
 static sw_err_t bootstrap_init_application(void)
 {
+    BOOT_CHECK(m8_motor_exec_init(),     "m8_motor_exec_init");
     BOOT_CHECK(m8_brush_setup(),         "m8_brush_setup");
     BOOT_CHECK(m8_gantry_setup(),        "m8_gantry_setup");
+    BOOT_CHECK(m8_lift_setup(),          "m8_lift_setup");
+    BOOT_CHECK(m8_rear_lock_setup(),     "m8_rear_lock_setup");
+    BOOT_CHECK(m8_fan_setup(),           "m8_fan_setup");
     BOOT_CHECK(m8_water_setup(),         "m8_water_setup");
     /* 安全/报警域初始化顺序：
      *   ① alarm_core_init()        注册 alarm_binding_port，目录初始为空

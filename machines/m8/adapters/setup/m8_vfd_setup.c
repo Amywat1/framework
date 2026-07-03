@@ -54,6 +54,20 @@ sw_err_t m8_vfd_setup(void)
         LOG_ERROR("m8_vfd_setup: gantry init failed");
         return ret;
     }
+
+    ret = hal_vfd_linux_instance_init(HAL_VFD_FAN,
+                                      M8_VFD_FAN_SERIAL_PORT,
+                                      M8_VFD_FAN_BAUD,
+                                      M8_VFD_FAN_ADDR,
+                                      M8_VFD_FAN_PIN_FWD,
+                                      M8_VFD_FAN_PIN_REV,
+                                      M8_VFD_FAN_PIN_RST);
+    if (ret != SW_OK)
+    {
+        LOG_ERROR("m8_vfd_setup: fan init failed");
+        return ret;
+    }
+
     LOG_INFO("m8_vfd_setup ok");
     return SW_OK;
 }

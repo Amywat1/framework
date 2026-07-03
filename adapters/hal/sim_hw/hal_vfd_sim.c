@@ -11,19 +11,20 @@
 
 #include <stddef.h>
 
-static hal_vfd_state_t s_state[2];
+static hal_vfd_state_t s_state[HAL_VFD_ID_MAX];
 
 static sw_err_t sim_vfd_init(void)
 {
     s_state[HAL_VFD_GANTRY] = HAL_VFD_STATE_STOPPED;
     s_state[HAL_VFD_BRUSH]  = HAL_VFD_STATE_STOPPED;
+    s_state[HAL_VFD_FAN]    = HAL_VFD_STATE_STOPPED;
     LOG_INFO("hal_vfd_sim: init ok");
     return SW_OK;
 }
 
 static bool sim_id_valid(hal_vfd_id_t id)
 {
-    return (id == HAL_VFD_GANTRY) || (id == HAL_VFD_BRUSH);
+    return (id == HAL_VFD_GANTRY) || (id == HAL_VFD_BRUSH) || (id == HAL_VFD_FAN);
 }
 
 static sw_err_t sim_run(hal_vfd_id_t id, hal_vfd_gear_t gear)

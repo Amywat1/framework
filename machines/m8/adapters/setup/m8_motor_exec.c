@@ -2,8 +2,8 @@
  * @file    m8_motor_exec.c
  * @brief   M8 机型共享电机执行器实现。
  *
- * 将龙门（VFD）、刷子（VFD）、升降（继电器）、后轮锁止（继电器）四路电机
- * 统一配置进同一 motor_executor_t，motor_tick 只需调用一次即可推进全部轴。
+ * 将龙门（VFD）、刷子（VFD）、升降（继电器）、后轮锁止（继电器）、风机（VFD）
+ * 五路电机统一配置进同一 motor_executor_t，motor_tick 只需调用一次即可推进全部轴。
  * 限位传感器通过共享 sensors.limit 回调按电机索引分派。
  */
 
@@ -13,6 +13,7 @@
 #include "machines/m8/config/m8_brush_config.h"
 #include "machines/m8/config/m8_lift_config.h"
 #include "machines/m8/config/m8_rear_lock_config.h"
+#include "machines/m8/config/m8_fan_config.h"
 #include "machines/m8/config/m8_io_pins.h"
 #include "machines/m8/config/m8_vfd_table.h"
 #include "ports/hal/hal_vfd_port.h"
@@ -22,6 +23,9 @@
 #include <stddef.h>
 #include <string.h>
 #include <time.h>
+
+/** 共享执行器管理的电机/驱动器总数（龙门、刷子、升降、后轮锁止、风机） */
+#define M8_MOTOR_COUNT  5U
 
 /* =========================================================================
  * 辅助：DO 写
@@ -37,150 +41,215 @@ static sw_err_t io_do_set(io_do_t pin, bool val)
     return ops->do_set(pin, val);
 }
 
+static uint16_t centi_hz_to_hz(int freq_centi_hz)
+{
+    return (uint16_t)((freq_centi_hz + 99) / 100);
+}
+
 /* =========================================================================
- * 驱动器 0：龙门 VFD
+ * VFD 驱动共享实现：龙门与刷子的差异仅为 VFD 号、是否有高速 DO、是否可反转，
+ * 具体到每台电机的函数只负责把这些差异参数传给下面几个共享函数。
+ * ========================================================================= */
+
+static void vfd_drive(hal_vfd_id_t id, io_do_t high_speed_do, int high_speed_threshold_hz,
+                       bool reversible, int freq_centi_hz, motor_direction_t dir)
+{
+    const hal_vfd_ops_t *vfd = hal_vfd_get_ops();
+
+    if (vfd == NULL) {
+        return;
+    }
+
+    if (freq_centi_hz > 0) {
+        uint16_t freq_hz = centi_hz_to_hz(freq_centi_hz);
+        if (io_do_raw(high_speed_do) != IO_HANDLE_NULL) {
+            (void)io_do_set(high_speed_do, freq_hz >= (uint16_t)high_speed_threshold_hz);
+        }
+        (void)vfd->set_freq(id, freq_hz);
+        (void)vfd->run(id, (reversible && dir == MOTOR_DIR_REVERSE)
+                           ? (hal_vfd_gear_t)(-1) : (hal_vfd_gear_t)1);
+    } else {
+        if (io_do_raw(high_speed_do) != IO_HANDLE_NULL) {
+            (void)io_do_set(high_speed_do, false);
+        }
+        (void)vfd->stop(id);
+    }
+}
+
+static void vfd_cutoff_id(hal_vfd_id_t id, io_do_t high_speed_do)
+{
+    const hal_vfd_ops_t *vfd = hal_vfd_get_ops();
+
+    if (io_do_raw(high_speed_do) != IO_HANDLE_NULL) {
+        (void)io_do_set(high_speed_do, false);
+    }
+    if (vfd != NULL) {
+        (void)vfd->stop(id);
+    }
+}
+
+static bool vfd_reset_id(hal_vfd_id_t id)
+{
+    const hal_vfd_ops_t *vfd = hal_vfd_get_ops();
+
+    if (vfd == NULL) {
+        return false;
+    }
+    (void)vfd->fault_reset(id);
+    return true;
+}
+
+static bool vfd_is_running_id(hal_vfd_id_t id)
+{
+    const hal_vfd_ops_t *vfd = hal_vfd_get_ops();
+    hal_vfd_state_t st;
+
+    if (vfd == NULL) {
+        return false;
+    }
+    st = vfd->get_state(id);
+    return (st == HAL_VFD_STATE_FWD) || (st == HAL_VFD_STATE_REV);
+}
+
+static int vfd_current_id(hal_vfd_id_t id)
+{
+    const hal_vfd_ops_t *vfd = hal_vfd_get_ops();
+    uint16_t val = 0;
+
+    if (vfd == NULL) {
+        return 0;
+    }
+    (void)vfd->get_cached(id, HAL_VFD_REG_CURRENT, &val);
+    return (int)val;
+}
+
+/* =========================================================================
+ * 驱动器 0：龙门 VFD（支持正反转 + 高速 DO 切换）
  * ========================================================================= */
 
 static void gantry_set_output(void *ctx, int freq_centi_hz, motor_direction_t dir)
 {
-    const hal_vfd_ops_t *vfd = hal_vfd_get_ops();
-    uint16_t freq_hz;
-    hal_vfd_gear_t gear;
-
     (void)ctx;
-    if (vfd == NULL) {
-        return;
-    }
-
-    if (freq_centi_hz > 0) {
-        freq_hz = (uint16_t)((freq_centi_hz + 99) / 100);
-        (void)io_do_set(M8_IO_DO_GANTRY_HIGH_SPEED,
-                        freq_hz >= CFG_GANTRY_HIGH_SPEED_THRESHOLD_HZ);
-        (void)vfd->set_freq(HAL_VFD_GANTRY, freq_hz);
-        gear = (dir == MOTOR_DIR_FORWARD) ? (hal_vfd_gear_t)1 : (hal_vfd_gear_t)(-1);
-        (void)vfd->run(HAL_VFD_GANTRY, gear);
-    } else {
-        (void)io_do_set(M8_IO_DO_GANTRY_HIGH_SPEED, false);
-        (void)vfd->stop(HAL_VFD_GANTRY);
-    }
+    vfd_drive(HAL_VFD_GANTRY, M8_IO_DO_GANTRY_HIGH_SPEED,
+              CFG_GANTRY_HIGH_SPEED_THRESHOLD_HZ, true, freq_centi_hz, dir);
 }
 
 static void gantry_cutoff(void *ctx)
 {
-    const hal_vfd_ops_t *vfd = hal_vfd_get_ops();
-
     (void)ctx;
-    (void)io_do_set(M8_IO_DO_GANTRY_HIGH_SPEED, false);
-    if (vfd != NULL) {
-        (void)vfd->stop(HAL_VFD_GANTRY);
-    }
+    vfd_cutoff_id(HAL_VFD_GANTRY, M8_IO_DO_GANTRY_HIGH_SPEED);
 }
 
 static bool gantry_reset(void *ctx)
 {
-    const hal_vfd_ops_t *vfd = hal_vfd_get_ops();
-
     (void)ctx;
-    if (vfd == NULL) {
-        return false;
-    }
-    (void)vfd->fault_reset(HAL_VFD_GANTRY);
-    return true;
+    return vfd_reset_id(HAL_VFD_GANTRY);
 }
 
 static bool gantry_is_running(void *ctx)
 {
-    const hal_vfd_ops_t *vfd = hal_vfd_get_ops();
-
     (void)ctx;
-    if (vfd == NULL) {
-        return false;
-    }
-    hal_vfd_state_t st = vfd->get_state(HAL_VFD_GANTRY);
-    return (st == HAL_VFD_STATE_FWD) || (st == HAL_VFD_STATE_REV);
+    return vfd_is_running_id(HAL_VFD_GANTRY);
 }
 
 static int gantry_current(void *ctx)
 {
-    const hal_vfd_ops_t *vfd = hal_vfd_get_ops();
-    uint16_t val = 0;
-
     (void)ctx;
-    if (vfd == NULL) {
-        return 0;
-    }
-    (void)vfd->get_cached(HAL_VFD_GANTRY, HAL_VFD_REG_CURRENT, &val);
-    return (int)val;
+    return vfd_current_id(HAL_VFD_GANTRY);
 }
 
 /* =========================================================================
- * 驱动器 1：刷子 VFD
+ * 驱动器 1：刷子 VFD（仅正转，无高速 DO）
  * ========================================================================= */
 
 static void brush_set_output(void *ctx, int freq_centi_hz, motor_direction_t dir)
 {
-    const hal_vfd_ops_t *vfd = hal_vfd_get_ops();
-
     (void)ctx;
-    (void)dir;  /* 刷子 VFD 无反转引脚，始终正转 */
-    if (vfd == NULL) {
-        return;
-    }
-
-    if (freq_centi_hz > 0) {
-        uint16_t freq_hz = (uint16_t)((freq_centi_hz + 99) / 100);
-        (void)vfd->set_freq(HAL_VFD_BRUSH, freq_hz);
-        (void)vfd->run(HAL_VFD_BRUSH, 1);
-    } else {
-        (void)vfd->stop(HAL_VFD_BRUSH);
-    }
+    vfd_drive(HAL_VFD_BRUSH, (io_do_t){IO_HANDLE_NULL}, 0, false, freq_centi_hz, dir);
 }
 
 static void brush_cutoff(void *ctx)
 {
-    const hal_vfd_ops_t *vfd = hal_vfd_get_ops();
-
     (void)ctx;
-    if (vfd != NULL) {
-        (void)vfd->stop(HAL_VFD_BRUSH);
-    }
+    vfd_cutoff_id(HAL_VFD_BRUSH, (io_do_t){IO_HANDLE_NULL});
 }
 
 static bool brush_reset(void *ctx)
 {
-    const hal_vfd_ops_t *vfd = hal_vfd_get_ops();
-
     (void)ctx;
-    if (vfd == NULL) {
-        return false;
-    }
-    (void)vfd->fault_reset(HAL_VFD_BRUSH);
-    return true;
+    return vfd_reset_id(HAL_VFD_BRUSH);
 }
 
 static bool brush_is_running(void *ctx)
 {
-    const hal_vfd_ops_t *vfd = hal_vfd_get_ops();
-
     (void)ctx;
-    if (vfd == NULL) {
-        return false;
-    }
-    hal_vfd_state_t st = vfd->get_state(HAL_VFD_BRUSH);
-    return (st == HAL_VFD_STATE_FWD) || (st == HAL_VFD_STATE_REV);
+    return vfd_is_running_id(HAL_VFD_BRUSH);
 }
 
 static int brush_current(void *ctx)
 {
-    const hal_vfd_ops_t *vfd = hal_vfd_get_ops();
-    uint16_t val = 0;
-
     (void)ctx;
-    if (vfd == NULL) {
-        return 0;
+    return vfd_current_id(HAL_VFD_BRUSH);
+}
+
+/* =========================================================================
+ * 驱动器 4：风机 VFD（仅正转，无高速 DO，与龙门/刷子共用 485 总线）
+ * ========================================================================= */
+
+static void fan_set_output(void *ctx, int freq_centi_hz, motor_direction_t dir)
+{
+    (void)ctx;
+    vfd_drive(HAL_VFD_FAN, (io_do_t){IO_HANDLE_NULL}, 0, false, freq_centi_hz, dir);
+}
+
+static void fan_cutoff(void *ctx)
+{
+    (void)ctx;
+    vfd_cutoff_id(HAL_VFD_FAN, (io_do_t){IO_HANDLE_NULL});
+}
+
+static bool fan_reset(void *ctx)
+{
+    (void)ctx;
+    return vfd_reset_id(HAL_VFD_FAN);
+}
+
+static bool fan_is_running(void *ctx)
+{
+    (void)ctx;
+    return vfd_is_running_id(HAL_VFD_FAN);
+}
+
+static int fan_current(void *ctx)
+{
+    (void)ctx;
+    return vfd_current_id(HAL_VFD_FAN);
+}
+
+/* =========================================================================
+ * 继电器驱动共享实现：升降与后轮锁止的差异仅为两路 DO 引脚，
+ * 具体到每台电机的函数只负责把各自的引脚和运行状态变量传给下面两个共享函数。
+ * ========================================================================= */
+
+static void relay_drive(io_do_t pin_fwd, io_do_t pin_bwd, int freq_centi_hz,
+                         motor_direction_t dir, bool *running)
+{
+    if (freq_centi_hz > 0) {
+        (void)io_do_set(pin_fwd, dir == MOTOR_DIR_FORWARD);
+        (void)io_do_set(pin_bwd, dir != MOTOR_DIR_FORWARD);
+        *running = true;
+    } else {
+        (void)io_do_set(pin_fwd, false);
+        (void)io_do_set(pin_bwd, false);
+        *running = false;
     }
-    (void)vfd->get_cached(HAL_VFD_BRUSH, HAL_VFD_REG_CURRENT, &val);
-    return (int)val;
+}
+
+static void relay_cutoff_pins(io_do_t pin_fwd, io_do_t pin_bwd, bool *running)
+{
+    (void)io_do_set(pin_fwd, false);
+    (void)io_do_set(pin_bwd, false);
+    *running = false;
 }
 
 /* =========================================================================
@@ -192,36 +261,19 @@ static bool s_lift_running = false;
 static void lift_set_output(void *ctx, int freq_centi_hz, motor_direction_t dir)
 {
     (void)ctx;
-    if (freq_centi_hz > 0) {
-        if (dir == MOTOR_DIR_FORWARD) {
-            (void)io_do_set(M8_IO_DO_TOP_BRUSH_UP,   true);
-            (void)io_do_set(M8_IO_DO_TOP_BRUSH_DOWN, false);
-        } else {
-            (void)io_do_set(M8_IO_DO_TOP_BRUSH_UP,   false);
-            (void)io_do_set(M8_IO_DO_TOP_BRUSH_DOWN, true);
-        }
-        s_lift_running = true;
-    } else {
-        (void)io_do_set(M8_IO_DO_TOP_BRUSH_UP,   false);
-        (void)io_do_set(M8_IO_DO_TOP_BRUSH_DOWN, false);
-        s_lift_running = false;
-    }
+    relay_drive(M8_IO_DO_TOP_BRUSH_UP, M8_IO_DO_TOP_BRUSH_DOWN, freq_centi_hz, dir, &s_lift_running);
 }
 
 static void lift_cutoff(void *ctx)
 {
     (void)ctx;
-    (void)io_do_set(M8_IO_DO_TOP_BRUSH_UP,   false);
-    (void)io_do_set(M8_IO_DO_TOP_BRUSH_DOWN, false);
-    s_lift_running = false;
+    relay_cutoff_pins(M8_IO_DO_TOP_BRUSH_UP, M8_IO_DO_TOP_BRUSH_DOWN, &s_lift_running);
 }
 
 static bool lift_relay_reset(void *ctx)
 {
     (void)ctx;
-    (void)io_do_set(M8_IO_DO_TOP_BRUSH_UP,   false);
-    (void)io_do_set(M8_IO_DO_TOP_BRUSH_DOWN, false);
-    s_lift_running = false;
+    relay_cutoff_pins(M8_IO_DO_TOP_BRUSH_UP, M8_IO_DO_TOP_BRUSH_DOWN, &s_lift_running);
     return true;
 }
 
@@ -240,36 +292,19 @@ static bool s_rear_lock_running = false;
 static void rear_lock_set_output(void *ctx, int freq_centi_hz, motor_direction_t dir)
 {
     (void)ctx;
-    if (freq_centi_hz > 0) {
-        if (dir == MOTOR_DIR_FORWARD) {
-            (void)io_do_set(M8_IO_DO_ROD_EXTEND,  true);
-            (void)io_do_set(M8_IO_DO_ROD_RETRACT, false);
-        } else {
-            (void)io_do_set(M8_IO_DO_ROD_EXTEND,  false);
-            (void)io_do_set(M8_IO_DO_ROD_RETRACT, true);
-        }
-        s_rear_lock_running = true;
-    } else {
-        (void)io_do_set(M8_IO_DO_ROD_EXTEND,  false);
-        (void)io_do_set(M8_IO_DO_ROD_RETRACT, false);
-        s_rear_lock_running = false;
-    }
+    relay_drive(M8_IO_DO_ROD_EXTEND, M8_IO_DO_ROD_RETRACT, freq_centi_hz, dir, &s_rear_lock_running);
 }
 
 static void rear_lock_cutoff(void *ctx)
 {
     (void)ctx;
-    (void)io_do_set(M8_IO_DO_ROD_EXTEND,  false);
-    (void)io_do_set(M8_IO_DO_ROD_RETRACT, false);
-    s_rear_lock_running = false;
+    relay_cutoff_pins(M8_IO_DO_ROD_EXTEND, M8_IO_DO_ROD_RETRACT, &s_rear_lock_running);
 }
 
 static bool rear_lock_relay_reset(void *ctx)
 {
     (void)ctx;
-    (void)io_do_set(M8_IO_DO_ROD_EXTEND,  false);
-    (void)io_do_set(M8_IO_DO_ROD_RETRACT, false);
-    s_rear_lock_running = false;
+    relay_cutoff_pins(M8_IO_DO_ROD_EXTEND, M8_IO_DO_ROD_RETRACT, &s_rear_lock_running);
     return true;
 }
 
@@ -349,6 +384,10 @@ static bool m8_all_limits(void *ctx, int motor, motor_limit_kind_t kind)
         default:                 return false;
         }
 
+    case M8_MOTOR_FAN:
+        /* 风机电机无硬限位 */
+        return false;
+
     default:
         return false;
     }
@@ -389,11 +428,12 @@ static motor_encoder_t s_gantry_encoder = {
 };
 
 /* 编码器数组：长度必须等于电机数，无编码器的电机填 NULL */
-static motor_encoder_t * const s_encoders[4] = {
+static motor_encoder_t * const s_encoders[M8_MOTOR_COUNT] = {
     &s_gantry_encoder, /* M8_MOTOR_GANTRY */
     NULL,              /* M8_MOTOR_BRUSH */
     NULL,              /* M8_MOTOR_LIFT */
     NULL,              /* M8_MOTOR_REAR_LOCK */
+    NULL,              /* M8_MOTOR_FAN */
 };
 
 static motor_driver_t s_drv_gantry = {
@@ -436,11 +476,22 @@ static motor_driver_t s_drv_rear_lock = {
     .ctx        = NULL,
 };
 
-static motor_driver_t * const s_drivers[4] = {
+static motor_driver_t s_drv_fan = {
+    .set_output = fan_set_output,
+    .cutoff     = fan_cutoff,
+    .reset      = fan_reset,
+    .prepare    = NULL,
+    .is_running = fan_is_running,
+    .current    = fan_current,
+    .ctx        = NULL,
+};
+
+static motor_driver_t * const s_drivers[M8_MOTOR_COUNT] = {
     &s_drv_gantry,    /* driver 0 → M8_MOTOR_GANTRY */
     &s_drv_brush,     /* driver 1 → M8_MOTOR_BRUSH */
     &s_drv_lift,      /* driver 2 → M8_MOTOR_LIFT */
     &s_drv_rear_lock, /* driver 3 → M8_MOTOR_REAR_LOCK */
+    &s_drv_fan,       /* driver 4 → M8_MOTOR_FAN */
 };
 
 static motor_clock_t s_clock = {
@@ -494,8 +545,8 @@ sw_err_t m8_motor_exec_init(void)
     }
 
     memset(&cfg, 0, sizeof(cfg));
-    cfg.motor_count     = 4;
-    cfg.driver_count    = 4;
+    cfg.motor_count     = M8_MOTOR_COUNT;
+    cfg.driver_count    = M8_MOTOR_COUNT;
     cfg.interlock_count = 0;
     cfg.tick_ms         = CFG_GANTRY_TICK_MS;   /* 所有电机共用 20ms 节拍 */
     cfg.watchdog_ms     = CFG_GANTRY_WATCHDOG_MS;
@@ -572,6 +623,22 @@ sw_err_t m8_motor_exec_init(void)
     m->gear_freq[0]        = CFG_REAR_LOCK_GEAR_FREQ;
     m->gear_count          = CFG_REAR_LOCK_GEAR_COUNT;
 
+    /* --- 电机 4：风机 VFD --- */
+    m = &cfg.motors[M8_MOTOR_FAN];
+    m->driver_index        = M8_MOTOR_FAN;
+    m->has_encoder          = false;
+    m->cap_position_move    = false;
+    m->cooldown_ms          = CFG_FAN_COOLDOWN_MS;
+    m->reversal_stop_ms     = CFG_FAN_REVERSAL_STOP_MS;
+    m->accel_ms             = CFG_FAN_ACCEL_MS;
+    m->decel_ms             = CFG_FAN_DECEL_MS;
+    m->default_max_move_ms  = CFG_FAN_DEFAULT_MAX_MOVE_MS;
+    m->slow_freq            = CFG_FAN_GEAR_FREQ;
+    m->gear_freq[0]         = CFG_FAN_GEAR_FREQ;
+    m->gear_count           = CFG_FAN_GEAR_COUNT;
+    m->mon.monitor_current  = false;
+    m->mon.monitor_feedback = false;
+
     /* --- 端口集合 --- */
     memset(&ports, 0, sizeof(ports));
     ports.clock    = &s_clock;
@@ -593,6 +660,6 @@ sw_err_t m8_motor_exec_init(void)
         return ret;
     }
 
-    LOG_INFO("m8_motor_exec_init ok (4 motors, 1 tick)");
+    LOG_INFO("m8_motor_exec_init ok (5 motors, 1 tick)");
     return SW_OK;
 }

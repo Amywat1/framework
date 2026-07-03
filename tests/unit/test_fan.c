@@ -3,92 +3,74 @@
  * @brief   fan 风机机构领域层单元测试
  *
  * 分组：
- *   B. 未初始化保护（须在 main() 中排在最前面，保证 fan.c s_ops.set_start == NULL）
+ *   B. 未初始化保护（须在 main() 中排在最前面，保证 fan.c s_exec == NULL）
  *   A. 初始化参数校验
  *   C. 启动与停止（IDLE ↔ RUNNING）
- *   D. 报警检测 → FAULT（tick 触发）
- *   E. 故障态命令拒绝
- *   F. 复位流程（FAULT → RESETTING）
- *   G. 复位脉冲超时后恢复 IDLE（报警已消）
- *   H. 复位脉冲超时后继续 FAULT（报警未消）
+ *   D. motor_phase → fan_state 映射
+ *   E. 故障与恢复
  *
- * @note    setUp() 清零 mock 状态，不调用 fan_init()。
- *          未初始化测试（B 组）须最先运行，确保 fan.c 内 s_ops.set_start == NULL。
- *
- *          G/H 组需等待真实时间超过 reset_pulse_ms；配置 reset_pulse_ms = 10ms，
- *          并在 fan_reset() 之后 usleep(20000)（20ms）再调 fan_tick()。
+ * @note    setUp() 只重置 motor_executor_t，不调用 fan_init()。
+ *          各测试自行在函数体内调用 fan_init(&s_exec, 0) 以进入已初始化状态。
+ *          未初始化测试（B 组）须最先运行，确保 fan.c 内 s_exec == NULL。
  */
 
 #include "domain/device/mechanism/fan.h"
+#include "motor/motor_executor.h"
 #include "common/sw_error.h"
 #include "unity.h"
 
 #include <string.h>
 #include <stddef.h>
-#include <unistd.h>
 
 /* -------------------------------------------------------------------------
- * mock IO 回调
+ * 最小 motor_executor_t 初始化辅助
  * ------------------------------------------------------------------------- */
-static bool s_start_on        = false;
-static bool s_reset_on        = false;
-static bool s_alarm           = false;
-static int  s_set_start_calls = 0;
-static int  s_set_reset_calls = 0;
+static motor_executor_t  s_exec;
+static motor_driver_t    s_drv;
+static motor_driver_t   *s_drv_arr[1] = {&s_drv};
+static motor_clock_t     s_clk;
+static motor_sensors_t   s_sensors;
+static motor_estop_t     s_estop;
+static motor_ports_t     s_ports;
+static motor_config_t    s_cfg;
 
-static sw_err_t mock_set_start(void *ctx, bool on)
+static void init_exec(void)
 {
-    (void)ctx;
-    s_start_on = on;
-    s_set_start_calls++;
-    return SW_OK;
-}
+    memset(&s_cfg,     0, sizeof(s_cfg));
+    memset(&s_drv,     0, sizeof(s_drv));
+    memset(&s_clk,     0, sizeof(s_clk));
+    memset(&s_sensors, 0, sizeof(s_sensors));
+    memset(&s_estop,   0, sizeof(s_estop));
+    memset(&s_ports,   0, sizeof(s_ports));
 
-static sw_err_t mock_set_reset(void *ctx, bool on)
-{
-    (void)ctx;
-    s_reset_on = on;
-    s_set_reset_calls++;
-    return SW_OK;
-}
+    s_cfg.motor_count                    = 1;
+    s_cfg.driver_count                   = 1;
+    s_cfg.watchdog_ms                    = 200;
+    s_cfg.tick_ms                        = 20;
+    s_cfg.motors[0].driver_index         = 0;
+    s_cfg.motors[0].default_max_move_ms  = 30000;
+    s_cfg.motors[0].gear_count           = 1;
+    s_cfg.motors[0].gear_freq[0]         = 5000;
 
-static bool mock_read_alarm(void *ctx)
-{
-    (void)ctx;
-    return s_alarm;
-}
+    s_ports.clock    = &s_clk;
+    s_ports.drivers  = s_drv_arr;
+    s_ports.encoders = NULL;
+    s_ports.sensors  = &s_sensors;
+    s_ports.estop    = &s_estop;
 
-static const fan_io_ops_t s_ops = {
-    .set_start  = mock_set_start,
-    .set_reset  = mock_set_reset,
-    .read_alarm = mock_read_alarm,
-    .ctx        = NULL,
-};
-
-/* reset_pulse_ms = 10 使脉冲超时测试只需 ~20ms 真实等待 */
-static const fan_cfg_t s_cfg = {
-    .reset_pulse_ms = 10U,
-};
-
-static void reset_mock(void)
-{
-    s_start_on        = false;
-    s_reset_on        = false;
-    s_alarm           = false;
-    s_set_start_calls = 0;
-    s_set_reset_calls = 0;
+    motor_init(&s_exec, &s_cfg, &s_ports);
 }
 
 void setUp(void)
 {
-    reset_mock();
+    init_exec();
     /* 不在此调用 fan_init()，由各测试按需调用 */
 }
 
 void tearDown(void) {}
 
 /* =========================================================================
- * B. 未初始化保护（列在 main() 最前面，此时 fan.c 内回调指针均为 NULL）
+ * B. 未初始化保护（列在 main() 最前面运行，此时 fan.c s_exec == NULL）
  * ========================================================================= */
 
 void test_fan_not_init_start(void)
@@ -101,9 +83,9 @@ void test_fan_not_init_stop(void)
     TEST_ASSERT_EQUAL(SW_ERR_NOT_INIT, fan_stop());
 }
 
-void test_fan_not_init_reset(void)
+void test_fan_not_init_recover(void)
 {
-    TEST_ASSERT_EQUAL(SW_ERR_NOT_INIT, fan_reset());
+    TEST_ASSERT_EQUAL(SW_ERR_NOT_INIT, fan_recover(MOTOR_RECOVERY_MODULE_STOP));
 }
 
 void test_fan_not_init_state_idle(void)
@@ -112,63 +94,35 @@ void test_fan_not_init_state_idle(void)
     TEST_ASSERT_EQUAL(FAN_STATE_IDLE, fan_state());
 }
 
-void test_fan_not_init_tick_safe(void)
+void test_fan_not_init_fault_code_none(void)
 {
-    /* 未初始化时 fan_tick() 不崩溃，且 mock 回调不被调用 */
-    fan_tick();
-    TEST_ASSERT_EQUAL(0, s_set_start_calls);
+    TEST_ASSERT_EQUAL(MOTOR_FAULT_NONE, fan_fault_code());
 }
 
 /* =========================================================================
  * A. 初始化参数校验
  * ========================================================================= */
 
-void test_fan_init_null_ops(void)
+void test_fan_init_null_returns_err_param(void)
 {
-    TEST_ASSERT_EQUAL(SW_ERR_PARAM, fan_init(NULL, &s_cfg));
-}
-
-void test_fan_init_null_cfg(void)
-{
-    TEST_ASSERT_EQUAL(SW_ERR_PARAM, fan_init(&s_ops, NULL));
-}
-
-void test_fan_init_null_set_start(void)
-{
-    fan_io_ops_t ops = s_ops;
-    ops.set_start = NULL;
-    TEST_ASSERT_EQUAL(SW_ERR_PARAM, fan_init(&ops, &s_cfg));
-}
-
-void test_fan_init_null_set_reset(void)
-{
-    fan_io_ops_t ops = s_ops;
-    ops.set_reset = NULL;
-    TEST_ASSERT_EQUAL(SW_ERR_PARAM, fan_init(&ops, &s_cfg));
-}
-
-void test_fan_init_null_read_alarm(void)
-{
-    fan_io_ops_t ops = s_ops;
-    ops.read_alarm = NULL;
-    TEST_ASSERT_EQUAL(SW_ERR_PARAM, fan_init(&ops, &s_cfg));
-}
-
-void test_fan_init_zero_reset_pulse(void)
-{
-    fan_cfg_t cfg = { .reset_pulse_ms = 0U };
-    TEST_ASSERT_EQUAL(SW_ERR_PARAM, fan_init(&s_ops, &cfg));
+    TEST_ASSERT_EQUAL(SW_ERR_PARAM, fan_init(NULL, 0));
 }
 
 void test_fan_init_ok(void)
 {
-    TEST_ASSERT_EQUAL(SW_OK, fan_init(&s_ops, &s_cfg));
+    TEST_ASSERT_EQUAL(SW_OK, fan_init(&s_exec, 0));
 }
 
 void test_fan_state_idle_after_init(void)
 {
-    fan_init(&s_ops, &s_cfg);
+    fan_init(&s_exec, 0);
     TEST_ASSERT_EQUAL(FAN_STATE_IDLE, fan_state());
+}
+
+void test_fan_fault_code_none_after_init(void)
+{
+    fan_init(&s_exec, 0);
+    TEST_ASSERT_EQUAL(MOTOR_FAULT_NONE, fan_fault_code());
 }
 
 /* =========================================================================
@@ -177,246 +131,144 @@ void test_fan_state_idle_after_init(void)
 
 void test_fan_start_returns_ok(void)
 {
-    fan_init(&s_ops, &s_cfg);
+    fan_init(&s_exec, 0);
     TEST_ASSERT_EQUAL(SW_OK, fan_start());
 }
 
 void test_fan_start_state_running(void)
 {
-    fan_init(&s_ops, &s_cfg);
+    fan_init(&s_exec, 0);
     fan_start();
+    /* 仿真桩 motor_run_continuous 立即置 RUNNING */
     TEST_ASSERT_EQUAL(FAN_STATE_RUNNING, fan_state());
 }
 
-void test_fan_start_activates_do(void)
+void test_fan_start_direction_forward(void)
 {
-    fan_init(&s_ops, &s_cfg);
+    fan_init(&s_exec, 0);
     fan_start();
-    TEST_ASSERT_TRUE(s_start_on);
+    TEST_ASSERT_EQUAL(MOTOR_DIR_FORWARD, motor_direction(&s_exec, 0));
 }
 
 void test_fan_stop_returns_ok(void)
 {
-    fan_init(&s_ops, &s_cfg);
+    fan_init(&s_exec, 0);
     fan_start();
     TEST_ASSERT_EQUAL(SW_OK, fan_stop());
 }
 
 void test_fan_stop_state_idle(void)
 {
-    fan_init(&s_ops, &s_cfg);
+    fan_init(&s_exec, 0);
     fan_start();
+    TEST_ASSERT_EQUAL(FAN_STATE_RUNNING, fan_state());
     fan_stop();
+    /* 仿真桩 motor_stop 立即置 STOPPED → IDLE */
     TEST_ASSERT_EQUAL(FAN_STATE_IDLE, fan_state());
-}
-
-void test_fan_stop_deactivates_do(void)
-{
-    fan_init(&s_ops, &s_cfg);
-    fan_start();
-    fan_stop();
-    TEST_ASSERT_FALSE(s_start_on);
 }
 
 void test_fan_stop_from_idle_ok(void)
 {
-    fan_init(&s_ops, &s_cfg);
-    /* IDLE 态停止不应报错 */
+    fan_init(&s_exec, 0);
     TEST_ASSERT_EQUAL(SW_OK, fan_stop());
     TEST_ASSERT_EQUAL(FAN_STATE_IDLE, fan_state());
 }
 
 /* =========================================================================
- * D. 报警检测 → FAULT（tick 触发）
+ * D. motor_phase → fan_state 映射
  * ========================================================================= */
 
-void test_fan_tick_alarm_in_running_goes_fault(void)
+void test_fan_state_paused_maps_to_idle(void)
 {
-    fan_init(&s_ops, &s_cfg);
-    fan_start();
-    s_alarm = true;
-    fan_tick();
-    TEST_ASSERT_EQUAL(FAN_STATE_FAULT, fan_state());
+    fan_init(&s_exec, 0);
+    s_exec.m[0].phase = MOTOR_PHASE_PAUSED;
+    TEST_ASSERT_EQUAL(FAN_STATE_IDLE, fan_state());
 }
 
-void test_fan_tick_alarm_stops_start_do(void)
+void test_fan_state_waiting_start_maps_to_idle(void)
 {
-    fan_init(&s_ops, &s_cfg);
-    fan_start();
-    s_alarm = true;
-    fan_tick();
-    /* 进入 FAULT 时 set_start(false) 应被调用 */
-    TEST_ASSERT_FALSE(s_start_on);
+    fan_init(&s_exec, 0);
+    s_exec.m[0].phase = MOTOR_PHASE_WAITING_START;
+    TEST_ASSERT_EQUAL(FAN_STATE_IDLE, fan_state());
 }
 
-void test_fan_tick_alarm_in_idle_goes_fault(void)
+void test_fan_state_running_maps_to_running(void)
 {
-    fan_init(&s_ops, &s_cfg);
-    /* IDLE 态 tick 同样检测报警 */
-    s_alarm = true;
-    fan_tick();
-    TEST_ASSERT_EQUAL(FAN_STATE_FAULT, fan_state());
-}
-
-void test_fan_tick_no_alarm_stays_running(void)
-{
-    fan_init(&s_ops, &s_cfg);
-    fan_start();
-    s_alarm = false;
-    fan_tick();
+    fan_init(&s_exec, 0);
+    s_exec.m[0].phase = MOTOR_PHASE_RUNNING;
     TEST_ASSERT_EQUAL(FAN_STATE_RUNNING, fan_state());
 }
 
+void test_fan_state_decelerating_maps_to_stopping(void)
+{
+    fan_init(&s_exec, 0);
+    s_exec.m[0].phase = MOTOR_PHASE_DECELERATING;
+    TEST_ASSERT_EQUAL(FAN_STATE_STOPPING, fan_state());
+}
+
+void test_fan_state_reversal_wait_maps_to_stopping(void)
+{
+    fan_init(&s_exec, 0);
+    s_exec.m[0].phase = MOTOR_PHASE_REVERSAL_WAIT;
+    TEST_ASSERT_EQUAL(FAN_STATE_STOPPING, fan_state());
+}
+
+void test_fan_state_fault_maps_to_fault(void)
+{
+    fan_init(&s_exec, 0);
+    s_exec.m[0].phase = MOTOR_PHASE_FAULT;
+    TEST_ASSERT_EQUAL(FAN_STATE_FAULT, fan_state());
+}
+
+void test_fan_state_estop_maps_to_fault(void)
+{
+    fan_init(&s_exec, 0);
+    s_exec.m[0].phase = MOTOR_PHASE_ESTOP;
+    TEST_ASSERT_EQUAL(FAN_STATE_FAULT, fan_state());
+}
+
 /* =========================================================================
- * E. 故障态命令拒绝
+ * E. 故障与恢复
  * ========================================================================= */
 
 void test_fan_fault_blocks_start(void)
 {
-    fan_init(&s_ops, &s_cfg);
-    s_alarm = true;
-    fan_tick();   /* → FAULT */
+    fan_init(&s_exec, 0);
+    s_exec.m[0].phase = MOTOR_PHASE_FAULT;
     TEST_ASSERT_EQUAL(SW_ERR_STATE, fan_start());
 }
 
-void test_fan_fault_blocks_stop(void)
+void test_fan_recover_module_stop_clears_fault(void)
 {
-    fan_init(&s_ops, &s_cfg);
-    s_alarm = true;
-    fan_tick();   /* → FAULT */
-    TEST_ASSERT_EQUAL(SW_ERR_STATE, fan_stop());
-}
-
-/* =========================================================================
- * F. 复位流程（FAULT → RESETTING）
- * ========================================================================= */
-
-void test_fan_reset_requires_fault(void)
-{
-    fan_init(&s_ops, &s_cfg);
-    /* 非 FAULT 态调用 fan_reset() 应拒绝 */
-    TEST_ASSERT_EQUAL(SW_ERR_STATE, fan_reset());
-}
-
-void test_fan_reset_ok_in_fault(void)
-{
-    fan_init(&s_ops, &s_cfg);
-    s_alarm = true;
-    fan_tick();   /* → FAULT */
-    s_alarm = false;
-    TEST_ASSERT_EQUAL(SW_OK, fan_reset());
-}
-
-void test_fan_reset_state_resetting(void)
-{
-    fan_init(&s_ops, &s_cfg);
-    s_alarm = true;
-    fan_tick();   /* → FAULT */
-    fan_reset();
-    TEST_ASSERT_EQUAL(FAN_STATE_RESETTING, fan_state());
-}
-
-void test_fan_reset_activates_reset_do(void)
-{
-    fan_init(&s_ops, &s_cfg);
-    s_alarm = true;
-    fan_tick();   /* → FAULT */
-    s_alarm = false;
-    fan_reset();
-    TEST_ASSERT_TRUE(s_reset_on);
-}
-
-void test_fan_tick_before_timeout_stays_resetting(void)
-{
-    fan_init(&s_ops, &s_cfg);
-    s_alarm = true;
-    fan_tick();   /* → FAULT */
-    s_alarm = false;
-    fan_reset();
-    /* 立即 tick，elapsed << reset_pulse_ms(10ms)，应仍停留 RESETTING */
-    fan_tick();
-    TEST_ASSERT_EQUAL(FAN_STATE_RESETTING, fan_state());
-}
-
-void test_fan_resetting_blocks_start(void)
-{
-    fan_init(&s_ops, &s_cfg);
-    s_alarm = true;
-    fan_tick();
-    s_alarm = false;
-    fan_reset();
-    TEST_ASSERT_EQUAL(SW_ERR_STATE, fan_start());
-}
-
-void test_fan_resetting_blocks_stop(void)
-{
-    fan_init(&s_ops, &s_cfg);
-    s_alarm = true;
-    fan_tick();
-    s_alarm = false;
-    fan_reset();
-    TEST_ASSERT_EQUAL(SW_ERR_STATE, fan_stop());
-}
-
-/* =========================================================================
- * G. 复位脉冲超时后恢复 IDLE（报警已消）
- * ========================================================================= */
-
-void test_fan_reset_timeout_alarm_clear_goes_idle(void)
-{
-    fan_init(&s_ops, &s_cfg);
-    s_alarm = true;
-    fan_tick();   /* → FAULT */
-    s_alarm = false;
-    fan_reset();  /* → RESETTING，记录 reset_start 时间戳 */
-
-    /* 等待超过 reset_pulse_ms（10ms），确保 time_elapsed_ms >= 10ms */
-    usleep(20000);
-
-    fan_tick();   /* 超时：set_reset(false)，报警已消 → IDLE */
+    fan_init(&s_exec, 0);
+    s_exec.m[0].phase = MOTOR_PHASE_FAULT;
+    TEST_ASSERT_EQUAL(SW_OK, fan_recover(MOTOR_RECOVERY_MODULE_STOP));
+    /* 仿真桩 RECOVERY_MODULE_STOP → phase = STOPPED → IDLE */
     TEST_ASSERT_EQUAL(FAN_STATE_IDLE, fan_state());
 }
 
-void test_fan_reset_timeout_deactivates_reset_do(void)
+void test_fan_recover_driver_reset_returns_ok(void)
 {
-    fan_init(&s_ops, &s_cfg);
-    s_alarm = true;
-    fan_tick();
-    s_alarm = false;
-    fan_reset();
-    usleep(20000);
-    fan_tick();
-    TEST_ASSERT_FALSE(s_reset_on);
+    fan_init(&s_exec, 0);
+    s_exec.m[0].phase = MOTOR_PHASE_FAULT;
+    TEST_ASSERT_EQUAL(SW_OK, fan_recover(MOTOR_RECOVERY_DRIVER_RESET));
 }
 
-/* =========================================================================
- * H. 复位脉冲超时后继续 FAULT（报警未消）
- * ========================================================================= */
-
-void test_fan_reset_timeout_alarm_active_stays_fault(void)
+void test_fan_fault_code_reflects_motor(void)
 {
-    fan_init(&s_ops, &s_cfg);
-    s_alarm = true;
-    fan_tick();   /* → FAULT */
-    fan_reset();  /* → RESETTING */
-
-    usleep(20000);
-
-    /* s_alarm 仍为 true，超时后应回到 FAULT */
-    fan_tick();
-    TEST_ASSERT_EQUAL(FAN_STATE_FAULT, fan_state());
+    fan_init(&s_exec, 0);
+    s_exec.m[0].phase      = MOTOR_PHASE_FAULT;
+    s_exec.m[0].fault_code = MOTOR_FAULT_OVERCURRENT;
+    TEST_ASSERT_EQUAL(MOTOR_FAULT_OVERCURRENT, fan_fault_code());
 }
 
-void test_fan_reset_timeout_alarm_active_reset_do_off(void)
+void test_fan_recover_then_start_ok(void)
 {
-    fan_init(&s_ops, &s_cfg);
-    s_alarm = true;
-    fan_tick();
-    fan_reset();
-    usleep(20000);
-    fan_tick();
-    /* 无论报警是否消除，脉冲超时后 FAN_RESET DO 都应断开 */
-    TEST_ASSERT_FALSE(s_reset_on);
+    fan_init(&s_exec, 0);
+    s_exec.m[0].phase = MOTOR_PHASE_FAULT;
+    fan_recover(MOTOR_RECOVERY_MODULE_STOP);
+    TEST_ASSERT_EQUAL(SW_OK, fan_start());
+    TEST_ASSERT_EQUAL(FAN_STATE_RUNNING, fan_state());
 }
 
 /* =========================================================================
@@ -430,55 +282,39 @@ int main(void)
     /* B. 未初始化保护（必须最先运行） */
     RUN_TEST(test_fan_not_init_start);
     RUN_TEST(test_fan_not_init_stop);
-    RUN_TEST(test_fan_not_init_reset);
+    RUN_TEST(test_fan_not_init_recover);
     RUN_TEST(test_fan_not_init_state_idle);
-    RUN_TEST(test_fan_not_init_tick_safe);
+    RUN_TEST(test_fan_not_init_fault_code_none);
 
     /* A. 初始化参数校验 */
-    RUN_TEST(test_fan_init_null_ops);
-    RUN_TEST(test_fan_init_null_cfg);
-    RUN_TEST(test_fan_init_null_set_start);
-    RUN_TEST(test_fan_init_null_set_reset);
-    RUN_TEST(test_fan_init_null_read_alarm);
-    RUN_TEST(test_fan_init_zero_reset_pulse);
+    RUN_TEST(test_fan_init_null_returns_err_param);
     RUN_TEST(test_fan_init_ok);
     RUN_TEST(test_fan_state_idle_after_init);
+    RUN_TEST(test_fan_fault_code_none_after_init);
 
     /* C. 启动与停止 */
     RUN_TEST(test_fan_start_returns_ok);
     RUN_TEST(test_fan_start_state_running);
-    RUN_TEST(test_fan_start_activates_do);
+    RUN_TEST(test_fan_start_direction_forward);
     RUN_TEST(test_fan_stop_returns_ok);
     RUN_TEST(test_fan_stop_state_idle);
-    RUN_TEST(test_fan_stop_deactivates_do);
     RUN_TEST(test_fan_stop_from_idle_ok);
 
-    /* D. 报警检测 → FAULT */
-    RUN_TEST(test_fan_tick_alarm_in_running_goes_fault);
-    RUN_TEST(test_fan_tick_alarm_stops_start_do);
-    RUN_TEST(test_fan_tick_alarm_in_idle_goes_fault);
-    RUN_TEST(test_fan_tick_no_alarm_stays_running);
+    /* D. motor_phase → fan_state 映射 */
+    RUN_TEST(test_fan_state_paused_maps_to_idle);
+    RUN_TEST(test_fan_state_waiting_start_maps_to_idle);
+    RUN_TEST(test_fan_state_running_maps_to_running);
+    RUN_TEST(test_fan_state_decelerating_maps_to_stopping);
+    RUN_TEST(test_fan_state_reversal_wait_maps_to_stopping);
+    RUN_TEST(test_fan_state_fault_maps_to_fault);
+    RUN_TEST(test_fan_state_estop_maps_to_fault);
 
-    /* E. 故障态命令拒绝 */
+    /* E. 故障与恢复 */
     RUN_TEST(test_fan_fault_blocks_start);
-    RUN_TEST(test_fan_fault_blocks_stop);
-
-    /* F. 复位流程 */
-    RUN_TEST(test_fan_reset_requires_fault);
-    RUN_TEST(test_fan_reset_ok_in_fault);
-    RUN_TEST(test_fan_reset_state_resetting);
-    RUN_TEST(test_fan_reset_activates_reset_do);
-    RUN_TEST(test_fan_tick_before_timeout_stays_resetting);
-    RUN_TEST(test_fan_resetting_blocks_start);
-    RUN_TEST(test_fan_resetting_blocks_stop);
-
-    /* G. 超时后 → IDLE */
-    RUN_TEST(test_fan_reset_timeout_alarm_clear_goes_idle);
-    RUN_TEST(test_fan_reset_timeout_deactivates_reset_do);
-
-    /* H. 超时后 → FAULT */
-    RUN_TEST(test_fan_reset_timeout_alarm_active_stays_fault);
-    RUN_TEST(test_fan_reset_timeout_alarm_active_reset_do_off);
+    RUN_TEST(test_fan_recover_module_stop_clears_fault);
+    RUN_TEST(test_fan_recover_driver_reset_returns_ok);
+    RUN_TEST(test_fan_fault_code_reflects_motor);
+    RUN_TEST(test_fan_recover_then_start_ok);
 
     return UNITY_END();
 }

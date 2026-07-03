@@ -1,114 +1,99 @@
 /**
  * @file    fan.c
- * @brief   风机领域层实现。
+ * @brief   风机机构领域层实现。
  *
- * 以 DO/DI 回调驱动变频器开关与复位，通过 FAN_ALARM DI
- * 检测故障并在 tick 中自动触发停机。复位脉冲时序由内部计时管理。
+ * 以 motor_executor_t 为底层，风机仅正转、单挡运行。
+ * 故障检测、恢复均由 MCC 执行器负责，本层仅做状态聚合。
  */
 
 #include "domain/device/mechanism/fan.h"
-#include "common/time_util.h"
 #include <stddef.h>
 
 /* -------------------- 静态模块状态 -------------------- */
 
-static fan_io_ops_t s_ops;
-static fan_cfg_t    s_cfg;
-static fan_state_t  s_state       = FAN_STATE_IDLE;
-static uint32_t     s_reset_start = 0U;
+static motor_executor_t *s_exec;
+static int               s_motor;
 
 /* -------------------- 公共 API -------------------- */
 
-sw_err_t fan_init(const fan_io_ops_t *ops, const fan_cfg_t *cfg)
+sw_err_t fan_init(motor_executor_t *exec, int motor)
 {
-    if ((ops == NULL) || (cfg == NULL)) {
+    if (exec == NULL) {
         return SW_ERR_PARAM;
     }
-    if ((ops->set_start == NULL) || (ops->set_reset == NULL) ||
-        (ops->read_alarm == NULL)) {
-        return SW_ERR_PARAM;
-    }
-    if (cfg->reset_pulse_ms == 0U) {
-        return SW_ERR_PARAM;
-    }
-
-    s_ops   = *ops;
-    s_cfg   = *cfg;
-    s_state = FAN_STATE_IDLE;
+    s_exec  = exec;
+    s_motor = motor;
     return SW_OK;
 }
 
 sw_err_t fan_start(void)
 {
-    if (s_ops.set_start == NULL) {
+    motor_cmd_result_t r;
+
+    if (s_exec == NULL) {
         return SW_ERR_NOT_INIT;
     }
-    if ((s_state == FAN_STATE_FAULT) || (s_state == FAN_STATE_RESETTING)) {
+    if (fan_state() == FAN_STATE_FAULT) {
         return SW_ERR_STATE;
     }
 
-    (void)s_ops.set_start(s_ops.ctx, true);
-    s_state = FAN_STATE_RUNNING;
-    return SW_OK;
+    r = motor_run_continuous(s_exec, s_motor, motor_speed_gear(0), MOTOR_DIR_FORWARD);
+    return motor_cmd_ok(r) ? SW_OK : SW_ERR_STATE;
 }
 
 sw_err_t fan_stop(void)
 {
-    if (s_ops.set_start == NULL) {
+    if (s_exec == NULL) {
         return SW_ERR_NOT_INIT;
     }
-    if ((s_state == FAN_STATE_FAULT) || (s_state == FAN_STATE_RESETTING)) {
-        return SW_ERR_STATE;
-    }
-
-    (void)s_ops.set_start(s_ops.ctx, false);
-    s_state = FAN_STATE_IDLE;
+    (void)motor_stop(s_exec, s_motor);
     return SW_OK;
-}
-
-sw_err_t fan_reset(void)
-{
-    if (s_ops.set_start == NULL) {
-        return SW_ERR_NOT_INIT;
-    }
-    if (s_state != FAN_STATE_FAULT) {
-        return SW_ERR_STATE;
-    }
-
-    (void)s_ops.set_reset(s_ops.ctx, true);
-    s_reset_start = time_util_get_ms();
-    s_state       = FAN_STATE_RESETTING;
-    return SW_OK;
-}
-
-void fan_tick(void)
-{
-    if (s_ops.set_start == NULL) {
-        return;
-    }
-
-    switch (s_state) {
-    case FAN_STATE_IDLE:
-    case FAN_STATE_RUNNING:
-        if (s_ops.read_alarm(s_ops.ctx)) {
-            (void)s_ops.set_start(s_ops.ctx, false);
-            s_state = FAN_STATE_FAULT;
-        }
-        break;
-
-    case FAN_STATE_RESETTING:
-        if (time_elapsed_ms(s_reset_start, time_util_get_ms()) >= s_cfg.reset_pulse_ms) {
-            (void)s_ops.set_reset(s_ops.ctx, false);
-            s_state = s_ops.read_alarm(s_ops.ctx) ? FAN_STATE_FAULT : FAN_STATE_IDLE;
-        }
-        break;
-
-    default:
-        break;
-    }
 }
 
 fan_state_t fan_state(void)
 {
-    return s_state;
+    motor_phase_t ph;
+
+    if (s_exec == NULL) {
+        return FAN_STATE_IDLE;
+    }
+
+    ph = motor_phase(s_exec, s_motor);
+    switch (ph) {
+    case MOTOR_PHASE_STOPPED:
+    case MOTOR_PHASE_WAITING_START:
+    case MOTOR_PHASE_PAUSED:
+        return FAN_STATE_IDLE;
+
+    case MOTOR_PHASE_RUNNING:
+        return FAN_STATE_RUNNING;
+
+    case MOTOR_PHASE_DECELERATING:
+    case MOTOR_PHASE_REVERSAL_WAIT:
+        return FAN_STATE_STOPPING;
+
+    case MOTOR_PHASE_FAULT:
+    case MOTOR_PHASE_ESTOP:
+        return FAN_STATE_FAULT;
+
+    default:
+        return FAN_STATE_IDLE;
+    }
+}
+
+motor_fault_code_t fan_fault_code(void)
+{
+    if (s_exec == NULL) {
+        return MOTOR_FAULT_NONE;
+    }
+    return motor_fault_code(s_exec, s_motor);
+}
+
+sw_err_t fan_recover(motor_recovery_step_t step)
+{
+    if (s_exec == NULL) {
+        return SW_ERR_NOT_INIT;
+    }
+    (void)motor_recover(s_exec, s_motor, step);
+    return SW_OK;
 }
