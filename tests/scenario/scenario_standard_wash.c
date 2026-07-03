@@ -29,10 +29,9 @@
 #include "adapters/hal/generic/hal_sensor.h"
 #include "machines/m8/adapters/setup/m8_sensor.h"
 #include "machines/m8/adapters/m8_signal_sim.h"
-#include "machines/m8/adapters/setup/m8_water_setup.h"
-#include "machines/m8/adapters/setup/m8_brush_setup.h"
-#include "machines/m8/adapters/setup/m8_gantry_setup.h"
+#include "machines/m8/adapters/setup/m8_motor_domains_setup.h"
 #include "machines/m8/adapters/setup/m8_motor_exec.h"
+#include "machines/m8/adapters/setup/m8_water_setup.h"
 #include "ports/hal/hal_vfd_port.h"
 #include "common/event_types.h"
 #include "common/time_util.h"
@@ -168,8 +167,8 @@ static void scenario_setup(void)
     m8_signal_sim_set_rev_limit(true);         /* 龙门初始归位 */
     m8_signal_sim_set_lift_top(true);          /* 升降初始在上限位，跳过 homing 中的升降步骤 */
     m8_signal_sim_set_rear_lock_home(true);    /* 后轮锁初始在原点，满足 homing 退出条件 */
-    (void)m8_brush_setup();
-    (void)m8_gantry_setup();
+    (void)m8_motor_exec_init();
+    (void)m8_motor_domains_setup_mask(M8_DOMAIN_BRUSH | M8_DOMAIN_GANTRY);
     (void)m8_water_setup();
     (void)m8_motor_exec_start();
     (void)emergency_handler_init();

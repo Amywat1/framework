@@ -13,14 +13,13 @@
  * （m8_motor_exec.c 内部实现），并以 MOTOR_INTERLOCK_MUTEX 双向互锁保证
  * 二者不会同时处于运行相关态。
  *
- * 调用顺序：
- *   m8_motor_exec_init()  → 建立执行器
- *   m8_gantry_setup()     → gantry_init(exec, M8_MOTOR_GANTRY)
- *   m8_brush_setup()      → brush_init(exec, M8_MOTOR_BRUSH_SIDE, M8_MOTOR_BRUSH_TOP)
- *   m8_lift_setup()       → lift_init(exec, M8_MOTOR_LIFT)
- *   m8_rear_lock_setup()  → rear_lock_init(exec, M8_MOTOR_REAR_LOCK)
- *   m8_fan_setup()        → fan_init(exec, M8_MOTOR_FAN)
- *   m8_motor_exec_start() → 启动 tick 线程
+ * 调用顺序（生产环境推荐）：
+ *   m8_machine_setup()        → exec + 领域绑定 + 水路
+ *   m8_motor_exec_start()     → 启动 tick 线程
+ *
+ * 测试或裁剪 init 时可单独调用：
+ *   m8_motor_exec_init()
+ *   m8_motor_domains_setup_mask(M8_DOMAIN_GANTRY | M8_DOMAIN_BRUSH)
  */
 #ifndef MACHINES_M8_ADAPTERS_SETUP_M8_MOTOR_EXEC_H
 #define MACHINES_M8_ADAPTERS_SETUP_M8_MOTOR_EXEC_H
