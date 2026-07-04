@@ -8,10 +8,11 @@
  *            code = 大类 * 100000 + 编号 * 100 + 性质（编号≤999，性质≤99）。
  *          本头定义：编码宏（ALARM_CODE_MAKE）、大类常量（ALM_C_*）、
  *          故障性质常量（ALM_N_*）、等级/清除/定义类型。
- *          具体部件编号（大类内的流水号）属机型配置层，见 config/machine/。
+ *          具体部件编号（大类内的流水号）属项目配置层，见 projects/<project>/config/。
  *          完整目录与编码规则见 doc/报警编码规范.md。
- *          本头位于 domain/model（共享类型层），config/machine 与 adapters/machine
- *          均可包含；但禁止包含 domain/safety 的实现头文件。
+ *          本头位于 framework/domain/safety/model（安全上下文共享类型层），
+ *          projects/<project>/config 与 projects/<project>/adapters 均可包含；
+ *          但禁止包含 framework/domain/safety/alarm 的实现头文件。
  */
 
 #ifndef DOMAIN_MODEL_ALARM_CODE_H
@@ -83,7 +84,7 @@ typedef enum
  * 报警码哨兵
  *   ALARM_CODE_NONE 表示「无活跃报警」，供查询接口返回。
  *   具体报警码由 ALARM_CODE_MAKE(ALM_C_*, 部件编号, ALM_N_*) 构造，
- *   部件编号定义在各机型的 config/machine/m8_alarm_table.h。
+ *   部件编号定义在各项目的 projects/<project>/config/xxx_alarm_table.h。
  * ------------------------------------------------------------------------- */
 typedef enum
 {

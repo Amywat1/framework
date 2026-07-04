@@ -20,7 +20,7 @@
 #include "framework/ports/inbound/command/command_port.h"
 #include "framework/ports/outbound/storage/param_store.h"
 #include "framework/ports/outbound/storage/deploy_store.h"
-#include "framework/ports/outbound/safety/alarm_binding_port.h"
+#include "framework/ports/inbound/safety/alarm_binding_port.h"
 
 /* -------------------------------------------------------------------------
  * HAL — 通用电机
@@ -103,7 +103,7 @@ void hal_voice_register(const hal_voice_ops_t *ops) { s_voice_ops = ops; }
 const hal_voice_ops_t *hal_voice_get_ops(void)      { return s_voice_ops; }
 
 /* -------------------------------------------------------------------------
- * 安全 — 报警绑定（adapters/machine → domain/safety）
+ * 安全 — 报警绑定（项目 adapters → framework/domain/safety，入站端口）
  * ------------------------------------------------------------------------- */
 static const alarm_binding_ops_t *s_alarm_binding_ops;
 

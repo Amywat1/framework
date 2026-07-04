@@ -4,7 +4,7 @@
  * @author  HUWANGWEI
  * @date    2026-06-01
  *
- * @note    仅供 adapters/machine/ 在 bootstrap 阶段调用；
+ * @note    仅供 projects/<project>/wiring/ 在 bootstrap 阶段调用；
  *          业务层仍通过 hal_vfd_port 访问。
  */
 

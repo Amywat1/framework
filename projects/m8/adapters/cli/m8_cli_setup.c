@@ -5,7 +5,7 @@
  * @date    2026-06-23
  *
  * @note    命令格式：<domain> <subcmd> [p1] [p2]
- *          各域处理器实现见 adapters/machine/m8/m8_cli_commands.c。
+ *          各域处理器实现见 projects/m8/adapters/cli/m8_cli_commands.c。
  */
 
 #include "projects/m8/adapters/cli/m8_cli_setup.h"

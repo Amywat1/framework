@@ -10,7 +10,7 @@
 #include "framework/adapters/outbound/hal/linux_hw/drv/drv_voice.h"
 #include "projects/m8/config/m8_voice_table.h"
 #include "projects/m8/config/m8_alarm_table.h"
-#include "framework/ports/outbound/safety/alarm_binding_port.h"
+#include "framework/ports/inbound/safety/alarm_binding_port.h"
 #include "framework/domain/safety/model/alarm_code.h"
 #include "framework/common/log.h"
 

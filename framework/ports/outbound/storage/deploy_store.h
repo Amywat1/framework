@@ -6,8 +6,9 @@
  *
  * @note    存储设备 SN、站点 ID、服务器地址等出厂写入的只读配置。
  *          运行期不允许修改（没有 set / save 接口）。
- *          具体实现：adapters/storage/json/json_deploy_store.c
- *          配置文件路径：projects/m8/config/deployment/device.json
+ *          通用实现：framework/adapters/outbound/storage/json/json_deploy_store.c
+ *          （配置文件路径由项目构建通过 DEPLOY_STORE_JSON_FILE_PATH 编译宏注入，
+ *          样例见 projects/<project>/config/deployment/）
  */
 
 #ifndef PORTS_STORAGE_DEPLOY_STORE_H

@@ -7,12 +7,12 @@
 
 #include "framework/runtime/bootstrap/bootstrap.h"
 #include "framework/runtime/bootstrap/wiring.h"
+#include "framework/runtime/bootstrap/project_hooks.h"
 #include "framework/runtime/event_bus/event_bus.h"
 #include "framework/runtime/scheduler/thread_registry.h"
 #include "framework/runtime/scheduler/scheduler.h"
 #include "framework/services/param/svc_param.h"
 #include "framework/services/dev_ctx/dev_ctx.h"
-#include "framework/domain/device_control/mechanism/water.h"
 #include "framework/application/orchestrators/emergency_handler.h"
 #include "framework/application/orchestrators/device_fsm.h"
 #include "framework/application/orchestrators/wash_orchestrator.h"
@@ -20,15 +20,6 @@
 #include "framework/application/orchestrators/safety_supervisor.h"
 #include "framework/domain/safety/alarm/alarm_core.h"
 #include "framework/domain/safety/safety_fsm/safety_fsm.h"
-#include "projects/m8/bindings/m8_sensor.h"
-#include "projects/m8/adapters/alarm/m8_alarm_init.h"
-#include "projects/m8/adapters/alarm/m8_alarm_adapt.h"
-#include "projects/m8/adapters/alarm/m8_comm_watchdog.h"
-#include "projects/m8/bindings/m8_machine_setup.h"
-#include "projects/m8/bindings/m8_motor_exec.h"
-#ifdef BUILD_SIM
-#  include "projects/m8/bindings/m8_signal_sim.h"
-#endif
 #include "framework/ports/outbound/hal/hal_io_port.h"
 #include "framework/ports/outbound/hal/hal_vfd_port.h"
 #include "framework/ports/outbound/hal/hal_voice_port.h"
@@ -39,16 +30,6 @@
 #include <unistd.h>
 #include <sched.h>
 #include <stdlib.h>
-
-#ifndef BUILD_SIM
-#  include "projects/m8/bindings/m8_boot_profile.h"
-#  include "projects/m8/bindings/m8_vfd_setup.h"
-#  include "projects/m8/bindings/m8_voice_setup.h"
-#  include "projects/m8/adapters/cli/m8_cli_setup.h"
-#  include "framework/adapters/outbound/cloud/aliyun/aliyun_adapter.h"
-#  include "projects/m8/adapters/cloud/m8_tsl_table.h"
-#  include "framework/common/event_types.h"
-#endif
 
 #define BOOT_CHECK(call, msg)                               \
     do {                                                    \
@@ -66,9 +47,7 @@ static void system_panic_safe_stop(event_bus_fatal_reason_t reason, int sys_errn
     LOG_ERROR("PANIC: event_bus fatal reason=%d errno=%d, asserting safe outputs and aborting",
               (int)reason, sys_errno);
 
-#ifndef BUILD_SIM
-    m8_assert_safe_outputs();
-#endif
+    project_assert_safe_outputs();
 
     abort();
 }
@@ -99,12 +78,10 @@ static sw_err_t bootstrap_init_infra(void)
             return SW_ERR_NOT_INIT;
         }
         BOOT_CHECK(io->init(), "hal_io_init");
-#ifndef BUILD_SIM
         if (io->register_panic_cb != NULL)
         {
-            io->register_panic_cb(m8_assert_safe_outputs);
+            io->register_panic_cb(project_assert_safe_outputs);
         }
-#endif
     }
 
     {
@@ -129,10 +106,7 @@ static sw_err_t bootstrap_init_infra(void)
         BOOT_CHECK(voice->init(), "hal_voice_init");
     }
 
-#ifndef BUILD_SIM
-    BOOT_CHECK(m8_vfd_setup(),   "m8_vfd_setup");
-    BOOT_CHECK(m8_voice_setup(), "m8_voice_setup");
-#endif
+    BOOT_CHECK(project_hal_extra_setup(), "project_hal_extra_setup");
     {
         sw_err_t r = svc_param_init();
         if ((r != SW_OK) && (r != SW_ERR_STORAGE))
@@ -149,35 +123,24 @@ static sw_err_t bootstrap_init_infra(void)
 /** 传感器初始化 */
 static sw_err_t bootstrap_init_safety(void)
 {
-#ifndef BUILD_SIM
-    BOOT_CHECK(m8_boot_profile_init(), "m8_boot_profile_init");
-#endif
-
-    BOOT_CHECK(m8_sensor_setup(), "m8_sensor_setup");
-#ifdef BUILD_SIM
-    m8_signal_sim_reset_all();
-#endif
-    BOOT_CHECK(m8_sensor_warmup(), "m8_sensor_warmup");
+    BOOT_CHECK(project_safety_init(), "project_safety_init");
     return SW_OK;
 }
 
 /** 设备域与应用编排 */
 static sw_err_t bootstrap_init_application(void)
 {
-    BOOT_CHECK(m8_machine_setup(),       "m8_machine_setup");
+    BOOT_CHECK(project_machine_setup(), "project_machine_setup");
     /* 安全/报警域初始化顺序：
-     *   ① alarm_core_init()        注册 alarm_binding_port，目录初始为空
-     *   ② safety_fsm_init()        订阅 EVT_ALARM_*
-     *   ③ safety_supervisor_init() 订阅 EVT_SAFETY_* / EVT_ALARM_*
-     *   ④ m8_alarm_init()          合并三张表一次注入完整目录（须在 poll 前完成）
-     *   ⑤ m8_alarm_adapt_init()    DI 防抖预热（目录已就绪）
-     *   ⑥ m8_comm_watchdog_init()  心跳时间戳初始化（给设备 timeout_ms 窗口首次通讯）*/
+     *   ① alarm_core_init()             注册 alarm_binding_port，目录初始为空
+     *   ② safety_fsm_init()             订阅 EVT_ALARM_*
+     *   ③ safety_supervisor_init()      订阅 EVT_SAFETY_* / EVT_ALARM_*
+     *   ④ project_alarm_catalog_init()  项目报警目录一次性注入（须在 poll 前完成）+
+     *                                    通讯心跳时间戳初始化 */
     BOOT_CHECK(alarm_core_init(),          "alarm_core_init");
     BOOT_CHECK(safety_fsm_init(),          "safety_fsm_init");
     BOOT_CHECK(safety_supervisor_init(),   "safety_supervisor_init");
-    BOOT_CHECK(m8_alarm_init(),            "m8_alarm_init");
-    BOOT_CHECK(m8_alarm_adapt_init(),      "m8_alarm_adapt_init");
-    BOOT_CHECK(m8_comm_watchdog_init(),    "m8_comm_watchdog_init");
+    BOOT_CHECK(project_alarm_catalog_init(), "project_alarm_catalog_init");
     BOOT_CHECK(emergency_handler_init(), "emergency_handler_init");
     BOOT_CHECK(device_fsm_init(),        "device_fsm_init");
     BOOT_CHECK(wash_orchestrator_init(), "wash_orchestrator_init");
@@ -200,14 +163,7 @@ static sw_err_t bootstrap_init_adapters(void)
         }
     }
 
-#ifndef BUILD_SIM
-    if (aliyun_command_adapter_init(m8_tsl_command_dispatch))
-    {
-        (void)event_publish(EVT_CLOUD_CONNECTED, 0U);
-    }
-    m8_cli_setup();
-#endif
-
+    BOOT_CHECK(project_adapters_init(), "project_adapters_init");
     return SW_OK;
 }
 
@@ -231,10 +187,7 @@ static sw_err_t bootstrap_start_threads(void)
     }
 #endif
 
-    BOOT_CHECK(m8_sensor_poll_start(), "m8_sensor_poll_start");
-    BOOT_CHECK(m8_alarm_adapt_poll_start(), "m8_alarm_adapt_poll_start");
-
-    BOOT_CHECK(m8_motor_exec_start(), "m8_motor_exec_start");
+    BOOT_CHECK(project_start_threads(), "project_start_threads");
 
     BOOT_CHECK(scheduler_start_all(), "scheduler_start_all");
     return SW_OK;

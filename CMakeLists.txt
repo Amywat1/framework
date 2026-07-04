@@ -34,6 +34,16 @@ if(NOT GIT_HASH)
 endif()
 add_compile_definitions(SW_GIT_HASH="${GIT_HASH}")
 
+# -------------------------------------------------------
+# 项目部署/参数存储路径注入（framework/adapters/outbound/storage/json 通用
+# 适配器本身不知道具体项目路径，由项目在此处通过编译宏提供；
+# 默认值取自 projects/m8/config/m8_deploy_defaults.h 的 M8 部署路径）
+# -------------------------------------------------------
+add_compile_definitions(
+    PARAM_STORE_JSON_FILE_PATH="/home/neardi/m8/params.json"
+    DEPLOY_STORE_JSON_FILE_PATH="/home/neardi/m8/device.json"
+)
+
 set(MCC_INCLUDE ${CMAKE_SOURCE_DIR}/middleware/mcc/motor_control_core-1.0.0-aarch64/include)
 
 # =========================================================================
@@ -90,12 +100,13 @@ set(m8_adapters_runtime_src
 set(m8_app_src     projects/m8/app/app_main.cpp)
 file(GLOB m8_app_sim_src CONFIGURE_DEPENDS projects/m8/app/sim/*.c)
 
-set(m8_wiring_src     projects/m8/wiring/wiring.c)
-set(m8_wiring_sim_src projects/m8/wiring/wiring_sim.c)
+set(m8_wiring_src     projects/m8/wiring/wiring.c projects/m8/wiring/project_hooks.c)
+set(m8_wiring_sim_src projects/m8/wiring/wiring_sim.c projects/m8/wiring/project_hooks_sim.c)
 
 # 仿真构建不需要真机专属绑定：上电安全初始化（m8_boot_profile）与 VFD/语音
-# 参数下发（m8_vfd_setup/m8_voice_setup）只在真机路径由 bootstrap 按
-# #ifndef BUILD_SIM 条件编译调用
+# 参数下发（m8_vfd_setup/m8_voice_setup）只在真机路径由 project_hooks.c 调用；
+# 仿真侧由 project_hooks_sim.c 提供对应钩子的空实现/仿真实现（见 framework/
+# runtime/bootstrap/project_hooks.h）
 set(m8_bindings_sim_src ${m8_bindings_src})
 list(FILTER m8_bindings_sim_src EXCLUDE REGEX "m8_boot_profile\\.(c|h)$")
 list(FILTER m8_bindings_sim_src EXCLUDE REGEX "m8_vfd_setup\\.(c|h)$")

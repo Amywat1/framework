@@ -4,7 +4,7 @@
  * @author  HUWANGWEI
  * @date    2026-04-10
  *
- * @note    仅供 adapters/machine/ 在 bootstrap 阶段调用；
+ * @note    仅供 projects/<project>/wiring/ 在 bootstrap 阶段调用；
  *          业务层仍通过 hal_sensor_port 访问。
  *          本文件不含任何平台专属 SDK 依赖，可用于任何已注册
  *          hal_io_port 的目标平台。

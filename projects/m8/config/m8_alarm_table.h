@@ -12,7 +12,7 @@
  *          报警码命名规则（6 位十进制）：
  *            ALARM_CODE_MAKE( ALM_C_*, 部件编号, ALM_N_* )
  *            = 大类(1位) * 100000 + 编号(3位) * 100 + 故障性质(2位)
- *          大类与故障性质常量见 domain/model/alarm_code.h（ALM_C_* / ALM_N_*）。
+ *          大类与故障性质常量见 framework/domain/safety/model/alarm_code.h（ALM_C_* / ALM_N_*）。
  *          部件编号为本文件内按大类分组的 ALM_<CLASS>_* 宏。
  */
 

@@ -22,7 +22,8 @@ extern "C" {
 
 /**
  * @brief  VFD 实例标识（整数，具体值由机型配置层定义）
- * @note   M8 机型在 config/machine/m8_vfd_table.h 中定义 HAL_VFD_GANTRY / HAL_VFD_BRUSH
+ * @note   各项目在 projects/<project>/config/xxx_vfd_table.h 中定义具体实例标识
+ *         （如 M8 项目在 projects/m8/config/m8_vfd_table.h 中定义 HAL_VFD_GANTRY / HAL_VFD_BRUSH）
  */
 typedef int hal_vfd_id_t;
 

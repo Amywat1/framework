@@ -1,12 +1,13 @@
 /**
  * @file    alarm_binding_port.h
- * @brief   报警绑定端口（入向：adapters/machine → domain/safety）
+ * @brief   报警绑定端口（入向：projects/<project>/adapters → framework/domain/safety）
  * @author  HUWANGWEI
  * @date    2026-06-26
  *
- * @note    adapters/machine 检测到硬件信号变化后，通过本端口把「报警码激活/清除」
- *          推入 domain/safety/alarm_core，避免 adapter 直接 #include domain/safety
- *          的实现头文件。端口实现由 alarm_core 在 alarm_core_init() 中注册。
+ * @note    项目适配器检测到硬件信号变化后，通过本端口把「报警码激活/清除」
+ *          推入 framework/domain/safety/alarm/alarm_core，避免 adapter 直接
+ *          #include framework/domain/safety/alarm 的实现头文件。
+ *          端口实现由 alarm_core 在 alarm_core_init() 中注册。
  */
 
 #ifndef PORTS_SAFETY_ALARM_BINDING_PORT_H

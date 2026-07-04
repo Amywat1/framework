@@ -71,7 +71,7 @@ typedef uint16_t event_type_t;
 #define EVT_HW_VFD_GANTRY_FAULT  EVT_MAKE(EVT_CAT_HW, EVT_HW_ID_VFD_GANTRY_FAULT)
 
 /* -------------------------------------------------------------------------
- * COMP 类（domain/device 发布）
+ * COMP 类（framework/domain/device_control 发布）
  * 电机单次动作完成（MOTOR_DONE）和刷子启动（BRUSH_STARTED）属于域内完成通知，
  * 改由 motor_set_done_cb 回调传递，不经过事件总线。
  * ------------------------------------------------------------------------- */
@@ -81,7 +81,7 @@ typedef uint16_t event_type_t;
 #define EVT_COMP_HOME_DONE       EVT_MAKE(EVT_CAT_COMP, EVT_COMP_ID_HOME_DONE)
 
 /* -------------------------------------------------------------------------
- * SAFETY 类（domain/safety/safety_fsm 发布）
+ * SAFETY 类（framework/domain/safety/safety_fsm 发布）
  * ------------------------------------------------------------------------- */
 #define EVT_SAFETY_ID_LOCKOUT        0U
 #define EVT_SAFETY_ID_WARNING        1U
@@ -94,7 +94,7 @@ typedef uint16_t event_type_t;
 #define EVT_SAFETY_HOME_DONE     EVT_MAKE(EVT_CAT_SAFETY, EVT_SAFETY_ID_HOME_DONE)
 
 /* -------------------------------------------------------------------------
- * ALARM 类（domain/safety/alarm_core 发布）
+ * ALARM 类（framework/domain/safety/alarm/alarm_core 发布）
  * ------------------------------------------------------------------------- */
 #define EVT_ALARM_ID_TRIGGERED       0U
 #define EVT_ALARM_ID_CLEARED         1U
@@ -103,7 +103,7 @@ typedef uint16_t event_type_t;
 #define EVT_ALARM_CLEARED        EVT_MAKE(EVT_CAT_ALARM, EVT_ALARM_ID_CLEARED)
 
 /* -------------------------------------------------------------------------
- * CMD 类（adapters/ui、adapters/cloud 发布）
+ * CMD 类（framework/adapters/inbound、projects/<project>/adapters 发布）
  * ------------------------------------------------------------------------- */
 #define EVT_CMD_ID_ORDER             0U
 #define EVT_CMD_ID_STOP_WASH         1U
@@ -120,7 +120,7 @@ typedef uint16_t event_type_t;
 #define EVT_CMD_HOME_DEVICE        EVT_MAKE(EVT_CAT_CMD, EVT_CMD_ID_HOME_DEVICE)
 
 /* -------------------------------------------------------------------------
- * CLOUD 类（adapters/cloud 发布）
+ * CLOUD 类（framework/adapters/outbound/cloud 发布）
  * ------------------------------------------------------------------------- */
 #define EVT_CLOUD_ID_CONNECTED       0U
 #define EVT_CLOUD_ID_DISCONNECTED    1U

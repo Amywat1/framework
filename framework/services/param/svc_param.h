@@ -19,7 +19,8 @@ extern "C" {
 
 /* -------------------------------------------------------------------------
  * 参数键名（统一在此定义）
- * 参数存储路径由存储适配器（adapters/storage/json/json_param_store_cfg.h）管理，
+ * 参数存储路径由项目构建通过 PARAM_STORE_JSON_FILE_PATH 编译宏注入
+ * （见 framework/adapters/outbound/storage/json/json_param_store.c），
  * service 层不感知具体路径。
  * ------------------------------------------------------------------------- */
 #define PARAM_KEY_WASH_MODE         "washMode"          /* 洗车模式（wash_mode_t）*/

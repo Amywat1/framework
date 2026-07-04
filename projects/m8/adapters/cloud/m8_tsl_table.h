@@ -5,11 +5,12 @@
  * @date    2026-07-02
  *
  * @note    M8 专属：登记 M8 在阿里云控制台注册的物模型标识符与对应的
- *          get/set 实现。通用序列化/分发引擎见 adapters/cloud/tsl/tsl_point.h，
+ *          get/set 实现。通用序列化/分发引擎见
+ *          framework/adapters/outbound/cloud/tsl/tsl_point.h，
  *          新增/删除/修改点位只需要改 m8_tsl_table.c，不需要改通用引擎。
  *          m8_build_report_json / m8_tsl_command_dispatch 是把点位表接入
  *          aliyun_adapter.h 两个固定函数指针形状的适配函数，供
- *          wiring.c / bootstrap.c 注入使用。
+ *          projects/m8/wiring/wiring.c / project_hooks.c 注入使用。
  */
 
 #ifndef MACHINES_M8_ADAPTERS_CLOUD_TSL_TABLE_H

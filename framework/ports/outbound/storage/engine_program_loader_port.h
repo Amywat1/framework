@@ -6,8 +6,9 @@
  *
  * @note    application 层（wash_orchestrator）依赖本接口加载 engine_program_t，
  *          不直接感知 JSON 格式。具体实现：
- *            adapters/storage/json/engine_program_json.c（调用 engine_program_json_register_loader）
- *          由 bootstrap/wiring 完成注册。
+ *            framework/adapters/outbound/storage/json/engine_program_json.c
+ *            （调用 engine_program_json_register_loader）
+ *          由项目 wiring 完成注册。
  */
 
 #ifndef PORTS_STORAGE_ENGINE_PROGRAM_LOADER_PORT_H

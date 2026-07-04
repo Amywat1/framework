@@ -5,7 +5,7 @@
  * @date    2026-04-13
  *
  * @note    每行定义一路 DI 的 IO 绑定、极性与防抖参数；不含报警语义。
- *          DI 句柄复用 config/machine/m8_io_pins.h（与 m8_io_table.h 同源）。
+ *          DI 句柄复用 projects/m8/config/m8_io_pins.h（与 m8_io_table.h 同源）。
  */
 
 #ifndef CONFIG_MACHINE_M8_SIGNAL_TABLE_H

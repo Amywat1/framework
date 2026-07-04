@@ -4,7 +4,7 @@
  * @author  HUWANGWEI
  * @date    2026-06-01
  *
- * @note    引脚编号由 config/machine/m8_io_table.h 展开生成，与 drv_io 名称表同源。
+ * @note    引脚编号由 projects/m8/config/m8_io_table.h 展开生成，与 drv_io 名称表同源。
  */
 
 #ifndef CONFIG_MACHINE_M8_IO_PINS_H

@@ -38,7 +38,7 @@
       ALARM_LEVEL_MINOR, ALARM_CLEAR_AUTO_STATIC, "语音模块通讯失败") \
     \
     /* ------------------------------------------------------------------ \
-     * 流程类—龙门行走（domain/device/mechanism/gantry.c 超时时触发）          \
+     * 流程类—龙门行走（framework/domain/device_control/mechanism/gantry.c 超时时触发）\
      * ------------------------------------------------------------------ */ \
     X(ALM_C_SENSE, ALM_SENSE_GANTRY_ENC,     ALM_N_SIG_ERR, \
       ALARM_LEVEL_MAJOR, ALARM_CLEAR_AUTO_STATIC, "龙门码盘行走无脉冲") \
@@ -48,7 +48,7 @@
       ALARM_LEVEL_MAJOR, ALARM_CLEAR_LATCHED,     "龙门后限位动作超时") \
     \
     /* ------------------------------------------------------------------ \
-     * 流程类—顶刷升降（domain/device/mechanism/top_brush.c 超时时触发）       \
+     * 流程类—顶刷升降（framework/domain/device_control/mechanism/lift.c 超时时触发）\
      * ------------------------------------------------------------------ */ \
     X(ALM_C_SENSE, ALM_SENSE_TOP_BRUSH_UP_LIM, ALM_N_TIMEOUT, \
       ALARM_LEVEL_MAJOR, ALARM_CLEAR_LATCHED,     "顶刷上限位动作超时") \

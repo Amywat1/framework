@@ -10,7 +10,7 @@
 #include "framework/adapters/outbound/storage/json/json_param_store.h"
 
 #ifndef PARAM_STORE_JSON_FILE_PATH
-#define PARAM_STORE_JSON_FILE_PATH   "/home/neardi/m8/params.json"
+#error "PARAM_STORE_JSON_FILE_PATH must be supplied by the project build (see projects/<project>/config)"
 #endif
 #include "framework/ports/outbound/storage/param_store.h"
 #include "framework/common/log.h"

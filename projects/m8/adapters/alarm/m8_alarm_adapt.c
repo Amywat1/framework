@@ -6,7 +6,7 @@
  */
 
 #include "projects/m8/adapters/alarm/m8_alarm_adapt.h"
-#include "framework/ports/outbound/safety/alarm_binding_port.h"
+#include "framework/ports/inbound/safety/alarm_binding_port.h"
 #include "framework/ports/outbound/hal/hal_io_port.h"
 #include "projects/m8/config/m8_alarm_table.h"
 #include "framework/common/log.h"

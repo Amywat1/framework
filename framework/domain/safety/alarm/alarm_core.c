@@ -6,7 +6,7 @@
  */
 
 #include "framework/domain/safety/alarm/alarm_core.h"
-#include "framework/ports/outbound/safety/alarm_binding_port.h"
+#include "framework/ports/inbound/safety/alarm_binding_port.h"
 #include "framework/runtime/event_bus/event_bus.h"
 #include "framework/common/event_types.h"
 #include "framework/common/log.h"

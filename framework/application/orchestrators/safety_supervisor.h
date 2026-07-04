@@ -4,8 +4,8 @@
  * @author  HUWANGWEI
  * @date    2026-06-26
  *
- * @note    domain/safety 只发布事件、不写状态快照（分层约束）。safety_supervisor
- *          作为应用层订阅者，把安全态与活跃报警投影到 service/dev_ctx，供云上报、
+ * @note    framework/domain/safety 只发布事件、不写状态快照（分层约束）。safety_supervisor
+ *          作为应用层订阅者，把安全态与活跃报警投影到 framework/services/dev_ctx，供云上报、
  *          CLI 查询读取。本期不触发机型复位动作（AUTO_STATIC 报警自动清除），
  *          复位/failsafe 动作端口留作后续扩展。
  */

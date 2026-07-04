@@ -4,13 +4,15 @@
  * @author  HUWANGWEI
  * @date    2026-04-10
  *
- * @note    读取 projects/m8/config/deployment/device.json，出厂写入，运行期只读。
+ * @note    读取路径由项目构建通过 DEPLOY_STORE_JSON_FILE_PATH 编译宏注入
+ *          （见 projects/<project>/config 与对应 CMake 目标），出厂写入，
+ *          运行期只读；本适配器不感知具体项目或部署路径。
  *          若文件不存在，所有 get() 调用返回 SW_ERR_PARAM（键未找到），
  *          调用方应提供硬编码默认值。
  */
 
 #ifndef DEPLOY_STORE_JSON_FILE_PATH
-#define DEPLOY_STORE_JSON_FILE_PATH  "/home/neardi/m8/device.json"
+#error "DEPLOY_STORE_JSON_FILE_PATH must be supplied by the project build (see projects/<project>/config)"
 #endif
 
 #include "framework/ports/outbound/storage/deploy_store.h"

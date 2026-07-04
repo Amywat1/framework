@@ -6,7 +6,7 @@
  */
 
 #include "projects/m8/adapters/alarm/m8_comm_watchdog.h"
-#include "framework/ports/outbound/safety/alarm_binding_port.h"
+#include "framework/ports/inbound/safety/alarm_binding_port.h"
 #include "framework/common/time_util.h"
 #include "framework/common/log.h"
 #include <stdbool.h>
