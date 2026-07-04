@@ -1,10 +1,10 @@
 /**
  * @file    hal_sensor_filter.c
- * @brief   DI 通道滤波 HAL 通用适配层实�?
+ * @brief   DI 通道滤波 HAL 通用适配层实现
  * @author  HUWANGWEI
  * @date    2026-04-10
  *
- * @note    tick() �?is_active() 必须在同一任务/线程中调用，模块不提供内部并发保护�?
+ * @note    tick() 与 is_active() 必须在同一任务/线程中调用，模块不提供内部并发保护。
  */
 
 #include "framework/adapters/outbound/hal/components/sensor_filter/hal_sensor_filter.h"
@@ -59,7 +59,7 @@ sw_err_t hal_sensor_bind(hal_sensor_channel_t         ch,
     return SW_OK;
 }
 
-/* 仅重置运行时滤波状态；通道绑定配置�?bootstrap 阶段�?hal_sensor_bind() 写入，不在此清除 */
+/* 仅重置运行时滤波状态；通道绑定配置在 bootstrap 阶段由 hal_sensor_bind() 写入，不在此清除 */
 static sw_err_t sensor_init(void)
 {
     for (hal_sensor_channel_t ch = 0U; ch < HAL_SENSOR_CHANNEL_MAX; ch++)

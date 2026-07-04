@@ -1,6 +1,6 @@
 /**
  * @file    snack_vfd_backend.c
- * @brief   Linux 真机 VFD HAL：drv_vfd backend + generic/hal_vfd 组合�?
+ * @brief   Linux 真机 VFD HAL：drv_vfd backend + components/vfd_manager 组合层
  * @author  HUWANGWEI
  * @date    2026-06-01
  */

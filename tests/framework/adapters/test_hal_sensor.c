@@ -2,11 +2,11 @@
  * @file    test_hal_sensor.c
  * @brief   hal_sensor 通用 DI 滤波单元测试
  *
- * 分组�?
+ * 分组：
  *   A. 绑定参数校验
  *   B. 防抖计数逻辑
- *   C. active_low 极�?
- *   D. 边界与异�?
+ *   C. active_low 极性
+ *   D. 边界与异常
  */
 
 #include "framework/adapters/outbound/hal/components/sensor_filter/hal_sensor_filter.h"
@@ -20,7 +20,7 @@
 #include <stdint.h>
 
 /* -------------------------------------------------------------------------
- * Mock IO（只实现 di_read�?
+ * Mock IO（只实现 di_read）
  * ------------------------------------------------------------------------- */
 static bool s_mock_di = false;
 
@@ -34,7 +34,7 @@ static const hal_io_ops_t s_mock_io_ops = {
     .di_read = mock_di_read,
 };
 
-/* 测试�?DI 句柄 */
+/* 测试用 DI 句柄 */
 static const io_di_t k_pin = IO_DI(1U, 1U);
 
 void setUp(void)
@@ -140,9 +140,9 @@ static void test_stays_active_before_release_count(void)
     TEST_ASSERT_TRUE(ops->is_active(0U));
 
     s_mock_di = false;
-    ops->tick(); /* stable_count=1，未�?release_count=3 */
+    ops->tick(); /* stable_count=1，未满 release_count=3 */
     ops->tick(); /* stable_count=2 */
-    TEST_ASSERT_TRUE(ops->is_active(0U)); /* 仍激�?*/
+    TEST_ASSERT_TRUE(ops->is_active(0U)); /* 仍激活 */
 }
 
 static void test_released_after_release_count(void)
@@ -170,21 +170,21 @@ static void test_interrupt_trig_resets_count(void)
     const hal_sensor_ops_t *ops = hal_sensor_get_ops();
     hal_sensor_bind(0U, &cfg);
 
-    /* 触发两次后中途变化，计数�?1 */
+    /* 触发两次后中途变化，计数归 1 */
     s_mock_di = true;
     ops->tick(); ops->tick();
     s_mock_di = false;
-    ops->tick();           /* stable_count �?1（release 计数）开�?*/
+    ops->tick();           /* stable_count 从 1（release 计数）开始 */
     s_mock_di = true;
     ops->tick(); ops->tick(); /* 重新开始，stable_count=1,2 */
     TEST_ASSERT_FALSE(ops->is_active(0U));
 
-    ops->tick(); /* stable_count=3 �?激�?*/
+    ops->tick(); /* stable_count=3 → 激活 */
     TEST_ASSERT_TRUE(ops->is_active(0U));
 }
 
 /* =========================================================================
- * C. active_low 极�?
+ * C. active_low 极性
  * ========================================================================= */
 
 static void test_active_low_low_level_is_active(void)
@@ -197,7 +197,7 @@ static void test_active_low_low_level_is_active(void)
     const hal_sensor_ops_t *ops = hal_sensor_get_ops();
     hal_sensor_bind(0U, &cfg);
 
-    s_mock_di = false; /* 低电�?= 有效 */
+    s_mock_di = false; /* 低电平 = 有效 */
     ops->tick();
     TEST_ASSERT_TRUE(ops->is_active(0U));
 }
@@ -216,13 +216,13 @@ static void test_active_low_high_level_is_inactive(void)
     ops->tick();
     TEST_ASSERT_TRUE(ops->is_active(0U));
 
-    s_mock_di = true; /* 高电�?= 无效 */
+    s_mock_di = true; /* 高电平 = 无效 */
     ops->tick();
     TEST_ASSERT_FALSE(ops->is_active(0U));
 }
 
 /* =========================================================================
- * D. 边界与异�?
+ * D. 边界与异常
  * ========================================================================= */
 
 static void test_unbound_channel_returns_false(void)
@@ -240,10 +240,10 @@ static void test_init_resets_runtime_state(void)
     hal_sensor_bind(0U, &cfg);
 
     s_mock_di = true;
-    ops->tick(); /* 已激�?*/
+    ops->tick(); /* 已激活 */
     TEST_ASSERT_TRUE(ops->is_active(0U));
 
-    ops->init(); /* 重置运行时，不清除绑�?*/
+    ops->init(); /* 重置运行时，不清除绑定 */
     TEST_ASSERT_FALSE(ops->is_active(0U));
 }
 
@@ -255,7 +255,7 @@ static void test_no_io_ops_tick_does_not_crash(void)
     hal_sensor_bind(0U, &cfg);
     hal_io_register(NULL); /* 移除 IO 后端 */
 
-    hal_sensor_get_ops()->tick(); /* 应静默跳过，不崩�?*/
+    hal_sensor_get_ops()->tick(); /* 应静默跳过，不崩溃 */
     TEST_ASSERT_FALSE(hal_sensor_get_ops()->is_active(0U));
 }
 
@@ -278,7 +278,7 @@ static void test_trig_count_1_single_tick_activates(void)
 
 static void test_multiple_channels_are_independent(void)
 {
-    /* ch0 trig=1, ch1 trig=3，同一 di 信号只有 ch0 能即时激�?*/
+    /* ch0 trig=1, ch1 trig=3，同一 di 信号只有 ch0 能即时激活 */
     hal_sensor_bind_cfg_t cfg0 = { .pin = k_pin, .trig_count = 1U, .release_count = 1U };
     hal_sensor_bind_cfg_t cfg1 = { .pin = k_pin, .trig_count = 3U, .release_count = 1U };
     const hal_sensor_ops_t *ops = hal_sensor_get_ops();
@@ -293,7 +293,7 @@ static void test_multiple_channels_are_independent(void)
 
 static void test_rebind_overwrites_config(void)
 {
-    /* 先绑�?trig=3，再重新绑定 trig=1，后者生�?*/
+    /* 先绑定 trig=3，再重新绑定 trig=1，后者生效 */
     hal_sensor_bind_cfg_t cfg = { .pin = k_pin, .trig_count = 3U, .release_count = 1U };
     const hal_sensor_ops_t *ops = hal_sensor_get_ops();
     hal_sensor_bind(0U, &cfg);
@@ -302,13 +302,13 @@ static void test_rebind_overwrites_config(void)
     hal_sensor_bind(0U, &cfg); /* 覆盖 */
 
     s_mock_di = true;
-    ops->tick(); /* �?trig=1，只需一次即激�?*/
+    ops->tick(); /* 新 trig=1，只需一次即激活 */
     TEST_ASSERT_TRUE(ops->is_active(0U));
 }
 
 static void test_active_low_with_debounce(void)
 {
-    /* active_low + trig_count=3：低电平需稳定 3 次才激�?*/
+    /* active_low + trig_count=3：低电平需稳定 3 次才激活 */
     hal_sensor_bind_cfg_t cfg = {
         .pin        = k_pin,
         .active_low = true,
@@ -317,16 +317,16 @@ static void test_active_low_with_debounce(void)
     const hal_sensor_ops_t *ops = hal_sensor_get_ops();
     hal_sensor_bind(0U, &cfg);
 
-    s_mock_di = false; /* 低电�?= 有效 */
+    s_mock_di = false; /* 低电平 = 有效 */
     ops->tick(); ops->tick();
-    TEST_ASSERT_FALSE(ops->is_active(0U)); /* 未满 3 �?*/
+    TEST_ASSERT_FALSE(ops->is_active(0U)); /* 未满 3 次 */
     ops->tick();
     TEST_ASSERT_TRUE(ops->is_active(0U));
 }
 
 static void test_stable_count_ceiling_does_not_break_filter(void)
 {
-    /* stable_count 上限 255：超过后仍保持已激活状态，不溢�?*/
+    /* stable_count 上限 255：超过后仍保持已激活状态，不溢出 */
     hal_sensor_bind_cfg_t cfg = {
         .pin = k_pin, .trig_count = 1U, .release_count = 1U,
     };
@@ -339,7 +339,7 @@ static void test_stable_count_ceiling_does_not_break_filter(void)
     {
         ops->tick();
     }
-    TEST_ASSERT_TRUE(ops->is_active(0U)); /* 仍激活，无溢出崩�?*/
+    TEST_ASSERT_TRUE(ops->is_active(0U)); /* 仍激活，无溢出崩溃 */
 }
 
 int main(void)

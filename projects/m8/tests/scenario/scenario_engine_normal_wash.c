@@ -4,8 +4,8 @@
  * @author  huwangwei
  * @date    2026-06-25
  *
- * @note    使用同步虚拟时钟（无线程）：每拍�?engine_tick �?device_model_tick�?
- *          确定性强、无竞态。验证全流程跑通且各阶段关键输�?时序符合预期�?
+ * @note    使用同步虚拟时钟（无线程）：每拍先 engine_tick 再 device_model_tick，
+ *          确定性强、无竞态。验证全流程跑通且各阶段关键输出/时序符合预期。
  */
 
 #include "framework/domain/wash/engine/engine.h"
@@ -47,7 +47,7 @@ static void test_engine_normal_wash(void)
     TEST_ASSERT_EQUAL_INT(SW_OK, engine_load_program(e, prog));
     TEST_ASSERT_EQUAL_INT(SW_OK, engine_start(e));
 
-    /* 跑通全流程，沿途采集关键事�?*/
+    /* 跑通全流程，沿途采集关键事实 */
     int  max_phase            = 0;
     bool saw_foam_on          = false;
     bool saw_foam_off         = false;
@@ -57,7 +57,7 @@ static void test_engine_normal_wash(void)
     bool saw_top_medium       = false;
     bool ever_halted          = false;
 
-    /* prepare 阶段断言：顶刷旋�?+ 升降跟随使能 */
+    /* prepare 阶段断言：顶刷旋转 + 升降跟随使能 */
     engine_tick(e, SCN_DT_MS);
     m8_device_model_tick(SCN_DT_MS);
     TEST_ASSERT_NOT_NULL(engine_current_phase_id(e));
@@ -110,23 +110,23 @@ static void test_engine_normal_wash(void)
         if (st == ENGINE_STATE_PHASE_HALTED) { ever_halted = true; break; }
     }
 
-    /* 全流程结�?*/
-    TEST_ASSERT_FALSE_MESSAGE(ever_halted, "引擎意外进入 HALTED 状�?);
-    TEST_ASSERT_EQUAL_INT_MESSAGE(ENGINE_STATE_DONE, engine_state(e), "引擎未到�?DONE");
+    /* 全流程结果 */
+    TEST_ASSERT_FALSE_MESSAGE(ever_halted, "引擎意外进入 HALTED 状态");
+    TEST_ASSERT_EQUAL_INT_MESSAGE(ENGINE_STATE_DONE, engine_state(e), "引擎未到达 DONE");
 
-    /* 各阶段关键事�?*/
-    TEST_ASSERT_TRUE_MESSAGE(saw_foam_on,        "pass1: 泡沫未开�?);
-    TEST_ASSERT_TRUE_MESSAGE(saw_foam_off,       "pass1: 检测车尾后泡沫未关�?);
-    TEST_ASSERT_TRUE_MESSAGE(saw_side_on,        "pass2: 侧刷未开�?);
-    TEST_ASSERT_TRUE_MESSAGE(saw_side_off_pass3, "pass3: 过车尾后侧刷未停�?);
-    TEST_ASSERT_TRUE_MESSAGE(saw_top_medium,     "pass4: 顶刷中�?value=2)未出�?);
-    TEST_ASSERT_TRUE_MESSAGE(saw_dryer_on,       "pass5/6: 吹风机未开�?);
+    /* 各阶段关键事实 */
+    TEST_ASSERT_TRUE_MESSAGE(saw_foam_on,        "pass1: 泡沫未开启");
+    TEST_ASSERT_TRUE_MESSAGE(saw_foam_off,       "pass1: 检测车尾后泡沫未关闭");
+    TEST_ASSERT_TRUE_MESSAGE(saw_side_on,        "pass2: 侧刷未开启");
+    TEST_ASSERT_TRUE_MESSAGE(saw_side_off_pass3, "pass3: 过车尾后侧刷未停转");
+    TEST_ASSERT_TRUE_MESSAGE(saw_top_medium,     "pass4: 顶刷中速(value=2)未出现");
+    TEST_ASSERT_TRUE_MESSAGE(saw_dryer_on,       "pass5/6: 吹风机未开启");
 
-    /* 归位终�?*/
+    /* 归位终态 */
     TEST_ASSERT_EQUAL_INT_MESSAGE(0, out("GANTRY_REV"), "homing: 龙门反转未停");
     TEST_ASSERT_EQUAL_INT_MESSAGE(0, out("GANTRY_FWD"), "homing: 龙门正转未停");
-    TEST_ASSERT_EQUAL_INT_MESSAGE(0, out("DRYER_RUN"),  "homing: 吹风机未�?);
-    TEST_ASSERT_EQUAL_INT_MESSAGE(0, out("LIFTER_UP"),  "homing: 升降未复�?);
+    TEST_ASSERT_EQUAL_INT_MESSAGE(0, out("DRYER_RUN"),  "homing: 吹风机未停");
+    TEST_ASSERT_EQUAL_INT_MESSAGE(0, out("LIFTER_UP"),  "homing: 升降未复位");
     TEST_ASSERT_EQUAL_INT_MESSAGE(1, engine_io_sim_get_signal("REAR_LOCK_HOME"),
                                   "homing: 后轮锁未归位");
 

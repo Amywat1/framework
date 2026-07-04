@@ -1,6 +1,6 @@
 /**
  * @file    hal_motor_io.c
- * @brief   通用电机 HAL 通用适配层实现（依赖 hal_io_port，无平台 SDK，无 VFD 直接依赖�?
+ * @brief   通用电机 HAL 通用适配层实现（依赖 hal_io_port，无平台 SDK，无 VFD 直接依赖）
  * @author  HUWANGWEI
  * @date    2026-04-13
  */

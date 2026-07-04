@@ -1,6 +1,6 @@
 /**
  * @file    m8_water_setup.c
- * @brief   M8 机型水路绑定表应用与 domain 执行器注�?
+ * @brief   M8 机型水路绑定表应用与 domain 执行器注入
  * @author  HUWANGWEI
  * @date    2026-06-07
  */
@@ -14,7 +14,7 @@
 #include <assert.h>
 #include <stddef.h>
 
-/* 编译期断言：确保水路枚举不超出 HAL 二维表上�?*/
+/* 编译期断言：确保水路枚举不超出 HAL 二维表上限 */
 _Static_assert((unsigned)WATER_CH_COUNT    <= HAL_DO_GROUP_MAX,
                "WATER_CH_COUNT 超过 HAL_DO_GROUP_MAX，需相应扩大 hal_do_group 上限");
 _Static_assert((unsigned)WATER_SLOT_COUNT <= HAL_DO_SLOT_MAX,

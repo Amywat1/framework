@@ -2,15 +2,15 @@
  * @file    test_hal_motor_sim.c
  * @brief   hal_motor_sim 电机仿真 HAL 单元测试
  *
- * 前提：hal_io_sim 注册后提�?DI/脉冲读写后端�?
- *       sim_encoder_counter �?hal_motor_sim_register() 隐式重置�?
+ * 前提：hal_io_sim 注册后提供 DI/脉冲读写后端；
+ *       sim_encoder_counter 由 hal_motor_sim_register() 隐式重置。
  *
- * 分组�?
+ * 分组：
  *   A. 绑定参数校验
  *   B. 速度输出（无回调 / 有回调）
- *   C. 限位检�?
+ *   C. 限位检测
  *   D. 编码器脉冲计数器
- *   E. 电流 / 状�?/ 故障复位回调
+ *   E. 电流 / 状态 / 故障复位回调
  */
 
 #include "framework/adapters/outbound/hal/sim/hal_motor_sim.h"
@@ -57,7 +57,7 @@ static sw_err_t mock_fault_reset(void *ctx)
     return SW_OK;
 }
 
-/* 基础绑定（含编码器，�?VFD 回调�?/
+/* 基础绑定（含编码器，无 VFD 回调）*/
 static const hal_motor_io_bind_cfg_t k_base_cfg = {
     .limit_io_cw  = IO_DI(1U, 1U),
     .limit_io_ccw = IO_DI(1U, 2U),
@@ -69,8 +69,8 @@ void setUp(void)
     s_cb_set_speed_called = false;
     s_cb_speed_ref        = 0;
 
-    hal_io_sim_register();      /* 重置 IO 仿真状�?*/
-    hal_motor_sim_register();   /* 清空槽位，注�?ops */
+    hal_io_sim_register();      /* 重置 IO 仿真状态 */
+    hal_motor_sim_register();   /* 清空槽位，注册 ops */
     hal_motor_sim_bind(0, &k_base_cfg);
 }
 
@@ -102,7 +102,7 @@ static void test_bind_id_out_of_range(void)
 
 static void test_set_output_no_callback_returns_ok(void)
 {
-    /* �?set_speed 回调：直接返�?SW_OK */
+    /* 无 set_speed 回调：直接返回 SW_OK */
     TEST_ASSERT_EQUAL_INT(SW_OK, hal_motor_get_ops()->set_output(0, 1500));
 }
 
@@ -146,7 +146,7 @@ static void test_at_rev_limit_true(void)
 }
 
 /* =========================================================================
- * D. 编码器脉冲计数器（使�?sim_encoder_counter�?
+ * D. 编码器脉冲计数器（使用 sim_encoder_counter）
  * ========================================================================= */
 
 static void test_read_hw_pulse_ok(void)
@@ -177,7 +177,7 @@ static void test_read_hw_pulse_no_encoder(void)
 }
 
 /* =========================================================================
- * E. 电流 / 状�?/ 故障复位回调
+ * E. 电流 / 状态 / 故障复位回调
  * ========================================================================= */
 
 static void test_read_current_no_callback(void)
@@ -225,12 +225,12 @@ static void test_at_rev_limit_false(void)
 
 static void test_at_fwd_limit_null_di_returns_false(void)
 {
-    /* limit_io_cw = IO_HANDLE_NULL �?始终返回 false */
+    /* limit_io_cw = IO_HANDLE_NULL → 始终返回 false */
     hal_motor_io_bind_cfg_t cfg = k_base_cfg;
     cfg.limit_io_cw = (io_di_t){IO_HANDLE_NULL};
     hal_motor_sim_bind(0, &cfg);
 
-    hal_io_sim_set_di_level(k_di_cw_lim, true); /* 物理上有信号，但未绑�?*/
+    hal_io_sim_set_di_level(k_di_cw_lim, true); /* 物理上有信号，但未绑定 */
     TEST_ASSERT_FALSE(hal_motor_get_ops()->at_fwd_limit(0));
 }
 

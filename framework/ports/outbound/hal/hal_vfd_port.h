@@ -1,11 +1,11 @@
 /**
  * @file    hal_vfd_port.h
- * @brief   变频�?HAL 端口接口（模块对外唯一入口�?
+ * @brief   变频器 HAL 端口接口（模块对外唯一入口）
  * @author  HUWANGWEI
  * @date    2026-06-01
  *
- * @note    业务层与其它 HAL 适配器仅通过本接口访�?VFD�?
- *          组合�?components/vfd_manager 实现完整语义，linux_hw / sim 注入 backend�?
+ * @note    业务层与其它 HAL 适配器仅通过本接口访问 VFD；
+ *          组合层 components/vfd_manager 实现完整语义，providers/snack / sim 注入 backend。
  */
 
 #ifndef PORTS_HAL_VFD_PORT_H
@@ -22,14 +22,14 @@ extern "C" {
 
 /**
  * @brief  VFD 实例标识（整数，具体值由机型配置层定义）
- * @note   各项目在 projects/<project>/config/xxx_vfd_table.h 中定义具体实例标�?
- *         （如 M8 项目�?projects/m8/config/m8_vfd_table.h 中定�?HAL_VFD_GANTRY / HAL_VFD_BRUSH�?
+ * @note   各项目在 projects/<project>/config/xxx_vfd_table.h 中定义具体实例标识
+ *         （如 M8 项目在 projects/m8/config/m8_vfd_table.h 中定义 HAL_VFD_GANTRY / HAL_VFD_BRUSH）
  */
 typedef int hal_vfd_id_t;
 
 typedef struct
 {
-    /** @brief  初始化全�?VFD 实例运行时状�?*/
+    /** @brief  初始化全部 VFD 实例运行时状态 */
     sw_err_t (*init)(void);
 
     /** @brief  推进 RST 脉冲与通信监测（由调度层周期调用） */
@@ -42,9 +42,9 @@ typedef struct
 
     hal_vfd_state_t (*get_state)(hal_vfd_id_t id);
 
-    /** @brief  实时读寄存器（发�?Modbus IO），支持 STATE / FAULT_CODE / CURRENT */
+    /** @brief  实时读寄存器（发起 Modbus IO），支持 STATE / FAULT_CODE / CURRENT */
     sw_err_t (*read)(hal_vfd_id_t id, hal_vfd_reg_t reg, uint16_t *p_val);
-    /** @brief  读缓存值（�?Modbus IO），支持 FAULT_CODE / CURRENT */
+    /** @brief  读缓存值（无 Modbus IO），支持 FAULT_CODE / CURRENT */
     sw_err_t (*get_cached)(hal_vfd_id_t id, hal_vfd_reg_t reg, uint16_t *p_val);
 
     void (*register_event_cb)(hal_vfd_id_t id, void (*cb)(int event_code));

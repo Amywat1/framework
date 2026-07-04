@@ -1,11 +1,11 @@
 /**
  * @file    hal_vfd_manager.c
- * @brief   VFD HAL 通用组合层实�?
+ * @brief   VFD HAL 通用组合层实现
  * @author  HUWANGWEI
  * @date    2026-07-04
  *
- * @note    不含正反向切换等待；run/stop 为即�?backend 调用�?
- *          tick() 推进 RST 脉冲释方与慢速通信监测，须在固定调度上下文调用�?
+ * @note    不含正反向切换等待；run/stop 为即时 backend 调用。
+ *          tick() 推进 RST 脉冲释方与慢速通信监测，须在固定调度上下文调用。
  */
 
 #include "framework/adapters/outbound/hal/components/vfd_manager/hal_vfd_manager.h"

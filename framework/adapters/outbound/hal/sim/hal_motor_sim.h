@@ -15,12 +15,12 @@ extern "C" {
 #include "framework/adapters/outbound/hal/components/motor_io/hal_motor_io_bind.h"
 #include "framework/common/sw_error.h"
 
-/** @brief 注册 hal_motor_sim 实现�?hal_motor_port */
+/** @brief 注册 hal_motor_sim 实现到 hal_motor_port */
 void hal_motor_sim_register(void);
 
 /**
  * @brief  绑定指定 motor_id 的仿真配置（限位 DI、编码器等）
- * @param  motor_id  �?domain motor id 一�?
+ * @param  motor_id  与 domain motor id 一致
  * @param  cfg       绑定配置
  */
 sw_err_t hal_motor_sim_bind(int motor_id, const hal_motor_io_bind_cfg_t *cfg);

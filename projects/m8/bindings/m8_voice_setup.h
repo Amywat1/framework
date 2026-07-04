@@ -1,6 +1,6 @@
 /**
  * @file    m8_voice_setup.h
- * @brief   M8 机型语音模块绑定初始�?
+ * @brief   M8 机型语音模块绑定初始化
  * @author  HUWANGWEI
  * @date    2026-06-29
  */

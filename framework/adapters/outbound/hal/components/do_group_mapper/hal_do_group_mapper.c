@@ -1,6 +1,6 @@
 /**
  * @file    hal_do_group_mapper.c
- * @brief   DO 组×槽�?HAL 端口实现（依�?hal_io_port，无平台 SDK�?
+ * @brief   DO 组×槽位 HAL 端口实现（依赖 hal_io_port，无平台 SDK）
  * @author  HUWANGWEI
  * @date    2026-04-10
  */

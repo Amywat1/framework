@@ -1,11 +1,11 @@
 /**
  * @file    hal_vfd_manager_bind.h
- * @brief   VFD 实例 backend 绑定配置（ports 层，�?generic/hal_vfd 与机�?平台注入�?
+ * @brief   VFD 实例 backend 绑定配置（ports 层，供 components/vfd_manager 与机型/平台注入）
  * @author  HUWANGWEI
  * @date    2026-07-04
  *
- * @note    组合�?hal_vfd 通过本结构体注入平台原语回调�?
- *          机型 setup �?bootstrap 阶段调用 hal_vfd_manager_bind() 完成实例绑定�?
+ * @note    组合层 hal_vfd 通过本结构体注入平台原语回调；
+ *          机型 setup 在 bootstrap 阶段调用 hal_vfd_manager_bind() 完成实例绑定。
  */
 
 #ifndef ADAPTERS_HAL_COMPONENTS_VFD_MANAGER_HAL_VFD_MANAGER_BIND_H
@@ -20,13 +20,13 @@ extern "C" {
 #include <stdbool.h>
 #include <stdint.h>
 
-/** @brief generic/hal_vfd 支持的最大实例槽位数 */
+/** @brief components/vfd_manager 支持的最大实例槽位数 */
 #define HAL_VFD_MANAGER_SLOT_MAX  8U
 
-/** @brief 默认 RST 脉冲宽度（ms�?*/
+/** @brief 默认 RST 脉冲宽度（ms） */
 #define HAL_VFD_DEFAULT_RST_PULSE_MS       200U
 
-/** @brief 默认慢速监测轮询间隔（ms�?*/
+/** @brief 默认慢速监测轮询间隔（ms） */
 #define HAL_VFD_DEFAULT_MONITOR_PERIOD_MS    2000U
 
 /**
@@ -48,7 +48,7 @@ typedef hal_vfd_state_t (*hal_vfd_backend_get_state_fn)(void *ctx);
 typedef bool (*hal_vfd_backend_has_rst_pin_fn)(void *ctx);
 
 /**
- * @brief  �?VFD 实例 backend 与策略参�?
+ * @brief  单 VFD 实例 backend 与策略参数
  */
 typedef struct
 {

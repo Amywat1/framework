@@ -1,6 +1,6 @@
 /**
  * @file    snack_voice_adapter.c
- * @brief   语音模块 HAL 端口 Linux 真机实现（drv_voice 转发�?
+ * @brief   语音模块 HAL 端口 Linux 真机实现（drv_voice 转发）
  * @author  HUWANGWEI
  * @date    2026-06-29
  */
@@ -20,7 +20,7 @@ static bool voice_ready(void)
 }
 
 /* -------------------------------------------------------------------------
- * 供机型适配层调用的初始化接�?
+ * 供机型适配层调用的初始化接口
  * ------------------------------------------------------------------------- */
 sw_err_t snack_voice_adapter_init(const char *serial_port, int baud, int modbus_addr)
 {
@@ -42,7 +42,7 @@ sw_err_t snack_voice_adapter_init(const char *serial_port, int baud, int modbus_
  * ------------------------------------------------------------------------- */
 static sw_err_t voice_init(void)
 {
-    /* 实例初始化由 snack_voice_adapter_init �?bootstrap 阶段完成，此处仅占位 */
+    /* 实例初始化由 snack_voice_adapter_init 在 bootstrap 阶段完成，此处仅占位 */
     return SW_OK;
 }
 

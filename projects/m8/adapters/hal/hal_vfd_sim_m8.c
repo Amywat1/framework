@@ -1,6 +1,6 @@
 /**
  * @file    hal_vfd_sim.c
- * @brief   变频�?HAL 仿真实现（generic/hal_vfd + 仿真 backend�?
+ * @brief   变频器 HAL 仿真实现（components/vfd_manager + 仿真 backend）
  * @author  HUWANGWEI
  * @date    2026-06-01
  */

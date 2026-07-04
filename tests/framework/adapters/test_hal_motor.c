@@ -2,13 +2,13 @@
  * @file    test_hal_motor.c
  * @brief   hal_motor 通用电机 HAL 单元测试
  *
- * 分组�?
+ * 分组：
  *   A. 绑定参数校验
  *   B. DO 方向输出
  *   C. 速度回调模式
- *   D. 限位检�?
- *   E. 脉冲计数�?
- *   F. 电流 / 状�?/ 故障复位回调
+ *   D. 限位检测
+ *   E. 脉冲计数器
+ *   F. 电流 / 状态 / 故障复位回调
  *   G. 无效 ID 与未绑定
  */
 
@@ -27,8 +27,8 @@
 #define TEST_BOARD  1U
 
 /* -------------------------------------------------------------------------
- * Mock IO 状�?
- * pin 编号直接用作数组索引�?~3 有效�?
+ * Mock IO 状态
+ * pin 编号直接用作数组索引（1~3 有效）
  * ------------------------------------------------------------------------- */
 static bool     s_do_state[4];   /* [1]=CW, [2]=CCW, [3]=STOP */
 static bool     s_di_state[4];   /* [1]=cw_lim, [2]=ccw_lim, [3]=enc */
@@ -118,7 +118,7 @@ static sw_err_t mock_fault_reset(void *ctx)
 }
 
 /* -------------------------------------------------------------------------
- * 基础绑定配置（含编码器，�?VFD 回调�?
+ * 基础绑定配置（含编码器，无 VFD 回调）
  * ------------------------------------------------------------------------- */
 static const hal_motor_io_bind_cfg_t k_base_cfg = {
     .io_cw        = IO_DO(TEST_BOARD, 1U),
@@ -220,7 +220,7 @@ static void test_set_output_ccw_order_releases_stop_and_reverse_first(void)
 }
 
 /* =========================================================================
- * C. 速度回调模式（VFD 注入�?
+ * C. 速度回调模式（VFD 注入）
  * ========================================================================= */
 
 static void test_set_speed_callback_invoked(void)
@@ -245,7 +245,7 @@ static void test_set_speed_callback_stop(void)
 }
 
 /* =========================================================================
- * D. 限位检�?
+ * D. 限位检测
  * ========================================================================= */
 
 static void test_at_fwd_limit_true(void)
@@ -268,7 +268,7 @@ static void test_at_rev_limit_true(void)
 
 static void test_at_fwd_limit_no_di(void)
 {
-    /* 无效 DI 句柄 �?始终 false */
+    /* 无效 DI 句柄 → 始终 false */
     hal_motor_io_bind_cfg_t cfg = k_base_cfg;
     cfg.limit_io_cw = (io_di_t){IO_HANDLE_NULL};
     hal_motor_io_bind(0, &cfg);
@@ -278,7 +278,7 @@ static void test_at_fwd_limit_no_di(void)
 }
 
 /* =========================================================================
- * E. 脉冲计数�?
+ * E. 脉冲计数器
  * ========================================================================= */
 
 static void test_read_hw_pulse_ok(void)
@@ -335,7 +335,7 @@ static void test_clear_hw_pulse_no_encoder(void)
 }
 
 /* =========================================================================
- * F. 电流 / 状�?/ 故障复位回调
+ * F. 电流 / 状态 / 故障复位回调
  * ========================================================================= */
 
 static void test_read_current_no_callback(void)
@@ -432,7 +432,7 @@ static void test_read_running_null_ptr(void)
     TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, hal_motor_get_ops()->read_running(0, NULL));
 }
 
-/* IO 操作集不包含 do_set，set_output 应返�?SW_ERR_NOT_INIT */
+/* IO 操作集不包含 do_set，set_output 应返回 SW_ERR_NOT_INIT */
 static const hal_io_ops_t s_no_do_set_ops = {
     .di_read     = mock_di_read,
     .pulse_read  = mock_pulse_read,
@@ -484,7 +484,7 @@ static void test_set_speed_callback_error_propagates(void)
 
 static void test_set_output_partial_do_config(void)
 {
-    /* 只配�?CW 引脚，CCW / STOP �?NULL：set_output 跳过无效引脚，返�?SW_OK */
+    /* 只配置 CW 引脚，CCW / STOP 为 NULL：set_output 跳过无效引脚，返回 SW_OK */
     hal_motor_io_bind_cfg_t cfg = {
         .io_cw   = IO_DO(TEST_BOARD, 1U),
         .io_ccw  = (io_do_t){IO_HANDLE_NULL},

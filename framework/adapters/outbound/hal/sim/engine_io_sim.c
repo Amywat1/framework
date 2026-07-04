@@ -1,6 +1,6 @@
 /**
  * @file    engine_io_sim.c
- * @brief   引擎 IO 后端的仿真内存实�?
+ * @brief   引擎 IO 后端的仿真内存实现
  * @author  huwangwei
  * @date    2026-06-25
  */
@@ -10,11 +10,11 @@
 
 #include <string.h>
 
-/* 容量上限（具名常量，避免魔法数字�?*/
-#define ENGINE_IO_SIM_NAME_MAX     48U   /* 单个名称最大长度（含结�?0�?*/
-#define ENGINE_IO_SIM_SIGNAL_CAP   128U  /* DI 名条目上�?*/
-#define ENGINE_IO_SIM_OUTPUT_CAP   128U  /* DO 名条目上�?*/
-#define ENGINE_IO_SIM_AXIS_CAP     16U   /* 坐标轴条目上�?*/
+/* 容量上限（具名常量，避免魔法数字） */
+#define ENGINE_IO_SIM_NAME_MAX     48U   /* 单个名称最大长度（含结尾 0） */
+#define ENGINE_IO_SIM_SIGNAL_CAP   128U  /* DI 名条目上限 */
+#define ENGINE_IO_SIM_OUTPUT_CAP   128U  /* DO 名条目上限 */
+#define ENGINE_IO_SIM_AXIS_CAP     16U   /* 坐标轴条目上限 */
 
 /* DI/DO 整数条目 */
 typedef struct
@@ -23,7 +23,7 @@ typedef struct
     int  value;
 } sim_int_entry_t;
 
-/* 坐标轴条�?*/
+/* 坐标轴条目 */
 typedef struct
 {
     char   name[ENGINE_IO_SIM_NAME_MAX];
@@ -40,7 +40,7 @@ static sim_axis_entry_t s_axes[ENGINE_IO_SIM_AXIS_CAP];
 static unsigned         s_axis_count;
 
 /* -------------------------------------------------------------------------
- * 内部：按名查找整数条目，未找到时按需创建（容量满返回 NULL�?
+ * 内部：按名查找整数条目，未找到时按需创建（容量满返回 NULL）
  * ------------------------------------------------------------------------- */
 static sim_int_entry_t *int_find(sim_int_entry_t *table, unsigned *count,
                                  unsigned cap, const char *name, bool create)
