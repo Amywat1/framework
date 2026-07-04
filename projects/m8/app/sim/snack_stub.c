@@ -8,8 +8,8 @@
  *          本文件提供 common/log.h 所需的最小符号集合。
  */
 
-#include "projects/m8/adapters/runtime/snack/snack_log.h"
-#include "projects/m8/adapters/runtime/snack/snack_mqtt.h"
+#include "framework/adapters/runtime/snack/snack_log.h"
+#include "framework/adapters/runtime/snack/snack_mqtt.h"
 #include <stdio.h>
 #include <stdarg.h>
 

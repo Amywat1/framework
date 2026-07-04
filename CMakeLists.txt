@@ -70,6 +70,7 @@ file(GLOB_RECURSE fw_adapters_hal_linux_src   CONFIGURE_DEPENDS framework/adapte
 file(GLOB_RECURSE fw_adapters_hal_snack_src  CONFIGURE_DEPENDS framework/adapters/outbound/hal/providers/snack/*.c framework/adapters/outbound/hal/providers/snack/*.h)
 file(GLOB_RECURSE fw_adapters_hal_sim_src     CONFIGURE_DEPENDS framework/adapters/outbound/hal/sim_hw/*.c framework/adapters/outbound/hal/sim_hw/*.h)
 file(GLOB_RECURSE fw_adapters_storage_src CONFIGURE_DEPENDS framework/adapters/outbound/storage/*.c framework/adapters/outbound/storage/*.h)
+file(GLOB_RECURSE fw_adapters_runtime_snack_src CONFIGURE_DEPENDS framework/adapters/runtime/snack/*.cpp framework/adapters/runtime/snack/*.h)
 
 # 仿真构建只需要 generic/ 下机型无关的组合层（sensor/do_group/vfd/pulse_out）
 # 以及 electric-motor 端口的通用适配器（motor exec 端口 -> MCC，MCC 本身经
@@ -96,8 +97,6 @@ set(m8_adapters_hal_vfdsim_src projects/m8/adapters/hal/hal_vfd_sim_m8.c)
 set(m8_adapters_runtime_src
     projects/m8/adapters/m8_runtime_adapter.cpp
     projects/m8/adapters/m8_runtime_adapter.h
-    projects/m8/adapters/runtime/snack/snack_wrapper.cpp
-    projects/m8/adapters/runtime/snack/snack_wrapper.h
 )
 
 set(m8_app_src     projects/m8/app/app_main.cpp)
@@ -157,6 +156,7 @@ set(src
     ${fw_adapters_hal_generic_all_src}
     ${fw_adapters_hal_linux_src}
     ${fw_adapters_hal_snack_src}
+    ${fw_adapters_runtime_snack_src}
     ${fw_adapters_storage_src}
     ${m8_config_src}
     ${m8_bindings_real_src}
