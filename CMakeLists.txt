@@ -34,6 +34,73 @@ if(NOT GIT_HASH)
 endif()
 add_compile_definitions(SW_GIT_HASH="${GIT_HASH}")
 
+set(MCC_INCLUDE ${CMAKE_SOURCE_DIR}/middleware/mcc/motor_control_core-1.0.0-aarch64/include)
+
+# =========================================================================
+# 源文件分组
+#
+# 目录结构对应 doc/软件设计框架说明.md：
+#   framework/   跨项目复用能力（common/runtime/services/domain/application/ports/adapters）
+#   projects/m8/ M8 项目落地资产（config/bindings/adapters/app/wiring/programs/tests）
+#
+# 每组使用 GLOB_RECURSE + CONFIGURE_DEPENDS：目录内增删文件后自动重新 configure，
+# 不需要手工维护文件清单；目标之间按模块粒度组合，而不是对整仓库整体 glob 后再
+# 事后排除，避免迁移或新增模块时静默漏收/误收文件。
+# =========================================================================
+
+file(GLOB_RECURSE fw_common_src        CONFIGURE_DEPENDS framework/common/*.c framework/common/*.h)
+file(GLOB_RECURSE fw_runtime_src       CONFIGURE_DEPENDS framework/runtime/*.c framework/runtime/*.h)
+file(GLOB_RECURSE fw_services_src      CONFIGURE_DEPENDS framework/services/*.c framework/services/*.h)
+file(GLOB_RECURSE fw_domain_src        CONFIGURE_DEPENDS framework/domain/*.c framework/domain/*.h)
+file(GLOB_RECURSE fw_application_src   CONFIGURE_DEPENDS framework/application/*.c framework/application/*.h)
+file(GLOB_RECURSE fw_ports_src         CONFIGURE_DEPENDS framework/ports/*.c framework/ports/*.h)
+file(GLOB_RECURSE fw_adapters_cloud_src   CONFIGURE_DEPENDS framework/adapters/outbound/cloud/*.c framework/adapters/outbound/cloud/*.h)
+file(GLOB_RECURSE fw_adapters_hal_generic_all_src CONFIGURE_DEPENDS framework/adapters/outbound/hal/generic/*.c framework/adapters/outbound/hal/generic/*.h)
+file(GLOB_RECURSE fw_adapters_hal_linux_src   CONFIGURE_DEPENDS framework/adapters/outbound/hal/linux_hw/*.c framework/adapters/outbound/hal/linux_hw/*.h)
+file(GLOB_RECURSE fw_adapters_hal_sim_src     CONFIGURE_DEPENDS framework/adapters/outbound/hal/sim_hw/*.c framework/adapters/outbound/hal/sim_hw/*.h)
+file(GLOB_RECURSE fw_adapters_storage_src CONFIGURE_DEPENDS framework/adapters/outbound/storage/*.c framework/adapters/outbound/storage/*.h)
+
+# 仿真构建只需要 generic/ 下机型无关的组合层（sensor/do_group/vfd/pulse_out）
+# 以及 electric-motor 端口的通用适配器（motor exec 端口 → MCC，MCC 本身经
+# middleware/mcc/motor_control_core_sim.c 提供仿真实现）；hal_motor.c 是另一套
+# 未在本项目实际接线中使用于仿真路径的通用电机 ops 端口，保持与真机一致排除。
+set(fw_adapters_hal_generic_sim_src
+    framework/adapters/outbound/hal/generic/hal_sensor.c
+    framework/adapters/outbound/hal/generic/hal_do_group.c
+    framework/adapters/outbound/hal/generic/hal_vfd.c
+    framework/adapters/outbound/hal/generic/pulse_out.c
+    framework/adapters/outbound/hal/generic/hal_motor_exec_adapter.c
+)
+
+file(GLOB_RECURSE m8_config_src   CONFIGURE_DEPENDS projects/m8/config/*.c projects/m8/config/*.h)
+file(GLOB_RECURSE m8_bindings_src CONFIGURE_DEPENDS projects/m8/bindings/*.c projects/m8/bindings/*.h)
+file(GLOB_RECURSE m8_adapters_alarm_src CONFIGURE_DEPENDS projects/m8/adapters/alarm/*.c projects/m8/adapters/alarm/*.h)
+file(GLOB_RECURSE m8_adapters_cli_src   CONFIGURE_DEPENDS projects/m8/adapters/cli/*.c projects/m8/adapters/cli/*.h)
+file(GLOB_RECURSE m8_adapters_cloud_src CONFIGURE_DEPENDS projects/m8/adapters/cloud/*.c projects/m8/adapters/cloud/*.h)
+
+# projects/m8/adapters/hal/ 内混装真机与仿真各一个机型专属实现，按目标分别选用
+set(m8_adapters_hal_io_src     projects/m8/adapters/hal/hal_io_m8.c)
+set(m8_adapters_hal_vfdsim_src projects/m8/adapters/hal/hal_vfd_sim_m8.c)
+
+set(m8_adapters_runtime_src
+    projects/m8/adapters/m8_runtime_adapter.cpp
+    projects/m8/adapters/m8_runtime_adapter.h
+)
+
+set(m8_app_src     projects/m8/app/app_main.cpp)
+file(GLOB m8_app_sim_src CONFIGURE_DEPENDS projects/m8/app/sim/*.c)
+
+set(m8_wiring_src     projects/m8/wiring/wiring.c)
+set(m8_wiring_sim_src projects/m8/wiring/wiring_sim.c)
+
+# 仿真构建不需要真机专属绑定：上电安全初始化（m8_boot_profile）与 VFD/语音
+# 参数下发（m8_vfd_setup/m8_voice_setup）只在真机路径由 bootstrap 按
+# #ifndef BUILD_SIM 条件编译调用
+set(m8_bindings_sim_src ${m8_bindings_src})
+list(FILTER m8_bindings_sim_src EXCLUDE REGEX "m8_boot_profile\\.(c|h)$")
+list(FILTER m8_bindings_sim_src EXCLUDE REGEX "m8_vfd_setup\\.(c|h)$")
+list(FILTER m8_bindings_sim_src EXCLUDE REGEX "m8_voice_setup\\.(c|h)$")
+
 # ==============================
 # 嵌入式目标（非 sim 构建）
 # ==============================
@@ -61,44 +128,37 @@ add_compile_options(
     -Wno-unused-parameter   # snack SDK 回调参数常有未使用
 )
 
-# -------------------------------------------------------
-# 源文件（GLOB_RECURSE + CONFIGURE_DEPENDS 保证增删文件后自动重配）
-# 源码按模块组织在仓库根目录
-# -------------------------------------------------------
-file(GLOB_RECURSE src CONFIGURE_DEPENDS
-    app_main.cpp
-    platform/*.c platform/*.h
-    common/*.c common/*.h
-    infrastructure/*.c infrastructure/*.h
-    domain/*.c domain/*.h
-    application/*.c application/*.h
-    ports/*.c ports/*.h
-    adapters/*.cpp
-    adapters/*.c adapters/*.h
-    config/*.c config/*.h
-    machines/*.cpp
-    machines/*.c machines/*.h
-    tests/*.c tests/*.h
-)
-# 内置 cJSON（替代 snack SDK 路径，真机/sim 统一使用同一份源码）
-list(APPEND src ${CMAKE_SOURCE_DIR}/third_party/cJSON/cJSON.c)
+set(m8_bindings_real_src ${m8_bindings_src})
+list(FILTER m8_bindings_real_src EXCLUDE REGEX "m8_signal_sim\\.(c|h)$")
 
-# sim_hw 适配器不参与嵌入式构建
-list(FILTER src EXCLUDE REGEX ".*/sim_hw/.*")
-# 仿真信号注入仅用于 BUILD_SIM
-list(FILTER src EXCLUDE REGEX ".*/m8_signal_sim\\.c$")
-# sim wiring only participates in BUILD_SIM
-list(FILTER src EXCLUDE REGEX ".*/wiring_sim\.c$")
-# 场景测试文件不参与产品构建
-list(FILTER src EXCLUDE REGEX ".*/tests/.*")
-# snack_wrapper.cpp 符号由 snack SDK 库提供，不重复编译（路径 middleware/snack/）
-list(FILTER src EXCLUDE REGEX ".*/snack_wrapper\.cpp$")
+set(src
+    ${m8_app_src}
+    ${fw_common_src}
+    ${fw_runtime_src}
+    ${fw_services_src}
+    ${fw_domain_src}
+    ${fw_application_src}
+    ${fw_ports_src}
+    ${fw_adapters_cloud_src}
+    ${fw_adapters_hal_generic_all_src}
+    ${fw_adapters_hal_linux_src}
+    ${fw_adapters_storage_src}
+    ${m8_config_src}
+    ${m8_bindings_real_src}
+    ${m8_adapters_alarm_src}
+    ${m8_adapters_cli_src}
+    ${m8_adapters_cloud_src}
+    ${m8_adapters_runtime_src}
+    ${m8_adapters_hal_io_src}
+    ${m8_wiring_src}
+    ${CMAKE_SOURCE_DIR}/third_party/cJSON/cJSON.c
+)
 
 add_executable(${PROJECT_NAME} ${src})
 
 target_include_directories(${PROJECT_NAME} PRIVATE
-    ${CMAKE_SOURCE_DIR}                         # 项目根目录：common/ driver/ domain/ ports/ adapters/ 等均在此
-    ${CMAKE_SOURCE_DIR}/middleware/mcc/motor_control_core-1.0.0-aarch64/include
+    ${CMAKE_SOURCE_DIR}                         # 项目根目录：framework/ 与 projects/ 均以此为 include 根
+    ${MCC_INCLUDE}
     /usr/local/include/snack
     /usr/local/include/snack/canfestival
     ${BLE_LIB_INCLUDE_DIRS}
@@ -135,7 +195,7 @@ endif() # NOT BUILD_SIM
 
 # ======================================================================
 # PC 模拟器目标（BUILD_SIM=ON）
-# adapters/hal/sim_hw/ 提供 HAL 仿真实现，不依赖嵌入式 SDK
+# framework/adapters/outbound/hal/sim_hw/ 提供 HAL 仿真实现，不依赖嵌入式 SDK
 # 用法：cmake -B build_sim -DBUILD_SIM=ON && cmake --build build_sim
 #
 # 注：仿真源文件齐全（sim_hw/ + bootstrap + wiring_sim 等），
@@ -144,86 +204,66 @@ endif() # NOT BUILD_SIM
 if(BUILD_SIM)
     add_compile_definitions(BUILD_SIM=1)
 
-    set(MCC_INCLUDE ${CMAKE_SOURCE_DIR}/middleware/mcc/motor_control_core-1.0.0-aarch64/include)
-
     # -----------------------------------------------------------------------
-    # sim 构建源文件：明确列出，避免误拉入真机专属文件
+    # sim 构建源文件：按模块变量组合，避免误拉入真机专属文件
     # -----------------------------------------------------------------------
-    file(GLOB_RECURSE sim_sources CONFIGURE_DEPENDS
+    set(sim_sources
         # 领域核心（纯逻辑，无硬件依赖）
-        domain/*.c
-        application/*.c
-        infrastructure/services/*.c
+        ${fw_domain_src}
+        ${fw_application_src}
+        ${fw_services_src}
 
-        # 事件总线 + 调度器
-        infrastructure/event_bus/*.c
-        infrastructure/scheduler/*.c
+        # 事件总线 + 调度器 + 启动编排
+        ${fw_runtime_src}
 
         # 仿真构建使用 wiring_sim.c 完成依赖接线
-        infrastructure/bootstrap/bootstrap.c
-        platform/main/wiring_sim.c
+        ${m8_wiring_sim_src}
+
+        # 端口层
+        ${fw_ports_src}
 
         # 仿真 HAL 实现（sim_hw：io/vfd/motor 专属；generic：sensor/do_group 共用）
-        ports/*.c
-        adapters/hal/sim_hw/*.c
-        adapters/hal/generic/hal_sensor.c
-        adapters/hal/generic/hal_do_group.c
-        adapters/hal/generic/hal_vfd.c
-        adapters/hal/generic/pulse_out.c
+        ${fw_adapters_hal_sim_src}
+        ${fw_adapters_hal_generic_sim_src}
 
         # 存储适配器（param + deploy，路径可能与真机不同但接口相同）
-        adapters/storage/json/*.c
-
-        # 命令处理器（command_port inbound port 实现，无 snack 依赖）
-        infrastructure/services/command/*.c
+        ${fw_adapters_storage_src}
 
         # M8 机型配置表
-        machines/m8/config/m8_signal_table.c
+        ${m8_config_src}
 
-        # M8 机型适配
-        machines/m8/adapters/alarm/m8_alarm_init.c
-        machines/m8/adapters/alarm/m8_alarm_adapt.c
-        machines/m8/adapters/alarm/m8_comm_watchdog.c
-        machines/m8/adapters/setup/m8_sensor.c
-        machines/m8/adapters/setup/m8_motor_exec.c
-        machines/m8/adapters/setup/m8_motor_domains_setup.c
-        machines/m8/adapters/setup/m8_machine_setup.c
-        machines/m8/adapters/setup/m8_water_setup.c
-        machines/m8/adapters/engine/engine_io_m8.c
-        machines/m8/adapters/m8_signal_sim.c
+        # M8 机型适配（不含真机专属的 boot_profile/vfd_setup/voice_setup）
+        ${m8_bindings_sim_src}
+        ${m8_adapters_alarm_src}
 
-        # 物模型点表通用引擎（机型无关，纯逻辑，不依赖 snack/aliyun）
-        adapters/cloud/tsl/tsl_report.c
-        adapters/cloud/tsl/tsl_command.c
+        # 物模型点表通用引擎（机型无关，纯逻辑，不依赖 snack/aliyun）+ M8 物模型点表
+        ${fw_adapters_cloud_src}
+        ${m8_adapters_cloud_src}
 
-        # M8 物模型点表（含接入通用引擎的上报/下行适配函数）
-        machines/m8/adapters/cloud/m8_tsl_table.c
+        # M8 VFD 仿真绑定（机型专属：仅龙门支持反转等规则）
+        ${m8_adapters_hal_vfdsim_src}
 
         # 仿真主入口 + 交互控制台
-        platform/sim/*.c
+        ${m8_app_sim_src}
 
         # 公共层
-        common/*.c
+        ${fw_common_src}
     )
+    # aliyun 云适配依赖真机 snack MQTT SDK，仿真不需要
+    list(FILTER sim_sources EXCLUDE REGEX "/cloud/aliyun/")
+
     # 内置 cJSON（替代系统 libcjson-dev）
     list(APPEND sim_sources ${CMAKE_SOURCE_DIR}/third_party/cJSON/cJSON.c)
 
     # MCC 仿真桩（替代 aarch64 预编译库，供 x86_64 sim 构建使用）
     list(APPEND sim_sources ${CMAKE_SOURCE_DIR}/middleware/mcc/motor_control_core_sim.c)
 
-    # 排除仿真不需要或有真机依赖的文件
-    list(FILTER sim_sources EXCLUDE REGEX ".*/linux_hw/.*")
-    list(FILTER sim_sources EXCLUDE REGEX ".*/aliyun/.*")
-
-    list(FILTER sim_sources EXCLUDE REGEX "m8_boot_profile\\.c")
-
-
     if(sim_sources)
         add_executable(M8_sim ${sim_sources})
 
         target_include_directories(M8_sim PRIVATE
             ${CMAKE_SOURCE_DIR}
-            ${CMAKE_SOURCE_DIR}/platform/sim
+            ${CMAKE_SOURCE_DIR}/projects/m8/app/sim
             ${MCC_INCLUDE}
         )
 
@@ -231,22 +271,24 @@ if(BUILD_SIM)
 
         target_compile_options(M8_sim PRIVATE -Wall -Wextra -Werror -g)
         target_compile_definitions(M8_sim PRIVATE
-            WASH_PROGRAM_NORMAL_PATH="${CMAKE_SOURCE_DIR}/doc/m8_normal_wash_program.json"
-            WASH_PROGRAM_QUICK_PATH="${CMAKE_SOURCE_DIR}/doc/m8_normal_wash_program.json")
+            WASH_PROGRAM_NORMAL_PATH="${CMAKE_SOURCE_DIR}/projects/m8/programs/m8_normal_wash_program.json"
+            WASH_PROGRAM_QUICK_PATH="${CMAKE_SOURCE_DIR}/projects/m8/programs/m8_normal_wash_program.json")
 
-        message(STATUS "BUILD_SIM enabled 鈫?target M8_sim")
+        message(STATUS "BUILD_SIM enabled -> target M8_sim")
     else()
-        message(STATUS "BUILD_SIM enabled 鈫?no sources found, M8_sim skipped")
+        message(STATUS "BUILD_SIM enabled -> no sources found, M8_sim skipped")
     endif()
 
     # ======================================================================
-    # 娴嬭瘯鐩爣锛坲nit + scenario锛?    # 涓?M8_sim 鍏辩敤鐩稿悓鐨?include 璺緞鍜岀紪璇戦€夐」锛?    # 涓嶄緷璧栫湡鏈?SDK锛坰nack / io_exp / modbus 绛夛級
-    # 杩愯锛歝make --build build_sim -j4 && ctest --test-dir build_sim -V
+    # 测试目标（unit + scenario）
+    # 与 M8_sim 共用相同的 include 路径和编译选项，不依赖真机 SDK
+    # （snack / io_exp / modbus 等）
+    # 运行：cmake --build build_sim -j4 && ctest --test-dir build_sim -V
     # ======================================================================
     enable_testing()
 
     # -----------------------------------------------------------------------
-    # 鍏叡 include 璺緞锛堟墍鏈夋祴璇曞叡鐢級
+    # 公共 include 路径（所有测试共用）
     # -----------------------------------------------------------------------
     set(test_includes
         ${CMAKE_SOURCE_DIR}
@@ -255,12 +297,12 @@ if(BUILD_SIM)
 
     # -----------------------------------------------------------------------
     # 场景测试的基础源文件集：
-    #   sim_sources 去掉仿真主入口（platform/sim/），由各测试自带 main()
+    #   sim_sources 去掉仿真主入口（projects/m8/app/sim/sim_main.c、sim_console.c），
+    #   由各测试自带 main()
     # -----------------------------------------------------------------------
     set(scenario_base ${sim_sources})
-    list(FILTER scenario_base EXCLUDE REGEX "platform/sim/sim_main\\.c$")
-    list(FILTER scenario_base EXCLUDE REGEX "platform/sim/sim_console\\.c$")
-    list(FILTER scenario_base EXCLUDE REGEX "tests/")
+    list(FILTER scenario_base EXCLUDE REGEX "app/sim/sim_main\\.c$")
+    list(FILTER scenario_base EXCLUDE REGEX "app/sim/sim_console\\.c$")
 
     # -----------------------------------------------------------------------
     # 辅助宏：添加单元测试
@@ -271,10 +313,10 @@ if(BUILD_SIM)
             ${test_src}
             ${ARGN}
             third_party/unity/unity.c
-            infrastructure/event_bus/event_bus.c
-            ports/port_registry.c
-            common/time_util.c
-            platform/sim/snack_stub.c
+            framework/runtime/event_bus/event_bus.c
+            framework/ports/port_registry.c
+            framework/common/time_util.c
+            projects/m8/app/sim/snack_stub.c
         )
         target_include_directories(${name} PRIVATE
             ${test_includes}
@@ -291,31 +333,27 @@ if(BUILD_SIM)
 
     # test_event_bus：只测 event_bus 本身
     add_unit_test(test_event_bus
-        tests/unit/test_event_bus.c
+        tests/framework/runtime/test_event_bus.c
     )
-
-    # test_step_engine：已移除（测试的 wash_exec_step/wash_exec_clear_abort
-    # 在迁移到 domain/engine 后已从 wash_orchestrator 删除）
-    # TODO: 补写 test_engine_orchestrator 覆盖新的 engine 驱动洗车路径
 
     # test_dev_ctx：只测 dev_ctx 快照与并发写
     add_unit_test(test_dev_ctx
-        tests/unit/test_dev_ctx.c
-        infrastructure/services/dev_ctx/dev_ctx.c
+        tests/framework/application/test_dev_ctx.c
+        framework/services/dev_ctx/dev_ctx.c
     )
 
-    # test_m8_tsl_table：M8 物模型点位表上行序列化 + 下行分发
+    # test_m8_tsl_table：M8 物模型点位表上行序列化 + 下行分发（项目级测试）
     add_unit_test(test_m8_tsl_table
-        tests/unit/test_m8_tsl_table.c
-        adapters/cloud/tsl/tsl_report.c
-        adapters/cloud/tsl/tsl_command.c
-        machines/m8/adapters/cloud/m8_tsl_table.c
-        machines/m8/adapters/setup/m8_sensor.c
-        machines/m8/config/m8_signal_table.c
-        adapters/hal/generic/hal_sensor.c
-        infrastructure/services/dev_ctx/dev_ctx.c
-        application/orchestrators/report_aggregator.c
-        infrastructure/scheduler/thread_registry.c
+        projects/m8/tests/test_m8_tsl_table.c
+        framework/adapters/outbound/cloud/tsl/tsl_report.c
+        framework/adapters/outbound/cloud/tsl/tsl_command.c
+        projects/m8/adapters/cloud/m8_tsl_table.c
+        projects/m8/bindings/m8_sensor.c
+        projects/m8/config/m8_signal_table.c
+        framework/adapters/outbound/hal/generic/hal_sensor.c
+        framework/services/dev_ctx/dev_ctx.c
+        framework/application/orchestrators/report_aggregator.c
+        framework/runtime/scheduler/thread_registry.c
         third_party/cJSON/cJSON.c
     )
 
@@ -325,8 +363,8 @@ if(BUILD_SIM)
     #   - 无 python3：使用已提交的 JSON，跳过自动生成（固件构建/CI 不需要 python）
     #   - 手动强制重生：cmake --build build_sim --target gen_engine_config
     # -----------------------------------------------------------------------
-    set(ENGINE_YAML "${CMAKE_SOURCE_DIR}/doc/m8_normal_wash_program.yaml")
-    set(ENGINE_JSON "${CMAKE_SOURCE_DIR}/doc/m8_normal_wash_program.json")
+    set(ENGINE_YAML "${CMAKE_SOURCE_DIR}/projects/m8/programs/m8_normal_wash_program.yaml")
+    set(ENGINE_JSON "${CMAKE_SOURCE_DIR}/projects/m8/programs/m8_normal_wash_program.json")
 
     find_program(PYTHON3_EXECUTABLE NAMES python3 python)
     if(PYTHON3_EXECUTABLE)
@@ -342,57 +380,57 @@ if(BUILD_SIM)
     endif()
 
     # -----------------------------------------------------------------------
-    # 通用控制引擎单元测试（domain/engine + JSON 加载器经 cJSON）
+    # 通用控制引擎单元测试（framework/domain/wash/engine + JSON 加载器经 cJSON）
     # -----------------------------------------------------------------------
     add_unit_test(test_engine_expr
-        tests/unit/test_engine_expr.c
-        domain/engine/engine_expr.c
+        tests/framework/domain/test_engine_expr.c
+        framework/domain/wash/engine/engine_expr.c
     )
     target_link_libraries(test_engine_expr PRIVATE m)
     target_compile_definitions(test_engine_expr PRIVATE UNITY_INCLUDE_DOUBLE)
 
     add_unit_test(test_engine_config
-        tests/unit/test_engine_config.c
-        adapters/storage/json/engine_program_json.c
-        ports/storage/engine_program_loader_port.c
-        domain/engine/engine_model.c
-        domain/engine/engine_expr.c
+        tests/framework/domain/test_engine_config.c
+        framework/adapters/outbound/storage/json/engine_program_json.c
+        framework/ports/outbound/storage/engine_program_loader_port.c
+        framework/domain/wash/model/engine_model.c
+        framework/domain/wash/engine/engine_expr.c
         third_party/cJSON/cJSON.c
     )
     target_link_libraries(test_engine_config PRIVATE m)
     target_compile_definitions(test_engine_config PRIVATE
-        M8_CONFIG_PATH="${CMAKE_SOURCE_DIR}/doc/m8_normal_wash_program.json"
+        M8_CONFIG_PATH="${CMAKE_SOURCE_DIR}/projects/m8/programs/m8_normal_wash_program.json"
         UNITY_INCLUDE_DOUBLE)
     if(PYTHON3_EXECUTABLE)
         add_dependencies(test_engine_config gen_engine_config)
     endif()
 
     add_unit_test(test_engine_runtime
-        tests/unit/test_engine_runtime.c
-        domain/engine/engine.c
-        domain/engine/engine_io.c
-        adapters/storage/json/engine_program_json.c
-        ports/storage/engine_program_loader_port.c
-        domain/engine/engine_model.c
-        domain/engine/engine_expr.c
-        adapters/hal/sim_hw/engine_io_sim.c
+        tests/framework/domain/test_engine_runtime.c
+        framework/domain/wash/engine/engine.c
+        framework/domain/wash/engine/engine_io.c
+        framework/adapters/outbound/storage/json/engine_program_json.c
+        framework/ports/outbound/storage/engine_program_loader_port.c
+        framework/domain/wash/model/engine_model.c
+        framework/domain/wash/engine/engine_expr.c
+        framework/adapters/outbound/hal/sim_hw/engine_io_sim.c
         third_party/cJSON/cJSON.c
     )
     target_link_libraries(test_engine_runtime PRIVATE m)
 
     # -----------------------------------------------------------------------
-    # 引擎端到端场景（仅链接引擎 + JSON 加载器 + sim IO 后端 + 设备模型）
+    # 引擎端到端场景（仅链接引擎 + JSON 加载器 + sim IO 后端 + 设备模型，项目级）
     # -----------------------------------------------------------------------
     add_executable(scenario_engine_normal_wash
-        tests/scenario/scenario_engine_normal_wash.c
-        tests/support/m8_device_model.c
-        domain/engine/engine.c
-        domain/engine/engine_io.c
-        adapters/storage/json/engine_program_json.c
-        ports/storage/engine_program_loader_port.c
-        domain/engine/engine_model.c
-        domain/engine/engine_expr.c
-        adapters/hal/sim_hw/engine_io_sim.c
+        projects/m8/tests/scenario/scenario_engine_normal_wash.c
+        projects/m8/tests/scenario/m8_device_model.c
+        framework/domain/wash/engine/engine.c
+        framework/domain/wash/engine/engine_io.c
+        framework/adapters/outbound/storage/json/engine_program_json.c
+        framework/ports/outbound/storage/engine_program_loader_port.c
+        framework/domain/wash/model/engine_model.c
+        framework/domain/wash/engine/engine_expr.c
+        framework/adapters/outbound/hal/sim_hw/engine_io_sim.c
         third_party/cJSON/cJSON.c
         third_party/unity/unity.c
     )
@@ -403,28 +441,28 @@ if(BUILD_SIM)
     target_link_libraries(scenario_engine_normal_wash PRIVATE pthread m)
     target_compile_options(scenario_engine_normal_wash PRIVATE -Wall -Wextra -Werror -g)
     target_compile_definitions(scenario_engine_normal_wash PRIVATE
-        M8_CONFIG_PATH="${CMAKE_SOURCE_DIR}/doc/m8_normal_wash_program.json")
+        M8_CONFIG_PATH="${CMAKE_SOURCE_DIR}/projects/m8/programs/m8_normal_wash_program.json")
     add_test(NAME scenario_engine_normal_wash COMMAND scenario_engine_normal_wash)
     if(PYTHON3_EXECUTABLE)
         add_dependencies(scenario_engine_normal_wash gen_engine_config)
     endif()
 
     # -----------------------------------------------------------------------
-    # 场景集成测试（链接完整 sim 栈，每个测试自带 main()）
+    # 场景集成测试（链接完整 sim 栈，每个测试自带 main()，项目级）
     # -----------------------------------------------------------------------
     foreach(scenario
             scenario_standard_wash)
 
         add_executable(${scenario}
-            tests/scenario/${scenario}.c
+            projects/m8/tests/scenario/${scenario}.c
             ${scenario_base}
         )
         target_include_directories(${scenario} PRIVATE ${test_includes})
         target_link_libraries(${scenario} PRIVATE pthread)
         target_compile_options(${scenario} PRIVATE -Wall -Wextra -Werror -g)
         target_compile_definitions(${scenario} PRIVATE
-            WASH_PROGRAM_NORMAL_PATH="${CMAKE_SOURCE_DIR}/doc/m8_normal_wash_program.json"
-            WASH_PROGRAM_QUICK_PATH="${CMAKE_SOURCE_DIR}/doc/m8_normal_wash_program.json")
+            WASH_PROGRAM_NORMAL_PATH="${CMAKE_SOURCE_DIR}/projects/m8/programs/m8_normal_wash_program.json"
+            WASH_PROGRAM_QUICK_PATH="${CMAKE_SOURCE_DIR}/projects/m8/programs/m8_normal_wash_program.json")
         add_test(NAME ${scenario} COMMAND ${scenario})
 
     endforeach()
@@ -446,8 +484,8 @@ if(BUILD_SIM)
     )
 
     set(drv_common_src
-        common/time_util.c
-        platform/sim/snack_stub.c
+        framework/common/time_util.c
+        projects/m8/app/sim/snack_stub.c
         third_party/unity/unity.c
     )
 
@@ -457,8 +495,8 @@ if(BUILD_SIM)
 
     # test_drv_vfd：变频器驱动单元测试
     add_executable(test_drv_vfd
-        tests/unit/test_drv_vfd.c
-        adapters/hal/linux_hw/drv/drv_vfd.c
+        tests/framework/adapters/test_drv_vfd.c
+        framework/adapters/outbound/hal/linux_hw/drv/drv_vfd.c
         ${modbus_stub_src}
         ${drv_common_src}
     )
@@ -469,8 +507,8 @@ if(BUILD_SIM)
 
     # test_drv_voice：语音模块驱动单元测试
     add_executable(test_drv_voice
-        tests/unit/test_drv_voice.c
-        adapters/hal/linux_hw/drv/drv_voice.c
+        tests/framework/adapters/test_drv_voice.c
+        framework/adapters/outbound/hal/linux_hw/drv/drv_voice.c
         ${modbus_stub_src}
         ${drv_common_src}
     )
@@ -481,8 +519,8 @@ if(BUILD_SIM)
 
     # test_drv_io：CAN IO 子板驱动单元测试
     add_executable(test_drv_io
-        tests/unit/test_drv_io.c
-        adapters/hal/linux_hw/drv/drv_io.c
+        tests/framework/adapters/test_drv_io.c
+        framework/adapters/outbound/hal/linux_hw/drv/drv_io.c
         tests/support/io_exp_stub.c
         ${drv_common_src}
     )
@@ -497,20 +535,20 @@ if(BUILD_SIM)
 
     # test_hal_sensor：DI 通道滤波防抖逻辑
     add_unit_test(test_hal_sensor
-        tests/unit/test_hal_sensor.c
-        adapters/hal/generic/hal_sensor.c
+        tests/framework/adapters/test_hal_sensor.c
+        framework/adapters/outbound/hal/generic/hal_sensor.c
     )
 
     # test_hal_motor：通用电机 HAL（DO 输出 / 限位 / 脉冲 / 回调）
     add_unit_test(test_hal_motor
-        tests/unit/test_hal_motor.c
-        adapters/hal/generic/hal_motor.c
+        tests/framework/adapters/test_hal_motor.c
+        framework/adapters/outbound/hal/generic/hal_motor.c
     )
 
     # test_hal_do_group：DO 组×槽位绑定与输出
     add_unit_test(test_hal_do_group
-        tests/unit/test_hal_do_group.c
-        adapters/hal/generic/hal_do_group.c
+        tests/framework/adapters/test_hal_do_group.c
+        framework/adapters/outbound/hal/generic/hal_do_group.c
     )
 
     # -----------------------------------------------------------------------
@@ -519,62 +557,68 @@ if(BUILD_SIM)
 
     # test_hal_io_sim：IO 仿真后端（DI/DO/脉冲计数器）
     add_unit_test(test_hal_io_sim
-        tests/unit/test_hal_io_sim.c
-        adapters/hal/sim_hw/hal_io_sim.c
+        tests/framework/adapters/test_hal_io_sim.c
+        framework/adapters/outbound/hal/sim_hw/hal_io_sim.c
     )
 
     # test_hal_motor_sim：电机仿真 HAL（依赖 hal_io_sim + sim_encoder_counter）
     add_unit_test(test_hal_motor_sim
-        tests/unit/test_hal_motor_sim.c
-        adapters/hal/sim_hw/hal_motor_sim.c
-        adapters/hal/sim_hw/hal_io_sim.c
-        adapters/hal/sim_hw/sim_encoder_counter.c
+        tests/framework/adapters/test_hal_motor_sim.c
+        framework/adapters/outbound/hal/sim_hw/hal_motor_sim.c
+        framework/adapters/outbound/hal/sim_hw/hal_io_sim.c
+        framework/adapters/outbound/hal/sim_hw/sim_encoder_counter.c
     )
 
-    # test_hal_vfd_sim：变频器仿真 HAL（状态机 + 参数校验）
+    # test_hal_vfd_sim：变频器仿真 HAL（状态机 + 参数校验，M8 机型专属绑定，项目级）
     add_unit_test(test_hal_vfd_sim
-        tests/unit/test_hal_vfd_sim.c
-        adapters/hal/sim_hw/hal_vfd_sim.c
-        adapters/hal/generic/hal_vfd.c
-        adapters/hal/generic/pulse_out.c
+        projects/m8/tests/test_hal_vfd_sim.c
+        projects/m8/adapters/hal/hal_vfd_sim_m8.c
+        framework/adapters/outbound/hal/generic/hal_vfd.c
+        framework/adapters/outbound/hal/generic/pulse_out.c
     )
 
     # -----------------------------------------------------------------------
-    # 机构领域层单元测试（使用 MCC 仿真桩替代 aarch64 预编译库）
+    # 机构领域层单元测试（使用 MCC 仿真桩替代 aarch64 预编译库；
+    # 机构模块经 hal_motor_exec_adapter 转发到 MCC，因此需一并链接该适配器）
     # -----------------------------------------------------------------------
 
     # test_gantry：龙门行走机构领域层（初始化 / 运动命令 / 状态映射 / 故障恢复）
     add_unit_test(test_gantry
-        tests/unit/test_gantry.c
-        domain/device/mechanism/gantry.c
+        tests/framework/domain/test_gantry.c
+        framework/domain/device_control/mechanism/gantry.c
+        framework/adapters/outbound/hal/generic/hal_motor_exec_adapter.c
         middleware/mcc/motor_control_core_sim.c
     )
 
     # test_brush：刷子机构领域层（薄封装 / 启停 / 调速 / 状态映射 / 故障恢复）
     add_unit_test(test_brush
-        tests/unit/test_brush.c
-        domain/device/mechanism/brush.c
+        tests/framework/domain/test_brush.c
+        framework/domain/device_control/mechanism/brush.c
+        framework/adapters/outbound/hal/generic/hal_motor_exec_adapter.c
         middleware/mcc/motor_control_core_sim.c
     )
 
     # test_fan：风机机构领域层（初始化 / 启停 / 状态映射 / 故障恢复）
     add_unit_test(test_fan
-        tests/unit/test_fan.c
-        domain/device/mechanism/fan.c
+        tests/framework/domain/test_fan.c
+        framework/domain/device_control/mechanism/fan.c
+        framework/adapters/outbound/hal/generic/hal_motor_exec_adapter.c
         middleware/mcc/motor_control_core_sim.c
     )
 
     # test_lift：顶刷升降机构领域层（FORWARD=上升 / 状态映射 / 故障恢复）
     add_unit_test(test_lift
-        tests/unit/test_lift.c
-        domain/device/mechanism/lift.c
+        tests/framework/domain/test_lift.c
+        framework/domain/device_control/mechanism/lift.c
+        framework/adapters/outbound/hal/generic/hal_motor_exec_adapter.c
         middleware/mcc/motor_control_core_sim.c
     )
 
     # test_rear_lock：后轮锁止机构领域层（FORWARD=锁止 / 状态映射 / 故障恢复）
     add_unit_test(test_rear_lock
-        tests/unit/test_rear_lock.c
-        domain/device/mechanism/rear_lock.c
+        tests/framework/domain/test_rear_lock.c
+        framework/domain/device_control/mechanism/rear_lock.c
+        framework/adapters/outbound/hal/generic/hal_motor_exec_adapter.c
         middleware/mcc/motor_control_core_sim.c
     )
 
