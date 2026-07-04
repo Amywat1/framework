@@ -215,7 +215,7 @@ const tsl_point_t *m8_tsl_table(size_t *out_count)
 }
 
 /* -------------------------------------------------------------------------
- * aliyun_adapter.h 固定函数指针形状的适配（供 wiring.c / bootstrap.c 注入）
+ * snack_cloud_adapter.h 固定函数指针形状的适配（供 wiring.c / project_hooks.c 注入）
  * ------------------------------------------------------------------------- */
 sw_err_t m8_build_report_json(const cloud_report_payload_t *p,
                                char *buf, size_t buf_size)

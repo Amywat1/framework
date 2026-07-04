@@ -19,7 +19,7 @@ extern "C" {
 #include "framework/ports/outbound/hal/hal_vfd_bind.h"
 #include "framework/common/io_handle.h"
 #include "framework/common/sw_error.h"
-#include "framework/adapters/outbound/hal/linux_hw/drv/drv_vfd.h"
+#include "framework/adapters/outbound/hal/providers/snack/modbus/drv_vfd.h"
 
 /** @brief  注册 hal_vfd_linux（内部调用 hal_vfd_generic_register） */
 void hal_vfd_linux_register(void);

@@ -7,7 +7,7 @@
 
 #include "framework/adapters/outbound/hal/linux_hw/hal_voice_linux.h"
 #include "framework/ports/outbound/hal/hal_voice_port.h"
-#include "framework/adapters/outbound/hal/linux_hw/drv/drv_voice.h"
+#include "framework/adapters/outbound/hal/providers/snack/modbus/drv_voice.h"
 
 #include <string.h>
 

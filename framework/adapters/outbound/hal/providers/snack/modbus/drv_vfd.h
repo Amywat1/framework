@@ -27,11 +27,12 @@ extern "C" {
 #include "framework/common/io_handle.h"
 #include "framework/common/sw_error.h"
 #include "framework/common/vfd_types.h"
-#include "modbus/modbus.h"
 
 #include <pthread.h>
 #include <stdbool.h>
 #include <stdint.h>
+
+typedef struct _modbus modbus_t;
 
 /* -------------------------------------------------------------------------
  * 挡位类型与宏

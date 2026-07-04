@@ -14,7 +14,7 @@
  * 周期采样、缓存与事件上报用例见后续 test_vfd_comm_monitor。
  */
 
-#include "framework/adapters/outbound/hal/linux_hw/drv/drv_vfd.h"
+#include "framework/adapters/outbound/hal/providers/snack/modbus/drv_vfd.h"
 #include "tests/support/modbus_stub.h"
 #include "unity.h"
 

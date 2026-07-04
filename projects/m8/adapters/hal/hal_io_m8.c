@@ -6,7 +6,7 @@
  */
 
 #include "framework/ports/outbound/hal/hal_io_port.h"
-#include "framework/adapters/outbound/hal/linux_hw/drv/drv_io.h"
+#include "framework/adapters/outbound/hal/providers/snack/io_exp/io_exp_driver.h"
 #include "projects/m8/config/m8_machine_config.h"
 #include "projects/m8/config/m8_io_table.h"
 #include <string.h>

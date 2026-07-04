@@ -1,6 +1,6 @@
 /**
- * @file    drv_io.h
- * @brief   CAN IO 子板驱动接口
+ * @file    io_exp_driver.h
+ * @brief   io_exp CAN IO 子板 provider 接口
  * @author  HUWANGWEI
  * @date    2026-04-07
  *
@@ -14,8 +14,8 @@
  *          - bit7~0：引脚号
  */
 
-#ifndef DRV_IO_H
-#define DRV_IO_H
+#ifndef FRAMEWORK_ADAPTERS_OUTBOUND_HAL_PROVIDERS_IO_EXP_DRIVER_H
+#define FRAMEWORK_ADAPTERS_OUTBOUND_HAL_PROVIDERS_IO_EXP_DRIVER_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -27,6 +27,18 @@ extern "C" {
 #include "framework/common/sw_error.h"
 #include "framework/common/sw_types.h"
 #include "framework/common/io_handle.h"
+
+/**
+ * @brief  初始化 io_exp SDK 的 CAN 总线访问。
+ * @note   对项目入口屏蔽 io_exp/demo.h，SDK 头只保留在 provider 内部。
+ */
+sw_err_t io_exp_driver_sdk_init(int can_bus, int can_baud, int self_node, int board_count);
+
+/**
+ * @brief  注册 io_exp SDK 日志回调。
+ * @note   对项目运行时适配器屏蔽 io_exp/demo.h。
+ */
+void io_exp_driver_set_log_api(int (*cb)(const char *fmt, ...));
 
 /** IO 名称表条目（由调用方用 X-macro 展开后传入驱动） */
 typedef struct
@@ -213,7 +225,7 @@ sw_err_t drv_io_get_stats(int board_id, drv_io_stats_t *out);
 int drv_io_board_count(void);
 
 /* -------------------------------------------------------------------------
- * 脉冲计数器接口（编码器，底层调用 io_exp/demo.h 中的 SDK 接口）
+ * 脉冲计数器接口（编码器，底层调用 io_exp provider 内部 SDK 接口）
  * ------------------------------------------------------------------------- */
 
 /**
@@ -237,4 +249,4 @@ sw_err_t drv_io_pulse_clear(io_di_t pin);
 }
 #endif
 
-#endif /* DRV_IO_H */
+#endif /* FRAMEWORK_ADAPTERS_OUTBOUND_HAL_PROVIDERS_IO_EXP_DRIVER_H */

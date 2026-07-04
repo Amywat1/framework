@@ -19,16 +19,20 @@
 
 ```
 adapters/hal/
-├── linux_hw/        平台层——依赖真机 SDK（CAN IO 子板库、Modbus 库）
-│   ├── drv/             硬件 SDK 的直接封装，仅供本目录内部使用
-│   │   ├── drv_io       CAN IO 子板：输入刷新、输出落地、上线/下线对称防抖、
-│   │   │                全板离线触发 panic（写安全态后 abort）；配置通过 drv_io_cfg_t 注入；
-│   │   │                透出 pulse_read / pulse_clear 供编码器硬件脉冲计数使用
-│   │   ├── drv_vfd      变频器 Modbus RTU：多实例、自动重连、方向切换延时保护、
-│   │   │                RST 脉冲或 Modbus 写寄存器两路故障复位
-│   │   └── drv_voice    语音模块 Modbus RTU：播放/暂停/音量控制、通信失败自动重连
+├── providers/       可选 SDK provider，真机目标按需选择，仿真目标不拉入
+│   └── snack/       Snack SDK provider 集合
+│       ├── io_exp/
+│       │   └── io_exp_driver  CAN IO 子板：输入刷新、输出落地、上线/下线对称防抖、
+│       │                       全板离线触发 panic（写安全态后 abort）；配置通过 drv_io_cfg_t 注入；
+│       │                       透出 pulse_read / pulse_clear 供编码器硬件脉冲计数使用
+│       └── modbus/
+│           ├── drv_vfd      变频器 Modbus RTU：多实例、自动重连、方向切换延时保护、
+│           │                RST 脉冲或 Modbus 写寄存器两路故障复位
+│           └── drv_voice    语音模块 Modbus RTU：播放/暂停/音量控制、通信失败自动重连
+│
+├── linux_hw/        Linux 真机平台层（不直接包含 Snack SDK 头）
 │   ├── hal_io_linux     用 X-macro 展开 m8_io_table.h 构建 IO 名称表，通过 drv_io_cfg_t
-│   │                    注入 drv_io，并将 drv_io 注册为 hal_io_port 的实现
+│   │                    注入 io_exp_driver，并将其注册为 hal_io_port 的实现
 │   ├── hal_vfd_linux    将 drv_vfd 实例数组注册为 hal_vfd_port 的实现
 │   └── hal_voice_linux  将 drv_voice 实例注册为 hal_voice_port 的实现
 │
@@ -60,7 +64,8 @@ adapters/hal/
 
 | 层 | 知道什么 | 不知道什么 |
 |----|----------|-----------|
-| **平台层**（linux_hw） | SDK API、串口路径、板卡型号 | 电机叫什么名字、哪条 DI 是限位 |
+| **provider 层**（providers/<sdk>） | SDK API、板卡型号 | 电机叫什么名字、哪条 DI 是限位 |
+| **平台层**（linux_hw） | Linux 真机外设组合、串口路径 | 业务流程语义 |
 | **组合层**（generic） | port 接口语义 | SDK、平台、机型拓扑 |
 | **仿真层**（sim_hw） | 仿真状态机内部结构 | 真机 SDK、机型配置 |
 | **机型层**（machine/m8） | M8 全部硬件拓扑 | port 实现细节 |
@@ -102,7 +107,7 @@ VFD 操作（速度设定、电流读取、故障复位等）通过 `hal_motor_b
 
 ## 可靠性设计要点
 
-- **drv_io**：输出写入先存缓冲，后台线程异步落地；上线和下线均采用对称防抖
+- **io_exp_driver**：输出写入先存缓冲，后台线程异步落地；上线和下线均采用对称防抖
   （各需连续 N 次检测才确认状态变化），防止 CAN 总线抖动误触发；子板恢复上线后
   自动重发输出状态；全板离线时先调用 panic_cb（由调用方将输出缓冲置安全态），
   再无条件写入全部子板（不依赖在线状态），最后 abort 由 systemd 拉起进程。

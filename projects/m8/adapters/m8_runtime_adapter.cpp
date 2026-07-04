@@ -9,8 +9,8 @@
  */
 
 #include "projects/m8/adapters/m8_runtime_adapter.h"
+#include "framework/adapters/outbound/hal/providers/snack/io_exp/io_exp_driver.h"
 #include "log/mlog.h"
-#include "io_exp/demo.h"
 
 #include <fstream>
 #include <string>
@@ -60,5 +60,5 @@ static int load_remote_port(const std::string &filename)
 void m8_runtime_adapter_init(void)
 {
     set_remote_port(load_remote_port("/home/neardi/tool/frp/frpc.ini"));
-    io_logApi_set(snack_io_log);
+    io_exp_driver_set_log_api(snack_io_log);
 }

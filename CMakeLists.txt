@@ -67,6 +67,7 @@ file(GLOB_RECURSE fw_ports_src         CONFIGURE_DEPENDS framework/ports/*.c fra
 file(GLOB_RECURSE fw_adapters_cloud_src   CONFIGURE_DEPENDS framework/adapters/outbound/cloud/*.c framework/adapters/outbound/cloud/*.h)
 file(GLOB_RECURSE fw_adapters_hal_generic_all_src CONFIGURE_DEPENDS framework/adapters/outbound/hal/generic/*.c framework/adapters/outbound/hal/generic/*.h)
 file(GLOB_RECURSE fw_adapters_hal_linux_src   CONFIGURE_DEPENDS framework/adapters/outbound/hal/linux_hw/*.c framework/adapters/outbound/hal/linux_hw/*.h)
+file(GLOB_RECURSE fw_adapters_hal_snack_src  CONFIGURE_DEPENDS framework/adapters/outbound/hal/providers/snack/*.c framework/adapters/outbound/hal/providers/snack/*.h)
 file(GLOB_RECURSE fw_adapters_hal_sim_src     CONFIGURE_DEPENDS framework/adapters/outbound/hal/sim_hw/*.c framework/adapters/outbound/hal/sim_hw/*.h)
 file(GLOB_RECURSE fw_adapters_storage_src CONFIGURE_DEPENDS framework/adapters/outbound/storage/*.c framework/adapters/outbound/storage/*.h)
 
@@ -153,6 +154,7 @@ set(src
     ${fw_adapters_cloud_src}
     ${fw_adapters_hal_generic_all_src}
     ${fw_adapters_hal_linux_src}
+    ${fw_adapters_hal_snack_src}
     ${fw_adapters_storage_src}
     ${m8_config_src}
     ${m8_bindings_real_src}
@@ -247,7 +249,7 @@ if(BUILD_SIM)
         ${m8_bindings_sim_src}
         ${m8_adapters_alarm_src}
 
-        # 物模型点表通用引擎（机型无关，纯逻辑，不依赖 snack/aliyun）+ M8 物模型点表
+        # 物模型点表通用引擎（机型无关，纯逻辑，不依赖云 SDK）+ M8 物模型点表
         ${fw_adapters_cloud_src}
         ${m8_adapters_cloud_src}
 
@@ -260,8 +262,9 @@ if(BUILD_SIM)
         # 公共层
         ${fw_common_src}
     )
-    # aliyun 云适配依赖真机 snack MQTT SDK，仿真不需要
-    list(FILTER sim_sources EXCLUDE REGEX "/cloud/aliyun/")
+    # Provider 适配器依赖真机 SDK，仿真不拉入 snack/io_exp provider
+    list(FILTER sim_sources EXCLUDE REGEX "/cloud/providers/snack/")
+    list(FILTER sim_sources EXCLUDE REGEX "/hal/providers/snack/")
 
     # 内置 cJSON（替代系统 libcjson-dev）
     list(APPEND sim_sources ${CMAKE_SOURCE_DIR}/third_party/cJSON/cJSON.c)
@@ -507,7 +510,7 @@ if(BUILD_SIM)
     # test_drv_vfd：变频器驱动单元测试
     add_executable(test_drv_vfd
         tests/framework/adapters/test_drv_vfd.c
-        framework/adapters/outbound/hal/linux_hw/drv/drv_vfd.c
+        framework/adapters/outbound/hal/providers/snack/modbus/drv_vfd.c
         ${modbus_stub_src}
         ${drv_common_src}
     )
@@ -519,7 +522,7 @@ if(BUILD_SIM)
     # test_drv_voice：语音模块驱动单元测试
     add_executable(test_drv_voice
         tests/framework/adapters/test_drv_voice.c
-        framework/adapters/outbound/hal/linux_hw/drv/drv_voice.c
+        framework/adapters/outbound/hal/providers/snack/modbus/drv_voice.c
         ${modbus_stub_src}
         ${drv_common_src}
     )
@@ -528,10 +531,10 @@ if(BUILD_SIM)
     target_compile_options(test_drv_voice PRIVATE -Wall -Wextra -Werror -g)
     add_test(NAME test_drv_voice COMMAND test_drv_voice)
 
-    # test_drv_io：CAN IO 子板驱动单元测试
+    # test_drv_io：io_exp CAN IO 子板 provider 单元测试
     add_executable(test_drv_io
         tests/framework/adapters/test_drv_io.c
-        framework/adapters/outbound/hal/linux_hw/drv/drv_io.c
+        framework/adapters/outbound/hal/providers/snack/io_exp/io_exp_driver.c
         tests/support/io_exp_stub.c
         ${drv_common_src}
     )

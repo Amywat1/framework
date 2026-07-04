@@ -7,7 +7,7 @@
 
 #include "projects/m8/bindings/m8_voice_setup.h"
 #include "framework/adapters/outbound/hal/linux_hw/hal_voice_linux.h"
-#include "framework/adapters/outbound/hal/linux_hw/drv/drv_voice.h"
+#include "framework/adapters/outbound/hal/providers/snack/modbus/drv_voice.h"
 #include "projects/m8/config/m8_voice_table.h"
 #include "projects/m8/config/m8_alarm_table.h"
 #include "framework/ports/inbound/safety/alarm_binding_port.h"

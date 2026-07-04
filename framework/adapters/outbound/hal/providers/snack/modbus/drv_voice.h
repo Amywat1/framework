@@ -17,11 +17,12 @@ extern "C" {
 #endif
 
 #include "framework/common/sw_error.h"
-#include "modbus/modbus.h"
 
 #include <pthread.h>
 #include <stdbool.h>
 #include <stdint.h>
+
+typedef struct _modbus modbus_t;
 
 /* -------------------------------------------------------------------------
  * 事件码：通过 event_cb 上报给上层

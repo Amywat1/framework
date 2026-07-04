@@ -41,3 +41,17 @@ int io_SDO_write(int board_id, int index, int sub_index, int *data)
     (void)data;
     return 0;
 }
+
+int io_init(int can_bus, int can_baud, int self_node, int board_count)
+{
+    (void)can_bus;
+    (void)can_baud;
+    (void)self_node;
+    (void)board_count;
+    return 0;
+}
+
+void io_logApi_set(int (*cb)(const char *fmt, ...))
+{
+    (void)cb;
+}

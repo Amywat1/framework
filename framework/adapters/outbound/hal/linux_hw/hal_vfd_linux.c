@@ -8,8 +8,8 @@
 #include "framework/adapters/outbound/hal/linux_hw/hal_vfd_linux.h"
 
 #include "framework/adapters/outbound/hal/generic/hal_vfd.h"
-#include "framework/adapters/outbound/hal/linux_hw/drv/drv_io.h"
-#include "framework/adapters/outbound/hal/linux_hw/drv/drv_vfd.h"
+#include "framework/adapters/outbound/hal/providers/snack/io_exp/io_exp_driver.h"
+#include "framework/adapters/outbound/hal/providers/snack/modbus/drv_vfd.h"
 
 #include <string.h>
 

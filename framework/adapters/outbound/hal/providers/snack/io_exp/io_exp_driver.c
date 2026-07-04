@@ -1,6 +1,6 @@
 /**
- * @file    drv_io.c
- * @brief   CAN IO 子板驱动实现
+ * @file    io_exp_driver.c
+ * @brief   io_exp CAN IO 子板 provider 实现
  * @author  HUWANGWEI
  * @date    2026-04-07
  *
@@ -12,7 +12,7 @@
  *          - 全板离线时的安全停机联动
  */
 
-#include "drv_io.h"
+#include "framework/adapters/outbound/hal/providers/snack/io_exp/io_exp_driver.h"
 
 #include "framework/common/log.h"
 #include "framework/common/time_util.h"
@@ -24,6 +24,16 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+
+sw_err_t io_exp_driver_sdk_init(int can_bus, int can_baud, int self_node, int board_count)
+{
+    return (io_init(can_bus, can_baud, self_node, board_count) == 0) ? SW_OK : SW_ERR_HW;
+}
+
+void io_exp_driver_set_log_api(int (*cb)(const char *fmt, ...))
+{
+    io_logApi_set(cb);
+}
 
 /* -------------------------------------------------------------------------
  * 内部常量

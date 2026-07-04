@@ -12,10 +12,10 @@
 #include "framework/runtime/bootstrap/bootstrap.h"
 #include "framework/common/sw_version.h"
 #include "framework/common/log.h"
+#include "framework/adapters/outbound/hal/providers/snack/io_exp/io_exp_driver.h"
 #include "projects/m8/config/m8_machine_config.h"
 #include "projects/m8/adapters/m8_runtime_adapter.h"
 #include "middleware/snack/snack_log.h"
-#include "io_exp/demo.h"
 #include <unistd.h>
 
 static const char *APP_NAME    = SW_PRODUCT_NAME;
@@ -39,8 +39,8 @@ int app_main(int, char **)
     m8_runtime_adapter_init();
 
     /* 先初始化 io_exp SDK 的 CAN 总线访问，再进入后续模块初始化 */
-    io_ret = io_init(CFG_IO_CAN_BUS, CFG_IO_CAN_BAUD, CFG_IO_SELF_NODE, CFG_IO_BOARD_COUNT);
-    if (io_ret != 0)
+    io_ret = io_exp_driver_sdk_init(CFG_IO_CAN_BUS, CFG_IO_CAN_BAUD, CFG_IO_SELF_NODE, CFG_IO_BOARD_COUNT);
+    if (io_ret != SW_OK)
     {
         LOG_ERROR("app_main: io_init failed ret=%d", io_ret);
         return -1;
