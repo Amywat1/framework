@@ -15,7 +15,7 @@
 #include "framework/adapters/outbound/hal/providers/snack/io_exp/io_exp_driver.h"
 #include "projects/m8/config/m8_machine_config.h"
 #include "projects/m8/adapters/m8_runtime_adapter.h"
-#include "middleware/snack/snack_log.h"
+#include "projects/m8/adapters/runtime/snack/snack_log.h"
 #include <unistd.h>
 
 static const char *APP_NAME    = SW_PRODUCT_NAME;

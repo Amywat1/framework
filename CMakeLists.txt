@@ -44,7 +44,7 @@ add_compile_definitions(
     DEPLOY_STORE_JSON_FILE_PATH="/home/neardi/m8/device.json"
 )
 
-set(MCC_INCLUDE ${CMAKE_SOURCE_DIR}/middleware/mcc/motor_control_core-1.0.0-aarch64/include)
+set(MCC_INCLUDE ${CMAKE_SOURCE_DIR}/third_party/mcc/motor_control_core-1.0.0-aarch64/include)
 
 # =========================================================================
 # 源文件分组
@@ -72,8 +72,8 @@ file(GLOB_RECURSE fw_adapters_hal_sim_src     CONFIGURE_DEPENDS framework/adapte
 file(GLOB_RECURSE fw_adapters_storage_src CONFIGURE_DEPENDS framework/adapters/outbound/storage/*.c framework/adapters/outbound/storage/*.h)
 
 # 仿真构建只需要 generic/ 下机型无关的组合层（sensor/do_group/vfd/pulse_out）
-# 以及 electric-motor 端口的通用适配器（motor exec 端口 → MCC，MCC 本身经
-# middleware/mcc/motor_control_core_sim.c 提供仿真实现）；hal_motor.c 是另一套
+# 以及 electric-motor 端口的通用适配器（motor exec 端口 -> MCC，MCC 本身经
+# tests/stubs/mcc/motor_control_core_sim.c 提供仿真实现）；hal_motor.c 是另一套
 # 未在本项目实际接线中使用于仿真路径的通用电机 ops 端口，保持与真机一致排除。
 set(fw_adapters_hal_generic_sim_src
     framework/adapters/outbound/hal/generic/hal_sensor.c
@@ -96,6 +96,8 @@ set(m8_adapters_hal_vfdsim_src projects/m8/adapters/hal/hal_vfd_sim_m8.c)
 set(m8_adapters_runtime_src
     projects/m8/adapters/m8_runtime_adapter.cpp
     projects/m8/adapters/m8_runtime_adapter.h
+    projects/m8/adapters/runtime/snack/snack_wrapper.cpp
+    projects/m8/adapters/runtime/snack/snack_wrapper.h
 )
 
 set(m8_app_src     projects/m8/app/app_main.cpp)
@@ -179,7 +181,7 @@ target_include_directories(${PROJECT_NAME} PRIVATE
 )
 
 target_link_libraries(${PROJECT_NAME} PRIVATE
-    ${CMAKE_SOURCE_DIR}/middleware/mcc/motor_control_core-1.0.0-aarch64/lib/libmotor_control_core.a
+    ${CMAKE_SOURCE_DIR}/third_party/mcc/motor_control_core-1.0.0-aarch64/lib/libmotor_control_core.a
     snack
     io-exp
     canfestival
@@ -270,7 +272,7 @@ if(BUILD_SIM)
     list(APPEND sim_sources ${CMAKE_SOURCE_DIR}/third_party/cJSON/cJSON.c)
 
     # MCC 仿真桩（替代 aarch64 预编译库，供 x86_64 sim 构建使用）
-    list(APPEND sim_sources ${CMAKE_SOURCE_DIR}/middleware/mcc/motor_control_core_sim.c)
+    list(APPEND sim_sources ${CMAKE_SOURCE_DIR}/tests/stubs/mcc/motor_control_core_sim.c)
 
     if(sim_sources)
         add_executable(M8_sim ${sim_sources})
@@ -601,7 +603,7 @@ if(BUILD_SIM)
         tests/framework/domain/test_gantry.c
         framework/domain/device_control/mechanism/gantry.c
         framework/adapters/outbound/hal/generic/hal_motor_exec_adapter.c
-        middleware/mcc/motor_control_core_sim.c
+        tests/stubs/mcc/motor_control_core_sim.c
     )
 
     # test_brush：刷子机构领域层（薄封装 / 启停 / 调速 / 状态映射 / 故障恢复）
@@ -609,7 +611,7 @@ if(BUILD_SIM)
         tests/framework/domain/test_brush.c
         framework/domain/device_control/mechanism/brush.c
         framework/adapters/outbound/hal/generic/hal_motor_exec_adapter.c
-        middleware/mcc/motor_control_core_sim.c
+        tests/stubs/mcc/motor_control_core_sim.c
     )
 
     # test_fan：风机机构领域层（初始化 / 启停 / 状态映射 / 故障恢复）
@@ -617,7 +619,7 @@ if(BUILD_SIM)
         tests/framework/domain/test_fan.c
         framework/domain/device_control/mechanism/fan.c
         framework/adapters/outbound/hal/generic/hal_motor_exec_adapter.c
-        middleware/mcc/motor_control_core_sim.c
+        tests/stubs/mcc/motor_control_core_sim.c
     )
 
     # test_lift：顶刷升降机构领域层（FORWARD=上升 / 状态映射 / 故障恢复）
@@ -625,7 +627,7 @@ if(BUILD_SIM)
         tests/framework/domain/test_lift.c
         framework/domain/device_control/mechanism/lift.c
         framework/adapters/outbound/hal/generic/hal_motor_exec_adapter.c
-        middleware/mcc/motor_control_core_sim.c
+        tests/stubs/mcc/motor_control_core_sim.c
     )
 
     # test_rear_lock：后轮锁止机构领域层（FORWARD=锁止 / 状态映射 / 故障恢复）
@@ -633,7 +635,7 @@ if(BUILD_SIM)
         tests/framework/domain/test_rear_lock.c
         framework/domain/device_control/mechanism/rear_lock.c
         framework/adapters/outbound/hal/generic/hal_motor_exec_adapter.c
-        middleware/mcc/motor_control_core_sim.c
+        tests/stubs/mcc/motor_control_core_sim.c
     )
 
     message(STATUS "Tests registered: 20 unit + 2 scenario (run with: ctest --test-dir build_sim -V)")

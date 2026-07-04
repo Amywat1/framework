@@ -8,8 +8,8 @@
  *          可跨项目复用，不含任何机型命令逻辑。
  */
 
-#ifndef MIDDLEWARE_SNACK_CLI_H
-#define MIDDLEWARE_SNACK_CLI_H
+#ifndef PROJECTS_M8_ADAPTERS_RUNTIME_SNACK_CLI_H
+#define PROJECTS_M8_ADAPTERS_RUNTIME_SNACK_CLI_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -35,4 +35,4 @@ char *cli_adapter_get(int idx);
 }
 #endif
 
-#endif /* MIDDLEWARE_SNACK_CLI_H */
+#endif /* PROJECTS_M8_ADAPTERS_RUNTIME_SNACK_CLI_H */

@@ -8,7 +8,7 @@
 #include "framework/adapters/outbound/cloud/providers/snack/snack_cloud_adapter.h"
 #include "framework/ports/outbound/cloud/report/report_port.h"
 #include "framework/ports/outbound/storage/deploy_store.h"
-#include "middleware/snack/snack_mqtt.h"
+#include "projects/m8/adapters/runtime/snack/snack_mqtt.h"
 #include "framework/common/log.h"
 #include <stdio.h>
 #include <string.h>
