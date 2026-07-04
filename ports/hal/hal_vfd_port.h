@@ -5,7 +5,7 @@
  * @date    2026-06-01
  *
  * @note    业务层与其它 HAL 适配器仅通过本接口访问 VFD；
- *          平台实现（hal_vfd_linux / hal_vfd_sim）内部对接 drv_vfd 或仿真状态。
+ *          组合层 generic/hal_vfd 实现完整语义，linux_hw / sim_hw 注入 backend。
  */
 
 #ifndef PORTS_HAL_VFD_PORT_H
@@ -28,8 +28,11 @@ typedef int hal_vfd_id_t;
 
 typedef struct
 {
-    /** @brief  初始化全部 VFD 实例（Modbus 连接 + DO 安全态） */
+    /** @brief  初始化全部 VFD 实例运行时状态 */
     sw_err_t (*init)(void);
+
+    /** @brief  推进 RST 脉冲与通信监测（由调度层周期调用） */
+    void (*tick)(void);
 
     sw_err_t (*run)(hal_vfd_id_t id, hal_vfd_gear_t gear);
     sw_err_t (*set_freq)(hal_vfd_id_t id, uint16_t freq_hz);

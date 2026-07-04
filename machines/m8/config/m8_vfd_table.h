@@ -31,9 +31,9 @@
 #define M8_VFD_BRUSH_SERIAL_PORT   CFG_VFD_BRUSH_SERIAL_PORT
 #define M8_VFD_BRUSH_BAUD          CFG_VFD_BRUSH_BAUD
 #define M8_VFD_BRUSH_ADDR          CFG_VFD_BRUSH_MODBUS_ADDR
-#define M8_VFD_BRUSH_PIN_FWD       M8_IO_DO_SIDE_BRUSH_FWD
+#define M8_VFD_BRUSH_PIN_FWD       M8_IO_DO_BRUSH_FWD
 #define M8_VFD_BRUSH_PIN_REV       ((io_do_t){IO_HANDLE_NULL})   /* 刷子仅正转，无反转引脚 */
-#define M8_VFD_BRUSH_PIN_RST       M8_IO_DO_SIDE_BRUSH_RST
+#define M8_VFD_BRUSH_PIN_RST       M8_IO_DO_BRUSH_RST
 
 /* -------------------------------------------------------------------------
  * 龙门 VFD（支持正反转）

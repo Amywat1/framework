@@ -16,7 +16,6 @@
 #include "domain/device/actuator/motor/motor.h"
 #include "domain/device/mechanism/brush.h"
 #include "domain/device/mechanism/gantry.h"
-#include "machines/m8/config/m8_motor_table.h"
 #include "ports/hal/hal_motor_port.h"
 #include "ports/hal/hal_sensor_port.h"
 #include "machines/m8/adapters/setup/m8_sensor.h"
@@ -29,6 +28,9 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+
+/** @brief 旧 motor 层龙门 id（test_step_engine 已移出构建，仅保留本地常量）。 */
+#define MOTOR_GANTRY 0
 
 /* -------------------------------------------------------------------------
  * 模拟状态

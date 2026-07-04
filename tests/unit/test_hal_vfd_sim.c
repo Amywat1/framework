@@ -134,7 +134,7 @@ static void test_read_null_ptr_returns_err(void)
 
 static void test_run_invalid_id_returns_err(void)
 {
-    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM,
+    TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_INIT,
         hal_vfd_get_ops()->run(TEST_VFD_INVALID, (hal_vfd_gear_t)1));
 }
 
@@ -147,13 +147,13 @@ static void test_brush_rev_invalid(void)
 
 static void test_stop_invalid_id_returns_err(void)
 {
-    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM,
+    TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_INIT,
         hal_vfd_get_ops()->stop(TEST_VFD_INVALID));
 }
 
 static void test_fault_reset_invalid_id_returns_err(void)
 {
-    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM,
+    TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_INIT,
         hal_vfd_get_ops()->fault_reset(TEST_VFD_INVALID));
 }
 
@@ -178,7 +178,7 @@ static void test_brush_run_fwd(void)
 
 static void test_set_freq_invalid_id_returns_err(void)
 {
-    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM,
+    TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_INIT,
         hal_vfd_get_ops()->set_freq(TEST_VFD_INVALID, 5000U));
 }
 

@@ -168,6 +168,8 @@ if(BUILD_SIM)
         adapters/hal/sim_hw/*.c
         adapters/hal/generic/hal_sensor.c
         adapters/hal/generic/hal_do_group.c
+        adapters/hal/generic/hal_vfd.c
+        adapters/hal/generic/pulse_out.c
 
         # 存储适配器（param + deploy，路径可能与真机不同但接口相同）
         adapters/storage/json/*.c
@@ -533,6 +535,8 @@ if(BUILD_SIM)
     add_unit_test(test_hal_vfd_sim
         tests/unit/test_hal_vfd_sim.c
         adapters/hal/sim_hw/hal_vfd_sim.c
+        adapters/hal/generic/hal_vfd.c
+        adapters/hal/generic/pulse_out.c
     )
 
     # -----------------------------------------------------------------------

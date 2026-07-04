@@ -10,7 +10,6 @@
         "m8_machine_config.h": "c",
         "log.h": "c",
         "drv_vfd.h": "c",
-        "motor_internal.h": "c",
-        "m8_motor_table.h": "c"
+        "motor_internal.h": "c"
     }
 }

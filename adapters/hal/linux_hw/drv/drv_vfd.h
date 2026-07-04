@@ -6,7 +6,7 @@
  *
  * @note    驱动层只描述 VFD 的 Modbus 同步读写与 IO 引脚/挡位组合输出，
  *          不包含复位脉冲、正反向切换等待、周期采样或事件上报。
- *          时序与通信监测由上层 vfd_controller / vfd_comm_monitor 承接。
+ *          时序与通信监测由上层 generic/hal_vfd 承接。
  *          各厂家寄存器地址在 drv_vfd.c 内以宏区分。
  *          共用同一 serial_port 的实例在 drv 内自动共享 Modbus 互斥锁。
  *
@@ -143,7 +143,7 @@ sw_err_t drv_vfd_config_speed_io(drv_vfd_t    *vfd,
  * @retval     SW_ERR_NOT_INIT  vfd 未初始化，或非停止挡时速度 IO 尚未配置
  * @retval     SW_ERR_PARAM     gear 超出范围，或目标为反转但 VFD 不支持反转
  * @note   非停止挡要求已调用 drv_vfd_config_speed_io；
- *         正反转切换立即执行，无内部延迟；方向切换等待由上层 vfd_controller 负责；
+ *         正反转切换立即执行，无内部延迟；换向时序由控制层负责；
  *         IO 操作顺序：速度 IO 先于方向 IO；
  *         本接口不控制 Modbus 频率，频率须单独调用 drv_vfd_write(REG_FREQ)
  */
