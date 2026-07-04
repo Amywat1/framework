@@ -1,12 +1,12 @@
 /**
  * @file    m8_voice_setup.c
- * @brief   M8 机型语音模块实例绑定与告警事件接线
+ * @brief   M8 机型语音模块实例绑定与告警事件接�?
  * @author  HUWANGWEI
  * @date    2026-06-29
  */
 
 #include "projects/m8/bindings/m8_voice_setup.h"
-#include "framework/adapters/outbound/hal/linux_hw/hal_voice_linux.h"
+#include "framework/adapters/outbound/hal/providers/snack/modbus/snack_voice_adapter.h"
 #include "framework/adapters/outbound/hal/providers/snack/modbus/drv_voice.h"
 #include "projects/m8/config/m8_voice_table.h"
 #include "projects/m8/config/m8_alarm_table.h"
@@ -14,10 +14,10 @@
 #include "framework/domain/safety/model/alarm_code.h"
 #include "framework/common/log.h"
 
-/* 语音模块通信失败报警码（ALM_C_CTRL=4，ALM_CTRL_VOICE=5，ALM_N_COMM_LOST=2）*/
+/* 语音模块通信失败报警码（ALM_C_CTRL=4，ALM_CTRL_VOICE=5，ALM_N_COMM_LOST=2�?/
 #define VOICE_ALM_COMM_LOST ALARM_CODE_MAKE(ALM_C_CTRL, ALM_CTRL_VOICE, ALM_N_COMM_LOST)
 
-/* 通信状态事件回调：在 drv_voice 操作调用点同步触发/清除告警 */
+/* 通信状态事件回调：�?drv_voice 操作调用点同步触�?清除告警 */
 static void voice_event_cb(int event_code)
 {
     const alarm_binding_ops_t *alm = alarm_binding_get_ops();
@@ -36,7 +36,7 @@ sw_err_t m8_voice_setup(void)
 {
     sw_err_t ret;
 
-    ret = hal_voice_linux_init(M8_VOICE_SERIAL_PORT, M8_VOICE_BAUD, M8_VOICE_MODBUS_ADDR);
+    ret = snack_voice_adapter_init(M8_VOICE_SERIAL_PORT, M8_VOICE_BAUD, M8_VOICE_MODBUS_ADDR);
     if (ret != SW_OK) {
         LOG_ERROR("m8_voice_setup: init failed ret=%d", (int)ret);
         return ret;

@@ -1,6 +1,6 @@
 /**
  * @file    sim_console.c
- * @brief   仿真交互控制台（stdin 命令 → 注入传感器状态 / 命令事件）
+ * @brief   仿真交互控制台（stdin 命令 �?注入传感器状�?/ 命令事件�?
  * @author  HUWANGWEI
  * @date    2026-04-10
  */
@@ -8,7 +8,7 @@
 #include "framework/services/dev_ctx/dev_ctx.h"
 #include "framework/ports/inbound/command/command_port.h"
 #include "projects/m8/bindings/m8_signal_sim.h"
-#include "framework/adapters/outbound/hal/sim_hw/sim_encoder_counter.h"
+#include "framework/adapters/outbound/hal/sim/sim_encoder_counter.h"
 #include "framework/common/log.h"
 #include <stdio.h>
 #include <string.h>
@@ -36,7 +36,7 @@ static void inject_cmd(cmd_type_t type, wash_mode_t mode)
 }
 
 /* -------------------------------------------------------------------------
- * 内部：打印设备状态快照
+ * 内部：打印设备状态快�?
  * ------------------------------------------------------------------------- */
 static void print_state(void)
 {
@@ -50,7 +50,7 @@ static void print_state(void)
 }
 
 /* -------------------------------------------------------------------------
- * 内部：解析并执行一行命令
+ * 内部：解析并执行一行命�?
  * ------------------------------------------------------------------------- */
 static void handle_line(char *line)
 {
@@ -148,7 +148,7 @@ static void handle_line(char *line)
 }
 
 /* -------------------------------------------------------------------------
- * 控制台线程
+ * 控制台线�?
  * ------------------------------------------------------------------------- */
 static void *console_thread_fn(void *arg)
 {

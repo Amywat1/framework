@@ -1,15 +1,15 @@
 /**
- * @file    hal_vfd_bind.h
- * @brief   VFD 实例 backend 绑定配置（ports 层，供 generic/hal_vfd 与机型/平台注入）
+ * @file    hal_vfd_manager_bind.h
+ * @brief   VFD 实例 backend 绑定配置（ports 层，�?generic/hal_vfd 与机�?平台注入�?
  * @author  HUWANGWEI
  * @date    2026-07-04
  *
- * @note    组合层 hal_vfd 通过本结构体注入平台原语回调；
- *          机型 setup 在 bootstrap 阶段调用 hal_vfd_bind() 完成实例绑定。
+ * @note    组合�?hal_vfd 通过本结构体注入平台原语回调�?
+ *          机型 setup �?bootstrap 阶段调用 hal_vfd_manager_bind() 完成实例绑定�?
  */
 
-#ifndef PORTS_HAL_VFD_BIND_H
-#define PORTS_HAL_VFD_BIND_H
+#ifndef ADAPTERS_HAL_COMPONENTS_VFD_MANAGER_HAL_VFD_MANAGER_BIND_H
+#define ADAPTERS_HAL_COMPONENTS_VFD_MANAGER_HAL_VFD_MANAGER_BIND_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -21,12 +21,12 @@ extern "C" {
 #include <stdint.h>
 
 /** @brief generic/hal_vfd 支持的最大实例槽位数 */
-#define HAL_VFD_BIND_SLOT_MAX  8U
+#define HAL_VFD_MANAGER_SLOT_MAX  8U
 
-/** @brief 默认 RST 脉冲宽度（ms） */
+/** @brief 默认 RST 脉冲宽度（ms�?*/
 #define HAL_VFD_DEFAULT_RST_PULSE_MS       200U
 
-/** @brief 默认慢速监测轮询间隔（ms） */
+/** @brief 默认慢速监测轮询间隔（ms�?*/
 #define HAL_VFD_DEFAULT_MONITOR_PERIOD_MS    2000U
 
 /**
@@ -48,7 +48,7 @@ typedef hal_vfd_state_t (*hal_vfd_backend_get_state_fn)(void *ctx);
 typedef bool (*hal_vfd_backend_has_rst_pin_fn)(void *ctx);
 
 /**
- * @brief  单 VFD 实例 backend 与策略参数
+ * @brief  �?VFD 实例 backend 与策略参�?
  */
 typedef struct
 {
@@ -64,10 +64,10 @@ typedef struct
     uint32_t               rst_pulse_ms;
     uint32_t               monitor_period_ms;
     hal_vfd_monitor_mask_t monitor_mask;
-} hal_vfd_bind_cfg_t;
+} hal_vfd_manager_bind_cfg_t;
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* PORTS_HAL_VFD_BIND_H */
+#endif /* ADAPTERS_HAL_COMPONENTS_VFD_MANAGER_HAL_VFD_MANAGER_BIND_H */

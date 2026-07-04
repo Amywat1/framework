@@ -1,12 +1,12 @@
 /**
  * @file    m8_voice_table.h
- * @brief   M8 机型语音模块实例配置表
+ * @brief   M8 机型语音模块实例配置�?
  * @author  HUWANGWEI
  * @date    2026-06-29
  *
- * @note    本文件描述 M8 机型语音模块的通信参数。
- *          驱动层（drv_voice）与 HAL adapter（hal_voice_linux）只保留通用接口；
- *          具体串口、波特率、Modbus 地址统一收口到这里。
+ * @note    本文件描�?M8 机型语音模块的通信参数�?
+ *          驱动层（drv_voice）与 HAL adapter（hal_voice_linux）只保留通用接口�?
+ *          具体串口、波特率、Modbus 地址统一收口到这里�?
  */
 
 #ifndef CONFIG_MACHINE_M8_VOICE_TABLE_H

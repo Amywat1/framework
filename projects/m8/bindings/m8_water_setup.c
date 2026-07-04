@@ -1,6 +1,6 @@
 /**
  * @file    m8_water_setup.c
- * @brief   M8 机型水路绑定表应用与 domain 执行器注入
+ * @brief   M8 机型水路绑定表应用与 domain 执行器注�?
  * @author  HUWANGWEI
  * @date    2026-06-07
  */
@@ -14,13 +14,13 @@
 #include <assert.h>
 #include <stddef.h>
 
-/* 编译期断言：确保水路枚举不超出 HAL 二维表上限 */
+/* 编译期断言：确保水路枚举不超出 HAL 二维表上�?*/
 _Static_assert((unsigned)WATER_CH_COUNT    <= HAL_DO_GROUP_MAX,
                "WATER_CH_COUNT 超过 HAL_DO_GROUP_MAX，需相应扩大 hal_do_group 上限");
 _Static_assert((unsigned)WATER_SLOT_COUNT <= HAL_DO_SLOT_MAX,
                "WATER_SLOT_COUNT 超过 HAL_DO_SLOT_MAX，需相应扩大 hal_do_group 上限");
 
-#include "framework/adapters/outbound/hal/generic/hal_do_group.h"
+#include "framework/adapters/outbound/hal/components/do_group_mapper/hal_do_group_mapper.h"
 
 static sw_err_t m8_bind_group_slot(hal_do_group_t group,
                                    hal_do_slot_t  slot,

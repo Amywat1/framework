@@ -1,6 +1,6 @@
 /**
  * @file    m8_voice_setup.h
- * @brief   M8 机型语音模块绑定初始化
+ * @brief   M8 机型语音模块绑定初始�?
  * @author  HUWANGWEI
  * @date    2026-06-29
  */
@@ -16,7 +16,7 @@ extern "C" {
 
 /**
  * @brief  初始化语音模块实例并注册通信事件回调（告警联动）
- * @note   须在 hal_voice_linux_register() 之后调用
+ * @note   须在 snack_voice_adapter_register() 之后调用
  */
 sw_err_t m8_voice_setup(void);
 

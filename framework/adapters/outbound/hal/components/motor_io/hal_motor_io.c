@@ -1,11 +1,11 @@
 /**
- * @file    hal_motor.c
- * @brief   通用电机 HAL 通用适配层实现（依赖 hal_io_port，无平台 SDK，无 VFD 直接依赖）
+ * @file    hal_motor_io.c
+ * @brief   通用电机 HAL 通用适配层实现（依赖 hal_io_port，无平台 SDK，无 VFD 直接依赖�?
  * @author  HUWANGWEI
  * @date    2026-04-13
  */
 
-#include "framework/adapters/outbound/hal/generic/hal_motor.h"
+#include "framework/adapters/outbound/hal/components/motor_io/hal_motor_io.h"
 
 #include "framework/common/log.h"
 #include "framework/ports/outbound/hal/hal_io_port.h"
@@ -15,10 +15,10 @@
 
 typedef struct {
     bool                 bound;
-    hal_motor_bind_cfg_t cfg;
+    hal_motor_io_bind_cfg_t cfg;
 } motor_bind_slot_t;
 
-static motor_bind_slot_t s_slot[HAL_MOTOR_BIND_SLOT_MAX];
+static motor_bind_slot_t s_slot[HAL_MOTOR_IO_SLOT_MAX];
 
 static sw_err_t motor_do_set(io_do_t pin, bool val)
 {
@@ -53,14 +53,14 @@ static bool is_do_valid(io_do_t pin)
 
 static motor_bind_slot_t *slot_by_id(int id)
 {
-    if ((id < 0) || (id >= HAL_MOTOR_BIND_SLOT_MAX) || !s_slot[id].bound) {
+    if ((id < 0) || (id >= HAL_MOTOR_IO_SLOT_MAX) || !s_slot[id].bound) {
         return NULL;
     }
     return &s_slot[id];
 }
 
 
-static sw_err_t set_do_output(const hal_motor_bind_cfg_t *cfg, int speed_ref)
+static sw_err_t set_do_output(const hal_motor_io_bind_cfg_t *cfg, int speed_ref)
 {
     sw_err_t ret = SW_OK;
 
@@ -240,11 +240,11 @@ static sw_err_t hal_motor_fault_reset(int id)
     return slot->cfg.fault_reset(slot->cfg.drv_ctx);
 }
 
-sw_err_t hal_motor_bind(int motor_id, const hal_motor_bind_cfg_t *cfg)
+sw_err_t hal_motor_io_bind(int motor_id, const hal_motor_io_bind_cfg_t *cfg)
 {
     motor_bind_slot_t *slot;
 
-    if ((cfg == NULL) || (motor_id < 0) || (motor_id >= HAL_MOTOR_BIND_SLOT_MAX)) {
+    if ((cfg == NULL) || (motor_id < 0) || (motor_id >= HAL_MOTOR_IO_SLOT_MAX)) {
         return SW_ERR_PARAM;
     }
 
@@ -266,7 +266,7 @@ static const hal_motor_ops_t s_ops = {
     .fault_reset            = hal_motor_fault_reset,
 };
 
-void hal_motor_generic_register(void)
+void hal_motor_io_register(void)
 {
     hal_motor_register(&s_ops);
 }

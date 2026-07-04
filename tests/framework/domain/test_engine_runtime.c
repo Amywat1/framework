@@ -1,13 +1,13 @@
 /**
  * @file    test_engine_runtime.c
- * @brief   引擎运行时状态机单元测试（sim IO 后端 + 小型 JSON 方案）
+ * @brief   引擎运行时状态机单元测试（sim IO 后端 + 小型 JSON 方案�?
  * @author  huwangwei
  * @date    2026-06-26
  */
 
 #include "framework/domain/wash/engine/engine.h"
 #include "framework/adapters/outbound/storage/json/engine_program_json.h"
-#include "framework/adapters/outbound/hal/sim_hw/engine_io_sim.h"
+#include "framework/adapters/outbound/hal/sim/engine_io_sim.h"
 #include "unity.h"
 
 #include <stdio.h>
@@ -88,7 +88,7 @@ static void test_signal_edge(void)
     engine_destroy(e);
 }
 
-/* ---- 持续输出（trigger_exit）+ on_exit 清零 + 阶段推进 ---- */
+/* ---- 持续输出（trigger_exit�? on_exit 清零 + 阶段推进 ---- */
 static void test_trigger_exit_and_on_exit(void)
 {
     static const char *json =
@@ -113,7 +113,7 @@ static void test_trigger_exit_and_on_exit(void)
     engine_destroy(e);
 }
 
-/* ---- 阶段串行 + done signal 超时 → on_error ---- */
+/* ---- 阶段串行 + done signal 超时 �?on_error ---- */
 static void test_phase_serial_and_done_timeout(void)
 {
     static const char *json =
@@ -239,7 +239,7 @@ static void test_interlock_custom(void)
     engine_destroy(e);
 }
 
-/* ---- 标记锁存 + 写一次保护 ---- */
+/* ---- 标记锁存 + 写一次保�?---- */
 static void test_marker_latch_once(void)
 {
     static const char *json =

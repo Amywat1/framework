@@ -1,11 +1,11 @@
 /**
  * @file    hal_vfd_sim.c
- * @brief   变频器 HAL 仿真实现（generic/hal_vfd + 仿真 backend）
+ * @brief   变频�?HAL 仿真实现（generic/hal_vfd + 仿真 backend�?
  * @author  HUWANGWEI
  * @date    2026-06-01
  */
 
-#include "framework/adapters/outbound/hal/generic/hal_vfd.h"
+#include "framework/adapters/outbound/hal/components/vfd_manager/hal_vfd_manager.h"
 #include "projects/m8/config/m8_vfd_table.h"
 #include "framework/common/log.h"
 
@@ -123,7 +123,7 @@ static bool sim_has_rst_pin(void *ctx)
 
 static sw_err_t sim_bind_one(hal_vfd_id_t id)
 {
-    hal_vfd_bind_cfg_t cfg;
+    hal_vfd_manager_bind_cfg_t cfg;
 
     s_ctx[id].id                 = id;
     s_ctx[id].state              = HAL_VFD_STATE_STOPPED;
@@ -141,7 +141,7 @@ static sw_err_t sim_bind_one(hal_vfd_id_t id)
     cfg.rst_pulse_ms       = HAL_VFD_DEFAULT_RST_PULSE_MS;
     cfg.monitor_period_ms  = HAL_VFD_DEFAULT_MONITOR_PERIOD_MS;
     cfg.monitor_mask       = HAL_VFD_MON_NONE;
-    return hal_vfd_bind(id, &cfg);
+    return hal_vfd_manager_bind(id, &cfg);
 }
 
 void hal_vfd_sim_register(void)
@@ -154,6 +154,6 @@ void hal_vfd_sim_register(void)
         return;
     }
 
-    hal_vfd_generic_register();
+    hal_vfd_manager_register();
     LOG_INFO("hal_vfd_sim: registered");
 }

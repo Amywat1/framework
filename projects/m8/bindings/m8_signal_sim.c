@@ -8,7 +8,7 @@
 #ifdef BUILD_SIM
 
 #include "projects/m8/bindings/m8_signal_sim.h"
-#include "framework/adapters/outbound/hal/sim_hw/hal_io_sim.h"
+#include "framework/adapters/outbound/hal/sim/hal_io_sim.h"
 
 static void sync_signal_di(m8_signal_id_t sig_id, bool active)
 {

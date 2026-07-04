@@ -5,7 +5,7 @@
  * @date    2026-04-14
  */
 
-#include "framework/adapters/outbound/hal/sim_hw/sim_encoder_counter.h"
+#include "framework/adapters/outbound/hal/sim/sim_encoder_counter.h"
 #include <stddef.h>
 #include <stdatomic.h>
 
@@ -30,7 +30,7 @@ void sim_encoder_counter_add_pulse(int id, int delta)
         return;
     }
 
-    /* 硬件计数器只累计脉冲数，方向由 motor.c 根据当前运动方向解释。 */
+    /* 硬件计数器只累计脉冲数，方向�?motor.c 根据当前运动方向解释�?*/
     step = (delta > 0) ? (uint32_t)delta : (uint32_t)(-delta);
     atomic_fetch_add(&s_counter[id], step);
 }

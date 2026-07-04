@@ -5,7 +5,7 @@
  * @date    2026-04-10
  */
 
-#include "framework/adapters/outbound/hal/sim_hw/hal_io_sim.h"
+#include "framework/adapters/outbound/hal/sim/hal_io_sim.h"
 #include "framework/ports/outbound/hal/hal_io_port.h"
 #include "framework/common/io_handle.h"
 #include "framework/common/log.h"

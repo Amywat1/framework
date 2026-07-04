@@ -5,10 +5,10 @@
  * @date    2026-04-13
  */
 
-#include "framework/adapters/outbound/hal/sim_hw/hal_motor_sim.h"
+#include "framework/adapters/outbound/hal/sim/hal_motor_sim.h"
 #include "framework/ports/outbound/hal/hal_motor_port.h"
 #include "framework/ports/outbound/hal/hal_io_port.h"
-#include "framework/adapters/outbound/hal/sim_hw/sim_encoder_counter.h"
+#include "framework/adapters/outbound/hal/sim/sim_encoder_counter.h"
 #include "framework/common/log.h"
 
 #include <string.h>
@@ -16,11 +16,11 @@
 typedef struct
 {
     bool                 bound;
-    hal_motor_bind_cfg_t cfg;
+    hal_motor_io_bind_cfg_t cfg;
     int                  speed_ref;
 } motor_sim_slot_t;
 
-static motor_sim_slot_t s_slot[HAL_MOTOR_BIND_SLOT_MAX];
+static motor_sim_slot_t s_slot[HAL_MOTOR_IO_SLOT_MAX];
 
 static bool is_di_valid(io_di_t pin)
 {
@@ -29,7 +29,7 @@ static bool is_di_valid(io_di_t pin)
 
 static motor_sim_slot_t *slot_by_id(int id)
 {
-    if ((id < 0) || (id >= HAL_MOTOR_BIND_SLOT_MAX) || !s_slot[id].bound)
+    if ((id < 0) || (id >= HAL_MOTOR_IO_SLOT_MAX) || !s_slot[id].bound)
     {
         return NULL;
     }
@@ -177,11 +177,11 @@ static sw_err_t sim_motor_fault_reset(int id)
     return slot->cfg.fault_reset(slot->cfg.drv_ctx);
 }
 
-sw_err_t hal_motor_sim_bind(int motor_id, const hal_motor_bind_cfg_t *cfg)
+sw_err_t hal_motor_sim_bind(int motor_id, const hal_motor_io_bind_cfg_t *cfg)
 {
     motor_sim_slot_t *slot;
 
-    if ((cfg == NULL) || (motor_id < 0) || (motor_id >= HAL_MOTOR_BIND_SLOT_MAX))
+    if ((cfg == NULL) || (motor_id < 0) || (motor_id >= HAL_MOTOR_IO_SLOT_MAX))
     {
         return SW_ERR_PARAM;
     }

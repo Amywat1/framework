@@ -1,11 +1,11 @@
 /**
  * @file    hal_io_port.h
- * @brief   数字 IO HAL 端口接口（模块对外唯一入口）
+ * @brief   数字 IO HAL 端口接口（模块对外唯一入口�?
  * @author  HUWANGWEI
  * @date    2026-04-10
  *
- * @note    业务层与其它 HAL 适配器仅通过本接口访问 IO；
- *          平台实现（hal_io_linux / hal_io_sim）内部对接 drv_io 或仿真状态。
+ * @note    业务层与其它 HAL 适配器仅通过本接口访�?IO�?
+ *          平台实现（hal_io_linux / hal_io_sim）内部对�?drv_io 或仿真状态�?
  */
 
 #ifndef PORTS_HAL_IO_PORT_H
@@ -46,25 +46,25 @@ typedef void (*hal_io_panic_cb_t)(void);
 
 typedef struct
 {
-    /** @brief  初始化 IO 模块内部状态（不启动后台线程） */
+    /** @brief  初始�?IO 模块内部状态（不启动后台线程） */
     sw_err_t (*init)(void);
 
-    /** @brief  启动 IO 读写后台线程（真机 drv_io 自管，仿真可为空操作） */
+    /** @brief  启动 IO 读写后台线程（真�?drv_io 自管，仿真可为空操作�?*/
     sw_err_t (*start)(void);
 
-    /** @brief  注册全板离线 panic 回调（panic 前尽力落安全输出） */
+    /** @brief  注册全板离线 panic 回调（panic 前尽力落安全输出�?*/
     void (*register_panic_cb)(hal_io_panic_cb_t cb);
 
-    /** @brief  立即将输出缓冲刷到硬件 */
+    /** @brief  立即将输出缓冲刷到硬�?*/
     sw_err_t (*flush_outputs_now)(void);
 
     /** @brief  查询 IO 子板是否在线（读缓存，后台线程更新） */
     bool (*board_is_online)(int board_id);
 
     /**
-     * @brief  同步轮询等待所有 IO 子板就绪（启动阶段使用，后台线程启动前可调用）
-     * @param  timeout_ms  最长等待时间（ms）
-     * @retval SW_OK           所有子板在超时内就绪
+     * @brief  同步轮询等待所�?IO 子板就绪（启动阶段使用，后台线程启动前可调用�?
+     * @param  timeout_ms  最长等待时间（ms�?
+     * @retval SW_OK           所有子板在超时内就�?
      * @retval SW_ERR_TIMEOUT  超时仍有子板离线
      */
     sw_err_t (*wait_boards_online)(uint32_t timeout_ms);
@@ -75,18 +75,18 @@ typedef struct
     void (*register_debug_input_cb)(hal_io_debug_input_cb_t cb);
     void (*register_board_status_cb)(hal_io_board_status_cb_t cb);
 
-    /** @brief  按名称解析 DI/DO（CLI 诊断） */
+    /** @brief  按名称解�?DI/DO（CLI 诊断�?*/
     bool (*try_parse_di)(const char *name, io_di_t *out);
     bool (*try_parse_do)(const char *name, io_do_t *out);
 
-    /** @brief  句柄可读名称（未知时返回 NULL） */
+    /** @brief  句柄可读名称（未知时返回 NULL�?*/
     const char *(*di_name)(io_di_t pin);
     const char *(*do_name)(io_do_t pin);
 
     /** @brief  子板数量 */
     int (*board_count)(void);
 
-    /** @brief  子板运行时统计 */
+    /** @brief  子板运行时统�?*/
     sw_err_t (*get_stats)(int board_id, hal_io_stats_t *out);
 
     /** @brief  读取 DI 引脚的硬件脉冲计数器；负值或 0x0FFFFFFF 表示读取失败 */

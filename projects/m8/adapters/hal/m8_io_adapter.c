@@ -1,5 +1,5 @@
 /**
- * @file    hal_io_linux.c
+ * @file    m8_io_adapter.c
  * @brief   数字 IO HAL 端口 Linux 真机实现
  * @author  HUWANGWEI
  * @date    2026-04-10
@@ -11,13 +11,13 @@
 #include "projects/m8/config/m8_io_table.h"
 #include <string.h>
 
-/* hal_io_stats_t 与 drv_io_stats_t 字段完全镜像，get_stats 用 memcpy 复制。
- * 若两者大小不同，说明其中一方新增了字段但另一方未同步，编译时报错提醒维护。*/
+/* hal_io_stats_t �?drv_io_stats_t 字段完全镜像，get_stats �?memcpy 复制�?
+ * 若两者大小不同，说明其中一方新增了字段但另一方未同步，编译时报错提醒维护�?/
 _Static_assert(sizeof(hal_io_stats_t) == sizeof(drv_io_stats_t),
                "hal_io_stats_t and drv_io_stats_t must remain identical");
 
 /* -------------------------------------------------------------------------
- * M8 IO 名称映射表（通过 X-macro 展开 m8_io_table.h 生成）
+ * M8 IO 名称映射表（通过 X-macro 展开 m8_io_table.h 生成�?
  * ------------------------------------------------------------------------- */
 static const drv_io_name_entry_t s_di_table[] = {
 #define DRV_IO_DI_DEF(name, board, pin, desc) \
@@ -165,7 +165,7 @@ static const hal_io_ops_t s_ops = {
     .pulse_clear              = pulse_clear,
 };
 
-void hal_io_linux_register(void)
+void m8_io_adapter_register(void)
 {
     hal_io_register(&s_ops);
 }

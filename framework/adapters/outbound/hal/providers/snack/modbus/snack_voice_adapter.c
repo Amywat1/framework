@@ -1,11 +1,11 @@
 /**
- * @file    hal_voice_linux.c
- * @brief   语音模块 HAL 端口 Linux 真机实现（drv_voice 转发）
+ * @file    snack_voice_adapter.c
+ * @brief   语音模块 HAL 端口 Linux 真机实现（drv_voice 转发�?
  * @author  HUWANGWEI
  * @date    2026-06-29
  */
 
-#include "framework/adapters/outbound/hal/linux_hw/hal_voice_linux.h"
+#include "framework/adapters/outbound/hal/providers/snack/modbus/snack_voice_adapter.h"
 #include "framework/ports/outbound/hal/hal_voice_port.h"
 #include "framework/adapters/outbound/hal/providers/snack/modbus/drv_voice.h"
 
@@ -20,9 +20,9 @@ static bool voice_ready(void)
 }
 
 /* -------------------------------------------------------------------------
- * 供机型适配层调用的初始化接口
+ * 供机型适配层调用的初始化接�?
  * ------------------------------------------------------------------------- */
-sw_err_t hal_voice_linux_init(const char *serial_port, int baud, int modbus_addr)
+sw_err_t snack_voice_adapter_init(const char *serial_port, int baud, int modbus_addr)
 {
     sw_err_t ret;
 
@@ -42,7 +42,7 @@ sw_err_t hal_voice_linux_init(const char *serial_port, int baud, int modbus_addr
  * ------------------------------------------------------------------------- */
 static sw_err_t voice_init(void)
 {
-    /* 实例初始化由 hal_voice_linux_init 在 bootstrap 阶段完成，此处仅占位 */
+    /* 实例初始化由 snack_voice_adapter_init �?bootstrap 阶段完成，此处仅占位 */
     return SW_OK;
 }
 
@@ -112,7 +112,7 @@ static const hal_voice_ops_t s_ops = {
     .register_event_cb  = voice_register_event_cb,
 };
 
-void hal_voice_linux_register(void)
+void snack_voice_adapter_register(void)
 {
     hal_voice_register(&s_ops);
 }

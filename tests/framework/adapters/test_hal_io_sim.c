@@ -2,14 +2,14 @@
  * @file    test_hal_io_sim.c
  * @brief   hal_io_sim 数字 IO 仿真 HAL 单元测试
  *
- * 分组：
+ * 分组�?
  *   A. DI 读写
  *   B. DO 输出
- *   C. 脉冲计数器
+ *   C. 脉冲计数�?
  *   D. 实用接口
  */
 
-#include "framework/adapters/outbound/hal/sim_hw/hal_io_sim.h"
+#include "framework/adapters/outbound/hal/sim/hal_io_sim.h"
 #include "framework/ports/outbound/hal/hal_io_port.h"
 #include "framework/common/io_handle.h"
 #include "framework/common/sw_error.h"
@@ -18,17 +18,17 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-/* 有效仿真句柄：board=1（>0, <SIM_IO_BOARD_MAX=8），pin=1（>0, <=32）*/
+/* 有效仿真句柄：board=1�?0, <SIM_IO_BOARD_MAX=8），pin=1�?0, <=32�?/
 static const io_di_t k_valid_di = IO_DI(1U, 1U);
 static const io_do_t k_valid_do = IO_DO(1U, 2U);
 
-/* board=0 为无效（sim 要求 board>0）*/
+/* board=0 为无效（sim 要求 board>0�?/
 static const io_di_t k_bad_di   = IO_DI(0U, 1U);
 static const io_do_t k_bad_do   = IO_DO(0U, 2U);
 
 void setUp(void)
 {
-    /* register 会调用 sim_io_init() 清空全部状态 */
+    /* register 会调�?sim_io_init() 清空全部状�?*/
     hal_io_sim_register();
 }
 
@@ -58,7 +58,7 @@ static void test_set_di_level_false_and_read(void)
 
 static void test_di_invalid_board_returns_false(void)
 {
-    hal_io_sim_set_di_level(k_bad_di, true); /* 无效句柄，静默忽略 */
+    hal_io_sim_set_di_level(k_bad_di, true); /* 无效句柄，静默忽�?*/
     TEST_ASSERT_FALSE(hal_io_get_ops()->di_read(k_bad_di));
 }
 
@@ -77,7 +77,7 @@ static void test_do_set_invalid_board_returns_err(void)
 }
 
 /* =========================================================================
- * C. 脉冲计数器
+ * C. 脉冲计数�?
  * ========================================================================= */
 
 static void test_pulse_read_after_set_counter(void)
@@ -107,7 +107,7 @@ static void test_pulse_clear_invalid_pin_returns_err(void)
 static void test_pulse_counter_init_clears_value(void)
 {
     hal_io_sim_set_pulse_counter(k_valid_di, 777U);
-    /* 重新 register 会调用 sim_io_init()，清空所有计数器 */
+    /* 重新 register 会调�?sim_io_init()，清空所有计数器 */
     hal_io_sim_register();
     TEST_ASSERT_EQUAL_INT(0, hal_io_get_ops()->pulse_read(k_valid_di));
 }
@@ -149,7 +149,7 @@ static void test_get_stats_null_returns_err(void)
 
 static void test_di_pin_zero_returns_false(void)
 {
-    /* pin=0 无效（sim 要求 pin > 0） */
+    /* pin=0 无效（sim 要求 pin > 0�?*/
     io_di_t pin_zero = IO_DI(1U, 0U);
     hal_io_sim_set_di_level(pin_zero, true); /* 静默忽略 */
     TEST_ASSERT_FALSE(hal_io_get_ops()->di_read(pin_zero));
@@ -157,12 +157,12 @@ static void test_di_pin_zero_returns_false(void)
 
 static void test_di_board_max_boundary(void)
 {
-    /* board=7（SIM_IO_BOARD_MAX-1）为合法最大板号 */
+    /* board=7（SIM_IO_BOARD_MAX-1）为合法最大板�?*/
     io_di_t pin_max_board = IO_DI(7U, 1U);
     hal_io_sim_set_di_level(pin_max_board, true);
     TEST_ASSERT_TRUE(hal_io_get_ops()->di_read(pin_max_board));
 
-    /* board=8 >= SIM_IO_BOARD_MAX，无效 */
+    /* board=8 >= SIM_IO_BOARD_MAX，无�?*/
     io_di_t pin_over_board = IO_DI(8U, 1U);
     hal_io_sim_set_di_level(pin_over_board, true);
     TEST_ASSERT_FALSE(hal_io_get_ops()->di_read(pin_over_board));
@@ -205,7 +205,7 @@ static void test_start_returns_ok(void)
 
 static void test_pulse_counter_max_value(void)
 {
-    /* uint32 最大值存储后应原样读出（截断为 int 前先验证无溢出崩溃）*/
+    /* uint32 最大值存储后应原样读出（截断�?int 前先验证无溢出崩溃）*/
     io_di_t pin = IO_DI(1U, 5U);
     hal_io_sim_set_pulse_counter(pin, (uint32_t)0x7FFFFFFFU); /* INT_MAX */
     TEST_ASSERT_EQUAL_INT((int)0x7FFFFFFFU, hal_io_get_ops()->pulse_read(pin));

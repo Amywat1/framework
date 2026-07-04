@@ -1,22 +1,22 @@
 /**
- * @file    hal_vfd_linux.c
- * @brief   Linux 真机 VFD HAL：drv_vfd backend + generic/hal_vfd 组合层
+ * @file    snack_vfd_backend.c
+ * @brief   Linux 真机 VFD HAL：drv_vfd backend + generic/hal_vfd 组合�?
  * @author  HUWANGWEI
  * @date    2026-06-01
  */
 
-#include "framework/adapters/outbound/hal/linux_hw/hal_vfd_linux.h"
+#include "framework/adapters/outbound/hal/providers/snack/modbus/snack_vfd_backend.h"
 
-#include "framework/adapters/outbound/hal/generic/hal_vfd.h"
+#include "framework/adapters/outbound/hal/components/vfd_manager/hal_vfd_manager.h"
 #include "framework/adapters/outbound/hal/providers/snack/io_exp/io_exp_driver.h"
 #include "framework/adapters/outbound/hal/providers/snack/modbus/drv_vfd.h"
 
 #include <string.h>
 
-#define VFD_LINUX_SLOT_COUNT  8U
+#define SNACK_VFD_BACKEND_SLOT_COUNT  8U
 
-static drv_vfd_t  s_vfd[VFD_LINUX_SLOT_COUNT];
-static bool       s_drv_inited[VFD_LINUX_SLOT_COUNT];
+static drv_vfd_t  s_vfd[SNACK_VFD_BACKEND_SLOT_COUNT];
+static bool       s_drv_inited[SNACK_VFD_BACKEND_SLOT_COUNT];
 
 static sw_err_t vfd_do_set(io_do_t pin, bool val)
 {
@@ -25,7 +25,7 @@ static sw_err_t vfd_do_set(io_do_t pin, bool val)
 
 static bool vfd_id_valid(hal_vfd_id_t id)
 {
-    return ((unsigned)id < VFD_LINUX_SLOT_COUNT);
+    return ((unsigned)id < SNACK_VFD_BACKEND_SLOT_COUNT);
 }
 
 static drv_vfd_t *vfd_by_id(hal_vfd_id_t id)
@@ -78,10 +78,10 @@ static bool backend_has_rst_pin(void *ctx)
     return vfd->pin_rst.raw != IO_HANDLE_NULL;
 }
 
-static sw_err_t linux_bind_instance(hal_vfd_id_t id, drv_vfd_t *vfd,
+static sw_err_t snack_bind_instance(hal_vfd_id_t id, drv_vfd_t *vfd,
                                     hal_vfd_monitor_mask_t mask)
 {
-    hal_vfd_bind_cfg_t cfg;
+    hal_vfd_manager_bind_cfg_t cfg;
 
     cfg.drv_ctx            = vfd;
     cfg.apply_gear         = backend_apply_gear;
@@ -94,11 +94,11 @@ static sw_err_t linux_bind_instance(hal_vfd_id_t id, drv_vfd_t *vfd,
     cfg.rst_pulse_ms       = HAL_VFD_DEFAULT_RST_PULSE_MS;
     cfg.monitor_period_ms  = HAL_VFD_DEFAULT_MONITOR_PERIOD_MS;
     cfg.monitor_mask       = mask;
-    return hal_vfd_bind(id, &cfg);
+    return hal_vfd_manager_bind(id, &cfg);
 }
 
-sw_err_t hal_vfd_linux_instance_init(hal_vfd_id_t id,
-                                     const hal_vfd_linux_instance_cfg_t *cfg)
+sw_err_t snack_vfd_backend_instance_init(hal_vfd_id_t id,
+                                     const snack_vfd_backend_instance_cfg_t *cfg)
 {
     sw_err_t ret;
 
@@ -135,7 +135,7 @@ sw_err_t hal_vfd_linux_instance_init(hal_vfd_id_t id,
         }
     }
 
-    ret = linux_bind_instance(id, &s_vfd[(unsigned)id], cfg->monitor_mask);
+    ret = snack_bind_instance(id, &s_vfd[(unsigned)id], cfg->monitor_mask);
     if (ret != SW_OK)
     {
         s_drv_inited[(unsigned)id] = false;
@@ -146,17 +146,17 @@ sw_err_t hal_vfd_linux_instance_init(hal_vfd_id_t id,
     return SW_OK;
 }
 
-sw_err_t hal_vfd_linux_instance_set_monitor_mask(hal_vfd_id_t id,
+sw_err_t snack_vfd_backend_instance_set_monitor_mask(hal_vfd_id_t id,
                                                   hal_vfd_monitor_mask_t mask)
 {
     if (!vfd_id_valid(id) || !s_drv_inited[(unsigned)id])
     {
         return SW_ERR_NOT_INIT;
     }
-    return hal_vfd_set_monitor_mask(id, mask);
+    return hal_vfd_manager_set_monitor_mask(id, mask);
 }
 
-void hal_vfd_linux_register(void)
+void snack_vfd_backend_register(void)
 {
-    hal_vfd_generic_register();
+    hal_vfd_manager_register();
 }

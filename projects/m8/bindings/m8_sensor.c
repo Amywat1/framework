@@ -10,7 +10,7 @@
 #include "framework/ports/outbound/hal/hal_sensor_port.h"
 #include "framework/common/log.h"
 
-#include "framework/adapters/outbound/hal/generic/hal_sensor.h"
+#include "framework/adapters/outbound/hal/components/sensor_filter/hal_sensor_filter.h"
 
 #include <pthread.h>
 #include <unistd.h>
@@ -22,7 +22,7 @@ _Static_assert((unsigned)M8_SIG_MAX <= HAL_SENSOR_CHANNEL_MAX,
                "M8_SIG_MAX 超过 HAL_SENSOR_CHANNEL_MAX，需扩大 hal_sensor 通道上限");
 
 /* -------------------------------------------------------------------------
- * 初始化
+ * 初始�?
  * ------------------------------------------------------------------------- */
 
 static sw_err_t apply_signal_table(void)
@@ -146,7 +146,7 @@ sw_err_t m8_sensor_poll_start(void)
 }
 
 /* -------------------------------------------------------------------------
- * 运行时查询
+ * 运行时查�?
  * ------------------------------------------------------------------------- */
 
 void m8_signal_filter_tick(void)

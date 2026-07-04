@@ -6,7 +6,7 @@
  */
 
 #include "projects/m8/tests/scenario/m8_device_model.h"
-#include "framework/adapters/outbound/hal/sim_hw/engine_io_sim.h"
+#include "framework/adapters/outbound/hal/sim/engine_io_sim.h"
 
 /* 物理参数（具名常量） */
 #define DM_TRAVEL_LEN     1000.0   /* 龙门行程总长（脉冲） */
@@ -15,10 +15,10 @@
 #define DM_LIFT_STEP        10.0   /* 升降每拍位移 */
 #define DM_LOCK_MAX        100.0   /* 后轮锁止行程 */
 #define DM_LOCK_STEP        10.0   /* 锁止每拍位移 */
-#define DM_CAR_TAIL_POS    700.0   /* 车尾对应的龙门位置（脉冲） */
+#define DM_CAR_TAIL_POS    700.0   /* 车尾对应的龙门位置（脉冲�?*/
 
 static double s_gantry_pos;  /* 龙门位置 0..DM_TRAVEL_LEN */
-static double s_lift_pos;    /* 升降位置 0(下)..DM_LIFT_MAX(上) */
+static double s_lift_pos;    /* 升降位置 0(�?..DM_LIFT_MAX(�? */
 static double s_lock_pos;    /* 锁止位置 0..DM_LOCK_MAX(归位) */
 
 static double clampd(double v, double lo, double hi)
@@ -34,14 +34,14 @@ void m8_device_model_init(void)
     s_lift_pos   = 0.0;
     s_lock_pos   = 0.0;
 
-    /* 初始安全信号：均无故障 */
+    /* 初始安全信号：均无故�?*/
     engine_io_sim_set_signal("ESTOP", 0);
     engine_io_sim_set_signal("BUMPER_LEFT", 0);
     engine_io_sim_set_signal("BUMPER_RIGHT", 0);
     engine_io_sim_set_signal("TOP_BRUSH_COLLISION", 0);
     engine_io_sim_set_signal("GANTRY_PAUSE_REQUEST", 0);
 
-    /* 初始机构状态：龙门后限位、升降下限位、锁止未归位、未检测车尾 */
+    /* 初始机构状态：龙门后限位、升降下限位、锁止未归位、未检测车�?*/
     engine_io_sim_set_signal("GANTRY_FWD_LIMIT", 0);
     engine_io_sim_set_signal("GANTRY_REV_LIMIT", 1);
     engine_io_sim_set_signal("LIFT_UP_LIMIT", 0);

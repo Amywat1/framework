@@ -1,11 +1,11 @@
 /**
- * @file    hal_do_group.c
- * @brief   DO 组×槽位 HAL 端口实现（依赖 hal_io_port，无平台 SDK）
+ * @file    hal_do_group_mapper.c
+ * @brief   DO 组×槽�?HAL 端口实现（依�?hal_io_port，无平台 SDK�?
  * @author  HUWANGWEI
  * @date    2026-04-10
  */
 
-#include "framework/adapters/outbound/hal/generic/hal_do_group.h"
+#include "framework/adapters/outbound/hal/components/do_group_mapper/hal_do_group_mapper.h"
 #include "framework/ports/outbound/hal/hal_do_group_port.h"
 #include "framework/ports/outbound/hal/hal_io_port.h"
 #include "framework/common/io_handle.h"
@@ -95,7 +95,7 @@ static const hal_do_group_ops_t s_ops = {
     .all_off  = do_group_all_off,
 };
 
-void hal_do_group_generic_register(void)
+void hal_do_group_mapper_register(void)
 {
     hal_do_group_register(&s_ops);
 }

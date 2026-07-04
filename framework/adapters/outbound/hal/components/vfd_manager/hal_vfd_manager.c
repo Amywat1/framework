@@ -1,16 +1,16 @@
 /**
- * @file    hal_vfd.c
- * @brief   VFD HAL 通用组合层实现
+ * @file    hal_vfd_manager.c
+ * @brief   VFD HAL 通用组合层实�?
  * @author  HUWANGWEI
  * @date    2026-07-04
  *
- * @note    不含正反向切换等待；run/stop 为即时 backend 调用。
- *          tick() 推进 RST 脉冲释方与慢速通信监测，须在固定调度上下文调用。
+ * @note    不含正反向切换等待；run/stop 为即�?backend 调用�?
+ *          tick() 推进 RST 脉冲释方与慢速通信监测，须在固定调度上下文调用�?
  */
 
-#include "framework/adapters/outbound/hal/generic/hal_vfd.h"
+#include "framework/adapters/outbound/hal/components/vfd_manager/hal_vfd_manager.h"
 
-#include "framework/adapters/outbound/hal/generic/pulse_out.h"
+#include "framework/adapters/outbound/hal/components/pulse_out/pulse_out.h"
 #include "framework/common/log.h"
 #include "framework/common/time_util.h"
 #include "framework/common/vfd_types.h"
@@ -24,7 +24,7 @@
 typedef struct
 {
     bool                 bound;
-    hal_vfd_bind_cfg_t   cfg;
+    hal_vfd_manager_bind_cfg_t   cfg;
     void                 (*event_cb)(int event_code);
 
     uint16_t             cached_fault_code;
@@ -37,11 +37,11 @@ typedef struct
     pulse_out_slot_t     rst_pulse;
 } hal_vfd_slot_t;
 
-static hal_vfd_slot_t s_slot[HAL_VFD_BIND_SLOT_MAX];
+static hal_vfd_slot_t s_slot[HAL_VFD_MANAGER_SLOT_MAX];
 
 static bool slot_id_valid(hal_vfd_id_t id)
 {
-    return ((id >= 0) && ((unsigned)id < HAL_VFD_BIND_SLOT_MAX));
+    return ((id >= 0) && ((unsigned)id < HAL_VFD_MANAGER_SLOT_MAX));
 }
 
 static hal_vfd_slot_t *slot_by_id(hal_vfd_id_t id)
@@ -53,7 +53,7 @@ static hal_vfd_slot_t *slot_by_id(hal_vfd_id_t id)
     return &s_slot[(unsigned)id];
 }
 
-static bool bind_cfg_valid(const hal_vfd_bind_cfg_t *cfg)
+static bool bind_cfg_valid(const hal_vfd_manager_bind_cfg_t *cfg)
 {
     if ((cfg == NULL) || (cfg->drv_ctx == NULL))
     {
@@ -176,7 +176,7 @@ static void monitor_sample(hal_vfd_slot_t *slot, uint32_t now_ms)
     slot->last_monitor_ms = now_ms;
 }
 
-sw_err_t hal_vfd_bind(hal_vfd_id_t id, const hal_vfd_bind_cfg_t *cfg)
+sw_err_t hal_vfd_manager_bind(hal_vfd_id_t id, const hal_vfd_manager_bind_cfg_t *cfg)
 {
     hal_vfd_slot_t *slot;
 
@@ -205,7 +205,7 @@ sw_err_t hal_vfd_bind(hal_vfd_id_t id, const hal_vfd_bind_cfg_t *cfg)
     return SW_OK;
 }
 
-sw_err_t hal_vfd_set_monitor_mask(hal_vfd_id_t id, hal_vfd_monitor_mask_t mask)
+sw_err_t hal_vfd_manager_set_monitor_mask(hal_vfd_id_t id, hal_vfd_monitor_mask_t mask)
 {
     hal_vfd_slot_t *slot = slot_by_id(id);
 
@@ -221,7 +221,7 @@ static sw_err_t vfd_init(void)
 {
     unsigned i;
 
-    for (i = 0U; i < HAL_VFD_BIND_SLOT_MAX; i++)
+    for (i = 0U; i < HAL_VFD_MANAGER_SLOT_MAX; i++)
     {
         pulse_out_cancel(&s_slot[i].rst_pulse);
         s_slot[i].event_cb          = NULL;
@@ -240,7 +240,7 @@ static void vfd_tick(void)
     uint32_t now_ms = time_util_get_ms();
     unsigned i;
 
-    for (i = 0U; i < HAL_VFD_BIND_SLOT_MAX; i++)
+    for (i = 0U; i < HAL_VFD_MANAGER_SLOT_MAX; i++)
     {
         hal_vfd_slot_t *slot = &s_slot[i];
 
@@ -426,7 +426,7 @@ static const hal_vfd_ops_t s_ops = {
     .register_event_cb = vfd_register_event_cb,
 };
 
-void hal_vfd_generic_register(void)
+void hal_vfd_manager_register(void)
 {
     hal_vfd_register(&s_ops);
 }
