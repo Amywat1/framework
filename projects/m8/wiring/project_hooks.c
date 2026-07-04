@@ -21,6 +21,7 @@
 #include "projects/m8/bindings/m8_motor_exec.h"
 #include "projects/m8/bindings/m8_sensor.h"
 #include "projects/m8/bindings/m8_vfd_setup.h"
+#include "projects/m8/bindings/m8_vfd_tick.h"
 #include "projects/m8/bindings/m8_voice_setup.h"
 
 sw_err_t project_hal_extra_setup(void)
@@ -94,6 +95,11 @@ sw_err_t project_start_threads(void)
         return r;
     }
     r = m8_alarm_adapt_poll_start();
+    if (r != SW_OK)
+    {
+        return r;
+    }
+    r = m8_vfd_tick_register_task();
     if (r != SW_OK)
     {
         return r;

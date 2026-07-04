@@ -35,10 +35,23 @@ static bool     s_di_state[4];   /* [1]=cw_lim, [2]=ccw_lim, [3]=enc */
 static int      s_pulse_val      = 100;
 static sw_err_t s_pulse_clr_ret = SW_OK;
 
+typedef struct {
+    uint16_t pin;
+    bool     val;
+} do_evt_t;
+
+static do_evt_t s_do_log[16];
+static int      s_do_log_n;
+
 static sw_err_t mock_do_set(io_do_t pin, bool val)
 {
     uint16_t p = io_handle_pin(io_do_raw(pin));
     if (p < 4U) { s_do_state[p] = val; }
+    if (s_do_log_n < (int)(sizeof(s_do_log) / sizeof(s_do_log[0]))) {
+        s_do_log[s_do_log_n].pin = p;
+        s_do_log[s_do_log_n].val = val;
+        s_do_log_n++;
+    }
     return SW_OK;
 }
 
@@ -126,6 +139,8 @@ void setUp(void)
     s_cb_set_speed_called = false;
     s_cb_speed_ref        = 0;
     s_fault_reset_called  = false;
+    memset(s_do_log, 0, sizeof(s_do_log));
+    s_do_log_n = 0;
 
     hal_io_register(&s_mock_io_ops);
     hal_motor_generic_register();
@@ -178,6 +193,30 @@ static void test_set_output_stop(void)
     TEST_ASSERT_FALSE(s_do_state[1]); /* CW off */
     TEST_ASSERT_FALSE(s_do_state[2]); /* CCW off */
     TEST_ASSERT_TRUE(s_do_state[3]);  /* STOP on */
+}
+
+static void test_set_output_cw_order_releases_stop_and_reverse_first(void)
+{
+    TEST_ASSERT_EQUAL_INT(SW_OK, hal_motor_get_ops()->set_output(0, 100));
+    TEST_ASSERT_EQUAL_INT(3, s_do_log_n);
+    TEST_ASSERT_EQUAL_UINT16(3U, s_do_log[0].pin);
+    TEST_ASSERT_FALSE(s_do_log[0].val);
+    TEST_ASSERT_EQUAL_UINT16(2U, s_do_log[1].pin);
+    TEST_ASSERT_FALSE(s_do_log[1].val);
+    TEST_ASSERT_EQUAL_UINT16(1U, s_do_log[2].pin);
+    TEST_ASSERT_TRUE(s_do_log[2].val);
+}
+
+static void test_set_output_ccw_order_releases_stop_and_reverse_first(void)
+{
+    TEST_ASSERT_EQUAL_INT(SW_OK, hal_motor_get_ops()->set_output(0, -100));
+    TEST_ASSERT_EQUAL_INT(3, s_do_log_n);
+    TEST_ASSERT_EQUAL_UINT16(3U, s_do_log[0].pin);
+    TEST_ASSERT_FALSE(s_do_log[0].val);
+    TEST_ASSERT_EQUAL_UINT16(1U, s_do_log[1].pin);
+    TEST_ASSERT_FALSE(s_do_log[1].val);
+    TEST_ASSERT_EQUAL_UINT16(2U, s_do_log[2].pin);
+    TEST_ASSERT_TRUE(s_do_log[2].val);
 }
 
 /* =========================================================================
@@ -467,6 +506,8 @@ int main(void)
     RUN_TEST(test_set_output_cw);
     RUN_TEST(test_set_output_ccw);
     RUN_TEST(test_set_output_stop);
+    RUN_TEST(test_set_output_cw_order_releases_stop_and_reverse_first);
+    RUN_TEST(test_set_output_ccw_order_releases_stop_and_reverse_first);
 
     RUN_TEST(test_set_speed_callback_invoked);
     RUN_TEST(test_set_speed_callback_stop);

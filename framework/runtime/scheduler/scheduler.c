@@ -41,7 +41,7 @@ sw_err_t scheduler_start_all(void)
             pthread_attr_setinheritsched(&attr, PTHREAD_EXPLICIT_SCHED);
         }
 
-        if (pthread_create(&tid, &attr, e->fn, NULL) != 0)
+        if (pthread_create(&tid, &attr, e->fn, e->arg) != 0)
         {
             LOG_ERROR("scheduler: failed to create thread [%s]", e->name);
             pthread_attr_destroy(&attr);

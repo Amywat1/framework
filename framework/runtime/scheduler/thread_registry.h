@@ -23,7 +23,7 @@ extern "C" {
 /* -------------------------------------------------------------------------
  * 线程表最大容量
  * ------------------------------------------------------------------------- */
-#define THREAD_REGISTRY_MAX     8
+#define THREAD_REGISTRY_MAX     16
 
 /* -------------------------------------------------------------------------
  * 线程描述条目
@@ -32,6 +32,7 @@ typedef struct
 {
     const char    *name;          /* 线程名称（调试用）*/
     void         *(*fn)(void *);  /* 线程入口函数 */
+    void          *arg;           /* 线程入口参数 */
     int            sched_policy;  /* SCHED_OTHER 或 SCHED_FIFO */
     int            prio;          /* SCHED_FIFO 优先级（1~99）或 SCHED_OTHER nice 值 */
     size_t         stack_size;    /* 栈大小（字节）*/
@@ -47,6 +48,13 @@ typedef struct
  */
 sw_err_t thread_register(const char *name, void *(*fn)(void *),
                          int sched_policy, int prio, size_t stack_size);
+
+/**
+ * @brief  注册一个带入口参数的线程到全局线程表
+ * @retval SW_OK / SW_ERR_PARAM / SW_ERR_OVERFLOW
+ */
+sw_err_t thread_register_arg(const char *name, void *(*fn)(void *), void *arg,
+                             int sched_policy, int prio, size_t stack_size);
 
 /**
  * @brief  获取已注册线程总数

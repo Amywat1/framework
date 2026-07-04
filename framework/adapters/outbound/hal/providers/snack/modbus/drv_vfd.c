@@ -515,10 +515,6 @@ sw_err_t drv_vfd_apply_gear(drv_vfd_t *vfd, drv_vfd_gear_t gear)
         LOG_ERROR("drv_vfd_apply_gear[addr=%d]: reverse not supported", vfd->modbus_addr);
         return SW_ERR_PARAM;
     }
-    if (!vfd->spd_io_ready) {
-        return SW_ERR_NOT_INIT;
-    }
-
     (void)pthread_mutex_lock(&vfd->io_mutex);
     vfd_apply_gear_impl(vfd, gear);
     (void)pthread_mutex_unlock(&vfd->io_mutex);

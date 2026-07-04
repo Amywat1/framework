@@ -68,6 +68,7 @@ file(GLOB_RECURSE fw_adapters_cloud_src   CONFIGURE_DEPENDS framework/adapters/o
 file(GLOB_RECURSE fw_adapters_hal_generic_all_src CONFIGURE_DEPENDS framework/adapters/outbound/hal/generic/*.c framework/adapters/outbound/hal/generic/*.h)
 file(GLOB_RECURSE fw_adapters_hal_linux_src   CONFIGURE_DEPENDS framework/adapters/outbound/hal/linux_hw/*.c framework/adapters/outbound/hal/linux_hw/*.h)
 file(GLOB_RECURSE fw_adapters_hal_snack_src  CONFIGURE_DEPENDS framework/adapters/outbound/hal/providers/snack/*.c framework/adapters/outbound/hal/providers/snack/*.h)
+file(GLOB_RECURSE fw_adapters_hal_mcc_src    CONFIGURE_DEPENDS framework/adapters/outbound/hal/providers/mcc/*.c framework/adapters/outbound/hal/providers/mcc/*.h)
 file(GLOB_RECURSE fw_adapters_hal_sim_src     CONFIGURE_DEPENDS framework/adapters/outbound/hal/sim_hw/*.c framework/adapters/outbound/hal/sim_hw/*.h)
 file(GLOB_RECURSE fw_adapters_storage_src CONFIGURE_DEPENDS framework/adapters/outbound/storage/*.c framework/adapters/outbound/storage/*.h)
 file(GLOB_RECURSE fw_adapters_runtime_snack_src CONFIGURE_DEPENDS framework/adapters/runtime/snack/*.cpp framework/adapters/runtime/snack/*.h)
@@ -81,7 +82,7 @@ set(fw_adapters_hal_generic_sim_src
     framework/adapters/outbound/hal/generic/hal_do_group.c
     framework/adapters/outbound/hal/generic/hal_vfd.c
     framework/adapters/outbound/hal/generic/pulse_out.c
-    framework/adapters/outbound/hal/generic/hal_motor_exec_adapter.c
+    framework/adapters/outbound/hal/providers/mcc/hal_motor_exec_adapter.c
 )
 
 file(GLOB_RECURSE m8_config_src   CONFIGURE_DEPENDS projects/m8/config/*.c projects/m8/config/*.h)
@@ -156,6 +157,7 @@ set(src
     ${fw_adapters_hal_generic_all_src}
     ${fw_adapters_hal_linux_src}
     ${fw_adapters_hal_snack_src}
+    ${fw_adapters_hal_mcc_src}
     ${fw_adapters_runtime_snack_src}
     ${fw_adapters_storage_src}
     ${m8_config_src}
@@ -602,7 +604,7 @@ if(BUILD_SIM)
     add_unit_test(test_gantry
         tests/framework/domain/test_gantry.c
         framework/domain/device_control/mechanism/gantry.c
-        framework/adapters/outbound/hal/generic/hal_motor_exec_adapter.c
+        framework/adapters/outbound/hal/providers/mcc/hal_motor_exec_adapter.c
         tests/stubs/mcc/motor_control_core_sim.c
     )
 
@@ -610,7 +612,7 @@ if(BUILD_SIM)
     add_unit_test(test_brush
         tests/framework/domain/test_brush.c
         framework/domain/device_control/mechanism/brush.c
-        framework/adapters/outbound/hal/generic/hal_motor_exec_adapter.c
+        framework/adapters/outbound/hal/providers/mcc/hal_motor_exec_adapter.c
         tests/stubs/mcc/motor_control_core_sim.c
     )
 
@@ -618,7 +620,7 @@ if(BUILD_SIM)
     add_unit_test(test_fan
         tests/framework/domain/test_fan.c
         framework/domain/device_control/mechanism/fan.c
-        framework/adapters/outbound/hal/generic/hal_motor_exec_adapter.c
+        framework/adapters/outbound/hal/providers/mcc/hal_motor_exec_adapter.c
         tests/stubs/mcc/motor_control_core_sim.c
     )
 
@@ -626,7 +628,7 @@ if(BUILD_SIM)
     add_unit_test(test_lift
         tests/framework/domain/test_lift.c
         framework/domain/device_control/mechanism/lift.c
-        framework/adapters/outbound/hal/generic/hal_motor_exec_adapter.c
+        framework/adapters/outbound/hal/providers/mcc/hal_motor_exec_adapter.c
         tests/stubs/mcc/motor_control_core_sim.c
     )
 
@@ -634,7 +636,7 @@ if(BUILD_SIM)
     add_unit_test(test_rear_lock
         tests/framework/domain/test_rear_lock.c
         framework/domain/device_control/mechanism/rear_lock.c
-        framework/adapters/outbound/hal/generic/hal_motor_exec_adapter.c
+        framework/adapters/outbound/hal/providers/mcc/hal_motor_exec_adapter.c
         tests/stubs/mcc/motor_control_core_sim.c
     )
 

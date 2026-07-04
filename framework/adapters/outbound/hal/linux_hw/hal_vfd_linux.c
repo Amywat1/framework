@@ -97,29 +97,24 @@ static sw_err_t linux_bind_instance(hal_vfd_id_t id, drv_vfd_t *vfd,
     return hal_vfd_bind(id, &cfg);
 }
 
-sw_err_t hal_vfd_linux_instance_init(hal_vfd_id_t  id,
-                                     const char   *serial_port,
-                                     int           baud,
-                                     int           modbus_addr,
-                                     io_do_t       pin_fwd,
-                                     io_do_t       pin_rev,
-                                     io_do_t       pin_rst)
+sw_err_t hal_vfd_linux_instance_init(hal_vfd_id_t id,
+                                     const hal_vfd_linux_instance_cfg_t *cfg)
 {
     sw_err_t ret;
 
-    if (!vfd_id_valid(id))
+    if (!vfd_id_valid(id) || (cfg == NULL))
     {
         return SW_ERR_PARAM;
     }
 
     memset(&s_vfd[(unsigned)id], 0, sizeof(s_vfd[(unsigned)id]));
     ret = drv_vfd_init(&s_vfd[(unsigned)id],
-                       serial_port,
-                       baud,
-                       modbus_addr,
-                       pin_fwd,
-                       pin_rev,
-                       pin_rst,
+                       cfg->serial_port,
+                       cfg->baud,
+                       cfg->modbus_addr,
+                       cfg->pin_fwd,
+                       cfg->pin_rev,
+                       cfg->pin_rst,
                        vfd_do_set);
     if (ret != SW_OK)
     {
@@ -127,7 +122,20 @@ sw_err_t hal_vfd_linux_instance_init(hal_vfd_id_t  id,
         return ret;
     }
 
-    ret = linux_bind_instance(id, &s_vfd[(unsigned)id], HAL_VFD_MON_ALL);
+    if (cfg->speed_io_enabled)
+    {
+        ret = drv_vfd_config_speed_io(&s_vfd[(unsigned)id],
+                                      cfg->pin_spd1,
+                                      cfg->pin_spd2,
+                                      cfg->speed_io);
+        if (ret != SW_OK)
+        {
+            s_drv_inited[(unsigned)id] = false;
+            return ret;
+        }
+    }
+
+    ret = linux_bind_instance(id, &s_vfd[(unsigned)id], cfg->monitor_mask);
     if (ret != SW_OK)
     {
         s_drv_inited[(unsigned)id] = false;
@@ -136,20 +144,6 @@ sw_err_t hal_vfd_linux_instance_init(hal_vfd_id_t  id,
 
     s_drv_inited[(unsigned)id] = true;
     return SW_OK;
-}
-
-sw_err_t hal_vfd_linux_instance_config_speed_io(hal_vfd_id_t  id,
-                                                 io_do_t       pin_spd1,
-                                                 io_do_t       pin_spd2,
-                                                 const uint8_t spd_cfg[VFD_GEAR_MAX])
-{
-    drv_vfd_t *vfd = vfd_by_id(id);
-
-    if (vfd == NULL)
-    {
-        return SW_ERR_PARAM;
-    }
-    return drv_vfd_config_speed_io(vfd, pin_spd1, pin_spd2, spd_cfg);
 }
 
 sw_err_t hal_vfd_linux_instance_set_monitor_mask(hal_vfd_id_t id,

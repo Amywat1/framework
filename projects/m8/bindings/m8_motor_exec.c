@@ -557,12 +557,7 @@ static void *m8_motor_tick_thread_fn(void *arg)
 {
     (void)arg;
     for (;;) {
-        const hal_vfd_ops_t *vfd = hal_vfd_get_ops();
-
         motor_tick(&s_exec);
-        if ((vfd != NULL) && (vfd->tick != NULL)) {
-            vfd->tick();
-        }
         usleep((unsigned long)MOTOR_TICK_INTERVAL_MS * 1000UL);
     }
     return NULL;

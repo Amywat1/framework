@@ -15,14 +15,25 @@ static int            s_count = 0;
 sw_err_t thread_register(const char *name, void *(*fn)(void *),
                          int sched_policy, int prio, size_t stack_size)
 {
+    return thread_register_arg(name, fn, NULL, sched_policy, prio, stack_size);
+}
+
+sw_err_t thread_register_arg(const char *name, void *(*fn)(void *), void *arg,
+                             int sched_policy, int prio, size_t stack_size)
+{
     if (s_count >= THREAD_REGISTRY_MAX)
     {
         LOG_ERROR("thread_registry: table full (max=%d)", THREAD_REGISTRY_MAX);
         return SW_ERR_OVERFLOW;
     }
+    if ((name == NULL) || (fn == NULL))
+    {
+        return SW_ERR_PARAM;
+    }
 
     s_entries[s_count].name        = name;
     s_entries[s_count].fn          = fn;
+    s_entries[s_count].arg         = arg;
     s_entries[s_count].sched_policy = sched_policy;
     s_entries[s_count].prio        = prio;
     s_entries[s_count].stack_size  = stack_size;

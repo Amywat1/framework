@@ -19,32 +19,39 @@ extern "C" {
 #include "framework/ports/outbound/hal/hal_vfd_bind.h"
 #include "framework/common/io_handle.h"
 #include "framework/common/sw_error.h"
-#include "framework/adapters/outbound/hal/providers/snack/modbus/drv_vfd.h"
+
+#include <stdbool.h>
+#include <stdint.h>
+
+#define HAL_VFD_LINUX_SPEED_GEAR_COUNT 3U
+/** @brief speed_io 数组元素编码；0 保留为停止态，不可作为有效挡位。 */
+#define HAL_VFD_LINUX_SPEED_IO(s1, s2) \
+    ((uint8_t)(((s2) ? 0x02U : 0U) | ((s1) ? 0x01U : 0U)))
+
+typedef struct
+{
+    const char *serial_port;
+    int         baud;
+    int         modbus_addr;
+
+    io_do_t     pin_fwd;
+    io_do_t     pin_rev;
+    io_do_t     pin_rst;
+
+    bool        speed_io_enabled;
+    io_do_t     pin_spd1;
+    io_do_t     pin_spd2;
+    uint8_t     speed_io[HAL_VFD_LINUX_SPEED_GEAR_COUNT];
+
+    hal_vfd_monitor_mask_t monitor_mask;
+} hal_vfd_linux_instance_cfg_t;
 
 /** @brief  注册 hal_vfd_linux（内部调用 hal_vfd_generic_register） */
 void hal_vfd_linux_register(void);
 
-/**
- * @brief  初始化 drv 实例并绑定 generic/hal_vfd backend
- * @param  id  hal_vfd_port 实例标识
- * @note   速度 IO 需单独调用 hal_vfd_linux_instance_config_speed_io 配置
- */
-sw_err_t hal_vfd_linux_instance_init(hal_vfd_id_t  id,
-                                     const char   *serial_port,
-                                     int           baud,
-                                     int           modbus_addr,
-                                     io_do_t       pin_fwd,
-                                     io_do_t       pin_rev,
-                                     io_do_t       pin_rst);
-
-/**
- * @brief  配置指定 id 实例的速度 IO 引脚与挡位映射
- * @note   须在 hal_vfd_linux_instance_init 之后、首次 run 前完成
- */
-sw_err_t hal_vfd_linux_instance_config_speed_io(hal_vfd_id_t  id,
-                                                 io_do_t       pin_spd1,
-                                                 io_do_t       pin_spd2,
-                                                 const uint8_t spd_cfg[VFD_GEAR_MAX]);
+/** @brief  初始化 drv 实例并绑定 generic/hal_vfd backend */
+sw_err_t hal_vfd_linux_instance_init(hal_vfd_id_t id,
+                                     const hal_vfd_linux_instance_cfg_t *cfg);
 
 /**
  * @brief  更新指定实例的通信监测掩码（须在 instance_init 之后调用）

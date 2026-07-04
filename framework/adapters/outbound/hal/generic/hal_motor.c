@@ -65,20 +65,26 @@ static sw_err_t set_do_output(const hal_motor_bind_cfg_t *cfg, int speed_ref)
     sw_err_t ret = SW_OK;
 
     if (speed_ref > 0) {
-        if (is_do_valid(cfg->io_cw)) {
-            ret = motor_do_set(cfg->io_cw, true);
+        if (is_do_valid(cfg->io_stop)) {
+            ret = motor_do_set(cfg->io_stop, false);
         }
         if ((ret == SW_OK) && is_do_valid(cfg->io_ccw)) {
             ret = motor_do_set(cfg->io_ccw, false);
         }
+        if ((ret == SW_OK) && is_do_valid(cfg->io_cw)) {
+            ret = motor_do_set(cfg->io_cw, true);
+        }
         return ret;
     }
     if (speed_ref < 0) {
-        if (is_do_valid(cfg->io_ccw)) {
-            ret = motor_do_set(cfg->io_ccw, true);
+        if (is_do_valid(cfg->io_stop)) {
+            ret = motor_do_set(cfg->io_stop, false);
         }
         if ((ret == SW_OK) && is_do_valid(cfg->io_cw)) {
             ret = motor_do_set(cfg->io_cw, false);
+        }
+        if ((ret == SW_OK) && is_do_valid(cfg->io_ccw)) {
+            ret = motor_do_set(cfg->io_ccw, true);
         }
         return ret;
     }

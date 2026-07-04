@@ -43,4 +43,8 @@
 #define THD_CLOUD_NICE               0
 #define THD_CLOUD_REPORT_PERIOD_MS   500U  /* 状态上报周期 */
 
+/* VFD 周期任务（SCHED_OTHER）*/
+#define THD_VFD_TICK_STACK           (16U * 1024U)
+#define THD_VFD_TICK_NICE            0
+
 #endif /* CONFIG_THREADING_THREAD_CONFIG_H */

@@ -26,14 +26,19 @@ static sw_err_t io_do_set(io_do_t pin, bool val)
 sw_err_t m8_vfd_setup(void)
 {
     sw_err_t ret;
+    hal_vfd_linux_instance_cfg_t cfg;
 
-    ret = hal_vfd_linux_instance_init(HAL_VFD_BRUSH,
-                                      M8_VFD_BRUSH_SERIAL_PORT,
-                                      M8_VFD_BRUSH_BAUD,
-                                      M8_VFD_BRUSH_ADDR,
-                                      M8_VFD_BRUSH_PIN_FWD,
-                                      M8_VFD_BRUSH_PIN_REV,
-                                      M8_VFD_BRUSH_PIN_RST);
+    cfg = (hal_vfd_linux_instance_cfg_t){
+        .serial_port      = M8_VFD_BRUSH_SERIAL_PORT,
+        .baud             = M8_VFD_BRUSH_BAUD,
+        .modbus_addr      = M8_VFD_BRUSH_ADDR,
+        .pin_fwd          = M8_VFD_BRUSH_PIN_FWD,
+        .pin_rev          = M8_VFD_BRUSH_PIN_REV,
+        .pin_rst          = M8_VFD_BRUSH_PIN_RST,
+        .speed_io_enabled = false,
+        .monitor_mask     = HAL_VFD_MON_ALL,
+    };
+    ret = hal_vfd_linux_instance_init(HAL_VFD_BRUSH, &cfg);
     if (ret != SW_OK)
     {
         LOG_ERROR("m8_vfd_setup: brush init failed");
@@ -42,26 +47,34 @@ sw_err_t m8_vfd_setup(void)
     (void)io_do_set(M8_IO_DO_TOP_BRUSH_ACT, false);
     (void)io_do_set(M8_IO_DO_SIDE_BRUSH_ACT, false);
 
-    ret = hal_vfd_linux_instance_init(HAL_VFD_GANTRY,
-                                      M8_VFD_GANTRY_SERIAL_PORT,
-                                      M8_VFD_GANTRY_BAUD,
-                                      M8_VFD_GANTRY_ADDR,
-                                      M8_VFD_GANTRY_PIN_FWD,
-                                      M8_VFD_GANTRY_PIN_REV,
-                                      M8_VFD_GANTRY_PIN_RST);
+    cfg = (hal_vfd_linux_instance_cfg_t){
+        .serial_port      = M8_VFD_GANTRY_SERIAL_PORT,
+        .baud             = M8_VFD_GANTRY_BAUD,
+        .modbus_addr      = M8_VFD_GANTRY_ADDR,
+        .pin_fwd          = M8_VFD_GANTRY_PIN_FWD,
+        .pin_rev          = M8_VFD_GANTRY_PIN_REV,
+        .pin_rst          = M8_VFD_GANTRY_PIN_RST,
+        .speed_io_enabled = false,
+        .monitor_mask     = HAL_VFD_MON_ALL,
+    };
+    ret = hal_vfd_linux_instance_init(HAL_VFD_GANTRY, &cfg);
     if (ret != SW_OK)
     {
         LOG_ERROR("m8_vfd_setup: gantry init failed");
         return ret;
     }
 
-    ret = hal_vfd_linux_instance_init(HAL_VFD_FAN,
-                                      M8_VFD_FAN_SERIAL_PORT,
-                                      M8_VFD_FAN_BAUD,
-                                      M8_VFD_FAN_ADDR,
-                                      M8_VFD_FAN_PIN_FWD,
-                                      M8_VFD_FAN_PIN_REV,
-                                      M8_VFD_FAN_PIN_RST);
+    cfg = (hal_vfd_linux_instance_cfg_t){
+        .serial_port      = M8_VFD_FAN_SERIAL_PORT,
+        .baud             = M8_VFD_FAN_BAUD,
+        .modbus_addr      = M8_VFD_FAN_ADDR,
+        .pin_fwd          = M8_VFD_FAN_PIN_FWD,
+        .pin_rev          = M8_VFD_FAN_PIN_REV,
+        .pin_rst          = M8_VFD_FAN_PIN_RST,
+        .speed_io_enabled = false,
+        .monitor_mask     = HAL_VFD_MON_ALL,
+    };
+    ret = hal_vfd_linux_instance_init(HAL_VFD_FAN, &cfg);
     if (ret != SW_OK)
     {
         LOG_ERROR("m8_vfd_setup: fan init failed");

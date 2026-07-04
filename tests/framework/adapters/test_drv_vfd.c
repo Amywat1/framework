@@ -156,6 +156,22 @@ static void test_apply_gear_uninit_returns_not_init(void)
     TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_INIT, drv_vfd_apply_gear(&tmp, VFD_GEAR_FWD_1));
 }
 
+static void test_apply_gear_without_speed_io_uses_direction_only(void)
+{
+    drv_vfd_t tmp;
+    bool      v;
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, drv_vfd_init(&tmp, "/dev/ttyS0", 9600, 2,
+                                               P_FWD, P_REV, P_RST, fake_do_set));
+    pin_log_reset();
+    TEST_ASSERT_EQUAL_INT(SW_OK, drv_vfd_apply_gear(&tmp, VFD_GEAR_FWD_1));
+    TEST_ASSERT_EQUAL_INT(HAL_VFD_STATE_FWD, drv_vfd_get_state(&tmp));
+    TEST_ASSERT_TRUE(pin_last_val(P_FWD.raw, &v));
+    TEST_ASSERT_TRUE(v);
+    TEST_ASSERT_FALSE(pin_last_val(P_SPD1.raw, &v));
+    TEST_ASSERT_FALSE(pin_last_val(P_SPD2.raw, &v));
+}
+
 static void test_stop_outputs_uninit_returns_not_init(void)
 {
     drv_vfd_t tmp;
@@ -404,6 +420,7 @@ int main(void)
     RUN_TEST(test_apply_gear_too_small);
     RUN_TEST(test_apply_gear_reverse_no_rev_pin);
     RUN_TEST(test_apply_gear_uninit_returns_not_init);
+    RUN_TEST(test_apply_gear_without_speed_io_uses_direction_only);
     RUN_TEST(test_stop_outputs_uninit_returns_not_init);
     RUN_TEST(test_write_uninit_returns_not_init);
     RUN_TEST(test_read_uninit_returns_not_init);

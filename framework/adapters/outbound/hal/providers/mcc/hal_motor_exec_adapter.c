@@ -1,6 +1,6 @@
 /**
  * @file    hal_motor_exec_adapter.c
- * @brief   电机执行器出站端口的通用适配器：转发到第三方 MCC SDK。
+ * @brief   电机执行器出站端口的 MCC provider 适配器。
  *
  * 本文件是框架内唯一直接 #include MCC 头文件的位置；domain/ 与其余
  * framework/ 代码只通过 hal_motor_exec_port.h 的不透明句柄与镜像类型访问电机。

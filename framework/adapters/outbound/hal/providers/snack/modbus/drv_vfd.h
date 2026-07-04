@@ -141,11 +141,12 @@ sw_err_t drv_vfd_config_speed_io(drv_vfd_t    *vfd,
  * @param[in]  vfd   已完成 drv_vfd_init 的 VFD 实例
  * @param[in]  gear  目标挡位；范围 [-VFD_GEAR_MAX, VFD_GEAR_MAX]，0 等价于 stop_outputs
  * @retval     SW_OK            操作成功
- * @retval     SW_ERR_NOT_INIT  vfd 未初始化，或非停止挡时速度 IO 尚未配置
+ * @retval     SW_ERR_NOT_INIT  vfd 未初始化
  * @retval     SW_ERR_PARAM     gear 超出范围，或目标为反转但 VFD 不支持反转
- * @note   非停止挡要求已调用 drv_vfd_config_speed_io；
+ * @note   已配置速度 IO 时，非停止挡会同步应用挡位映射；未配置速度 IO 时，
+ *         仅控制方向输出，适用于项目层另有高速/挡位选择 DO 的硬件模型。
  *         正反转切换立即执行，无内部延迟；换向时序由控制层负责；
- *         IO 操作顺序：速度 IO 先于方向 IO；
+ *         IO 操作顺序：速度 IO（若启用）先于方向 IO；
  *         本接口不控制 Modbus 频率，频率须单独调用 drv_vfd_write(REG_FREQ)
  */
 sw_err_t drv_vfd_apply_gear(drv_vfd_t *vfd, drv_vfd_gear_t gear);
