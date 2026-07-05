@@ -35,9 +35,9 @@ static bool slot_valid(hal_do_slot_t slot)
     return (slot < HAL_DO_SLOT_MAX);
 }
 
-sw_err_t hal_do_group_bind(hal_do_group_t group,
-                           hal_do_slot_t  slot,
-                           io_do_t        pin)
+static sw_err_t do_group_bind(hal_do_group_t group,
+                              hal_do_slot_t  slot,
+                              io_do_t        pin)
 {
     if (!group_valid(group) || !slot_valid(slot))
     {
@@ -91,6 +91,7 @@ static sw_err_t do_group_all_off(void)
 
 static const hal_do_group_ops_t s_ops = {
     .init     = do_group_init,
+    .bind     = do_group_bind,
     .slot_set = do_group_slot_set,
     .all_off  = do_group_all_off,
 };

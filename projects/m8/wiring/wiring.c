@@ -24,6 +24,11 @@ extern void snack_voice_adapter_register(void);
 extern void hal_do_group_mapper_register(void);
 
 /* -------------------------------------------------------------------------
+ * 日志 sink 注册函数声明
+ * ------------------------------------------------------------------------- */
+extern void snack_log_sink_register(void);
+
+/* -------------------------------------------------------------------------
  * 存储适配器注册函数声明
  * ------------------------------------------------------------------------- */
 extern void json_param_store_register(void);
@@ -41,6 +46,9 @@ extern void engine_io_m8_register(void);
 
 sw_err_t wiring(void)
 {
+    /* 尽早注册日志 sink，确保本函数及后续所有日志都经 Snack 输出 */
+    snack_log_sink_register();
+
     /* HAL port → 实现注册（io/vfd/voice: providers/snack；motor/sensor/do_group: generic） */
     hal_motor_io_register();
     hal_sensor_filter_register();

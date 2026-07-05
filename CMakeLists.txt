@@ -333,6 +333,7 @@ if(BUILD_SIM)
             framework/runtime/event_bus/event_bus.c
             framework/ports/port_registry.c
             framework/common/time_util.c
+            framework/common/log.c
             projects/m8/app/sim/snack_stub.c
         )
         target_include_directories(${name} PRIVATE
@@ -502,6 +503,7 @@ if(BUILD_SIM)
 
     set(drv_common_src
         framework/common/time_util.c
+        framework/common/log.c
         projects/m8/app/sim/snack_stub.c
         third_party/unity/unity.c
     )

@@ -11,28 +11,10 @@ extern "C" {
 #endif
 
 /**
- * @brief 输出 ERROR 级别日志
- * @param fmt printf 格式字符串
+ * @brief 将 framework/common/log.h 的日志 sink 注册为 snack SDK 实现
+ * @note  供项目 wiring 在真机构建路径下调用一次。
  */
-extern void snack_log_error(const char *fmt, ...);
-
-/**
- * @brief 输出 WARN 级别日志
- * @param fmt printf 格式字符串
- */
-extern void snack_log_warn(const char *fmt, ...);
-
-/**
- * @brief 输出 INFO 级别日志
- * @param fmt printf 格式字符串
- */
-extern void snack_log_info(const char *fmt, ...);
-
-/**
- * @brief 输出 DEBUG 级别日志
- * @param fmt printf 格式字符串
- */
-extern void snack_log_debug(const char *fmt, ...);
+extern void snack_log_sink_register(void);
 
 /**
  * @brief 设置日志输出级别

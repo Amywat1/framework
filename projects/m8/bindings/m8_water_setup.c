@@ -20,16 +20,7 @@ _Static_assert((unsigned)WATER_CH_COUNT    <= HAL_DO_GROUP_MAX,
 _Static_assert((unsigned)WATER_SLOT_COUNT <= HAL_DO_SLOT_MAX,
                "WATER_SLOT_COUNT 超过 HAL_DO_SLOT_MAX，需相应扩大 hal_do_group 上限");
 
-#include "framework/adapters/outbound/hal/components/do_group_mapper/hal_do_group_mapper.h"
-
-static sw_err_t m8_bind_group_slot(hal_do_group_t group,
-                                   hal_do_slot_t  slot,
-                                   io_do_t        pin)
-{
-    return hal_do_group_bind(group, slot, pin);
-}
-
-static sw_err_t m8_apply_bind_table(void)
+static sw_err_t m8_apply_bind_table(const hal_do_group_ops_t *ops)
 {
     for (unsigned i = 0U; i < M8_WATER_BIND_TABLE_COUNT; i++)
     {
@@ -42,9 +33,9 @@ static sw_err_t m8_apply_bind_table(void)
             return SW_ERR_PARAM;
         }
 
-        ret = m8_bind_group_slot((hal_do_group_t)row->channel,
-                                 (hal_do_slot_t)row->slot,
-                                 row->pin);
+        ret = ops->bind((hal_do_group_t)row->channel,
+                        (hal_do_slot_t)row->slot,
+                        row->pin);
         if (ret != SW_OK)
         {
             return ret;
@@ -83,15 +74,16 @@ static sw_err_t m8_water_all_off(void)
 
 sw_err_t m8_water_setup(void)
 {
-    sw_err_t ret;
+    const hal_do_group_ops_t *ops = hal_do_group_get_ops();
+    sw_err_t                  ret;
 
-    if (hal_do_group_get_ops() == NULL)
+    if ((ops == NULL) || (ops->bind == NULL))
     {
         LOG_ERROR("m8_water_setup: hal_do_group not registered");
         return SW_ERR_NOT_INIT;
     }
 
-    ret = m8_apply_bind_table();
+    ret = m8_apply_bind_table(ops);
     if (ret != SW_OK)
     {
         LOG_ERROR("m8_water_setup: bind table apply failed ret=%d", (int)ret);

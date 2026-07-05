@@ -5,55 +5,11 @@
  * @date    2026-04-10
  *
  * @note    仿真构建不会链接 snack SDK。
- *          本文件提供 common/log.h 所需的最小符号集合。
+ *          日志由 framework/common/log.c 内置的 stderr sink 兜底处理，
+ *          本文件只提供 Snack 应用配置项与 MQTT 桩。
  */
 
-#include "framework/adapters/runtime/snack/snack_log.h"
 #include "framework/adapters/runtime/snack/snack_mqtt.h"
-#include <stdio.h>
-#include <stdarg.h>
-
-/* -------------------------------------------------------------------------
- * 日志实现（输出到 stderr，带级别前缀）
- * ------------------------------------------------------------------------- */
-static void sim_vlog(const char *level, const char *fmt, va_list ap)
-{
-    fprintf(stderr, "[%s] ", level);
-    vfprintf(stderr, fmt, ap);
-    fputc('\n', stderr);
-}
-
-void snack_log_error(const char *fmt, ...)
-{
-    va_list ap;
-    va_start(ap, fmt);
-    sim_vlog("ERR", fmt, ap);
-    va_end(ap);
-}
-
-void snack_log_warn(const char *fmt, ...)
-{
-    va_list ap;
-    va_start(ap, fmt);
-    sim_vlog("WRN", fmt, ap);
-    va_end(ap);
-}
-
-void snack_log_info(const char *fmt, ...)
-{
-    va_list ap;
-    va_start(ap, fmt);
-    sim_vlog("INF", fmt, ap);
-    va_end(ap);
-}
-
-void snack_log_debug(const char *fmt, ...)
-{
-    va_list ap;
-    va_start(ap, fmt);
-    sim_vlog("DBG", fmt, ap);
-    va_end(ap);
-}
 
 /* -------------------------------------------------------------------------
  * 其余 snack 函数：空桩（sim 构建中不会被调用，但某些编译单元可能

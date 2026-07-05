@@ -6,6 +6,7 @@
  */
 
 #include "snack_wrapper.h"
+#include "framework/common/log.h"
 #include "log/mlog.h"
 #include "cli/cli.h"
 #include "music/music.h"
@@ -22,44 +23,23 @@
  * ------------------------------------------------------------------------- */
 static mlog *s_log = new mlog("M8");
 
-void snack_log_error(const char *fmt, ...)
+static void snack_log_sink(sw_log_level_t level, const char *fmt, va_list ap)
 {
-    va_list va;
-    va_start(va, fmt);
     char buf[1024] = {0};
-    vsnprintf(buf, sizeof(buf), fmt, va);
-    s_log->e(buf);
-    va_end(va);
+    vsnprintf(buf, sizeof(buf), fmt, ap);
+    switch (level)
+    {
+        case SW_LOG_ERROR: s_log->e(buf); break;
+        case SW_LOG_WARN:  s_log->w(buf); break;
+        case SW_LOG_INFO:  s_log->i(buf); break;
+        case SW_LOG_DEBUG: s_log->d(buf); break;
+        default:           s_log->i(buf); break;
+    }
 }
 
-void snack_log_warn(const char *fmt, ...)
+void snack_log_sink_register(void)
 {
-    va_list va;
-    va_start(va, fmt);
-    char buf[1024] = {0};
-    vsnprintf(buf, sizeof(buf), fmt, va);
-    s_log->w(buf);
-    va_end(va);
-}
-
-void snack_log_info(const char *fmt, ...)
-{
-    va_list va;
-    va_start(va, fmt);
-    char buf[1024] = {0};
-    vsnprintf(buf, sizeof(buf), fmt, va);
-    s_log->i(buf);
-    va_end(va);
-}
-
-void snack_log_debug(const char *fmt, ...)
-{
-    va_list va;
-    va_start(va, fmt);
-    char buf[1024] = {0};
-    vsnprintf(buf, sizeof(buf), fmt, va);
-    s_log->d(buf);
-    va_end(va);
+    sw_log_register_sink(snack_log_sink);
 }
 
 void set_log_level(int type)
