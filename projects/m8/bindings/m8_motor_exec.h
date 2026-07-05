@@ -5,7 +5,7 @@
  * 全部受 MCC 管理的电机（龙门、侧刷、顶刷、升降、后轮锁止、风机）共享一个
  * motor_executor_t，由 m8_motor_exec_init() 统一完成 motor_init，
  * m8_motor_exec_start() 启动后台线程按 20ms 节拍调用 motor_tick 推进全部 6 个轴。
- * VFD 维护 tick 独立注册为 runtime periodic task，不挂靠在电机 tick 线程中。
+ * VFD manager 维护任务由 framework 独立注册，不挂靠在电机 tick 线程中。
  *
  * 电机索引见 m8_motor_id_t；增删电机时仅需在 M8_MOTOR_COUNT 哨兵前插入一项，
  * 电机总数由枚举自动推导，无需手动维护数量宏。

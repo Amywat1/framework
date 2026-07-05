@@ -32,9 +32,6 @@ typedef struct
     /** @brief  初始化全部 VFD 实例运行时状态 */
     sw_err_t (*init)(void);
 
-    /** @brief  推进 RST 脉冲与通信监测（由调度层周期调用） */
-    void (*tick)(void);
-
     sw_err_t (*run)(hal_vfd_id_t id, hal_vfd_gear_t gear);
     sw_err_t (*set_freq)(hal_vfd_id_t id, uint16_t freq_hz);
     sw_err_t (*stop)(hal_vfd_id_t id);

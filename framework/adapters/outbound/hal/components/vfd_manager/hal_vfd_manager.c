@@ -5,7 +5,7 @@
  * @date    2026-07-04
  *
  * @note    不含正反向切换等待；run/stop 为即时 backend 调用。
- *          tick() 推进 RST 脉冲释方与慢速通信监测，须在固定调度上下文调用。
+ *          vfd_manager poll 任务推进 RST 脉冲释放与慢速通信监测。
  */
 
 #include "framework/adapters/outbound/hal/components/vfd_manager/hal_vfd_manager.h"
@@ -15,11 +15,15 @@
 #include "framework/common/time_util.h"
 #include "framework/common/vfd_types.h"
 #include "framework/ports/outbound/hal/hal_vfd_port.h"
+#include "framework/runtime/config/thread_config.h"
+#include "framework/runtime/scheduler/periodic_task.h"
 
+#include <sched.h>
 #include <string.h>
 
 /** @brief 连续 Modbus 失败 N 次后上报 COMM_LOST */
 #define VFD_COMM_FAIL_NOTIFY  3U
+#define HAL_VFD_MANAGER_POLL_PERIOD_MS  20U
 
 typedef struct
 {
@@ -263,6 +267,23 @@ static void vfd_tick(void)
     }
 }
 
+static void vfd_poll_task(void *ctx)
+{
+    (void)ctx;
+    vfd_tick();
+}
+
+sw_err_t hal_vfd_manager_poll_register_task(void)
+{
+    return periodic_task_register("vfd_manager_poll",
+                                  HAL_VFD_MANAGER_POLL_PERIOD_MS,
+                                  vfd_poll_task,
+                                  NULL,
+                                  SCHED_OTHER,
+                                  THD_VFD_TICK_NICE,
+                                  THD_VFD_TICK_STACK);
+}
+
 static sw_err_t vfd_run(hal_vfd_id_t id, hal_vfd_gear_t gear)
 {
     hal_vfd_slot_t *slot = slot_by_id(id);
@@ -415,7 +436,6 @@ static void vfd_register_event_cb(hal_vfd_id_t id, void (*cb)(int event_code))
 
 static const hal_vfd_ops_t s_ops = {
     .init              = vfd_init,
-    .tick              = vfd_tick,
     .run               = vfd_run,
     .set_freq          = vfd_set_freq,
     .stop              = vfd_stop,

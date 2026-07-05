@@ -28,11 +28,11 @@
 #include "framework/application/orchestrators/device_fsm.h"
 #include "framework/adapters/outbound/hal/components/sensor_filter/hal_sensor_filter.h"
 #include "framework/adapters/outbound/hal/components/sensor_filter/hal_sensor_poll.h"
+#include "framework/adapters/outbound/hal/components/vfd_manager/hal_vfd_manager.h"
 #include "projects/m8/bindings/m8_sensor.h"
 #include "projects/m8/bindings/m8_signal_sim.h"
 #include "projects/m8/bindings/m8_motor_domains_setup.h"
 #include "projects/m8/bindings/m8_motor_exec.h"
-#include "projects/m8/bindings/m8_vfd_tick.h"
 #include "projects/m8/bindings/m8_water_setup.h"
 #include "framework/ports/outbound/hal/hal_vfd_port.h"
 #include "framework/common/event_types.h"
@@ -161,7 +161,7 @@ static void scenario_setup(void)
     (void)m8_water_setup();
     (void)m8_motor_exec_start();
     (void)hal_sensor_poll_register_task();
-    (void)m8_vfd_tick_register_task();
+    (void)hal_vfd_manager_poll_register_task();
     (void)emergency_handler_init();
     (void)device_fsm_init();
     (void)wash_orchestrator_init();

@@ -594,6 +594,8 @@ if(BUILD_SIM)
         projects/m8/adapters/hal/hal_vfd_sim_m8.c
         framework/adapters/outbound/hal/components/vfd_manager/hal_vfd_manager.c
         framework/adapters/outbound/hal/components/pulse_out/pulse_out.c
+        framework/runtime/scheduler/periodic_task.c
+        framework/runtime/scheduler/thread_registry.c
     )
 
     # -----------------------------------------------------------------------
