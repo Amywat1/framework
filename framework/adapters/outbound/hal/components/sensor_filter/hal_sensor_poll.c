@@ -6,7 +6,7 @@
  */
 
 #include "framework/adapters/outbound/hal/components/sensor_filter/hal_sensor_poll.h"
-#include "framework/ports/outbound/hal/hal_sensor_port.h"
+#include "framework/adapters/outbound/hal/components/sensor_filter/hal_sensor_filter_internal.h"
 #include "framework/runtime/scheduler/periodic_task.h"
 #include "framework/runtime/config/thread_config.h"
 
@@ -16,15 +16,8 @@
 
 static void hal_sensor_poll_task(void *ctx)
 {
-    const hal_sensor_ops_t *sensor;
-
     (void)ctx;
-
-    sensor = hal_sensor_get_ops();
-    if ((sensor != NULL) && (sensor->tick != NULL))
-    {
-        sensor->tick();
-    }
+    (void)hal_sensor_filter_tick_once();
 }
 
 sw_err_t hal_sensor_poll_register_task(void)

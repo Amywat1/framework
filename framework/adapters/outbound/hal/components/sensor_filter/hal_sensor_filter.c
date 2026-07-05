@@ -9,6 +9,7 @@
  */
 
 #include "framework/adapters/outbound/hal/components/sensor_filter/hal_sensor_filter.h"
+#include "framework/adapters/outbound/hal/components/sensor_filter/hal_sensor_filter_internal.h"
 #include "framework/ports/outbound/hal/hal_sensor_port.h"
 #include "framework/ports/outbound/hal/hal_io_port.h"
 #include "framework/common/log.h"
@@ -81,7 +82,7 @@ static sw_err_t sensor_init(void)
     return SW_OK;
 }
 
-static void sensor_tick(void)
+sw_err_t hal_sensor_filter_tick_once(void)
 {
     const hal_io_ops_t *io = hal_io_get_ops();
 
@@ -94,7 +95,7 @@ static void sensor_tick(void)
             s_ops_error_logged = true;
         }
         pthread_mutex_unlock(&s_sensor_lock);
-        return;
+        return SW_ERR_NOT_INIT;
     }
 
     pthread_mutex_lock(&s_sensor_lock);
@@ -138,6 +139,23 @@ static void sensor_tick(void)
     }
 
     pthread_mutex_unlock(&s_sensor_lock);
+    return SW_OK;
+}
+
+static sw_err_t sensor_warmup(uint8_t sample_count)
+{
+    sw_err_t ret = SW_OK;
+
+    for (uint8_t i = 0U; i < sample_count; i++)
+    {
+        ret = hal_sensor_filter_tick_once();
+        if (ret != SW_OK)
+        {
+            return ret;
+        }
+    }
+
+    return ret;
 }
 
 static bool sensor_is_active(hal_sensor_channel_t ch)
@@ -159,7 +177,7 @@ static bool sensor_is_active(hal_sensor_channel_t ch)
 static const hal_sensor_ops_t s_ops = {
     .init      = sensor_init,
     .bind      = sensor_bind,
-    .tick      = sensor_tick,
+    .warmup    = sensor_warmup,
     .is_active = sensor_is_active,
 };
 

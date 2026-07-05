@@ -109,8 +109,8 @@ static void test_not_active_before_trig_count(void)
     ops->bind(0U, &cfg);
 
     s_mock_di = true;
-    ops->tick(); /* stable_count = 1 */
-    ops->tick(); /* stable_count = 2 */
+    (void)ops->warmup(1U); /* stable_count = 1 */
+    (void)ops->warmup(1U); /* stable_count = 2 */
     TEST_ASSERT_FALSE(ops->is_active(0U));
 }
 
@@ -123,7 +123,7 @@ static void test_active_after_trig_count(void)
     ops->bind(0U, &cfg);
 
     s_mock_di = true;
-    ops->tick(); ops->tick(); ops->tick();
+    (void)ops->warmup(1U); (void)ops->warmup(1U); (void)ops->warmup(1U);
     TEST_ASSERT_TRUE(ops->is_active(0U));
 }
 
@@ -136,12 +136,12 @@ static void test_stays_active_before_release_count(void)
     ops->bind(0U, &cfg);
 
     s_mock_di = true;
-    ops->tick();
+    (void)ops->warmup(1U);
     TEST_ASSERT_TRUE(ops->is_active(0U));
 
     s_mock_di = false;
-    ops->tick(); /* stable_count=1，未满 release_count=3 */
-    ops->tick(); /* stable_count=2 */
+    (void)ops->warmup(1U); /* stable_count=1，未满 release_count=3 */
+    (void)ops->warmup(1U); /* stable_count=2 */
     TEST_ASSERT_TRUE(ops->is_active(0U)); /* 仍激活 */
 }
 
@@ -154,11 +154,11 @@ static void test_released_after_release_count(void)
     ops->bind(0U, &cfg);
 
     s_mock_di = true;
-    ops->tick();
+    (void)ops->warmup(1U);
     TEST_ASSERT_TRUE(ops->is_active(0U));
 
     s_mock_di = false;
-    ops->tick(); ops->tick(); ops->tick();
+    (void)ops->warmup(1U); (void)ops->warmup(1U); (void)ops->warmup(1U);
     TEST_ASSERT_FALSE(ops->is_active(0U));
 }
 
@@ -172,14 +172,14 @@ static void test_interrupt_trig_resets_count(void)
 
     /* 触发两次后中途变化，计数归 1 */
     s_mock_di = true;
-    ops->tick(); ops->tick();
+    (void)ops->warmup(1U); (void)ops->warmup(1U);
     s_mock_di = false;
-    ops->tick();           /* stable_count 从 1（release 计数）开始 */
+    (void)ops->warmup(1U);           /* stable_count 从 1（release 计数）开始 */
     s_mock_di = true;
-    ops->tick(); ops->tick(); /* 重新开始，stable_count=1,2 */
+    (void)ops->warmup(1U); (void)ops->warmup(1U); /* 重新开始，stable_count=1,2 */
     TEST_ASSERT_FALSE(ops->is_active(0U));
 
-    ops->tick(); /* stable_count=3 → 激活 */
+    (void)ops->warmup(1U); /* stable_count=3 → 激活 */
     TEST_ASSERT_TRUE(ops->is_active(0U));
 }
 
@@ -198,7 +198,7 @@ static void test_active_low_low_level_is_active(void)
     ops->bind(0U, &cfg);
 
     s_mock_di = false; /* 低电平 = 有效 */
-    ops->tick();
+    (void)ops->warmup(1U);
     TEST_ASSERT_TRUE(ops->is_active(0U));
 }
 
@@ -213,11 +213,11 @@ static void test_active_low_high_level_is_inactive(void)
     ops->bind(0U, &cfg);
 
     s_mock_di = false;
-    ops->tick();
+    (void)ops->warmup(1U);
     TEST_ASSERT_TRUE(ops->is_active(0U));
 
     s_mock_di = true; /* 高电平 = 无效 */
-    ops->tick();
+    (void)ops->warmup(1U);
     TEST_ASSERT_FALSE(ops->is_active(0U));
 }
 
@@ -240,14 +240,14 @@ static void test_init_resets_runtime_state(void)
     ops->bind(0U, &cfg);
 
     s_mock_di = true;
-    ops->tick(); /* 已激活 */
+    (void)ops->warmup(1U); /* 已激活 */
     TEST_ASSERT_TRUE(ops->is_active(0U));
 
     ops->init(); /* 重置运行时，不清除绑定 */
     TEST_ASSERT_FALSE(ops->is_active(0U));
 }
 
-static void test_no_io_ops_tick_does_not_crash(void)
+static void test_no_io_ops_warmup_does_not_crash(void)
 {
     hal_sensor_bind_cfg_t cfg = {
         .pin = k_pin, .trig_count = 1U, .release_count = 1U,
@@ -255,7 +255,7 @@ static void test_no_io_ops_tick_does_not_crash(void)
     hal_sensor_get_ops()->bind(0U, &cfg);
     hal_io_register(NULL); /* 移除 IO 后端 */
 
-    hal_sensor_get_ops()->tick(); /* 应静默跳过，不崩溃 */
+    TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_INIT, hal_sensor_get_ops()->warmup(1U));
     TEST_ASSERT_FALSE(hal_sensor_get_ops()->is_active(0U));
 }
 
@@ -263,7 +263,7 @@ static void test_no_io_ops_tick_does_not_crash(void)
  * E. 补充场景
  * ========================================================================= */
 
-static void test_trig_count_1_single_tick_activates(void)
+static void test_trig_count_1_single_sample_activates(void)
 {
     hal_sensor_bind_cfg_t cfg = {
         .pin = k_pin, .trig_count = 1U, .release_count = 1U,
@@ -272,7 +272,7 @@ static void test_trig_count_1_single_tick_activates(void)
     ops->bind(0U, &cfg);
 
     s_mock_di = true;
-    ops->tick();
+    (void)ops->warmup(1U);
     TEST_ASSERT_TRUE(ops->is_active(0U));
 }
 
@@ -286,7 +286,7 @@ static void test_multiple_channels_are_independent(void)
     ops->bind(1U, &cfg1);
 
     s_mock_di = true;
-    ops->tick();
+    (void)ops->warmup(1U);
     TEST_ASSERT_TRUE(ops->is_active(0U));
     TEST_ASSERT_FALSE(ops->is_active(1U)); /* ch1 stable_count=1 < threshold=3 */
 }
@@ -302,7 +302,7 @@ static void test_rebind_overwrites_config(void)
     ops->bind(0U, &cfg); /* 覆盖 */
 
     s_mock_di = true;
-    ops->tick(); /* 新 trig=1，只需一次即激活 */
+    (void)ops->warmup(1U); /* 新 trig=1，只需一次即激活 */
     TEST_ASSERT_TRUE(ops->is_active(0U));
 }
 
@@ -318,9 +318,9 @@ static void test_active_low_with_debounce(void)
     ops->bind(0U, &cfg);
 
     s_mock_di = false; /* 低电平 = 有效 */
-    ops->tick(); ops->tick();
+    (void)ops->warmup(1U); (void)ops->warmup(1U);
     TEST_ASSERT_FALSE(ops->is_active(0U)); /* 未满 3 次 */
-    ops->tick();
+    (void)ops->warmup(1U);
     TEST_ASSERT_TRUE(ops->is_active(0U));
 }
 
@@ -337,7 +337,7 @@ static void test_stable_count_ceiling_does_not_break_filter(void)
     int i;
     for (i = 0; i < 300; i++)
     {
-        ops->tick();
+        (void)ops->warmup(1U);
     }
     TEST_ASSERT_TRUE(ops->is_active(0U)); /* 仍激活，无溢出崩溃 */
 }
@@ -363,9 +363,9 @@ int main(void)
 
     RUN_TEST(test_unbound_channel_returns_false);
     RUN_TEST(test_init_resets_runtime_state);
-    RUN_TEST(test_no_io_ops_tick_does_not_crash);
+    RUN_TEST(test_no_io_ops_warmup_does_not_crash);
 
-    RUN_TEST(test_trig_count_1_single_tick_activates);
+    RUN_TEST(test_trig_count_1_single_sample_activates);
     RUN_TEST(test_multiple_channels_are_independent);
     RUN_TEST(test_rebind_overwrites_config);
     RUN_TEST(test_active_low_with_debounce);

@@ -53,8 +53,15 @@ typedef struct
      */
     sw_err_t (*bind)(hal_sensor_channel_t ch, const hal_sensor_bind_cfg_t *cfg);
 
-    /** @brief  执行一轮全通道滤波（由调度层周期调用） */
-    void (*tick)(void);
+    /**
+     * @brief  同步执行指定轮次采样，用于启动阶段预填充滤波状态。
+     * @param  sample_count 采样轮次；0 表示不执行采样。
+     * @retval SW_OK        预热完成。
+     * @retval SW_ERR_NOT_INIT 依赖的 IO 后端未就绪。
+     * @note   本接口只用于初始化预热，不用于项目层创建运行期轮询线程；
+     *         运行期滤波推进由 framework sensor_filter poll 任务负责。
+     */
+    sw_err_t (*warmup)(uint8_t sample_count);
 
     /** @brief  查询通道滤波后的稳定逻辑态 */
     bool (*is_active)(hal_sensor_channel_t ch);

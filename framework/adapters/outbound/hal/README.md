@@ -26,7 +26,8 @@ framework/adapters/outbound/hal/
 ## 边界规则
 
 - `ports/` 只放业务可见的硬件端口声明。
-- `components/` 可以维护 bind、tick、缓存和组合逻辑，但不能依赖具体 SDK。
+- `components/` 可以维护 bind、内部 tick、缓存和组合逻辑，但不能依赖具体 SDK；
+  若 tick 属于 framework 通用运行期推进能力，不应通过业务可见 port 暴露给项目层。
 - `providers/` 可以依赖具体 SDK，但不承载业务语义。
 - `projects/<project>/bindings/` 负责把项目配置连接到 components 和 providers。
 - `projects/<project>/wiring/` 负责选择真实硬件或仿真实现。

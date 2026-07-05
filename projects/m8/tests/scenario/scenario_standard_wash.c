@@ -27,7 +27,7 @@
 #include "framework/application/orchestrators/emergency_handler.h"
 #include "framework/application/orchestrators/device_fsm.h"
 #include "framework/adapters/outbound/hal/components/sensor_filter/hal_sensor_filter.h"
-#include "framework/ports/outbound/hal/hal_sensor_port.h"
+#include "framework/adapters/outbound/hal/components/sensor_filter/hal_sensor_poll.h"
 #include "projects/m8/bindings/m8_sensor.h"
 #include "projects/m8/bindings/m8_signal_sim.h"
 #include "projects/m8/bindings/m8_motor_domains_setup.h"
@@ -40,9 +40,7 @@
 #include "framework/runtime/config/thread_config.h"
 #include <assert.h>
 
-/* IO 轮询线程参数（场景测试本地使用，不依赖全局 thread_config）*/
-#define SCENARIO_IO_POLL_PERIOD_MS  20U
-#define SCENARIO_IO_POLL_STACK      (16U * 1024U)
+#define SCENARIO_AUX_THREAD_STACK   (16U * 1024U)
 #include <stdio.h>
 #include <unistd.h>
 #include <sched.h>
@@ -67,22 +65,6 @@ static void *scenario_dispatch_fn(void *arg)
 {
     (void)arg;
     event_bus_dispatch_loop();
-    return NULL;
-}
-
-static void *scenario_io_poll_fn(void *arg)
-{
-    const hal_sensor_ops_t *sensor = hal_sensor_get_ops();
-
-    (void)arg;
-    while (true)
-    {
-        if ((sensor != NULL) && (sensor->tick != NULL))
-        {
-            sensor->tick();
-        }
-        usleep((unsigned long)SCENARIO_IO_POLL_PERIOD_MS * 1000UL);
-    }
     return NULL;
 }
 
@@ -178,18 +160,17 @@ static void scenario_setup(void)
     (void)m8_motor_domains_setup_mask(M8_DOMAIN_BRUSH | M8_DOMAIN_GANTRY);
     (void)m8_water_setup();
     (void)m8_motor_exec_start();
+    (void)hal_sensor_poll_register_task();
     (void)m8_vfd_tick_register_task();
     (void)emergency_handler_init();
     (void)device_fsm_init();
     (void)wash_orchestrator_init();
 
-    /* 注册并启动线程：event_dispatch + io_poll + wash_worker（已由 orchestrator 注册）*/
+    /* 注册并启动线程：event_dispatch + sensor_poll + wash_worker（已由 orchestrator 注册）*/
     (void)thread_register("event_dispatch", scenario_dispatch_fn,
                           SCHED_OTHER, 0, THD_EVENT_DISPATCH_STACK);
-    (void)thread_register("io_poll",        scenario_io_poll_fn,
-                          SCHED_OTHER, 0, SCENARIO_IO_POLL_STACK);
     (void)thread_register("limit_inject", scenario_limit_inject_fn,
-                          SCHED_OTHER, 0, SCENARIO_IO_POLL_STACK);
+                          SCHED_OTHER, 0, SCENARIO_AUX_THREAD_STACK);
     (void)scheduler_start_all();
 
     /* 等待线程就绪 */

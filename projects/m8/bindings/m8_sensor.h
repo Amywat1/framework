@@ -24,7 +24,7 @@ extern "C" {
 sw_err_t m8_sensor_setup(void);
 
 /**
- * @brief  同步执行 max(trig_count) 次 sensor->tick()，预填充滤波状态
+ * @brief  同步执行 max(trig_count) 次传感器预热采样，预填充滤波状态
  * @note   须在 m8_sensor_setup() 与仿真 m8_signal_sim_reset_all() 之后、
  *         hal_sensor 周期任务启动前调用，以消除上电时限位信号确认延迟
  */

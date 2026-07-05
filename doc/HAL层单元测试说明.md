@@ -74,13 +74,13 @@ setUp 流程：注册 mock IO → `hal_sensor_generic_register()` → `ops->init
 | **D. 边界与异常** |||
 | `test_unbound_channel_returns_false` | 从未绑定的通道 is_active() 返回 false | ✓ |
 | `test_init_resets_runtime_state` | init() 重置已激活通道的运行时状态，绑定配置保留 | ✓ |
-| `test_no_io_ops_tick_does_not_crash` | hal_io 未注册时 tick() 静默跳过，不崩溃 | ✓ |
+| `test_no_io_ops_warmup_does_not_crash` | hal_io 未注册时 warmup() 返回错误但不崩溃 | ✓ |
 | **E. 补充场景** |||
-| `test_trig_count_1_single_tick_activates` | trig_count=1 时一次 tick 即激活 | ✓ |
+| `test_trig_count_1_single_sample_activates` | trig_count=1 时一次采样即激活 | ✓ |
 | `test_multiple_channels_are_independent` | ch0（trig=1）激活不影响 ch1（trig=3）的独立计数 | ✓ |
 | `test_rebind_overwrites_config` | 对同一通道重新绑定，新 trig_count 立即生效 | ✓ |
 | `test_active_low_with_debounce` | active_low=true 且 trig_count=3：低电平须稳定 3 次才激活 | ✓ |
-| `test_stable_count_ceiling_does_not_break_filter` | 连续 tick 300 次，stable_count 上限 255 不溢出，通道保持激活 | ✓ |
+| `test_stable_count_ceiling_does_not_break_filter` | 连续采样 300 次，stable_count 上限 255 不溢出，通道保持激活 | ✓ |
 
 ---
 

@@ -4,7 +4,7 @@
  * @author  HUWANGWEI
  * @date    2026-07-04
  *
- * @note    仅驱动通用 hal_sensor 滤波 tick，不含任何项目点位/信号表语义。
+ * @note    仅驱动通用 hal_sensor 滤波采样，不含任何项目点位/信号表语义。
  */
 
 #ifndef ADAPTERS_HAL_COMPONENTS_SENSOR_FILTER_HAL_SENSOR_POLL_H

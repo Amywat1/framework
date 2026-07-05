@@ -75,8 +75,9 @@ sw_err_t m8_sensor_warmup(void)
 {
     const hal_sensor_ops_t *sensor = hal_sensor_get_ops();
     uint8_t                 max_trig = 0U;
+    sw_err_t                ret;
 
-    if ((sensor == NULL) || (sensor->tick == NULL))
+    if ((sensor == NULL) || (sensor->warmup == NULL))
     {
         LOG_ERROR("m8_sensor_warmup: hal_sensor ops not ready");
         return SW_ERR_NOT_INIT;
@@ -90,12 +91,14 @@ sw_err_t m8_sensor_warmup(void)
         }
     }
 
-    for (uint8_t t = 0U; t < max_trig; t++)
+    ret = sensor->warmup(max_trig);
+    if (ret != SW_OK)
     {
-        sensor->tick();
+        LOG_ERROR("m8_sensor_warmup: sensor warmup failed ret=%d", (int)ret);
+        return ret;
     }
 
-    LOG_INFO("m8_sensor_warmup: ok, ticks=%u", (unsigned)max_trig);
+    LOG_INFO("m8_sensor_warmup: ok, samples=%u", (unsigned)max_trig);
     return SW_OK;
 }
 
