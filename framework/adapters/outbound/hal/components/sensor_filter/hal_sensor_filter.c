@@ -4,7 +4,8 @@
  * @author  HUWANGWEI
  * @date    2026-04-10
  *
- * @note    tick() 与 is_active() 必须在同一任务/线程中调用，模块不提供内部并发保护。
+ * @note    共享状态由 s_sensor_lock 保护，ops.bind()/tick()/is_active()
+ *          可在不同线程中并发调用。
  */
 
 #include "framework/adapters/outbound/hal/components/sensor_filter/hal_sensor_filter.h"
@@ -12,6 +13,7 @@
 #include "framework/ports/outbound/hal/hal_io_port.h"
 #include "framework/common/log.h"
 
+#include <pthread.h>
 #include <stddef.h>
 
 #define SENSOR_STABLE_COUNT_MAX  255U
@@ -27,6 +29,8 @@ static hal_sensor_bind_cfg_t s_cfg[HAL_SENSOR_CHANNEL_MAX];
 static bool                  s_bound[HAL_SENSOR_CHANNEL_MAX];
 static sensor_ch_rt_t        s_rt[HAL_SENSOR_CHANNEL_MAX];
 static bool                  s_ops_error_logged = false;
+
+static pthread_mutex_t s_sensor_lock = PTHREAD_MUTEX_INITIALIZER;
 
 static bool channel_valid(hal_sensor_channel_t ch)
 {
@@ -46,22 +50,25 @@ static bool bind_cfg_valid(const hal_sensor_bind_cfg_t *cfg)
     return true;
 }
 
-sw_err_t hal_sensor_bind(hal_sensor_channel_t         ch,
-                         const hal_sensor_bind_cfg_t *cfg)
+static sw_err_t sensor_bind(hal_sensor_channel_t         ch,
+                            const hal_sensor_bind_cfg_t *cfg)
 {
     if (!channel_valid(ch) || !bind_cfg_valid(cfg))
     {
         return SW_ERR_PARAM;
     }
 
+    pthread_mutex_lock(&s_sensor_lock);
     s_cfg[ch]   = *cfg;
     s_bound[ch] = true;
+    pthread_mutex_unlock(&s_sensor_lock);
     return SW_OK;
 }
 
-/* 仅重置运行时滤波状态；通道绑定配置在 bootstrap 阶段由 hal_sensor_bind() 写入，不在此清除 */
+/* 仅重置运行时滤波状态；通道绑定配置在 bootstrap 阶段由 ops.bind() 写入，不在此清除 */
 static sw_err_t sensor_init(void)
 {
+    pthread_mutex_lock(&s_sensor_lock);
     for (hal_sensor_channel_t ch = 0U; ch < HAL_SENSOR_CHANNEL_MAX; ch++)
     {
         s_rt[ch].confirmed    = false;
@@ -70,6 +77,7 @@ static sw_err_t sensor_init(void)
     }
 
     s_ops_error_logged = false;
+    pthread_mutex_unlock(&s_sensor_lock);
     return SW_OK;
 }
 
@@ -79,13 +87,17 @@ static void sensor_tick(void)
 
     if ((io == NULL) || (io->di_read == NULL))
     {
+        pthread_mutex_lock(&s_sensor_lock);
         if (!s_ops_error_logged)
         {
             LOG_ERROR("hal_sensor: hal_io ops not ready");
             s_ops_error_logged = true;
         }
+        pthread_mutex_unlock(&s_sensor_lock);
         return;
     }
+
+    pthread_mutex_lock(&s_sensor_lock);
 
     s_ops_error_logged = false;
 
@@ -124,20 +136,29 @@ static void sensor_tick(void)
             rt->confirmed = raw_active;
         }
     }
+
+    pthread_mutex_unlock(&s_sensor_lock);
 }
 
 static bool sensor_is_active(hal_sensor_channel_t ch)
 {
-    if (!channel_valid(ch) || !s_bound[ch])
+    bool active;
+
+    if (!channel_valid(ch))
     {
         return false;
     }
 
-    return s_rt[ch].confirmed;
+    pthread_mutex_lock(&s_sensor_lock);
+    active = s_bound[ch] ? s_rt[ch].confirmed : false;
+    pthread_mutex_unlock(&s_sensor_lock);
+
+    return active;
 }
 
 static const hal_sensor_ops_t s_ops = {
     .init      = sensor_init,
+    .bind      = sensor_bind,
     .tick      = sensor_tick,
     .is_active = sensor_is_active,
 };

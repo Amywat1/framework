@@ -53,7 +53,7 @@ void tearDown(void) {}
 
 static void test_bind_null_cfg(void)
 {
-    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, hal_sensor_bind(0U, NULL));
+    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, hal_sensor_get_ops()->bind(0U, NULL));
 }
 
 static void test_bind_null_pin(void)
@@ -63,7 +63,7 @@ static void test_bind_null_pin(void)
         .trig_count    = 1U,
         .release_count = 1U,
     };
-    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, hal_sensor_bind(0U, &cfg));
+    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, hal_sensor_get_ops()->bind(0U, &cfg));
 }
 
 static void test_bind_zero_trig_count(void)
@@ -73,7 +73,7 @@ static void test_bind_zero_trig_count(void)
         .trig_count    = 0U,
         .release_count = 1U,
     };
-    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, hal_sensor_bind(0U, &cfg));
+    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, hal_sensor_get_ops()->bind(0U, &cfg));
 }
 
 static void test_bind_zero_release_count(void)
@@ -83,7 +83,7 @@ static void test_bind_zero_release_count(void)
         .trig_count    = 1U,
         .release_count = 0U,
     };
-    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, hal_sensor_bind(0U, &cfg));
+    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, hal_sensor_get_ops()->bind(0U, &cfg));
 }
 
 static void test_bind_valid(void)
@@ -93,7 +93,7 @@ static void test_bind_valid(void)
         .trig_count    = 3U,
         .release_count = 2U,
     };
-    TEST_ASSERT_EQUAL_INT(SW_OK, hal_sensor_bind(0U, &cfg));
+    TEST_ASSERT_EQUAL_INT(SW_OK, hal_sensor_get_ops()->bind(0U, &cfg));
 }
 
 /* =========================================================================
@@ -106,7 +106,7 @@ static void test_not_active_before_trig_count(void)
         .pin = k_pin, .trig_count = 3U, .release_count = 1U,
     };
     const hal_sensor_ops_t *ops = hal_sensor_get_ops();
-    hal_sensor_bind(0U, &cfg);
+    ops->bind(0U, &cfg);
 
     s_mock_di = true;
     ops->tick(); /* stable_count = 1 */
@@ -120,7 +120,7 @@ static void test_active_after_trig_count(void)
         .pin = k_pin, .trig_count = 3U, .release_count = 1U,
     };
     const hal_sensor_ops_t *ops = hal_sensor_get_ops();
-    hal_sensor_bind(0U, &cfg);
+    ops->bind(0U, &cfg);
 
     s_mock_di = true;
     ops->tick(); ops->tick(); ops->tick();
@@ -133,7 +133,7 @@ static void test_stays_active_before_release_count(void)
         .pin = k_pin, .trig_count = 1U, .release_count = 3U,
     };
     const hal_sensor_ops_t *ops = hal_sensor_get_ops();
-    hal_sensor_bind(0U, &cfg);
+    ops->bind(0U, &cfg);
 
     s_mock_di = true;
     ops->tick();
@@ -151,7 +151,7 @@ static void test_released_after_release_count(void)
         .pin = k_pin, .trig_count = 1U, .release_count = 3U,
     };
     const hal_sensor_ops_t *ops = hal_sensor_get_ops();
-    hal_sensor_bind(0U, &cfg);
+    ops->bind(0U, &cfg);
 
     s_mock_di = true;
     ops->tick();
@@ -168,7 +168,7 @@ static void test_interrupt_trig_resets_count(void)
         .pin = k_pin, .trig_count = 3U, .release_count = 1U,
     };
     const hal_sensor_ops_t *ops = hal_sensor_get_ops();
-    hal_sensor_bind(0U, &cfg);
+    ops->bind(0U, &cfg);
 
     /* 触发两次后中途变化，计数归 1 */
     s_mock_di = true;
@@ -195,7 +195,7 @@ static void test_active_low_low_level_is_active(void)
         .trig_count = 1U, .release_count = 1U,
     };
     const hal_sensor_ops_t *ops = hal_sensor_get_ops();
-    hal_sensor_bind(0U, &cfg);
+    ops->bind(0U, &cfg);
 
     s_mock_di = false; /* 低电平 = 有效 */
     ops->tick();
@@ -210,7 +210,7 @@ static void test_active_low_high_level_is_inactive(void)
         .trig_count = 1U, .release_count = 1U,
     };
     const hal_sensor_ops_t *ops = hal_sensor_get_ops();
-    hal_sensor_bind(0U, &cfg);
+    ops->bind(0U, &cfg);
 
     s_mock_di = false;
     ops->tick();
@@ -237,7 +237,7 @@ static void test_init_resets_runtime_state(void)
         .pin = k_pin, .trig_count = 1U, .release_count = 1U,
     };
     const hal_sensor_ops_t *ops = hal_sensor_get_ops();
-    hal_sensor_bind(0U, &cfg);
+    ops->bind(0U, &cfg);
 
     s_mock_di = true;
     ops->tick(); /* 已激活 */
@@ -252,7 +252,7 @@ static void test_no_io_ops_tick_does_not_crash(void)
     hal_sensor_bind_cfg_t cfg = {
         .pin = k_pin, .trig_count = 1U, .release_count = 1U,
     };
-    hal_sensor_bind(0U, &cfg);
+    hal_sensor_get_ops()->bind(0U, &cfg);
     hal_io_register(NULL); /* 移除 IO 后端 */
 
     hal_sensor_get_ops()->tick(); /* 应静默跳过，不崩溃 */
@@ -269,7 +269,7 @@ static void test_trig_count_1_single_tick_activates(void)
         .pin = k_pin, .trig_count = 1U, .release_count = 1U,
     };
     const hal_sensor_ops_t *ops = hal_sensor_get_ops();
-    hal_sensor_bind(0U, &cfg);
+    ops->bind(0U, &cfg);
 
     s_mock_di = true;
     ops->tick();
@@ -282,8 +282,8 @@ static void test_multiple_channels_are_independent(void)
     hal_sensor_bind_cfg_t cfg0 = { .pin = k_pin, .trig_count = 1U, .release_count = 1U };
     hal_sensor_bind_cfg_t cfg1 = { .pin = k_pin, .trig_count = 3U, .release_count = 1U };
     const hal_sensor_ops_t *ops = hal_sensor_get_ops();
-    hal_sensor_bind(0U, &cfg0);
-    hal_sensor_bind(1U, &cfg1);
+    ops->bind(0U, &cfg0);
+    ops->bind(1U, &cfg1);
 
     s_mock_di = true;
     ops->tick();
@@ -296,10 +296,10 @@ static void test_rebind_overwrites_config(void)
     /* 先绑定 trig=3，再重新绑定 trig=1，后者生效 */
     hal_sensor_bind_cfg_t cfg = { .pin = k_pin, .trig_count = 3U, .release_count = 1U };
     const hal_sensor_ops_t *ops = hal_sensor_get_ops();
-    hal_sensor_bind(0U, &cfg);
+    ops->bind(0U, &cfg);
 
     cfg.trig_count = 1U;
-    hal_sensor_bind(0U, &cfg); /* 覆盖 */
+    ops->bind(0U, &cfg); /* 覆盖 */
 
     s_mock_di = true;
     ops->tick(); /* 新 trig=1，只需一次即激活 */
@@ -315,7 +315,7 @@ static void test_active_low_with_debounce(void)
         .trig_count = 3U, .release_count = 1U,
     };
     const hal_sensor_ops_t *ops = hal_sensor_get_ops();
-    hal_sensor_bind(0U, &cfg);
+    ops->bind(0U, &cfg);
 
     s_mock_di = false; /* 低电平 = 有效 */
     ops->tick(); ops->tick();
@@ -331,7 +331,7 @@ static void test_stable_count_ceiling_does_not_break_filter(void)
         .pin = k_pin, .trig_count = 1U, .release_count = 1U,
     };
     const hal_sensor_ops_t *ops = hal_sensor_get_ops();
-    hal_sensor_bind(0U, &cfg);
+    ops->bind(0U, &cfg);
 
     s_mock_di = true;
     int i;

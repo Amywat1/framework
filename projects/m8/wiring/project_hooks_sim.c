@@ -10,6 +10,7 @@
  */
 
 #include "framework/runtime/bootstrap/project_hooks.h"
+#include "framework/adapters/outbound/hal/components/sensor_filter/hal_sensor_poll.h"
 #include "projects/m8/adapters/alarm/m8_alarm_adapt.h"
 #include "projects/m8/adapters/alarm/m8_alarm_init.h"
 #include "projects/m8/adapters/alarm/m8_comm_watchdog.h"
@@ -69,7 +70,9 @@ sw_err_t project_start_threads(void)
 {
     sw_err_t r;
 
-    r = m8_sensor_poll_start();
+    /* wiring_sim() 已选择 hal_sensor_filter 作为 hal_sensor 适配器，
+     * 这里注册其驱动所需的通用滤波周期任务 */
+    r = hal_sensor_poll_register_task();
     if (r != SW_OK)
     {
         return r;

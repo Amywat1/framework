@@ -27,6 +27,7 @@
 #include "framework/application/orchestrators/emergency_handler.h"
 #include "framework/application/orchestrators/device_fsm.h"
 #include "framework/adapters/outbound/hal/components/sensor_filter/hal_sensor_filter.h"
+#include "framework/ports/outbound/hal/hal_sensor_port.h"
 #include "projects/m8/bindings/m8_sensor.h"
 #include "projects/m8/bindings/m8_signal_sim.h"
 #include "projects/m8/bindings/m8_motor_domains_setup.h"
@@ -71,10 +72,15 @@ static void *scenario_dispatch_fn(void *arg)
 
 static void *scenario_io_poll_fn(void *arg)
 {
+    const hal_sensor_ops_t *sensor = hal_sensor_get_ops();
+
     (void)arg;
     while (true)
     {
-        m8_signal_filter_tick();
+        if ((sensor != NULL) && (sensor->tick != NULL))
+        {
+            sensor->tick();
+        }
         usleep((unsigned long)SCENARIO_IO_POLL_PERIOD_MS * 1000UL);
     }
     return NULL;

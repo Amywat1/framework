@@ -1,6 +1,6 @@
 /**
  * @file    m8_sensor.c
- * @brief   M8 传感器子系统实现（DI 绑定、预热、轮询线程、信号查询）
+ * @brief   M8 传感器子系统实现（DI 绑定、预热、信号查询）
  * @author  HUWANGWEI
  * @date    2026-06-21
  */
@@ -10,14 +10,6 @@
 #include "framework/ports/outbound/hal/hal_sensor_port.h"
 #include "framework/common/log.h"
 
-#include "framework/adapters/outbound/hal/components/sensor_filter/hal_sensor_filter.h"
-
-#include <pthread.h>
-#include <unistd.h>
-
-#define SENSOR_POLL_PERIOD_MS   50U
-#define SENSOR_POLL_STACK_SIZE  (16U * 1024U)
-
 _Static_assert((unsigned)M8_SIG_MAX <= HAL_SENSOR_CHANNEL_MAX,
                "M8_SIG_MAX 超过 HAL_SENSOR_CHANNEL_MAX，需扩大 hal_sensor 通道上限");
 
@@ -25,7 +17,7 @@ _Static_assert((unsigned)M8_SIG_MAX <= HAL_SENSOR_CHANNEL_MAX,
  * 初始化
  * ------------------------------------------------------------------------- */
 
-static sw_err_t apply_signal_table(void)
+static sw_err_t apply_signal_table(const hal_sensor_ops_t *sensor)
 {
     sw_err_t err = SW_OK;
 
@@ -40,7 +32,7 @@ static sw_err_t apply_signal_table(void)
         cfg.trig_count    = row->trig_count;
         cfg.release_count = row->release_count;
 
-        ret = hal_sensor_bind((hal_sensor_channel_t)i, &cfg);
+        ret = sensor->bind((hal_sensor_channel_t)i, &cfg);
         if (ret != SW_OK)
         {
             LOG_ERROR("m8_sensor_setup: bind ch=%d failed ret=%d", i, (int)ret);
@@ -56,13 +48,13 @@ sw_err_t m8_sensor_setup(void)
     const hal_sensor_ops_t *sensor = hal_sensor_get_ops();
     sw_err_t                ret;
 
-    if ((sensor == NULL) || (sensor->init == NULL))
+    if ((sensor == NULL) || (sensor->init == NULL) || (sensor->bind == NULL))
     {
         LOG_ERROR("m8_sensor_setup: hal_sensor ops not registered");
         return SW_ERR_NOT_INIT;
     }
 
-    ret = apply_signal_table();
+    ret = apply_signal_table(sensor);
     if (ret != SW_OK)
     {
         return ret;
@@ -108,56 +100,8 @@ sw_err_t m8_sensor_warmup(void)
 }
 
 /* -------------------------------------------------------------------------
- * 轮询线程
- * ------------------------------------------------------------------------- */
-
-static void *sensor_poll_thread_fn(void *arg)
-{
-    (void)arg;
-
-    while (true)
-    {
-        m8_signal_filter_tick();
-        usleep((unsigned long)SENSOR_POLL_PERIOD_MS * 1000UL);
-    }
-
-    return NULL;
-}
-
-sw_err_t m8_sensor_poll_start(void)
-{
-    pthread_attr_t attr;
-    pthread_t      tid;
-
-    pthread_attr_init(&attr);
-    pthread_attr_setstacksize(&attr, SENSOR_POLL_STACK_SIZE);
-
-    if (pthread_create(&tid, &attr, sensor_poll_thread_fn, NULL) != 0)
-    {
-        pthread_attr_destroy(&attr);
-        LOG_ERROR("m8_sensor_poll_start: pthread_create failed");
-        return SW_ERR_HW;
-    }
-
-    pthread_attr_destroy(&attr);
-    pthread_detach(tid);
-    LOG_INFO("m8_sensor_poll_start: io_poll thread started");
-    return SW_OK;
-}
-
-/* -------------------------------------------------------------------------
  * 运行时查询
  * ------------------------------------------------------------------------- */
-
-void m8_signal_filter_tick(void)
-{
-    const hal_sensor_ops_t *sensor = hal_sensor_get_ops();
-
-    if ((sensor != NULL) && (sensor->tick != NULL))
-    {
-        sensor->tick();
-    }
-}
 
 bool m8_signal_is_active(m8_signal_id_t sig_id)
 {

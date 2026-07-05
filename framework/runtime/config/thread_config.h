@@ -47,4 +47,8 @@
 #define THD_VFD_TICK_STACK           (16U * 1024U)
 #define THD_VFD_TICK_NICE            0
 
+/* 传感器滤波周期任务（SCHED_OTHER）*/
+#define THD_SENSOR_POLL_STACK        (16U * 1024U)
+#define THD_SENSOR_POLL_NICE         0
+
 #endif /* CONFIG_THREADING_THREAD_CONFIG_H */
