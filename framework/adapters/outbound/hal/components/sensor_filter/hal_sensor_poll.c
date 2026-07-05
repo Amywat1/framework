@@ -7,7 +7,7 @@
 
 #include "framework/adapters/outbound/hal/components/sensor_filter/hal_sensor_poll.h"
 #include "framework/ports/outbound/hal/hal_sensor_port.h"
-#include "framework/runtime/periodic_task/periodic_task.h"
+#include "framework/runtime/scheduler/periodic_task.h"
 #include "framework/runtime/config/thread_config.h"
 
 #include <sched.h>

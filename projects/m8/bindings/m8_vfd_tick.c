@@ -7,7 +7,7 @@
 
 #include "framework/ports/outbound/hal/hal_vfd_port.h"
 #include "framework/runtime/config/thread_config.h"
-#include "framework/runtime/periodic_task/periodic_task.h"
+#include "framework/runtime/scheduler/periodic_task.h"
 
 #include <sched.h>
 

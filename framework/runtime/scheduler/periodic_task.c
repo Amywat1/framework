@@ -1,9 +1,9 @@
 /**
  * @file    periodic_task.c
- * @brief   Runtime periodic task registration helper.
+ * @brief   调度器周期任务注册辅助实现
  */
 
-#include "framework/runtime/periodic_task/periodic_task.h"
+#include "framework/runtime/scheduler/periodic_task.h"
 
 #include "framework/common/log.h"
 #include "framework/runtime/scheduler/thread_registry.h"
