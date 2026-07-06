@@ -121,6 +121,17 @@ static bool sim_has_rst_pin(void *ctx)
     return true;
 }
 
+/** @brief 本 provider 的 backend 契约单例，所有仿真 VFD 实例共用 */
+static const hal_vfd_backend_ops_t s_sim_vfd_backend_ops = {
+    .apply_gear    = sim_apply_gear,
+    .stop_outputs  = sim_stop_outputs,
+    .set_rst       = sim_set_rst,
+    .read          = sim_read,
+    .write         = sim_write,
+    .get_state     = sim_get_state,
+    .has_rst_pin   = sim_has_rst_pin,
+};
+
 static sw_err_t sim_bind_one(hal_vfd_id_t id)
 {
     hal_vfd_manager_bind_cfg_t cfg;
@@ -130,14 +141,8 @@ static sw_err_t sim_bind_one(hal_vfd_id_t id)
     s_ctx[id].cached_fault_code  = 0U;
     s_ctx[id].cached_current     = 0U;
 
+    cfg.ops                = &s_sim_vfd_backend_ops;
     cfg.drv_ctx            = &s_ctx[id];
-    cfg.apply_gear         = sim_apply_gear;
-    cfg.stop_outputs       = sim_stop_outputs;
-    cfg.set_rst            = sim_set_rst;
-    cfg.read               = sim_read;
-    cfg.write              = sim_write;
-    cfg.get_state          = sim_get_state;
-    cfg.has_rst_pin        = sim_has_rst_pin;
     cfg.rst_pulse_ms       = HAL_VFD_DEFAULT_RST_PULSE_MS;
     cfg.monitor_period_ms  = HAL_VFD_DEFAULT_MONITOR_PERIOD_MS;
     cfg.monitor_mask       = HAL_VFD_MON_NONE;

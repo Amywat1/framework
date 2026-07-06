@@ -71,13 +71,13 @@ static hal_vfd_slot_t *slot_by_id(hal_vfd_id_t id)
 
 static bool bind_cfg_valid(const hal_vfd_manager_bind_cfg_t *cfg)
 {
-    if ((cfg == NULL) || (cfg->drv_ctx == NULL))
+    if ((cfg == NULL) || (cfg->ops == NULL) || (cfg->drv_ctx == NULL))
     {
         return false;
     }
-    if ((cfg->apply_gear == NULL) || (cfg->stop_outputs == NULL) ||
-        (cfg->set_rst == NULL) || (cfg->read == NULL) ||
-        (cfg->write == NULL) || (cfg->get_state == NULL))
+    if ((cfg->ops->apply_gear == NULL) || (cfg->ops->stop_outputs == NULL) ||
+        (cfg->ops->set_rst == NULL) || (cfg->ops->read == NULL) ||
+        (cfg->ops->write == NULL) || (cfg->ops->get_state == NULL))
     {
         return false;
     }
@@ -96,7 +96,7 @@ static sw_err_t pulse_set_rst_level(void *ctx, bool level)
     {
         return SW_ERR_PARAM;
     }
-    return slot->cfg.set_rst(slot->cfg.drv_ctx, level);
+    return slot->cfg.ops->set_rst(slot->cfg.drv_ctx, level);
 }
 
 /** @brief 读出事件回调并在锁外调用，避免回调重入本模块查询接口时自锁死锁 */
@@ -188,7 +188,7 @@ static void monitor_sample(hal_vfd_slot_t *slot, uint32_t now_ms)
 
     if ((mask & HAL_VFD_MON_FAULT) != 0U)
     {
-        ret = slot->cfg.read(slot->cfg.drv_ctx, HAL_VFD_REG_FAULT_CODE, &val);
+        ret = slot->cfg.ops->read(slot->cfg.drv_ctx, HAL_VFD_REG_FAULT_CODE, &val);
 
         comm_restored = false;
         comm_lost     = false;
@@ -213,10 +213,10 @@ static void monitor_sample(hal_vfd_slot_t *slot, uint32_t now_ms)
 
     if ((mask & HAL_VFD_MON_CURRENT) != 0U)
     {
-        st = slot->cfg.get_state(slot->cfg.drv_ctx);
+        st = slot->cfg.ops->get_state(slot->cfg.drv_ctx);
         if ((st == HAL_VFD_STATE_FWD) || (st == HAL_VFD_STATE_REV))
         {
-            ret = slot->cfg.read(slot->cfg.drv_ctx, HAL_VFD_REG_CURRENT, &val);
+            ret = slot->cfg.ops->read(slot->cfg.drv_ctx, HAL_VFD_REG_CURRENT, &val);
 
             comm_restored = false;
             comm_lost     = false;
@@ -369,9 +369,9 @@ static sw_err_t vfd_run(hal_vfd_id_t id, hal_vfd_gear_t gear)
 
     if (gear == 0)
     {
-        return slot->cfg.stop_outputs(slot->cfg.drv_ctx);
+        return slot->cfg.ops->stop_outputs(slot->cfg.drv_ctx);
     }
-    return slot->cfg.apply_gear(slot->cfg.drv_ctx, gear);
+    return slot->cfg.ops->apply_gear(slot->cfg.drv_ctx, gear);
 }
 
 static sw_err_t vfd_set_freq(hal_vfd_id_t id, uint16_t freq_hz)
@@ -382,7 +382,7 @@ static sw_err_t vfd_set_freq(hal_vfd_id_t id, uint16_t freq_hz)
     {
         return SW_ERR_NOT_INIT;
     }
-    return slot->cfg.write(slot->cfg.drv_ctx, HAL_VFD_REG_FREQ, freq_hz);
+    return slot->cfg.ops->write(slot->cfg.drv_ctx, HAL_VFD_REG_FREQ, freq_hz);
 }
 
 static sw_err_t vfd_stop(hal_vfd_id_t id)
@@ -393,7 +393,7 @@ static sw_err_t vfd_stop(hal_vfd_id_t id)
     {
         return SW_ERR_NOT_INIT;
     }
-    return slot->cfg.stop_outputs(slot->cfg.drv_ctx);
+    return slot->cfg.ops->stop_outputs(slot->cfg.drv_ctx);
 }
 
 static sw_err_t vfd_fault_reset(hal_vfd_id_t id)
@@ -412,14 +412,14 @@ static sw_err_t vfd_fault_reset(hal_vfd_id_t id)
     pulse_out_cancel(&slot->rst_pulse);
     pthread_mutex_unlock(&s_vfd_lock);
 
-    ret = slot->cfg.stop_outputs(slot->cfg.drv_ctx);
+    ret = slot->cfg.ops->stop_outputs(slot->cfg.drv_ctx);
     if (ret != SW_OK)
     {
         return ret;
     }
 
-    use_io = (slot->cfg.has_rst_pin != NULL) &&
-             slot->cfg.has_rst_pin(slot->cfg.drv_ctx);
+    use_io = (slot->cfg.ops->has_rst_pin != NULL) &&
+             slot->cfg.ops->has_rst_pin(slot->cfg.drv_ctx);
     if (use_io)
     {
         now_ms = time_util_get_ms();
@@ -429,7 +429,7 @@ static sw_err_t vfd_fault_reset(hal_vfd_id_t id)
         return ret;
     }
 
-    ret = slot->cfg.write(slot->cfg.drv_ctx, HAL_VFD_REG_CLEAR_FAULT, 0U);
+    ret = slot->cfg.ops->write(slot->cfg.drv_ctx, HAL_VFD_REG_CLEAR_FAULT, 0U);
     if (ret == SW_ERR_PARAM)
     {
         LOG_ERROR("hal_vfd: fault_reset id=%d no rst pin and no modbus clear", id);
@@ -445,7 +445,7 @@ static hal_vfd_state_t vfd_get_state(hal_vfd_id_t id)
     {
         return HAL_VFD_STATE_STOPPED;
     }
-    return slot->cfg.get_state(slot->cfg.drv_ctx);
+    return slot->cfg.ops->get_state(slot->cfg.drv_ctx);
 }
 
 /**
@@ -468,7 +468,7 @@ static sw_err_t vfd_read(hal_vfd_id_t id, hal_vfd_reg_t reg, uint16_t *p_val)
         return SW_ERR_PARAM;
     }
 
-    return slot->cfg.read(slot->cfg.drv_ctx, reg, p_val);
+    return slot->cfg.ops->read(slot->cfg.drv_ctx, reg, p_val);
 }
 
 static sw_err_t vfd_get_cached(hal_vfd_id_t id, hal_vfd_reg_t reg, uint16_t *p_val)

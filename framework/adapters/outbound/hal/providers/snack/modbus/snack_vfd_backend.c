@@ -78,19 +78,24 @@ static bool backend_has_rst_pin(void *ctx)
     return vfd->pin_rst.raw != IO_HANDLE_NULL;
 }
 
+/** @brief 本 provider 的 backend 契约单例，所有 snack VFD 实例共用 */
+static const hal_vfd_backend_ops_t s_snack_vfd_backend_ops = {
+    .apply_gear    = backend_apply_gear,
+    .stop_outputs  = backend_stop_outputs,
+    .set_rst       = backend_set_rst,
+    .read          = backend_read,
+    .write         = backend_write,
+    .get_state     = backend_get_state,
+    .has_rst_pin   = backend_has_rst_pin,
+};
+
 static sw_err_t snack_bind_instance(hal_vfd_id_t id, drv_vfd_t *vfd,
                                     hal_vfd_monitor_mask_t mask)
 {
     hal_vfd_manager_bind_cfg_t cfg;
 
+    cfg.ops                = &s_snack_vfd_backend_ops;
     cfg.drv_ctx            = vfd;
-    cfg.apply_gear         = backend_apply_gear;
-    cfg.stop_outputs       = backend_stop_outputs;
-    cfg.set_rst            = backend_set_rst;
-    cfg.read               = backend_read;
-    cfg.write              = backend_write;
-    cfg.get_state          = backend_get_state;
-    cfg.has_rst_pin        = backend_has_rst_pin;
     cfg.rst_pulse_ms       = HAL_VFD_DEFAULT_RST_PULSE_MS;
     cfg.monitor_period_ms  = HAL_VFD_DEFAULT_MONITOR_PERIOD_MS;
     cfg.monitor_mask       = mask;
