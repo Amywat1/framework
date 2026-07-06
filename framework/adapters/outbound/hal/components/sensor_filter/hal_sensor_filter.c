@@ -4,7 +4,7 @@
  * @author  HUWANGWEI
  * @date    2026-04-10
  *
- * @note    共享状态由 s_sensor_lock 保护，ops.bind()/warmup()/is_active()
+ * @note    共享状态由 s_sensor_lock 保护，hal_sensor_filter_bind()/ops.warmup()/is_active()
  *          可在不同线程中并发调用。
  */
 
@@ -54,8 +54,8 @@ static bool bind_cfg_valid(const hal_sensor_bind_cfg_t *cfg)
     return true;
 }
 
-static sw_err_t sensor_bind(hal_sensor_channel_t         ch,
-                            const hal_sensor_bind_cfg_t *cfg)
+sw_err_t hal_sensor_filter_bind(hal_sensor_channel_t         ch,
+                                const hal_sensor_bind_cfg_t *cfg)
 {
     if (!channel_valid(ch) || !bind_cfg_valid(cfg))
     {
@@ -69,7 +69,7 @@ static sw_err_t sensor_bind(hal_sensor_channel_t         ch,
     return SW_OK;
 }
 
-/* 仅重置运行时滤波状态；通道绑定配置在 bootstrap 阶段由 ops.bind() 写入，不在此清除 */
+/* 仅重置运行时滤波状态；通道绑定配置在 bootstrap 阶段写入，不在此清除 */
 static sw_err_t sensor_init(void)
 {
     pthread_mutex_lock(&s_sensor_lock);
@@ -179,7 +179,6 @@ static bool sensor_is_active(hal_sensor_channel_t ch)
 
 static const hal_sensor_ops_t s_ops = {
     .init      = sensor_init,
-    .bind      = sensor_bind,
     .warmup    = sensor_warmup,
     .is_active = sensor_is_active,
 };

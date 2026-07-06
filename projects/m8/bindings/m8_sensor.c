@@ -7,6 +7,7 @@
 
 #include "projects/m8/bindings/m8_sensor.h"
 #include "projects/m8/config/m8_signal_table.h"
+#include "framework/adapters/outbound/hal/components/sensor_filter/hal_sensor_filter.h"
 #include "framework/ports/outbound/hal/hal_sensor_port.h"
 #include "framework/common/log.h"
 
@@ -17,7 +18,7 @@ _Static_assert((unsigned)M8_SIG_MAX <= HAL_SENSOR_CHANNEL_MAX,
  * 初始化
  * ------------------------------------------------------------------------- */
 
-static sw_err_t apply_signal_table(const hal_sensor_ops_t *sensor)
+static sw_err_t apply_signal_table(void)
 {
     sw_err_t err = SW_OK;
 
@@ -32,7 +33,7 @@ static sw_err_t apply_signal_table(const hal_sensor_ops_t *sensor)
         cfg.trig_count    = row->trig_count;
         cfg.release_count = row->release_count;
 
-        ret = sensor->bind((hal_sensor_channel_t)i, &cfg);
+        ret = hal_sensor_filter_bind((hal_sensor_channel_t)i, &cfg);
         if (ret != SW_OK)
         {
             LOG_ERROR("m8_sensor_setup: bind ch=%d failed ret=%d", i, (int)ret);
@@ -48,13 +49,13 @@ sw_err_t m8_sensor_setup(void)
     const hal_sensor_ops_t *sensor = hal_sensor_get_ops();
     sw_err_t                ret;
 
-    if ((sensor == NULL) || (sensor->init == NULL) || (sensor->bind == NULL))
+    if ((sensor == NULL) || (sensor->init == NULL))
     {
         LOG_ERROR("m8_sensor_setup: hal_sensor ops not registered");
         return SW_ERR_NOT_INIT;
     }
 
-    ret = apply_signal_table(sensor);
+    ret = apply_signal_table();
     if (ret != SW_OK)
     {
         return ret;

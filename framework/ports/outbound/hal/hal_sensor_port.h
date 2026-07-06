@@ -5,9 +5,8 @@
  * @date    2026-04-10
  *
  * @note    对原始 DI 做极性转换与计数防抖，输出稳定逻辑态；
- *          业务映射与报警联动由 machine 层完成。
- *          通道绑定通过 hal_sensor_ops_t.bind() 完成，由已注册的
- *          hal_sensor 适配器（如 hal_sensor_filter）提供具体实现。
+ *          业务映射与报警联动由 machine 层完成；通道绑定由具体
+ *          HAL 组合层提供装配接口，port ops 不承载项目点位绑定。
  */
 
 #ifndef PORTS_HAL_SENSOR_PORT_H
@@ -42,16 +41,6 @@ typedef struct
 {
     /** @brief  初始化内部运行时状态 */
     sw_err_t (*init)(void);
-
-    /**
-     * @brief  绑定传感器通道滤波参数。
-     * @param  ch   通道编号。
-     * @param  cfg  绑定配置，trig_count/release_count 必须大于 0。
-     * @retval SW_OK        绑定成功。
-     * @retval SW_ERR_PARAM 参数非法。
-     * @note   供项目 wiring/bindings 在启动阶段调用。
-     */
-    sw_err_t (*bind)(hal_sensor_channel_t ch, const hal_sensor_bind_cfg_t *cfg);
 
     /**
      * @brief  同步执行指定轮次采样，用于启动阶段预填充滤波状态。
