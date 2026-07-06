@@ -10,7 +10,7 @@
 #include "framework/runtime/bootstrap/project_hooks.h"
 #include "framework/runtime/event_bus/event_bus.h"
 #include "framework/common/event_types.h"
-#include "framework/adapters/outbound/hal/components/sensor_filter/hal_sensor_poll.h"
+#include "framework/adapters/outbound/hal/components/sensor_filter/hal_sensor_filter.h"
 #include "framework/adapters/outbound/hal/components/vfd_manager/hal_vfd_manager.h"
 #include "projects/m8/adapters/alarm/m8_alarm_adapt.h"
 #include "projects/m8/adapters/alarm/m8_alarm_init.h"

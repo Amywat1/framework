@@ -78,7 +78,6 @@ file(GLOB_RECURSE fw_adapters_runtime_snack_src CONFIGURE_DEPENDS framework/adap
 # 未在本项目实际接线中使用于仿真路径的通用电机 ops 端口，保持与真机一致排除。
 set(fw_adapters_hal_components_sim_src
     framework/adapters/outbound/hal/components/sensor_filter/hal_sensor_filter.c
-    framework/adapters/outbound/hal/components/sensor_filter/hal_sensor_poll.c
     framework/adapters/outbound/hal/components/do_group_mapper/hal_do_group_mapper.c
     framework/adapters/outbound/hal/components/vfd_manager/hal_vfd_manager.c
     framework/adapters/outbound/hal/components/pulse_out/pulse_out.c
@@ -556,6 +555,8 @@ if(BUILD_SIM)
     add_unit_test(test_hal_sensor
         tests/framework/adapters/test_hal_sensor.c
         framework/adapters/outbound/hal/components/sensor_filter/hal_sensor_filter.c
+        framework/runtime/scheduler/periodic_task.c
+        framework/runtime/scheduler/thread_registry.c
     )
 
     # test_hal_motor：通用电机 HAL（DO 输出 / 限位 / 脉冲 / 回调）

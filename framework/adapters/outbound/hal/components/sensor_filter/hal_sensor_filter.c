@@ -4,20 +4,23 @@
  * @author  HUWANGWEI
  * @date    2026-04-10
  *
- * @note    共享状态由 s_sensor_lock 保护，ops.bind()/tick()/is_active()
+ * @note    共享状态由 s_sensor_lock 保护，ops.bind()/warmup()/is_active()
  *          可在不同线程中并发调用。
  */
 
 #include "framework/adapters/outbound/hal/components/sensor_filter/hal_sensor_filter.h"
-#include "framework/adapters/outbound/hal/components/sensor_filter/hal_sensor_filter_internal.h"
 #include "framework/ports/outbound/hal/hal_sensor_port.h"
 #include "framework/ports/outbound/hal/hal_io_port.h"
 #include "framework/common/log.h"
+#include "framework/runtime/config/thread_config.h"
+#include "framework/runtime/scheduler/periodic_task.h"
 
 #include <pthread.h>
+#include <sched.h>
 #include <stddef.h>
 
 #define SENSOR_STABLE_COUNT_MAX  255U
+#define HAL_SENSOR_POLL_PERIOD_MS  50U
 
 typedef struct
 {
@@ -82,7 +85,7 @@ static sw_err_t sensor_init(void)
     return SW_OK;
 }
 
-sw_err_t hal_sensor_filter_tick_once(void)
+static sw_err_t sensor_tick(void)
 {
     const hal_io_ops_t *io = hal_io_get_ops();
 
@@ -148,7 +151,7 @@ static sw_err_t sensor_warmup(uint8_t sample_count)
 
     for (uint8_t i = 0U; i < sample_count; i++)
     {
-        ret = hal_sensor_filter_tick_once();
+        ret = sensor_tick();
         if (ret != SW_OK)
         {
             return ret;
@@ -184,4 +187,21 @@ static const hal_sensor_ops_t s_ops = {
 void hal_sensor_filter_register(void)
 {
     hal_sensor_register(&s_ops);
+}
+
+static void sensor_poll_task(void *ctx)
+{
+    (void)ctx;
+    (void)sensor_tick();
+}
+
+sw_err_t hal_sensor_poll_register_task(void)
+{
+    return periodic_task_register("hal_sensor_poll",
+                                  HAL_SENSOR_POLL_PERIOD_MS,
+                                  sensor_poll_task,
+                                  NULL,
+                                  SCHED_OTHER,
+                                  THD_SENSOR_POLL_NICE,
+                                  THD_SENSOR_POLL_STACK);
 }

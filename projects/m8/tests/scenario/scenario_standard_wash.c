@@ -27,7 +27,6 @@
 #include "framework/application/orchestrators/emergency_handler.h"
 #include "framework/application/orchestrators/device_fsm.h"
 #include "framework/adapters/outbound/hal/components/sensor_filter/hal_sensor_filter.h"
-#include "framework/adapters/outbound/hal/components/sensor_filter/hal_sensor_poll.h"
 #include "framework/adapters/outbound/hal/components/vfd_manager/hal_vfd_manager.h"
 #include "projects/m8/bindings/m8_sensor.h"
 #include "projects/m8/bindings/m8_signal_sim.h"
