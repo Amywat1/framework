@@ -9,6 +9,7 @@
 #include "framework/ports/outbound/hal/hal_do_group_port.h"
 #include "framework/ports/outbound/hal/hal_io_port.h"
 #include "framework/common/io_handle.h"
+#include "framework/common/log.h"
 #include <stddef.h>
 
 static io_do_t s_pin[HAL_DO_GROUP_MAX][HAL_DO_SLOT_MAX];
@@ -41,6 +42,7 @@ static sw_err_t do_group_bind(hal_do_group_t group,
 {
     if (!group_valid(group) || !slot_valid(slot))
     {
+        LOG_ERROR("hal_do_group: bind param invalid group=%u slot=%u", (unsigned)group, (unsigned)slot);
         return SW_ERR_PARAM;
     }
 
@@ -58,6 +60,7 @@ static sw_err_t do_group_slot_set(hal_do_group_t group, hal_do_slot_t slot, bool
 {
     if (!group_valid(group) || !slot_valid(slot) || !s_bound[group][slot])
     {
+        LOG_ERROR("hal_do_group: slot_set invalid or unbound group=%u slot=%u", (unsigned)group, (unsigned)slot);
         return SW_ERR_NOT_INIT;
     }
     return io_do_set(s_pin[group][slot], on);

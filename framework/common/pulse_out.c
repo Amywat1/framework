@@ -5,7 +5,7 @@
  * @date    2026-07-04
  */
 
-#include "framework/adapters/outbound/hal/components/pulse_out/pulse_out.h"
+#include "framework/common/pulse_out.h"
 
 #include "framework/common/time_util.h"
 

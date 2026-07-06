@@ -1,12 +1,12 @@
 /**
  * @file    pulse_out.h
- * @brief   通用 DO 脉冲时序原语（非阻塞，由 tick 驱动释方）
+ * @brief   通用 DO 脉冲时序原语（非阻塞，由 tick 驱动释放）
  * @author  HUWANGWEI
  * @date    2026-07-04
  */
 
-#ifndef ADAPTERS_HAL_COMPONENTS_PULSE_OUT_PULSE_OUT_H
-#define ADAPTERS_HAL_COMPONENTS_PULSE_OUT_PULSE_OUT_H
+#ifndef COMMON_PULSE_OUT_H
+#define COMMON_PULSE_OUT_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -63,4 +63,4 @@ void pulse_out_cancel(pulse_out_slot_t *slot);
 }
 #endif
 
-#endif /* ADAPTERS_HAL_COMPONENTS_PULSE_OUT_PULSE_OUT_H */
+#endif /* COMMON_PULSE_OUT_H */

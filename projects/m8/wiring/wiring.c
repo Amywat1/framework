@@ -16,7 +16,6 @@
 /* -------------------------------------------------------------------------
  * HAL 适配器注册函数声明
  * ------------------------------------------------------------------------- */
-extern void hal_motor_io_register(void);
 extern void hal_sensor_filter_register(void);
 extern void m8_io_adapter_register(void);
 extern void snack_vfd_backend_register(void);
@@ -49,8 +48,7 @@ sw_err_t wiring(void)
     /* 尽早注册日志 sink，确保本函数及后续所有日志都经 Snack 输出 */
     snack_log_sink_register();
 
-    /* HAL port → 实现注册（io/vfd/voice: providers/snack；motor/sensor/do_group: generic） */
-    hal_motor_io_register();
+    /* HAL port → 实现注册（io/vfd/voice: providers/snack；sensor/do_group: generic） */
     hal_sensor_filter_register();
     m8_io_adapter_register();
     snack_vfd_backend_register();

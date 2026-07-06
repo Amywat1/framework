@@ -72,15 +72,14 @@ file(GLOB_RECURSE fw_adapters_hal_sim_src     CONFIGURE_DEPENDS framework/adapte
 file(GLOB_RECURSE fw_adapters_storage_src CONFIGURE_DEPENDS framework/adapters/outbound/storage/*.c framework/adapters/outbound/storage/*.h)
 file(GLOB_RECURSE fw_adapters_runtime_snack_src CONFIGURE_DEPENDS framework/adapters/runtime/snack/*.cpp framework/adapters/runtime/snack/*.h)
 
-# 仿真构建只需要 components/ 下机型无关的组合层（sensor/do_group/vfd/pulse_out）
-# 以及 electric-motor 端口的通用适配器（motor exec 端口 -> MCC，MCC 本身经
-# tests/stubs/mcc/motor_control_core_sim.c 提供仿真实现）；hal_motor.c 是另一套
-# 未在本项目实际接线中使用于仿真路径的通用电机 ops 端口，保持与真机一致排除。
+# 仿真构建只需要 components/ 下机型无关的组合层（sensor/do_group/vfd）以及
+# electric-motor 端口的通用适配器（motor exec 端口 -> MCC，MCC 本身经
+# tests/stubs/mcc/motor_control_core_sim.c 提供仿真实现）；pulse_out 已迁移到
+# framework/common/，由 fw_common_src 统一收录。
 set(fw_adapters_hal_components_sim_src
     framework/adapters/outbound/hal/components/sensor_filter/hal_sensor_filter.c
     framework/adapters/outbound/hal/components/do_group_mapper/hal_do_group_mapper.c
     framework/adapters/outbound/hal/components/vfd_manager/hal_vfd_manager.c
-    framework/adapters/outbound/hal/components/pulse_out/pulse_out.c
     framework/adapters/outbound/hal/providers/mcc/hal_motor_exec_adapter.c
 )
 
@@ -559,12 +558,6 @@ if(BUILD_SIM)
         framework/runtime/scheduler/thread_registry.c
     )
 
-    # test_hal_motor：通用电机 HAL（DO 输出 / 限位 / 脉冲 / 回调）
-    add_unit_test(test_hal_motor
-        tests/framework/adapters/test_hal_motor.c
-        framework/adapters/outbound/hal/components/motor_io/hal_motor_io.c
-    )
-
     # test_hal_do_group：DO 组×槽位绑定与输出
     add_unit_test(test_hal_do_group
         tests/framework/adapters/test_hal_do_group.c
@@ -581,20 +574,12 @@ if(BUILD_SIM)
         framework/adapters/outbound/hal/sim/hal_io_sim.c
     )
 
-    # test_hal_motor_sim：电机仿真 HAL（依赖 hal_io_sim + sim_encoder_counter）
-    add_unit_test(test_hal_motor_sim
-        tests/framework/adapters/test_hal_motor_sim.c
-        framework/adapters/outbound/hal/sim/hal_motor_sim.c
-        framework/adapters/outbound/hal/sim/hal_io_sim.c
-        framework/adapters/outbound/hal/sim/sim_encoder_counter.c
-    )
-
     # test_hal_vfd_sim：变频器仿真 HAL（状态机 + 参数校验，M8 机型专属绑定，项目级）
     add_unit_test(test_hal_vfd_sim
         projects/m8/tests/test_hal_vfd_sim.c
         projects/m8/adapters/hal/hal_vfd_sim_m8.c
         framework/adapters/outbound/hal/components/vfd_manager/hal_vfd_manager.c
-        framework/adapters/outbound/hal/components/pulse_out/pulse_out.c
+        framework/common/pulse_out.c
         framework/runtime/scheduler/periodic_task.c
         framework/runtime/scheduler/thread_registry.c
     )

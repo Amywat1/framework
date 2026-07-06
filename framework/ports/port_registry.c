@@ -10,7 +10,6 @@
  *          调用方应在使用前做 assert(ops != NULL) 检查。
  */
 
-#include "framework/ports/outbound/hal/hal_motor_port.h"
 #include "framework/ports/outbound/hal/hal_sensor_port.h"
 #include "framework/ports/outbound/hal/hal_io_port.h"
 #include "framework/ports/outbound/hal/hal_vfd_port.h"
@@ -21,14 +20,6 @@
 #include "framework/ports/outbound/storage/param_store.h"
 #include "framework/ports/outbound/storage/deploy_store.h"
 #include "framework/ports/inbound/safety/alarm_binding_port.h"
-
-/* -------------------------------------------------------------------------
- * HAL — 通用电机
- * ------------------------------------------------------------------------- */
-static const hal_motor_ops_t *s_motor_ops;
-
-void hal_motor_register(const hal_motor_ops_t *ops) { s_motor_ops = ops; }
-const hal_motor_ops_t *hal_motor_get_ops(void)      { return s_motor_ops; }
 
 /* -------------------------------------------------------------------------
  * HAL — 传感器

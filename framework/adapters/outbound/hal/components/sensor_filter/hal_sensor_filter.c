@@ -59,6 +59,7 @@ sw_err_t hal_sensor_filter_bind(hal_sensor_channel_t         ch,
 {
     if (!channel_valid(ch) || !bind_cfg_valid(cfg))
     {
+        LOG_ERROR("hal_sensor: bind param invalid ch=%u", (unsigned)ch);
         return SW_ERR_PARAM;
     }
 

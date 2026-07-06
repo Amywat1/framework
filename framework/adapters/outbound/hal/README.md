@@ -13,11 +13,12 @@ framework/adapters/outbound/hal/
 
 `components/` 放可复用的 HAL 组合逻辑：
 
-- `motor_io/`：电机 IO 方向控制与 HAL 绑定。
 - `sensor_filter/`：DI 传感器滤波与状态缓存。
 - `do_group_mapper/`：DO group/slot 到 DO 端口的映射。
 - `vfd_manager/`：VFD 方向、RST 与命令调度。
-- `pulse_out/`：HAL 脉冲输出适配。
+
+通用非阻塞脉冲时序原语 `pulse_out`（供 `vfd_manager` 等内部复用）不依赖任何 HAL
+类型，已迁移到 `framework/common/pulse_out.*`，不属于本目录。
 
 `providers/` 放具体外部依赖适配。目前 `providers/snack/` 包含 Snack IO、Modbus VFD、Modbus 语音等适配。
 

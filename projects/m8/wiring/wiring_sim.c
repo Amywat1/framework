@@ -10,8 +10,7 @@
 #include "framework/runtime/bootstrap/wiring.h"
 #include "framework/common/log.h"
 
-/* sim HAL 适配器（io/vfd/voice/motor：sim 专属；sensor/do_group：generic 共用） */
-extern void hal_motor_sim_register(void);
+/* sim HAL 适配器（io/vfd/voice：sim 专属；sensor/do_group：generic 共用） */
 extern void hal_sensor_filter_register(void);
 extern void hal_io_sim_register(void);
 extern void hal_vfd_sim_register(void);
@@ -31,8 +30,7 @@ extern void json_deploy_store_register(void);
 
 sw_err_t wiring(void)
 {
-    /* HAL port 注册（io/vfd/voice/motor: sim；sensor/do_group: generic） */
-    hal_motor_sim_register();
+    /* HAL port 注册（io/vfd/voice: sim；sensor/do_group: generic） */
     hal_sensor_filter_register();
     hal_io_sim_register();
     hal_vfd_sim_register();

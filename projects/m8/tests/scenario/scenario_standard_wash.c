@@ -46,7 +46,6 @@
 #include <stdbool.h>
 
 /* sim HAL 注册函数（无专用头文件，使用 extern 声明）*/
-extern void hal_motor_sim_register(void);
 extern void hal_io_sim_register(void);
 extern void hal_vfd_sim_register(void);
 extern void hal_do_group_mapper_register(void);
@@ -128,7 +127,6 @@ static void scenario_setup(void)
     /* 注册 sim HAL 适配器 */
     hal_io_sim_register();
     hal_vfd_sim_register();
-    hal_motor_sim_register();
     hal_sensor_filter_register();
     hal_do_group_mapper_register();
     /* 引擎 IO 后端：M8 机型桥接到 gantry/brush/water 设备驱动 */
