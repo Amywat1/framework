@@ -6,10 +6,14 @@
  *
  * @note    不含正反向切换等待；run/stop 为即时 backend 调用。
  *          vfd_manager poll 任务推进 RST 脉冲释放与慢速通信监测。
- *          内部簿记状态（故障/通信/RST 脉冲/事件回调/监测掩码）由 s_vfd_lock
- *          保护，可在 poll 线程与业务调用线程（如电机执行器 tick 线程）间并发
- *          调用；backend 的 Modbus 读写调用不持锁，避免单实例通信阻塞拖慢其余
- *          实例（backend 自身的总线与 IO 并发保护由 provider 负责）。
+ *          故障/通信簿记（cached_fault_code/cached_current/fault_active/
+ *          comm_ok/comm_fail_count）只由 poll 线程的 monitor_sample() 写入，
+ *          是唯一写者；业务调用线程（如电机执行器 tick 线程）通过 read()/
+ *          get_cached() 只读或纯 backend 透传，不参与判定，缩小并发改动面。
+ *          RST 脉冲、事件回调、监测掩码仍可能被 poll 线程与业务线程共同读写，
+ *          由 s_vfd_lock 保护；backend 的 Modbus 读写调用不持锁，避免单实例
+ *          通信阻塞拖慢其余实例（backend 自身的总线与 IO 并发保护由 provider
+ *          负责）。
  */
 
 #include "framework/adapters/outbound/hal/components/vfd_manager/hal_vfd_manager.h"
@@ -444,13 +448,16 @@ static hal_vfd_state_t vfd_get_state(hal_vfd_id_t id)
     return slot->cfg.get_state(slot->cfg.drv_ctx);
 }
 
+/**
+ * @brief  按需读寄存器（发起 Modbus IO），纯 backend 透传
+ * @note   故障/通信簿记（cached_fault_code/comm_ok 等）只由 poll 线程的
+ *         monitor_sample() 维护，本接口不参与判定，避免与 monitor_sample
+ *         并发写同一份状态；按需查询的最新故障码请直接使用返回值 *p_val，
+ *         事件通知与 get_cached() 缓存值仍以下一次 monitor 周期为准。
+ */
 static sw_err_t vfd_read(hal_vfd_id_t id, hal_vfd_reg_t reg, uint16_t *p_val)
 {
     hal_vfd_slot_t *slot = slot_by_id(id);
-    sw_err_t        ret;
-    bool            comm_restored = false;
-    bool            comm_lost     = false;
-    int             fault_evt     = 0;
 
     if (slot == NULL)
     {
@@ -461,27 +468,7 @@ static sw_err_t vfd_read(hal_vfd_id_t id, hal_vfd_reg_t reg, uint16_t *p_val)
         return SW_ERR_PARAM;
     }
 
-    ret = slot->cfg.read(slot->cfg.drv_ctx, reg, p_val);
-
-    pthread_mutex_lock(&s_vfd_lock);
-    if (ret == SW_OK)
-    {
-        comm_restored = on_comm_success_locked(slot);
-        if (reg == HAL_VFD_REG_FAULT_CODE)
-        {
-            fault_evt = update_fault_state_locked(slot, *p_val);
-        }
-    }
-    else if (ret == SW_ERR_COMM)
-    {
-        comm_lost = on_comm_failure_locked(slot);
-    }
-    pthread_mutex_unlock(&s_vfd_lock);
-
-    if (comm_restored) { emit_event(slot, HAL_VFD_EVT_COMM_RESTORED); }
-    if (comm_lost)     { emit_event(slot, HAL_VFD_EVT_COMM_LOST); }
-    if (fault_evt != 0) { emit_event(slot, fault_evt); }
-    return ret;
+    return slot->cfg.read(slot->cfg.drv_ctx, reg, p_val);
 }
 
 static sw_err_t vfd_get_cached(hal_vfd_id_t id, hal_vfd_reg_t reg, uint16_t *p_val)
