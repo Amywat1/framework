@@ -16,13 +16,12 @@
 extern "C" {
 #endif
 
+#include "framework/adapters/outbound/hal/providers/snack/modbus/drv_modbus_link.h"
 #include "framework/common/sw_error.h"
 
 #include <pthread.h>
 #include <stdbool.h>
 #include <stdint.h>
-
-typedef struct _modbus modbus_t;
 
 /* -------------------------------------------------------------------------
  * 事件码：通过 event_cb 上报给上层
@@ -35,14 +34,10 @@ typedef struct _modbus modbus_t;
  * 以下字段标注"内部"者，外部代码只读，禁止直接修改。
  */
 typedef struct {
-    modbus_t       *mb;               /**< 内部：Modbus 上下文 */
-    const char     *serial_port;      /**< 内部：串口路径，初始化后不可变 */
-    int             baud;             /**< 内部：波特率 */
-    int             modbus_addr;      /**< 内部：Modbus 从站地址 */
-    bool            mb_connected;     /**< 内部：当前连接是否已建立 */
-    uint16_t        comm_fail_count;  /**< 内部：连续通信失败计数 */
-    bool            comm_ok;          /**< 内部：当前通信是否正常 */
-    pthread_mutex_t mb_mutex;         /**< 内部：保护 mb 上下文与通信状态 */
+    drv_modbus_link_t link;            /**< Modbus RTU 链路（连接/总线锁/失败重连） */
+    bool               comm_ok;         /**< 内部：当前通信是否正常 */
+    uint16_t           notify_fail_count; /**< 内部：连续失败计数，仅用于通信丢失/恢复通知判定 */
+    pthread_mutex_t    notify_mutex;    /**< 内部：保护 comm_ok/notify_fail_count/event_cb */
     void (*event_cb)(int event_code); /**< 事件回调，NULL 表示未注册 */
 } drv_voice_t;
 

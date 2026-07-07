@@ -26,7 +26,7 @@ static void init_voice(void)
 {
     TEST_ASSERT_EQUAL_INT(SW_OK, drv_voice_init(&g_v, "/dev/ttyS1", 9600, 2));
     drv_voice_register_event_cb(&g_v, event_cb);
-    g_v.mb_connected = true;
+    g_v.link.mb_connected = true;
 }
 
 void setUp(void)
@@ -159,7 +159,7 @@ static void test_play_comm_fail_returns_err(void)
 static void test_comm_lost_after_three_failures(void)
 {
     init_voice();
-    g_v.mb_connected = false;
+    g_v.link.mb_connected = false;
     modbus_stub_set_connect_result(-1);
     drv_voice_play(&g_v, 1U);
     drv_voice_play(&g_v, 1U);
@@ -172,7 +172,7 @@ static void test_comm_restored_after_recovery(void)
 {
     init_voice();
     g_v.comm_ok      = false;
-    g_v.mb_connected = true;
+    g_v.link.mb_connected = true;
     drv_voice_play(&g_v, 1U);
     TEST_ASSERT_EQUAL_INT(DRV_VOICE_EVT_COMM_RESTORED, s_last_event);
     TEST_ASSERT_TRUE(g_v.comm_ok);
@@ -182,7 +182,7 @@ static void test_init_success_when_connect_fails(void)
 {
     modbus_stub_set_connect_result(-1);
     TEST_ASSERT_EQUAL_INT(SW_OK, drv_voice_init(&g_v, "/dev/ttyS1", 9600, 2));
-    TEST_ASSERT_FALSE(g_v.mb_connected); /* defer-link，但 init 成功 */
+    TEST_ASSERT_FALSE(g_v.link.mb_connected); /* defer-link，但 init 成功 */
 }
 
 /* =========================================================================
@@ -194,18 +194,18 @@ static void test_null_event_cb_no_crash(void)
 {
     init_voice();
     drv_voice_register_event_cb(&g_v, NULL);
-    g_v.mb_connected = false;
+    g_v.link.mb_connected = false;
     modbus_stub_set_connect_result(-1);
     drv_voice_play(&g_v, 1U);
     drv_voice_play(&g_v, 1U);
     drv_voice_play(&g_v, 1U); /* 此处本应触发 COMM_LOST，NULL 回调不崩溃即通过 */
 }
 
-/* VOICE_COMM_FAIL_RECONNECT=10：连续 10 次失败后，内部计数器应自动重置为 0 */
+/* VOICE_COMM_FAIL_RECONNECT=10：连续 10 次失败后，link 内部重连计数器应自动重置为 0 */
 static void test_comm_fail_count_resets_at_reconnect_threshold(void)
 {
     init_voice();
-    g_v.mb_connected = false;
+    g_v.link.mb_connected = false;
     modbus_stub_set_connect_result(-1); /* 每次重连都失败 */
 
     for (int i = 0; i < 10; i++) {
@@ -213,7 +213,7 @@ static void test_comm_fail_count_resets_at_reconnect_threshold(void)
     }
 
     /* fail_count 到达阈值 10 后被重置为 0（防止无限累积的安全阀） */
-    TEST_ASSERT_EQUAL_UINT16(0U, g_v.comm_fail_count);
+    TEST_ASSERT_EQUAL_UINT16(0U, g_v.link.comm_fail_count);
 }
 
 /* init 时 modbus_new_rtu 返回 NULL（上下文创建失败） */
@@ -222,7 +222,7 @@ static void test_init_modbus_ctx_fail(void)
     modbus_stub_set_new_rtu_fail(true);
     TEST_ASSERT_EQUAL_INT(SW_ERR_HW, drv_voice_init(&g_v, "/dev/ttyS1", 9600, 2));
     /* 失败后实例字段应保持零初始化（不可用）*/
-    TEST_ASSERT_NULL(g_v.serial_port);
+    TEST_ASSERT_NULL(g_v.link.serial_port);
 }
 
 /* 同一个实例反复 init（上层配置变更场景），不应崩溃 */
@@ -231,7 +231,7 @@ static void test_reinit_same_instance(void)
     TEST_ASSERT_EQUAL_INT(SW_OK, drv_voice_init(&g_v, "/dev/ttyS1", 9600, 2));
     /* 再次初始化（新的 mutex init + modbus 上下文），不崩溃 */
     TEST_ASSERT_EQUAL_INT(SW_OK, drv_voice_init(&g_v, "/dev/ttyS1", 9600, 3));
-    TEST_ASSERT_EQUAL_INT(3, g_v.modbus_addr);
+    TEST_ASSERT_EQUAL_INT(3, g_v.link.modbus_addr);
 }
 
 /* =========================================================================

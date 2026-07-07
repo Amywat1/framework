@@ -370,6 +370,7 @@ if(BUILD_SIM)
         framework/services/dev_ctx/dev_ctx.c
         framework/application/orchestrators/report_aggregator.c
         framework/runtime/scheduler/thread_registry.c
+        framework/runtime/scheduler/periodic_task.c
         third_party/cJSON/cJSON.c
     )
 
@@ -514,6 +515,7 @@ if(BUILD_SIM)
     add_executable(test_drv_vfd
         tests/framework/adapters/test_drv_vfd.c
         framework/adapters/outbound/hal/providers/snack/modbus/drv_vfd.c
+        framework/adapters/outbound/hal/providers/snack/modbus/drv_modbus_link.c
         ${modbus_stub_src}
         ${drv_common_src}
     )
@@ -526,6 +528,7 @@ if(BUILD_SIM)
     add_executable(test_drv_voice
         tests/framework/adapters/test_drv_voice.c
         framework/adapters/outbound/hal/providers/snack/modbus/drv_voice.c
+        framework/adapters/outbound/hal/providers/snack/modbus/drv_modbus_link.c
         ${modbus_stub_src}
         ${drv_common_src}
     )

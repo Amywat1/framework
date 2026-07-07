@@ -82,11 +82,11 @@ void setUp(void)
     modbus_stub_reset();
     pin_log_reset();
     ensure_vfd_ready();
-    g_vfd.gear            = VFD_GEAR_STOP;
-    g_vfd.comm_fail_count = 0U;
-    g_vfd.mb_connected    = true;
-    g_vfd.pin_rev         = P_REV;
-    g_vfd.pin_rst         = P_RST;
+    g_vfd.gear              = VFD_GEAR_STOP;
+    g_vfd.link.comm_fail_count = 0U;
+    g_vfd.link.mb_connected    = true;
+    g_vfd.pin_rev           = P_REV;
+    g_vfd.pin_rst           = P_RST;
 }
 
 void tearDown(void) {}
@@ -358,13 +358,13 @@ static void test_comm_fail_count_resets_at_reconnect_threshold(void)
     /* 与 drv_vfd.c 中 VFD_COMM_FAIL_RECONNECT 保持一致 */
     enum { k_reconnect_threshold = 50U };
 
-    g_vfd.comm_fail_count = 0U;
-    g_vfd.mb_connected    = true;
+    g_vfd.link.comm_fail_count = 0U;
+    g_vfd.link.mb_connected    = true;
     modbus_stub_set_read_result(-1, 0U);
     for (i = 0U; i < k_reconnect_threshold; i++) {
         (void)drv_vfd_read(&g_vfd, DRV_VFD_REG_CURRENT, &dummy);
     }
-    TEST_ASSERT_EQUAL_UINT16(0U, g_vfd.comm_fail_count);
+    TEST_ASSERT_EQUAL_UINT16(0U, g_vfd.link.comm_fail_count);
 }
 
 static void test_init_modbus_ctx_fail(void)
@@ -373,7 +373,7 @@ static void test_init_modbus_ctx_fail(void)
     modbus_stub_set_new_rtu_fail(true);
     TEST_ASSERT_EQUAL_INT(SW_ERR_HW,
         drv_vfd_init(&tmp, "/dev/ttyS0", 9600, 2, P_FWD, P_REV, P_RST, fake_do_set));
-    TEST_ASSERT_NULL(tmp.serial_port);
+    TEST_ASSERT_NULL(tmp.link.serial_port);
 }
 
 static void test_apply_gear_stop_when_already_stopped(void)

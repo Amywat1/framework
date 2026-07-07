@@ -24,6 +24,7 @@
 extern "C" {
 #endif
 
+#include "framework/adapters/outbound/hal/providers/snack/modbus/drv_modbus_link.h"
 #include "framework/common/io_handle.h"
 #include "framework/common/sw_error.h"
 #include "framework/common/vfd_types.h"
@@ -31,8 +32,6 @@ extern "C" {
 #include <pthread.h>
 #include <stdbool.h>
 #include <stdint.h>
-
-typedef struct _modbus modbus_t;
 
 /* -------------------------------------------------------------------------
  * 挡位类型与宏
@@ -74,7 +73,7 @@ typedef sw_err_t (*drv_vfd_do_set_fn)(io_do_t pin, bool val);
  * gear 字段标注"内部"者，外部代码只读，禁止直接修改。
  */
 typedef struct {
-    modbus_t      *mb;
+    drv_modbus_link_t link;                 /* Modbus RTU 链路（连接/总线锁/失败重连） */
     io_do_t        pin_fwd;
     io_do_t        pin_rev;                 /* IO_HANDLE_NULL 表示不支持反转 */
     io_do_t        pin_rst;
@@ -83,14 +82,8 @@ typedef struct {
     uint8_t        spd_cfg[VFD_GEAR_MAX];   /* 挡位 1~3 对应 IO 状态，由 drv_vfd_config_speed_io 写入 */
     bool           spd_io_ready;            /* 内部：drv_vfd_config_speed_io 已完成配置 */
     drv_vfd_gear_t gear;                    /* 内部：当前已应用到硬件的挡位，0=停止 */
-    uint16_t       comm_fail_count;         /* 内部：连续 Modbus 失败计数（达阈值触发重连） */
-    const char    *serial_port;
-    int            baud;
-    int            modbus_addr;
     drv_vfd_do_set_fn do_set;
-    void          *bus_lock;                /* 内部：同 serial_port 实例共享的 Modbus 互斥锁 */
     pthread_mutex_t io_mutex;               /* 内部：保护 gear 与 IO 写操作 */
-    bool           mb_connected;            /* 内部：Modbus 连接已建立 */
 } drv_vfd_t;
 
 /**

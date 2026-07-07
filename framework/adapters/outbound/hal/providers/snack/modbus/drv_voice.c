@@ -7,8 +7,8 @@
 
 #include "drv_voice.h"
 
+#include "drv_modbus_link.h"
 #include "framework/common/log.h"
-#include "modbus/modbus-rtu.h"
 
 #include <string.h>
 
@@ -37,147 +37,53 @@
 #define VOICE_COMM_FAIL_RECONNECT 10U     /**< 连续失败 N 次后重建 Modbus 连接 */
 
 /* -------------------------------------------------------------------------
- * 基础辅助
- * ------------------------------------------------------------------------- */
-static bool voice_is_initialized(const drv_voice_t *v)
-{
-    return (v != NULL) && (v->serial_port != NULL) && (v->baud > 0) && (v->modbus_addr > 0);
-}
-
-/* -------------------------------------------------------------------------
- * Modbus 连接管理
- * ------------------------------------------------------------------------- */
-static sw_err_t voice_mb_ctx_create(drv_voice_t *v)
-{
-    if (v->mb != NULL) {
-        modbus_close(v->mb);
-        modbus_free(v->mb);
-        v->mb = NULL;
-    }
-    v->mb_connected = false;
-
-    v->mb = modbus_new_rtu(v->serial_port, v->baud, 'N', 8, 1);
-    if (v->mb == NULL) {
-        LOG_ERROR("drv_voice[addr=%d]: modbus_new_rtu failed", v->modbus_addr);
-        return SW_ERR_HW;
-    }
-    modbus_set_slave(v->mb, v->modbus_addr);
-    modbus_set_response_timeout(v->mb, 0, VOICE_MODBUS_TIMEOUT_US);
-    return SW_OK;
-}
-
-/* 重建 Modbus 上下文并重新连接，须在 mb_mutex 保护下调用 */
-static sw_err_t voice_mb_reconnect_locked(drv_voice_t *v)
-{
-    sw_err_t ret;
-
-    if (!voice_is_initialized(v)) {
-        return SW_ERR_NOT_INIT;
-    }
-    ret = voice_mb_ctx_create(v);
-
-    if (ret != SW_OK) {
-        return ret;
-    }
-    if (modbus_connect(v->mb) < 0) {
-        LOG_ERROR("drv_voice[addr=%d]: modbus_connect failed", v->modbus_addr);
-        modbus_free(v->mb);
-        v->mb = NULL;
-        return SW_ERR_COMM;
-    }
-    v->mb_connected = true;
-    LOG_INFO("drv_voice[addr=%d]: Modbus linked", v->modbus_addr);
-    return SW_OK;
-}
-
-/* -------------------------------------------------------------------------
- * 通信状态统计（须在 mb_mutex 保护下调用）
- * ------------------------------------------------------------------------- */
-static void voice_on_success_locked(drv_voice_t *v, bool *notify_restored)
-{
-    if (!v->comm_ok) {
-        v->comm_ok = true;
-        if (notify_restored != NULL) {
-            *notify_restored = true;
-        }
-    }
-    v->comm_fail_count = 0U;
-}
-
-static void voice_on_failure_locked(drv_voice_t *v, bool *notify_lost, bool *need_reconnect)
-{
-    v->mb_connected = false;
-
-    if (v->comm_fail_count < 0xFFFFU) {
-        v->comm_fail_count++;
-    }
-
-    if ((v->comm_fail_count >= VOICE_COMM_FAIL_NOTIFY) && v->comm_ok) {
-        v->comm_ok = false;
-        if (notify_lost != NULL) {
-            *notify_lost = true;
-        }
-    }
-
-    if (v->comm_fail_count >= VOICE_COMM_FAIL_RECONNECT) {
-        v->comm_fail_count = 0U;
-        if (need_reconnect != NULL) {
-            *need_reconnect = true;
-        }
-    }
-}
-
-/* -------------------------------------------------------------------------
- * Modbus 写统一执行路径
- * 加锁、重连、错误处理、事件通知均在此完成；回调在锁外触发，避免死锁。
+ * Modbus 写 + 通信丢失/恢复通知
+ * 实际收发与失败重连交给 drv_modbus_link；本文件只在其结果之上维护
+ * comm_ok/notify_fail_count 这层业务通知语义，在 notify_mutex 保护下更新，
+ * 回调在锁外触发，避免死锁。
  * ------------------------------------------------------------------------- */
 static sw_err_t voice_mb_write(drv_voice_t *v, uint16_t addr, uint16_t val)
 {
-    int  rc;
-    bool notify_lost     = false;
-    bool notify_restored = false;
-    bool need_reconnect  = false;
-    void (*cb)(int);
+    sw_err_t ret;
+    bool     notify_lost     = false;
+    bool     notify_restored = false;
+    void   (*cb)(int) = NULL;
 
-    if (!voice_is_initialized(v)) {
+    if (!drv_modbus_link_is_ready(&v->link)) {
         return SW_ERR_NOT_INIT;
     }
 
-    (void)pthread_mutex_lock(&v->mb_mutex);
+    ret = drv_modbus_link_write_reg(&v->link, addr, val);
 
-    if (!v->mb_connected && (voice_mb_reconnect_locked(v) != SW_OK)) {
-        voice_on_failure_locked(v, &notify_lost, &need_reconnect);
-        cb = v->event_cb;
-        (void)pthread_mutex_unlock(&v->mb_mutex);
-        if (notify_lost && (cb != NULL)) {
-            cb(DRV_VOICE_EVT_COMM_LOST);
+    (void)pthread_mutex_lock(&v->notify_mutex);
+    if (ret == SW_OK) {
+        if (!v->comm_ok) {
+            v->comm_ok      = true;
+            notify_restored = true;
         }
-        return SW_ERR_COMM;
+        v->notify_fail_count = 0U;
+    } else if (ret == SW_ERR_COMM) {
+        if (v->notify_fail_count < 0xFFFFU) {
+            v->notify_fail_count++;
+        }
+        if ((v->notify_fail_count >= VOICE_COMM_FAIL_NOTIFY) && v->comm_ok) {
+            v->comm_ok  = false;
+            notify_lost = true;
+        }
     }
-
-    rc = modbus_write_register(v->mb, (int)addr, (int)val);
-
-    if (rc < 0) {
-        voice_on_failure_locked(v, &notify_lost, &need_reconnect);
-        if (need_reconnect && (voice_mb_reconnect_locked(v) != SW_OK)) {
-            LOG_WARN("drv_voice[addr=%d]: reconnect failed", v->modbus_addr);
-        }
-        cb = v->event_cb;
-        (void)pthread_mutex_unlock(&v->mb_mutex);
-        LOG_ERROR("drv_voice[addr=%d]: write reg 0x%04X failed", v->modbus_addr, addr);
-        if (notify_lost && (cb != NULL)) {
-            cb(DRV_VOICE_EVT_COMM_LOST);
-        }
-        return SW_ERR_COMM;
-    }
-
-    voice_on_success_locked(v, &notify_restored);
     cb = v->event_cb;
-    (void)pthread_mutex_unlock(&v->mb_mutex);
+    (void)pthread_mutex_unlock(&v->notify_mutex);
+
+    if (ret == SW_ERR_COMM) {
+        LOG_ERROR("drv_voice[addr=%d]: write reg 0x%04X failed", v->link.modbus_addr, addr);
+    }
     if (notify_restored && (cb != NULL)) {
         cb(DRV_VOICE_EVT_COMM_RESTORED);
     }
-    return SW_OK;
+    if (notify_lost && (cb != NULL)) {
+        cb(DRV_VOICE_EVT_COMM_LOST);
+    }
+    return ret;
 }
 
 /* -------------------------------------------------------------------------
@@ -193,31 +99,22 @@ sw_err_t drv_voice_init(drv_voice_t *v, const char *serial_port, int baud, int m
 
     (void)memset(v, 0, sizeof(*v));
 
-    if (pthread_mutex_init(&v->mb_mutex, NULL) != 0) {
+    if (pthread_mutex_init(&v->notify_mutex, NULL) != 0) {
         LOG_ERROR("drv_voice_init[addr=%d]: mutex init failed", modbus_addr);
         return SW_ERR_HW;
     }
 
-    v->serial_port = serial_port;
-    v->baud        = baud;
-    v->modbus_addr = modbus_addr;
-    v->comm_ok     = true;
-
-    ret = voice_mb_ctx_create(v);
+    ret = drv_modbus_link_init(&v->link, serial_port, baud, modbus_addr,
+                               VOICE_MODBUS_TIMEOUT_US, VOICE_COMM_FAIL_RECONNECT);
     if (ret != SW_OK) {
-        (void)pthread_mutex_destroy(&v->mb_mutex);
-        v->serial_port = NULL; /* 清零，确保 voice_is_initialized 返回 false */
+        (void)pthread_mutex_destroy(&v->notify_mutex);
         return ret;
     }
 
-    /* connect 失败走 defer-link，不中止 init；
-     * 保留 comm_ok=true，避免首次成功时触发孤立的 COMM_RESTORED 事件；
-     * COMM_LOST 由失败计数达到阈值后在操作调用点正常触发 */
-    if (modbus_connect(v->mb) < 0) {
-        LOG_WARN("drv_voice_init[addr=%d]: modbus_connect failed, defer link", modbus_addr);
-    } else {
-        v->mb_connected = true;
-    }
+    /* comm_ok 保留 true，避免首次成功时触发孤立的 COMM_RESTORED 事件；
+     * COMM_LOST 由失败计数达到阈值后在操作调用点正常触发；
+     * notify_fail_count 已被上面的 memset 清零 */
+    v->comm_ok = true;
 
     LOG_INFO("drv_voice_init[addr=%d] ok", modbus_addr);
     return SW_OK;
