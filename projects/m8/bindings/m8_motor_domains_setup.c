@@ -5,25 +5,31 @@
 
 #include "projects/m8/bindings/m8_motor_domains_setup.h"
 
-#include "projects/m8/bindings/m8_motor_exec.h"
-#include "projects/m8/config/m8_motor_binding.h"
+#include "framework/common/log.h"
 #include "framework/domain/device_control/mechanism/brush.h"
 #include "framework/domain/device_control/mechanism/fan.h"
 #include "framework/domain/device_control/mechanism/gantry.h"
 #include "framework/domain/device_control/mechanism/lift.h"
 #include "framework/domain/device_control/mechanism/rear_lock.h"
-#include "framework/common/log.h"
+#include "projects/m8/bindings/m8_motor_exec.h"
+#include "projects/m8/config/m8_brush_ids.h"
+#include "projects/m8/config/m8_motor_binding.h"
 
 /** @brief 单条领域装配项。 */
 typedef struct {
-    const char *name;                             /**< 日志用模块名 */
-    uint32_t    domain_bit;                       /**< 对应 m8_motor_domain_mask_t 位 */
-    sw_err_t  (*init)(hal_motor_exec_t *exec);     /**< 绑定函数 */
+    const char *name;                         /**< 日志用模块名 */
+    uint32_t    domain_bit;                   /**< 对应 m8_motor_domain_mask_t 位 */
+    sw_err_t (*init)(hal_motor_exec_t *exec); /**< 绑定函数 */
 } m8_motor_domain_entry_t;
 
 static sw_err_t domain_init_brush(hal_motor_exec_t *exec)
 {
-    return brush_init(exec, M8_BIND_BRUSH_SIDE, M8_BIND_BRUSH_TOP);
+    static const int                    s_brush_motor_index[M8_BRUSH_COUNT] = {M8_BIND_BRUSH_SIDE, M8_BIND_BRUSH_TOP};
+    static const brush_interlock_pair_t s_brush_interlocks[]                = {
+        {M8_BRUSH_SIDE, M8_BRUSH_TOP}
+    };
+
+    return brush_init(exec, s_brush_motor_index, M8_BRUSH_COUNT, s_brush_interlocks, 1);
 }
 
 static sw_err_t domain_init_gantry(hal_motor_exec_t *exec)
@@ -47,11 +53,11 @@ static sw_err_t domain_init_fan(hal_motor_exec_t *exec)
 }
 
 static const m8_motor_domain_entry_t s_domain_table[] = {
-    { "brush",     M8_DOMAIN_BRUSH,     domain_init_brush     },
-    { "gantry",    M8_DOMAIN_GANTRY,    domain_init_gantry    },
-    { "lift",      M8_DOMAIN_LIFT,      domain_init_lift      },
-    { "rear_lock", M8_DOMAIN_REAR_LOCK, domain_init_rear_lock },
-    { "fan",       M8_DOMAIN_FAN,       domain_init_fan       },
+    {"brush",     M8_DOMAIN_BRUSH,     domain_init_brush    },
+    {"gantry",    M8_DOMAIN_GANTRY,    domain_init_gantry   },
+    {"lift",      M8_DOMAIN_LIFT,      domain_init_lift     },
+    {"rear_lock", M8_DOMAIN_REAR_LOCK, domain_init_rear_lock},
+    {"fan",       M8_DOMAIN_FAN,       domain_init_fan      },
 };
 
 sw_err_t m8_motor_domains_setup_mask(uint32_t mask)

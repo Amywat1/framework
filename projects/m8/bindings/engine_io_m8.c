@@ -32,6 +32,7 @@
 #include "framework/domain/device_control/mechanism/rear_lock.h"
 #include "framework/domain/device_control/mechanism/fan.h"
 #include "projects/m8/bindings/m8_sensor.h"
+#include "projects/m8/config/m8_brush_ids.h"
 #include "projects/m8/config/m8_signal_table.h"
 #include "framework/common/log.h"
 #include "framework/common/sw_types.h"
@@ -81,20 +82,20 @@ static void apply_brush(void)
     if (s_top_brush_rot == 2)
     {
         /* 中速（pass4 高压冲洗段，挡位 2 = 45 Hz）*/
-        (void)brush_start(BRUSH_TOP, 2);
+        (void)brush_start(M8_BRUSH_TOP, 2);
     }
     else if (s_top_brush_rot == 1)
     {
         /* 正常洗车（挡位 1 = 35 Hz）*/
-        (void)brush_start(BRUSH_TOP, 1);
+        (void)brush_start(M8_BRUSH_TOP, 1);
     }
     else if (s_side_brush_rot > 0)
     {
-        (void)brush_start(BRUSH_SIDE, 1);
+        (void)brush_start(M8_BRUSH_SIDE, 1);
     }
     else
     {
-        (void)brush_stop();
+        (void)brush_stop_all();
     }
 }
 

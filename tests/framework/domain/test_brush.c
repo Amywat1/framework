@@ -5,16 +5,17 @@
  * 分组：
  *   B. 未初始化保护（须在 main() 中排在最前面，保证 brush.c s_exec == NULL）
  *   A. 初始化参数校验
- *   C. 启动与停止（侧刷/顶刷各自的电机槽位）
+ *   C. 启动与停止（互锁配置下，侧刷/顶刷各自的电机槽位）
  *   D. 同刷调速（RUNNING 中切挡，仅 motor_set_speed，不触碰另一路）
- *   E. motor_phase → brush_state 映射（任一槽位）
- *   F. 故障检测、阻断与故障码
+ *   E. motor_phase → brush_state 映射（按槽位独立查询，不再聚合）
+ *   F. 故障检测、阻断与故障码（启动检查自身故障，停止不检查故障）
  *   G. 参数校验
+ *   H. 独立运行场景（无互锁配置，两个槽位可同时运行）
  *
- * @note    brush.c 现在是 motor_executor_t 的薄封装：侧刷/顶刷各占一个电机
- *          槽位，接触器切换时序已下沉到 m8_motor_exec.c 内部的 prepare() 回调
- *          实现，不再是独立可单测的模块，本文件不覆盖接触器时序细节（只能
- *          通过人工走查 + sim 集成场景间接验证）。
+ * @note    brush.c 现在是 motor_executor_t 的薄封装，支持任意数量刷子槽位与
+ *          可配置互锁对；接触器切换时序已下沉到 m8_motor_exec.c 内部的
+ *          prepare() 回调实现，本文件不覆盖接触器时序细节（只能通过人工走
+ *          查 + sim 集成场景间接验证）。
  *          setUp() 只重置 motor_executor_t，不调用 brush_init()。
  */
 
@@ -25,6 +26,12 @@
 
 #include <string.h>
 #include <stddef.h>
+
+/* 测试本地槽位命名：与项目专属命名（M8_BRUSH_SIDE/TOP）无关，仅为可读性 */
+enum { T_SIDE = 0, T_TOP = 1 };
+
+static const int                    s_motor_idx[2]     = { 0, 1 };
+static const brush_interlock_pair_t s_interlock_pair[1] = { { T_SIDE, T_TOP } };
 
 /* -------------------------------------------------------------------------
  * 最小 motor_executor_t 初始化辅助（2 个电机槽位：侧刷=0，顶刷=1）
@@ -74,6 +81,16 @@ static void init_exec(void)
     motor_init(&s_exec, &s_cfg, &s_ports);
 }
 
+static sw_err_t init_brush_interlocked(void)
+{
+    return brush_init(s_hexec, s_motor_idx, 2, s_interlock_pair, 1);
+}
+
+static sw_err_t init_brush_independent(void)
+{
+    return brush_init(s_hexec, s_motor_idx, 2, NULL, 0);
+}
+
 void setUp(void)
 {
     init_exec();
@@ -88,121 +105,146 @@ void tearDown(void) {}
 
 void test_brush_not_init_start(void)
 {
-    TEST_ASSERT_EQUAL(SW_ERR_NOT_INIT, brush_start(BRUSH_SIDE, 1));
+    TEST_ASSERT_EQUAL(SW_ERR_NOT_INIT, brush_start(T_SIDE, 1));
 }
 
 void test_brush_not_init_stop(void)
 {
-    TEST_ASSERT_EQUAL(SW_ERR_NOT_INIT, brush_stop());
+    TEST_ASSERT_EQUAL(SW_ERR_NOT_INIT, brush_stop(T_SIDE));
+}
+
+void test_brush_not_init_stop_all(void)
+{
+    TEST_ASSERT_EQUAL(SW_ERR_NOT_INIT, brush_stop_all());
 }
 
 void test_brush_not_init_state_idle(void)
 {
-    TEST_ASSERT_EQUAL(BRUSH_STATE_IDLE, brush_state());
+    TEST_ASSERT_EQUAL(BRUSH_STATE_IDLE, brush_state(T_SIDE));
 }
 
 void test_brush_not_init_fault_code_none(void)
 {
-    TEST_ASSERT_EQUAL(MOTOR_FAULT_NONE, brush_fault_code());
-}
-
-void test_brush_not_init_selected_default_side(void)
-{
-    TEST_ASSERT_EQUAL(BRUSH_SIDE, brush_selected());
+    TEST_ASSERT_EQUAL(MOTOR_FAULT_NONE, brush_fault_code(T_SIDE));
 }
 
 /* =========================================================================
  * A. 初始化参数校验
  * ========================================================================= */
 
-void test_brush_init_null_returns_err_param(void)
+void test_brush_init_null_exec_returns_err_param(void)
 {
-    TEST_ASSERT_EQUAL(SW_ERR_PARAM, brush_init(NULL, 0, 1));
+    TEST_ASSERT_EQUAL(SW_ERR_PARAM, brush_init(NULL, s_motor_idx, 2, s_interlock_pair, 1));
+}
+
+void test_brush_init_count_exceeds_max_returns_err_param(void)
+{
+    int over[BRUSH_MAX_COUNT + 1] = {0};
+    TEST_ASSERT_EQUAL(SW_ERR_PARAM, brush_init(s_hexec, over, BRUSH_MAX_COUNT + 1, NULL, 0));
+}
+
+void test_brush_init_interlock_out_of_range_returns_err_param(void)
+{
+    brush_interlock_pair_t bad = { 0, 5 };
+    TEST_ASSERT_EQUAL(SW_ERR_PARAM, brush_init(s_hexec, s_motor_idx, 2, &bad, 1));
+}
+
+void test_brush_init_no_interlock_ok(void)
+{
+    TEST_ASSERT_EQUAL(SW_OK, init_brush_independent());
 }
 
 void test_brush_init_ok(void)
 {
-    TEST_ASSERT_EQUAL(SW_OK, brush_init(s_hexec, 0, 1));
+    TEST_ASSERT_EQUAL(SW_OK, init_brush_interlocked());
 }
 
 void test_brush_state_idle_after_init(void)
 {
-    brush_init(s_hexec, 0, 1);
-    TEST_ASSERT_EQUAL(BRUSH_STATE_IDLE, brush_state());
+    init_brush_interlocked();
+    TEST_ASSERT_EQUAL(BRUSH_STATE_IDLE, brush_state(T_SIDE));
+    TEST_ASSERT_EQUAL(BRUSH_STATE_IDLE, brush_state(T_TOP));
 }
 
 void test_brush_fault_code_none_after_init(void)
 {
-    brush_init(s_hexec, 0, 1);
-    TEST_ASSERT_EQUAL(MOTOR_FAULT_NONE, brush_fault_code());
+    init_brush_interlocked();
+    TEST_ASSERT_EQUAL(MOTOR_FAULT_NONE, brush_fault_code(T_SIDE));
 }
 
 /* =========================================================================
- * C. 启动与停止
+ * C. 启动与停止（互锁配置）
  * ========================================================================= */
 
 void test_brush_start_side_returns_ok(void)
 {
-    brush_init(s_hexec, 0, 1);
-    TEST_ASSERT_EQUAL(SW_OK, brush_start(BRUSH_SIDE, 1));
+    init_brush_interlocked();
+    TEST_ASSERT_EQUAL(SW_OK, brush_start(T_SIDE, 1));
 }
 
 void test_brush_start_side_state_running(void)
 {
-    brush_init(s_hexec, 0, 1);
-    brush_start(BRUSH_SIDE, 1);
+    init_brush_interlocked();
+    brush_start(T_SIDE, 1);
     /* 仿真桩 motor_run_continuous 立即置 RUNNING */
-    TEST_ASSERT_EQUAL(BRUSH_STATE_RUNNING, brush_state());
-}
-
-void test_brush_start_side_selected_side(void)
-{
-    brush_init(s_hexec, 0, 1);
-    brush_start(BRUSH_SIDE, 1);
-    TEST_ASSERT_EQUAL(BRUSH_SIDE, brush_selected());
+    TEST_ASSERT_EQUAL(BRUSH_STATE_RUNNING, brush_state(T_SIDE));
 }
 
 void test_brush_start_top_state_running(void)
 {
-    brush_init(s_hexec, 0, 1);
-    brush_start(BRUSH_TOP, 1);
-    TEST_ASSERT_EQUAL(BRUSH_STATE_RUNNING, brush_state());
-    TEST_ASSERT_EQUAL(BRUSH_TOP, brush_selected());
+    init_brush_interlocked();
+    brush_start(T_TOP, 1);
+    TEST_ASSERT_EQUAL(BRUSH_STATE_RUNNING, brush_state(T_TOP));
 }
 
 void test_brush_switch_stops_other_side(void)
 {
-    brush_init(s_hexec, 0, 1);
-    brush_start(BRUSH_SIDE, 1);
+    init_brush_interlocked();
+    brush_start(T_SIDE, 1);
     TEST_ASSERT_EQUAL(MOTOR_PHASE_RUNNING, s_exec.m[0].phase);
 
-    /* 切到顶刷：brush_start 内部先 motor_stop(侧刷)，仿真桩立即置 STOPPED */
-    brush_start(BRUSH_TOP, 1);
+    /* 切到顶刷：互锁配置下 brush_start 内部先 motor_stop(侧刷)，仿真桩立即置 STOPPED */
+    brush_start(T_TOP, 1);
     TEST_ASSERT_EQUAL(MOTOR_PHASE_STOPPED, s_exec.m[0].phase);
     TEST_ASSERT_EQUAL(MOTOR_PHASE_RUNNING, s_exec.m[1].phase);
-    TEST_ASSERT_EQUAL(BRUSH_TOP, brush_selected());
 }
 
 void test_brush_stop_returns_ok(void)
 {
-    brush_init(s_hexec, 0, 1);
-    brush_start(BRUSH_SIDE, 1);
-    TEST_ASSERT_EQUAL(SW_OK, brush_stop());
+    init_brush_interlocked();
+    brush_start(T_SIDE, 1);
+    TEST_ASSERT_EQUAL(SW_OK, brush_stop(T_SIDE));
 }
 
 void test_brush_stop_state_idle(void)
 {
-    brush_init(s_hexec, 0, 1);
-    brush_start(BRUSH_SIDE, 1);
-    brush_stop();
-    TEST_ASSERT_EQUAL(BRUSH_STATE_IDLE, brush_state());
+    init_brush_interlocked();
+    brush_start(T_SIDE, 1);
+    brush_stop(T_SIDE);
+    TEST_ASSERT_EQUAL(BRUSH_STATE_IDLE, brush_state(T_SIDE));
 }
 
 void test_brush_stop_from_idle_ok(void)
 {
-    brush_init(s_hexec, 0, 1);
-    TEST_ASSERT_EQUAL(SW_OK, brush_stop());
-    TEST_ASSERT_EQUAL(BRUSH_STATE_IDLE, brush_state());
+    init_brush_interlocked();
+    TEST_ASSERT_EQUAL(SW_OK, brush_stop(T_SIDE));
+    TEST_ASSERT_EQUAL(BRUSH_STATE_IDLE, brush_state(T_SIDE));
+}
+
+void test_brush_stop_all_returns_ok(void)
+{
+    init_brush_interlocked();
+    brush_start(T_SIDE, 1);
+    TEST_ASSERT_EQUAL(SW_OK, brush_stop_all());
+}
+
+void test_brush_stop_all_state_idle(void)
+{
+    init_brush_interlocked();
+    brush_start(T_SIDE, 1);
+    brush_stop_all();
+    TEST_ASSERT_EQUAL(BRUSH_STATE_IDLE, brush_state(T_SIDE));
+    TEST_ASSERT_EQUAL(BRUSH_STATE_IDLE, brush_state(T_TOP));
 }
 
 /* =========================================================================
@@ -211,68 +253,76 @@ void test_brush_stop_from_idle_ok(void)
 
 void test_brush_speed_change_same_brush_stays_running(void)
 {
-    brush_init(s_hexec, 0, 1);
-    brush_start(BRUSH_SIDE, 1);
+    init_brush_interlocked();
+    brush_start(T_SIDE, 1);
 
-    TEST_ASSERT_EQUAL(SW_OK, brush_start(BRUSH_SIDE, 2));
-    TEST_ASSERT_EQUAL(BRUSH_STATE_RUNNING, brush_state());
+    TEST_ASSERT_EQUAL(SW_OK, brush_start(T_SIDE, 2));
+    TEST_ASSERT_EQUAL(BRUSH_STATE_RUNNING, brush_state(T_SIDE));
 }
 
 void test_brush_speed_change_updates_target_freq(void)
 {
-    brush_init(s_hexec, 0, 1);
-    brush_start(BRUSH_SIDE, 1);
-    brush_start(BRUSH_SIDE, 2);
+    init_brush_interlocked();
+    brush_start(T_SIDE, 1);
+    brush_start(T_SIDE, 2);
     /* 仿真桩 motor_set_speed 将 target_freq 设为 spd.value = 2（挡位索引） */
     TEST_ASSERT_EQUAL_INT(2, s_exec.m[0].target_freq);
 }
 
 void test_brush_speed_change_does_not_touch_other(void)
 {
-    brush_init(s_hexec, 0, 1);
-    brush_start(BRUSH_SIDE, 1);
-    brush_start(BRUSH_SIDE, 2);
+    init_brush_interlocked();
+    brush_start(T_SIDE, 1);
+    brush_start(T_SIDE, 2);
     /* 顶刷电机未被触碰，仍为上电默认 STOPPED */
     TEST_ASSERT_EQUAL(MOTOR_PHASE_STOPPED, s_exec.m[1].phase);
 }
 
 /* =========================================================================
- * E. motor_phase → brush_state 映射
+ * E. motor_phase → brush_state 映射（按槽位独立查询）
  * ========================================================================= */
 
 void test_brush_state_side_fault_reports_fault(void)
 {
-    brush_init(s_hexec, 0, 1);
+    init_brush_interlocked();
     s_exec.m[0].phase = MOTOR_PHASE_FAULT;
-    TEST_ASSERT_EQUAL(BRUSH_STATE_FAULT, brush_state());
+    TEST_ASSERT_EQUAL(BRUSH_STATE_FAULT, brush_state(T_SIDE));
 }
 
 void test_brush_state_top_fault_reports_fault(void)
 {
-    brush_init(s_hexec, 0, 1);
+    init_brush_interlocked();
     s_exec.m[1].phase = MOTOR_PHASE_FAULT;
-    TEST_ASSERT_EQUAL(BRUSH_STATE_FAULT, brush_state());
+    TEST_ASSERT_EQUAL(BRUSH_STATE_FAULT, brush_state(T_TOP));
+}
+
+void test_brush_state_side_fault_does_not_affect_top(void)
+{
+    init_brush_interlocked();
+    s_exec.m[0].phase = MOTOR_PHASE_FAULT;
+    /* 故障不再聚合：侧刷故障不影响顶刷自身状态查询 */
+    TEST_ASSERT_EQUAL(BRUSH_STATE_IDLE, brush_state(T_TOP));
 }
 
 void test_brush_state_side_estop_reports_fault(void)
 {
-    brush_init(s_hexec, 0, 1);
+    init_brush_interlocked();
     s_exec.m[0].phase = MOTOR_PHASE_ESTOP;
-    TEST_ASSERT_EQUAL(BRUSH_STATE_FAULT, brush_state());
+    TEST_ASSERT_EQUAL(BRUSH_STATE_FAULT, brush_state(T_SIDE));
 }
 
 void test_brush_state_side_decelerating_reports_stopping(void)
 {
-    brush_init(s_hexec, 0, 1);
+    init_brush_interlocked();
     s_exec.m[0].phase = MOTOR_PHASE_DECELERATING;
-    TEST_ASSERT_EQUAL(BRUSH_STATE_STOPPING, brush_state());
+    TEST_ASSERT_EQUAL(BRUSH_STATE_STOPPING, brush_state(T_SIDE));
 }
 
 void test_brush_state_side_waiting_start_reports_idle(void)
 {
-    brush_init(s_hexec, 0, 1);
+    init_brush_interlocked();
     s_exec.m[0].phase = MOTOR_PHASE_WAITING_START;
-    TEST_ASSERT_EQUAL(BRUSH_STATE_IDLE, brush_state());
+    TEST_ASSERT_EQUAL(BRUSH_STATE_IDLE, brush_state(T_SIDE));
 }
 
 /* =========================================================================
@@ -281,32 +331,48 @@ void test_brush_state_side_waiting_start_reports_idle(void)
 
 void test_brush_fault_blocks_start(void)
 {
-    brush_init(s_hexec, 0, 1);
+    init_brush_interlocked();
     s_exec.m[0].phase = MOTOR_PHASE_FAULT;
-    TEST_ASSERT_EQUAL(SW_ERR_STATE, brush_start(BRUSH_SIDE, 1));
+    TEST_ASSERT_EQUAL(SW_ERR_STATE, brush_start(T_SIDE, 1));
 }
 
-void test_brush_fault_blocks_stop(void)
+void test_brush_fault_does_not_block_start_of_other(void)
 {
-    brush_init(s_hexec, 0, 1);
+    init_brush_interlocked();
+    s_exec.m[0].phase = MOTOR_PHASE_FAULT;
+    /* 侧刷故障不阻塞顶刷启动（即使二者互锁，互锁只在"对方运行中"时生效） */
+    TEST_ASSERT_EQUAL(SW_OK, brush_start(T_TOP, 1));
+}
+
+void test_brush_stop_does_not_check_fault(void)
+{
+    init_brush_interlocked();
     s_exec.m[1].phase = MOTOR_PHASE_FAULT;
-    TEST_ASSERT_EQUAL(SW_ERR_STATE, brush_stop());
+    /* brush_stop 不检查故障状态，对齐 fan_stop() 的既有约定 */
+    TEST_ASSERT_EQUAL(SW_OK, brush_stop(T_SIDE));
+}
+
+void test_brush_stop_all_ignores_fault(void)
+{
+    init_brush_interlocked();
+    s_exec.m[1].phase = MOTOR_PHASE_FAULT;
+    TEST_ASSERT_EQUAL(SW_OK, brush_stop_all());
 }
 
 void test_brush_fault_code_reflects_side(void)
 {
-    brush_init(s_hexec, 0, 1);
+    init_brush_interlocked();
     s_exec.m[0].phase      = MOTOR_PHASE_FAULT;
     s_exec.m[0].fault_code = MOTOR_FAULT_OVERCURRENT;
-    TEST_ASSERT_EQUAL(MOTOR_FAULT_OVERCURRENT, brush_fault_code());
+    TEST_ASSERT_EQUAL(MOTOR_FAULT_OVERCURRENT, brush_fault_code(T_SIDE));
 }
 
 void test_brush_fault_code_reflects_top(void)
 {
-    brush_init(s_hexec, 0, 1);
+    init_brush_interlocked();
     s_exec.m[1].phase      = MOTOR_PHASE_FAULT;
     s_exec.m[1].fault_code = MOTOR_FAULT_UNDERCURRENT;
-    TEST_ASSERT_EQUAL(MOTOR_FAULT_UNDERCURRENT, brush_fault_code());
+    TEST_ASSERT_EQUAL(MOTOR_FAULT_UNDERCURRENT, brush_fault_code(T_TOP));
 }
 
 /* =========================================================================
@@ -315,8 +381,39 @@ void test_brush_fault_code_reflects_top(void)
 
 void test_brush_start_invalid_id_returns_err_param(void)
 {
-    brush_init(s_hexec, 0, 1);
-    TEST_ASSERT_EQUAL(SW_ERR_PARAM, brush_start(BRUSH_ID_MAX, 1));
+    init_brush_interlocked();
+    TEST_ASSERT_EQUAL(SW_ERR_PARAM, brush_start(2, 1));
+}
+
+void test_brush_stop_invalid_id_returns_err_param(void)
+{
+    init_brush_interlocked();
+    TEST_ASSERT_EQUAL(SW_ERR_PARAM, brush_stop(2));
+}
+
+/* =========================================================================
+ * H. 独立运行场景（无互锁配置）
+ * ========================================================================= */
+
+void test_brush_independent_both_can_run_simultaneously(void)
+{
+    init_brush_independent();
+    brush_start(T_SIDE, 1);
+    brush_start(T_TOP, 1);
+    TEST_ASSERT_EQUAL(BRUSH_STATE_RUNNING, brush_state(T_SIDE));
+    TEST_ASSERT_EQUAL(BRUSH_STATE_RUNNING, brush_state(T_TOP));
+}
+
+void test_brush_independent_start_does_not_stop_other(void)
+{
+    init_brush_independent();
+    brush_start(T_SIDE, 1);
+    TEST_ASSERT_EQUAL(MOTOR_PHASE_RUNNING, s_exec.m[0].phase);
+
+    brush_start(T_TOP, 1);
+    /* 无互锁配置：启动顶刷不应触碰侧刷 */
+    TEST_ASSERT_EQUAL(MOTOR_PHASE_RUNNING, s_exec.m[0].phase);
+    TEST_ASSERT_EQUAL(MOTOR_PHASE_RUNNING, s_exec.m[1].phase);
 }
 
 /* =========================================================================
@@ -330,12 +427,15 @@ int main(void)
     /* B. 未初始化保护（必须最先运行） */
     RUN_TEST(test_brush_not_init_start);
     RUN_TEST(test_brush_not_init_stop);
+    RUN_TEST(test_brush_not_init_stop_all);
     RUN_TEST(test_brush_not_init_state_idle);
     RUN_TEST(test_brush_not_init_fault_code_none);
-    RUN_TEST(test_brush_not_init_selected_default_side);
 
     /* A. 初始化参数校验 */
-    RUN_TEST(test_brush_init_null_returns_err_param);
+    RUN_TEST(test_brush_init_null_exec_returns_err_param);
+    RUN_TEST(test_brush_init_count_exceeds_max_returns_err_param);
+    RUN_TEST(test_brush_init_interlock_out_of_range_returns_err_param);
+    RUN_TEST(test_brush_init_no_interlock_ok);
     RUN_TEST(test_brush_init_ok);
     RUN_TEST(test_brush_state_idle_after_init);
     RUN_TEST(test_brush_fault_code_none_after_init);
@@ -343,12 +443,13 @@ int main(void)
     /* C. 启动与停止 */
     RUN_TEST(test_brush_start_side_returns_ok);
     RUN_TEST(test_brush_start_side_state_running);
-    RUN_TEST(test_brush_start_side_selected_side);
     RUN_TEST(test_brush_start_top_state_running);
     RUN_TEST(test_brush_switch_stops_other_side);
     RUN_TEST(test_brush_stop_returns_ok);
     RUN_TEST(test_brush_stop_state_idle);
     RUN_TEST(test_brush_stop_from_idle_ok);
+    RUN_TEST(test_brush_stop_all_returns_ok);
+    RUN_TEST(test_brush_stop_all_state_idle);
 
     /* D. 同刷调速 */
     RUN_TEST(test_brush_speed_change_same_brush_stays_running);
@@ -358,18 +459,26 @@ int main(void)
     /* E. motor_phase → brush_state 映射 */
     RUN_TEST(test_brush_state_side_fault_reports_fault);
     RUN_TEST(test_brush_state_top_fault_reports_fault);
+    RUN_TEST(test_brush_state_side_fault_does_not_affect_top);
     RUN_TEST(test_brush_state_side_estop_reports_fault);
     RUN_TEST(test_brush_state_side_decelerating_reports_stopping);
     RUN_TEST(test_brush_state_side_waiting_start_reports_idle);
 
     /* F. 故障检测、阻断与故障码 */
     RUN_TEST(test_brush_fault_blocks_start);
-    RUN_TEST(test_brush_fault_blocks_stop);
+    RUN_TEST(test_brush_fault_does_not_block_start_of_other);
+    RUN_TEST(test_brush_stop_does_not_check_fault);
+    RUN_TEST(test_brush_stop_all_ignores_fault);
     RUN_TEST(test_brush_fault_code_reflects_side);
     RUN_TEST(test_brush_fault_code_reflects_top);
 
     /* G. 参数校验 */
     RUN_TEST(test_brush_start_invalid_id_returns_err_param);
+    RUN_TEST(test_brush_stop_invalid_id_returns_err_param);
+
+    /* H. 独立运行场景 */
+    RUN_TEST(test_brush_independent_both_can_run_simultaneously);
+    RUN_TEST(test_brush_independent_start_does_not_stop_other);
 
     return UNITY_END();
 }

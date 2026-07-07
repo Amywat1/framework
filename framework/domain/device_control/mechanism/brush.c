@@ -2,8 +2,9 @@
  * @file    brush.c
  * @brief   刷子机构领域层实现。
  *
- * 侧刷/顶刷的接触器切换时序完全由 MCC（hal_motor_exec_t 的 prepare + 互锁）
- * 管理，本层仅负责把 brush_id_t 映射到对应的电机索引并转发命令。
+ * 每个刷子槽位映射到 hal_motor_exec_t 的一个电机索引；互锁对由项目层在
+ * brush_init() 时注入，本层只负责按配置在启动前主动停止互锁伙伴，真正的
+ * 互斥保护由 hal_motor_exec 的 MOTOR_INTERLOCK_MUTEX 提供。
  */
 
 #include "framework/domain/device_control/mechanism/brush.h"
@@ -11,9 +12,11 @@
 
 /* -------------------- 静态模块状态 -------------------- */
 
-static hal_motor_exec_t *s_exec;
-static int                s_motor[BRUSH_ID_MAX];
-static brush_id_t         s_last_id = BRUSH_SIDE;
+static hal_motor_exec_t       *s_exec;
+static int                     s_motor[BRUSH_MAX_COUNT];
+static int                     s_count;
+static brush_interlock_pair_t  s_interlocks[BRUSH_MAX_INTERLOCKS];
+static int                     s_interlock_count;
 
 /* -------------------- 内部工具 -------------------- */
 
@@ -36,105 +39,120 @@ static brush_state_t phase_to_state(hal_motor_phase_t ph)
     }
 }
 
+static bool id_valid(brush_id_t id)
+{
+    return (id >= 0) && (id < s_count);
+}
+
 /* -------------------- 公共 API -------------------- */
 
-sw_err_t brush_init(hal_motor_exec_t *exec, int motor_side, int motor_top)
+sw_err_t brush_init(hal_motor_exec_t *exec,
+                    const int *motor_index, int count,
+                    const brush_interlock_pair_t *interlocks, int interlock_count)
 {
-    if (exec == NULL) {
+    int i;
+
+    if ((exec == NULL) || (motor_index == NULL)
+        || (count <= 0) || (count > BRUSH_MAX_COUNT)
+        || (interlock_count < 0) || (interlock_count > BRUSH_MAX_INTERLOCKS)) {
         return SW_ERR_PARAM;
     }
-    s_exec               = exec;
-    s_motor[BRUSH_SIDE]  = motor_side;
-    s_motor[BRUSH_TOP]   = motor_top;
-    s_last_id            = BRUSH_SIDE;
+    if ((interlock_count > 0) && (interlocks == NULL)) {
+        return SW_ERR_PARAM;
+    }
+    for (i = 0; i < interlock_count; i++) {
+        if ((interlocks[i].a < 0) || (interlocks[i].a >= count)
+            || (interlocks[i].b < 0) || (interlocks[i].b >= count)) {
+            return SW_ERR_PARAM;
+        }
+    }
+
+    s_exec  = exec;
+    s_count = count;
+    for (i = 0; i < count; i++) {
+        s_motor[i] = motor_index[i];
+    }
+    s_interlock_count = interlock_count;
+    for (i = 0; i < interlock_count; i++) {
+        s_interlocks[i] = interlocks[i];
+    }
     return SW_OK;
 }
 
 sw_err_t brush_start(brush_id_t id, int speed_gear)
 {
     int target;
-    int other;
+    int i;
     hal_motor_cmd_result_t r;
 
     if (s_exec == NULL) {
         return SW_ERR_NOT_INIT;
     }
-    if ((unsigned)id >= (unsigned)BRUSH_ID_MAX) {
+    if (!id_valid(id)) {
         return SW_ERR_PARAM;
     }
-    if (brush_state() == BRUSH_STATE_FAULT) {
+    if (brush_state(id) == BRUSH_STATE_FAULT) {
         return SW_ERR_STATE;
     }
 
-    s_last_id = id;
-    target    = s_motor[id];
-    other     = s_motor[(id == BRUSH_SIDE) ? BRUSH_TOP : BRUSH_SIDE];
+    target = s_motor[id];
 
     if (hal_motor_phase(s_exec, target) == HAL_MOTOR_PHASE_RUNNING) {
-        /* 目标刷子已在运行：仅调速，无需触碰另一路或接触器 */
+        /* 目标刷子已在运行：仅调速，无需触碰互锁伙伴 */
         r = hal_motor_set_speed(s_exec, target, hal_motor_speed_gear(speed_gear), HAL_MOTOR_DIR_FORWARD);
         return hal_motor_cmd_ok(r) ? SW_OK : SW_ERR_STATE;
     }
 
-    /* 先停止另一路（若在运行），MCC 自动处理冷却排队与接触器切换 */
-    (void)hal_motor_stop(s_exec, other);
+    /* 先停止所有与 id 互锁的伙伴（若在运行），MCC 自动处理冷却排队与接触器切换 */
+    for (i = 0; i < s_interlock_count; i++) {
+        if (s_interlocks[i].a == id) {
+            (void)hal_motor_stop(s_exec, s_motor[s_interlocks[i].b]);
+        } else if (s_interlocks[i].b == id) {
+            (void)hal_motor_stop(s_exec, s_motor[s_interlocks[i].a]);
+        }
+    }
+
     r = hal_motor_run_continuous(s_exec, target, hal_motor_speed_gear(speed_gear), HAL_MOTOR_DIR_FORWARD);
     return hal_motor_cmd_ok(r) ? SW_OK : SW_ERR_STATE;
 }
 
-sw_err_t brush_stop(void)
+sw_err_t brush_stop(brush_id_t id)
 {
     if (s_exec == NULL) {
         return SW_ERR_NOT_INIT;
     }
-    if (brush_state() == BRUSH_STATE_FAULT) {
-        return SW_ERR_STATE;
+    if (!id_valid(id)) {
+        return SW_ERR_PARAM;
     }
-    (void)hal_motor_stop(s_exec, s_motor[BRUSH_SIDE]);
-    (void)hal_motor_stop(s_exec, s_motor[BRUSH_TOP]);
+    (void)hal_motor_stop(s_exec, s_motor[id]);
     return SW_OK;
 }
 
-brush_state_t brush_state(void)
+sw_err_t brush_stop_all(void)
 {
-    brush_state_t side_state;
-    brush_state_t top_state;
+    int i;
 
     if (s_exec == NULL) {
+        return SW_ERR_NOT_INIT;
+    }
+    for (i = 0; i < s_count; i++) {
+        (void)hal_motor_stop(s_exec, s_motor[i]);
+    }
+    return SW_OK;
+}
+
+brush_state_t brush_state(brush_id_t id)
+{
+    if ((s_exec == NULL) || !id_valid(id)) {
         return BRUSH_STATE_IDLE;
     }
-
-    side_state = phase_to_state(hal_motor_phase(s_exec, s_motor[BRUSH_SIDE]));
-    top_state  = phase_to_state(hal_motor_phase(s_exec, s_motor[BRUSH_TOP]));
-
-    if ((side_state == BRUSH_STATE_FAULT) || (top_state == BRUSH_STATE_FAULT)) {
-        return BRUSH_STATE_FAULT;
-    }
-    if ((side_state == BRUSH_STATE_RUNNING) || (top_state == BRUSH_STATE_RUNNING)) {
-        return BRUSH_STATE_RUNNING;
-    }
-    if ((side_state == BRUSH_STATE_STOPPING) || (top_state == BRUSH_STATE_STOPPING)) {
-        return BRUSH_STATE_STOPPING;
-    }
-    return BRUSH_STATE_IDLE;
+    return phase_to_state(hal_motor_phase(s_exec, s_motor[id]));
 }
 
-brush_id_t brush_selected(void)
+hal_motor_fault_code_t brush_fault_code(brush_id_t id)
 {
-    return s_last_id;
-}
-
-hal_motor_fault_code_t brush_fault_code(void)
-{
-    hal_motor_fault_code_t fc;
-
-    if (s_exec == NULL) {
+    if ((s_exec == NULL) || !id_valid(id)) {
         return HAL_MOTOR_FAULT_NONE;
     }
-
-    fc = hal_motor_fault_code(s_exec, s_motor[BRUSH_SIDE]);
-    if (fc != HAL_MOTOR_FAULT_NONE) {
-        return fc;
-    }
-    return hal_motor_fault_code(s_exec, s_motor[BRUSH_TOP]);
+    return hal_motor_fault_code(s_exec, s_motor[id]);
 }

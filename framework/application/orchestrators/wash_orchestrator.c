@@ -58,7 +58,7 @@ static atomic_int   s_current_direction;
 static void wash_stop_all_outputs(void)
 {
     (void)gantry_stop();
-    (void)brush_stop();
+    (void)brush_stop_all();
     (void)water_all_off();
 }
 
