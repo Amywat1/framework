@@ -53,4 +53,16 @@ ports/outbound/hal
   -> sim 实现
 ```
 
+数字 IO（无 components 组合层，provider 直接实现 port）：
+
+```text
+ports/outbound/hal
+  -> providers/snack/io_exp/snack_io_adapter
+  -> providers/snack/io_exp/io_exp_driver
+```
+
+项目专属的引脚名称表（如 `projects/m8/adapters/hal/m8_io_adapter.c`）只负责把
+机型点表组装成 `drv_io_cfg_t` 传给 `snack_io_adapter_register()`，不重复实现
+`hal_io_ops_t`。
+
 后续接入其它硬件时，优先新增 `providers/<vendor>/` 或 provider 文件，并在项目 wiring/bindings 中完成装配；不要再使用 `hw` 这类含义过宽的目录名。
