@@ -1,11 +1,11 @@
 /**
- * @file    test_m8_tsl_table.c
- * @brief   M8 物模型点位表单元测试（上行序列化 + 下行分发）
+ * @file    test_m8_point_table.c
+ * @brief   M8 云端点位表单元测试（JSON 序列化 + 反序列化）
  * @author  HUWANGWEI
  * @date    2026-07-02
  */
 
-#include "projects/m8/adapters/cloud/m8_tsl_table.h"
+#include "projects/m8/adapters/cloud/m8_point_table.h"
 #include "framework/services/dev_ctx/dev_ctx.h"
 #include "framework/ports/inbound/command/command_port.h"
 #include "framework/common/sw_version.h"
@@ -14,9 +14,6 @@
 
 #include <string.h>
 
-/* -------------------------------------------------------------------------
- * command_port 假实现：记录最近一次 inject 的 cmd_t
- * ------------------------------------------------------------------------- */
 static cmd_t s_captured_cmd;
 static int   s_inject_calls;
 
@@ -39,22 +36,16 @@ void setUp(void)
 
 void tearDown(void) {}
 
-/* -------------------------------------------------------------------------
- * 辅助：构建上报 JSON 并解析为 cJSON 对象（调用方负责 cJSON_Delete）
- * ------------------------------------------------------------------------- */
 static cJSON *build_and_parse_report(void)
 {
     cloud_report_payload_t dummy;
     char                    buf[1024];
 
     memset(&dummy, 0, sizeof(dummy));
-    TEST_ASSERT_EQUAL_INT(SW_OK, m8_build_report_json(&dummy, buf, sizeof(buf)));
+    TEST_ASSERT_EQUAL_INT(SW_OK, m8_cloud_report_json(&dummy, buf, sizeof(buf)));
     return cJSON_Parse(buf);
 }
 
-/* -------------------------------------------------------------------------
- * TC-1：待机状态下，洗车进程派生字段正确
- * ------------------------------------------------------------------------- */
 static void test_report_process_fields(void)
 {
     dev_ctx_set_device_state(DEV_STATE_IDLE);
@@ -82,9 +73,6 @@ static void test_report_stopping_covers_fault(void)
     cJSON_Delete(root);
 }
 
-/* -------------------------------------------------------------------------
- * TC-2：监测数据字段（龙门位置 / 固件版本 / 设备型号）
- * ------------------------------------------------------------------------- */
 static void test_report_monitor_fields(void)
 {
     dev_ctx_set_gantry_pos(1234);
@@ -99,33 +87,24 @@ static void test_report_monitor_fields(void)
     cJSON_Delete(root);
 }
 
-/* -------------------------------------------------------------------------
- * TC-3：下行 cmd_home 写 1 触发 command_port.inject(CMD_HOME_DEVICE)
- * ------------------------------------------------------------------------- */
 static void test_dispatch_cmd_home(void)
 {
-    m8_tsl_command_dispatch("{\"cmd_home\":1}");
+    m8_cloud_command_dispatch("{\"cmd_home\":1}");
 
     TEST_ASSERT_EQUAL_INT(1, s_inject_calls);
     TEST_ASSERT_EQUAL_INT(CMD_HOME_DEVICE, s_captured_cmd.type);
 }
 
-/* -------------------------------------------------------------------------
- * TC-4：写 0 不下发指令
- * ------------------------------------------------------------------------- */
 static void test_dispatch_write_zero_is_noop(void)
 {
-    m8_tsl_command_dispatch("{\"cmd_home\":0}");
+    m8_cloud_command_dispatch("{\"cmd_home\":0}");
 
     TEST_ASSERT_EQUAL_INT(0, s_inject_calls);
 }
 
-/* -------------------------------------------------------------------------
- * TC-5：一条消息同时携带多个属性，且未知标识符不影响其它属性处理
- * ------------------------------------------------------------------------- */
 static void test_dispatch_multi_property_and_unknown_id(void)
 {
-    m8_tsl_command_dispatch("{\"cmd_communication_test\":1,\"unknown_point_xyz\":1,\"cmd_custom_stop\":1}");
+    m8_cloud_command_dispatch("{\"cmd_communication_test\":1,\"unknown_point_xyz\":1,\"cmd_custom_stop\":1}");
 
     TEST_ASSERT_EQUAL_INT(1, s_inject_calls);
     TEST_ASSERT_EQUAL_INT(CMD_STOP_WASH, s_captured_cmd.type);

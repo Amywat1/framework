@@ -64,7 +64,13 @@ file(GLOB_RECURSE fw_services_src      CONFIGURE_DEPENDS framework/services/*.c 
 file(GLOB_RECURSE fw_domain_src        CONFIGURE_DEPENDS framework/domain/*.c framework/domain/*.h)
 file(GLOB_RECURSE fw_application_src   CONFIGURE_DEPENDS framework/application/*.c framework/application/*.h)
 file(GLOB_RECURSE fw_ports_src         CONFIGURE_DEPENDS framework/ports/*.c framework/ports/*.h)
-file(GLOB_RECURSE fw_adapters_cloud_src   CONFIGURE_DEPENDS framework/adapters/outbound/cloud/*.c framework/adapters/outbound/cloud/*.h)
+file(GLOB_RECURSE fw_common_point_table_src CONFIGURE_DEPENDS framework/common/point_table/*.c framework/common/point_table/*.h)
+file(GLOB_RECURSE fw_adapters_cloud_inbound_src  CONFIGURE_DEPENDS framework/adapters/inbound/cloud/*.c framework/adapters/inbound/cloud/*.h)
+file(GLOB_RECURSE fw_adapters_cloud_outbound_src CONFIGURE_DEPENDS framework/adapters/outbound/cloud/*.c framework/adapters/outbound/cloud/*.h)
+set(fw_adapters_cloud_src
+    ${fw_adapters_cloud_inbound_src}
+    ${fw_adapters_cloud_outbound_src})
+list(APPEND fw_common_src ${fw_common_point_table_src})
 file(GLOB_RECURSE fw_adapters_hal_components_src CONFIGURE_DEPENDS framework/adapters/outbound/hal/components/*.c framework/adapters/outbound/hal/components/*.h)
 file(GLOB_RECURSE fw_adapters_hal_snack_src  CONFIGURE_DEPENDS framework/adapters/outbound/hal/providers/snack/*.c framework/adapters/outbound/hal/providers/snack/*.h)
 file(GLOB_RECURSE fw_adapters_hal_mcc_src    CONFIGURE_DEPENDS framework/adapters/outbound/hal/providers/mcc/*.c framework/adapters/outbound/hal/providers/mcc/*.h)
@@ -264,7 +270,7 @@ if(BUILD_SIM)
         ${fw_common_src}
     )
     # Provider 适配器依赖真机 SDK，仿真不拉入 snack/io_exp provider
-    list(FILTER sim_sources EXCLUDE REGEX "/cloud/providers/snack/")
+    list(FILTER sim_sources EXCLUDE REGEX "/inbound/cloud/providers/snack/")
     list(FILTER sim_sources EXCLUDE REGEX "/hal/providers/snack/")
 
     # 内置 cJSON（替代系统 libcjson-dev）
@@ -358,12 +364,12 @@ if(BUILD_SIM)
         framework/services/dev_ctx/dev_ctx.c
     )
 
-    # test_m8_tsl_table：M8 物模型点位表上行序列化 + 下行分发（项目级测试）
-    add_unit_test(test_m8_tsl_table
-        projects/m8/tests/test_m8_tsl_table.c
-        framework/adapters/outbound/cloud/tsl/tsl_report.c
-        framework/adapters/outbound/cloud/tsl/tsl_command.c
-        projects/m8/adapters/cloud/m8_tsl_table.c
+    # test_m8_point_table：M8 云端点位表 JSON 序列化 + 反序列化（项目级测试）
+    add_unit_test(test_m8_point_table
+        projects/m8/tests/test_m8_point_table.c
+        framework/common/point_table/point_table_to_json.c
+        framework/common/point_table/point_table_from_json.c
+        projects/m8/adapters/cloud/m8_point_table.c
         projects/m8/bindings/m8_sensor.c
         projects/m8/config/m8_signal_table.c
         framework/adapters/outbound/hal/components/sensor_filter/hal_sensor_filter.c

@@ -4,7 +4,7 @@
  * @author  HUWANGWEI
  * @date    2026-04-10
  *
- * @note    各命令来源（snack_cloud_adapter、cli、sim_console 等）解析命令后，
+ * @note    各命令来源（snack_cloud_command_adapter、cli、sim_console 等）解析命令后，
  *          通过 command_port.inject() 注入；bridge 经 command_guard 校验后发布 EVT_CMD_*，
  *          由 device_fsm 在事件线程消费。
  */

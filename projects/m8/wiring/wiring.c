@@ -33,8 +33,8 @@ extern void snack_log_sink_register(void);
 extern void json_param_store_register(void);
 extern void json_deploy_store_register(void);
 
-#include "projects/m8/adapters/cloud/m8_tsl_table.h"
-#include "framework/adapters/outbound/cloud/providers/snack/snack_cloud_adapter.h"
+#include "projects/m8/adapters/cloud/m8_point_table.h"
+#include "framework/adapters/outbound/cloud/providers/snack/snack_cloud_report_adapter.h"
 
 /* -------------------------------------------------------------------------
  * 引擎 IO 后端注册函数声明
@@ -60,7 +60,7 @@ sw_err_t wiring(void)
     json_deploy_store_register();
 
     /* 云端上报 port → Snack MQTT 云实现（注入 M8 上报 JSON 构建器）*/
-    snack_cloud_report_adapter_register(m8_build_report_json);
+    snack_cloud_report_adapter_register(m8_cloud_report_json);
 
     /* 命令 port → command_handler（校验 + event_bus 路由）*/
     command_handler_register();

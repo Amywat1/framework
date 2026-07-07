@@ -1,17 +1,17 @@
 /**
- * @file    tsl_report.c
- * @brief   物模型点位表通用上行序列化实现
+ * @file    point_table_to_json.c
+ * @brief   标识符点位表 JSON 序列化实现
  * @author  HUWANGWEI
  * @date    2026-07-02
  */
 
-#include "framework/adapters/outbound/cloud/tsl/tsl_point.h"
+#include "framework/common/point_table/point_table.h"
 #include "third_party/cJSON/cJSON.h"
 #include <stdlib.h>
 #include <string.h>
 
-sw_err_t tsl_build_report_json(const tsl_point_t *points, size_t count,
-                                char *buf, size_t buf_size)
+sw_err_t point_table_to_json(const point_table_entry_t *entries, size_t count,
+                              char *buf, size_t buf_size)
 {
     cJSON    *root = cJSON_CreateObject();
     sw_err_t  ret  = SW_ERR_PARAM;
@@ -23,24 +23,24 @@ sw_err_t tsl_build_report_json(const tsl_point_t *points, size_t count,
 
     for (size_t i = 0U; i < count; i++)
     {
-        const tsl_point_t *pt = &points[i];
-        tsl_value_t        val;
+        const point_table_entry_t *entry = &entries[i];
+        point_value_t              val;
 
-        if ((pt->get == NULL) || (pt->get(&val) != SW_OK))
+        if ((entry->get == NULL) || (entry->get(&val) != SW_OK))
         {
             continue;
         }
 
-        switch (pt->type)
+        switch (entry->type)
         {
-            case TSL_BOOL:
-                cJSON_AddBoolToObject(root, pt->id, val.b);
+            case POINT_TYPE_BOOL:
+                cJSON_AddBoolToObject(root, entry->id, val.b);
                 break;
-            case TSL_INT:
-                cJSON_AddNumberToObject(root, pt->id, (double)val.i);
+            case POINT_TYPE_INT:
+                cJSON_AddNumberToObject(root, entry->id, (double)val.i);
                 break;
-            case TSL_STRING:
-                cJSON_AddStringToObject(root, pt->id, val.s);
+            case POINT_TYPE_STRING:
+                cJSON_AddStringToObject(root, entry->id, val.s);
                 break;
             default:
                 break;

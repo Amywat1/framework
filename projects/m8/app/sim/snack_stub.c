@@ -19,7 +19,7 @@ void set_log_level(int type)                        { (void)type; }
 void set_app_version(char *name, char *ver)         { (void)name; (void)ver; }
 void set_remote_port(int port)                      { (void)port; }
 
-/* MQTT 桩（snack_cloud_adapter 已从 sim 排除，但保留防意外链接）*/
+/* MQTT 桩（snack_cloud_command_adapter 已从 sim 排除，但保留防意外链接）*/
 int  aliyun_mqtt_init(char *pk, char *dn, char *ds) { (void)pk; (void)dn; (void)ds; return -1; }
 int  mqtt_is_online(void)                           { return 0; }
 int  net_mqtt_send(char *topic, char *msg)          { (void)topic; (void)msg; return -1; }
