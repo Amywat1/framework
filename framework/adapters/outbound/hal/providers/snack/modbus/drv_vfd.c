@@ -9,7 +9,6 @@
 
 #include "drv_modbus_link.h"
 #include "framework/common/log.h"
-#include "modbus/modbus-rtu.h"
 
 #include <pthread.h>
 #include <stdint.h>
@@ -46,7 +45,6 @@
 #define VFD_REG_CLEAR_FAULT  0x1000U
 #define VFD_DATA_CLEAR_FAULT 0x1101U
 
-
 /* 翌腾 VFD（当前使用；无 Modbus 清故障寄存器，复位须上层通过 pin_rst 脉冲）
 #define VFD_REG_STATE      0x1304U
 #define VFD_REG_FAULT_CODE 0x1300U
@@ -62,6 +60,16 @@
 static bool vfd_is_initialized(const drv_vfd_t *vfd)
 {
     return (vfd != NULL) && drv_modbus_link_is_ready(&vfd->link) && (vfd->do_set != NULL);
+}
+
+static bool vfd_has_rev(const drv_vfd_t *vfd)
+{
+    return (vfd != NULL) && (vfd->pin_rev.raw != IO_HANDLE_NULL);
+}
+
+static int vfd_abs_gear(hal_vfd_gear_t gear)
+{
+    return (gear < 0) ? -(int)gear : (int)gear;
 }
 
 static void vfd_do_set(drv_vfd_t *vfd, io_do_t pin, bool val)
@@ -82,6 +90,16 @@ static void vfd_spd_io_clear(drv_vfd_t *vfd)
     }
 }
 
+/** @brief  关断运行相关 DO（spd/fwd/rev，不含 rst） */
+static void vfd_run_outputs_off(drv_vfd_t *vfd)
+{
+    vfd_spd_io_clear(vfd);
+    vfd_do_set(vfd, vfd->pin_fwd, false);
+    if (vfd_has_rev(vfd)) {
+        vfd_do_set(vfd, vfd->pin_rev, false);
+    }
+}
+
 static void vfd_spd_io_apply(drv_vfd_t *vfd, uint8_t abs_gear)
 {
     uint8_t spd_state;
@@ -95,23 +113,16 @@ static void vfd_spd_io_apply(drv_vfd_t *vfd, uint8_t abs_gear)
     vfd_do_set(vfd, vfd->pin_spd2, (spd_state & 0x02U) != 0U);
 }
 
-static void vfd_apply_gear_impl(drv_vfd_t *vfd, drv_vfd_gear_t gear)
+static void vfd_apply_gear_impl(drv_vfd_t *vfd, hal_vfd_gear_t gear)
 {
-    int abs_gear = (gear < 0) ? -(int)gear : (int)gear;
+    int abs_gear = vfd_abs_gear(gear);
 
     if (vfd->spd_io_ready) {
         vfd_spd_io_apply(vfd, (uint8_t)abs_gear);
     }
-    if (gear > 0) {
-        if (vfd->pin_rev.raw != IO_HANDLE_NULL) {
-            vfd_do_set(vfd, vfd->pin_rev, false);
-        }
-        vfd_do_set(vfd, vfd->pin_fwd, true);
-    } else {
-        vfd_do_set(vfd, vfd->pin_fwd, false);
-        if (vfd->pin_rev.raw != IO_HANDLE_NULL) {
-            vfd_do_set(vfd, vfd->pin_rev, true);
-        }
+    vfd_do_set(vfd, vfd->pin_fwd, gear > 0);
+    if (vfd_has_rev(vfd)) {
+        vfd_do_set(vfd, vfd->pin_rev, gear < 0);
     }
     vfd->gear = gear;
 }
@@ -141,8 +152,8 @@ sw_err_t drv_vfd_init(drv_vfd_t        *vfd,
         return SW_ERR_HW;
     }
 
-    ret = drv_modbus_link_init(&vfd->link, serial_port, baud, modbus_addr,
-                               VFD_MODBUS_TIMEOUT_US, VFD_COMM_FAIL_RECONNECT);
+    ret = drv_modbus_link_init(
+        &vfd->link, serial_port, baud, modbus_addr, VFD_MODBUS_TIMEOUT_US, VFD_COMM_FAIL_RECONNECT);
     if (ret != SW_OK) {
         (void)pthread_mutex_destroy(&vfd->io_mutex);
         return ret;
@@ -151,13 +162,10 @@ sw_err_t drv_vfd_init(drv_vfd_t        *vfd,
     vfd->pin_fwd = pin_fwd;
     vfd->pin_rev = pin_rev;
     vfd->pin_rst = pin_rst;
-    vfd->gear    = VFD_GEAR_STOP;
+    vfd->gear    = 0;
     vfd->do_set  = do_set;
 
-    vfd_do_set(vfd, pin_fwd, false);
-    if (pin_rev.raw != IO_HANDLE_NULL) {
-        vfd_do_set(vfd, pin_rev, false);
-    }
+    vfd_run_outputs_off(vfd);
     vfd_do_set(vfd, pin_rst, false);
 
     LOG_INFO("drv_vfd_init[addr=%d] ok", modbus_addr);
@@ -186,13 +194,11 @@ sw_err_t drv_vfd_config_speed_io(drv_vfd_t    *vfd,
                       (unsigned)(i + 1U));
             return SW_ERR_PARAM;
         }
+        vfd->spd_cfg[i] = spd_cfg[i];
     }
 
     vfd->pin_spd1 = pin_spd1;
     vfd->pin_spd2 = pin_spd2;
-    for (i = 0U; i < (uint8_t)VFD_GEAR_MAX; i++) {
-        vfd->spd_cfg[i] = spd_cfg[i];
-    }
 
     vfd_do_set(vfd, pin_spd1, false);
     vfd_do_set(vfd, pin_spd2, false);
@@ -209,17 +215,13 @@ sw_err_t drv_vfd_stop_outputs(drv_vfd_t *vfd)
     }
 
     (void)pthread_mutex_lock(&vfd->io_mutex);
-    vfd_spd_io_clear(vfd);
-    vfd_do_set(vfd, vfd->pin_fwd, false);
-    if (vfd->pin_rev.raw != IO_HANDLE_NULL) {
-        vfd_do_set(vfd, vfd->pin_rev, false);
-    }
-    vfd->gear = VFD_GEAR_STOP;
+    vfd_run_outputs_off(vfd);
+    vfd->gear = 0;
     (void)pthread_mutex_unlock(&vfd->io_mutex);
     return SW_OK;
 }
 
-sw_err_t drv_vfd_apply_gear(drv_vfd_t *vfd, drv_vfd_gear_t gear)
+sw_err_t drv_vfd_apply_gear(drv_vfd_t *vfd, hal_vfd_gear_t gear)
 {
     int abs_gear_int;
 
@@ -227,16 +229,16 @@ sw_err_t drv_vfd_apply_gear(drv_vfd_t *vfd, drv_vfd_gear_t gear)
         return SW_ERR_NOT_INIT;
     }
 
-    if (gear == VFD_GEAR_STOP) {
+    if (gear == 0) {
         return drv_vfd_stop_outputs(vfd);
     }
 
-    abs_gear_int = (gear < 0) ? -(int)gear : (int)gear;
+    abs_gear_int = vfd_abs_gear(gear);
 
     if (abs_gear_int > VFD_GEAR_MAX) {
         return SW_ERR_PARAM;
     }
-    if ((gear < 0) && (vfd->pin_rev.raw == IO_HANDLE_NULL)) {
+    if ((gear < 0) && !vfd_has_rev(vfd)) {
         LOG_ERROR("drv_vfd_apply_gear[addr=%d]: reverse not supported", vfd->link.modbus_addr);
         return SW_ERR_PARAM;
     }
@@ -258,9 +260,9 @@ sw_err_t drv_vfd_set_rst(drv_vfd_t *vfd, bool level)
     return SW_OK;
 }
 
-drv_vfd_state_t drv_vfd_get_state(drv_vfd_t *vfd)
+hal_vfd_state_t drv_vfd_get_state(drv_vfd_t *vfd)
 {
-    drv_vfd_gear_t gear;
+    hal_vfd_gear_t gear;
 
     if (vfd == NULL) {
         return HAL_VFD_STATE_STOPPED;
@@ -277,7 +279,7 @@ drv_vfd_state_t drv_vfd_get_state(drv_vfd_t *vfd)
     return HAL_VFD_STATE_STOPPED;
 }
 
-sw_err_t drv_vfd_read(drv_vfd_t *vfd, drv_vfd_reg_t reg, uint16_t *p_val)
+sw_err_t drv_vfd_read(drv_vfd_t *vfd, hal_vfd_reg_t reg, uint16_t *p_val)
 {
     sw_err_t ret;
     uint16_t addr;
@@ -291,11 +293,17 @@ sw_err_t drv_vfd_read(drv_vfd_t *vfd, drv_vfd_reg_t reg, uint16_t *p_val)
     }
 
     switch (reg) {
-        case DRV_VFD_REG_STATE:      addr = VFD_REG_STATE;      break;
-        case DRV_VFD_REG_FAULT_CODE: addr = VFD_REG_FAULT_CODE; break;
-        case DRV_VFD_REG_CURRENT:    addr = VFD_REG_CURRENT;    break;
-        default:
-            return SW_ERR_PARAM;
+    case HAL_VFD_REG_STATE:
+        addr = VFD_REG_STATE;
+        break;
+    case HAL_VFD_REG_FAULT_CODE:
+        addr = VFD_REG_FAULT_CODE;
+        break;
+    case HAL_VFD_REG_CURRENT:
+        addr = VFD_REG_CURRENT;
+        break;
+    default:
+        return SW_ERR_PARAM;
     }
 
     ret = drv_modbus_link_read_reg(&vfd->link, addr, &val);
@@ -305,24 +313,24 @@ sw_err_t drv_vfd_read(drv_vfd_t *vfd, drv_vfd_reg_t reg, uint16_t *p_val)
     return ret;
 }
 
-sw_err_t drv_vfd_write(drv_vfd_t *vfd, drv_vfd_reg_t reg, uint16_t val)
+sw_err_t drv_vfd_write(drv_vfd_t *vfd, hal_vfd_reg_t reg, uint16_t val)
 {
     if (!vfd_is_initialized(vfd)) {
         return SW_ERR_NOT_INIT;
     }
 
-    (void)val;
-
     switch (reg) {
 #ifdef VFD_REG_FREQ_SET
-        case DRV_VFD_REG_FREQ:
-            return drv_modbus_link_write_reg(&vfd->link, VFD_REG_FREQ_SET, val);
+    case HAL_VFD_REG_FREQ:
+        return drv_modbus_link_write_reg(&vfd->link, VFD_REG_FREQ_SET, val);
 #endif
 #ifdef VFD_REG_CLEAR_FAULT
-        case DRV_VFD_REG_CLEAR_FAULT:
-            return drv_modbus_link_write_reg(&vfd->link, VFD_REG_CLEAR_FAULT, VFD_DATA_CLEAR_FAULT);
+    case HAL_VFD_REG_CLEAR_FAULT:
+        (void)val;
+        return drv_modbus_link_write_reg(&vfd->link, VFD_REG_CLEAR_FAULT, VFD_DATA_CLEAR_FAULT);
 #endif
-        default:
-            return SW_ERR_PARAM;
+    default:
+        (void)val;
+        return SW_ERR_PARAM;
     }
 }

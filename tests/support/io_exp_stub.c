@@ -42,7 +42,7 @@ int io_SDO_write(int board_id, int index, int sub_index, int *data)
     return 0;
 }
 
-int io_init(int can_bus, int can_baud, int self_node, int board_count)
+int io_init(const char *can_bus, int can_baud, int self_node, int board_count)
 {
     (void)can_bus;
     (void)can_baud;

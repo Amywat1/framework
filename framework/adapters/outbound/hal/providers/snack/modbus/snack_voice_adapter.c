@@ -6,8 +6,9 @@
  */
 
 #include "framework/adapters/outbound/hal/providers/snack/modbus/snack_voice_adapter.h"
-#include "framework/ports/outbound/hal/hal_voice_port.h"
+
 #include "framework/adapters/outbound/hal/providers/snack/modbus/drv_voice.h"
+#include "framework/ports/outbound/hal/hal_voice_port.h"
 
 #include <string.h>
 
@@ -102,14 +103,14 @@ static void voice_register_event_cb(void (*cb)(int event_code))
 }
 
 static const hal_voice_ops_t s_ops = {
-    .init               = voice_init,
-    .play               = voice_play,
-    .stop               = voice_stop,
-    .pause              = voice_pause,
-    .set_volume         = voice_set_volume,
-    .volume_up          = voice_volume_up,
-    .volume_down        = voice_volume_down,
-    .register_event_cb  = voice_register_event_cb,
+    .init              = voice_init,
+    .play              = voice_play,
+    .stop              = voice_stop,
+    .pause             = voice_pause,
+    .set_volume        = voice_set_volume,
+    .volume_up         = voice_volume_up,
+    .volume_down       = voice_volume_down,
+    .register_event_cb = voice_register_event_cb,
 };
 
 void snack_voice_adapter_register(void)

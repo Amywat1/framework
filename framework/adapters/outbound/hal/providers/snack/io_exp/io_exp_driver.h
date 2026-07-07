@@ -21,18 +21,19 @@
 extern "C" {
 #endif
 
+#include "framework/common/io_handle.h"
+#include "framework/common/sw_error.h"
+#include "framework/common/sw_types.h"
+
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
-#include "framework/common/sw_error.h"
-#include "framework/common/sw_types.h"
-#include "framework/common/io_handle.h"
 
 /**
  * @brief  初始化 io_exp SDK 的 CAN 总线访问。
  * @note   对项目入口屏蔽 io_exp/demo.h，SDK 头只保留在 provider 内部。
  */
-sw_err_t io_exp_driver_sdk_init(int can_bus, int can_baud, int self_node, int board_count);
+sw_err_t io_exp_driver_sdk_init(const char *can_bus, int can_baud, int self_node, int board_count);
 
 /**
  * @brief  注册 io_exp SDK 日志回调。
@@ -41,15 +42,13 @@ sw_err_t io_exp_driver_sdk_init(int can_bus, int can_baud, int self_node, int bo
 void io_exp_driver_set_log_api(int (*cb)(const char *fmt, ...));
 
 /** IO 名称表条目（由调用方用 X-macro 展开后传入驱动） */
-typedef struct
-{
+typedef struct {
     const char *name; /**< 标准名称，如 "DI_ESTOP" */
     uint16_t    raw;  /**< 句柄底层编码 */
 } drv_io_name_entry_t;
 
 /** IO 驱动运行时统计（按子板，近似快照） */
-typedef struct
-{
+typedef struct {
     bool     online;                /**< 当前是否在线 */
     bool     dirty_pending;         /**< 当前是否存在未落地输出 */
     uint32_t offline_count;         /**< 确认离线次数 */
@@ -105,14 +104,13 @@ const char *drv_io_do_name(io_do_t pin);
  *         di_table/do_table 为名称映射表，由调用方用 X-macro 展开后传入；
  *         允许传 NULL + 0，此时名称查找接口均返回失败/NULL。
  */
-typedef struct
-{
-    int board_count; /**< 实际使用的 IO 子板数量 */
-    int pin_count;   /**< 每块子板的 IO 点数 */
-    const drv_io_name_entry_t *di_table; /**< DI 名称映射表 */
-    size_t                     di_count; /**< DI 表条目数 */
-    const drv_io_name_entry_t *do_table; /**< DO 名称映射表 */
-    size_t                     do_count; /**< DO 表条目数 */
+typedef struct {
+    int                        board_count; /**< 实际使用的 IO 子板数量 */
+    int                        pin_count;   /**< 每块子板的 IO 点数 */
+    const drv_io_name_entry_t *di_table;    /**< DI 名称映射表 */
+    size_t                     di_count;    /**< DI 表条目数 */
+    const drv_io_name_entry_t *do_table;    /**< DO 名称映射表 */
+    size_t                     do_count;    /**< DO 表条目数 */
 } drv_io_cfg_t;
 
 /**

@@ -47,7 +47,7 @@ static sw_err_t voice_mb_write(drv_voice_t *v, uint16_t addr, uint16_t val)
     sw_err_t ret;
     bool     notify_lost     = false;
     bool     notify_restored = false;
-    void   (*cb)(int) = NULL;
+    void (*cb)(int)          = NULL;
 
     if (!drv_modbus_link_is_ready(&v->link)) {
         return SW_ERR_NOT_INIT;
@@ -104,8 +104,8 @@ sw_err_t drv_voice_init(drv_voice_t *v, const char *serial_port, int baud, int m
         return SW_ERR_HW;
     }
 
-    ret = drv_modbus_link_init(&v->link, serial_port, baud, modbus_addr,
-                               VOICE_MODBUS_TIMEOUT_US, VOICE_COMM_FAIL_RECONNECT);
+    ret = drv_modbus_link_init(
+        &v->link, serial_port, baud, modbus_addr, VOICE_MODBUS_TIMEOUT_US, VOICE_COMM_FAIL_RECONNECT);
     if (ret != SW_OK) {
         (void)pthread_mutex_destroy(&v->notify_mutex);
         return ret;

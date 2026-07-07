@@ -6,8 +6,9 @@
  */
 
 #include "framework/adapters/outbound/hal/providers/snack/io_exp/snack_io_adapter.h"
-#include "framework/ports/outbound/hal/hal_io_port.h"
+
 #include "framework/common/log.h"
+#include "framework/ports/outbound/hal/hal_io_port.h"
 
 #include <string.h>
 
@@ -97,13 +98,11 @@ static sw_err_t get_stats(int board_id, hal_io_stats_t *out)
 {
     drv_io_stats_t raw;
 
-    if (out == NULL)
-    {
+    if (out == NULL) {
         return SW_ERR_PARAM;
     }
 
-    if (drv_io_get_stats(board_id, &raw) != SW_OK)
-    {
+    if (drv_io_get_stats(board_id, &raw) != SW_OK) {
         return SW_ERR_PARAM;
     }
 
@@ -144,8 +143,7 @@ static const hal_io_ops_t s_ops = {
 
 void snack_io_adapter_register(const drv_io_cfg_t *cfg)
 {
-    if (cfg == NULL)
-    {
+    if (cfg == NULL) {
         LOG_ERROR("snack_io_adapter: register cfg is NULL");
         return;
     }

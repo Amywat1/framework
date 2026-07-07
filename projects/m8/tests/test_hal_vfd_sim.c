@@ -10,7 +10,6 @@
  */
 
 #include "framework/ports/outbound/hal/hal_vfd_port.h"
-#include "framework/common/vfd_types.h"
 #include "framework/common/sw_error.h"
 #include "unity.h"
 

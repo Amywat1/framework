@@ -5,8 +5,7 @@
  * @date    2026-04-10
  *
  * @note    仅提供 group / slot 编号与 DO 读写；业务映射由 machine 层完成。
- *          通道绑定通过 hal_do_group_ops_t.bind() 完成，由已注册的
- *          hal_do_group 适配器（如 hal_do_group_mapper）提供具体实现。
+ *          通道绑定由具体 HAL 组合层提供装配接口，port ops 不承载项目点位绑定。
  */
 
 #ifndef PORTS_HAL_DO_GROUP_PORT_H
@@ -32,19 +31,8 @@ typedef uint8_t hal_do_slot_t;
 
 typedef struct
 {
-    /** @brief  初始化内部状态 */
+    /** @brief  初始化内部运行时状态 */
     sw_err_t (*init)(void);
-
-    /**
-     * @brief  绑定组内槽位到 DO 引脚
-     * @param  group  DO 组编号
-     * @param  slot   组内槽位编号
-     * @param  pin    数字输出句柄；IO_HANDLE_NULL 表示未安装
-     * @retval SW_OK        绑定成功
-     * @retval SW_ERR_PARAM  group/slot 越界
-     * @note   供项目 wiring/bindings 在启动阶段调用。
-     */
-    sw_err_t (*bind)(hal_do_group_t group, hal_do_slot_t slot, io_do_t pin);
 
     /** @brief  设置指定组内某一槽位的 DO 输出 */
     sw_err_t (*slot_set)(hal_do_group_t group, hal_do_slot_t slot, bool on);

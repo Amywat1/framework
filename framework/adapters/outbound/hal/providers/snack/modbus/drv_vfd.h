@@ -27,45 +27,21 @@ extern "C" {
 #include "framework/adapters/outbound/hal/providers/snack/modbus/drv_modbus_link.h"
 #include "framework/common/io_handle.h"
 #include "framework/common/sw_error.h"
-#include "framework/common/vfd_types.h"
+#include "framework/ports/outbound/hal/hal_vfd_port.h"
 
 #include <pthread.h>
 #include <stdbool.h>
 #include <stdint.h>
 
 /* -------------------------------------------------------------------------
- * 挡位类型与宏
- * 正值=正转，负值=反转，0=停止；绝对值为速度挡位（1=最低，VFD_GEAR_MAX=最高）
- * 两路速度 IO 可组合 3 个有效挡（(0,0) 保留为停止态）
+ * 驱动层速度 IO 约束（hal_vfd_port.h 不含此硬件细节）
  * ------------------------------------------------------------------------- */
-typedef hal_vfd_gear_t drv_vfd_gear_t;
+#define VFD_GEAR_MAX 3U /* 两路速度 IO 可组合的有效挡位数（(0,0) 保留为停止态）*/
 
-#define VFD_GEAR_STOP  ((drv_vfd_gear_t)0)
-#define VFD_GEAR_FWD_1 ((drv_vfd_gear_t)1)
-#define VFD_GEAR_FWD_2 ((drv_vfd_gear_t)2)
-#define VFD_GEAR_FWD_3 ((drv_vfd_gear_t)3)
-#define VFD_GEAR_REV_1 ((drv_vfd_gear_t) - 1)
-#define VFD_GEAR_REV_2 ((drv_vfd_gear_t) - 2)
-#define VFD_GEAR_REV_3 ((drv_vfd_gear_t) - 3)
-#define VFD_GEAR_MAX   3 /* 最大有效速度挡数（两路 IO 去除停止态后的可用组合数）*/
-
-/**
- * 速度挡位 IO 状态辅助宏：bit0=spd1 电平，bit1=spd2 电平
- * 禁止使用 VFD_SPD_IO(0,0)，该组合保留为停止态
- */
+/** @brief 速度挡位 IO 编码：bit0=spd1，bit1=spd2；禁止 VFD_SPD_IO(0,0) */
 #define VFD_SPD_IO(s1, s2) ((uint8_t)(((s2) ? 0x02U : 0U) | ((s1) ? 0x01U : 0U)))
 
-typedef hal_vfd_state_t drv_vfd_state_t;
-
-/* drv_vfd_reg_t 是 hal_vfd_reg_t 的驱动层别名；DRV_VFD_REG_* 与 HAL_VFD_REG_* 等价 */
-typedef hal_vfd_reg_t drv_vfd_reg_t;
-#define DRV_VFD_REG_STATE       HAL_VFD_REG_STATE
-#define DRV_VFD_REG_FAULT_CODE  HAL_VFD_REG_FAULT_CODE
-#define DRV_VFD_REG_CURRENT     HAL_VFD_REG_CURRENT
-#define DRV_VFD_REG_FREQ        HAL_VFD_REG_FREQ
-#define DRV_VFD_REG_CLEAR_FAULT HAL_VFD_REG_CLEAR_FAULT
-
-/** DO 写回调类型，由 hal_vfd_linux 注入，用于驱动操作底层引脚 */
+/** DO 写回调类型，由上层注入，用于驱动操作底层引脚 */
 typedef sw_err_t (*drv_vfd_do_set_fn)(io_do_t pin, bool val);
 
 /**
@@ -73,17 +49,17 @@ typedef sw_err_t (*drv_vfd_do_set_fn)(io_do_t pin, bool val);
  * gear 字段标注"内部"者，外部代码只读，禁止直接修改。
  */
 typedef struct {
-    drv_modbus_link_t link;                 /* Modbus RTU 链路（连接/总线锁/失败重连） */
-    io_do_t        pin_fwd;
-    io_do_t        pin_rev;                 /* IO_HANDLE_NULL 表示不支持反转 */
-    io_do_t        pin_rst;
-    io_do_t        pin_spd1;                /* 速度 IO1；IO_HANDLE_NULL 表示未配置 */
-    io_do_t        pin_spd2;                /* 速度 IO2；IO_HANDLE_NULL 表示未配置 */
-    uint8_t        spd_cfg[VFD_GEAR_MAX];   /* 挡位 1~3 对应 IO 状态，由 drv_vfd_config_speed_io 写入 */
-    bool           spd_io_ready;            /* 内部：drv_vfd_config_speed_io 已完成配置 */
-    drv_vfd_gear_t gear;                    /* 内部：当前已应用到硬件的挡位，0=停止 */
+    drv_modbus_link_t link;                  /* Modbus RTU 链路（连接/总线锁/失败重连） */
+    io_do_t           pin_fwd;
+    io_do_t           pin_rev;               /* IO_HANDLE_NULL 表示不支持反转 */
+    io_do_t           pin_rst;
+    io_do_t           pin_spd1;              /* 速度 IO1；IO_HANDLE_NULL 表示未配置 */
+    io_do_t           pin_spd2;              /* 速度 IO2；IO_HANDLE_NULL 表示未配置 */
+    uint8_t           spd_cfg[VFD_GEAR_MAX]; /* 挡位 1~3 对应 IO 状态，由 drv_vfd_config_speed_io 写入 */
+    bool              spd_io_ready;          /* 内部：drv_vfd_config_speed_io 已完成配置 */
+    hal_vfd_gear_t    gear;                  /* 内部：当前已应用到硬件的挡位，0=停止 */
     drv_vfd_do_set_fn do_set;
-    pthread_mutex_t io_mutex;               /* 内部：保护 gear 与 IO 写操作 */
+    pthread_mutex_t   io_mutex;              /* 内部：保护 gear 与 IO 写操作 */
 } drv_vfd_t;
 
 /**
@@ -142,7 +118,7 @@ sw_err_t drv_vfd_config_speed_io(drv_vfd_t    *vfd,
  *         IO 操作顺序：速度 IO（若启用）先于方向 IO；
  *         本接口不控制 Modbus 频率，频率须单独调用 drv_vfd_write(REG_FREQ)
  */
-sw_err_t drv_vfd_apply_gear(drv_vfd_t *vfd, drv_vfd_gear_t gear);
+sw_err_t drv_vfd_apply_gear(drv_vfd_t *vfd, hal_vfd_gear_t gear);
 
 /**
  * @brief  关断所有运行输出（spd/fwd/rev），gear 置为 STOP
@@ -169,7 +145,7 @@ sw_err_t drv_vfd_set_rst(drv_vfd_t *vfd, bool level);
  * @retval     HAL_VFD_STATE_REV     gear < 0（反转中）
  * @retval     HAL_VFD_STATE_STOPPED gear == 0 或 vfd 为 NULL
  */
-drv_vfd_state_t drv_vfd_get_state(drv_vfd_t *vfd);
+hal_vfd_state_t drv_vfd_get_state(drv_vfd_t *vfd);
 
 /**
  * @brief  同步读取寄存器（发起 Modbus IO）
@@ -178,7 +154,7 @@ drv_vfd_state_t drv_vfd_get_state(drv_vfd_t *vfd);
  * @param[out] p_val 输出值，不可为 NULL
  * @retval  SW_OK / SW_ERR_PARAM / SW_ERR_NOT_INIT / SW_ERR_COMM
  */
-sw_err_t drv_vfd_read(drv_vfd_t *vfd, drv_vfd_reg_t reg, uint16_t *p_val);
+sw_err_t drv_vfd_read(drv_vfd_t *vfd, hal_vfd_reg_t reg, uint16_t *p_val);
 
 /**
  * @brief  写寄存器（发起 Modbus IO）
@@ -188,7 +164,7 @@ sw_err_t drv_vfd_read(drv_vfd_t *vfd, drv_vfd_reg_t reg, uint16_t *p_val);
  * @param[in]  val  写入值（CLEAR_FAULT 时忽略，数据由厂商宏定义决定）
  * @retval  SW_OK / SW_ERR_PARAM / SW_ERR_NOT_INIT / SW_ERR_COMM
  */
-sw_err_t drv_vfd_write(drv_vfd_t *vfd, drv_vfd_reg_t reg, uint16_t val);
+sw_err_t drv_vfd_write(drv_vfd_t *vfd, hal_vfd_reg_t reg, uint16_t val);
 
 #ifdef __cplusplus
 }

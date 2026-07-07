@@ -82,7 +82,7 @@ void setUp(void)
     modbus_stub_reset();
     pin_log_reset();
     ensure_vfd_ready();
-    g_vfd.gear              = VFD_GEAR_STOP;
+    g_vfd.gear              = 0;
     g_vfd.link.comm_fail_count = 0U;
     g_vfd.link.mb_connected    = true;
     g_vfd.pin_rev           = P_REV;
@@ -134,26 +134,26 @@ static void test_config_zero_mapping(void)
 static void test_apply_gear_too_large(void)
 {
     TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM,
-        drv_vfd_apply_gear(&g_vfd, (drv_vfd_gear_t)(VFD_GEAR_MAX + 1)));
+        drv_vfd_apply_gear(&g_vfd, (hal_vfd_gear_t)(VFD_GEAR_MAX + 1)));
 }
 
 static void test_apply_gear_too_small(void)
 {
     TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM,
-        drv_vfd_apply_gear(&g_vfd, (drv_vfd_gear_t)(-(VFD_GEAR_MAX + 1))));
+        drv_vfd_apply_gear(&g_vfd, (hal_vfd_gear_t)(-(VFD_GEAR_MAX + 1))));
 }
 
 static void test_apply_gear_reverse_no_rev_pin(void)
 {
     g_vfd.pin_rev = (io_do_t){IO_HANDLE_NULL};
-    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, drv_vfd_apply_gear(&g_vfd, VFD_GEAR_REV_1));
+    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, drv_vfd_apply_gear(&g_vfd, (hal_vfd_gear_t)-1));
 }
 
 static void test_apply_gear_uninit_returns_not_init(void)
 {
     drv_vfd_t tmp;
     (void)memset(&tmp, 0, sizeof(tmp));
-    TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_INIT, drv_vfd_apply_gear(&tmp, VFD_GEAR_FWD_1));
+    TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_INIT, drv_vfd_apply_gear(&tmp, (hal_vfd_gear_t)1));
 }
 
 static void test_apply_gear_without_speed_io_uses_direction_only(void)
@@ -164,7 +164,7 @@ static void test_apply_gear_without_speed_io_uses_direction_only(void)
     TEST_ASSERT_EQUAL_INT(SW_OK, drv_vfd_init(&tmp, "/dev/ttyS0", 9600, 2,
                                                P_FWD, P_REV, P_RST, fake_do_set));
     pin_log_reset();
-    TEST_ASSERT_EQUAL_INT(SW_OK, drv_vfd_apply_gear(&tmp, VFD_GEAR_FWD_1));
+    TEST_ASSERT_EQUAL_INT(SW_OK, drv_vfd_apply_gear(&tmp, (hal_vfd_gear_t)1));
     TEST_ASSERT_EQUAL_INT(HAL_VFD_STATE_FWD, drv_vfd_get_state(&tmp));
     TEST_ASSERT_TRUE(pin_last_val(P_FWD.raw, &v));
     TEST_ASSERT_TRUE(v);
@@ -184,7 +184,7 @@ static void test_write_uninit_returns_not_init(void)
     drv_vfd_t tmp;
     (void)memset(&tmp, 0, sizeof(tmp));
     TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_INIT,
-        drv_vfd_write(&tmp, DRV_VFD_REG_CLEAR_FAULT, 0U));
+        drv_vfd_write(&tmp, HAL_VFD_REG_CLEAR_FAULT, 0U));
 }
 
 static void test_read_uninit_returns_not_init(void)
@@ -193,7 +193,7 @@ static void test_read_uninit_returns_not_init(void)
     uint16_t val;
     (void)memset(&tmp, 0, sizeof(tmp));
     TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_INIT,
-        drv_vfd_read(&tmp, DRV_VFD_REG_CURRENT, &val));
+        drv_vfd_read(&tmp, HAL_VFD_REG_CURRENT, &val));
 }
 
 static void test_set_rst_uninit_returns_not_init(void)
@@ -210,19 +210,19 @@ static void test_get_state_null(void)
 
 static void test_get_state_fwd_after_apply_gear(void)
 {
-    drv_vfd_apply_gear(&g_vfd, VFD_GEAR_FWD_1);
+    drv_vfd_apply_gear(&g_vfd, (hal_vfd_gear_t)1);
     TEST_ASSERT_EQUAL_INT(HAL_VFD_STATE_FWD, drv_vfd_get_state(&g_vfd));
 }
 
 static void test_get_state_rev_after_apply_gear(void)
 {
-    drv_vfd_apply_gear(&g_vfd, VFD_GEAR_REV_1);
+    drv_vfd_apply_gear(&g_vfd, (hal_vfd_gear_t)-1);
     TEST_ASSERT_EQUAL_INT(HAL_VFD_STATE_REV, drv_vfd_get_state(&g_vfd));
 }
 
 static void test_get_state_stop_after_stop_outputs(void)
 {
-    drv_vfd_apply_gear(&g_vfd, VFD_GEAR_FWD_1);
+    drv_vfd_apply_gear(&g_vfd, (hal_vfd_gear_t)1);
     drv_vfd_stop_outputs(&g_vfd);
     TEST_ASSERT_EQUAL_INT(HAL_VFD_STATE_STOPPED, drv_vfd_get_state(&g_vfd));
 }
@@ -230,7 +230,7 @@ static void test_get_state_stop_after_stop_outputs(void)
 static void test_apply_gear_fwd1_sets_correct_pins(void)
 {
     bool v;
-    drv_vfd_apply_gear(&g_vfd, VFD_GEAR_FWD_1);
+    drv_vfd_apply_gear(&g_vfd, (hal_vfd_gear_t)1);
     TEST_ASSERT_TRUE(pin_last_val(P_FWD.raw, &v));  TEST_ASSERT_TRUE(v);
     TEST_ASSERT_TRUE(pin_last_val(P_REV.raw, &v));  TEST_ASSERT_FALSE(v);
     TEST_ASSERT_TRUE(pin_last_val(P_SPD1.raw, &v)); TEST_ASSERT_TRUE(v);
@@ -240,7 +240,7 @@ static void test_apply_gear_fwd1_sets_correct_pins(void)
 static void test_apply_gear_rev1_sets_correct_pins(void)
 {
     bool v;
-    drv_vfd_apply_gear(&g_vfd, VFD_GEAR_REV_1);
+    drv_vfd_apply_gear(&g_vfd, (hal_vfd_gear_t)-1);
     TEST_ASSERT_TRUE(pin_last_val(P_REV.raw, &v)); TEST_ASSERT_TRUE(v);
     TEST_ASSERT_TRUE(pin_last_val(P_FWD.raw, &v)); TEST_ASSERT_FALSE(v);
 }
@@ -248,7 +248,7 @@ static void test_apply_gear_rev1_sets_correct_pins(void)
 static void test_stop_outputs_clears_all_pins(void)
 {
     bool v;
-    drv_vfd_apply_gear(&g_vfd, VFD_GEAR_FWD_2);
+    drv_vfd_apply_gear(&g_vfd, (hal_vfd_gear_t)2);
     pin_log_reset();
     drv_vfd_stop_outputs(&g_vfd);
     TEST_ASSERT_TRUE(pin_last_val(P_FWD.raw,  &v)); TEST_ASSERT_FALSE(v);
@@ -259,9 +259,9 @@ static void test_stop_outputs_clears_all_pins(void)
 static void test_apply_gear_fwd_to_rev_immediate(void)
 {
     bool v;
-    drv_vfd_apply_gear(&g_vfd, VFD_GEAR_FWD_1);
+    drv_vfd_apply_gear(&g_vfd, (hal_vfd_gear_t)1);
     pin_log_reset();
-    drv_vfd_apply_gear(&g_vfd, VFD_GEAR_REV_1);
+    drv_vfd_apply_gear(&g_vfd, (hal_vfd_gear_t)-1);
     TEST_ASSERT_EQUAL_INT(HAL_VFD_STATE_REV, drv_vfd_get_state(&g_vfd));
     TEST_ASSERT_TRUE(pin_last_val(P_REV.raw, &v)); TEST_ASSERT_TRUE(v);
     TEST_ASSERT_TRUE(pin_last_val(P_FWD.raw, &v)); TEST_ASSERT_FALSE(v);
@@ -271,74 +271,74 @@ static void test_read_fault_code_success(void)
 {
     uint16_t val = 0U;
     modbus_stub_set_read_result(1, 0x0005U);
-    TEST_ASSERT_EQUAL_INT(SW_OK, drv_vfd_read(&g_vfd, DRV_VFD_REG_FAULT_CODE, &val));
+    TEST_ASSERT_EQUAL_INT(SW_OK, drv_vfd_read(&g_vfd, HAL_VFD_REG_FAULT_CODE, &val));
     TEST_ASSERT_EQUAL_UINT16(0x0005U, val);
 }
 
 static void test_read_fault_code_null_out(void)
 {
     TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM,
-        drv_vfd_read(&g_vfd, DRV_VFD_REG_FAULT_CODE, NULL));
+        drv_vfd_read(&g_vfd, HAL_VFD_REG_FAULT_CODE, NULL));
 }
 
 static void test_read_current_success(void)
 {
     uint16_t cur = 0U;
     modbus_stub_set_read_result(1, 150U);
-    TEST_ASSERT_EQUAL_INT(SW_OK, drv_vfd_read(&g_vfd, DRV_VFD_REG_CURRENT, &cur));
+    TEST_ASSERT_EQUAL_INT(SW_OK, drv_vfd_read(&g_vfd, HAL_VFD_REG_CURRENT, &cur));
     TEST_ASSERT_EQUAL_UINT16(150U, cur);
 }
 
 static void test_read_current_null_out(void)
 {
     TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM,
-        drv_vfd_read(&g_vfd, DRV_VFD_REG_CURRENT, NULL));
+        drv_vfd_read(&g_vfd, HAL_VFD_REG_CURRENT, NULL));
 }
 
 static void test_read_current_comm_fail(void)
 {
     uint16_t cur = 0U;
     modbus_stub_set_read_result(-1, 0U);
-    TEST_ASSERT_EQUAL_INT(SW_ERR_COMM, drv_vfd_read(&g_vfd, DRV_VFD_REG_CURRENT, &cur));
+    TEST_ASSERT_EQUAL_INT(SW_ERR_COMM, drv_vfd_read(&g_vfd, HAL_VFD_REG_CURRENT, &cur));
 }
 
 static void test_read_state_success(void)
 {
     uint16_t st = 0U;
     modbus_stub_set_read_result(1, 0x0003U);
-    TEST_ASSERT_EQUAL_INT(SW_OK, drv_vfd_read(&g_vfd, DRV_VFD_REG_STATE, &st));
+    TEST_ASSERT_EQUAL_INT(SW_OK, drv_vfd_read(&g_vfd, HAL_VFD_REG_STATE, &st));
     TEST_ASSERT_EQUAL_UINT16(0x0003U, st);
 }
 
 static void test_read_state_null_out(void)
 {
     TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM,
-        drv_vfd_read(&g_vfd, DRV_VFD_REG_STATE, NULL));
+        drv_vfd_read(&g_vfd, HAL_VFD_REG_STATE, NULL));
 }
 
 static void test_read_writeonly_reg_returns_param(void)
 {
     uint16_t val;
-    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, drv_vfd_read(&g_vfd, DRV_VFD_REG_FREQ, &val));
-    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, drv_vfd_read(&g_vfd, DRV_VFD_REG_CLEAR_FAULT, &val));
+    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, drv_vfd_read(&g_vfd, HAL_VFD_REG_FREQ, &val));
+    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, drv_vfd_read(&g_vfd, HAL_VFD_REG_CLEAR_FAULT, &val));
 }
 
 static void test_write_freq_not_supported_for_vendor(void)
 {
     TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM,
-        drv_vfd_write(&g_vfd, DRV_VFD_REG_FREQ, 50U));
+        drv_vfd_write(&g_vfd, HAL_VFD_REG_FREQ, 50U));
 }
 
 static void test_write_readonly_reg_returns_param(void)
 {
-    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, drv_vfd_write(&g_vfd, DRV_VFD_REG_STATE, 0U));
-    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, drv_vfd_write(&g_vfd, DRV_VFD_REG_FAULT_CODE, 0U));
-    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, drv_vfd_write(&g_vfd, DRV_VFD_REG_CURRENT, 0U));
+    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, drv_vfd_write(&g_vfd, HAL_VFD_REG_STATE, 0U));
+    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, drv_vfd_write(&g_vfd, HAL_VFD_REG_FAULT_CODE, 0U));
+    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, drv_vfd_write(&g_vfd, HAL_VFD_REG_CURRENT, 0U));
 }
 
 static void test_write_clear_fault_correct_reg_and_data(void)
 {
-    TEST_ASSERT_EQUAL_INT(SW_OK, drv_vfd_write(&g_vfd, DRV_VFD_REG_CLEAR_FAULT, 0U));
+    TEST_ASSERT_EQUAL_INT(SW_OK, drv_vfd_write(&g_vfd, HAL_VFD_REG_CLEAR_FAULT, 0U));
     TEST_ASSERT_EQUAL_INT(0x1000, modbus_stub_last_write_reg());
     TEST_ASSERT_EQUAL_UINT16(0x1101U, modbus_stub_last_write_val());
 }
@@ -347,7 +347,7 @@ static void test_write_clear_fault_comm_fail(void)
 {
     modbus_stub_set_write_result(-1);
     TEST_ASSERT_EQUAL_INT(SW_ERR_COMM,
-        drv_vfd_write(&g_vfd, DRV_VFD_REG_CLEAR_FAULT, 0U));
+        drv_vfd_write(&g_vfd, HAL_VFD_REG_CLEAR_FAULT, 0U));
 }
 
 static void test_comm_fail_count_resets_at_reconnect_threshold(void)
@@ -362,7 +362,7 @@ static void test_comm_fail_count_resets_at_reconnect_threshold(void)
     g_vfd.link.mb_connected    = true;
     modbus_stub_set_read_result(-1, 0U);
     for (i = 0U; i < k_reconnect_threshold; i++) {
-        (void)drv_vfd_read(&g_vfd, DRV_VFD_REG_CURRENT, &dummy);
+        (void)drv_vfd_read(&g_vfd, HAL_VFD_REG_CURRENT, &dummy);
     }
     TEST_ASSERT_EQUAL_UINT16(0U, g_vfd.link.comm_fail_count);
 }
@@ -378,7 +378,7 @@ static void test_init_modbus_ctx_fail(void)
 
 static void test_apply_gear_stop_when_already_stopped(void)
 {
-    TEST_ASSERT_EQUAL_INT(SW_OK, drv_vfd_apply_gear(&g_vfd, VFD_GEAR_STOP));
+    TEST_ASSERT_EQUAL_INT(SW_OK, drv_vfd_apply_gear(&g_vfd, 0));
     TEST_ASSERT_EQUAL_INT(HAL_VFD_STATE_STOPPED, drv_vfd_get_state(&g_vfd));
 }
 

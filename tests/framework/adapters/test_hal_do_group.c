@@ -59,13 +59,13 @@ void tearDown(void) {}
 static void test_bind_invalid_group(void)
 {
     TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM,
-        hal_do_group_get_ops()->bind(HAL_DO_GROUP_MAX, 0U, IO_DO(TEST_BOARD, 1U)));
+        hal_do_group_mapper_bind(HAL_DO_GROUP_MAX, 0U, IO_DO(TEST_BOARD, 1U)));
 }
 
 static void test_bind_invalid_slot(void)
 {
     TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM,
-        hal_do_group_get_ops()->bind(0U, HAL_DO_SLOT_MAX, IO_DO(TEST_BOARD, 1U)));
+        hal_do_group_mapper_bind(0U, HAL_DO_SLOT_MAX, IO_DO(TEST_BOARD, 1U)));
 }
 
 static void test_bind_null_pin_marks_unbound(void)
@@ -74,7 +74,7 @@ static void test_bind_null_pin_marks_unbound(void)
 
     /* IO_HANDLE_NULL 绑定成功，但标记为未安装 */
     TEST_ASSERT_EQUAL_INT(SW_OK,
-        ops->bind(0U, 0U, (io_do_t){IO_HANDLE_NULL}));
+        hal_do_group_mapper_bind(0U, 0U, (io_do_t){IO_HANDLE_NULL}));
     /* 未安装槽位 slot_set 应返回 SW_ERR_NOT_INIT */
     TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_INIT,
         ops->slot_set(0U, 0U, true));
@@ -83,7 +83,7 @@ static void test_bind_null_pin_marks_unbound(void)
 static void test_bind_valid(void)
 {
     TEST_ASSERT_EQUAL_INT(SW_OK,
-        hal_do_group_get_ops()->bind(0U, 0U, IO_DO(TEST_BOARD, 1U)));
+        hal_do_group_mapper_bind(0U, 0U, IO_DO(TEST_BOARD, 1U)));
 }
 
 /* =========================================================================
@@ -94,7 +94,7 @@ static void test_slot_set_on(void)
 {
     const hal_do_group_ops_t *ops = hal_do_group_get_ops();
 
-    ops->bind(0U, 0U, IO_DO(TEST_BOARD, 1U));
+    hal_do_group_mapper_bind(0U, 0U, IO_DO(TEST_BOARD, 1U));
     TEST_ASSERT_EQUAL_INT(SW_OK,
         ops->slot_set(0U, 0U, true));
     TEST_ASSERT_TRUE(s_do_state[1]);
@@ -104,7 +104,7 @@ static void test_slot_set_off(void)
 {
     const hal_do_group_ops_t *ops = hal_do_group_get_ops();
 
-    ops->bind(0U, 0U, IO_DO(TEST_BOARD, 2U));
+    hal_do_group_mapper_bind(0U, 0U, IO_DO(TEST_BOARD, 2U));
     ops->slot_set(0U, 0U, true);
     TEST_ASSERT_EQUAL_INT(SW_OK,
         ops->slot_set(0U, 0U, false));
@@ -131,8 +131,8 @@ static void test_slot_set_invalid_group_returns_not_init(void)
 static void test_all_off_clears_all_bound(void)
 {
     const hal_do_group_ops_t *ops = hal_do_group_get_ops();
-    ops->bind(0U, 0U, IO_DO(TEST_BOARD, 1U));
-    ops->bind(0U, 1U, IO_DO(TEST_BOARD, 2U));
+    hal_do_group_mapper_bind(0U, 0U, IO_DO(TEST_BOARD, 1U));
+    hal_do_group_mapper_bind(0U, 1U, IO_DO(TEST_BOARD, 2U));
 
     ops->slot_set(0U, 0U, true);
     ops->slot_set(0U, 1U, true);
@@ -156,7 +156,7 @@ static void test_max_valid_group_and_slot(void)
     hal_do_group_t g = (hal_do_group_t)(HAL_DO_GROUP_MAX - 1U);
     hal_do_slot_t  s = (hal_do_slot_t)(HAL_DO_SLOT_MAX  - 1U);
     TEST_ASSERT_EQUAL_INT(SW_OK,
-        ops->bind(g, s, IO_DO(TEST_BOARD, 7U)));
+        hal_do_group_mapper_bind(g, s, IO_DO(TEST_BOARD, 7U)));
     TEST_ASSERT_EQUAL_INT(SW_OK,
         ops->slot_set(g, s, true));
     TEST_ASSERT_TRUE(s_do_state[7]);
@@ -166,10 +166,10 @@ static void test_rebind_slot_changes_pin(void)
 {
     const hal_do_group_ops_t *ops = hal_do_group_get_ops();
 
-    ops->bind(0U, 0U, IO_DO(TEST_BOARD, 1U));
+    hal_do_group_mapper_bind(0U, 0U, IO_DO(TEST_BOARD, 1U));
     ops->slot_set(0U, 0U, false); /* 确保 pin1 为 false */
 
-    ops->bind(0U, 0U, IO_DO(TEST_BOARD, 2U)); /* 改绑 pin2 */
+    hal_do_group_mapper_bind(0U, 0U, IO_DO(TEST_BOARD, 2U)); /* 改绑 pin2 */
     ops->slot_set(0U, 0U, true);
 
     TEST_ASSERT_FALSE(s_do_state[1]); /* pin1 未被改变 */
@@ -180,7 +180,7 @@ static void test_slot_set_no_io_ops_returns_err(void)
 {
     const hal_do_group_ops_t *ops = hal_do_group_get_ops();
 
-    ops->bind(0U, 0U, IO_DO(TEST_BOARD, 1U));
+    hal_do_group_mapper_bind(0U, 0U, IO_DO(TEST_BOARD, 1U));
     hal_io_register(NULL); /* 移除 IO 后端 */
     TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_INIT,
         ops->slot_set(0U, 0U, true));
@@ -190,7 +190,7 @@ static void test_all_off_no_io_ops_returns_err(void)
 {
     const hal_do_group_ops_t *ops = hal_do_group_get_ops();
 
-    ops->bind(0U, 0U, IO_DO(TEST_BOARD, 1U));
+    hal_do_group_mapper_bind(0U, 0U, IO_DO(TEST_BOARD, 1U));
     hal_io_register(NULL);
     /* all_off 遍历所有绑定槽位并记录首个错误 */
     TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_INIT,

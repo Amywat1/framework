@@ -12,7 +12,6 @@
 
 #include "framework/common/log.h"
 #include "framework/common/time_util.h"
-#include "framework/common/vfd_types.h"
 #include "projects/m8/config/m8_brush_config.h"
 #include "projects/m8/config/m8_fan_config.h"
 #include "projects/m8/config/m8_gantry_config.h"

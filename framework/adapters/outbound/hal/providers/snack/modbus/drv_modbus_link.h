@@ -58,11 +58,11 @@ typedef struct {
  * @note   Modbus 连接失败时不中止 init（defer-link），后续读写会自动重连
  */
 sw_err_t drv_modbus_link_init(drv_modbus_link_t *link,
-                              const char         *serial_port,
-                              int                 baud,
-                              int                 modbus_addr,
-                              uint32_t            timeout_us,
-                              uint16_t            reconnect_threshold);
+                              const char        *serial_port,
+                              int                baud,
+                              int                modbus_addr,
+                              uint32_t           timeout_us,
+                              uint16_t           reconnect_threshold);
 
 /**
  * @brief  查询链路是否已完成初始化（串口/波特率/地址均有效）

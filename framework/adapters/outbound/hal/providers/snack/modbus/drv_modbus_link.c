@@ -253,11 +253,11 @@ static sw_err_t link_execute(drv_modbus_link_t *link, link_op_t *op)
  * 接口实现
  * ------------------------------------------------------------------------- */
 sw_err_t drv_modbus_link_init(drv_modbus_link_t *link,
-                              const char         *serial_port,
-                              int                 baud,
-                              int                 modbus_addr,
-                              uint32_t            timeout_us,
-                              uint16_t            reconnect_threshold)
+                              const char        *serial_port,
+                              int                baud,
+                              int                modbus_addr,
+                              uint32_t           timeout_us,
+                              uint16_t           reconnect_threshold)
 {
     sw_err_t ret;
 
@@ -272,12 +272,12 @@ sw_err_t drv_modbus_link_init(drv_modbus_link_t *link,
         return ret;
     }
 
-    link->serial_port          = serial_port;
-    link->baud                 = baud;
-    link->modbus_addr          = modbus_addr;
-    link->timeout_us           = timeout_us;
-    link->reconnect_threshold  = reconnect_threshold;
-    link->mb_connected         = false;
+    link->serial_port         = serial_port;
+    link->baud                = baud;
+    link->modbus_addr         = modbus_addr;
+    link->timeout_us          = timeout_us;
+    link->reconnect_threshold = reconnect_threshold;
+    link->mb_connected        = false;
 
     ret = link_mb_ctx_create(link);
     if (ret != SW_OK) {

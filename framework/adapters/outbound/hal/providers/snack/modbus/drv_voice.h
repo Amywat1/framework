@@ -34,11 +34,11 @@ extern "C" {
  * 以下字段标注"内部"者，外部代码只读，禁止直接修改。
  */
 typedef struct {
-    drv_modbus_link_t link;            /**< Modbus RTU 链路（连接/总线锁/失败重连） */
-    bool               comm_ok;         /**< 内部：当前通信是否正常 */
-    uint16_t           notify_fail_count; /**< 内部：连续失败计数，仅用于通信丢失/恢复通知判定 */
-    pthread_mutex_t    notify_mutex;    /**< 内部：保护 comm_ok/notify_fail_count/event_cb */
-    void (*event_cb)(int event_code); /**< 事件回调，NULL 表示未注册 */
+    drv_modbus_link_t link;              /**< Modbus RTU 链路（连接/总线锁/失败重连） */
+    bool              comm_ok;           /**< 内部：当前通信是否正常 */
+    uint16_t          notify_fail_count; /**< 内部：连续失败计数，仅用于通信丢失/恢复通知判定 */
+    pthread_mutex_t   notify_mutex;      /**< 内部：保护 comm_ok/notify_fail_count/event_cb */
+    void (*event_cb)(int event_code);    /**< 事件回调，NULL 表示未注册 */
 } drv_voice_t;
 
 /**

@@ -18,10 +18,9 @@
 
 #include "framework/adapters/outbound/hal/components/vfd_manager/hal_vfd_manager.h"
 
-#include "framework/common/pulse_out.h"
 #include "framework/common/log.h"
+#include "framework/common/pulse_out.h"
 #include "framework/common/time_util.h"
-#include "framework/common/vfd_types.h"
 #include "framework/ports/outbound/hal/hal_vfd_port.h"
 #include "framework/runtime/config/thread_config.h"
 #include "framework/runtime/scheduler/periodic_task.h"
@@ -31,23 +30,22 @@
 #include <string.h>
 
 /** @brief 连续 Modbus 失败 N 次后上报 COMM_LOST */
-#define VFD_COMM_FAIL_NOTIFY  3U
-#define HAL_VFD_MANAGER_POLL_PERIOD_MS  20U
+#define VFD_COMM_FAIL_NOTIFY           3U
+#define HAL_VFD_MANAGER_POLL_PERIOD_MS 20U
 
-typedef struct
-{
-    bool                 bound;
-    hal_vfd_manager_bind_cfg_t   cfg;
-    void                 (*event_cb)(int event_code);
+typedef struct {
+    bool                       bound;
+    hal_vfd_manager_bind_cfg_t cfg;
+    void (*event_cb)(int event_code);
 
-    uint16_t             cached_fault_code;
-    uint16_t             cached_current;
-    bool                 fault_active;
-    bool                 comm_ok;
-    uint8_t              comm_fail_count;
-    uint32_t             last_monitor_ms;
+    uint16_t cached_fault_code;
+    uint16_t cached_current;
+    bool     fault_active;
+    bool     comm_ok;
+    uint8_t  comm_fail_count;
+    uint32_t last_monitor_ms;
 
-    pulse_out_slot_t     rst_pulse;
+    pulse_out_slot_t rst_pulse;
 } hal_vfd_slot_t;
 
 static hal_vfd_slot_t s_slot[HAL_VFD_MANAGER_SLOT_MAX];
@@ -62,8 +60,7 @@ static bool slot_id_valid(hal_vfd_id_t id)
 
 static hal_vfd_slot_t *slot_by_id(hal_vfd_id_t id)
 {
-    if (!slot_id_valid(id) || !s_slot[(unsigned)id].bound)
-    {
+    if (!slot_id_valid(id) || !s_slot[(unsigned)id].bound) {
         return NULL;
     }
     return &s_slot[(unsigned)id];
@@ -71,18 +68,14 @@ static hal_vfd_slot_t *slot_by_id(hal_vfd_id_t id)
 
 static bool bind_cfg_valid(const hal_vfd_manager_bind_cfg_t *cfg)
 {
-    if ((cfg == NULL) || (cfg->ops == NULL) || (cfg->drv_ctx == NULL))
-    {
+    if ((cfg == NULL) || (cfg->ops == NULL) || (cfg->drv_ctx == NULL)) {
         return false;
     }
-    if ((cfg->ops->apply_gear == NULL) || (cfg->ops->stop_outputs == NULL) ||
-        (cfg->ops->set_rst == NULL) || (cfg->ops->read == NULL) ||
-        (cfg->ops->write == NULL) || (cfg->ops->get_state == NULL))
-    {
+    if ((cfg->ops->apply_gear == NULL) || (cfg->ops->stop_outputs == NULL) || (cfg->ops->set_rst == NULL)
+        || (cfg->ops->read == NULL) || (cfg->ops->write == NULL) || (cfg->ops->get_state == NULL)) {
         return false;
     }
-    if ((cfg->rst_pulse_ms == 0U) || (cfg->monitor_period_ms == 0U))
-    {
+    if ((cfg->rst_pulse_ms == 0U) || (cfg->monitor_period_ms == 0U)) {
         return false;
     }
     return true;
@@ -92,8 +85,7 @@ static sw_err_t pulse_set_rst_level(void *ctx, bool level)
 {
     hal_vfd_slot_t *slot = (hal_vfd_slot_t *)ctx;
 
-    if (slot == NULL)
-    {
+    if (slot == NULL) {
         return SW_ERR_PARAM;
     }
     return slot->cfg.ops->set_rst(slot->cfg.drv_ctx, level);
@@ -104,8 +96,7 @@ static void emit_event(hal_vfd_slot_t *slot, int event_code)
 {
     void (*cb)(int) = NULL;
 
-    if (slot == NULL)
-    {
+    if (slot == NULL) {
         return;
     }
 
@@ -113,8 +104,7 @@ static void emit_event(hal_vfd_slot_t *slot, int event_code)
     cb = slot->event_cb;
     pthread_mutex_unlock(&s_vfd_lock);
 
-    if (cb != NULL)
-    {
+    if (cb != NULL) {
         cb(event_code);
     }
 }
@@ -124,8 +114,7 @@ static bool on_comm_success_locked(hal_vfd_slot_t *slot)
 {
     bool restored = false;
 
-    if (!slot->comm_ok)
-    {
+    if (!slot->comm_ok) {
         slot->comm_ok = true;
         restored      = true;
     }
@@ -138,13 +127,11 @@ static bool on_comm_failure_locked(hal_vfd_slot_t *slot)
 {
     bool lost = false;
 
-    if (slot->comm_fail_count < 0xFFU)
-    {
+    if (slot->comm_fail_count < 0xFFU) {
         slot->comm_fail_count++;
     }
 
-    if ((slot->comm_fail_count >= VFD_COMM_FAIL_NOTIFY) && slot->comm_ok)
-    {
+    if ((slot->comm_fail_count >= VFD_COMM_FAIL_NOTIFY) && slot->comm_ok) {
         slot->comm_ok = false;
         lost          = true;
     }
@@ -159,13 +146,11 @@ static int update_fault_state_locked(hal_vfd_slot_t *slot, uint16_t code)
     slot->cached_fault_code = code;
     now_fault               = (code != 0U);
 
-    if (now_fault && !slot->fault_active)
-    {
+    if (now_fault && !slot->fault_active) {
         slot->fault_active = true;
         return HAL_VFD_EVT_FAULT_DETECTED;
     }
-    if (!now_fault && slot->fault_active)
-    {
+    if (!now_fault && slot->fault_active) {
         slot->fault_active = false;
         return HAL_VFD_EVT_FAULT_CLEARED;
     }
@@ -174,20 +159,19 @@ static int update_fault_state_locked(hal_vfd_slot_t *slot, uint16_t code)
 
 static void monitor_sample(hal_vfd_slot_t *slot, uint32_t now_ms)
 {
-    hal_vfd_state_t st;
-    sw_err_t        ret;
-    uint16_t        val = 0U;
+    hal_vfd_state_t        st;
+    sw_err_t               ret;
+    uint16_t               val = 0U;
     hal_vfd_monitor_mask_t mask;
-    bool            comm_restored;
-    bool            comm_lost;
-    int             fault_evt;
+    bool                   comm_restored;
+    bool                   comm_lost;
+    int                    fault_evt;
 
     pthread_mutex_lock(&s_vfd_lock);
     mask = slot->cfg.monitor_mask;
     pthread_mutex_unlock(&s_vfd_lock);
 
-    if ((mask & HAL_VFD_MON_FAULT) != 0U)
-    {
+    if ((mask & HAL_VFD_MON_FAULT) != 0U) {
         ret = slot->cfg.ops->read(slot->cfg.drv_ctx, HAL_VFD_REG_FAULT_CODE, &val);
 
         comm_restored = false;
@@ -195,47 +179,51 @@ static void monitor_sample(hal_vfd_slot_t *slot, uint32_t now_ms)
         fault_evt     = 0;
 
         pthread_mutex_lock(&s_vfd_lock);
-        if (ret == SW_OK)
-        {
+        if (ret == SW_OK) {
             comm_restored = on_comm_success_locked(slot);
             fault_evt     = update_fault_state_locked(slot, val);
-        }
-        else if (ret == SW_ERR_COMM)
-        {
+        } else if (ret == SW_ERR_COMM) {
             comm_lost = on_comm_failure_locked(slot);
         }
         pthread_mutex_unlock(&s_vfd_lock);
 
-        if (comm_restored) { emit_event(slot, HAL_VFD_EVT_COMM_RESTORED); }
-        if (comm_lost)     { emit_event(slot, HAL_VFD_EVT_COMM_LOST); }
-        if (fault_evt != 0) { emit_event(slot, fault_evt); }
+        if (comm_restored) {
+            emit_event(slot, HAL_VFD_EVT_COMM_RESTORED);
+        }
+        if (comm_lost) {
+            emit_event(slot, HAL_VFD_EVT_COMM_LOST);
+        }
+        if (fault_evt != 0) {
+            emit_event(slot, fault_evt);
+        }
     }
 
-    if ((mask & HAL_VFD_MON_CURRENT) != 0U)
-    {
+    if ((mask & HAL_VFD_MON_CURRENT) != 0U) {
         st = slot->cfg.ops->get_state(slot->cfg.drv_ctx);
-        if ((st == HAL_VFD_STATE_FWD) || (st == HAL_VFD_STATE_REV))
-        {
+        if ((st == HAL_VFD_STATE_FWD) || (st == HAL_VFD_STATE_REV)) {
             ret = slot->cfg.ops->read(slot->cfg.drv_ctx, HAL_VFD_REG_CURRENT, &val);
 
             comm_restored = false;
             comm_lost     = false;
 
             pthread_mutex_lock(&s_vfd_lock);
-            if (ret == SW_OK)
-            {
-                comm_restored      = on_comm_success_locked(slot);
+            if (ret == SW_OK) {
+                comm_restored        = on_comm_success_locked(slot);
                 slot->cached_current = val;
-            }
-            else if (ret == SW_ERR_COMM)
-            {
+            } else if (ret == SW_ERR_COMM) {
                 comm_lost = on_comm_failure_locked(slot);
             }
             pthread_mutex_unlock(&s_vfd_lock);
 
-            if (comm_restored) { emit_event(slot, HAL_VFD_EVT_COMM_RESTORED); }
-            if (comm_lost)     { emit_event(slot, HAL_VFD_EVT_COMM_LOST); }
-            if (ret == SW_OK)  { emit_event(slot, HAL_VFD_EVT_CURRENT_UPDATE); }
+            if (comm_restored) {
+                emit_event(slot, HAL_VFD_EVT_COMM_RESTORED);
+            }
+            if (comm_lost) {
+                emit_event(slot, HAL_VFD_EVT_COMM_LOST);
+            }
+            if (ret == SW_OK) {
+                emit_event(slot, HAL_VFD_EVT_CURRENT_UPDATE);
+            }
         }
     }
 
@@ -248,8 +236,7 @@ sw_err_t hal_vfd_manager_bind(hal_vfd_id_t id, const hal_vfd_manager_bind_cfg_t 
 {
     hal_vfd_slot_t *slot;
 
-    if (!slot_id_valid(id) || !bind_cfg_valid(cfg))
-    {
+    if (!slot_id_valid(id) || !bind_cfg_valid(cfg)) {
         return SW_ERR_PARAM;
     }
 
@@ -259,19 +246,19 @@ sw_err_t hal_vfd_manager_bind(hal_vfd_id_t id, const hal_vfd_manager_bind_cfg_t 
     {
         void (*saved_cb)(int) = slot->event_cb;
 
-        slot->cfg               = *cfg;
-        slot->bound             = true;
-        slot->event_cb          = saved_cb;
+        slot->cfg      = *cfg;
+        slot->bound    = true;
+        slot->event_cb = saved_cb;
     }
-    slot->cached_fault_code = 0U;
-    slot->cached_current    = 0U;
-    slot->fault_active      = false;
-    slot->comm_ok           = true;
-    slot->comm_fail_count   = 0U;
-    slot->last_monitor_ms   = 0U;
-    slot->rst_pulse.ctx     = slot;
+    slot->cached_fault_code   = 0U;
+    slot->cached_current      = 0U;
+    slot->fault_active        = false;
+    slot->comm_ok             = true;
+    slot->comm_fail_count     = 0U;
+    slot->last_monitor_ms     = 0U;
+    slot->rst_pulse.ctx       = slot;
     slot->rst_pulse.set_level = pulse_set_rst_level;
-    slot->rst_pulse.active  = false;
+    slot->rst_pulse.active    = false;
     pthread_mutex_unlock(&s_vfd_lock);
     return SW_OK;
 }
@@ -280,8 +267,7 @@ sw_err_t hal_vfd_manager_set_monitor_mask(hal_vfd_id_t id, hal_vfd_monitor_mask_
 {
     hal_vfd_slot_t *slot = slot_by_id(id);
 
-    if (slot == NULL)
-    {
+    if (slot == NULL) {
         return SW_ERR_NOT_INIT;
     }
 
@@ -296,8 +282,7 @@ static sw_err_t vfd_init(void)
     unsigned i;
 
     pthread_mutex_lock(&s_vfd_lock);
-    for (i = 0U; i < HAL_VFD_MANAGER_SLOT_MAX; i++)
-    {
+    for (i = 0U; i < HAL_VFD_MANAGER_SLOT_MAX; i++) {
         pulse_out_cancel(&s_slot[i].rst_pulse);
         s_slot[i].event_cb          = NULL;
         s_slot[i].cached_fault_code = 0U;
@@ -316,26 +301,23 @@ static void vfd_tick(void)
     uint32_t now_ms = time_util_get_ms();
     unsigned i;
 
-    for (i = 0U; i < HAL_VFD_MANAGER_SLOT_MAX; i++)
-    {
-        hal_vfd_slot_t         *slot = &s_slot[i];
-        hal_vfd_monitor_mask_t  mask;
-        bool                    due;
+    for (i = 0U; i < HAL_VFD_MANAGER_SLOT_MAX; i++) {
+        hal_vfd_slot_t        *slot = &s_slot[i];
+        hal_vfd_monitor_mask_t mask;
+        bool                   due;
 
-        if (!slot->bound)
-        {
+        if (!slot->bound) {
             continue;
         }
 
         pthread_mutex_lock(&s_vfd_lock);
         pulse_out_tick(&slot->rst_pulse, now_ms);
         mask = slot->cfg.monitor_mask;
-        due  = (mask != HAL_VFD_MON_NONE) &&
-               (time_elapsed_ms(slot->last_monitor_ms, now_ms) >= slot->cfg.monitor_period_ms);
+        due  = (mask != HAL_VFD_MON_NONE)
+               && (time_elapsed_ms(slot->last_monitor_ms, now_ms) >= slot->cfg.monitor_period_ms);
         pthread_mutex_unlock(&s_vfd_lock);
 
-        if (due)
-        {
+        if (due) {
             monitor_sample(slot, now_ms);
         }
     }
@@ -362,13 +344,11 @@ static sw_err_t vfd_run(hal_vfd_id_t id, hal_vfd_gear_t gear)
 {
     hal_vfd_slot_t *slot = slot_by_id(id);
 
-    if (slot == NULL)
-    {
+    if (slot == NULL) {
         return SW_ERR_NOT_INIT;
     }
 
-    if (gear == 0)
-    {
+    if (gear == 0) {
         return slot->cfg.ops->stop_outputs(slot->cfg.drv_ctx);
     }
     return slot->cfg.ops->apply_gear(slot->cfg.drv_ctx, gear);
@@ -378,8 +358,7 @@ static sw_err_t vfd_set_freq(hal_vfd_id_t id, uint16_t freq_hz)
 {
     hal_vfd_slot_t *slot = slot_by_id(id);
 
-    if (slot == NULL)
-    {
+    if (slot == NULL) {
         return SW_ERR_NOT_INIT;
     }
     return slot->cfg.ops->write(slot->cfg.drv_ctx, HAL_VFD_REG_FREQ, freq_hz);
@@ -389,8 +368,7 @@ static sw_err_t vfd_stop(hal_vfd_id_t id)
 {
     hal_vfd_slot_t *slot = slot_by_id(id);
 
-    if (slot == NULL)
-    {
+    if (slot == NULL) {
         return SW_ERR_NOT_INIT;
     }
     return slot->cfg.ops->stop_outputs(slot->cfg.drv_ctx);
@@ -403,8 +381,7 @@ static sw_err_t vfd_fault_reset(hal_vfd_id_t id)
     bool            use_io;
     uint32_t        now_ms;
 
-    if (slot == NULL)
-    {
+    if (slot == NULL) {
         return SW_ERR_NOT_INIT;
     }
 
@@ -413,15 +390,12 @@ static sw_err_t vfd_fault_reset(hal_vfd_id_t id)
     pthread_mutex_unlock(&s_vfd_lock);
 
     ret = slot->cfg.ops->stop_outputs(slot->cfg.drv_ctx);
-    if (ret != SW_OK)
-    {
+    if (ret != SW_OK) {
         return ret;
     }
 
-    use_io = (slot->cfg.ops->has_rst_pin != NULL) &&
-             slot->cfg.ops->has_rst_pin(slot->cfg.drv_ctx);
-    if (use_io)
-    {
+    use_io = (slot->cfg.ops->has_rst_pin != NULL) && slot->cfg.ops->has_rst_pin(slot->cfg.drv_ctx);
+    if (use_io) {
         now_ms = time_util_get_ms();
         pthread_mutex_lock(&s_vfd_lock);
         ret = pulse_out_start(&slot->rst_pulse, slot->cfg.rst_pulse_ms, now_ms);
@@ -430,8 +404,7 @@ static sw_err_t vfd_fault_reset(hal_vfd_id_t id)
     }
 
     ret = slot->cfg.ops->write(slot->cfg.drv_ctx, HAL_VFD_REG_CLEAR_FAULT, 0U);
-    if (ret == SW_ERR_PARAM)
-    {
+    if (ret == SW_ERR_PARAM) {
         LOG_ERROR("hal_vfd: fault_reset id=%d no rst pin and no modbus clear", id);
     }
     return ret;
@@ -441,8 +414,7 @@ static hal_vfd_state_t vfd_get_state(hal_vfd_id_t id)
 {
     hal_vfd_slot_t *slot = slot_by_id(id);
 
-    if (slot == NULL)
-    {
+    if (slot == NULL) {
         return HAL_VFD_STATE_STOPPED;
     }
     return slot->cfg.ops->get_state(slot->cfg.drv_ctx);
@@ -459,12 +431,10 @@ static sw_err_t vfd_read(hal_vfd_id_t id, hal_vfd_reg_t reg, uint16_t *p_val)
 {
     hal_vfd_slot_t *slot = slot_by_id(id);
 
-    if (slot == NULL)
-    {
+    if (slot == NULL) {
         return SW_ERR_NOT_INIT;
     }
-    if (p_val == NULL)
-    {
+    if (p_val == NULL) {
         return SW_ERR_PARAM;
     }
 
@@ -476,27 +446,24 @@ static sw_err_t vfd_get_cached(hal_vfd_id_t id, hal_vfd_reg_t reg, uint16_t *p_v
     hal_vfd_slot_t *slot = slot_by_id(id);
     sw_err_t        ret  = SW_OK;
 
-    if (slot == NULL)
-    {
+    if (slot == NULL) {
         return SW_ERR_NOT_INIT;
     }
-    if (p_val == NULL)
-    {
+    if (p_val == NULL) {
         return SW_ERR_PARAM;
     }
 
     pthread_mutex_lock(&s_vfd_lock);
-    switch (reg)
-    {
-        case HAL_VFD_REG_FAULT_CODE:
-            *p_val = slot->cached_fault_code;
-            break;
-        case HAL_VFD_REG_CURRENT:
-            *p_val = slot->cached_current;
-            break;
-        default:
-            ret = SW_ERR_PARAM;
-            break;
+    switch (reg) {
+    case HAL_VFD_REG_FAULT_CODE:
+        *p_val = slot->cached_fault_code;
+        break;
+    case HAL_VFD_REG_CURRENT:
+        *p_val = slot->cached_current;
+        break;
+    default:
+        ret = SW_ERR_PARAM;
+        break;
     }
     pthread_mutex_unlock(&s_vfd_lock);
     return ret;
@@ -506,8 +473,7 @@ static void vfd_register_event_cb(hal_vfd_id_t id, void (*cb)(int event_code))
 {
     hal_vfd_slot_t *slot = slot_by_id(id);
 
-    if (slot != NULL)
-    {
+    if (slot != NULL) {
         pthread_mutex_lock(&s_vfd_lock);
         slot->event_cb = cb;
         pthread_mutex_unlock(&s_vfd_lock);

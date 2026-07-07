@@ -6,6 +6,7 @@
  */
 
 #include "projects/m8/bindings/m8_water_setup.h"
+#include "framework/adapters/outbound/hal/components/do_group_mapper/hal_do_group_mapper.h"
 #include "framework/domain/device_control/mechanism/water.h"
 #include "framework/ports/outbound/hal/hal_do_group_port.h"
 #include "projects/m8/config/m8_water_table.h"
@@ -20,12 +21,12 @@ _Static_assert((unsigned)WATER_CH_COUNT    <= HAL_DO_GROUP_MAX,
 _Static_assert((unsigned)WATER_SLOT_COUNT <= HAL_DO_SLOT_MAX,
                "WATER_SLOT_COUNT 超过 HAL_DO_SLOT_MAX，需相应扩大 hal_do_group 上限");
 
-static sw_err_t m8_apply_bind_table(const hal_do_group_ops_t *ops)
+static sw_err_t m8_apply_bind_table(void)
 {
     for (unsigned i = 0U; i < M8_WATER_BIND_TABLE_COUNT; i++)
     {
         const m8_water_bind_row_t *row = &m8_water_bind_table[i];
-        sw_err_t ret;
+        sw_err_t                   ret;
 
         if (((unsigned)row->channel >= WATER_CH_COUNT)
             || ((unsigned)row->slot >= WATER_SLOT_COUNT))
@@ -33,9 +34,9 @@ static sw_err_t m8_apply_bind_table(const hal_do_group_ops_t *ops)
             return SW_ERR_PARAM;
         }
 
-        ret = ops->bind((hal_do_group_t)row->channel,
-                        (hal_do_slot_t)row->slot,
-                        row->pin);
+        ret = hal_do_group_mapper_bind((hal_do_group_t)row->channel,
+                                       (hal_do_slot_t)row->slot,
+                                       row->pin);
         if (ret != SW_OK)
         {
             return ret;
@@ -74,16 +75,9 @@ static sw_err_t m8_water_all_off(void)
 
 sw_err_t m8_water_setup(void)
 {
-    const hal_do_group_ops_t *ops = hal_do_group_get_ops();
-    sw_err_t                  ret;
+    sw_err_t ret;
 
-    if ((ops == NULL) || (ops->bind == NULL))
-    {
-        LOG_ERROR("m8_water_setup: hal_do_group not registered");
-        return SW_ERR_NOT_INIT;
-    }
-
-    ret = m8_apply_bind_table(ops);
+    ret = m8_apply_bind_table();
     if (ret != SW_OK)
     {
         LOG_ERROR("m8_water_setup: bind table apply failed ret=%d", (int)ret);

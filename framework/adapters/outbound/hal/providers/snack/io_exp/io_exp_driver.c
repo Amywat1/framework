@@ -16,16 +16,15 @@
 
 #include "framework/common/log.h"
 #include "framework/common/time_util.h"
-#include "io_exp/slave.h"
 #include "io_exp/demo.h"
-
+#include "io_exp/slave.h"
 
 #include <pthread.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 
-sw_err_t io_exp_driver_sdk_init(int can_bus, int can_baud, int self_node, int board_count)
+sw_err_t io_exp_driver_sdk_init(const char *can_bus, int can_baud, int self_node, int board_count)
 {
     return (io_init(can_bus, can_baud, self_node, board_count) == 0) ? SW_OK : SW_ERR_HW;
 }
@@ -84,8 +83,8 @@ static bool drv_io_is_valid_di_raw(uint16_t raw)
     int board_id = (int)io_handle_board(raw);
     int pin_id   = (int)io_handle_pin(raw);
 
-    return (io_handle_kind(raw) == IO_KIND_DI) && (board_id > 0) && (board_id <= s_board_count) && (pin_id > 0) &&
-           (pin_id <= s_pin_count);
+    return (io_handle_kind(raw) == IO_KIND_DI) && (board_id > 0) && (board_id <= s_board_count) && (pin_id > 0)
+           && (pin_id <= s_pin_count);
 }
 
 static bool drv_io_is_valid_do_raw(uint16_t raw)
@@ -93,8 +92,8 @@ static bool drv_io_is_valid_do_raw(uint16_t raw)
     int board_id = (int)io_handle_board(raw);
     int pin_id   = (int)io_handle_pin(raw);
 
-    return (io_handle_kind(raw) == IO_KIND_DO) && (board_id > 0) && (board_id <= s_board_count) && (pin_id > 0) &&
-           (pin_id <= s_pin_count);
+    return (io_handle_kind(raw) == IO_KIND_DO) && (board_id > 0) && (board_id <= s_board_count) && (pin_id > 0)
+           && (pin_id <= s_pin_count);
 }
 
 static bool drv_io_name_matches(const char *input, const char *canonical)
@@ -411,8 +410,8 @@ static void *drv_io_poll_loop(void *arg)
  * ------------------------------------------------------------------------- */
 sw_err_t drv_io_init(const drv_io_cfg_t *cfg)
 {
-    if ((cfg == NULL) || (cfg->board_count <= 0) || (cfg->board_count >= (int)IO_BOARD_MAX) || (cfg->pin_count <= 0) ||
-        (cfg->pin_count > (int)IO_PIN_COUNT_MAX)) {
+    if ((cfg == NULL) || (cfg->board_count <= 0) || (cfg->board_count >= (int)IO_BOARD_MAX) || (cfg->pin_count <= 0)
+        || (cfg->pin_count > (int)IO_PIN_COUNT_MAX)) {
         return SW_ERR_PARAM;
     }
 
@@ -655,8 +654,7 @@ int drv_io_pulse_read(io_di_t pin)
     int      board_id = (int)io_handle_board(raw);
     int      pin_id   = (int)io_handle_pin(raw);
 
-    if (!drv_io_is_valid_di_raw(raw))
-    {
+    if (!drv_io_is_valid_di_raw(raw)) {
         return -1;
     }
 
@@ -670,8 +668,7 @@ sw_err_t drv_io_pulse_clear(io_di_t pin)
     int      pin_id   = (int)io_handle_pin(raw);
     int      data     = 0;
 
-    if (!drv_io_is_valid_di_raw(raw))
-    {
+    if (!drv_io_is_valid_di_raw(raw)) {
         return SW_ERR_PARAM;
     }
 

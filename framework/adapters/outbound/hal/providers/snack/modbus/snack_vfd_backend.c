@@ -13,10 +13,10 @@
 
 #include <string.h>
 
-#define SNACK_VFD_BACKEND_SLOT_COUNT  8U
+#define SNACK_VFD_BACKEND_SLOT_COUNT 8U
 
-static drv_vfd_t  s_vfd[SNACK_VFD_BACKEND_SLOT_COUNT];
-static bool       s_drv_inited[SNACK_VFD_BACKEND_SLOT_COUNT];
+static drv_vfd_t s_vfd[SNACK_VFD_BACKEND_SLOT_COUNT];
+static bool      s_drv_inited[SNACK_VFD_BACKEND_SLOT_COUNT];
 
 static sw_err_t vfd_do_set(io_do_t pin, bool val)
 {
@@ -30,8 +30,7 @@ static bool vfd_id_valid(hal_vfd_id_t id)
 
 static drv_vfd_t *vfd_by_id(hal_vfd_id_t id)
 {
-    if (!vfd_id_valid(id) || !s_drv_inited[(unsigned)id])
-    {
+    if (!vfd_id_valid(id) || !s_drv_inited[(unsigned)id]) {
         return NULL;
     }
     return &s_vfd[(unsigned)id];
@@ -39,7 +38,7 @@ static drv_vfd_t *vfd_by_id(hal_vfd_id_t id)
 
 static sw_err_t backend_apply_gear(void *ctx, hal_vfd_gear_t gear)
 {
-    return drv_vfd_apply_gear((drv_vfd_t *)ctx, (drv_vfd_gear_t)gear);
+    return drv_vfd_apply_gear((drv_vfd_t *)ctx, gear);
 }
 
 static sw_err_t backend_stop_outputs(void *ctx)
@@ -54,12 +53,12 @@ static sw_err_t backend_set_rst(void *ctx, bool level)
 
 static sw_err_t backend_read(void *ctx, hal_vfd_reg_t reg, uint16_t *p_val)
 {
-    return drv_vfd_read((drv_vfd_t *)ctx, (drv_vfd_reg_t)reg, p_val);
+    return drv_vfd_read((drv_vfd_t *)ctx, reg, p_val);
 }
 
 static sw_err_t backend_write(void *ctx, hal_vfd_reg_t reg, uint16_t val)
 {
-    return drv_vfd_write((drv_vfd_t *)ctx, (drv_vfd_reg_t)reg, val);
+    return drv_vfd_write((drv_vfd_t *)ctx, reg, val);
 }
 
 static hal_vfd_state_t backend_get_state(void *ctx)
@@ -71,8 +70,7 @@ static bool backend_has_rst_pin(void *ctx)
 {
     drv_vfd_t *vfd = (drv_vfd_t *)ctx;
 
-    if (vfd == NULL)
-    {
+    if (vfd == NULL) {
         return false;
     }
     return vfd->pin_rst.raw != IO_HANDLE_NULL;
@@ -80,35 +78,32 @@ static bool backend_has_rst_pin(void *ctx)
 
 /** @brief 本 provider 的 backend 契约单例，所有 snack VFD 实例共用 */
 static const hal_vfd_backend_ops_t s_snack_vfd_backend_ops = {
-    .apply_gear    = backend_apply_gear,
-    .stop_outputs  = backend_stop_outputs,
-    .set_rst       = backend_set_rst,
-    .read          = backend_read,
-    .write         = backend_write,
-    .get_state     = backend_get_state,
-    .has_rst_pin   = backend_has_rst_pin,
+    .apply_gear   = backend_apply_gear,
+    .stop_outputs = backend_stop_outputs,
+    .set_rst      = backend_set_rst,
+    .read         = backend_read,
+    .write        = backend_write,
+    .get_state    = backend_get_state,
+    .has_rst_pin  = backend_has_rst_pin,
 };
 
-static sw_err_t snack_bind_instance(hal_vfd_id_t id, drv_vfd_t *vfd,
-                                    hal_vfd_monitor_mask_t mask)
+static sw_err_t snack_bind_instance(hal_vfd_id_t id, drv_vfd_t *vfd, hal_vfd_monitor_mask_t mask)
 {
     hal_vfd_manager_bind_cfg_t cfg;
 
-    cfg.ops                = &s_snack_vfd_backend_ops;
-    cfg.drv_ctx            = vfd;
-    cfg.rst_pulse_ms       = HAL_VFD_DEFAULT_RST_PULSE_MS;
-    cfg.monitor_period_ms  = HAL_VFD_DEFAULT_MONITOR_PERIOD_MS;
-    cfg.monitor_mask       = mask;
+    cfg.ops               = &s_snack_vfd_backend_ops;
+    cfg.drv_ctx           = vfd;
+    cfg.rst_pulse_ms      = HAL_VFD_DEFAULT_RST_PULSE_MS;
+    cfg.monitor_period_ms = HAL_VFD_DEFAULT_MONITOR_PERIOD_MS;
+    cfg.monitor_mask      = mask;
     return hal_vfd_manager_bind(id, &cfg);
 }
 
-sw_err_t snack_vfd_backend_instance_init(hal_vfd_id_t id,
-                                     const snack_vfd_backend_instance_cfg_t *cfg)
+sw_err_t snack_vfd_backend_instance_init(hal_vfd_id_t id, const snack_vfd_backend_instance_cfg_t *cfg)
 {
     sw_err_t ret;
 
-    if (!vfd_id_valid(id) || (cfg == NULL))
-    {
+    if (!vfd_id_valid(id) || (cfg == NULL)) {
         return SW_ERR_PARAM;
     }
 
@@ -121,28 +116,21 @@ sw_err_t snack_vfd_backend_instance_init(hal_vfd_id_t id,
                        cfg->pin_rev,
                        cfg->pin_rst,
                        vfd_do_set);
-    if (ret != SW_OK)
-    {
+    if (ret != SW_OK) {
         s_drv_inited[(unsigned)id] = false;
         return ret;
     }
 
-    if (cfg->speed_io_enabled)
-    {
-        ret = drv_vfd_config_speed_io(&s_vfd[(unsigned)id],
-                                      cfg->pin_spd1,
-                                      cfg->pin_spd2,
-                                      cfg->speed_io);
-        if (ret != SW_OK)
-        {
+    if (cfg->speed_io_enabled) {
+        ret = drv_vfd_config_speed_io(&s_vfd[(unsigned)id], cfg->pin_spd1, cfg->pin_spd2, cfg->speed_io);
+        if (ret != SW_OK) {
             s_drv_inited[(unsigned)id] = false;
             return ret;
         }
     }
 
     ret = snack_bind_instance(id, &s_vfd[(unsigned)id], cfg->monitor_mask);
-    if (ret != SW_OK)
-    {
+    if (ret != SW_OK) {
         s_drv_inited[(unsigned)id] = false;
         return ret;
     }
@@ -151,11 +139,9 @@ sw_err_t snack_vfd_backend_instance_init(hal_vfd_id_t id,
     return SW_OK;
 }
 
-sw_err_t snack_vfd_backend_instance_set_monitor_mask(hal_vfd_id_t id,
-                                                  hal_vfd_monitor_mask_t mask)
+sw_err_t snack_vfd_backend_instance_set_monitor_mask(hal_vfd_id_t id, hal_vfd_monitor_mask_t mask)
 {
-    if (!vfd_id_valid(id) || !s_drv_inited[(unsigned)id])
-    {
+    if (!vfd_id_valid(id) || !s_drv_inited[(unsigned)id]) {
         return SW_ERR_NOT_INIT;
     }
     return hal_vfd_manager_set_monitor_mask(id, mask);

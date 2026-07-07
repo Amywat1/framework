@@ -9,9 +9,10 @@
  */
 
 #include "framework/adapters/outbound/hal/components/sensor_filter/hal_sensor_filter.h"
-#include "framework/ports/outbound/hal/hal_sensor_port.h"
-#include "framework/ports/outbound/hal/hal_io_port.h"
+
 #include "framework/common/log.h"
+#include "framework/ports/outbound/hal/hal_io_port.h"
+#include "framework/ports/outbound/hal/hal_sensor_port.h"
 #include "framework/runtime/config/thread_config.h"
 #include "framework/runtime/scheduler/periodic_task.h"
 
@@ -19,11 +20,10 @@
 #include <sched.h>
 #include <stddef.h>
 
-#define SENSOR_STABLE_COUNT_MAX  255U
-#define HAL_SENSOR_POLL_PERIOD_MS  50U
+#define SENSOR_STABLE_COUNT_MAX   255U
+#define HAL_SENSOR_POLL_PERIOD_MS 50U
 
-typedef struct
-{
+typedef struct {
     bool    confirmed;
     bool    last_raw;
     uint8_t stable_count;
@@ -43,22 +43,18 @@ static bool channel_valid(hal_sensor_channel_t ch)
 
 static bool bind_cfg_valid(const hal_sensor_bind_cfg_t *cfg)
 {
-    if ((cfg == NULL) || (io_di_raw(cfg->pin) == IO_HANDLE_NULL))
-    {
+    if ((cfg == NULL) || (io_di_raw(cfg->pin) == IO_HANDLE_NULL)) {
         return false;
     }
-    if ((cfg->trig_count == 0U) || (cfg->release_count == 0U))
-    {
+    if ((cfg->trig_count == 0U) || (cfg->release_count == 0U)) {
         return false;
     }
     return true;
 }
 
-sw_err_t hal_sensor_filter_bind(hal_sensor_channel_t         ch,
-                                const hal_sensor_bind_cfg_t *cfg)
+sw_err_t hal_sensor_filter_bind(hal_sensor_channel_t ch, const hal_sensor_bind_cfg_t *cfg)
 {
-    if (!channel_valid(ch) || !bind_cfg_valid(cfg))
-    {
+    if (!channel_valid(ch) || !bind_cfg_valid(cfg)) {
         LOG_ERROR("hal_sensor: bind param invalid ch=%u", (unsigned)ch);
         return SW_ERR_PARAM;
     }
@@ -74,8 +70,7 @@ sw_err_t hal_sensor_filter_bind(hal_sensor_channel_t         ch,
 static sw_err_t sensor_init(void)
 {
     pthread_mutex_lock(&s_sensor_lock);
-    for (hal_sensor_channel_t ch = 0U; ch < HAL_SENSOR_CHANNEL_MAX; ch++)
-    {
+    for (hal_sensor_channel_t ch = 0U; ch < HAL_SENSOR_CHANNEL_MAX; ch++) {
         s_rt[ch].confirmed    = false;
         s_rt[ch].last_raw     = false;
         s_rt[ch].stable_count = 0U;
@@ -90,11 +85,9 @@ static sw_err_t sensor_tick(void)
 {
     const hal_io_ops_t *io = hal_io_get_ops();
 
-    if ((io == NULL) || (io->di_read == NULL))
-    {
+    if ((io == NULL) || (io->di_read == NULL)) {
         pthread_mutex_lock(&s_sensor_lock);
-        if (!s_ops_error_logged)
-        {
+        if (!s_ops_error_logged) {
             LOG_ERROR("hal_sensor: hal_io ops not ready");
             s_ops_error_logged = true;
         }
@@ -106,38 +99,31 @@ static sw_err_t sensor_tick(void)
 
     s_ops_error_logged = false;
 
-    for (hal_sensor_channel_t ch = 0U; ch < HAL_SENSOR_CHANNEL_MAX; ch++)
-    {
+    for (hal_sensor_channel_t ch = 0U; ch < HAL_SENSOR_CHANNEL_MAX; ch++) {
         const hal_sensor_bind_cfg_t *cfg = &s_cfg[ch];
         sensor_ch_rt_t              *rt  = &s_rt[ch];
         bool                         di_val;
         bool                         raw_active;
         uint8_t                      threshold;
 
-        if (!s_bound[ch])
-        {
+        if (!s_bound[ch]) {
             continue;
         }
 
         di_val     = io->di_read(cfg->pin);
         raw_active = cfg->active_low ? (!di_val) : di_val;
 
-        if (raw_active == rt->last_raw)
-        {
-            if (rt->stable_count < SENSOR_STABLE_COUNT_MAX)
-            {
+        if (raw_active == rt->last_raw) {
+            if (rt->stable_count < SENSOR_STABLE_COUNT_MAX) {
                 rt->stable_count++;
             }
-        }
-        else
-        {
+        } else {
             rt->last_raw     = raw_active;
             rt->stable_count = 1U;
         }
 
         threshold = raw_active ? cfg->trig_count : cfg->release_count;
-        if ((rt->stable_count >= threshold) && (rt->confirmed != raw_active))
-        {
+        if ((rt->stable_count >= threshold) && (rt->confirmed != raw_active)) {
             rt->confirmed = raw_active;
         }
     }
@@ -150,11 +136,9 @@ static sw_err_t sensor_warmup(uint8_t sample_count)
 {
     sw_err_t ret = SW_OK;
 
-    for (uint8_t i = 0U; i < sample_count; i++)
-    {
+    for (uint8_t i = 0U; i < sample_count; i++) {
         ret = sensor_tick();
-        if (ret != SW_OK)
-        {
+        if (ret != SW_OK) {
             return ret;
         }
     }
@@ -166,8 +150,7 @@ static bool sensor_is_active(hal_sensor_channel_t ch)
 {
     bool active;
 
-    if (!channel_valid(ch))
-    {
+    if (!channel_valid(ch)) {
         return false;
     }
 

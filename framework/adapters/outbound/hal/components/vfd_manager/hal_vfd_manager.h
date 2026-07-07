@@ -16,8 +16,8 @@ extern "C" {
 #endif
 
 #include "framework/adapters/outbound/hal/components/vfd_manager/hal_vfd_manager_bind.h"
-#include "framework/ports/outbound/hal/hal_vfd_port.h"
 #include "framework/common/sw_error.h"
+#include "framework/ports/outbound/hal/hal_vfd_port.h"
 
 /** @brief  注册通用 VFD HAL 实现到 hal_vfd_port */
 void hal_vfd_manager_register(void);

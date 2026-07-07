@@ -9,7 +9,6 @@
 #include "framework/adapters/outbound/hal/providers/snack/modbus/snack_vfd_backend.h"
 #include "projects/m8/config/m8_vfd_table.h"
 #include "framework/ports/outbound/hal/hal_io_port.h"
-#include "framework/common/vfd_types.h"
 #include "framework/common/log.h"
 
 static sw_err_t io_do_set(io_do_t pin, bool val)
