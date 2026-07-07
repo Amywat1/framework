@@ -235,7 +235,7 @@ sw_err_t drv_vfd_apply_gear(drv_vfd_t *vfd, hal_vfd_gear_t gear)
 
     abs_gear_int = vfd_abs_gear(gear);
 
-    if (abs_gear_int > VFD_GEAR_MAX) {
+    if (abs_gear_int > (int)VFD_GEAR_MAX) {
         return SW_ERR_PARAM;
     }
     if ((gear < 0) && !vfd_has_rev(vfd)) {
