@@ -16,7 +16,7 @@ extern "C" {
 
 /**
  * @brief  绑定 M8 水路槽位并初始化 domain/water 执行器
- * @note   须在 hal_do_group 已 register 且（真机）hal_io.init 之后调用
+ * @note   须在 hal_io 已 register 且（真机）hal_io.init 之后调用
  */
 sw_err_t m8_water_setup(void);
 

@@ -1,109 +1,133 @@
 /**
  * @file    water.c
- * @brief   水路设备实现
+ * @brief   水路控制实现
  * @author  HUWANGWEI
  * @date    2026-04-10
  */
 
 #include "framework/domain/device_control/mechanism/water.h"
+#include "framework/runtime/config/thread_config.h"
+#include "framework/runtime/scheduler/thread_registry.h"
 #include "framework/common/log.h"
+#include "framework/common/time_util.h"
 #include <pthread.h>
-#include <unistd.h>
+#include <sched.h>
+#include <string.h>
+#include <time.h>
 
-static pthread_mutex_t       s_mutex = PTHREAD_MUTEX_INITIALIZER;
+#define WATER_ACTUATOR_LIST_MAX  16U
+
+typedef enum
+{
+    WATER_SEQ_IDLE = 0,
+    WATER_SEQ_WAIT_CLOSE_PUMP,
+    WATER_SEQ_WAIT_OPEN_VALVE,
+} water_seq_state_t;
+
+static pthread_mutex_t s_mutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t  s_wake;
+static bool            s_wake_inited = false;
+
 static water_cfg_t           s_cfg;
 static water_actuator_ops_t  s_actuator;
-static bool                  s_actuator_ready = false;
+static bool                  s_ready = false;
+static uint8_t               s_channel_count = 0U;
 
-static bool s_pump_on     = false;
-static bool s_curtain_on  = false;
-static bool s_foam_on     = false;
-static bool s_brush_on    = false;
-static bool s_highpres_on = false;
+static const water_path_def_t *s_paths = NULL;
+static size_t                  s_path_count = 0U;
 
-static void water_delay_ms(unsigned int delay_ms)
+static uint8_t           s_ref[WATER_CHANNEL_MAX][WATER_SLOT_COUNT];
+static bool              s_actual[WATER_CHANNEL_MAX][WATER_SLOT_COUNT];
+static water_path_mask_t s_pending_target = 0U;
+static water_path_mask_t s_stable_paths   = 0U;
+
+static water_seq_state_t    s_seq_state   = WATER_SEQ_IDLE;
+static uint32_t             s_deadline_ms = 0U;
+static water_path_mask_t    s_closing_mask = 0U;
+static water_path_mask_t    s_opening_mask = 0U;
+static water_actuator_key_t s_work_list[WATER_ACTUATOR_LIST_MAX];
+static uint8_t              s_work_count = 0U;
+static bool                 s_force_off  = false;
+
+static bool path_bit_set(water_path_mask_t mask, uint8_t path_idx)
 {
-    if (delay_ms > 0U)
+    return ((mask & WATER_PATH_MASK(path_idx)) != 0U);
+}
+
+static bool is_pump_slot(water_slot_t slot)
+{
+    return ((slot == WATER_SLOT_PUMP) || (slot == WATER_SLOT_CHEM_PUMP));
+}
+
+static bool key_valid(const water_actuator_key_t *key)
+{
+    return (key != NULL)
+           && (s_channel_count > 0U)
+           && (key->ch < s_channel_count)
+           && ((unsigned)key->slot < WATER_SLOT_COUNT);
+}
+
+static bool list_has(const water_actuator_key_t *key)
+{
+    uint8_t i;
+
+    for (i = 0U; i < s_work_count; i++)
     {
-        usleep(delay_ms * 1000U);
+        if ((s_work_list[i].ch == key->ch) && (s_work_list[i].slot == key->slot))
+        {
+            return true;
+        }
     }
+    return false;
 }
 
-static bool any_valve_open_locked(void)
+static void list_add(const water_actuator_key_t *key)
 {
-    return (s_curtain_on || s_foam_on || s_brush_on || s_highpres_on);
+    if ((s_work_count >= WATER_ACTUATOR_LIST_MAX) || !key_valid(key) || list_has(key))
+    {
+        return;
+    }
+    s_work_list[s_work_count] = *key;
+    s_work_count++;
 }
 
-static bool any_valve_open(void)
+static bool work_has_pump(void)
 {
-    bool result;
+    uint8_t i;
 
-    pthread_mutex_lock(&s_mutex);
-    result = any_valve_open_locked();
-    pthread_mutex_unlock(&s_mutex);
-
-    return result;
+    for (i = 0U; i < s_work_count; i++)
+    {
+        if (is_pump_slot(s_work_list[i].slot))
+        {
+            return true;
+        }
+    }
+    return false;
 }
 
-static bool is_pump_on(void)
+static bool work_has_valve(void)
 {
-    bool result;
+    uint8_t i;
 
-    pthread_mutex_lock(&s_mutex);
-    result = s_pump_on;
-    pthread_mutex_unlock(&s_mutex);
-
-    return result;
+    for (i = 0U; i < s_work_count; i++)
+    {
+        if (!is_pump_slot(s_work_list[i].slot))
+        {
+            return true;
+        }
+    }
+    return false;
 }
 
-static void set_pump_state(bool on)
+static sw_err_t output_slot(water_channel_idx_t ch, water_slot_t slot, bool on)
 {
-    pthread_mutex_lock(&s_mutex);
-    s_pump_on = on;
-    pthread_mutex_unlock(&s_mutex);
-}
+    sw_err_t ret;
 
-static void set_curtain_state(bool on)
-{
-    pthread_mutex_lock(&s_mutex);
-    s_curtain_on = on;
-    pthread_mutex_unlock(&s_mutex);
-}
-
-static void set_foam_state(bool on)
-{
-    pthread_mutex_lock(&s_mutex);
-    s_foam_on = on;
-    pthread_mutex_unlock(&s_mutex);
-}
-
-static void set_brush_state(bool on)
-{
-    pthread_mutex_lock(&s_mutex);
-    s_brush_on = on;
-    pthread_mutex_unlock(&s_mutex);
-}
-
-static void set_highpres_state(bool on)
-{
-    pthread_mutex_lock(&s_mutex);
-    s_highpres_on = on;
-    pthread_mutex_unlock(&s_mutex);
-}
-
-static sw_err_t check_actuator(void)
-{
-    if (!s_actuator_ready || (s_actuator.slot_set == NULL))
+    if (s_actuator.slot_set == NULL)
     {
         return SW_ERR_NOT_INIT;
     }
-    return SW_OK;
-}
-
-static sw_err_t slot_output(water_channel_t ch, water_slot_t slot, bool on)
-{
-    sw_err_t ret = s_actuator.slot_set(ch, slot, on);
-
+    ret = s_actuator.slot_set(ch, slot, on);
     if (ret != SW_OK)
     {
         LOG_ERROR("water: ch %d slot %d %s failed ret=%d",
@@ -112,392 +136,538 @@ static sw_err_t slot_output(water_channel_t ch, water_slot_t slot, bool on)
     return ret;
 }
 
-static sw_err_t set_pump_output(bool on)
-{
-    sw_err_t ret = slot_output(WATER_CH_SHARED, WATER_SLOT_PUMP, on);
-
-    if (ret == SW_OK)
-    {
-        set_pump_state(on);
-    }
-    return ret;
-}
-
-static sw_err_t set_curtain_output(bool on)
-{
-    sw_err_t ret = slot_output(WATER_CH_CURTAIN, WATER_SLOT_WATER_VALVE, on);
-
-    if (ret == SW_OK)
-    {
-        set_curtain_state(on);
-    }
-    return ret;
-}
-
-static sw_err_t set_foam_output(bool on)
-{
-    sw_err_t ret = slot_output(WATER_CH_FOAM, WATER_SLOT_WATER_VALVE, on);
-
-    if (ret == SW_OK)
-    {
-        set_foam_state(on);
-    }
-    return ret;
-}
-
-static sw_err_t set_brush_output(bool on)
-{
-    sw_err_t ret = slot_output(WATER_CH_BRUSH, WATER_SLOT_WATER_VALVE, on);
-
-    if (ret == SW_OK)
-    {
-        set_brush_state(on);
-    }
-    return ret;
-}
-
-static sw_err_t set_highpres_output(bool on)
-{
-    sw_err_t ret = slot_output(WATER_CH_HIGHPRES, WATER_SLOT_WATER_VALVE, on);
-
-    if (ret == SW_OK)
-    {
-        set_highpres_state(on);
-    }
-    return ret;
-}
-
-static sw_err_t ensure_pump_on(void)
-{
-    if (is_pump_on())
-    {
-        return SW_OK;
-    }
-
-    if (!any_valve_open())
-    {
-        LOG_WARN("water: pump ON skipped because no valve is open");
-        return SW_ERR_STATE;
-    }
-
-    return set_pump_output(true);
-}
-
-static sw_err_t safe_pump_off(void)
-{
-    sw_err_t ret;
-
-    if (!is_pump_on())
-    {
-        return SW_OK;
-    }
-
-    ret = set_pump_output(false);
-    if (ret == SW_OK)
-    {
-        water_delay_ms(s_cfg.pump_stop_delay_ms);
-    }
-    return ret;
-}
-
-static sw_err_t stop_pump_if_no_valve_open(const char *reason)
-{
-    if (!any_valve_open() && is_pump_on())
-    {
-        LOG_INFO("water: no valve open after %s, auto stop pump", reason);
-        return safe_pump_off();
-    }
-    return SW_OK;
-}
-
-static void try_stop_pump_if_no_valve_open(const char *reason)
-{
-    sw_err_t ret = stop_pump_if_no_valve_open(reason);
-
-    if (ret != SW_OK)
-    {
-        LOG_WARN("water: auto stop pump after %s failed ret=%d", reason, (int)ret);
-    }
-}
-
-static void reset_states(void)
-{
-    pthread_mutex_lock(&s_mutex);
-    s_pump_on     = false;
-    s_curtain_on  = false;
-    s_foam_on     = false;
-    s_brush_on    = false;
-    s_highpres_on = false;
-    pthread_mutex_unlock(&s_mutex);
-}
-
-sw_err_t water_init(const water_cfg_t *cfg, const water_actuator_ops_t *ops)
-{
-    sw_err_t ret;
-
-    if ((cfg == NULL) || (ops == NULL) || (ops->slot_set == NULL))
-    {
-        return SW_ERR_PARAM;
-    }
-
-    s_cfg            = *cfg;
-    s_actuator       = *ops;
-    s_actuator_ready = true;  /* 先置 true，使内部调 water_all_off 时通过 check_actuator */
-    reset_states();
-    ret = water_all_off();
-    if (ret != SW_OK)
-    {
-        s_actuator_ready = false;  /* all_off 失败则撤销就绪标志，避免遗留半初始化状态 */
-    }
-    return ret;
-}
-
-sw_err_t water_prewash_on(void)
-{
-    sw_err_t ret;
-
-    ret = check_actuator();
-    if (ret != SW_OK)
-    {
-        LOG_ERROR("water: prewash ON failed, actuator not ready");
-        return ret;
-    }
-
-    ret = set_foam_output(true);
-    if (ret != SW_OK)
-    {
-        return ret;
-    }
-    ret = set_curtain_output(true);
-    if (ret != SW_OK)
-    {
-        (void)set_foam_output(false);
-        return ret;
-    }
-
-    water_delay_ms(s_cfg.valve_open_delay_ms);
-    ret = ensure_pump_on();
-    if (ret != SW_OK)
-    {
-        (void)set_curtain_output(false);
-        (void)set_foam_output(false);
-        return ret;
-    }
-
-    LOG_INFO("water: prewash ON");
-    return SW_OK;
-}
-
-sw_err_t water_prewash_off(void)
+static sw_err_t apply_group(bool pump_group, bool on)
 {
     sw_err_t ret;
     sw_err_t first_err = SW_OK;
+    uint8_t  i;
 
-    ret = check_actuator();
-    if (ret != SW_OK)
+    for (i = 0U; i < s_work_count; i++)
     {
-        LOG_ERROR("water: prewash OFF failed, actuator not ready");
-        return ret;
-    }
-
-    ret = set_foam_output(false);
-    if ((first_err == SW_OK) && (ret != SW_OK))
-    {
-        first_err = ret;
-    }
-    ret = set_curtain_output(false);
-    if ((first_err == SW_OK) && (ret != SW_OK))
-    {
-        first_err = ret;
-    }
-
-    if (first_err == SW_OK)
-    {
-        try_stop_pump_if_no_valve_open("prewash_off");
-        LOG_INFO("water: prewash OFF");
+        if (is_pump_slot(s_work_list[i].slot) != pump_group)
+        {
+            continue;
+        }
+        ret = output_slot(s_work_list[i].ch, s_work_list[i].slot, on);
+        if (ret == SW_OK)
+        {
+            s_actual[s_work_list[i].ch][s_work_list[i].slot] = on;
+        }
+        else if (first_err == SW_OK)
+        {
+            first_err = ret;
+        }
     }
     return first_err;
 }
 
-sw_err_t water_brush_on(void)
+static void collect_deps(water_path_mask_t mask, bool opening)
+{
+    size_t i;
+
+    s_work_count = 0U;
+    for (i = 0U; i < s_path_count; i++)
+    {
+        const water_path_def_t *path = &s_paths[i];
+        uint8_t                 j;
+
+        if (!path_bit_set(mask, path->path_idx))
+        {
+            continue;
+        }
+        for (j = 0U; j < path->dep_count; j++)
+        {
+            const water_actuator_key_t *dep = &path->deps[j];
+
+            if (!key_valid(dep))
+            {
+                continue;
+            }
+            if (opening)
+            {
+                if (s_ref[dep->ch][dep->slot] == 0U)
+                {
+                    list_add(dep);
+                }
+            }
+            else if (s_ref[dep->ch][dep->slot] == 1U)
+            {
+                list_add(dep);
+            }
+        }
+    }
+}
+
+static void add_refs(water_path_mask_t mask)
+{
+    size_t i;
+
+    for (i = 0U; i < s_path_count; i++)
+    {
+        const water_path_def_t *path = &s_paths[i];
+        uint8_t                 j;
+
+        if (!path_bit_set(mask, path->path_idx))
+        {
+            continue;
+        }
+        for (j = 0U; j < path->dep_count; j++)
+        {
+            if (key_valid(&path->deps[j]))
+            {
+                s_ref[path->deps[j].ch][path->deps[j].slot]++;
+            }
+        }
+    }
+}
+
+static void sub_refs(water_path_mask_t mask)
+{
+    size_t i;
+
+    for (i = 0U; i < s_path_count; i++)
+    {
+        const water_path_def_t *path = &s_paths[i];
+        uint8_t                 j;
+
+        if (!path_bit_set(mask, path->path_idx))
+        {
+            continue;
+        }
+        for (j = 0U; j < path->dep_count; j++)
+        {
+            if (key_valid(&path->deps[j]) && (s_ref[path->deps[j].ch][path->deps[j].slot] > 0U))
+            {
+                s_ref[path->deps[j].ch][path->deps[j].slot]--;
+            }
+        }
+    }
+}
+
+static void reset_state(void)
+{
+    memset(s_ref, 0, sizeof(s_ref));
+    memset(s_actual, 0, sizeof(s_actual));
+    s_pending_target = 0U;
+    s_stable_paths   = 0U;
+    s_seq_state      = WATER_SEQ_IDLE;
+    s_deadline_ms    = 0U;
+    s_closing_mask   = 0U;
+    s_opening_mask   = 0U;
+    s_work_count     = 0U;
+    s_force_off      = false;
+}
+
+static void force_off_locked(void)
+{
+    if (s_actuator.all_off != NULL)
+    {
+        (void)s_actuator.all_off();
+    }
+    reset_state();
+}
+
+static void wake_init(void)
+{
+    pthread_condattr_t attr;
+
+    if (s_wake_inited)
+    {
+        return;
+    }
+    pthread_condattr_init(&attr);
+    pthread_condattr_setclock(&attr, CLOCK_MONOTONIC);
+    pthread_cond_init(&s_wake, &attr);
+    pthread_condattr_destroy(&attr);
+    s_wake_inited = true;
+}
+
+static sw_err_t close_pumps_locked(uint32_t now_ms)
 {
     sw_err_t ret;
 
-    ret = check_actuator();
-    if (ret != SW_OK)
+    if (!work_has_pump())
     {
-        LOG_ERROR("water: brush ON failed, actuator not ready");
-        return ret;
+        return SW_OK;
     }
-
-    ret = set_brush_output(true);
-    if (ret != SW_OK)
+    ret = apply_group(true, false);
+    if ((ret != SW_OK) || (s_cfg.pump_stop_delay_ms == 0U))
     {
         return ret;
     }
-
-    water_delay_ms(s_cfg.valve_open_delay_ms);
-    ret = ensure_pump_on();
-    if (ret != SW_OK)
-    {
-        (void)set_brush_output(false);
-        return ret;
-    }
-
-    LOG_INFO("water: brush ON");
+    s_seq_state   = WATER_SEQ_WAIT_CLOSE_PUMP;
+    s_deadline_ms = now_ms;
     return SW_OK;
 }
 
-sw_err_t water_brush_off(void)
+static sw_err_t close_valves_locked(void)
+{
+    sw_err_t ret = SW_OK;
+
+    if (work_has_valve())
+    {
+        ret = apply_group(false, false);
+    }
+    s_stable_paths &= ~s_closing_mask;
+    s_closing_mask    = 0U;
+    s_work_count      = 0U;
+    s_seq_state       = WATER_SEQ_IDLE;
+    return ret;
+}
+
+static sw_err_t begin_close_locked(water_path_mask_t to_close, uint32_t now_ms)
 {
     sw_err_t ret;
 
-    ret = check_actuator();
-    if (ret != SW_OK)
+    collect_deps(to_close, false);
+    sub_refs(to_close);
+    s_closing_mask = to_close;
+
+    if (s_work_count == 0U)
     {
-        LOG_ERROR("water: brush OFF failed, actuator not ready");
-        return ret;
+        s_stable_paths &= ~to_close;
+        return SW_OK;
     }
 
-    ret = set_brush_output(false);
+    ret = close_pumps_locked(now_ms);
     if (ret != SW_OK)
     {
         return ret;
     }
-
-    try_stop_pump_if_no_valve_open("brush_off");
-    LOG_INFO("water: brush OFF");
+    if (s_seq_state == WATER_SEQ_IDLE)
+    {
+        return close_valves_locked();
+    }
     return SW_OK;
 }
 
-sw_err_t water_highpres_on(void)
+static sw_err_t open_valves_locked(uint32_t now_ms)
 {
     sw_err_t ret;
 
-    ret = check_actuator();
-    if (ret != SW_OK)
+    if (!work_has_valve())
     {
-        LOG_ERROR("water: high pressure ON failed, actuator not ready");
-        return ret;
+        return SW_OK;
     }
-
-    ret = set_highpres_output(true);
-    if (ret != SW_OK)
+    ret = apply_group(false, true);
+    if ((ret != SW_OK) || (s_cfg.valve_open_delay_ms == 0U))
     {
         return ret;
     }
-
-    water_delay_ms(s_cfg.valve_open_delay_ms);
-    ret = ensure_pump_on();
-    if (ret != SW_OK)
-    {
-        (void)set_highpres_output(false);
-        return ret;
-    }
-
-    LOG_INFO("water: high pressure ON");
+    s_seq_state   = WATER_SEQ_WAIT_OPEN_VALVE;
+    s_deadline_ms = now_ms;
     return SW_OK;
 }
 
-sw_err_t water_highpres_off(void)
+static sw_err_t open_pumps_locked(water_path_mask_t opened_mask)
+{
+    sw_err_t ret = SW_OK;
+
+    if (work_has_pump())
+    {
+        ret = apply_group(true, true);
+    }
+    if (ret == SW_OK)
+    {
+        s_stable_paths |= opened_mask;
+        s_work_count      = 0U;
+        s_seq_state       = WATER_SEQ_IDLE;
+    }
+    return ret;
+}
+
+static sw_err_t begin_open_locked(water_path_mask_t to_open, uint32_t now_ms)
+{
+    collect_deps(to_open, true);
+    add_refs(to_open);
+
+    if (s_work_count == 0U)
+    {
+        s_stable_paths |= to_open;
+        return SW_OK;
+    }
+
+    if (open_valves_locked(now_ms) != SW_OK)
+    {
+        sub_refs(to_open);
+        return SW_ERR_HW;
+    }
+
+    s_opening_mask = to_open;
+    if (s_seq_state == WATER_SEQ_IDLE)
+    {
+        return open_pumps_locked(to_open);
+    }
+    return SW_OK;
+}
+
+static void process_idle_locked(uint32_t now_ms)
+{
+    water_path_mask_t to_close = s_stable_paths & ~s_pending_target;
+    water_path_mask_t to_open  = s_pending_target & ~s_stable_paths;
+
+    if (to_close != 0U)
+    {
+        if (begin_close_locked(to_close, now_ms) != SW_OK)
+        {
+            return;
+        }
+        if (s_seq_state != WATER_SEQ_IDLE)
+        {
+            return;
+        }
+        to_open = s_pending_target & ~s_stable_paths;
+    }
+    if (to_open != 0U)
+    {
+        (void)begin_open_locked(to_open, now_ms);
+    }
+}
+
+static uint32_t calc_wait_ms(uint32_t now_ms)
+{
+    uint32_t elapsed;
+    uint32_t need_ms;
+
+    if (s_seq_state == WATER_SEQ_WAIT_CLOSE_PUMP)
+    {
+        elapsed = time_elapsed_ms(s_deadline_ms, now_ms);
+        if (elapsed >= s_cfg.pump_stop_delay_ms)
+        {
+            return 0U;
+        }
+        need_ms = s_cfg.pump_stop_delay_ms - elapsed;
+        return (need_ms > 0U) ? need_ms : 1U;
+    }
+    if (s_seq_state == WATER_SEQ_WAIT_OPEN_VALVE)
+    {
+        elapsed = time_elapsed_ms(s_deadline_ms, now_ms);
+        if (elapsed >= s_cfg.valve_open_delay_ms)
+        {
+            return 0U;
+        }
+        need_ms = s_cfg.valve_open_delay_ms - elapsed;
+        return (need_ms > 0U) ? need_ms : 1U;
+    }
+    return THD_WATER_WORKER_PERIOD_MS;
+}
+
+static uint32_t tick_locked(uint32_t now_ms)
+{
+    if (s_force_off)
+    {
+        force_off_locked();
+        return THD_WATER_WORKER_PERIOD_MS;
+    }
+
+    switch (s_seq_state)
+    {
+    case WATER_SEQ_WAIT_CLOSE_PUMP:
+        if (time_elapsed_ms(s_deadline_ms, now_ms) >= s_cfg.pump_stop_delay_ms)
+        {
+            (void)close_valves_locked();
+        }
+        break;
+
+    case WATER_SEQ_WAIT_OPEN_VALVE:
+        if (time_elapsed_ms(s_deadline_ms, now_ms) >= s_cfg.valve_open_delay_ms)
+        {
+            (void)open_pumps_locked(s_opening_mask);
+            s_opening_mask = 0U;
+        }
+        break;
+
+    case WATER_SEQ_IDLE:
+    default:
+        if (s_pending_target != s_stable_paths)
+        {
+            process_idle_locked(now_ms);
+        }
+        break;
+    }
+
+    return calc_wait_ms(now_ms);
+}
+
+#ifndef WATER_UNIT_TEST
+
+static void wait_locked(uint32_t wait_ms)
+{
+    struct timespec ts;
+
+    if (wait_ms == 0U)
+    {
+        return;
+    }
+
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    ts.tv_sec  += (time_t)(wait_ms / 1000U);
+    ts.tv_nsec += (long)(wait_ms % 1000U) * 1000000L;
+    if (ts.tv_nsec >= 1000000000L)
+    {
+        ts.tv_sec++;
+        ts.tv_nsec -= 1000000000L;
+    }
+    (void)pthread_cond_timedwait(&s_wake, &s_mutex, &ts);
+}
+
+static void *worker_thread_fn(void *arg)
+{
+    (void)arg;
+
+    pthread_mutex_lock(&s_mutex);
+    for (;;)
+    {
+        uint32_t now_ms  = time_util_get_ms();
+        uint32_t wait_ms = tick_locked(now_ms);
+
+        wait_locked(wait_ms);
+    }
+    return NULL;
+}
+
+static sw_err_t worker_start(void)
 {
     sw_err_t ret;
 
-    ret = check_actuator();
+    ret = thread_register("water_worker",
+                          worker_thread_fn,
+                          SCHED_OTHER,
+                          THD_WATER_WORKER_NICE,
+                          THD_WATER_WORKER_STACK);
     if (ret != SW_OK)
     {
-        LOG_ERROR("water: high pressure OFF failed, actuator not ready");
-        return ret;
+        LOG_ERROR("water: thread_register failed ret=%d", (int)ret);
     }
+    return ret;
+}
 
-    ret = set_highpres_output(false);
-    if (ret != SW_OK)
+#endif /* WATER_UNIT_TEST */
+
+sw_err_t water_init(const water_cfg_t *cfg,
+                    const water_actuator_ops_t *ops,
+                    const water_path_def_t *paths,
+                    size_t path_count)
+{
+    if ((cfg == NULL) || (ops == NULL) || (ops->slot_set == NULL)
+        || (paths == NULL) || (path_count == 0U)
+        || (cfg->channel_count == 0U) || (cfg->channel_count > WATER_CHANNEL_MAX)
+        || (cfg->main_pump.ch >= cfg->channel_count)
+        || (cfg->main_pump.slot >= WATER_SLOT_COUNT))
     {
-        return ret;
+        return SW_ERR_PARAM;
     }
 
-    try_stop_pump_if_no_valve_open("highpres_off");
-    LOG_INFO("water: high pressure OFF");
+    pthread_mutex_lock(&s_mutex);
+    wake_init();
+    s_cfg           = *cfg;
+    s_channel_count = cfg->channel_count;
+    s_actuator   = *ops;
+    s_paths      = paths;
+    s_path_count = path_count;
+    s_ready      = true;
+    reset_state();
+    force_off_locked();
+    pthread_mutex_unlock(&s_mutex);
+
+#ifndef WATER_UNIT_TEST
+    return worker_start();
+#else
+    return SW_OK;
+#endif
+}
+
+sw_err_t water_path_set(water_path_mask_t target)
+{
+    pthread_mutex_lock(&s_mutex);
+    if (!s_ready)
+    {
+        pthread_mutex_unlock(&s_mutex);
+        return SW_ERR_NOT_INIT;
+    }
+    s_pending_target = target;
+    pthread_cond_signal(&s_wake);
+    pthread_mutex_unlock(&s_mutex);
     return SW_OK;
 }
 
 sw_err_t water_all_off(void)
 {
-    sw_err_t ret;
-    sw_err_t first_err = SW_OK;
-    bool     was_pump_on;
-
-    ret = check_actuator();
-    if (ret != SW_OK)
+    pthread_mutex_lock(&s_mutex);
+    if (!s_ready)
     {
-        LOG_ERROR("water: all OFF failed, actuator not ready");
-        return ret;
-    }
-
-    was_pump_on = is_pump_on();
-    ret = set_pump_output(false);
-    if ((first_err == SW_OK) && (ret != SW_OK))
-    {
-        first_err = ret;
-    }
-
-    if (was_pump_on)
-    {
-        water_delay_ms(s_cfg.pump_stop_delay_ms);
-    }
-
-    /* 优先使用 hal_do_group.all_off 一次性关闭全部 DO（含泵，重复关闭幂等） */
-    if (s_actuator.all_off != NULL)
-    {
-        ret = s_actuator.all_off();
-        if ((first_err == SW_OK) && (ret != SW_OK))
-        {
-            first_err = ret;
-        }
-        pthread_mutex_lock(&s_mutex);
-        s_curtain_on  = false;
-        s_foam_on     = false;
-        s_brush_on    = false;
-        s_highpres_on = false;
         pthread_mutex_unlock(&s_mutex);
+        return SW_ERR_NOT_INIT;
     }
-    else
-    {
-        ret = set_curtain_output(false);
-        if ((first_err == SW_OK) && (ret != SW_OK))
-        {
-            first_err = ret;
-        }
-        ret = set_foam_output(false);
-        if ((first_err == SW_OK) && (ret != SW_OK))
-        {
-            first_err = ret;
-        }
-        ret = set_brush_output(false);
-        if ((first_err == SW_OK) && (ret != SW_OK))
-        {
-            first_err = ret;
-        }
-        ret = set_highpres_output(false);
-        if ((first_err == SW_OK) && (ret != SW_OK))
-        {
-            first_err = ret;
-        }
-    }
-
-    if (first_err == SW_OK)
-    {
-        LOG_INFO("water: all OFF (pump first, then valves)");
-    }
-    return first_err;
+    s_force_off      = true;
+    s_pending_target = 0U;
+    pthread_cond_signal(&s_wake);
+    pthread_mutex_unlock(&s_mutex);
+    return SW_OK;
 }
 
 bool water_is_pump_on(void)
 {
-    return is_pump_on();
+    bool on;
+
+    pthread_mutex_lock(&s_mutex);
+    on = s_actual[s_cfg.main_pump.ch][s_cfg.main_pump.slot];
+    pthread_mutex_unlock(&s_mutex);
+    return on;
 }
 
 bool water_is_any_valve_open(void)
 {
-    return any_valve_open();
+    bool result = false;
+    unsigned ch;
+    unsigned slot;
+
+    pthread_mutex_lock(&s_mutex);
+    for (ch = 0U; ch < (unsigned)s_channel_count; ch++)
+    {
+        for (slot = 0U; slot < (unsigned)WATER_SLOT_COUNT; slot++)
+        {
+            if (is_pump_slot((water_slot_t)slot))
+            {
+                continue;
+            }
+            if (s_actual[ch][slot])
+            {
+                result = true;
+                break;
+            }
+        }
+        if (result)
+        {
+            break;
+        }
+    }
+    pthread_mutex_unlock(&s_mutex);
+    return result;
 }
+
+#ifdef WATER_UNIT_TEST
+
+void water_poll(uint32_t now_ms)
+{
+    pthread_mutex_lock(&s_mutex);
+    if (s_ready)
+    {
+        (void)tick_locked(now_ms);
+    }
+    pthread_mutex_unlock(&s_mutex);
+}
+
+bool water_is_settled(void)
+{
+    bool settled;
+
+    pthread_mutex_lock(&s_mutex);
+    settled = (!s_force_off)
+              && (s_seq_state == WATER_SEQ_IDLE)
+              && (s_pending_target == s_stable_paths);
+    pthread_mutex_unlock(&s_mutex);
+    return settled;
+}
+
+#endif /* WATER_UNIT_TEST */

@@ -1,40 +1,72 @@
 /**
  * @file    m8_water_table.h
- * @brief   M8 水路绑定表（类型定义 + 编译期数据）
+ * @brief   M8 水路配置（路径拓扑 + 执行器引脚）
  * @author  HUWANGWEI
  * @date    2026-06-07
- *
- * @note    增删改水路 DO 映射只改本文件中的 m8_water_bind_table。
- *          channel = 水路名称，slot = 执行器类型，二者数值与 HAL group×slot 一致。
  */
 
 #ifndef CONFIG_MACHINE_M8_WATER_TABLE_H
 #define CONFIG_MACHINE_M8_WATER_TABLE_H
 
-#include "framework/domain/device_control/mechanism/water_channel.h"
+#include "projects/m8/config/m8_water_ids.h"
 #include "projects/m8/config/m8_io_pins.h"
 #include "framework/common/io_handle.h"
 
-/** 单行绑定：水路 + 槽位 → DO */
+/* -------------------------------------------------------------------------
+ * 执行器引脚表（channel + slot → DO）
+ * ------------------------------------------------------------------------- */
 typedef struct
 {
-    water_channel_t channel;
-    water_slot_t    slot;
-    io_do_t         pin;
-} m8_water_bind_row_t;
+    water_channel_idx_t channel;
+    water_slot_t        slot;
+    io_do_t             pin;
+} m8_water_actuator_row_t;
 
-/* -------------------------------------------------------------------------
- * 绑定表（增删改水路 DO 映射只改此处）
- * ------------------------------------------------------------------------- */
-static const m8_water_bind_row_t m8_water_bind_table[] = {
-    { WATER_CH_SHARED,   WATER_SLOT_PUMP,        M8_IO_DO_WATER_PUMP      },
-    { WATER_CH_CURTAIN,  WATER_SLOT_WATER_VALVE, M8_IO_DO_WATER_CURTAIN   },
-    { WATER_CH_FOAM,     WATER_SLOT_WATER_VALVE, M8_IO_DO_WATER_TOP_FOAM  },
-    { WATER_CH_BRUSH,    WATER_SLOT_WATER_VALVE, M8_IO_DO_WATER_TOP       },
-    { WATER_CH_HIGHPRES, WATER_SLOT_WATER_VALVE, M8_IO_DO_WATER_BUTTOM    },
+static const m8_water_actuator_row_t m8_water_actuator_table[] = {
+    { M8_WATER_CH_SHARED,      WATER_SLOT_PUMP,        M8_IO_DO_WATER_PUMP },
+    { M8_WATER_CH_CURTAIN,     WATER_SLOT_WATER_VALVE, M8_IO_DO_WATER_CURTAIN },
+    { M8_WATER_CH_FOAM,        WATER_SLOT_WATER_VALVE, M8_IO_DO_WATER_TOP_FOAM },
+    { M8_WATER_CH_BRUSH,       WATER_SLOT_WATER_VALVE, M8_IO_DO_WATER_TOP },
+    { M8_WATER_CH_HIGHPRES,    WATER_SLOT_WATER_VALVE, M8_IO_DO_WATER_BUTTOM },
+    { M8_WATER_CH_BOTTOM_FOAM, WATER_SLOT_WATER_VALVE, M8_IO_DO_WATER_BUTTOM_FOAM },
 };
 
-#define M8_WATER_BIND_TABLE_COUNT \
-    ((unsigned)(sizeof(m8_water_bind_table) / sizeof(m8_water_bind_table[0])))
+#define M8_WATER_ACTUATOR_TABLE_COUNT \
+    ((unsigned)(sizeof(m8_water_actuator_table) / sizeof(m8_water_actuator_table[0])))
+
+/* -------------------------------------------------------------------------
+ * 路径拓扑表（path → 依赖执行器）
+ * ------------------------------------------------------------------------- */
+static const water_actuator_key_t m8_deps_curtain[] = {
+    { M8_WATER_CH_CURTAIN, WATER_SLOT_WATER_VALVE },
+    { M8_WATER_CH_SHARED,  WATER_SLOT_PUMP },
+};
+static const water_actuator_key_t m8_deps_foam[] = {
+    { M8_WATER_CH_FOAM,   WATER_SLOT_WATER_VALVE },
+    { M8_WATER_CH_SHARED, WATER_SLOT_PUMP },
+};
+static const water_actuator_key_t m8_deps_bottom_foam[] = {
+    { M8_WATER_CH_BOTTOM_FOAM, WATER_SLOT_WATER_VALVE },
+    { M8_WATER_CH_SHARED,      WATER_SLOT_PUMP },
+};
+static const water_actuator_key_t m8_deps_brush[] = {
+    { M8_WATER_CH_BRUSH,  WATER_SLOT_WATER_VALVE },
+    { M8_WATER_CH_SHARED, WATER_SLOT_PUMP },
+};
+static const water_actuator_key_t m8_deps_highpres[] = {
+    { M8_WATER_CH_HIGHPRES, WATER_SLOT_WATER_VALVE },
+    { M8_WATER_CH_SHARED,   WATER_SLOT_PUMP },
+};
+
+static const water_path_def_t m8_water_path_table[] = {
+    { M8_WATER_PATH_CURTAIN,     m8_deps_curtain,     2U },
+    { M8_WATER_PATH_FOAM,        m8_deps_foam,        2U },
+    { M8_WATER_PATH_BOTTOM_FOAM, m8_deps_bottom_foam, 2U },
+    { M8_WATER_PATH_BRUSH,       m8_deps_brush,       2U },
+    { M8_WATER_PATH_HIGHPRES,    m8_deps_highpres,    2U },
+};
+
+#define M8_WATER_PATH_TABLE_COUNT \
+    ((unsigned)(sizeof(m8_water_path_table) / sizeof(m8_water_path_table[0])))
 
 #endif /* CONFIG_MACHINE_M8_WATER_TABLE_H */

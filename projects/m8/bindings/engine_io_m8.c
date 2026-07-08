@@ -14,11 +14,9 @@
  *   新增 / 删除 / 修改通道时，只需在对应表中增删一行，无需改动分发逻辑。
  *
  *   DO 分组刷新说明：
- *     apply_gantry()         — GANTRY_FWD / GANTRY_REV 互斥，两变量共享
- *     apply_brush()          — TOP_BRUSH_ROT 优先；SIDE 仅在 TOP 停止时生效
- *     apply_water_prewash()  — WATER_CURTAIN / TOP_FOAM / BUTTOM_FOAM 任一为 1 则开
- *     apply_water_highpres() — WATER_HIGHPRES_TOP / BOTTOM 任一为 1 则开
- *     TODO: water 驱动增加 water_valve_set() 后改为逐阀精确控制
+ *     apply_gantry()  — GANTRY_FWD / GANTRY_REV 互斥，两变量共享
+ *     apply_brush()   — TOP_BRUSH_ROT 优先；SIDE 仅在 TOP 停止时生效
+ *     apply_water()   — 所有水路 DO 聚合为 path mask，调用 water_path_set()
  *
  *   标注 [stub] 的通道待实现真实驱动后，将 NULL 替换为真实实现即可。
  */
@@ -28,6 +26,7 @@
 #include "framework/domain/device_control/mechanism/gantry.h"
 #include "framework/domain/device_control/mechanism/brush.h"
 #include "framework/domain/device_control/mechanism/water.h"
+#include "projects/m8/config/m8_water_ids.h"
 #include "framework/domain/device_control/mechanism/lift.h"
 #include "framework/domain/device_control/mechanism/rear_lock.h"
 #include "framework/domain/device_control/mechanism/fan.h"
@@ -99,28 +98,28 @@ static void apply_brush(void)
     }
 }
 
-static void apply_water_prewash(void)
+static void apply_water(void)
 {
-    if ((s_water_curtain > 0) || (s_water_top_foam > 0) || (s_water_btm_foam > 0))
-    {
-        (void)water_prewash_on();
-    }
-    else
-    {
-        (void)water_prewash_off();
-    }
-}
+    water_path_mask_t mask = 0U;
 
-static void apply_water_highpres(void)
-{
+    if (s_water_curtain > 0)
+    {
+        mask |= M8_WATER_PATH_MASK(M8_WATER_PATH_CURTAIN);
+    }
+    if (s_water_top_foam > 0)
+    {
+        mask |= M8_WATER_PATH_MASK(M8_WATER_PATH_FOAM);
+    }
+    if (s_water_btm_foam > 0)
+    {
+        mask |= M8_WATER_PATH_MASK(M8_WATER_PATH_BOTTOM_FOAM);
+    }
     if ((s_water_hp_top > 0) || (s_water_hp_btm > 0))
     {
-        (void)water_highpres_on();
+        mask |= M8_WATER_PATH_MASK(M8_WATER_PATH_HIGHPRES);
     }
-    else
-    {
-        (void)water_highpres_off();
-    }
+
+    (void)water_path_set(mask);
 }
 
 static void apply_lifter(void)
@@ -233,11 +232,11 @@ static const output_entry_t s_output_table[] = {
     { "GANTRY_REV",            &s_gantry_rev,       apply_gantry         },
     { "TOP_BRUSH_ROT",         &s_top_brush_rot,    apply_brush          },
     { "SIDE_BRUSH_ROT",        &s_side_brush_rot,   apply_brush          },
-    { "WATER_CURTAIN",         &s_water_curtain,    apply_water_prewash  },
-    { "WATER_TOP_FOAM",        &s_water_top_foam,   apply_water_prewash  },
-    { "WATER_BUTTOM_FOAM",     &s_water_btm_foam,   apply_water_prewash  },
-    { "WATER_HIGHPRES_TOP",    &s_water_hp_top,     apply_water_highpres },
-    { "WATER_HIGHPRES_BOTTOM", &s_water_hp_btm,     apply_water_highpres },
+    { "WATER_CURTAIN",         &s_water_curtain,    apply_water          },
+    { "WATER_TOP_FOAM",        &s_water_top_foam,   apply_water          },
+    { "WATER_BUTTOM_FOAM",     &s_water_btm_foam,   apply_water          },
+    { "WATER_HIGHPRES_TOP",    &s_water_hp_top,     apply_water          },
+    { "WATER_HIGHPRES_BOTTOM", &s_water_hp_btm,     apply_water          },
     { "LIFTER_UP",             &s_lifter_up,   apply_lifter },
     { "LIFTER_DOWN",           &s_lifter_down, apply_lifter },
     { "DRYER_RUN",             &s_dryer_run,   apply_dryer  },

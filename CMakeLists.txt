@@ -665,6 +665,13 @@ if(BUILD_SIM)
         tests/stubs/mcc/motor_control_core_sim.c
     )
 
-    message(STATUS "Tests registered: 20 unit + 2 scenario (run with: ctest --test-dir build_sim -V)")
+    # test_water_resource：水路控制单元测试
+    add_unit_test(test_water_resource
+        tests/framework/domain/test_water_resource.c
+        framework/domain/device_control/mechanism/water.c
+    )
+    target_compile_definitions(test_water_resource PRIVATE WATER_UNIT_TEST=1)
+
+    message(STATUS "Tests registered: 21 unit + 2 scenario (run with: ctest --test-dir build_sim -V)")
 
 endif()
