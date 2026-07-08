@@ -19,6 +19,8 @@
 #include "framework/common/io_handle.h"
 #include "framework/services/dev_ctx/dev_ctx.h"
 #include "framework/services/param/svc_param.h"
+#include "projects/m8/adapters/manual/m8_manual_action.h"
+#include "projects/m8/config/m8_brush_ids.h"
 
 static void log_diag_do_usage(void)
 {
@@ -342,6 +344,88 @@ int diag_cmd_handler(char *subcmd, char *p1, char *p2)
                  (int)ctx.device_state,
                  (int)ctx.wash_step);
         return 1;
+    }
+
+    return 0;
+}
+
+/* -------------------------------------------------------------------------
+ * manual 命令域
+ * ------------------------------------------------------------------------- */
+int manual_cmd_handler(char *subcmd, char *p1, char *p2)
+{
+    int gear = M8_MANUAL_DEFAULT_SPEED_GEAR;
+
+    if (subcmd == NULL)
+    {
+        return 0;
+    }
+
+    if (strcmp(subcmd, "gantry") == 0)
+    {
+        if (p1 == NULL)
+        {
+            return 0;
+        }
+
+        if (p2 != NULL)
+        {
+            gear = atoi(p2);
+        }
+
+        if (strcmp(p1, "fwd") == 0)
+        {
+            LOG_INFO("manual gantry fwd gear=%d ret=%d", gear, (int)m8_manual_gantry_fwd(gear));
+            return 1;
+        }
+        if (strcmp(p1, "rev") == 0)
+        {
+            LOG_INFO("manual gantry rev gear=%d ret=%d", gear, (int)m8_manual_gantry_rev(gear));
+            return 1;
+        }
+        if (strcmp(p1, "stop") == 0)
+        {
+            LOG_INFO("manual gantry stop ret=%d", (int)m8_manual_gantry_stop());
+            return 1;
+        }
+        return 0;
+    }
+
+    if (strcmp(subcmd, "brush") == 0)
+    {
+        brush_id_t id;
+        sw_err_t   ret;
+
+        if ((p1 == NULL) || (p2 == NULL))
+        {
+            return 0;
+        }
+
+        if (strcmp(p1, "side") == 0)
+        {
+            id = M8_BRUSH_SIDE;
+        }
+        else if (strcmp(p1, "top") == 0)
+        {
+            id = M8_BRUSH_TOP;
+        }
+        else
+        {
+            return 0;
+        }
+
+        if (strcmp(p2, "start") == 0)
+        {
+            ret = m8_manual_brush_start(id, M8_MANUAL_DEFAULT_SPEED_GEAR);
+            LOG_INFO("manual brush %s start ret=%d", p1, (int)ret);
+            return 1;
+        }
+        if (strcmp(p2, "stop") == 0)
+        {
+            ret = m8_manual_brush_stop(id);
+            LOG_INFO("manual brush %s stop ret=%d", p1, (int)ret);
+            return 1;
+        }
     }
 
     return 0;

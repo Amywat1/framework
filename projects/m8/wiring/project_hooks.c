@@ -16,7 +16,7 @@
 #include "projects/m8/adapters/alarm/m8_alarm_init.h"
 #include "projects/m8/adapters/alarm/m8_comm_watchdog.h"
 #include "projects/m8/adapters/cli/m8_cli_setup.h"
-#include "projects/m8/adapters/cloud/m8_point_table.h"
+#include "projects/m8/adapters/cloud/m8_cloud_bind.h"
 #include "framework/adapters/inbound/cloud/providers/snack/snack_cloud_command_adapter.h"
 #include "projects/m8/bindings/m8_boot_profile.h"
 #include "projects/m8/bindings/m8_machine_setup.h"
@@ -78,7 +78,7 @@ sw_err_t project_alarm_catalog_init(void)
 
 sw_err_t project_adapters_init(void)
 {
-    if (snack_cloud_command_adapter_init(m8_cloud_command_dispatch))
+    if (snack_cloud_command_adapter_init(m8_cloud_on_property_set))
     {
         (void)event_publish(EVT_CLOUD_CONNECTED, 0U);
     }

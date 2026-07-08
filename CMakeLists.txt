@@ -94,6 +94,7 @@ file(GLOB_RECURSE m8_bindings_src CONFIGURE_DEPENDS projects/m8/bindings/*.c pro
 file(GLOB_RECURSE m8_adapters_alarm_src CONFIGURE_DEPENDS projects/m8/adapters/alarm/*.c projects/m8/adapters/alarm/*.h)
 file(GLOB_RECURSE m8_adapters_cli_src   CONFIGURE_DEPENDS projects/m8/adapters/cli/*.c projects/m8/adapters/cli/*.h)
 file(GLOB_RECURSE m8_adapters_cloud_src CONFIGURE_DEPENDS projects/m8/adapters/cloud/*.c projects/m8/adapters/cloud/*.h)
+file(GLOB_RECURSE m8_adapters_manual_src CONFIGURE_DEPENDS projects/m8/adapters/manual/*.c projects/m8/adapters/manual/*.h)
 
 # projects/m8/adapters/hal/ 内混装真机与仿真各一个机型专属实现，按目标分别选用
 set(m8_adapters_hal_io_src     projects/m8/adapters/hal/m8_io_adapter.c)
@@ -168,6 +169,7 @@ set(src
     ${m8_adapters_alarm_src}
     ${m8_adapters_cli_src}
     ${m8_adapters_cloud_src}
+    ${m8_adapters_manual_src}
     ${m8_adapters_runtime_src}
     ${m8_adapters_hal_io_src}
     ${m8_wiring_src}
@@ -259,6 +261,7 @@ if(BUILD_SIM)
         # 物模型点表通用引擎（机型无关，纯逻辑，不依赖云 SDK）+ M8 物模型点表
         ${fw_adapters_cloud_src}
         ${m8_adapters_cloud_src}
+        ${m8_adapters_manual_src}
 
         # M8 VFD 仿真绑定（机型专属：仅龙门支持反转等规则）
         ${m8_adapters_hal_vfdsim_src}
@@ -364,12 +367,24 @@ if(BUILD_SIM)
         framework/services/dev_ctx/dev_ctx.c
     )
 
-    # test_m8_point_table：M8 云端点位表 JSON 序列化 + 反序列化（项目级测试）
-    add_unit_test(test_m8_point_table
-        projects/m8/tests/test_m8_point_table.c
+    # test_m8_cloud_model：M8 云端物模型 JSON 序列化 + 反序列化（项目级测试）
+    add_unit_test(test_m8_cloud_model
+        projects/m8/tests/test_m8_cloud_model.c
         framework/common/point_table/point_table_to_json.c
         framework/common/point_table/point_table_from_json.c
-        projects/m8/adapters/cloud/m8_point_table.c
+        projects/m8/adapters/cloud/m8_cloud_bind.c
+        projects/m8/adapters/cloud/m8_cloud_model.c
+        projects/m8/adapters/cloud/m8_cloud_common.c
+        projects/m8/adapters/cloud/m8_cloud_telemetry.c
+        projects/m8/adapters/cloud/m8_cloud_device_cmd.c
+        projects/m8/adapters/cloud/m8_cloud_service.c
+        projects/m8/adapters/cloud/m8_cloud_manual_cmd.c
+        projects/m8/adapters/manual/m8_manual_guard.c
+        projects/m8/adapters/manual/m8_manual_action.c
+        framework/domain/device_control/mechanism/gantry.c
+        framework/domain/device_control/mechanism/brush.c
+        framework/adapters/outbound/hal/providers/mcc/hal_motor_exec_adapter.c
+        tests/stubs/mcc/motor_control_core_sim.c
         projects/m8/bindings/m8_sensor.c
         projects/m8/config/m8_signal_table.c
         framework/adapters/outbound/hal/components/sensor_filter/hal_sensor_filter.c
@@ -378,6 +393,18 @@ if(BUILD_SIM)
         framework/runtime/scheduler/thread_registry.c
         framework/runtime/scheduler/periodic_task.c
         third_party/cJSON/cJSON.c
+    )
+
+    # test_m8_manual_guard：手动点动准入守卫
+    add_unit_test(test_m8_manual_guard
+        projects/m8/tests/test_m8_manual_guard.c
+        projects/m8/adapters/manual/m8_manual_guard.c
+        projects/m8/bindings/m8_sensor.c
+        projects/m8/config/m8_signal_table.c
+        framework/adapters/outbound/hal/components/sensor_filter/hal_sensor_filter.c
+        framework/services/dev_ctx/dev_ctx.c
+        framework/runtime/scheduler/thread_registry.c
+        framework/runtime/scheduler/periodic_task.c
     )
 
     # -----------------------------------------------------------------------

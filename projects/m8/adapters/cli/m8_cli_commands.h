@@ -24,6 +24,9 @@ int param_cmd_handler(char *subcmd, char *p1, char *p2);
 /** @brief diag 命令域：do <DO_NAME> <0|1> / di <DI_NAME> / io [BOARD_ID] / state */
 int diag_cmd_handler(char *subcmd, char *p1, char *p2);
 
+/** @brief manual 命令域：gantry fwd|rev|stop [gear] / brush side|top start|stop */
+int manual_cmd_handler(char *subcmd, char *p1, char *p2);
+
 #ifdef __cplusplus
 }
 #endif

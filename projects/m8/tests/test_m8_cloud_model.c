@@ -1,11 +1,11 @@
 /**
- * @file    test_m8_point_table.c
- * @brief   M8 云端点位表单元测试（JSON 序列化 + 反序列化）
+ * @file    test_m8_cloud_model.c
+ * @brief   M8 云端物模型单元测试（JSON 序列化 + 反序列化）
  * @author  HUWANGWEI
- * @date    2026-07-02
+ * @date    2026-07-08
  */
 
-#include "projects/m8/adapters/cloud/m8_point_table.h"
+#include "projects/m8/adapters/cloud/m8_cloud_bind.h"
 #include "framework/services/dev_ctx/dev_ctx.h"
 #include "framework/ports/inbound/command/command_port.h"
 #include "framework/common/sw_version.h"
@@ -42,7 +42,7 @@ static cJSON *build_and_parse_report(void)
     char                    buf[1024];
 
     memset(&dummy, 0, sizeof(dummy));
-    TEST_ASSERT_EQUAL_INT(SW_OK, m8_cloud_report_json(&dummy, buf, sizeof(buf)));
+    TEST_ASSERT_EQUAL_INT(SW_OK, m8_cloud_on_report(&dummy, buf, sizeof(buf)));
     return cJSON_Parse(buf);
 }
 
@@ -89,7 +89,7 @@ static void test_report_monitor_fields(void)
 
 static void test_dispatch_cmd_home(void)
 {
-    m8_cloud_command_dispatch("{\"cmd_home\":1}");
+    m8_cloud_on_property_set("{\"cmd_home\":1}");
 
     TEST_ASSERT_EQUAL_INT(1, s_inject_calls);
     TEST_ASSERT_EQUAL_INT(CMD_HOME_DEVICE, s_captured_cmd.type);
@@ -97,14 +97,14 @@ static void test_dispatch_cmd_home(void)
 
 static void test_dispatch_write_zero_is_noop(void)
 {
-    m8_cloud_command_dispatch("{\"cmd_home\":0}");
+    m8_cloud_on_property_set("{\"cmd_home\":0}");
 
     TEST_ASSERT_EQUAL_INT(0, s_inject_calls);
 }
 
 static void test_dispatch_multi_property_and_unknown_id(void)
 {
-    m8_cloud_command_dispatch("{\"cmd_communication_test\":1,\"unknown_point_xyz\":1,\"cmd_custom_stop\":1}");
+    m8_cloud_on_property_set("{\"cmd_communication_test\":1,\"unknown_point_xyz\":1,\"cmd_custom_stop\":1}");
 
     TEST_ASSERT_EQUAL_INT(1, s_inject_calls);
     TEST_ASSERT_EQUAL_INT(CMD_STOP_WASH, s_captured_cmd.type);

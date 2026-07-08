@@ -48,6 +48,14 @@ static int diag_debug(void)
     return diag_cmd_handler(args[1], args[2], args[3]);
 }
 
+static int manual_debug(void)
+{
+    char *args[4] = { cli_adapter_get(0), cli_adapter_get(1),
+                      cli_adapter_get(2), cli_adapter_get(3) };
+    if (args[0] == NULL || strcmp(args[0], "manual") != 0) { return 0; }
+    return manual_cmd_handler(args[1], args[2], args[3]);
+}
+
 /* -------------------------------------------------------------------------
  * 初始化入口（由 bootstrap 调用）
  * ------------------------------------------------------------------------- */
@@ -58,4 +66,5 @@ void m8_cli_setup(void)
     cli_adapter_add(safety_debug);
     cli_adapter_add(param_debug);
     cli_adapter_add(diag_debug);
+    cli_adapter_add(manual_debug);
 }
