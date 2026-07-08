@@ -5,7 +5,7 @@
  * @date    2026-07-08
  */
 
-#include "framework/ports/inbound/command/command_port.h"
+#include "framework/cloud/cloud_point.h"
 #include "framework/common/log.h"
 #include <string.h>
 

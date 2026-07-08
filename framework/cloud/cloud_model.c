@@ -14,7 +14,6 @@ static const cloud_point_entry_t   *s_entries       = NULL;
 static size_t                       s_entry_count   = 0U;
 static const report_policy_entry_t *s_policies        = NULL;
 static size_t                       s_policy_count  = 0U;
-static cloud_property_reply_fn_t    s_property_reply = NULL;
 
 static sw_err_t model_on_property_set(const char *json_payload,
                                        point_apply_result_t *result)
@@ -24,16 +23,6 @@ static sw_err_t model_on_property_set(const char *json_payload,
         return SW_ERR_NOT_INIT;
     }
     return cloud_point_apply_json(s_entries, s_entry_count, json_payload, result);
-}
-
-static sw_err_t model_reply_property_set(const char *request_json,
-                                          const point_apply_result_t *result)
-{
-    if (s_property_reply == NULL)
-    {
-        return SW_OK;
-    }
-    return s_property_reply(request_json, result);
 }
 
 static const char *model_point_id_by_index(uint32_t index)
@@ -58,10 +47,9 @@ sw_err_t cloud_model_register(const cloud_model_bundle_t *bundle)
     s_entry_count    = bundle->count;
     s_policies       = bundle->report_policies;
     s_policy_count   = bundle->policy_count;
-    s_property_reply = bundle->property_reply;
 
     ops.on_property_set    = model_on_property_set;
-    ops.reply_property_set = (s_property_reply != NULL) ? model_reply_property_set : NULL;
+    ops.reply_property_set = bundle->property_reply;
     cloud_property_register(&ops);
 
     LOG_INFO("cloud_model: registered entries=%u", (unsigned)s_entry_count);

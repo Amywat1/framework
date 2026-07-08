@@ -19,7 +19,6 @@
 #define DEPLOY_KEY_DEVICE_SN      "deviceName"
 #define DEPLOY_KEY_DEVICE_SECRET  "deviceSecret"
 
-static cloud_link_recv_fn_t s_recv_handler   = NULL;
 static bool                 s_initialized    = false;
 static bool                 s_last_online    = false;
 static bool                 s_started        = false;
@@ -111,7 +110,6 @@ static sw_err_t link_publish(const char *topic, const char *payload)
 
 static void link_set_recv_handler(cloud_link_recv_fn_t cb)
 {
-    s_recv_handler = cb;
     mqtt_recv_handler_set((mqtt_recv_handler_t)cb);
 }
 

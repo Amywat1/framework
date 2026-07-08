@@ -6,7 +6,6 @@
  */
 
 #include "framework/cloud/cloud_point.h"
-#include "framework/ports/inbound/command/command_port.h"
 #include "framework/common/log.h"
 #include "third_party/cJSON/cJSON.h"
 #include <string.h>

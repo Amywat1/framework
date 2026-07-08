@@ -12,7 +12,6 @@
 #include "framework/common/point_table/point_table.h"
 #include "framework/common/log.h"
 #include <stdio.h>
-#include <string.h>
 
 #define DEPLOY_KEY_TOPIC_REPLY   "topicPropertyReply"
 #define REPLY_JSON_BUF_SIZE      128U
