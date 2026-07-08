@@ -34,6 +34,7 @@ extern void json_param_store_register(void);
 extern void json_deploy_store_register(void);
 
 #include "projects/m8/adapters/cloud/m8_cloud_register.h"
+#include "framework/adapters/inbound/cloud/providers/snack/snack_cloud_command_adapter.h"
 #include "framework/adapters/outbound/cloud/providers/snack/snack_cloud_report_adapter.h"
 #include "framework/adapters/outbound/cloud/providers/snack/snack_cloud_link_adapter.h"
 
@@ -62,9 +63,14 @@ sw_err_t wiring(void)
     json_param_store_register();
     json_deploy_store_register();
 
-    /* 云端 link/report + 物模型 bundle */
+    /* 云端 link/report/command + 物模型 bundle */
     snack_cloud_link_adapter_register();
     snack_cloud_report_adapter_register();
+    ret = snack_cloud_command_adapter_register();
+    if (ret != SW_OK)
+    {
+        return ret;
+    }
     ret = m8_cloud_register();
     if (ret != SW_OK)
     {

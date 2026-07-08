@@ -6,6 +6,7 @@
  */
 
 #include "projects/m8/adapters/cloud/m8_cloud_register.h"
+#include "framework/cloud/cloud_model.h"
 #include "framework/services/dev_ctx/dev_ctx.h"
 #include "framework/ports/inbound/command/command_port.h"
 #include "framework/common/sw_version.h"
@@ -41,7 +42,7 @@ static cJSON *build_and_parse_report(void)
 {
     char buf[1024];
 
-    TEST_ASSERT_EQUAL_INT(SW_OK, m8_cloud_build_properties(buf, sizeof(buf)));
+    TEST_ASSERT_EQUAL_INT(SW_OK, cloud_model_build_properties(buf, sizeof(buf)));
     return cJSON_Parse(buf);
 }
 
@@ -88,7 +89,7 @@ static void test_report_monitor_fields(void)
 
 static void test_dispatch_cmd_home(void)
 {
-    m8_cloud_on_property_set("{\"cmd_home\":1}");
+    (void)cloud_model_apply_property_set("{\"cmd_home\":1}", NULL);
 
     TEST_ASSERT_EQUAL_INT(1, s_inject_calls);
     TEST_ASSERT_EQUAL_INT(CMD_HOME_DEVICE, s_captured_cmd.type);
@@ -96,14 +97,16 @@ static void test_dispatch_cmd_home(void)
 
 static void test_dispatch_write_zero_is_noop(void)
 {
-    m8_cloud_on_property_set("{\"cmd_home\":0}");
+    (void)cloud_model_apply_property_set("{\"cmd_home\":0}", NULL);
 
     TEST_ASSERT_EQUAL_INT(0, s_inject_calls);
 }
 
 static void test_dispatch_multi_property_and_unknown_id(void)
 {
-    m8_cloud_on_property_set("{\"cmd_communication_test\":1,\"unknown_point_xyz\":1,\"cmd_custom_stop\":1}");
+    (void)cloud_model_apply_property_set(
+        "{\"cmd_communication_test\":1,\"unknown_point_xyz\":1,\"cmd_custom_stop\":1}",
+        NULL);
 
     TEST_ASSERT_EQUAL_INT(1, s_inject_calls);
     TEST_ASSERT_EQUAL_INT(CMD_STOP_WASH, s_captured_cmd.type);

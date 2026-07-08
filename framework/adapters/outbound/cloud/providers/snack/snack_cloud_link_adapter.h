@@ -8,15 +8,14 @@
 #ifndef FRAMEWORK_ADAPTERS_OUTBOUND_CLOUD_PROVIDERS_SNACK_CLOUD_LINK_ADAPTER_H
 #define FRAMEWORK_ADAPTERS_OUTBOUND_CLOUD_PROVIDERS_SNACK_CLOUD_LINK_ADAPTER_H
 
-#include "framework/common/sw_error.h"
-
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+/**
+ * @brief  注册 Snack 实现到 cloud_link_port（wiring 阶段调用）
+ */
 void snack_cloud_link_adapter_register(void);
-sw_err_t snack_cloud_link_adapter_init(void);
-sw_err_t snack_cloud_link_adapter_start(void);
 
 #ifdef __cplusplus
 }

@@ -115,12 +115,13 @@ static void mqtt_recv_cb(const char *msg)
     }
 }
 
-sw_err_t snack_cloud_command_adapter_start(void)
+sw_err_t snack_cloud_command_adapter_register(void)
 {
     const cloud_link_ops_t *link = cloud_link_get_ops();
 
     if ((link == NULL) || (link->set_recv_handler == NULL))
     {
+        LOG_WARN("snack_cloud_cmd: cloud_link not registered");
         return SW_ERR_NOT_INIT;
     }
 

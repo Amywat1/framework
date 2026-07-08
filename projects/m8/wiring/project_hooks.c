@@ -15,8 +15,7 @@
 #include "projects/m8/adapters/alarm/m8_comm_watchdog.h"
 #include "projects/m8/adapters/cli/m8_cli_setup.h"
 #include "framework/cloud/cloud_model.h"
-#include "framework/adapters/inbound/cloud/providers/snack/snack_cloud_command_adapter.h"
-#include "framework/adapters/outbound/cloud/providers/snack/snack_cloud_link_adapter.h"
+#include "framework/ports/outbound/cloud/link/cloud_link_port.h"
 #include "projects/m8/bindings/m8_boot_profile.h"
 #include "projects/m8/bindings/m8_machine_setup.h"
 #include "projects/m8/bindings/m8_motor_exec.h"
@@ -83,7 +82,8 @@ sw_err_t project_alarm_catalog_init(void)
 
 sw_err_t project_adapters_init(void)
 {
-    sw_err_t ret;
+    sw_err_t                   ret;
+    const cloud_link_ops_t    *link;
 
     ret = cloud_model_validate_and_watch();
     if (ret != SW_OK)
@@ -91,22 +91,16 @@ sw_err_t project_adapters_init(void)
         return ret;
     }
 
-    ret = snack_cloud_link_adapter_init();
+    link = cloud_link_get_ops();
+    if ((link == NULL) || (link->init == NULL))
+    {
+        return SW_ERR_NOT_INIT;
+    }
+
+    ret = link->init();
     if (ret != SW_OK)
     {
         LOG_WARN("project_hooks: cloud link init offline");
-    }
-
-    ret = snack_cloud_command_adapter_start();
-    if (ret != SW_OK)
-    {
-        return ret;
-    }
-
-    ret = snack_cloud_link_adapter_start();
-    if (ret != SW_OK)
-    {
-        return ret;
     }
 
     m8_cli_setup();

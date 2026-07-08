@@ -16,10 +16,10 @@ extern "C" {
 #endif
 
 /**
- * @brief  注册 MQTT 下行 recv 并转发至 cloud_property_port
- * @note   须在 snack_cloud_link_adapter_init() 之后调用
+ * @brief  wiring 阶段注册 MQTT recv → cloud_property_port
+ * @note   须在 snack_cloud_link_adapter_register() 之后调用
  */
-sw_err_t snack_cloud_command_adapter_start(void);
+sw_err_t snack_cloud_command_adapter_register(void);
 
 /**
  * @brief  属性下发应答（供 cloud_model bundle.property_reply 注入）

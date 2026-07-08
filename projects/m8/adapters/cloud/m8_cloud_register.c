@@ -80,13 +80,3 @@ sw_err_t m8_cloud_register(void)
 
     return cloud_model_register(&bundle);
 }
-
-sw_err_t m8_cloud_build_properties(char *buf, size_t buf_size)
-{
-    return cloud_model_build_properties(buf, buf_size);
-}
-
-sw_err_t m8_cloud_on_property_set(const char *json_str)
-{
-    return cloud_model_apply_property_set(json_str, NULL);
-}

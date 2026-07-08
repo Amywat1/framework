@@ -19,45 +19,9 @@
 #define DEPLOY_KEY_DEVICE_SN      "deviceName"
 #define DEPLOY_KEY_DEVICE_SECRET  "deviceSecret"
 
-static bool                 s_initialized    = false;
-static bool                 s_last_online    = false;
-static bool                 s_started        = false;
-
-static sw_err_t link_init(void)
-{
-    const deploy_store_ops_t *ds = deploy_store_get_ops();
-    char product_key[64]         = "";
-    char device_sn[64]           = "";
-    char device_secret[64]       = "";
-
-    if (s_initialized)
-    {
-        const cloud_link_ops_t *ops = cloud_link_get_ops();
-        if ((ops != NULL) && (ops->is_online != NULL) && ops->is_online())
-        {
-            return SW_OK;
-        }
-        return SW_ERR_COMM;
-    }
-
-    s_initialized = true;
-
-    if (ds != NULL)
-    {
-        (void)ds->get(DEPLOY_KEY_PRODUCT_KEY,   product_key,   sizeof(product_key));
-        (void)ds->get(DEPLOY_KEY_DEVICE_SN,     device_sn,     sizeof(device_sn));
-        (void)ds->get(DEPLOY_KEY_DEVICE_SECRET, device_secret, sizeof(device_secret));
-    }
-
-    if (aliyun_mqtt_init(product_key, device_sn, device_secret) == 0)
-    {
-        LOG_INFO("snack_cloud_link: connected sn=%s", device_sn);
-        return SW_OK;
-    }
-
-    LOG_WARN("snack_cloud_link: init failed, running offline");
-    return SW_ERR_COMM;
-}
+static bool s_initialized = false;
+static bool s_bootstrapped = false;
+static bool s_last_online  = false;
 
 static bool link_is_online(void)
 {
@@ -76,6 +40,60 @@ static void publish_connection_event(bool connected)
         (void)event_publish(EVT_CLOUD_DISCONNECTED, 0U);
         LOG_WARN("snack_cloud_link: disconnected");
     }
+}
+
+static void link_bootstrap_once(void)
+{
+    if (s_bootstrapped)
+    {
+        return;
+    }
+    s_bootstrapped = true;
+
+    s_last_online = link_is_online();
+    if (s_last_online)
+    {
+        publish_connection_event(true);
+    }
+
+    LOG_INFO("snack_cloud_link: bootstrap ok");
+}
+
+static sw_err_t link_init(void)
+{
+    const deploy_store_ops_t *ds = deploy_store_get_ops();
+    char product_key[64]         = "";
+    char device_sn[64]           = "";
+    char device_secret[64]       = "";
+    sw_err_t                   ret = SW_ERR_COMM;
+
+    if (s_initialized)
+    {
+        link_bootstrap_once();
+        return link_is_online() ? SW_OK : SW_ERR_COMM;
+    }
+
+    s_initialized = true;
+
+    if (ds != NULL)
+    {
+        (void)ds->get(DEPLOY_KEY_PRODUCT_KEY,   product_key,   sizeof(product_key));
+        (void)ds->get(DEPLOY_KEY_DEVICE_SN,     device_sn,     sizeof(device_sn));
+        (void)ds->get(DEPLOY_KEY_DEVICE_SECRET, device_secret, sizeof(device_secret));
+    }
+
+    if (aliyun_mqtt_init(product_key, device_sn, device_secret) == 0)
+    {
+        LOG_INFO("snack_cloud_link: connected sn=%s", device_sn);
+        ret = SW_OK;
+    }
+    else
+    {
+        LOG_WARN("snack_cloud_link: init failed, running offline");
+    }
+
+    link_bootstrap_once();
+    return ret;
 }
 
 static void link_poll(void)
@@ -125,33 +143,4 @@ void snack_cloud_link_adapter_register(void)
 {
     cloud_link_register(&s_ops);
     LOG_INFO("snack_cloud_link: adapter registered");
-}
-
-sw_err_t snack_cloud_link_adapter_init(void)
-{
-    const cloud_link_ops_t *ops = cloud_link_get_ops();
-
-    if ((ops == NULL) || (ops->init == NULL))
-    {
-        return SW_ERR_NOT_INIT;
-    }
-    return ops->init();
-}
-
-sw_err_t snack_cloud_link_adapter_start(void)
-{
-    if (s_started)
-    {
-        return SW_OK;
-    }
-    s_started = true;
-
-    s_last_online = link_is_online();
-    if (s_last_online)
-    {
-        publish_connection_event(true);
-    }
-
-    LOG_INFO("snack_cloud_link: monitor started (poll via report_scheduler)");
-    return SW_OK;
 }
