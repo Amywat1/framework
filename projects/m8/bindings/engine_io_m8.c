@@ -305,6 +305,40 @@ static void hal_write_output(const char *name, int value)
 }
 
 /* =========================================================================
+ * IO 名称目录（由静态表导出，避免重复维护）
+ * ========================================================================= */
+static const char *s_catalog_signal_ptrs[ARRAY_SIZE(s_signal_table)];
+static const char *s_catalog_axis_ptrs[ARRAY_SIZE(s_axis_table)];
+static const char *s_catalog_output_ptrs[ARRAY_SIZE(s_output_table)];
+
+static const engine_io_catalog_t s_catalog = {
+    .signals      = s_catalog_signal_ptrs,
+    .signal_count = (unsigned)ARRAY_SIZE(s_signal_table),
+    .outputs      = s_catalog_output_ptrs,
+    .output_count = (unsigned)ARRAY_SIZE(s_output_table),
+    .axes         = s_catalog_axis_ptrs,
+    .axis_count   = (unsigned)ARRAY_SIZE(s_axis_table),
+};
+
+static void build_io_catalog(void)
+{
+    size_t i;
+
+    for (i = 0U; i < ARRAY_SIZE(s_signal_table); ++i)
+    {
+        s_catalog_signal_ptrs[i] = s_signal_table[i].name;
+    }
+    for (i = 0U; i < ARRAY_SIZE(s_axis_table); ++i)
+    {
+        s_catalog_axis_ptrs[i] = s_axis_table[i].name;
+    }
+    for (i = 0U; i < ARRAY_SIZE(s_output_table); ++i)
+    {
+        s_catalog_output_ptrs[i] = s_output_table[i].name;
+    }
+}
+
+/* =========================================================================
  * 注册
  * ========================================================================= */
 static const engine_io_ops_t s_ops = {
@@ -315,5 +349,7 @@ static const engine_io_ops_t s_ops = {
 
 void engine_io_m8_register(void)
 {
+    build_io_catalog();
     engine_io_register(&s_ops);
+    engine_io_register_catalog(&s_catalog);
 }

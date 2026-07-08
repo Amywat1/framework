@@ -8,6 +8,8 @@
 #include "framework/adapters/outbound/storage/json/engine_program_json.h"
 #include "framework/ports/outbound/storage/engine_program_loader_port.h"
 #include "framework/domain/wash/engine/engine_expr.h"
+#include "framework/domain/wash/model/engine_program_validate.h"
+#include "framework/domain/wash/engine/engine_io.h"
 #include "third_party/cJSON/cJSON.h"
 
 #include <stdlib.h>
@@ -149,15 +151,38 @@ static engine_action_t *build_actions(const cJSON *arr, unsigned *out_count,
 /* -------------------------------------------------------------------------
  * 步骤
  * ------------------------------------------------------------------------- */
-static bool build_step(engine_step_t *st, const cJSON *node, char *err, unsigned errsz)
+static bool build_control_step(engine_step_t *st, const cJSON *node, char *err, unsigned errsz)
 {
-    const char *type = jstr(node, "type");
-    if (type == NULL) { jfail(err, errsz, "%s", "步骤缺少 type"); return false; }
-    if (strcmp(type, "event") != 0)
+    const char *sid = jstr(node, "id");
+    if (sid == NULL) { jfail(err, errsz, "%s", "步骤缺少 id"); return false; }
+    copy_name(st->id, ENGINE_NAME_MAX, sid);
+    st->type = ENGINE_STEP_CONTROL;
+
+    st->active_while = build_expr(node, "active_while", err, errsz);
+    if (st->active_while == NULL) { return false; }
+
+    st->value_expr = build_expr(node, "value_expr", err, errsz);
+    if (st->value_expr == NULL) { return false; }
+
+    const char *out = jstr(node, "output");
+    if (out == NULL) { jfail(err, errsz, "%s", "control 步骤缺少 output"); return false; }
+    copy_name(st->output, ENGINE_NAME_MAX, out);
+
+    st->on_error = ENGINE_ERR_HALT_PHASE;
+    if (cJSON_GetObjectItemCaseSensitive(node, "on_error") != NULL)
     {
-        jfail(err, errsz, "仅支持 event 型步骤，遇到: %s", type);
-        return false;
+        if (!engine_error_strategy_from_str(jstr(node, "on_error"), &st->on_error))
+        {
+            jfail(err, errsz, "%s", "无效 on_error");
+            return false;
+        }
     }
+    return true;
+}
+
+static bool build_event_step(engine_step_t *st, const cJSON *node, char *err, unsigned errsz)
+{
+    st->type = ENGINE_STEP_EVENT;
 
     const char *sid = jstr(node, "id");
     if (sid == NULL) { jfail(err, errsz, "%s", "步骤缺少 id"); return false; }
@@ -253,6 +278,25 @@ static bool build_step(engine_step_t *st, const cJSON *node, char *err, unsigned
     }
 
     return true;
+}
+
+static bool build_step(engine_step_t *st, const cJSON *node, char *err, unsigned errsz)
+{
+    const char *type = jstr(node, "type");
+    engine_step_type_t stype;
+
+    if (type == NULL) { jfail(err, errsz, "%s", "步骤缺少 type"); return false; }
+    if (!engine_step_type_from_str(type, &stype))
+    {
+        jfail(err, errsz, "不支持的步骤类型: %s", type);
+        return false;
+    }
+
+    if (stype == ENGINE_STEP_CONTROL)
+    {
+        return build_control_step(st, node, err, errsz);
+    }
+    return build_event_step(st, node, err, errsz);
 }
 
 /* -------------------------------------------------------------------------
@@ -538,6 +582,17 @@ engine_program_t *engine_program_load_json_string(const char *json, char *err, u
 
     engine_program_t *prog = build_program(root, werr, wsz);
     cJSON_Delete(root);
+    if (prog == NULL)
+    {
+        return NULL;
+    }
+
+    if (engine_program_validate(prog, engine_io_get_catalog(), werr, wsz) != SW_OK)
+    {
+        engine_program_free(prog);
+        return NULL;
+    }
+
     return prog;
 }
 

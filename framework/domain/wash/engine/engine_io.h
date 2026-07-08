@@ -22,6 +22,19 @@ extern "C" {
 #include "framework/common/sw_error.h"
 
 /**
+ * @brief  引擎 IO 名称目录（供方案加载期校验 signal/channel/axis 引用）
+ */
+typedef struct
+{
+    const char *const *signals;  /**< DI 信号枚举名数组 */
+    unsigned           signal_count;
+    const char *const *outputs;  /**< DO 通道枚举名数组 */
+    unsigned           output_count;
+    const char *const *axes;     /**< 坐标轴 ID 数组 */
+    unsigned           axis_count;
+} engine_io_catalog_t;
+
+/**
  * @brief  引擎 IO 后端操作集
  *
  * 所有函数指针在注册时必须非空。引擎在每个 tick 通过本接口与外界交互。
@@ -62,10 +75,22 @@ typedef struct
 void engine_io_register(const engine_io_ops_t *ops);
 
 /**
+ * @brief  注册 IO 名称目录（与 engine_io_register 独立，可为空表示跳过 IO 名校验）
+ * @param  catalog  名称目录；字段可为空表示该项无条目
+ */
+void engine_io_register_catalog(const engine_io_catalog_t *catalog);
+
+/**
  * @brief  获取已注册的引擎 IO 后端
  * @return 后端操作集指针；未注册时返回 NULL
  */
 const engine_io_ops_t *engine_io_get_ops(void);
+
+/**
+ * @brief  获取已注册的 IO 名称目录
+ * @return 目录指针；未注册时返回 NULL
+ */
+const engine_io_catalog_t *engine_io_get_catalog(void);
 
 #ifdef __cplusplus
 }

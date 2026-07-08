@@ -9,6 +9,7 @@
  */
 
 #include "framework/adapters/outbound/storage/json/engine_program_json.h"
+#include "framework/adapters/outbound/hal/sim/engine_io_sim.h"
 #include "framework/domain/wash/model/engine_model.h"
 #include "framework/domain/wash/engine/engine_expr.h"
 #include "unity.h"
@@ -70,7 +71,11 @@ static bool resolver(void *ctx, const char *name, double *out)
     return false;
 }
 
-void setUp(void)    {}
+void setUp(void)
+{
+    engine_io_sim_register();
+}
+
 void tearDown(void) {}
 
 static void test_load_structure(void)
@@ -103,7 +108,7 @@ static void test_load_structure(void)
     TEST_ASSERT_EQUAL_INT(ENGINE_EDGE_RISING, p->markers[0].edge);
 
     /* 联锁 */
-    TEST_ASSERT_EQUAL_UINT(5U, p->interlock_count);
+    TEST_ASSERT_EQUAL_UINT(4U, p->interlock_count);
     const engine_interlock_t *estop = find_ilk(p, "estop");
     TEST_ASSERT_NOT_NULL(estop);
     TEST_ASSERT_EQUAL_INT(ENGINE_ILK_HALT_ALL, estop->action);
@@ -111,14 +116,6 @@ static void test_load_structure(void)
     TEST_ASSERT_FALSE(estop->auto_reset);
     TEST_ASSERT_NOT_NULL(estop->condition);
     TEST_ASSERT_NOT_NULL(estop->reset_condition);
-
-    const engine_interlock_t *slope = find_ilk(p, "gantry_pause_slope");
-    TEST_ASSERT_NOT_NULL(slope);
-    TEST_ASSERT_EQUAL_INT(ENGINE_ILK_CUSTOM, slope->action);
-    TEST_ASSERT_EQUAL_UINT(2U, slope->action_count);
-    TEST_ASSERT_TRUE(slope->auto_reset);
-    TEST_ASSERT_EQUAL_INT(ENGINE_ACT_IO_SET, slope->actions[0].type);
-    TEST_ASSERT_EQUAL_STRING("GANTRY_FWD", slope->actions[0].channel);
 
     /* 阶段 */
     TEST_ASSERT_EQUAL_UINT(8U, p->phase_count);
@@ -139,6 +136,14 @@ static void test_load_structure(void)
     TEST_ASSERT_EQUAL_INT(ENGINE_DIR_FORWARD, pass1->direction);
     TEST_ASSERT_EQUAL_UINT(6U, pass1->on_exit_count);
     TEST_ASSERT_EQUAL_UINT(4U, pass1->lane_count);
+
+    const engine_step_t *gantry_fwd =
+        find_step(find_lane(pass1, "gantry_lane"), "gantry_fwd_ctrl");
+    TEST_ASSERT_NOT_NULL(gantry_fwd);
+    TEST_ASSERT_EQUAL_INT(ENGINE_STEP_CONTROL, gantry_fwd->type);
+    TEST_ASSERT_NOT_NULL(gantry_fwd->active_while);
+    TEST_ASSERT_NOT_NULL(gantry_fwd->value_expr);
+    TEST_ASSERT_EQUAL_STRING("GANTRY_FWD", gantry_fwd->output);
 
     const engine_step_t *foam_off =
         find_step(find_lane(pass1, "foam_lane"), "foam_off_at_tail");
@@ -200,7 +205,7 @@ static void test_schema_rejects(void)
 {
     char err[160];
 
-    /* 不支持的 control 步骤 */
+    /* control 步骤缺少 value_expr */
     static const char *bad_control =
         "{\"program\":{\"schema_version\":\"1.0\",\"id\":\"t\",\"phases\":["
         "{\"id\":\"p\",\"entry_guard\":\"true\",\"exit_guard\":\"true\",\"timeout_ms\":1000,"

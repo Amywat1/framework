@@ -13,8 +13,17 @@
 #include <stdio.h>
 #include <string.h>
 
-void setUp(void)    { engine_io_sim_reset(); }
+void setUp(void)
+{
+    engine_io_sim_register();
+    engine_io_sim_reset();
+}
+
 void tearDown(void) {}
+
+#define ESTOP_JSON \
+    "\"interlocks\":[{\"id\":\"estop\",\"condition\":\"ESTOP == 1\",\"action\":\"halt_all\"," \
+    "\"priority\":0,\"reset_condition\":\"ESTOP == 0\",\"auto_reset\":false}],"
 
 /* 装载一个方案字符串（JSON）并启动引擎 */
 static engine_t *start_program(const char *json)
@@ -41,7 +50,7 @@ static void tick_n(engine_t *e, unsigned n, uint32_t dt)
 static void test_wait_and_after(void)
 {
     static const char *json =
-        "{\"program\":{\"schema_version\":\"1.0\",\"id\":\"tA\",\"phases\":["
+        "{\"program\":{\"schema_version\":\"1.0\",\"id\":\"tA\"," ESTOP_JSON "\"phases\":["
         "{\"id\":\"p0\",\"entry_guard\":\"true\",\"exit_guard\":\"EXIT == 1\",\"timeout_ms\":100000,"
         "\"lanes\":[{\"id\":\"l1\",\"steps\":["
         "{\"id\":\"a\",\"type\":\"event\",\"trigger\":{\"type\":\"condition\",\"expr\":\"phase.elapsed_ms >= 1000\"},"
@@ -69,7 +78,7 @@ static void test_wait_and_after(void)
 static void test_signal_edge(void)
 {
     static const char *json =
-        "{\"program\":{\"schema_version\":\"1.0\",\"id\":\"tS\",\"phases\":["
+        "{\"program\":{\"schema_version\":\"1.0\",\"id\":\"tS\"," ESTOP_JSON "\"phases\":["
         "{\"id\":\"p0\",\"entry_guard\":\"true\",\"exit_guard\":\"EXIT == 1\",\"timeout_ms\":100000,"
         "\"lanes\":[{\"id\":\"l1\",\"steps\":["
         "{\"id\":\"s\",\"type\":\"event\",\"trigger\":{\"type\":\"signal\",\"signal\":\"SIG\",\"edge\":\"rising\"},"
@@ -92,7 +101,7 @@ static void test_signal_edge(void)
 static void test_trigger_exit_and_on_exit(void)
 {
     static const char *json =
-        "{\"program\":{\"schema_version\":\"1.0\",\"id\":\"tT\",\"phases\":["
+        "{\"program\":{\"schema_version\":\"1.0\",\"id\":\"tT\"," ESTOP_JSON "\"phases\":["
         "{\"id\":\"p0\",\"entry_guard\":\"true\",\"exit_guard\":\"EXIT == 1\",\"timeout_ms\":100000,"
         "\"on_exit\":[{\"io_set\":{\"channel\":\"GOUT\",\"value\":0}}],"
         "\"lanes\":[{\"id\":\"g\",\"steps\":["
@@ -117,7 +126,7 @@ static void test_trigger_exit_and_on_exit(void)
 static void test_phase_serial_and_done_timeout(void)
 {
     static const char *json =
-        "{\"program\":{\"schema_version\":\"1.0\",\"id\":\"tP\",\"phases\":["
+        "{\"program\":{\"schema_version\":\"1.0\",\"id\":\"tP\"," ESTOP_JSON "\"phases\":["
         "{\"id\":\"p0\",\"entry_guard\":\"true\",\"exit_guard\":\"EXIT0 == 1\",\"timeout_ms\":100000,"
         "\"lanes\":[{\"id\":\"l0\",\"steps\":["
         "{\"id\":\"s0\",\"type\":\"event\",\"trigger\":{\"type\":\"condition\",\"expr\":\"true\"},"
@@ -179,7 +188,9 @@ static void test_interlock_halt_phase(void)
 {
     static const char *json =
         "{\"program\":{\"schema_version\":\"1.0\",\"id\":\"tH\","
-        "\"interlocks\":[{\"id\":\"coll\",\"condition\":\"HP == 1\",\"action\":\"halt_phase\","
+        "\"interlocks\":[{\"id\":\"estop\",\"condition\":\"ESTOP == 1\",\"action\":\"halt_all\","
+        "\"priority\":0,\"reset_condition\":\"ESTOP == 0\",\"auto_reset\":false},"
+        "{\"id\":\"coll\",\"condition\":\"HP == 1\",\"action\":\"halt_phase\","
         "\"priority\":1,\"reset_condition\":\"HP == 0\",\"auto_reset\":true}],"
         "\"phases\":[{\"id\":\"p0\",\"entry_guard\":\"true\",\"exit_guard\":\"EXIT == 1\",\"timeout_ms\":100000,"
         "\"on_exit\":[{\"io_set\":{\"channel\":\"YOUT\",\"value\":0}}],"
@@ -211,7 +222,9 @@ static void test_interlock_custom(void)
 {
     static const char *json =
         "{\"program\":{\"schema_version\":\"1.0\",\"id\":\"tC\","
-        "\"interlocks\":[{\"id\":\"ca\",\"condition\":\"CA == 1\",\"action\":\"custom_action\","
+        "\"interlocks\":[{\"id\":\"estop\",\"condition\":\"ESTOP == 1\",\"action\":\"halt_all\","
+        "\"priority\":0,\"reset_condition\":\"ESTOP == 0\",\"auto_reset\":false},"
+        "{\"id\":\"ca\",\"condition\":\"CA == 1\",\"action\":\"custom_action\","
         "\"actions\":[{\"io_set\":{\"channel\":\"COUT\",\"value\":5}}],"
         "\"priority\":2,\"reset_condition\":\"CA == 0\",\"auto_reset\":true}],"
         "\"phases\":[{\"id\":\"p0\",\"entry_guard\":\"true\",\"exit_guard\":\"EXIT == 1\",\"timeout_ms\":100000,"
@@ -243,7 +256,7 @@ static void test_interlock_custom(void)
 static void test_marker_latch_once(void)
 {
     static const char *json =
-        "{\"program\":{\"schema_version\":\"1.0\",\"id\":\"tM\","
+        "{\"program\":{\"schema_version\":\"1.0\",\"id\":\"tM\"," ESTOP_JSON
         "\"axes\":{\"g\":{\"type\":\"physical\",\"encoder\":\"ENC\",\"pulse_per_mm\":1.0}},"
         "\"markers\":{\"tail\":{\"type\":\"latch\",\"axis\":\"g\","
         "\"on\":{\"signal\":\"TAIL\",\"edge\":\"rising\"}}},"
@@ -272,9 +285,38 @@ static void test_marker_latch_once(void)
     engine_destroy(e);
 }
 
+/* ---- control：暂停解除后自动恢复输出 ---- */
+static void test_control_pause_resume(void)
+{
+    static const char *json =
+        "{\"program\":{\"schema_version\":\"1.0\",\"id\":\"tC\","
+        "\"interlocks\":[{\"id\":\"estop\",\"condition\":\"ESTOP == 1\",\"action\":\"halt_all\","
+        "\"priority\":0,\"reset_condition\":\"ESTOP == 0\",\"auto_reset\":false}],"
+        "\"phases\":[{\"id\":\"p0\",\"entry_guard\":\"true\",\"exit_guard\":\"EXIT == 1\","
+        "\"timeout_ms\":100000,"
+        "\"lanes\":[{\"id\":\"g\",\"steps\":["
+        "{\"id\":\"fwd\",\"type\":\"control\","
+        "\"active_while\":\"GANTRY_PAUSE_REQUEST == 0 AND GANTRY_FWD_LIMIT == 0\","
+        "\"output\":\"GANTRY_FWD\",\"value_expr\":\"1\",\"on_error\":\"halt_phase\"}"
+        "]}]}]}}";
+    engine_t *e = start_program(json);
+
+    tick_n(e, 2U, 100U);
+    TEST_ASSERT_EQUAL_INT(1, engine_io_sim_get_output("GANTRY_FWD"));
+
+    engine_io_sim_set_signal("GANTRY_PAUSE_REQUEST", 1);
+    tick_n(e, 1U, 100U);
+    TEST_ASSERT_EQUAL_INT(0, engine_io_sim_get_output("GANTRY_FWD"));
+
+    engine_io_sim_set_signal("GANTRY_PAUSE_REQUEST", 0);
+    tick_n(e, 1U, 100U);
+    TEST_ASSERT_EQUAL_INT(1, engine_io_sim_get_output("GANTRY_FWD"));
+
+    engine_destroy(e);
+}
+
 int main(void)
 {
-    engine_io_sim_register();
     UNITY_BEGIN();
     RUN_TEST(test_wait_and_after);
     RUN_TEST(test_signal_edge);
@@ -284,5 +326,6 @@ int main(void)
     RUN_TEST(test_interlock_halt_phase);
     RUN_TEST(test_interlock_custom);
     RUN_TEST(test_marker_latch_once);
+    RUN_TEST(test_control_pause_resume);
     return UNITY_END();
 }

@@ -247,8 +247,33 @@ static void do_halt_all(engine_t *e)
     e->state = ENGINE_STATE_HALTED;
 }
 
+static void run_phase_on_exit(engine_t *e);
+
+static void stop_control_outputs(engine_t *e)
+{
+    const engine_phase_t *ph = e->cur_def;
+
+    if (ph == NULL)
+    {
+        return;
+    }
+
+    for (unsigned i = 0U; i < ph->lane_count; ++i)
+    {
+        for (unsigned j = 0U; j < ph->lanes[i].step_count; ++j)
+        {
+            const engine_step_t *sd = &ph->lanes[i].steps[j];
+            if ((sd->type == ENGINE_STEP_CONTROL) && (sd->output[0] != '\0'))
+            {
+                do_write(sd->output, 0);
+            }
+        }
+    }
+}
+
 static void run_phase_on_exit(engine_t *e)
 {
+    stop_control_outputs(e);
     if (e->cur_def != NULL)
     {
         run_actions_now(e->cur_def->on_exit, e->cur_def->on_exit_count);
@@ -267,9 +292,14 @@ static void apply_on_error(engine_t *e, engine_error_strategy_t st, rt_step_t *r
     {
         case ENGINE_ERR_STOP:       do_halt_all(e);   break;
         case ENGINE_ERR_HALT_PHASE: do_halt_phase(e); break;
-        case ENGINE_ERR_SKIP:       rt->state = RT_SKIPPED; break;
-        case ENGINE_ERR_DEGRADE:    rt->state = RT_DONE;    break;
-        default: break;
+        case ENGINE_ERR_SKIP:
+            if (rt != NULL) { rt->state = RT_SKIPPED; }
+            break;
+        case ENGINE_ERR_DEGRADE:
+            if (rt != NULL) { rt->state = RT_DONE; }
+            break;
+        default:
+            break;
     }
 }
 
@@ -315,6 +345,13 @@ static bool enter_phase(engine_t *e, int idx)
         {
             const engine_step_t *sd = &ph->lanes[i].steps[j];
             rt_step_t           *rt = &e->lanes[i].steps[j];
+
+            if (sd->type == ENGINE_STEP_CONTROL)
+            {
+                rt->state = RT_DONE;
+                continue;
+            }
+
             rt->state = (sd->after_count > 0U) ? RT_WAIT_AFTER : RT_ARMED;
             rt->action_idx   = 0U;
             rt->waiting      = false;
@@ -356,6 +393,30 @@ static bool after_deps_met(engine_t *e, const engine_step_t *sd)
         }
     }
     return true;
+}
+
+/* -------------------------------------------------------------------------
+ * control 型步骤：每拍按 active_while / value_expr 写 DO
+ * ------------------------------------------------------------------------- */
+static void control_step_tick(engine_t *e, const engine_step_t *sd)
+{
+    engine_expr_env_t env = { .resolve = engine_resolve, .ctx = e };
+
+    if (eval_bool(e, sd->active_while, false))
+    {
+        bool   ok = false;
+        double v  = engine_expr_eval(sd->value_expr, &env, &ok);
+        if (!ok)
+        {
+            apply_on_error(e, sd->on_error, NULL);
+            return;
+        }
+        do_write(sd->output, (int)v);
+    }
+    else
+    {
+        do_write(sd->output, 0);
+    }
 }
 
 /* -------------------------------------------------------------------------
@@ -621,10 +682,20 @@ static void phase_tick(engine_t *e, uint32_t dt)
     {
         for (unsigned j = 0U; j < e->lanes[i].count; ++j)
         {
-            step_tick(e, &ph->lanes[i].steps[j], &e->lanes[i].steps[j], dt);
+            const engine_step_t *sd = &ph->lanes[i].steps[j];
+            rt_step_t           *rt = &e->lanes[i].steps[j];
+
+            if (sd->type == ENGINE_STEP_CONTROL)
+            {
+                control_step_tick(e, sd);
+            }
+            else
+            {
+                step_tick(e, sd, rt, dt);
+            }
             if (e->state != ENGINE_STATE_RUNNING)
             {
-                return; /* 步骤错误触发了 halt */
+                return;
             }
         }
     }
@@ -728,8 +799,12 @@ static bool build_runtime_tables(engine_t *e)
         {
             for (unsigned s = 0U; s < ph->lanes[l].step_count; ++s)
             {
-                collect_actions_channels(e, ph->lanes[l].steps[s].actions,
-                                         ph->lanes[l].steps[s].action_count);
+                const engine_step_t *st = &ph->lanes[l].steps[s];
+                collect_actions_channels(e, st->actions, st->action_count);
+                if ((st->type == ENGINE_STEP_CONTROL) && (st->output[0] != '\0'))
+                {
+                    collect_do_channel(e, st->output);
+                }
             }
         }
     }

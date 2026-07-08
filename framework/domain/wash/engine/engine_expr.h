@@ -74,6 +74,29 @@ bool engine_expr_eval_bool(const engine_expr_t *expr,
  */
 const char *engine_expr_last_error(void);
 
+/**
+ * @brief  变量遍历回调
+ * @param  name  变量名
+ * @param  ctx   调用方上下文
+ * @return true=继续遍历；false=提前终止
+ */
+typedef bool (*engine_expr_var_fn)(const char *name, void *ctx);
+
+/**
+ * @brief  遍历表达式引用的全部变量名（去重）
+ * @param  expr  编译后的表达式，可为空（无操作）
+ * @param  fn    回调，不可为空
+ * @param  ctx   回调上下文
+ */
+void engine_expr_foreach_var(const engine_expr_t *expr, engine_expr_var_fn fn, void *ctx);
+
+/**
+ * @brief  深拷贝表达式 AST
+ * @param  expr  源表达式
+ * @return 成功返回新表达式；失败返回 NULL
+ */
+engine_expr_t *engine_expr_clone(const engine_expr_t *expr);
+
 #ifdef __cplusplus
 }
 #endif

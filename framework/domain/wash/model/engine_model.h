@@ -77,6 +77,13 @@ typedef enum
     ENGINE_DONE_TIMEOUT
 } engine_done_type_t;
 
+/* 步骤类型 */
+typedef enum
+{
+    ENGINE_STEP_EVENT = 0,
+    ENGINE_STEP_CONTROL
+} engine_step_type_t;
+
 /* 动作原语类型（子集：io_set / wait_time） */
 typedef enum
 {
@@ -111,18 +118,26 @@ typedef struct
     uint32_t timeout_ms;              /* signal/timeout：超时（0=无） */
 } engine_done_t;
 
-/* 步骤（仅 event 型） */
+/* 步骤（event / control） */
 typedef struct
 {
-    char             id[ENGINE_NAME_MAX];
-    engine_trigger_t trigger;
-    engine_expr_t   *guard;            /* 可选，NULL 表示无 */
-    engine_action_t *actions;
-    unsigned         action_count;
-    engine_done_t    done;
+    char                   id[ENGINE_NAME_MAX];
+    engine_step_type_t     type;
     engine_error_strategy_t on_error;
-    char             after[ENGINE_AFTER_MAX][ENGINE_NAME_MAX];
-    unsigned         after_count;
+
+    /* event 型字段 */
+    engine_trigger_t       trigger;
+    engine_expr_t         *guard;            /* 可选，NULL 表示无 */
+    engine_action_t       *actions;
+    unsigned               action_count;
+    engine_done_t          done;
+    char                   after[ENGINE_AFTER_MAX][ENGINE_NAME_MAX];
+    unsigned               after_count;
+
+    /* control 型字段 */
+    engine_expr_t         *active_while;
+    engine_expr_t         *value_expr;
+    char                   output[ENGINE_NAME_MAX];
 } engine_step_t;
 
 /* 通道 */
@@ -209,6 +224,13 @@ typedef struct
  */
 void engine_program_free(engine_program_t *prog);
 
+/**
+ * @brief  深拷贝方案（含已编译表达式）
+ * @param  src  源方案，不可为空
+ * @return 成功返回新方案；失败返回 NULL
+ */
+engine_program_t *engine_program_clone(const engine_program_t *src);
+
 /* 字符串到枚举的解析辅助（供配置加载器使用，成功返回 true） */
 bool engine_direction_from_str(const char *s, engine_direction_t *out);
 bool engine_error_strategy_from_str(const char *s, engine_error_strategy_t *out);
@@ -216,6 +238,7 @@ bool engine_interlock_action_from_str(const char *s, engine_interlock_action_t *
 bool engine_edge_from_str(const char *s, engine_edge_t *out);
 bool engine_trigger_type_from_str(const char *s, engine_trigger_type_t *out);
 bool engine_done_type_from_str(const char *s, engine_done_type_t *out);
+bool engine_step_type_from_str(const char *s, engine_step_type_t *out);
 
 #ifdef __cplusplus
 }

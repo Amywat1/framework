@@ -18,6 +18,8 @@
 #include "framework/domain/device_control/mechanism/gantry.h"
 #include "framework/domain/device_control/mechanism/water.h"
 #include "framework/domain/wash/engine/engine.h"
+#include "framework/domain/wash/model/engine_model.h"
+#include "framework/domain/wash/model/engine_program_manifest.h"
 #include "framework/ports/outbound/storage/engine_program_loader_port.h"
 #include "framework/runtime/event_bus/event_bus.h"
 #include "framework/runtime/config/thread_config.h"
@@ -36,6 +38,10 @@
 #ifndef WASH_PROGRAM_QUICK_PATH
 /* TODO: 快洗方案待补全，暂借用标准洗 */
 #define WASH_PROGRAM_QUICK_PATH  WASH_PROGRAM_NORMAL_PATH
+#endif
+
+#ifndef PROGRAM_INTEGRITY_CHECK
+#define PROGRAM_INTEGRITY_CHECK  1
 #endif
 
 #define STEP_POLL_INTERVAL_MS    50U
@@ -88,6 +94,32 @@ static void *wash_worker_fn(void *arg)
             LOG_WARN("wash_worker: quick wash program not ready, using normal");
         }
 
+#if PROGRAM_INTEGRITY_CHECK
+        {
+            char manifest_path[256] = {0};
+            if (!engine_program_manifest_path_from_json(prog_path, manifest_path,
+                                                        (unsigned)sizeof(manifest_path)))
+            {
+                LOG_ERROR("wash_worker: manifest path derive failed path=[%s]", prog_path);
+                (void)event_publish(EVT_WASH_ABORTED, (uint32_t)SW_ERR_PARAM);
+                atomic_store(&s_busy, false);
+                continue;
+            }
+
+            char manifest_err[256] = {0};
+            if (engine_program_manifest_verify(prog_path, manifest_path,
+                                               manifest_err,
+                                               (unsigned)sizeof(manifest_err)) != SW_OK)
+            {
+                LOG_ERROR("wash_worker: manifest verify failed json=[%s] err=[%s]",
+                          prog_path, manifest_err);
+                (void)event_publish(EVT_WASH_ABORTED, (uint32_t)SW_ERR_CRC);
+                atomic_store(&s_busy, false);
+                continue;
+            }
+        }
+#endif
+
         /* 加载方案 */
         char err_buf[256] = {0};
         engine_program_t *prog =
@@ -97,6 +129,17 @@ static void *wash_worker_fn(void *arg)
             LOG_ERROR("wash_worker: load program failed path=[%s] err=[%s]",
                       prog_path, err_buf);
             (void)event_publish(EVT_WASH_ABORTED, (uint32_t)SW_ERR_PARAM);
+            atomic_store(&s_busy, false);
+            continue;
+        }
+
+        engine_program_t *snapshot = engine_program_clone(prog);
+        engine_program_free(prog);
+        prog = snapshot;
+        if (prog == NULL)
+        {
+            LOG_ERROR("wash_worker: program snapshot clone OOM");
+            (void)event_publish(EVT_WASH_ABORTED, (uint32_t)SW_ERR_NOMEM);
             atomic_store(&s_busy, false);
             continue;
         }

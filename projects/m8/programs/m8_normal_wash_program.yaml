@@ -55,17 +55,6 @@ program:
       reset_condition: "TOP_BRUSH_COLLISION == 0"
       auto_reset: true
 
-    - id: gantry_pause_slope
-      # 硬件层：顶刷目标位置变化斜率超阈值时置高，跟踪误差收敛后清零
-      condition: "GANTRY_PAUSE_REQUEST == 1"
-      action: custom_action
-      actions:
-        - io_set: {channel: GANTRY_FWD, value: 0}
-        - io_set: {channel: GANTRY_REV, value: 0}
-      priority: 3
-      reset_condition: "GANTRY_PAUSE_REQUEST == 0"
-      auto_reset: true
-
   # ─── 阶段列表 ──────────────────────────────────────────────────────────
   phases:
 
@@ -113,17 +102,21 @@ program:
         - io_set: {channel: WATER_BUTTOM_FOAM,   value: 0}
 
       lanes:
-        # 龙门通道：全程前进
+        # 龙门通道：全程前进（control 持续维持，暂停自动恢复）
         - id: gantry_lane
           steps:
-            - id: gantry_fwd
-              type: event
-              trigger: {type: condition, expr: "true"}
-              actions:
-                - io_set: {channel: GANTRY_REV, value: 0}
-                - io_set: {channel: GANTRY_FWD, value: 1}
-              done: {type: trigger_exit}
+            - id: gantry_fwd_ctrl
+              type: control
+              active_while: >
+                GANTRY_PAUSE_REQUEST == 0 AND GANTRY_FWD_LIMIT == 0
+              output: GANTRY_FWD
+              value_expr: "1"
               on_error: halt_phase
+            - id: gantry_rev_hold
+              type: control
+              active_while: "true"
+              output: GANTRY_REV
+              value_expr: "0"
 
         # 水帘通道：全程开启
         - id: curtain_lane
@@ -202,18 +195,22 @@ program:
               done: {type: signal, signal: LIFT_UP_LIMIT, state: 1, timeout_ms: 15000}
               on_error: halt_phase
 
-        # 龙门通道：顶刷到上位（LIFT_UP_LIMIT == 1）后才启动后退
-        # 直接检查目标状态，兼容顶刷已在上位和需要上升两种情况
+        # 龙门通道：顶刷到上位后持续后退（control）
         - id: gantry_lane
           steps:
-            - id: gantry_rev
-              type: event
-              trigger: {type: condition, expr: "LIFT_UP_LIMIT == 1"}
-              actions:
-                - io_set: {channel: GANTRY_FWD, value: 0}
-                - io_set: {channel: GANTRY_REV, value: 1}
-              done: {type: trigger_exit}
+            - id: gantry_rev_ctrl
+              type: control
+              active_while: >
+                GANTRY_PAUSE_REQUEST == 0 AND GANTRY_REV_LIMIT == 0 AND
+                LIFT_UP_LIMIT == 1
+              output: GANTRY_REV
+              value_expr: "1"
               on_error: halt_phase
+            - id: gantry_fwd_hold
+              type: control
+              active_while: "true"
+              output: GANTRY_FWD
+              value_expr: "0"
 
         # 侧刷通道：进入阶段 3 秒后启侧刷和顶部高压
         - id: side_brush_lane
@@ -263,14 +260,18 @@ program:
       lanes:
         - id: gantry_lane
           steps:
-            - id: gantry_fwd
-              type: event
-              trigger: {type: condition, expr: "true"}
-              actions:
-                - io_set: {channel: GANTRY_REV, value: 0}
-                - io_set: {channel: GANTRY_FWD, value: 1}
-              done: {type: trigger_exit}
+            - id: gantry_fwd_ctrl
+              type: control
+              active_while: >
+                GANTRY_PAUSE_REQUEST == 0 AND GANTRY_FWD_LIMIT == 0
+              output: GANTRY_FWD
+              value_expr: "1"
               on_error: halt_phase
+            - id: gantry_rev_hold
+              type: control
+              active_while: "true"
+              output: GANTRY_REV
+              value_expr: "0"
 
         # 侧刷通道：经过车尾偏移量后停侧刷和高压水（启动由 on_enter 完成）
         - id: side_brush_lane
@@ -310,14 +311,18 @@ program:
       lanes:
         - id: gantry_lane
           steps:
-            - id: gantry_rev
-              type: event
-              trigger: {type: condition, expr: "true"}
-              actions:
-                - io_set: {channel: GANTRY_FWD, value: 0}
-                - io_set: {channel: GANTRY_REV, value: 1}
-              done: {type: trigger_exit}
+            - id: gantry_rev_ctrl
+              type: control
+              active_while: >
+                GANTRY_PAUSE_REQUEST == 0 AND GANTRY_REV_LIMIT == 0
+              output: GANTRY_REV
+              value_expr: "1"
               on_error: halt_phase
+            - id: gantry_fwd_hold
+              type: control
+              active_while: "true"
+              output: GANTRY_FWD
+              value_expr: "0"
 
         # 顶刷中速旋转配合冲洗（CMD_FORWARD_S_1 = value 2）
         - id: top_brush_lane
@@ -376,14 +381,19 @@ program:
         # 吹风机启动 8 秒后龙门开始前进
         - id: gantry_lane
           steps:
-            - id: gantry_fwd
-              type: event
-              trigger: {type: condition, expr: "phase.elapsed_ms >= 8000"}
-              actions:
-                - io_set: {channel: GANTRY_REV, value: 0}
-                - io_set: {channel: GANTRY_FWD, value: 1}
-              done: {type: trigger_exit}
+            - id: gantry_fwd_ctrl
+              type: control
+              active_while: >
+                GANTRY_PAUSE_REQUEST == 0 AND GANTRY_FWD_LIMIT == 0 AND
+                phase.elapsed_ms >= 8000
+              output: GANTRY_FWD
+              value_expr: "1"
               on_error: halt_phase
+            - id: gantry_rev_hold
+              type: control
+              active_while: "true"
+              output: GANTRY_REV
+              value_expr: "0"
 
     # ══════════════════════════════════════════════════════════════════════
     # 6. 第六趟：后退吹风（吹至后限位）
@@ -405,14 +415,18 @@ program:
       lanes:
         - id: gantry_lane
           steps:
-            - id: gantry_rev
-              type: event
-              trigger: {type: condition, expr: "true"}
-              actions:
-                - io_set: {channel: GANTRY_FWD, value: 0}
-                - io_set: {channel: GANTRY_REV, value: 1}
-              done: {type: trigger_exit}
+            - id: gantry_rev_ctrl
+              type: control
+              active_while: >
+                GANTRY_PAUSE_REQUEST == 0 AND GANTRY_REV_LIMIT == 0
+              output: GANTRY_REV
+              value_expr: "1"
               on_error: halt_phase
+            - id: gantry_fwd_hold
+              type: control
+              active_while: "true"
+              output: GANTRY_FWD
+              value_expr: "0"
 
     # ══════════════════════════════════════════════════════════════════════
     # 7. 归位：升降 + 龙门归位 + 释放后轮锁止

@@ -571,6 +571,119 @@ void engine_expr_free(engine_expr_t *expr)
 }
 
 /* -------------------------------------------------------------------------
+ * AST 克隆与变量遍历
+ * ------------------------------------------------------------------------- */
+static expr_node_t *node_clone(const expr_node_t *n)
+{
+    if (n == NULL)
+    {
+        return NULL;
+    }
+
+    expr_node_t *c = (expr_node_t *)calloc(1U, sizeof(expr_node_t));
+    if (c == NULL)
+    {
+        return NULL;
+    }
+
+    c->kind = n->kind;
+    c->op   = n->op;
+    c->num  = n->num;
+    (void)strncpy(c->name, n->name, EXPR_NAME_MAX - 1U);
+    c->name[EXPR_NAME_MAX - 1U] = '\0';
+
+    c->a = node_clone(n->a);
+    if ((n->a != NULL) && (c->a == NULL))
+    {
+        node_free(c);
+        return NULL;
+    }
+    c->b = node_clone(n->b);
+    if ((n->b != NULL) && (c->b == NULL))
+    {
+        node_free(c);
+        return NULL;
+    }
+    c->c = node_clone(n->c);
+    if ((n->c != NULL) && (c->c == NULL))
+    {
+        node_free(c);
+        return NULL;
+    }
+    return c;
+}
+
+engine_expr_t *engine_expr_clone(const engine_expr_t *expr)
+{
+    if ((expr == NULL) || (expr->root == NULL))
+    {
+        return NULL;
+    }
+
+    engine_expr_t *copy = (engine_expr_t *)calloc(1U, sizeof(engine_expr_t));
+    if (copy == NULL)
+    {
+        return NULL;
+    }
+
+    copy->root = node_clone(expr->root);
+    if (copy->root == NULL)
+    {
+        free(copy);
+        return NULL;
+    }
+    return copy;
+}
+
+static void foreach_node_vars(const expr_node_t *n, engine_expr_var_fn fn, void *ctx,
+                              char seen[][EXPR_NAME_MAX], unsigned *seen_count)
+{
+    if ((n == NULL) || (fn == NULL))
+    {
+        return;
+    }
+
+    if (n->kind == NODE_VAR)
+    {
+        unsigned i;
+        for (i = 0U; i < *seen_count; ++i)
+        {
+            if (strcmp(seen[i], n->name) == 0)
+            {
+                return;
+            }
+        }
+        if (*seen_count < EXPR_TOKEN_MAX)
+        {
+            (void)strncpy(seen[*seen_count], n->name, EXPR_NAME_MAX - 1U);
+            seen[*seen_count][EXPR_NAME_MAX - 1U] = '\0';
+            ++(*seen_count);
+        }
+        if (!fn(n->name, ctx))
+        {
+            return;
+        }
+        return;
+    }
+
+    foreach_node_vars(n->a, fn, ctx, seen, seen_count);
+    foreach_node_vars(n->b, fn, ctx, seen, seen_count);
+    foreach_node_vars(n->c, fn, ctx, seen, seen_count);
+}
+
+void engine_expr_foreach_var(const engine_expr_t *expr, engine_expr_var_fn fn, void *ctx)
+{
+    char   seen[EXPR_TOKEN_MAX][EXPR_NAME_MAX];
+    unsigned seen_count = 0U;
+
+    if ((expr == NULL) || (expr->root == NULL) || (fn == NULL))
+    {
+        return;
+    }
+    foreach_node_vars(expr->root, fn, ctx, seen, &seen_count);
+}
+
+/* -------------------------------------------------------------------------
  * 求值
  * ------------------------------------------------------------------------- */
 static double eval_node(const expr_node_t *n, const engine_expr_env_t *env, bool *ok)

@@ -58,28 +58,6 @@
         "priority": 2,
         "reset_condition": "TOP_BRUSH_COLLISION == 0",
         "auto_reset": true
-      },
-      {
-        "id": "gantry_pause_slope",
-        "condition": "GANTRY_PAUSE_REQUEST == 1",
-        "action": "custom_action",
-        "actions": [
-          {
-            "io_set": {
-              "channel": "GANTRY_FWD",
-              "value": 0
-            }
-          },
-          {
-            "io_set": {
-              "channel": "GANTRY_REV",
-              "value": 0
-            }
-          }
-        ],
-        "priority": 3,
-        "reset_condition": "GANTRY_PAUSE_REQUEST == 0",
-        "auto_reset": true
       }
     ],
     "phases": [
@@ -177,30 +155,19 @@
             "id": "gantry_lane",
             "steps": [
               {
-                "id": "gantry_fwd",
-                "type": "event",
-                "trigger": {
-                  "type": "condition",
-                  "expr": "true"
-                },
-                "actions": [
-                  {
-                    "io_set": {
-                      "channel": "GANTRY_REV",
-                      "value": 0
-                    }
-                  },
-                  {
-                    "io_set": {
-                      "channel": "GANTRY_FWD",
-                      "value": 1
-                    }
-                  }
-                ],
-                "done": {
-                  "type": "trigger_exit"
-                },
+                "id": "gantry_fwd_ctrl",
+                "type": "control",
+                "active_while": "GANTRY_PAUSE_REQUEST == 0 AND GANTRY_FWD_LIMIT == 0\n",
+                "output": "GANTRY_FWD",
+                "value_expr": "1",
                 "on_error": "halt_phase"
+              },
+              {
+                "id": "gantry_rev_hold",
+                "type": "control",
+                "active_while": "true",
+                "output": "GANTRY_REV",
+                "value_expr": "0"
               }
             ]
           },
@@ -407,30 +374,19 @@
             "id": "gantry_lane",
             "steps": [
               {
-                "id": "gantry_rev",
-                "type": "event",
-                "trigger": {
-                  "type": "condition",
-                  "expr": "LIFT_UP_LIMIT == 1"
-                },
-                "actions": [
-                  {
-                    "io_set": {
-                      "channel": "GANTRY_FWD",
-                      "value": 0
-                    }
-                  },
-                  {
-                    "io_set": {
-                      "channel": "GANTRY_REV",
-                      "value": 1
-                    }
-                  }
-                ],
-                "done": {
-                  "type": "trigger_exit"
-                },
+                "id": "gantry_rev_ctrl",
+                "type": "control",
+                "active_while": "GANTRY_PAUSE_REQUEST == 0 AND GANTRY_REV_LIMIT == 0 AND LIFT_UP_LIMIT == 1\n",
+                "output": "GANTRY_REV",
+                "value_expr": "1",
                 "on_error": "halt_phase"
+              },
+              {
+                "id": "gantry_fwd_hold",
+                "type": "control",
+                "active_while": "true",
+                "output": "GANTRY_FWD",
+                "value_expr": "0"
               }
             ]
           },
@@ -556,30 +512,19 @@
             "id": "gantry_lane",
             "steps": [
               {
-                "id": "gantry_fwd",
-                "type": "event",
-                "trigger": {
-                  "type": "condition",
-                  "expr": "true"
-                },
-                "actions": [
-                  {
-                    "io_set": {
-                      "channel": "GANTRY_REV",
-                      "value": 0
-                    }
-                  },
-                  {
-                    "io_set": {
-                      "channel": "GANTRY_FWD",
-                      "value": 1
-                    }
-                  }
-                ],
-                "done": {
-                  "type": "trigger_exit"
-                },
+                "id": "gantry_fwd_ctrl",
+                "type": "control",
+                "active_while": "GANTRY_PAUSE_REQUEST == 0 AND GANTRY_FWD_LIMIT == 0\n",
+                "output": "GANTRY_FWD",
+                "value_expr": "1",
                 "on_error": "halt_phase"
+              },
+              {
+                "id": "gantry_rev_hold",
+                "type": "control",
+                "active_while": "true",
+                "output": "GANTRY_REV",
+                "value_expr": "0"
               }
             ]
           },
@@ -667,30 +612,19 @@
             "id": "gantry_lane",
             "steps": [
               {
-                "id": "gantry_rev",
-                "type": "event",
-                "trigger": {
-                  "type": "condition",
-                  "expr": "true"
-                },
-                "actions": [
-                  {
-                    "io_set": {
-                      "channel": "GANTRY_FWD",
-                      "value": 0
-                    }
-                  },
-                  {
-                    "io_set": {
-                      "channel": "GANTRY_REV",
-                      "value": 1
-                    }
-                  }
-                ],
-                "done": {
-                  "type": "trigger_exit"
-                },
+                "id": "gantry_rev_ctrl",
+                "type": "control",
+                "active_while": "GANTRY_PAUSE_REQUEST == 0 AND GANTRY_REV_LIMIT == 0\n",
+                "output": "GANTRY_REV",
+                "value_expr": "1",
                 "on_error": "halt_phase"
+              },
+              {
+                "id": "gantry_fwd_hold",
+                "type": "control",
+                "active_while": "true",
+                "output": "GANTRY_FWD",
+                "value_expr": "0"
               }
             ]
           },
@@ -810,30 +744,19 @@
             "id": "gantry_lane",
             "steps": [
               {
-                "id": "gantry_fwd",
-                "type": "event",
-                "trigger": {
-                  "type": "condition",
-                  "expr": "phase.elapsed_ms >= 8000"
-                },
-                "actions": [
-                  {
-                    "io_set": {
-                      "channel": "GANTRY_REV",
-                      "value": 0
-                    }
-                  },
-                  {
-                    "io_set": {
-                      "channel": "GANTRY_FWD",
-                      "value": 1
-                    }
-                  }
-                ],
-                "done": {
-                  "type": "trigger_exit"
-                },
+                "id": "gantry_fwd_ctrl",
+                "type": "control",
+                "active_while": "GANTRY_PAUSE_REQUEST == 0 AND GANTRY_FWD_LIMIT == 0 AND phase.elapsed_ms >= 8000\n",
+                "output": "GANTRY_FWD",
+                "value_expr": "1",
                 "on_error": "halt_phase"
+              },
+              {
+                "id": "gantry_rev_hold",
+                "type": "control",
+                "active_while": "true",
+                "output": "GANTRY_REV",
+                "value_expr": "0"
               }
             ]
           }
@@ -866,30 +789,19 @@
             "id": "gantry_lane",
             "steps": [
               {
-                "id": "gantry_rev",
-                "type": "event",
-                "trigger": {
-                  "type": "condition",
-                  "expr": "true"
-                },
-                "actions": [
-                  {
-                    "io_set": {
-                      "channel": "GANTRY_FWD",
-                      "value": 0
-                    }
-                  },
-                  {
-                    "io_set": {
-                      "channel": "GANTRY_REV",
-                      "value": 1
-                    }
-                  }
-                ],
-                "done": {
-                  "type": "trigger_exit"
-                },
+                "id": "gantry_rev_ctrl",
+                "type": "control",
+                "active_while": "GANTRY_PAUSE_REQUEST == 0 AND GANTRY_REV_LIMIT == 0\n",
+                "output": "GANTRY_REV",
+                "value_expr": "1",
                 "on_error": "halt_phase"
+              },
+              {
+                "id": "gantry_fwd_hold",
+                "type": "control",
+                "active_while": "true",
+                "output": "GANTRY_FWD",
+                "value_expr": "0"
               }
             ]
           }

@@ -296,7 +296,8 @@ if(BUILD_SIM)
         target_compile_options(M8_sim PRIVATE -Wall -Wextra -Werror -g)
         target_compile_definitions(M8_sim PRIVATE
             WASH_PROGRAM_NORMAL_PATH="${CMAKE_SOURCE_DIR}/projects/m8/programs/m8_normal_wash_program.json"
-            WASH_PROGRAM_QUICK_PATH="${CMAKE_SOURCE_DIR}/projects/m8/programs/m8_normal_wash_program.json")
+            WASH_PROGRAM_QUICK_PATH="${CMAKE_SOURCE_DIR}/projects/m8/programs/m8_normal_wash_program.json"
+            PROGRAM_INTEGRITY_CHECK=1)
 
         message(STATUS "BUILD_SIM enabled -> target M8_sim")
     else()
@@ -390,7 +391,6 @@ if(BUILD_SIM)
         projects/m8/config/m8_signal_table.c
         framework/adapters/outbound/hal/components/sensor_filter/hal_sensor_filter.c
         framework/services/dev_ctx/dev_ctx.c
-        framework/ports/port_registry.c
         framework/application/orchestrators/report_aggregator.c
         framework/runtime/scheduler/thread_registry.c
         framework/runtime/scheduler/periodic_task.c
@@ -405,7 +405,6 @@ if(BUILD_SIM)
         projects/m8/config/m8_signal_table.c
         framework/adapters/outbound/hal/components/sensor_filter/hal_sensor_filter.c
         framework/services/dev_ctx/dev_ctx.c
-        framework/ports/port_registry.c
         framework/runtime/scheduler/thread_registry.c
         framework/runtime/scheduler/periodic_task.c
     )
@@ -418,18 +417,28 @@ if(BUILD_SIM)
     # -----------------------------------------------------------------------
     set(ENGINE_YAML "${CMAKE_SOURCE_DIR}/projects/m8/programs/m8_normal_wash_program.yaml")
     set(ENGINE_JSON "${CMAKE_SOURCE_DIR}/projects/m8/programs/m8_normal_wash_program.json")
+    set(ENGINE_MANIFEST "${CMAKE_SOURCE_DIR}/projects/m8/programs/m8_normal_wash_program.manifest.json")
+    set(ENGINE_IO_CATALOG "${CMAKE_SOURCE_DIR}/projects/m8/bindings/engine_io_m8.c")
 
     find_program(PYTHON3_EXECUTABLE NAMES python3 python)
     if(PYTHON3_EXECUTABLE)
         add_custom_command(
-            OUTPUT  ${ENGINE_JSON}
+            OUTPUT  ${ENGINE_JSON} ${ENGINE_MANIFEST}
             COMMAND ${PYTHON3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/yaml2json.py
                     ${ENGINE_YAML} ${ENGINE_JSON}
-            DEPENDS ${ENGINE_YAML} ${CMAKE_SOURCE_DIR}/tools/yaml2json.py
-            COMMENT "Regenerating engine config JSON from YAML"
+            COMMAND ${PYTHON3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/validate_program.py
+                    ${ENGINE_JSON} --io-catalog ${ENGINE_IO_CATALOG}
+            COMMAND ${PYTHON3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/gen_program_manifest.py
+                    ${ENGINE_JSON} ${ENGINE_MANIFEST}
+            DEPENDS ${ENGINE_YAML}
+                    ${CMAKE_SOURCE_DIR}/tools/yaml2json.py
+                    ${CMAKE_SOURCE_DIR}/tools/validate_program.py
+                    ${CMAKE_SOURCE_DIR}/tools/gen_program_manifest.py
+                    ${ENGINE_IO_CATALOG}
+            COMMENT "Regenerating engine config JSON/manifest from YAML"
             VERBATIM)
         # 手动触发目标（也接受 OUTPUT 依赖，不重复转换）
-        add_custom_target(gen_engine_config DEPENDS ${ENGINE_JSON})
+        add_custom_target(gen_engine_config DEPENDS ${ENGINE_JSON} ${ENGINE_MANIFEST})
     endif()
 
     # -----------------------------------------------------------------------
@@ -447,7 +456,10 @@ if(BUILD_SIM)
         framework/adapters/outbound/storage/json/engine_program_json.c
         framework/ports/outbound/storage/engine_program_loader_port.c
         framework/domain/wash/model/engine_model.c
+        framework/domain/wash/model/engine_program_validate.c
         framework/domain/wash/engine/engine_expr.c
+        framework/domain/wash/engine/engine_io.c
+        framework/adapters/outbound/hal/sim/engine_io_sim.c
         third_party/cJSON/cJSON.c
     )
     target_link_libraries(test_engine_config PRIVATE m)
@@ -458,6 +470,25 @@ if(BUILD_SIM)
         add_dependencies(test_engine_config gen_engine_config)
     endif()
 
+    add_unit_test(test_engine_validate
+        tests/framework/domain/test_engine_validate.c
+        framework/adapters/outbound/storage/json/engine_program_json.c
+        framework/ports/outbound/storage/engine_program_loader_port.c
+        framework/domain/wash/model/engine_model.c
+        framework/domain/wash/model/engine_program_validate.c
+        framework/domain/wash/engine/engine_expr.c
+        framework/domain/wash/engine/engine_io.c
+        framework/adapters/outbound/hal/sim/engine_io_sim.c
+        third_party/cJSON/cJSON.c
+    )
+    target_link_libraries(test_engine_validate PRIVATE m)
+    target_compile_definitions(test_engine_validate PRIVATE
+        M8_CONFIG_PATH="${CMAKE_SOURCE_DIR}/projects/m8/programs/m8_normal_wash_program.json"
+        UNITY_INCLUDE_DOUBLE)
+    if(PYTHON3_EXECUTABLE)
+        add_dependencies(test_engine_validate gen_engine_config)
+    endif()
+
     add_unit_test(test_engine_runtime
         tests/framework/domain/test_engine_runtime.c
         framework/domain/wash/engine/engine.c
@@ -465,6 +496,7 @@ if(BUILD_SIM)
         framework/adapters/outbound/storage/json/engine_program_json.c
         framework/ports/outbound/storage/engine_program_loader_port.c
         framework/domain/wash/model/engine_model.c
+        framework/domain/wash/model/engine_program_validate.c
         framework/domain/wash/engine/engine_expr.c
         framework/adapters/outbound/hal/sim/engine_io_sim.c
         third_party/cJSON/cJSON.c
@@ -482,6 +514,7 @@ if(BUILD_SIM)
         framework/adapters/outbound/storage/json/engine_program_json.c
         framework/ports/outbound/storage/engine_program_loader_port.c
         framework/domain/wash/model/engine_model.c
+        framework/domain/wash/model/engine_program_validate.c
         framework/domain/wash/engine/engine_expr.c
         framework/adapters/outbound/hal/sim/engine_io_sim.c
         third_party/cJSON/cJSON.c
@@ -498,6 +531,18 @@ if(BUILD_SIM)
     add_test(NAME scenario_engine_normal_wash COMMAND scenario_engine_normal_wash)
     if(PYTHON3_EXECUTABLE)
         add_dependencies(scenario_engine_normal_wash gen_engine_config)
+    endif()
+
+    add_unit_test(test_engine_manifest
+        tests/framework/domain/test_engine_manifest.c
+        framework/domain/wash/model/engine_program_manifest.c
+        third_party/cJSON/cJSON.c
+    )
+    target_compile_definitions(test_engine_manifest PRIVATE
+        M8_CONFIG_PATH="${CMAKE_SOURCE_DIR}/projects/m8/programs/m8_normal_wash_program.json"
+        M8_MANIFEST_PATH="${CMAKE_SOURCE_DIR}/projects/m8/programs/m8_normal_wash_program.manifest.json")
+    if(PYTHON3_EXECUTABLE)
+        add_dependencies(test_engine_manifest gen_engine_config)
     endif()
 
     # -----------------------------------------------------------------------
@@ -517,6 +562,10 @@ if(BUILD_SIM)
             WASH_PROGRAM_NORMAL_PATH="${CMAKE_SOURCE_DIR}/projects/m8/programs/m8_normal_wash_program.json"
             WASH_PROGRAM_QUICK_PATH="${CMAKE_SOURCE_DIR}/projects/m8/programs/m8_normal_wash_program.json")
         add_test(NAME ${scenario} COMMAND ${scenario})
+
+        if(PYTHON3_EXECUTABLE)
+            add_dependencies(${scenario} gen_engine_config)
+        endif()
 
     endforeach()
 

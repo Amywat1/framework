@@ -142,12 +142,81 @@ static const engine_io_ops_t s_sim_ops = {
     .write_output = sim_write_output,
 };
 
+/* 与 M8 engine_io_m8 表一致的名称目录，供方案加载期校验 */
+static const char *const s_sim_signals[] = {
+    "GANTRY_FWD_LIMIT",
+    "GANTRY_REV_LIMIT",
+    "LIFT_UP_LIMIT",
+    "REAR_LOCK_HOME",
+    "ESTOP",
+    "BUMPER_LEFT",
+    "BUMPER_RIGHT",
+    "TOP_BRUSH_COLLISION",
+    "GANTRY_PAUSE_REQUEST",
+    "RADAR_CAR_TAIL",
+    /* 单元测试用信号 */
+    "EXIT",
+    "EXIT0",
+    "EXIT1",
+    "SIG",
+    "HP",
+    "CA",
+    "TAIL",
+    "GANTRY_PAUSE_REQUEST",
+    "NEVER",
+};
+
+static const char *const s_sim_axes[] = {
+    "gantry",
+    "g",
+};
+
+static const char *const s_sim_outputs[] = {
+    "GANTRY_FWD",
+    "GANTRY_REV",
+    "TOP_BRUSH_ROT",
+    "SIDE_BRUSH_ROT",
+    "WATER_CURTAIN",
+    "WATER_TOP_FOAM",
+    "WATER_BUTTOM_FOAM",
+    "WATER_HIGHPRES_TOP",
+    "WATER_HIGHPRES_BOTTOM",
+    "LIFTER_UP",
+    "LIFTER_DOWN",
+    "DRYER_RUN",
+    "PUTTER_REV",
+    "TOP_BRUSH_FOLLOW_EN",
+    /* 单元测试用 DO */
+    "AOUT",
+    "BOUT",
+    "ROUT",
+    "GOUT",
+    "WAITSIG",
+    "POUT",
+    "S1OUT",
+    "XOUT",
+    "YOUT",
+    "COUT",
+    "ZOUT",
+    "NOP",
+};
+
+static const engine_io_catalog_t s_sim_catalog = {
+    .signals      = s_sim_signals,
+    .signal_count = (unsigned)(sizeof(s_sim_signals) / sizeof(s_sim_signals[0])),
+    .outputs      = s_sim_outputs,
+    .output_count = (unsigned)(sizeof(s_sim_outputs) / sizeof(s_sim_outputs[0])),
+    .axes         = s_sim_axes,
+    .axis_count   = (unsigned)(sizeof(s_sim_axes) / sizeof(s_sim_axes[0])),
+};
+
 /* -------------------------------------------------------------------------
  * 公开接口
  * ------------------------------------------------------------------------- */
 void engine_io_sim_register(void)
 {
     engine_io_register(&s_sim_ops);
+    engine_io_register_catalog(&s_sim_catalog);
 }
 
 void engine_io_sim_reset(void)
