@@ -6,7 +6,7 @@
  */
 
 #include "framework/services/dev_ctx/dev_ctx.h"
-#include "framework/ports/outbound/cloud/connection/connection_port.h"
+#include "framework/ports/outbound/cloud/link/cloud_link_port.h"
 #include "framework/domain/device_control/model/device_state.h"
 #include "framework/domain/wash/model/wash_types.h"
 #include "unity.h"
@@ -22,14 +22,14 @@ static bool fake_is_connected(void)
     return s_fake_cloud_connected;
 }
 
-static const cloud_connection_ops_t s_fake_connection_ops = {
-    .is_connected = fake_is_connected,
+static const cloud_link_ops_t s_fake_link_ops = {
+    .is_online = fake_is_connected,
 };
 
 void setUp(void)
 {
     s_fake_cloud_connected = false;
-    cloud_connection_register(&s_fake_connection_ops);
+    cloud_link_register(&s_fake_link_ops);
     (void)dev_ctx_init();
 }
 
@@ -91,7 +91,7 @@ static void test_snapshot_is_copy(void)
 }
 
 /* -------------------------------------------------------------------------
- * TC-5：cloud_connected 读穿 connection port
+ * TC-5：cloud_connected 读穿 cloud_link port
  * ------------------------------------------------------------------------- */
 static void test_cloud_connected_read_through(void)
 {

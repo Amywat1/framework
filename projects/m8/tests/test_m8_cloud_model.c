@@ -5,7 +5,7 @@
  * @date    2026-07-08
  */
 
-#include "projects/m8/adapters/cloud/m8_cloud_bind.h"
+#include "projects/m8/adapters/cloud/m8_cloud_register.h"
 #include "framework/services/dev_ctx/dev_ctx.h"
 #include "framework/ports/inbound/command/command_port.h"
 #include "framework/common/sw_version.h"
@@ -30,6 +30,7 @@ void setUp(void)
 {
     (void)dev_ctx_init();
     command_port_register(&s_fake_command_ops);
+    (void)m8_cloud_register();
     memset(&s_captured_cmd, 0, sizeof(s_captured_cmd));
     s_inject_calls = 0;
 }

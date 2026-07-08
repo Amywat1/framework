@@ -4,7 +4,7 @@
  * @author  HUWANGWEI
  * @date    2026-04-10
  *
- * @note    application/report_aggregator 通过此接口触发上报，不感知具体云平台与物模型字段。
+ * @note    application/report_scheduler 通过此接口触发上报，不感知具体云平台与物模型字段。
  *          JSON 内容由项目 wiring 注入的 builder 决定。
  */
 

@@ -33,9 +33,9 @@ extern void snack_log_sink_register(void);
 extern void json_param_store_register(void);
 extern void json_deploy_store_register(void);
 
-#include "projects/m8/adapters/cloud/m8_cloud_bind.h"
+#include "projects/m8/adapters/cloud/m8_cloud_register.h"
 #include "framework/adapters/outbound/cloud/providers/snack/snack_cloud_report_adapter.h"
-#include "framework/adapters/outbound/cloud/providers/snack/snack_cloud_connection_adapter.h"
+#include "framework/adapters/outbound/cloud/providers/snack/snack_cloud_link_adapter.h"
 
 /* -------------------------------------------------------------------------
  * 引擎 IO 后端注册函数声明
@@ -46,6 +46,8 @@ extern void engine_io_m8_register(void);
 
 sw_err_t wiring(void)
 {
+    sw_err_t ret;
+
     /* 尽早注册日志 sink，确保本函数及后续所有日志都经 Snack 输出 */
     snack_log_sink_register();
 
@@ -60,10 +62,14 @@ sw_err_t wiring(void)
     json_param_store_register();
     json_deploy_store_register();
 
-    /* 云端 connection/report port → Snack MQTT 实现 */
-    snack_cloud_connection_adapter_register();
-    snack_cloud_report_adapter_register(m8_cloud_build_properties,
-                                        m8_cloud_build_properties_delta);
+    /* 云端 link/report + 物模型 bundle */
+    snack_cloud_link_adapter_register();
+    snack_cloud_report_adapter_register();
+    ret = m8_cloud_register();
+    if (ret != SW_OK)
+    {
+        return ret;
+    }
 
     /* 命令 port → command_handler（校验 + event_bus 路由）*/
     command_handler_register();

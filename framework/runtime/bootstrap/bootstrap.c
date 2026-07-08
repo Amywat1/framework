@@ -16,7 +16,7 @@
 #include "framework/application/orchestrators/emergency_handler.h"
 #include "framework/application/orchestrators/device_fsm.h"
 #include "framework/application/orchestrators/wash_orchestrator.h"
-#include "framework/application/orchestrators/report_aggregator.h"
+#include "framework/application/orchestrators/report_scheduler.h"
 #include "framework/application/orchestrators/safety_supervisor.h"
 #include "framework/domain/safety/alarm/alarm_core.h"
 #include "framework/domain/safety/safety_fsm/safety_fsm.h"
@@ -144,7 +144,7 @@ static sw_err_t bootstrap_init_application(void)
     BOOT_CHECK(emergency_handler_init(), "emergency_handler_init");
     BOOT_CHECK(device_fsm_init(),        "device_fsm_init");
     BOOT_CHECK(wash_orchestrator_init(), "wash_orchestrator_init");
-    BOOT_CHECK(report_aggregator_init(), "report_aggregator_init");
+    BOOT_CHECK(project_report_scheduler_init(), "project_report_scheduler_init");
     return SW_OK;
 }
 

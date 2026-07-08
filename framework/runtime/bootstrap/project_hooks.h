@@ -46,6 +46,8 @@ sw_err_t project_machine_setup(void);
  */
 sw_err_t project_alarm_catalog_init(void);
 
+sw_err_t project_report_scheduler_init(void);
+
 /**
  * @brief  项目专属入站适配器（云端命令、CLI 等）装配。
  * @note   在 deploy_store 加载之后调用。

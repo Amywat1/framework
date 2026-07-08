@@ -11,7 +11,7 @@
  *            wash_mode      → wash_orchestrator
  *            gantry_pos     → wash_orchestrator（tick 循环写入，非洗车期保留最后值）
  *            alarm_state    → safety_fsm
- *            cloud_connected → 读穿 cloud_connection_port（无本地副本）
+ *            cloud_connected → 读穿 cloud_link_port（无本地副本）
  *          读取通过 dev_ctx_snapshot() 返回值拷贝，外部不持有指针。
  */
 

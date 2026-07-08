@@ -8,7 +8,7 @@
 #ifndef PROJECTS_M8_ADAPTERS_CLOUD_M8_CLOUD_MODEL_H
 #define PROJECTS_M8_ADAPTERS_CLOUD_M8_CLOUD_MODEL_H
 
-#include "framework/common/point_table/point_table.h"
+#include "framework/cloud/cloud_point.h"
 #include <stddef.h>
 
 #ifdef __cplusplus
@@ -17,10 +17,8 @@ extern "C" {
 
 /**
  * @brief  获取 M8 云端物模型点位表
- * @param  out_count  输出点位数量；传 NULL 时不输出
- * @return 点位数组首地址（静态只读）
  */
-const point_table_entry_t *m8_cloud_model(size_t *out_count);
+const cloud_point_entry_t *m8_cloud_model(size_t *out_count);
 
 #ifdef __cplusplus
 }

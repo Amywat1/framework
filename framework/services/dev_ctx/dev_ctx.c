@@ -6,7 +6,7 @@
  */
 
 #include "framework/services/dev_ctx/dev_ctx.h"
-#include "framework/ports/outbound/cloud/connection/connection_port.h"
+#include "framework/ports/outbound/cloud/link/cloud_link_port.h"
 #include "framework/common/log.h"
 #include <pthread.h>
 #include <string.h>
@@ -16,13 +16,13 @@ static pthread_mutex_t  s_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 static bool read_cloud_connected(void)
 {
-    const cloud_connection_ops_t *ops = cloud_connection_get_ops();
+    const cloud_link_ops_t *ops = cloud_link_get_ops();
 
-    if ((ops == NULL) || (ops->is_connected == NULL))
+    if ((ops == NULL) || (ops->is_online == NULL))
     {
         return false;
     }
-    return ops->is_connected();
+    return ops->is_online();
 }
 
 sw_err_t dev_ctx_init(void)

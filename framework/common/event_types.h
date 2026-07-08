@@ -120,13 +120,15 @@ typedef uint16_t event_type_t;
 #define EVT_CMD_HOME_DEVICE        EVT_MAKE(EVT_CAT_CMD, EVT_CMD_ID_HOME_DEVICE)
 
 /* -------------------------------------------------------------------------
- * CLOUD 类（snack_cloud_connection_adapter 发布）
+ * CLOUD 类（snack_cloud_link_adapter 发布）
  * ------------------------------------------------------------------------- */
 #define EVT_CLOUD_ID_CONNECTED       0U
 #define EVT_CLOUD_ID_DISCONNECTED    1U
+#define EVT_CLOUD_ID_POINT_DIRTY     2U
 
 #define EVT_CLOUD_CONNECTED      EVT_MAKE(EVT_CAT_CLOUD, EVT_CLOUD_ID_CONNECTED)
 #define EVT_CLOUD_DISCONNECTED   EVT_MAKE(EVT_CAT_CLOUD, EVT_CLOUD_ID_DISCONNECTED)
+#define EVT_CLOUD_POINT_DIRTY    EVT_MAKE(EVT_CAT_CLOUD, EVT_CLOUD_ID_POINT_DIRTY)
 
 /* -------------------------------------------------------------------------
  * WASH 类（application/wash_orchestrator 发布）

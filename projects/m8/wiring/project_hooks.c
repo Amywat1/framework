@@ -14,15 +14,21 @@
 #include "projects/m8/adapters/alarm/m8_alarm_init.h"
 #include "projects/m8/adapters/alarm/m8_comm_watchdog.h"
 #include "projects/m8/adapters/cli/m8_cli_setup.h"
-#include "projects/m8/adapters/cloud/m8_cloud_bind.h"
+#include "framework/cloud/cloud_model.h"
 #include "framework/adapters/inbound/cloud/providers/snack/snack_cloud_command_adapter.h"
-#include "framework/adapters/outbound/cloud/providers/snack/snack_cloud_connection_adapter.h"
+#include "framework/adapters/outbound/cloud/providers/snack/snack_cloud_link_adapter.h"
 #include "projects/m8/bindings/m8_boot_profile.h"
 #include "projects/m8/bindings/m8_machine_setup.h"
 #include "projects/m8/bindings/m8_motor_exec.h"
 #include "projects/m8/bindings/m8_sensor.h"
 #include "projects/m8/bindings/m8_vfd_setup.h"
 #include "projects/m8/bindings/m8_voice_setup.h"
+#include "framework/common/log.h"
+
+sw_err_t project_report_scheduler_init(void)
+{
+    return cloud_model_start_scheduler();
+}
 
 sw_err_t project_hal_extra_setup(void)
 {
@@ -77,16 +83,32 @@ sw_err_t project_alarm_catalog_init(void)
 
 sw_err_t project_adapters_init(void)
 {
-    sw_err_t ret = SW_OK;
+    sw_err_t ret;
 
-    if (snack_cloud_command_adapter_init(m8_cloud_on_property_set))
+    ret = cloud_model_validate_and_watch();
+    if (ret != SW_OK)
     {
-        ret = snack_cloud_connection_adapter_start();
-        if (ret != SW_OK)
-        {
-            return ret;
-        }
+        return ret;
     }
+
+    ret = snack_cloud_link_adapter_init();
+    if (ret != SW_OK)
+    {
+        LOG_WARN("project_hooks: cloud link init offline");
+    }
+
+    ret = snack_cloud_command_adapter_start();
+    if (ret != SW_OK)
+    {
+        return ret;
+    }
+
+    ret = snack_cloud_link_adapter_start();
+    if (ret != SW_OK)
+    {
+        return ret;
+    }
+
     m8_cli_setup();
     return SW_OK;
 }

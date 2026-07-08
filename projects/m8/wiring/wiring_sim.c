@@ -50,7 +50,7 @@ sw_err_t wiring(void)
     engine_program_json_register_loader();
 
     /* 仿真不注册云端上报适配器（cloud_report_get_ops() 返回 NULL，
-     * report_aggregator 会静默跳过上报）*/
+     * report_scheduler 会静默跳过上报）*/
 
     LOG_INFO("wiring_sim: all sim adapters registered");
     return SW_OK;

@@ -10,11 +10,97 @@
 #include <stdlib.h>
 #include <string.h>
 
-sw_err_t point_table_to_json(const point_table_entry_t *entries, size_t count,
-                              char *buf, size_t buf_size)
+static sw_err_t finalize_json(cJSON *root, char *buf, size_t buf_size)
+{
+    char     *json;
+    sw_err_t  ret = SW_ERR_PARAM;
+
+    json = cJSON_PrintUnformatted(root);
+    if (json != NULL)
+    {
+        size_t len = strlen(json);
+
+        if (len < buf_size)
+        {
+            memcpy(buf, json, len + 1U);
+            ret = SW_OK;
+        }
+        free(json);
+    }
+
+    return ret;
+}
+
+static void append_typed_value(cJSON *root,
+                                const point_table_entry_t *entry,
+                                const point_value_t *val)
+{
+    switch (entry->type)
+    {
+        case POINT_TYPE_BOOL:
+            cJSON_AddBoolToObject(root, entry->id, val->b);
+            break;
+        case POINT_TYPE_INT:
+            cJSON_AddNumberToObject(root, entry->id, (double)val->i);
+            break;
+        case POINT_TYPE_FLOAT:
+            cJSON_AddNumberToObject(root, entry->id, (double)val->f);
+            break;
+        case POINT_TYPE_STRING:
+            cJSON_AddStringToObject(root, entry->id, val->s);
+            break;
+        default:
+            break;
+    }
+}
+
+static sw_err_t append_entry(cJSON *root,
+                              const point_table_entry_t *entry,
+                              point_get_fail_policy_t fail_policy,
+                              point_apply_result_t *result_opt)
+{
+    point_value_t val;
+    sw_err_t      ret;
+
+    if (entry->get == NULL)
+    {
+        return SW_OK;
+    }
+
+    ret = entry->get(&val);
+    if (ret != SW_OK)
+    {
+        if (result_opt != NULL)
+        {
+            result_opt->skipped_get++;
+        }
+
+        switch (fail_policy)
+        {
+            case POINT_GET_FAIL_ABORT:
+                return SW_ERR_PARAM;
+            case POINT_GET_FAIL_NULL:
+                cJSON_AddNullToObject(root, entry->id);
+                return SW_OK;
+            case POINT_GET_FAIL_OMIT:
+            default:
+                return SW_OK;
+        }
+    }
+
+    append_typed_value(root, entry, &val);
+    return SW_OK;
+}
+
+sw_err_t point_table_to_json_ex(const point_table_entry_t *entries, size_t count,
+                                 char *buf, size_t buf_size,
+                                 point_get_fail_policy_t fail_policy,
+                                 point_apply_result_t *result_opt)
 {
     cJSON    *root = cJSON_CreateObject();
     sw_err_t  ret  = SW_ERR_PARAM;
+
+    point_apply_result_init(result_opt);
 
     if (root == NULL)
     {
@@ -23,48 +109,24 @@ sw_err_t point_table_to_json(const point_table_entry_t *entries, size_t count,
 
     for (size_t i = 0U; i < count; i++)
     {
-        const point_table_entry_t *entry = &entries[i];
-        point_value_t              val;
-
-        if ((entry->get == NULL) || (entry->get(&val) != SW_OK))
+        ret = append_entry(root, &entries[i], fail_policy, result_opt);
+        if (ret != SW_OK)
         {
-            continue;
-        }
-
-        switch (entry->type)
-        {
-            case POINT_TYPE_BOOL:
-                cJSON_AddBoolToObject(root, entry->id, val.b);
-                break;
-            case POINT_TYPE_INT:
-                cJSON_AddNumberToObject(root, entry->id, (double)val.i);
-                break;
-            case POINT_TYPE_STRING:
-                cJSON_AddStringToObject(root, entry->id, val.s);
-                break;
-            default:
-                break;
+            cJSON_Delete(root);
+            return ret;
         }
     }
 
-    {
-        char *json = cJSON_PrintUnformatted(root);
-
-        if (json != NULL)
-        {
-            size_t len = strlen(json);
-
-            if (len < buf_size)
-            {
-                memcpy(buf, json, len + 1U);
-                ret = SW_OK;
-            }
-            free(json);
-        }
-    }
-
+    ret = finalize_json(root, buf, buf_size);
     cJSON_Delete(root);
     return ret;
+}
+
+sw_err_t point_table_to_json(const point_table_entry_t *entries, size_t count,
+                              char *buf, size_t buf_size)
+{
+    return point_table_to_json_ex(entries, count, buf, buf_size,
+                                   POINT_GET_FAIL_OMIT, NULL);
 }
 
 static const point_table_entry_t *find_entry_by_id(const point_table_entry_t *entries,
@@ -114,20 +176,7 @@ sw_err_t point_table_to_json_filtered(const point_table_entry_t *entries, size_t
             continue;
         }
 
-        switch (entry->type)
-        {
-            case POINT_TYPE_BOOL:
-                cJSON_AddBoolToObject(root, entry->id, val.b);
-                break;
-            case POINT_TYPE_INT:
-                cJSON_AddNumberToObject(root, entry->id, (double)val.i);
-                break;
-            case POINT_TYPE_STRING:
-                cJSON_AddStringToObject(root, entry->id, val.s);
-                break;
-            default:
-                continue;
-        }
+        append_typed_value(root, entry, &val);
         serialized++;
     }
 
@@ -137,22 +186,7 @@ sw_err_t point_table_to_json_filtered(const point_table_entry_t *entries, size_t
         return SW_ERR_PARAM;
     }
 
-    {
-        char *json = cJSON_PrintUnformatted(root);
-
-        if (json != NULL)
-        {
-            size_t len = strlen(json);
-
-            if (len < buf_size)
-            {
-                memcpy(buf, json, len + 1U);
-                ret = SW_OK;
-            }
-            free(json);
-        }
-    }
-
+    ret = finalize_json(root, buf, buf_size);
     cJSON_Delete(root);
     return ret;
 }

@@ -7,20 +7,18 @@
 
 #include "framework/adapters/outbound/cloud/providers/snack/snack_cloud_report_adapter.h"
 #include "framework/ports/outbound/cloud/report/report_port.h"
+#include "framework/ports/outbound/cloud/link/cloud_link_port.h"
 #include "framework/ports/outbound/storage/deploy_store.h"
-#include "framework/adapters/runtime/snack/snack_mqtt.h"
+#include "framework/cloud/cloud_model.h"
+#include "framework/cloud/cloud_point.h"
 #include "framework/common/log.h"
 #include <stdbool.h>
 #include <string.h>
 
 #define DEPLOY_KEY_TOPIC_UP   "topicPropertyUp"
-#define REPORT_JSON_BUF_SIZE  1024U
 
 static char s_topic_up[128] = "";
 static bool s_topic_loaded  = false;
-
-static cloud_report_build_fn_t       s_build_properties       = NULL;
-static cloud_report_build_delta_fn_t s_build_properties_delta = NULL;
 
 static sw_err_t load_topic_up(void)
 {
@@ -49,7 +47,9 @@ static sw_err_t load_topic_up(void)
 
 static sw_err_t send_json(const char *json)
 {
-    if (!mqtt_is_online())
+    const cloud_link_ops_t *link = cloud_link_get_ops();
+
+    if ((link == NULL) || (link->is_online == NULL) || !link->is_online())
     {
         return SW_ERR_COMM;
     }
@@ -57,24 +57,19 @@ static sw_err_t send_json(const char *json)
     {
         return SW_ERR_PARAM;
     }
-    if (net_mqtt_send(s_topic_up, (char *)json) != 0)
+    if ((link->publish == NULL))
     {
-        LOG_WARN("snack_cloud_report: send failed");
-        return SW_ERR_COMM;
+        return SW_ERR_NOT_INIT;
     }
-    return SW_OK;
+    return link->publish(s_topic_up, json);
 }
 
 static sw_err_t adapter_publish_properties(void)
 {
-    char     buf[REPORT_JSON_BUF_SIZE];
+    char     buf[CLOUD_REPORT_JSON_MAX];
     sw_err_t ret;
 
-    if (s_build_properties == NULL)
-    {
-        return SW_ERR_NOT_INIT;
-    }
-    if (s_build_properties(buf, sizeof(buf)) != SW_OK)
+    if (cloud_model_build_properties(buf, sizeof(buf)) != SW_OK)
     {
         LOG_ERROR("snack_cloud_report: properties build failed");
         return SW_ERR_PARAM;
@@ -86,7 +81,7 @@ static sw_err_t adapter_publish_properties(void)
 
 static sw_err_t adapter_publish_properties_delta(const char *const *ids, size_t count)
 {
-    char     buf[REPORT_JSON_BUF_SIZE];
+    char     buf[CLOUD_REPORT_JSON_MAX];
     sw_err_t ret;
 
     if ((ids == NULL) || (count == 0U))
@@ -94,25 +89,10 @@ static sw_err_t adapter_publish_properties_delta(const char *const *ids, size_t 
         return SW_ERR_PARAM;
     }
 
-    if (s_build_properties_delta != NULL)
+    if (cloud_model_build_properties_delta(ids, count, buf, sizeof(buf)) != SW_OK)
     {
-        if (s_build_properties_delta(ids, count, buf, sizeof(buf)) != SW_OK)
-        {
-            LOG_ERROR("snack_cloud_report: delta build failed");
-            return SW_ERR_PARAM;
-        }
-    }
-    else if (s_build_properties != NULL)
-    {
-        if (s_build_properties(buf, sizeof(buf)) != SW_OK)
-        {
-            LOG_ERROR("snack_cloud_report: fallback properties build failed");
-            return SW_ERR_PARAM;
-        }
-    }
-    else
-    {
-        return SW_ERR_NOT_INIT;
+        LOG_ERROR("snack_cloud_report: delta build failed");
+        return SW_ERR_PARAM;
     }
 
     ret = send_json(buf);
@@ -121,14 +101,11 @@ static sw_err_t adapter_publish_properties_delta(const char *const *ids, size_t 
 
 static const cloud_report_ops_t s_ops = {
     .publish_properties       = adapter_publish_properties,
-    .publish_properties_delta   = adapter_publish_properties_delta,
+    .publish_properties_delta = adapter_publish_properties_delta,
 };
 
-void snack_cloud_report_adapter_register(cloud_report_build_fn_t build_properties,
-                                         cloud_report_build_delta_fn_t build_properties_delta)
+void snack_cloud_report_adapter_register(void)
 {
-    s_build_properties       = build_properties;
-    s_build_properties_delta = build_properties_delta;
     cloud_report_register(&s_ops);
     LOG_INFO("snack_cloud_report: adapter registered");
 }

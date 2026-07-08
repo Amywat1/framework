@@ -20,6 +20,11 @@
 #include "projects/m8/bindings/m8_sensor.h"
 #include "projects/m8/bindings/m8_signal_sim.h"
 
+sw_err_t project_report_scheduler_init(void)
+{
+    return SW_OK;
+}
+
 sw_err_t project_hal_extra_setup(void)
 {
     return SW_OK;

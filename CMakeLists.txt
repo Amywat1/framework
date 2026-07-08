@@ -63,6 +63,8 @@ file(GLOB_RECURSE fw_runtime_src       CONFIGURE_DEPENDS framework/runtime/*.c f
 file(GLOB_RECURSE fw_services_src      CONFIGURE_DEPENDS framework/services/*.c framework/services/*.h)
 file(GLOB_RECURSE fw_domain_src        CONFIGURE_DEPENDS framework/domain/*.c framework/domain/*.h)
 file(GLOB_RECURSE fw_application_src   CONFIGURE_DEPENDS framework/application/*.c framework/application/*.h)
+file(GLOB_RECURSE fw_cloud_src         CONFIGURE_DEPENDS framework/cloud/*.c framework/cloud/*.h)
+list(APPEND fw_application_src ${fw_cloud_src})
 file(GLOB_RECURSE fw_ports_src         CONFIGURE_DEPENDS framework/ports/*.c framework/ports/*.h)
 file(GLOB_RECURSE fw_common_point_table_src CONFIGURE_DEPENDS framework/common/point_table/*.c framework/common/point_table/*.h)
 file(GLOB_RECURSE fw_adapters_cloud_inbound_src  CONFIGURE_DEPENDS framework/adapters/inbound/cloud/*.c framework/adapters/inbound/cloud/*.h)
@@ -76,7 +78,7 @@ file(GLOB_RECURSE fw_adapters_hal_snack_src  CONFIGURE_DEPENDS framework/adapter
 file(GLOB_RECURSE fw_adapters_hal_mcc_src    CONFIGURE_DEPENDS framework/adapters/outbound/hal/providers/mcc/*.c framework/adapters/outbound/hal/providers/mcc/*.h)
 file(GLOB_RECURSE fw_adapters_hal_sim_src     CONFIGURE_DEPENDS framework/adapters/outbound/hal/sim/*.c framework/adapters/outbound/hal/sim/*.h)
 file(GLOB_RECURSE fw_adapters_storage_src CONFIGURE_DEPENDS framework/adapters/outbound/storage/*.c framework/adapters/outbound/storage/*.h)
-file(GLOB_RECURSE fw_adapters_runtime_snack_src CONFIGURE_DEPENDS framework/adapters/runtime/snack/*.cpp framework/adapters/runtime/snack/*.h)
+file(GLOB_RECURSE fw_adapters_runtime_snack_src CONFIGURE_DEPENDS framework/adapters/runtime/snack/*.cpp framework/adapters/runtime/snack/*.c framework/adapters/runtime/snack/*.h)
 
 # 仿真构建只需要 components/ 下机型无关的组合层（sensor/do_group/vfd）以及
 # electric-motor 端口的通用适配器（motor exec 端口 -> MCC，MCC 本身经
@@ -369,16 +371,32 @@ if(BUILD_SIM)
         framework/ports/port_registry.c
     )
 
+    # test_cloud_point_watcher：ON_CHANGE 检测与 get 失败策略
+    add_unit_test(test_cloud_point_watcher
+        tests/framework/cloud/test_cloud_point_watcher.c
+        framework/cloud/cloud_point_watcher.c
+        framework/cloud/cloud_point_dispatch.c
+        framework/common/point_table/point_table_to_json.c
+        framework/runtime/event_bus/event_bus.c
+        framework/common/time_util.c
+        third_party/cJSON/cJSON.c
+    )
+    target_compile_definitions(test_cloud_point_watcher PRIVATE UNITY_INCLUDE_DOUBLE)
+
     # test_m8_cloud_model：M8 云端物模型 JSON 序列化 + 反序列化（项目级测试）
     add_unit_test(test_m8_cloud_model
         projects/m8/tests/test_m8_cloud_model.c
         framework/common/point_table/point_table_to_json.c
         framework/common/point_table/point_table_from_json.c
-        projects/m8/adapters/cloud/m8_cloud_bind.c
+        framework/cloud/cloud_point_dispatch.c
+        framework/cloud/cloud_point_validate.c
+        framework/cloud/cloud_model.c
+        framework/cloud/cloud_point_watcher.c
+        framework/ports/port_registry.c
+        projects/m8/adapters/cloud/m8_cloud_register.c
         projects/m8/adapters/cloud/m8_cloud_model.c
-        projects/m8/adapters/cloud/m8_cloud_common.c
+        projects/m8/adapters/cloud/m8_cloud_report_policy.c
         projects/m8/adapters/cloud/m8_cloud_telemetry.c
-        projects/m8/adapters/cloud/m8_cloud_device_cmd.c
         projects/m8/adapters/cloud/m8_cloud_service.c
         projects/m8/adapters/cloud/m8_cloud_manual_cmd.c
         projects/m8/adapters/manual/m8_manual_guard.c
@@ -391,9 +409,11 @@ if(BUILD_SIM)
         projects/m8/config/m8_signal_table.c
         framework/adapters/outbound/hal/components/sensor_filter/hal_sensor_filter.c
         framework/services/dev_ctx/dev_ctx.c
-        framework/application/orchestrators/report_aggregator.c
+        framework/application/orchestrators/report_scheduler.c
+        framework/runtime/event_bus/event_bus.c
         framework/runtime/scheduler/thread_registry.c
         framework/runtime/scheduler/periodic_task.c
+        framework/common/time_util.c
         third_party/cJSON/cJSON.c
     )
 
@@ -724,6 +744,6 @@ if(BUILD_SIM)
     )
     target_compile_definitions(test_water_resource PRIVATE WATER_UNIT_TEST=1)
 
-    message(STATUS "Tests registered: 21 unit + 2 scenario (run with: ctest --test-dir build_sim -V)")
+    message(STATUS "Tests registered: 22 unit + 2 scenario (run with: ctest --test-dir build_sim -V)")
 
 endif()
