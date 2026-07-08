@@ -4,8 +4,8 @@
  * @author  HUWANGWEI
  * @date    2026-04-10
  *
- * @note    application/report_aggregator 通过此接口上报设备状态，
- *          不感知具体云平台（阿里云、华为云等）。
+ * @note    application/report_aggregator 通过此接口触发上报，不感知具体云平台与物模型字段。
+ *          JSON 内容由项目 wiring 注入的 builder 决定。
  */
 
 #ifndef PORTS_CLOUD_REPORT_PORT_H
@@ -16,46 +16,40 @@ extern "C" {
 #endif
 
 #include "framework/common/sw_error.h"
-#include <stdint.h>
-#include <stdbool.h>
+#include <stddef.h>
 
-/* -------------------------------------------------------------------------
- * 上报载荷（report_aggregator 从 dev_ctx 聚合后填充此结构）
- * ------------------------------------------------------------------------- */
-typedef struct
-{
-    uint8_t  dev_state;      /* dev_state_t 枚举值 */
-    uint8_t  wash_mode;      /* wash_mode_t 枚举值 */
-    int32_t  gantry_pos;     /* 龙门当前位置（脉冲数）*/
-    bool     cloud_connected;
-    uint8_t  safety_state;   /* safety_state_t 枚举值 */
-    bool     has_alarm;      /* 是否存在活跃报警 */
-    uint32_t alarm_code;     /* 当前最高等级活跃报警码（无则 0）*/
-} cloud_report_payload_t;
-
-/* -------------------------------------------------------------------------
- * 云端上报操作表
- * ------------------------------------------------------------------------- */
+/**
+ * @brief  云端上报操作表
+ */
 typedef struct
 {
     /**
-     * @brief  上报当前设备状态快照
-     * @param  payload  聚合后的状态载荷
-     * @retval SW_OK / SW_ERR_COMM（云端未连接时忽略，不返回错误）
+     * @brief  发布一次全量属性上报
+     * @retval SW_OK         发送成功
+     * @retval SW_ERR_COMM   云端未连接或发送失败
      */
-    sw_err_t (*report)(const cloud_report_payload_t *payload);
+    sw_err_t (*publish_properties)(void);
 
     /**
-     * @brief  查询云端连接状态
-     * @retval true = MQTT 已连接
+     * @brief  发布指定点位的增量属性上报
+     * @param  ids    物模型属性 id 数组
+     * @param  count  id 数量
+     * @retval SW_OK         发送成功
+     * @retval SW_ERR_COMM   云端未连接或发送失败
+     * @note   若 provider 未实现增量 builder，可回退为全量上报
      */
-    bool (*is_connected)(void);
+    sw_err_t (*publish_properties_delta)(const char *const *ids, size_t count);
 } cloud_report_ops_t;
 
-/* -------------------------------------------------------------------------
- * 注册 / 获取
- * ------------------------------------------------------------------------- */
-void                     cloud_report_register(const cloud_report_ops_t *ops);
+/**
+ * @brief  注册云端上报 port 实现
+ */
+void cloud_report_register(const cloud_report_ops_t *ops);
+
+/**
+ * @brief  获取已注册的云端上报 port 实现
+ * @retval NULL  尚未注册（仿真或未启用云端）
+ */
 const cloud_report_ops_t *cloud_report_get_ops(void);
 
 #ifdef __cplusplus

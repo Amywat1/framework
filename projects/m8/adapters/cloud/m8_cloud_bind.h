@@ -8,7 +8,6 @@
 #ifndef PROJECTS_M8_ADAPTERS_CLOUD_M8_CLOUD_BIND_H
 #define PROJECTS_M8_ADAPTERS_CLOUD_M8_CLOUD_BIND_H
 
-#include "framework/ports/outbound/cloud/report/report_port.h"
 #include "framework/common/sw_error.h"
 #include <stddef.h>
 
@@ -17,11 +16,19 @@ extern "C" {
 #endif
 
 /**
- * @brief  云端属性上报 JSON 构建回调
- * @note   匹配 snack_cloud_report_builder_fn_t
+ * @brief  构建全量属性上报 JSON
  */
-sw_err_t m8_cloud_on_report(const cloud_report_payload_t *p,
-                             char *buf, size_t buf_size);
+sw_err_t m8_cloud_build_properties(char *buf, size_t buf_size);
+
+/**
+ * @brief  构建增量属性上报 JSON
+ * @param  ids    物模型属性 id 数组
+ * @param  count  id 数量
+ */
+sw_err_t m8_cloud_build_properties_delta(const char *const *ids,
+                                          size_t count,
+                                          char *buf,
+                                          size_t buf_size);
 
 /**
  * @brief  云端属性下发 JSON 分发入口

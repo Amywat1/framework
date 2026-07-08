@@ -365,6 +365,7 @@ if(BUILD_SIM)
     add_unit_test(test_dev_ctx
         tests/framework/application/test_dev_ctx.c
         framework/services/dev_ctx/dev_ctx.c
+        framework/ports/port_registry.c
     )
 
     # test_m8_cloud_model：M8 云端物模型 JSON 序列化 + 反序列化（项目级测试）
@@ -389,6 +390,7 @@ if(BUILD_SIM)
         projects/m8/config/m8_signal_table.c
         framework/adapters/outbound/hal/components/sensor_filter/hal_sensor_filter.c
         framework/services/dev_ctx/dev_ctx.c
+        framework/ports/port_registry.c
         framework/application/orchestrators/report_aggregator.c
         framework/runtime/scheduler/thread_registry.c
         framework/runtime/scheduler/periodic_task.c
@@ -403,6 +405,7 @@ if(BUILD_SIM)
         projects/m8/config/m8_signal_table.c
         framework/adapters/outbound/hal/components/sensor_filter/hal_sensor_filter.c
         framework/services/dev_ctx/dev_ctx.c
+        framework/ports/port_registry.c
         framework/runtime/scheduler/thread_registry.c
         framework/runtime/scheduler/periodic_task.c
     )

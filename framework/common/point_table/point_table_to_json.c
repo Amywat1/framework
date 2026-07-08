@@ -66,3 +66,93 @@ sw_err_t point_table_to_json(const point_table_entry_t *entries, size_t count,
     cJSON_Delete(root);
     return ret;
 }
+
+static const point_table_entry_t *find_entry_by_id(const point_table_entry_t *entries,
+                                                    size_t count,
+                                                    const char *id)
+{
+    for (size_t i = 0U; i < count; i++)
+    {
+        if ((entries[i].id != NULL) && (strcmp(entries[i].id, id) == 0))
+        {
+            return &entries[i];
+        }
+    }
+    return NULL;
+}
+
+sw_err_t point_table_to_json_filtered(const point_table_entry_t *entries, size_t count,
+                                       const char *const *ids, size_t id_count,
+                                       char *buf, size_t buf_size)
+{
+    cJSON    *root = cJSON_CreateObject();
+    sw_err_t  ret  = SW_ERR_PARAM;
+    size_t    serialized = 0U;
+
+    if ((root == NULL) || (ids == NULL) || (id_count == 0U))
+    {
+        if (root != NULL)
+        {
+            cJSON_Delete(root);
+        }
+        return SW_ERR_PARAM;
+    }
+
+    for (size_t j = 0U; j < id_count; j++)
+    {
+        const point_table_entry_t *entry;
+        point_value_t              val;
+
+        if (ids[j] == NULL)
+        {
+            continue;
+        }
+
+        entry = find_entry_by_id(entries, count, ids[j]);
+        if ((entry == NULL) || (entry->get == NULL) || (entry->get(&val) != SW_OK))
+        {
+            continue;
+        }
+
+        switch (entry->type)
+        {
+            case POINT_TYPE_BOOL:
+                cJSON_AddBoolToObject(root, entry->id, val.b);
+                break;
+            case POINT_TYPE_INT:
+                cJSON_AddNumberToObject(root, entry->id, (double)val.i);
+                break;
+            case POINT_TYPE_STRING:
+                cJSON_AddStringToObject(root, entry->id, val.s);
+                break;
+            default:
+                continue;
+        }
+        serialized++;
+    }
+
+    if (serialized == 0U)
+    {
+        cJSON_Delete(root);
+        return SW_ERR_PARAM;
+    }
+
+    {
+        char *json = cJSON_PrintUnformatted(root);
+
+        if (json != NULL)
+        {
+            size_t len = strlen(json);
+
+            if (len < buf_size)
+            {
+                memcpy(buf, json, len + 1U);
+                ret = SW_OK;
+            }
+            free(json);
+        }
+    }
+
+    cJSON_Delete(root);
+    return ret;
+}

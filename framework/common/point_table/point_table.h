@@ -73,6 +73,21 @@ sw_err_t point_table_to_json(const point_table_entry_t *entries, size_t count,
                               char *buf, size_t buf_size);
 
 /**
+ * @brief  将指定 id 列表对应的可读点位序列化为 JSON
+ * @param  entries   点位表
+ * @param  count     点位数量
+ * @param  ids       待序列化的属性 id 数组
+ * @param  id_count  id 数量
+ * @param  buf       输出缓冲区
+ * @param  buf_size  缓冲区大小
+ * @retval SW_OK         序列化成功
+ * @retval SW_ERR_PARAM  缓冲区不足、参数无效或无可序列化点位
+ */
+sw_err_t point_table_to_json_filtered(const point_table_entry_t *entries, size_t count,
+                                     const char *const *ids, size_t id_count,
+                                     char *buf, size_t buf_size);
+
+/**
  * @brief  解析 {"标识符":值, ...} 形式 JSON，逐 key 查表调用对应 set()
  * @param  entries   点位表
  * @param  count     点位数量

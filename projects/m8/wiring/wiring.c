@@ -35,6 +35,7 @@ extern void json_deploy_store_register(void);
 
 #include "projects/m8/adapters/cloud/m8_cloud_bind.h"
 #include "framework/adapters/outbound/cloud/providers/snack/snack_cloud_report_adapter.h"
+#include "framework/adapters/outbound/cloud/providers/snack/snack_cloud_connection_adapter.h"
 
 /* -------------------------------------------------------------------------
  * 引擎 IO 后端注册函数声明
@@ -59,8 +60,10 @@ sw_err_t wiring(void)
     json_param_store_register();
     json_deploy_store_register();
 
-    /* 云端上报 port → Snack MQTT 云实现（注入 M8 上报 JSON 构建器）*/
-    snack_cloud_report_adapter_register(m8_cloud_on_report);
+    /* 云端 connection/report port → Snack MQTT 实现 */
+    snack_cloud_connection_adapter_register();
+    snack_cloud_report_adapter_register(m8_cloud_build_properties,
+                                        m8_cloud_build_properties_delta);
 
     /* 命令 port → command_handler（校验 + event_bus 路由）*/
     command_handler_register();

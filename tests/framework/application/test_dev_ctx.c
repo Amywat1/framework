@@ -6,6 +6,7 @@
  */
 
 #include "framework/services/dev_ctx/dev_ctx.h"
+#include "framework/ports/outbound/cloud/connection/connection_port.h"
 #include "framework/domain/device_control/model/device_state.h"
 #include "framework/domain/wash/model/wash_types.h"
 #include "unity.h"
@@ -14,7 +15,24 @@
 #include <pthread.h>
 #include <stdatomic.h>
 
-void setUp(void)    { (void)dev_ctx_init(); }
+static bool s_fake_cloud_connected = false;
+
+static bool fake_is_connected(void)
+{
+    return s_fake_cloud_connected;
+}
+
+static const cloud_connection_ops_t s_fake_connection_ops = {
+    .is_connected = fake_is_connected,
+};
+
+void setUp(void)
+{
+    s_fake_cloud_connected = false;
+    cloud_connection_register(&s_fake_connection_ops);
+    (void)dev_ctx_init();
+}
+
 void tearDown(void) {}
 
 /* -------------------------------------------------------------------------
@@ -34,8 +52,8 @@ static void test_init_defaults(void)
  * ------------------------------------------------------------------------- */
 static void test_set_device_state_isolated(void)
 {
+    s_fake_cloud_connected = true;
     dev_ctx_set_wash_mode(WASH_MODE_QUICK);
-    dev_ctx_set_cloud_status(true);
     dev_ctx_set_device_state(DEV_STATE_RUNNING);
 
     device_context_t ctx = dev_ctx_snapshot();
@@ -66,32 +84,31 @@ static void test_snapshot_is_copy(void)
     device_context_t snap1 = dev_ctx_snapshot();
     TEST_ASSERT_EQUAL_INT(DEV_STATE_IDLE, snap1.device_state);
 
-    snap1.device_state = DEV_STATE_FAULT;  /* 改快照 */
+    snap1.device_state = DEV_STATE_FAULT;
 
     device_context_t snap2 = dev_ctx_snapshot();
-    TEST_ASSERT_EQUAL_INT(DEV_STATE_IDLE, snap2.device_state);  /* 内部未变 */
+    TEST_ASSERT_EQUAL_INT(DEV_STATE_IDLE, snap2.device_state);
 }
 
 /* -------------------------------------------------------------------------
- * TC-5：cloud_status 切换
+ * TC-5：cloud_connected 读穿 connection port
  * ------------------------------------------------------------------------- */
-static void test_cloud_status_toggle(void)
+static void test_cloud_connected_read_through(void)
 {
-    dev_ctx_set_cloud_status(true);
+    s_fake_cloud_connected = true;
     TEST_ASSERT_TRUE(dev_ctx_snapshot().cloud_connected);
 
-    dev_ctx_set_cloud_status(false);
+    s_fake_cloud_connected = false;
     TEST_ASSERT_FALSE(dev_ctx_snapshot().cloud_connected);
 }
 
 /* -------------------------------------------------------------------------
  * TC-6：并发读写一致性
- * 线程内不使用 Unity 断言（longjmp 跨线程不安全），改为标志位+主线程检查
  * ------------------------------------------------------------------------- */
 #define CONCURRENT_ITER  50000
 
-static atomic_int s_stop_flag   = 0;
-static volatile int s_reader_error = 0;  /* 线程检测到非法状态时置 1 */
+static atomic_int s_stop_flag      = 0;
+static volatile int s_reader_error = 0;
 
 static const dev_state_t k_states[2] = { DEV_STATE_IDLE, DEV_STATE_RUNNING };
 static const wash_mode_t k_modes[2]  = { WASH_MODE_STANDARD, WASH_MODE_QUICK };
@@ -100,11 +117,12 @@ static void *writer_fn(void *arg)
 {
     (void)arg;
     int idx = 0;
+
     for (int i = 0; i < CONCURRENT_ITER; i++)
     {
         dev_ctx_set_device_state(k_states[idx]);
         dev_ctx_set_wash_mode(k_modes[idx]);
-        dev_ctx_set_cloud_status((idx == 0));
+        s_fake_cloud_connected = (idx == 0);
         idx ^= 1;
     }
     atomic_store(&s_stop_flag, 1);
@@ -114,9 +132,11 @@ static void *writer_fn(void *arg)
 static void *reader_fn(void *arg)
 {
     (void)arg;
+
     while (!atomic_load(&s_stop_flag))
     {
         device_context_t ctx = dev_ctx_snapshot();
+
         if ((ctx.device_state != k_states[0] && ctx.device_state != k_states[1]) ||
             (ctx.wash_mode    != k_modes[0]  && ctx.wash_mode    != k_modes[1]))
         {
@@ -132,7 +152,9 @@ static void test_concurrent_read_write(void)
     atomic_store(&s_stop_flag, 0);
     s_reader_error = 0;
 
-    pthread_t writer, reader;
+    pthread_t writer;
+    pthread_t reader;
+
     pthread_create(&writer, NULL, writer_fn, NULL);
     pthread_create(&reader, NULL, reader_fn, NULL);
     pthread_join(writer, NULL);
@@ -148,7 +170,7 @@ int main(void)
     RUN_TEST(test_set_device_state_isolated);
     RUN_TEST(test_set_wash_mode);
     RUN_TEST(test_snapshot_is_copy);
-    RUN_TEST(test_cloud_status_toggle);
+    RUN_TEST(test_cloud_connected_read_through);
     RUN_TEST(test_concurrent_read_write);
     return UNITY_END();
 }

@@ -16,6 +16,7 @@
 #include "framework/ports/outbound/hal/hal_do_group_port.h"
 #include "framework/ports/outbound/hal/hal_voice_port.h"
 #include "framework/ports/outbound/cloud/report/report_port.h"
+#include "framework/ports/outbound/cloud/connection/connection_port.h"
 #include "framework/ports/inbound/command/command_port.h"
 #include "framework/ports/outbound/storage/param_store.h"
 #include "framework/ports/outbound/storage/deploy_store.h"
@@ -60,6 +61,14 @@ static const cloud_report_ops_t *s_report_ops;
 
 void cloud_report_register(const cloud_report_ops_t *ops) { s_report_ops = ops; }
 const cloud_report_ops_t *cloud_report_get_ops(void)      { return s_report_ops; }
+
+/* -------------------------------------------------------------------------
+ * 云端 — 连接
+ * ------------------------------------------------------------------------- */
+static const cloud_connection_ops_t *s_connection_ops;
+
+void cloud_connection_register(const cloud_connection_ops_t *ops) { s_connection_ops = ops; }
+const cloud_connection_ops_t *cloud_connection_get_ops(void)      { return s_connection_ops; }
 
 /* -------------------------------------------------------------------------
  * 云端 — 命令接入

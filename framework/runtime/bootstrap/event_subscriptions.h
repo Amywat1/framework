@@ -23,8 +23,9 @@
  *  EVT_COMP_HOME_DONE          device_fsm              普通
  *  EVT_WASH_DONE               device_fsm              普通
  *  EVT_WASH_ABORTED            device_fsm              普通
- *  EVT_CLOUD_CONNECTED         report_aggregator       普通
- *  EVT_CLOUD_DISCONNECTED      report_aggregator       普通
+ *  EVT_CLOUD_CONNECTED         report_aggregator       普通（重连 resync）
+ *  EVT_ALARM_TRIGGERED         report_aggregator       普通（报警增量上报）
+ *  EVT_ALARM_CLEARED           report_aggregator       普通（报警增量上报）
  *
  *  已移出事件总线（改用域内回调）：
  *  EVT_COMP_MOTOR_DONE  → motor_set_done_cb(MOTOR_GANTRY, ...)  in gantry_init

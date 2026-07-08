@@ -6,6 +6,7 @@
  */
 
 #include "framework/services/dev_ctx/dev_ctx.h"
+#include "framework/ports/outbound/cloud/connection/connection_port.h"
 #include "framework/common/log.h"
 #include <pthread.h>
 #include <string.h>
@@ -13,12 +14,23 @@
 static device_context_t s_ctx;
 static pthread_mutex_t  s_mutex = PTHREAD_MUTEX_INITIALIZER;
 
+static bool read_cloud_connected(void)
+{
+    const cloud_connection_ops_t *ops = cloud_connection_get_ops();
+
+    if ((ops == NULL) || (ops->is_connected == NULL))
+    {
+        return false;
+    }
+    return ops->is_connected();
+}
+
 sw_err_t dev_ctx_init(void)
 {
     pthread_mutex_lock(&s_mutex);
     memset(&s_ctx, 0, sizeof(s_ctx));
-    s_ctx.device_state  = DEV_STATE_INIT;
-    s_ctx.wash_mode     = WASH_MODE_STANDARD;
+    s_ctx.device_state = DEV_STATE_INIT;
+    s_ctx.wash_mode    = WASH_MODE_STANDARD;
     pthread_mutex_unlock(&s_mutex);
     LOG_INFO("dev_ctx: init ok");
     return SW_OK;
@@ -27,9 +39,12 @@ sw_err_t dev_ctx_init(void)
 device_context_t dev_ctx_snapshot(void)
 {
     device_context_t snap;
+
     pthread_mutex_lock(&s_mutex);
     snap = s_ctx;
     pthread_mutex_unlock(&s_mutex);
+
+    snap.cloud_connected = read_cloud_connected();
     return snap;
 }
 
@@ -61,13 +76,6 @@ void dev_ctx_set_gantry_pos(int32_t pos)
 {
     pthread_mutex_lock(&s_mutex);
     s_ctx.gantry_pos = pos;
-    pthread_mutex_unlock(&s_mutex);
-}
-
-void dev_ctx_set_cloud_status(bool connected)
-{
-    pthread_mutex_lock(&s_mutex);
-    s_ctx.cloud_connected = connected;
     pthread_mutex_unlock(&s_mutex);
 }
 

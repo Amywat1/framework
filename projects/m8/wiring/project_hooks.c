@@ -8,8 +8,6 @@
  */
 
 #include "framework/runtime/bootstrap/project_hooks.h"
-#include "framework/runtime/event_bus/event_bus.h"
-#include "framework/common/event_types.h"
 #include "framework/adapters/outbound/hal/components/sensor_filter/hal_sensor_filter.h"
 #include "framework/adapters/outbound/hal/components/vfd_manager/hal_vfd_manager.h"
 #include "projects/m8/adapters/alarm/m8_alarm_adapt.h"
@@ -18,6 +16,7 @@
 #include "projects/m8/adapters/cli/m8_cli_setup.h"
 #include "projects/m8/adapters/cloud/m8_cloud_bind.h"
 #include "framework/adapters/inbound/cloud/providers/snack/snack_cloud_command_adapter.h"
+#include "framework/adapters/outbound/cloud/providers/snack/snack_cloud_connection_adapter.h"
 #include "projects/m8/bindings/m8_boot_profile.h"
 #include "projects/m8/bindings/m8_machine_setup.h"
 #include "projects/m8/bindings/m8_motor_exec.h"
@@ -78,9 +77,15 @@ sw_err_t project_alarm_catalog_init(void)
 
 sw_err_t project_adapters_init(void)
 {
+    sw_err_t ret = SW_OK;
+
     if (snack_cloud_command_adapter_init(m8_cloud_on_property_set))
     {
-        (void)event_publish(EVT_CLOUD_CONNECTED, 0U);
+        ret = snack_cloud_connection_adapter_start();
+        if (ret != SW_OK)
+        {
+            return ret;
+        }
     }
     m8_cli_setup();
     return SW_OK;

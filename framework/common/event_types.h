@@ -120,7 +120,7 @@ typedef uint16_t event_type_t;
 #define EVT_CMD_HOME_DEVICE        EVT_MAKE(EVT_CAT_CMD, EVT_CMD_ID_HOME_DEVICE)
 
 /* -------------------------------------------------------------------------
- * CLOUD 类（report_aggregator / project_hooks 发布）
+ * CLOUD 类（snack_cloud_connection_adapter 发布）
  * ------------------------------------------------------------------------- */
 #define EVT_CLOUD_ID_CONNECTED       0U
 #define EVT_CLOUD_ID_DISCONNECTED    1U

@@ -38,11 +38,9 @@ void tearDown(void) {}
 
 static cJSON *build_and_parse_report(void)
 {
-    cloud_report_payload_t dummy;
-    char                    buf[1024];
+    char buf[1024];
 
-    memset(&dummy, 0, sizeof(dummy));
-    TEST_ASSERT_EQUAL_INT(SW_OK, m8_cloud_on_report(&dummy, buf, sizeof(buf)));
+    TEST_ASSERT_EQUAL_INT(SW_OK, m8_cloud_build_properties(buf, sizeof(buf)));
     return cJSON_Parse(buf);
 }
 
