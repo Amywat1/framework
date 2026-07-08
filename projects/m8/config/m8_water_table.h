@@ -1,6 +1,6 @@
 /**
  * @file    m8_water_table.h
- * @brief   M8 水路配置（路径拓扑 + 执行器引脚）
+ * @brief   M8 水路配置（命名 + 路径拓扑 + 执行器引脚）
  * @author  HUWANGWEI
  * @date    2026-06-07
  */
@@ -8,9 +8,35 @@
 #ifndef CONFIG_MACHINE_M8_WATER_TABLE_H
 #define CONFIG_MACHINE_M8_WATER_TABLE_H
 
-#include "projects/m8/config/m8_water_ids.h"
+#include "framework/domain/device_control/mechanism/water.h"
 #include "projects/m8/config/m8_io_pins.h"
 #include "framework/common/io_handle.h"
+
+/* -------------------------------------------------------------------------
+ * 路径与通道命名
+ * ------------------------------------------------------------------------- */
+typedef enum
+{
+    M8_WATER_CH_SHARED = 0,
+    M8_WATER_CH_CURTAIN,
+    M8_WATER_CH_FOAM,
+    M8_WATER_CH_BRUSH,
+    M8_WATER_CH_HIGHPRES,
+    M8_WATER_CH_BOTTOM_FOAM,
+    M8_WATER_CH_COUNT,
+} m8_water_channel_t;
+
+typedef enum
+{
+    M8_WATER_PATH_CURTAIN = 0,
+    M8_WATER_PATH_FOAM,
+    M8_WATER_PATH_BOTTOM_FOAM,
+    M8_WATER_PATH_BRUSH,
+    M8_WATER_PATH_HIGHPRES,
+    M8_WATER_PATH_COUNT,
+} m8_water_path_id_t;
+
+#define M8_WATER_PATH_MASK(id)  WATER_PATH_MASK(id)
 
 /* -------------------------------------------------------------------------
  * 执行器引脚表（channel + slot → DO）

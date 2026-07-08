@@ -26,7 +26,7 @@
 #include "framework/domain/device_control/mechanism/gantry.h"
 #include "framework/domain/device_control/mechanism/brush.h"
 #include "framework/domain/device_control/mechanism/water.h"
-#include "projects/m8/config/m8_water_ids.h"
+#include "projects/m8/config/m8_water_table.h"
 #include "framework/domain/device_control/mechanism/lift.h"
 #include "framework/domain/device_control/mechanism/rear_lock.h"
 #include "framework/domain/device_control/mechanism/fan.h"
@@ -100,23 +100,26 @@ static void apply_brush(void)
 
 static void apply_water(void)
 {
+    static const struct
+    {
+        const int        *p_state;
+        water_path_mask_t path_bit;
+    } s_water_do_map[] = {
+        { &s_water_curtain,  M8_WATER_PATH_MASK(M8_WATER_PATH_CURTAIN)     },
+        { &s_water_top_foam, M8_WATER_PATH_MASK(M8_WATER_PATH_FOAM)        },
+        { &s_water_btm_foam, M8_WATER_PATH_MASK(M8_WATER_PATH_BOTTOM_FOAM) },
+        { &s_water_hp_top,   M8_WATER_PATH_MASK(M8_WATER_PATH_HIGHPRES)   },
+        { &s_water_hp_btm,   M8_WATER_PATH_MASK(M8_WATER_PATH_HIGHPRES)   },
+    };
     water_path_mask_t mask = 0U;
+    unsigned          i;
 
-    if (s_water_curtain > 0)
+    for (i = 0U; i < (unsigned)(sizeof(s_water_do_map) / sizeof(s_water_do_map[0])); i++)
     {
-        mask |= M8_WATER_PATH_MASK(M8_WATER_PATH_CURTAIN);
-    }
-    if (s_water_top_foam > 0)
-    {
-        mask |= M8_WATER_PATH_MASK(M8_WATER_PATH_FOAM);
-    }
-    if (s_water_btm_foam > 0)
-    {
-        mask |= M8_WATER_PATH_MASK(M8_WATER_PATH_BOTTOM_FOAM);
-    }
-    if ((s_water_hp_top > 0) || (s_water_hp_btm > 0))
-    {
-        mask |= M8_WATER_PATH_MASK(M8_WATER_PATH_HIGHPRES);
+        if (*s_water_do_map[i].p_state > 0)
+        {
+            mask |= s_water_do_map[i].path_bit;
+        }
     }
 
     (void)water_path_set(mask);

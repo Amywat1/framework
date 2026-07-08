@@ -84,7 +84,6 @@ sw_err_t m8_water_setup(void)
             .valve_open_delay_ms = CFG_WATER_VALVE_OPEN_DELAY_MS,
             .pump_stop_delay_ms  = CFG_WATER_PUMP_STOP_DELAY_MS,
             .channel_count       = (uint8_t)M8_WATER_CH_COUNT,
-            .main_pump           = { M8_WATER_CH_SHARED, WATER_SLOT_PUMP },
         },
         &(water_actuator_ops_t){
             .slot_set = m8_water_slot_set,

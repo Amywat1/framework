@@ -50,7 +50,6 @@ static const water_cfg_t s_cfg = {
     .valve_open_delay_ms = 0U,
     .pump_stop_delay_ms  = 0U,
     .channel_count       = TEST_CH_COUNT,
-    .main_pump           = { TEST_CH_SHARED, WATER_SLOT_PUMP },
 };
 
 static void drain(uint32_t *now_ms)
@@ -90,8 +89,8 @@ void test_water_init_all_off(void)
                                         },
                                         s_paths, 2U));
     drain(&now_ms);
-    TEST_ASSERT_FALSE(water_is_pump_on());
-    TEST_ASSERT_FALSE(water_is_any_valve_open());
+    TEST_ASSERT_FALSE(s_slot_state[TEST_CH_SHARED][WATER_SLOT_PUMP]);
+    TEST_ASSERT_FALSE(s_slot_state[TEST_CH_VALVE_A][WATER_SLOT_WATER_VALVE]);
 }
 
 void test_water_open_single_path(void)
@@ -140,7 +139,7 @@ void test_water_parallel_paths_share_pump(void)
 
     TEST_ASSERT_EQUAL(SW_OK, water_path_set(0U));
     drain(&now_ms);
-    TEST_ASSERT_FALSE(water_is_pump_on());
+    TEST_ASSERT_FALSE(s_slot_state[TEST_CH_SHARED][WATER_SLOT_PUMP]);
 }
 
 void test_water_nonblocking_request(void)

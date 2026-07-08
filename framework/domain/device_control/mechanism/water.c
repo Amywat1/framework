@@ -7,13 +7,12 @@
 
 #include "framework/domain/device_control/mechanism/water.h"
 #include "framework/runtime/config/thread_config.h"
-#include "framework/runtime/scheduler/thread_registry.h"
+#include "framework/runtime/scheduler/periodic_task.h"
 #include "framework/common/log.h"
 #include "framework/common/time_util.h"
 #include <pthread.h>
 #include <sched.h>
 #include <string.h>
-#include <time.h>
 
 #define WATER_ACTUATOR_LIST_MAX  16U
 
@@ -25,8 +24,6 @@ typedef enum
 } water_seq_state_t;
 
 static pthread_mutex_t s_mutex = PTHREAD_MUTEX_INITIALIZER;
-static pthread_cond_t  s_wake;
-static bool            s_wake_inited = false;
 
 static water_cfg_t           s_cfg;
 static water_actuator_ops_t  s_actuator;
@@ -56,7 +53,7 @@ static bool path_bit_set(water_path_mask_t mask, uint8_t path_idx)
 
 static bool is_pump_slot(water_slot_t slot)
 {
-    return ((slot == WATER_SLOT_PUMP) || (slot == WATER_SLOT_CHEM_PUMP));
+    return (slot == WATER_SLOT_PUMP);
 }
 
 static bool key_valid(const water_actuator_key_t *key)
@@ -267,21 +264,6 @@ static void force_off_locked(void)
     reset_state();
 }
 
-static void wake_init(void)
-{
-    pthread_condattr_t attr;
-
-    if (s_wake_inited)
-    {
-        return;
-    }
-    pthread_condattr_init(&attr);
-    pthread_condattr_setclock(&attr, CLOCK_MONOTONIC);
-    pthread_cond_init(&s_wake, &attr);
-    pthread_condattr_destroy(&attr);
-    s_wake_inited = true;
-}
-
 static sw_err_t close_pumps_locked(uint32_t now_ms)
 {
     sw_err_t ret;
@@ -424,40 +406,12 @@ static void process_idle_locked(uint32_t now_ms)
     }
 }
 
-static uint32_t calc_wait_ms(uint32_t now_ms)
-{
-    uint32_t elapsed;
-    uint32_t need_ms;
-
-    if (s_seq_state == WATER_SEQ_WAIT_CLOSE_PUMP)
-    {
-        elapsed = time_elapsed_ms(s_deadline_ms, now_ms);
-        if (elapsed >= s_cfg.pump_stop_delay_ms)
-        {
-            return 0U;
-        }
-        need_ms = s_cfg.pump_stop_delay_ms - elapsed;
-        return (need_ms > 0U) ? need_ms : 1U;
-    }
-    if (s_seq_state == WATER_SEQ_WAIT_OPEN_VALVE)
-    {
-        elapsed = time_elapsed_ms(s_deadline_ms, now_ms);
-        if (elapsed >= s_cfg.valve_open_delay_ms)
-        {
-            return 0U;
-        }
-        need_ms = s_cfg.valve_open_delay_ms - elapsed;
-        return (need_ms > 0U) ? need_ms : 1U;
-    }
-    return THD_WATER_WORKER_PERIOD_MS;
-}
-
-static uint32_t tick_locked(uint32_t now_ms)
+static void tick_locked(uint32_t now_ms)
 {
     if (s_force_off)
     {
         force_off_locked();
-        return THD_WATER_WORKER_PERIOD_MS;
+        return;
     }
 
     switch (s_seq_state)
@@ -485,59 +439,36 @@ static uint32_t tick_locked(uint32_t now_ms)
         }
         break;
     }
-
-    return calc_wait_ms(now_ms);
 }
 
 #ifndef WATER_UNIT_TEST
 
-static void wait_locked(uint32_t wait_ms)
+static void water_poll_task(void *ctx)
 {
-    struct timespec ts;
-
-    if (wait_ms == 0U)
-    {
-        return;
-    }
-
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-    ts.tv_sec  += (time_t)(wait_ms / 1000U);
-    ts.tv_nsec += (long)(wait_ms % 1000U) * 1000000L;
-    if (ts.tv_nsec >= 1000000000L)
-    {
-        ts.tv_sec++;
-        ts.tv_nsec -= 1000000000L;
-    }
-    (void)pthread_cond_timedwait(&s_wake, &s_mutex, &ts);
-}
-
-static void *worker_thread_fn(void *arg)
-{
-    (void)arg;
+    (void)ctx;
 
     pthread_mutex_lock(&s_mutex);
-    for (;;)
+    if (s_ready)
     {
-        uint32_t now_ms  = time_util_get_ms();
-        uint32_t wait_ms = tick_locked(now_ms);
-
-        wait_locked(wait_ms);
+        tick_locked(time_util_get_ms());
     }
-    return NULL;
+    pthread_mutex_unlock(&s_mutex);
 }
 
-static sw_err_t worker_start(void)
+static sw_err_t poll_task_register(void)
 {
     sw_err_t ret;
 
-    ret = thread_register("water_worker",
-                          worker_thread_fn,
-                          SCHED_OTHER,
-                          THD_WATER_WORKER_NICE,
-                          THD_WATER_WORKER_STACK);
+    ret = periodic_task_register("water_poll",
+                                 THD_WATER_POLL_PERIOD_MS,
+                                 water_poll_task,
+                                 NULL,
+                                 SCHED_OTHER,
+                                 THD_WATER_POLL_NICE,
+                                 THD_WATER_POLL_STACK);
     if (ret != SW_OK)
     {
-        LOG_ERROR("water: thread_register failed ret=%d", (int)ret);
+        LOG_ERROR("water: periodic_task_register failed ret=%d", (int)ret);
     }
     return ret;
 }
@@ -551,15 +482,12 @@ sw_err_t water_init(const water_cfg_t *cfg,
 {
     if ((cfg == NULL) || (ops == NULL) || (ops->slot_set == NULL)
         || (paths == NULL) || (path_count == 0U)
-        || (cfg->channel_count == 0U) || (cfg->channel_count > WATER_CHANNEL_MAX)
-        || (cfg->main_pump.ch >= cfg->channel_count)
-        || (cfg->main_pump.slot >= WATER_SLOT_COUNT))
+        || (cfg->channel_count == 0U) || (cfg->channel_count > WATER_CHANNEL_MAX))
     {
         return SW_ERR_PARAM;
     }
 
     pthread_mutex_lock(&s_mutex);
-    wake_init();
     s_cfg           = *cfg;
     s_channel_count = cfg->channel_count;
     s_actuator   = *ops;
@@ -571,7 +499,7 @@ sw_err_t water_init(const water_cfg_t *cfg,
     pthread_mutex_unlock(&s_mutex);
 
 #ifndef WATER_UNIT_TEST
-    return worker_start();
+    return poll_task_register();
 #else
     return SW_OK;
 #endif
@@ -586,7 +514,6 @@ sw_err_t water_path_set(water_path_mask_t target)
         return SW_ERR_NOT_INIT;
     }
     s_pending_target = target;
-    pthread_cond_signal(&s_wake);
     pthread_mutex_unlock(&s_mutex);
     return SW_OK;
 }
@@ -601,49 +528,8 @@ sw_err_t water_all_off(void)
     }
     s_force_off      = true;
     s_pending_target = 0U;
-    pthread_cond_signal(&s_wake);
     pthread_mutex_unlock(&s_mutex);
     return SW_OK;
-}
-
-bool water_is_pump_on(void)
-{
-    bool on;
-
-    pthread_mutex_lock(&s_mutex);
-    on = s_actual[s_cfg.main_pump.ch][s_cfg.main_pump.slot];
-    pthread_mutex_unlock(&s_mutex);
-    return on;
-}
-
-bool water_is_any_valve_open(void)
-{
-    bool result = false;
-    unsigned ch;
-    unsigned slot;
-
-    pthread_mutex_lock(&s_mutex);
-    for (ch = 0U; ch < (unsigned)s_channel_count; ch++)
-    {
-        for (slot = 0U; slot < (unsigned)WATER_SLOT_COUNT; slot++)
-        {
-            if (is_pump_slot((water_slot_t)slot))
-            {
-                continue;
-            }
-            if (s_actual[ch][slot])
-            {
-                result = true;
-                break;
-            }
-        }
-        if (result)
-        {
-            break;
-        }
-    }
-    pthread_mutex_unlock(&s_mutex);
-    return result;
 }
 
 #ifdef WATER_UNIT_TEST
@@ -653,7 +539,7 @@ void water_poll(uint32_t now_ms)
     pthread_mutex_lock(&s_mutex);
     if (s_ready)
     {
-        (void)tick_locked(now_ms);
+        tick_locked(now_ms);
     }
     pthread_mutex_unlock(&s_mutex);
 }

@@ -1,6 +1,6 @@
 /**
  * @file    water.h
- * @brief   水路控制（路径掩码 + 引用计数 + 异步 worker）
+ * @brief   水路控制（路径掩码 + 引用计数 + 周期 tick）
  * @author  HUWANGWEI
  * @date    2026-04-10
  *
@@ -30,7 +30,6 @@ typedef uint8_t water_channel_idx_t;
 typedef enum
 {
     WATER_SLOT_PUMP = 0,
-    WATER_SLOT_CHEM_PUMP,
     WATER_SLOT_WATER_VALVE,
     WATER_SLOT_AIR_VALVE,
     WATER_SLOT_COUNT,
@@ -63,10 +62,9 @@ typedef struct
 
 typedef struct
 {
-    uint32_t             valve_open_delay_ms;
-    uint32_t             pump_stop_delay_ms;
-    uint8_t              channel_count;
-    water_actuator_key_t main_pump;
+    uint32_t valve_open_delay_ms;
+    uint32_t pump_stop_delay_ms;
+    uint8_t  channel_count;
 } water_cfg_t;
 
 sw_err_t water_init(const water_cfg_t *cfg,
@@ -76,8 +74,6 @@ sw_err_t water_init(const water_cfg_t *cfg,
 
 sw_err_t water_path_set(water_path_mask_t target);
 sw_err_t water_all_off(void);
-bool     water_is_pump_on(void);
-bool     water_is_any_valve_open(void);
 
 #ifdef WATER_UNIT_TEST
 void water_poll(uint32_t now_ms);

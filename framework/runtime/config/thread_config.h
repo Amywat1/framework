@@ -52,8 +52,8 @@
 #define THD_SENSOR_POLL_NICE         0
 
 /* 水路 worker 线程（SCHED_OTHER）*/
-#define THD_WATER_WORKER_STACK       (16U * 1024U)
-#define THD_WATER_WORKER_NICE        0
-#define THD_WATER_WORKER_PERIOD_MS   10U
+#define THD_WATER_POLL_STACK       (16U * 1024U)
+#define THD_WATER_POLL_NICE        0
+#define THD_WATER_POLL_PERIOD_MS   10U
 
 #endif /* CONFIG_THREADING_THREAD_CONFIG_H */
