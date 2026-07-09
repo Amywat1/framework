@@ -77,7 +77,7 @@ typedef sw_err_t (*point_get_fn_t)(point_value_t *out);
  */
 typedef sw_err_t (*point_set_fn_t)(const point_value_t *in);
 
-/** 点位表条目（只读点位 set=NULL；纯命令点位 get 可返回恒定值供回显）*/
+/** 点位表条目（只读点位 set=NULL；脉冲命令 get 用 echo_idle；持续命令 get 读运行态）*/
 typedef struct
 {
     const char     *id;

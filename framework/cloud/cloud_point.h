@@ -16,7 +16,7 @@
 extern "C" {
 #endif
 
-#define CLOUD_REPORT_JSON_MAX   1024U
+#define CLOUD_REPORT_JSON_MAX   4096U
 
 typedef enum
 {
@@ -59,7 +59,8 @@ typedef struct
     cloud_service_fn_t       service;
 } cloud_point_entry_t;
 
-sw_err_t cloud_point_get_pulse_false(point_value_t *out);
+/** @brief 脉冲命令回显空闲态（恒定 false） */
+sw_err_t cloud_point_get_echo_idle(point_value_t *out);
 void cloud_point_set_get_fail_policy(cloud_point_get_fail_policy_t policy);
 sw_err_t cloud_point_validate(const cloud_point_entry_t *entries, size_t count);
 sw_err_t cloud_point_to_json(const cloud_point_entry_t *entries, size_t count,

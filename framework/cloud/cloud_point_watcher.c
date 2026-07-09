@@ -10,7 +10,7 @@
 #include "framework/common/event_types.h"
 #include <string.h>
 
-#define CLOUD_POINT_WATCHER_MAX   64U
+#define CLOUD_POINT_WATCHER_MAX   96U
 
 typedef struct
 {

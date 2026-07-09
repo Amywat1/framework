@@ -395,10 +395,10 @@ if(BUILD_SIM)
         framework/ports/port_registry.c
         projects/m8/adapters/cloud/m8_cloud_register.c
         projects/m8/adapters/cloud/m8_cloud_model.c
-        projects/m8/adapters/cloud/m8_cloud_report_policy.c
+        projects/m8/adapters/cloud/m8_cloud_runtime.c
         projects/m8/adapters/cloud/m8_cloud_telemetry.c
         projects/m8/adapters/cloud/m8_cloud_service.c
-        projects/m8/adapters/cloud/m8_cloud_manual_cmd.c
+        projects/m8/adapters/cloud/m8_cloud_cmd.c
         projects/m8/adapters/manual/m8_manual_guard.c
         projects/m8/adapters/manual/m8_manual_action.c
         framework/domain/device_control/mechanism/gantry.c

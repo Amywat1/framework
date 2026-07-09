@@ -17,7 +17,10 @@ void cloud_point_set_get_fail_policy(cloud_point_get_fail_policy_t policy)
     s_get_fail_policy = policy;
 }
 
-sw_err_t cloud_point_get_pulse_false(point_value_t *out)
+/**
+ * @brief  脉冲命令回显空闲态（恒定 false）
+ */
+sw_err_t cloud_point_get_echo_idle(point_value_t *out)
 {
     if (out == NULL)
     {
@@ -277,7 +280,7 @@ sw_err_t cloud_point_apply_json(const cloud_point_entry_t *entries, size_t count
 sw_err_t cloud_point_to_json(const cloud_point_entry_t *entries, size_t count,
                               char *buf, size_t buf_size)
 {
-    point_table_entry_t table[64];
+    point_table_entry_t table[96];
     size_t              n = 0U;
 
     if ((entries == NULL) || (count == 0U) || (buf == NULL) || (buf_size == 0U))
@@ -306,7 +309,7 @@ sw_err_t cloud_point_to_json_filtered(const cloud_point_entry_t *entries, size_t
                                        const char *const *ids, size_t id_count,
                                        char *buf, size_t buf_size)
 {
-    point_table_entry_t table[64];
+    point_table_entry_t table[96];
     size_t              n = 0U;
 
     if ((entries == NULL) || (count == 0U) || (ids == NULL) || (id_count == 0U))
