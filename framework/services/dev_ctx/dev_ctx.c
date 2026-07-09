@@ -2,7 +2,7 @@
  * @file    dev_ctx.c
  * @brief   设备状态快照实现
  * @author  HUWANGWEI
- * @date    2026-04-10
+ * @date    2026-07-09
  */
 
 #include "framework/services/dev_ctx/dev_ctx.h"
@@ -32,6 +32,7 @@ sw_err_t dev_ctx_init(void)
     s_ctx.operational_mode = OP_MODE_INIT;
     s_ctx.service_enabled  = true;
     s_ctx.wash_mode        = WASH_MODE_STANDARD;
+    s_ctx.safety_posture   = SAFETY_POSTURE_NOMINAL;
     pthread_mutex_unlock(&s_mutex);
     LOG_INFO("dev_ctx: init ok");
     return SW_OK;
@@ -94,17 +95,34 @@ void dev_ctx_set_gantry_pos(int32_t pos)
     pthread_mutex_unlock(&s_mutex);
 }
 
-void dev_ctx_set_safety_state(safety_state_t state)
+void dev_ctx_set_safety_posture(safety_posture_t posture)
 {
     pthread_mutex_lock(&s_mutex);
-    s_ctx.safety_state = state;
+    s_ctx.safety_posture = posture;
     pthread_mutex_unlock(&s_mutex);
 }
 
-void dev_ctx_set_alarm_state(bool has_alarm, uint32_t alarm_code)
+void dev_ctx_set_alarm_projection(bool blocking_active,
+                                  uint32_t top_code,
+                                  const alarm_instance_t *list,
+                                  unsigned count)
 {
+    if (count > ALARM_ACTIVE_MAX)
+    {
+        count = ALARM_ACTIVE_MAX;
+    }
+
     pthread_mutex_lock(&s_mutex);
-    s_ctx.has_alarm  = has_alarm;
-    s_ctx.alarm_code = alarm_code;
+    s_ctx.blocking_active    = blocking_active;
+    s_ctx.top_alarm_code     = top_code;
+    s_ctx.active_alarm_count = count;
+    if ((list != NULL) && (count > 0U))
+    {
+        memcpy(s_ctx.active_list, list, count * sizeof(s_ctx.active_list[0]));
+    }
+    else
+    {
+        memset(s_ctx.active_list, 0, sizeof(s_ctx.active_list));
+    }
     pthread_mutex_unlock(&s_mutex);
 }

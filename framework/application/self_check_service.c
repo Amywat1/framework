@@ -3,13 +3,10 @@
  * @brief   完整自检流程协调实现
  * @author  HUWANGWEI
  * @date    2026-07-09
- *
- * @note    阶段一最小桩：仅根据急停/联锁态决定落点并立即发布完成，
- *          不含设计 §6.4 描述的自检项汇总与机构驱动；后续阶段再补。
  */
 
 #include "framework/application/self_check_service.h"
-#include "framework/domain/safety/alarm/alarm_core.h"
+#include "framework/domain/safety/alarm_registry/alarm_registry.h"
 #include "framework/domain/safety/model/safety_types.h"
 #include "framework/domain/command_gateway/operational_mode.h"
 #include "framework/runtime/event_bus/event_bus.h"
@@ -36,7 +33,11 @@ sw_err_t self_check_service_start(void)
     {
         land_exception = true;
     }
-    else if (alarm_core_safety_state() == SAFETY_STATE_LOCKOUT)
+    else if (alarm_registry_safety_posture() == SAFETY_POSTURE_LOCKOUT)
+    {
+        land_exception = true;
+    }
+    else if (alarm_registry_has_blocking_active())
     {
         land_exception = true;
     }

@@ -41,14 +41,16 @@ static void inject_cmd(cmd_type_t type, wash_mode_t mode)
 static void print_state(void)
 {
     device_context_t ctx = dev_ctx_snapshot();
-    printf("[state] op_mode=%d service=%d estop=%d wash_mode=%d cloud=%d safety=%d alarm=%d code=%06u\n",
+    printf("[state] op_mode=%d service=%d estop=%d wash_mode=%d cloud=%d posture=%d blocking=%d alarms=%u top=%06u\n",
            (int)ctx.operational_mode,
            (int)ctx.service_enabled,
            (int)ctx.estop_active,
            (int)ctx.wash_mode,
            (int)ctx.cloud_connected,
-           (int)ctx.safety_state, (int)ctx.has_alarm,
-           (unsigned)ctx.alarm_code);
+           (int)ctx.safety_posture,
+           (int)ctx.blocking_active,
+           ctx.active_alarm_count,
+           (unsigned)ctx.top_alarm_code);
 }
 
 /* -------------------------------------------------------------------------

@@ -22,9 +22,12 @@
 #include "framework/ports/outbound/hal/hal_io_port.h"
 #include "framework/ports/outbound/hal/motor/hal_motor_exec_port.h"
 #include "framework/common/log.h"
+#include "framework/common/sw_error.h"
 #include <string.h>
 
 #define M8_CLOUD_FORCE_MS   1000U
+
+static sw_err_t require_manual_actuator(void);
 
 static sw_err_t gantry_fwd_wrap(void)
 {

@@ -8,6 +8,7 @@
 #include "framework/application/op_mode_bridge.h"
 #include "framework/domain/command_gateway/operational_mode.h"
 #include "framework/domain/command_gateway/op_mode_types.h"
+#include "framework/domain/safety/alarm_registry/alarm_registry.h"
 #include "framework/ports/outbound/safety/op_mode_alarm_port.h"
 #include "framework/runtime/event_bus/event_bus.h"
 #include "framework/common/event_types.h"
@@ -17,13 +18,19 @@
 static void on_wash_session_started(const event_t *evt)
 {
     (void)evt;
+    alarm_registry_on_wash_session_started();
     op_mode_on_wash_session_started();
 }
 
 static void on_wash_done(const event_t *evt)
 {
+    bool enter_exception;
+
     (void)evt;
     op_mode_on_wash_session_completed();
+    alarm_registry_on_wash_session_ended();
+    enter_exception = alarm_registry_has_blocking_active() || op_mode_is_estop_active();
+    op_mode_on_post_wash_assessment(enter_exception);
 }
 
 static void on_wash_aborted(const event_t *evt)
@@ -31,6 +38,13 @@ static void on_wash_aborted(const event_t *evt)
     wash_abort_cause_t cause = wash_abort_from_evt_param(evt->param);
 
     op_mode_on_wash_session_aborted(cause);
+    alarm_registry_on_wash_session_ended();
+
+    if (cause != WASH_ABORT_MANUAL)
+    {
+        bool enter_exception = alarm_registry_has_blocking_active() || op_mode_is_estop_active();
+        op_mode_on_post_wash_assessment(enter_exception);
+    }
 }
 
 static void on_safety_lockout(const event_t *evt)
@@ -80,15 +94,15 @@ static void on_self_check_completed(const event_t *evt)
 sw_err_t op_mode_bridge_init(void)
 {
     static const event_subscription_t s_subs[] = {
-        { EVT_WASH_SESSION_STARTED,       on_wash_session_started },
-        { EVT_WASH_DONE,                  on_wash_done            },
-        { EVT_WASH_ABORTED,               on_wash_aborted         },
-        { EVT_SAFETY_LOCKOUT,             on_safety_lockout       },
-        { EVT_ALARM_TRIGGERED,            on_alarm_triggered      },
-        { EVT_ALARM_CLEARED,              on_alarm_cleared        },
-        { EVT_HW_ESTOP_ON,                on_hw_estop_on          },
-        { EVT_HW_ESTOP_OFF,               on_hw_estop_off         },
-        { EVT_OP_MODE_RECOVERY_COMPLETED, on_recovery_completed   },
+        { EVT_WASH_SESSION_STARTED,         on_wash_session_started },
+        { EVT_WASH_DONE,                    on_wash_done            },
+        { EVT_WASH_ABORTED,                 on_wash_aborted         },
+        { EVT_SAFETY_LOCKOUT,               on_safety_lockout       },
+        { EVT_ALARM_TRIGGERED,              on_alarm_triggered      },
+        { EVT_ALARM_CLEARED,                on_alarm_cleared        },
+        { EVT_HW_ESTOP_ON,                  on_hw_estop_on          },
+        { EVT_HW_ESTOP_OFF,                 on_hw_estop_off         },
+        { EVT_OP_MODE_RECOVERY_COMPLETED,   on_recovery_completed   },
         { EVT_OP_MODE_SELF_CHECK_COMPLETED, on_self_check_completed },
     };
 

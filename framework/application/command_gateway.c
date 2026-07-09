@@ -9,7 +9,7 @@
 #include "framework/application/self_check_service.h"
 #include "framework/domain/command_gateway/operational_mode.h"
 #include "framework/domain/device_control/mechanism/gantry.h"
-#include "framework/domain/safety/alarm/alarm_core.h"
+#include "framework/domain/safety/alarm_registry/alarm_registry.h"
 #include "framework/domain/safety/model/safety_types.h"
 #include "framework/application/orchestrators/wash_orchestrator.h"
 #include "framework/domain/command_gateway/op_mode_types.h"
@@ -79,11 +79,12 @@ static sw_err_t dispatch_side_effects(const cmd_t *cmd)
         device_context_t ctx = dev_ctx_snapshot();
 
         if ((ctx.operational_mode == OP_MODE_IDLE) &&
-            (ctx.safety_state != SAFETY_STATE_WARNING))
+            !ctx.blocking_active &&
+            (ctx.safety_posture != SAFETY_POSTURE_LOCKOUT))
         {
             return SW_ERR_STATE;
         }
-        (void)alarm_core_reset_alarms();
+        (void)alarm_registry_recover_all();
         op_mode_on_legacy_reset_fault();
         return SW_OK;
     }

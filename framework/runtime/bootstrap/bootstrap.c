@@ -24,8 +24,9 @@
 #include "framework/application/orchestrators/report_scheduler.h"
 #include "framework/application/orchestrators/safety_supervisor.h"
 #include "framework/runtime/platform/safety_thread.h"
-#include "framework/domain/safety/alarm/alarm_core.h"
-#include "framework/domain/safety/safety_fsm/safety_fsm.h"
+#include "framework/application/alarm_event_bridge.h"
+#include "framework/domain/safety/alarm_registry/alarm_registry.h"
+#include "framework/domain/safety/safety_posture/safety_posture.h"
 #include "framework/ports/outbound/hal/hal_io_port.h"
 #include "framework/ports/outbound/hal/hal_vfd_port.h"
 #include "framework/ports/outbound/hal/hal_voice_port.h"
@@ -138,15 +139,17 @@ static sw_err_t bootstrap_init_application(void)
 {
     BOOT_CHECK(project_machine_setup(), "project_machine_setup");
     /* 安全/报警域初始化顺序：
-     *   ① alarm_core_init()             注册 alarm_binding_port，目录初始为空
-     *   ② safety_fsm_init()             订阅 EVT_ALARM_*
-     *   ③ safety_supervisor_init()      订阅 EVT_SAFETY_* / EVT_ALARM_*
-     *   ④ project_alarm_catalog_init()  项目报警目录一次性注入（须在 poll 前完成）+
-     *                                    通讯心跳时间戳初始化 */
-    BOOT_CHECK(alarm_core_init(),          "alarm_core_init");
-    BOOT_CHECK(safety_fsm_init(),          "safety_fsm_init");
-    BOOT_CHECK(safety_supervisor_init(),   "safety_supervisor_init");
-    BOOT_CHECK(project_alarm_catalog_init(), "project_alarm_catalog_init");
+     *   ① alarm_registry_init()
+     *   ② safety_posture_init()
+     *   ③ safety_supervisor_init()
+     *   ④ project_alarm_catalog_init()
+     *   ⑤ alarm_event_bridge_init()
+     */
+    BOOT_CHECK(alarm_registry_init(),          "alarm_registry_init");
+    BOOT_CHECK(safety_posture_init(),          "safety_posture_init");
+    BOOT_CHECK(safety_supervisor_init(),       "safety_supervisor_init");
+    BOOT_CHECK(project_alarm_catalog_init(),   "project_alarm_catalog_init");
+    BOOT_CHECK(alarm_event_bridge_init(),      "alarm_event_bridge_init");
     BOOT_CHECK(emergency_handler_init(),   "emergency_handler_init");
     BOOT_CHECK(safety_thread_init(),       "safety_thread_init");
     BOOT_CHECK(operational_mode_init(),    "operational_mode_init");

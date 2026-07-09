@@ -11,7 +11,7 @@
 #include "projects/m8/config/m8_voice_table.h"
 #include "projects/m8/config/m8_alarm_table.h"
 #include "framework/ports/inbound/safety/alarm_binding_port.h"
-#include "framework/domain/safety/model/alarm_code.h"
+#include "framework/domain/safety/model/alarm_types.h"
 #include "framework/common/log.h"
 
 /* 语音模块通信失败报警码（ALM_C_CTRL=4，ALM_CTRL_VOICE=5，ALM_N_COMM_LOST=2）*/

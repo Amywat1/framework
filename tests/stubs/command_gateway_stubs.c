@@ -5,10 +5,9 @@
 
 #include "framework/application/orchestrators/wash_orchestrator.h"
 #include "framework/domain/device_control/mechanism/gantry.h"
-#include "framework/domain/safety/alarm/alarm_core.h"
+#include "framework/domain/safety/alarm_registry/alarm_registry.h"
 #include "framework/domain/safety/model/safety_types.h"
 #include "framework/common/sw_error.h"
-
 #include "framework/domain/command_gateway/op_mode_types.h"
 
 sw_err_t wash_orchestrator_init(void)
@@ -37,12 +36,17 @@ sw_err_t gantry_home(void)
     return SW_OK;
 }
 
-sw_err_t alarm_core_reset_alarms(void)
+sw_err_t alarm_registry_recover_all(void)
 {
     return SW_OK;
 }
 
-safety_state_t alarm_core_safety_state(void)
+safety_posture_t alarm_registry_safety_posture(void)
 {
-    return SAFETY_STATE_OK;
+    return SAFETY_POSTURE_NOMINAL;
+}
+
+bool alarm_registry_has_blocking_active(void)
+{
+    return false;
 }

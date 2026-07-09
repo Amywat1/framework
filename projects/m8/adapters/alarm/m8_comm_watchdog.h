@@ -27,7 +27,7 @@ extern "C" {
  * ------------------------------------------------------------------------- */
 typedef enum
 {
-#define X(dev, timeout, cls, idx, nat, lvl, clr, desc) dev,
+#define X(dev, timeout, cls, idx, nat, lvl, resp, clr, cut, desc) dev,
     M8_COMM_WATCHDOG_TABLE(X)
 #undef X
     COMM_DEV_COUNT
@@ -48,7 +48,7 @@ void m8_comm_watchdog_heartbeat(comm_dev_id_t dev);
 
 /**
  * @brief  执行一次心跳超时检测（由 io_poll 线程周期调用）
- * @note   对超时设备调用 alarm_binding trigger；对恢复设备调用 clear（LATCHED 报警 clear 为 no-op）
+ * @note   对超时设备 trigger（immediate_cutout 项同步 cutout）；心跳恢复后停止重复 trigger
  */
 void m8_comm_watchdog_poll(void);
 

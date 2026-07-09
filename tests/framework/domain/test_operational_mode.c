@@ -6,6 +6,8 @@
  */
 
 #include "framework/domain/command_gateway/operational_mode.h"
+#include "framework/domain/safety/alarm_registry/alarm_registry.h"
+#include "framework/domain/safety/model/alarm_types.h"
 #include "framework/domain/command_gateway/op_mode_types.h"
 #include "framework/ports/inbound/command/command_port.h"
 #include "framework/runtime/event_bus/event_bus.h"
@@ -16,6 +18,7 @@ void setUp(void)
 {
     (void)time_util_init();
     (void)event_bus_init();
+    (void)alarm_registry_init();
     (void)operational_mode_init();
 }
 
@@ -137,6 +140,29 @@ static void test_wash_abort_critical_enters_exception(void)
     TEST_ASSERT_EQUAL_INT(OP_MODE_EXCEPTION, (int)op_mode_get_current());
 }
 
+static void test_post_wash_blocking_enters_exception(void)
+{
+    static const alarm_def_t cat[] = {
+        {
+            .code = 201101U, .level = ALARM_LEVEL_MAJOR,
+            .response = RESP_COMPLETE_THEN_ASSESS,
+            .clear = ALARM_CLEAR_MANUAL_RESET,
+            .source_kind = ALARM_SOURCE_LEVEL,
+            .scope = ALARM_SCOPE_NONE,
+            .immediate_cutout = false,
+            .desc = "侧刷过载",
+        },
+    };
+
+    (void)alarm_registry_load_catalog(cat, 1U);
+    op_mode_on_wash_session_started();
+    (void)alarm_registry_trigger(201101U);
+    op_mode_on_wash_session_completed();
+    alarm_registry_on_wash_session_ended();
+    op_mode_on_post_wash_assessment(alarm_registry_has_blocking_active());
+    TEST_ASSERT_EQUAL_INT(OP_MODE_EXCEPTION, (int)op_mode_get_current());
+}
+
 static void test_resume_operation_restores_service(void)
 {
     cmd_t stop = { .type = CMD_STOP_OPERATION };
@@ -166,6 +192,7 @@ int main(void)
     RUN_TEST(test_wash_abort_internal_enters_exception);
     RUN_TEST(test_wash_abort_timeout_enters_exception);
     RUN_TEST(test_wash_abort_critical_enters_exception);
+    RUN_TEST(test_post_wash_blocking_enters_exception);
     RUN_TEST(test_resume_operation_restores_service);
     return UNITY_END();
 }

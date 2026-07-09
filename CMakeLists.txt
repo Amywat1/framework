@@ -375,8 +375,22 @@ if(BUILD_SIM)
     add_unit_test(test_operational_mode
         tests/framework/domain/test_operational_mode.c
         framework/domain/command_gateway/operational_mode.c
-        framework/runtime/event_bus/event_bus.c
-        framework/common/time_util.c
+        framework/domain/safety/alarm_registry/alarm_registry.c
+        framework/ports/port_registry.c
+    )
+
+    add_unit_test(test_alarm_registry
+        tests/framework/domain/test_alarm_registry.c
+        framework/domain/safety/alarm_registry/alarm_registry.c
+        framework/ports/port_registry.c
+    )
+
+    add_unit_test(test_safety_posture
+        tests/framework/domain/test_safety_posture.c
+        framework/domain/safety/safety_posture/safety_posture.c
+        framework/domain/safety/alarm_registry/alarm_registry.c
+        framework/application/alarm_event_bridge.c
+        framework/ports/port_registry.c
     )
 
     # test_command_gateway：命令 RPC 与代际槽保护
@@ -385,11 +399,9 @@ if(BUILD_SIM)
         framework/application/command_gateway.c
         framework/application/self_check_service.c
         framework/domain/command_gateway/operational_mode.c
+        framework/domain/safety/alarm_registry/alarm_registry.c
         framework/services/dev_ctx/dev_ctx.c
-        framework/runtime/event_bus/event_bus.c
         framework/ports/port_registry.c
-        framework/common/log.c
-        framework/common/time_util.c
         tests/stubs/command_gateway_stubs.c
     )
 
@@ -398,9 +410,9 @@ if(BUILD_SIM)
         tests/framework/platform/test_hw_estop_event.c
         framework/application/op_mode_bridge.c
         framework/domain/command_gateway/operational_mode.c
+        framework/domain/safety/alarm_registry/alarm_registry.c
         framework/ports/outbound/safety/op_mode_alarm_port.c
-        framework/runtime/event_bus/event_bus.c
-        framework/common/time_util.c
+        framework/ports/port_registry.c
     )
 
     # test_cloud_point_watcher：ON_CHANGE 检测与 get 失败策略
@@ -722,6 +734,7 @@ if(BUILD_SIM)
         tests/framework/domain/test_gantry.c
         framework/domain/device_control/mechanism/gantry.c
         framework/adapters/outbound/hal/providers/mcc/hal_motor_exec_adapter.c
+        framework/ports/port_registry.c
         tests/stubs/mcc/motor_control_core_sim.c
     )
 

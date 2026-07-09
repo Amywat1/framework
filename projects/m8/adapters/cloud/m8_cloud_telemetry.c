@@ -8,7 +8,7 @@
 #include "projects/m8/adapters/cloud/m8_cloud_telemetry.h"
 #include "projects/m8/adapters/cloud/m8_cloud_runtime.h"
 #include "framework/services/dev_ctx/dev_ctx.h"
-#include "framework/domain/device_control/model/device_state.h"
+#include "framework/domain/safety/model/safety_types.h"
 #include "framework/domain/device_control/mechanism/lift.h"
 #include "projects/m8/bindings/m8_sensor.h"
 #include "projects/m8/config/m8_signal_table.h"
@@ -78,7 +78,9 @@ sw_err_t m8_cloud_get_sts_warn_homing(point_value_t *out)
 
 sw_err_t m8_cloud_get_sts_dev_warning(point_value_t *out)
 {
-    return get_bool(dev_ctx_snapshot().has_alarm, out);
+    device_context_t ctx = dev_ctx_snapshot();
+
+    return get_bool(ctx.blocking_active || (ctx.safety_posture == SAFETY_POSTURE_LOCKOUT), out);
 }
 
 sw_err_t m8_cloud_get_sts_park_state(point_value_t *out)

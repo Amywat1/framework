@@ -12,8 +12,10 @@
  *  ───────────────────────────────────────────────────────────────────
  *  EVT_HW_ESTOP_ON/OFF              safety_thread 发布
  *                                   op_mode_bridge / emergency_handler  高
- *  EVT_ALARM_TRIGGERED              safety_fsm                  普通
- *  EVT_ALARM_CLEARED                safety_fsm                  普通
+ *  EVT_ALARM_TRIGGERED              safety_posture / safety_supervisor  普通
+ *  EVT_ALARM_CLEARED                safety_posture / safety_supervisor  普通
+ *  EVT_ALARM_BATCH_CLEARED          safety_posture / safety_supervisor  普通
+ *  EVT_SAFETY_NOMINAL               safety_supervisor                   普通
  *  EVT_SAFETY_LOCKOUT               emergency_handler           高
  *  EVT_CMD_GATEWAY_WAKE             command_gateway             普通
  *  EVT_WASH_SESSION_STARTED         op_mode_bridge              普通

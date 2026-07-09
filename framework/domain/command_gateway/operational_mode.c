@@ -6,6 +6,7 @@
  */
 
 #include "framework/domain/command_gateway/operational_mode.h"
+#include "framework/domain/safety/alarm_registry/alarm_registry.h"
 #include "framework/runtime/event_bus/event_bus.h"
 #include "framework/common/event_types.h"
 #include "framework/common/log.h"
@@ -215,6 +216,10 @@ static op_command_result_t check_command(const cmd_t *cmd)
         if (!s_service_enabled)
         {
             return make_denied(OP_REJECT_SERVICE_DISABLED);
+        }
+        if (alarm_registry_has_blocking_active())
+        {
+            return make_denied(OP_REJECT_WRONG_MODE);
         }
     }
 

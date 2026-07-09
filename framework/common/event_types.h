@@ -28,7 +28,7 @@ typedef enum
     EVT_CAT_NONE   = 0,
     EVT_CAT_HW     = 1,     /**< 硬件异步（DI/VFD/IO 子板/编码器）*/
     EVT_CAT_COMP   = 2,     /**< 组件完成（电机/归位/升降/刷子）*/
-    EVT_CAT_SAFETY = 3,     /**< 安全域状态（LOCKOUT/WARNING/OK）*/
+    EVT_CAT_SAFETY = 3,     /**< 安全域姿态（LOCKOUT/NOMINAL）*/
     EVT_CAT_ALARM  = 4,     /**< 报警生命周期（激活/清除）*/
     EVT_CAT_CMD    = 5,     /**< 外部命令（云端/CLI/本地）*/
     EVT_CAT_CLOUD  = 6,     /**< 云端连接状态 */
@@ -82,26 +82,26 @@ typedef uint16_t event_type_t;
 #define EVT_COMP_HOME_DONE       EVT_MAKE(EVT_CAT_COMP, EVT_COMP_ID_HOME_DONE)
 
 /* -------------------------------------------------------------------------
- * SAFETY 类（framework/domain/safety/safety_fsm 发布）
+ * SAFETY 类（framework/domain/safety/safety_posture 发布）
  * ------------------------------------------------------------------------- */
 #define EVT_SAFETY_ID_LOCKOUT        0U
-#define EVT_SAFETY_ID_WARNING        1U
-#define EVT_SAFETY_ID_CLEARED        2U
-#define EVT_SAFETY_ID_HOME_DONE      3U  /* 安全归位完成（emergency_handler 发布）*/
+#define EVT_SAFETY_ID_NOMINAL        1U
+#define EVT_SAFETY_ID_HOME_DONE      2U  /* 安全归位完成（emergency_handler 发布）*/
 
 #define EVT_SAFETY_LOCKOUT       EVT_MAKE(EVT_CAT_SAFETY, EVT_SAFETY_ID_LOCKOUT)
-#define EVT_SAFETY_WARNING       EVT_MAKE(EVT_CAT_SAFETY, EVT_SAFETY_ID_WARNING)
-#define EVT_SAFETY_CLEARED       EVT_MAKE(EVT_CAT_SAFETY, EVT_SAFETY_ID_CLEARED)
+#define EVT_SAFETY_NOMINAL       EVT_MAKE(EVT_CAT_SAFETY, EVT_SAFETY_ID_NOMINAL)
 #define EVT_SAFETY_HOME_DONE     EVT_MAKE(EVT_CAT_SAFETY, EVT_SAFETY_ID_HOME_DONE)
 
 /* -------------------------------------------------------------------------
- * ALARM 类（framework/domain/safety/alarm/alarm_core 发布）
+ * ALARM 类（alarm_event_bridge 发布）
  * ------------------------------------------------------------------------- */
 #define EVT_ALARM_ID_TRIGGERED       0U
 #define EVT_ALARM_ID_CLEARED         1U
+#define EVT_ALARM_ID_BATCH_CLEARED   2U
 
 #define EVT_ALARM_TRIGGERED      EVT_MAKE(EVT_CAT_ALARM, EVT_ALARM_ID_TRIGGERED)
 #define EVT_ALARM_CLEARED        EVT_MAKE(EVT_CAT_ALARM, EVT_ALARM_ID_CLEARED)
+#define EVT_ALARM_BATCH_CLEARED  EVT_MAKE(EVT_CAT_ALARM, EVT_ALARM_ID_BATCH_CLEARED)
 
 /* -------------------------------------------------------------------------
  * CMD 类（遗留事件 ID 仅保留测试用 ORDER；生产命令经 command_port.inject）

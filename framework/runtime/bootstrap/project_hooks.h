@@ -41,7 +41,7 @@ sw_err_t project_machine_setup(void);
 
 /**
  * @brief  项目专属报警目录注入与通讯心跳初始化。
- * @note   须在 alarm_core_init()/safety_fsm_init()/safety_supervisor_init()
+ * @note   须在 alarm_registry_init()/safety_posture_init()/safety_supervisor_init()
  *         完成之后调用（报警目录订阅关系已就绪）。
  */
 sw_err_t project_alarm_catalog_init(void);

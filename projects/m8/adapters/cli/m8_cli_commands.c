@@ -76,12 +76,16 @@ int device_cmd_handler(char *subcmd, char *p1, char *p2)
     if (strcmp(subcmd, "status") == 0)
     {
         device_context_t ctx = dev_ctx_snapshot();
-        LOG_INFO("device: op_mode=%d service=%d estop=%d wash_mode=%d cloud=%d",
+        LOG_INFO("device: op_mode=%d service=%d estop=%d wash_mode=%d cloud=%d posture=%d blocking=%d alarms=%u top=%06u",
                  (int)ctx.operational_mode,
                  (int)ctx.service_enabled,
                  (int)ctx.estop_active,
                  (int)ctx.wash_mode,
-                 (int)ctx.cloud_connected);
+                 (int)ctx.cloud_connected,
+                 (int)ctx.safety_posture,
+                 (int)ctx.blocking_active,
+                 ctx.active_alarm_count,
+                 (unsigned)ctx.top_alarm_code);
         return 1;
     }
 
@@ -155,11 +159,46 @@ int device_cmd_handler(char *subcmd, char *p1, char *p2)
  * ------------------------------------------------------------------------- */
 int safety_cmd_handler(char *subcmd, char *p1, char *p2)
 {
-    (void)subcmd;
     (void)p1;
     (void)p2;
-    LOG_INFO("safety: alarm disabled");
-    return 1;
+
+    if (subcmd == NULL)
+    {
+        return 0;
+    }
+
+    if (strcmp(subcmd, "list") == 0)
+    {
+        device_context_t ctx = dev_ctx_snapshot();
+        unsigned           i;
+
+        LOG_INFO("safety: posture=%d blocking=%d count=%u top=%06u",
+                 (int)ctx.safety_posture,
+                 (int)ctx.blocking_active,
+                 ctx.active_alarm_count,
+                 (unsigned)ctx.top_alarm_code);
+        for (i = 0U; i < ctx.active_alarm_count; ++i)
+        {
+            LOG_INFO("safety: active[%u] code=%06u level=%d",
+                     i,
+                     (unsigned)ctx.active_list[i].code,
+                     (int)ctx.active_list[i].level);
+        }
+        return 1;
+    }
+
+    if (strcmp(subcmd, "status") == 0)
+    {
+        device_context_t ctx = dev_ctx_snapshot();
+
+        LOG_INFO("safety: posture=%d blocking=%d estop=%d",
+                 (int)ctx.safety_posture,
+                 (int)ctx.blocking_active,
+                 (int)ctx.estop_active);
+        return 1;
+    }
+
+    return 0;
 }
 
 /* -------------------------------------------------------------------------

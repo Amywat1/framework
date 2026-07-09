@@ -3,13 +3,10 @@
  * @brief   Recover 用例协调实现
  * @author  HUWANGWEI
  * @date    2026-07-09
- *
- * @note    阶段一最小桩：仅清除报警并发布完成事件，不含设计 §6.3 描述的
- *          真实机构归位与并行驱动逻辑；后续阶段再补物理动作。
  */
 
 #include "framework/application/recovery_service.h"
-#include "framework/domain/safety/alarm/alarm_core.h"
+#include "framework/domain/safety/alarm_registry/alarm_registry.h"
 #include "framework/domain/safety/model/safety_types.h"
 #include "framework/domain/command_gateway/op_mode_types.h"
 #include "framework/runtime/event_bus/event_bus.h"
@@ -22,14 +19,14 @@ static void on_recovery_requested(const event_t *evt)
 
     (void)evt;
 
-    if (alarm_core_safety_state() == SAFETY_STATE_LOCKOUT)
+    if (alarm_registry_safety_posture() == SAFETY_POSTURE_LOCKOUT)
     {
         result = RECOVERY_RESULT_EXCEPTION;
     }
     else
     {
-        (void)alarm_core_reset_alarms();
-        if (alarm_core_safety_state() == SAFETY_STATE_LOCKOUT)
+        (void)alarm_registry_recover_all();
+        if (alarm_registry_safety_posture() == SAFETY_POSTURE_LOCKOUT)
         {
             result = RECOVERY_RESULT_EXCEPTION;
         }
