@@ -15,6 +15,7 @@ out/
 *.lib
 build_check_sim/
 build_sim/
+examples/Demo/build/
 
 # -------------------------------------------------------
 # IDE 工程文件（按需保留，建议团队统一）
