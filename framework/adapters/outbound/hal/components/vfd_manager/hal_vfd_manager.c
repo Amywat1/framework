@@ -43,7 +43,7 @@ typedef struct {
     bool     fault_active;
     bool     comm_ok;
     uint8_t  comm_fail_count;
-    uint32_t last_monitor_ms;
+    uint64_t last_monitor_ms;
 
     pulse_out_slot_t rst_pulse;
 } hal_vfd_slot_t;
@@ -157,7 +157,7 @@ static int update_fault_state_locked(hal_vfd_slot_t *slot, uint16_t code)
     return 0;
 }
 
-static void monitor_sample(hal_vfd_slot_t *slot, uint32_t now_ms)
+static void monitor_sample(hal_vfd_slot_t *slot, uint64_t now_ms)
 {
     hal_vfd_state_t        st;
     sw_err_t               ret;
@@ -298,7 +298,7 @@ static sw_err_t vfd_init(void)
 
 static void vfd_tick(void)
 {
-    uint32_t now_ms = time_util_get_ms();
+    uint64_t now_ms = time_util_get_ms();
     unsigned i;
 
     for (i = 0U; i < HAL_VFD_MANAGER_SLOT_MAX; i++) {
@@ -379,7 +379,7 @@ static sw_err_t vfd_fault_reset(hal_vfd_id_t id)
     hal_vfd_slot_t *slot = slot_by_id(id);
     sw_err_t        ret;
     bool            use_io;
-    uint32_t        now_ms;
+    uint64_t        now_ms;
 
     if (slot == NULL) {
         return SW_ERR_NOT_INIT;

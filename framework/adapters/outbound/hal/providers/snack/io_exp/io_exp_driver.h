@@ -56,11 +56,11 @@ typedef struct {
     uint32_t input_refresh_count;   /**< 输入缓存刷新次数 */
     uint32_t output_request_count;  /**< 输出状态变更请求次数 */
     uint32_t output_flush_count;    /**< 输出实际写硬件次数 */
-    uint32_t last_online_ms;        /**< 最近一次恢复在线时间戳 */
-    uint32_t last_offline_ms;       /**< 最近一次确认离线时间戳 */
-    uint32_t last_input_refresh_ms; /**< 最近一次输入缓存刷新时间戳 */
-    uint32_t last_output_req_ms;    /**< 最近一次输出变更请求时间戳 */
-    uint32_t last_output_flush_ms;  /**< 最近一次输出落地时间戳 */
+    uint64_t last_online_ms;        /**< 最近一次恢复在线时间戳 */
+    uint64_t last_offline_ms;       /**< 最近一次确认离线时间戳 */
+    uint64_t last_input_refresh_ms; /**< 最近一次输入缓存刷新时间戳 */
+    uint64_t last_output_req_ms;    /**< 最近一次输出变更请求时间戳 */
+    uint64_t last_output_flush_ms;  /**< 最近一次输出落地时间戳 */
     uint32_t last_input_snapshot;   /**< 最近一次输入快照 */
     uint32_t last_output_snapshot;  /**< 最近一次输出快照 */
 } drv_io_stats_t;

@@ -11,7 +11,7 @@
 
 #include <stddef.h>
 
-sw_err_t pulse_out_start(pulse_out_slot_t *slot, uint32_t pulse_ms, uint32_t now_ms)
+sw_err_t pulse_out_start(pulse_out_slot_t *slot, uint32_t pulse_ms, uint64_t now_ms)
 {
     if ((slot == NULL) || (slot->set_level == NULL) || (pulse_ms == 0U))
     {
@@ -24,7 +24,7 @@ sw_err_t pulse_out_start(pulse_out_slot_t *slot, uint32_t pulse_ms, uint32_t now
     return slot->set_level(slot->ctx, true);
 }
 
-void pulse_out_tick(pulse_out_slot_t *slot, uint32_t now_ms)
+void pulse_out_tick(pulse_out_slot_t *slot, uint64_t now_ms)
 {
     if ((slot == NULL) || !slot->active)
     {

@@ -13,10 +13,9 @@ void time_util_init(void)
     /* Linux CLOCK_MONOTONIC 无需初始化，保留此函数供跨平台扩展 */
 }
 
-uint32_t time_util_get_ms(void)
+uint64_t time_util_get_ms(void)
 {
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
-    /* 转换为毫秒，uint32_t 约 49.7 天溢出，嵌入式连续运行可接受 */
-    return (uint32_t)((uint64_t)ts.tv_sec * 1000ULL + (uint64_t)ts.tv_nsec / 1000000ULL);
+    return (uint64_t)ts.tv_sec * 1000ULL + (uint64_t)ts.tv_nsec / 1000000ULL;
 }

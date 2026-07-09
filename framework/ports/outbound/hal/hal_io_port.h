@@ -31,11 +31,11 @@ typedef struct
     uint32_t input_refresh_count;
     uint32_t output_request_count;
     uint32_t output_flush_count;
-    uint32_t last_online_ms;
-    uint32_t last_offline_ms;
-    uint32_t last_input_refresh_ms;
-    uint32_t last_output_req_ms;
-    uint32_t last_output_flush_ms;
+    uint64_t last_online_ms;
+    uint64_t last_offline_ms;
+    uint64_t last_input_refresh_ms;
+    uint64_t last_output_req_ms;
+    uint64_t last_output_flush_ms;
     uint32_t last_input_snapshot;
     uint32_t last_output_snapshot;
 } hal_io_stats_t;

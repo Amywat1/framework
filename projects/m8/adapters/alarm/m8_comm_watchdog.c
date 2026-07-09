@@ -28,13 +28,13 @@ static const watchdog_cfg_t s_cfg[] = {
 #undef X
 };
 
-static uint32_t        s_last_hb_ms[COMM_DEV_COUNT];
+static uint64_t        s_last_hb_ms[COMM_DEV_COUNT];
 static bool            s_lost_active[COMM_DEV_COUNT];
 static pthread_mutex_t s_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 sw_err_t m8_comm_watchdog_init(void)
 {
-    uint32_t now = time_util_get_ms();
+    uint64_t now = time_util_get_ms();
     int      i;
 
     pthread_mutex_lock(&s_mutex);
@@ -64,7 +64,7 @@ void m8_comm_watchdog_heartbeat(comm_dev_id_t dev)
 void m8_comm_watchdog_poll(void)
 {
     const alarm_binding_ops_t *ops = alarm_binding_get_ops();
-    uint32_t                   now;
+    uint64_t                   now;
     int                        i;
 
     if (ops == NULL)

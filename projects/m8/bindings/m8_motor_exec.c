@@ -77,7 +77,7 @@ static int centi_hz_to_gear(int freq_centi_hz, const int *gear_freq, int gear_co
 static uint64_t motor_exec_now_ms(void *ctx)
 {
     (void)ctx;
-    return (uint64_t)time_util_get_ms();
+    return time_util_get_ms();
 }
 
 /* =========================================================================
@@ -256,7 +256,7 @@ typedef enum {
 /* 零初始化即等价于 phase=IDLE、current_id=BRUSH_CONTACTOR_SIDE，无需显式 init */
 static brush_contactor_phase_t s_contactor_phase;
 static int                     s_contactor_current_id;
-static uint32_t                s_contactor_start_ms;
+static uint64_t                s_contactor_start_ms;
 
 static void brush_contactor_set(int output_id, bool on)
 {
@@ -265,7 +265,7 @@ static void brush_contactor_set(int output_id, bool on)
 
 static bool brush_contactor_prepare(int target_id)
 {
-    uint32_t now_ms = time_util_get_ms();
+    uint64_t now_ms = time_util_get_ms();
 
     switch (s_contactor_phase) {
     case BRUSH_CONTACTOR_PHASE_IDLE:

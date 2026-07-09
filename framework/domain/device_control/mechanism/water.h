@@ -82,7 +82,7 @@ sw_err_t water_all_off(void);
 void water_emergency_off(void);
 
 #ifdef WATER_UNIT_TEST
-void water_poll(uint32_t now_ms);
+void water_poll(uint64_t now_ms);
 bool water_is_settled(void);
 #endif
 

@@ -205,7 +205,7 @@ static void poll_handle_detected_online(int id, uint8_t online_cnt[], uint8_t of
 
     /* 连续在线次数达到阈值：确认上线 */
     {
-        uint32_t now_ms    = time_util_get_ms();
+        uint64_t now_ms    = time_util_get_ms();
         bool     recovered = s_seen_online[id];
 
         online_cnt[id]             = 0U;
@@ -249,7 +249,7 @@ static void poll_handle_detected_offline(int id, uint8_t online_cnt[], uint8_t o
     /* 连续离线次数达到阈值：确认下线（已确认则不重复触发回调，
      * 仅在抖动重置计数后重新积累到阈值时会到达此处）*/
     if (!offline_confirmed[id]) {
-        uint32_t now_ms = time_util_get_ms();
+        uint64_t now_ms = time_util_get_ms();
 
         s_board_online[id]    = false;
         offline_confirmed[id] = true;
@@ -279,7 +279,7 @@ static void poll_rw_board(int id)
 {
     unsigned int prev    = s_input_buf[id];
     unsigned int out_val = 0U;
-    uint32_t     now_ms;
+    uint64_t     now_ms;
     bool         dirty = false;
 
     /* SDO 读写一次约 1~2ms；读失败时 SDK 会保留上次值 */
@@ -489,7 +489,7 @@ sw_err_t drv_io_do_set(io_do_t pin, bool val)
     }
 
     if (s_output_buf[board_id] != prev_out) {
-        uint32_t now_ms = time_util_get_ms();
+        uint64_t now_ms = time_util_get_ms();
         s_stats[board_id].output_request_count++;
         s_stats[board_id].last_output_req_ms   = now_ms;
         s_stats[board_id].last_output_snapshot = s_output_buf[board_id];
@@ -522,7 +522,7 @@ sw_err_t drv_io_flush_outputs_now(void)
     /* 只对在线子板执行写操作，避免 CAN 超时阻塞 */
     for (int i = 1; i <= s_board_count; ++i) {
         if (online[i]) {
-            uint32_t now_ms = time_util_get_ms();
+            uint64_t now_ms = time_util_get_ms();
             io_write_all_s(i, (int)snapshot[i]);
             s_stats[i].output_flush_count++;
             s_stats[i].last_output_flush_ms = now_ms;
@@ -569,7 +569,7 @@ bool drv_io_board_is_online(int board_id)
 
 sw_err_t drv_io_wait_boards_online(uint32_t timeout_ms)
 {
-    uint32_t start_ms = time_util_get_ms();
+    uint64_t start_ms = time_util_get_ms();
 
     while (time_elapsed_ms(start_ms, time_util_get_ms()) < timeout_ms) {
         bool all_online = true;

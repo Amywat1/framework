@@ -199,7 +199,7 @@ typedef struct
 {
     event_type_t type;          /**< 事件类型（复合编码）*/
     uint32_t     param;         /**< 载荷：报警码、错误码、模式等（无载荷时为 0）*/
-    uint32_t     timestamp_ms;  /**< 入队时间戳（由 event_bus 填充）*/
+    uint64_t     timestamp_ms;  /**< 入队时间戳（由 event_bus 填充）*/
 } event_t;
 
 #ifdef __cplusplus

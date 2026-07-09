@@ -26,7 +26,7 @@ typedef struct
     void                   *ctx;
     pulse_out_set_level_fn  set_level;
     bool                    active;
-    uint32_t                start_ms;
+    uint64_t                start_ms;
     uint32_t                pulse_ms;
 } pulse_out_slot_t;
 
@@ -37,14 +37,14 @@ typedef struct
  * @param  now_ms    当前毫秒时间戳
  * @retval SW_OK / SW_ERR_PARAM
  */
-sw_err_t pulse_out_start(pulse_out_slot_t *slot, uint32_t pulse_ms, uint32_t now_ms);
+sw_err_t pulse_out_start(pulse_out_slot_t *slot, uint32_t pulse_ms, uint64_t now_ms);
 
 /**
  * @brief  推进脉冲计时，到期自动拉低
  * @param  slot    脉冲槽
  * @param  now_ms  当前毫秒时间戳
  */
-void pulse_out_tick(pulse_out_slot_t *slot, uint32_t now_ms);
+void pulse_out_tick(pulse_out_slot_t *slot, uint64_t now_ms);
 
 /**
  * @brief  查询脉冲是否仍在进行

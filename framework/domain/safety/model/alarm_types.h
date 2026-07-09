@@ -120,7 +120,7 @@ typedef struct
     response_strategy_t    response;
     alarm_clear_t          clear;
     alarm_instance_state_t state;
-    uint32_t               triggered_at_ms;
+    uint64_t               triggered_at_ms;
 } alarm_instance_t;
 
 typedef enum

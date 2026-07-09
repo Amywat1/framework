@@ -41,7 +41,7 @@ static water_path_mask_t s_pending_target = 0U;
 static water_path_mask_t s_stable_paths   = 0U;
 
 static water_seq_state_t    s_seq_state   = WATER_SEQ_IDLE;
-static uint32_t             s_deadline_ms = 0U;
+static uint64_t             s_deadline_ms = 0U;
 static water_path_mask_t    s_closing_mask = 0U;
 static water_path_mask_t    s_opening_mask = 0U;
 static water_actuator_key_t s_work_list[WATER_ACTUATOR_LIST_MAX];
@@ -266,7 +266,7 @@ static void force_off_locked(void)
     reset_state();
 }
 
-static sw_err_t close_pumps_locked(uint32_t now_ms)
+static sw_err_t close_pumps_locked(uint64_t now_ms)
 {
     sw_err_t ret;
 
@@ -299,7 +299,7 @@ static sw_err_t close_valves_locked(void)
     return ret;
 }
 
-static sw_err_t begin_close_locked(water_path_mask_t to_close, uint32_t now_ms)
+static sw_err_t begin_close_locked(water_path_mask_t to_close, uint64_t now_ms)
 {
     sw_err_t ret;
 
@@ -325,7 +325,7 @@ static sw_err_t begin_close_locked(water_path_mask_t to_close, uint32_t now_ms)
     return SW_OK;
 }
 
-static sw_err_t open_valves_locked(uint32_t now_ms)
+static sw_err_t open_valves_locked(uint64_t now_ms)
 {
     sw_err_t ret;
 
@@ -360,7 +360,7 @@ static sw_err_t open_pumps_locked(water_path_mask_t opened_mask)
     return ret;
 }
 
-static sw_err_t begin_open_locked(water_path_mask_t to_open, uint32_t now_ms)
+static sw_err_t begin_open_locked(water_path_mask_t to_open, uint64_t now_ms)
 {
     collect_deps(to_open, true);
     add_refs(to_open);
@@ -385,7 +385,7 @@ static sw_err_t begin_open_locked(water_path_mask_t to_open, uint32_t now_ms)
     return SW_OK;
 }
 
-static void process_idle_locked(uint32_t now_ms)
+static void process_idle_locked(uint64_t now_ms)
 {
     water_path_mask_t to_close = s_stable_paths & ~s_pending_target;
     water_path_mask_t to_open  = s_pending_target & ~s_stable_paths;
@@ -408,7 +408,7 @@ static void process_idle_locked(uint32_t now_ms)
     }
 }
 
-static void tick_locked(uint32_t now_ms)
+static void tick_locked(uint64_t now_ms)
 {
     if (atomic_exchange_explicit(&s_emergency_off, false, memory_order_acq_rel))
     {
@@ -548,7 +548,7 @@ sw_err_t water_all_off(void)
 
 #ifdef WATER_UNIT_TEST
 
-void water_poll(uint32_t now_ms)
+void water_poll(uint64_t now_ms)
 {
     pthread_mutex_lock(&s_mutex);
     if (s_ready)

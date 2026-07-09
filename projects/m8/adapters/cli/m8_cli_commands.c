@@ -9,6 +9,7 @@
 
 #include "projects/m8/adapters/cli/m8_cli_commands.h"
 
+#include <inttypes.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -377,13 +378,13 @@ int diag_cmd_handler(char *subcmd, char *p1, char *p2)
                      (unsigned)stats.input_refresh_count,
                      (unsigned)stats.output_request_count,
                      (unsigned)stats.output_flush_count);
-            LOG_INFO("diag io: board=%d last_online=%u last_offline=%u last_in=%u last_req=%u last_flush=%u in=0x%08X out=0x%08X",
+            LOG_INFO("diag io: board=%d last_online=%" PRIu64 " last_offline=%" PRIu64 " last_in=%" PRIu64 " last_req=%" PRIu64 " last_flush=%" PRIu64 " in=0x%08X out=0x%08X",
                      board_id,
-                     (unsigned)stats.last_online_ms,
-                     (unsigned)stats.last_offline_ms,
-                     (unsigned)stats.last_input_refresh_ms,
-                     (unsigned)stats.last_output_req_ms,
-                     (unsigned)stats.last_output_flush_ms,
+                     stats.last_online_ms,
+                     stats.last_offline_ms,
+                     stats.last_input_refresh_ms,
+                     stats.last_output_req_ms,
+                     stats.last_output_flush_ms,
                      (unsigned)stats.last_input_snapshot,
                      (unsigned)stats.last_output_snapshot);
         }

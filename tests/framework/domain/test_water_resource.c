@@ -52,7 +52,7 @@ static const water_cfg_t s_cfg = {
     .channel_count       = TEST_CH_COUNT,
 };
 
-static void drain(uint32_t *now_ms)
+static void drain(uint64_t *now_ms)
 {
     unsigned guard = 0U;
 
@@ -72,7 +72,7 @@ void setUp(void)
 
 void tearDown(void)
 {
-    uint32_t now_ms = 0U;
+    uint64_t now_ms = 0U;
 
     (void)water_all_off();
     drain(&now_ms);
@@ -80,7 +80,7 @@ void tearDown(void)
 
 void test_water_init_all_off(void)
 {
-    uint32_t now_ms = 0U;
+    uint64_t now_ms = 0U;
 
     TEST_ASSERT_EQUAL(SW_OK, water_init(&s_cfg,
                                         &(water_actuator_ops_t){
@@ -95,7 +95,7 @@ void test_water_init_all_off(void)
 
 void test_water_open_single_path(void)
 {
-    uint32_t now_ms = 0U;
+    uint64_t now_ms = 0U;
 
     TEST_ASSERT_EQUAL(SW_OK, water_init(&s_cfg,
                                         &(water_actuator_ops_t){
@@ -114,7 +114,7 @@ void test_water_open_single_path(void)
 
 void test_water_parallel_paths_share_pump(void)
 {
-    uint32_t now_ms = 0U;
+    uint64_t now_ms = 0U;
 
     TEST_ASSERT_EQUAL(SW_OK, water_init(&s_cfg,
                                         &(water_actuator_ops_t){
@@ -144,7 +144,7 @@ void test_water_parallel_paths_share_pump(void)
 
 void test_water_nonblocking_request(void)
 {
-    uint32_t now_ms = 0U;
+    uint64_t now_ms = 0U;
 
     TEST_ASSERT_EQUAL(SW_OK, water_init(&s_cfg,
                                         &(water_actuator_ops_t){

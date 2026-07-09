@@ -22,7 +22,7 @@ static volatile int      g_h1_called;
 static volatile int      g_h2_called;
 static volatile int      g_h1_call_count;
 static volatile uint32_t g_h1_param;
-static volatile uint32_t g_h1_timestamp;
+static volatile uint64_t g_h1_timestamp;
 
 /* FIFO 顺序验证用 */
 #define FIFO_LOG_MAX  8
