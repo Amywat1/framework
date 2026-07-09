@@ -481,7 +481,7 @@ OperationalMode（枚举）:
 ### 洗车执行上下文发布
 
 > 发布者：`wash_session.c`（领域层），由应用层 `event_dispatcher` 每 tick 拉取后送入事件总线。
-> 注：WashSessionCreated 由 `command_handler.c` 在创建会话时发布（属于应用层操作，不由聚合内部发出）。
+> 注：`EVT_WASH_SESSION_STARTED` 由 `wash_orchestrator` worker 在 `engine_start` 成功后发布（应用层操作，不由聚合内部发出）。
 
 | 事件                   | 携带数据                                     | 触发条件                                                        |
 | -------------------- | ---------------------------------------- | ----------------------------------------------------------- |
@@ -973,8 +973,8 @@ OperationalMode 是指令网关上下文的聚合根，负责：
 **所有外部指令必须经过 OperationalMode 仲裁，不允许绕过。**
 
 > **重要边界**（v1.1 修订）：OperationalMode 聚合**不订阅**事件总线（被动输入侧），也不直接调用其他聚合；
-> 由应用层（`command_handler.c`）订阅事件总线，再调用 `op_mode_on_xxx()` 将事件喂入聚合。
-> 但聚合**可主动发布**（输出侧）：模式变更后直接调用 `event_publish()`，与 `device_fsm`/`safety_fsm`
+> 由应用层（`op_mode_bridge.c`）订阅事件总线，再调用 `op_mode_on_xxx()` 将事件喂入聚合。
+> 但聚合**可主动发布**（输出侧）：模式变更后直接调用 `event_publish()`，与 `safety_fsm`
 > 等既有模块保持一致的推模式，不再走拉取式队列（详见 §13.5、`doc/运行模式状态机设计说明.md` §3.6/§4.2）。
 > Recover 的跨聚合协调（清除报警 + 驱动机构归位）由 `recovery_service.c` 应用服务负责。
 
@@ -1349,12 +1349,15 @@ carwash/
 │   │       └── operational_mode.h/.c← OperationalMode 聚合根
 │   │
 │   ├── application/
-│   │   ├── app_init.h/.c            ← 启动：注册订阅、注入依赖、静态实例初始化
-│   │   ├── command_handler.h/.c     ← 外部指令入口 → 仲裁 → 调用聚合
-│   │   ├── event_dispatcher.h/.c    ← 每 tick 从聚合拉取事件 → 发布到事件总线
-│   │   ├── profile_bridge.h/.c      ← 传感器样本 → wash_session_on_sensor_sample() 桥接
-│   │   ├── recovery_service.h/.c    ← Recovery 应用服务（跨聚合协调：清除报警 + 驱动归位）
-│   │   └── self_check_service.h/.c  ← SelfCheck 应用服务（协调多个聚合）
+│   │   ├── command_gateway.h/.c     ← 外部指令入口（command_port.inject → 仲裁 → 副作用）
+│   │   ├── op_mode_bridge.h/.c      ← 领域/平台事件 → op_mode_on_xxx() 喂入聚合
+│   │   ├── mode_projection.h/.c     ← 运行模式 → dev_ctx 投影
+│   │   ├── recovery_service.h/.c    ← Recovery 应用服务
+│   │   ├── self_check_service.h/.c  ← SelfCheck 应用服务
+│   │   └── orchestrators/
+│   │       ├── wash_orchestrator.h/.c
+│   │       ├── emergency_handler.h/.c
+│   │       └── safety_supervisor.h/.c
 │   │
 │   ├── infrastructure/
 │   │   ├── device/IGantryPort
@@ -1656,7 +1659,7 @@ void event_dispatcher_tick(void) {
  *   已废弃方案（v0.7 曾采用，v1.1 弃用）：
  *   safety_thread 持锁直接调用 op_mode_on_estop_triggered()，让 OperationalMode
  *   成为系统里第一个需要跨线程锁保护的领域对象。弃用理由：破坏了其余聚合
- *   （device_fsm/safety_fsm 等）"只在 dispatch 线程写、天然无竞争"的不变量；
+ *   （OperationalMode/safety_fsm 等）"只在 dispatch 线程写、天然无竞争"的不变量；
  *   收紧 safety_thread 的职责范围（只做硬件停机 + 发布事件）可以在不引入锁的
  *   前提下达到同样的硬实时停机效果。详见 `doc/运行模式状态机设计说明.md` §3.6/§7.3。
  * ───────────────────────────────────────────────────────────────────────

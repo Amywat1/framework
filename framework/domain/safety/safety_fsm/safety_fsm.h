@@ -8,7 +8,7 @@
  *          在报警活跃集变化时向 alarm_core 查询聚合安全态，并在安全态发生
  *          跃迁时发布 EVT_SAFETY_LOCKOUT / EVT_SAFETY_WARNING / EVT_SAFETY_CLEARED。
  *          它把「整机安全姿态」从报警目录中解耦出来，供 emergency_handler、
- *          device_fsm 等执行机构/FSM 消费，使其无需感知具体报警码与等级。
+ *          device_fsm 等模块消费，使其无需感知具体报警码与等级。
  *          所有处理在 event_dispatch 线程上下文执行，内部状态无需额外加锁。
  */
 

@@ -104,22 +104,12 @@ typedef uint16_t event_type_t;
 #define EVT_ALARM_CLEARED        EVT_MAKE(EVT_CAT_ALARM, EVT_ALARM_ID_CLEARED)
 
 /* -------------------------------------------------------------------------
- * CMD 类（framework/adapters/inbound、projects/<project>/adapters 发布）
+ * CMD 类（遗留事件 ID 仅保留测试用 ORDER；生产命令经 command_port.inject）
  * ------------------------------------------------------------------------- */
 #define EVT_CMD_ID_ORDER             0U
-#define EVT_CMD_ID_STOP_WASH         1U
-#define EVT_CMD_ID_STOP_OPERATION    2U
-#define EVT_CMD_ID_RESUME_OPERATION  3U
-#define EVT_CMD_ID_RESET_FAULT       4U
-#define EVT_CMD_ID_HOME_DEVICE       5U
 #define EVT_CMD_ID_GATEWAY_WAKE      6U
 
 #define EVT_CMD_ORDER              EVT_MAKE(EVT_CAT_CMD, EVT_CMD_ID_ORDER)
-#define EVT_CMD_STOP_WASH          EVT_MAKE(EVT_CAT_CMD, EVT_CMD_ID_STOP_WASH)
-#define EVT_CMD_STOP_OPERATION     EVT_MAKE(EVT_CAT_CMD, EVT_CMD_ID_STOP_OPERATION)
-#define EVT_CMD_RESUME_OPERATION   EVT_MAKE(EVT_CAT_CMD, EVT_CMD_ID_RESUME_OPERATION)
-#define EVT_CMD_RESET_FAULT        EVT_MAKE(EVT_CAT_CMD, EVT_CMD_ID_RESET_FAULT)
-#define EVT_CMD_HOME_DEVICE        EVT_MAKE(EVT_CAT_CMD, EVT_CMD_ID_HOME_DEVICE)
 #define EVT_CMD_GATEWAY_WAKE       EVT_MAKE(EVT_CAT_CMD, EVT_CMD_ID_GATEWAY_WAKE)
 
 /* -------------------------------------------------------------------------
@@ -136,12 +126,10 @@ typedef uint16_t event_type_t;
 /* -------------------------------------------------------------------------
  * WASH 类（application/wash_orchestrator 发布）
  * ------------------------------------------------------------------------- */
-#define EVT_WASH_ID_STEP_DONE        0U
 #define EVT_WASH_ID_DONE             1U
 #define EVT_WASH_ID_ABORTED          2U
 #define EVT_WASH_ID_SESSION_STARTED  3U
 
-#define EVT_WASH_STEP_DONE       EVT_MAKE(EVT_CAT_WASH, EVT_WASH_ID_STEP_DONE)
 #define EVT_WASH_DONE            EVT_MAKE(EVT_CAT_WASH, EVT_WASH_ID_DONE)
 #define EVT_WASH_ABORTED         EVT_MAKE(EVT_CAT_WASH, EVT_WASH_ID_ABORTED)
 #define EVT_WASH_SESSION_STARTED EVT_MAKE(EVT_CAT_WASH, EVT_WASH_ID_SESSION_STARTED)

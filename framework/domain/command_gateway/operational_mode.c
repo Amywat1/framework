@@ -273,13 +273,11 @@ op_command_result_t op_mode_handle_command(const cmd_t *cmd)
         break;
 
     case CMD_STOP_OPERATION:
-        s_service_enabled = false;
-        publish_context_sync();
+        op_mode_set_service_enabled(false);
         break;
 
     case CMD_RESUME_OPERATION:
-        s_service_enabled = true;
-        publish_context_sync();
+        op_mode_set_service_enabled(true);
         break;
 
     case CMD_START_WASH:
@@ -420,4 +418,5 @@ bool op_mode_is_service_enabled(void)
 void op_mode_set_service_enabled(bool enabled)
 {
     s_service_enabled = enabled;
+    publish_context_sync();
 }

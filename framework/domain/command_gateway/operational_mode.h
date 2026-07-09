@@ -97,7 +97,7 @@ bool op_mode_is_service_enabled(void);
 void op_mode_set_service_enabled(bool enabled);
 
 /**
- * @brief  人工复位报警后尝试回到 IDLE（遗留 CMD_RESET_FAULT）
+ * @brief  人工复位报警后尝试回到 IDLE（CMD_RESET_FAULT 副作用）
  */
 void op_mode_on_legacy_reset_fault(void);
 

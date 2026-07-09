@@ -38,11 +38,25 @@ static sw_err_t gantry_rev_wrap(void)
 
 static sw_err_t lift_up_wrap(void)
 {
+    sw_err_t ret = require_manual_actuator();
+
+    if (ret != SW_OK)
+    {
+        return ret;
+    }
+
     return lift_up(M8_MANUAL_DEFAULT_SPEED_GEAR, NULL);
 }
 
 static sw_err_t lift_down_wrap(void)
 {
+    sw_err_t ret = require_manual_actuator();
+
+    if (ret != SW_OK)
+    {
+        return ret;
+    }
+
     return lift_down(M8_MANUAL_DEFAULT_SPEED_GEAR, NULL);
 }
 
@@ -58,6 +72,14 @@ static sw_err_t inject_cmd(cmd_type_t type)
 
     cmd.type = type;
     return cp->inject(&cmd);
+}
+
+/**
+ * @brief  运动类云端点位先经命令矩阵校验手动点动权限
+ */
+static sw_err_t require_manual_actuator(void)
+{
+    return inject_cmd(CMD_MANUAL_ACTUATOR);
 }
 
 static sw_err_t set_hold_bool(const char *id, const point_value_t *in,
@@ -142,10 +164,17 @@ static sw_err_t water_pre_on(void)
 static sw_err_t apply_force_time(sw_err_t (*move_fn)(int, const hal_motor_move_spec_t *))
 {
     hal_motor_move_spec_t spec;
+    sw_err_t              ret;
 
     if (move_fn == NULL)
     {
         return SW_ERR_PARAM;
+    }
+
+    ret = require_manual_actuator();
+    if (ret != SW_OK)
+    {
+        return ret;
     }
 
     memset(&spec, 0, sizeof(spec));
@@ -324,7 +353,24 @@ sw_err_t m8_cloud_get_cmd_water_foam_rinse(point_value_t *out)
 
 sw_err_t m8_cloud_set_cmd_dryer_A(const point_value_t *in)
 {
-    return set_hold_bool("cmd_dryer_A", in, fan_start, fan_stop);
+    sw_err_t ret;
+
+    if (in == NULL)
+    {
+        return SW_ERR_PARAM;
+    }
+
+    if (in->b)
+    {
+        ret = require_manual_actuator();
+        if (ret != SW_OK)
+        {
+            return ret;
+        }
+        return fan_start();
+    }
+
+    return fan_stop();
 }
 
 sw_err_t m8_cloud_get_cmd_dryer_A(point_value_t *out)
@@ -475,11 +521,23 @@ sw_err_t m8_cloud_set_cmd_wheel_lock(const point_value_t *in)
 
     if (in->i == M8_CLOUD_TRI_POS)
     {
+        sw_err_t ret = require_manual_actuator();
+
+        if (ret != SW_OK)
+        {
+            return ret;
+        }
         return rear_lock_lock(M8_MANUAL_DEFAULT_SPEED_GEAR, NULL);
     }
 
     if (in->i == M8_CLOUD_TRI_NEG)
     {
+        sw_err_t ret = require_manual_actuator();
+
+        if (ret != SW_OK)
+        {
+            return ret;
+        }
         return rear_lock_release(M8_MANUAL_DEFAULT_SPEED_GEAR, NULL);
     }
 
