@@ -32,7 +32,8 @@ typedef enum
     EVT_CAT_ALARM  = 4,     /**< 报警生命周期（激活/清除）*/
     EVT_CAT_CMD    = 5,     /**< 外部命令（云端/CLI/本地）*/
     EVT_CAT_CLOUD  = 6,     /**< 云端连接状态 */
-    EVT_CAT_WASH   = 7,     /**< 洗车流程（步骤/完成/中止）*/
+    EVT_CAT_WASH     = 7,   /**< 洗车流程（步骤/完成/中止）*/
+    EVT_CAT_OP_MODE  = 8,   /**< 运行模式变更 / 命令拒绝 / 恢复请求 */
     EVT_CAT_MAX
 } event_category_t;
 
@@ -111,6 +112,7 @@ typedef uint16_t event_type_t;
 #define EVT_CMD_ID_RESUME_OPERATION  3U
 #define EVT_CMD_ID_RESET_FAULT       4U
 #define EVT_CMD_ID_HOME_DEVICE       5U
+#define EVT_CMD_ID_GATEWAY_WAKE      6U
 
 #define EVT_CMD_ORDER              EVT_MAKE(EVT_CAT_CMD, EVT_CMD_ID_ORDER)
 #define EVT_CMD_STOP_WASH          EVT_MAKE(EVT_CAT_CMD, EVT_CMD_ID_STOP_WASH)
@@ -118,6 +120,7 @@ typedef uint16_t event_type_t;
 #define EVT_CMD_RESUME_OPERATION   EVT_MAKE(EVT_CAT_CMD, EVT_CMD_ID_RESUME_OPERATION)
 #define EVT_CMD_RESET_FAULT        EVT_MAKE(EVT_CAT_CMD, EVT_CMD_ID_RESET_FAULT)
 #define EVT_CMD_HOME_DEVICE        EVT_MAKE(EVT_CAT_CMD, EVT_CMD_ID_HOME_DEVICE)
+#define EVT_CMD_GATEWAY_WAKE       EVT_MAKE(EVT_CAT_CMD, EVT_CMD_ID_GATEWAY_WAKE)
 
 /* -------------------------------------------------------------------------
  * CLOUD 类（snack_cloud_link_adapter 发布）
@@ -136,10 +139,29 @@ typedef uint16_t event_type_t;
 #define EVT_WASH_ID_STEP_DONE        0U
 #define EVT_WASH_ID_DONE             1U
 #define EVT_WASH_ID_ABORTED          2U
+#define EVT_WASH_ID_SESSION_STARTED  3U
 
 #define EVT_WASH_STEP_DONE       EVT_MAKE(EVT_CAT_WASH, EVT_WASH_ID_STEP_DONE)
 #define EVT_WASH_DONE            EVT_MAKE(EVT_CAT_WASH, EVT_WASH_ID_DONE)
 #define EVT_WASH_ABORTED         EVT_MAKE(EVT_CAT_WASH, EVT_WASH_ID_ABORTED)
+#define EVT_WASH_SESSION_STARTED EVT_MAKE(EVT_CAT_WASH, EVT_WASH_ID_SESSION_STARTED)
+
+/* -------------------------------------------------------------------------
+ * OP_MODE 类（OperationalMode 聚合发布）
+ * ------------------------------------------------------------------------- */
+#define EVT_OP_MODE_ID_CHANGED           0U
+#define EVT_OP_MODE_ID_CMD_REJECTED      1U
+#define EVT_OP_MODE_ID_RECOVERY_REQUESTED 2U
+#define EVT_OP_MODE_ID_RECOVERY_COMPLETED 3U
+#define EVT_OP_MODE_ID_SELF_CHECK_COMPLETED 4U
+#define EVT_OP_MODE_ID_CONTEXT_SYNC       5U
+
+#define EVT_OP_MODE_CHANGED            EVT_MAKE(EVT_CAT_OP_MODE, EVT_OP_MODE_ID_CHANGED)
+#define EVT_OP_MODE_CMD_REJECTED       EVT_MAKE(EVT_CAT_OP_MODE, EVT_OP_MODE_ID_CMD_REJECTED)
+#define EVT_OP_MODE_RECOVERY_REQUESTED EVT_MAKE(EVT_CAT_OP_MODE, EVT_OP_MODE_ID_RECOVERY_REQUESTED)
+#define EVT_OP_MODE_RECOVERY_COMPLETED EVT_MAKE(EVT_CAT_OP_MODE, EVT_OP_MODE_ID_RECOVERY_COMPLETED)
+#define EVT_OP_MODE_SELF_CHECK_COMPLETED EVT_MAKE(EVT_CAT_OP_MODE, EVT_OP_MODE_ID_SELF_CHECK_COMPLETED)
+#define EVT_OP_MODE_CONTEXT_SYNC       EVT_MAKE(EVT_CAT_OP_MODE, EVT_OP_MODE_ID_CONTEXT_SYNC)
 
 /* -------------------------------------------------------------------------
  * 编解码辅助

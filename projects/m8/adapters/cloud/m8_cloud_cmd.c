@@ -8,7 +8,6 @@
 #include "projects/m8/adapters/cloud/m8_cloud_cmd.h"
 #include "projects/m8/adapters/cloud/m8_cloud_runtime.h"
 #include "projects/m8/adapters/manual/m8_manual_action.h"
-#include "projects/m8/adapters/manual/m8_manual_guard.h"
 #include "projects/m8/config/m8_brush_ids.h"
 #include "projects/m8/config/m8_water_table.h"
 #include "projects/m8/config/m8_io_pins.h"
@@ -120,7 +119,7 @@ static sw_err_t get_cfg_bool(const char *id, point_value_t *out)
 
 static sw_err_t water_on(water_path_mask_t mask)
 {
-    sw_err_t ret = m8_manual_guard_allow_motion();
+    sw_err_t ret = inject_cmd(CMD_MANUAL_ACTUATOR);
 
     if (ret != SW_OK)
     {

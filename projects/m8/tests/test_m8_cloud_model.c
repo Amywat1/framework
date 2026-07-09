@@ -48,7 +48,7 @@ static cJSON *build_and_parse_report(void)
 
 static void test_report_process_fields(void)
 {
-    dev_ctx_set_device_state(DEV_STATE_IDLE);
+    dev_ctx_set_operational_mode(OP_MODE_IDLE);
 
     cJSON *root = build_and_parse_report();
     TEST_ASSERT_NOT_NULL(root);
@@ -62,7 +62,7 @@ static void test_report_process_fields(void)
 
 static void test_report_stopping_covers_fault(void)
 {
-    dev_ctx_set_device_state(DEV_STATE_FAULT);
+    dev_ctx_set_operational_mode(OP_MODE_EXCEPTION);
 
     cJSON *root = build_and_parse_report();
     TEST_ASSERT_NOT_NULL(root);

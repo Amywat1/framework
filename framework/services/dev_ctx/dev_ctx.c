@@ -29,8 +29,9 @@ sw_err_t dev_ctx_init(void)
 {
     pthread_mutex_lock(&s_mutex);
     memset(&s_ctx, 0, sizeof(s_ctx));
-    s_ctx.device_state = DEV_STATE_INIT;
-    s_ctx.wash_mode    = WASH_MODE_STANDARD;
+    s_ctx.operational_mode = OP_MODE_INIT;
+    s_ctx.service_enabled  = true;
+    s_ctx.wash_mode        = WASH_MODE_STANDARD;
     pthread_mutex_unlock(&s_mutex);
     LOG_INFO("dev_ctx: init ok");
     return SW_OK;
@@ -48,20 +49,34 @@ device_context_t dev_ctx_snapshot(void)
     return snap;
 }
 
-dev_state_t dev_ctx_get_device_state(void)
+operational_mode_t dev_ctx_get_operational_mode(void)
 {
-    dev_state_t state;
+    operational_mode_t mode;
 
     pthread_mutex_lock(&s_mutex);
-    state = s_ctx.device_state;
+    mode = s_ctx.operational_mode;
     pthread_mutex_unlock(&s_mutex);
-    return state;
+    return mode;
 }
 
-void dev_ctx_set_device_state(dev_state_t state)
+void dev_ctx_set_operational_mode(operational_mode_t mode)
 {
     pthread_mutex_lock(&s_mutex);
-    s_ctx.device_state = state;
+    s_ctx.operational_mode = mode;
+    pthread_mutex_unlock(&s_mutex);
+}
+
+void dev_ctx_set_service_enabled(bool enabled)
+{
+    pthread_mutex_lock(&s_mutex);
+    s_ctx.service_enabled = enabled;
+    pthread_mutex_unlock(&s_mutex);
+}
+
+void dev_ctx_set_estop_active(bool active)
+{
+    pthread_mutex_lock(&s_mutex);
+    s_ctx.estop_active = active;
     pthread_mutex_unlock(&s_mutex);
 }
 

@@ -6,12 +6,10 @@
  *
  * @note    dev_ctx 是设备当前运行状态的集中只读视图，供上报/CLI 查询使用。
  *          写入权限严格分片，各字段只允许指定模块更新：
- *            device_state   → device_fsm（读写均经 dev_ctx，无镜像）
- *            safety_state   → safety_fsm
- *            wash_mode      → wash_orchestrator
- *            gantry_pos     → wash_orchestrator（tick 循环写入，非洗车期保留最后值）
- *            alarm_state    → safety_fsm
- *            cloud_connected → 读穿 cloud_link_port（无本地副本）
+ *            operational_mode / service_enabled / estop_active → mode_projection
+ *            safety_state / alarm_state                      → safety_fsm
+ *            wash_mode / gantry_pos                            → wash_orchestrator
+ *            cloud_connected                                   → 读穿 cloud_link_port
  *          读取通过 dev_ctx_snapshot() 返回值拷贝，外部不持有指针。
  */
 
@@ -29,23 +27,19 @@ extern "C" {
 #include <stdbool.h>
 #include <stdint.h>
 
-/* -------------------------------------------------------------------------
- * 设备状态快照结构体
- * ------------------------------------------------------------------------- */
+/** @brief  设备状态快照（值拷贝，线程安全） */
 typedef struct
 {
-    dev_state_t    device_state;    /* 设备 FSM 状态 */
-    wash_mode_t    wash_mode;       /* 当前洗车模式 */
-    int32_t        gantry_pos;      /* 龙门当前位置（脉冲数，非洗车期为最后已知值）*/
-    bool           cloud_connected; /* 云端连接状态（snapshot 时读穿 connection port）*/
-    safety_state_t safety_state;    /* 安全态（OK/WARNING/LOCKOUT）*/
-    bool           has_alarm;       /* 是否存在活跃报警 */
-    uint32_t       alarm_code;      /* 当前最高等级活跃报警码（无则 0）*/
+    operational_mode_t operational_mode; /**< 运行模式聚合态 */
+    bool               service_enabled;  /**< 业务服务开关（与运行模式正交） */
+    bool               estop_active;     /**< 急停是否激活 */
+    wash_mode_t        wash_mode;        /**< 当前洗车模式 */
+    int32_t            gantry_pos;       /**< 龙门位置（脉冲数） */
+    bool               cloud_connected;    /**< 云端连接状态 */
+    safety_state_t     safety_state;     /**< 安全态（OK/WARNING/LOCKOUT） */
+    bool               has_alarm;        /**< 是否存在活跃报警 */
+    uint32_t           alarm_code;       /**< 最高等级活跃报警码 */
 } device_context_t;
-
-/* -------------------------------------------------------------------------
- * 接口
- * ------------------------------------------------------------------------- */
 
 /**
  * @brief  初始化 dev_ctx（清零所有字段为安全初始值）
@@ -58,25 +52,29 @@ sw_err_t dev_ctx_init(void);
 device_context_t dev_ctx_snapshot(void);
 
 /**
- * @brief  读取设备 FSM 状态（线程安全）
+ * @brief  读取运行模式（线程安全）
  */
-dev_state_t dev_ctx_get_device_state(void);
+operational_mode_t dev_ctx_get_operational_mode(void);
 
-/* -- 分片写入接口（各自只允许对应模块调用）-- */
+/** @brief [mode_projection] 更新运行模式 */
+void dev_ctx_set_operational_mode(operational_mode_t mode);
 
-/** @brief [device_fsm] 更新设备 FSM 状态 */
-void dev_ctx_set_device_state(dev_state_t state);
+/** @brief [mode_projection] 更新业务服务开关 */
+void dev_ctx_set_service_enabled(bool enabled);
+
+/** @brief [mode_projection] 更新急停激活标志 */
+void dev_ctx_set_estop_active(bool active);
 
 /** @brief [wash_orchestrator] 更新当前洗车模式 */
 void dev_ctx_set_wash_mode(wash_mode_t mode);
 
-/** @brief [wash_orchestrator] 更新龙门位置（tick 循环调用）*/
+/** @brief [wash_orchestrator] 更新龙门位置 */
 void dev_ctx_set_gantry_pos(int32_t pos);
 
 /** @brief [safety_supervisor] 更新安全态 */
 void dev_ctx_set_safety_state(safety_state_t state);
 
-/** @brief [safety_supervisor] 更新活跃报警投影（最高等级报警码）*/
+/** @brief [safety_supervisor] 更新活跃报警投影 */
 void dev_ctx_set_alarm_state(bool has_alarm, uint32_t alarm_code);
 
 #ifdef __cplusplus

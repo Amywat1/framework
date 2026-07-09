@@ -41,8 +41,10 @@ static void inject_cmd(cmd_type_t type, wash_mode_t mode)
 static void print_state(void)
 {
     device_context_t ctx = dev_ctx_snapshot();
-    printf("[state] device=%d mode=%d cloud=%d safety=%d alarm=%d code=%06u\n",
-           (int)ctx.device_state,
+    printf("[state] op_mode=%d service=%d estop=%d wash_mode=%d cloud=%d safety=%d alarm=%d code=%06u\n",
+           (int)ctx.operational_mode,
+           (int)ctx.service_enabled,
+           (int)ctx.estop_active,
            (int)ctx.wash_mode,
            (int)ctx.cloud_connected,
            (int)ctx.safety_state, (int)ctx.has_alarm,
@@ -100,7 +102,7 @@ static void handle_line(char *line)
     {
         if (n < 2)
         {
-            printf("usage: cmd <order [0|1]|stop|stop-op|resume|reset|home>\n");
+            printf("usage: cmd <order [0|1]|stop|stop-op|resume|reset|home|enter-manual|recover>\n");
             return;
         }
         if (strcmp(tok[1], "order") == 0)
@@ -114,6 +116,8 @@ static void handle_line(char *line)
         else if (strcmp(tok[1], "resume")  == 0) { inject_cmd(CMD_RESUME_OPERATION,  WASH_MODE_STANDARD); printf("[sim] inject CMD_RESUME_OPERATION\n"); }
         else if (strcmp(tok[1], "reset")   == 0) { inject_cmd(CMD_RESET_FAULT,       WASH_MODE_STANDARD); printf("[sim] inject CMD_RESET_FAULT\n"); }
         else if (strcmp(tok[1], "home")    == 0) { inject_cmd(CMD_HOME_DEVICE,       WASH_MODE_STANDARD); printf("[sim] inject CMD_HOME_DEVICE\n"); }
+        else if (strcmp(tok[1], "enter-manual") == 0) { inject_cmd(CMD_ENTER_MANUAL, WASH_MODE_STANDARD); printf("[sim] inject CMD_ENTER_MANUAL\n"); }
+        else if (strcmp(tok[1], "recover") == 0) { inject_cmd(CMD_RECOVER, WASH_MODE_STANDARD); printf("[sim] inject CMD_RECOVER\n"); }
         else { printf("unknown cmd: %s\n", tok[1]); }
         return;
     }

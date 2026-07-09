@@ -12,6 +12,7 @@
 #include "framework/common/time_util.h"
 #include <pthread.h>
 #include <sched.h>
+#include <stdatomic.h>
 #include <string.h>
 
 #define WATER_ACTUATOR_LIST_MAX  16U
@@ -23,7 +24,8 @@ typedef enum
     WATER_SEQ_WAIT_OPEN_VALVE,
 } water_seq_state_t;
 
-static pthread_mutex_t s_mutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t    s_mutex = PTHREAD_MUTEX_INITIALIZER;
+static atomic_bool        s_emergency_off = false;
 
 static water_cfg_t           s_cfg;
 static water_actuator_ops_t  s_actuator;
@@ -408,6 +410,13 @@ static void process_idle_locked(uint32_t now_ms)
 
 static void tick_locked(uint32_t now_ms)
 {
+    if (atomic_exchange_explicit(&s_emergency_off, false, memory_order_acq_rel))
+    {
+        s_force_off = false;
+        force_off_locked();
+        return;
+    }
+
     if (s_force_off)
     {
         force_off_locked();
@@ -516,6 +525,11 @@ sw_err_t water_path_set(water_path_mask_t target)
     s_pending_target = target;
     pthread_mutex_unlock(&s_mutex);
     return SW_OK;
+}
+
+void water_emergency_off(void)
+{
+    atomic_store_explicit(&s_emergency_off, true, memory_order_release);
 }
 
 sw_err_t water_all_off(void)

@@ -70,6 +70,11 @@ motor_executor_t *m8_motor_exec_get(void);
  */
 sw_err_t m8_motor_exec_start(void);
 
+/**
+ * @brief  急停快速切断全部电机（safety_thread 热路径）
+ */
+void m8_motor_emergency_cutoff(void);
+
 #ifdef __cplusplus
 }
 #endif

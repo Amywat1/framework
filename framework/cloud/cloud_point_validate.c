@@ -13,6 +13,8 @@ static bool id_seen_before(const cloud_point_entry_t *entries,
                             size_t count,
                             size_t index)
 {
+    (void)count;
+
     for (size_t i = 0U; i < index; i++)
     {
         if ((entries[i].base.id != NULL) &&

@@ -14,10 +14,16 @@
 #include "framework/services/param/svc_param.h"
 #include "framework/services/dev_ctx/dev_ctx.h"
 #include "framework/application/orchestrators/emergency_handler.h"
-#include "framework/application/orchestrators/device_fsm.h"
+#include "framework/application/command_gateway.h"
+#include "framework/application/op_mode_bridge.h"
+#include "framework/application/recovery_service.h"
+#include "framework/application/self_check_service.h"
+#include "framework/application/mode_projection.h"
+#include "framework/domain/command_gateway/operational_mode.h"
 #include "framework/application/orchestrators/wash_orchestrator.h"
 #include "framework/application/orchestrators/report_scheduler.h"
 #include "framework/application/orchestrators/safety_supervisor.h"
+#include "framework/runtime/platform/safety_thread.h"
 #include "framework/domain/safety/alarm/alarm_core.h"
 #include "framework/domain/safety/safety_fsm/safety_fsm.h"
 #include "framework/ports/outbound/hal/hal_io_port.h"
@@ -141,9 +147,15 @@ static sw_err_t bootstrap_init_application(void)
     BOOT_CHECK(safety_fsm_init(),          "safety_fsm_init");
     BOOT_CHECK(safety_supervisor_init(),   "safety_supervisor_init");
     BOOT_CHECK(project_alarm_catalog_init(), "project_alarm_catalog_init");
-    BOOT_CHECK(emergency_handler_init(), "emergency_handler_init");
-    BOOT_CHECK(device_fsm_init(),        "device_fsm_init");
-    BOOT_CHECK(wash_orchestrator_init(), "wash_orchestrator_init");
+    BOOT_CHECK(emergency_handler_init(),   "emergency_handler_init");
+    BOOT_CHECK(safety_thread_init(),       "safety_thread_init");
+    BOOT_CHECK(operational_mode_init(),    "operational_mode_init");
+    BOOT_CHECK(command_gateway_init(),     "command_gateway_init");
+    BOOT_CHECK(recovery_service_init(),    "recovery_service_init");
+    BOOT_CHECK(self_check_service_init(),  "self_check_service_init");
+    BOOT_CHECK(op_mode_bridge_init(),      "op_mode_bridge_init");
+    BOOT_CHECK(mode_projection_init(),     "mode_projection_init");
+    BOOT_CHECK(wash_orchestrator_init(),   "wash_orchestrator_init");
     BOOT_CHECK(project_report_scheduler_init(), "project_report_scheduler_init");
     return SW_OK;
 }

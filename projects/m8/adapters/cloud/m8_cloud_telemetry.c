@@ -40,26 +40,30 @@ static sw_err_t get_int(int32_t value, point_value_t *out)
 
 sw_err_t m8_cloud_get_sts_stopping(point_value_t *out)
 {
-    dev_state_t st = dev_ctx_get_device_state();
+    device_context_t ctx = dev_ctx_snapshot();
 
-    return get_bool((st == DEV_STATE_STOP) || (st == DEV_STATE_INIT) || (st == DEV_STATE_FAULT), out);
+    return get_bool(!ctx.service_enabled ||
+                    (ctx.operational_mode == OP_MODE_INIT) ||
+                    (ctx.operational_mode == OP_MODE_EXCEPTION) ||
+                    (ctx.operational_mode == OP_MODE_RECOVERING), out);
 }
 
 sw_err_t m8_cloud_get_sts_standby(point_value_t *out)
 {
-    return get_bool(dev_ctx_get_device_state() == DEV_STATE_IDLE, out);
+    device_context_t ctx = dev_ctx_snapshot();
+
+    return get_bool((ctx.operational_mode == OP_MODE_IDLE) && ctx.service_enabled, out);
 }
 
 sw_err_t m8_cloud_get_sts_homing(point_value_t *out)
 {
-    return get_bool(dev_ctx_get_device_state() == DEV_STATE_HOMING, out);
+    return get_bool(false, out);
 }
 
 sw_err_t m8_cloud_get_sts_normal_homing(point_value_t *out)
 {
-    device_context_t ctx = dev_ctx_snapshot();
-
-    return get_bool((ctx.device_state == DEV_STATE_HOMING) && !ctx.has_alarm, out);
+    (void)out;
+    return get_bool(false, out);
 }
 
 sw_err_t m8_cloud_get_sts_custom_stopping(point_value_t *out)
@@ -69,7 +73,7 @@ sw_err_t m8_cloud_get_sts_custom_stopping(point_value_t *out)
 
 sw_err_t m8_cloud_get_sts_warn_homing(point_value_t *out)
 {
-    return get_bool(dev_ctx_get_device_state() == DEV_STATE_SUSPENDING, out);
+    return get_bool(dev_ctx_get_operational_mode() == OP_MODE_RECOVERING, out);
 }
 
 sw_err_t m8_cloud_get_sts_dev_warning(point_value_t *out)
@@ -81,7 +85,7 @@ sw_err_t m8_cloud_get_sts_park_state(point_value_t *out)
 {
     bool parked = false;
 
-    if (dev_ctx_get_device_state() == DEV_STATE_IDLE)
+    if (dev_ctx_get_operational_mode() == OP_MODE_IDLE)
     {
         parked = m8_cloud_di_active(M8_IO_DI_FRONT_WHEEL_LIMIT, false);
     }

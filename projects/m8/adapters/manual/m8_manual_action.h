@@ -4,7 +4,7 @@
  * @author  HUWANGWEI
  * @date    2026-07-08
  *
- * @note    云端点位、CLI、仿真控制台共用本模块；执行前经 m8_manual_guard 校验。
+ * @note    云端点位、CLI、仿真控制台共用本模块；运动类动作经 command_gateway 校验。
  */
 
 #ifndef PROJECTS_M8_ADAPTERS_MANUAL_M8_MANUAL_ACTION_H

@@ -305,14 +305,17 @@ static void format_output_snapshot(char *buf, size_t buf_size)
 
 void m8_cloud_runtime_refresh_io_snapshot(void)
 {
-    dev_state_t st = dev_ctx_get_device_state();
-    uint32_t    in_snap;
-    uint32_t    out_snap = 0U;
+    device_context_t ctx = dev_ctx_snapshot();
 
-    if ((st != DEV_STATE_STOP) && (st != DEV_STATE_INIT) && (st != DEV_STATE_FAULT))
+    if (ctx.service_enabled &&
+        (ctx.operational_mode != OP_MODE_INIT) &&
+        (ctx.operational_mode != OP_MODE_EXCEPTION))
     {
         return;
     }
+
+    uint32_t in_snap = 0U;
+    uint32_t out_snap = 0U;
 
     format_input_snapshot(s_state.i1_io, sizeof(s_state.i1_io));
     format_output_snapshot(s_state.o1_io, sizeof(s_state.o1_io));

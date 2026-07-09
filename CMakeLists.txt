@@ -371,6 +371,38 @@ if(BUILD_SIM)
         framework/ports/port_registry.c
     )
 
+    # test_operational_mode：运行模式聚合与命令矩阵
+    add_unit_test(test_operational_mode
+        tests/framework/domain/test_operational_mode.c
+        framework/domain/command_gateway/operational_mode.c
+        framework/runtime/event_bus/event_bus.c
+        framework/common/time_util.c
+    )
+
+    # test_command_gateway：命令 RPC 与代际槽保护
+    add_unit_test(test_command_gateway
+        tests/framework/application/test_command_gateway.c
+        framework/application/command_gateway.c
+        framework/application/self_check_service.c
+        framework/domain/command_gateway/operational_mode.c
+        framework/services/dev_ctx/dev_ctx.c
+        framework/runtime/event_bus/event_bus.c
+        framework/ports/port_registry.c
+        framework/common/log.c
+        framework/common/time_util.c
+        tests/stubs/command_gateway_stubs.c
+    )
+
+    # test_hw_estop_event：EVT_HW_ESTOP 与 OperationalMode 集成（阶段二接线验证）
+    add_unit_test(test_hw_estop_event
+        tests/framework/platform/test_hw_estop_event.c
+        framework/application/op_mode_bridge.c
+        framework/domain/command_gateway/operational_mode.c
+        framework/ports/outbound/safety/op_mode_alarm_port.c
+        framework/runtime/event_bus/event_bus.c
+        framework/common/time_util.c
+    )
+
     # test_cloud_point_watcher：ON_CHANGE 检测与 get 失败策略
     add_unit_test(test_cloud_point_watcher
         tests/framework/cloud/test_cloud_point_watcher.c
@@ -399,7 +431,6 @@ if(BUILD_SIM)
         projects/m8/adapters/cloud/m8_cloud_telemetry.c
         projects/m8/adapters/cloud/m8_cloud_service.c
         projects/m8/adapters/cloud/m8_cloud_cmd.c
-        projects/m8/adapters/manual/m8_manual_guard.c
         projects/m8/adapters/manual/m8_manual_action.c
         framework/domain/device_control/mechanism/gantry.c
         framework/domain/device_control/mechanism/brush.c
@@ -417,17 +448,6 @@ if(BUILD_SIM)
         third_party/cJSON/cJSON.c
     )
 
-    # test_m8_manual_guard：手动点动准入守卫
-    add_unit_test(test_m8_manual_guard
-        projects/m8/tests/test_m8_manual_guard.c
-        projects/m8/adapters/manual/m8_manual_guard.c
-        projects/m8/bindings/m8_sensor.c
-        projects/m8/config/m8_signal_table.c
-        framework/adapters/outbound/hal/components/sensor_filter/hal_sensor_filter.c
-        framework/services/dev_ctx/dev_ctx.c
-        framework/runtime/scheduler/thread_registry.c
-        framework/runtime/scheduler/periodic_task.c
-    )
 
     # -----------------------------------------------------------------------
     # 方案 JSON 自动再生：YAML 更新时自动重新生成 JSON

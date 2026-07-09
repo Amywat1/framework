@@ -76,11 +76,26 @@ int device_cmd_handler(char *subcmd, char *p1, char *p2)
     if (strcmp(subcmd, "status") == 0)
     {
         device_context_t ctx = dev_ctx_snapshot();
-        LOG_INFO("device: state=%d step=%d mode=%d cloud=%d",
-                 (int)ctx.device_state,
-                 (int)ctx.wash_step,
+        LOG_INFO("device: op_mode=%d service=%d estop=%d wash_mode=%d cloud=%d",
+                 (int)ctx.operational_mode,
+                 (int)ctx.service_enabled,
+                 (int)ctx.estop_active,
                  (int)ctx.wash_mode,
                  (int)ctx.cloud_connected);
+        return 1;
+    }
+
+    if (strcmp(subcmd, "enter-manual") == 0)
+    {
+        sw_err_t ret = inject_device_cmd(CMD_ENTER_MANUAL, WASH_MODE_STANDARD);
+        LOG_INFO("device enter-manual ret=%d", (int)ret);
+        return 1;
+    }
+
+    if (strcmp(subcmd, "recover") == 0)
+    {
+        sw_err_t ret = inject_device_cmd(CMD_RECOVER, WASH_MODE_STANDARD);
+        LOG_INFO("device recover ret=%d", (int)ret);
         return 1;
     }
 
@@ -340,9 +355,10 @@ int diag_cmd_handler(char *subcmd, char *p1, char *p2)
     if (strcmp(subcmd, "state") == 0)
     {
         device_context_t ctx = dev_ctx_snapshot();
-        LOG_INFO("diag state: dev=%d step=%d",
-                 (int)ctx.device_state,
-                 (int)ctx.wash_step);
+        LOG_INFO("diag state: op_mode=%d service=%d estop=%d",
+                 (int)ctx.operational_mode,
+                 (int)ctx.service_enabled,
+                 (int)ctx.estop_active);
         return 1;
     }
 

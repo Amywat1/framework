@@ -75,6 +75,12 @@ sw_err_t water_init(const water_cfg_t *cfg,
 sw_err_t water_path_set(water_path_mask_t target);
 sw_err_t water_all_off(void);
 
+/**
+ * @brief  急停快速切断请求（无锁，由 water_poll 异步收敛）
+ * @note   safety_thread 热路径专用，不持 s_mutex
+ */
+void water_emergency_off(void);
+
 #ifdef WATER_UNIT_TEST
 void water_poll(uint32_t now_ms);
 bool water_is_settled(void);

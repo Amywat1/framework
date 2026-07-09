@@ -21,6 +21,7 @@
 #include "projects/m8/config/m8_vfd_table.h"
 #include "framework/ports/outbound/hal/hal_io_port.h"
 #include "framework/ports/outbound/hal/hal_vfd_port.h"
+#include "framework/ports/outbound/safety/hw_estop_port.h"
 
 #include <pthread.h>
 #include <stddef.h>
@@ -455,7 +456,7 @@ static bool m8_all_limits(void *ctx, int motor, motor_limit_kind_t kind)
 static bool m8_estop_active(void *ctx)
 {
     (void)ctx;
-    return false;
+    return hw_estop_port_is_active();
 }
 
 /* =========================================================================
@@ -526,6 +527,22 @@ static motor_driver_t *const s_drivers[M8_MOTOR_COUNT] = {
     [M8_MOTOR_REAR_LOCK]  = &s_drv_rear_lock,
     [M8_MOTOR_FAN]        = &s_drv_fan,
 };
+
+/**
+ * @brief  急停快速切断全部电机驱动（VFD stop + 继电器 DO 关断，不 flush）
+ */
+void m8_motor_emergency_cutoff(void)
+{
+    int i;
+
+    for (i = 0; i < (int)M8_MOTOR_COUNT; i++)
+    {
+        if ((s_drivers[i] != NULL) && (s_drivers[i]->cutoff != NULL))
+        {
+            s_drivers[i]->cutoff(s_drivers[i]->ctx);
+        }
+    }
+}
 
 static motor_clock_t s_clock = {
     .now_ms = motor_exec_now_ms,

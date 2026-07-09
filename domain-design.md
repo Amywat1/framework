@@ -3,6 +3,7 @@
 > **版本**: v0.7
 > **状态**: 草稿（代码架构设计完成，Codex 终审修订完成）
 > **说明**: 本文档涵盖 DDD 领域分析（战略设计 + 战术设计）及代码架构设计，是编码实现的直接依据。
+> **同步状态**: §10、§13.1/13.2/13.5、§15.6 已按 `doc/运行模式状态机设计说明.md` v1.1 的评审结论修订（EXCEPTION 允许 StartSelfCheck、事件产出改为推模式、EStop 快速通道不再直接调用 OperationalMode）。如仍有冲突，以 `doc/运行模式状态机设计说明.md` 最新版本为准。
 
 ---
 
@@ -495,7 +496,10 @@ OperationalMode（枚举）:
 
 > 发布者：`alarm_registry.c`（领域层），由 `event_dispatcher` 拉取后送入事件总线。
 > SelfCheckCompleted 由 `self_check_service.c`（应用层）在自检流程结束后发布。
-> EStopTriggered 由 `safety_thread.c`（平台层）检测到硬件信号变化后直接发布，不经过聚合。
+> EVT_HW_ESTOP_ON/OFF 由 `safety_thread.c`（平台层）检测到硬件信号变化后直接发布到事件总线，
+> 不经过 OperationalMode 聚合；模式切换由 `event_dispatch` 消费该事件后调用
+> `op_mode_on_estop_triggered/cleared()` 完成，与硬件停机动作解耦（v1.1 修订，见
+> `doc/运行模式状态机设计说明.md` §7.3）。
 
 | 事件                          | 携带数据                               | 触发条件                                                          |
 | --------------------------- | ---------------------------------- | ------------------------------------------------------------- |
@@ -503,7 +507,7 @@ OperationalMode（枚举）:
 | AlarmCleared                | alarm_code, clear_method           | 报警条件解除                                                        |
 | PostWashAssessmentCompleted | blocking_alarms[], enter_exception | 服务完成评估结束（enter_exception=true 时 OperationalMode 进入 EXCEPTION） |
 | SelfCheckCompleted          | passed_items[], failed_items[]     | 完整自检结束（发布者：self_check_service）                                |
-| EStopTriggered              | source                             | 急停触发（发布者：safety_thread；硬件停机与模式切换同步直通；EStopTriggered 事件本身异步发布到事件总线）|
+| EVT_HW_ESTOP_ON / OFF        | —                                   | 急停触发/清除（发布者：safety_thread，异步发布；模式切换由 event_dispatch 消费后完成，与硬件停机解耦，见 §15.6）|
 
 
 ### 设备控制上下文发布
@@ -586,6 +590,9 @@ OperationalMode（枚举）:
                       └──────────────────────────────────────────────────┘
 
 † RecoverCmd 前提：EStop 报警未激活（BR-08）
+
+（v1.1 修订：EXCEPTION 态下也允许 StartSelfCheckCmd 用于诊断性自检，见下方速查表与
+`doc/运行模式状态机设计说明.md` §5.3；本图未重绘该分支，以速查表和该文档为准。）
 ```
 
 ### 指令权限速查表
@@ -594,13 +601,14 @@ OperationalMode（枚举）:
 指令                   IDLE  WASHING  MANUAL  SELF_CHECK  EXCEPTION  RECOVERING
 ─────────────────────────────────────────────────────────────────────────────────
 StartWashCommand        ✓     ✗        ✗       ✗           ✗              ✗
-StartSelfCheckCommand   ✓     ✗        ✗       ✗           ✗              ✗
+StartSelfCheckCommand   ✓     ✗        ✗       ✗           ✓†             ✗
 EnterManualCommand      ✓     ✗        ✗       ✗           ✗              ✗
 ManualActuatorCommand   ✗     ✗        ✓       ✗           ✓              ✗
 AbortWashCommand        ✗     ✓        ✗       ✗           ✗              ✗
 RecoverCommand          ✗     ✗        ✓†      ✗           ✓†             ✗
 ─────────────────────────────────────────────────────────────────────────────────
-† EStop 报警未激活时方可执行
+† EStop 报警未激活时方可执行；StartSelfCheckCommand 在 EXCEPTION 态下为诊断性自检，
+  不清除既有 CRITICAL 报警（v1.1 修订，原 v0.7 为 ✗）
 ```
 
 ---
@@ -964,9 +972,10 @@ OperationalMode 是指令网关上下文的聚合根，负责：
 
 **所有外部指令必须经过 OperationalMode 仲裁，不允许绕过。**
 
-> **重要边界**：OperationalMode 聚合不订阅事件总线，也不直接调用其他聚合。
-> 由应用层（`command_handler.c`）订阅事件总线，再调用 `op_mode_on_xxx()` 将事件喂入聚合，
-> 保持领域层对基础设施（事件总线）零依赖。
+> **重要边界**（v1.1 修订）：OperationalMode 聚合**不订阅**事件总线（被动输入侧），也不直接调用其他聚合；
+> 由应用层（`command_handler.c`）订阅事件总线，再调用 `op_mode_on_xxx()` 将事件喂入聚合。
+> 但聚合**可主动发布**（输出侧）：模式变更后直接调用 `event_publish()`，与 `device_fsm`/`safety_fsm`
+> 等既有模块保持一致的推模式，不再走拉取式队列（详见 §13.5、`doc/运行模式状态机设计说明.md` §3.6/§4.2）。
 > Recover 的跨聚合协调（清除报警 + 驱动机构归位）由 `recovery_service.c` 应用服务负责。
 
 ---
@@ -977,14 +986,15 @@ OperationalMode 是指令网关上下文的聚合根，负责：
 OperationalMode（聚合根）:
   current_mode    : OperationalMode 枚举值（当前运行模式）
   estop_active    : bool（急停报警当前是否激活，影响 RecoverCommand 可用性）
-  domain_events[] : 待发布的领域事件队列
 
 注：
   · blocking_warning_exists 由 AlarmRegistry 持有；
     OperationalMode 不直接持有报警列表，必要时通过接口查询。
-  · estop_active 由应用层接收 EStopTriggered / AlarmCleared(EStop) 事件后，
+  · estop_active 由应用层接收 EVT_HW_ESTOP_ON/OFF 事件后，
     调用 op_mode_on_estop_triggered() / op_mode_on_estop_cleared() 更新；
     聚合本身不订阅事件总线。
+  · 不再持有待发布事件队列（v1.1 修订）：模式变更后聚合内部直接调用 event_publish()，
+    与既有模块保持一致的推模式，见 §13.5。
 ```
 
 ---
@@ -1069,7 +1079,8 @@ op_mode_on_wash_session_aborted(mode, abort_cause)
 op_mode_on_post_wash_assessment(mode, enter_exception)
 op_mode_on_self_check_completed(mode)
 op_mode_on_alarm_triggered(mode, alarm_code, level)
-  ← ALARM_ESTOP：跳过（safety_thread 已通过快速通道更新 OperationalMode，保证幂等）
+  ← ALARM_ESTOP：跳过（由 event_dispatch 消费 EVT_HW_ESTOP_ON/OFF 后调用
+    op_mode_on_estop_triggered/cleared 更新，此处跳过避免重复，保证幂等）
   ← CRITICAL 级（非 ESTOP）：非 WASHING 模式时立即转入 EXCEPTION
   ← WASHING 模式下忽略（由 WashSession 先行处理，最终通过 WashSessionAborted 到达）
 op_mode_on_estop_triggered(mode)
@@ -1080,8 +1091,9 @@ op_mode_on_recovery_completed(mode, result)     ← result: IDLE | EXCEPTION
 op_mode_get_current(mode)       → OperationalMode 枚举值
 op_mode_is_estop_active(mode)   → bool
 
-/* 领域事件取出（由应用层负责分发到事件总线）*/
-op_mode_pull_events(mode, buf, max) → 最多取出 max 条并从队列移除；未取出的事件保留，下次调用继续
+/* 领域事件产出（v1.1 修订：推模式，不再提供拉取接口）*/
+/* 上述 on_xxx / handle_command 在改变 current_mode 或需要发布 CommandRejected 时，
+   内部直接调用 event_publish()，由 event_dispatch 线程同步完成分发 */
 ```
 
 ### 13.6 OperationalMode 发布的领域事件
@@ -1580,8 +1592,11 @@ static void pull_and_publish(PullFn pull_fn, void *aggregate) {
 void event_dispatcher_tick(void) {
     /* 从各聚合拉取待发布事件（循环直到清空）*/
     pull_and_publish((PullFn)wash_session_pull_events,    &g_wash_session);
-    pull_and_publish((PullFn)op_mode_pull_events,         &g_op_mode);
     pull_and_publish((PullFn)alarm_registry_pull_events,  &g_alarm_registry);
+    /* 注（v1.1）：OperationalMode 不再参与 pull_and_publish —— 它在 op_mode_on_xxx() /
+       op_mode_handle_command() 内部已经直接调用 event_publish()，事件在这些调用发生的
+       瞬间就已经进入 event_bus，无需在这里补拉。详见
+       `doc/运行模式状态机设计说明.md` §3.6/§4.2。 */
 
     /* 统一分发出队（依序调用所有订阅者）*/
     event_bus_dispatch_all();
@@ -1590,56 +1605,60 @@ void event_dispatcher_tick(void) {
 
 ---
 
-### 15.6 线程架构
+### 15.6 线程架构（v1.1 修订）
 
 ```c
-/* === platform/safety_thread.c：EStop 专用高优先级线程 === */
+/* === platform/safety_thread.c：EStop 专用高优先级线程（v1.1：职责收紧为纯硬件动作）=== */
 
 /*
- * EStop 双路径设计（safety_thread 为 OperationalMode 的权威更新者）：
+ * EStop 快速通道（v1.1：safety_thread 只做硬件停机 + 发布事件，不直接调用 OperationalMode）：
  * ───────────────────────────────────────────────────────────────────────
  * 触发（estop=true）：
- *   ① safety_thread（快速通道）：
- *        device_stop_all_actuators()          → 硬件立即停机
- *        op_mode_on_estop_triggered()         → OperationalMode 进入 EXCEPTION（同步，持锁）
- *        event_bus_publish(EStopTriggered)    → 异步通知云端/日志
- *   ② main_loop sensor_poll（慢速 ~20ms 内）：
+ *   ① safety_thread（快速通道，SCHED_FIFO）：
+ *        device_stop_all_actuators()          → 硬件立即停机（唯一必须硬实时的动作）
+ *        event_publish(EVT_HW_ESTOP_ON)        → 送入高优先级队列，立即返回
+ *   ② event_dispatch 线程（消费 EVT_HW_ESTOP_ON）：
+ *        op_mode_on_estop_triggered()          → OperationalMode 进入 EXCEPTION（幂等）
+ *   ③ main_loop sensor_poll（慢速 ~20ms 内）：
  *        alarm_registry_on_sensor_updated(ALARM_ESTOP, ACTIVE)
  *        → AlarmRegistry 创建 AlarmInstance，发布 AlarmTriggered(ALARM_ESTOP)
- *   ③ cmd_handler_on_alarm_triggered(ALARM_ESTOP)：
- *        跳过 op_mode_on_alarm_triggered（①已处理，保证幂等）
+ *   ④ cmd_handler_on_alarm_triggered(ALARM_ESTOP)：
+ *        跳过 op_mode_on_alarm_triggered（②已处理，保证幂等）
  *        只做云端上报
  *
  * 清除（estop=false）：
- *   ① safety_thread（快速通道）：
- *        op_mode_on_estop_cleared()           → 更新 estop_active=false（持锁）
- *   ② main_loop sensor_poll（慢速 ~20ms 内）：
+ *   ① safety_thread：
+ *        event_publish(EVT_HW_ESTOP_OFF)       → 同样只发布事件，不直接改 OperationalMode
+ *   ② event_dispatch 线程：
+ *        op_mode_on_estop_cleared()            → 更新 estop_active=false（不改模式）
+ *   ③ main_loop sensor_poll：
  *        alarm_registry_on_sensor_updated(ALARM_ESTOP, CLEARED)
  *        → AlarmRegistry 清除 AlarmInstance，发布 AlarmCleared(ALARM_ESTOP)
- *   ③ cmd_handler_on_alarm_cleared(ALARM_ESTOP)：
- *        跳过 op_mode_on_estop_cleared（①已处理，保证幂等）
+ *   ④ cmd_handler_on_alarm_cleared(ALARM_ESTOP)：
+ *        跳过 op_mode_on_estop_cleared（②已处理，保证幂等）
  *        只做云端上报
  *
- * 约束与已知 trade-off：
- *   · g_op_mode_mutex 保护 g_op_mode 的所有跨线程访问
+ * 约束（v1.1 与 v0.7 的关键差异）：
+ *   · OperationalMode 只由 event_dispatch 线程写入，不再需要 g_op_mode_mutex——
+ *     safety_thread 与 OperationalMode 之间没有函数调用关系，只有一条单向的
+ *     高优先级事件队列（v0.7 方案需要跨线程锁，见下方"已废弃方案"）
  *   · op_mode_on_estop_triggered/cleared 自身保证幂等（重复调用无副作用）
  *   · OperationalMode 职责：estop_active 标志的即时维护（决定 Recover 可用性）
  *   · AlarmRegistry 职责：ALARM_ESTOP 实例的生命周期记录（历史日志、云端上报）
  *
- *   ⚠ 已知限制（接受的 trade-off）：
- *   EStop 触发后约 ≤20ms 窗口内，OperationalMode.estop_active = true，
- *   但 AlarmRegistry 尚未创建 ALARM_ESTOP 实例（sensor_poll 尚未运行）。
- *   此窗口内两者状态短暂不一致。
+ *   ⚠ 已知限制（接受的 trade-off，与 v0.7 相同）：
+ *   EStop 触发后，OperationalMode.estop_active 在 event_dispatch 处理完
+ *   EVT_HW_ESTOP_ON 后即为 true，但 AlarmRegistry 尚未创建 ALARM_ESTOP 实例
+ *   （sensor_poll 尚未运行，≤20ms 窗口）。此窗口内两者状态短暂不一致。
  *   当前不构成实际问题：Recover 命令合法性检查用 op_mode_is_estop_active()，
  *   不查 AlarmRegistry，因此不受影响。
  *
- *   备选设计（消除窗口期）：
- *   safety_thread 检测到 EStop 后，持同一把锁顺便调用
- *   alarm_registry_trigger(ALARM_ESTOP) / alarm_registry_clear(ALARM_ESTOP)，
- *   AlarmInstance 创建与 OperationalMode 状态更新同步完成，无窗口期。
- *   代价：ALARM_ESTOP 从 AUTO_STATIC 变为"safety_thread 直接驱动"的特殊类，
- *   sensor_poll 不再负责 EStop，分类整洁性降低。
- *   如将来窗口期引发问题，可按此方向切换，无需修改 AlarmRegistry 接口。
+ *   已废弃方案（v0.7 曾采用，v1.1 弃用）：
+ *   safety_thread 持锁直接调用 op_mode_on_estop_triggered()，让 OperationalMode
+ *   成为系统里第一个需要跨线程锁保护的领域对象。弃用理由：破坏了其余聚合
+ *   （device_fsm/safety_fsm 等）"只在 dispatch 线程写、天然无竞争"的不变量；
+ *   收紧 safety_thread 的职责范围（只做硬件停机 + 发布事件）可以在不引入锁的
+ *   前提下达到同样的硬实时停机效果。详见 `doc/运行模式状态机设计说明.md` §3.6/§7.3。
  * ───────────────────────────────────────────────────────────────────────
  */
 
@@ -1652,17 +1671,12 @@ static void *safety_thread_func(void *arg) {
         if (estop != g_last_estop_state) {
             g_last_estop_state = estop;
             if (estop) {
-                device_stop_all_actuators();          /* 硬件停机，无需持锁 */
-                pthread_mutex_lock(&g_op_mode_mutex);
-                op_mode_on_estop_triggered(&g_op_mode); /* 聚合状态更新，持锁保护 */
-                pthread_mutex_unlock(&g_op_mode_mutex);
-                /* 发布 EStopTriggered 事件（异步通知，不影响停机时序）*/
-                DomainEvent evt = { .type = EVT_ESTOP_TRIGGERED };
-                event_bus_publish(&evt);
+                device_stop_all_actuators();          /* 硬件停机，不依赖任何领域对象 */
+                DomainEvent evt = { .type = EVT_HW_ESTOP_ON };
+                event_publish(&evt);                  /* 送入高优先级队列，立即返回 */
             } else {
-                pthread_mutex_lock(&g_op_mode_mutex);
-                op_mode_on_estop_cleared(&g_op_mode);
-                pthread_mutex_unlock(&g_op_mode_mutex);
+                DomainEvent evt = { .type = EVT_HW_ESTOP_OFF };
+                event_publish(&evt);
             }
         }
         usleep(5000);  /* 5ms 轮询，最坏响应 5ms */
@@ -1685,7 +1699,8 @@ static void *main_loop_func(void *arg) {
         /* ③ 洗车执行 tick */
         wash_session_tick(&g_wash_session);
 
-        /* ④ 从聚合拉取事件 + 分发 */
+        /* ④ 事件分发：消费 event_bus，调用应用层 on_xxx 喂入 OperationalMode 等聚合；
+              聚合内部直接 event_publish() 产出事件（v1.1 推模式，不再走拉取队列） */
         event_dispatcher_tick();
 
         /* ⑤ 云端消息处理 */
@@ -1698,8 +1713,9 @@ static void *main_loop_func(void *arg) {
 }
 
 /*
- * Main Loop 访问 g_op_mode 的所有路径（cmd_handler_xxx / op_mode_on_xxx）
- * 均需持 g_op_mode_mutex，与 safety_thread 的 EStop 路径互斥。
+ * OperationalMode（g_op_mode）只由 event_dispatch 消费事件时写入（v1.1 修订），
+ * 不再需要 g_op_mode_mutex；safety_thread 与 main_loop 之间没有共享内存的
+ * 直接访问，只通过 event_bus 高优先级队列通信。
  */
 ```
 

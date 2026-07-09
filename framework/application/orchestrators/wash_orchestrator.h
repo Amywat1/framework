@@ -18,6 +18,7 @@ extern "C" {
 #endif
 
 #include "framework/domain/wash/model/wash_types.h"
+#include "framework/domain/command_gateway/op_mode_types.h"
 #include "framework/common/sw_error.h"
 #include <stdbool.h>
 
@@ -28,17 +29,20 @@ extern "C" {
 sw_err_t wash_orchestrator_init(void);
 
 /**
- * @brief  启动洗车流程（唤醒 worker_thread）
+ * @brief  请求启动洗车（两阶段 §5.5：调度 worker 并等待 RUNNING 确认）
  * @param  mode  洗车模式
- * @retval SW_OK       启动成功
- * @retval SW_ERR_BUSY 上一次洗车尚未完成
+ * @retval SW_OK          worker 已完成 engine_start 且 SESSION_STARTED 已发布
+ * @retval SW_ERR_BUSY    上一次洗车尚未完成
+ * @retval SW_ERR_TIMEOUT worker 启动超时
+ * @retval SW_ERR_*       启动失败（模式保持 IDLE，不发布模式变更事件）
  */
 sw_err_t wash_orchestrator_start(wash_mode_t mode);
 
 /**
- * @brief  中止当前洗车（设中止标志并立即停止运动/水路）
+ * @brief  中止当前洗车（设中止原因并立即停止运动/水路）
+ * @param  cause  显式中止原因（如 WASH_ABORT_MANUAL / WASH_ABORT_CRITICAL）
  */
-void wash_orchestrator_abort(void);
+void wash_orchestrator_abort(wash_abort_cause_t cause);
 
 /**
  * @brief  查询洗车流程是否正在进行

@@ -55,6 +55,11 @@
 #define ALM_SENSE_BUMPER_RIGHT       15U /**< 右防撞胶条 */
 #define ALM_SENSE_BUMPER_ROD_RIGHT   16U /**< 右防撞杆 */
 #define ALM_SENSE_ESTOP              17U /**< 急停 */
+
+/** @brief M8 急停报警码（供运行模式桥接识别） */
+#define M8_ALARM_CODE_ESTOP \
+    ALARM_CODE_MAKE(ALM_C_SENSE, ALM_SENSE_ESTOP, ALM_N_SAFETY)
+
 #define ALM_SENSE_FRONT_WHEEL_OPT    18U /**< 前轮检测光电 */
 #define ALM_SENSE_REAR_WHEEL_OPT     19U /**< 后轮锁紧光电 */
 #define ALM_SENSE_REAR_LOCK_HOME     20U /**< 后轮锁紧机构原点 */
