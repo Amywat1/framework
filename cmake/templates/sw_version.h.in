@@ -1,0 +1,38 @@
+/**
+ * @file    sw_version.h
+ * @brief   软件版本信息（由 CMake project(VERSION) 生成，禁止手动编辑）
+ * @author  HUWANGWEI
+ * @date    2026-04-07
+ *
+ * @note    版本源：根 CMakeLists.txt 的 project(... VERSION X.Y.Z)
+ *          模板：cmake/templates/sw_version.h.in
+ *          生成：build/generated/include/sw_version.h
+ */
+
+#ifndef SW_VERSION_H
+#define SW_VERSION_H
+
+/* -------------------------------------------------------------------------
+ * 版本号（vX.Y.Z 语义化版本，由 CMake 注入）
+ * ------------------------------------------------------------------------- */
+#define SW_VERSION_MAJOR @PROJECT_VERSION_MAJOR@
+#define SW_VERSION_MINOR @PROJECT_VERSION_MINOR@
+#define SW_VERSION_PATCH @PROJECT_VERSION_PATCH@
+
+#define SW_VER_STR_(x) #x
+#define SW_VER_STR(x)  SW_VER_STR_(x)
+#define SW_VERSION_STR \
+    "v" SW_VER_STR(SW_VERSION_MAJOR) "." SW_VER_STR(SW_VERSION_MINOR) "." SW_VER_STR(SW_VERSION_PATCH)
+
+/* -------------------------------------------------------------------------
+ * 框架工程名（来自 CMake project()，标识本仓库/库）
+ * 设备产品型号由引用方（如 demo/、projects/<product>/）自行定义。
+ * ------------------------------------------------------------------------- */
+#define SW_PROJECT_NAME "@PROJECT_NAME@"
+
+/* -------------------------------------------------------------------------
+ * Git 短哈希（configure 阶段由 cmake/generate_version.cmake 注入）
+ * ------------------------------------------------------------------------- */
+#define SW_GIT_HASH "@WDF_GIT_HASH@"
+
+#endif /* SW_VERSION_H */
