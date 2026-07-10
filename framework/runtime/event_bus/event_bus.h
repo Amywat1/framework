@@ -9,7 +9,7 @@
  *          - handler 收到只读 event_t *，包含完整三字段
  *          - event_bus 不创建线程，dispatch_loop 由 core/scheduler 的
  *            event_dispatch_thread 调用
- *          - 零动态内存，队列大小编译期固定（thread_config.h）
+ *          - 零动态内存，队列大小编译期固定（event_bus_config.h）
  */
 
 #ifndef CORE_EVENT_BUS_H

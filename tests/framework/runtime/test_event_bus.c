@@ -6,7 +6,7 @@
  */
 
 #include "framework/runtime/event_bus/event_bus.h"
-#include "framework/runtime/config/thread_config.h"
+#include "framework/runtime/event_bus/event_bus_config.h"
 #include "framework/common/time_util.h"
 #include "unity.h"
 

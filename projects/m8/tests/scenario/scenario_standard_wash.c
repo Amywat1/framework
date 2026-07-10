@@ -159,7 +159,8 @@ static void scenario_setup(void)
     (void)wash_orchestrator_init();
 
     (void)thread_register("event_dispatch", scenario_dispatch_fn,
-                          SCHED_OTHER, 0, THD_EVENT_DISPATCH_STACK);
+                          SCHED_OTHER, 0,
+                          THD_EVENT_DISPATCH_STACK);
     (void)thread_register("limit_inject", scenario_limit_inject_fn,
                           SCHED_OTHER, 0, SCENARIO_AUX_THREAD_STACK);
     (void)scheduler_start_all();

@@ -335,8 +335,7 @@ sw_err_t hal_vfd_manager_poll_register_task(void)
                                   HAL_VFD_MANAGER_POLL_PERIOD_MS,
                                   vfd_poll_task,
                                   NULL,
-                                  SCHED_OTHER,
-                                  THD_VFD_TICK_NICE,
+                                  SCHED_OTHER, 0,
                                   THD_VFD_TICK_STACK);
 }
 

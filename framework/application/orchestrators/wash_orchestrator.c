@@ -380,7 +380,8 @@ sw_err_t wash_orchestrator_init(void)
     }
 
     sw_err_t ret = thread_register("wash_worker", wash_worker_fn,
-                                   SCHED_OTHER, 0, THD_WASH_WORKER_STACK);
+                                   SCHED_OTHER, 0,
+                                   THD_WASH_WORKER_STACK);
     if (ret != SW_OK)
     {
         return ret;

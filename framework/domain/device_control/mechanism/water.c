@@ -472,8 +472,7 @@ static sw_err_t poll_task_register(void)
                                  THD_WATER_POLL_PERIOD_MS,
                                  water_poll_task,
                                  NULL,
-                                 SCHED_OTHER,
-                                 THD_WATER_POLL_NICE,
+                                 SCHED_OTHER, 0,
                                  THD_WATER_POLL_STACK);
     if (ret != SW_OK)
     {

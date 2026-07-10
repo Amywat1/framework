@@ -212,8 +212,7 @@ sw_err_t report_scheduler_init(const report_policy_entry_t *policies, size_t cou
                                      s_period_ms,
                                      periodic_cb,
                                      NULL,
-                                     SCHED_OTHER,
-                                     THD_CLOUD_NICE,
+                                     SCHED_OTHER, 0,
                                      THD_CLOUD_STACK);
         if (ret != SW_OK)
         {

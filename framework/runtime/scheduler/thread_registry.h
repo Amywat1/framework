@@ -34,7 +34,7 @@ typedef struct
     void         *(*fn)(void *);  /* 线程入口函数 */
     void          *arg;           /* 线程入口参数 */
     int            sched_policy;  /* SCHED_OTHER 或 SCHED_FIFO */
-    int            prio;          /* SCHED_FIFO 优先级（1~99）或 SCHED_OTHER nice 值 */
+    int            prio;          /* SCHED_FIFO 优先级（1~99）；SCHED_OTHER 保留传 0 */
     size_t         stack_size;    /* 栈大小（字节）*/
 } thread_entry_t;
 

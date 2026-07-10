@@ -184,7 +184,6 @@ sw_err_t hal_sensor_poll_register_task(void)
                                   HAL_SENSOR_POLL_PERIOD_MS,
                                   sensor_poll_task,
                                   NULL,
-                                  SCHED_OTHER,
-                                  THD_SENSOR_POLL_NICE,
+                                  SCHED_OTHER, 0,
                                   THD_SENSOR_POLL_STACK);
 }

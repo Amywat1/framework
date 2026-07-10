@@ -8,6 +8,11 @@
  *            type = (category << 8) | local_id
  *          每类预留 EVT_PER_CAT_MAX 个槽位，新增事件只在本类 local_id 下扩展。
  *          event_t.timestamp_ms 由 event_bus 入队时自动填充。
+ *
+ * @note    变更治理（framework/common 级契约）：
+ *          - 禁止在事件名中出现机型名、机构名（如 BRUSH、GANTRY、M8）
+ *          - 实例级故障走 HAL 回调 → 项目绑定 → alarm_binding → EVT_ALARM_TRIGGERED
+ *          - 须区分实例时，使用通用事件 + param 传递实例 ID（如 IO 子板号）
  */
 
 #ifndef EVENT_TYPES_H
@@ -50,26 +55,23 @@ typedef uint16_t event_type_t;
 #define EVT_NONE    ((event_type_t)0U)
 
 /* -------------------------------------------------------------------------
- * HW 类（adapters/hal、signal_filter 发布）
- * 限位信号（GANTRY_FWD/REV_LIM、LIFT_UP/DOWN_LIM）由 motor_tick 直接轮询，
- * 不经过事件总线。
+ * HW 类（adapters/hal 发布）
+ * 限位信号由 motor_tick 直接轮询，不经过事件总线。
+ * VFD/编码器等实例级故障经 HAL 回调 → 项目绑定 → alarm_binding，
+ * 由 EVT_ALARM_TRIGGERED 广播，不在此定义实例专属事件 ID。
  * ------------------------------------------------------------------------- */
-#define EVT_HW_ID_ESTOP_ON           0U
-#define EVT_HW_ID_ESTOP_OFF          1U
-#define EVT_HW_ID_ENCODER_ERR        2U
-#define EVT_HW_ID_IO_OFFLINE         3U
-#define EVT_HW_ID_IO_ONLINE          4U
-#define EVT_HW_ID_VFD_BRUSH_FAULT    5U
-#define EVT_HW_ID_VFD_GANTRY_FAULT   6U
+#define EVT_HW_ID_ESTOP_ON   0U
+#define EVT_HW_ID_ESTOP_OFF  1U
+/* 预留 2（原 ENCODER_ERR，已废弃：走 alarm 通道）*/
+#define EVT_HW_ID_IO_OFFLINE 3U
+#define EVT_HW_ID_IO_ONLINE  4U
+/* 预留 5~6（原 VFD_BRUSH/GANTRY_FAULT，已废弃：走 alarm 通道）*/
 /* 预留 7~31 */
 
-#define EVT_HW_ESTOP_ON          EVT_MAKE(EVT_CAT_HW, EVT_HW_ID_ESTOP_ON)
-#define EVT_HW_ESTOP_OFF         EVT_MAKE(EVT_CAT_HW, EVT_HW_ID_ESTOP_OFF)
-#define EVT_HW_ENCODER_ERR       EVT_MAKE(EVT_CAT_HW, EVT_HW_ID_ENCODER_ERR)
-#define EVT_HW_IO_OFFLINE        EVT_MAKE(EVT_CAT_HW, EVT_HW_ID_IO_OFFLINE)
-#define EVT_HW_IO_ONLINE         EVT_MAKE(EVT_CAT_HW, EVT_HW_ID_IO_ONLINE)
-#define EVT_HW_VFD_BRUSH_FAULT   EVT_MAKE(EVT_CAT_HW, EVT_HW_ID_VFD_BRUSH_FAULT)
-#define EVT_HW_VFD_GANTRY_FAULT  EVT_MAKE(EVT_CAT_HW, EVT_HW_ID_VFD_GANTRY_FAULT)
+#define EVT_HW_ESTOP_ON   EVT_MAKE(EVT_CAT_HW, EVT_HW_ID_ESTOP_ON)
+#define EVT_HW_ESTOP_OFF  EVT_MAKE(EVT_CAT_HW, EVT_HW_ID_ESTOP_OFF)
+#define EVT_HW_IO_OFFLINE EVT_MAKE(EVT_CAT_HW, EVT_HW_ID_IO_OFFLINE)
+#define EVT_HW_IO_ONLINE  EVT_MAKE(EVT_CAT_HW, EVT_HW_ID_IO_ONLINE)
 
 /* -------------------------------------------------------------------------
  * COMP 类（framework/domain/device_control 发布）
