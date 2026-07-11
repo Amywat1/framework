@@ -12,7 +12,6 @@ extern void hal_sensor_filter_register(void);
 extern void m8_io_adapter_register(void);
 extern void snack_vfd_backend_register(void);
 extern void snack_voice_adapter_register(void);
-extern void hal_do_group_mapper_register(void);
 extern void snack_log_sink_register(void);
 extern void json_param_store_register(void);
 extern void json_deploy_store_register(void);
@@ -33,7 +32,6 @@ sw_err_t wiring(void)
     m8_io_adapter_register();
     snack_vfd_backend_register();
     snack_voice_adapter_register();
-    hal_do_group_mapper_register();
 
     json_param_store_register();
     json_deploy_store_register();

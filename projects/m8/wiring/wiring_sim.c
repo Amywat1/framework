@@ -12,7 +12,6 @@ extern void hal_sensor_filter_register(void);
 extern void hal_io_sim_register(void);
 extern void hal_vfd_sim_register(void);
 extern void hal_voice_sim_register(void);
-extern void hal_do_group_mapper_register(void);
 extern void engine_io_m8_register(void);
 extern void engine_program_json_register_loader(void);
 extern void json_param_store_register(void);
@@ -24,7 +23,6 @@ sw_err_t wiring(void)
     hal_io_sim_register();
     hal_vfd_sim_register();
     hal_voice_sim_register();
-    hal_do_group_mapper_register();
 
     json_param_store_register();
     json_deploy_store_register();

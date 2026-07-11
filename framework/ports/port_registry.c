@@ -13,7 +13,6 @@
 #include "framework/ports/outbound/hal/hal_sensor_port.h"
 #include "framework/ports/outbound/hal/hal_io_port.h"
 #include "framework/ports/outbound/hal/hal_vfd_port.h"
-#include "framework/ports/outbound/hal/hal_do_group_port.h"
 #include "framework/ports/outbound/hal/hal_voice_port.h"
 #include "framework/ports/outbound/cloud/report/report_port.h"
 #include "framework/ports/outbound/cloud/link/cloud_link_port.h"
@@ -46,14 +45,6 @@ static const hal_vfd_ops_t *s_vfd_ops;
 
 void hal_vfd_register(const hal_vfd_ops_t *ops) { s_vfd_ops = ops; }
 const hal_vfd_ops_t *hal_vfd_get_ops(void)      { return s_vfd_ops; }
-
-/* -------------------------------------------------------------------------
- * HAL — DO 组×槽位
- * ------------------------------------------------------------------------- */
-static const hal_do_group_ops_t *s_do_group_ops;
-
-void hal_do_group_register(const hal_do_group_ops_t *ops) { s_do_group_ops = ops; }
-const hal_do_group_ops_t *hal_do_group_get_ops(void)      { return s_do_group_ops; }
 
 /* -------------------------------------------------------------------------
  * 云端 — 上报

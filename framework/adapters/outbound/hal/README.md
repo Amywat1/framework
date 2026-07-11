@@ -17,7 +17,6 @@ framework/adapters/outbound/hal/
 `components/` 放可复用的 HAL 组合逻辑：
 
 - `sensor_filter/`：DI 传感器滤波与状态缓存。
-- `do_group_mapper/`：DO group/slot 到 DO 端口的映射。
 - `vfd_manager/`：VFD 方向、RST 与命令调度，通过 `hal_vfd_backend_ops_t` 注入具体 backend。
 
 通用非阻塞脉冲时序原语 `pulse_out`（供 `vfd_manager` 等内部复用）不依赖任何 HAL
@@ -72,9 +71,9 @@ provider 文件命名区分两种接线方式，不是随意选词：
 - `ports/` 只放业务可见的硬件端口声明。
 - `components/` 可以维护 bind、内部 tick、缓存和组合逻辑，但不能依赖具体 SDK；
   若 bind 或 tick 属于装配/内部推进能力，不应通过业务可见 port 暴露给项目层。
-  三个组合层目前统一遵循这条规则：`hal_sensor_filter_bind()`/
-  `hal_do_group_mapper_bind()`/`hal_vfd_manager_bind()` 均为组件直接导出的独立
-  函数，不放进各自 port 的 `ops_t`；运行期操作（`slot_set`/`is_active`/VFD 运行
+  两个组合层目前统一遵循这条规则：`hal_sensor_filter_bind()`/
+  `hal_vfd_manager_bind()` 均为组件直接导出的独立
+  函数，不放进各自 port 的 `ops_t`；运行期操作（`is_active`/VFD 运行
   控制等）才通过 port ops 间接层暴露给业务层。
 - `providers/` 可以依赖具体 SDK，但不承载业务语义。
 - `projects/<project>/bindings/` 负责把项目配置连接到 components 和 providers。

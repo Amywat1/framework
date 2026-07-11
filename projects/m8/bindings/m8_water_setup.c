@@ -1,6 +1,6 @@
 /**
  * @file    m8_water_setup.c
- * @brief   M8 水路初始化（直写 hal_io，不经过 do_group_mapper）
+ * @brief   M8 水路初始化（直写 hal_io）
  * @author  HUWANGWEI
  * @date    2026-06-07
  */

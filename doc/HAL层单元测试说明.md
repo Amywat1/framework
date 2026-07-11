@@ -2,7 +2,7 @@
 
 **测试日期**：2026-06-30  
 **测试范围**：`adapters/hal/generic/` 与 `adapters/hal/sim_hw/`  
-**测试结果**：133 个用例全部通过，0 失败
+**测试结果**：120 个用例全部通过，0 失败
 
 ---
 
@@ -14,8 +14,7 @@
 adapters/hal/
 ├── generic/          ← 平台无关通用实现（依赖 hal_io_port 接口）
 │   ├── hal_sensor.c      → test_hal_sensor    20 用例
-│   ├── hal_motor.c       → test_hal_motor     35 用例
-│   └── hal_do_group.c    → test_hal_do_group  13 用例
+│   └── hal_motor.c       → test_hal_motor     35 用例
 └── sim_hw/           ← PC 仿真实现（纯内存，无硬件依赖）
     ├── hal_io_sim.c      → test_hal_io_sim    23 用例
     ├── hal_motor_sim.c   → test_hal_motor_sim 21 用例
@@ -154,33 +153,6 @@ setUp 流程：重置 mock 状态 → 注册 mock IO → `hal_motor_generic_regi
 | `test_clear_hw_pulse_no_pulse_clear_op` | io_ops 中 pulse_clear=NULL → SW_ERR_NOT_INIT | ✓ |
 | `test_set_speed_callback_error_propagates` | set_speed 回调返回 SW_ERR_COMM，set_output 向上传播 | ✓ |
 | `test_set_output_partial_do_config` | 仅配置 CW 引脚，CCW/STOP=NULL：set_output 跳过无效引脚，返回 SW_OK | ✓ |
-
----
-
-## hal_do_group（DO 组×槽位控制）— 13 个用例，全部通过
-
-> 二维绑定表（最大 8 组 × 4 槽），槽位与 DO 物理引脚在 bootstrap 阶段绑定；
-> 业务层通过 `slot_set()` 控制单个槽位，`all_off()` 关闭所有已绑定 DO。
-
-| 测试用例 | 验证内容 | 结果 |
-|---------|---------|------|
-| **A. 绑定参数校验** |||
-| `test_bind_invalid_group` | group ≥ HAL_DO_GROUP_MAX → SW_ERR_PARAM | ✓ |
-| `test_bind_invalid_slot` | slot ≥ HAL_DO_SLOT_MAX → SW_ERR_PARAM | ✓ |
-| `test_bind_null_pin_marks_unbound` | 绑定 IO_HANDLE_NULL：返回 SW_OK，但该槽位 slot_set 返回 SW_ERR_NOT_INIT | ✓ |
-| `test_bind_valid` | 合法参数绑定成功 | ✓ |
-| **B. 槽位输出控制** |||
-| `test_slot_set_on` | slot_set(on=true)：mock do_set 接收 true | ✓ |
-| `test_slot_set_off` | slot_set(on=false)：mock do_set 接收 false | ✓ |
-| `test_slot_set_unbound_returns_not_init` | 未绑定有效引脚的槽位 → SW_ERR_NOT_INIT | ✓ |
-| `test_slot_set_invalid_group_returns_not_init` | group 越界 → SW_ERR_NOT_INIT | ✓ |
-| **C. 全部关闭** |||
-| `test_all_off_clears_all_bound` | 已置高的多个槽位经 all_off 后全部置低 | ✓ |
-| **D. 补充场景** |||
-| `test_max_valid_group_and_slot` | 最大合法下标（group=7, slot=3）绑定和输出正常 | ✓ |
-| `test_rebind_slot_changes_pin` | 同一槽位二次绑定后，slot_set 作用于新引脚，旧引脚不受影响 | ✓ |
-| `test_slot_set_no_io_ops_returns_err` | hal_io 未注册时 slot_set → SW_ERR_NOT_INIT | ✓ |
-| `test_all_off_no_io_ops_returns_err` | hal_io 未注册时 all_off 遍历全部绑定槽位，返回首个 SW_ERR_NOT_INIT | ✓ |
 
 ---
 
