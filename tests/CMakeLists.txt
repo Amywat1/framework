@@ -77,3 +77,17 @@ add_unit_test(test_svc_param
 target_compile_definitions(test_svc_param PRIVATE
     PARAM_STORE_JSON_FILE_PATH="${CMAKE_BINARY_DIR}/tests/svc_param_test.json"
 )
+
+add_unit_test(test_safety_thread
+    ${CMAKE_CURRENT_SOURCE_DIR}/runtime/test_safety_thread.c
+    ${WDF_ROOT}/runtime/platform/safety_thread.c
+    ${WDF_ROOT}/runtime/platform/device_safety_actuator.c
+    ${WDF_ROOT}/runtime/scheduler/thread_registry.c
+    ${WDF_ROOT}/runtime/scheduler/scheduler.c
+    ${WDF_ROOT}/runtime/event_bus/event_bus.c
+    ${WDF_ROOT}/ports/outbound/safety/hw_estop_port.c
+    ${WDF_ROOT}/ports/outbound/safety/safety_cutout_port.c
+    ${WDF_ROOT}/adapters/outbound/safety/sim/hw_estop_sim.c
+    ${WDF_ROOT}/common/log.c
+    ${WDF_ROOT}/common/time_util.c
+)

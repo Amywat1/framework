@@ -23,8 +23,9 @@ ctest --test-dir build -V
 | [json_param_store.md](json_param_store.md) | `test_json_param_store` | 12 | 通过 | `adapters/outbound/storage/json/` |
 | — | `test_scheduler` | 9 | 通过 | `runtime/scheduler/` |
 | — | `test_svc_param` | 9 | 通过 | `services/param/` |
+| — | `test_safety_thread` | 2 | 通过 | `runtime/platform/` |
 
-**合计：7 个测试目标，79 个用例，全部通过。**
+**合计：8 个测试目标，81 个用例，全部通过。**
 
 ## 目录约定
 
@@ -38,5 +39,4 @@ ctest --test-dir build -V
 |------|------|
 | `json_deploy_store` | 需临时文件，待补充 |
 | `port_registry` | 逻辑极薄，优先级低 |
-| `time_util` / `log` | 已由其他用例间接覆盖，可独立补充 |
 | `domain` / `bootstrap` | 尚未迁入 |

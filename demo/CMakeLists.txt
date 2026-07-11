@@ -20,10 +20,14 @@ set(_fw_runtime_src
     ${WDF_ROOT}/runtime/scheduler/thread_registry.c
     ${WDF_ROOT}/runtime/scheduler/scheduler.c
     ${WDF_ROOT}/runtime/scheduler/periodic_task.c
+    ${WDF_ROOT}/runtime/platform/safety_thread.c
+    ${WDF_ROOT}/runtime/platform/device_safety_actuator.c
 )
 
 set(_fw_ports_src
     ${WDF_ROOT}/ports/port_registry.c
+    ${WDF_ROOT}/ports/outbound/safety/hw_estop_port.c
+    ${WDF_ROOT}/ports/outbound/safety/safety_cutout_port.c
 )
 
 set(_fw_services_src
@@ -32,6 +36,7 @@ set(_fw_services_src
 
 set(_fw_adapters_src
     ${WDF_ROOT}/adapters/outbound/hal/sim/hal_io_sim.c
+    ${WDF_ROOT}/adapters/outbound/safety/sim/hw_estop_sim.c
     ${WDF_ROOT}/adapters/outbound/storage/json/json_param_store.c
     ${WDF_ROOT}/adapters/outbound/storage/json/json_deploy_store.c
 )
