@@ -6,6 +6,7 @@
  */
 
 #include "runtime/platform/device_safety_actuator.h"
+
 #include "ports/outbound/safety/safety_cutout_port.h"
 
 void device_stop_all_actuators(void)

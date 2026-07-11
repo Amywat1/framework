@@ -6,17 +6,18 @@
  */
 
 #include "runtime/platform/safety_thread.h"
-#include "runtime/platform/device_safety_actuator.h"
-#include "ports/outbound/safety/hw_estop_port.h"
-#include "runtime/scheduler/thread_registry.h"
-#include "runtime/config/thread_config.h"
-#include "runtime/event_bus/event_bus.h"
+
 #include "common/event_types.h"
 #include "common/log.h"
+#include "ports/outbound/safety/hw_estop_port.h"
+#include "runtime/config/thread_config.h"
+#include "runtime/event_bus/event_bus.h"
+#include "runtime/platform/device_safety_actuator.h"
+#include "runtime/scheduler/thread_registry.h"
 
+#include <sched.h>
 #include <stdatomic.h>
 #include <unistd.h>
-#include <sched.h>
 
 static atomic_bool s_terminate = false;
 
@@ -25,14 +26,11 @@ static atomic_bool s_terminate = false;
  */
 static void handle_estop_edge(bool active)
 {
-    if (active)
-    {
+    if (active) {
         device_stop_all_actuators();
         (void)event_publish(EVT_HW_ESTOP_ON, 0U);
         LOG_WARN("safety_thread: HW ESTOP ON");
-    }
-    else
-    {
+    } else {
         (void)event_publish(EVT_HW_ESTOP_OFF, 0U);
         LOG_INFO("safety_thread: HW ESTOP OFF");
     }
@@ -45,21 +43,16 @@ static void *safety_thread_fn(void *arg)
 
     (void)arg;
 
-    while (!atomic_load(&s_terminate))
-    {
+    while (!atomic_load(&s_terminate)) {
         bool active = hw_estop_port_is_active();
 
-        if (!initialized)
-        {
+        if (!initialized) {
             last_active = active;
             initialized = true;
-            if (active)
-            {
+            if (active) {
                 handle_estop_edge(true);
             }
-        }
-        else if (active != last_active)
-        {
+        } else if (active != last_active) {
             last_active = active;
             handle_estop_edge(active);
         }
@@ -74,9 +67,6 @@ sw_err_t safety_thread_init(void)
 {
     atomic_store(&s_terminate, false);
 
-    return thread_register("safety_thread",
-                           safety_thread_fn,
-                           SCHED_FIFO,
-                           THD_SAFETY_THREAD_PRIO,
-                           THD_SAFETY_THREAD_STACK);
+    return thread_register(
+        "safety_thread", safety_thread_fn, SCHED_FIFO, THD_SAFETY_THREAD_PRIO, THD_SAFETY_THREAD_STACK);
 }

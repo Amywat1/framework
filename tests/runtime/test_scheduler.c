@@ -48,15 +48,13 @@ static void test_registry_count_initial_zero(void)
 
 static void test_register_rejects_null_name(void)
 {
-    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM,
-                          thread_register(NULL, one_shot_thread_fn, SCHED_OTHER, 0, 4096U));
+    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, thread_register(NULL, one_shot_thread_fn, SCHED_OTHER, 0, 4096U));
     TEST_ASSERT_EQUAL_INT(0, thread_registry_count());
 }
 
 static void test_register_rejects_null_fn(void)
 {
-    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM,
-                          thread_register("bad", NULL, SCHED_OTHER, 0, 4096U));
+    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, thread_register("bad", NULL, SCHED_OTHER, 0, 4096U));
     TEST_ASSERT_EQUAL_INT(0, thread_registry_count());
 }
 
@@ -85,12 +83,7 @@ static void test_register_arg_passes_context(void)
     static int ctx_value = 42;
     sw_err_t   ret;
 
-    ret = thread_register_arg("ctx_worker",
-                              one_shot_thread_fn,
-                              &ctx_value,
-                              SCHED_OTHER,
-                              0,
-                              4096U);
+    ret = thread_register_arg("ctx_worker", one_shot_thread_fn, &ctx_value, SCHED_OTHER, 0, 4096U);
     TEST_ASSERT_EQUAL_INT(SW_OK, ret);
     TEST_ASSERT_EQUAL_INT(2, thread_registry_count());
     TEST_ASSERT_EQUAL_PTR(&ctx_value, thread_registry_get(1)->arg);
@@ -105,29 +98,10 @@ static void test_registry_get_out_of_range(void)
 static void test_periodic_task_register_rejects_invalid_args(void)
 {
     TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM,
-                          periodic_task_register(NULL,
-                                                 10U,
-                                                 periodic_tick_fn,
-                                                 NULL,
-                                                 SCHED_OTHER,
-                                                 0,
-                                                 4096U));
+                          periodic_task_register(NULL, 10U, periodic_tick_fn, NULL, SCHED_OTHER, 0, 4096U));
     TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM,
-                          periodic_task_register("tick",
-                                                 0U,
-                                                 periodic_tick_fn,
-                                                 NULL,
-                                                 SCHED_OTHER,
-                                                 0,
-                                                 4096U));
-    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM,
-                          periodic_task_register("tick",
-                                                 10U,
-                                                 NULL,
-                                                 NULL,
-                                                 SCHED_OTHER,
-                                                 0,
-                                                 4096U));
+                          periodic_task_register("tick", 0U, periodic_tick_fn, NULL, SCHED_OTHER, 0, 4096U));
+    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, periodic_task_register("tick", 10U, NULL, NULL, SCHED_OTHER, 0, 4096U));
     TEST_ASSERT_EQUAL_INT(2, thread_registry_count());
 }
 
@@ -137,13 +111,7 @@ static void test_periodic_task_register_and_scheduler_start(void)
     int      before_count;
 
     before_count = thread_registry_count();
-    ret          = periodic_task_register("tick",
-                                 10U,
-                                 periodic_tick_fn,
-                                 NULL,
-                                 SCHED_OTHER,
-                                 0,
-                                 8192U);
+    ret          = periodic_task_register("tick", 10U, periodic_tick_fn, NULL, SCHED_OTHER, 0, 8192U);
     TEST_ASSERT_EQUAL_INT(SW_OK, ret);
     TEST_ASSERT_EQUAL_INT(before_count + 1, thread_registry_count());
 
@@ -165,17 +133,11 @@ static void test_registry_overflow(void)
     int base = thread_registry_count();
 
     for (i = base; i < THREAD_REGISTRY_MAX; i++) {
-        TEST_ASSERT_EQUAL_INT(SW_OK,
-                              thread_register("fill", one_shot_thread_fn, SCHED_OTHER, 0, 4096U));
+        TEST_ASSERT_EQUAL_INT(SW_OK, thread_register("fill", one_shot_thread_fn, SCHED_OTHER, 0, 4096U));
     }
 
     TEST_ASSERT_EQUAL_INT(THREAD_REGISTRY_MAX, thread_registry_count());
-    TEST_ASSERT_EQUAL_INT(SW_ERR_OVERFLOW,
-                          thread_register("overflow",
-                                          one_shot_thread_fn,
-                                          SCHED_OTHER,
-                                          0,
-                                          4096U));
+    TEST_ASSERT_EQUAL_INT(SW_ERR_OVERFLOW, thread_register("overflow", one_shot_thread_fn, SCHED_OTHER, 0, 4096U));
 }
 
 int main(void)

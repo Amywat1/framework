@@ -4,6 +4,7 @@
  */
 
 #include "adapters/outbound/safety/sim/hw_estop_sim.h"
+
 #include "ports/outbound/safety/hw_estop_port.h"
 
 #include <stdatomic.h>

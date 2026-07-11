@@ -45,6 +45,24 @@ add_unit_test(test_io_handle
     ${CMAKE_CURRENT_SOURCE_DIR}/common/test_io_handle.c
 )
 
+add_unit_test(test_util_crc
+    ${CMAKE_CURRENT_SOURCE_DIR}/common/test_util_crc.c
+    ${WDF_ROOT}/common/util_crc.c
+)
+
+add_unit_test(test_util_fifo
+    ${CMAKE_CURRENT_SOURCE_DIR}/common/test_util_fifo.c
+    ${WDF_ROOT}/common/util_fifo.c
+)
+
+add_unit_test(test_point_table
+    ${CMAKE_CURRENT_SOURCE_DIR}/common/test_point_table.c
+    ${WDF_ROOT}/common/point_table/point_table_from_json.c
+    ${WDF_ROOT}/common/point_table/point_table_to_json.c
+    ${WDF_ROOT}/common/log.c
+    ${WDF_ROOT}/third_party/cJSON/cJSON.c
+)
+
 file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/tests")
 
 add_unit_test(test_json_param_store

@@ -66,7 +66,7 @@ static void test_get_int_from_loaded_file(void)
 
 static void test_set_str_and_get_str(void)
 {
-    char buf[32] = { 0 };
+    char buf[32] = {0};
 
     (void)svc_param_init();
     TEST_ASSERT_EQUAL_INT(SW_OK, svc_param_set_str("deviceName", "demo-unit"));
@@ -76,7 +76,7 @@ static void test_set_str_and_get_str(void)
 
 static void test_get_str_uses_default_when_missing(void)
 {
-    char buf[32] = { 0 };
+    char buf[32] = {0};
 
     (void)svc_param_init();
     TEST_ASSERT_EQUAL_INT(SW_OK, svc_param_get_str("missing", buf, sizeof(buf), "fallback"));

@@ -20,12 +20,15 @@ ctest --test-dir build -V
 | [hal_io_sim.md](hal_io_sim.md) | `test_hal_io_sim` | 23 | 通过 | `adapters/outbound/hal/sim/` |
 | [pulse_out.md](pulse_out.md) | `test_pulse_out` | 12 | 通过 | `common/pulse_out.c`、`common/time_util.h` |
 | [io_handle.md](io_handle.md) | `test_io_handle` | 6 | 通过 | `common/io_handle.h` |
+| — | `test_util_crc` | 5 | 通过 | `common/util_crc.c` |
+| — | `test_util_fifo` | 6 | 通过 | `common/util_fifo.c` |
+| — | `test_point_table` | 5 | 通过 | `common/point_table/` |
 | [json_param_store.md](json_param_store.md) | `test_json_param_store` | 12 | 通过 | `adapters/outbound/storage/json/` |
 | — | `test_scheduler` | 9 | 通过 | `runtime/scheduler/` |
 | — | `test_svc_param` | 9 | 通过 | `services/param/` |
 | — | `test_safety_thread` | 2 | 通过 | `runtime/platform/` |
 
-**合计：8 个测试目标，81 个用例，全部通过。**
+**合计：11 个测试目标，97 个用例，全部通过。**
 
 ## 目录约定
 
