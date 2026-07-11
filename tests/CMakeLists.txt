@@ -35,6 +35,28 @@ add_unit_test(test_hal_io_sim
     ${WDF_ROOT}/common/log.c
 )
 
+add_unit_test(test_sim_encoder_counter
+    ${CMAKE_CURRENT_SOURCE_DIR}/adapters/test_sim_encoder_counter.c
+    ${WDF_ROOT}/adapters/outbound/hal/sim/sim_encoder_counter.c
+)
+
+add_unit_test(test_hal_voice_sim
+    ${CMAKE_CURRENT_SOURCE_DIR}/adapters/test_hal_voice_sim.c
+    ${WDF_ROOT}/adapters/outbound/hal/sim/hal_voice_sim.c
+    ${WDF_ROOT}/ports/port_registry.c
+    ${WDF_ROOT}/common/log.c
+)
+
+add_unit_test(test_machine_ops_port
+    ${CMAKE_CURRENT_SOURCE_DIR}/ports/test_machine_ops_port.c
+    ${WDF_ROOT}/ports/outbound/machine/machine_ops_port.c
+)
+
+add_unit_test(test_op_mode_alarm_port
+    ${CMAKE_CURRENT_SOURCE_DIR}/ports/test_op_mode_alarm_port.c
+    ${WDF_ROOT}/ports/outbound/safety/op_mode_alarm_port.c
+)
+
 add_unit_test(test_pulse_out
     ${CMAKE_CURRENT_SOURCE_DIR}/common/test_pulse_out.c
     ${WDF_ROOT}/common/pulse_out.c
@@ -74,6 +96,17 @@ add_unit_test(test_json_param_store
 )
 target_compile_definitions(test_json_param_store PRIVATE
     PARAM_STORE_JSON_FILE_PATH="${CMAKE_BINARY_DIR}/tests/param_store_test.json"
+)
+
+add_unit_test(test_json_deploy_store
+    ${CMAKE_CURRENT_SOURCE_DIR}/adapters/test_json_deploy_store.c
+    ${WDF_ROOT}/adapters/outbound/storage/json/json_deploy_store.c
+    ${WDF_ROOT}/ports/port_registry.c
+    ${WDF_ROOT}/common/log.c
+    ${WDF_ROOT}/third_party/cJSON/cJSON.c
+)
+target_compile_definitions(test_json_deploy_store PRIVATE
+    DEPLOY_STORE_JSON_FILE_PATH="${CMAKE_BINARY_DIR}/tests/deploy_store_test.json"
 )
 
 add_unit_test(test_scheduler

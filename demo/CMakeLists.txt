@@ -28,6 +28,8 @@ set(_fw_ports_src
     ${WDF_ROOT}/ports/port_registry.c
     ${WDF_ROOT}/ports/outbound/safety/hw_estop_port.c
     ${WDF_ROOT}/ports/outbound/safety/safety_cutout_port.c
+    ${WDF_ROOT}/ports/outbound/safety/op_mode_alarm_port.c
+    ${WDF_ROOT}/ports/outbound/machine/machine_ops_port.c
 )
 
 set(_fw_services_src
@@ -36,6 +38,7 @@ set(_fw_services_src
 
 set(_fw_adapters_src
     ${WDF_ROOT}/adapters/outbound/hal/sim/hal_io_sim.c
+    ${WDF_ROOT}/adapters/outbound/hal/sim/hal_voice_sim.c
     ${WDF_ROOT}/adapters/outbound/safety/sim/hw_estop_sim.c
     ${WDF_ROOT}/adapters/outbound/storage/json/json_param_store.c
     ${WDF_ROOT}/adapters/outbound/storage/json/json_deploy_store.c
