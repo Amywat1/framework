@@ -13,9 +13,7 @@
 #include "framework/application/orchestrators/wash_orchestrator.h"
 #include "framework/runtime/scheduler/thread_registry.h"
 #include "framework/services/dev_ctx/dev_ctx.h"
-#include "framework/domain/device_control/mechanism/brush.h"
-#include "framework/domain/device_control/mechanism/gantry.h"
-#include "framework/domain/device_control/mechanism/water.h"
+#include "framework/ports/outbound/machine/machine_ops_port.h"
 #include "framework/domain/wash/engine/engine.h"
 #include "framework/domain/wash/model/engine_model.h"
 #include "framework/domain/wash/model/engine_program_manifest.h"
@@ -66,9 +64,12 @@ static atomic_int   s_current_direction;
 
 static void wash_stop_all_outputs(void)
 {
-    (void)gantry_stop();
-    (void)brush_stop_all();
-    (void)water_all_off();
+    const machine_ops_t *ops = machine_ops_get();
+
+    if ((ops != NULL) && (ops->deferred_stop_all != NULL))
+    {
+        ops->deferred_stop_all();
+    }
 }
 
 static const char *wash_program_path_for_mode(wash_mode_t mode)
@@ -281,7 +282,16 @@ static void *wash_worker_fn(void *arg)
 
                 engine_tick(e, STEP_POLL_INTERVAL_MS);
                 atomic_store(&s_current_direction, (int)engine_current_direction(e));
-                dev_ctx_set_gantry_pos((int32_t)gantry_position());
+                {
+                    const machine_ops_t *ops = machine_ops_get();
+                    int64_t              pos = 0;
+
+                    if ((ops != NULL) && (ops->read_gantry_position != NULL))
+                    {
+                        pos = ops->read_gantry_position();
+                    }
+                    dev_ctx_set_gantry_pos((int32_t)pos);
+                }
 
                 engine_run_state_t st = engine_state(e);
 

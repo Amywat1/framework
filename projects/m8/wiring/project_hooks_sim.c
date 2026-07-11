@@ -15,6 +15,7 @@
 #include "projects/m8/adapters/alarm/m8_alarm_adapt.h"
 #include "projects/m8/adapters/alarm/m8_alarm_init.h"
 #include "projects/m8/adapters/alarm/m8_comm_watchdog.h"
+#include "projects/m8/wiring/m8_alarm_reeval_bridge.h"
 #include "projects/m8/bindings/m8_machine_setup.h"
 #include "projects/m8/bindings/m8_motor_exec.h"
 #include "projects/m8/bindings/m8_sensor.h"
@@ -62,7 +63,12 @@ sw_err_t project_alarm_catalog_init(void)
     {
         return r;
     }
-    return m8_comm_watchdog_init();
+    r = m8_comm_watchdog_init();
+    if (r != SW_OK)
+    {
+        return r;
+    }
+    return m8_alarm_reeval_bridge_init();
 }
 
 sw_err_t project_adapters_init(void)

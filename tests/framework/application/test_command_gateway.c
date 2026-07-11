@@ -13,6 +13,8 @@
 #include "framework/common/time_util.h"
 #include "unity.h"
 
+void machine_ops_register_test_stub(void);
+
 #include <pthread.h>
 #include <unistd.h>
 
@@ -44,6 +46,7 @@ void setUp(void)
     (void)event_bus_init();
     (void)dev_ctx_init();
     (void)operational_mode_init();
+    machine_ops_register_test_stub();
     (void)command_gateway_init();
 }
 

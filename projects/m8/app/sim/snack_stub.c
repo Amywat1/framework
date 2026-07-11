@@ -10,6 +10,8 @@
  */
 
 #include "framework/adapters/runtime/snack/snack_mqtt.h"
+#include "framework/adapters/inbound/cloud/providers/snack/snack_cloud_command_adapter.h"
+#include "framework/common/sw_error.h"
 
 /* -------------------------------------------------------------------------
  * 其余 snack 函数：空桩（sim 构建中不会被调用，但某些编译单元可能
@@ -24,3 +26,11 @@ int  aliyun_mqtt_init(char *pk, char *dn, char *ds) { (void)pk; (void)dn; (void)
 int  mqtt_is_online(void)                           { return 0; }
 int  net_mqtt_send(char *topic, char *msg)          { (void)topic; (void)msg; return -1; }
 void mqtt_recv_handler_set(mqtt_recv_handler_t cb)  { (void)cb; }
+
+sw_err_t snack_cloud_property_reply(const char *request_json,
+                                     const point_apply_result_t *result)
+{
+    (void)request_json;
+    (void)result;
+    return SW_OK;
+}

@@ -110,8 +110,25 @@ set(m8_adapters_runtime_src
 set(m8_app_src     projects/m8/app/app_main.cpp)
 file(GLOB m8_app_sim_src CONFIGURE_DEPENDS projects/m8/app/sim/*.c)
 
-set(m8_wiring_src     projects/m8/wiring/wiring.c projects/m8/wiring/project_hooks.c)
-set(m8_wiring_sim_src projects/m8/wiring/wiring_sim.c projects/m8/wiring/project_hooks_sim.c)
+set(m8_wiring_src
+    projects/m8/wiring/wiring.c
+    projects/m8/wiring/project_hooks.c
+    projects/m8/wiring/m8_alarm_reeval_bindings.c
+    projects/m8/wiring/m8_alarm_reeval_bridge.c
+)
+set(m8_wiring_sim_src
+    projects/m8/wiring/wiring_sim.c
+    projects/m8/wiring/project_hooks_sim.c
+    projects/m8/wiring/m8_alarm_reeval_bindings.c
+    projects/m8/wiring/m8_alarm_reeval_bridge.c
+)
+set(m8_domain_src
+    projects/m8/domain/mechanism/gantry.c
+    projects/m8/domain/mechanism/m8_top_brush_lift.c
+    projects/m8/domain/mechanism/m8_brush_rotation.c
+    projects/m8/domain/mechanism/m8_fan.c
+    projects/m8/domain/mechanism/m8_rear_lock.c
+)
 
 # 仿真构建不需要真机专属绑定：上电安全初始化（m8_boot_profile）与 VFD/语音
 # 参数下发（m8_vfd_setup/m8_voice_setup）只在真机路径由 project_hooks.c 调用；
@@ -166,6 +183,7 @@ set(src
     ${fw_adapters_hal_mcc_src}
     ${fw_adapters_runtime_snack_src}
     ${fw_adapters_storage_src}
+    ${m8_domain_src}
     ${m8_config_src}
     ${m8_bindings_real_src}
     ${m8_adapters_alarm_src}
@@ -254,6 +272,7 @@ if(BUILD_SIM)
         ${fw_adapters_storage_src}
 
         # M8 机型配置表
+        ${m8_domain_src}
         ${m8_config_src}
 
         # M8 机型适配（不含真机专属的 boot_profile/vfd_setup/voice_setup）
@@ -402,7 +421,9 @@ if(BUILD_SIM)
         framework/domain/safety/alarm_registry/alarm_registry.c
         framework/services/dev_ctx/dev_ctx.c
         framework/ports/port_registry.c
+        framework/ports/outbound/machine/machine_ops_port.c
         tests/stubs/command_gateway_stubs.c
+        tests/stubs/machine_ops_stubs.c
     )
 
     # test_hw_estop_event：EVT_HW_ESTOP 与 OperationalMode 集成（阶段二接线验证）
@@ -421,6 +442,7 @@ if(BUILD_SIM)
         framework/cloud/cloud_point_watcher.c
         framework/cloud/cloud_point_dispatch.c
         framework/common/point_table/point_table_to_json.c
+        framework/common/point_table/point_table_from_json.c
         framework/runtime/event_bus/event_bus.c
         framework/common/time_util.c
         third_party/cJSON/cJSON.c
@@ -444,8 +466,16 @@ if(BUILD_SIM)
         projects/m8/adapters/cloud/m8_cloud_service.c
         projects/m8/adapters/cloud/m8_cloud_cmd.c
         projects/m8/adapters/manual/m8_manual_action.c
-        framework/domain/device_control/mechanism/gantry.c
-        framework/domain/device_control/mechanism/brush.c
+        projects/m8/domain/mechanism/gantry.c
+        projects/m8/domain/mechanism/m8_top_brush_lift.c
+        projects/m8/domain/mechanism/m8_brush_rotation.c
+        projects/m8/domain/mechanism/m8_fan.c
+        projects/m8/domain/mechanism/m8_rear_lock.c
+        framework/domain/device_control/patterns/interlocked_slots.c
+        framework/domain/device_control/patterns/bidirectional_motion.c
+        framework/domain/device_control/patterns/continuous_rotary.c
+        framework/domain/device_control/patterns/fluid_path.c
+        framework/domain/device_control/model/actuator_events.c
         framework/adapters/outbound/hal/providers/mcc/hal_motor_exec_adapter.c
         tests/stubs/mcc/motor_control_core_sim.c
         projects/m8/bindings/m8_sensor.c
@@ -729,53 +759,46 @@ if(BUILD_SIM)
     # 机构模块经 hal_motor_exec_adapter 转发到 MCC，因此需一并链接该适配器）
     # -----------------------------------------------------------------------
 
-    # test_gantry：龙门行走机构领域层（初始化 / 运动命令 / 状态映射 / 故障恢复）
-    add_unit_test(test_gantry
-        tests/framework/domain/test_gantry.c
-        framework/domain/device_control/mechanism/gantry.c
+    # test_m8_gantry：M8 龙门机构（lifecycle + 故障恢复）
+    add_unit_test(test_m8_gantry
+        projects/m8/tests/test_m8_gantry.c
+        projects/m8/domain/mechanism/gantry.c
+        framework/domain/device_control/patterns/bidirectional_motion.c
+        framework/domain/device_control/model/actuator_events.c
         framework/adapters/outbound/hal/providers/mcc/hal_motor_exec_adapter.c
         framework/ports/port_registry.c
         tests/stubs/mcc/motor_control_core_sim.c
     )
 
-    # test_brush：刷子机构领域层（薄封装 / 启停 / 调速 / 状态映射 / 故障恢复）
-    add_unit_test(test_brush
-        tests/framework/domain/test_brush.c
-        framework/domain/device_control/mechanism/brush.c
+    add_unit_test(test_interlocked_slots
+        tests/framework/domain/test_interlocked_slots.c
+        framework/domain/device_control/patterns/interlocked_slots.c
+        framework/domain/device_control/model/actuator_events.c
         framework/adapters/outbound/hal/providers/mcc/hal_motor_exec_adapter.c
         tests/stubs/mcc/motor_control_core_sim.c
     )
 
-    # test_fan：风机机构领域层（初始化 / 启停 / 状态映射 / 故障恢复）
-    add_unit_test(test_fan
-        tests/framework/domain/test_fan.c
-        framework/domain/device_control/mechanism/fan.c
+    add_unit_test(test_continuous_rotary
+        tests/framework/domain/test_continuous_rotary.c
+        framework/domain/device_control/patterns/continuous_rotary.c
+        framework/domain/device_control/model/actuator_events.c
         framework/adapters/outbound/hal/providers/mcc/hal_motor_exec_adapter.c
         tests/stubs/mcc/motor_control_core_sim.c
     )
 
-    # test_lift：顶刷升降机构领域层（FORWARD=上升 / 状态映射 / 故障恢复）
-    add_unit_test(test_lift
-        tests/framework/domain/test_lift.c
-        framework/domain/device_control/mechanism/lift.c
+    add_unit_test(test_bidirectional_motion
+        tests/framework/domain/test_bidirectional_motion.c
+        framework/domain/device_control/patterns/bidirectional_motion.c
+        framework/domain/device_control/model/actuator_events.c
         framework/adapters/outbound/hal/providers/mcc/hal_motor_exec_adapter.c
         tests/stubs/mcc/motor_control_core_sim.c
     )
 
-    # test_rear_lock：后轮锁止机构领域层（FORWARD=锁止 / 状态映射 / 故障恢复）
-    add_unit_test(test_rear_lock
-        tests/framework/domain/test_rear_lock.c
-        framework/domain/device_control/mechanism/rear_lock.c
-        framework/adapters/outbound/hal/providers/mcc/hal_motor_exec_adapter.c
-        tests/stubs/mcc/motor_control_core_sim.c
+    add_unit_test(test_fluid_path
+        tests/framework/domain/test_fluid_path.c
+        framework/domain/device_control/patterns/fluid_path.c
     )
-
-    # test_water_resource：水路控制单元测试
-    add_unit_test(test_water_resource
-        tests/framework/domain/test_water_resource.c
-        framework/domain/device_control/mechanism/water.c
-    )
-    target_compile_definitions(test_water_resource PRIVATE WATER_UNIT_TEST=1)
+    target_compile_definitions(test_fluid_path PRIVATE FLUID_PATH_UNIT_TEST=1)
 
     message(STATUS "Tests registered: 22 unit + 2 scenario (run with: ctest --test-dir build_sim -V)")
 

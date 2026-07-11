@@ -28,6 +28,8 @@
  *  EVT_OP_MODE_CONTEXT_SYNC         mode_projection             普通
  *  EVT_CLOUD_CONNECTED              report_scheduler            普通
  *  EVT_ALARM_TRIGGERED/CLEARED      report_scheduler            普通
+ *  EVT_COMP_MOTION_COMPLETED        m8_alarm_reeval_bridge      普通
+ *  EVT_WASH_CHECKPOINT_REACHED      m8_alarm_reeval_bridge      普通
  *  EVT_CLOUD_POINT_DIRTY            report_scheduler            普通
  *
  *  已移出事件总线（改用域内回调）：

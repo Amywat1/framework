@@ -20,7 +20,7 @@
  *
  * 测试或裁剪 init 时可单独调用：
  *   m8_motor_exec_init()
- *   m8_motor_domains_setup_mask(M8_DOMAIN_GANTRY | M8_DOMAIN_BRUSH)
+ *   m8_mechanism_setup_mask(M8_DOMAIN_GANTRY | M8_DOMAIN_BRUSH)
  */
 #ifndef MACHINES_M8_ADAPTERS_SETUP_M8_MOTOR_EXEC_H
 #define MACHINES_M8_ADAPTERS_SETUP_M8_MOTOR_EXEC_H

@@ -8,7 +8,7 @@
 #ifndef CONFIG_MACHINE_M8_WATER_TABLE_H
 #define CONFIG_MACHINE_M8_WATER_TABLE_H
 
-#include "framework/domain/device_control/mechanism/water.h"
+#include "framework/domain/device_control/patterns/fluid_path.h"
 #include "projects/m8/config/m8_io_pins.h"
 #include "framework/common/io_handle.h"
 
@@ -36,25 +36,25 @@ typedef enum
     M8_WATER_PATH_COUNT,
 } m8_water_path_id_t;
 
-#define M8_WATER_PATH_MASK(id)  WATER_PATH_MASK(id)
+#define M8_WATER_PATH_MASK(id)  FLUID_PATH_MASK(id)
 
 /* -------------------------------------------------------------------------
  * 执行器引脚表（channel + slot → DO）
  * ------------------------------------------------------------------------- */
 typedef struct
 {
-    water_channel_idx_t channel;
-    water_slot_t        slot;
+    fluid_path_channel_idx_t channel;
+    fluid_path_slot_t        slot;
     io_do_t             pin;
 } m8_water_actuator_row_t;
 
 static const m8_water_actuator_row_t m8_water_actuator_table[] = {
-    { M8_WATER_CH_SHARED,      WATER_SLOT_PUMP,        M8_IO_DO_WATER_PUMP },
-    { M8_WATER_CH_CURTAIN,     WATER_SLOT_WATER_VALVE, M8_IO_DO_WATER_CURTAIN },
-    { M8_WATER_CH_FOAM,        WATER_SLOT_WATER_VALVE, M8_IO_DO_WATER_TOP_FOAM },
-    { M8_WATER_CH_BRUSH,       WATER_SLOT_WATER_VALVE, M8_IO_DO_WATER_TOP },
-    { M8_WATER_CH_HIGHPRES,    WATER_SLOT_WATER_VALVE, M8_IO_DO_WATER_BUTTOM },
-    { M8_WATER_CH_BOTTOM_FOAM, WATER_SLOT_WATER_VALVE, M8_IO_DO_WATER_BUTTOM_FOAM },
+    { M8_WATER_CH_SHARED,      FLUID_PATH_SLOT_PUMP,        M8_IO_DO_WATER_PUMP },
+    { M8_WATER_CH_CURTAIN,     FLUID_PATH_SLOT_WATER_VALVE, M8_IO_DO_WATER_CURTAIN },
+    { M8_WATER_CH_FOAM,        FLUID_PATH_SLOT_WATER_VALVE, M8_IO_DO_WATER_TOP_FOAM },
+    { M8_WATER_CH_BRUSH,       FLUID_PATH_SLOT_WATER_VALVE, M8_IO_DO_WATER_TOP },
+    { M8_WATER_CH_HIGHPRES,    FLUID_PATH_SLOT_WATER_VALVE, M8_IO_DO_WATER_BUTTOM },
+    { M8_WATER_CH_BOTTOM_FOAM, FLUID_PATH_SLOT_WATER_VALVE, M8_IO_DO_WATER_BUTTOM_FOAM },
 };
 
 #define M8_WATER_ACTUATOR_TABLE_COUNT \
@@ -63,28 +63,28 @@ static const m8_water_actuator_row_t m8_water_actuator_table[] = {
 /* -------------------------------------------------------------------------
  * 路径拓扑表（path → 依赖执行器）
  * ------------------------------------------------------------------------- */
-static const water_actuator_key_t m8_deps_curtain[] = {
-    { M8_WATER_CH_CURTAIN, WATER_SLOT_WATER_VALVE },
-    { M8_WATER_CH_SHARED,  WATER_SLOT_PUMP },
+static const fluid_path_actuator_key_t m8_deps_curtain[] = {
+    { M8_WATER_CH_CURTAIN, FLUID_PATH_SLOT_WATER_VALVE },
+    { M8_WATER_CH_SHARED,  FLUID_PATH_SLOT_PUMP },
 };
-static const water_actuator_key_t m8_deps_foam[] = {
-    { M8_WATER_CH_FOAM,   WATER_SLOT_WATER_VALVE },
-    { M8_WATER_CH_SHARED, WATER_SLOT_PUMP },
+static const fluid_path_actuator_key_t m8_deps_foam[] = {
+    { M8_WATER_CH_FOAM,   FLUID_PATH_SLOT_WATER_VALVE },
+    { M8_WATER_CH_SHARED, FLUID_PATH_SLOT_PUMP },
 };
-static const water_actuator_key_t m8_deps_bottom_foam[] = {
-    { M8_WATER_CH_BOTTOM_FOAM, WATER_SLOT_WATER_VALVE },
-    { M8_WATER_CH_SHARED,      WATER_SLOT_PUMP },
+static const fluid_path_actuator_key_t m8_deps_bottom_foam[] = {
+    { M8_WATER_CH_BOTTOM_FOAM, FLUID_PATH_SLOT_WATER_VALVE },
+    { M8_WATER_CH_SHARED,      FLUID_PATH_SLOT_PUMP },
 };
-static const water_actuator_key_t m8_deps_brush[] = {
-    { M8_WATER_CH_BRUSH,  WATER_SLOT_WATER_VALVE },
-    { M8_WATER_CH_SHARED, WATER_SLOT_PUMP },
+static const fluid_path_actuator_key_t m8_deps_brush[] = {
+    { M8_WATER_CH_BRUSH,  FLUID_PATH_SLOT_WATER_VALVE },
+    { M8_WATER_CH_SHARED, FLUID_PATH_SLOT_PUMP },
 };
-static const water_actuator_key_t m8_deps_highpres[] = {
-    { M8_WATER_CH_HIGHPRES, WATER_SLOT_WATER_VALVE },
-    { M8_WATER_CH_SHARED,   WATER_SLOT_PUMP },
+static const fluid_path_actuator_key_t m8_deps_highpres[] = {
+    { M8_WATER_CH_HIGHPRES, FLUID_PATH_SLOT_WATER_VALVE },
+    { M8_WATER_CH_SHARED,   FLUID_PATH_SLOT_PUMP },
 };
 
-static const water_path_def_t m8_water_path_table[] = {
+static const fluid_path_def_t m8_water_path_table[] = {
     { M8_WATER_PATH_CURTAIN,     m8_deps_curtain,     2U },
     { M8_WATER_PATH_FOAM,        m8_deps_foam,        2U },
     { M8_WATER_PATH_BOTTOM_FOAM, m8_deps_bottom_foam, 2U },

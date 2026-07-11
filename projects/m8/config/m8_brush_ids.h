@@ -3,7 +3,7 @@
  * @brief   M8 机型刷子逻辑槽位编号。
  *
  * 与 m8_motor_id_t（MCC 电机槽位）区分开：这里是 brush_init() 的槽位顺序，
- * 供 m8_motor_domains_setup.c 装配与 engine_io_m8.c 下发命令时共同引用。
+ * 供 m8_mechanism_setup.c 装配与 engine_io_m8.c 下发命令时共同引用。
  */
 #ifndef MACHINES_M8_CONFIG_M8_BRUSH_IDS_H
 #define MACHINES_M8_CONFIG_M8_BRUSH_IDS_H

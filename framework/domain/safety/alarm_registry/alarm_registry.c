@@ -271,7 +271,7 @@ static void load_overflow_meta_locked(void)
         .response         = RESP_LOG_ONLY,
         .clear            = ALARM_CLEAR_AUTO_STATIC,
         .source_kind      = ALARM_SOURCE_CALLSITE,
-        .scope            = ALARM_SCOPE_NONE,
+        .reeval_group     = ALARM_REEVAL_GROUP_NONE,
         .immediate_cutout = false,
         .desc             = "活跃报警池已满",
     };
@@ -337,7 +337,7 @@ sw_err_t alarm_registry_clear(uint32_t code)
     return SW_OK;
 }
 
-sw_err_t alarm_registry_reevaluate_by_scope(alarm_scope_t scope)
+sw_err_t alarm_registry_reevaluate_group(motion_reeval_group_id_t group)
 {
     uint32_t codes[ALARM_ACTIVE_MAX];
     unsigned n = 0U;
@@ -353,7 +353,7 @@ sw_err_t alarm_registry_reevaluate_by_scope(alarm_scope_t scope)
         }
         {
             const alarm_def_t *def = &s_catalog[(unsigned)def_idx];
-            if ((def->clear == ALARM_CLEAR_ON_MOTION) && (def->scope == scope))
+            if ((def->clear == ALARM_CLEAR_ON_MOTION) && (def->reeval_group == group))
             {
                 codes[n++] = def->code;
             }
@@ -603,10 +603,9 @@ static sw_err_t binding_load_catalog(const alarm_def_t *defs, unsigned count)
 sw_err_t alarm_registry_init(void)
 {
     static const alarm_binding_ops_t s_ops = {
-        .trigger             = alarm_registry_trigger,
-        .clear               = alarm_registry_clear,
-        .load_catalog        = binding_load_catalog,
-        .reevaluate_by_scope = alarm_registry_reevaluate_by_scope,
+        .trigger      = alarm_registry_trigger,
+        .clear        = alarm_registry_clear,
+        .load_catalog = binding_load_catalog,
     };
 
     alarm_binding_register(&s_ops);

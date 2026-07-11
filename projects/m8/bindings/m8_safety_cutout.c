@@ -9,7 +9,7 @@
 
 #include "framework/ports/outbound/safety/safety_cutout_port.h"
 #include "framework/common/sw_error.h"
-#include "framework/domain/device_control/mechanism/water.h"
+#include "framework/domain/device_control/patterns/fluid_path.h"
 #include "framework/ports/outbound/hal/hal_io_port.h"
 #include "projects/m8/bindings/m8_motor_exec.h"
 #include "projects/m8/config/m8_io_pins.h"
@@ -58,5 +58,5 @@ void safety_cutout_execute(void)
     }
 
     m8_motor_emergency_cutoff();
-    water_emergency_off();
+    fluid_path_emergency_off();
 }

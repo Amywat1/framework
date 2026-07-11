@@ -6,7 +6,6 @@
  */
 
 #include "projects/m8/adapters/alarm/m8_alarm_init.h"
-#include "framework/domain/device_control/mechanism/gantry_alarm_codes.h"
 #include "framework/domain/safety/alarm_registry/alarm_registry.h"
 #include "framework/ports/inbound/safety/alarm_binding_port.h"
 #include "framework/ports/outbound/safety/op_mode_alarm_port.h"
@@ -17,8 +16,8 @@
 #include <string.h>
 
 static const alarm_def_t s_di_defs[] = {
-#define X(pin, al, tr, rl, cls, idx, nat, lvl, resp, clr, sk, sc, cut, desc) \
-    { ALARM_CODE_MAKE(cls, idx, nat), lvl, resp, clr, sk, sc, cut, desc },
+#define X(pin, al, tr, rl, cls, idx, nat, lvl, resp, clr, sk, rg, cut, desc) \
+    { ALARM_CODE_MAKE(cls, idx, nat), lvl, resp, clr, sk, rg, cut, desc },
     M8_HW_ALARM_TABLE(X)
 #undef X
 };
@@ -26,27 +25,19 @@ static const alarm_def_t s_di_defs[] = {
 static const alarm_def_t s_comm_defs[] = {
 #define X(dev, timeout, cls, idx, nat, lvl, resp, clr, cut, desc) \
     { ALARM_CODE_MAKE(cls, idx, nat), lvl, resp, clr, ALARM_SOURCE_COMM, \
-      ALARM_SCOPE_NONE, cut, desc },
+      ALARM_REEVAL_GROUP_NONE, cut, desc },
     M8_COMM_WATCHDOG_TABLE(X)
 #undef X
 };
 
 static const alarm_def_t s_sw_defs[] = {
-#define X(cls, idx, nat, lvl, resp, clr, sk, sc, desc) \
-    { ALARM_CODE_MAKE(cls, idx, nat), lvl, resp, clr, sk, sc, false, desc },
+#define X(cls, idx, nat, lvl, resp, clr, sk, rg, desc) \
+    { ALARM_CODE_MAKE(cls, idx, nat), lvl, resp, clr, sk, rg, false, desc },
     M8_SW_ALARM_TABLE(X)
 #undef X
 };
 
 #define ARRAY_COUNT(a) (sizeof(a) / sizeof((a)[0]))
-
-/* 编译期校验：framework gantry 流程报警码与 M8 目录一致 */
-_Static_assert(M8_GANTRY_ALM_ENC_ERR == GANTRY_ALM_ENC_ERR,
-               "gantry enc alarm code mismatch");
-_Static_assert(M8_GANTRY_ALM_FWD_TMO == GANTRY_ALM_FWD_TMO,
-               "gantry fwd timeout alarm code mismatch");
-_Static_assert(M8_GANTRY_ALM_REV_TMO == GANTRY_ALM_REV_TMO,
-               "gantry rev timeout alarm code mismatch");
 
 static sw_err_t append_table(alarm_def_t *merged, unsigned *count, unsigned max,
                              const alarm_def_t *table, unsigned table_count)

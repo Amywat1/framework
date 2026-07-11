@@ -9,7 +9,7 @@
 #include "projects/m8/adapters/cloud/m8_cloud_runtime.h"
 #include "framework/services/dev_ctx/dev_ctx.h"
 #include "framework/domain/safety/model/safety_types.h"
-#include "framework/domain/device_control/mechanism/lift.h"
+#include "projects/m8/domain/mechanism/m8_top_brush_lift.h"
 #include "projects/m8/bindings/m8_sensor.h"
 #include "projects/m8/config/m8_signal_table.h"
 #include "projects/m8/config/m8_io_pins.h"

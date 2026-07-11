@@ -6,13 +6,7 @@
  */
 
 #include "framework/ports/outbound/safety/safety_cutout_port.h"
-#include "framework/domain/device_control/mechanism/brush.h"
-#include "framework/domain/device_control/mechanism/gantry.h"
-#include "framework/domain/device_control/mechanism/water.h"
 
 __attribute__((weak)) void safety_cutout_execute(void)
 {
-    (void)gantry_stop();
-    (void)brush_stop_all();
-    water_emergency_off();
 }

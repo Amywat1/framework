@@ -4,9 +4,6 @@
  */
 
 #include "framework/application/orchestrators/wash_orchestrator.h"
-#include "framework/domain/device_control/mechanism/gantry.h"
-#include "framework/domain/safety/alarm_registry/alarm_registry.h"
-#include "framework/domain/safety/model/safety_types.h"
 #include "framework/common/sw_error.h"
 #include "framework/domain/command_gateway/op_mode_types.h"
 
@@ -27,26 +24,6 @@ void wash_orchestrator_abort(wash_abort_cause_t cause)
 }
 
 bool wash_orchestrator_is_busy(void)
-{
-    return false;
-}
-
-sw_err_t gantry_home(void)
-{
-    return SW_OK;
-}
-
-sw_err_t alarm_registry_recover_all(void)
-{
-    return SW_OK;
-}
-
-safety_posture_t alarm_registry_safety_posture(void)
-{
-    return SAFETY_POSTURE_NOMINAL;
-}
-
-bool alarm_registry_has_blocking_active(void)
 {
     return false;
 }

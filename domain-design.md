@@ -260,7 +260,7 @@
 | BR-10 | MINOR 报警不影响任何运行状态，仅记录和上报                                                        |
 | BR-12 | 自清除报警（AUTO_STATIC）：检测条件可持续监测，条件恢复时自动清除                                          |
 | BR-13 | 运动触发清除报警（ON_MOTION）：相关机构被驱动时（任何模式均可），系统自动重新评估报警条件，条件消除则自动清除；或由 Recover 操作统一批量清除 |
-| BR-14 | 服务完成评估：会话结束后若存在 `blocks_next_service = true` 的活跃报警，系统进入 EXCEPTION，而非停留在 IDLE    |
+| BR-14 | 服务完成评估：会话结束后若仍存在 MAJOR+ 活跃报警（`alarm_registry_has_blocking_active()`），系统进入 EXCEPTION，而非停留在 IDLE |
 | BR-18 | Recover 操作执行时清除所有活跃报警，唯一前提：急停报警（EStop）未激活                                       |
 | BR-19 | RECOVERING 状态下并行驱动其余执行机构到安全位置（龙门停在当前位置不动）：全部到位则进入 IDLE；超时仍有机构未到位则进入 EXCEPTION   |
 
@@ -435,10 +435,12 @@ AlarmDefinition（静态配置，系统启动时加载）:
   level                : CRITICAL | MAJOR | MINOR
   description          : 报警描述
   source_type          : DEVICE | SENSOR | COMM | LOGIC
-  clear_method         : AUTO_STATIC | ON_MOTION
-  blocks_next_service  : bool（仅 MAJOR 有意义）
+  clear_method         : AUTO_STATIC | ON_MOTION | MANUAL_RESET
   response_strategy    : STOP_IMMEDIATELY | COMPLETE_THEN_ASSESS | LOG_ONLY
+  reeval_group         : motion_reeval_group_id_t（ON_MOTION 必填；framework 不透明 ID）
 ```
+
+> v4.0 已删除 `blocks_next_service`：所有 MAJOR 在会话边界统一按「仍 active 则拒单」处理，见 `doc/报警系统设计说明.md` §6。
 
 **报警码分配规则**：
 
@@ -621,7 +623,7 @@ RecoverCommand          ✗     ✗        ✓†      ✗           ✓†     
 | 等级       | 处置策略                                                                | 清除方式                    | 对服务的影响                                                      |
 | -------- | ------------------------------------------------------------------- | ----------------------- | ----------------------------------------------------------- |
 | CRITICAL | 立即停止所有执行机构，进入 EXCEPTION                                             | ON_MOTION 或 AUTO_STATIC | 完全阻断；须 Recover 操作解锁                                         |
-| MAJOR    | 完成当前洗车会话后执行服务完成评估；若存在 `blocks_next_service=true` 的活跃报警则进入 EXCEPTION | AUTO_STATIC 或 ON_MOTION | `blocks_next_service=true` → EXCEPTION；`false` → 携带报警允许继续服务 |
+| MAJOR    | 完成当前洗车会话后执行服务完成评估；若仍存在 MAJOR+ 活跃报警则进入 EXCEPTION | AUTO_STATIC、ON_MOTION 或 MANUAL_RESET | 仍 active → EXCEPTION；已清除 → 允许继续服务 |
 | MINOR    | 记录并上报，不干预运行                                                         | AUTO_STATIC             | 无影响                                                         |
 
 
@@ -641,21 +643,21 @@ RecoverCommand          ✗     ✗        ✓†      ✗           ✓†     
                     ↓
      WashSessionCompleted / WashSessionAborted
                     ↓
-         PostWashAssessment
+         PostWashAssessment（alarm_registry_has_blocking_active()）
      ┌──────────────┴──────────────┐
      │                             │
-blocks_next_service = false   blocks_next_service = true（BR-14）
+无 MAJOR+ 活跃               存在 MAJOR+ 活跃（BR-14）
      │                             │
 允许下次启动                   进入 EXCEPTION
-（报警仍在注册表活跃）               │
+（报警已清除）                 （报警仍活跃）
+     │                             │
      │                             ▼
-     │                    EXCEPTION（报警仍活跃）
-     │                      可手动操作机构
+     │                    EXCEPTION（可手动操作机构）
      │                      EStop 清除后可 Recover
      │                             │
      │                       RecoverCommand
      │                             │
-     │                    清除所有活跃报警 → RECOVERING → IDLE
+     │                    清除可清除报警 → RECOVERING → IDLE
      │                             │
      └─────────────────────────────┘
                报警清除路径（两种）
@@ -909,8 +911,7 @@ COMPLETED 和 ABORTED 均发布领域事件，由应用层订阅并分发（模�
   会话结束 → 发布 WashSessionCompleted/Aborted（携带 session_major_alarms[]）
            → 应用层订阅会话结束事件 → 调用 alarm_registry_on_wash_session_ended()
              → 执行 PostWashAssessment
-               （以 session_major_alarms[] 为输入，
-                 交叉查询自身 active_alarms[] 确定"仍活跃 + blocks_next_service"的报警）
+               （调用 alarm_registry_has_blocking_active() 判定是否进入 EXCEPTION）
 ```
 
 ---
@@ -974,7 +975,7 @@ OperationalMode 是指令网关上下文的聚合根，负责：
 
 > **重要边界**（v1.1 修订）：OperationalMode 聚合**不订阅**事件总线（被动输入侧），也不直接调用其他聚合；
 > 由应用层（`op_mode_bridge.c`）订阅事件总线，再调用 `op_mode_on_xxx()` 将事件喂入聚合。
-> 但聚合**可主动发布**（输出侧）：模式变更后直接调用 `event_publish()`，与 `safety_fsm`
+> 但聚合**可主动发布**（输出侧）：模式变更后直接调用 `event_publish()`，与 `safety_posture`
 > 等既有模块保持一致的推模式，不再走拉取式队列（详见 §13.5、`doc/运行模式状态机设计说明.md` §3.6/§4.2）。
 > Recover 的跨聚合协调（清除报警 + 驱动机构归位）由 `recovery_service.c` 应用服务负责。
 
@@ -1211,19 +1212,11 @@ ACTIVE ────────────────────────�
       调用 alarm_registry_on_wash_session_ended()（AlarmRegistry 不直接订阅事件总线）
 
 评估逻辑（交叉查询，AlarmRegistry 为权威事实源）：
-  输入：session_event.session_major_alarms[]（本次会话期间出现过的 MAJOR 报警码 journal）
+  输入：alarm_registry 当前活跃列表
 
-  for each alarm_code in session_major_alarms[]:
-      if alarm_registry_is_active(registry, alarm_code):       ← 当前仍活跃？
-          def = lookup_definition(alarm_code)
-          if def.blocks_next_service:
-              → 加入 blocking_alarms[]
-
-  若 blocking_alarms[] 非空 → enter_exception = true
-  否则                      → enter_exception = false
+  enter_exception = alarm_registry_has_blocking_active()
 
   发布 PostWashAssessmentCompleted {
-    blocking_alarms[],
     enter_exception
   }
 
@@ -1659,7 +1652,7 @@ void event_dispatcher_tick(void) {
  *   已废弃方案（v0.7 曾采用，v1.1 弃用）：
  *   safety_thread 持锁直接调用 op_mode_on_estop_triggered()，让 OperationalMode
  *   成为系统里第一个需要跨线程锁保护的领域对象。弃用理由：破坏了其余聚合
- *   （OperationalMode/safety_fsm 等）"只在 dispatch 线程写、天然无竞争"的不变量；
+ *   （OperationalMode/safety_posture 等）"只在 dispatch 线程写、天然无竞争"的不变量；
  *   收紧 safety_thread 的职责范围（只做硬件停机 + 发布事件）可以在不引入锁的
  *   前提下达到同样的硬实时停机效果。详见 `doc/运行模式状态机设计说明.md` §3.6/§7.3。
  * ───────────────────────────────────────────────────────────────────────

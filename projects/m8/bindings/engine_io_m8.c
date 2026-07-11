@@ -16,20 +16,20 @@
  *   DO 分组刷新说明：
  *     apply_gantry()  — GANTRY_FWD / GANTRY_REV 互斥，两变量共享
  *     apply_brush()   — TOP_BRUSH_ROT 优先；SIDE 仅在 TOP 停止时生效
- *     apply_water()   — 所有水路 DO 聚合为 path mask，调用 water_path_set()
+ *     apply_water()   — 所有水路 DO 聚合为 path mask，调用 fluid_path_set()
  *
  *   标注 [stub] 的通道待实现真实驱动后，将 NULL 替换为真实实现即可。
  */
 
 #include "projects/m8/bindings/engine_io_m8.h"
 #include "framework/domain/wash/engine/engine_io.h"
-#include "framework/domain/device_control/mechanism/gantry.h"
-#include "framework/domain/device_control/mechanism/brush.h"
-#include "framework/domain/device_control/mechanism/water.h"
+#include "projects/m8/domain/mechanism/gantry.h"
+#include "projects/m8/domain/mechanism/m8_brush_rotation.h"
+#include "framework/domain/device_control/patterns/fluid_path.h"
 #include "projects/m8/config/m8_water_table.h"
-#include "framework/domain/device_control/mechanism/lift.h"
-#include "framework/domain/device_control/mechanism/rear_lock.h"
-#include "framework/domain/device_control/mechanism/fan.h"
+#include "projects/m8/domain/mechanism/m8_top_brush_lift.h"
+#include "projects/m8/domain/mechanism/m8_rear_lock.h"
+#include "projects/m8/domain/mechanism/m8_fan.h"
 #include "projects/m8/bindings/m8_sensor.h"
 #include "projects/m8/config/m8_brush_ids.h"
 #include "projects/m8/config/m8_signal_table.h"
@@ -103,7 +103,7 @@ static void apply_water(void)
     static const struct
     {
         const int        *p_state;
-        water_path_mask_t path_bit;
+        fluid_path_mask_t path_bit;
     } s_water_do_map[] = {
         { &s_water_curtain,  M8_WATER_PATH_MASK(M8_WATER_PATH_CURTAIN)     },
         { &s_water_top_foam, M8_WATER_PATH_MASK(M8_WATER_PATH_FOAM)        },
@@ -111,7 +111,7 @@ static void apply_water(void)
         { &s_water_hp_top,   M8_WATER_PATH_MASK(M8_WATER_PATH_HIGHPRES)   },
         { &s_water_hp_btm,   M8_WATER_PATH_MASK(M8_WATER_PATH_HIGHPRES)   },
     };
-    water_path_mask_t mask = 0U;
+    fluid_path_mask_t mask = 0U;
     unsigned          i;
 
     for (i = 0U; i < (unsigned)(sizeof(s_water_do_map) / sizeof(s_water_do_map[0])); i++)
@@ -122,7 +122,7 @@ static void apply_water(void)
         }
     }
 
-    (void)water_path_set(mask);
+    (void)fluid_path_set(mask);
 }
 
 static void apply_lifter(void)

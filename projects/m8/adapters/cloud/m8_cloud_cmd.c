@@ -11,12 +11,12 @@
 #include "projects/m8/config/m8_brush_ids.h"
 #include "projects/m8/config/m8_water_table.h"
 #include "projects/m8/config/m8_io_pins.h"
-#include "framework/domain/device_control/mechanism/brush.h"
-#include "framework/domain/device_control/mechanism/fan.h"
-#include "framework/domain/device_control/mechanism/gantry.h"
-#include "framework/domain/device_control/mechanism/lift.h"
-#include "framework/domain/device_control/mechanism/rear_lock.h"
-#include "framework/domain/device_control/mechanism/water.h"
+#include "projects/m8/domain/mechanism/m8_brush_rotation.h"
+#include "projects/m8/domain/mechanism/m8_fan.h"
+#include "projects/m8/domain/mechanism/gantry.h"
+#include "projects/m8/domain/mechanism/m8_top_brush_lift.h"
+#include "projects/m8/domain/mechanism/m8_rear_lock.h"
+#include "framework/domain/device_control/patterns/fluid_path.h"
 #include "framework/domain/wash/model/wash_types.h"
 #include "framework/ports/inbound/command/command_port.h"
 #include "framework/ports/outbound/hal/hal_io_port.h"
@@ -142,7 +142,7 @@ static sw_err_t get_cfg_bool(const char *id, point_value_t *out)
     return SW_OK;
 }
 
-static sw_err_t water_on(water_path_mask_t mask)
+static sw_err_t water_on(fluid_path_mask_t mask)
 {
     sw_err_t ret = inject_cmd(CMD_MANUAL_ACTUATOR);
 
@@ -151,12 +151,12 @@ static sw_err_t water_on(water_path_mask_t mask)
         return ret;
     }
 
-    return water_path_set(mask);
+    return fluid_path_set(mask);
 }
 
 static sw_err_t water_off(void)
 {
-    return water_all_off();
+    return fluid_path_all_off();
 }
 
 static sw_err_t water_pre_on(void)
@@ -292,7 +292,7 @@ sw_err_t m8_cloud_set_cmd_stop(const point_value_t *in)
     (void)lift_stop();
     (void)rear_lock_stop();
     (void)fan_stop();
-    (void)water_all_off();
+    (void)fluid_path_all_off();
     return SW_OK;
 }
 

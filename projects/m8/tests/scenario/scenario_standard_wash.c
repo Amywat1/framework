@@ -7,9 +7,9 @@
 #include "framework/runtime/scheduler/thread_registry.h"
 #include "framework/runtime/scheduler/scheduler.h"
 #include "framework/services/dev_ctx/dev_ctx.h"
-#include "framework/domain/device_control/mechanism/brush.h"
-#include "framework/domain/device_control/mechanism/gantry.h"
-#include "framework/domain/device_control/mechanism/water.h"
+#include "projects/m8/domain/mechanism/m8_brush_rotation.h"
+#include "projects/m8/domain/mechanism/gantry.h"
+#include "framework/domain/device_control/patterns/fluid_path.h"
 #include "framework/domain/device_control/model/device_state.h"
 #include "framework/domain/wash/model/wash_types.h"
 #include "framework/application/orchestrators/wash_orchestrator.h"
@@ -26,7 +26,7 @@
 #include "framework/adapters/outbound/hal/components/vfd_manager/hal_vfd_manager.h"
 #include "projects/m8/bindings/m8_sensor.h"
 #include "projects/m8/bindings/m8_signal_sim.h"
-#include "projects/m8/bindings/m8_motor_domains_setup.h"
+#include "projects/m8/bindings/m8_mechanism_setup.h"
 #include "projects/m8/bindings/m8_motor_exec.h"
 #include "projects/m8/bindings/m8_water_setup.h"
 #include "framework/ports/outbound/hal/hal_vfd_port.h"
@@ -144,7 +144,7 @@ static void scenario_setup(void)
     m8_signal_sim_set_rear_lock_home(true);
 
     (void)m8_motor_exec_init();
-    (void)m8_motor_domains_setup_mask(M8_DOMAIN_BRUSH | M8_DOMAIN_GANTRY);
+    (void)m8_mechanism_setup_mask(M8_DOMAIN_BRUSH | M8_DOMAIN_GANTRY);
     (void)m8_water_setup();
     (void)m8_motor_exec_start();
     (void)hal_sensor_poll_register_task();

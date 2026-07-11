@@ -1,11 +1,11 @@
 /**
- * @file    water.c
- * @brief   水路控制实现
+ * @file    fluid_path.c
+ * @brief   流体路径控制实现
  * @author  HUWANGWEI
  * @date    2026-04-10
  */
 
-#include "framework/domain/device_control/mechanism/water.h"
+#include "framework/domain/device_control/patterns/fluid_path.h"
 #include "framework/runtime/config/thread_config.h"
 #include "framework/runtime/scheduler/periodic_task.h"
 #include "framework/common/log.h"
@@ -15,58 +15,58 @@
 #include <stdatomic.h>
 #include <string.h>
 
-#define WATER_ACTUATOR_LIST_MAX  16U
+#define FLUID_PATH_ACTUATOR_LIST_MAX  16U
 
 typedef enum
 {
-    WATER_SEQ_IDLE = 0,
-    WATER_SEQ_WAIT_CLOSE_PUMP,
-    WATER_SEQ_WAIT_OPEN_VALVE,
-} water_seq_state_t;
+    FLUID_PATH_SEQ_IDLE = 0,
+    FLUID_PATH_SEQ_WAIT_CLOSE_PUMP,
+    FLUID_PATH_SEQ_WAIT_OPEN_VALVE,
+} fluid_path_seq_state_t;
 
 static pthread_mutex_t    s_mutex = PTHREAD_MUTEX_INITIALIZER;
 static atomic_bool        s_emergency_off = false;
 
-static water_cfg_t           s_cfg;
-static water_actuator_ops_t  s_actuator;
+static fluid_path_cfg_t           s_cfg;
+static fluid_path_actuator_ops_t  s_actuator;
 static bool                  s_ready = false;
 static uint8_t               s_channel_count = 0U;
 
-static const water_path_def_t *s_paths = NULL;
+static const fluid_path_def_t *s_paths = NULL;
 static size_t                  s_path_count = 0U;
 
-static uint8_t           s_ref[WATER_CHANNEL_MAX][WATER_SLOT_COUNT];
-static bool              s_actual[WATER_CHANNEL_MAX][WATER_SLOT_COUNT];
-static water_path_mask_t s_pending_target = 0U;
-static water_path_mask_t s_stable_paths   = 0U;
+static uint8_t           s_ref[FLUID_PATH_CHANNEL_MAX][FLUID_PATH_SLOT_COUNT];
+static bool              s_actual[FLUID_PATH_CHANNEL_MAX][FLUID_PATH_SLOT_COUNT];
+static fluid_path_mask_t s_pending_target = 0U;
+static fluid_path_mask_t s_stable_paths   = 0U;
 
-static water_seq_state_t    s_seq_state   = WATER_SEQ_IDLE;
+static fluid_path_seq_state_t    s_seq_state   = FLUID_PATH_SEQ_IDLE;
 static uint64_t             s_deadline_ms = 0U;
-static water_path_mask_t    s_closing_mask = 0U;
-static water_path_mask_t    s_opening_mask = 0U;
-static water_actuator_key_t s_work_list[WATER_ACTUATOR_LIST_MAX];
+static fluid_path_mask_t    s_closing_mask = 0U;
+static fluid_path_mask_t    s_opening_mask = 0U;
+static fluid_path_actuator_key_t s_work_list[FLUID_PATH_ACTUATOR_LIST_MAX];
 static uint8_t              s_work_count = 0U;
 static bool                 s_force_off  = false;
 
-static bool path_bit_set(water_path_mask_t mask, uint8_t path_idx)
+static bool path_bit_set(fluid_path_mask_t mask, uint8_t path_idx)
 {
-    return ((mask & WATER_PATH_MASK(path_idx)) != 0U);
+    return ((mask & FLUID_PATH_MASK(path_idx)) != 0U);
 }
 
-static bool is_pump_slot(water_slot_t slot)
+static bool is_pump_slot(fluid_path_slot_t slot)
 {
-    return (slot == WATER_SLOT_PUMP);
+    return (slot == FLUID_PATH_SLOT_PUMP);
 }
 
-static bool key_valid(const water_actuator_key_t *key)
+static bool key_valid(const fluid_path_actuator_key_t *key)
 {
     return (key != NULL)
            && (s_channel_count > 0U)
            && (key->ch < s_channel_count)
-           && ((unsigned)key->slot < WATER_SLOT_COUNT);
+           && ((unsigned)key->slot < FLUID_PATH_SLOT_COUNT);
 }
 
-static bool list_has(const water_actuator_key_t *key)
+static bool list_has(const fluid_path_actuator_key_t *key)
 {
     uint8_t i;
 
@@ -80,9 +80,9 @@ static bool list_has(const water_actuator_key_t *key)
     return false;
 }
 
-static void list_add(const water_actuator_key_t *key)
+static void list_add(const fluid_path_actuator_key_t *key)
 {
-    if ((s_work_count >= WATER_ACTUATOR_LIST_MAX) || !key_valid(key) || list_has(key))
+    if ((s_work_count >= FLUID_PATH_ACTUATOR_LIST_MAX) || !key_valid(key) || list_has(key))
     {
         return;
     }
@@ -118,7 +118,7 @@ static bool work_has_valve(void)
     return false;
 }
 
-static sw_err_t output_slot(water_channel_idx_t ch, water_slot_t slot, bool on)
+static sw_err_t output_slot(fluid_path_channel_idx_t ch, fluid_path_slot_t slot, bool on)
 {
     sw_err_t ret;
 
@@ -129,7 +129,7 @@ static sw_err_t output_slot(water_channel_idx_t ch, water_slot_t slot, bool on)
     ret = s_actuator.slot_set(ch, slot, on);
     if (ret != SW_OK)
     {
-        LOG_ERROR("water: ch %d slot %d %s failed ret=%d",
+        LOG_ERROR("fluid_path: ch %d slot %d %s failed ret=%d",
                   (int)ch, (int)slot, on ? "ON" : "OFF", (int)ret);
     }
     return ret;
@@ -160,14 +160,14 @@ static sw_err_t apply_group(bool pump_group, bool on)
     return first_err;
 }
 
-static void collect_deps(water_path_mask_t mask, bool opening)
+static void collect_deps(fluid_path_mask_t mask, bool opening)
 {
     size_t i;
 
     s_work_count = 0U;
     for (i = 0U; i < s_path_count; i++)
     {
-        const water_path_def_t *path = &s_paths[i];
+        const fluid_path_def_t *path = &s_paths[i];
         uint8_t                 j;
 
         if (!path_bit_set(mask, path->path_idx))
@@ -176,7 +176,7 @@ static void collect_deps(water_path_mask_t mask, bool opening)
         }
         for (j = 0U; j < path->dep_count; j++)
         {
-            const water_actuator_key_t *dep = &path->deps[j];
+            const fluid_path_actuator_key_t *dep = &path->deps[j];
 
             if (!key_valid(dep))
             {
@@ -197,13 +197,13 @@ static void collect_deps(water_path_mask_t mask, bool opening)
     }
 }
 
-static void add_refs(water_path_mask_t mask)
+static void add_refs(fluid_path_mask_t mask)
 {
     size_t i;
 
     for (i = 0U; i < s_path_count; i++)
     {
-        const water_path_def_t *path = &s_paths[i];
+        const fluid_path_def_t *path = &s_paths[i];
         uint8_t                 j;
 
         if (!path_bit_set(mask, path->path_idx))
@@ -220,13 +220,13 @@ static void add_refs(water_path_mask_t mask)
     }
 }
 
-static void sub_refs(water_path_mask_t mask)
+static void sub_refs(fluid_path_mask_t mask)
 {
     size_t i;
 
     for (i = 0U; i < s_path_count; i++)
     {
-        const water_path_def_t *path = &s_paths[i];
+        const fluid_path_def_t *path = &s_paths[i];
         uint8_t                 j;
 
         if (!path_bit_set(mask, path->path_idx))
@@ -249,7 +249,7 @@ static void reset_state(void)
     memset(s_actual, 0, sizeof(s_actual));
     s_pending_target = 0U;
     s_stable_paths   = 0U;
-    s_seq_state      = WATER_SEQ_IDLE;
+    s_seq_state      = FLUID_PATH_SEQ_IDLE;
     s_deadline_ms    = 0U;
     s_closing_mask   = 0U;
     s_opening_mask   = 0U;
@@ -279,7 +279,7 @@ static sw_err_t close_pumps_locked(uint64_t now_ms)
     {
         return ret;
     }
-    s_seq_state   = WATER_SEQ_WAIT_CLOSE_PUMP;
+    s_seq_state   = FLUID_PATH_SEQ_WAIT_CLOSE_PUMP;
     s_deadline_ms = now_ms;
     return SW_OK;
 }
@@ -295,11 +295,11 @@ static sw_err_t close_valves_locked(void)
     s_stable_paths &= ~s_closing_mask;
     s_closing_mask    = 0U;
     s_work_count      = 0U;
-    s_seq_state       = WATER_SEQ_IDLE;
+    s_seq_state       = FLUID_PATH_SEQ_IDLE;
     return ret;
 }
 
-static sw_err_t begin_close_locked(water_path_mask_t to_close, uint64_t now_ms)
+static sw_err_t begin_close_locked(fluid_path_mask_t to_close, uint64_t now_ms)
 {
     sw_err_t ret;
 
@@ -318,7 +318,7 @@ static sw_err_t begin_close_locked(water_path_mask_t to_close, uint64_t now_ms)
     {
         return ret;
     }
-    if (s_seq_state == WATER_SEQ_IDLE)
+    if (s_seq_state == FLUID_PATH_SEQ_IDLE)
     {
         return close_valves_locked();
     }
@@ -338,12 +338,12 @@ static sw_err_t open_valves_locked(uint64_t now_ms)
     {
         return ret;
     }
-    s_seq_state   = WATER_SEQ_WAIT_OPEN_VALVE;
+    s_seq_state   = FLUID_PATH_SEQ_WAIT_OPEN_VALVE;
     s_deadline_ms = now_ms;
     return SW_OK;
 }
 
-static sw_err_t open_pumps_locked(water_path_mask_t opened_mask)
+static sw_err_t open_pumps_locked(fluid_path_mask_t opened_mask)
 {
     sw_err_t ret = SW_OK;
 
@@ -355,12 +355,12 @@ static sw_err_t open_pumps_locked(water_path_mask_t opened_mask)
     {
         s_stable_paths |= opened_mask;
         s_work_count      = 0U;
-        s_seq_state       = WATER_SEQ_IDLE;
+        s_seq_state       = FLUID_PATH_SEQ_IDLE;
     }
     return ret;
 }
 
-static sw_err_t begin_open_locked(water_path_mask_t to_open, uint64_t now_ms)
+static sw_err_t begin_open_locked(fluid_path_mask_t to_open, uint64_t now_ms)
 {
     collect_deps(to_open, true);
     add_refs(to_open);
@@ -378,7 +378,7 @@ static sw_err_t begin_open_locked(water_path_mask_t to_open, uint64_t now_ms)
     }
 
     s_opening_mask = to_open;
-    if (s_seq_state == WATER_SEQ_IDLE)
+    if (s_seq_state == FLUID_PATH_SEQ_IDLE)
     {
         return open_pumps_locked(to_open);
     }
@@ -387,8 +387,8 @@ static sw_err_t begin_open_locked(water_path_mask_t to_open, uint64_t now_ms)
 
 static void process_idle_locked(uint64_t now_ms)
 {
-    water_path_mask_t to_close = s_stable_paths & ~s_pending_target;
-    water_path_mask_t to_open  = s_pending_target & ~s_stable_paths;
+    fluid_path_mask_t to_close = s_stable_paths & ~s_pending_target;
+    fluid_path_mask_t to_open  = s_pending_target & ~s_stable_paths;
 
     if (to_close != 0U)
     {
@@ -396,7 +396,7 @@ static void process_idle_locked(uint64_t now_ms)
         {
             return;
         }
-        if (s_seq_state != WATER_SEQ_IDLE)
+        if (s_seq_state != FLUID_PATH_SEQ_IDLE)
         {
             return;
         }
@@ -425,14 +425,14 @@ static void tick_locked(uint64_t now_ms)
 
     switch (s_seq_state)
     {
-    case WATER_SEQ_WAIT_CLOSE_PUMP:
+    case FLUID_PATH_SEQ_WAIT_CLOSE_PUMP:
         if (time_elapsed_ms(s_deadline_ms, now_ms) >= s_cfg.pump_stop_delay_ms)
         {
             (void)close_valves_locked();
         }
         break;
 
-    case WATER_SEQ_WAIT_OPEN_VALVE:
+    case FLUID_PATH_SEQ_WAIT_OPEN_VALVE:
         if (time_elapsed_ms(s_deadline_ms, now_ms) >= s_cfg.valve_open_delay_ms)
         {
             (void)open_pumps_locked(s_opening_mask);
@@ -440,7 +440,7 @@ static void tick_locked(uint64_t now_ms)
         }
         break;
 
-    case WATER_SEQ_IDLE:
+    case FLUID_PATH_SEQ_IDLE:
     default:
         if (s_pending_target != s_stable_paths)
         {
@@ -450,9 +450,9 @@ static void tick_locked(uint64_t now_ms)
     }
 }
 
-#ifndef WATER_UNIT_TEST
+#ifndef FLUID_PATH_UNIT_TEST
 
-static void water_poll_task(void *ctx)
+static void fluid_path_poll_task(void *ctx)
 {
     (void)ctx;
 
@@ -468,29 +468,29 @@ static sw_err_t poll_task_register(void)
 {
     sw_err_t ret;
 
-    ret = periodic_task_register("water_poll",
-                                 THD_WATER_POLL_PERIOD_MS,
-                                 water_poll_task,
+    ret = periodic_task_register("fluid_path_poll",
+                                 THD_FLUID_PATH_POLL_PERIOD_MS,
+                                 fluid_path_poll_task,
                                  NULL,
                                  SCHED_OTHER, 0,
-                                 THD_WATER_POLL_STACK);
+                                 THD_FLUID_PATH_POLL_STACK);
     if (ret != SW_OK)
     {
-        LOG_ERROR("water: periodic_task_register failed ret=%d", (int)ret);
+        LOG_ERROR("fluid_path: periodic_task_register failed ret=%d", (int)ret);
     }
     return ret;
 }
 
-#endif /* WATER_UNIT_TEST */
+#endif /* FLUID_PATH_UNIT_TEST */
 
-sw_err_t water_init(const water_cfg_t *cfg,
-                    const water_actuator_ops_t *ops,
-                    const water_path_def_t *paths,
+sw_err_t fluid_path_init(const fluid_path_cfg_t *cfg,
+                    const fluid_path_actuator_ops_t *ops,
+                    const fluid_path_def_t *paths,
                     size_t path_count)
 {
     if ((cfg == NULL) || (ops == NULL) || (ops->slot_set == NULL)
         || (paths == NULL) || (path_count == 0U)
-        || (cfg->channel_count == 0U) || (cfg->channel_count > WATER_CHANNEL_MAX))
+        || (cfg->channel_count == 0U) || (cfg->channel_count > FLUID_PATH_CHANNEL_MAX))
     {
         return SW_ERR_PARAM;
     }
@@ -506,14 +506,14 @@ sw_err_t water_init(const water_cfg_t *cfg,
     force_off_locked();
     pthread_mutex_unlock(&s_mutex);
 
-#ifndef WATER_UNIT_TEST
+#ifndef FLUID_PATH_UNIT_TEST
     return poll_task_register();
 #else
     return SW_OK;
 #endif
 }
 
-sw_err_t water_path_set(water_path_mask_t target)
+sw_err_t fluid_path_set(fluid_path_mask_t target)
 {
     pthread_mutex_lock(&s_mutex);
     if (!s_ready)
@@ -526,12 +526,12 @@ sw_err_t water_path_set(water_path_mask_t target)
     return SW_OK;
 }
 
-void water_emergency_off(void)
+void fluid_path_emergency_off(void)
 {
     atomic_store_explicit(&s_emergency_off, true, memory_order_release);
 }
 
-sw_err_t water_all_off(void)
+sw_err_t fluid_path_all_off(void)
 {
     pthread_mutex_lock(&s_mutex);
     if (!s_ready)
@@ -545,9 +545,9 @@ sw_err_t water_all_off(void)
     return SW_OK;
 }
 
-#ifdef WATER_UNIT_TEST
+#ifdef FLUID_PATH_UNIT_TEST
 
-void water_poll(uint64_t now_ms)
+void fluid_path_poll(uint64_t now_ms)
 {
     pthread_mutex_lock(&s_mutex);
     if (s_ready)
@@ -557,16 +557,16 @@ void water_poll(uint64_t now_ms)
     pthread_mutex_unlock(&s_mutex);
 }
 
-bool water_is_settled(void)
+bool fluid_path_is_settled(void)
 {
     bool settled;
 
     pthread_mutex_lock(&s_mutex);
     settled = (!s_force_off)
-              && (s_seq_state == WATER_SEQ_IDLE)
+              && (s_seq_state == FLUID_PATH_SEQ_IDLE)
               && (s_pending_target == s_stable_paths);
     pthread_mutex_unlock(&s_mutex);
     return settled;
 }
 
-#endif /* WATER_UNIT_TEST */
+#endif /* FLUID_PATH_UNIT_TEST */

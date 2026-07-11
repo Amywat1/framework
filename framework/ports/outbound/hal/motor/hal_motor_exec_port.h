@@ -2,11 +2,11 @@
  * @file    hal_motor_exec_port.h
  * @brief   电机执行器出站端口。
  *
- * domain/device_control/mechanism 下的机构模块只依赖本端口的不透明句柄与类型，
- * 不感知第三方电机控制 SDK（Motor Control Core, MCC）。真实执行器由项目
- * bindings 层（如 projects/m8/bindings/m8_motor_exec.c）静态分配并完成
- * motor_init，随后以 hal_motor_exec_t* 形式注入各机构模块；MCC provider 适配器位于
- * framework/adapters/outbound/hal/providers/mcc/hal_motor_exec_adapter.c。
+ * domain/device_control/patterns 与 projects 侧 domain/mechanism 下的机构模块只依赖
+ * 本端口的不透明句柄与类型，不感知第三方电机控制 SDK（Motor Control Core, MCC）。
+ * 真实执行器由项目 bindings 层（如 projects/m8/bindings/m8_motor_exec.c）静态分配
+ * 并完成 motor_init，随后以 hal_motor_exec_t 指针形式注入各机构模块；MCC provider
+ * 适配器位于 framework/adapters/outbound/hal/providers/mcc/hal_motor_exec_adapter.c。
  */
 #ifndef FRAMEWORK_PORTS_OUTBOUND_HAL_MOTOR_HAL_MOTOR_EXEC_PORT_H
 #define FRAMEWORK_PORTS_OUTBOUND_HAL_MOTOR_HAL_MOTOR_EXEC_PORT_H

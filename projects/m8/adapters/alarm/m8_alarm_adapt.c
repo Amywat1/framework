@@ -21,7 +21,7 @@
 
 typedef enum
 {
-#define X(pin, al, tr, rl, cls, idx, nat, lvl, resp, clr, sk, sc, cut, desc) ALARM_IDX_##pin,
+#define X(pin, al, tr, rl, cls, idx, nat, lvl, resp, clr, sk, rg, cut, desc) ALARM_IDX_##pin,
     M8_HW_ALARM_TABLE(X)
 #undef X
     M8_HW_ALARM_COUNT
@@ -37,7 +37,7 @@ typedef struct
 } alarm_src_cfg_t;
 
 static const alarm_src_cfg_t s_cfg[] = {
-#define X(pin, al, tr, rl, cls, idx, nat, lvl, resp, clr, sk, sc, cut, desc) \
+#define X(pin, al, tr, rl, cls, idx, nat, lvl, resp, clr, sk, rg, cut, desc) \
     { (pin), (al), (tr), (rl), ALARM_CODE_MAKE(cls, idx, nat) },
     M8_HW_ALARM_TABLE(X)
 #undef X

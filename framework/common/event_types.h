@@ -79,9 +79,11 @@ typedef uint16_t event_type_t;
  * 改由 motor_set_done_cb 回调传递，不经过事件总线。
  * ------------------------------------------------------------------------- */
 #define EVT_COMP_ID_HOME_DONE        0U
-/* 预留 1~31 */
+#define EVT_COMP_ID_MOTION_COMPLETED 1U
+/* 预留 2~31 */
 
-#define EVT_COMP_HOME_DONE       EVT_MAKE(EVT_CAT_COMP, EVT_COMP_ID_HOME_DONE)
+#define EVT_COMP_HOME_DONE          EVT_MAKE(EVT_CAT_COMP, EVT_COMP_ID_HOME_DONE)
+#define EVT_COMP_MOTION_COMPLETED   EVT_MAKE(EVT_CAT_COMP, EVT_COMP_ID_MOTION_COMPLETED)
 
 /* -------------------------------------------------------------------------
  * SAFETY 类（framework/domain/safety/safety_posture 发布）
@@ -131,10 +133,12 @@ typedef uint16_t event_type_t;
 #define EVT_WASH_ID_DONE             1U
 #define EVT_WASH_ID_ABORTED          2U
 #define EVT_WASH_ID_SESSION_STARTED  3U
+#define EVT_WASH_ID_CHECKPOINT_REACHED 4U
 
 #define EVT_WASH_DONE            EVT_MAKE(EVT_CAT_WASH, EVT_WASH_ID_DONE)
 #define EVT_WASH_ABORTED         EVT_MAKE(EVT_CAT_WASH, EVT_WASH_ID_ABORTED)
 #define EVT_WASH_SESSION_STARTED EVT_MAKE(EVT_CAT_WASH, EVT_WASH_ID_SESSION_STARTED)
+#define EVT_WASH_CHECKPOINT_REACHED EVT_MAKE(EVT_CAT_WASH, EVT_WASH_ID_CHECKPOINT_REACHED)
 
 /* -------------------------------------------------------------------------
  * OP_MODE 类（OperationalMode 聚合发布）

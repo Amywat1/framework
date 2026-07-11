@@ -13,6 +13,7 @@
 #include "projects/m8/adapters/alarm/m8_alarm_adapt.h"
 #include "projects/m8/adapters/alarm/m8_alarm_init.h"
 #include "projects/m8/adapters/alarm/m8_comm_watchdog.h"
+#include "projects/m8/wiring/m8_alarm_reeval_bridge.h"
 #include "projects/m8/adapters/cli/m8_cli_setup.h"
 #include "framework/cloud/cloud_model.h"
 #include "framework/ports/outbound/cloud/link/cloud_link_port.h"
@@ -77,7 +78,12 @@ sw_err_t project_alarm_catalog_init(void)
     {
         return r;
     }
-    return m8_comm_watchdog_init();
+    r = m8_comm_watchdog_init();
+    if (r != SW_OK)
+    {
+        return r;
+    }
+    return m8_alarm_reeval_bridge_init();
 }
 
 sw_err_t project_adapters_init(void)

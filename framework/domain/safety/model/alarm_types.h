@@ -77,18 +77,9 @@ typedef enum
     ALARM_SOURCE_CALLSITE,
 } alarm_source_kind_t;
 
-typedef enum
-{
-    ALARM_SCOPE_NONE = 0,
-    ALARM_SCOPE_GANTRY,
-    ALARM_SCOPE_TOP_BRUSH,
-    ALARM_SCOPE_SIDE_BRUSH,
-    ALARM_SCOPE_FRONT_WHEEL,
-    ALARM_SCOPE_REAR_WHEEL_LOCK,
-    ALARM_SCOPE_FAN,
-    ALARM_SCOPE_WATER,
-    ALARM_SCOPE_COUNT
-} alarm_scope_t;
+/** @brief ON_MOTION 重评估分组 ID；framework 只定义 NONE，具体取值由项目配置 */
+#define ALARM_REEVAL_GROUP_NONE  0U
+typedef uint16_t motion_reeval_group_id_t;
 
 typedef enum
 {
@@ -97,14 +88,14 @@ typedef enum
 
 typedef struct
 {
-    uint32_t               code;
-    alarm_level_t          level;
-    response_strategy_t    response;
-    alarm_clear_t          clear;
-    alarm_source_kind_t    source_kind;
-    alarm_scope_t          scope;
-    bool                   immediate_cutout;
-    char                   desc[ALARM_DESC_MAX];
+    uint32_t                  code;
+    alarm_level_t             level;
+    response_strategy_t       response;
+    alarm_clear_t             clear;
+    alarm_source_kind_t       source_kind;
+    motion_reeval_group_id_t  reeval_group;
+    bool                      immediate_cutout;
+    char                      desc[ALARM_DESC_MAX];
 } alarm_def_t;
 
 typedef enum

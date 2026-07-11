@@ -148,7 +148,7 @@ static void test_post_wash_blocking_enters_exception(void)
             .response = RESP_COMPLETE_THEN_ASSESS,
             .clear = ALARM_CLEAR_MANUAL_RESET,
             .source_kind = ALARM_SOURCE_LEVEL,
-            .scope = ALARM_SCOPE_NONE,
+            .reeval_group = ALARM_REEVAL_GROUP_NONE,
             .immediate_cutout = false,
             .desc = "侧刷过载",
         },

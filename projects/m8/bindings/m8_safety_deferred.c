@@ -8,15 +8,17 @@
  */
 
 #include "framework/application/safety_deferred_stop.h"
-#include "framework/domain/device_control/mechanism/brush.h"
-#include "framework/domain/device_control/mechanism/gantry.h"
-#include "framework/domain/device_control/mechanism/water.h"
+#include "framework/ports/outbound/machine/machine_ops_port.h"
 #include "framework/runtime/bootstrap/project_hooks.h"
+#include <stddef.h>
 
 void safety_deferred_stop(void)
 {
-    (void)gantry_stop();
-    (void)brush_stop_all();
-    (void)water_all_off();
+    const machine_ops_t *ops = machine_ops_get();
+
+    if ((ops != NULL) && (ops->deferred_stop_all != NULL))
+    {
+        ops->deferred_stop_all();
+    }
     project_assert_safe_outputs();
 }

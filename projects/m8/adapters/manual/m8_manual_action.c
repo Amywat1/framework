@@ -9,8 +9,8 @@
  */
 
 #include "projects/m8/adapters/manual/m8_manual_action.h"
-#include "framework/domain/device_control/mechanism/gantry.h"
-#include "framework/domain/device_control/mechanism/brush.h"
+#include "projects/m8/domain/mechanism/gantry.h"
+#include "projects/m8/domain/mechanism/m8_brush_rotation.h"
 #include "framework/ports/inbound/command/command_port.h"
 #include "framework/common/log.h"
 #include <stddef.h>

@@ -1,5 +1,5 @@
 /**
- * @file    test_gantry.c
+ * @file    test_m8_gantry.c
  * @brief   gantry 龙门机构领域层单元测试
  *
  * 分组：
@@ -15,7 +15,7 @@
  *          未初始化测试（B 组）须最先运行，确保 gantry.c 内 s_exec == NULL。
  */
 
-#include "framework/domain/device_control/mechanism/gantry.h"
+#include "projects/m8/domain/mechanism/gantry.h"
 #include "motor/motor_executor.h"
 #include "framework/common/sw_error.h"
 #include "unity.h"
@@ -76,37 +76,37 @@ void tearDown(void) {}
  * B. 未初始化保护（列在 main() 最前面运行，此时 gantry.c s_exec == NULL）
  * ========================================================================= */
 
-void test_gantry_not_init_move_fwd(void)
+void test_m8_gantry_not_init_move_fwd(void)
 {
     TEST_ASSERT_EQUAL(SW_ERR_NOT_INIT, gantry_move_fwd(1, NULL));
 }
 
-void test_gantry_not_init_move_rev(void)
+void test_m8_gantry_not_init_move_rev(void)
 {
     TEST_ASSERT_EQUAL(SW_ERR_NOT_INIT, gantry_move_rev(1, NULL));
 }
 
-void test_gantry_not_init_stop(void)
+void test_m8_gantry_not_init_stop(void)
 {
     TEST_ASSERT_EQUAL(SW_ERR_NOT_INIT, gantry_stop());
 }
 
-void test_gantry_not_init_home(void)
+void test_m8_gantry_not_init_home(void)
 {
     TEST_ASSERT_EQUAL(SW_ERR_NOT_INIT, gantry_home());
 }
 
-void test_gantry_not_init_position_zero(void)
+void test_m8_gantry_not_init_position_zero(void)
 {
     TEST_ASSERT_EQUAL_INT64(0, gantry_position());
 }
 
-void test_gantry_not_init_recover(void)
+void test_m8_gantry_not_init_recover(void)
 {
     TEST_ASSERT_EQUAL(SW_ERR_NOT_INIT, gantry_recover(HAL_MOTOR_RECOVERY_MODULE_STOP));
 }
 
-void test_gantry_not_init_state_idle(void)
+void test_m8_gantry_not_init_state_idle(void)
 {
     /* 未初始化时 gantry_state() 应安全返回 IDLE */
     TEST_ASSERT_EQUAL(GANTRY_STATE_IDLE, gantry_state());
@@ -116,31 +116,31 @@ void test_gantry_not_init_state_idle(void)
  * A. 初始化参数校验
  * ========================================================================= */
 
-void test_gantry_init_null_returns_err_param(void)
+void test_m8_gantry_init_null_returns_err_param(void)
 {
-    TEST_ASSERT_EQUAL(SW_ERR_PARAM, gantry_init(NULL, 0));
+    TEST_ASSERT_EQUAL(SW_ERR_PARAM, gantry_init(NULL, 0, NULL));
 }
 
-void test_gantry_init_ok(void)
+void test_m8_gantry_init_ok(void)
 {
-    TEST_ASSERT_EQUAL(SW_OK, gantry_init(s_hexec, 0));
+    TEST_ASSERT_EQUAL(SW_OK, gantry_init(s_hexec, 0, NULL));
 }
 
-void test_gantry_state_idle_after_init(void)
+void test_m8_gantry_state_idle_after_init(void)
 {
-    gantry_init(s_hexec, 0);
+    gantry_init(s_hexec, 0, NULL);
     TEST_ASSERT_EQUAL(GANTRY_STATE_IDLE, gantry_state());
 }
 
-void test_gantry_position_zero_after_init(void)
+void test_m8_gantry_position_zero_after_init(void)
 {
-    gantry_init(s_hexec, 0);
+    gantry_init(s_hexec, 0, NULL);
     TEST_ASSERT_EQUAL_INT64(0, gantry_position());
 }
 
-void test_gantry_fault_code_none_after_init(void)
+void test_m8_gantry_fault_code_none_after_init(void)
 {
-    gantry_init(s_hexec, 0);
+    gantry_init(s_hexec, 0, NULL);
     TEST_ASSERT_EQUAL(MOTOR_FAULT_NONE, gantry_fault_code());
 }
 
@@ -148,54 +148,54 @@ void test_gantry_fault_code_none_after_init(void)
  * C. 前进 / 后退命令
  * ========================================================================= */
 
-void test_gantry_move_fwd_returns_ok(void)
+void test_m8_gantry_move_fwd_returns_ok(void)
 {
-    gantry_init(s_hexec, 0);
+    gantry_init(s_hexec, 0, NULL);
     TEST_ASSERT_EQUAL(SW_OK, gantry_move_fwd(1, NULL));
 }
 
-void test_gantry_move_fwd_state_moving_fwd(void)
+void test_m8_gantry_move_fwd_state_moving_fwd(void)
 {
-    gantry_init(s_hexec, 0);
+    gantry_init(s_hexec, 0, NULL);
     gantry_move_fwd(1, NULL);
     /* 仿真桩 motor_run_continuous 立即置 RUNNING + FORWARD */
     TEST_ASSERT_EQUAL(GANTRY_STATE_MOVING_FWD, gantry_state());
 }
 
-void test_gantry_move_rev_returns_ok(void)
+void test_m8_gantry_move_rev_returns_ok(void)
 {
-    gantry_init(s_hexec, 0);
+    gantry_init(s_hexec, 0, NULL);
     TEST_ASSERT_EQUAL(SW_OK, gantry_move_rev(1, NULL));
 }
 
-void test_gantry_move_rev_state_moving_rev(void)
+void test_m8_gantry_move_rev_state_moving_rev(void)
 {
-    gantry_init(s_hexec, 0);
+    gantry_init(s_hexec, 0, NULL);
     gantry_move_rev(1, NULL);
     /* 仿真桩立即置 RUNNING + REVERSE */
     TEST_ASSERT_EQUAL(GANTRY_STATE_MOVING_REV, gantry_state());
 }
 
-void test_gantry_move_fwd_with_spec(void)
+void test_m8_gantry_move_fwd_with_spec(void)
 {
     hal_motor_move_spec_t spec;
     memset(&spec, 0, sizeof(spec));
     spec.use_limit = true;
     spec.limit     = HAL_MOTOR_LIMIT_POS;
 
-    gantry_init(s_hexec, 0);
+    gantry_init(s_hexec, 0, NULL);
     TEST_ASSERT_EQUAL(SW_OK, gantry_move_fwd(1, &spec));
     TEST_ASSERT_EQUAL(GANTRY_STATE_MOVING_FWD, gantry_state());
 }
 
-void test_gantry_move_rev_with_spec(void)
+void test_m8_gantry_move_rev_with_spec(void)
 {
     hal_motor_move_spec_t spec;
     memset(&spec, 0, sizeof(spec));
     spec.use_limit = true;
     spec.limit     = HAL_MOTOR_LIMIT_NEG;
 
-    gantry_init(s_hexec, 0);
+    gantry_init(s_hexec, 0, NULL);
     TEST_ASSERT_EQUAL(SW_OK, gantry_move_rev(1, &spec));
     TEST_ASSERT_EQUAL(GANTRY_STATE_MOVING_REV, gantry_state());
 }
@@ -204,16 +204,16 @@ void test_gantry_move_rev_with_spec(void)
  * D. 停止与回原点
  * ========================================================================= */
 
-void test_gantry_stop_from_running_ok(void)
+void test_m8_gantry_stop_from_running_ok(void)
 {
-    gantry_init(s_hexec, 0);
+    gantry_init(s_hexec, 0, NULL);
     gantry_move_fwd(1, NULL);
     TEST_ASSERT_EQUAL(SW_OK, gantry_stop());
 }
 
-void test_gantry_stop_from_running_goes_idle(void)
+void test_m8_gantry_stop_from_running_goes_idle(void)
 {
-    gantry_init(s_hexec, 0);
+    gantry_init(s_hexec, 0, NULL);
     gantry_move_fwd(1, NULL);
     TEST_ASSERT_EQUAL(GANTRY_STATE_MOVING_FWD, gantry_state());
     gantry_stop();
@@ -221,22 +221,22 @@ void test_gantry_stop_from_running_goes_idle(void)
     TEST_ASSERT_EQUAL(GANTRY_STATE_IDLE, gantry_state());
 }
 
-void test_gantry_stop_from_idle_ok(void)
+void test_m8_gantry_stop_from_idle_ok(void)
 {
-    gantry_init(s_hexec, 0);
+    gantry_init(s_hexec, 0, NULL);
     TEST_ASSERT_EQUAL(SW_OK, gantry_stop());
     TEST_ASSERT_EQUAL(GANTRY_STATE_IDLE, gantry_state());
 }
 
-void test_gantry_home_returns_ok(void)
+void test_m8_gantry_home_returns_ok(void)
 {
-    gantry_init(s_hexec, 0);
+    gantry_init(s_hexec, 0, NULL);
     TEST_ASSERT_EQUAL(SW_OK, gantry_home());
 }
 
-void test_gantry_home_while_running_goes_idle(void)
+void test_m8_gantry_home_while_running_goes_idle(void)
 {
-    gantry_init(s_hexec, 0);
+    gantry_init(s_hexec, 0, NULL);
     gantry_move_fwd(1, NULL);
     TEST_ASSERT_EQUAL(GANTRY_STATE_MOVING_FWD, gantry_state());
     gantry_home();
@@ -244,9 +244,9 @@ void test_gantry_home_while_running_goes_idle(void)
     TEST_ASSERT_EQUAL(GANTRY_STATE_IDLE, gantry_state());
 }
 
-void test_gantry_home_position_zero(void)
+void test_m8_gantry_home_position_zero(void)
 {
-    gantry_init(s_hexec, 0);
+    gantry_init(s_hexec, 0, NULL);
     /* 手动写入一个非零位置，再归原点，验证位置清零 */
     s_exec.m[0].position = 12345;
     gantry_home();
@@ -258,44 +258,44 @@ void test_gantry_home_position_zero(void)
  * E. motor_phase → gantry_state 映射
  * ========================================================================= */
 
-void test_gantry_state_paused_maps_to_idle(void)
+void test_m8_gantry_state_paused_maps_to_idle(void)
 {
-    gantry_init(s_hexec, 0);
+    gantry_init(s_hexec, 0, NULL);
     s_exec.m[0].phase = MOTOR_PHASE_PAUSED;
     TEST_ASSERT_EQUAL(GANTRY_STATE_IDLE, gantry_state());
 }
 
-void test_gantry_state_waiting_start_maps_to_idle(void)
+void test_m8_gantry_state_waiting_start_maps_to_idle(void)
 {
-    gantry_init(s_hexec, 0);
+    gantry_init(s_hexec, 0, NULL);
     s_exec.m[0].phase = MOTOR_PHASE_WAITING_START;
     TEST_ASSERT_EQUAL(GANTRY_STATE_IDLE, gantry_state());
 }
 
-void test_gantry_state_decelerating_maps_to_stopping(void)
+void test_m8_gantry_state_decelerating_maps_to_stopping(void)
 {
-    gantry_init(s_hexec, 0);
+    gantry_init(s_hexec, 0, NULL);
     s_exec.m[0].phase = MOTOR_PHASE_DECELERATING;
     TEST_ASSERT_EQUAL(GANTRY_STATE_STOPPING, gantry_state());
 }
 
-void test_gantry_state_reversal_wait_maps_to_stopping(void)
+void test_m8_gantry_state_reversal_wait_maps_to_stopping(void)
 {
-    gantry_init(s_hexec, 0);
+    gantry_init(s_hexec, 0, NULL);
     s_exec.m[0].phase = MOTOR_PHASE_REVERSAL_WAIT;
     TEST_ASSERT_EQUAL(GANTRY_STATE_STOPPING, gantry_state());
 }
 
-void test_gantry_state_fault_maps_to_fault(void)
+void test_m8_gantry_state_fault_maps_to_fault(void)
 {
-    gantry_init(s_hexec, 0);
+    gantry_init(s_hexec, 0, NULL);
     s_exec.m[0].phase = MOTOR_PHASE_FAULT;
     TEST_ASSERT_EQUAL(GANTRY_STATE_FAULT, gantry_state());
 }
 
-void test_gantry_state_estop_maps_to_fault(void)
+void test_m8_gantry_state_estop_maps_to_fault(void)
 {
-    gantry_init(s_hexec, 0);
+    gantry_init(s_hexec, 0, NULL);
     s_exec.m[0].phase = MOTOR_PHASE_ESTOP;
     TEST_ASSERT_EQUAL(GANTRY_STATE_FAULT, gantry_state());
 }
@@ -304,55 +304,55 @@ void test_gantry_state_estop_maps_to_fault(void)
  * F. 故障与恢复
  * ========================================================================= */
 
-void test_gantry_fault_blocks_move_fwd(void)
+void test_m8_gantry_fault_blocks_move_fwd(void)
 {
-    gantry_init(s_hexec, 0);
+    gantry_init(s_hexec, 0, NULL);
     s_exec.m[0].phase = MOTOR_PHASE_FAULT;
     TEST_ASSERT_EQUAL(SW_ERR_STATE, gantry_move_fwd(1, NULL));
 }
 
-void test_gantry_fault_blocks_move_rev(void)
+void test_m8_gantry_fault_blocks_move_rev(void)
 {
-    gantry_init(s_hexec, 0);
+    gantry_init(s_hexec, 0, NULL);
     s_exec.m[0].phase = MOTOR_PHASE_FAULT;
     TEST_ASSERT_EQUAL(SW_ERR_STATE, gantry_move_rev(1, NULL));
 }
 
-void test_gantry_fault_blocks_home(void)
+void test_m8_gantry_fault_blocks_home(void)
 {
-    gantry_init(s_hexec, 0);
+    gantry_init(s_hexec, 0, NULL);
     s_exec.m[0].phase = MOTOR_PHASE_FAULT;
     TEST_ASSERT_EQUAL(SW_ERR_STATE, gantry_home());
 }
 
-void test_gantry_recover_module_stop_clears_fault(void)
+void test_m8_gantry_recover_module_stop_clears_fault(void)
 {
-    gantry_init(s_hexec, 0);
+    gantry_init(s_hexec, 0, NULL);
     s_exec.m[0].phase = MOTOR_PHASE_FAULT;
     TEST_ASSERT_EQUAL(SW_OK, gantry_recover(HAL_MOTOR_RECOVERY_MODULE_STOP));
     /* 仿真桩 RECOVERY_MODULE_STOP → phase = STOPPED → IDLE */
     TEST_ASSERT_EQUAL(GANTRY_STATE_IDLE, gantry_state());
 }
 
-void test_gantry_recover_driver_reset_returns_ok(void)
+void test_m8_gantry_recover_driver_reset_returns_ok(void)
 {
-    gantry_init(s_hexec, 0);
+    gantry_init(s_hexec, 0, NULL);
     s_exec.m[0].phase = MOTOR_PHASE_FAULT;
     /* DRIVER_RESET 步骤只返回 ok，不改变 phase（仿真行为） */
     TEST_ASSERT_EQUAL(SW_OK, gantry_recover(HAL_MOTOR_RECOVERY_DRIVER_RESET));
 }
 
-void test_gantry_fault_code_reflects_motor(void)
+void test_m8_gantry_fault_code_reflects_motor(void)
 {
-    gantry_init(s_hexec, 0);
+    gantry_init(s_hexec, 0, NULL);
     s_exec.m[0].phase      = MOTOR_PHASE_FAULT;
     s_exec.m[0].fault_code = MOTOR_FAULT_OVERCURRENT;
     TEST_ASSERT_EQUAL(MOTOR_FAULT_OVERCURRENT, gantry_fault_code());
 }
 
-void test_gantry_recover_then_move_fwd_ok(void)
+void test_m8_gantry_recover_then_move_fwd_ok(void)
 {
-    gantry_init(s_hexec, 0);
+    gantry_init(s_hexec, 0, NULL);
     s_exec.m[0].phase = MOTOR_PHASE_FAULT;
     gantry_recover(HAL_MOTOR_RECOVERY_MODULE_STOP);
     TEST_ASSERT_EQUAL(SW_OK, gantry_move_fwd(1, NULL));
@@ -368,53 +368,53 @@ int main(void)
     UNITY_BEGIN();
 
     /* B. 未初始化保护（必须最先运行） */
-    RUN_TEST(test_gantry_not_init_move_fwd);
-    RUN_TEST(test_gantry_not_init_move_rev);
-    RUN_TEST(test_gantry_not_init_stop);
-    RUN_TEST(test_gantry_not_init_home);
-    RUN_TEST(test_gantry_not_init_position_zero);
-    RUN_TEST(test_gantry_not_init_recover);
-    RUN_TEST(test_gantry_not_init_state_idle);
+    RUN_TEST(test_m8_gantry_not_init_move_fwd);
+    RUN_TEST(test_m8_gantry_not_init_move_rev);
+    RUN_TEST(test_m8_gantry_not_init_stop);
+    RUN_TEST(test_m8_gantry_not_init_home);
+    RUN_TEST(test_m8_gantry_not_init_position_zero);
+    RUN_TEST(test_m8_gantry_not_init_recover);
+    RUN_TEST(test_m8_gantry_not_init_state_idle);
 
     /* A. 初始化参数校验 */
-    RUN_TEST(test_gantry_init_null_returns_err_param);
-    RUN_TEST(test_gantry_init_ok);
-    RUN_TEST(test_gantry_state_idle_after_init);
-    RUN_TEST(test_gantry_position_zero_after_init);
-    RUN_TEST(test_gantry_fault_code_none_after_init);
+    RUN_TEST(test_m8_gantry_init_null_returns_err_param);
+    RUN_TEST(test_m8_gantry_init_ok);
+    RUN_TEST(test_m8_gantry_state_idle_after_init);
+    RUN_TEST(test_m8_gantry_position_zero_after_init);
+    RUN_TEST(test_m8_gantry_fault_code_none_after_init);
 
     /* C. 前进 / 后退命令 */
-    RUN_TEST(test_gantry_move_fwd_returns_ok);
-    RUN_TEST(test_gantry_move_fwd_state_moving_fwd);
-    RUN_TEST(test_gantry_move_rev_returns_ok);
-    RUN_TEST(test_gantry_move_rev_state_moving_rev);
-    RUN_TEST(test_gantry_move_fwd_with_spec);
-    RUN_TEST(test_gantry_move_rev_with_spec);
+    RUN_TEST(test_m8_gantry_move_fwd_returns_ok);
+    RUN_TEST(test_m8_gantry_move_fwd_state_moving_fwd);
+    RUN_TEST(test_m8_gantry_move_rev_returns_ok);
+    RUN_TEST(test_m8_gantry_move_rev_state_moving_rev);
+    RUN_TEST(test_m8_gantry_move_fwd_with_spec);
+    RUN_TEST(test_m8_gantry_move_rev_with_spec);
 
     /* D. 停止与回原点 */
-    RUN_TEST(test_gantry_stop_from_running_ok);
-    RUN_TEST(test_gantry_stop_from_running_goes_idle);
-    RUN_TEST(test_gantry_stop_from_idle_ok);
-    RUN_TEST(test_gantry_home_returns_ok);
-    RUN_TEST(test_gantry_home_while_running_goes_idle);
-    RUN_TEST(test_gantry_home_position_zero);
+    RUN_TEST(test_m8_gantry_stop_from_running_ok);
+    RUN_TEST(test_m8_gantry_stop_from_running_goes_idle);
+    RUN_TEST(test_m8_gantry_stop_from_idle_ok);
+    RUN_TEST(test_m8_gantry_home_returns_ok);
+    RUN_TEST(test_m8_gantry_home_while_running_goes_idle);
+    RUN_TEST(test_m8_gantry_home_position_zero);
 
     /* E. motor_phase → gantry_state 映射 */
-    RUN_TEST(test_gantry_state_paused_maps_to_idle);
-    RUN_TEST(test_gantry_state_waiting_start_maps_to_idle);
-    RUN_TEST(test_gantry_state_decelerating_maps_to_stopping);
-    RUN_TEST(test_gantry_state_reversal_wait_maps_to_stopping);
-    RUN_TEST(test_gantry_state_fault_maps_to_fault);
-    RUN_TEST(test_gantry_state_estop_maps_to_fault);
+    RUN_TEST(test_m8_gantry_state_paused_maps_to_idle);
+    RUN_TEST(test_m8_gantry_state_waiting_start_maps_to_idle);
+    RUN_TEST(test_m8_gantry_state_decelerating_maps_to_stopping);
+    RUN_TEST(test_m8_gantry_state_reversal_wait_maps_to_stopping);
+    RUN_TEST(test_m8_gantry_state_fault_maps_to_fault);
+    RUN_TEST(test_m8_gantry_state_estop_maps_to_fault);
 
     /* F. 故障与恢复 */
-    RUN_TEST(test_gantry_fault_blocks_move_fwd);
-    RUN_TEST(test_gantry_fault_blocks_move_rev);
-    RUN_TEST(test_gantry_fault_blocks_home);
-    RUN_TEST(test_gantry_recover_module_stop_clears_fault);
-    RUN_TEST(test_gantry_recover_driver_reset_returns_ok);
-    RUN_TEST(test_gantry_fault_code_reflects_motor);
-    RUN_TEST(test_gantry_recover_then_move_fwd_ok);
+    RUN_TEST(test_m8_gantry_fault_blocks_move_fwd);
+    RUN_TEST(test_m8_gantry_fault_blocks_move_rev);
+    RUN_TEST(test_m8_gantry_fault_blocks_home);
+    RUN_TEST(test_m8_gantry_recover_module_stop_clears_fault);
+    RUN_TEST(test_m8_gantry_recover_driver_reset_returns_ok);
+    RUN_TEST(test_m8_gantry_fault_code_reflects_motor);
+    RUN_TEST(test_m8_gantry_recover_then_move_fwd_ok);
 
     return UNITY_END();
 }

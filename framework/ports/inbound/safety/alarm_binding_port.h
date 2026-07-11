@@ -25,7 +25,6 @@ typedef struct
     sw_err_t (*trigger)(uint32_t alarm_code);
     sw_err_t (*clear)(uint32_t alarm_code);
     sw_err_t (*load_catalog)(const alarm_def_t *defs, unsigned count);
-    sw_err_t (*reevaluate_by_scope)(alarm_scope_t scope);
 } alarm_binding_ops_t;
 
 void                       alarm_binding_register(const alarm_binding_ops_t *ops);

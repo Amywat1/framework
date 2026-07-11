@@ -25,7 +25,7 @@
 #include "framework/application/orchestrators/wash_orchestrator.h"
 #include "framework/application/safety_deferred_stop.h"
 #include "framework/domain/command_gateway/op_mode_types.h"
-#include "framework/domain/device_control/mechanism/brush.h"
+#include "framework/ports/outbound/machine/machine_ops_port.h"
 #include "framework/ports/outbound/safety/hw_estop_port.h"
 #include "framework/runtime/event_bus/event_bus.h"
 #include "framework/common/event_types.h"
@@ -34,7 +34,12 @@
 
 static void do_safety_home(void)
 {
-    (void)brush_stop_all();
+    const machine_ops_t *ops = machine_ops_get();
+
+    if ((ops != NULL) && (ops->safety_home != NULL))
+    {
+        ops->safety_home();
+    }
     (void)event_publish(EVT_SAFETY_HOME_DONE, (uint32_t)SW_OK);
     LOG_INFO("emergency_handler: safety home done");
 }

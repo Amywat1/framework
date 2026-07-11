@@ -10,7 +10,7 @@
 #ifndef PROJECTS_M8_ADAPTERS_MANUAL_M8_MANUAL_ACTION_H
 #define PROJECTS_M8_ADAPTERS_MANUAL_M8_MANUAL_ACTION_H
 
-#include "framework/domain/device_control/mechanism/brush.h"
+#include "projects/m8/domain/mechanism/m8_brush_rotation.h"
 #include "framework/common/sw_error.h"
 
 #ifdef __cplusplus

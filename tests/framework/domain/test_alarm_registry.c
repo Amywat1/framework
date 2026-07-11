@@ -16,7 +16,7 @@ static const alarm_def_t s_catalog[] = {
         .response         = RESP_COMPLETE_THEN_ASSESS,
         .clear            = ALARM_CLEAR_MANUAL_RESET,
         .source_kind      = ALARM_SOURCE_LEVEL,
-        .scope            = ALARM_SCOPE_NONE,
+        .reeval_group     = ALARM_REEVAL_GROUP_NONE,
         .immediate_cutout = false,
         .desc             = "侧刷过载",
     },
@@ -26,7 +26,7 @@ static const alarm_def_t s_catalog[] = {
         .response         = RESP_STOP_IMMEDIATELY,
         .clear            = ALARM_CLEAR_AUTO_STATIC,
         .source_kind      = ALARM_SOURCE_LEVEL,
-        .scope            = ALARM_SCOPE_NONE,
+        .reeval_group     = ALARM_REEVAL_GROUP_NONE,
         .immediate_cutout = false,
         .desc             = "急停",
     },
@@ -36,7 +36,7 @@ static const alarm_def_t s_catalog[] = {
         .response         = RESP_COMPLETE_THEN_ASSESS,
         .clear            = ALARM_CLEAR_ON_MOTION,
         .source_kind      = ALARM_SOURCE_PROCESS,
-        .scope            = ALARM_SCOPE_GANTRY,
+        .reeval_group     = (motion_reeval_group_id_t)1U,
         .immediate_cutout = false,
         .desc             = "龙门前限位超时",
     },
@@ -87,11 +87,11 @@ static void test_recover_skips_estop_clears_manual(void)
     TEST_ASSERT_FALSE(alarm_registry_is_active(201101U));
 }
 
-static void test_reevaluate_by_scope(void)
+static void test_reevaluate_by_group(void)
 {
     (void)alarm_registry_trigger(200205U);
     TEST_ASSERT_TRUE(alarm_registry_is_active(200205U));
-    (void)alarm_registry_reevaluate_by_scope(ALARM_SCOPE_GANTRY);
+    (void)alarm_registry_reevaluate_group((motion_reeval_group_id_t)1U);
     TEST_ASSERT_FALSE(alarm_registry_is_active(200205U));
 }
 
@@ -134,7 +134,7 @@ static void test_overflow_meta_no_crash(void)
             .response         = RESP_LOG_ONLY,
             .clear            = ALARM_CLEAR_AUTO_STATIC,
             .source_kind      = ALARM_SOURCE_LEVEL,
-            .scope            = ALARM_SCOPE_NONE,
+            .reeval_group     = ALARM_REEVAL_GROUP_NONE,
             .immediate_cutout = false,
             .desc             = "minor fill",
         };
@@ -156,7 +156,7 @@ int main(void)
     RUN_TEST(test_major_not_lockout);
     RUN_TEST(test_critical_lockout);
     RUN_TEST(test_recover_skips_estop_clears_manual);
-    RUN_TEST(test_reevaluate_by_scope);
+    RUN_TEST(test_reevaluate_by_group);
     RUN_TEST(test_pull_events);
     RUN_TEST(test_session_journal_blocking_levels);
     RUN_TEST(test_overflow_meta_no_crash);

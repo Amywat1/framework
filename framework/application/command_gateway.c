@@ -8,8 +8,8 @@
 #include "framework/application/command_gateway.h"
 #include "framework/application/self_check_service.h"
 #include "framework/domain/command_gateway/operational_mode.h"
-#include "framework/domain/device_control/mechanism/gantry.h"
 #include "framework/domain/safety/alarm_registry/alarm_registry.h"
+#include "framework/ports/outbound/machine/machine_ops_port.h"
 #include "framework/domain/safety/model/safety_types.h"
 #include "framework/application/orchestrators/wash_orchestrator.h"
 #include "framework/domain/command_gateway/op_mode_types.h"
@@ -91,11 +91,16 @@ static sw_err_t dispatch_side_effects(const cmd_t *cmd)
 
     case CMD_HOME_DEVICE:
     {
-        sw_err_t ret = gantry_home();
+        const machine_ops_t *ops = machine_ops_get();
+        sw_err_t             ret = SW_ERR_NOT_INIT;
 
-        if (ret != SW_OK)
+        if ((ops != NULL) && (ops->home_device != NULL))
         {
-            LOG_ERROR("command_gateway: gantry_home failed ret=%d", (int)ret);
+            ret = ops->home_device();
+            if (ret != SW_OK)
+            {
+                LOG_ERROR("command_gateway: home_device failed ret=%d", (int)ret);
+            }
         }
         return ret;
     }
