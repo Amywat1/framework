@@ -57,3 +57,23 @@ add_unit_test(test_json_param_store
 target_compile_definitions(test_json_param_store PRIVATE
     PARAM_STORE_JSON_FILE_PATH="${CMAKE_BINARY_DIR}/tests/param_store_test.json"
 )
+
+add_unit_test(test_scheduler
+    ${CMAKE_CURRENT_SOURCE_DIR}/runtime/test_scheduler.c
+    ${WDF_ROOT}/runtime/scheduler/thread_registry.c
+    ${WDF_ROOT}/runtime/scheduler/scheduler.c
+    ${WDF_ROOT}/runtime/scheduler/periodic_task.c
+    ${WDF_ROOT}/common/log.c
+)
+
+add_unit_test(test_svc_param
+    ${CMAKE_CURRENT_SOURCE_DIR}/services/test_svc_param.c
+    ${WDF_ROOT}/services/param/svc_param.c
+    ${WDF_ROOT}/adapters/outbound/storage/json/json_param_store.c
+    ${WDF_ROOT}/ports/port_registry.c
+    ${WDF_ROOT}/common/log.c
+    ${WDF_ROOT}/third_party/cJSON/cJSON.c
+)
+target_compile_definitions(test_svc_param PRIVATE
+    PARAM_STORE_JSON_FILE_PATH="${CMAKE_BINARY_DIR}/tests/svc_param_test.json"
+)

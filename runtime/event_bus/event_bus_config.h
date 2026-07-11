@@ -13,10 +13,10 @@
 #define EVENT_BUS_CONFIG_H
 
 /** 普通优先级队列容量 */
-#define EVENT_BUS_QUEUE_SIZE       64U
+#define EVENT_BUS_QUEUE_SIZE 64U
 
 /** 高优先级队列容量（SAFETY 类 + ESTOP 硬件事件） */
-#define EVENT_BUS_HI_QUEUE_SIZE    16U
+#define EVENT_BUS_HI_QUEUE_SIZE 16U
 
 /** 每种事件类型最多允许注册的 handler 数量 */
 #define EVENT_BUS_MAX_SUBS_PER_EVT 8U

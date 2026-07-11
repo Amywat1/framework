@@ -1,8 +1,8 @@
 set(WDF_ROOT ${CMAKE_SOURCE_DIR})
 
 add_compile_definitions(
-    PARAM_STORE_JSON_FILE_PATH="/tmp/demo/params.json"
-    DEPLOY_STORE_JSON_FILE_PATH="/tmp/demo/device.json"
+    PARAM_STORE_JSON_FILE_PATH="${CMAKE_CURRENT_BINARY_DIR}/params.json"
+    DEPLOY_STORE_JSON_FILE_PATH="${CMAKE_CURRENT_BINARY_DIR}/device.json"
 )
 
 file(GLOB _demo_app CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/app/*.c)
@@ -17,10 +17,17 @@ set(_fw_common_src
 
 set(_fw_runtime_src
     ${WDF_ROOT}/runtime/event_bus/event_bus.c
+    ${WDF_ROOT}/runtime/scheduler/thread_registry.c
+    ${WDF_ROOT}/runtime/scheduler/scheduler.c
+    ${WDF_ROOT}/runtime/scheduler/periodic_task.c
 )
 
 set(_fw_ports_src
     ${WDF_ROOT}/ports/port_registry.c
+)
+
+set(_fw_services_src
+    ${WDF_ROOT}/services/param/svc_param.c
 )
 
 set(_fw_adapters_src
@@ -39,6 +46,7 @@ add_executable(wdf_smoke
     ${_fw_common_src}
     ${_fw_runtime_src}
     ${_fw_ports_src}
+    ${_fw_services_src}
     ${_fw_adapters_src}
     ${_fw_third_party_src}
 )

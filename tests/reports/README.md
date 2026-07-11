@@ -1,6 +1,6 @@
 # wash-device-framework 单元测试报告索引
 
-> 最后更新：2026-07-10  
+> 最后更新：2026-07-11  
 > 框架版本：v0.1.0  
 > 测试框架：Unity 2.6 + CTest
 
@@ -21,8 +21,10 @@ ctest --test-dir build -V
 | [pulse_out.md](pulse_out.md) | `test_pulse_out` | 12 | 通过 | `common/pulse_out.c`、`common/time_util.h` |
 | [io_handle.md](io_handle.md) | `test_io_handle` | 6 | 通过 | `common/io_handle.h` |
 | [json_param_store.md](json_param_store.md) | `test_json_param_store` | 12 | 通过 | `adapters/outbound/storage/json/` |
+| — | `test_scheduler` | 9 | 通过 | `runtime/scheduler/` |
+| — | `test_svc_param` | 9 | 通过 | `services/param/` |
 
-**合计：5 个测试目标，61 个用例，全部通过。**
+**合计：7 个测试目标，79 个用例，全部通过。**
 
 ## 目录约定
 
@@ -36,4 +38,5 @@ ctest --test-dir build -V
 |------|------|
 | `json_deploy_store` | 需临时文件，待补充 |
 | `port_registry` | 逻辑极薄，优先级低 |
-| `scheduler` / `domain` / `services` | 尚未迁入框架 |
+| `time_util` / `log` | 已由其他用例间接覆盖，可独立补充 |
+| `domain` / `bootstrap` | 尚未迁入 |

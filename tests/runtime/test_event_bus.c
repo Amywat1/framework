@@ -6,8 +6,8 @@
  */
 
 #include "common/time_util.h"
-#include "runtime/event_bus/event_bus_config.h"
 #include "runtime/event_bus/event_bus.h"
+#include "runtime/event_bus/event_bus_config.h"
 #include "unity.h"
 
 #include <pthread.h>

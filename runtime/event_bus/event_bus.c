@@ -50,7 +50,8 @@ static bool event_is_high_priority(event_type_t type)
     if (event_type_category(type) == EVT_CAT_SAFETY) {
         return true;
     }
-    return (type == EVT_HW_ESTOP_ON) || (type == EVT_HW_ESTOP_OFF) || (type == EVT_HW_IO_ONLINE) || (type == EVT_HW_IO_OFFLINE);
+    return (type == EVT_HW_ESTOP_ON) || (type == EVT_HW_ESTOP_OFF) || (type == EVT_HW_IO_ONLINE)
+           || (type == EVT_HW_IO_OFFLINE);
 }
 
 /* -------------------------------------------------------------------------
