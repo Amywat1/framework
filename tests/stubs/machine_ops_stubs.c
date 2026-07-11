@@ -15,10 +15,9 @@ static sw_err_t stub_home_device(void)
 void machine_ops_register_test_stub(void)
 {
     static const machine_ops_t s_stub = {
-        .deferred_stop_all    = NULL,
-        .safety_home          = NULL,
-        .home_device          = stub_home_device,
-        .read_gantry_position = NULL,
+        .deferred_stop_all = NULL,
+        .safety_home       = NULL,
+        .home_device       = stub_home_device,
     };
 
     machine_ops_register(&s_stub);

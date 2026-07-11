@@ -14,6 +14,7 @@ extern "C" {
 
 #include "framework/domain/device_control/model/device_state.h"
 #include "framework/ports/inbound/command/command_port.h"
+#include <stdint.h>
 
 /** @brief  洗车会话中止原因 */
 typedef enum

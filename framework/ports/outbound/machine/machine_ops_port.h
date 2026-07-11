@@ -16,7 +16,6 @@ extern "C" {
 #endif
 
 #include "framework/common/sw_error.h"
-#include <stdint.h>
 
 /**
  * @brief 机型运行时操作集合
@@ -29,8 +28,6 @@ typedef struct
     void (*safety_home)(void);
     /** @brief CMD_HOME_DEVICE 副作用 */
     sw_err_t (*home_device)(void);
-    /** @brief 读龙门轴位置（dev_ctx 投影）；未注册时返回 0 */
-    int64_t (*read_gantry_position)(void);
 } machine_ops_t;
 
 /**

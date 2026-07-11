@@ -420,6 +420,23 @@ bool op_mode_is_service_enabled(void)
     return s_service_enabled;
 }
 
+bool op_mode_is_stopping(void)
+{
+    if (!s_service_enabled)
+    {
+        return true;
+    }
+
+    return (s_mode == OP_MODE_INIT) ||
+           (s_mode == OP_MODE_EXCEPTION) ||
+           (s_mode == OP_MODE_RECOVERING);
+}
+
+bool op_mode_is_standby(void)
+{
+    return (s_mode == OP_MODE_IDLE) && s_service_enabled;
+}
+
 void op_mode_set_service_enabled(bool enabled)
 {
     s_service_enabled = enabled;

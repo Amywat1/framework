@@ -19,7 +19,11 @@
 #include "framework/application/op_mode_bridge.h"
 #include "framework/application/recovery_service.h"
 #include "framework/application/self_check_service.h"
-#include "framework/application/mode_projection.h"
+#include "framework/application/operational_projection.h"
+#include "framework/application/safety_projection.h"
+#include "framework/application/wash_projection.h"
+#include "framework/domain/safety/alarm_registry/alarm_registry.h"
+#include "framework/domain/safety/safety_posture/safety_posture.h"
 #include "framework/domain/command_gateway/operational_mode.h"
 #include "framework/ports/inbound/command/command_port.h"
 #include "framework/adapters/outbound/hal/components/sensor_filter/hal_sensor_filter.h"
@@ -150,12 +154,16 @@ static void scenario_setup(void)
     (void)hal_sensor_poll_register_task();
     (void)hal_vfd_manager_poll_register_task();
     (void)emergency_handler_init();
+    (void)alarm_registry_init();
+    (void)safety_posture_init();
+    (void)safety_projection_init();
     (void)operational_mode_init();
     (void)command_gateway_init();
     (void)recovery_service_init();
     (void)self_check_service_init();
     (void)op_mode_bridge_init();
-    (void)mode_projection_init();
+    (void)operational_projection_init();
+    (void)wash_projection_init();
     (void)wash_orchestrator_init();
 
     (void)thread_register("event_dispatch", scenario_dispatch_fn,

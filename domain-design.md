@@ -1338,19 +1338,26 @@ carwash/
 │   │   ├── safety/                  ← 安全管理上下文（支撑域）
 │   │   │   ├── alarm_definition.h   ← AlarmDefinition 静态表
 │   │   │   └── alarm_registry.h/.c  ← AlarmRegistry 聚合根
+│   │   ├── telemetry/                 ← 遥测读模型上下文
+│   │   │   └── snapshot/
+│   │   │       ├── operational_snapshot.h/.c
+│   │   │       ├── safety_snapshot.h/.c
+│   │   │       └── wash_snapshot.h/.c
 │   │   └── command_gateway/         ← 指令网关上下文（支撑域）
 │   │       └── operational_mode.h/.c← OperationalMode 聚合根
 │   │
 │   ├── application/
 │   │   ├── command_gateway.h/.c     ← 外部指令入口（command_port.inject → 仲裁 → 副作用）
 │   │   ├── op_mode_bridge.h/.c      ← 领域/平台事件 → op_mode_on_xxx() 喂入聚合
-│   │   ├── mode_projection.h/.c     ← 运行模式 → dev_ctx 投影
+│   │   ├── operational_projection.h/.c ← 运行模式 → operational_snapshot
+│   │   ├── safety_projection.h/.c     ← 报警/安全 → safety_snapshot
+│   │   ├── wash_projection.h/.c     ← 洗车会话 → wash_snapshot
 │   │   ├── recovery_service.h/.c    ← Recovery 应用服务
 │   │   ├── self_check_service.h/.c  ← SelfCheck 应用服务
 │   │   └── orchestrators/
 │   │       ├── wash_orchestrator.h/.c
 │   │       ├── emergency_handler.h/.c
-│   │       └── safety_supervisor.h/.c
+│   │       └── report_scheduler.h/.c
 │   │
 │   ├── infrastructure/
 │   │   ├── device/IGantryPort

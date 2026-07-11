@@ -383,10 +383,17 @@ if(BUILD_SIM)
         tests/framework/runtime/test_event_bus.c
     )
 
-    # test_dev_ctx：只测 dev_ctx 快照与并发写
+    # test_dev_ctx：组合快照与并发读
     add_unit_test(test_dev_ctx
         tests/framework/application/test_dev_ctx.c
         framework/services/dev_ctx/dev_ctx.c
+        framework/domain/telemetry/snapshot/operational_snapshot.c
+        framework/domain/telemetry/snapshot/safety_snapshot.c
+        framework/domain/telemetry/snapshot/wash_snapshot.c
+        framework/application/operational_projection.c
+        framework/application/safety_projection.c
+        framework/domain/command_gateway/operational_mode.c
+        framework/domain/safety/alarm_registry/alarm_registry.c
         framework/ports/port_registry.c
     )
 
@@ -419,7 +426,6 @@ if(BUILD_SIM)
         framework/application/self_check_service.c
         framework/domain/command_gateway/operational_mode.c
         framework/domain/safety/alarm_registry/alarm_registry.c
-        framework/services/dev_ctx/dev_ctx.c
         framework/ports/port_registry.c
         framework/ports/outbound/machine/machine_ops_port.c
         tests/stubs/command_gateway_stubs.c
@@ -481,6 +487,9 @@ if(BUILD_SIM)
         projects/m8/bindings/m8_sensor.c
         projects/m8/config/m8_signal_table.c
         framework/adapters/outbound/hal/components/sensor_filter/hal_sensor_filter.c
+        framework/domain/telemetry/snapshot/operational_snapshot.c
+        framework/domain/telemetry/snapshot/safety_snapshot.c
+        framework/domain/telemetry/snapshot/wash_snapshot.c
         framework/services/dev_ctx/dev_ctx.c
         framework/application/orchestrators/report_scheduler.c
         framework/runtime/event_bus/event_bus.c

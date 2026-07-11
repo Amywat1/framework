@@ -28,18 +28,12 @@ static sw_err_t m8_home_device(void)
     return gantry_home();
 }
 
-static int64_t m8_read_gantry_position(void)
-{
-    return gantry_position();
-}
-
 void m8_machine_ops_register(void)
 {
     static const machine_ops_t s_m8_ops = {
-        .deferred_stop_all     = m8_deferred_stop_all,
-        .safety_home           = m8_safety_home,
-        .home_device           = m8_home_device,
-        .read_gantry_position  = m8_read_gantry_position,
+        .deferred_stop_all = m8_deferred_stop_all,
+        .safety_home       = m8_safety_home,
+        .home_device       = m8_home_device,
     };
 
     machine_ops_register(&s_m8_ops);

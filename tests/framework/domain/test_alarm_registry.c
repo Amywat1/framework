@@ -76,6 +76,13 @@ static void test_critical_lockout(void)
 {
     (void)alarm_registry_trigger(201709U);
     TEST_ASSERT_EQUAL_INT(SAFETY_POSTURE_LOCKOUT, (int)alarm_registry_safety_posture());
+    TEST_ASSERT_TRUE(safety_is_warning_active());
+}
+
+static void test_warning_active_major_only(void)
+{
+    (void)alarm_registry_trigger(201101U);
+    TEST_ASSERT_TRUE(safety_is_warning_active());
 }
 
 static void test_recover_skips_estop_clears_manual(void)
@@ -155,6 +162,7 @@ int main(void)
     RUN_TEST(test_trigger_clear_idempotent);
     RUN_TEST(test_major_not_lockout);
     RUN_TEST(test_critical_lockout);
+    RUN_TEST(test_warning_active_major_only);
     RUN_TEST(test_recover_skips_estop_clears_manual);
     RUN_TEST(test_reevaluate_by_group);
     RUN_TEST(test_pull_events);

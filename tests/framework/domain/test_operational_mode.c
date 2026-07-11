@@ -177,6 +177,26 @@ static void test_resume_operation_restores_service(void)
     TEST_ASSERT_TRUE(op_mode_is_service_enabled());
 }
 
+static void test_is_stopping_and_standby(void)
+{
+    TEST_ASSERT_TRUE(op_mode_is_standby());
+    TEST_ASSERT_FALSE(op_mode_is_stopping());
+
+    cmd_t stop = { .type = CMD_STOP_OPERATION };
+    (void)op_mode_handle_command(&stop);
+    TEST_ASSERT_FALSE(op_mode_is_standby());
+    TEST_ASSERT_TRUE(op_mode_is_stopping());
+
+    cmd_t resume = { .type = CMD_RESUME_OPERATION };
+    (void)op_mode_handle_command(&resume);
+    TEST_ASSERT_TRUE(op_mode_is_standby());
+    TEST_ASSERT_FALSE(op_mode_is_stopping());
+
+    op_mode_on_critical_alarm();
+    TEST_ASSERT_FALSE(op_mode_is_standby());
+    TEST_ASSERT_TRUE(op_mode_is_stopping());
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -194,5 +214,6 @@ int main(void)
     RUN_TEST(test_wash_abort_critical_enters_exception);
     RUN_TEST(test_post_wash_blocking_enters_exception);
     RUN_TEST(test_resume_operation_restores_service);
+    RUN_TEST(test_is_stopping_and_standby);
     return UNITY_END();
 }

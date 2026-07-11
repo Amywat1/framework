@@ -92,6 +92,16 @@ bool op_mode_is_estop_active(void);
 bool op_mode_is_service_enabled(void);
 
 /**
+ * @brief  是否处于停机态（!service_enabled 或 INIT/EXCEPTION/RECOVERING）
+ */
+bool op_mode_is_stopping(void);
+
+/**
+ * @brief  是否待机（IDLE 且 service_enabled）
+ */
+bool op_mode_is_standby(void);
+
+/**
  * @brief  设置运营接单开关（Stop/Resume Operation）
  */
 void op_mode_set_service_enabled(bool enabled);

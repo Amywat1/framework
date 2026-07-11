@@ -12,7 +12,6 @@
 
 #include "framework/application/orchestrators/wash_orchestrator.h"
 #include "framework/runtime/scheduler/thread_registry.h"
-#include "framework/services/dev_ctx/dev_ctx.h"
 #include "framework/ports/outbound/machine/machine_ops_port.h"
 #include "framework/domain/wash/engine/engine.h"
 #include "framework/domain/wash/model/engine_model.h"
@@ -195,9 +194,6 @@ static sw_err_t worker_prepare_engine(wash_mode_t mode, engine_t **out_engine)
         return SW_ERR_PARAM;
     }
 
-    dev_ctx_set_wash_mode(mode);
-    LOG_INFO("wash_worker: prepare mode=%d path=%s", (int)mode, prog_path);
-
     if (engine_start(e) != SW_OK)
     {
         LOG_ERROR("wash_worker: engine_start failed");
@@ -205,6 +201,7 @@ static sw_err_t worker_prepare_engine(wash_mode_t mode, engine_t **out_engine)
         return SW_ERR_STATE;
     }
 
+    LOG_INFO("wash_worker: prepare mode=%d path=%s", (int)mode, prog_path);
     *out_engine = e;
     return SW_OK;
 }
@@ -254,7 +251,7 @@ static void *wash_worker_fn(void *arg)
             }
         }
 
-        (void)event_publish(EVT_WASH_SESSION_STARTED, 0U);
+        (void)event_publish(EVT_WASH_SESSION_STARTED, (uint32_t)s_mode);
         signal_startup(startup_gen, SW_OK);
 
         {
@@ -282,16 +279,6 @@ static void *wash_worker_fn(void *arg)
 
                 engine_tick(e, STEP_POLL_INTERVAL_MS);
                 atomic_store(&s_current_direction, (int)engine_current_direction(e));
-                {
-                    const machine_ops_t *ops = machine_ops_get();
-                    int64_t              pos = 0;
-
-                    if ((ops != NULL) && (ops->read_gantry_position != NULL))
-                    {
-                        pos = ops->read_gantry_position();
-                    }
-                    dev_ctx_set_gantry_pos((int32_t)pos);
-                }
 
                 engine_run_state_t st = engine_state(e);
 
@@ -332,7 +319,6 @@ static void *wash_worker_fn(void *arg)
 
                 engine_destroy(e);
                 wash_stop_all_outputs();
-                dev_ctx_set_wash_mode(s_mode);
 
                 if ((final_state == ENGINE_STATE_DONE) && (stored_abort < 0) && !timed_out)
                 {

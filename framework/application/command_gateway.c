@@ -9,15 +9,14 @@
 #include "framework/application/self_check_service.h"
 #include "framework/domain/command_gateway/operational_mode.h"
 #include "framework/domain/safety/alarm_registry/alarm_registry.h"
-#include "framework/ports/outbound/machine/machine_ops_port.h"
 #include "framework/domain/safety/model/safety_types.h"
+#include "framework/ports/outbound/machine/machine_ops_port.h"
 #include "framework/application/orchestrators/wash_orchestrator.h"
 #include "framework/domain/command_gateway/op_mode_types.h"
 #include "framework/ports/inbound/command/command_port.h"
 #include "framework/runtime/event_bus/event_bus.h"
 #include "framework/common/event_types.h"
 #include "framework/common/log.h"
-#include "framework/services/dev_ctx/dev_ctx.h"
 
 #include <pthread.h>
 #include <semaphore.h>
@@ -76,11 +75,9 @@ static sw_err_t dispatch_side_effects(const cmd_t *cmd)
 
     case CMD_RESET_FAULT:
     {
-        device_context_t ctx = dev_ctx_snapshot();
-
-        if ((ctx.operational_mode == OP_MODE_IDLE) &&
-            !ctx.blocking_active &&
-            (ctx.safety_posture != SAFETY_POSTURE_LOCKOUT))
+        if ((op_mode_get_current() == OP_MODE_IDLE) &&
+            !alarm_registry_has_blocking_active() &&
+            (alarm_registry_safety_posture() != SAFETY_POSTURE_LOCKOUT))
         {
             return SW_ERR_STATE;
         }

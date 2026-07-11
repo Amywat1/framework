@@ -545,6 +545,12 @@ safety_posture_t alarm_registry_safety_posture(void)
     return posture;
 }
 
+bool safety_is_warning_active(void)
+{
+    return alarm_registry_has_blocking_active() ||
+           (alarm_registry_safety_posture() == SAFETY_POSTURE_LOCKOUT);
+}
+
 unsigned alarm_registry_pull_events(alarm_domain_event_t *buf, unsigned max)
 {
     unsigned pulled = 0U;

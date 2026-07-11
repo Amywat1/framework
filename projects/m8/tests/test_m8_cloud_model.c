@@ -8,6 +8,10 @@
 #include "projects/m8/adapters/cloud/m8_cloud_register.h"
 #include "framework/cloud/cloud_model.h"
 #include "framework/services/dev_ctx/dev_ctx.h"
+#include "framework/domain/telemetry/snapshot/operational_snapshot_internal.h"
+#include "framework/domain/telemetry/snapshot/safety_snapshot_internal.h"
+#include "framework/domain/device_control/model/device_state.h"
+#include "projects/m8/domain/mechanism/gantry.h"
 #include "framework/ports/inbound/command/command_port.h"
 #include "framework/common/sw_version.h"
 #include "third_party/cJSON/cJSON.h"
@@ -27,9 +31,23 @@ static sw_err_t fake_inject(const cmd_t *cmd)
 
 static const command_port_ops_t s_fake_command_ops = { .inject = fake_inject };
 
+static void seed_operational(operational_mode_t mode, bool service_enabled)
+{
+    operational_snapshot_t snap;
+
+    snap.mode            = mode;
+    snap.service_enabled = service_enabled;
+    snap.estop_active    = false;
+    operational_snapshot_update(&snap);
+}
+
 void setUp(void)
 {
+    safety_snapshot_t safety = { 0 };
+
     (void)dev_ctx_init();
+    seed_operational(OP_MODE_INIT, true);
+    safety_snapshot_update(&safety);
     command_port_register(&s_fake_command_ops);
     (void)m8_cloud_register();
     memset(&s_captured_cmd, 0, sizeof(s_captured_cmd));
@@ -40,7 +58,7 @@ void tearDown(void) {}
 
 static cJSON *build_and_parse_report(void)
 {
-    char buf[1024];
+    char buf[4096];
 
     TEST_ASSERT_EQUAL_INT(SW_OK, cloud_model_build_properties(buf, sizeof(buf)));
     return cJSON_Parse(buf);
@@ -48,7 +66,7 @@ static cJSON *build_and_parse_report(void)
 
 static void test_report_process_fields(void)
 {
-    dev_ctx_set_operational_mode(OP_MODE_IDLE);
+    seed_operational(OP_MODE_IDLE, true);
 
     cJSON *root = build_and_parse_report();
     TEST_ASSERT_NOT_NULL(root);
@@ -62,7 +80,7 @@ static void test_report_process_fields(void)
 
 static void test_report_stopping_covers_fault(void)
 {
-    dev_ctx_set_operational_mode(OP_MODE_EXCEPTION);
+    seed_operational(OP_MODE_EXCEPTION, true);
 
     cJSON *root = build_and_parse_report();
     TEST_ASSERT_NOT_NULL(root);
@@ -75,12 +93,11 @@ static void test_report_stopping_covers_fault(void)
 
 static void test_report_monitor_fields(void)
 {
-    dev_ctx_set_gantry_pos(1234);
-
     cJSON *root = build_and_parse_report();
     TEST_ASSERT_NOT_NULL(root);
 
-    TEST_ASSERT_EQUAL_INT(1234, (int)cJSON_GetObjectItem(root, "sts_gantry_position")->valuedouble);
+    TEST_ASSERT_EQUAL_INT((int)gantry_position(),
+                          (int)cJSON_GetObjectItem(root, "sts_gantry_position")->valuedouble);
     TEST_ASSERT_EQUAL_STRING(SW_VERSION_STR, cJSON_GetObjectItem(root, "sts_firmware_version")->valuestring);
     TEST_ASSERT_EQUAL_STRING(SW_PRODUCT_NAME, cJSON_GetObjectItem(root, "sts_device_model")->valuestring);
 

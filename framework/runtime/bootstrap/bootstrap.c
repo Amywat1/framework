@@ -18,11 +18,12 @@
 #include "framework/application/op_mode_bridge.h"
 #include "framework/application/recovery_service.h"
 #include "framework/application/self_check_service.h"
-#include "framework/application/mode_projection.h"
+#include "framework/application/operational_projection.h"
+#include "framework/application/safety_projection.h"
+#include "framework/application/wash_projection.h"
 #include "framework/domain/command_gateway/operational_mode.h"
 #include "framework/application/orchestrators/wash_orchestrator.h"
 #include "framework/application/orchestrators/report_scheduler.h"
-#include "framework/application/orchestrators/safety_supervisor.h"
 #include "framework/runtime/platform/safety_thread.h"
 #include "framework/application/alarm_event_bridge.h"
 #include "framework/domain/safety/alarm_registry/alarm_registry.h"
@@ -141,13 +142,13 @@ static sw_err_t bootstrap_init_application(void)
     /* 安全/报警域初始化顺序：
      *   ① alarm_registry_init()
      *   ② safety_posture_init()
-     *   ③ safety_supervisor_init()
+     *   ③ safety_projection_init()
      *   ④ project_alarm_catalog_init()
      *   ⑤ alarm_event_bridge_init()
      */
     BOOT_CHECK(alarm_registry_init(),          "alarm_registry_init");
     BOOT_CHECK(safety_posture_init(),          "safety_posture_init");
-    BOOT_CHECK(safety_supervisor_init(),       "safety_supervisor_init");
+    BOOT_CHECK(safety_projection_init(),       "safety_projection_init");
     BOOT_CHECK(project_alarm_catalog_init(),   "project_alarm_catalog_init");
     BOOT_CHECK(alarm_event_bridge_init(),      "alarm_event_bridge_init");
     BOOT_CHECK(emergency_handler_init(),   "emergency_handler_init");
@@ -157,7 +158,8 @@ static sw_err_t bootstrap_init_application(void)
     BOOT_CHECK(recovery_service_init(),    "recovery_service_init");
     BOOT_CHECK(self_check_service_init(),  "self_check_service_init");
     BOOT_CHECK(op_mode_bridge_init(),      "op_mode_bridge_init");
-    BOOT_CHECK(mode_projection_init(),     "mode_projection_init");
+    BOOT_CHECK(operational_projection_init(), "operational_projection_init");
+    BOOT_CHECK(wash_projection_init(),        "wash_projection_init");
     BOOT_CHECK(wash_orchestrator_init(),   "wash_orchestrator_init");
     BOOT_CHECK(project_report_scheduler_init(), "project_report_scheduler_init");
     return SW_OK;

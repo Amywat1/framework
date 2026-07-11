@@ -12,20 +12,20 @@
  *  ───────────────────────────────────────────────────────────────────
  *  EVT_HW_ESTOP_ON/OFF              safety_thread 发布
  *                                   op_mode_bridge / emergency_handler  高
- *  EVT_ALARM_TRIGGERED              safety_posture / safety_supervisor  普通
- *  EVT_ALARM_CLEARED                safety_posture / safety_supervisor  普通
- *  EVT_ALARM_BATCH_CLEARED          safety_posture / safety_supervisor  普通
- *  EVT_SAFETY_NOMINAL               safety_supervisor                   普通
+ *  EVT_ALARM_TRIGGERED              safety_posture / safety_projection  普通
+ *  EVT_ALARM_CLEARED                safety_posture / safety_projection  普通
+ *  EVT_ALARM_BATCH_CLEARED          safety_posture / safety_projection  普通
+ *  EVT_SAFETY_NOMINAL               emergency_handler 等              普通
  *  EVT_SAFETY_LOCKOUT               emergency_handler           高
  *  EVT_CMD_GATEWAY_WAKE             command_gateway             普通
- *  EVT_WASH_SESSION_STARTED         op_mode_bridge              普通
+ *  EVT_WASH_SESSION_STARTED         op_mode_bridge / wash_projection  普通
  *  EVT_WASH_DONE                    op_mode_bridge              普通
  *  EVT_WASH_ABORTED                 op_mode_bridge              普通
  *  EVT_OP_MODE_RECOVERY_REQUESTED   recovery_service            普通
  *  EVT_OP_MODE_RECOVERY_COMPLETED   op_mode_bridge              普通
  *  EVT_OP_MODE_SELF_CHECK_COMPLETED op_mode_bridge              普通
- *  EVT_OP_MODE_CHANGED              mode_projection             普通
- *  EVT_OP_MODE_CONTEXT_SYNC         mode_projection             普通
+ *  EVT_OP_MODE_CHANGED              operational_projection        普通
+ *  EVT_OP_MODE_CONTEXT_SYNC         operational_projection        普通
  *  EVT_CLOUD_CONNECTED              report_scheduler            普通
  *  EVT_ALARM_TRIGGERED/CLEARED      report_scheduler            普通
  *  EVT_COMP_MOTION_COMPLETED        m8_alarm_reeval_bridge      普通

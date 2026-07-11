@@ -7,8 +7,10 @@
 
 #include "projects/m8/adapters/cloud/m8_cloud_telemetry.h"
 #include "projects/m8/adapters/cloud/m8_cloud_runtime.h"
-#include "framework/services/dev_ctx/dev_ctx.h"
-#include "framework/domain/safety/model/safety_types.h"
+#include "framework/domain/telemetry/snapshot/operational_snapshot.h"
+#include "framework/domain/telemetry/snapshot/safety_snapshot.h"
+#include "framework/domain/device_control/model/device_state.h"
+#include "projects/m8/domain/mechanism/gantry.h"
 #include "projects/m8/domain/mechanism/m8_top_brush_lift.h"
 #include "projects/m8/bindings/m8_sensor.h"
 #include "projects/m8/config/m8_signal_table.h"
@@ -40,19 +42,12 @@ static sw_err_t get_int(int32_t value, point_value_t *out)
 
 sw_err_t m8_cloud_get_sts_stopping(point_value_t *out)
 {
-    device_context_t ctx = dev_ctx_snapshot();
-
-    return get_bool(!ctx.service_enabled ||
-                    (ctx.operational_mode == OP_MODE_INIT) ||
-                    (ctx.operational_mode == OP_MODE_EXCEPTION) ||
-                    (ctx.operational_mode == OP_MODE_RECOVERING), out);
+    return get_bool(operational_snapshot_is_stopping(), out);
 }
 
 sw_err_t m8_cloud_get_sts_standby(point_value_t *out)
 {
-    device_context_t ctx = dev_ctx_snapshot();
-
-    return get_bool((ctx.operational_mode == OP_MODE_IDLE) && ctx.service_enabled, out);
+    return get_bool(operational_snapshot_is_standby(), out);
 }
 
 sw_err_t m8_cloud_get_sts_homing(point_value_t *out)
@@ -73,21 +68,21 @@ sw_err_t m8_cloud_get_sts_custom_stopping(point_value_t *out)
 
 sw_err_t m8_cloud_get_sts_warn_homing(point_value_t *out)
 {
-    return get_bool(dev_ctx_get_operational_mode() == OP_MODE_RECOVERING, out);
+    operational_snapshot_t snap = operational_snapshot_get();
+
+    return get_bool(snap.mode == OP_MODE_RECOVERING, out);
 }
 
 sw_err_t m8_cloud_get_sts_dev_warning(point_value_t *out)
 {
-    device_context_t ctx = dev_ctx_snapshot();
-
-    return get_bool(ctx.blocking_active || (ctx.safety_posture == SAFETY_POSTURE_LOCKOUT), out);
+    return get_bool(safety_snapshot_is_warning_active(), out);
 }
 
 sw_err_t m8_cloud_get_sts_park_state(point_value_t *out)
 {
     bool parked = false;
 
-    if (dev_ctx_get_operational_mode() == OP_MODE_IDLE)
+    if (operational_snapshot_get().mode == OP_MODE_IDLE)
     {
         parked = m8_cloud_di_active(M8_IO_DI_FRONT_WHEEL_LIMIT, false);
     }
@@ -97,7 +92,7 @@ sw_err_t m8_cloud_get_sts_park_state(point_value_t *out)
 
 sw_err_t m8_cloud_get_sts_gantry_position(point_value_t *out)
 {
-    return get_int(dev_ctx_snapshot().gantry_pos, out);
+    return get_int((int32_t)gantry_position(), out);
 }
 
 sw_err_t m8_cloud_get_sts_lifter_position(point_value_t *out)

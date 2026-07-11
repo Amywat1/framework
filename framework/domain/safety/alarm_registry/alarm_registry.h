@@ -38,6 +38,11 @@ unsigned alarm_registry_copy_active_projection(alarm_instance_t *list,
                                                uint32_t         *top_out);
 safety_posture_t alarm_registry_safety_posture(void);
 
+/**
+ * @brief  是否存在告警态（blocking 或 LOCKOUT）
+ */
+bool safety_is_warning_active(void);
+
 unsigned alarm_registry_pull_events(alarm_domain_event_t *buf, unsigned max);
 
 /**

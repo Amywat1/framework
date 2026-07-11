@@ -9,7 +9,6 @@
 #include "framework/domain/command_gateway/operational_mode.h"
 #include "framework/ports/inbound/command/command_port.h"
 #include "framework/runtime/event_bus/event_bus.h"
-#include "framework/services/dev_ctx/dev_ctx.h"
 #include "framework/common/time_util.h"
 #include "unity.h"
 
@@ -44,7 +43,6 @@ void setUp(void)
 {
     (void)time_util_init();
     (void)event_bus_init();
-    (void)dev_ctx_init();
     (void)operational_mode_init();
     machine_ops_register_test_stub();
     (void)command_gateway_init();

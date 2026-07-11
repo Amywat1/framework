@@ -8,7 +8,7 @@
 #include "projects/m8/adapters/cloud/m8_cloud_runtime.h"
 #include "framework/ports/outbound/hal/hal_io_port.h"
 #include "framework/ports/outbound/storage/deploy_store.h"
-#include "framework/services/dev_ctx/dev_ctx.h"
+#include "framework/domain/telemetry/snapshot/operational_snapshot.h"
 #include "framework/domain/device_control/model/device_state.h"
 #include "projects/m8/config/m8_io_pins.h"
 #include <stdio.h>
@@ -305,11 +305,11 @@ static void format_output_snapshot(char *buf, size_t buf_size)
 
 void m8_cloud_runtime_refresh_io_snapshot(void)
 {
-    device_context_t ctx = dev_ctx_snapshot();
+    operational_snapshot_t snap = operational_snapshot_get();
 
-    if (ctx.service_enabled &&
-        (ctx.operational_mode != OP_MODE_INIT) &&
-        (ctx.operational_mode != OP_MODE_EXCEPTION))
+    if (snap.service_enabled &&
+        (snap.mode != OP_MODE_INIT) &&
+        (snap.mode != OP_MODE_EXCEPTION))
     {
         return;
     }
