@@ -31,20 +31,6 @@ sw_err_t cloud_point_get_echo_idle(point_value_t *out)
     return SW_OK;
 }
 
-static const cloud_point_entry_t *find_entry(const cloud_point_entry_t *entries,
-                                                size_t count,
-                                                const char *id)
-{
-    for (size_t i = 0U; i < count; i++)
-    {
-        if ((entries[i].base.id != NULL) && (strcmp(entries[i].base.id, id) == 0))
-        {
-            return &entries[i];
-        }
-    }
-    return NULL;
-}
-
 static sw_err_t submit_device_cmd(cmd_type_t type)
 {
     const command_port_ops_t *cp = command_port_get_ops();
@@ -66,65 +52,30 @@ static sw_err_t submit_device_cmd(cmd_type_t type)
     return cp->inject(&cmd);
 }
 
-static sw_err_t parse_value(const cloud_point_entry_t *entry,
-                             const cJSON *item,
-                             point_value_t *out)
+static sw_err_t collect_readable_bases(const cloud_point_entry_t *entries,
+                                        size_t count,
+                                        point_table_entry_t *out,
+                                        size_t out_cap,
+                                        size_t *out_count)
 {
-    memset(out, 0, sizeof(*out));
+    size_t n = 0U;
 
-    switch (entry->base.type)
+    if (count > out_cap)
     {
-        case POINT_TYPE_BOOL:
-            if (!cJSON_IsBool(item) && !cJSON_IsNumber(item))
-            {
-                return SW_ERR_PARAM;
-            }
-            out->b = cJSON_IsTrue(item) || (cJSON_IsNumber(item) && (item->valuedouble != 0.0));
-            return SW_OK;
-
-        case POINT_TYPE_INT:
-            if (!cJSON_IsNumber(item))
-            {
-                return SW_ERR_PARAM;
-            }
-            out->i = (int32_t)item->valuedouble;
-            return SW_OK;
-
-        case POINT_TYPE_STRING:
-            if (!cJSON_IsString(item) || (item->valuestring == NULL))
-            {
-                return SW_ERR_PARAM;
-            }
-            strncpy(out->s, item->valuestring, sizeof(out->s) - 1U);
-            return SW_OK;
-
-        case POINT_TYPE_FLOAT:
-            if (!cJSON_IsNumber(item))
-            {
-                return SW_ERR_PARAM;
-            }
-            out->f = (float)item->valuedouble;
-            return SW_OK;
-
-        default:
-            return SW_ERR_PARAM;
-    }
-}
-
-static void record_error(point_apply_result_t *result,
-                          const char *id,
-                          sw_err_t err)
-{
-    if ((result == NULL) || (result->first_error != SW_OK))
-    {
-        return;
+        return SW_ERR_OVERFLOW;
     }
 
-    result->first_error = err;
-    if (id != NULL)
+    for (size_t i = 0U; i < count; i++)
     {
-        strncpy(result->first_error_id, id, sizeof(result->first_error_id) - 1U);
+        if (entries[i].base.get == NULL)
+        {
+            continue;
+        }
+        out[n++] = entries[i].base;
     }
+
+    *out_count = n;
+    return SW_OK;
 }
 
 static sw_err_t dispatch_set(const cloud_point_entry_t *entry,
@@ -137,7 +88,7 @@ static sw_err_t dispatch_set(const cloud_point_entry_t *entry,
     {
         case CLOUD_POINT_SEM_TELEMETRY:
             LOG_WARN("cloud_point: id=%s telemetry is read-only", entry->base.id);
-            record_error(result, entry->base.id, SW_ERR_STATE);
+            point_apply_result_record_error(result, entry->base.id, SW_ERR_STATE);
             return SW_ERR_STATE;
 
         case CLOUD_POINT_SEM_DEVICE_CMD:
@@ -148,38 +99,38 @@ static sw_err_t dispatch_set(const cloud_point_entry_t *entry,
             ret = submit_device_cmd(entry->cmd_type);
             if (ret != SW_OK)
             {
-                record_error(result, entry->base.id, ret);
+                point_apply_result_record_error(result, entry->base.id, ret);
             }
             return ret;
 
         case CLOUD_POINT_SEM_CLOUD_SERVICE:
             if (entry->service == NULL)
             {
-                record_error(result, entry->base.id, SW_ERR_NOT_INIT);
+                point_apply_result_record_error(result, entry->base.id, SW_ERR_NOT_INIT);
                 return SW_ERR_NOT_INIT;
             }
             ret = entry->service(val);
             if (ret != SW_OK)
             {
-                record_error(result, entry->base.id, ret);
+                point_apply_result_record_error(result, entry->base.id, ret);
             }
             return ret;
 
         case CLOUD_POINT_SEM_MANUAL_ACT:
             if (entry->base.set == NULL)
             {
-                record_error(result, entry->base.id, SW_ERR_NOT_INIT);
+                point_apply_result_record_error(result, entry->base.id, SW_ERR_NOT_INIT);
                 return SW_ERR_NOT_INIT;
             }
             ret = entry->base.set(val);
             if (ret != SW_OK)
             {
-                record_error(result, entry->base.id, ret);
+                point_apply_result_record_error(result, entry->base.id, ret);
             }
             return ret;
 
         default:
-            record_error(result, entry->base.id, SW_ERR_PARAM);
+            point_apply_result_record_error(result, entry->base.id, SW_ERR_PARAM);
             return SW_ERR_PARAM;
     }
 }
@@ -195,7 +146,7 @@ sw_err_t cloud_point_apply_json(const cloud_point_entry_t *entries, size_t count
 
     if ((entries == NULL) || (count == 0U) || (json_str == NULL))
     {
-        record_error(result_opt, "", SW_ERR_PARAM);
+        point_apply_result_record_error(result_opt, "", SW_ERR_PARAM);
         return SW_ERR_PARAM;
     }
 
@@ -203,7 +154,7 @@ sw_err_t cloud_point_apply_json(const cloud_point_entry_t *entries, size_t count
     if (root == NULL)
     {
         LOG_WARN("cloud_point: invalid json: %.80s", json_str);
-        record_error(result_opt, "", SW_ERR_PARAM);
+        point_apply_result_record_error(result_opt, "", SW_ERR_PARAM);
         return SW_ERR_PARAM;
     }
 
@@ -223,7 +174,8 @@ sw_err_t cloud_point_apply_json(const cloud_point_entry_t *entries, size_t count
             continue;
         }
 
-        entry = find_entry(entries, count, item->string);
+        entry = (const cloud_point_entry_t *)point_table_find_entry_at(
+            entries, count, sizeof(cloud_point_entry_t), item->string);
         if (entry == NULL)
         {
             LOG_WARN("cloud_point: unknown id=%s", item->string);
@@ -231,7 +183,7 @@ sw_err_t cloud_point_apply_json(const cloud_point_entry_t *entries, size_t count
             {
                 result_opt->rejected++;
             }
-            record_error(result_opt, item->string, SW_ERR_PARAM);
+            point_apply_result_record_error(result_opt, item->string, SW_ERR_PARAM);
             continue;
         }
 
@@ -243,11 +195,11 @@ sw_err_t cloud_point_apply_json(const cloud_point_entry_t *entries, size_t count
             {
                 result_opt->rejected++;
             }
-            record_error(result_opt, entry->base.id, SW_ERR_STATE);
+            point_apply_result_record_error(result_opt, entry->base.id, SW_ERR_STATE);
             continue;
         }
 
-        ret = parse_value(entry, item, &val);
+        ret = point_table_parse_cjson_value(entry->base.type, item, &val);
         if (ret != SW_OK)
         {
             LOG_WARN("cloud_point: id=%s type mismatch", entry->base.id);
@@ -255,7 +207,7 @@ sw_err_t cloud_point_apply_json(const cloud_point_entry_t *entries, size_t count
             {
                 result_opt->rejected++;
             }
-            record_error(result_opt, entry->base.id, ret);
+            point_apply_result_record_error(result_opt, entry->base.id, ret);
             continue;
         }
 
@@ -280,26 +232,19 @@ sw_err_t cloud_point_apply_json(const cloud_point_entry_t *entries, size_t count
 sw_err_t cloud_point_to_json(const cloud_point_entry_t *entries, size_t count,
                               char *buf, size_t buf_size)
 {
-    point_table_entry_t table[96];
+    point_table_entry_t table[CLOUD_POINT_TABLE_MAX];
     size_t              n = 0U;
+    sw_err_t            ret;
 
     if ((entries == NULL) || (count == 0U) || (buf == NULL) || (buf_size == 0U))
     {
         return SW_ERR_PARAM;
     }
 
-    if (count > (sizeof(table) / sizeof(table[0])))
+    ret = collect_readable_bases(entries, count, table, CLOUD_POINT_TABLE_MAX, &n);
+    if (ret != SW_OK)
     {
-        return SW_ERR_OVERFLOW;
-    }
-
-    for (size_t i = 0U; i < count; i++)
-    {
-        if (entries[i].base.get == NULL)
-        {
-            continue;
-        }
-        table[n++] = entries[i].base;
+        return ret;
     }
 
     return point_table_to_json_ex(table, n, buf, buf_size, s_get_fail_policy, NULL);
@@ -309,26 +254,19 @@ sw_err_t cloud_point_to_json_filtered(const cloud_point_entry_t *entries, size_t
                                        const char *const *ids, size_t id_count,
                                        char *buf, size_t buf_size)
 {
-    point_table_entry_t table[96];
+    point_table_entry_t table[CLOUD_POINT_TABLE_MAX];
     size_t              n = 0U;
+    sw_err_t            ret;
 
     if ((entries == NULL) || (count == 0U) || (ids == NULL) || (id_count == 0U))
     {
         return SW_ERR_PARAM;
     }
 
-    if (count > (sizeof(table) / sizeof(table[0])))
+    ret = collect_readable_bases(entries, count, table, CLOUD_POINT_TABLE_MAX, &n);
+    if (ret != SW_OK)
     {
-        return SW_ERR_OVERFLOW;
-    }
-
-    for (size_t i = 0U; i < count; i++)
-    {
-        if (entries[i].base.get == NULL)
-        {
-            continue;
-        }
-        table[n++] = entries[i].base;
+        return ret;
     }
 
     return point_table_to_json_filtered(table, n, ids, id_count, buf, buf_size);

@@ -17,6 +17,7 @@ extern "C" {
 #endif
 
 #define CLOUD_REPORT_JSON_MAX   4096U
+#define CLOUD_POINT_TABLE_MAX   96U
 
 typedef enum
 {

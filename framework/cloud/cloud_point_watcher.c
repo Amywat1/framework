@@ -10,8 +10,6 @@
 #include "framework/common/event_types.h"
 #include <string.h>
 
-#define CLOUD_POINT_WATCHER_MAX   96U
-
 typedef struct
 {
     bool           valid;
@@ -21,7 +19,13 @@ typedef struct
 
 static const cloud_point_entry_t *s_entries     = NULL;
 static size_t                     s_entry_count = 0U;
-static cloud_point_shadow_t       s_shadow[CLOUD_POINT_WATCHER_MAX];
+static cloud_point_shadow_t       s_shadow[CLOUD_POINT_TABLE_MAX];
+
+static bool is_watched_entry(const cloud_point_entry_t *entry)
+{
+    return (entry->report_policy == CLOUD_REPORT_ON_CHANGE) &&
+           (entry->base.get != NULL);
+}
 
 static bool value_equal(point_type_t type,
                          const point_value_t *a,
@@ -49,7 +53,7 @@ static void publish_dirty(size_t index)
 
 sw_err_t cloud_point_watcher_init(const cloud_point_entry_t *entries, size_t count)
 {
-    if ((entries == NULL) || (count == 0U) || (count > CLOUD_POINT_WATCHER_MAX))
+    if ((entries == NULL) || (count == 0U) || (count > CLOUD_POINT_TABLE_MAX))
     {
         return SW_ERR_PARAM;
     }
@@ -62,8 +66,7 @@ sw_err_t cloud_point_watcher_init(const cloud_point_entry_t *entries, size_t cou
     {
         point_value_t val;
 
-        if ((entries[i].report_policy != CLOUD_REPORT_ON_CHANGE) ||
-            (entries[i].base.get == NULL))
+        if (!is_watched_entry(&entries[i]))
         {
             continue;
         }
@@ -95,8 +98,7 @@ void cloud_point_watcher_poll(void)
         const cloud_point_entry_t *entry = &s_entries[i];
         point_value_t              now;
 
-        if ((entry->report_policy != CLOUD_REPORT_ON_CHANGE) ||
-            (entry->base.get == NULL))
+        if (!is_watched_entry(entry))
         {
             continue;
         }

@@ -129,20 +129,6 @@ sw_err_t point_table_to_json(const point_table_entry_t *entries, size_t count,
                                    POINT_GET_FAIL_OMIT, NULL);
 }
 
-static const point_table_entry_t *find_entry_by_id(const point_table_entry_t *entries,
-                                                    size_t count,
-                                                    const char *id)
-{
-    for (size_t i = 0U; i < count; i++)
-    {
-        if ((entries[i].id != NULL) && (strcmp(entries[i].id, id) == 0))
-        {
-            return &entries[i];
-        }
-    }
-    return NULL;
-}
-
 sw_err_t point_table_to_json_filtered(const point_table_entry_t *entries, size_t count,
                                        const char *const *ids, size_t id_count,
                                        char *buf, size_t buf_size)
@@ -170,7 +156,7 @@ sw_err_t point_table_to_json_filtered(const point_table_entry_t *entries, size_t
             continue;
         }
 
-        entry = find_entry_by_id(entries, count, ids[j]);
+        entry = point_table_find_entry(entries, count, ids[j]);
         if ((entry == NULL) || (entry->get == NULL) || (entry->get(&val) != SW_OK))
         {
             continue;
