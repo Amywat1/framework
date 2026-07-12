@@ -136,6 +136,30 @@ add_unit_test(test_operational_mode
     ${WDF_ROOT}/common/log.c
 )
 
+add_unit_test(test_device_control_patterns
+    ${CMAKE_CURRENT_SOURCE_DIR}/domain/test_device_control_patterns.c
+    ${WDF_ROOT}/domain/device_control/model/actuator_events.c
+    ${WDF_ROOT}/domain/device_control/patterns/bidirectional_motion.c
+    ${WDF_ROOT}/domain/device_control/patterns/continuous_rotary.c
+    ${WDF_ROOT}/domain/device_control/patterns/fluid_path.c
+    ${WDF_ROOT}/domain/device_control/patterns/interlocked_slots.c
+    ${WDF_ROOT}/runtime/event_bus/event_bus.c
+    ${WDF_ROOT}/common/log.c
+    ${WDF_ROOT}/common/time_util.c
+)
+target_compile_definitions(test_device_control_patterns PRIVATE FLUID_PATH_UNIT_TEST)
+
+add_unit_test(test_wash_engine
+    ${CMAKE_CURRENT_SOURCE_DIR}/domain/test_wash_engine.c
+    ${WDF_ROOT}/domain/wash/engine/engine.c
+    ${WDF_ROOT}/domain/wash/engine/engine_expr.c
+    ${WDF_ROOT}/domain/wash/engine/engine_io.c
+    ${WDF_ROOT}/domain/wash/model/engine_model.c
+    ${WDF_ROOT}/domain/wash/model/engine_program_validate.c
+    ${WDF_ROOT}/domain/wash/model/engine_program_manifest.c
+    ${WDF_ROOT}/third_party/cJSON/cJSON.c
+)
+
 add_unit_test(test_side_effect_router
     ${CMAKE_CURRENT_SOURCE_DIR}/application/test_side_effect_router.c
     ${WDF_ROOT}/application/side_effect_router.c
