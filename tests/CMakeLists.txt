@@ -78,6 +78,15 @@ add_unit_test(test_hal_voice_sim
     ${WDF_ROOT}/common/log.c
 )
 
+add_unit_test(test_snack_voice_adapter
+    ${CMAKE_CURRENT_SOURCE_DIR}/adapters/test_snack_voice_adapter.c
+    ${WDF_ROOT}/adapters/outbound/hal/providers/snack/modbus/drv_voice.c
+    ${WDF_ROOT}/adapters/outbound/hal/providers/snack/modbus/snack_voice_adapter.c
+    ${WDF_ROOT}/tests/stubs/snack/drv_modbus_link_fake.c
+    ${WDF_ROOT}/ports/port_registry.c
+    ${WDF_ROOT}/common/log.c
+)
+
 add_unit_test(test_machine_ops_port
     ${CMAKE_CURRENT_SOURCE_DIR}/ports/test_machine_ops_port.c
     ${WDF_ROOT}/ports/outbound/machine/machine_ops_port.c

@@ -12,6 +12,7 @@ include_directories(${WDF_GENERATED_INCLUDE_DIR})
 option(WDF_BUILD_DEMO "Build in-repo smoke demo" ON)
 option(WDF_BUILD_TESTS "Build unit tests" ON)
 option(WDF_ENABLE_MCC_PROVIDER "Build MCC motor executor HAL provider" OFF)
+option(WDF_ENABLE_SNACK_MODBUS_PROVIDER "Build Snack Modbus HAL providers" OFF)
 set(WDF_MCC_ROOT "" CACHE PATH "Path to motor_control_core SDK root")
 
 if(WDF_ENABLE_MCC_PROVIDER)
@@ -34,6 +35,31 @@ if(WDF_ENABLE_MCC_PROVIDER)
     )
     target_link_libraries(wdf_hal_motor_exec_mcc PUBLIC
         ${WDF_MCC_ROOT}/lib/libmotor_control_core.a
+    )
+endif()
+
+if(WDF_ENABLE_SNACK_MODBUS_PROVIDER)
+    find_path(WDF_LIBMODBUS_INCLUDE_DIR modbus/modbus-rtu.h)
+    find_library(WDF_LIBMODBUS_LIBRARY modbus)
+    if(NOT WDF_LIBMODBUS_INCLUDE_DIR)
+        message(FATAL_ERROR "libmodbus header not found: modbus/modbus-rtu.h")
+    endif()
+    if(NOT WDF_LIBMODBUS_LIBRARY)
+        message(FATAL_ERROR "libmodbus library not found")
+    endif()
+
+    add_library(wdf_hal_voice_snack STATIC
+        adapters/outbound/hal/providers/snack/modbus/drv_modbus_link.c
+        adapters/outbound/hal/providers/snack/modbus/drv_voice.c
+        adapters/outbound/hal/providers/snack/modbus/snack_voice_adapter.c
+    )
+    target_include_directories(wdf_hal_voice_snack PUBLIC
+        ${CMAKE_SOURCE_DIR}
+        ${WDF_LIBMODBUS_INCLUDE_DIR}
+    )
+    target_link_libraries(wdf_hal_voice_snack PUBLIC
+        ${WDF_LIBMODBUS_LIBRARY}
+        pthread
     )
 endif()
 
