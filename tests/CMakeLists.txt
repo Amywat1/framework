@@ -174,6 +174,47 @@ add_unit_test(test_side_effect_router
     ${WDF_ROOT}/common/log.c
 )
 
+add_unit_test(test_wash_orchestrator
+    ${CMAKE_CURRENT_SOURCE_DIR}/application/test_wash_orchestrator.c
+    ${WDF_ROOT}/application/orchestrators/wash_orchestrator.c
+    ${WDF_ROOT}/adapters/outbound/storage/json/engine_program_json.c
+    ${WDF_ROOT}/adapters/outbound/hal/sim/engine_io_sim.c
+    ${WDF_ROOT}/ports/outbound/storage/engine_program_loader_port.c
+    ${WDF_ROOT}/ports/outbound/machine/machine_ops_port.c
+    ${WDF_ROOT}/runtime/scheduler/thread_registry.c
+    ${WDF_ROOT}/runtime/scheduler/scheduler.c
+    ${WDF_ROOT}/runtime/event_bus/event_bus.c
+    ${WDF_ROOT}/domain/wash/engine/engine.c
+    ${WDF_ROOT}/domain/wash/engine/engine_expr.c
+    ${WDF_ROOT}/domain/wash/engine/engine_io.c
+    ${WDF_ROOT}/domain/wash/model/engine_model.c
+    ${WDF_ROOT}/domain/wash/model/engine_program_validate.c
+    ${WDF_ROOT}/domain/wash/model/engine_program_manifest.c
+    ${WDF_ROOT}/common/log.c
+    ${WDF_ROOT}/common/time_util.c
+    ${WDF_ROOT}/third_party/cJSON/cJSON.c
+)
+target_compile_definitions(test_wash_orchestrator PRIVATE
+    PROGRAM_INTEGRITY_CHECK=0
+    WASH_PROGRAM_NORMAL_PATH="/tmp/wdf_wash_orchestrator_program.json"
+    WASH_PROGRAM_QUICK_PATH="/tmp/wdf_wash_orchestrator_program.json"
+    TEST_WASH_PROGRAM_PATH="/tmp/wdf_wash_orchestrator_program.json"
+)
+
+add_unit_test(test_recovery_emergency
+    ${CMAKE_CURRENT_SOURCE_DIR}/application/test_recovery_emergency.c
+    ${WDF_ROOT}/application/recovery_service.c
+    ${WDF_ROOT}/application/orchestrators/emergency_handler.c
+    ${WDF_ROOT}/application/safety_deferred_stop.c
+    ${WDF_ROOT}/adapters/outbound/safety/sim/hw_estop_sim.c
+    ${WDF_ROOT}/domain/safety/alarm_registry/alarm_registry.c
+    ${WDF_ROOT}/ports/outbound/machine/machine_ops_port.c
+    ${WDF_ROOT}/ports/port_registry.c
+    ${WDF_ROOT}/runtime/event_bus/event_bus.c
+    ${WDF_ROOT}/common/log.c
+    ${WDF_ROOT}/common/time_util.c
+)
+
 add_unit_test(test_command_gateway
     ${CMAKE_CURRENT_SOURCE_DIR}/application/test_command_gateway.c
     ${WDF_ROOT}/application/command_gateway.c

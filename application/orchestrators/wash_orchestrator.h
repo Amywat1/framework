@@ -19,6 +19,7 @@ extern "C" {
 
 #include "common/sw_error.h"
 #include "domain/command_gateway/op_mode_types.h"
+#include "domain/wash/engine/engine.h"
 #include "domain/wash/model/wash_types.h"
 
 #include <stdbool.h>
@@ -49,6 +50,11 @@ void wash_orchestrator_abort(wash_abort_cause_t cause);
  * @brief  查询洗车流程是否正在进行
  */
 bool wash_orchestrator_is_busy(void);
+
+/**
+ * @brief  查询当前洗车阶段行进方向
+ */
+engine_direction_t wash_orchestrator_current_direction(void);
 
 #ifdef __cplusplus
 }
