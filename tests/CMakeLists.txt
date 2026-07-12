@@ -120,6 +120,21 @@ target_include_directories(test_snack_vfd_backend PRIVATE
 )
 target_compile_definitions(test_snack_vfd_backend PRIVATE HAL_VFD_MANAGER_UNIT_TEST)
 
+add_unit_test(test_snack_cloud_adapters
+    ${CMAKE_CURRENT_SOURCE_DIR}/adapters/test_snack_cloud_adapters.c
+    ${WDF_ROOT}/adapters/outbound/cloud/providers/snack/snack_cloud_link_adapter.c
+    ${WDF_ROOT}/adapters/outbound/cloud/providers/snack/snack_cloud_report_adapter.c
+    ${WDF_ROOT}/adapters/inbound/cloud/providers/snack/snack_cloud_command_adapter.c
+    ${WDF_ROOT}/tests/stubs/snack_cloud/snack_mqtt_fake.c
+    ${WDF_ROOT}/tests/stubs/snack_cloud/cloud_model_fake.c
+    ${WDF_ROOT}/common/point_table/point_table_from_json.c
+    ${WDF_ROOT}/runtime/event_bus/event_bus.c
+    ${WDF_ROOT}/ports/port_registry.c
+    ${WDF_ROOT}/common/log.c
+    ${WDF_ROOT}/common/time_util.c
+    ${WDF_ROOT}/third_party/cJSON/cJSON.c
+)
+
 add_unit_test(test_machine_ops_port
     ${CMAKE_CURRENT_SOURCE_DIR}/ports/test_machine_ops_port.c
     ${WDF_ROOT}/ports/outbound/machine/machine_ops_port.c

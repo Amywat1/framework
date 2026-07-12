@@ -14,6 +14,7 @@ option(WDF_BUILD_TESTS "Build unit tests" ON)
 option(WDF_ENABLE_MCC_PROVIDER "Build MCC motor executor HAL provider" OFF)
 option(WDF_ENABLE_SNACK_MODBUS_PROVIDER "Build Snack Modbus HAL providers" OFF)
 option(WDF_ENABLE_SNACK_IO_EXP_PROVIDER "Build Snack io_exp HAL provider" OFF)
+option(WDF_ENABLE_SNACK_CLOUD_PROVIDER "Build Snack cloud MQTT provider" OFF)
 set(WDF_MCC_ROOT "" CACHE PATH "Path to motor_control_core SDK root")
 set(WDF_IO_EXP_ROOT "" CACHE PATH "Path to io_exp SDK root")
 set(WDF_IO_EXP_LIBRARY "" CACHE FILEPATH "Path to io_exp SDK library")
@@ -111,6 +112,17 @@ if(WDF_ENABLE_SNACK_MODBUS_PROVIDER)
             pthread
         )
     endif()
+endif()
+
+if(WDF_ENABLE_SNACK_CLOUD_PROVIDER)
+    add_library(wdf_cloud_snack STATIC
+        adapters/outbound/cloud/providers/snack/snack_cloud_link_adapter.c
+        adapters/outbound/cloud/providers/snack/snack_cloud_report_adapter.c
+        adapters/inbound/cloud/providers/snack/snack_cloud_command_adapter.c
+    )
+    target_include_directories(wdf_cloud_snack PUBLIC
+        ${CMAKE_SOURCE_DIR}
+    )
 endif()
 
 if(WDF_BUILD_DEMO)
