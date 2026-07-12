@@ -6,17 +6,17 @@
  */
 
 #include "adapters/outbound/hal/sim/sim_encoder_counter.h"
-#include <stddef.h>
-#include <stdatomic.h>
 
-#define SIM_ENCODER_MOTOR_SLOTS    4
+#include <stdatomic.h>
+#include <stddef.h>
+
+#define SIM_ENCODER_MOTOR_SLOTS 4
 
 static atomic_uint s_counter[SIM_ENCODER_MOTOR_SLOTS];
 
 void sim_encoder_counter_reset_all(void)
 {
-    for (int i = 0; i < SIM_ENCODER_MOTOR_SLOTS; i++)
-    {
+    for (int i = 0; i < SIM_ENCODER_MOTOR_SLOTS; i++) {
         atomic_store(&s_counter[i], 0U);
     }
 }
@@ -25,8 +25,7 @@ void sim_encoder_counter_add_pulse(int id, int delta)
 {
     uint32_t step;
 
-    if ((id < 0) || (id >= SIM_ENCODER_MOTOR_SLOTS) || (delta == 0))
-    {
+    if ((id < 0) || (id >= SIM_ENCODER_MOTOR_SLOTS) || (delta == 0)) {
         return;
     }
 
@@ -37,8 +36,7 @@ void sim_encoder_counter_add_pulse(int id, int delta)
 
 sw_err_t sim_encoder_counter_read(int id, uint32_t *p_value)
 {
-    if ((id < 0) || (id >= SIM_ENCODER_MOTOR_SLOTS) || (p_value == NULL))
-    {
+    if ((id < 0) || (id >= SIM_ENCODER_MOTOR_SLOTS) || (p_value == NULL)) {
         return SW_ERR_PARAM;
     }
 
@@ -48,8 +46,7 @@ sw_err_t sim_encoder_counter_read(int id, uint32_t *p_value)
 
 sw_err_t sim_encoder_counter_clear(int id)
 {
-    if ((id < 0) || (id >= SIM_ENCODER_MOTOR_SLOTS))
-    {
+    if ((id < 0) || (id >= SIM_ENCODER_MOTOR_SLOTS)) {
         return SW_ERR_PARAM;
     }
 

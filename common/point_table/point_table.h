@@ -88,6 +88,47 @@ typedef struct {
 void point_apply_result_init(point_apply_result_t *result);
 
 /**
+ * @brief  记录首个错误（仅当尚未记录时写入）
+ * @param  result 结果结构体，可为 NULL
+ * @param  id     出错点位 id，可为 NULL
+ * @param  err    错误码
+ */
+void point_apply_result_record_error(point_apply_result_t *result, const char *id, sw_err_t err);
+
+struct cJSON;
+
+/**
+ * @brief  按点位类型从 cJSON 节点解析值
+ * @param  type  点位类型
+ * @param  item  JSON 节点
+ * @param  out   输出值
+ * @retval SW_OK 解析成功
+ */
+sw_err_t point_table_parse_cjson_value(point_type_t type, const struct cJSON *item, point_value_t *out);
+
+/**
+ * @brief  按 id 查找点位表条目
+ * @param  entries 点位表数组
+ * @param  count   条目数量
+ * @param  id      点位标识符
+ * @return 匹配条目指针，未找到返回 NULL
+ */
+const point_table_entry_t *point_table_find_entry(const point_table_entry_t *entries, size_t count, const char *id);
+
+/**
+ * @brief  按 id 在等步长条目数组中查找（首成员须为 point_table_entry_t）
+ * @param  entries      条目数组首地址
+ * @param  count        条目数量
+ * @param  entry_stride 单条记录字节跨度
+ * @param  id           点位标识符
+ * @return 匹配条目的 base 指针，未找到返回 NULL
+ */
+const point_table_entry_t *point_table_find_entry_at(const void *entries,
+                                                     size_t      count,
+                                                     size_t      entry_stride,
+                                                     const char *id);
+
+/**
  * @brief  遍历点表，将所有 get!=NULL 的点位序列化为 JSON
  */
 sw_err_t point_table_to_json(const point_table_entry_t *entries, size_t count, char *buf, size_t buf_size);
@@ -119,6 +160,11 @@ sw_err_t point_table_apply_json(const point_table_entry_t *entries,
                                 size_t                     count,
                                 const char                *json_str,
                                 point_apply_result_t      *result_opt);
+
+/**
+ * @brief  解析 JSON 并逐 key 调用 set()（兼容入口，不返回结果）
+ */
+void point_table_from_json(const point_table_entry_t *entries, size_t count, const char *json_str);
 
 #ifdef __cplusplus
 }

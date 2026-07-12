@@ -57,6 +57,73 @@ add_unit_test(test_op_mode_alarm_port
     ${WDF_ROOT}/ports/outbound/safety/op_mode_alarm_port.c
 )
 
+add_unit_test(test_cloud_ports
+    ${CMAKE_CURRENT_SOURCE_DIR}/ports/test_cloud_ports.c
+    ${WDF_ROOT}/ports/port_registry.c
+)
+
+add_unit_test(test_cloud_point_validate
+    ${CMAKE_CURRENT_SOURCE_DIR}/cloud/test_cloud_point_validate.c
+    ${WDF_ROOT}/cloud/cloud_point_validate.c
+    ${WDF_ROOT}/common/log.c
+)
+
+add_unit_test(test_cloud_point_dispatch
+    ${CMAKE_CURRENT_SOURCE_DIR}/cloud/test_cloud_point_dispatch.c
+    ${WDF_ROOT}/cloud/cloud_point_dispatch.c
+    ${WDF_ROOT}/common/point_table/point_table_from_json.c
+    ${WDF_ROOT}/common/point_table/point_table_to_json.c
+    ${WDF_ROOT}/ports/port_registry.c
+    ${WDF_ROOT}/common/log.c
+    ${WDF_ROOT}/third_party/cJSON/cJSON.c
+)
+
+add_unit_test(test_cloud_point_watcher
+    ${CMAKE_CURRENT_SOURCE_DIR}/cloud/test_cloud_point_watcher.c
+    ${WDF_ROOT}/cloud/cloud_point_watcher.c
+    ${WDF_ROOT}/runtime/event_bus/event_bus.c
+    ${WDF_ROOT}/common/time_util.c
+)
+
+add_unit_test(test_operational_mode
+    ${CMAKE_CURRENT_SOURCE_DIR}/domain/test_operational_mode.c
+    ${WDF_ROOT}/domain/command_gateway/operational_mode.c
+    ${WDF_ROOT}/domain/safety/alarm_registry/alarm_registry.c
+    ${WDF_ROOT}/ports/port_registry.c
+    ${WDF_ROOT}/runtime/event_bus/event_bus.c
+    ${WDF_ROOT}/common/time_util.c
+    ${WDF_ROOT}/common/log.c
+)
+
+add_unit_test(test_side_effect_router
+    ${CMAKE_CURRENT_SOURCE_DIR}/application/test_side_effect_router.c
+    ${WDF_ROOT}/application/side_effect_router.c
+    ${WDF_ROOT}/application/self_check_service.c
+    ${WDF_ROOT}/domain/command_gateway/operational_mode.c
+    ${WDF_ROOT}/domain/safety/alarm_registry/alarm_registry.c
+    ${WDF_ROOT}/ports/outbound/machine/machine_ops_port.c
+    ${WDF_ROOT}/ports/port_registry.c
+    ${WDF_ROOT}/tests/stubs/wash_orchestrator_stub.c
+    ${WDF_ROOT}/runtime/event_bus/event_bus.c
+    ${WDF_ROOT}/common/time_util.c
+    ${WDF_ROOT}/common/log.c
+)
+
+add_unit_test(test_command_gateway
+    ${CMAKE_CURRENT_SOURCE_DIR}/application/test_command_gateway.c
+    ${WDF_ROOT}/application/command_gateway.c
+    ${WDF_ROOT}/application/side_effect_router.c
+    ${WDF_ROOT}/application/self_check_service.c
+    ${WDF_ROOT}/domain/command_gateway/operational_mode.c
+    ${WDF_ROOT}/domain/safety/alarm_registry/alarm_registry.c
+    ${WDF_ROOT}/ports/port_registry.c
+    ${WDF_ROOT}/ports/outbound/machine/machine_ops_port.c
+    ${WDF_ROOT}/tests/stubs/wash_orchestrator_stub.c
+    ${WDF_ROOT}/runtime/event_bus/event_bus.c
+    ${WDF_ROOT}/common/time_util.c
+    ${WDF_ROOT}/common/log.c
+)
+
 add_unit_test(test_pulse_out
     ${CMAKE_CURRENT_SOURCE_DIR}/common/test_pulse_out.c
     ${WDF_ROOT}/common/pulse_out.c

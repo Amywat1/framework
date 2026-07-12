@@ -13,6 +13,7 @@ extern "C" {
 #endif
 
 #include "common/sw_error.h"
+
 #include <stdint.h>
 
 void     sim_encoder_counter_reset_all(void);

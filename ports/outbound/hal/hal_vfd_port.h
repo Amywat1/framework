@@ -30,16 +30,15 @@ typedef int8_t hal_vfd_gear_t;
  * @note   各操作支持的 reg 值见 hal_vfd_ops_t 各函数注释
  */
 typedef enum {
-    HAL_VFD_REG_STATE,        /**< VFD 运行状态字（只读）*/
-    HAL_VFD_REG_FAULT_CODE,   /**< 故障码（只读，monitor 周期缓存）*/
-    HAL_VFD_REG_CURRENT,      /**< 输出电流，0.01A（只读，monitor 周期缓存）*/
-    HAL_VFD_REG_FREQ,         /**< 目标频率 Hz（只写；须厂商定义 VFD_REG_FREQ_SET）*/
-    HAL_VFD_REG_CLEAR_FAULT,  /**< 清除故障（只写；须厂商定义 VFD_REG_CLEAR_FAULT）*/
+    HAL_VFD_REG_STATE,       /**< VFD 运行状态字（只读）*/
+    HAL_VFD_REG_FAULT_CODE,  /**< 故障码（只读，monitor 周期缓存）*/
+    HAL_VFD_REG_CURRENT,     /**< 输出电流，0.01A（只读，monitor 周期缓存）*/
+    HAL_VFD_REG_FREQ,        /**< 目标频率 Hz（只写；须厂商定义 VFD_REG_FREQ_SET）*/
+    HAL_VFD_REG_CLEAR_FAULT, /**< 清除故障（只写；须厂商定义 VFD_REG_CLEAR_FAULT）*/
 } hal_vfd_reg_t;
 
 /** @brief  VFD 运行状态 */
-typedef enum
-{
+typedef enum {
     HAL_VFD_STATE_STOPPED = 0,
     HAL_VFD_STATE_FWD,
     HAL_VFD_STATE_REV,
@@ -47,11 +46,11 @@ typedef enum
 } hal_vfd_state_t;
 
 /** @brief  VFD 事件码（传递给 register_event_cb 回调） */
-#define HAL_VFD_EVT_COMM_LOST       1   /**< Modbus 通信丢失 */
-#define HAL_VFD_EVT_COMM_RESTORED   2   /**< Modbus 通信恢复 */
-#define HAL_VFD_EVT_FAULT_DETECTED  3   /**< VFD 检测到故障（fault_code 从 0 变为非零）*/
-#define HAL_VFD_EVT_FAULT_CLEARED   4   /**< VFD 故障消除（fault_code 恢复为 0）*/
-#define HAL_VFD_EVT_CURRENT_UPDATE  5   /**< 电流值已更新（读缓存 cached_current 获取）*/
+#define HAL_VFD_EVT_COMM_LOST      1 /**< Modbus 通信丢失 */
+#define HAL_VFD_EVT_COMM_RESTORED  2 /**< Modbus 通信恢复 */
+#define HAL_VFD_EVT_FAULT_DETECTED 3 /**< VFD 检测到故障（fault_code 从 0 变为非零）*/
+#define HAL_VFD_EVT_FAULT_CLEARED  4 /**< VFD 故障消除（fault_code 恢复为 0）*/
+#define HAL_VFD_EVT_CURRENT_UPDATE 5 /**< 电流值已更新（读缓存 cached_current 获取）*/
 
 /**
  * @brief  VFD 实例标识（整数，具体值由机型配置层定义）
@@ -60,8 +59,7 @@ typedef enum
  */
 typedef int hal_vfd_id_t;
 
-typedef struct
-{
+typedef struct {
     /** @brief  初始化全部 VFD 实例运行时状态 */
     sw_err_t (*init)(void);
 
@@ -82,8 +80,8 @@ typedef struct
     void (*register_event_cb)(hal_vfd_id_t id, void (*cb)(int event_code));
 } hal_vfd_ops_t;
 
-void                    hal_vfd_register(const hal_vfd_ops_t *ops);
-const hal_vfd_ops_t    *hal_vfd_get_ops(void);
+void                 hal_vfd_register(const hal_vfd_ops_t *ops);
+const hal_vfd_ops_t *hal_vfd_get_ops(void);
 
 #ifdef __cplusplus
 }

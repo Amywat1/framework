@@ -97,7 +97,7 @@ typedef uint16_t event_type_t;
 #define EVT_ALARM_BATCH_CLEARED EVT_MAKE(EVT_CAT_ALARM, EVT_ALARM_ID_BATCH_CLEARED)
 
 /* -------------------------------------------------------------------------
- * CMD 类（遗留事件 ID 仅保留测试用 ORDER；生产命令经 command_port.inject）
+ * CMD 类（遗留事件 ID 仅保留测试用 ORDER；生产命令经 device_command_port.submit）
  * ------------------------------------------------------------------------- */
 #define EVT_CMD_ID_ORDER        0U
 #define EVT_CMD_ID_GATEWAY_WAKE 6U
@@ -138,6 +138,7 @@ typedef uint16_t event_type_t;
 #define EVT_OP_MODE_ID_RECOVERY_COMPLETED   3U
 #define EVT_OP_MODE_ID_SELF_CHECK_COMPLETED 4U
 #define EVT_OP_MODE_ID_CONTEXT_SYNC         5U
+#define EVT_OP_MODE_ID_CMD_HANDLED          6U /* 命令处理完成（kind/status/reason 编码于 param） */
 
 #define EVT_OP_MODE_CHANGED              EVT_MAKE(EVT_CAT_OP_MODE, EVT_OP_MODE_ID_CHANGED)
 #define EVT_OP_MODE_CMD_REJECTED         EVT_MAKE(EVT_CAT_OP_MODE, EVT_OP_MODE_ID_CMD_REJECTED)
@@ -145,6 +146,7 @@ typedef uint16_t event_type_t;
 #define EVT_OP_MODE_RECOVERY_COMPLETED   EVT_MAKE(EVT_CAT_OP_MODE, EVT_OP_MODE_ID_RECOVERY_COMPLETED)
 #define EVT_OP_MODE_SELF_CHECK_COMPLETED EVT_MAKE(EVT_CAT_OP_MODE, EVT_OP_MODE_ID_SELF_CHECK_COMPLETED)
 #define EVT_OP_MODE_CONTEXT_SYNC         EVT_MAKE(EVT_CAT_OP_MODE, EVT_OP_MODE_ID_CONTEXT_SYNC)
+#define EVT_OP_MODE_CMD_HANDLED          EVT_MAKE(EVT_CAT_OP_MODE, EVT_OP_MODE_ID_CMD_HANDLED)
 
 /* -------------------------------------------------------------------------
  * 编解码辅助

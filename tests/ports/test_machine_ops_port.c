@@ -42,8 +42,8 @@ static const machine_ops_t s_stub_ops = {
 void setUp(void)
 {
     s_deferred_stop_count = 0;
-    s_safety_home_count     = 0;
-    s_home_device_count     = 0;
+    s_safety_home_count   = 0;
+    s_home_device_count   = 0;
 }
 
 void tearDown(void)

@@ -17,6 +17,7 @@ extern "C" {
 #endif
 
 #include "common/sw_error.h"
+
 #include <stdint.h>
 
 /**

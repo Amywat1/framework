@@ -18,27 +18,26 @@ extern "C" {
 
 #include "common/io_handle.h"
 #include "common/sw_error.h"
+
 #include <stdbool.h>
 #include <stdint.h>
 
 /** 最大滤波通道数（channel 编号 0 .. HAL_SENSOR_CHANNEL_MAX-1） */
-#define HAL_SENSOR_CHANNEL_MAX  128U
+#define HAL_SENSOR_CHANNEL_MAX 128U
 
 typedef uint8_t hal_sensor_channel_t;
 
 /**
  * @brief  单通道滤波绑定参数
  */
-typedef struct
-{
-    io_di_t  pin;             /**< DI 句柄；IO_HANDLE_NULL 表示未安装 */
-    bool     active_low;      /**< true=低电平有效 */
-    uint8_t  trig_count;      /**< 触发确认连续采样次数 */
-    uint8_t  release_count;   /**< 释放确认连续采样次数 */
+typedef struct {
+    io_di_t pin;           /**< DI 句柄；IO_HANDLE_NULL 表示未安装 */
+    bool    active_low;    /**< true=低电平有效 */
+    uint8_t trig_count;    /**< 触发确认连续采样次数 */
+    uint8_t release_count; /**< 释放确认连续采样次数 */
 } hal_sensor_bind_cfg_t;
 
-typedef struct
-{
+typedef struct {
     /** @brief  初始化内部运行时状态 */
     sw_err_t (*init)(void);
 
@@ -56,8 +55,8 @@ typedef struct
     bool (*is_active)(hal_sensor_channel_t ch);
 } hal_sensor_ops_t;
 
-void                        hal_sensor_register(const hal_sensor_ops_t *ops);
-const hal_sensor_ops_t     *hal_sensor_get_ops(void);
+void                    hal_sensor_register(const hal_sensor_ops_t *ops);
+const hal_sensor_ops_t *hal_sensor_get_ops(void);
 
 #ifdef __cplusplus
 }

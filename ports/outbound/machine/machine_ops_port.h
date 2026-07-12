@@ -17,17 +17,22 @@ extern "C" {
 
 #include "common/sw_error.h"
 
+#include <stdint.h>
+
 /**
  * @brief 机型运行时操作集合
  */
-typedef struct
-{
+typedef struct {
     /** @brief 延后完备停机（wash abort / estop 延后路径） */
     void (*deferred_stop_all)(void);
     /** @brief 急停释放后安全归位 */
     void (*safety_home)(void);
-    /** @brief CMD_HOME_DEVICE 副作用 */
+    /** @brief DEV_CMD_HOME_DEVICE 副作用（side_effect_router 调用） */
     sw_err_t (*home_device)(void);
+    /** @brief DEV_CMD_MANUAL_ACTUATOR 副作用（act_id/param 由项目定义） */
+    sw_err_t (*execute_manual_actuator)(uint32_t act_id, int32_t param);
+    /** @brief DEV_CMD_STOP_ALL_OUTPUTS 副作用 */
+    sw_err_t (*stop_all_outputs)(void);
 } machine_ops_t;
 
 /**
