@@ -1,4 +1,4 @@
-# 事件总线设计说明
+# EventBus 模块设计
 
 **版本**：v1.2  
 **状态**：已落地（核心实现 + scheduler + Demo bootstrap）  
@@ -444,12 +444,12 @@ event_bus_dispatch_loop();
 
 ## 12. 相关文档
 
-- `doc/存储端口与方案资产设计说明.md` — 运行期 KV 存储（与总线正交）
-- `doc/报警系统设计说明.md` — `EVT_ALARM_*` / `EVT_SAFETY_*` 发布与消费
-- `doc/命令网关设计说明.md` — `EVT_CMD_*` / `EVT_OP_MODE_*` / `op_mode_bridge`
+- `doc/module-design/ports-adapters/Storage端口与方案资产模块设计.md` — 运行期 KV 存储（与总线正交）
+- `doc/module-design/domain/报警系统模块设计.md` — `EVT_ALARM_*` / `EVT_SAFETY_*` 发布与消费
+- `doc/module-design/domain/命令网关模块设计.md` — `EVT_CMD_*` / `EVT_OP_MODE_*` / `op_mode_bridge`
 - `tests/reports/event_bus.md` — 单元测试报告
-- `doc/云端通信模块设计说明.md` — `EVT_CLOUD_*` 与上报调度
-- `doc/命令网关设计说明.md` — 命令唤醒、模式变更与回执事件
+- `doc/module-design/ports-adapters/CloudModel模块设计.md` — `EVT_CLOUD_*` 与上报调度
+- `doc/module-design/domain/命令网关模块设计.md` — 命令唤醒、模式变更与回执事件
 
 ---
 

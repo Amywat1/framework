@@ -1,4 +1,4 @@
-# Demo 与项目接入设计说明
+# Demo 与项目接入模块设计
 
 **版本**：v1.0  
 **状态**：已落地（Demo smoke + wiring/project hooks 接入骨架）  
@@ -289,9 +289,9 @@ Demo 的 `demo/CMakeLists.txt` 展示最小 smoke target：
 
 ## 9. 相关文档
 
-- `doc/Runtime启动与调度设计说明.md` — bootstrap 和 project hooks 顺序
-- `doc/HAL端口与适配器设计说明.md` — HAL provider 与实例绑定
-- `doc/存储端口与方案资产设计说明.md` — 参数、部署配置和方案资产
-- `doc/命令网关设计说明.md` — command gateway 与 side effect router
-- `doc/报警系统设计说明.md` — alarm catalog、binding、bridge
-- `doc/云端通信模块设计说明.md` — cloud model/provider 接入
+- `doc/module-design/runtime/Runtime模块设计.md` — bootstrap 和 project hooks 顺序
+- `doc/module-design/ports-adapters/HAL端口与适配器模块设计.md` — HAL provider 与实例绑定
+- `doc/module-design/ports-adapters/Storage端口与方案资产模块设计.md` — 参数、部署配置和方案资产
+- `doc/module-design/domain/命令网关模块设计.md` — command gateway 与 side effect router
+- `doc/module-design/domain/报警系统模块设计.md` — alarm catalog、binding、bridge
+- `doc/module-design/ports-adapters/CloudModel模块设计.md` — cloud model/provider 接入

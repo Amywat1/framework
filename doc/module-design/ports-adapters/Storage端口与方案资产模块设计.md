@@ -1,4 +1,4 @@
-# 存储端口与方案资产设计说明
+# Storage 端口与方案资产模块设计
 
 **版本**：v1.0  
 **状态**：已落地（param_store + deploy_store + engine_program_loader + JSON 适配器 + manifest 校验）  
@@ -424,6 +424,6 @@ ctest --test-dir build-native --output-on-failure
 
 ## 14. 相关文档
 
-- `doc/洗车控制引擎设计说明.md` — engine program 模型与运行时
-- `doc/Runtime启动与调度设计说明.md` — wiring、bootstrap 与 worker 启动顺序
+- `doc/module-design/domain/洗车引擎模块设计.md` — engine program 模型与运行时
+- `doc/module-design/runtime/Runtime模块设计.md` — wiring、bootstrap 与 worker 启动顺序
 - `tests/reports/json_param_store.md` — 参数存储单元测试报告

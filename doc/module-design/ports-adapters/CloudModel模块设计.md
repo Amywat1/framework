@@ -1,4 +1,4 @@
-# 云端通信模块设计说明
+# CloudModel 模块设计
 
 **版本**：v1.0  
 **状态**：已落地（物模型核心 + 端口契约 + 上报调度器 + Snack MQTT 适配器）  
@@ -272,7 +272,7 @@ my_submit(kind):
     return device_command_port_get_ops()->submit(&cmd, &receipt, timeout_ms);
 ```
 
-这样云端脉冲命令与 CLI、仿真测试共用同一套 `command_gateway` → `operational_mode` → `side_effect_router` 流水线。详见 `doc/命令网关设计说明.md`。
+这样云端脉冲命令与 CLI、仿真测试共用同一套 `command_gateway` → `operational_mode` → `side_effect_router` 流水线。详见 `doc/module-design/domain/命令网关模块设计.md`。
 
 ---
 
@@ -377,10 +377,10 @@ cloud_point_watcher_poll();
 
 ## 11. 相关文档
 
-- `doc/命令网关设计说明.md` — `device_command_port` 与 `DEVICE_CMD` 衔接
-- `doc/报警系统设计说明.md` — 与命令/安全域正交；报警态可通过 `safety_snapshot` 读取
-- `doc/事件总线设计说明.md` — `EVT_CLOUD_*` 分发语义
-- `doc/存储端口与方案资产设计说明.md` — deploy_store（MQTT 凭证等）
+- `doc/module-design/domain/命令网关模块设计.md` — `device_command_port` 与 `DEVICE_CMD` 衔接
+- `doc/module-design/domain/报警系统模块设计.md` — 与命令/安全域正交；报警态可通过 `safety_snapshot` 读取
+- `doc/module-design/runtime/EventBus模块设计.md` — `EVT_CLOUD_*` 分发语义
+- `doc/module-design/ports-adapters/Storage端口与方案资产模块设计.md` — deploy_store（MQTT 凭证等）
 - `common/point_table/point_table.h` — 通用点位引擎 API
 
 ---

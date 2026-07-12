@@ -1,4 +1,4 @@
-# HAL 端口与适配器设计说明
+# HAL 端口与适配器模块设计
 
 **版本**：v1.0  
 **状态**：已落地（HAL 端口 + 通用组件 + sim 后端 + MCC/Snack 可选 provider）  
@@ -342,7 +342,7 @@ ctest --test-dir build-native --output-on-failure
 
 ## 9. 相关文档
 
-- `doc/设备控制模式设计说明.md` — 电机执行端口在领域模式中的使用边界
-- `doc/洗车控制引擎设计说明.md` — engine IO 与 HAL/sim 的边界
-- `doc/事件总线设计说明.md` — HAL 边沿事件与异步分发
-- `doc/报警系统设计说明.md` — HAL 事件到报警 registry 的项目侧映射边界
+- `doc/module-design/domain/设备控制模式模块设计.md` — 电机执行端口在领域模式中的使用边界
+- `doc/module-design/domain/洗车引擎模块设计.md` — engine IO 与 HAL/sim 的边界
+- `doc/module-design/runtime/EventBus模块设计.md` — HAL 边沿事件与异步分发
+- `doc/module-design/domain/报警系统模块设计.md` — HAL 事件到报警 registry 的项目侧映射边界

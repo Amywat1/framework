@@ -1,4 +1,4 @@
-# Runtime 启动与调度设计说明
+# Runtime 模块设计
 
 **版本**：v1.0  
 **状态**：已落地（bootstrap 编排 + 线程注册表 + 周期任务 + 安全线程 + Demo hooks）  
@@ -310,7 +310,7 @@ ctest --test-dir build-native --output-on-failure
 
 ## 11. 相关文档
 
-- `doc/事件总线设计说明.md` — `event_dispatch` 与 fatal 回调契约
-- `doc/HAL端口与适配器设计说明.md` — HAL init、周期任务与 provider 装配
-- `doc/报警系统设计说明.md` — `alarm_bridge` drain 与安全姿态
-- `doc/命令网关设计说明.md` — command gateway 在 dispatch 线程中的执行模型
+- `doc/module-design/runtime/EventBus模块设计.md` — `event_dispatch` 与 fatal 回调契约
+- `doc/module-design/ports-adapters/HAL端口与适配器模块设计.md` — HAL init、周期任务与 provider 装配
+- `doc/module-design/domain/报警系统模块设计.md` — `alarm_bridge` drain 与安全姿态
+- `doc/module-design/domain/命令网关模块设计.md` — command gateway 在 dispatch 线程中的执行模型
