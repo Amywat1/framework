@@ -35,6 +35,16 @@ add_unit_test(test_hal_io_sim
     ${WDF_ROOT}/common/log.c
 )
 
+add_unit_test(test_hal_sensor_filter
+    ${CMAKE_CURRENT_SOURCE_DIR}/adapters/test_hal_sensor_filter.c
+    ${WDF_ROOT}/adapters/outbound/hal/components/sensor_filter/hal_sensor_filter.c
+    ${WDF_ROOT}/adapters/outbound/hal/sim/hal_io_sim.c
+    ${WDF_ROOT}/runtime/scheduler/periodic_task.c
+    ${WDF_ROOT}/runtime/scheduler/thread_registry.c
+    ${WDF_ROOT}/ports/port_registry.c
+    ${WDF_ROOT}/common/log.c
+)
+
 add_unit_test(test_sim_encoder_counter
     ${CMAKE_CURRENT_SOURCE_DIR}/adapters/test_sim_encoder_counter.c
     ${WDF_ROOT}/adapters/outbound/hal/sim/sim_encoder_counter.c
