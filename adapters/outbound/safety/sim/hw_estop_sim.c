@@ -9,16 +9,16 @@
 
 #include <stdatomic.h>
 
-static atomic_bool s_estop_active = false;
+static atomic_bool s_hw_estop_sim_active = false;
 
 void hw_estop_sim_set_active(bool active)
 {
-    atomic_store(&s_estop_active, active);
+    atomic_store(&s_hw_estop_sim_active, active);
 }
 
 bool hw_estop_sim_get_active(void)
 {
-    return atomic_load(&s_estop_active);
+    return atomic_load(&s_hw_estop_sim_active);
 }
 
 bool hw_estop_port_is_active(void)

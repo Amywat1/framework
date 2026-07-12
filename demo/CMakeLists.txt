@@ -6,22 +6,41 @@ add_compile_definitions(
 )
 
 file(GLOB _demo_app CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/app/*.c)
-file(GLOB _demo_wiring CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/wiring/wiring_sim.c)
+set(_demo_wiring
+    ${CMAKE_CURRENT_SOURCE_DIR}/wiring/wiring_sim.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/wiring/project_hooks_sim.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/wiring/demo_machine_ops.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/wiring/demo_alarm_catalog.c
+)
 
-# 已迁入框架源文件（按模块分组，迁入新模块时在此追加）
 set(_fw_common_src
     ${WDF_ROOT}/common/log.c
     ${WDF_ROOT}/common/time_util.c
-    ${WDF_ROOT}/common/pulse_out.c
 )
 
 set(_fw_runtime_src
+    ${WDF_ROOT}/runtime/bootstrap/bootstrap.c
     ${WDF_ROOT}/runtime/event_bus/event_bus.c
     ${WDF_ROOT}/runtime/scheduler/thread_registry.c
     ${WDF_ROOT}/runtime/scheduler/scheduler.c
     ${WDF_ROOT}/runtime/scheduler/periodic_task.c
     ${WDF_ROOT}/runtime/platform/safety_thread.c
     ${WDF_ROOT}/runtime/platform/device_safety_actuator.c
+)
+
+set(_fw_application_src
+    ${WDF_ROOT}/application/alarm_event_bridge.c
+    ${WDF_ROOT}/application/command_gateway.c
+    ${WDF_ROOT}/application/op_mode_bridge.c
+    ${WDF_ROOT}/application/self_check_service.c
+    ${WDF_ROOT}/application/side_effect_router.c
+    ${WDF_ROOT}/tests/stubs/wash_orchestrator_stub.c
+)
+
+set(_fw_domain_src
+    ${WDF_ROOT}/domain/command_gateway/operational_mode.c
+    ${WDF_ROOT}/domain/safety/alarm_registry/alarm_registry.c
+    ${WDF_ROOT}/domain/safety/safety_posture/safety_posture.c
 )
 
 set(_fw_ports_src
@@ -53,6 +72,8 @@ add_executable(wdf_smoke
     ${_demo_wiring}
     ${_fw_common_src}
     ${_fw_runtime_src}
+    ${_fw_application_src}
+    ${_fw_domain_src}
     ${_fw_ports_src}
     ${_fw_services_src}
     ${_fw_adapters_src}
