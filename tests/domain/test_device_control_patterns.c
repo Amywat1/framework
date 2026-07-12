@@ -223,6 +223,12 @@ static const fluid_path_cfg_t s_fluid_cfg = {
     .channel_count       = TEST_CH_COUNT,
 };
 
+static const fluid_path_cfg_t s_fluid_delayed_cfg = {
+    .valve_open_delay_ms = 50U,
+    .pump_stop_delay_ms  = 40U,
+    .channel_count       = TEST_CH_COUNT,
+};
+
 static void fluid_init_ok(void)
 {
     const fluid_path_actuator_ops_t ops = {
@@ -400,6 +406,62 @@ static void test_fluid_path_reference_counts_shared_pump(void)
     TEST_ASSERT_GREATER_THAN_INT(0, s_all_off_count);
 }
 
+static void test_fluid_path_rejects_invalid_topology_and_unknown_mask(void)
+{
+    const fluid_path_actuator_ops_t ops = {
+        .slot_set = mock_slot_set,
+        .all_off  = mock_all_off,
+    };
+    const fluid_path_actuator_key_t bad_dep[] = {
+        {TEST_CH_COUNT, FLUID_PATH_SLOT_PUMP},
+    };
+    const fluid_path_def_t duplicate_paths[] = {
+        {TEST_PATH_A, s_path_a_deps, 2U},
+        {TEST_PATH_A, s_path_b_deps, 2U},
+    };
+    const fluid_path_def_t bad_paths[] = {
+        {TEST_PATH_A, bad_dep, 1U},
+    };
+
+    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, fluid_path_init(&s_fluid_cfg, &ops, duplicate_paths, 2U));
+    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, fluid_path_init(&s_fluid_cfg, &ops, bad_paths, 1U));
+
+    fluid_init_ok();
+    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, fluid_path_set(FLUID_PATH_MASK(7U)));
+}
+
+static void test_fluid_path_respects_valve_and_pump_delays(void)
+{
+    const fluid_path_actuator_ops_t ops = {
+        .slot_set = mock_slot_set,
+        .all_off  = mock_all_off,
+    };
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, fluid_path_init(&s_fluid_delayed_cfg, &ops, s_paths, 2U));
+    TEST_ASSERT_EQUAL_INT(SW_OK, fluid_path_set(FLUID_PATH_MASK(TEST_PATH_A)));
+
+    fluid_path_poll(0U);
+    TEST_ASSERT_TRUE(s_slot_state[TEST_CH_A][FLUID_PATH_SLOT_WATER_VALVE]);
+    TEST_ASSERT_FALSE(s_slot_state[TEST_CH_SHARED][FLUID_PATH_SLOT_PUMP]);
+
+    fluid_path_poll(40U);
+    TEST_ASSERT_FALSE(s_slot_state[TEST_CH_SHARED][FLUID_PATH_SLOT_PUMP]);
+
+    fluid_path_poll(50U);
+    TEST_ASSERT_TRUE(s_slot_state[TEST_CH_SHARED][FLUID_PATH_SLOT_PUMP]);
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, fluid_path_set(0U));
+    fluid_path_poll(50U);
+    TEST_ASSERT_FALSE(s_slot_state[TEST_CH_SHARED][FLUID_PATH_SLOT_PUMP]);
+    TEST_ASSERT_TRUE(s_slot_state[TEST_CH_A][FLUID_PATH_SLOT_WATER_VALVE]);
+
+    fluid_path_poll(80U);
+    TEST_ASSERT_TRUE(s_slot_state[TEST_CH_A][FLUID_PATH_SLOT_WATER_VALVE]);
+
+    fluid_path_poll(90U);
+    TEST_ASSERT_FALSE(s_slot_state[TEST_CH_A][FLUID_PATH_SLOT_WATER_VALVE]);
+}
+
 static void test_fluid_path_emergency_off_is_polled(void)
 {
     uint64_t now_ms = 0U;
@@ -426,6 +488,8 @@ int main(void)
     RUN_TEST(test_interlocked_slots_switch_and_speed_update);
     RUN_TEST(test_interlocked_slots_validation_and_fault_state);
     RUN_TEST(test_fluid_path_reference_counts_shared_pump);
+    RUN_TEST(test_fluid_path_rejects_invalid_topology_and_unknown_mask);
+    RUN_TEST(test_fluid_path_respects_valve_and_pump_delays);
     RUN_TEST(test_fluid_path_emergency_off_is_polled);
 
     return UNITY_END();

@@ -7,6 +7,7 @@
 #include "domain/wash/engine/engine.h"
 #include "domain/wash/engine/engine_expr.h"
 #include "domain/wash/engine/engine_io.h"
+#include "domain/wash/engine/engine_profile.h"
 #include "domain/wash/model/engine_model.h"
 #include "domain/wash/model/engine_program_validate.h"
 #include "unity.h"
@@ -32,6 +33,30 @@ static bool expr_resolve(void *ctx, const char *name, double *out_value)
         }
     }
     return false;
+}
+
+static bool profile_height_at(void *ctx, double pos, double default_value, double *out_height)
+{
+    (void)ctx;
+    (void)default_value;
+
+    if (out_height == NULL) {
+        return false;
+    }
+    *out_height = pos + 10.0;
+    return true;
+}
+
+static bool profile_in_zone(void *ctx, const char *zone, double pos, bool default_value, bool *out_in_zone)
+{
+    (void)ctx;
+    (void)default_value;
+
+    if ((zone == NULL) || (out_in_zone == NULL)) {
+        return false;
+    }
+    *out_in_zone = (strcmp(zone, "mirror") == 0) && (pos >= 100.0) && (pos <= 200.0);
+    return true;
 }
 
 static int eval_int(const char *text, const expr_var_t *vars)
@@ -282,6 +307,7 @@ static engine_program_t *make_program(void)
 void setUp(void)
 {
     io_reset();
+    engine_profile_register(NULL);
 }
 
 void tearDown(void)
@@ -301,6 +327,31 @@ static void test_engine_expr_evaluates_arithmetic_logic_and_vars(void)
     TEST_ASSERT_TRUE(eval_bool_value("MARK AND axes.gantry.position >= 100 + $offset", vars));
     TEST_ASSERT_FALSE(eval_bool_value("NOT MARK", vars));
     TEST_ASSERT_NULL(engine_expr_compile("1 +"));
+}
+
+static void test_engine_expr_evaluates_profile_functions(void)
+{
+    static const engine_profile_provider_t provider = {
+        .height_at = profile_height_at,
+        .in_zone   = profile_in_zone,
+        .ctx       = NULL,
+    };
+    const expr_var_t vars[] = {
+        {"axes.gantry.position", 150.0},
+        {NULL,                   0.0  },
+    };
+
+    TEST_ASSERT_TRUE(eval_bool_value("body_contains(150, 100, 200)", vars));
+    TEST_ASSERT_TRUE(eval_bool_value("body_covers(150, 200, 100)", vars));
+
+    engine_profile_register(&provider);
+    TEST_ASSERT_EQUAL_INT(160, eval_int("profile.height_at(axes.gantry.position, 0)", vars));
+    TEST_ASSERT_TRUE(eval_bool_value("profile.in_zone(\"mirror\", axes.gantry.position, false)", vars));
+    TEST_ASSERT_FALSE(eval_bool_value("profile.in_zone('roof', axes.gantry.position, false)", vars));
+
+    engine_profile_register(NULL);
+    TEST_ASSERT_EQUAL_INT(77, eval_int("profile.height_at(axes.gantry.position, 77)", vars));
+    TEST_ASSERT_TRUE(eval_bool_value("profile.in_zone(\"missing\", axes.gantry.position, true)", vars));
 }
 
 static void test_engine_model_parse_clone_and_validate(void)
@@ -404,6 +455,7 @@ int main(void)
     UNITY_BEGIN();
 
     RUN_TEST(test_engine_expr_evaluates_arithmetic_logic_and_vars);
+    RUN_TEST(test_engine_expr_evaluates_profile_functions);
     RUN_TEST(test_engine_model_parse_clone_and_validate);
     RUN_TEST(test_engine_validate_rejects_unknown_after);
     RUN_TEST(test_engine_runtime_runs_steps_and_finishes_phase);

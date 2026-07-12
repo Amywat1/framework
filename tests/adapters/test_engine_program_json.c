@@ -138,6 +138,49 @@ static void test_engine_runs_loaded_json_with_sim_io(void)
     engine_destroy(engine);
 }
 
+static void test_json_loader_expands_step_templates(void)
+{
+    static const char *templated_json
+        = "{"
+          "\"program\":{"
+          "\"schema_version\":\"1.0\","
+          "\"id\":\"templated\","
+          "\"templates\":{"
+          "\"always_on\":{\"type\":\"control\",\"active_while\":\"true\",\"value_expr\":\"1\","
+          "\"output\":\"AOUT\",\"on_error\":\"degrade\"}"
+          "},"
+          "\"interlocks\":[{\"id\":\"estop\",\"condition\":\"ESTOP == 1\",\"action\":\"halt_all\","
+          "\"priority\":0,\"reset_condition\":\"ESTOP == 0\",\"auto_reset\":false}],"
+          "\"phases\":[{\"id\":\"p0\",\"entry_guard\":\"true\",\"exit_guard\":\"EXIT == 1\",\"timeout_ms\":1000,"
+          "\"lanes\":[{\"id\":\"lane\",\"steps\":["
+          "{\"id\":\"templated_a\",\"use\":\"always_on\"},"
+          "{\"id\":\"templated_b\",\"use\":\"always_on\",\"output\":\"BOUT\",\"value_expr\":\"2\"}"
+          "]}]}]"
+          "}"
+          "}";
+    char              err[200];
+    engine_t         *engine;
+    engine_program_t *program = engine_program_load_json_string(templated_json, err, sizeof(err));
+
+    TEST_ASSERT_NOT_NULL_MESSAGE(program, err);
+    TEST_ASSERT_EQUAL_UINT(2U, program->phases[0].lanes[0].step_count);
+    TEST_ASSERT_EQUAL_INT(ENGINE_STEP_CONTROL, program->phases[0].lanes[0].steps[0].type);
+    TEST_ASSERT_EQUAL_STRING("AOUT", program->phases[0].lanes[0].steps[0].output);
+    TEST_ASSERT_EQUAL_INT(ENGINE_ERR_DEGRADE, program->phases[0].lanes[0].steps[0].on_error);
+    TEST_ASSERT_EQUAL_STRING("BOUT", program->phases[0].lanes[0].steps[1].output);
+
+    engine = engine_create();
+    TEST_ASSERT_NOT_NULL(engine);
+    TEST_ASSERT_EQUAL_INT(SW_OK, engine_load_program(engine, program));
+    TEST_ASSERT_EQUAL_INT(SW_OK, engine_start(engine));
+
+    engine_tick(engine, 100U);
+    TEST_ASSERT_EQUAL_INT(1, engine_io_sim_get_output("AOUT"));
+    TEST_ASSERT_EQUAL_INT(2, engine_io_sim_get_output("BOUT"));
+
+    engine_destroy(engine);
+}
+
 static void test_json_loader_port_registers_and_loads_file(void)
 {
     const char       *path = "/tmp/wdf_engine_program_test.json";
@@ -164,6 +207,7 @@ int main(void)
     RUN_TEST(test_json_loader_parses_model_and_validates_catalog);
     RUN_TEST(test_json_loader_rejects_unknown_output);
     RUN_TEST(test_engine_runs_loaded_json_with_sim_io);
+    RUN_TEST(test_json_loader_expands_step_templates);
     RUN_TEST(test_json_loader_port_registers_and_loads_file);
 
     return UNITY_END();

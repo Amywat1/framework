@@ -35,6 +35,7 @@ static uint8_t                   s_channel_count = 0U;
 
 static const fluid_path_def_t *s_paths      = NULL;
 static size_t                  s_path_count = 0U;
+static fluid_path_mask_t       s_valid_mask = 0U;
 
 static uint8_t           s_ref[FLUID_PATH_CHANNEL_MAX][FLUID_PATH_SLOT_COUNT];
 static bool              s_actual[FLUID_PATH_CHANNEL_MAX][FLUID_PATH_SLOT_COUNT];
@@ -63,6 +64,45 @@ static bool key_valid(const fluid_path_actuator_key_t *key)
 {
     return (key != NULL) && (s_channel_count > 0U) && (key->ch < s_channel_count)
            && ((unsigned)key->slot < FLUID_PATH_SLOT_COUNT);
+}
+
+static bool key_valid_for_channel_count(const fluid_path_actuator_key_t *key, uint8_t channel_count)
+{
+    return (key != NULL) && (channel_count > 0U) && (key->ch < channel_count)
+           && ((unsigned)key->slot < FLUID_PATH_SLOT_COUNT);
+}
+
+static bool paths_valid(const fluid_path_cfg_t *cfg, const fluid_path_def_t *paths, size_t path_count, fluid_path_mask_t *out_mask)
+{
+    fluid_path_mask_t mask = 0U;
+    size_t            i;
+
+    if ((cfg == NULL) || (paths == NULL) || (out_mask == NULL) || (path_count == 0U)
+        || (path_count > FLUID_PATH_PATH_MAX)) {
+        return false;
+    }
+
+    for (i = 0U; i < path_count; i++) {
+        const fluid_path_def_t *path = &paths[i];
+        uint8_t                 j;
+
+        if ((path->path_idx >= FLUID_PATH_PATH_MAX) || (path->deps == NULL) || (path->dep_count == 0U)) {
+            return false;
+        }
+        if ((mask & FLUID_PATH_MASK(path->path_idx)) != 0U) {
+            return false;
+        }
+
+        for (j = 0U; j < path->dep_count; j++) {
+            if (!key_valid_for_channel_count(&path->deps[j], cfg->channel_count)) {
+                return false;
+            }
+        }
+        mask |= FLUID_PATH_MASK(path->path_idx);
+    }
+
+    *out_mask = mask;
+    return true;
 }
 
 static bool list_has(const fluid_path_actuator_key_t *key)
@@ -431,8 +471,13 @@ sw_err_t fluid_path_init(const fluid_path_cfg_t          *cfg,
                          const fluid_path_def_t          *paths,
                          size_t                           path_count)
 {
+    fluid_path_mask_t valid_mask = 0U;
+
     if ((cfg == NULL) || (ops == NULL) || (ops->slot_set == NULL) || (paths == NULL) || (path_count == 0U)
         || (cfg->channel_count == 0U) || (cfg->channel_count > FLUID_PATH_CHANNEL_MAX)) {
+        return SW_ERR_PARAM;
+    }
+    if (!paths_valid(cfg, paths, path_count, &valid_mask)) {
         return SW_ERR_PARAM;
     }
 
@@ -442,6 +487,7 @@ sw_err_t fluid_path_init(const fluid_path_cfg_t          *cfg,
     s_actuator      = *ops;
     s_paths         = paths;
     s_path_count    = path_count;
+    s_valid_mask     = valid_mask;
     s_ready         = true;
     reset_state();
     force_off_locked();
@@ -460,6 +506,10 @@ sw_err_t fluid_path_set(fluid_path_mask_t target)
     if (!s_ready) {
         pthread_mutex_unlock(&s_mutex);
         return SW_ERR_NOT_INIT;
+    }
+    if ((target & ~s_valid_mask) != 0U) {
+        pthread_mutex_unlock(&s_mutex);
+        return SW_ERR_PARAM;
     }
     s_pending_target = target;
     pthread_mutex_unlock(&s_mutex);

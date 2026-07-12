@@ -7,6 +7,8 @@
 
 #include "domain/wash/engine/engine_expr.h"
 
+#include "domain/wash/engine/engine_profile.h"
+
 #include <ctype.h>
 #include <math.h>
 #include <stdlib.h>
@@ -16,6 +18,7 @@
 #define EXPR_TOKEN_MAX 256U /* 单个表达式最大 token 数 */
 #define EXPR_NAME_MAX  64U  /* 变量名最大长度 */
 #define EXPR_ERR_MAX   128U /* 错误描述缓冲 */
+#define EXPR_FUNC_ARG_MAX 4U
 
 /* -------------------------------------------------------------------------
  * 词法
@@ -24,6 +27,7 @@ typedef enum {
     TK_END = 0,
     TK_NUM,
     TK_VAR,
+    TK_STR,
     TK_AND,
     TK_OR,
     TK_NOT,
@@ -39,6 +43,7 @@ typedef enum {
     TK_NE,
     TK_LPAREN,
     TK_RPAREN,
+    TK_COMMA,
     TK_QUESTION,
     TK_COLON
 } tok_type_t;
@@ -54,7 +59,9 @@ typedef struct {
  * ------------------------------------------------------------------------- */
 typedef enum {
     NODE_NUM,
+    NODE_STR,
     NODE_VAR,
+    NODE_FUNC,
     NODE_UNARY,  /* op: TK_MINUS / TK_NOT */
     NODE_BINARY, /* op: 算术/比较/AND/OR */
     NODE_TERNARY
@@ -65,6 +72,8 @@ typedef struct expr_node {
     tok_type_t        op;                  /* NODE_UNARY / NODE_BINARY 使用 */
     double            num;                 /* NODE_NUM */
     char              name[EXPR_NAME_MAX]; /* NODE_VAR */
+    unsigned          arg_count;           /* NODE_FUNC */
+    struct expr_node *args[EXPR_FUNC_ARG_MAX];
     struct expr_node *a;                   /* 左/条件/操作数 */
     struct expr_node *b;                   /* 右/真值分支 */
     struct expr_node *c;                   /* 三目假值分支 */
@@ -132,6 +141,24 @@ static bool tokenize(const char *text, parser_t *p)
         token_t *t = &p->toks[p->count];
         t->text[0] = '\0';
         t->num     = 0.0;
+
+        if ((*s == '"') || (*s == '\'')) {
+            char     quote = *s++;
+            unsigned n     = 0U;
+
+            while ((*s != '\0') && (*s != quote) && (n < (EXPR_NAME_MAX - 1U))) {
+                t->text[n++] = *s++;
+            }
+            if (*s != quote) {
+                set_error("字符串字面量未闭合或过长");
+                return false;
+            }
+            ++s;
+            t->text[n] = '\0';
+            t->type    = TK_STR;
+            ++p->count;
+            continue;
+        }
 
         /* 数字 */
         if ((isdigit((unsigned char)*s) != 0) || ((*s == '.') && (isdigit((unsigned char)s[1]) != 0))) {
@@ -205,6 +232,10 @@ static bool tokenize(const char *text, parser_t *p)
             break;
         case ')':
             t->type = TK_RPAREN;
+            ++s;
+            break;
+        case ',':
+            t->type = TK_COMMA;
             ++s;
             break;
         case '?':
@@ -299,6 +330,9 @@ static void node_free(expr_node_t *n)
     if (n == NULL) {
         return;
     }
+    for (unsigned i = 0U; i < n->arg_count; ++i) {
+        node_free(n->args[i]);
+    }
     node_free(n->a);
     node_free(n->b);
     node_free(n->c);
@@ -311,7 +345,54 @@ static void parse_fail(parser_t *p, const char *msg)
     set_error(msg);
 }
 
-/* primary := NUM | VAR | '(' expr ')' */
+static expr_node_t *parse_function_call(parser_t *p, const token_t *name_tok)
+{
+    expr_node_t *n = node_alloc(NODE_FUNC);
+    if (n == NULL) {
+        parse_fail(p, "内存不足");
+        return NULL;
+    }
+
+    (void)strncpy(n->name, name_tok->text, EXPR_NAME_MAX - 1U);
+    n->name[EXPR_NAME_MAX - 1U] = '\0';
+    (void)advance(p); /* '(' */
+
+    if (peek(p)->type == TK_RPAREN) {
+        (void)advance(p);
+        return n;
+    }
+
+    while (p->ok) {
+        if (n->arg_count >= EXPR_FUNC_ARG_MAX) {
+            parse_fail(p, "函数参数过多");
+            node_free(n);
+            return NULL;
+        }
+
+        n->args[n->arg_count] = parse_expr(p);
+        if (!p->ok) {
+            node_free(n);
+            return NULL;
+        }
+        ++n->arg_count;
+
+        if (peek(p)->type == TK_RPAREN) {
+            (void)advance(p);
+            return n;
+        }
+        if (peek(p)->type != TK_COMMA) {
+            parse_fail(p, "函数参数缺少逗号或右括号");
+            node_free(n);
+            return NULL;
+        }
+        (void)advance(p);
+    }
+
+    node_free(n);
+    return NULL;
+}
+
+/* primary := NUM | STR | VAR | function_call | '(' expr ')' */
 static expr_node_t *parse_primary(parser_t *p)
 {
     const token_t *t = peek(p);
@@ -326,8 +407,22 @@ static expr_node_t *parse_primary(parser_t *p)
         n->num = t->num;
         return n;
     }
+    if (t->type == TK_STR) {
+        (void)advance(p);
+        expr_node_t *n = node_alloc(NODE_STR);
+        if (n == NULL) {
+            parse_fail(p, "内存不足");
+            return NULL;
+        }
+        (void)strncpy(n->name, t->text, EXPR_NAME_MAX - 1U);
+        n->name[EXPR_NAME_MAX - 1U] = '\0';
+        return n;
+    }
     if (t->type == TK_VAR) {
         (void)advance(p);
+        if (peek(p)->type == TK_LPAREN) {
+            return parse_function_call(p, t);
+        }
         expr_node_t *n = node_alloc(NODE_VAR);
         if (n == NULL) {
             parse_fail(p, "内存不足");
@@ -611,6 +706,15 @@ static expr_node_t *node_clone(const expr_node_t *n)
     c->num  = n->num;
     (void)strncpy(c->name, n->name, EXPR_NAME_MAX - 1U);
     c->name[EXPR_NAME_MAX - 1U] = '\0';
+    c->arg_count = n->arg_count;
+
+    for (unsigned i = 0U; i < n->arg_count; ++i) {
+        c->args[i] = node_clone(n->args[i]);
+        if ((n->args[i] != NULL) && (c->args[i] == NULL)) {
+            node_free(c);
+            return NULL;
+        }
+    }
 
     c->a = node_clone(n->a);
     if ((n->a != NULL) && (c->a == NULL)) {
@@ -677,6 +781,9 @@ static void foreach_node_vars(const expr_node_t *n,
         return;
     }
 
+    for (unsigned i = 0U; i < n->arg_count; ++i) {
+        foreach_node_vars(n->args[i], fn, ctx, seen, seen_count);
+    }
     foreach_node_vars(n->a, fn, ctx, seen, seen_count);
     foreach_node_vars(n->b, fn, ctx, seen, seen_count);
     foreach_node_vars(n->c, fn, ctx, seen, seen_count);
@@ -706,6 +813,10 @@ static double eval_node(const expr_node_t *n, const engine_expr_env_t *env, bool
     case NODE_NUM:
         return n->num;
 
+    case NODE_STR:
+        *ok = false;
+        return 0.0;
+
     case NODE_VAR: {
         double v = 0.0;
         if ((env == NULL) || (env->resolve == NULL) || (!env->resolve(env->ctx, n->name, &v))) {
@@ -714,6 +825,79 @@ static double eval_node(const expr_node_t *n, const engine_expr_env_t *env, bool
         }
         return v;
     }
+
+    case NODE_FUNC:
+        if (strcmp(n->name, "body_contains") == 0) {
+            double pos;
+            double a;
+            double b;
+            double lo;
+            double hi;
+            if (n->arg_count != 3U) {
+                *ok = false;
+                return 0.0;
+            }
+            pos = eval_node(n->args[0], env, ok);
+            a   = eval_node(n->args[1], env, ok);
+            b   = eval_node(n->args[2], env, ok);
+            if (!(*ok)) {
+                return 0.0;
+            }
+            lo = (a < b) ? a : b;
+            hi = (a < b) ? b : a;
+            return ((pos >= lo) && (pos <= hi)) ? 1.0 : 0.0;
+        }
+        if (strcmp(n->name, "body_covers") == 0) {
+            double fixed;
+            double front;
+            double rear;
+            double lo;
+            double hi;
+            if (n->arg_count != 3U) {
+                *ok = false;
+                return 0.0;
+            }
+            fixed = eval_node(n->args[0], env, ok);
+            front = eval_node(n->args[1], env, ok);
+            rear  = eval_node(n->args[2], env, ok);
+            if (!(*ok)) {
+                return 0.0;
+            }
+            lo = (front < rear) ? front : rear;
+            hi = (front < rear) ? rear : front;
+            return ((fixed >= lo) && (fixed <= hi)) ? 1.0 : 0.0;
+        }
+        if (strcmp(n->name, "profile.height_at") == 0) {
+            double pos;
+            double def;
+            if (n->arg_count != 2U) {
+                *ok = false;
+                return 0.0;
+            }
+            pos = eval_node(n->args[0], env, ok);
+            def = eval_node(n->args[1], env, ok);
+            if (!(*ok)) {
+                return 0.0;
+            }
+            return engine_profile_height_at(pos, def);
+        }
+        if (strcmp(n->name, "profile.in_zone") == 0) {
+            double pos;
+            double def;
+            if ((n->arg_count != 3U) || (n->args[0] == NULL) || (n->args[0]->kind != NODE_STR)) {
+                *ok = false;
+                return 0.0;
+            }
+            pos = eval_node(n->args[1], env, ok);
+            def = eval_node(n->args[2], env, ok);
+            if (!(*ok)) {
+                return 0.0;
+            }
+            return engine_profile_in_zone(n->args[0]->name, pos, def != 0.0) ? 1.0 : 0.0;
+        }
+
+        *ok = false;
+        return 0.0;
 
     case NODE_UNARY: {
         double a = eval_node(n->a, env, ok);

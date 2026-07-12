@@ -220,6 +220,23 @@ add_unit_test(test_alarm_event_bridge
     ${WDF_ROOT}/common/log.c
 )
 
+add_unit_test(test_alarm_reeval_bridge
+    ${CMAKE_CURRENT_SOURCE_DIR}/application/test_alarm_reeval_bridge.c
+    ${WDF_ROOT}/application/alarm_reeval_bridge.c
+    ${WDF_ROOT}/domain/device_control/model/actuator_events.c
+    ${WDF_ROOT}/domain/safety/alarm_registry/alarm_registry.c
+    ${WDF_ROOT}/ports/port_registry.c
+    ${WDF_ROOT}/runtime/event_bus/event_bus.c
+    ${WDF_ROOT}/common/time_util.c
+    ${WDF_ROOT}/common/log.c
+)
+
+add_unit_test(test_alarm_detector_helper
+    ${CMAKE_CURRENT_SOURCE_DIR}/application/test_alarm_detector_helper.c
+    ${WDF_ROOT}/application/alarm_detector_helper.c
+    ${WDF_ROOT}/ports/port_registry.c
+)
+
 add_unit_test(test_op_mode_bridge
     ${CMAKE_CURRENT_SOURCE_DIR}/application/test_op_mode_bridge.c
     ${WDF_ROOT}/application/op_mode_bridge.c
@@ -260,6 +277,7 @@ add_unit_test(test_wash_engine
     ${WDF_ROOT}/domain/wash/engine/engine.c
     ${WDF_ROOT}/domain/wash/engine/engine_expr.c
     ${WDF_ROOT}/domain/wash/engine/engine_io.c
+    ${WDF_ROOT}/domain/wash/engine/engine_profile.c
     ${WDF_ROOT}/domain/wash/model/engine_model.c
     ${WDF_ROOT}/domain/wash/model/engine_program_validate.c
     ${WDF_ROOT}/domain/wash/model/engine_program_manifest.c
@@ -293,6 +311,7 @@ add_unit_test(test_wash_orchestrator
     ${WDF_ROOT}/domain/wash/engine/engine.c
     ${WDF_ROOT}/domain/wash/engine/engine_expr.c
     ${WDF_ROOT}/domain/wash/engine/engine_io.c
+    ${WDF_ROOT}/domain/wash/engine/engine_profile.c
     ${WDF_ROOT}/domain/wash/model/engine_model.c
     ${WDF_ROOT}/domain/wash/model/engine_program_validate.c
     ${WDF_ROOT}/domain/wash/model/engine_program_manifest.c
@@ -412,6 +431,7 @@ add_unit_test(test_engine_program_json
     ${WDF_ROOT}/domain/wash/engine/engine.c
     ${WDF_ROOT}/domain/wash/engine/engine_expr.c
     ${WDF_ROOT}/domain/wash/engine/engine_io.c
+    ${WDF_ROOT}/domain/wash/engine/engine_profile.c
     ${WDF_ROOT}/domain/wash/model/engine_model.c
     ${WDF_ROOT}/domain/wash/model/engine_program_validate.c
     ${WDF_ROOT}/domain/wash/model/engine_program_manifest.c

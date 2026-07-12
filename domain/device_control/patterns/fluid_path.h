@@ -23,6 +23,8 @@ extern "C" {
 
 /** 执行器通道数上限（ref 表静态分配） */
 #define FLUID_PATH_CHANNEL_MAX 16U
+/** 逻辑路径数上限（受 fluid_path_mask_t 位宽限制） */
+#define FLUID_PATH_PATH_MAX 32U
 
 /** 执行器通道索引（无名字，由机型配置表赋值） */
 typedef uint8_t fluid_path_channel_idx_t;

@@ -68,6 +68,10 @@ static void copy_name(char *dst, unsigned cap, const char *src)
     (void)snprintf(dst, cap, "%s", (src != NULL) ? src : "");
 }
 
+typedef struct {
+    const cJSON *templates;
+} json_build_ctx_t;
+
 /* 编译表达式字段（必需） */
 static engine_expr_t *build_expr(const cJSON *o, const char *key, char *err, unsigned errsz)
 {
@@ -309,10 +313,117 @@ static bool build_step(engine_step_t *st, const cJSON *node, char *err, unsigned
     return build_event_step(st, node, err, errsz);
 }
 
+static const cJSON *find_step_template(const cJSON *templates, const char *id)
+{
+    if ((templates == NULL) || (id == NULL)) {
+        return NULL;
+    }
+
+    if (cJSON_IsObject(templates)) {
+        return cJSON_GetObjectItemCaseSensitive(templates, id);
+    }
+
+    if (cJSON_IsArray(templates)) {
+        const cJSON *item = NULL;
+        cJSON_ArrayForEach(item, templates)
+        {
+            const char *tid = jstr(item, "id");
+            if ((tid != NULL) && (strcmp(tid, id) == 0)) {
+                return item;
+            }
+        }
+    }
+
+    return NULL;
+}
+
+static bool object_replace_or_add(cJSON *dst, const cJSON *src_item)
+{
+    cJSON *dup = cJSON_Duplicate(src_item, true);
+    if (dup == NULL) {
+        return false;
+    }
+
+    if (cJSON_GetObjectItemCaseSensitive(dst, src_item->string) != NULL) {
+        if (!cJSON_ReplaceItemInObjectCaseSensitive(dst, src_item->string, dup)) {
+            cJSON_Delete(dup);
+            return false;
+        }
+        return true;
+    }
+
+    if (!cJSON_AddItemToObject(dst, src_item->string, dup)) {
+        cJSON_Delete(dup);
+        return false;
+    }
+    return true;
+}
+
+static cJSON *expand_step_template(const json_build_ctx_t *ctx, const cJSON *node, char *err, unsigned errsz)
+{
+    const char *use = jstr(node, "use");
+    if (use == NULL) {
+        return NULL;
+    }
+
+    const cJSON *templ = find_step_template((ctx != NULL) ? ctx->templates : NULL, use);
+    if (templ == NULL) {
+        jfail(err, errsz, "未知步骤模板: %s", use);
+        return NULL;
+    }
+    if (!cJSON_IsObject(templ)) {
+        jfail(err, errsz, "步骤模板不是对象: %s", use);
+        return NULL;
+    }
+
+    cJSON *merged = cJSON_Duplicate(templ, true);
+    if (merged == NULL) {
+        jfail(err, errsz, "%s", "内存不足");
+        return NULL;
+    }
+
+    const cJSON *field = NULL;
+    cJSON_ArrayForEach(field, node)
+    {
+        if ((field->string == NULL) || (strcmp(field->string, "use") == 0)) {
+            continue;
+        }
+        if (!object_replace_or_add(merged, field)) {
+            cJSON_Delete(merged);
+            jfail(err, errsz, "%s", "内存不足");
+            return NULL;
+        }
+    }
+
+    return merged;
+}
+
+static bool build_step_with_templates(engine_step_t           *st,
+                                      const cJSON            *node,
+                                      const json_build_ctx_t *ctx,
+                                      char                   *err,
+                                      unsigned                errsz)
+{
+    cJSON *expanded = expand_step_template(ctx, node, err, errsz);
+    if (expanded != NULL) {
+        bool ok = build_step(st, expanded, err, errsz);
+        cJSON_Delete(expanded);
+        return ok;
+    }
+    if (err[0] != '\0') {
+        return false;
+    }
+    return build_step(st, node, err, errsz);
+}
+
 /* -------------------------------------------------------------------------
  * 阶段
  * ------------------------------------------------------------------------- */
-static bool build_phase(engine_phase_t *ph, const cJSON *node, char *err, unsigned errsz)
+static bool build_phase(engine_phase_t         *ph,
+                        const cJSON            *node,
+                        const json_build_ctx_t *ctx,
+                        char                   *err,
+                        unsigned                errsz)
 {
     const char *pid = jstr(node, "id");
     if (pid == NULL) {
@@ -394,7 +505,7 @@ static bool build_phase(engine_phase_t *ph, const cJSON *node, char *err, unsign
         lane->step_count = (unsigned)st_cnt;
 
         for (int j = 0; j < st_cnt; ++j) {
-            if (!build_step(&lane->steps[j], cJSON_GetArrayItem(steps, j), err, errsz)) {
+            if (!build_step_with_templates(&lane->steps[j], cJSON_GetArrayItem(steps, j), ctx, err, errsz)) {
                 return false;
             }
         }
@@ -433,6 +544,16 @@ static engine_program_t *build_program(const cJSON *root, char *err, unsigned er
     copy_name(p->schema_version, ENGINE_VERSION_MAX, ver);
     copy_name(p->id, ENGINE_NAME_MAX, jstr(prog, "id"));
     copy_name(p->name, ENGINE_DISPLAY_MAX, jstr(prog, "name"));
+
+    const cJSON *templates = cJSON_GetObjectItemCaseSensitive(prog, "templates");
+    json_build_ctx_t ctx   = {
+        .templates = templates,
+    };
+    if ((templates != NULL) && !cJSON_IsObject(templates) && !cJSON_IsArray(templates)) {
+        jfail(err, errsz, "%s", "templates 应为对象或数组");
+        engine_program_free(p);
+        return NULL;
+    }
 
     /* params（对象，可选） */
     const cJSON *params = cJSON_GetObjectItemCaseSensitive(prog, "params");
@@ -590,7 +711,7 @@ static engine_program_t *build_program(const cJSON *root, char *err, unsigned er
     }
     p->phase_count = (unsigned)ph_cnt;
     for (int i = 0; i < ph_cnt; ++i) {
-        if (!build_phase(&p->phases[i], cJSON_GetArrayItem(phases, i), err, errsz)) {
+        if (!build_phase(&p->phases[i], cJSON_GetArrayItem(phases, i), &ctx, err, errsz)) {
             engine_program_free(p);
             return NULL;
         }

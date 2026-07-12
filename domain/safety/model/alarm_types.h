@@ -14,11 +14,22 @@ extern "C" {
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <stddef.h>
 
 /* -------------------------------------------------------------------------
- * 报警码编码宏：6 位十进制 = 大类(1) + 编号(3) + 性质(2)
+ * 报警码编码：6 位十进制 = 大类(1) + 编号(3) + 性质(2)
  * ------------------------------------------------------------------------- */
-#define ALARM_CODE_MAKE(major, index, nature) ((uint32_t)((major) * 100000U + (index) * 100U + (nature)))
+#define ALARM_CODE_CATEGORY_MIN 1U
+#define ALARM_CODE_CATEGORY_MAX 9U
+#define ALARM_CODE_INDEX_MAX    999U
+#define ALARM_CODE_NATURE_MAX   99U
+
+#define ALARM_CODE_MAKE(category, index, nature) \
+    ((uint32_t)((category) * 100000U + (index) * 100U + (nature)))
+
+#define ALARM_CODE_CATEGORY(code) ((uint32_t)((code) / 100000U))
+#define ALARM_CODE_INDEX(code)    ((uint32_t)(((code) / 100U) % 1000U))
+#define ALARM_CODE_NATURE(code)   ((uint32_t)((code) % 100U))
 
 #define ALM_C_POWER 1U
 #define ALM_C_SENSE 2U
@@ -78,6 +89,39 @@ typedef uint16_t motion_reeval_group_id_t;
 typedef enum {
     ALARM_CODE_NONE = 0U,
 } alarm_code_t;
+
+static inline bool alarm_code_parts_valid(uint32_t category, uint32_t index, uint32_t nature)
+{
+    return (category >= ALARM_CODE_CATEGORY_MIN) && (category <= ALARM_CODE_CATEGORY_MAX)
+           && (index <= ALARM_CODE_INDEX_MAX) && (nature <= ALARM_CODE_NATURE_MAX);
+}
+
+static inline bool alarm_code_is_valid(uint32_t code)
+{
+    uint32_t category;
+    uint32_t index;
+    uint32_t nature;
+
+    if (code == ALARM_CODE_NONE) {
+        return false;
+    }
+
+    category = ALARM_CODE_CATEGORY(code);
+    index    = ALARM_CODE_INDEX(code);
+    nature   = ALARM_CODE_NATURE(code);
+
+    return alarm_code_parts_valid(category, index, nature)
+           && (code == ALARM_CODE_MAKE(category, index, nature));
+}
+
+static inline bool alarm_code_make_checked(uint32_t category, uint32_t index, uint32_t nature, uint32_t *out_code)
+{
+    if (!alarm_code_parts_valid(category, index, nature) || (out_code == NULL)) {
+        return false;
+    }
+    *out_code = ALARM_CODE_MAKE(category, index, nature);
+    return true;
+}
 
 typedef struct {
     uint32_t                 code;

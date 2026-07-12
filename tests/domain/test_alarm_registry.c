@@ -46,6 +46,26 @@ static bool skip_estop(uint32_t code)
     return code == 201709U;
 }
 
+static void test_alarm_code_helpers_make_decode_and_validate(void)
+{
+    uint32_t code = 0U;
+
+    TEST_ASSERT_EQUAL_UINT(201101U, ALARM_CODE_MAKE(ALM_C_SENSE, 11U, ALM_N_OVERLOAD));
+    TEST_ASSERT_EQUAL_UINT(ALM_C_SENSE, ALARM_CODE_CATEGORY(201101U));
+    TEST_ASSERT_EQUAL_UINT(11U, ALARM_CODE_INDEX(201101U));
+    TEST_ASSERT_EQUAL_UINT(ALM_N_OVERLOAD, ALARM_CODE_NATURE(201101U));
+    TEST_ASSERT_TRUE(alarm_code_is_valid(201101U));
+    TEST_ASSERT_FALSE(alarm_code_is_valid(ALARM_CODE_NONE));
+    TEST_ASSERT_FALSE(alarm_code_is_valid(1000000U));
+
+    TEST_ASSERT_TRUE(alarm_code_make_checked(ALM_C_CTRL, 3U, ALM_N_HW_FAULT, &code));
+    TEST_ASSERT_EQUAL_UINT(400303U, code);
+    TEST_ASSERT_FALSE(alarm_code_make_checked(0U, 3U, ALM_N_HW_FAULT, &code));
+    TEST_ASSERT_FALSE(alarm_code_make_checked(ALM_C_CTRL, 1000U, ALM_N_HW_FAULT, &code));
+    TEST_ASSERT_FALSE(alarm_code_make_checked(ALM_C_CTRL, 3U, 100U, &code));
+    TEST_ASSERT_FALSE(alarm_code_make_checked(ALM_C_CTRL, 3U, ALM_N_HW_FAULT, NULL));
+}
+
 void setUp(void)
 {
     (void)alarm_registry_init();
@@ -159,6 +179,7 @@ int main(void)
 {
     UNITY_BEGIN();
 
+    RUN_TEST(test_alarm_code_helpers_make_decode_and_validate);
     RUN_TEST(test_trigger_clear_idempotent);
     RUN_TEST(test_major_not_lockout);
     RUN_TEST(test_critical_lockout);
