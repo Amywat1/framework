@@ -215,6 +215,22 @@ add_unit_test(test_recovery_emergency
     ${WDF_ROOT}/common/time_util.c
 )
 
+add_unit_test(test_telemetry_projection
+    ${CMAKE_CURRENT_SOURCE_DIR}/application/test_telemetry_projection.c
+    ${WDF_ROOT}/application/wash_projection.c
+    ${WDF_ROOT}/application/operational_projection.c
+    ${WDF_ROOT}/application/safety_projection.c
+    ${WDF_ROOT}/domain/telemetry/snapshot/wash_snapshot.c
+    ${WDF_ROOT}/domain/telemetry/snapshot/operational_snapshot.c
+    ${WDF_ROOT}/domain/telemetry/snapshot/safety_snapshot.c
+    ${WDF_ROOT}/domain/command_gateway/operational_mode.c
+    ${WDF_ROOT}/domain/safety/alarm_registry/alarm_registry.c
+    ${WDF_ROOT}/ports/port_registry.c
+    ${WDF_ROOT}/runtime/event_bus/event_bus.c
+    ${WDF_ROOT}/common/log.c
+    ${WDF_ROOT}/common/time_util.c
+)
+
 add_unit_test(test_command_gateway
     ${CMAKE_CURRENT_SOURCE_DIR}/application/test_command_gateway.c
     ${WDF_ROOT}/application/command_gateway.c
