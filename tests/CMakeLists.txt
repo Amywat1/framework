@@ -57,6 +57,15 @@ add_unit_test(test_hal_vfd_manager
 )
 target_compile_definitions(test_hal_vfd_manager PRIVATE HAL_VFD_MANAGER_UNIT_TEST)
 
+add_unit_test(test_hal_motor_exec_mcc
+    ${CMAKE_CURRENT_SOURCE_DIR}/adapters/test_hal_motor_exec_mcc.c
+    ${WDF_ROOT}/adapters/outbound/hal/providers/mcc/hal_motor_exec_adapter.c
+    ${WDF_ROOT}/tests/stubs/mcc/motor_control_core_fake.c
+)
+target_include_directories(test_hal_motor_exec_mcc PRIVATE
+    ${WDF_ROOT}/third_party/mcc/motor_control_core-1.0.0/include
+)
+
 add_unit_test(test_sim_encoder_counter
     ${CMAKE_CURRENT_SOURCE_DIR}/adapters/test_sim_encoder_counter.c
     ${WDF_ROOT}/adapters/outbound/hal/sim/sim_encoder_counter.c
