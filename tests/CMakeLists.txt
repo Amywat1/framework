@@ -85,6 +85,24 @@ add_unit_test(test_cloud_point_watcher
     ${WDF_ROOT}/common/time_util.c
 )
 
+add_unit_test(test_cloud_model_report_scheduler
+    ${CMAKE_CURRENT_SOURCE_DIR}/cloud/test_cloud_model_report_scheduler.c
+    ${WDF_ROOT}/cloud/cloud_model.c
+    ${WDF_ROOT}/cloud/cloud_point_dispatch.c
+    ${WDF_ROOT}/cloud/cloud_point_validate.c
+    ${WDF_ROOT}/cloud/cloud_point_watcher.c
+    ${WDF_ROOT}/application/orchestrators/report_scheduler.c
+    ${WDF_ROOT}/common/point_table/point_table_from_json.c
+    ${WDF_ROOT}/common/point_table/point_table_to_json.c
+    ${WDF_ROOT}/ports/port_registry.c
+    ${WDF_ROOT}/runtime/event_bus/event_bus.c
+    ${WDF_ROOT}/runtime/scheduler/periodic_task.c
+    ${WDF_ROOT}/runtime/scheduler/thread_registry.c
+    ${WDF_ROOT}/common/log.c
+    ${WDF_ROOT}/common/time_util.c
+    ${WDF_ROOT}/third_party/cJSON/cJSON.c
+)
+
 add_unit_test(test_alarm_registry
     ${CMAKE_CURRENT_SOURCE_DIR}/domain/test_alarm_registry.c
     ${WDF_ROOT}/domain/safety/alarm_registry/alarm_registry.c
