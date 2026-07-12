@@ -26,6 +26,10 @@ ctest --test-dir build -V
 | — | `test_cloud_point_validate` | 9 | 通过 | `cloud/` |
 | — | `test_cloud_point_dispatch` | 8 | 通过 | `cloud/` |
 | — | `test_cloud_point_watcher` | 3 | 通过 | `cloud/` |
+| — | `test_alarm_registry` | 9 | 通过 | `domain/safety/alarm_registry/` |
+| — | `test_safety_posture` | 2 | 通过 | `domain/safety/safety_posture/` |
+| — | `test_alarm_event_bridge` | 2 | 通过 | `application/alarm_event_bridge.c` |
+| — | `test_op_mode_bridge` | 5 | 通过 | `application/op_mode_bridge.c` |
 | — | `test_operational_mode` | 11 | 通过 | `domain/command_gateway/` |
 | — | `test_side_effect_router` | 9 | 通过 | `application/side_effect_router.c` |
 | — | `test_command_gateway` | 6 | 通过 | `application/`、`domain/command_gateway/` |
@@ -40,7 +44,7 @@ ctest --test-dir build -V
 | — | `test_svc_param` | 9 | 通过 | `services/param/` |
 | — | `test_safety_thread` | 2 | 通过 | `runtime/platform/` |
 
-**合计：23 个测试目标，175 个用例，全部通过。**
+**合计：27 个测试目标，193 个用例，全部通过。**
 
 ## 本次 git 变更测试映射
 
@@ -65,5 +69,5 @@ ctest --test-dir build -V
 
 | 模块 | 说明 |
 |------|------|
-| `self_check_service` | 逻辑薄，经 `side_effect_router` 间接覆盖 START_SELF_CHECK 路径时可再补 |
 | `bootstrap` / MQTT 适配器 | 尚未迁入 |
+| `wash_orchestrator.c` | 仅有头文件与测试桩 |

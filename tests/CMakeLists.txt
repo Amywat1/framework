@@ -85,6 +85,47 @@ add_unit_test(test_cloud_point_watcher
     ${WDF_ROOT}/common/time_util.c
 )
 
+add_unit_test(test_alarm_registry
+    ${CMAKE_CURRENT_SOURCE_DIR}/domain/test_alarm_registry.c
+    ${WDF_ROOT}/domain/safety/alarm_registry/alarm_registry.c
+    ${WDF_ROOT}/ports/port_registry.c
+    ${WDF_ROOT}/common/time_util.c
+    ${WDF_ROOT}/common/log.c
+)
+
+add_unit_test(test_safety_posture
+    ${CMAKE_CURRENT_SOURCE_DIR}/domain/test_safety_posture.c
+    ${WDF_ROOT}/domain/safety/safety_posture/safety_posture.c
+    ${WDF_ROOT}/application/alarm_event_bridge.c
+    ${WDF_ROOT}/domain/safety/alarm_registry/alarm_registry.c
+    ${WDF_ROOT}/ports/port_registry.c
+    ${WDF_ROOT}/runtime/event_bus/event_bus.c
+    ${WDF_ROOT}/common/time_util.c
+    ${WDF_ROOT}/common/log.c
+)
+
+add_unit_test(test_alarm_event_bridge
+    ${CMAKE_CURRENT_SOURCE_DIR}/application/test_alarm_event_bridge.c
+    ${WDF_ROOT}/application/alarm_event_bridge.c
+    ${WDF_ROOT}/domain/safety/alarm_registry/alarm_registry.c
+    ${WDF_ROOT}/ports/port_registry.c
+    ${WDF_ROOT}/runtime/event_bus/event_bus.c
+    ${WDF_ROOT}/common/time_util.c
+    ${WDF_ROOT}/common/log.c
+)
+
+add_unit_test(test_op_mode_bridge
+    ${CMAKE_CURRENT_SOURCE_DIR}/application/test_op_mode_bridge.c
+    ${WDF_ROOT}/application/op_mode_bridge.c
+    ${WDF_ROOT}/domain/command_gateway/operational_mode.c
+    ${WDF_ROOT}/domain/safety/alarm_registry/alarm_registry.c
+    ${WDF_ROOT}/ports/outbound/safety/op_mode_alarm_port.c
+    ${WDF_ROOT}/ports/port_registry.c
+    ${WDF_ROOT}/runtime/event_bus/event_bus.c
+    ${WDF_ROOT}/common/time_util.c
+    ${WDF_ROOT}/common/log.c
+)
+
 add_unit_test(test_operational_mode
     ${CMAKE_CURRENT_SOURCE_DIR}/domain/test_operational_mode.c
     ${WDF_ROOT}/domain/command_gateway/operational_mode.c
