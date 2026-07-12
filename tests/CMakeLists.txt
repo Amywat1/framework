@@ -350,6 +350,16 @@ target_compile_definitions(test_svc_param PRIVATE
     PARAM_STORE_JSON_FILE_PATH="${CMAKE_BINARY_DIR}/tests/svc_param_test.json"
 )
 
+add_unit_test(test_dev_ctx
+    ${CMAKE_CURRENT_SOURCE_DIR}/services/test_dev_ctx.c
+    ${WDF_ROOT}/services/dev_ctx/dev_ctx.c
+    ${WDF_ROOT}/domain/telemetry/snapshot/operational_snapshot.c
+    ${WDF_ROOT}/domain/telemetry/snapshot/safety_snapshot.c
+    ${WDF_ROOT}/domain/telemetry/snapshot/wash_snapshot.c
+    ${WDF_ROOT}/ports/port_registry.c
+    ${WDF_ROOT}/common/log.c
+)
+
 add_unit_test(test_safety_thread
     ${CMAKE_CURRENT_SOURCE_DIR}/runtime/test_safety_thread.c
     ${WDF_ROOT}/runtime/platform/safety_thread.c
