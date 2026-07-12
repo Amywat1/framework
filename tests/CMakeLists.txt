@@ -241,6 +241,20 @@ target_compile_definitions(test_json_deploy_store PRIVATE
     DEPLOY_STORE_JSON_FILE_PATH="${CMAKE_BINARY_DIR}/tests/deploy_store_test.json"
 )
 
+add_unit_test(test_engine_program_json
+    ${CMAKE_CURRENT_SOURCE_DIR}/adapters/test_engine_program_json.c
+    ${WDF_ROOT}/adapters/outbound/storage/json/engine_program_json.c
+    ${WDF_ROOT}/adapters/outbound/hal/sim/engine_io_sim.c
+    ${WDF_ROOT}/ports/outbound/storage/engine_program_loader_port.c
+    ${WDF_ROOT}/domain/wash/engine/engine.c
+    ${WDF_ROOT}/domain/wash/engine/engine_expr.c
+    ${WDF_ROOT}/domain/wash/engine/engine_io.c
+    ${WDF_ROOT}/domain/wash/model/engine_model.c
+    ${WDF_ROOT}/domain/wash/model/engine_program_validate.c
+    ${WDF_ROOT}/domain/wash/model/engine_program_manifest.c
+    ${WDF_ROOT}/third_party/cJSON/cJSON.c
+)
+
 add_unit_test(test_scheduler
     ${CMAKE_CURRENT_SOURCE_DIR}/runtime/test_scheduler.c
     ${WDF_ROOT}/runtime/scheduler/thread_registry.c
