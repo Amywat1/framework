@@ -45,6 +45,18 @@ add_unit_test(test_hal_sensor_filter
     ${WDF_ROOT}/common/log.c
 )
 
+add_unit_test(test_hal_vfd_manager
+    ${CMAKE_CURRENT_SOURCE_DIR}/adapters/test_hal_vfd_manager.c
+    ${WDF_ROOT}/adapters/outbound/hal/components/vfd_manager/hal_vfd_manager.c
+    ${WDF_ROOT}/common/pulse_out.c
+    ${WDF_ROOT}/common/time_util.c
+    ${WDF_ROOT}/runtime/scheduler/periodic_task.c
+    ${WDF_ROOT}/runtime/scheduler/thread_registry.c
+    ${WDF_ROOT}/ports/port_registry.c
+    ${WDF_ROOT}/common/log.c
+)
+target_compile_definitions(test_hal_vfd_manager PRIVATE HAL_VFD_MANAGER_UNIT_TEST)
+
 add_unit_test(test_sim_encoder_counter
     ${CMAKE_CURRENT_SOURCE_DIR}/adapters/test_sim_encoder_counter.c
     ${WDF_ROOT}/adapters/outbound/hal/sim/sim_encoder_counter.c
