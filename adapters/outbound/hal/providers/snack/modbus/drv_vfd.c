@@ -7,8 +7,8 @@
 
 #include "drv_vfd.h"
 
-#include "drv_modbus_link.h"
 #include "common/log.h"
+#include "drv_modbus_link.h"
 
 #include <pthread.h>
 #include <stdint.h>

@@ -25,8 +25,7 @@ sw_err_t snack_cloud_command_adapter_register(void);
  * @brief  属性下发应答（供 cloud_model bundle.property_reply 注入）
  * @note   deploy 未配置 topicPropertyReply 时静默跳过
  */
-sw_err_t snack_cloud_property_reply(const char *request_json,
-                                     const point_apply_result_t *result);
+sw_err_t snack_cloud_property_reply(const char *request_json, const point_apply_result_t *result);
 
 #ifdef __cplusplus
 }

@@ -53,7 +53,7 @@ void tearDown(void)
 
 static void test_detector_triggers_and_clears_on_edges(void)
 {
-    alarm_detector_t detector;
+    alarm_detector_t           detector;
     const alarm_detector_cfg_t cfg = {
         .alarm_code          = 201101U,
         .clear_when_inactive = true,
@@ -79,7 +79,7 @@ static void test_detector_triggers_and_clears_on_edges(void)
 
 static void test_detector_can_hold_until_manual_clear(void)
 {
-    alarm_detector_t detector;
+    alarm_detector_t           detector;
     const alarm_detector_cfg_t cfg = {
         .alarm_code          = 201102U,
         .clear_when_inactive = false,
@@ -96,7 +96,7 @@ static void test_detector_can_hold_until_manual_clear(void)
 
 static void test_detector_keeps_state_when_binding_fails(void)
 {
-    alarm_detector_t detector;
+    alarm_detector_t           detector;
     const alarm_detector_cfg_t cfg = {
         .alarm_code          = 201103U,
         .clear_when_inactive = true,
@@ -119,7 +119,7 @@ static void test_detector_keeps_state_when_binding_fails(void)
 
 static void test_detector_rejects_invalid_config_and_unregistered_port(void)
 {
-    alarm_detector_t detector;
+    alarm_detector_t           detector;
     const alarm_detector_cfg_t bad_cfg = {
         .alarm_code          = 0U,
         .clear_when_inactive = true,

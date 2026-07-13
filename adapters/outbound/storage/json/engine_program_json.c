@@ -398,7 +398,7 @@ static cJSON *expand_step_template(const json_build_ctx_t *ctx, const cJSON *nod
     return merged;
 }
 
-static bool build_step_with_templates(engine_step_t           *st,
+static bool build_step_with_templates(engine_step_t          *st,
                                       const cJSON            *node,
                                       const json_build_ctx_t *ctx,
                                       char                   *err,
@@ -419,11 +419,7 @@ static bool build_step_with_templates(engine_step_t           *st,
 /* -------------------------------------------------------------------------
  * 阶段
  * ------------------------------------------------------------------------- */
-static bool build_phase(engine_phase_t         *ph,
-                        const cJSON            *node,
-                        const json_build_ctx_t *ctx,
-                        char                   *err,
-                        unsigned                errsz)
+static bool build_phase(engine_phase_t *ph, const cJSON *node, const json_build_ctx_t *ctx, char *err, unsigned errsz)
 {
     const char *pid = jstr(node, "id");
     if (pid == NULL) {
@@ -545,9 +541,9 @@ static engine_program_t *build_program(const cJSON *root, char *err, unsigned er
     copy_name(p->id, ENGINE_NAME_MAX, jstr(prog, "id"));
     copy_name(p->name, ENGINE_DISPLAY_MAX, jstr(prog, "name"));
 
-    const cJSON *templates = cJSON_GetObjectItemCaseSensitive(prog, "templates");
-    json_build_ctx_t ctx   = {
-        .templates = templates,
+    const cJSON     *templates = cJSON_GetObjectItemCaseSensitive(prog, "templates");
+    json_build_ctx_t ctx       = {
+              .templates = templates,
     };
     if ((templates != NULL) && !cJSON_IsObject(templates) && !cJSON_IsArray(templates)) {
         jfail(err, errsz, "%s", "templates 应为对象或数组");

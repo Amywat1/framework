@@ -20,15 +20,12 @@ void tearDown(void)
 
 static void test_run_continuous_maps_speed_direction_and_result(void)
 {
-    hal_motor_cmd_result_t    result;
+    hal_motor_cmd_result_t      result;
     const mcc_fake_last_call_t *last;
 
     mcc_fake_set_cmd_result(MOTOR_CMD_QUEUED, "cooldown");
 
-    result = hal_motor_run_continuous((hal_motor_exec_t *)&s_exec,
-                                      3,
-                                      hal_motor_speed_gear(2),
-                                      HAL_MOTOR_DIR_REVERSE);
+    result = hal_motor_run_continuous((hal_motor_exec_t *)&s_exec, 3, hal_motor_speed_gear(2), HAL_MOTOR_DIR_REVERSE);
     last   = mcc_fake_last_call();
 
     TEST_ASSERT_EQUAL_INT(HAL_MOTOR_CMD_QUEUED, result.status);
@@ -43,7 +40,7 @@ static void test_run_continuous_maps_speed_direction_and_result(void)
 
 static void test_move_to_maps_move_spec(void)
 {
-    hal_motor_move_spec_t      spec = {
+    hal_motor_move_spec_t spec = {
         .use_limit      = true,
         .limit          = HAL_MOTOR_LIMIT_NEG,
         .use_position   = true,
@@ -55,13 +52,10 @@ static void test_move_to_maps_move_spec(void)
     };
     const mcc_fake_last_call_t *last;
 
-    TEST_ASSERT_EQUAL_INT(HAL_MOTOR_CMD_ACCEPTED,
-                          hal_motor_move_to((hal_motor_exec_t *)&s_exec,
-                                            1,
-                                            hal_motor_speed_freq(2500),
-                                            HAL_MOTOR_DIR_FORWARD,
-                                            &spec)
-                              .status);
+    TEST_ASSERT_EQUAL_INT(
+        HAL_MOTOR_CMD_ACCEPTED,
+        hal_motor_move_to((hal_motor_exec_t *)&s_exec, 1, hal_motor_speed_freq(2500), HAL_MOTOR_DIR_FORWARD, &spec)
+            .status);
     last = mcc_fake_last_call();
 
     TEST_ASSERT_EQUAL_INT(MCC_FAKE_CALL_MOVE_TO, last->call);
@@ -83,11 +77,7 @@ static void test_move_to_accepts_null_spec(void)
 {
     const mcc_fake_last_call_t *last;
 
-    (void)hal_motor_move_to((hal_motor_exec_t *)&s_exec,
-                            1,
-                            hal_motor_speed_freq(1000),
-                            HAL_MOTOR_DIR_FORWARD,
-                            NULL);
+    (void)hal_motor_move_to((hal_motor_exec_t *)&s_exec, 1, hal_motor_speed_freq(1000), HAL_MOTOR_DIR_FORWARD, NULL);
     last = mcc_fake_last_call();
 
     TEST_ASSERT_EQUAL_INT(MCC_FAKE_CALL_MOVE_TO, last->call);
@@ -103,10 +93,7 @@ static void test_command_helpers_delegate_to_mcc(void)
     TEST_ASSERT_EQUAL_INT(MCC_FAKE_CALL_STOP, last->call);
     TEST_ASSERT_EQUAL_INT(2, last->motor);
 
-    (void)hal_motor_set_speed((hal_motor_exec_t *)&s_exec,
-                              4,
-                              hal_motor_speed_freq(3300),
-                              HAL_MOTOR_DIR_REVERSE);
+    (void)hal_motor_set_speed((hal_motor_exec_t *)&s_exec, 4, hal_motor_speed_freq(3300), HAL_MOTOR_DIR_REVERSE);
     last = mcc_fake_last_call();
     TEST_ASSERT_EQUAL_INT(MCC_FAKE_CALL_SET_SPEED, last->call);
     TEST_ASSERT_EQUAL_INT(MOTOR_SPEED_FREQ, last->speed.kind);
@@ -142,30 +129,30 @@ static void test_phase_direction_position_and_fault_are_mapped(void)
         motor_phase_t     mcc;
         hal_motor_phase_t hal;
     } phases[] = {
-        { MOTOR_PHASE_STOPPED, HAL_MOTOR_PHASE_STOPPED },
-        { MOTOR_PHASE_WAITING_START, HAL_MOTOR_PHASE_WAITING_START },
-        { MOTOR_PHASE_REVERSAL_WAIT, HAL_MOTOR_PHASE_REVERSAL_WAIT },
-        { MOTOR_PHASE_RUNNING, HAL_MOTOR_PHASE_RUNNING },
-        { MOTOR_PHASE_PAUSED, HAL_MOTOR_PHASE_PAUSED },
-        { MOTOR_PHASE_DECELERATING, HAL_MOTOR_PHASE_DECELERATING },
-        { MOTOR_PHASE_FAULT, HAL_MOTOR_PHASE_FAULT },
-        { MOTOR_PHASE_ESTOP, HAL_MOTOR_PHASE_ESTOP },
+        {MOTOR_PHASE_STOPPED,       HAL_MOTOR_PHASE_STOPPED      },
+        {MOTOR_PHASE_WAITING_START, HAL_MOTOR_PHASE_WAITING_START},
+        {MOTOR_PHASE_REVERSAL_WAIT, HAL_MOTOR_PHASE_REVERSAL_WAIT},
+        {MOTOR_PHASE_RUNNING,       HAL_MOTOR_PHASE_RUNNING      },
+        {MOTOR_PHASE_PAUSED,        HAL_MOTOR_PHASE_PAUSED       },
+        {MOTOR_PHASE_DECELERATING,  HAL_MOTOR_PHASE_DECELERATING },
+        {MOTOR_PHASE_FAULT,         HAL_MOTOR_PHASE_FAULT        },
+        {MOTOR_PHASE_ESTOP,         HAL_MOTOR_PHASE_ESTOP        },
     };
     static const struct {
         motor_fault_code_t     mcc;
         hal_motor_fault_code_t hal;
     } faults[] = {
-        { MOTOR_FAULT_NONE, HAL_MOTOR_FAULT_NONE },
-        { MOTOR_FAULT_OVERCURRENT, HAL_MOTOR_FAULT_OVERCURRENT },
-        { MOTOR_FAULT_UNDERCURRENT, HAL_MOTOR_FAULT_UNDERCURRENT },
-        { MOTOR_FAULT_DRIVER_FEEDBACK, HAL_MOTOR_FAULT_DRIVER_FEEDBACK },
-        { MOTOR_FAULT_OVERTEMP, HAL_MOTOR_FAULT_OVERTEMP },
-        { MOTOR_FAULT_UNDERVOLTAGE, HAL_MOTOR_FAULT_UNDERVOLTAGE },
-        { MOTOR_FAULT_PREPARE_FAILED, HAL_MOTOR_FAULT_PREPARE_FAILED },
-        { MOTOR_FAULT_ENCODER_SIGNAL, HAL_MOTOR_FAULT_ENCODER_SIGNAL },
-        { MOTOR_FAULT_WATCHDOG, HAL_MOTOR_FAULT_WATCHDOG },
-        { MOTOR_FAULT_DRIVER_PORT_FATAL, HAL_MOTOR_FAULT_DRIVER_PORT_FATAL },
-        { MOTOR_FAULT_SHARED_DRIVER, HAL_MOTOR_FAULT_SHARED_DRIVER },
+        {MOTOR_FAULT_NONE,              HAL_MOTOR_FAULT_NONE             },
+        {MOTOR_FAULT_OVERCURRENT,       HAL_MOTOR_FAULT_OVERCURRENT      },
+        {MOTOR_FAULT_UNDERCURRENT,      HAL_MOTOR_FAULT_UNDERCURRENT     },
+        {MOTOR_FAULT_DRIVER_FEEDBACK,   HAL_MOTOR_FAULT_DRIVER_FEEDBACK  },
+        {MOTOR_FAULT_OVERTEMP,          HAL_MOTOR_FAULT_OVERTEMP         },
+        {MOTOR_FAULT_UNDERVOLTAGE,      HAL_MOTOR_FAULT_UNDERVOLTAGE     },
+        {MOTOR_FAULT_PREPARE_FAILED,    HAL_MOTOR_FAULT_PREPARE_FAILED   },
+        {MOTOR_FAULT_ENCODER_SIGNAL,    HAL_MOTOR_FAULT_ENCODER_SIGNAL   },
+        {MOTOR_FAULT_WATCHDOG,          HAL_MOTOR_FAULT_WATCHDOG         },
+        {MOTOR_FAULT_DRIVER_PORT_FATAL, HAL_MOTOR_FAULT_DRIVER_PORT_FATAL},
+        {MOTOR_FAULT_SHARED_DRIVER,     HAL_MOTOR_FAULT_SHARED_DRIVER    },
     };
     size_t i;
 
@@ -173,8 +160,7 @@ static void test_phase_direction_position_and_fault_are_mapped(void)
         mcc_fake_set_query(phases[i].mcc, 42, MOTOR_DIR_REVERSE, MOTOR_FAULT_NONE);
         TEST_ASSERT_EQUAL_INT(phases[i].hal, hal_motor_phase((hal_motor_exec_t *)&s_exec, 0));
         TEST_ASSERT_EQUAL_INT64(42, hal_motor_position((hal_motor_exec_t *)&s_exec, 0));
-        TEST_ASSERT_EQUAL_INT(HAL_MOTOR_DIR_REVERSE,
-                              hal_motor_direction((hal_motor_exec_t *)&s_exec, 0));
+        TEST_ASSERT_EQUAL_INT(HAL_MOTOR_DIR_REVERSE, hal_motor_direction((hal_motor_exec_t *)&s_exec, 0));
     }
 
     for (i = 0; i < sizeof(faults) / sizeof(faults[0]); i++) {

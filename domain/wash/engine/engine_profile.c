@@ -21,7 +21,7 @@ const engine_profile_provider_t *engine_profile_get_provider(void)
 
 double engine_profile_height_at(double pos, double default_value)
 {
-    double                            out = default_value;
+    double                           out = default_value;
     const engine_profile_provider_t *p   = engine_profile_get_provider();
 
     if ((p == NULL) || (p->height_at == NULL)) {
@@ -35,7 +35,7 @@ double engine_profile_height_at(double pos, double default_value)
 
 bool engine_profile_in_zone(const char *zone, double pos, bool default_value)
 {
-    bool                              out = default_value;
+    bool                             out = default_value;
     const engine_profile_provider_t *p   = engine_profile_get_provider();
 
     if ((zone == NULL) || (p == NULL) || (p->in_zone == NULL)) {

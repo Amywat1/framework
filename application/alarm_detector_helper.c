@@ -27,7 +27,7 @@ sw_err_t alarm_detector_init(alarm_detector_t *detector, const alarm_detector_cf
 sw_err_t alarm_detector_update(alarm_detector_t *detector, bool fault_active)
 {
     const alarm_binding_ops_t *ops;
-    sw_err_t                  ret = SW_OK;
+    sw_err_t                   ret = SW_OK;
 
     if ((detector == NULL) || !detector->initialized) {
         return SW_ERR_PARAM;

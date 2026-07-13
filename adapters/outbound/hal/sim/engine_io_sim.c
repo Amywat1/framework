@@ -218,16 +218,6 @@ void engine_io_sim_set_signal(const char *name, int value)
     }
 }
 
-int engine_io_sim_get_signal(const char *name)
-{
-    return sim_read_signal(name);
-}
-
-void engine_io_sim_set_output(const char *name, int value)
-{
-    sim_write_output(name, value);
-}
-
 int engine_io_sim_get_output(const char *name)
 {
     const sim_int_entry_t *e = int_find(s_outputs, &s_output_count, ENGINE_IO_SIM_OUTPUT_CAP, name, false);

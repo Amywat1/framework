@@ -5,14 +5,14 @@
 #include <string.h>
 
 typedef struct {
-    int init_result;
-    int online;
-    int send_result;
-    char product_key[64];
-    char device_name[64];
-    char device_secret[64];
-    char last_topic[128];
-    char last_payload[256];
+    int                 init_result;
+    int                 online;
+    int                 send_result;
+    char                product_key[64];
+    char                device_name[64];
+    char                device_secret[64];
+    char                last_topic[128];
+    char                last_payload[256];
     mqtt_recv_handler_t recv_cb;
 } snack_mqtt_fake_t;
 

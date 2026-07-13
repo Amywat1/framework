@@ -72,7 +72,10 @@ static bool key_valid_for_channel_count(const fluid_path_actuator_key_t *key, ui
            && ((unsigned)key->slot < FLUID_PATH_SLOT_COUNT);
 }
 
-static bool paths_valid(const fluid_path_cfg_t *cfg, const fluid_path_def_t *paths, size_t path_count, fluid_path_mask_t *out_mask)
+static bool paths_valid(const fluid_path_cfg_t *cfg,
+                        const fluid_path_def_t *paths,
+                        size_t                  path_count,
+                        fluid_path_mask_t      *out_mask)
 {
     fluid_path_mask_t mask = 0U;
     size_t            i;
@@ -487,7 +490,7 @@ sw_err_t fluid_path_init(const fluid_path_cfg_t          *cfg,
     s_actuator      = *ops;
     s_paths         = paths;
     s_path_count    = path_count;
-    s_valid_mask     = valid_mask;
+    s_valid_mask    = valid_mask;
     s_ready         = true;
     reset_state();
     force_off_locked();

@@ -3,21 +3,21 @@
 #include <string.h>
 
 typedef struct {
-    bool       init_called;
-    bool       ready;
+    bool        init_called;
+    bool        ready;
     const char *serial_port;
-    int        baud;
-    int        modbus_addr;
-    uint16_t   last_write_addr;
-    uint16_t   last_write_val;
-    uint16_t   last_read_addr;
-    uint16_t   read_addr[16];
-    uint16_t   read_value[16];
-    unsigned   read_value_count;
-    unsigned   write_count;
-    sw_err_t   init_result;
-    sw_err_t   write_results[16];
-    unsigned   write_result_count;
+    int         baud;
+    int         modbus_addr;
+    uint16_t    last_write_addr;
+    uint16_t    last_write_val;
+    uint16_t    last_read_addr;
+    uint16_t    read_addr[16];
+    uint16_t    read_value[16];
+    unsigned    read_value_count;
+    unsigned    write_count;
+    sw_err_t    init_result;
+    sw_err_t    write_results[16];
+    unsigned    write_result_count;
 } snack_modbus_fake_t;
 
 static snack_modbus_fake_t s_fake;

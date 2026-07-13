@@ -13,8 +13,8 @@ extern "C" {
 #endif
 
 #include <stdbool.h>
-#include <stdint.h>
 #include <stddef.h>
+#include <stdint.h>
 
 /* -------------------------------------------------------------------------
  * 报警码编码：6 位十进制 = 大类(1) + 编号(3) + 性质(2)
@@ -24,8 +24,7 @@ extern "C" {
 #define ALARM_CODE_INDEX_MAX    999U
 #define ALARM_CODE_NATURE_MAX   99U
 
-#define ALARM_CODE_MAKE(category, index, nature) \
-    ((uint32_t)((category) * 100000U + (index) * 100U + (nature)))
+#define ALARM_CODE_MAKE(category, index, nature) ((uint32_t)((category) * 100000U + (index) * 100U + (nature)))
 
 #define ALARM_CODE_CATEGORY(code) ((uint32_t)((code) / 100000U))
 #define ALARM_CODE_INDEX(code)    ((uint32_t)(((code) / 100U) % 1000U))
@@ -110,8 +109,7 @@ static inline bool alarm_code_is_valid(uint32_t code)
     index    = ALARM_CODE_INDEX(code);
     nature   = ALARM_CODE_NATURE(code);
 
-    return alarm_code_parts_valid(category, index, nature)
-           && (code == ALARM_CODE_MAKE(category, index, nature));
+    return alarm_code_parts_valid(category, index, nature) && (code == ALARM_CODE_MAKE(category, index, nature));
 }
 
 static inline bool alarm_code_make_checked(uint32_t category, uint32_t index, uint32_t nature, uint32_t *out_code)

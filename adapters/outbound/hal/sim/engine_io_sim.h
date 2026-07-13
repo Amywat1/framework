@@ -36,16 +36,6 @@ void engine_io_sim_reset(void);
 void engine_io_sim_set_signal(const char *name, int value);
 
 /**
- * @brief  读取 DI 信号当前值（未设置返回 0）
- */
-int engine_io_sim_get_signal(const char *name);
-
-/**
- * @brief  直接设置 DO 输出值（一般由引擎写入，测试可用于预置）
- */
-void engine_io_sim_set_output(const char *name, int value);
-
-/**
  * @brief  读取 DO 输出当前值（未写过返回 0）——测试断言引擎输出用
  */
 int engine_io_sim_get_output(const char *name);

@@ -6,20 +6,22 @@
  */
 
 #include "adapters/outbound/cloud/providers/snack/snack_cloud_link_adapter.h"
-#include "ports/outbound/cloud/link/cloud_link_port.h"
-#include "ports/outbound/storage/deploy_store.h"
+
 #include "adapters/runtime/snack/snack_mqtt.h"
-#include "runtime/event_bus/event_bus.h"
 #include "common/event_types.h"
 #include "common/log.h"
+#include "ports/outbound/cloud/link/cloud_link_port.h"
+#include "ports/outbound/storage/deploy_store.h"
+#include "runtime/event_bus/event_bus.h"
+
 #include <stdbool.h>
 #include <string.h>
 
-#define DEPLOY_KEY_PRODUCT_KEY    "productKey"
-#define DEPLOY_KEY_DEVICE_SN      "deviceName"
-#define DEPLOY_KEY_DEVICE_SECRET  "deviceSecret"
+#define DEPLOY_KEY_PRODUCT_KEY   "productKey"
+#define DEPLOY_KEY_DEVICE_SN     "deviceName"
+#define DEPLOY_KEY_DEVICE_SECRET "deviceSecret"
 
-static bool s_initialized = false;
+static bool s_initialized  = false;
 static bool s_bootstrapped = false;
 static bool s_last_online  = false;
 
@@ -30,13 +32,10 @@ static bool link_is_online(void)
 
 static void publish_connection_event(bool connected)
 {
-    if (connected)
-    {
+    if (connected) {
         (void)event_publish(EVT_CLOUD_CONNECTED, 0U);
         LOG_INFO("snack_cloud_link: connected");
-    }
-    else
-    {
+    } else {
         (void)event_publish(EVT_CLOUD_DISCONNECTED, 0U);
         LOG_WARN("snack_cloud_link: disconnected");
     }
@@ -44,15 +43,13 @@ static void publish_connection_event(bool connected)
 
 static void link_bootstrap_once(void)
 {
-    if (s_bootstrapped)
-    {
+    if (s_bootstrapped) {
         return;
     }
     s_bootstrapped = true;
 
     s_last_online = link_is_online();
-    if (s_last_online)
-    {
+    if (s_last_online) {
         publish_connection_event(true);
     }
 
@@ -61,34 +58,29 @@ static void link_bootstrap_once(void)
 
 static sw_err_t link_init(void)
 {
-    const deploy_store_ops_t *ds = deploy_store_get_ops();
-    char product_key[64]         = "";
-    char device_sn[64]           = "";
-    char device_secret[64]       = "";
-    sw_err_t                   ret = SW_ERR_COMM;
+    const deploy_store_ops_t *ds                = deploy_store_get_ops();
+    char                      product_key[64]   = "";
+    char                      device_sn[64]     = "";
+    char                      device_secret[64] = "";
+    sw_err_t                  ret               = SW_ERR_COMM;
 
-    if (s_initialized)
-    {
+    if (s_initialized) {
         link_bootstrap_once();
         return link_is_online() ? SW_OK : SW_ERR_COMM;
     }
 
     s_initialized = true;
 
-    if (ds != NULL)
-    {
-        (void)ds->get(DEPLOY_KEY_PRODUCT_KEY,   product_key,   sizeof(product_key));
-        (void)ds->get(DEPLOY_KEY_DEVICE_SN,     device_sn,     sizeof(device_sn));
+    if (ds != NULL) {
+        (void)ds->get(DEPLOY_KEY_PRODUCT_KEY, product_key, sizeof(product_key));
+        (void)ds->get(DEPLOY_KEY_DEVICE_SN, device_sn, sizeof(device_sn));
         (void)ds->get(DEPLOY_KEY_DEVICE_SECRET, device_secret, sizeof(device_secret));
     }
 
-    if (aliyun_mqtt_init(product_key, device_sn, device_secret) == 0)
-    {
+    if (aliyun_mqtt_init(product_key, device_sn, device_secret) == 0) {
         LOG_INFO("snack_cloud_link: connected sn=%s", device_sn);
         ret = SW_OK;
-    }
-    else
-    {
+    } else {
         LOG_WARN("snack_cloud_link: init failed, running offline");
     }
 
@@ -100,8 +92,7 @@ static void link_poll(void)
 {
     bool now_online = link_is_online();
 
-    if (now_online == s_last_online)
-    {
+    if (now_online == s_last_online) {
         return;
     }
 
@@ -111,16 +102,13 @@ static void link_poll(void)
 
 static sw_err_t link_publish(const char *topic, const char *payload)
 {
-    if (!link_is_online())
-    {
+    if (!link_is_online()) {
         return SW_ERR_COMM;
     }
-    if ((topic == NULL) || (payload == NULL))
-    {
+    if ((topic == NULL) || (payload == NULL)) {
         return SW_ERR_PARAM;
     }
-    if (net_mqtt_send((char *)topic, (char *)payload) != 0)
-    {
+    if (net_mqtt_send((char *)topic, (char *)payload) != 0) {
         return SW_ERR_COMM;
     }
     return SW_OK;

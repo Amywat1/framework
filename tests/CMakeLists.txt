@@ -66,11 +66,6 @@ target_include_directories(test_hal_motor_exec_mcc PRIVATE
     ${WDF_ROOT}/third_party/mcc/motor_control_core-1.0.0/include
 )
 
-add_unit_test(test_sim_encoder_counter
-    ${CMAKE_CURRENT_SOURCE_DIR}/adapters/test_sim_encoder_counter.c
-    ${WDF_ROOT}/adapters/outbound/hal/sim/sim_encoder_counter.c
-)
-
 add_unit_test(test_hal_voice_sim
     ${CMAKE_CURRENT_SOURCE_DIR}/adapters/test_hal_voice_sim.c
     ${WDF_ROOT}/adapters/outbound/hal/sim/hal_voice_sim.c

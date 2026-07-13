@@ -8,9 +8,9 @@
 #ifndef IO_EXP_DEMO_STUB_H
 #define IO_EXP_DEMO_STUB_H
 
-int io_pluse_read(int board_id, int pin_id);
-int io_SDO_write(int board_id, int index, int sub_index, int *data);
-int io_init(const char *can_bus, int can_baud, int self_node, int board_count);
+int  io_pluse_read(int board_id, int pin_id);
+int  io_SDO_write(int board_id, int index, int sub_index, int *data);
+int  io_init(const char *can_bus, int can_baud, int self_node, int board_count);
 void io_logApi_set(int (*cb)(const char *fmt, ...));
 
 #endif /* IO_EXP_DEMO_STUB_H */

@@ -3,8 +3,8 @@
  * @brief   Snack VFD backend 单元测试。
  */
 
-#include "adapters/outbound/hal/providers/snack/modbus/snack_vfd_backend.h"
 #include "adapters/outbound/hal/providers/snack/io_exp/io_exp_driver.h"
+#include "adapters/outbound/hal/providers/snack/modbus/snack_vfd_backend.h"
 #include "common/io_handle.h"
 #include "ports/outbound/hal/hal_vfd_port.h"
 #include "tests/stubs/snack/drv_modbus_link_fake.h"
@@ -124,7 +124,7 @@ static void test_run_rejects_invalid_gear_and_unsupported_reverse(void)
     TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, vfd_ops()->run(TEST_VFD_ID, 4));
 
     cfg         = make_cfg();
-    cfg.pin_rev = (io_do_t){ IO_HANDLE_NULL };
+    cfg.pin_rev = (io_do_t){IO_HANDLE_NULL};
     TEST_ASSERT_EQUAL_INT(SW_OK, snack_vfd_backend_instance_init(1, &cfg));
     TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, vfd_ops()->run(1, -1));
 }
@@ -139,10 +139,10 @@ static void test_set_freq_is_not_supported_for_current_vendor(void)
 
 static void test_read_and_clear_fault_delegate_to_modbus(void)
 {
-    uint16_t val = 0;
+    uint16_t                         val = 0;
     snack_vfd_backend_instance_cfg_t cfg = make_cfg();
 
-    cfg.pin_rst = (io_do_t){ IO_HANDLE_NULL };
+    cfg.pin_rst = (io_do_t){IO_HANDLE_NULL};
     TEST_ASSERT_EQUAL_INT(SW_OK, snack_vfd_backend_instance_init(TEST_VFD_ID, &cfg));
     snack_modbus_fake_set_read_value(0x1007U, 0x0022U);
     TEST_ASSERT_EQUAL_INT(SW_OK, vfd_ops()->read(TEST_VFD_ID, HAL_VFD_REG_FAULT_CODE, &val));
@@ -157,7 +157,7 @@ static void test_read_and_clear_fault_delegate_to_modbus(void)
 static void test_fault_reset_uses_rst_pin_when_modbus_clear_not_available(void)
 {
     snack_vfd_backend_instance_cfg_t cfg = make_cfg();
-    unsigned before;
+    unsigned                         before;
 
     cfg.pin_rst = IO_DO(2U, 1U);
     TEST_ASSERT_EQUAL_INT(SW_OK, snack_vfd_backend_instance_init(TEST_VFD_ID, &cfg));
@@ -170,13 +170,11 @@ static void test_monitor_mask_can_be_updated_after_init(void)
 {
     snack_vfd_backend_instance_cfg_t cfg = make_cfg();
 
-    TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_INIT,
-                          snack_vfd_backend_instance_set_monitor_mask(7, HAL_VFD_MON_FAULT));
+    TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_INIT, snack_vfd_backend_instance_set_monitor_mask(7, HAL_VFD_MON_FAULT));
 
     TEST_ASSERT_EQUAL_INT(SW_OK, snack_vfd_backend_instance_init(TEST_VFD_ID, &cfg));
     vfd_ops()->register_event_cb(TEST_VFD_ID, event_cb);
-    TEST_ASSERT_EQUAL_INT(SW_OK,
-                          snack_vfd_backend_instance_set_monitor_mask(TEST_VFD_ID, HAL_VFD_MON_FAULT));
+    TEST_ASSERT_EQUAL_INT(SW_OK, snack_vfd_backend_instance_set_monitor_mask(TEST_VFD_ID, HAL_VFD_MON_FAULT));
 }
 
 int main(void)

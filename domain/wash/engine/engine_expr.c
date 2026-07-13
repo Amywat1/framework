@@ -15,9 +15,9 @@
 #include <string.h>
 
 /* 具名常量 */
-#define EXPR_TOKEN_MAX 256U /* 单个表达式最大 token 数 */
-#define EXPR_NAME_MAX  64U  /* 变量名最大长度 */
-#define EXPR_ERR_MAX   128U /* 错误描述缓冲 */
+#define EXPR_TOKEN_MAX    256U /* 单个表达式最大 token 数 */
+#define EXPR_NAME_MAX     64U  /* 变量名最大长度 */
+#define EXPR_ERR_MAX      128U /* 错误描述缓冲 */
 #define EXPR_FUNC_ARG_MAX 4U
 
 /* -------------------------------------------------------------------------
@@ -706,7 +706,7 @@ static expr_node_t *node_clone(const expr_node_t *n)
     c->num  = n->num;
     (void)strncpy(c->name, n->name, EXPR_NAME_MAX - 1U);
     c->name[EXPR_NAME_MAX - 1U] = '\0';
-    c->arg_count = n->arg_count;
+    c->arg_count                = n->arg_count;
 
     for (unsigned i = 0U; i < n->arg_count; ++i) {
         c->args[i] = node_clone(n->args[i]);

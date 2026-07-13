@@ -23,12 +23,12 @@ typedef struct {
     const char *value;
 } kv_t;
 
-static kv_t s_deploy[8];
-static unsigned s_deploy_count;
-static char s_last_property_json[256];
+static kv_t                 s_deploy[8];
+static unsigned             s_deploy_count;
+static char                 s_last_property_json[256];
 static point_apply_result_t s_reply_result;
-static unsigned s_property_set_count;
-static unsigned s_reply_count;
+static unsigned             s_property_set_count;
+static unsigned             s_reply_count;
 
 static sw_err_t deploy_load(void)
 {
@@ -155,7 +155,7 @@ static void test_link_offline_publish_returns_comm_error(void)
 static void test_report_adapter_publishes_full_and_delta_json(void)
 {
     const cloud_report_ops_t *report;
-    const char *ids[] = { "speed", "state" };
+    const char               *ids[] = {"speed", "state"};
 
     snack_cloud_link_adapter_register();
     TEST_ASSERT_EQUAL_INT(SW_OK, cloud_link_get_ops()->init());

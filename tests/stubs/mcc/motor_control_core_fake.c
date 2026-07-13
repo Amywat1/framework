@@ -26,10 +26,7 @@ void mcc_fake_set_cmd_result(motor_cmd_status_t status, const char *reason)
     s_result.reason = reason;
 }
 
-void mcc_fake_set_query(motor_phase_t phase,
-                        int64_t position,
-                        motor_direction_t dir,
-                        motor_fault_code_t fault)
+void mcc_fake_set_query(motor_phase_t phase, int64_t position, motor_direction_t dir, motor_fault_code_t fault)
 {
     s_phase    = phase;
     s_position = position;
@@ -42,10 +39,7 @@ const mcc_fake_last_call_t *mcc_fake_last_call(void)
     return &s_last;
 }
 
-motor_cmd_result_t motor_run_continuous(motor_executor_t *exec,
-                                        int motor,
-                                        motor_speed_t spd,
-                                        motor_direction_t dir)
+motor_cmd_result_t motor_run_continuous(motor_executor_t *exec, int motor, motor_speed_t spd, motor_direction_t dir)
 {
     s_last.call  = MCC_FAKE_CALL_RUN_CONTINUOUS;
     s_last.exec  = exec;
@@ -55,10 +49,10 @@ motor_cmd_result_t motor_run_continuous(motor_executor_t *exec,
     return s_result;
 }
 
-motor_cmd_result_t motor_move_to(motor_executor_t *exec,
-                                 int motor,
-                                 motor_speed_t spd,
-                                 motor_direction_t dir,
+motor_cmd_result_t motor_move_to(motor_executor_t        *exec,
+                                 int                      motor,
+                                 motor_speed_t            spd,
+                                 motor_direction_t        dir,
                                  const motor_move_spec_t *spec)
 {
     s_last.call     = MCC_FAKE_CALL_MOVE_TO;
@@ -81,10 +75,7 @@ motor_cmd_result_t motor_stop(motor_executor_t *exec, int motor)
     return s_result;
 }
 
-motor_cmd_result_t motor_set_speed(motor_executor_t *exec,
-                                   int motor,
-                                   motor_speed_t spd,
-                                   motor_direction_t dir)
+motor_cmd_result_t motor_set_speed(motor_executor_t *exec, int motor, motor_speed_t spd, motor_direction_t dir)
 {
     s_last.call  = MCC_FAKE_CALL_SET_SPEED;
     s_last.exec  = exec;

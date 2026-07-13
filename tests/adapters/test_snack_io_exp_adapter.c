@@ -13,12 +13,12 @@
 #include <string.h>
 
 static const drv_io_name_entry_t s_di_names[] = {
-    { "DI_START", IO_HANDLE_MAKE(IO_KIND_DI, 1U, 1U) },
-    { "DI_STOP", IO_HANDLE_MAKE(IO_KIND_DI, 2U, 1U) },
+    {"DI_START", IO_HANDLE_MAKE(IO_KIND_DI, 1U, 1U)},
+    {"DI_STOP",  IO_HANDLE_MAKE(IO_KIND_DI, 2U, 1U)},
 };
 static const drv_io_name_entry_t s_do_names[] = {
-    { "DO_RELAY", IO_HANDLE_MAKE(IO_KIND_DO, 1U, 2U) },
-    { "DO_LAMP", IO_HANDLE_MAKE(IO_KIND_DO, 2U, 3U) },
+    {"DO_RELAY", IO_HANDLE_MAKE(IO_KIND_DO, 1U, 2U)},
+    {"DO_LAMP",  IO_HANDLE_MAKE(IO_KIND_DO, 2U, 3U)},
 };
 
 static drv_io_cfg_t make_cfg(void)
@@ -84,15 +84,15 @@ static void test_init_rejects_invalid_config(void)
 
     TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, drv_io_init(NULL));
 
-    cfg = make_cfg();
+    cfg             = make_cfg();
     cfg.board_count = 0;
     TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, drv_io_init(&cfg));
 
-    cfg = make_cfg();
+    cfg           = make_cfg();
     cfg.pin_count = 0;
     TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, drv_io_init(&cfg));
 
-    cfg = make_cfg();
+    cfg           = make_cfg();
     cfg.pin_count = 33;
     TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, drv_io_init(&cfg));
 }

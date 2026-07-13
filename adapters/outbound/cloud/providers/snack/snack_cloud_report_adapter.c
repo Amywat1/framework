@@ -6,16 +6,18 @@
  */
 
 #include "adapters/outbound/cloud/providers/snack/snack_cloud_report_adapter.h"
-#include "ports/outbound/cloud/report/report_port.h"
-#include "ports/outbound/cloud/link/cloud_link_port.h"
-#include "ports/outbound/storage/deploy_store.h"
+
 #include "cloud/cloud_model.h"
 #include "cloud/cloud_point.h"
 #include "common/log.h"
+#include "ports/outbound/cloud/link/cloud_link_port.h"
+#include "ports/outbound/cloud/report/report_port.h"
+#include "ports/outbound/storage/deploy_store.h"
+
 #include <stdbool.h>
 #include <string.h>
 
-#define DEPLOY_KEY_TOPIC_UP   "topicPropertyUp"
+#define DEPLOY_KEY_TOPIC_UP "topicPropertyUp"
 
 static char s_topic_up[128] = "";
 static bool s_topic_loaded  = false;
@@ -24,20 +26,16 @@ static sw_err_t load_topic_up(void)
 {
     const deploy_store_ops_t *ds = deploy_store_get_ops();
 
-    if (s_topic_loaded)
-    {
+    if (s_topic_loaded) {
         return (s_topic_up[0] != '\0') ? SW_OK : SW_ERR_PARAM;
     }
 
     s_topic_loaded = true;
-    if (ds == NULL)
-    {
+    if (ds == NULL) {
         return SW_ERR_NOT_INIT;
     }
 
-    if ((ds->get(DEPLOY_KEY_TOPIC_UP, s_topic_up, sizeof(s_topic_up)) != SW_OK) ||
-        (s_topic_up[0] == '\0'))
-    {
+    if ((ds->get(DEPLOY_KEY_TOPIC_UP, s_topic_up, sizeof(s_topic_up)) != SW_OK) || (s_topic_up[0] == '\0')) {
         LOG_ERROR("snack_cloud_report: deploy config missing key=%s", DEPLOY_KEY_TOPIC_UP);
         return SW_ERR_PARAM;
     }
@@ -49,16 +47,13 @@ static sw_err_t send_json(const char *json)
 {
     const cloud_link_ops_t *link = cloud_link_get_ops();
 
-    if ((link == NULL) || (link->is_online == NULL) || !link->is_online())
-    {
+    if ((link == NULL) || (link->is_online == NULL) || !link->is_online()) {
         return SW_ERR_COMM;
     }
-    if (load_topic_up() != SW_OK)
-    {
+    if (load_topic_up() != SW_OK) {
         return SW_ERR_PARAM;
     }
-    if ((link->publish == NULL))
-    {
+    if ((link->publish == NULL)) {
         return SW_ERR_NOT_INIT;
     }
     return link->publish(s_topic_up, json);
@@ -69,8 +64,7 @@ static sw_err_t adapter_publish_properties(void)
     char     buf[CLOUD_REPORT_JSON_MAX];
     sw_err_t ret;
 
-    if (cloud_model_build_properties(buf, sizeof(buf)) != SW_OK)
-    {
+    if (cloud_model_build_properties(buf, sizeof(buf)) != SW_OK) {
         LOG_ERROR("snack_cloud_report: properties build failed");
         return SW_ERR_PARAM;
     }
@@ -84,13 +78,11 @@ static sw_err_t adapter_publish_properties_delta(const char *const *ids, size_t 
     char     buf[CLOUD_REPORT_JSON_MAX];
     sw_err_t ret;
 
-    if ((ids == NULL) || (count == 0U))
-    {
+    if ((ids == NULL) || (count == 0U)) {
         return SW_ERR_PARAM;
     }
 
-    if (cloud_model_build_properties_delta(ids, count, buf, sizeof(buf)) != SW_OK)
-    {
+    if (cloud_model_build_properties_delta(ids, count, buf, sizeof(buf)) != SW_OK) {
         LOG_ERROR("snack_cloud_report: delta build failed");
         return SW_ERR_PARAM;
     }

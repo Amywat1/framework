@@ -86,7 +86,7 @@ static void on_checkpoint_reached(const event_t *evt)
 sw_err_t alarm_reeval_bridge_init(const alarm_reeval_binding_t *bindings, size_t count)
 {
     static const event_subscription_t subs[] = {
-        {EVT_COMP_MOTION_COMPLETED, on_motion_completed},
+        {EVT_COMP_MOTION_COMPLETED,   on_motion_completed  },
         {EVT_WASH_CHECKPOINT_REACHED, on_checkpoint_reached},
     };
     sw_err_t ret;

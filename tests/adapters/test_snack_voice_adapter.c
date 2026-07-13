@@ -3,8 +3,8 @@
  * @brief   Snack Modbus voice HAL provider 单元测试。
  */
 
-#include "adapters/outbound/hal/providers/snack/modbus/snack_voice_adapter.h"
 #include "adapters/outbound/hal/providers/snack/modbus/drv_voice.h"
+#include "adapters/outbound/hal/providers/snack/modbus/snack_voice_adapter.h"
 #include "ports/outbound/hal/hal_voice_port.h"
 #include "tests/stubs/snack/drv_modbus_link_fake.h"
 #include "unity.h"
