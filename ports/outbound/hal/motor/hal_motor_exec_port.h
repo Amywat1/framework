@@ -4,7 +4,7 @@
  *
  * domain/device_control/patterns 与 projects 侧 domain/mechanism 下的机构模块只依赖
  * 本端口的不透明句柄与类型，不感知第三方电机控制 SDK（Motor Control Core, MCC）。
- * 真实执行器由项目 bindings 层（如 projects/m8/bindings/m8_motor_exec.c）静态分配
+ * 真实执行器由项目 bindings 层（如 bindings/m8_motor_exec.c）静态分配
  * 并完成 motor_init，随后以 hal_motor_exec_t 指针形式注入各机构模块；MCC provider
  * 适配器位于 adapters/outbound/hal/providers/mcc/hal_motor_exec_adapter.c。
  */

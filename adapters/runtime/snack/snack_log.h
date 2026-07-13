@@ -22,6 +22,13 @@ extern void snack_log_sink_register(void);
  */
 extern void set_log_level(int type);
 
+/**
+ * @brief 设置 snack 运行时显示的应用名称和版本号
+ * @param name 应用名称字符串
+ * @param ver 版本号字符串
+ */
+extern void set_app_version(char *name, char *ver);
+
 #ifdef __cplusplus
 }
 #endif
