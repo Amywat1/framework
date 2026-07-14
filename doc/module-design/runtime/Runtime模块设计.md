@@ -4,20 +4,20 @@
 **状态**：已落地（bootstrap 编排 + 线程注册表 + 周期任务 + 安全线程 + Demo hooks）  
 **最后同步代码**：2026-07-14（`runtime/bootstrap`、`runtime/scheduler`、`runtime/platform`、Demo project hooks）  
 **适用范围**：`runtime/bootstrap/`、`runtime/scheduler/`、`runtime/platform/`、`runtime/config/thread_config.h`、`demo/wiring/`  
-**架构基线**：统一启动序列 + init 阶段注册线程 + scheduler 统一启动  
+**架构基线**：统一启动序列 + runtime tasks 阶段注册线程 + scheduler 统一启动  
 **关键词**：bootstrap_run、project_hooks、thread_registry、scheduler_start_all、periodic_task、safety_thread、event_dispatch
 
 ---
 
 ## 1. 设计目标与核心理念
 
-Runtime 层负责把框架基础设施、项目 wiring、应用模块、适配器和后台线程按固定顺序启动。启动生命周期按 `register → configure_storage → load → configure → bind → validate → init → start` 拆分；模块在 `register/bind/init` 阶段只注册端口、订阅事件或登记线程，真正创建线程统一延后到 `scheduler_start_all()`。
+Runtime 层负责把框架基础设施、项目 wiring、应用模块、适配器和后台线程按固定顺序启动。启动生命周期按 `register → configure_storage → load → configure → bind → validate → init → register_runtime_tasks → start` 拆分；模块在 `register/bind/init/register_runtime_tasks` 阶段只注册端口、订阅事件或登记线程，真正创建线程统一延后到 `scheduler_start_all()`。
 
 真机入口层不参与设备 HAL 初始化编排。入口只负责进程级运行时配置，并在完成后调用 `bootstrap_run()`；具体 HAL 或外部 SDK 初始化由 provider 的 `init` 实现承接。
 
 ### 1.1 设计目标
 
-- **启动顺序确定**：`bootstrap_run()` 固定 register → configure_storage → load → configure → bind → validate → init → start。
+- **启动顺序确定**：`bootstrap_run()` 固定 register → configure_storage → load → configure → bind → validate → init → register_runtime_tasks → start。
 - **项目扩展受控**：项目只能通过 `wiring()` 与 `project_hooks` 填充装配点，不改框架主流程。
 - **线程统一创建**：框架线程通过 `thread_register()` 登记，最后由 scheduler 创建并 detach。
 - **周期任务统一模型**：周期任务用 `periodic_task_register()` 转成线程注册表条目。
@@ -32,7 +32,8 @@ Runtime 层负责把框架基础设施、项目 wiring、应用模块、适配�
 | 加载期 | `svc_param_init()` 与 `deploy_store.load()` 读取存储，`SW_ERR_STORAGE` 允许继续 |
 | 绑定期 | 项目 hooks 绑定 HAL 实例、`machine_ops`、报警目录等依赖关系 |
 | 校验期 | 项目执行启动前一致性校验，不启动 watcher、线程或外部连接 |
-| 初始化期 | HAL `init`、应用服务 init、适配器 init、周期任务注册 |
+| 初始化期 | HAL `init`、应用服务 init、适配器 init |
+| 任务注册期 | 注册项目周期任务和运行期线程，不启动线程 |
 | 启动期 | `scheduler_start_all()` 一次性创建所有已注册线程 |
 | 运行期 | 线程 detach，当前不提供 join/stop/restart 语义 |
 | 致命故障 | 安全输出兜底后终止进程，交由外部 supervisor 拉起 |
@@ -83,7 +84,9 @@ bootstrap_run()
     │    ├─ command_gateway_init()
     │    ├─ self_check_service_init()
     │    ├─ op_mode_bridge_init()
-    │    ├─ project_init_adapters()
+    │    └─ project_init_adapters()
+    │
+    ├─ bootstrap_register_runtime_tasks()
     │    └─ project_register_runtime_tasks()
     │
     └─ bootstrap_start()
@@ -124,7 +127,7 @@ bootstrap_run()
 
 ### 2.4 Init 阶段
 
-Init 阶段初始化 HAL、领域聚合、应用服务、适配器和周期任务。关键顺序约束：
+Init 阶段初始化 HAL、领域聚合、应用服务和适配器。关键顺序约束：
 
 - `hal_io_bootstrap_init()`、`hal_vfd_bootstrap_init()`、`hal_voice_bootstrap_init()` 早于 `project_init_hal()`。
 - `alarm_registry_init()` 必须早于 `project_bind_alarm_catalog()`。
@@ -132,9 +135,12 @@ Init 阶段初始化 HAL、领域聚合、应用服务、适配器和周期任�
 - `operational_mode_init()` 必须早于 `command_gateway_init()` / `op_mode_bridge_init()`。
 - `safety_thread_init()` 只注册线程，不立即启动。
 - `project_init_adapters()` 初始化项目入站适配器，禁止启动后台线程。
-- `project_register_runtime_tasks()` 注册项目周期任务，例如云端 report scheduler、HAL sensor/VFD poll、alarm bridge。
 
-### 2.5 Start 阶段
+### 2.5 Register Runtime Tasks 阶段
+
+Register Runtime Tasks 阶段只注册项目周期任务和运行期线程，例如云端 report scheduler、HAL sensor/VFD poll、alarm bridge。该阶段禁止直接启动线程，线程统一由 Start 阶段的 `scheduler_start_all()` 创建。
+
+### 2.6 Start 阶段
 
 Start 阶段先调用 `hal_io.start()`，再调用 `project_start_runtime()` 启动无法纳入 scheduler 的项目运行期线程，最后 `scheduler_start_all()` 创建线程表中的所有线程。新增后台任务应优先接入 `project_register_runtime_tasks()`，不要放到 `project_start_runtime()`。
 

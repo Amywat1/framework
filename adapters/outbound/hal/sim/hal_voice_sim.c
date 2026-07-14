@@ -5,6 +5,8 @@
  * @date    2026-06-29
  */
 
+#include "adapters/outbound/hal/sim/hal_voice_sim.h"
+
 #include "common/log.h"
 #include "ports/outbound/hal/hal_voice_port.h"
 
