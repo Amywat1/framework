@@ -31,15 +31,9 @@ extern "C" {
 
 /**
  * @brief  初始化 io_exp SDK 的 CAN 总线访问。
- * @note   对项目入口屏蔽 io_exp/demo.h，SDK 头只保留在 provider 内部。
+ * @note   仅供 snack_io_adapter 等 provider 内部调用；项目入口不应直接依赖。
  */
 sw_err_t io_exp_driver_sdk_init(const char *can_bus, int can_baud, int self_node, int board_count);
-
-/**
- * @brief  注册 io_exp SDK 日志回调。
- * @note   对项目运行时适配器屏蔽 io_exp/demo.h。
- */
-void io_exp_driver_set_log_api(int (*cb)(const char *fmt, ...));
 
 /** IO 名称表条目（由调用方用 X-macro 展开后传入驱动） */
 typedef struct {
@@ -105,6 +99,9 @@ const char *drv_io_do_name(io_do_t pin);
  *         允许传 NULL + 0，此时名称查找接口均返回失败/NULL。
  */
 typedef struct {
+    const char                *can_bus;     /**< io_exp SDK 使用的 CAN 设备名 */
+    int                        can_baud;    /**< io_exp SDK 使用的 CAN 波特率 */
+    int                        self_node;   /**< io_exp SDK 使用的本机节点号 */
     int                        board_count; /**< 实际使用的 IO 子板数量 */
     int                        pin_count;   /**< 每块子板的 IO 点数 */
     const drv_io_name_entry_t *di_table;    /**< DI 名称映射表 */
@@ -112,6 +109,13 @@ typedef struct {
     const drv_io_name_entry_t *do_table;    /**< DO 名称映射表 */
     size_t                     do_count;    /**< DO 表条目数 */
 } drv_io_cfg_t;
+
+/**
+ * @brief  校验 IO 子板驱动配置
+ * @param  cfg  驱动配置，不可为 NULL
+ * @retval SW_OK / SW_ERR_PARAM
+ */
+sw_err_t drv_io_cfg_validate(const drv_io_cfg_t *cfg);
 
 /**
  * @brief  初始化 IO 子板驱动内部状态

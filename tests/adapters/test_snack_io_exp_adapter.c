@@ -24,6 +24,9 @@ static const drv_io_name_entry_t s_do_names[] = {
 static drv_io_cfg_t make_cfg(void)
 {
     drv_io_cfg_t cfg = {
+        .can_bus     = "can0",
+        .can_baud    = 500000,
+        .self_node   = 9,
         .board_count = 2,
         .pin_count   = 8,
         .di_table    = s_di_names,
@@ -56,13 +59,7 @@ void tearDown(void)
 {
 }
 
-static int fake_log(const char *fmt, ...)
-{
-    (void)fmt;
-    return 0;
-}
-
-static void test_sdk_init_and_log_api_delegate_to_io_exp_sdk(void)
+static void test_sdk_init_registers_internal_log_and_delegates_to_io_exp_sdk(void)
 {
     io_exp_fake_set_init_result(0);
     TEST_ASSERT_EQUAL_INT(SW_OK, io_exp_driver_sdk_init("can0", 500000, 9, 2));
@@ -73,8 +70,6 @@ static void test_sdk_init_and_log_api_delegate_to_io_exp_sdk(void)
 
     io_exp_fake_set_init_result(-1);
     TEST_ASSERT_EQUAL_INT(SW_ERR_HW, io_exp_driver_sdk_init("can1", 250000, 1, 1));
-
-    io_exp_driver_set_log_api(fake_log);
     TEST_ASSERT_TRUE(io_exp_fake_log_api_set());
 }
 
@@ -82,19 +77,38 @@ static void test_init_rejects_invalid_config(void)
 {
     drv_io_cfg_t cfg = make_cfg();
 
+    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, drv_io_cfg_validate(NULL));
     TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, drv_io_init(NULL));
 
     cfg             = make_cfg();
+    cfg.can_bus     = NULL;
+    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, drv_io_cfg_validate(&cfg));
+
+    cfg             = make_cfg();
     cfg.board_count = 0;
+    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, drv_io_cfg_validate(&cfg));
     TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, drv_io_init(&cfg));
 
     cfg           = make_cfg();
     cfg.pin_count = 0;
+    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, drv_io_cfg_validate(&cfg));
     TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, drv_io_init(&cfg));
 
     cfg           = make_cfg();
     cfg.pin_count = 33;
+    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, drv_io_cfg_validate(&cfg));
     TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, drv_io_init(&cfg));
+}
+
+static void test_hal_adapter_validates_cfg_before_sdk_init(void)
+{
+    drv_io_cfg_t cfg = make_cfg();
+
+    io_exp_fake_reset();
+    cfg.pin_count = 33;
+    snack_io_adapter_register(&cfg);
+    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, io_ops()->init());
+    TEST_ASSERT_NULL(io_exp_fake_can_bus());
 }
 
 static void test_hal_adapter_exposes_name_resolution_and_board_count(void)
@@ -176,8 +190,9 @@ int main(void)
 {
     UNITY_BEGIN();
 
-    RUN_TEST(test_sdk_init_and_log_api_delegate_to_io_exp_sdk);
+    RUN_TEST(test_sdk_init_registers_internal_log_and_delegates_to_io_exp_sdk);
     RUN_TEST(test_init_rejects_invalid_config);
+    RUN_TEST(test_hal_adapter_validates_cfg_before_sdk_init);
     RUN_TEST(test_hal_adapter_exposes_name_resolution_and_board_count);
     RUN_TEST(test_do_set_updates_stats_and_rejects_invalid_pin);
     RUN_TEST(test_di_test_override_controls_read_value);

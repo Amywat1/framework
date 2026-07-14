@@ -21,6 +21,20 @@ static drv_io_cfg_t s_cfg;
 
 static sw_err_t io_init(void)
 {
+    sw_err_t ret;
+
+    ret = drv_io_cfg_validate(&s_cfg);
+    if (ret != SW_OK) {
+        LOG_ERROR("snack_io_adapter: invalid cfg ret=%d", (int)ret);
+        return ret;
+    }
+
+    ret = io_exp_driver_sdk_init(s_cfg.can_bus, s_cfg.can_baud, s_cfg.self_node, s_cfg.board_count);
+    if (ret != SW_OK) {
+        LOG_ERROR("snack_io_adapter: io_exp sdk init failed ret=%d", (int)ret);
+        return ret;
+    }
+
     return drv_io_init(&s_cfg);
 }
 

@@ -21,17 +21,36 @@
 
 #include <pthread.h>
 #include <stdlib.h>
+#include <stdarg.h>
+#include <stdio.h>
 #include <string.h>
 #include <unistd.h>
 
-sw_err_t io_exp_driver_sdk_init(const char *can_bus, int can_baud, int self_node, int board_count)
+static int io_exp_sdk_log(const char *fmt, ...)
 {
-    return (io_init(can_bus, can_baud, self_node, board_count) == 0) ? SW_OK : SW_ERR_HW;
+    char    buf[512];
+    va_list va;
+
+    if (fmt == NULL) {
+        return 0;
+    }
+
+    va_start(va, fmt);
+    vsnprintf(buf, sizeof(buf), fmt, va);
+    va_end(va);
+
+    LOG_INFO("io_exp: %s", buf);
+    return 0;
 }
 
-void io_exp_driver_set_log_api(int (*cb)(const char *fmt, ...))
+sw_err_t io_exp_driver_sdk_init(const char *can_bus, int can_baud, int self_node, int board_count)
 {
-    io_logApi_set(cb);
+    if ((can_bus == NULL) || (board_count <= 0)) {
+        return SW_ERR_PARAM;
+    }
+
+    io_logApi_set(io_exp_sdk_log);
+    return (io_init(can_bus, can_baud, self_node, board_count) == 0) ? SW_OK : SW_ERR_HW;
 }
 
 /* -------------------------------------------------------------------------
@@ -45,6 +64,16 @@ void io_exp_driver_set_log_api(int (*cb)(const char *fmt, ...))
 #define IO_CHECK_ONLINE_MS  2000U          /* 存在掉线子板时的重连检测间隔（ms） */
 #define IO_OFFLINE_CNT      3U             /* 连续无响应次数达到该值后判定掉线 */
 #define IO_ONLINE_CNT       IO_OFFLINE_CNT /* 连续响应次数达到该值后确认上线（对称防抖）*/
+
+sw_err_t drv_io_cfg_validate(const drv_io_cfg_t *cfg)
+{
+    if ((cfg == NULL) || (cfg->can_bus == NULL) || (cfg->board_count <= 0) || (cfg->board_count >= (int)IO_BOARD_MAX)
+        || (cfg->pin_count <= 0) || (cfg->pin_count > (int)IO_PIN_COUNT_MAX)) {
+        return SW_ERR_PARAM;
+    }
+
+    return SW_OK;
+}
 
 /* -------------------------------------------------------------------------
  * 内部状态
@@ -410,9 +439,10 @@ static void *drv_io_poll_loop(void *arg)
  * ------------------------------------------------------------------------- */
 sw_err_t drv_io_init(const drv_io_cfg_t *cfg)
 {
-    if ((cfg == NULL) || (cfg->board_count <= 0) || (cfg->board_count >= (int)IO_BOARD_MAX) || (cfg->pin_count <= 0)
-        || (cfg->pin_count > (int)IO_PIN_COUNT_MAX)) {
-        return SW_ERR_PARAM;
+    sw_err_t ret = drv_io_cfg_validate(cfg);
+
+    if (ret != SW_OK) {
+        return ret;
     }
 
     s_board_count = cfg->board_count;

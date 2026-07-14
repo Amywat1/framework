@@ -13,6 +13,8 @@
 
 Runtime 层负责把框架基础设施、项目 wiring、应用模块、适配器和后台线程按固定顺序启动。模块在 init 阶段只注册端口、订阅事件或登记线程，真正创建线程统一延后到 `scheduler_start_all()`。
 
+真机入口层不参与设备 HAL 初始化编排。入口只负责进程级运行时配置，并在完成后调用 `bootstrap_run()`；具体 HAL 或外部 SDK 初始化由 provider 的 `init` 实现承接。
+
 ### 1.1 设计目标
 
 - **启动顺序确定**：`bootstrap_run()` 固定 infra → safety → application → adapters → threads。
@@ -82,6 +84,11 @@ bootstrap_run()
 | `hal_*_bootstrap_init()` | 若对应 port 已注册且有 `init`，则调用 |
 | `project_hal_extra_setup()` | 项目侧 HAL 参数下发或实例绑定后的补充配置 |
 | `svc_param_init()` | 加载运行期参数；`SW_ERR_STORAGE` 被允许继续 |
+
+补充边界约束：
+
+- 入口层只做进程级配置，通过 runtime glue 调用进程 API，不直接调用 HAL SDK init。
+- provider 若依赖外部 SDK，应在自身 `init` 内完成 SDK 初始化与日志桥接。
 
 ### 2.2 Application 阶段
 

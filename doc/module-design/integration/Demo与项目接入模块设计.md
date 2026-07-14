@@ -46,6 +46,8 @@ Demo 与项目接入层展示如何把通用框架装配成一个可启动设备
 
 | 文件/模块 | 职责 |
 |-----------|------|
+| `app/target/*.cpp` | 真机入口进程级准备与 `bootstrap_run()` 调用 |
+| `target runtime glue` | 对外部 Snack runtime API 做项目内封装 |
 | `wiring.c` | 注册 HAL、storage、cloud、engine loader 等 provider |
 | `project_hooks.c` | 实现 `project_*` 生命周期钩子 |
 | `machine_ops.c` | 注册 `machine_ops_t`，承接命令副作用 |
@@ -59,6 +61,10 @@ Demo 与项目接入层展示如何把通用框架装配成一个可启动设备
 ### 2.2 启动阶段与接入点
 
 ```text
+target entry
+    ├─ 配置 Snack 进程级参数
+    └─ 调用 bootstrap_run()
+
 bootstrap_init_infra()
     └─ wiring()
          ├─ 注册 storage adapter
@@ -213,6 +219,7 @@ typedef struct {
 
 ### 5.5 Runtime
 
+- `app/target/` 只做进程级运行时准备，不直接初始化某个 HAL SDK。
 - 在 `project_start_threads()` 注册项目周期任务。
 - 不直接修改 `bootstrap_run()` 顺序。
 - 长耗时任务不要放在 event handler 中。
