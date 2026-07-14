@@ -1,11 +1,8 @@
 /**
  * @file    project_hooks.h
- * @brief   项目生命周期阶段钩子接口
+ * @brief   项目生命周期阶段钩子接口（结构体注册方式）
  * @author  HUWANGWEI
  * @date    2026-04-10
- *
- * @note    bootstrap_run() 固定阶段顺序为 register → configure_storage → load →
- *          configure → bind → validate → init → start；项目专属落地通过本文件钩子实现。
  */
 
 #ifndef CORE_BOOTSTRAP_PROJECT_HOOKS_H
@@ -18,112 +15,57 @@ extern "C" {
 #include "common/sw_error.h"
 
 /**
- * @brief  存储配置阶段：注入项目存储路径或存储后端参数。
+ * @brief  项目生命周期钩子结构体
  *
- * @retval SW_OK 配置成功。
- * @retval 其他  存储配置失败，bootstrap 中止。
- * @note   本阶段在 storage load 前执行；禁止读取文件或启动线程。
+ * 每个字段对应 bootstrap 启动序列的一个阶段。所有函数指针不允许为 NULL。
  */
-sw_err_t project_configure_storage(void);
+typedef struct {
+    /** 存储配置阶段：注入项目存储路径或存储后端参数。禁止读取文件或启动线程。*/
+    sw_err_t (*configure_storage)(void);
+    /** 配置阶段：下发项目专属 HAL 参数。禁止绑定实例或启动线程。*/
+    sw_err_t (*configure_hal)(void);
+    /** 绑定阶段：绑定项目专属 HAL 实例。禁止初始化硬件或启动线程。*/
+    sw_err_t (*bind_hal)(void);
+    /** 初始化阶段：初始化项目专属 HAL 组合层状态。*/
+    sw_err_t (*init_hal)(void);
+    /** 配置阶段：建立项目安全默认态。*/
+    sw_err_t (*configure_safety)(void);
+    /** 配置阶段：配置项目入站/出站适配器。禁止初始化连接或启动线程。*/
+    sw_err_t (*configure_adapters)(void);
+    /** 绑定阶段：注册项目设备装配接口，例如 machine_ops。*/
+    sw_err_t (*bind_machine)(void);
+    /** 绑定阶段：注入项目报警目录并建立报警适配绑定。*/
+    sw_err_t (*bind_alarm_catalog)(void);
+    /** 校验阶段：执行项目启动前一致性校验。*/
+    sw_err_t (*validate)(void);
+    /** 初始化阶段：初始化项目入站适配器，禁止启动后台线程。*/
+    sw_err_t (*init_adapters)(void);
+    /** 注册阶段：登记项目运行期任务，禁止创建线程或启动硬件。*/
+    sw_err_t (*register_runtime_tasks)(void);
+    /** 启动阶段：启动无法纳入 scheduler 的项目运行期线程。*/
+    sw_err_t (*start_runtime)(void);
+    /** 致命错误兜底：切断项目安全输出（可以是空操作）。*/
+    void (*assert_safe_outputs)(void);
+} project_hooks_t;
 
 /**
- * @brief  配置阶段：下发项目专属 HAL 参数。
- *
- * @retval SW_OK 配置成功。
- * @retval 其他  项目配置失败，bootstrap 中止。
- * @note   本阶段禁止绑定实例、初始化硬件或启动线程。
+ * @brief  向 bootstrap 注册项目生命周期钩子
+ * @param  hooks  钩子结构体指针，生命周期须覆盖整个运行时。所有函数指针不允许为 NULL。
+ * @retval SW_OK        注册成功
+ * @retval SW_ERR_PARAM hooks 为 NULL 或含 NULL 函数指针
  */
-sw_err_t project_configure_hal(void);
+sw_err_t bootstrap_register_hooks(const project_hooks_t *hooks);
 
 /**
- * @brief  绑定阶段：绑定项目专属 HAL 实例、backend 或事件回调。
- *
- * @retval SW_OK 绑定成功。
- * @retval 其他  项目绑定失败，bootstrap 中止。
- * @note   本阶段禁止初始化硬件或启动线程。
+ * @brief  项目必须实现此函数，在其中填充 project_hooks_t 并调用 bootstrap_register_hooks()
+ * @retval SW_OK        注册成功
+ * @retval SW_ERR_PARAM 钩子结构体中含 NULL 函数指针
  */
-sw_err_t project_bind_hal(void);
+sw_err_t project_hooks_register(void);
 
 /**
- * @brief  初始化阶段：初始化项目专属 HAL 组合层状态。
- *
- * @retval SW_OK 初始化成功。
- * @retval 其他  项目 HAL 初始化失败，bootstrap 中止。
- * @note   调用前框架已完成 hal_io.init()、hal_vfd.init() 与 hal_voice.init()。
- */
-sw_err_t project_init_hal(void);
-
-/**
- * @brief  配置阶段：建立项目安全默认态。
- *
- * @retval SW_OK 配置成功。
- * @retval 其他  安全或传感器配置失败，bootstrap 中止。
- */
-sw_err_t project_configure_safety(void);
-
-/**
- * @brief  配置阶段：配置项目入站/出站适配器。
- *
- * @retval SW_OK 配置成功。
- * @retval 其他  适配器配置失败，bootstrap 中止。
- * @note   调用前存储已完成 load；本阶段允许读取已加载配置，禁止初始化连接或启动线程。
- */
-sw_err_t project_configure_adapters(void);
-
-/**
- * @brief  绑定阶段：注册项目设备装配接口，例如 machine_ops。
- *
- * @retval SW_OK 绑定成功。
- * @retval 其他  项目设备装配失败，bootstrap 中止。
- */
-sw_err_t project_bind_machine(void);
-
-/**
- * @brief  绑定阶段：注入项目报警目录并建立报警适配绑定。
- *
- * @retval SW_OK 绑定成功。
- * @retval 其他  报警目录或适配绑定失败，bootstrap 中止。
- * @note   调用前框架已完成 alarm_registry_init() 与 safety_posture_init()。
- */
-sw_err_t project_bind_alarm_catalog(void);
-
-/**
- * @brief  校验阶段：执行项目启动前一致性校验。
- *
- * @retval SW_OK 校验成功。
- * @retval 其他  校验失败，bootstrap 中止。
- * @note   本阶段禁止初始化 watcher、读取实时 getter、发布事件或注册任务。
- */
-sw_err_t project_validate(void);
-
-/**
- * @brief  初始化阶段：初始化项目入站适配器，禁止启动后台线程。
- *
- * @retval SW_OK 初始化成功。
- * @retval 其他  适配器初始化失败，bootstrap 中止。
- */
-sw_err_t project_init_adapters(void);
-
-/**
- * @brief  注册阶段：登记项目运行期任务，禁止创建线程或启动硬件。
- *
- * @retval SW_OK 注册成功。
- * @retval 其他  任务注册失败，bootstrap 中止。
- * @note   已登记的任务由 start 阶段的 scheduler_start_all() 统一启动。
- */
-sw_err_t project_register_runtime_tasks(void);
-
-/**
- * @brief  启动阶段：启动无法纳入 scheduler 的项目运行期线程。
- *
- * @retval SW_OK 启动成功。
- * @retval 其他  项目运行期线程启动失败，bootstrap 中止。
- * @note   新增后台任务应优先接入 project_register_runtime_tasks()，再由 scheduler_start_all() 启动。
- */
-sw_err_t project_start_runtime(void);
-
-/**
- * @brief  致命错误兜底：切断项目安全输出。
+ * @brief  调用已注册钩子的安全输出切断函数（framework 内部使用）
+ * @note   若钩子尚未注册则为空操作。
  */
 void project_assert_safe_outputs(void);
 

@@ -52,7 +52,7 @@ void report_scheduler_register_point_resolver(report_point_id_resolver_fn_t reso
  * @param  policies 上报策略数组。
  * @param  count 上报策略数量，不能超过内部容量。
  * @retval SW_OK 注册成功。
- * @retval SW_ERR_PARAM 策略为空、数量非法或周期策略冲突。
+ * @retval SW_ERR_PARAM 策略为空、数量非法、period_ms 为 0 或超出最大周期数。
  * @retval 其他 周期任务或事件订阅注册失败。
  * @note   本函数只注册周期任务和事件订阅，后台线程由 scheduler 统一启动。
  */

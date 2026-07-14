@@ -6,7 +6,7 @@
  *
  * @note    svc_param 是业务语义层，不直接操作存储介质。
  *          底层读写委托给 param_store_ops（由 wiring.c 注册 json_param_store 实现）。
- *          整型参数以字符串形式存入 param_store，读取时做 atoi 转换。
+ *          整型参数以字符串形式存入 param_store，读取时做 strtol 转换。
  *          若 param_store 未注册，所有读取返回默认值，写入/保存静默失败。
  */
 
@@ -46,6 +46,8 @@ sw_err_t svc_param_init(void)
 int svc_param_get_int(const char *key, int default_val)
 {
     char                     buf[32];
+    char                    *end;
+    long                     val;
     const param_store_ops_t *ops = param_store_get_ops();
 
     if ((ops == NULL) || (key == NULL)) {
@@ -54,7 +56,14 @@ int svc_param_get_int(const char *key, int default_val)
     if (ops->get(key, buf, sizeof(buf)) != SW_OK) {
         return default_val;
     }
-    return atoi(buf);
+    if (buf[0] == '\0') {
+        return default_val;
+    }
+    val = strtol(buf, &end, 10);
+    if ((end == buf) || (*end != '\0')) {
+        return default_val;
+    }
+    return (int)val;
 }
 
 sw_err_t svc_param_get_str(const char *key, char *buf, int buf_size, const char *default_val)

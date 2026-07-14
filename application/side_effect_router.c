@@ -12,7 +12,6 @@
 #include "common/log.h"
 #include "domain/command_gateway/operational_mode.h"
 #include "domain/safety/alarm_registry/alarm_registry.h"
-#include "domain/safety/model/safety_types.h"
 #include "ports/outbound/machine/machine_ops_port.h"
 
 #include <stddef.h>
@@ -39,15 +38,10 @@ sw_err_t side_effect_router_run(dev_cmd_effect_t effect, const dev_cmd_t *cmd)
     case DEV_CMD_EFFECT_SELF_CHECK:
         return self_check_service_start();
 
-    case DEV_CMD_EFFECT_RESET_FAULT: {
-        if ((op_mode_get_current() == OP_MODE_IDLE) && !alarm_registry_has_blocking_active()
-            && (alarm_registry_safety_posture() != SAFETY_POSTURE_LOCKOUT)) {
-            return SW_ERR_STATE;
-        }
+    case DEV_CMD_EFFECT_RESET_FAULT:
         (void)alarm_registry_recover_all();
         op_mode_on_legacy_reset_fault();
         return SW_OK;
-    }
 
     case DEV_CMD_EFFECT_HOME_DEVICE:
         ops = machine_ops_get();

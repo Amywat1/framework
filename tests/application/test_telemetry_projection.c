@@ -3,21 +3,18 @@
  * @brief   telemetry snapshot/projection 单元测试
  */
 
-#include "application/operational_projection.h"
-#include "application/safety_projection.h"
-#include "application/wash_projection.h"
+#include "application/telemetry_projection.h"
 #include "common/event_types.h"
 #include "common/sw_error.h"
 #include "common/time_util.h"
 #include "domain/command_gateway/device_command.h"
 #include "domain/command_gateway/operational_mode.h"
 #include "domain/safety/alarm_registry/alarm_registry.h"
+#include "domain/telemetry/device_snapshot.h"
+#include "domain/telemetry/device_snapshot_internal.h"
 #include "domain/telemetry/snapshot/operational_snapshot.h"
-#include "domain/telemetry/snapshot/operational_snapshot_internal.h"
 #include "domain/telemetry/snapshot/safety_snapshot.h"
-#include "domain/telemetry/snapshot/safety_snapshot_internal.h"
 #include "domain/telemetry/snapshot/wash_snapshot.h"
-#include "domain/telemetry/snapshot/wash_snapshot_internal.h"
 #include "runtime/event_bus/event_bus.h"
 #include "unity.h"
 
@@ -84,12 +81,15 @@ static void test_snapshot_direct_updates_are_read_back(void)
         .blocking_active = false,
     };
 
-    operational_snapshot_update(&op);
-    safety_snapshot_update(&safety);
-    wash_snapshot_on_session_started(WASH_MODE_QUICK);
+    device_snapshot_update_op(&op);
+    device_snapshot_update_safety(&safety);
+    device_snapshot_set_wash_mode(WASH_MODE_QUICK);
 
-    TEST_ASSERT_TRUE(operational_snapshot_is_standby());
-    TEST_ASSERT_FALSE(operational_snapshot_is_stopping());
+    {
+        operational_snapshot_t s = operational_snapshot_get();
+        TEST_ASSERT_TRUE(operational_snapshot_is_standby(s));
+        TEST_ASSERT_FALSE(operational_snapshot_is_stopping(s));
+    }
     TEST_ASSERT_TRUE(safety_snapshot_is_warning_active());
     TEST_ASSERT_EQUAL_INT(WASH_MODE_QUICK, wash_snapshot_get().mode);
 }
@@ -100,7 +100,7 @@ static void test_wash_projection_tracks_session_started_event(void)
 
     time_util_init();
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
-    TEST_ASSERT_EQUAL_INT(SW_OK, wash_projection_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, telemetry_projection_init());
     tid = start_dispatch();
     usleep(10000);
 
@@ -118,20 +118,20 @@ static void test_operational_projection_syncs_current_context(void)
     time_util_init();
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, operational_mode_init());
-    TEST_ASSERT_EQUAL_INT(SW_OK, operational_projection_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, telemetry_projection_init());
     tid = start_dispatch();
     usleep(10000);
 
     snap = operational_snapshot_get();
     TEST_ASSERT_EQUAL_INT(OP_MODE_IDLE, snap.mode);
     TEST_ASSERT_TRUE(snap.service_enabled);
-    TEST_ASSERT_TRUE(operational_snapshot_is_standby());
+    TEST_ASSERT_TRUE(operational_snapshot_is_standby(snap));
 
     op_mode_set_service_enabled(false);
     publish_and_wait(EVT_OP_MODE_CONTEXT_SYNC, 0U);
     snap = operational_snapshot_get();
     TEST_ASSERT_FALSE(snap.service_enabled);
-    TEST_ASSERT_TRUE(operational_snapshot_is_stopping());
+    TEST_ASSERT_TRUE(operational_snapshot_is_stopping(snap));
 
     stop_dispatch(tid);
 }
@@ -145,7 +145,7 @@ static void test_safety_projection_refreshes_alarm_snapshot(void)
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_load_catalog(s_catalog, 1U));
-    TEST_ASSERT_EQUAL_INT(SW_OK, safety_projection_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, telemetry_projection_init());
     tid = start_dispatch();
     usleep(10000);
 

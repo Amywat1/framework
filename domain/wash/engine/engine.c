@@ -9,6 +9,8 @@
 
 #include "domain/wash/engine/engine_io.h"
 
+#include "common/log.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -672,7 +674,7 @@ engine_t *engine_create(void)
 }
 
 /* 收集方案中全部 DO 通道名（halt_all 用） */
-static void collect_do_channel(engine_t *e, const char *name)
+static void collect_do_channel(engine_t *e, const char *name, unsigned *overflow)
 {
     if ((name == NULL) || (name[0] == '\0')) {
         return;
@@ -685,33 +687,35 @@ static void collect_do_channel(engine_t *e, const char *name)
     if (e->do_count < ENGINE_DO_CHANNEL_CAP) {
         (void)snprintf(e->do_channels[e->do_count], ENGINE_NAME_MAX, "%s", name);
         ++e->do_count;
+    } else {
+        ++(*overflow);
     }
 }
 
-static void collect_actions_channels(engine_t *e, const engine_action_t *a, unsigned n)
+static void collect_actions_channels(engine_t *e, const engine_action_t *a, unsigned n, unsigned *overflow)
 {
     for (unsigned i = 0U; i < n; ++i) {
         if (a[i].type == ENGINE_ACT_IO_SET) {
-            collect_do_channel(e, a[i].channel);
+            collect_do_channel(e, a[i].channel, overflow);
         }
     }
 }
 
-static bool build_runtime_tables(engine_t *e)
+static sw_err_t build_runtime_tables(engine_t *e)
 {
     engine_program_t *p = e->prog;
 
     if (p->marker_count > 0U) {
         e->markers = (marker_rt_t *)calloc(p->marker_count, sizeof(marker_rt_t));
         if (e->markers == NULL) {
-            return false;
+            return SW_ERR_NOMEM;
         }
     }
     if (p->interlock_count > 0U) {
         e->ilk_active = (bool *)calloc(p->interlock_count, sizeof(bool));
         e->ilk_order  = (int *)calloc(p->interlock_count, sizeof(int));
         if ((e->ilk_active == NULL) || (e->ilk_order == NULL)) {
-            return false;
+            return SW_ERR_NOMEM;
         }
         for (unsigned i = 0U; i < p->interlock_count; ++i) {
             e->ilk_order[i] = (int)i;
@@ -731,27 +735,35 @@ static bool build_runtime_tables(engine_t *e)
 
     e->do_channels = (char(*)[ENGINE_NAME_MAX])calloc(ENGINE_DO_CHANNEL_CAP, ENGINE_NAME_MAX);
     if (e->do_channels == NULL) {
-        return false;
+        return SW_ERR_NOMEM;
     }
     e->do_count = 0U;
+
+    unsigned overflow_count = 0U;
     for (unsigned i = 0U; i < p->phase_count; ++i) {
         const engine_phase_t *ph = &p->phases[i];
-        collect_actions_channels(e, ph->on_enter, ph->on_enter_count);
-        collect_actions_channels(e, ph->on_exit, ph->on_exit_count);
+        collect_actions_channels(e, ph->on_enter, ph->on_enter_count, &overflow_count);
+        collect_actions_channels(e, ph->on_exit, ph->on_exit_count, &overflow_count);
         for (unsigned l = 0U; l < ph->lane_count; ++l) {
             for (unsigned s = 0U; s < ph->lanes[l].step_count; ++s) {
                 const engine_step_t *st = &ph->lanes[l].steps[s];
-                collect_actions_channels(e, st->actions, st->action_count);
+                collect_actions_channels(e, st->actions, st->action_count, &overflow_count);
                 if ((st->type == ENGINE_STEP_CONTROL) && (st->output[0] != '\0')) {
-                    collect_do_channel(e, st->output);
+                    collect_do_channel(e, st->output, &overflow_count);
                 }
             }
         }
     }
     for (unsigned i = 0U; i < p->interlock_count; ++i) {
-        collect_actions_channels(e, p->interlocks[i].actions, p->interlocks[i].action_count);
+        collect_actions_channels(e, p->interlocks[i].actions, p->interlocks[i].action_count, &overflow_count);
     }
-    return true;
+
+    if (overflow_count > 0U) {
+        LOG_ERROR("DO 通道数超出上限：方案共 %u 个唯一通道，上限为 %u",
+                  ENGINE_DO_CHANNEL_CAP + overflow_count, ENGINE_DO_CHANNEL_CAP);
+        return SW_ERR_OVERFLOW;
+    }
+    return SW_OK;
 }
 
 static void free_runtime_tables(engine_t *e)
@@ -785,8 +797,9 @@ sw_err_t engine_load_program(engine_t *e, engine_program_t *prog)
     e->cur_phase = -1;
     e->cur_def   = NULL;
 
-    if (!build_runtime_tables(e)) {
-        return SW_ERR_NOMEM;
+    sw_err_t rc = build_runtime_tables(e);
+    if (rc != SW_OK) {
+        return rc;
     }
     return SW_OK;
 }

@@ -8,9 +8,7 @@
 #include "services/dev_ctx/dev_ctx.h"
 
 #include "common/log.h"
-#include "domain/telemetry/snapshot/operational_snapshot.h"
-#include "domain/telemetry/snapshot/safety_snapshot.h"
-#include "domain/telemetry/snapshot/wash_snapshot.h"
+#include "domain/telemetry/device_snapshot.h"
 #include "ports/outbound/cloud/link/cloud_link_port.h"
 
 #include <string.h>
@@ -33,24 +31,20 @@ sw_err_t dev_ctx_init(void)
 
 device_context_t dev_ctx_snapshot(void)
 {
-    device_context_t       out;
-    operational_snapshot_t op_snap;
-    safety_snapshot_t      safety_snap;
-    wash_snapshot_t        wash_snap;
+    device_context_t  out;
+    device_snapshot_t snap;
 
-    op_snap     = operational_snapshot_get();
-    safety_snap = safety_snapshot_get();
-    wash_snap   = wash_snapshot_get();
+    snap = device_snapshot_get();
 
-    out.operational_mode   = op_snap.mode;
-    out.service_enabled    = op_snap.service_enabled;
-    out.estop_active       = op_snap.estop_active;
-    out.wash_mode          = wash_snap.mode;
-    out.safety_posture     = safety_snap.posture;
-    out.blocking_active    = safety_snap.blocking_active;
-    out.top_alarm_code     = safety_snap.top_alarm_code;
-    out.active_alarm_count = safety_snap.active_alarm_count;
-    memcpy(out.active_list, safety_snap.active_list, sizeof(out.active_list));
+    out.operational_mode   = snap.op.mode;
+    out.service_enabled    = snap.op.service_enabled;
+    out.estop_active       = snap.op.estop_active;
+    out.wash_mode          = snap.wash.mode;
+    out.safety_posture     = snap.safety.posture;
+    out.blocking_active    = snap.safety.blocking_active;
+    out.top_alarm_code     = snap.safety.top_alarm_code;
+    out.active_alarm_count = snap.safety.active_alarm_count;
+    memcpy(out.active_list, snap.safety.active_list, sizeof(out.active_list));
 
     out.cloud_connected = read_cloud_connected();
     return out;
@@ -58,5 +52,5 @@ device_context_t dev_ctx_snapshot(void)
 
 operational_mode_t dev_ctx_get_operational_mode(void)
 {
-    return operational_snapshot_get().mode;
+    return device_snapshot_get().op.mode;
 }

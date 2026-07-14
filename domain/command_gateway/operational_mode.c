@@ -246,6 +246,13 @@ static dev_cmd_decision_t check_command(const dev_cmd_t *cmd)
         }
     }
 
+    if (kind == DEV_CMD_RESET_FAULT) {
+        if ((s_mode == OP_MODE_IDLE) && !alarm_registry_has_blocking_active()
+            && (alarm_registry_safety_posture() != SAFETY_POSTURE_LOCKOUT)) {
+            return make_denied(OP_REJECT_WRONG_MODE);
+        }
+    }
+
     if (kind == DEV_CMD_START_WASH) {
         if (!s_service_enabled) {
             return make_denied(OP_REJECT_SERVICE_DISABLED);

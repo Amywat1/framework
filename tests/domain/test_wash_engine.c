@@ -211,8 +211,13 @@ static void io_reset(void)
     s_axes[0].speed    = 4.0;
     s_axes[0].valid    = true;
 
-    engine_io_register(&s_io_ops);
-    engine_io_register_catalog(&s_catalog);
+    {
+        const engine_io_backend_t backend = {
+            .ops     = &s_io_ops,
+            .catalog = &s_catalog,
+        };
+        engine_io_register(&backend);
+    }
 }
 
 static engine_expr_t *compile_ok(const char *text)

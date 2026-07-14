@@ -4,9 +4,7 @@
  */
 
 #include "common/sw_error.h"
-#include "domain/telemetry/snapshot/operational_snapshot_internal.h"
-#include "domain/telemetry/snapshot/safety_snapshot_internal.h"
-#include "domain/telemetry/snapshot/wash_snapshot_internal.h"
+#include "domain/telemetry/device_snapshot_internal.h"
 #include "ports/outbound/cloud/link/cloud_link_port.h"
 #include "services/dev_ctx/dev_ctx.h"
 #include "unity.h"
@@ -40,9 +38,9 @@ static void seed_snapshots(void)
     safety.top_alarm_code     = 0U;
     safety.active_alarm_count = 0U;
 
-    operational_snapshot_update(&op);
-    safety_snapshot_update(&safety);
-    wash_snapshot_on_session_started(WASH_MODE_STANDARD);
+    device_snapshot_update_op(&op);
+    device_snapshot_update_safety(&safety);
+    device_snapshot_set_wash_mode(WASH_MODE_STANDARD);
 }
 
 void setUp(void)
@@ -83,7 +81,7 @@ static void test_snapshot_reflects_cloud_and_alarm_state(void)
     safety.top_alarm_code      = 201101U;
     safety.active_alarm_count  = 1U;
     safety.active_list[0].code = 201101U;
-    safety_snapshot_update(&safety);
+    device_snapshot_update_safety(&safety);
     s_cloud_online = true;
 
     ctx = dev_ctx_snapshot();
@@ -104,8 +102,8 @@ static void test_operational_mode_accessor_uses_cached_snapshot(void)
         .estop_active    = false,
     };
 
-    operational_snapshot_update(&op);
-    wash_snapshot_on_session_started(WASH_MODE_QUICK);
+    device_snapshot_update_op(&op);
+    device_snapshot_set_wash_mode(WASH_MODE_QUICK);
 
     TEST_ASSERT_EQUAL_INT(OP_MODE_WASHING, dev_ctx_get_operational_mode());
     TEST_ASSERT_EQUAL_INT(WASH_MODE_QUICK, dev_ctx_snapshot().wash_mode);

@@ -8,6 +8,7 @@
 #include "application/alarm_reeval_bridge.h"
 
 #include "common/event_types.h"
+#include "domain/device_control/model/actuator_events.h"
 #include "domain/safety/alarm_registry/alarm_registry.h"
 #include "runtime/event_bus/event_bus.h"
 
@@ -72,7 +73,7 @@ static void on_motion_completed(const event_t *evt)
     if (evt == NULL) {
         return;
     }
-    (void)alarm_reeval_bridge_handle(ALARM_REEVAL_TRIGGER_ACTUATOR_COMPLETED, (uint16_t)evt->param);
+    (void)alarm_reeval_bridge_handle(ALARM_REEVAL_TRIGGER_ACTUATOR_COMPLETED, actuator_motion_completed_id(evt));
 }
 
 static void on_checkpoint_reached(const event_t *evt)
@@ -80,7 +81,7 @@ static void on_checkpoint_reached(const event_t *evt)
     if (evt == NULL) {
         return;
     }
-    (void)alarm_reeval_bridge_handle(ALARM_REEVAL_TRIGGER_WASH_CHECKPOINT, (uint16_t)evt->param);
+    (void)alarm_reeval_bridge_handle(ALARM_REEVAL_TRIGGER_WASH_CHECKPOINT, wash_checkpoint_reached_id(evt));
 }
 
 sw_err_t alarm_reeval_bridge_init(const alarm_reeval_binding_t *bindings, size_t count)

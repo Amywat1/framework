@@ -15,15 +15,11 @@ extern "C" {
 #include "common/sw_error.h"
 
 /**
- * @brief  初始化报警事件桥接
- * @retval SW_OK 成功
+ * @brief  初始化报警事件桥接并注册 50ms 周期 drain 任务
+ * @retval SW_OK         注册成功
+ * @retval SW_ERR_OVERFLOW 周期任务表已满
  */
 sw_err_t alarm_event_bridge_init(void);
-
-/**
- * @brief  排空 registry pending 队列并发布 EVT_ALARM_*
- */
-void alarm_event_bridge_drain(void);
 
 #ifdef __cplusplus
 }

@@ -13,20 +13,19 @@
 static const engine_io_ops_t     *s_ops     = NULL;
 static const engine_io_catalog_t *s_catalog = NULL;
 
-void engine_io_register(const engine_io_ops_t *ops)
+void engine_io_register(const engine_io_backend_t *backend)
 {
-    if (ops == NULL) {
+    if (backend == NULL) {
         return;
     }
-    if ((ops->read_signal == NULL) || (ops->read_axis == NULL) || (ops->write_output == NULL)) {
+    if ((backend->ops == NULL)
+        || (backend->ops->read_signal == NULL)
+        || (backend->ops->read_axis == NULL)
+        || (backend->ops->write_output == NULL)) {
         return;
     }
-    s_ops = ops;
-}
-
-void engine_io_register_catalog(const engine_io_catalog_t *catalog)
-{
-    s_catalog = catalog;
+    s_ops     = backend->ops;
+    s_catalog = backend->catalog;
 }
 
 const engine_io_ops_t *engine_io_get_ops(void)

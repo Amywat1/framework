@@ -5,8 +5,8 @@
  * @date    2026-07-12
  */
 
-#ifndef APPLICATION_ALARM_DETECTOR_HELPER_H
-#define APPLICATION_ALARM_DETECTOR_HELPER_H
+#ifndef PORTS_INBOUND_SAFETY_ALARM_DETECTOR_HELPER_H
+#define PORTS_INBOUND_SAFETY_ALARM_DETECTOR_HELPER_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -42,4 +42,4 @@ bool alarm_detector_is_active(const alarm_detector_t *detector);
 }
 #endif
 
-#endif /* APPLICATION_ALARM_DETECTOR_HELPER_H */
+#endif /* PORTS_INBOUND_SAFETY_ALARM_DETECTOR_HELPER_H */

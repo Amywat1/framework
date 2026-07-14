@@ -3,25 +3,14 @@
  * @brief   Demo 仿真项目生命周期钩子
  */
 
-#include "application/alarm_event_bridge.h"
 #include "adapters/outbound/storage/json/json_deploy_store.h"
 #include "adapters/outbound/storage/json/json_param_store.h"
 #include "runtime/bootstrap/project_hooks.h"
-#include "runtime/config/thread_config.h"
-#include "runtime/scheduler/periodic_task.h"
-
-#include <sched.h>
 
 extern sw_err_t demo_machine_ops_register(void);
 extern sw_err_t demo_alarm_catalog_load(void);
 
-static void alarm_bridge_poll(void *ctx)
-{
-    (void)ctx;
-    alarm_event_bridge_drain();
-}
-
-sw_err_t project_configure_storage(void)
+static sw_err_t configure_storage(void)
 {
     sw_err_t r;
 
@@ -32,61 +21,81 @@ sw_err_t project_configure_storage(void)
     return json_deploy_store_configure(DEPLOY_STORE_JSON_FILE_PATH);
 }
 
-sw_err_t project_configure_hal(void)
+static sw_err_t configure_hal(void)
 {
     return SW_OK;
 }
 
-sw_err_t project_bind_hal(void)
+static sw_err_t bind_hal(void)
 {
     return SW_OK;
 }
 
-sw_err_t project_init_hal(void)
+static sw_err_t init_hal(void)
 {
     return SW_OK;
 }
 
-sw_err_t project_configure_safety(void)
+static sw_err_t configure_safety(void)
 {
     return SW_OK;
 }
 
-sw_err_t project_configure_adapters(void)
+static sw_err_t configure_adapters(void)
 {
     return SW_OK;
 }
 
-sw_err_t project_bind_machine(void)
+static sw_err_t bind_machine(void)
 {
     return demo_machine_ops_register();
 }
 
-sw_err_t project_bind_alarm_catalog(void)
+static sw_err_t bind_alarm_catalog(void)
 {
     return demo_alarm_catalog_load();
 }
 
-sw_err_t project_validate(void)
+static sw_err_t validate(void)
 {
     return SW_OK;
 }
 
-sw_err_t project_init_adapters(void)
+static sw_err_t init_adapters(void)
 {
     return SW_OK;
 }
 
-sw_err_t project_register_runtime_tasks(void)
-{
-    return periodic_task_register("alarm_bridge", 50U, alarm_bridge_poll, NULL, SCHED_OTHER, 0, THD_SENSOR_POLL_STACK);
-}
-
-sw_err_t project_start_runtime(void)
+static sw_err_t register_runtime_tasks(void)
 {
     return SW_OK;
 }
 
-void project_assert_safe_outputs(void)
+static sw_err_t start_runtime(void)
 {
+    return SW_OK;
+}
+
+static void assert_safe_outputs(void)
+{
+}
+
+sw_err_t project_hooks_register(void)
+{
+    static const project_hooks_t s_hooks = {
+        .configure_storage    = configure_storage,
+        .configure_hal        = configure_hal,
+        .bind_hal             = bind_hal,
+        .init_hal             = init_hal,
+        .configure_safety     = configure_safety,
+        .configure_adapters   = configure_adapters,
+        .bind_machine         = bind_machine,
+        .bind_alarm_catalog   = bind_alarm_catalog,
+        .validate             = validate,
+        .init_adapters        = init_adapters,
+        .register_runtime_tasks = register_runtime_tasks,
+        .start_runtime        = start_runtime,
+        .assert_safe_outputs  = assert_safe_outputs,
+    };
+    return bootstrap_register_hooks(&s_hooks);
 }

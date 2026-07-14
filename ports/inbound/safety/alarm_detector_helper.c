@@ -5,7 +5,7 @@
  * @date    2026-07-12
  */
 
-#include "application/alarm_detector_helper.h"
+#include "ports/inbound/safety/alarm_detector_helper.h"
 
 #include "ports/inbound/safety/alarm_binding_port.h"
 

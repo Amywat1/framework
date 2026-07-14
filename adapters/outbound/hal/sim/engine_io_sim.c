@@ -199,8 +199,11 @@ static const engine_io_catalog_t s_sim_catalog = {
  * ------------------------------------------------------------------------- */
 void engine_io_sim_register(void)
 {
-    engine_io_register(&s_sim_ops);
-    engine_io_register_catalog(&s_sim_catalog);
+    static const engine_io_backend_t s_backend = {
+        .ops     = &s_sim_ops,
+        .catalog = &s_sim_catalog,
+    };
+    engine_io_register(&s_backend);
 }
 
 void engine_io_sim_reset(void)

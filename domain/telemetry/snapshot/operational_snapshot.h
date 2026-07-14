@@ -23,19 +23,36 @@ typedef struct {
 } operational_snapshot_t;
 
 /**
- * @brief  获取运行模式快照副本
+ * @brief  获取运行模式快照副本（内部加一次锁）
  */
 operational_snapshot_t operational_snapshot_get(void);
 
 /**
- * @brief  是否停机态（与 op_mode_is_stopping 语义一致，读缓存）
+ * @brief  判断是否处于停机态
+ * @param  s  已获取的快照值
+ * @return true：service 未使能，或模式为 INIT / EXCEPTION / RECOVERING
+ * @note   调用方须先通过 operational_snapshot_get() 取一次快照再传入，
+ *         以避免多次 get() 之间状态不一致。
  */
-bool operational_snapshot_is_stopping(void);
+static inline bool operational_snapshot_is_stopping(operational_snapshot_t s)
+{
+    return !s.service_enabled
+           || (s.mode == OP_MODE_INIT)
+           || (s.mode == OP_MODE_EXCEPTION)
+           || (s.mode == OP_MODE_RECOVERING);
+}
 
 /**
- * @brief  是否待机（与 op_mode_is_standby 语义一致，读缓存）
+ * @brief  判断是否处于待机态
+ * @param  s  已获取的快照值
+ * @return true：模式为 IDLE 且 service 已使能
+ * @note   调用方须先通过 operational_snapshot_get() 取一次快照再传入，
+ *         以避免多次 get() 之间状态不一致。
  */
-bool operational_snapshot_is_standby(void);
+static inline bool operational_snapshot_is_standby(operational_snapshot_t s)
+{
+    return (s.mode == OP_MODE_IDLE) && s.service_enabled;
+}
 
 #ifdef __cplusplus
 }

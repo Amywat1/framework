@@ -11,13 +11,12 @@
 #include "domain/safety/alarm_registry/alarm_registry.h"
 #include "domain/safety/model/alarm_types.h"
 #include "runtime/event_bus/event_bus.h"
+#include "runtime/scheduler/periodic_task.h"
+#include "runtime/config/thread_config.h"
 
-sw_err_t alarm_event_bridge_init(void)
-{
-    return SW_OK;
-}
+#include <sched.h>
 
-void alarm_event_bridge_drain(void)
+static void alarm_event_bridge_drain(void)
 {
     alarm_domain_event_t batch[ALARM_PENDING_EVENT_MAX];
     unsigned             n;
@@ -41,4 +40,16 @@ void alarm_event_bridge_drain(void)
             }
         }
     } while (n == ALARM_PENDING_EVENT_MAX);
+}
+
+static void bridge_tick(void *ctx)
+{
+    (void)ctx;
+    alarm_event_bridge_drain();
+}
+
+sw_err_t alarm_event_bridge_init(void)
+{
+    return periodic_task_register("alarm_bridge", 50U, bridge_tick, NULL,
+                                  SCHED_OTHER, 0, THD_SENSOR_POLL_STACK);
 }

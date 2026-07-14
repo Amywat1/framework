@@ -343,15 +343,11 @@ add_unit_test(test_recovery_emergency
 
 add_unit_test(test_telemetry_projection
     ${CMAKE_CURRENT_SOURCE_DIR}/application/test_telemetry_projection.c
-    ${WDF_ROOT}/application/wash_projection.c
-    ${WDF_ROOT}/application/operational_projection.c
-    ${WDF_ROOT}/application/safety_projection.c
-    ${WDF_ROOT}/domain/telemetry/snapshot/wash_snapshot.c
-    ${WDF_ROOT}/domain/telemetry/snapshot/operational_snapshot.c
-    ${WDF_ROOT}/domain/telemetry/snapshot/safety_snapshot.c
+    ${WDF_ROOT}/application/telemetry_projection.c
+    ${WDF_ROOT}/domain/telemetry/device_snapshot.c
     ${WDF_ROOT}/domain/command_gateway/operational_mode.c
     ${WDF_ROOT}/domain/safety/alarm_registry/alarm_registry.c
-    ${WDF_ROOT}/ports/port_registry.c
+    ${WDF_ROOT}/ports/inbound/safety/alarm_binding_port.c
     ${WDF_ROOT}/runtime/event_bus/event_bus.c
     ${WDF_ROOT}/common/log.c
     ${WDF_ROOT}/common/time_util.c
@@ -462,10 +458,8 @@ target_compile_definitions(test_svc_param PRIVATE
 add_unit_test(test_dev_ctx
     ${CMAKE_CURRENT_SOURCE_DIR}/services/test_dev_ctx.c
     ${WDF_ROOT}/services/dev_ctx/dev_ctx.c
-    ${WDF_ROOT}/domain/telemetry/snapshot/operational_snapshot.c
-    ${WDF_ROOT}/domain/telemetry/snapshot/safety_snapshot.c
-    ${WDF_ROOT}/domain/telemetry/snapshot/wash_snapshot.c
-    ${WDF_ROOT}/ports/port_registry.c
+    ${WDF_ROOT}/domain/telemetry/device_snapshot.c
+    ${WDF_ROOT}/ports/outbound/cloud/link/cloud_link_port.c
     ${WDF_ROOT}/common/log.c
 )
 

@@ -8,9 +8,11 @@
 #include "runtime/bootstrap/bootstrap.h"
 
 #include "application/alarm_event_bridge.h"
+#include "application/alarm_lifecycle_bridge.h"
 #include "application/command_gateway.h"
 #include "application/op_mode_bridge.h"
 #include "application/self_check_service.h"
+#include "application/telemetry_projection.h"
 #include "common/log.h"
 #include "common/time_util.h"
 #include "domain/command_gateway/operational_mode.h"
@@ -33,6 +35,37 @@
 #include <sched.h>
 #include <stdlib.h>
 
+static const project_hooks_t *s_hooks;
+
+sw_err_t bootstrap_register_hooks(const project_hooks_t *hooks)
+{
+    if ((hooks == NULL)
+        || (hooks->configure_storage == NULL)
+        || (hooks->configure_hal == NULL)
+        || (hooks->bind_hal == NULL)
+        || (hooks->init_hal == NULL)
+        || (hooks->configure_safety == NULL)
+        || (hooks->configure_adapters == NULL)
+        || (hooks->bind_machine == NULL)
+        || (hooks->bind_alarm_catalog == NULL)
+        || (hooks->validate == NULL)
+        || (hooks->init_adapters == NULL)
+        || (hooks->register_runtime_tasks == NULL)
+        || (hooks->start_runtime == NULL)
+        || (hooks->assert_safe_outputs == NULL)) {
+        return SW_ERR_PARAM;
+    }
+    s_hooks = hooks;
+    return SW_OK;
+}
+
+void project_assert_safe_outputs(void)
+{
+    if ((s_hooks != NULL) && (s_hooks->assert_safe_outputs != NULL)) {
+        s_hooks->assert_safe_outputs();
+    }
+}
+
 #define BOOT_CHECK(call, msg)                                                                                          \
     do {                                                                                                               \
         sw_err_t _r = (call);                                                                                          \
@@ -45,7 +78,9 @@
 static void system_panic_safe_stop(event_bus_fatal_reason_t reason, int sys_errno)
 {
     LOG_ERROR("bootstrap: event_bus fatal reason=%d errno=%d", (int)reason, sys_errno);
-    project_assert_safe_outputs();
+    if ((s_hooks != NULL) && (s_hooks->assert_safe_outputs != NULL)) {
+        s_hooks->assert_safe_outputs();
+    }
     abort();
 }
 
@@ -65,8 +100,8 @@ static sw_err_t hal_io_bootstrap_init(void)
     }
 
     BOOT_CHECK(io->init(), "hal_io_init");
-    if (io->register_panic_cb != NULL) {
-        io->register_panic_cb(project_assert_safe_outputs);
+    if ((io->register_panic_cb != NULL) && (s_hooks != NULL)) {
+        io->register_panic_cb(s_hooks->assert_safe_outputs);
     }
     return SW_OK;
 }
@@ -140,6 +175,7 @@ static sw_err_t bootstrap_register(void)
     event_bus_set_fatal_cb(system_panic_safe_stop);
 
     BOOT_CHECK(wiring(), "wiring");
+    BOOT_CHECK(project_hooks_register(), "project_hooks_register");
     BOOT_CHECK(thread_register("event_dispatch", event_dispatch_thread_fn, SCHED_OTHER, 0, THD_EVENT_DISPATCH_STACK),
                "register event_dispatch");
 
@@ -148,33 +184,33 @@ static sw_err_t bootstrap_register(void)
 
 static sw_err_t bootstrap_configure_storage(void)
 {
-    BOOT_CHECK(project_configure_storage(), "project_configure_storage");
+    BOOT_CHECK(s_hooks->configure_storage(), "project_configure_storage");
     return SW_OK;
 }
 
 static sw_err_t bootstrap_configure(void)
 {
-    BOOT_CHECK(project_configure_hal(), "project_configure_hal");
-    BOOT_CHECK(project_configure_safety(), "project_configure_safety");
-    BOOT_CHECK(project_configure_adapters(), "project_configure_adapters");
+    BOOT_CHECK(s_hooks->configure_hal(), "project_configure_hal");
+    BOOT_CHECK(s_hooks->configure_safety(), "project_configure_safety");
+    BOOT_CHECK(s_hooks->configure_adapters(), "project_configure_adapters");
 
     return SW_OK;
 }
 
 static sw_err_t bootstrap_bind(void)
 {
-    BOOT_CHECK(project_bind_hal(), "project_bind_hal");
-    BOOT_CHECK(project_bind_machine(), "project_bind_machine");
+    BOOT_CHECK(s_hooks->bind_hal(), "project_bind_hal");
+    BOOT_CHECK(s_hooks->bind_machine(), "project_bind_machine");
     BOOT_CHECK(alarm_registry_init(), "alarm_registry_init");
     BOOT_CHECK(safety_posture_init(), "safety_posture_init");
-    BOOT_CHECK(project_bind_alarm_catalog(), "project_bind_alarm_catalog");
+    BOOT_CHECK(s_hooks->bind_alarm_catalog(), "project_bind_alarm_catalog");
 
     return SW_OK;
 }
 
 static sw_err_t bootstrap_validate(void)
 {
-    BOOT_CHECK(project_validate(), "project_validate");
+    BOOT_CHECK(s_hooks->validate(), "project_validate");
     return SW_OK;
 }
 
@@ -183,22 +219,24 @@ static sw_err_t bootstrap_init(void)
     BOOT_CHECK(hal_io_bootstrap_init(), "hal_io_bootstrap");
     BOOT_CHECK(hal_vfd_bootstrap_init(), "hal_vfd_bootstrap");
     BOOT_CHECK(hal_voice_bootstrap_init(), "hal_voice_bootstrap");
-    BOOT_CHECK(project_init_hal(), "project_init_hal");
+    BOOT_CHECK(s_hooks->init_hal(), "project_init_hal");
     BOOT_CHECK(alarm_event_bridge_init(), "alarm_event_bridge_init");
     BOOT_CHECK(safety_thread_init(), "safety_thread_init");
     BOOT_CHECK(operational_mode_init(), "operational_mode_init");
     BOOT_CHECK(command_gateway_init(), "command_gateway_init");
     BOOT_CHECK(self_check_service_init(), "self_check_service_init");
+    BOOT_CHECK(alarm_lifecycle_bridge_init(), "alarm_lifecycle_bridge_init");
     BOOT_CHECK(op_mode_bridge_init(), "op_mode_bridge_init");
-    BOOT_CHECK(project_init_adapters(), "project_init_adapters");
-    BOOT_CHECK(project_register_runtime_tasks(), "project_register_runtime_tasks");
+    BOOT_CHECK(telemetry_projection_init(), "telemetry_projection_init");
+    BOOT_CHECK(s_hooks->init_adapters(), "project_init_adapters");
+    BOOT_CHECK(s_hooks->register_runtime_tasks(), "project_register_runtime_tasks");
     return SW_OK;
 }
 
 static sw_err_t bootstrap_start(void)
 {
     BOOT_CHECK(hal_io_bootstrap_start(), "hal_io_bootstrap_start");
-    BOOT_CHECK(project_start_runtime(), "project_start_runtime");
+    BOOT_CHECK(s_hooks->start_runtime(), "project_start_runtime");
     BOOT_CHECK(scheduler_start_all(), "scheduler_start_all");
     return SW_OK;
 }

@@ -66,16 +66,18 @@ typedef struct {
 } engine_io_ops_t;
 
 /**
- * @brief  注册引擎 IO 后端实现（引擎初始化前调用一次）
- * @param  ops  后端操作集；为空或字段不全将被忽略
+ * @brief  引擎 IO 后端（操作集与名称目录的组合）
  */
-void engine_io_register(const engine_io_ops_t *ops);
+typedef struct {
+    const engine_io_ops_t     *ops;
+    const engine_io_catalog_t *catalog;
+} engine_io_backend_t;
 
 /**
- * @brief  注册 IO 名称目录（与 engine_io_register 独立，可为空表示跳过 IO 名校验）
- * @param  catalog  名称目录；字段可为空表示该项无条目
+ * @brief  注册引擎 IO 后端（引擎初始化前调用一次）
+ * @param  backend  后端组合；为空或 ops 字段不全将被忽略；catalog 可为空表示跳过 IO 名校验
  */
-void engine_io_register_catalog(const engine_io_catalog_t *catalog);
+void engine_io_register(const engine_io_backend_t *backend);
 
 /**
  * @brief  获取已注册的引擎 IO 后端
