@@ -18,13 +18,24 @@ extern "C" {
 #include "adapters/outbound/hal/providers/snack/io_exp/io_exp_driver.h"
 
 /**
- * @brief  注册 snack_io_adapter 实现到 hal_io_port
- * @param  cfg  IO 子板配置（子板/点数/DI-DO 名称表），由机型层提供；
- *              内部按值保存一份，cfg 本身可为调用点的局部变量
- * @note   须在机型 wiring 的端口注册阶段调用；实际 drv_io_init() 由
- *         hal_io.init() 在 bootstrap 初始化阶段触发
+ * @brief  注册 snack_io_adapter 操作集到 hal_io_port。
+ * @note   本接口只注册 ops，不读取配置、不初始化硬件、不启动线程。
  */
-void snack_io_adapter_register(const drv_io_cfg_t *cfg);
+void snack_io_adapter_register(void);
+
+/**
+ * @brief  配置 IO 子板驱动参数。
+ * @param  cfg  IO 子板配置（子板/点数/DI-DO 名称表），由机型层提供；内部按值保存一份。
+ * @retval SW_OK        配置成功。
+ * @retval SW_ERR_PARAM cfg 为空或配置内容非法。
+ * @retval SW_ERR_BUSY  已完成配置，禁止重复覆盖。
+ * @note   必须在 hal_io.init() 之前调用；实际 drv_io_init() 仍由 hal_io.init() 触发。
+ */
+sw_err_t snack_io_adapter_configure(const drv_io_cfg_t *cfg);
+
+#ifdef SNACK_IO_ADAPTER_UNIT_TEST
+void snack_io_adapter_test_reset(void);
+#endif
 
 #ifdef __cplusplus
 }

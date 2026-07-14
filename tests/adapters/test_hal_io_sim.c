@@ -26,7 +26,9 @@ static const io_do_t k_bad_do   = IO_DO(0U, 2U);
 
 void setUp(void)
 {
+    hal_io_sim_test_reset();
     hal_io_sim_register();
+    TEST_ASSERT_EQUAL_INT(SW_OK, hal_io_get_ops()->init());
 }
 
 void tearDown(void)
@@ -93,7 +95,7 @@ static void test_pulse_clear_invalid_pin_returns_err(void)
 static void test_pulse_counter_init_clears_value(void)
 {
     hal_io_sim_set_pulse_counter(k_valid_di, 777U);
-    hal_io_sim_register();
+    TEST_ASSERT_EQUAL_INT(SW_OK, hal_io_get_ops()->init());
     TEST_ASSERT_EQUAL_INT(0, hal_io_get_ops()->pulse_read(k_valid_di));
 }
 
@@ -177,6 +179,19 @@ static void test_start_returns_ok(void)
     TEST_ASSERT_EQUAL_INT(SW_OK, hal_io_get_ops()->start());
 }
 
+static void test_ops_before_init_return_not_init_or_safe_value(void)
+{
+    hal_io_stats_t stats;
+
+    hal_io_sim_test_reset();
+    hal_io_sim_register();
+    TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_INIT, hal_io_get_ops()->start());
+    TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_INIT, hal_io_get_ops()->do_set(k_valid_do, true));
+    TEST_ASSERT_FALSE(hal_io_get_ops()->di_read(k_valid_di));
+    TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_INIT, hal_io_get_ops()->pulse_clear(k_valid_di));
+    TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_INIT, hal_io_get_ops()->get_stats(1, &stats));
+}
+
 static void test_pulse_counter_max_value(void)
 {
     io_di_t pin = IO_DI(1U, 5U);
@@ -214,6 +229,7 @@ int main(void)
     RUN_TEST(test_two_di_pins_independent);
     RUN_TEST(test_two_pulse_counters_independent);
     RUN_TEST(test_start_returns_ok);
+    RUN_TEST(test_ops_before_init_return_not_init_or_safe_value);
     RUN_TEST(test_pulse_counter_max_value);
 
     return UNITY_END();

@@ -33,6 +33,7 @@ static hal_sensor_bind_cfg_t s_cfg[HAL_SENSOR_CHANNEL_MAX];
 static bool                  s_bound[HAL_SENSOR_CHANNEL_MAX];
 static sensor_ch_rt_t        s_rt[HAL_SENSOR_CHANNEL_MAX];
 static bool                  s_ops_error_logged = false;
+static bool                  s_initialized      = false;
 
 static pthread_mutex_t s_sensor_lock = PTHREAD_MUTEX_INITIALIZER;
 
@@ -60,8 +61,13 @@ sw_err_t hal_sensor_filter_bind(hal_sensor_channel_t ch, const hal_sensor_bind_c
     }
 
     pthread_mutex_lock(&s_sensor_lock);
+    if (s_bound[ch]) {
+        pthread_mutex_unlock(&s_sensor_lock);
+        return SW_ERR_BUSY;
+    }
     s_cfg[ch]   = *cfg;
     s_bound[ch] = true;
+    s_initialized = false;
     pthread_mutex_unlock(&s_sensor_lock);
     return SW_OK;
 }
@@ -69,14 +75,25 @@ sw_err_t hal_sensor_filter_bind(hal_sensor_channel_t ch, const hal_sensor_bind_c
 /* 仅重置运行时滤波状态；通道绑定配置在 bootstrap 阶段写入，不在此清除 */
 static sw_err_t sensor_init(void)
 {
+    bool any_bound = false;
+
     pthread_mutex_lock(&s_sensor_lock);
     for (hal_sensor_channel_t ch = 0U; ch < HAL_SENSOR_CHANNEL_MAX; ch++) {
+        if (s_bound[ch]) {
+            any_bound = true;
+        }
         s_rt[ch].confirmed    = false;
         s_rt[ch].last_raw     = false;
         s_rt[ch].stable_count = 0U;
     }
 
+    if (!any_bound) {
+        pthread_mutex_unlock(&s_sensor_lock);
+        return SW_ERR_NOT_INIT;
+    }
+
     s_ops_error_logged = false;
+    s_initialized      = true;
     pthread_mutex_unlock(&s_sensor_lock);
     return SW_OK;
 }
@@ -84,6 +101,13 @@ static sw_err_t sensor_init(void)
 static sw_err_t sensor_tick(void)
 {
     const hal_io_ops_t *io = hal_io_get_ops();
+
+    pthread_mutex_lock(&s_sensor_lock);
+    if (!s_initialized) {
+        pthread_mutex_unlock(&s_sensor_lock);
+        return SW_ERR_NOT_INIT;
+    }
+    pthread_mutex_unlock(&s_sensor_lock);
 
     if ((io == NULL) || (io->di_read == NULL)) {
         pthread_mutex_lock(&s_sensor_lock);
@@ -171,6 +195,23 @@ void hal_sensor_filter_register(void)
 {
     hal_sensor_register(&s_ops);
 }
+
+#ifdef HAL_SENSOR_FILTER_UNIT_TEST
+void hal_sensor_filter_test_reset(void)
+{
+    pthread_mutex_lock(&s_sensor_lock);
+    for (hal_sensor_channel_t ch = 0U; ch < HAL_SENSOR_CHANNEL_MAX; ch++) {
+        s_cfg[ch]             = (hal_sensor_bind_cfg_t){0};
+        s_bound[ch]           = false;
+        s_rt[ch].confirmed    = false;
+        s_rt[ch].last_raw     = false;
+        s_rt[ch].stable_count = 0U;
+    }
+    s_ops_error_logged = false;
+    s_initialized      = false;
+    pthread_mutex_unlock(&s_sensor_lock);
+}
+#endif
 
 static void sensor_poll_task(void *ctx)
 {

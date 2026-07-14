@@ -11,38 +11,15 @@
 #include "common/point_table/point_table.h"
 #include "ports/inbound/cloud/property/property_port.h"
 #include "ports/outbound/cloud/link/cloud_link_port.h"
-#include "ports/outbound/storage/deploy_store.h"
 
+#include <stdbool.h>
 #include <stdio.h>
+#include <string.h>
 
-#define DEPLOY_KEY_TOPIC_REPLY "topicPropertyReply"
 #define REPLY_JSON_BUF_SIZE    128U
+#define SNACK_CLOUD_TOPIC_MAX  128U
 
-static char s_topic_reply[128] = "";
-static bool s_topic_loaded     = false;
-static bool s_topic_present    = false;
-
-static sw_err_t load_topic_reply(void)
-{
-    const deploy_store_ops_t *ds = deploy_store_get_ops();
-
-    if (s_topic_loaded) {
-        return s_topic_present ? SW_OK : SW_ERR_NOT_INIT;
-    }
-
-    s_topic_loaded = true;
-    if (ds == NULL) {
-        return SW_ERR_NOT_INIT;
-    }
-
-    if ((ds->get(DEPLOY_KEY_TOPIC_REPLY, s_topic_reply, sizeof(s_topic_reply)) == SW_OK)
-        && (s_topic_reply[0] != '\0')) {
-        s_topic_present = true;
-        return SW_OK;
-    }
-
-    return SW_ERR_NOT_INIT;
-}
+static char s_topic_reply[SNACK_CLOUD_TOPIC_MAX] = "";
 
 sw_err_t snack_cloud_property_reply(const char *request_json, const point_apply_result_t *result)
 {
@@ -53,7 +30,7 @@ sw_err_t snack_cloud_property_reply(const char *request_json, const point_apply_
 
     (void)request_json;
 
-    if (load_topic_reply() != SW_OK) {
+    if (s_topic_reply[0] == '\0') {
         return SW_OK;
     }
 
@@ -104,6 +81,27 @@ static void mqtt_recv_cb(const char *msg)
 
 sw_err_t snack_cloud_command_adapter_register(void)
 {
+    s_topic_reply[0] = '\0';
+    LOG_INFO("snack_cloud_cmd: adapter registered");
+    return SW_OK;
+}
+
+sw_err_t snack_cloud_command_adapter_configure(const char *topic_property_reply)
+{
+    if ((topic_property_reply == NULL) || (topic_property_reply[0] == '\0')) {
+        s_topic_reply[0] = '\0';
+        return SW_OK;
+    }
+    if (strlen(topic_property_reply) >= sizeof(s_topic_reply)) {
+        return SW_ERR_PARAM;
+    }
+
+    strcpy(s_topic_reply, topic_property_reply);
+    return SW_OK;
+}
+
+sw_err_t snack_cloud_command_adapter_bind(void)
+{
     const cloud_link_ops_t *link = cloud_link_get_ops();
 
     if ((link == NULL) || (link->set_recv_handler == NULL)) {
@@ -112,6 +110,6 @@ sw_err_t snack_cloud_command_adapter_register(void)
     }
 
     link->set_recv_handler(mqtt_recv_cb);
-    LOG_INFO("snack_cloud_cmd: recv handler registered");
+    LOG_INFO("snack_cloud_cmd: recv handler bound");
     return SW_OK;
 }

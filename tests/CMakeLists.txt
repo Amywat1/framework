@@ -34,6 +34,7 @@ add_unit_test(test_hal_io_sim
     ${WDF_ROOT}/ports/port_registry.c
     ${WDF_ROOT}/common/log.c
 )
+target_compile_definitions(test_hal_io_sim PRIVATE HAL_IO_SIM_UNIT_TEST)
 
 add_unit_test(test_hal_sensor_filter
     ${CMAKE_CURRENT_SOURCE_DIR}/adapters/test_hal_sensor_filter.c
@@ -44,6 +45,7 @@ add_unit_test(test_hal_sensor_filter
     ${WDF_ROOT}/ports/port_registry.c
     ${WDF_ROOT}/common/log.c
 )
+target_compile_definitions(test_hal_sensor_filter PRIVATE HAL_SENSOR_FILTER_UNIT_TEST HAL_IO_SIM_UNIT_TEST)
 
 add_unit_test(test_hal_vfd_manager
     ${CMAKE_CURRENT_SOURCE_DIR}/adapters/test_hal_vfd_manager.c
@@ -72,6 +74,7 @@ add_unit_test(test_hal_voice_sim
     ${WDF_ROOT}/ports/port_registry.c
     ${WDF_ROOT}/common/log.c
 )
+target_compile_definitions(test_hal_voice_sim PRIVATE HAL_VOICE_SIM_UNIT_TEST)
 
 add_unit_test(test_snack_voice_adapter
     ${CMAKE_CURRENT_SOURCE_DIR}/adapters/test_snack_voice_adapter.c
@@ -81,6 +84,7 @@ add_unit_test(test_snack_voice_adapter
     ${WDF_ROOT}/ports/port_registry.c
     ${WDF_ROOT}/common/log.c
 )
+target_compile_definitions(test_snack_voice_adapter PRIVATE SNACK_VOICE_ADAPTER_UNIT_TEST)
 
 add_unit_test(test_snack_io_exp_adapter
     ${CMAKE_CURRENT_SOURCE_DIR}/adapters/test_snack_io_exp_adapter.c
@@ -94,6 +98,7 @@ add_unit_test(test_snack_io_exp_adapter
 target_include_directories(test_snack_io_exp_adapter PRIVATE
     ${WDF_ROOT}/tests/stubs
 )
+target_compile_definitions(test_snack_io_exp_adapter PRIVATE SNACK_IO_ADAPTER_UNIT_TEST)
 
 add_unit_test(test_snack_vfd_backend
     ${CMAKE_CURRENT_SOURCE_DIR}/adapters/test_snack_vfd_backend.c
@@ -114,6 +119,7 @@ target_include_directories(test_snack_vfd_backend PRIVATE
     ${WDF_ROOT}/tests/stubs
 )
 target_compile_definitions(test_snack_vfd_backend PRIVATE HAL_VFD_MANAGER_UNIT_TEST)
+target_compile_definitions(test_snack_vfd_backend PRIVATE SNACK_VFD_BACKEND_UNIT_TEST)
 
 add_unit_test(test_snack_cloud_adapters
     ${CMAKE_CURRENT_SOURCE_DIR}/adapters/test_snack_cloud_adapters.c

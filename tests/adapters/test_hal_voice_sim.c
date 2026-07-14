@@ -14,6 +14,7 @@
 #include <stdint.h>
 
 void hal_voice_sim_register(void);
+void hal_voice_sim_test_reset(void);
 
 static const hal_voice_ops_t *voice(void)
 {
@@ -22,6 +23,7 @@ static const hal_voice_ops_t *voice(void)
 
 void setUp(void)
 {
+    hal_voice_sim_test_reset();
     hal_voice_sim_register();
 }
 
@@ -49,16 +51,28 @@ static void test_init_returns_ok(void)
 
 static void test_play_returns_ok(void)
 {
+    TEST_ASSERT_EQUAL_INT(SW_OK, voice()->init());
     TEST_ASSERT_EQUAL_INT(SW_OK, voice()->play(42U));
 }
 
 static void test_stop_pause_volume_ops_return_ok(void)
 {
+    TEST_ASSERT_EQUAL_INT(SW_OK, voice()->init());
     TEST_ASSERT_EQUAL_INT(SW_OK, voice()->stop());
     TEST_ASSERT_EQUAL_INT(SW_OK, voice()->pause());
     TEST_ASSERT_EQUAL_INT(SW_OK, voice()->set_volume(80U));
     TEST_ASSERT_EQUAL_INT(SW_OK, voice()->volume_up());
     TEST_ASSERT_EQUAL_INT(SW_OK, voice()->volume_down());
+}
+
+static void test_ops_before_init_return_not_init(void)
+{
+    TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_INIT, voice()->play(42U));
+    TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_INIT, voice()->stop());
+    TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_INIT, voice()->pause());
+    TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_INIT, voice()->set_volume(80U));
+    TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_INIT, voice()->volume_up());
+    TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_INIT, voice()->volume_down());
 }
 
 static void test_register_event_cb_accepts_null(void)
@@ -72,6 +86,7 @@ int main(void)
 
     RUN_TEST(test_register_returns_ops);
     RUN_TEST(test_init_returns_ok);
+    RUN_TEST(test_ops_before_init_return_not_init);
     RUN_TEST(test_play_returns_ok);
     RUN_TEST(test_stop_pause_volume_ops_return_ok);
     RUN_TEST(test_register_event_cb_accepts_null);

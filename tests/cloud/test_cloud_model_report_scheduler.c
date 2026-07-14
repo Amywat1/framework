@@ -190,7 +190,8 @@ static void test_cloud_model_builds_and_applies_properties(void)
     point_apply_result_t        result;
 
     register_model();
-    TEST_ASSERT_EQUAL_INT(SW_OK, cloud_model_validate_and_watch());
+    TEST_ASSERT_EQUAL_INT(SW_OK, cloud_model_validate());
+    TEST_ASSERT_EQUAL_INT(SW_OK, cloud_model_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, cloud_model_build_properties(buf, sizeof(buf)));
     TEST_ASSERT_NOT_NULL(strstr(buf, "\"counter\":7"));
     TEST_ASSERT_NOT_NULL(strstr(buf, "\"enabled\":false"));
@@ -215,8 +216,9 @@ static void test_report_scheduler_runs_event_policies(void)
     cloud_link_register(&s_link_ops);
     cloud_report_register(&s_report_ops);
     register_model();
-    TEST_ASSERT_EQUAL_INT(SW_OK, cloud_model_validate_and_watch());
-    TEST_ASSERT_EQUAL_INT(SW_OK, cloud_model_start_scheduler());
+    TEST_ASSERT_EQUAL_INT(SW_OK, cloud_model_validate());
+    TEST_ASSERT_EQUAL_INT(SW_OK, cloud_model_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, cloud_model_register_scheduler());
     tid = start_dispatch();
     usleep(10000);
 

@@ -19,6 +19,7 @@
 static bool     s_do_state[SIM_IO_BOARD_MAX][SIM_IO_PIN_COUNT + 1U];
 static bool     s_di_state[SIM_IO_BOARD_MAX][SIM_IO_PIN_COUNT + 1U];
 static uint32_t s_pulse_counter[SIM_IO_BOARD_MAX][SIM_IO_PIN_COUNT + 1U];
+static bool     s_inited = false;
 
 static bool sim_is_valid_di(io_di_t pin)
 {
@@ -49,6 +50,9 @@ void hal_io_sim_set_di_level(io_di_t pin, bool level)
     if (!sim_is_valid_di(pin)) {
         return;
     }
+    if (!s_inited) {
+        return;
+    }
 
     raw                   = io_di_raw(pin);
     board                 = io_handle_board(raw);
@@ -65,6 +69,9 @@ static sw_err_t sim_do_set(io_do_t pin, bool val)
     if (!sim_is_valid_do(pin)) {
         return SW_ERR_PARAM;
     }
+    if (!s_inited) {
+        return SW_ERR_NOT_INIT;
+    }
 
     s_do_state[board][io] = val;
     LOG_INFO("sim_io: DO(board=%u,pin=%u) = %d", (unsigned)board, (unsigned)io, (int)val);
@@ -78,6 +85,9 @@ static bool sim_di_read(io_di_t pin)
     uint16_t io;
 
     if (!sim_is_valid_di(pin)) {
+        return false;
+    }
+    if (!s_inited) {
         return false;
     }
 
@@ -102,11 +112,15 @@ static sw_err_t sim_io_init(void)
     memset(s_do_state, 0, sizeof(s_do_state));
     memset(s_di_state, 0, sizeof(s_di_state));
     memset(s_pulse_counter, 0, sizeof(s_pulse_counter));
+    s_inited = true;
     return SW_OK;
 }
 
 static sw_err_t sim_io_start(void)
 {
+    if (!s_inited) {
+        return SW_ERR_NOT_INIT;
+    }
     return SW_OK;
 }
 
@@ -117,18 +131,27 @@ static void sim_register_panic_cb(hal_io_panic_cb_t cb)
 
 static sw_err_t sim_flush_outputs_now(void)
 {
+    if (!s_inited) {
+        return SW_ERR_NOT_INIT;
+    }
     return SW_OK;
 }
 
 static bool sim_board_is_online(int board_id)
 {
     (void)board_id;
+    if (!s_inited) {
+        return false;
+    }
     return true;
 }
 
 static sw_err_t sim_wait_boards_online(uint32_t timeout_ms)
 {
     (void)timeout_ms;
+    if (!s_inited) {
+        return SW_ERR_NOT_INIT;
+    }
     return SW_OK;
 }
 
@@ -171,6 +194,9 @@ static int sim_pulse_read(io_di_t pin)
     if (!sim_is_valid_di(pin)) {
         return -1;
     }
+    if (!s_inited) {
+        return -1;
+    }
 
     return (int)s_pulse_counter[board][p];
 }
@@ -182,6 +208,9 @@ static sw_err_t sim_pulse_clear(io_di_t pin)
 
     if (!sim_is_valid_di(pin)) {
         return SW_ERR_PARAM;
+    }
+    if (!s_inited) {
+        return SW_ERR_NOT_INIT;
     }
 
     s_pulse_counter[board][p] = 0U;
@@ -196,6 +225,9 @@ void hal_io_sim_set_pulse_counter(io_di_t pin, uint32_t value)
     if (!sim_is_valid_di(pin)) {
         return;
     }
+    if (!s_inited) {
+        return;
+    }
 
     s_pulse_counter[board][p] = value;
 }
@@ -205,6 +237,9 @@ static sw_err_t sim_get_stats(int board_id, hal_io_stats_t *out)
     (void)board_id;
     if (out == NULL) {
         return SW_ERR_PARAM;
+    }
+    if (!s_inited) {
+        return SW_ERR_NOT_INIT;
     }
     memset(out, 0, sizeof(*out));
     out->online = true;
@@ -235,6 +270,15 @@ static const hal_io_ops_t s_ops = {
 void hal_io_sim_register(void)
 {
     hal_io_register(&s_ops);
-    (void)sim_io_init();
     LOG_INFO("hal_io_sim: registered");
 }
+
+#ifdef HAL_IO_SIM_UNIT_TEST
+void hal_io_sim_test_reset(void)
+{
+    memset(s_do_state, 0, sizeof(s_do_state));
+    memset(s_di_state, 0, sizeof(s_di_state));
+    memset(s_pulse_counter, 0, sizeof(s_pulse_counter));
+    s_inited = false;
+}
+#endif

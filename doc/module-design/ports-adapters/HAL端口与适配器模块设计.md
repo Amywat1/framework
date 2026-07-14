@@ -2,7 +2,7 @@
 
 **版本**：v1.0  
 **状态**：已落地（HAL 端口 + 通用组件 + sim 后端 + MCC/Snack 可选 provider）  
-**最后同步代码**：2026-07-12（`ports/outbound/hal`、`components/sensor_filter`、`components/vfd_manager`、MCC provider、Snack io_exp/Modbus provider）  
+**最后同步代码**：2026-07-14（`ports/outbound/hal`、`components/sensor_filter`、`components/vfd_manager`、MCC provider、Snack io_exp/Modbus provider）  
 **适用范围**：`ports/outbound/hal/`、`adapters/outbound/hal/`、`CMakeLists.txt` 可选 provider  
 **架构基线**：Ports & Adapters + 通用组件组合层 + 项目 wiring 注入  
 **关键词**：HAL port、hal_io、hal_sensor、hal_vfd、hal_voice、hal_motor_exec、sensor_filter、vfd_manager、MCC、Snack
@@ -205,7 +205,7 @@ Snack io_exp provider 提供 CAN IO 子板访问，并注册到 `hal_io_port`。
 | 文件 | 职责 |
 |------|------|
 | `io_exp_driver.*` | IO 子板驱动、名称解析、后台线程、在线检测、脉冲计数 |
-| `snack_io_adapter.*` | 将 `drv_io_*` 适配为 `hal_io_ops_t` |
+| `snack_io_adapter.*` | 注册 `hal_io_ops_t`，配置并启动 `drv_io_*` |
 
 | CMake 开关 | 依赖 |
 |------------|------|
@@ -221,7 +221,7 @@ Snack voice provider 通过 Modbus RTU 对接语音模块，并注册到 `hal_vo
 |------|------|
 | `drv_modbus_link.*` | Modbus RTU 连接封装 |
 | `drv_voice.*` | 语音模块寄存器协议 |
-| `snack_voice_adapter.*` | 注册 `hal_voice_ops_t`，绑定串口、波特率、从站地址 |
+| `snack_voice_adapter.*` | 注册 `hal_voice_ops_t`，配置串口、波特率、从站地址 |
 
 | CMake 开关 | 依赖 |
 |------------|------|
@@ -247,29 +247,47 @@ Snack VFD backend 通过 Modbus + IO 输出组合驱动变频器，向 `hal_vfd_
 
 ## 5. 启动与装配顺序
 
-推荐项目 wiring 顺序：
+推荐项目装配顺序：
 
 ```text
 wiring()
     ├─ 注册 hal_io provider
     │    ├─ sim: hal_io_sim_register()
-    │    └─ snack: snack_io_adapter_register(cfg)
-    ├─ 注册 hal_sensor_filter，并 bind 通道
+    │    └─ snack: snack_io_adapter_register()
+    ├─ 注册 hal_sensor_filter
     ├─ 注册 hal_vfd_manager 或 snack_vfd_backend
-    │    └─ 初始化/绑定每个 VFD 实例
     ├─ 注册 hal_voice provider
     ├─ 注册 machine_ops / engine_io / 其他端口
     └─ 返回 bootstrap
 
-bootstrap_init_application / project hooks
-    ├─ hal_io.init/start 或项目 machine setup
-    ├─ hal_sensor.init/warmup
+project_configure_hal()
+    ├─ snack_io_adapter_configure(cfg)
+    ├─ snack_vfd_backend_instance_configure(id, cfg)
+    └─ snack_voice_adapter_configure(cfg)
+
+project_bind_hal()
+    ├─ hal_sensor_filter_bind(ch, cfg)
+    ├─ snack_vfd_backend_instance_bind(id)
+    └─ hal_vfd_manager_bind(id, cfg)
+
+bootstrap_init()
+    ├─ hal_io.init()
+    ├─ hal_vfd.init()
+    ├─ hal_voice.init()
+    └─ project_init_hal()
+         ├─ hal_sensor.init/warmup
+         └─ 其他依赖 HAL init 后的项目初始化
+
+project_register_runtime_tasks()
     ├─ hal_sensor_poll_register_task()
-    ├─ hal_vfd_manager_poll_register_task()
+    └─ hal_vfd_manager_poll_register_task()
+
+bootstrap_start()
+    ├─ hal_io.start()
     └─ scheduler_start_all()
 ```
 
-实际调用点可由项目 hooks 拆分，但原则是：先注册 port/provider，再绑定实例和通道，最后注册周期任务并由 scheduler 统一启动。
+原则是：`wiring()` 只注册 port/provider；`configure` 注入参数；`bind` 绑定实例和通道；`init` 初始化状态和预热；`register_runtime_tasks` 登记周期任务；`start` 只启动必须进入运行态的线程或 provider。
 
 ---
 
@@ -328,7 +346,7 @@ ctest --test-dir build-native --output-on-failure
 
 - 选择并启用 provider，提供外部 SDK 路径、库路径、串口和总线配置。
 - 定义 IO 名称表、VFD 实例 ID、电机索引、语音曲目编号语义。
-- 在 `wiring()` / project hooks 中注册 provider、绑定实例、注册周期任务。
+- 在 `wiring()` 注册 provider，在 project hooks 中完成配置、绑定、初始化和周期任务注册。
 - 将硬件事件映射到报警、运行模式或 machine ops。
 
 ### 8.3 新增 provider

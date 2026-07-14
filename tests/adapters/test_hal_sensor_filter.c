@@ -13,6 +13,8 @@
 
 #define TEST_DI io_di_make(1U, 1U)
 
+void hal_sensor_filter_test_reset(void);
+
 static hal_sensor_bind_cfg_t make_cfg(void)
 {
     hal_sensor_bind_cfg_t cfg = {
@@ -27,15 +29,23 @@ static hal_sensor_bind_cfg_t make_cfg(void)
 
 void setUp(void)
 {
+    hal_io_sim_test_reset();
     hal_io_sim_register();
+    TEST_ASSERT_EQUAL_INT(SW_OK, hal_io_get_ops()->init());
+    hal_sensor_filter_test_reset();
     hal_sensor_filter_register();
     TEST_ASSERT_NOT_NULL(hal_sensor_get_ops());
-    TEST_ASSERT_EQUAL_INT(SW_OK, hal_sensor_get_ops()->init());
     hal_io_sim_set_di_level(TEST_DI, false);
 }
 
 void tearDown(void)
 {
+}
+
+static void bind_and_init(hal_sensor_channel_t ch, const hal_sensor_bind_cfg_t *cfg)
+{
+    TEST_ASSERT_EQUAL_INT(SW_OK, hal_sensor_filter_bind(ch, cfg));
+    TEST_ASSERT_EQUAL_INT(SW_OK, hal_sensor_get_ops()->init());
 }
 
 static void test_bind_rejects_invalid_params(void)
@@ -55,13 +65,17 @@ static void test_bind_rejects_invalid_params(void)
     cfg               = make_cfg();
     cfg.release_count = 0U;
     TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, hal_sensor_filter_bind(0U, &cfg));
+
+    cfg = make_cfg();
+    TEST_ASSERT_EQUAL_INT(SW_OK, hal_sensor_filter_bind(0U, &cfg));
+    TEST_ASSERT_EQUAL_INT(SW_ERR_BUSY, hal_sensor_filter_bind(0U, &cfg));
 }
 
 static void test_warmup_confirms_active_after_threshold(void)
 {
     hal_sensor_bind_cfg_t cfg = make_cfg();
 
-    TEST_ASSERT_EQUAL_INT(SW_OK, hal_sensor_filter_bind(0U, &cfg));
+    bind_and_init(0U, &cfg);
     TEST_ASSERT_FALSE(hal_sensor_get_ops()->is_active(0U));
 
     hal_io_sim_set_di_level(TEST_DI, true);
@@ -76,7 +90,7 @@ static void test_release_uses_release_threshold(void)
 {
     hal_sensor_bind_cfg_t cfg = make_cfg();
 
-    TEST_ASSERT_EQUAL_INT(SW_OK, hal_sensor_filter_bind(0U, &cfg));
+    bind_and_init(0U, &cfg);
     hal_io_sim_set_di_level(TEST_DI, true);
     TEST_ASSERT_EQUAL_INT(SW_OK, hal_sensor_get_ops()->warmup(2U));
     TEST_ASSERT_TRUE(hal_sensor_get_ops()->is_active(0U));
@@ -94,7 +108,7 @@ static void test_active_low_inverts_raw_level(void)
     hal_sensor_bind_cfg_t cfg = make_cfg();
 
     cfg.active_low = true;
-    TEST_ASSERT_EQUAL_INT(SW_OK, hal_sensor_filter_bind(1U, &cfg));
+    bind_and_init(1U, &cfg);
     hal_io_sim_set_di_level(TEST_DI, false);
     TEST_ASSERT_EQUAL_INT(SW_OK, hal_sensor_get_ops()->warmup(2U));
     TEST_ASSERT_TRUE(hal_sensor_get_ops()->is_active(1U));
@@ -108,7 +122,7 @@ static void test_init_resets_runtime_but_keeps_bindings(void)
 {
     hal_sensor_bind_cfg_t cfg = make_cfg();
 
-    TEST_ASSERT_EQUAL_INT(SW_OK, hal_sensor_filter_bind(0U, &cfg));
+    bind_and_init(0U, &cfg);
     hal_io_sim_set_di_level(TEST_DI, true);
     TEST_ASSERT_EQUAL_INT(SW_OK, hal_sensor_get_ops()->warmup(2U));
     TEST_ASSERT_TRUE(hal_sensor_get_ops()->is_active(0U));
@@ -123,9 +137,19 @@ static void test_warmup_requires_registered_io_ops(void)
 {
     hal_sensor_bind_cfg_t cfg = make_cfg();
 
-    TEST_ASSERT_EQUAL_INT(SW_OK, hal_sensor_filter_bind(0U, &cfg));
+    bind_and_init(0U, &cfg);
     hal_io_register(NULL);
 
+    TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_INIT, hal_sensor_get_ops()->warmup(1U));
+}
+
+static void test_warmup_before_bind_or_init_returns_not_init(void)
+{
+    hal_sensor_bind_cfg_t cfg = make_cfg();
+
+    TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_INIT, hal_sensor_get_ops()->init());
+    TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_INIT, hal_sensor_get_ops()->warmup(1U));
+    TEST_ASSERT_EQUAL_INT(SW_OK, hal_sensor_filter_bind(0U, &cfg));
     TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_INIT, hal_sensor_get_ops()->warmup(1U));
 }
 
@@ -139,6 +163,7 @@ int main(void)
     RUN_TEST(test_active_low_inverts_raw_level);
     RUN_TEST(test_init_resets_runtime_but_keeps_bindings);
     RUN_TEST(test_warmup_requires_registered_io_ops);
+    RUN_TEST(test_warmup_before_bind_or_init_returns_not_init);
 
     return UNITY_END();
 }

@@ -14,27 +14,30 @@
 
 static drv_voice_t s_voice;
 static bool        s_voice_inited = false;
+static bool        s_configured   = false;
+static const char *s_serial_port  = NULL;
+static int         s_baud         = 0;
+static int         s_modbus_addr  = 0;
+static void (*s_event_cb)(int event_code) = NULL;
 
 static bool voice_ready(void)
 {
     return s_voice_inited;
 }
 
-/* -------------------------------------------------------------------------
- * 供机型适配层调用的初始化接口
- * ------------------------------------------------------------------------- */
-sw_err_t snack_voice_adapter_init(const char *serial_port, int baud, int modbus_addr)
+sw_err_t snack_voice_adapter_configure(const char *serial_port, int baud, int modbus_addr)
 {
-    sw_err_t ret;
-
-    memset(&s_voice, 0, sizeof(s_voice));
-    ret = drv_voice_init(&s_voice, serial_port, baud, modbus_addr);
-    if (ret != SW_OK) {
-        s_voice_inited = false;
-        return ret;
+    if ((serial_port == NULL) || (modbus_addr <= 0) || (modbus_addr > 247)) {
+        return SW_ERR_PARAM;
     }
-
-    s_voice_inited = true;
+    if (s_configured) {
+        return SW_ERR_BUSY;
+    }
+    s_serial_port = serial_port;
+    s_baud        = baud;
+    s_modbus_addr = modbus_addr;
+    s_configured  = true;
+    s_voice_inited = false;
     return SW_OK;
 }
 
@@ -43,7 +46,21 @@ sw_err_t snack_voice_adapter_init(const char *serial_port, int baud, int modbus_
  * ------------------------------------------------------------------------- */
 static sw_err_t voice_init(void)
 {
-    /* 实例初始化由 snack_voice_adapter_init 在 bootstrap 阶段完成，此处仅占位 */
+    sw_err_t ret;
+
+    if (!s_configured) {
+        return SW_ERR_NOT_INIT;
+    }
+
+    memset(&s_voice, 0, sizeof(s_voice));
+    ret = drv_voice_init(&s_voice, s_serial_port, s_baud, s_modbus_addr);
+    if (ret != SW_OK) {
+        s_voice_inited = false;
+        return ret;
+    }
+
+    s_voice_inited = true;
+    drv_voice_register_event_cb(&s_voice, s_event_cb);
     return SW_OK;
 }
 
@@ -97,6 +114,7 @@ static sw_err_t voice_volume_down(void)
 
 static void voice_register_event_cb(void (*cb)(int event_code))
 {
+    s_event_cb = cb;
     if (voice_ready()) {
         drv_voice_register_event_cb(&s_voice, cb);
     }
@@ -117,3 +135,16 @@ void snack_voice_adapter_register(void)
 {
     hal_voice_register(&s_ops);
 }
+
+#ifdef SNACK_VOICE_ADAPTER_UNIT_TEST
+void snack_voice_adapter_test_reset(void)
+{
+    memset(&s_voice, 0, sizeof(s_voice));
+    s_voice_inited = false;
+    s_configured   = false;
+    s_serial_port  = NULL;
+    s_baud         = 0;
+    s_modbus_addr  = 0;
+    s_event_cb     = NULL;
+}
+#endif

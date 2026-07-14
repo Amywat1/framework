@@ -18,10 +18,16 @@ _Static_assert(sizeof(hal_io_stats_t) == sizeof(drv_io_stats_t),
                "hal_io_stats_t and drv_io_stats_t must remain identical");
 
 static drv_io_cfg_t s_cfg;
+static bool         s_configured = false;
+static bool         s_inited     = false;
 
 static sw_err_t io_init(void)
 {
     sw_err_t ret;
+
+    if (!s_configured) {
+        return SW_ERR_NOT_INIT;
+    }
 
     ret = drv_io_cfg_validate(&s_cfg);
     if (ret != SW_OK) {
@@ -35,11 +41,21 @@ static sw_err_t io_init(void)
         return ret;
     }
 
-    return drv_io_init(&s_cfg);
+    ret = drv_io_init(&s_cfg);
+    if (ret == SW_OK) {
+        s_inited = true;
+    }
+    return ret;
 }
 
 static sw_err_t io_start(void)
 {
+    if (!s_configured) {
+        return SW_ERR_NOT_INIT;
+    }
+    if (!s_inited) {
+        return SW_ERR_NOT_INIT;
+    }
     return drv_io_start();
 }
 
@@ -155,13 +171,37 @@ static const hal_io_ops_t s_ops = {
     .pulse_clear              = pulse_clear,
 };
 
-void snack_io_adapter_register(const drv_io_cfg_t *cfg)
+void snack_io_adapter_register(void)
 {
-    if (cfg == NULL) {
-        LOG_ERROR("snack_io_adapter: register cfg is NULL");
-        return;
-    }
-
-    s_cfg = *cfg;
     hal_io_register(&s_ops);
 }
+
+sw_err_t snack_io_adapter_configure(const drv_io_cfg_t *cfg)
+{
+    sw_err_t ret;
+
+    if (cfg == NULL) {
+        return SW_ERR_PARAM;
+    }
+
+    ret = drv_io_cfg_validate(cfg);
+    if (ret != SW_OK) {
+        return ret;
+    }
+    if (s_configured) {
+        return SW_ERR_BUSY;
+    }
+    s_cfg = *cfg;
+    s_configured = true;
+    s_inited     = false;
+    return SW_OK;
+}
+
+#ifdef SNACK_IO_ADAPTER_UNIT_TEST
+void snack_io_adapter_test_reset(void)
+{
+    memset(&s_cfg, 0, sizeof(s_cfg));
+    s_configured = false;
+    s_inited     = false;
+}
+#endif

@@ -51,7 +51,9 @@ void setUp(void)
     drv_io_cfg_t cfg = make_cfg();
 
     io_exp_fake_reset();
-    snack_io_adapter_register(&cfg);
+    snack_io_adapter_test_reset();
+    snack_io_adapter_register();
+    TEST_ASSERT_EQUAL_INT(SW_OK, snack_io_adapter_configure(&cfg));
     TEST_ASSERT_EQUAL_INT(SW_OK, io_ops()->init());
 }
 
@@ -105,10 +107,24 @@ static void test_hal_adapter_validates_cfg_before_sdk_init(void)
     drv_io_cfg_t cfg = make_cfg();
 
     io_exp_fake_reset();
+    snack_io_adapter_test_reset();
+    snack_io_adapter_register();
     cfg.pin_count = 33;
-    snack_io_adapter_register(&cfg);
-    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, io_ops()->init());
+    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, snack_io_adapter_configure(&cfg));
+    TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_INIT, io_ops()->init());
     TEST_ASSERT_NULL(io_exp_fake_can_bus());
+}
+
+static void test_hal_adapter_rejects_init_before_configure_and_duplicate_configure(void)
+{
+    drv_io_cfg_t cfg = make_cfg();
+
+    snack_io_adapter_test_reset();
+    snack_io_adapter_register();
+    TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_INIT, io_ops()->init());
+    TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_INIT, io_ops()->start());
+    TEST_ASSERT_EQUAL_INT(SW_OK, snack_io_adapter_configure(&cfg));
+    TEST_ASSERT_EQUAL_INT(SW_ERR_BUSY, snack_io_adapter_configure(&cfg));
 }
 
 static void test_hal_adapter_exposes_name_resolution_and_board_count(void)
@@ -193,6 +209,7 @@ int main(void)
     RUN_TEST(test_sdk_init_registers_internal_log_and_delegates_to_io_exp_sdk);
     RUN_TEST(test_init_rejects_invalid_config);
     RUN_TEST(test_hal_adapter_validates_cfg_before_sdk_init);
+    RUN_TEST(test_hal_adapter_rejects_init_before_configure_and_duplicate_configure);
     RUN_TEST(test_hal_adapter_exposes_name_resolution_and_board_count);
     RUN_TEST(test_do_set_updates_stats_and_rejects_invalid_pin);
     RUN_TEST(test_di_test_override_controls_read_value);

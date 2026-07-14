@@ -2,7 +2,7 @@
 
 **版本**：v1.2  
 **状态**：已落地（核心实现 + scheduler + Demo bootstrap）  
-**最后同步代码**：2026-07-12（`bootstrap_run()`、`event_dispatch` 线程、业务订阅）  
+**最后同步代码**：2026-07-14（`bootstrap_run()`、`event_dispatch` 线程、业务订阅）  
 **适用范围**：`common/event_types.h`、`runtime/event_bus/`、`runtime/scheduler/`、`runtime/bootstrap/`、`application/` 订阅方  
 **架构基线**：Ports & Adapters + 单 dispatch 线程 + 编译期固定容量  
 **关键词**：event_bus、发布订阅、双队列、复合事件编码、`event_dispatch` 线程
@@ -94,15 +94,16 @@ event_bus_init() + event_bus_set_fatal_cb()
     ↓
 wiring()（端口注册）
     ↓
-业务模块 init()（见 bootstrap_init_application）
+project configure / bind / validate
     ↓
-bootstrap_start_threads()
+业务模块 init()（见 bootstrap_init）
+    ↓
+bootstrap_start()
     event_dispatch 线程 → event_bus_dispatch_loop()
-    project_start_threads() → 周期任务（如 alarm_bridge drain）
     scheduler_start_all()
 ```
 
-`wash-device-framework` Demo 经 `bootstrap_run()` 注册 `event_dispatch` 线程并启动调度器；单元测试仍由测试代码手动起 dispatch 线程。
+`wash-device-framework` Demo 经 `bootstrap_run()` 在 register 阶段登记 `event_dispatch` 线程，并在 start 阶段由 `scheduler_start_all()` 启动；项目周期任务应在 `project_register_runtime_tasks()` 登记，单元测试仍由测试代码手动起 dispatch 线程。
 
 ---
 

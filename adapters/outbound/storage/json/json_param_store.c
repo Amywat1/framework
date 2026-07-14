@@ -10,7 +10,7 @@
 #include "adapters/outbound/storage/json/json_param_store.h"
 
 #ifndef PARAM_STORE_JSON_FILE_PATH
-#error "PARAM_STORE_JSON_FILE_PATH must be supplied by the project build (see projects/<project>/config)"
+#define PARAM_STORE_JSON_FILE_PATH ""
 #endif
 #include "common/log.h"
 #include "ports/outbound/storage/param_store.h"
@@ -21,8 +21,28 @@
 #include <stdlib.h>
 #include <string.h>
 
+#define JSON_PARAM_STORE_PATH_MAX 256U
+
 static cJSON          *s_root  = NULL;
 static pthread_mutex_t s_mutex = PTHREAD_MUTEX_INITIALIZER;
+static char            s_file_path[JSON_PARAM_STORE_PATH_MAX] = PARAM_STORE_JSON_FILE_PATH;
+
+static sw_err_t get_file_path(char *buf, size_t buf_size)
+{
+    if ((buf == NULL) || (buf_size == 0U)) {
+        return SW_ERR_PARAM;
+    }
+
+    pthread_mutex_lock(&s_mutex);
+    if (s_file_path[0] == '\0') {
+        pthread_mutex_unlock(&s_mutex);
+        return SW_ERR_PARAM;
+    }
+    strncpy(buf, s_file_path, buf_size - 1U);
+    buf[buf_size - 1U] = '\0';
+    pthread_mutex_unlock(&s_mutex);
+    return SW_OK;
+}
 
 /* -------------------------------------------------------------------------
  * ops 实现
@@ -32,7 +52,12 @@ static sw_err_t store_load(void)
     FILE    *fp;
     long     len;
     char    *buf = NULL;
+    char     path[JSON_PARAM_STORE_PATH_MAX];
     sw_err_t ret = SW_ERR_STORAGE;
+
+    if (get_file_path(path, sizeof(path)) != SW_OK) {
+        return SW_ERR_PARAM;
+    }
 
     pthread_mutex_lock(&s_mutex);
 
@@ -42,9 +67,9 @@ static sw_err_t store_load(void)
     }
     s_root = cJSON_CreateObject();
 
-    fp = fopen(PARAM_STORE_JSON_FILE_PATH, "r");
+    fp = fopen(path, "r");
     if (fp == NULL) {
-        LOG_WARN("json_param_store: file not found (%s), using defaults", PARAM_STORE_JSON_FILE_PATH);
+        LOG_WARN("json_param_store: file not found (%s), using defaults", path);
         pthread_mutex_unlock(&s_mutex);
         return SW_ERR_STORAGE;
     }
@@ -73,15 +98,20 @@ static sw_err_t store_load(void)
     pthread_mutex_unlock(&s_mutex);
 
     if (ret == SW_OK) {
-        LOG_INFO("json_param_store: loaded from %s", PARAM_STORE_JSON_FILE_PATH);
+        LOG_INFO("json_param_store: loaded from %s", path);
     }
     return ret;
 }
 
 static sw_err_t store_save(void)
 {
+    char  path[JSON_PARAM_STORE_PATH_MAX];
     char *str;
     FILE *fp;
+
+    if (get_file_path(path, sizeof(path)) != SW_OK) {
+        return SW_ERR_PARAM;
+    }
 
     pthread_mutex_lock(&s_mutex);
     str = (s_root != NULL) ? cJSON_PrintUnformatted(s_root) : NULL;
@@ -91,17 +121,17 @@ static sw_err_t store_save(void)
         return SW_ERR_STORAGE;
     }
 
-    fp = fopen(PARAM_STORE_JSON_FILE_PATH, "w");
+    fp = fopen(path, "w");
     if (fp == NULL) {
         free(str);
-        LOG_ERROR("json_param_store: cannot write %s", PARAM_STORE_JSON_FILE_PATH);
+        LOG_ERROR("json_param_store: cannot write %s", path);
         return SW_ERR_STORAGE;
     }
 
     fputs(str, fp);
     fclose(fp);
     free(str);
-    LOG_INFO("json_param_store: saved to %s", PARAM_STORE_JSON_FILE_PATH);
+    LOG_INFO("json_param_store: saved to %s", path);
     return SW_OK;
 }
 
@@ -172,4 +202,23 @@ void json_param_store_register(void)
 {
     param_store_register(&s_ops);
     LOG_INFO("json_param_store: registered");
+}
+
+sw_err_t json_param_store_configure(const char *path)
+{
+    size_t len;
+
+    if ((path == NULL) || (path[0] == '\0')) {
+        return SW_ERR_PARAM;
+    }
+
+    len = strlen(path);
+    if (len >= sizeof(s_file_path)) {
+        return SW_ERR_PARAM;
+    }
+
+    pthread_mutex_lock(&s_mutex);
+    memcpy(s_file_path, path, len + 1U);
+    pthread_mutex_unlock(&s_mutex);
+    return SW_OK;
 }

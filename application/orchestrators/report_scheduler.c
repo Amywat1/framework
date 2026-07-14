@@ -153,7 +153,7 @@ static void on_event_policy(const event_t *evt)
     }
 }
 
-sw_err_t report_scheduler_init(const report_policy_entry_t *policies, size_t count)
+sw_err_t report_scheduler_register(const report_policy_entry_t *policies, size_t count)
 {
     sw_err_t ret;
     size_t   i;
@@ -198,6 +198,6 @@ sw_err_t report_scheduler_init(const report_policy_entry_t *policies, size_t cou
     }
 
     s_started = true;
-    LOG_INFO("report_scheduler: init ok policies=%u", (unsigned)count);
+    LOG_INFO("report_scheduler: registered policies=%u", (unsigned)count);
     return SW_OK;
 }

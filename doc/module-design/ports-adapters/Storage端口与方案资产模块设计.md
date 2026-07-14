@@ -2,7 +2,7 @@
 
 **版本**：v1.0  
 **状态**：已落地（param_store + deploy_store + engine_program_loader + JSON 适配器 + manifest 校验）  
-**最后同步代码**：2026-07-12（`ports/outbound/storage`、`adapters/outbound/storage/json`、`engine_program_manifest`）  
+**最后同步代码**：2026-07-14（`ports/outbound/storage`、`adapters/outbound/storage/json`、`engine_program_manifest`）  
 **适用范围**：`ports/outbound/storage/`、`adapters/outbound/storage/json/`、`domain/wash/model/engine_program_manifest.*`、`application/orchestrators/wash_orchestrator.*`  
 **架构基线**：Ports & Adapters + 存储类型分离 + 方案资产完整性校验  
 **关键词**：param_store、deploy_store、engine_program_loader、engine_program_json、manifest、SHA256
@@ -17,7 +17,7 @@
 
 - **按生命周期分离**：运行期参数可写，部署配置只读，洗车方案只加载不修改。
 - **端口隔离格式**：上层依赖 `param_store` / `deploy_store` / `engine_program_loader_port`，JSON 是可替换适配器。
-- **路径由构建注入**：JSON 文件路径通过编译宏注入，框架不硬编码产品部署路径。
+- **路径由项目配置注入**：JSON 文件路径由 `project_configure_storage()` 调用 `json_*_store_configure(path)` 注入，编译宏只作为默认 fallback。
 - **方案完整性校验**：wash worker 在加载方案前校验 `*.manifest.json` 中的 SHA256 和 size。
 - **错误显式返回**：文件缺失、JSON 解析失败、键不存在、manifest 不匹配都有明确返回值。
 
@@ -137,13 +137,17 @@ typedef struct {
 
 ### 3.4 路径注入
 
-适配器要求编译期定义：
+JSON 适配器注册与路径配置分离：
 
-```c
-PARAM_STORE_JSON_FILE_PATH="/path/to/params.json"
+```text
+wiring()
+    └─ json_param_store_register()
+
+project_configure_storage()
+    └─ json_param_store_configure("/path/to/params.json")
 ```
 
-Demo 在 `demo/CMakeLists.txt` 中注入到构建目录，测试在 `tests/CMakeLists.txt` 中注入到测试临时 JSON。
+若项目未显式调用 `json_param_store_configure()`，适配器才回退到编译期 `PARAM_STORE_JSON_FILE_PATH`。Demo 和真机项目应优先在 `project_configure_storage()` 注入路径，测试可继续使用编译宏作为默认值。
 
 ### 3.5 `svc_param` 边界
 
@@ -162,7 +166,7 @@ typedef struct {
 } deploy_store_ops_t;
 ```
 
-部署配置只读，没有 `set` / `save`。适配器读取 `DEPLOY_STORE_JSON_FILE_PATH`，支持顶层 String / Number。
+部署配置只读，没有 `set` / `save`。适配器通过 `json_deploy_store_configure(path)` 注入路径；未显式配置时才回退到编译期 `DEPLOY_STORE_JSON_FILE_PATH`，支持顶层 String / Number。
 
 ### 4.1 JSON 适配器行为
 
@@ -174,7 +178,7 @@ typedef struct {
 | 未 load 或键不存在 | `get()` 返回 `SW_ERR_PARAM` |
 | String / Number 键 | `get()` 返回 `SW_OK`，输出字符串 |
 
-`bootstrap_init_adapters()` 在 `project_adapters_init()` 前调用 `deploy_store.load()`；`SW_ERR_STORAGE` 被允许继续，具体 provider 可在初始化时处理缺省配置。
+`bootstrap_load_storage()` 在 `project_configure_storage()` 后调用 `deploy_store.load()`；`SW_ERR_STORAGE` 被允许继续，具体 provider 可在后续配置或初始化时处理缺省配置。
 
 ---
 
@@ -258,12 +262,17 @@ wiring()
     ├─ json_deploy_store_register()
     └─ engine_program_json_register_loader()
 
-bootstrap_init_infra()
-    └─ svc_param_init()
-         └─ param_store.load()
+project_configure_storage()
+    ├─ json_param_store_configure(param_path)
+    └─ json_deploy_store_configure(deploy_path)
 
-bootstrap_init_adapters()
+bootstrap_load_storage()
+    ├─ svc_param_init()
+    │    └─ param_store.load()
     └─ deploy_store.load()
+
+bootstrap_init()
+    └─ project_register_runtime_tasks()
 
 wash_orchestrator worker
     ├─ engine_program_manifest_path_from_json()
@@ -272,7 +281,7 @@ wash_orchestrator worker
     └─ engine_load_program()
 ```
 
-当前 Demo wiring 注册 param/deploy store；方案 loader 在相关测试和项目 wiring 中按需注册。
+当前 Demo wiring 注册 param/deploy store；JSON 路径由 Demo `project_configure_storage()` 注入。方案 loader 在相关测试和项目 wiring 中按需注册。
 
 ---
 

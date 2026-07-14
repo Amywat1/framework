@@ -71,6 +71,18 @@ static sw_err_t hal_io_bootstrap_init(void)
     return SW_OK;
 }
 
+static sw_err_t hal_io_bootstrap_start(void)
+{
+    const hal_io_ops_t *io = hal_io_get_ops();
+
+    if ((io == NULL) || (io->start == NULL)) {
+        return SW_OK;
+    }
+
+    BOOT_CHECK(io->start(), "hal_io_start");
+    return SW_OK;
+}
+
 static sw_err_t hal_vfd_bootstrap_init(void)
 {
     const hal_vfd_ops_t *vfd = hal_vfd_get_ops();
@@ -95,18 +107,9 @@ static sw_err_t hal_voice_bootstrap_init(void)
     return SW_OK;
 }
 
-static sw_err_t bootstrap_init_infra(void)
+static sw_err_t bootstrap_load_storage(void)
 {
-    time_util_init();
-
-    BOOT_CHECK(event_bus_init(), "event_bus_init");
-    event_bus_set_fatal_cb(system_panic_safe_stop);
-
-    BOOT_CHECK(wiring(), "wiring");
-    BOOT_CHECK(hal_io_bootstrap_init(), "hal_io_bootstrap");
-    BOOT_CHECK(hal_vfd_bootstrap_init(), "hal_vfd_bootstrap");
-    BOOT_CHECK(hal_voice_bootstrap_init(), "hal_voice_bootstrap");
-    BOOT_CHECK(project_hal_extra_setup(), "project_hal_extra_setup");
+    const deploy_store_ops_t *ds = deploy_store_get_ops();
 
     {
         sw_err_t r = svc_param_init();
@@ -117,29 +120,6 @@ static sw_err_t bootstrap_init_infra(void)
         }
     }
 
-    return SW_OK;
-}
-
-static sw_err_t bootstrap_init_application(void)
-{
-    BOOT_CHECK(project_machine_setup(), "project_machine_setup");
-    BOOT_CHECK(alarm_registry_init(), "alarm_registry_init");
-    BOOT_CHECK(safety_posture_init(), "safety_posture_init");
-    BOOT_CHECK(project_alarm_catalog_init(), "project_alarm_catalog_init");
-    BOOT_CHECK(alarm_event_bridge_init(), "alarm_event_bridge_init");
-    BOOT_CHECK(safety_thread_init(), "safety_thread_init");
-    BOOT_CHECK(operational_mode_init(), "operational_mode_init");
-    BOOT_CHECK(command_gateway_init(), "command_gateway_init");
-    BOOT_CHECK(self_check_service_init(), "self_check_service_init");
-    BOOT_CHECK(op_mode_bridge_init(), "op_mode_bridge_init");
-    BOOT_CHECK(project_report_scheduler_init(), "project_report_scheduler_init");
-    return SW_OK;
-}
-
-static sw_err_t bootstrap_init_adapters(void)
-{
-    const deploy_store_ops_t *ds = deploy_store_get_ops();
-
     if (ds != NULL) {
         sw_err_t r = ds->load();
 
@@ -149,15 +129,76 @@ static sw_err_t bootstrap_init_adapters(void)
         }
     }
 
-    BOOT_CHECK(project_adapters_init(), "project_adapters_init");
     return SW_OK;
 }
 
-static sw_err_t bootstrap_start_threads(void)
+static sw_err_t bootstrap_register(void)
 {
+    time_util_init();
+
+    BOOT_CHECK(event_bus_init(), "event_bus_init");
+    event_bus_set_fatal_cb(system_panic_safe_stop);
+
+    BOOT_CHECK(wiring(), "wiring");
     BOOT_CHECK(thread_register("event_dispatch", event_dispatch_thread_fn, SCHED_OTHER, 0, THD_EVENT_DISPATCH_STACK),
                "register event_dispatch");
-    BOOT_CHECK(project_start_threads(), "project_start_threads");
+
+    return SW_OK;
+}
+
+static sw_err_t bootstrap_configure_storage(void)
+{
+    BOOT_CHECK(project_configure_storage(), "project_configure_storage");
+    return SW_OK;
+}
+
+static sw_err_t bootstrap_configure(void)
+{
+    BOOT_CHECK(project_configure_hal(), "project_configure_hal");
+    BOOT_CHECK(project_configure_safety(), "project_configure_safety");
+    BOOT_CHECK(project_configure_adapters(), "project_configure_adapters");
+
+    return SW_OK;
+}
+
+static sw_err_t bootstrap_bind(void)
+{
+    BOOT_CHECK(project_bind_hal(), "project_bind_hal");
+    BOOT_CHECK(project_bind_machine(), "project_bind_machine");
+    BOOT_CHECK(alarm_registry_init(), "alarm_registry_init");
+    BOOT_CHECK(safety_posture_init(), "safety_posture_init");
+    BOOT_CHECK(project_bind_alarm_catalog(), "project_bind_alarm_catalog");
+
+    return SW_OK;
+}
+
+static sw_err_t bootstrap_validate(void)
+{
+    BOOT_CHECK(project_validate(), "project_validate");
+    return SW_OK;
+}
+
+static sw_err_t bootstrap_init(void)
+{
+    BOOT_CHECK(hal_io_bootstrap_init(), "hal_io_bootstrap");
+    BOOT_CHECK(hal_vfd_bootstrap_init(), "hal_vfd_bootstrap");
+    BOOT_CHECK(hal_voice_bootstrap_init(), "hal_voice_bootstrap");
+    BOOT_CHECK(project_init_hal(), "project_init_hal");
+    BOOT_CHECK(alarm_event_bridge_init(), "alarm_event_bridge_init");
+    BOOT_CHECK(safety_thread_init(), "safety_thread_init");
+    BOOT_CHECK(operational_mode_init(), "operational_mode_init");
+    BOOT_CHECK(command_gateway_init(), "command_gateway_init");
+    BOOT_CHECK(self_check_service_init(), "self_check_service_init");
+    BOOT_CHECK(op_mode_bridge_init(), "op_mode_bridge_init");
+    BOOT_CHECK(project_init_adapters(), "project_init_adapters");
+    BOOT_CHECK(project_register_runtime_tasks(), "project_register_runtime_tasks");
+    return SW_OK;
+}
+
+static sw_err_t bootstrap_start(void)
+{
+    BOOT_CHECK(hal_io_bootstrap_start(), "hal_io_bootstrap_start");
+    BOOT_CHECK(project_start_runtime(), "project_start_runtime");
     BOOT_CHECK(scheduler_start_all(), "scheduler_start_all");
     return SW_OK;
 }
@@ -166,27 +207,42 @@ sw_err_t bootstrap_run(void)
 {
     sw_err_t ret;
 
-    ret = bootstrap_init_infra();
+    ret = bootstrap_register();
     if (ret != SW_OK) {
         return ret;
     }
 
-    ret = project_safety_init();
+    ret = bootstrap_configure_storage();
     if (ret != SW_OK) {
         return ret;
     }
 
-    ret = bootstrap_init_application();
+    ret = bootstrap_load_storage();
     if (ret != SW_OK) {
         return ret;
     }
 
-    ret = bootstrap_init_adapters();
+    ret = bootstrap_configure();
     if (ret != SW_OK) {
         return ret;
     }
 
-    ret = bootstrap_start_threads();
+    ret = bootstrap_bind();
+    if (ret != SW_OK) {
+        return ret;
+    }
+
+    ret = bootstrap_validate();
+    if (ret != SW_OK) {
+        return ret;
+    }
+
+    ret = bootstrap_init();
+    if (ret != SW_OK) {
+        return ret;
+    }
+
+    ret = bootstrap_start();
     if (ret != SW_OK) {
         return ret;
     }

@@ -34,6 +34,7 @@ static int        s_events[16];
 static unsigned   s_event_count;
 
 void hal_vfd_manager_test_tick(void);
+void hal_vfd_manager_test_reset(void);
 
 static sw_err_t mock_apply_gear(void *ctx, hal_vfd_gear_t gear)
 {
@@ -162,6 +163,7 @@ static void bind_default(void)
     hal_vfd_manager_bind_cfg_t cfg = make_cfg();
 
     TEST_ASSERT_EQUAL_INT(SW_OK, hal_vfd_manager_bind(TEST_VFD_ID, &cfg));
+    TEST_ASSERT_EQUAL_INT(SW_OK, hal_vfd_get_ops()->init());
 }
 
 void setUp(void)
@@ -176,9 +178,9 @@ void setUp(void)
     s_vfd.force_comm_fail = false;
 
     time_util_init();
+    hal_vfd_manager_test_reset();
     hal_vfd_manager_register();
     TEST_ASSERT_NOT_NULL(hal_vfd_get_ops());
-    TEST_ASSERT_EQUAL_INT(SW_OK, hal_vfd_get_ops()->init());
 }
 
 void tearDown(void)
@@ -199,6 +201,10 @@ static void test_bind_rejects_invalid_config(void)
     cfg              = make_cfg();
     cfg.rst_pulse_ms = 0U;
     TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, hal_vfd_manager_bind(TEST_VFD_ID, &cfg));
+
+    cfg = make_cfg();
+    TEST_ASSERT_EQUAL_INT(SW_OK, hal_vfd_manager_bind(TEST_VFD_ID, &cfg));
+    TEST_ASSERT_EQUAL_INT(SW_ERR_BUSY, hal_vfd_manager_bind(TEST_VFD_ID, &cfg));
 }
 
 static void test_unbound_operations_return_not_init(void)

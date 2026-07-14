@@ -18,9 +18,12 @@ extern "C" {
 #include "common/sw_error.h"
 
 /**
- * @brief  完成所有 port → adapter 的注册（依赖注入）
- *         在 event_bus_init() 之后、任何业务模块 init() 之前调用。
- * @retval SW_OK / SW_ERR_HW（硬件初始化失败）
+ * @brief  注册项目选择的 port provider 与静态适配器。
+ *
+ * @retval SW_OK 注册成功。
+ * @retval 其他  provider 注册失败，bootstrap 中止。
+ * @note   本函数只允许执行 register 动作；禁止读取存储、配置实例、绑定业务对象、
+ *         初始化硬件、创建线程或启动后台任务。
  */
 sw_err_t wiring(void);
 

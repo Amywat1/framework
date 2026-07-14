@@ -10,7 +10,6 @@
 #include "ports/inbound/cloud/property/property_port.h"
 #include "ports/outbound/cloud/link/cloud_link_port.h"
 #include "ports/outbound/cloud/report/report_port.h"
-#include "ports/outbound/storage/deploy_store.h"
 #include "tests/stubs/snack_cloud/cloud_model_fake.h"
 #include "tests/stubs/snack_cloud/snack_mqtt_fake.h"
 #include "unity.h"
@@ -18,52 +17,10 @@
 #include <stdio.h>
 #include <string.h>
 
-typedef struct {
-    const char *key;
-    const char *value;
-} kv_t;
-
-static kv_t                 s_deploy[8];
-static unsigned             s_deploy_count;
 static char                 s_last_property_json[256];
 static point_apply_result_t s_reply_result;
 static unsigned             s_property_set_count;
 static unsigned             s_reply_count;
-
-static sw_err_t deploy_load(void)
-{
-    return SW_OK;
-}
-
-static sw_err_t deploy_get(const char *key, char *buf, size_t buf_size)
-{
-    unsigned i;
-
-    if ((key == NULL) || (buf == NULL) || (buf_size == 0U)) {
-        return SW_ERR_PARAM;
-    }
-
-    for (i = 0; i < s_deploy_count; i++) {
-        if (strcmp(key, s_deploy[i].key) == 0) {
-            snprintf(buf, buf_size, "%s", s_deploy[i].value);
-            return SW_OK;
-        }
-    }
-    return SW_ERR_PARAM;
-}
-
-static const deploy_store_ops_t s_deploy_ops = {
-    .load = deploy_load,
-    .get  = deploy_get,
-};
-
-static void deploy_put(const char *key, const char *value)
-{
-    TEST_ASSERT_LESS_THAN(sizeof(s_deploy) / sizeof(s_deploy[0]), s_deploy_count);
-    s_deploy[s_deploy_count].key   = key;
-    s_deploy[s_deploy_count].value = value;
-    s_deploy_count++;
-}
 
 static sw_err_t property_set_cb(const char *json_payload, point_apply_result_t *result)
 {
@@ -91,19 +48,15 @@ static const cloud_property_ops_t s_property_ops = {
     .reply_property_set = property_reply_cb,
 };
 
-static void register_deploy_defaults(void)
+static void configure_cloud_defaults(void)
 {
-    deploy_put("productKey", "pk1");
-    deploy_put("deviceName", "dev1");
-    deploy_put("deviceSecret", "sec1");
-    deploy_put("topicPropertyUp", "/up");
-    deploy_put("topicPropertyReply", "/reply");
+    TEST_ASSERT_EQUAL_INT(SW_OK, snack_cloud_link_adapter_configure("pk1", "dev1", "sec1"));
+    TEST_ASSERT_EQUAL_INT(SW_OK, snack_cloud_report_adapter_configure("/up"));
+    TEST_ASSERT_EQUAL_INT(SW_OK, snack_cloud_command_adapter_configure("/reply"));
 }
 
 void setUp(void)
 {
-    memset(s_deploy, 0, sizeof(s_deploy));
-    s_deploy_count = 0;
     memset(s_last_property_json, 0, sizeof(s_last_property_json));
     memset(&s_reply_result, 0, sizeof(s_reply_result));
     s_property_set_count = 0;
@@ -112,8 +65,6 @@ void setUp(void)
     snack_mqtt_fake_reset();
     snack_mqtt_fake_set_online(1);
     snack_cloud_model_fake_reset();
-    register_deploy_defaults();
-    deploy_store_register(&s_deploy_ops);
 }
 
 void tearDown(void)
@@ -125,6 +76,7 @@ static void test_link_init_loads_credentials_and_publish_uses_mqtt(void)
     const cloud_link_ops_t *link;
 
     snack_cloud_link_adapter_register();
+    configure_cloud_defaults();
     link = cloud_link_get_ops();
     TEST_ASSERT_NOT_NULL(link);
     TEST_ASSERT_EQUAL_INT(SW_OK, link->init());
@@ -147,6 +99,7 @@ static void test_link_offline_publish_returns_comm_error(void)
     const cloud_link_ops_t *link;
 
     snack_cloud_link_adapter_register();
+    configure_cloud_defaults();
     link = cloud_link_get_ops();
     snack_mqtt_fake_set_online(0);
     TEST_ASSERT_EQUAL_INT(SW_ERR_COMM, link->publish("/topic", "{}"));
@@ -158,8 +111,10 @@ static void test_report_adapter_publishes_full_and_delta_json(void)
     const char               *ids[] = {"speed", "state"};
 
     snack_cloud_link_adapter_register();
+    configure_cloud_defaults();
     TEST_ASSERT_EQUAL_INT(SW_OK, cloud_link_get_ops()->init());
     snack_cloud_report_adapter_register();
+    TEST_ASSERT_EQUAL_INT(SW_OK, snack_cloud_report_adapter_configure("/up"));
     report = cloud_report_get_ops();
     TEST_ASSERT_NOT_NULL(report);
 
@@ -177,8 +132,10 @@ static void test_report_adapter_handles_builder_failure_and_offline_link(void)
     const cloud_report_ops_t *report;
 
     snack_cloud_link_adapter_register();
+    configure_cloud_defaults();
     TEST_ASSERT_EQUAL_INT(SW_OK, cloud_link_get_ops()->init());
     snack_cloud_report_adapter_register();
+    TEST_ASSERT_EQUAL_INT(SW_OK, snack_cloud_report_adapter_configure("/up"));
     report = cloud_report_get_ops();
 
     snack_cloud_model_fake_set_full_result(SW_ERR_PARAM);
@@ -194,7 +151,9 @@ static void test_command_adapter_dispatches_inbound_property_and_reply(void)
     mqtt_recv_handler_t cb;
 
     snack_cloud_link_adapter_register();
+    configure_cloud_defaults();
     TEST_ASSERT_EQUAL_INT(SW_OK, snack_cloud_command_adapter_register());
+    TEST_ASSERT_EQUAL_INT(SW_OK, snack_cloud_command_adapter_bind());
     cloud_property_register(&s_property_ops);
     cb = snack_mqtt_fake_recv_handler();
     TEST_ASSERT_NOT_NULL(cb);
@@ -213,6 +172,7 @@ static void test_command_reply_publishes_summary_when_topic_exists(void)
     point_apply_result_t result;
 
     snack_cloud_link_adapter_register();
+    configure_cloud_defaults();
     TEST_ASSERT_EQUAL_INT(SW_OK, cloud_link_get_ops()->init());
     point_apply_result_init(&result);
     result.applied  = 3;

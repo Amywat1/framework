@@ -15,7 +15,7 @@ extern "C" {
 #include <stdbool.h>
 #include <stdint.h>
 
-/** @brief  注册 hal_io_sim 实现到 hal_io_port 并完成初始化 */
+/** @brief  注册 hal_io_sim 操作集到 hal_io_port；不隐式初始化仿真状态。 */
 void hal_io_sim_register(void);
 
 /**
@@ -31,6 +31,10 @@ void hal_io_sim_set_di_level(io_di_t pin, bool level);
  * @param  value  计数值
  */
 void hal_io_sim_set_pulse_counter(io_di_t pin, uint32_t value);
+
+#ifdef HAL_IO_SIM_UNIT_TEST
+void hal_io_sim_test_reset(void);
+#endif
 
 #ifdef __cplusplus
 }

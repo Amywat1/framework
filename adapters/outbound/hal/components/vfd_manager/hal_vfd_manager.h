@@ -43,6 +43,10 @@ sw_err_t hal_vfd_manager_bind(hal_vfd_id_t id, const hal_vfd_manager_bind_cfg_t 
  */
 sw_err_t hal_vfd_manager_set_monitor_mask(hal_vfd_id_t id, hal_vfd_monitor_mask_t mask);
 
+#ifdef HAL_VFD_MANAGER_UNIT_TEST
+void hal_vfd_manager_test_reset(void);
+#endif
+
 #ifdef __cplusplus
 }
 #endif

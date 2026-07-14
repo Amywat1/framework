@@ -52,7 +52,7 @@ sw_err_t cloud_model_register(const cloud_model_bundle_t *bundle)
     return SW_OK;
 }
 
-sw_err_t cloud_model_validate_and_watch(void)
+sw_err_t cloud_model_validate(void)
 {
     sw_err_t ret;
 
@@ -63,7 +63,16 @@ sw_err_t cloud_model_validate_and_watch(void)
     ret = cloud_point_validate(s_entries, s_entry_count);
     if (ret != SW_OK) {
         LOG_ERROR("cloud_model: validate failed");
-        return ret;
+    }
+    return ret;
+}
+
+sw_err_t cloud_model_init(void)
+{
+    sw_err_t ret;
+
+    if ((s_entries == NULL) || (s_entry_count == 0U)) {
+        return SW_ERR_NOT_INIT;
     }
 
     ret = cloud_point_watcher_init(s_entries, s_entry_count);
@@ -73,14 +82,14 @@ sw_err_t cloud_model_validate_and_watch(void)
     return ret;
 }
 
-sw_err_t cloud_model_start_scheduler(void)
+sw_err_t cloud_model_register_scheduler(void)
 {
     if ((s_policies == NULL) || (s_policy_count == 0U)) {
         return SW_ERR_NOT_INIT;
     }
 
     report_scheduler_register_point_resolver(model_point_id_by_index);
-    return report_scheduler_init(s_policies, s_policy_count);
+    return report_scheduler_register(s_policies, s_policy_count);
 }
 
 sw_err_t cloud_model_build_properties(char *buf, size_t buf_size)

@@ -8,39 +8,62 @@
 #include "common/log.h"
 #include "ports/outbound/hal/hal_voice_port.h"
 
+#include <stdbool.h>
+
+static bool s_inited = false;
+
 static sw_err_t sim_voice_init(void)
 {
+    s_inited = true;
     LOG_INFO("hal_voice_sim: init ok");
     return SW_OK;
 }
 
 static sw_err_t sim_play(uint16_t track)
 {
+    if (!s_inited) {
+        return SW_ERR_NOT_INIT;
+    }
     LOG_INFO("hal_voice_sim: play track=%u", (unsigned)track);
     return SW_OK;
 }
 
 static sw_err_t sim_stop(void)
 {
+    if (!s_inited) {
+        return SW_ERR_NOT_INIT;
+    }
     return SW_OK;
 }
 static sw_err_t sim_pause(void)
 {
+    if (!s_inited) {
+        return SW_ERR_NOT_INIT;
+    }
     return SW_OK;
 }
 
 static sw_err_t sim_set_volume(uint16_t vol)
 {
     (void)vol;
+    if (!s_inited) {
+        return SW_ERR_NOT_INIT;
+    }
     return SW_OK;
 }
 
 static sw_err_t sim_volume_up(void)
 {
+    if (!s_inited) {
+        return SW_ERR_NOT_INIT;
+    }
     return SW_OK;
 }
 static sw_err_t sim_volume_down(void)
 {
+    if (!s_inited) {
+        return SW_ERR_NOT_INIT;
+    }
     return SW_OK;
 }
 
@@ -65,3 +88,10 @@ void hal_voice_sim_register(void)
     hal_voice_register(&s_ops);
     LOG_INFO("hal_voice_sim: registered");
 }
+
+#ifdef HAL_VOICE_SIM_UNIT_TEST
+void hal_voice_sim_test_reset(void)
+{
+    s_inited = false;
+}
+#endif

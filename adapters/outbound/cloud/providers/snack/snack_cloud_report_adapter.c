@@ -12,36 +12,13 @@
 #include "common/log.h"
 #include "ports/outbound/cloud/link/cloud_link_port.h"
 #include "ports/outbound/cloud/report/report_port.h"
-#include "ports/outbound/storage/deploy_store.h"
 
 #include <stdbool.h>
 #include <string.h>
 
-#define DEPLOY_KEY_TOPIC_UP "topicPropertyUp"
+#define SNACK_CLOUD_TOPIC_MAX 128U
 
-static char s_topic_up[128] = "";
-static bool s_topic_loaded  = false;
-
-static sw_err_t load_topic_up(void)
-{
-    const deploy_store_ops_t *ds = deploy_store_get_ops();
-
-    if (s_topic_loaded) {
-        return (s_topic_up[0] != '\0') ? SW_OK : SW_ERR_PARAM;
-    }
-
-    s_topic_loaded = true;
-    if (ds == NULL) {
-        return SW_ERR_NOT_INIT;
-    }
-
-    if ((ds->get(DEPLOY_KEY_TOPIC_UP, s_topic_up, sizeof(s_topic_up)) != SW_OK) || (s_topic_up[0] == '\0')) {
-        LOG_ERROR("snack_cloud_report: deploy config missing key=%s", DEPLOY_KEY_TOPIC_UP);
-        return SW_ERR_PARAM;
-    }
-
-    return SW_OK;
-}
+static char s_topic_up[SNACK_CLOUD_TOPIC_MAX] = "";
 
 static sw_err_t send_json(const char *json)
 {
@@ -50,7 +27,7 @@ static sw_err_t send_json(const char *json)
     if ((link == NULL) || (link->is_online == NULL) || !link->is_online()) {
         return SW_ERR_COMM;
     }
-    if (load_topic_up() != SW_OK) {
+    if (s_topic_up[0] == '\0') {
         return SW_ERR_PARAM;
     }
     if ((link->publish == NULL)) {
@@ -98,6 +75,20 @@ static const cloud_report_ops_t s_ops = {
 
 void snack_cloud_report_adapter_register(void)
 {
+    s_topic_up[0] = '\0';
     cloud_report_register(&s_ops);
     LOG_INFO("snack_cloud_report: adapter registered");
+}
+
+sw_err_t snack_cloud_report_adapter_configure(const char *topic_property_up)
+{
+    if ((topic_property_up == NULL) || (topic_property_up[0] == '\0')) {
+        return SW_ERR_PARAM;
+    }
+    if (strlen(topic_property_up) >= sizeof(s_topic_up)) {
+        return SW_ERR_PARAM;
+    }
+
+    strcpy(s_topic_up, topic_property_up);
+    return SW_OK;
 }

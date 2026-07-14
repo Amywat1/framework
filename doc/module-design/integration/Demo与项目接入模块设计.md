@@ -2,7 +2,7 @@
 
 **版本**：v1.0  
 **状态**：已落地（Demo smoke + wiring/project hooks 接入骨架）  
-**最后同步代码**：2026-07-12（`demo/`、`runtime/bootstrap/wiring.h`、`runtime/bootstrap/project_hooks.h`、`machine_ops_port`）  
+**最后同步代码**：2026-07-14（`demo/`、`runtime/bootstrap/wiring.h`、`runtime/bootstrap/project_hooks.h`、`machine_ops_port`）  
 **适用范围**：`demo/`、`runtime/bootstrap/`、`ports/outbound/machine/`、项目 wiring/bindings  
 **架构基线**：通用 bootstrap + 项目依赖注入 + 项目 hooks  
 **关键词**：demo、wiring、project_hooks、machine_ops、bootstrap_run、smoke、project bring-up
@@ -65,26 +65,40 @@ target entry
     ├─ 配置 Snack 进程级参数
     └─ 调用 bootstrap_run()
 
-bootstrap_init_infra()
+bootstrap_register()
     └─ wiring()
          ├─ 注册 storage adapter
          ├─ 注册 HAL provider
          ├─ 注册 cloud provider
          └─ 注册 engine program loader
 
-project_safety_init()
-    └─ 项目安全默认态、传感器预热
+bootstrap_configure_storage()
+    └─ project_configure_storage()
 
-bootstrap_init_application()
-    ├─ project_machine_setup()
-    ├─ project_alarm_catalog_init()
-    └─ project_report_scheduler_init()
+bootstrap_load_storage()
+    ├─ svc_param_init()
+    └─ deploy_store.load()
 
-bootstrap_init_adapters()
-    └─ project_adapters_init()
+bootstrap_configure()
+    ├─ project_configure_hal()
+    ├─ project_configure_safety()
+    └─ project_configure_adapters()
 
-bootstrap_start_threads()
-    └─ project_start_threads()
+bootstrap_bind()
+    ├─ project_bind_hal()
+    ├─ project_bind_machine()
+    └─ project_bind_alarm_catalog()
+
+bootstrap_validate()
+    └─ project_validate()
+
+bootstrap_init()
+    ├─ project_init_hal()
+    ├─ project_init_adapters()
+    └─ project_register_runtime_tasks()
+
+bootstrap_start()
+    └─ project_start_runtime()
 ```
 
 ---
@@ -115,19 +129,24 @@ wiring()
     └─ json_deploy_store_register()
 ```
 
-它不注册真实 HAL、cloud provider、engine program loader 或完整物模型。
+它不注册真实 HAL、cloud provider、engine program loader 或完整物模型。JSON 文件路径不在 `wiring()` 中注入，而由 `project_configure_storage()` 调用 `json_param_store_configure()` / `json_deploy_store_configure()` 完成。
 
 ### 3.3 `project_hooks_sim`
 
 | Hook | Demo 行为 |
 |------|-----------|
-| `project_hal_extra_setup()` | 空实现 |
-| `project_safety_init()` | 空实现 |
-| `project_machine_setup()` | `demo_machine_ops_register()` |
-| `project_alarm_catalog_init()` | `demo_alarm_catalog_load()` |
-| `project_report_scheduler_init()` | 空实现 |
-| `project_adapters_init()` | 空实现 |
-| `project_start_threads()` | 注册 `alarm_bridge` 50ms 周期任务 |
+| `project_configure_storage()` | 注入 Demo 参数/部署 JSON 路径 |
+| `project_configure_hal()` | 空实现 |
+| `project_bind_hal()` | 空实现 |
+| `project_init_hal()` | 空实现 |
+| `project_configure_safety()` | 空实现 |
+| `project_configure_adapters()` | 空实现 |
+| `project_bind_machine()` | `demo_machine_ops_register()` |
+| `project_bind_alarm_catalog()` | `demo_alarm_catalog_load()` |
+| `project_validate()` | 空实现 |
+| `project_init_adapters()` | 空实现 |
+| `project_register_runtime_tasks()` | 注册 `alarm_bridge` 50ms 周期任务 |
+| `project_start_runtime()` | 空实现 |
 | `project_assert_safe_outputs()` | 空实现 |
 
 ### 3.4 `demo_machine_ops`
@@ -175,7 +194,7 @@ typedef struct {
 
 ### 4.2 项目实现要求
 
-- `project_machine_setup()` 中调用 `machine_ops_register()`。
+- `project_bind_machine()` 中调用 `machine_ops_register()`。
 - `execute_manual_actuator` 的 `act_id` 和 `param` 由项目定义，并在云端/CLI 命令映射中保持一致。
 - `stop_all_outputs` 必须能落到安全输出态。
 - `home_device` 和 `safety_home` 应处理执行中冲突和硬件故障，并返回明确错误码。
@@ -186,41 +205,43 @@ typedef struct {
 
 ### 5.1 Storage
 
-- 注册 `json_param_store_register()` 或替代后端。
-- 注册 `json_deploy_store_register()` 或替代后端。
-- 注入 `PARAM_STORE_JSON_FILE_PATH`、`DEPLOY_STORE_JSON_FILE_PATH`。
+- 在 `wiring()` 注册 `json_param_store_register()` 或替代后端。
+- 在 `wiring()` 注册 `json_deploy_store_register()` 或替代后端。
+- 在 `project_configure_storage()` 注入 `PARAM_STORE_JSON_FILE_PATH`、`DEPLOY_STORE_JSON_FILE_PATH`。
 - 若使用洗车 engine，注册 `engine_program_json_register_loader()`。
 - 部署方案 JSON 与对应 `*.manifest.json`。
 
 ### 5.2 HAL
 
 - 选择 sim 或真机 provider。
-- 注册 `hal_io` provider，绑定 IO 名称表。
-- 注册并绑定 `hal_sensor_filter` 通道。
-- 注册 `hal_vfd_manager` / provider backend，并绑定 VFD 实例。
-- 初始化语音 provider。
+- 在 `wiring()` 注册 `hal_io` provider、`hal_sensor_filter`、`hal_vfd_manager` / provider backend、`hal_voice` provider。
+- 在 `project_configure_hal()` 下发 IO 名称表、串口、地址、点位等配置。
+- 在 `project_bind_hal()` 绑定传感器通道、VFD 实例、backend 与事件回调。
+- 在 `project_init_hal()` 执行传感器预热等依赖 HAL init 后的项目初始化。
 - 创建并注入 `hal_motor_exec_t` 给设备控制模式。
 - 覆盖 `hw_estop_port_is_active()` 和 `safety_cutout_execute()`。
 
 ### 5.3 Domain / Application
 
-- 注册 `machine_ops_t`。
-- 加载项目报警目录。
+- 在 `project_bind_machine()` 注册 `machine_ops_t`。
+- 在 `project_bind_alarm_catalog()` 加载项目报警目录。
 - 初始化洗车 orchestrator 所需的 engine IO 后端和方案 loader。
 - 根据需要初始化 telemetry projection 和 `dev_ctx`。
-- 配置 `report_scheduler` 和 cloud model。
+- 在 `project_validate()` 校验 cloud model，在 `project_register_runtime_tasks()` 注册 `report_scheduler`。
 
 ### 5.4 Cloud / Inbound
 
 - 注册 `cloud_link_port`、`cloud_report_port`、`cloud_property_port` provider。
 - 注册项目物模型 `cloud_model_bundle_t`。
 - 将 `DEVICE_CMD` 点位映射到 `device_command_port`。
-- 在 `project_adapters_init()` 中启动云端或 CLI 入站适配器。
+- 在 `project_configure_adapters()` 配置云端或 CLI 入站适配器。
+- 在 `project_init_adapters()` 初始化云端或 CLI 入站适配器。
 
 ### 5.5 Runtime
 
 - `app/target/` 只做进程级运行时准备，不直接初始化某个 HAL SDK。
-- 在 `project_start_threads()` 注册项目周期任务。
+- 在 `project_register_runtime_tasks()` 注册项目周期任务。
+- 只有无法纳入 scheduler 的项目线程才放在 `project_start_runtime()`。
 - 不直接修改 `bootstrap_run()` 顺序。
 - 长耗时任务不要放在 event handler 中。
 - fatal/panic 路径必须能调用 `project_assert_safe_outputs()` 落安全态。
@@ -284,10 +305,10 @@ Demo 的 `demo/CMakeLists.txt` 展示最小 smoke target：
 
 | 问题 | 结果 |
 |------|------|
-| 在 `wiring()` 中只注册 provider，不在 hook 中绑定实例 | port 已存在但运行期返回 `SW_ERR_NOT_INIT` |
+| 在 `wiring()` 中只注册 provider，不在 configure/bind/init hook 中注入参数和绑定实例 | port 已存在但运行期返回 `SW_ERR_NOT_INIT` |
 | 忘记注册 `machine_ops` | HOME/MANUAL/STOP_ALL_OUTPUTS 命令副作用失败 |
 | 报警目录晚于 detector 启动 | detector 触发未知报警码 |
-| `project_start_threads()` 后再注册周期任务 | 任务不会被当前 `scheduler_start_all()` 启动 |
+| `project_start_runtime()` 后再注册周期任务 | 任务不会被当前 `scheduler_start_all()` 启动 |
 | event handler 中执行阻塞 IO | 阻塞全局 event dispatch |
 | 跳过 `project_assert_safe_outputs()` 实现 | event bus fatal / IO panic 时无法兜底切断 |
 | Demo stub 被误用于产品 | 命令看似成功但没有真实机构动作 |
