@@ -15,7 +15,7 @@ extern "C" {
 #endif
 
 #include "common/sw_error.h"
-#include "domain/command_gateway/command_decision.h"
+#include "domain/command_gateway/command_types.h"
 #include "domain/command_gateway/device_command.h"
 #include "domain/command_gateway/op_mode_types.h"
 

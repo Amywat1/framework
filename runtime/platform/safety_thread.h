@@ -5,7 +5,7 @@
  * @date    2026-07-09
  *
  * @note    阶段二（§7.3）：SCHED_FIFO 轮询急停 DI，仅执行
- *          device_stop_all_actuators() + 发布 EVT_HW_ESTOP_ON/OFF，
+ *          safety_cutout_execute() + 发布 EVT_HW_ESTOP_ON/OFF，
  *          不直接访问 OperationalMode。
  */
 

@@ -14,7 +14,6 @@ extern "C" {
 
 #include "common/sw_error.h"
 #include "domain/safety/model/alarm_types.h"
-#include "domain/safety/model/safety_types.h"
 
 #include <stdbool.h>
 #include <stdint.h>

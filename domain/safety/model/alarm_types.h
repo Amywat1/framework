@@ -56,6 +56,17 @@ extern "C" {
 #define ALM_SW_ACTIVE_POOL_OVERFLOW     2U
 #define ALARM_CODE_ACTIVE_POOL_OVERFLOW ALARM_CODE_MAKE(ALM_C_SW, ALM_SW_ACTIVE_POOL_OVERFLOW, ALM_N_OTHER)
 
+/* -------------------------------------------------------------------------
+ * 安全姿态（原 safety_types.h）
+ * ------------------------------------------------------------------------- */
+typedef enum {
+    SAFETY_POSTURE_NOMINAL = 0,
+    SAFETY_POSTURE_LOCKOUT,
+} safety_posture_t;
+
+/* -------------------------------------------------------------------------
+ * 报警等级与策略
+ * ------------------------------------------------------------------------- */
 typedef enum {
     ALARM_LEVEL_MINOR = 0,
     ALARM_LEVEL_MAJOR,

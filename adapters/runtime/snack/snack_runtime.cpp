@@ -3,7 +3,7 @@
  * @brief   Snack 进程运行时细粒度接口实现
  */
 
-#include "framework/adapters/runtime/snack/snack_runtime.h"
+#include "framework/adapters/runtime/snack/snack_sdk.h"
 
 extern void set_log_level(int type);
 extern void set_remote_port(int port);

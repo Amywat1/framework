@@ -7,7 +7,7 @@
 #include "domain/command_gateway/device_command.h"
 #include "domain/command_gateway/op_mode_types.h"
 #include "domain/command_gateway/operational_mode.h"
-#include "domain/device_control/model/device_state.h"
+
 #include "domain/safety/alarm_registry/alarm_registry.h"
 #include "domain/safety/model/alarm_types.h"
 #include "unity.h"

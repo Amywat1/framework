@@ -1,4 +1,4 @@
-#include "adapters/runtime/snack/snack_mqtt.h"
+#include "adapters/runtime/snack/snack_sdk.h"
 
 #include <stdbool.h>
 #include <stdio.h>

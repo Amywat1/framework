@@ -12,7 +12,7 @@
 #include "ports/outbound/safety/hw_estop_port.h"
 #include "runtime/config/thread_config.h"
 #include "runtime/event_bus/event_bus.h"
-#include "runtime/platform/device_safety_actuator.h"
+#include "ports/outbound/safety/safety_cutout_port.h"
 #include "runtime/scheduler/thread_registry.h"
 
 #include <sched.h>
@@ -27,7 +27,7 @@ static atomic_bool s_terminate = false;
 static void handle_estop_edge(bool active)
 {
     if (active) {
-        device_stop_all_actuators();
+        safety_cutout_execute();
         (void)event_publish(EVT_HW_ESTOP_ON, 0U);
         LOG_WARN("safety_thread: HW ESTOP ON");
     } else {

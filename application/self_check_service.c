@@ -11,7 +11,7 @@
 #include "common/log.h"
 #include "domain/command_gateway/operational_mode.h"
 #include "domain/safety/alarm_registry/alarm_registry.h"
-#include "domain/safety/model/safety_types.h"
+#include "domain/safety/model/alarm_types.h"
 #include "runtime/event_bus/event_bus.h"
 
 static void publish_completed(bool land_exception)

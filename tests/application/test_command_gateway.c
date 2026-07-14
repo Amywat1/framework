@@ -5,10 +5,10 @@
 
 #include "application/command_gateway.h"
 #include "common/sw_error.h"
-#include "domain/command_gateway/command_receipt.h"
+#include "domain/command_gateway/command_types.h"
 #include "domain/command_gateway/device_command.h"
 #include "domain/command_gateway/operational_mode.h"
-#include "domain/device_control/model/device_state.h"
+
 #include "ports/inbound/command/command_port.h"
 #include "runtime/event_bus/event_bus.h"
 #include "tests/stubs/wash_orchestrator_stub.h"

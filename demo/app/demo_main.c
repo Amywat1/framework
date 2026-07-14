@@ -7,7 +7,7 @@
 #include "application/alarm_event_bridge.h"
 #include "common/event_types.h"
 #include "common/log.h"
-#include "domain/command_gateway/command_receipt.h"
+#include "domain/command_gateway/command_types.h"
 #include "domain/command_gateway/device_command.h"
 #include "domain/command_gateway/operational_mode.h"
 #include "domain/safety/alarm_registry/alarm_registry.h"

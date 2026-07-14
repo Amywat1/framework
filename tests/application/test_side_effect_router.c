@@ -9,7 +9,6 @@
 #include "domain/command_gateway/operational_mode.h"
 #include "domain/safety/alarm_registry/alarm_registry.h"
 #include "domain/safety/model/alarm_types.h"
-#include "domain/safety/model/safety_types.h"
 #include "ports/outbound/machine/machine_ops_port.h"
 #include "tests/stubs/wash_orchestrator_stub.h"
 #include "unity.h"

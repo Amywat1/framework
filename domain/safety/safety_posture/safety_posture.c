@@ -10,7 +10,7 @@
 #include "common/event_types.h"
 #include "common/log.h"
 #include "domain/safety/alarm_registry/alarm_registry.h"
-#include "domain/safety/model/safety_types.h"
+#include "domain/safety/model/alarm_types.h"
 #include "runtime/event_bus/event_bus.h"
 
 static safety_posture_t s_posture = SAFETY_POSTURE_NOMINAL;

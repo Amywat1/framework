@@ -13,7 +13,6 @@ extern "C" {
 #endif
 
 #include "domain/telemetry/device_snapshot.h"
-#include "domain/wash/model/wash_types.h"
 
 /**
  * @brief  更新运行模式子域快照

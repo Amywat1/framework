@@ -7,7 +7,7 @@
 
 #include "adapters/outbound/cloud/providers/snack/snack_cloud_link_adapter.h"
 
-#include "adapters/runtime/snack/snack_mqtt.h"
+#include "adapters/runtime/snack/snack_sdk.h"
 #include "common/event_types.h"
 #include "common/log.h"
 #include "ports/outbound/cloud/link/cloud_link_port.h"

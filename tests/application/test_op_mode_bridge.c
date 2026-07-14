@@ -10,7 +10,7 @@
 #include "domain/command_gateway/device_command.h"
 #include "domain/command_gateway/op_mode_types.h"
 #include "domain/command_gateway/operational_mode.h"
-#include "domain/device_control/model/device_state.h"
+
 #include "runtime/event_bus/event_bus.h"
 #include "unity.h"
 

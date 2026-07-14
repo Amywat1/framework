@@ -12,9 +12,6 @@
 #include "domain/safety/alarm_registry/alarm_registry.h"
 #include "domain/telemetry/device_snapshot.h"
 #include "domain/telemetry/device_snapshot_internal.h"
-#include "domain/telemetry/snapshot/operational_snapshot.h"
-#include "domain/telemetry/snapshot/safety_snapshot.h"
-#include "domain/telemetry/snapshot/wash_snapshot.h"
 #include "runtime/event_bus/event_bus.h"
 #include "unity.h"
 
