@@ -59,13 +59,6 @@ sw_err_t bootstrap_register_hooks(const project_hooks_t *hooks)
     return SW_OK;
 }
 
-void project_assert_safe_outputs(void)
-{
-    if ((s_hooks != NULL) && (s_hooks->assert_safe_outputs != NULL)) {
-        s_hooks->assert_safe_outputs();
-    }
-}
-
 #define BOOT_CHECK(call, msg)                                                                                          \
     do {                                                                                                               \
         sw_err_t _r = (call);                                                                                          \
@@ -214,12 +207,17 @@ static sw_err_t bootstrap_validate(void)
     return SW_OK;
 }
 
-static sw_err_t bootstrap_init(void)
+static sw_err_t bootstrap_init_hal(void)
 {
     BOOT_CHECK(hal_io_bootstrap_init(), "hal_io_bootstrap");
     BOOT_CHECK(hal_vfd_bootstrap_init(), "hal_vfd_bootstrap");
     BOOT_CHECK(hal_voice_bootstrap_init(), "hal_voice_bootstrap");
     BOOT_CHECK(s_hooks->init_hal(), "project_init_hal");
+    return SW_OK;
+}
+
+static sw_err_t bootstrap_init_services(void)
+{
     BOOT_CHECK(alarm_event_bridge_init(), "alarm_event_bridge_init");
     BOOT_CHECK(safety_thread_init(), "safety_thread_init");
     BOOT_CHECK(operational_mode_init(), "operational_mode_init");
@@ -275,7 +273,12 @@ sw_err_t bootstrap_run(void)
         return ret;
     }
 
-    ret = bootstrap_init();
+    ret = bootstrap_init_hal();
+    if (ret != SW_OK) {
+        return ret;
+    }
+
+    ret = bootstrap_init_services();
     if (ret != SW_OK) {
         return ret;
     }

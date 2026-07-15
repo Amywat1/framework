@@ -11,13 +11,13 @@
 
 ## 1. 设计目标与核心理念
 
-Runtime 层负责把框架基础设施、项目 wiring、应用模块、适配器和后台线程按固定顺序启动。启动生命周期按 `register → configure_storage → load → configure → bind → validate → init → register_runtime_tasks → start` 拆分；模块在 `register/bind/init/register_runtime_tasks` 阶段只注册端口、订阅事件或登记线程，真正创建线程统一延后到 `scheduler_start_all()`。
+Runtime 层负责把框架基础设施、项目 wiring、应用模块、适配器和后台线程按固定顺序启动。启动生命周期按 `register → configure_storage → load → configure → bind → validate → init_hal → init_services → start` 拆分；模块在 `register/bind/init_hal/init_services` 阶段只注册端口、订阅事件或登记线程，真正创建线程统一延后到 `scheduler_start_all()`。
 
 真机入口层不参与设备 HAL 初始化编排。入口只负责进程级运行时配置，并在完成后调用 `bootstrap_run()`；具体 HAL 或外部 SDK 初始化由 provider 的 `init` 实现承接。
 
 ### 1.1 设计目标
 
-- **启动顺序确定**：`bootstrap_run()` 固定 register → configure_storage → load → configure → bind → validate → init → register_runtime_tasks → start。
+- **启动顺序确定**：`bootstrap_run()` 固定 register → configure_storage → load → configure → bind → validate → init_hal → init_services → start。
 - **项目扩展受控**：项目只能通过 `wiring()` 与 `project_hooks` 填充装配点，不改框架主流程。
 - **线程统一创建**：框架线程通过 `thread_register()` 登记，最后由 scheduler 创建并 detach。
 - **周期任务统一模型**：周期任务用 `periodic_task_register()` 转成线程注册表条目。
@@ -32,8 +32,8 @@ Runtime 层负责把框架基础设施、项目 wiring、应用模块、适配�
 | 加载期 | `svc_param_init()` 与 `deploy_store.load()` 读取存储，`SW_ERR_STORAGE` 允许继续 |
 | 绑定期 | 项目 hooks 绑定 HAL 实例、`machine_ops`、报警目录等依赖关系 |
 | 校验期 | 项目执行启动前一致性校验，不启动 watcher、线程或外部连接 |
-| 初始化期 | HAL `init`、应用服务 init、适配器 init |
-| 任务注册期 | 注册项目周期任务和运行期线程，不启动线程 |
+| HAL 初始化期 | HAL port `init`（io/vfd/voice）及项目 HAL 组合层 init |
+| 服务初始化期 | 应用服务 init、适配器 init、项目运行期任务注册 |
 | 启动期 | `scheduler_start_all()` 一次性创建所有已注册线程 |
 | 运行期 | 线程 detach，当前不提供 join/stop/restart 语义 |
 | 致命故障 | 安全输出兜底后终止进程，交由外部 supervisor 拉起 |
@@ -75,18 +75,22 @@ bootstrap_run()
     ├─ bootstrap_validate()
     │    └─ project_validate()
     │
-    ├─ bootstrap_init()
-    │    ├─ hal_io / hal_vfd / hal_voice init
-    │    ├─ project_init_hal()
+    ├─ bootstrap_init_hal()
+    │    ├─ hal_io_bootstrap_init()
+    │    ├─ hal_vfd_bootstrap_init()
+    │    ├─ hal_voice_bootstrap_init()
+    │    └─ project_init_hal()
+    │
+    ├─ bootstrap_init_services()
     │    ├─ alarm_event_bridge_init()
     │    ├─ safety_thread_init()
     │    ├─ operational_mode_init()
     │    ├─ command_gateway_init()
     │    ├─ self_check_service_init()
+    │    ├─ alarm_lifecycle_bridge_init()
     │    ├─ op_mode_bridge_init()
-    │    └─ project_init_adapters()
-    │
-    ├─ bootstrap_register_runtime_tasks()
+    │    ├─ telemetry_projection_init()
+    │    ├─ project_init_adapters()
     │    └─ project_register_runtime_tasks()
     │
     └─ bootstrap_start()
@@ -125,20 +129,18 @@ bootstrap_run()
 
 `project_validate()` 执行启动前一致性校验，例如云物模型表、部署配置、必选端口是否齐备。该阶段禁止初始化 watcher、读取实时 getter、发布事件或注册任务。
 
-### 2.4 Init 阶段
+### 2.4 Init HAL 阶段
 
-Init 阶段初始化 HAL、领域聚合、应用服务和适配器。关键顺序约束：
+Init HAL 阶段初始化 HAL port 层及项目 HAL 组合层。顺序约束：`hal_io/vfd/voice` port init 早于 `project_init_hal()`，保证 port ops 就绪后再做项目级传感器预热和组合层初始化。
 
-- `hal_io_bootstrap_init()`、`hal_vfd_bootstrap_init()`、`hal_voice_bootstrap_init()` 早于 `project_init_hal()`。
-- `alarm_registry_init()` 必须早于 `project_bind_alarm_catalog()`。
-- `safety_posture_init()` 在报警目录加载前订阅报警事件。
+### 2.5 Init Services 阶段
+
+Init Services 阶段初始化所有应用服务、适配器，并注册运行期任务。关键顺序约束：
+
 - `operational_mode_init()` 必须早于 `command_gateway_init()` / `op_mode_bridge_init()`。
 - `safety_thread_init()` 只注册线程，不立即启动。
 - `project_init_adapters()` 初始化项目入站适配器，禁止启动后台线程。
-
-### 2.5 Register Runtime Tasks 阶段
-
-Register Runtime Tasks 阶段只注册项目周期任务和运行期线程，例如云端 report scheduler、HAL sensor/VFD poll、alarm bridge。该阶段禁止直接启动线程，线程统一由 Start 阶段的 `scheduler_start_all()` 创建。
+- `project_register_runtime_tasks()` 只注册周期任务和运行期线程，禁止直接启动线程，线程统一由 Start 阶段的 `scheduler_start_all()` 创建。
 
 ### 2.6 Start 阶段
 
@@ -155,18 +157,42 @@ Start 阶段先调用 `hal_io.start()`，再调用 `project_start_runtime()` 启
 | `project_configure_storage()` | storage load 前 | 注入参数/部署配置路径或后端参数 |
 | `project_configure_hal()` | storage load 后、HAL bind 前 | 下发 HAL 参数，禁止绑定和初始化 |
 | `project_bind_hal()` | HAL init 前 | 绑定传感器通道、VFD 实例、backend、事件回调 |
-| `project_init_hal()` | HAL port init 后 | 初始化项目 HAL 组合层、预热传感器 |
+| `project_init_hal()` | init_hal 阶段，HAL port init 后 | 初始化项目 HAL 组合层、预热传感器 |
 | `project_configure_safety()` | configure 阶段 | 建立项目安全默认态 |
 | `project_configure_adapters()` | storage load 后 | 配置云端、CLI 等适配器，禁止启动连接 |
 | `project_bind_machine()` | bind 阶段 | 注册 `machine_ops`、机构装配 |
 | `project_bind_alarm_catalog()` | registry/posture 后 | 加载项目报警目录 |
 | `project_validate()` | init 前 | 启动前一致性校验 |
-| `project_init_adapters()` | init 阶段 | 初始化云端、CLI 等入站适配器 |
-| `project_register_runtime_tasks()` | scheduler 启动前 | 注册项目周期任务 |
+| `project_init_adapters()` | init_services 阶段 | 初始化云端、CLI 等入站适配器 |
+| `project_register_runtime_tasks()` | init_services 阶段末 | 注册项目周期任务和运行期线程 |
 | `project_start_runtime()` | scheduler 启动前 | 启动无法纳入 scheduler 的项目线程 |
 | `project_assert_safe_outputs()` | fatal / panic | 切断安全输出 |
 
 Demo 实现位于 `demo/wiring/project_hooks_sim.c`：当前只注册 JSON 存储路径、demo machine/alarm catalog 和 `alarm_bridge` 50ms 周期 drain，其他 hook 为空。
+
+### 3.1 何时使用 project hook
+
+满足以下任意一条，该操作应放入 project hook，而非在项目侧直接调接口：
+
+1. **框架需要强制时序**：操作必须在 bootstrap 某个阶段完成，且后续阶段依赖它已完成。例如 `configure_storage` 必须先于 `load_storage`，由框架代码保证顺序，不依赖项目开发者的调用纪律。
+
+2. **不同场景行为不同**：target / sim / demo / test 需要不同实现，框架不能直接依赖某一套具体代码。hook 使框架只依赖函数指针，场景差异封装在各自的 `project_hooks.c` 中。
+
+3. **框架需要检出缺失**：操作缺失会导致后续阶段静默失败，必须在启动最早期强制校验。`bootstrap_register_hooks()` 对全部 13 个函数指针做非空断言，缺一即返回 `SW_ERR_PARAM`。
+
+**不需要 hook 的情况**：操作发生在 bootstrap 完成后的运行期（框架不再编排时序）；各场景实现完全相同；操作是单向的、无依赖的，框架不需要知道它是否发生。
+
+判断流程：
+
+```
+这个操作是否必须在 bootstrap 某个具体阶段发生？
+  否 → 不需要 hook，运行期直接调框架接口
+  是 ↓
+不同部署场景（target / sim / demo）实现是否不同？
+  否 → 可在对应 bootstrap 阶段直接调，不需要 hook
+  是 ↓
+→ 放入 project_hooks_t，由框架编排时序并校验完整性
+```
 
 ---
 
@@ -342,12 +368,14 @@ ctest --test-dir build-native --output-on-failure
 
 ### 10.2 新增项目启动逻辑
 
-1. 优先选择已有 `project_hooks` 调用点。
-2. 不在 `bootstrap.c` 中加入项目分支。
-3. 需要先加载部署配置再配置的适配器放在 `project_configure_adapters()`。
-4. 需要初始化外部连接但不创建线程的适配器放在 `project_init_adapters()`。
-5. 需要随 scheduler 启动的后台任务放在 `project_register_runtime_tasks()`。
-6. 只有无法纳入 scheduler 的项目线程才放在 `project_start_runtime()`。
+判断该在哪里加逻辑，先用 §3.1 的判断流程确认是否需要 hook；确认后再按以下规则选择具体调用点：
+
+1. **不在 `bootstrap.c` 中加入项目分支**：框架主流程不感知项目差异，所有项目逻辑通过 hook 注入。
+2. **优先复用已有调用点**：从 §3 的 hook 表格中找时机匹配的调用点，不新增 hook 阶段。
+3. **需要先加载部署配置再配置的适配器**放在 `project_configure_adapters()`（storage load 后）。
+4. **需要初始化外部连接但不创建线程的适配器**放在 `project_init_adapters()`。
+5. **需要随 scheduler 启动的后台周期任务**放在 `project_register_runtime_tasks()`。
+6. **只有无法纳入 scheduler 的项目线程**才放在 `project_start_runtime()`。
 
 ### 10.3 禁止的扩展方式
 

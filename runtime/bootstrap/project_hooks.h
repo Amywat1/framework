@@ -63,12 +63,6 @@ sw_err_t bootstrap_register_hooks(const project_hooks_t *hooks);
  */
 sw_err_t project_hooks_register(void);
 
-/**
- * @brief  调用已注册钩子的安全输出切断函数（framework 内部使用）
- * @note   若钩子尚未注册则为空操作。
- */
-void project_assert_safe_outputs(void);
-
 #ifdef __cplusplus
 }
 #endif
