@@ -24,7 +24,7 @@
 #include "application/orchestrators/emergency_handler.h"
 
 #include "application/orchestrators/wash_orchestrator.h"
-#include "application/safety_deferred_stop.h"
+#include "ports/outbound/safety/safety_deferred_stop.h"
 #include "common/event_types.h"
 #include "common/log.h"
 #include "common/sw_error.h"

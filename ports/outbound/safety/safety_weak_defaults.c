@@ -9,7 +9,7 @@
  *          - safety_deferred_stop：急停后延后完备停机
  */
 
-#include "application/safety_deferred_stop.h"
+#include "ports/outbound/safety/safety_deferred_stop.h"
 #include "ports/outbound/safety/hw_estop_port.h"
 #include "ports/outbound/safety/op_mode_alarm_port.h"
 #include "ports/outbound/safety/safety_cutout_port.h"

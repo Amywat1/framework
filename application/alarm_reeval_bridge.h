@@ -16,20 +16,8 @@ extern "C" {
 #include "domain/safety/model/alarm_types.h"
 
 #include <stddef.h>
-#include <stdint.h>
 
 #define ALARM_REEVAL_BINDING_MAX 64U
-
-typedef enum {
-    ALARM_REEVAL_TRIGGER_ACTUATOR_COMPLETED = 1,
-    ALARM_REEVAL_TRIGGER_WASH_CHECKPOINT    = 2,
-} alarm_reeval_trigger_kind_t;
-
-typedef struct {
-    alarm_reeval_trigger_kind_t kind;
-    uint16_t                    trigger_id;
-    motion_reeval_group_id_t    group;
-} alarm_reeval_binding_t;
 
 /**
  * @brief  注册项目 ON_MOTION 重评估 binding 表并订阅 lifecycle 事件

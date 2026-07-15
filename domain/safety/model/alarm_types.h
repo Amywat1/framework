@@ -96,6 +96,19 @@ typedef enum {
 #define ALARM_REEVAL_GROUP_NONE 0U
 typedef uint16_t motion_reeval_group_id_t;
 
+/** @brief ON_MOTION 重评估触发源类型 */
+typedef enum {
+    ALARM_REEVAL_TRIGGER_ACTUATOR_COMPLETED = 1,
+    ALARM_REEVAL_TRIGGER_WASH_CHECKPOINT    = 2,
+} alarm_reeval_trigger_kind_t;
+
+/** @brief 一条 ON_MOTION 重评估绑定（触发源 → 重评估分组） */
+typedef struct {
+    alarm_reeval_trigger_kind_t kind;
+    uint16_t                    trigger_id;
+    motion_reeval_group_id_t    group;
+} alarm_reeval_binding_t;
+
 typedef enum {
     ALARM_CODE_NONE = 0U,
 } alarm_code_t;

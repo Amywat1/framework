@@ -92,6 +92,11 @@ sw_err_t cloud_model_register_scheduler(void)
     return report_scheduler_register(s_policies, s_policy_count);
 }
 
+void cloud_model_request_resync(void)
+{
+    report_scheduler_request_resync();
+}
+
 sw_err_t cloud_model_build_properties(char *buf, size_t buf_size)
 {
     if ((s_entries == NULL) || (s_entry_count == 0U)) {

@@ -73,6 +73,12 @@ sw_err_t cloud_model_init(void);
 sw_err_t cloud_model_register_scheduler(void);
 
 /**
+ * @brief  请求立即执行一次全量重同步上报。
+ * @note   云端离线或上报端口未注册时静默跳过。
+ */
+void cloud_model_request_resync(void);
+
+/**
  * @brief  构建全量属性 JSON。
  *
  * @param  buf 输出缓冲区。
