@@ -1,6 +1,6 @@
-/**
+﻿/**
  * @file    test_telemetry_projection.c
- * @brief   telemetry snapshot/projection 单元测试
+ * @brief   telemetry snapshot/projection 鍗曞厓娴嬭瘯
  */
 
 #include "application/telemetry_projection.h"

@@ -23,7 +23,7 @@ static void on_recovery_requested(const event_t *evt)
     if (alarm_registry_safety_posture() == SAFETY_POSTURE_LOCKOUT) {
         result = RECOVERY_RESULT_EXCEPTION;
     } else {
-        (void)alarm_registry_recover_all();
+        alarm_registry_recover_all();
         if (alarm_registry_safety_posture() == SAFETY_POSTURE_LOCKOUT) {
             result = RECOVERY_RESULT_EXCEPTION;
         }

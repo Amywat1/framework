@@ -48,7 +48,7 @@ void setUp(void)
     s_cloud_online = false;
     cloud_link_register(&s_link_ops);
     seed_snapshots();
-    TEST_ASSERT_EQUAL_INT(SW_OK, dev_ctx_init());
+    dev_ctx_init();
 }
 
 void tearDown(void)

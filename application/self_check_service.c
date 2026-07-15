@@ -25,7 +25,7 @@ sw_err_t self_check_service_init(void)
     return SW_OK;
 }
 
-sw_err_t self_check_service_start(void)
+void self_check_service_start(void)
 {
     bool land_exception = false;
 
@@ -39,5 +39,4 @@ sw_err_t self_check_service_start(void)
 
     publish_completed(land_exception);
     LOG_INFO("self_check_service: completed land_exception=%d", (int)land_exception);
-    return SW_OK;
 }

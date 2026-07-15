@@ -68,7 +68,7 @@ static void test_alarm_code_helpers_make_decode_and_validate(void)
 
 void setUp(void)
 {
-    (void)alarm_registry_init();
+    alarm_registry_init();
     (void)alarm_registry_load_catalog(s_catalog, 3U);
     alarm_registry_set_estop_skip_fn(skip_estop);
 }
@@ -110,7 +110,7 @@ static void test_recover_skips_estop_clears_manual(void)
 {
     (void)alarm_registry_trigger(201709U);
     (void)alarm_registry_trigger(201101U);
-    (void)alarm_registry_recover_all();
+    alarm_registry_recover_all();
     TEST_ASSERT_TRUE(alarm_registry_is_active(201709U));
     TEST_ASSERT_FALSE(alarm_registry_is_active(201101U));
 }

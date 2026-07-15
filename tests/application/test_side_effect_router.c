@@ -1,6 +1,6 @@
-/**
+﻿/**
  * @file    test_side_effect_router.c
- * @brief   side_effect_router 副作用路由单元测试
+ * @brief   side_effect_router 鍓綔鐢ㄨ矾鐢卞崟鍏冩祴璇?
  */
 
 #include "application/side_effect_router.h"

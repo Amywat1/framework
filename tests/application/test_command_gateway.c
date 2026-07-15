@@ -1,6 +1,6 @@
-/**
+﻿/**
  * @file    test_command_gateway.c
- * @brief   command_gateway 命令网关单元测试
+ * @brief   command_gateway 鍛戒护缃戝叧鍗曞厓娴嬭瘯
  */
 
 #include "application/command_gateway.h"

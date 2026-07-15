@@ -1,6 +1,6 @@
-/**
+﻿/**
  * @file    test_op_mode_bridge.c
- * @brief   op_mode_bridge 运行模式事件桥接单测
+ * @brief   op_mode_bridge 杩愯妯″紡浜嬩欢妗ユ帴鍗曟祴
  */
 
 #include "application/op_mode_bridge.h"

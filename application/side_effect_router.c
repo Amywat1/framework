@@ -36,10 +36,11 @@ sw_err_t side_effect_router_run(dev_cmd_effect_t effect, const dev_cmd_t *cmd)
         return SW_OK;
 
     case DEV_CMD_EFFECT_SELF_CHECK:
-        return self_check_service_start();
+        self_check_service_start();
+        return SW_OK;
 
     case DEV_CMD_EFFECT_RESET_FAULT:
-        (void)alarm_registry_recover_all();
+        alarm_registry_recover_all();
         op_mode_on_legacy_reset_fault();
         return SW_OK;
 

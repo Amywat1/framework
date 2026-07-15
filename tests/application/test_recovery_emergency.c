@@ -1,6 +1,6 @@
-/**
+﻿/**
  * @file    test_recovery_emergency.c
- * @brief   recovery_service / emergency_handler 单元测试
+ * @brief   recovery_service / emergency_handler 鍗曞厓娴嬭瘯
  */
 
 #include "adapters/outbound/safety/sim/hw_estop_sim.h"

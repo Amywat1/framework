@@ -15,7 +15,7 @@ extern "C" {
 #include "common/sw_error.h"
 
 sw_err_t self_check_service_init(void);
-sw_err_t self_check_service_start(void);
+void self_check_service_start(void);
 
 #ifdef __cplusplus
 }

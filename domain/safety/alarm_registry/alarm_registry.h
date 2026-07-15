@@ -27,7 +27,7 @@ sw_err_t alarm_registry_reevaluate_group(motion_reeval_group_id_t group);
 
 void     alarm_registry_on_wash_session_started(void);
 void     alarm_registry_on_wash_session_ended(void);
-sw_err_t alarm_registry_recover_all(void);
+void     alarm_registry_recover_all(void);
 
 bool             alarm_registry_is_active(uint32_t code);
 bool             alarm_registry_has_blocking_active(void);

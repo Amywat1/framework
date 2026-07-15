@@ -215,18 +215,17 @@ static sw_err_t insert_active_locked(const alarm_def_t *def)
     return SW_OK;
 }
 
-static sw_err_t force_clear_locked(uint32_t code)
+static void force_clear_locked(uint32_t code)
 {
     int idx = find_active_index(code);
 
     if (idx < 0) {
-        return SW_OK;
+        return;
     }
     remove_active_at_locked((unsigned)idx);
     enqueue_event_locked(ALARM_DOMAIN_EVT_CLEARED, code);
     maybe_clear_overflow_meta_locked();
     LOG_INFO("alarm_registry: CLEARED %06u", (unsigned)code);
-    return SW_OK;
 }
 
 static void load_overflow_meta_locked(void)
@@ -293,7 +292,7 @@ sw_err_t alarm_registry_clear(uint32_t code)
     }
 
     pthread_mutex_lock(&s_mutex);
-    (void)force_clear_locked(code);
+    force_clear_locked(code);
     pthread_mutex_unlock(&s_mutex);
     return SW_OK;
 }
@@ -318,7 +317,7 @@ sw_err_t alarm_registry_reevaluate_group(motion_reeval_group_id_t group)
         }
     }
     for (i = 0; i < n; ++i) {
-        (void)force_clear_locked(codes[i]);
+        force_clear_locked(codes[i]);
     }
     if (n > 0U) {
         enqueue_event_locked(ALARM_DOMAIN_EVT_BATCH_CLEARED, ALARM_CODE_NONE);
@@ -342,7 +341,7 @@ void alarm_registry_on_wash_session_ended(void)
     pthread_mutex_unlock(&s_mutex);
 }
 
-sw_err_t alarm_registry_recover_all(void)
+void alarm_registry_recover_all(void)
 {
     uint32_t codes[ALARM_ACTIVE_MAX];
     unsigned n = 0U;
@@ -368,13 +367,12 @@ sw_err_t alarm_registry_recover_all(void)
         codes[n++] = code;
     }
     for (i = 0; i < n; ++i) {
-        (void)force_clear_locked(codes[i]);
+        force_clear_locked(codes[i]);
     }
     if (n > 0U) {
         enqueue_event_locked(ALARM_DOMAIN_EVT_BATCH_CLEARED, ALARM_CODE_NONE);
     }
     pthread_mutex_unlock(&s_mutex);
-    return SW_OK;
 }
 
 bool alarm_registry_is_active(uint32_t code)

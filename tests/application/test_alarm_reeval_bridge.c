@@ -1,6 +1,6 @@
-/**
+﻿/**
  * @file    test_alarm_reeval_bridge.c
- * @brief   alarm_reeval_bridge 单元测试
+ * @brief   alarm_reeval_bridge 鍗曞厓娴嬭瘯
  */
 
 #include "application/alarm_reeval_bridge.h"

@@ -1,6 +1,6 @@
-/**
+﻿/**
  * @file    test_alarm_event_bridge.c
- * @brief   alarm_event_bridge 单元测试
+ * @brief   alarm_event_bridge 鍗曞厓娴嬭瘯
  */
 
 #include "application/alarm_event_bridge.h"
@@ -74,7 +74,7 @@ static void test_drain_publishes_triggered_event(void)
 
     time_util_init();
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
-    (void)alarm_registry_init();
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_init());
     (void)alarm_registry_load_catalog(s_catalog, 1U);
     TEST_ASSERT_EQUAL_INT(SW_OK, alarm_event_bridge_init());
     (void)event_subscribe(EVT_ALARM_TRIGGERED, on_triggered);
@@ -97,7 +97,7 @@ static void test_drain_empty_queue_no_event(void)
 
     time_util_init();
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
-    (void)alarm_registry_init();
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_init());
     (void)alarm_registry_load_catalog(s_catalog, 1U);
     (void)event_subscribe(EVT_ALARM_TRIGGERED, on_triggered);
 

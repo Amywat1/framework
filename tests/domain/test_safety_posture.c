@@ -97,7 +97,7 @@ static void test_major_no_lockout_event(void)
 
     time_util_init();
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
-    (void)alarm_registry_init();
+    alarm_registry_init();
     (void)alarm_registry_load_catalog(s_catalog, 2U);
     TEST_ASSERT_EQUAL_INT(SW_OK, safety_posture_init());
     (void)event_subscribe(EVT_SAFETY_NOMINAL, on_nominal);
@@ -119,7 +119,7 @@ static void test_critical_publishes_lockout(void)
 
     time_util_init();
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
-    (void)alarm_registry_init();
+    alarm_registry_init();
     (void)alarm_registry_load_catalog(s_catalog, 2U);
     TEST_ASSERT_EQUAL_INT(SW_OK, safety_posture_init());
     (void)event_subscribe(EVT_SAFETY_NOMINAL, on_nominal);

@@ -23,10 +23,9 @@ static bool read_cloud_connected(void)
     return ops->is_online();
 }
 
-sw_err_t dev_ctx_init(void)
+void dev_ctx_init(void)
 {
     LOG_INFO("dev_ctx: init ok");
-    return SW_OK;
 }
 
 device_context_t dev_ctx_snapshot(void)

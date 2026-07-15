@@ -33,7 +33,7 @@ typedef struct {
     alarm_instance_t   active_list[ALARM_ACTIVE_MAX];
 } device_context_t;
 
-sw_err_t           dev_ctx_init(void);
+void               dev_ctx_init(void);
 device_context_t   dev_ctx_snapshot(void);
 operational_mode_t dev_ctx_get_operational_mode(void);
 
