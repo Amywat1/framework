@@ -12,13 +12,13 @@
 #include "common/log.h"
 #include "domain/command_gateway/operational_mode.h"
 #include "ports/inbound/command/command_port.h"
+#include "common/time_util.h"
 #include "runtime/event_bus/event_bus.h"
 
 #include <errno.h>
 #include <pthread.h>
 #include <semaphore.h>
 #include <string.h>
-#include <time.h>
 
 #define CMD_GATEWAY_QUEUE_SIZE 4U
 #define CMD_GATEWAY_WAIT_MS    5000U
@@ -136,17 +136,7 @@ static sw_err_t gateway_submit(const dev_cmd_t *cmd, dev_cmd_receipt_t *receipt,
         return SW_ERR_BUSY;
     }
 
-    if (clock_gettime(CLOCK_REALTIME, &ts) != 0) {
-        release_slot_if_current(slot, my_generation);
-        return SW_ERR_HW;
-    }
-    ts.tv_sec += (time_t)(wait_ms / 1000U);
-    ts.tv_nsec += (long)(wait_ms % 1000U) * 1000000L;
-    if (ts.tv_nsec >= 1000000000L) {
-        ts.tv_sec += 1;
-        ts.tv_nsec -= 1000000000L;
-    }
-
+    time_util_fill_deadline(wait_ms, &ts);
     sem_ret = sem_timedwait(&slot->done, &ts);
     if (sem_ret != 0) {
         release_slot_if_current(slot, my_generation);

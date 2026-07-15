@@ -14,6 +14,7 @@
 
 #include "common/event_types.h"
 #include "common/log.h"
+#include "common/time_util.h"
 #include "domain/command_gateway/op_mode_types.h"
 #include "domain/wash/engine/engine.h"
 #include "domain/wash/model/engine_model.h"
@@ -29,7 +30,6 @@
 #include <sched.h>
 #include <semaphore.h>
 #include <stdatomic.h>
-#include <time.h>
 #include <unistd.h>
 
 /* 洗车方案 JSON 路径（CMakeLists 通过 compile_definitions 覆盖） */
@@ -369,19 +369,7 @@ sw_err_t wash_orchestrator_start(wash_mode_t mode)
     atomic_store(&s_busy, true);
     sem_post(&s_start_sem);
 
-    if (clock_gettime(CLOCK_REALTIME, &ts) != 0) {
-        invalidate_startup_gen(my_gen);
-        atomic_store(&s_busy, false);
-        return SW_ERR_HW;
-    }
-
-    ts.tv_sec += (time_t)(WASH_STARTUP_WAIT_MS / 1000U);
-    ts.tv_nsec += (long)(WASH_STARTUP_WAIT_MS % 1000U) * 1000000L;
-    if (ts.tv_nsec >= 1000000000L) {
-        ts.tv_sec += 1;
-        ts.tv_nsec -= 1000000000L;
-    }
-
+    time_util_fill_deadline(WASH_STARTUP_WAIT_MS, &ts);
     sem_ret = sem_timedwait(&s_startup_done, &ts);
     if (sem_ret != 0) {
         invalidate_startup_gen(my_gen);

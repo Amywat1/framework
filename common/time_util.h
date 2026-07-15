@@ -16,6 +16,7 @@ extern "C" {
 #endif
 
 #include <stdint.h>
+#include <time.h>
 
 /**
  * @brief  初始化时钟工具（Linux 上为空操作，保留供跨平台扩展）
@@ -39,6 +40,15 @@ static inline uint32_t time_elapsed_ms(uint64_t start_ms, uint64_t now_ms)
 {
     return (uint32_t)(now_ms - start_ms);
 }
+
+/**
+ * @brief  填充 sem_timedwait / pthread_cond_timedwait 所需的绝对截止时间
+ * @param  timeout_ms  相对超时毫秒数
+ * @param  ts          输出参数，填充后可直接传给 sem_timedwait()
+ * @note   内部使用 CLOCK_REALTIME（POSIX sem_timedwait 要求），
+ *         不可用于时长测量（请用 time_util_get_ms()）。
+ */
+void time_util_fill_deadline(uint32_t timeout_ms, struct timespec *ts);
 
 #ifdef __cplusplus
 }
