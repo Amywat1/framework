@@ -18,7 +18,6 @@
 typedef struct {
     drv_vfd_t                        drv;
     snack_vfd_backend_instance_cfg_t cfg;
-    bool                             configured;
     bool                             bound;
     bool                             inited;
 } snack_vfd_slot_t;
@@ -70,7 +69,7 @@ static sw_err_t backend_init(void *ctx)
     snack_vfd_slot_t *slot = (snack_vfd_slot_t *)ctx;
     sw_err_t          ret;
 
-    if ((slot == NULL) || !slot->configured) {
+    if ((slot == NULL) || !slot->bound) {
         return SW_ERR_NOT_INIT;
     }
 
@@ -189,34 +188,19 @@ static sw_err_t snack_bind_instance(hal_vfd_id_t id, snack_vfd_slot_t *slot)
     return hal_vfd_manager_bind(id, &cfg);
 }
 
-sw_err_t snack_vfd_backend_instance_configure(hal_vfd_id_t id, const snack_vfd_backend_instance_cfg_t *cfg)
-{
-    if (!vfd_id_valid(id) || !instance_cfg_valid(cfg)) {
-        return SW_ERR_PARAM;
-    }
-    if (s_slot[(unsigned)id].configured) {
-        return SW_ERR_BUSY;
-    }
-
-    s_slot[(unsigned)id].cfg        = *cfg;
-    s_slot[(unsigned)id].configured = true;
-    s_slot[(unsigned)id].inited     = false;
-    return SW_OK;
-}
-
-sw_err_t snack_vfd_backend_instance_bind(hal_vfd_id_t id)
+sw_err_t snack_vfd_backend_instance_setup(hal_vfd_id_t id, const snack_vfd_backend_instance_cfg_t *cfg)
 {
     sw_err_t ret;
 
-    if (!vfd_id_valid(id)) {
+    if (!vfd_id_valid(id) || !instance_cfg_valid(cfg)) {
         return SW_ERR_PARAM;
-    }
-    if (!s_slot[(unsigned)id].configured) {
-        return SW_ERR_NOT_INIT;
     }
     if (s_slot[(unsigned)id].bound) {
         return SW_ERR_BUSY;
     }
+
+    s_slot[(unsigned)id].cfg    = *cfg;
+    s_slot[(unsigned)id].inited = false;
 
     ret = snack_bind_instance(id, &s_slot[(unsigned)id]);
     if (ret != SW_OK) {

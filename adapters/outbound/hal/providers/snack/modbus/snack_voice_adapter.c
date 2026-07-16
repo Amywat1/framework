@@ -14,7 +14,6 @@
 
 static drv_voice_t s_voice;
 static bool        s_voice_inited = false;
-static bool        s_configured   = false;
 static const char *s_serial_port  = NULL;
 static int         s_baud         = 0;
 static int         s_modbus_addr  = 0;
@@ -25,22 +24,6 @@ static bool voice_ready(void)
     return s_voice_inited;
 }
 
-sw_err_t snack_voice_adapter_configure(const char *serial_port, int baud, int modbus_addr)
-{
-    if ((serial_port == NULL) || (modbus_addr <= 0) || (modbus_addr > 247)) {
-        return SW_ERR_PARAM;
-    }
-    if (s_configured) {
-        return SW_ERR_BUSY;
-    }
-    s_serial_port = serial_port;
-    s_baud        = baud;
-    s_modbus_addr = modbus_addr;
-    s_configured  = true;
-    s_voice_inited = false;
-    return SW_OK;
-}
-
 /* -------------------------------------------------------------------------
  * hal_voice_ops_t 实现
  * ------------------------------------------------------------------------- */
@@ -48,7 +31,7 @@ static sw_err_t voice_init(void)
 {
     sw_err_t ret;
 
-    if (!s_configured) {
+    if (s_serial_port == NULL) {
         return SW_ERR_NOT_INIT;
     }
 
@@ -131,8 +114,11 @@ static const hal_voice_ops_t s_ops = {
     .register_event_cb = voice_register_event_cb,
 };
 
-void snack_voice_adapter_register(void)
+void snack_voice_adapter_register(const char *serial_port, int baud, int modbus_addr)
 {
+    s_serial_port = serial_port;
+    s_baud        = baud;
+    s_modbus_addr = modbus_addr;
     hal_voice_register(&s_ops);
 }
 
@@ -141,7 +127,6 @@ void snack_voice_adapter_test_reset(void)
 {
     memset(&s_voice, 0, sizeof(s_voice));
     s_voice_inited = false;
-    s_configured   = false;
     s_serial_port  = NULL;
     s_baud         = 0;
     s_modbus_addr  = 0;
