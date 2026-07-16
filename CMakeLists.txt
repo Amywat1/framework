@@ -15,30 +15,17 @@ option(WDF_ENABLE_MCC_PROVIDER "Build MCC motor executor HAL provider" OFF)
 option(WDF_ENABLE_SNACK_MODBUS_PROVIDER "Build Snack Modbus HAL providers" OFF)
 option(WDF_ENABLE_SNACK_IO_EXP_PROVIDER "Build Snack io_exp HAL provider" OFF)
 option(WDF_ENABLE_SNACK_CLOUD_PROVIDER "Build Snack cloud MQTT provider" OFF)
-set(WDF_MCC_ROOT "" CACHE PATH "Path to motor_control_core SDK root")
 set(WDF_IO_EXP_ROOT "" CACHE PATH "Path to io_exp SDK root")
 set(WDF_IO_EXP_LIBRARY "" CACHE FILEPATH "Path to io_exp SDK library")
 
 if(WDF_ENABLE_MCC_PROVIDER)
-    if(NOT WDF_MCC_ROOT)
-        message(FATAL_ERROR "WDF_MCC_ROOT must point to motor_control_core SDK when WDF_ENABLE_MCC_PROVIDER=ON")
-    endif()
-    if(NOT EXISTS "${WDF_MCC_ROOT}/include/motor/motor_executor.h")
-        message(FATAL_ERROR "MCC header not found: ${WDF_MCC_ROOT}/include/motor/motor_executor.h")
-    endif()
-    if(NOT EXISTS "${WDF_MCC_ROOT}/lib/libmotor_control_core.a")
-        message(FATAL_ERROR "MCC static library not found: ${WDF_MCC_ROOT}/lib/libmotor_control_core.a")
-    endif()
-
     add_library(wdf_hal_motor_exec_mcc STATIC
         adapters/outbound/hal/providers/mcc/hal_motor_exec_adapter.c
+        third_party/mcc/motor_control_core-1.0.0/src/motor_executor.c
     )
     target_include_directories(wdf_hal_motor_exec_mcc PUBLIC
         ${CMAKE_SOURCE_DIR}
-        ${WDF_MCC_ROOT}/include
-    )
-    target_link_libraries(wdf_hal_motor_exec_mcc PUBLIC
-        ${WDF_MCC_ROOT}/lib/libmotor_control_core.a
+        ${CMAKE_SOURCE_DIR}/third_party/mcc/motor_control_core-1.0.0/include
     )
 endif()
 
