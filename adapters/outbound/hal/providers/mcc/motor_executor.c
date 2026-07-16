@@ -6,7 +6,7 @@
  * 关键控制逻辑（启动/换向/停止/故障/急停/看门狗）均以状态迁移表达，
  * 上电默认态与故障安全态均为“停止且输出关断”。
  */
-#include "motor/motor_executor.h"
+#include "adapters/outbound/hal/providers/mcc/motor_executor.h"
 #include <limits.h>
 
 /* 加减速步进哨兵：表示“无斜坡，立即到目标”。 */

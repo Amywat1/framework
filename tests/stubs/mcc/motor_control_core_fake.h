@@ -1,7 +1,7 @@
 #ifndef TESTS_STUBS_MCC_MOTOR_CONTROL_CORE_FAKE_H
 #define TESTS_STUBS_MCC_MOTOR_CONTROL_CORE_FAKE_H
 
-#include "motor/motor_executor.h"
+#include "adapters/outbound/hal/providers/mcc/motor_executor.h"
 
 typedef enum {
     MCC_FAKE_CALL_NONE = 0,

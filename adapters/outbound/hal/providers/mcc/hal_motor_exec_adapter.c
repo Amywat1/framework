@@ -6,7 +6,7 @@
  * 框架代码只通过 hal_motor_exec_port.h 的不透明句柄与镜像类型访问电机。
  */
 
-#include "motor/motor_executor.h"
+#include "adapters/outbound/hal/providers/mcc/motor_executor.h"
 #include "ports/outbound/hal/motor/hal_motor_exec_port.h"
 
 static motor_direction_t to_mcc_dir(hal_motor_dir_t dir)

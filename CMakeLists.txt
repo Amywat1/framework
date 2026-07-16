@@ -21,11 +21,10 @@ set(WDF_IO_EXP_LIBRARY "" CACHE FILEPATH "Path to io_exp SDK library")
 if(WDF_ENABLE_MCC_PROVIDER)
     add_library(wdf_hal_motor_exec_mcc STATIC
         adapters/outbound/hal/providers/mcc/hal_motor_exec_adapter.c
-        third_party/mcc/motor_control_core-1.0.0/src/motor_executor.c
+        adapters/outbound/hal/providers/mcc/motor_executor.c
     )
     target_include_directories(wdf_hal_motor_exec_mcc PUBLIC
         ${CMAKE_SOURCE_DIR}
-        ${CMAKE_SOURCE_DIR}/third_party/mcc/motor_control_core-1.0.0/include
     )
 endif()
 
