@@ -71,6 +71,8 @@ sw_err_t fluid_path_init(const fluid_path_cfg_t          *cfg,
                          size_t                           path_count);
 
 sw_err_t fluid_path_set(fluid_path_mask_t target);
+sw_err_t fluid_path_enable(fluid_path_mask_t mask);
+sw_err_t fluid_path_disable(fluid_path_mask_t mask);
 sw_err_t fluid_path_all_off(void);
 
 /**

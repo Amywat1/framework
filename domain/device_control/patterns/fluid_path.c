@@ -524,6 +524,38 @@ void fluid_path_emergency_off(void)
     atomic_store_explicit(&s_emergency_off, true, memory_order_release);
 }
 
+sw_err_t fluid_path_enable(fluid_path_mask_t mask)
+{
+    pthread_mutex_lock(&s_mutex);
+    if (!s_ready) {
+        pthread_mutex_unlock(&s_mutex);
+        return SW_ERR_NOT_INIT;
+    }
+    if ((mask & ~s_valid_mask) != 0U) {
+        pthread_mutex_unlock(&s_mutex);
+        return SW_ERR_PARAM;
+    }
+    s_pending_target |= mask;
+    pthread_mutex_unlock(&s_mutex);
+    return SW_OK;
+}
+
+sw_err_t fluid_path_disable(fluid_path_mask_t mask)
+{
+    pthread_mutex_lock(&s_mutex);
+    if (!s_ready) {
+        pthread_mutex_unlock(&s_mutex);
+        return SW_ERR_NOT_INIT;
+    }
+    if ((mask & ~s_valid_mask) != 0U) {
+        pthread_mutex_unlock(&s_mutex);
+        return SW_ERR_PARAM;
+    }
+    s_pending_target &= ~mask;
+    pthread_mutex_unlock(&s_mutex);
+    return SW_OK;
+}
+
 sw_err_t fluid_path_all_off(void)
 {
     pthread_mutex_lock(&s_mutex);
