@@ -9,15 +9,15 @@
  *          所有 IO 经 engine_io 后端按名读写，引擎不感知具体硬件。
  */
 
-#ifndef DOMAIN_ENGINE_ENGINE_H
-#define DOMAIN_ENGINE_ENGINE_H
+#ifndef DOMAIN_PROGRAM_ENGINE_H
+#define DOMAIN_PROGRAM_ENGINE_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 #include "common/sw_error.h"
-#include "domain/wash/model/engine_model.h"
+#include "domain/program_engine/model/engine_model.h"
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -85,4 +85,4 @@ engine_direction_t engine_current_direction(const engine_t *e);
 }
 #endif
 
-#endif /* DOMAIN_ENGINE_ENGINE_H */
+#endif /* DOMAIN_PROGRAM_ENGINE_H */

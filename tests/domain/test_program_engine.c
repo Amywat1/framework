@@ -4,12 +4,12 @@
  */
 
 #include "common/sw_error.h"
-#include "domain/wash/engine/engine.h"
-#include "domain/wash/engine/engine_expr.h"
-#include "domain/wash/engine/engine_io.h"
-#include "domain/wash/engine/engine_profile.h"
-#include "domain/wash/model/engine_model.h"
-#include "domain/wash/model/engine_program_validate.h"
+#include "domain/program_engine/engine/engine.h"
+#include "domain/program_engine/engine/engine_expr.h"
+#include "domain/program_engine/engine/engine_io.h"
+#include "domain/program_engine/engine/engine_profile.h"
+#include "domain/program_engine/model/engine_model.h"
+#include "domain/program_engine/model/engine_program_validate.h"
 #include "unity.h"
 
 #include <stdbool.h>

@@ -9,7 +9,7 @@
 #include "application/orchestrators/home_orchestrator.h"
 #include "application/orchestrators/wash_orchestrator.h"
 #include "application/recovery_service.h"
-#include "domain/wash/engine/engine.h"
+#include "domain/program_engine/engine/engine.h"
 
 static int                s_start_count;
 static int                s_abort_count;

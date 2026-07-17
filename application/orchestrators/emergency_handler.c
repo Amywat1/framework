@@ -8,7 +8,7 @@
  *
  *   EVT_HW_ESTOP_ON
  *     → safety_deferred_stop()（停止所有机构）
- *     → wash_orchestrator_abort(WASH_ABORT_ESTOP)（通知洗车引擎中止）
+ *     → wash_orchestrator_abort(WASH_ABORT_ESTOP)（通知方案引擎中止）
  *     → op_mode 由 op_mode_bridge 消费 EVT_HW_ESTOP_ON 切换至 EXCEPTION
  *
  *   EVT_HW_ESTOP_OFF
@@ -51,7 +51,7 @@ static void on_estop_on(const event_t *evt)
 {
     (void)evt;
     safety_deferred_stop();
-    /* 通知洗车引擎中止（原因 ESTOP），引擎发布 EVT_WASH_ABORTED，
+    /* 通知方案引擎中止（原因 ESTOP），引擎发布 EVT_WASH_ABORTED，
      * op_mode_bridge 收到后发现模式已是 EXCEPTION（由 on_hw_estop_on 切换），
      * on_wash_session_aborted 会提前返回 */
     wash_orchestrator_abort(WASH_ABORT_ESTOP);

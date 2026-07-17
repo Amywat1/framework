@@ -7,7 +7,7 @@
 
 #include "adapters/outbound/hal/sim/engine_io_sim.h"
 
-#include "domain/wash/engine/engine_io.h"
+#include "domain/program_engine/engine/engine_io.h"
 
 #include <string.h>
 

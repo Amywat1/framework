@@ -12,8 +12,8 @@
  *          使表达式模块与 IO/引擎状态解耦。
  */
 
-#ifndef DOMAIN_ENGINE_ENGINE_EXPR_H
-#define DOMAIN_ENGINE_ENGINE_EXPR_H
+#ifndef DOMAIN_PROGRAM_ENGINE_EXPR_H
+#define DOMAIN_PROGRAM_ENGINE_EXPR_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -98,4 +98,4 @@ engine_expr_t *engine_expr_clone(const engine_expr_t *expr);
 }
 #endif
 
-#endif /* DOMAIN_ENGINE_ENGINE_EXPR_H */
+#endif /* DOMAIN_PROGRAM_ENGINE_EXPR_H */

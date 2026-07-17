@@ -6,9 +6,9 @@
 #include "adapters/outbound/hal/sim/engine_io_sim.h"
 #include "adapters/outbound/storage/json/engine_program_json.h"
 #include "common/sw_error.h"
-#include "domain/wash/engine/engine.h"
-#include "domain/wash/engine/engine_io.h"
-#include "domain/wash/model/engine_model.h"
+#include "domain/program_engine/engine/engine.h"
+#include "domain/program_engine/engine/engine_io.h"
+#include "domain/program_engine/model/engine_model.h"
 #include "ports/outbound/storage/engine_program_loader_port.h"
 #include "unity.h"
 

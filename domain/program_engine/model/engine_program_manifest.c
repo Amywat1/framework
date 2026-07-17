@@ -1,11 +1,11 @@
 /**
  * @file    engine_program_manifest.c
- * @brief   洗车方案 manifest 完整性校验实现
+ * @brief   控制方案 manifest 完整性校验实现
  * @author  huwangwei
  * @date    2026-07-08
  */
 
-#include "domain/wash/model/engine_program_manifest.h"
+#include "domain/program_engine/model/engine_program_manifest.h"
 
 #include "third_party/cJSON/cJSON.h"
 

@@ -17,7 +17,7 @@
 extern "C" {
 #endif
 
-#include "domain/wash/model/engine_model.h"
+#include "domain/program_engine/model/engine_model.h"
 
 /**
  * @brief  解析 JSON 文本为方案模型

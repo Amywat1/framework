@@ -269,15 +269,15 @@ add_unit_test(test_device_control_patterns
 )
 target_compile_definitions(test_device_control_patterns PRIVATE FLUID_PATH_UNIT_TEST)
 
-add_unit_test(test_wash_engine
-    ${CMAKE_CURRENT_SOURCE_DIR}/domain/test_wash_engine.c
-    ${WDF_ROOT}/domain/wash/engine/engine.c
-    ${WDF_ROOT}/domain/wash/engine/engine_expr.c
-    ${WDF_ROOT}/domain/wash/engine/engine_io.c
-    ${WDF_ROOT}/domain/wash/engine/engine_profile.c
-    ${WDF_ROOT}/domain/wash/model/engine_model.c
-    ${WDF_ROOT}/domain/wash/model/engine_program_validate.c
-    ${WDF_ROOT}/domain/wash/model/engine_program_manifest.c
+add_unit_test(test_program_engine
+    ${CMAKE_CURRENT_SOURCE_DIR}/domain/test_program_engine.c
+    ${WDF_ROOT}/domain/program_engine/engine/engine.c
+    ${WDF_ROOT}/domain/program_engine/engine/engine_expr.c
+    ${WDF_ROOT}/domain/program_engine/engine/engine_io.c
+    ${WDF_ROOT}/domain/program_engine/engine/engine_profile.c
+    ${WDF_ROOT}/domain/program_engine/model/engine_model.c
+    ${WDF_ROOT}/domain/program_engine/model/engine_program_validate.c
+    ${WDF_ROOT}/domain/program_engine/model/engine_program_manifest.c
     ${WDF_ROOT}/third_party/cJSON/cJSON.c
 )
 
@@ -305,13 +305,13 @@ add_unit_test(test_wash_orchestrator
     ${WDF_ROOT}/runtime/scheduler/thread_registry.c
     ${WDF_ROOT}/runtime/scheduler/scheduler.c
     ${WDF_ROOT}/runtime/event_bus/event_bus.c
-    ${WDF_ROOT}/domain/wash/engine/engine.c
-    ${WDF_ROOT}/domain/wash/engine/engine_expr.c
-    ${WDF_ROOT}/domain/wash/engine/engine_io.c
-    ${WDF_ROOT}/domain/wash/engine/engine_profile.c
-    ${WDF_ROOT}/domain/wash/model/engine_model.c
-    ${WDF_ROOT}/domain/wash/model/engine_program_validate.c
-    ${WDF_ROOT}/domain/wash/model/engine_program_manifest.c
+    ${WDF_ROOT}/domain/program_engine/engine/engine.c
+    ${WDF_ROOT}/domain/program_engine/engine/engine_expr.c
+    ${WDF_ROOT}/domain/program_engine/engine/engine_io.c
+    ${WDF_ROOT}/domain/program_engine/engine/engine_profile.c
+    ${WDF_ROOT}/domain/program_engine/model/engine_model.c
+    ${WDF_ROOT}/domain/program_engine/model/engine_program_validate.c
+    ${WDF_ROOT}/domain/program_engine/model/engine_program_manifest.c
     ${WDF_ROOT}/common/log.c
     ${WDF_ROOT}/common/time_util.c
     ${WDF_ROOT}/third_party/cJSON/cJSON.c
@@ -421,13 +421,13 @@ add_unit_test(test_engine_program_json
     ${WDF_ROOT}/adapters/outbound/storage/json/engine_program_json.c
     ${WDF_ROOT}/adapters/outbound/hal/sim/engine_io_sim.c
     ${WDF_ROOT}/ports/outbound/storage/engine_program_loader_port.c
-    ${WDF_ROOT}/domain/wash/engine/engine.c
-    ${WDF_ROOT}/domain/wash/engine/engine_expr.c
-    ${WDF_ROOT}/domain/wash/engine/engine_io.c
-    ${WDF_ROOT}/domain/wash/engine/engine_profile.c
-    ${WDF_ROOT}/domain/wash/model/engine_model.c
-    ${WDF_ROOT}/domain/wash/model/engine_program_validate.c
-    ${WDF_ROOT}/domain/wash/model/engine_program_manifest.c
+    ${WDF_ROOT}/domain/program_engine/engine/engine.c
+    ${WDF_ROOT}/domain/program_engine/engine/engine_expr.c
+    ${WDF_ROOT}/domain/program_engine/engine/engine_io.c
+    ${WDF_ROOT}/domain/program_engine/engine/engine_profile.c
+    ${WDF_ROOT}/domain/program_engine/model/engine_model.c
+    ${WDF_ROOT}/domain/program_engine/model/engine_program_validate.c
+    ${WDF_ROOT}/domain/program_engine/model/engine_program_manifest.c
     ${WDF_ROOT}/third_party/cJSON/cJSON.c
 )
 

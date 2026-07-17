@@ -1,22 +1,22 @@
 /**
  * @file    engine_program_validate.h
- * @brief   洗车方案语义校验（加载期引用完整性、IO 名、表达式变量）
+ * @brief   控制方案语义校验（加载期引用完整性、IO 名、表达式变量）
  * @author  huwangwei
  * @date    2026-07-08
  *
  * @note    在 JSON 结构解析成功后调用；catalog 为空时跳过 IO 枚举名校验。
  */
 
-#ifndef DOMAIN_ENGINE_ENGINE_PROGRAM_VALIDATE_H
-#define DOMAIN_ENGINE_ENGINE_PROGRAM_VALIDATE_H
+#ifndef DOMAIN_PROGRAM_ENGINE_PROGRAM_VALIDATE_H
+#define DOMAIN_PROGRAM_ENGINE_PROGRAM_VALIDATE_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 #include "common/sw_error.h"
-#include "domain/wash/engine/engine_io.h"
-#include "domain/wash/model/engine_model.h"
+#include "domain/program_engine/engine/engine_io.h"
+#include "domain/program_engine/model/engine_model.h"
 
 /**
  * @brief  校验方案语义
@@ -36,4 +36,4 @@ sw_err_t engine_program_validate(const engine_program_t    *prog,
 }
 #endif
 
-#endif /* DOMAIN_ENGINE_ENGINE_PROGRAM_VALIDATE_H */
+#endif /* DOMAIN_PROGRAM_ENGINE_PROGRAM_VALIDATE_H */

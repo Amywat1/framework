@@ -10,8 +10,8 @@
  *          对应规格说明 §2：硬件层按名注册枚举名，配置层按名引用。
  */
 
-#ifndef DOMAIN_ENGINE_ENGINE_IO_H
-#define DOMAIN_ENGINE_ENGINE_IO_H
+#ifndef DOMAIN_PROGRAM_ENGINE_IO_H
+#define DOMAIN_PROGRAM_ENGINE_IO_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -95,4 +95,4 @@ const engine_io_catalog_t *engine_io_get_catalog(void);
 }
 #endif
 
-#endif /* DOMAIN_ENGINE_ENGINE_IO_H */
+#endif /* DOMAIN_PROGRAM_ENGINE_IO_H */

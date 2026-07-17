@@ -3,7 +3,7 @@
 **版本**：v1.0  
 **状态**：已落地（param_store + deploy_store + engine_program_loader + JSON 适配器 + manifest 校验）  
 **最后同步代码**：2026-07-14（`ports/outbound/storage`、`adapters/outbound/storage/json`、`engine_program_manifest`）  
-**适用范围**：`ports/outbound/storage/`、`adapters/outbound/storage/json/`、`domain/wash/model/engine_program_manifest.*`、`application/orchestrators/wash_orchestrator.*`  
+**适用范围**：`ports/outbound/storage/`、`adapters/outbound/storage/json/`、`domain/program_engine/model/engine_program_manifest.*`、`application/orchestrators/wash_orchestrator.*`  
 **架构基线**：Ports & Adapters + 存储类型分离 + 方案资产完整性校验  
 **关键词**：param_store、deploy_store、engine_program_loader、engine_program_json、manifest、SHA256
 
@@ -44,7 +44,7 @@
 | **JSON 参数适配器** | `adapters/outbound/storage/json/json_param_store.*` | 基于 cJSON 的可写 KV 文件 |
 | **JSON 部署适配器** | `adapters/outbound/storage/json/json_deploy_store.c` | 基于 cJSON 的只读部署文件 |
 | **JSON 方案加载器** | `adapters/outbound/storage/json/engine_program_json.*` | JSON → `engine_program_t` |
-| **manifest 校验** | `domain/wash/model/engine_program_manifest.*` | SHA256 + manifest 文件比对 |
+| **manifest 校验** | `domain/program_engine/model/engine_program_manifest.*` | SHA256 + manifest 文件比对 |
 | **消费方** | `services/param/svc_param.*` | 运行期参数具名 API |
 | **消费方** | `wash_orchestrator` | 启动洗车前校验并加载方案 |
 
@@ -433,6 +433,6 @@ ctest --test-dir build-native --output-on-failure
 
 ## 14. 相关文档
 
-- `doc/module-design/domain/洗车引擎模块设计.md` — engine program 模型与运行时
+- `doc/module-design/domain/方案引擎模块设计.md` — engine program 模型与运行时
 - `doc/module-design/runtime/Runtime模块设计.md` — wiring、bootstrap 与 worker 启动顺序
 - `tests/reports/json_param_store.md` — 参数存储单元测试报告

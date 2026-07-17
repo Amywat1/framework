@@ -9,7 +9,7 @@
 | `common/`、整体分层 | `00-模块设计总览.md` |
 | `runtime/bootstrap/`、`runtime/scheduler/`、`runtime/platform/` | `runtime/Runtime模块设计.md` |
 | `runtime/event_bus/`、`common/events.h` | `runtime/EventBus模块设计.md` |
-| `domain/wash/`、`ports/outbound/storage/engine_program_loader_port.*`、`engine_io_sim` | `domain/洗车引擎模块设计.md` |
+| `domain/program_engine/`、`domain/wash/model/wash_types.h`、`ports/outbound/storage/engine_program_loader_port.*`、`engine_io_sim` | `domain/方案引擎模块设计.md` |
 | `domain/command_gateway/`、`application/command_gateway.*`、`side_effect_router` | `domain/命令网关模块设计.md` |
 | `domain/safety/`、`application/alarm_*`、`ports/outbound/safety/` | `domain/报警系统模块设计.md` |
 | `domain/device_control/`、`ports/outbound/hal/hal_motor_exec_port.*` | `domain/设备控制模式模块设计.md` |

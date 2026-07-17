@@ -361,6 +361,6 @@ ctest --test-dir build-native --output-on-failure
 ## 9. 相关文档
 
 - `doc/module-design/domain/设备控制模式模块设计.md` — 电机执行端口在领域模式中的使用边界
-- `doc/module-design/domain/洗车引擎模块设计.md` — engine IO 与 HAL/sim 的边界
+- `doc/module-design/domain/方案引擎模块设计.md` — engine IO 与 HAL/sim 的边界
 - `doc/module-design/runtime/EventBus模块设计.md` — HAL 边沿事件与异步分发
 - `doc/module-design/domain/报警系统模块设计.md` — HAL 事件到报警 registry 的项目侧映射边界

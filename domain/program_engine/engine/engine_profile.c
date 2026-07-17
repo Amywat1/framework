@@ -1,9 +1,9 @@
 /**
  * @file    engine_profile.c
- * @brief   洗车引擎车辆轮廓查询 provider 契约实现
+ * @brief   方案引擎可选车辆轮廓查询 provider 契约实现
  */
 
-#include "domain/wash/engine/engine_profile.h"
+#include "domain/program_engine/engine/engine_profile.h"
 
 #include <stddef.h>
 

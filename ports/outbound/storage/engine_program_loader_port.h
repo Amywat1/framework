@@ -18,7 +18,7 @@
 extern "C" {
 #endif
 
-#include "domain/wash/model/engine_model.h"
+#include "domain/program_engine/model/engine_model.h"
 
 /* -------------------------------------------------------------------------
  * 方案加载操作表

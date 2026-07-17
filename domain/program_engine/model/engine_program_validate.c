@@ -1,13 +1,13 @@
 /**
  * @file    engine_program_validate.c
- * @brief   洗车方案语义校验实现
+ * @brief   控制方案语义校验实现
  * @author  huwangwei
  * @date    2026-07-08
  */
 
-#include "domain/wash/model/engine_program_validate.h"
+#include "domain/program_engine/model/engine_program_validate.h"
 
-#include "domain/wash/engine/engine_expr.h"
+#include "domain/program_engine/engine/engine_expr.h"
 
 #include <stdio.h>
 #include <string.h>
