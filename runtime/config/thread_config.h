@@ -22,6 +22,9 @@
 /* 洗车工作线程（SCHED_OTHER）*/
 #define THD_WASH_WORKER_STACK (32U * 1024U)
 
+/* 归位工作线程（SCHED_OTHER）*/
+#define THD_HOME_WORKER_STACK (32U * 1024U)
+
 /* 云端线程（SCHED_OTHER）*/
 #define THD_CLOUD_STACK            (32U * 1024U)
 #define THD_CLOUD_REPORT_PERIOD_MS 500U /* 状态上报周期 */

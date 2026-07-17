@@ -3,8 +3,10 @@
  * @brief   Demo 仿真 machine_ops 实现
  */
 
+#include "common/event_types.h"
 #include "common/sw_error.h"
 #include "ports/outbound/machine/machine_ops_port.h"
+#include "runtime/event_bus/event_bus.h"
 
 static void demo_deferred_stop_all(void)
 {
@@ -16,6 +18,8 @@ static void demo_safety_home(void)
 
 static sw_err_t demo_home_device(void)
 {
+    /* Demo 无真实机构：立即回报归位成功，满足 recovery 异步等待 */
+    (void)event_publish(EVT_OP_MODE_HOME_COMPLETED, 1U);
     return SW_OK;
 }
 

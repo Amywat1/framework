@@ -11,6 +11,10 @@
 #include "adapters/inbound/event/alarm_lifecycle_bridge.h"
 #include "application/command_gateway.h"
 #include "adapters/inbound/event/op_mode_bridge.h"
+#include "application/orchestrators/emergency_handler.h"
+#include "application/orchestrators/home_orchestrator.h"
+#include "application/orchestrators/wash_orchestrator.h"
+#include "application/recovery_service.h"
 #include "application/self_check_service.h"
 #include "application/telemetry_projection.h"
 #include "common/log.h"
@@ -223,6 +227,10 @@ static sw_err_t bootstrap_init_services(void)
     BOOT_CHECK(operational_mode_init(), "operational_mode_init");
     BOOT_CHECK(command_gateway_init(), "command_gateway_init");
     BOOT_CHECK(self_check_service_init(), "self_check_service_init");
+    BOOT_CHECK(wash_orchestrator_init(), "wash_orchestrator_init");
+    BOOT_CHECK(home_orchestrator_init(), "home_orchestrator_init");
+    BOOT_CHECK(recovery_service_init(), "recovery_service_init");
+    BOOT_CHECK(emergency_handler_init(), "emergency_handler_init");
     BOOT_CHECK(alarm_lifecycle_bridge_init(), "alarm_lifecycle_bridge_init");
     BOOT_CHECK(op_mode_bridge_init(), "op_mode_bridge_init");
     BOOT_CHECK(telemetry_projection_init(), "telemetry_projection_init");

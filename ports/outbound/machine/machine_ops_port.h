@@ -27,7 +27,7 @@ typedef struct {
     void (*deferred_stop_all)(void);
     /** @brief 急停释放后安全归位 */
     void (*safety_home)(void);
-    /** @brief DEV_CMD_HOME_DEVICE 副作用（side_effect_router 调用） */
+    /** @brief DEV_CMD_HOME_DEVICE 副作用：启动异步全机归位（完成后发 EVT_OP_MODE_HOME_COMPLETED） */
     sw_err_t (*home_device)(void);
     /** @brief DEV_CMD_MANUAL_ACTUATOR 副作用（act_id/param 由项目定义） */
     sw_err_t (*execute_manual_actuator)(uint32_t act_id, int32_t param);

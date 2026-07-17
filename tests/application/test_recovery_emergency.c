@@ -67,6 +67,8 @@ static void stub_safety_home(void)
 static sw_err_t stub_home_device(void)
 {
     s_home_device_count++;
+    /* 异步归位契约：启动成功后由 HOME_COMPLETED 驱动 recovery 收尾 */
+    (void)event_publish(EVT_OP_MODE_HOME_COMPLETED, 1U);
     return SW_OK;
 }
 

@@ -42,13 +42,13 @@ sw_err_t side_effect_router_run(dev_cmd_effect_t effect, const dev_cmd_t *cmd)
         return SW_OK;
 
     case DEV_CMD_EFFECT_HOME_DEVICE:
+        /* home_device 仅启动异步归位；完成后由 home_orchestrator 发 HOME_COMPLETED */
         ops = machine_ops_get();
         if ((ops != NULL) && (ops->home_device != NULL)) {
             ret = ops->home_device();
-            /* 通知 op_mode_bridge 归位结果，触发 HOMING → IDLE/EXCEPTION */
-            (void)event_publish(EVT_OP_MODE_HOME_COMPLETED, ret == SW_OK ? 1U : 0U);
             if (ret != SW_OK) {
-                LOG_ERROR("side_effect_router: home_device failed ret=%d", (int)ret);
+                (void)event_publish(EVT_OP_MODE_HOME_COMPLETED, 0U);
+                LOG_ERROR("side_effect_router: home_device start failed ret=%d", (int)ret);
             }
             return ret;
         }

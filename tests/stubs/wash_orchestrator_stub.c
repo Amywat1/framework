@@ -1,11 +1,15 @@
 /**
  * @file    wash_orchestrator_stub.c
- * @brief   洗车编排器链接桩（供 command_gateway / side_effect_router 单元测试使用）
+ * @brief   洗车/归位编排器链接桩（供 command_gateway / side_effect_router / demo 使用）
  */
 
 #include "tests/stubs/wash_orchestrator_stub.h"
 
+#include "application/orchestrators/emergency_handler.h"
+#include "application/orchestrators/home_orchestrator.h"
 #include "application/orchestrators/wash_orchestrator.h"
+#include "application/recovery_service.h"
+#include "domain/wash/engine/engine.h"
 
 static int                s_start_count;
 static int                s_abort_count;
@@ -61,4 +65,38 @@ void wash_orchestrator_abort(wash_abort_cause_t cause)
 bool wash_orchestrator_is_busy(void)
 {
     return false;
+}
+
+engine_direction_t wash_orchestrator_current_direction(void)
+{
+    return ENGINE_DIR_NONE;
+}
+
+sw_err_t home_orchestrator_init(void)
+{
+    return SW_OK;
+}
+
+sw_err_t home_orchestrator_start(void)
+{
+    return SW_OK;
+}
+
+void home_orchestrator_abort(void)
+{
+}
+
+bool home_orchestrator_is_busy(void)
+{
+    return false;
+}
+
+sw_err_t recovery_service_init(void)
+{
+    return SW_OK;
+}
+
+sw_err_t emergency_handler_init(void)
+{
+    return SW_OK;
 }
