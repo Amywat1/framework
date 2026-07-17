@@ -78,11 +78,12 @@ static bool phase_has_step(const engine_phase_t *ph, const char *id)
 }
 
 typedef struct {
-    const engine_program_t    *prog;
-    const engine_io_catalog_t *catalog;
-    char                      *err;
-    unsigned                   errsz;
-    bool                       ok;
+    const engine_program_t          *prog;
+    const engine_io_catalog_t       *io_catalog;
+    const engine_actuator_catalog_t *act_catalog;
+    char                            *err;
+    unsigned                         errsz;
+    bool                             ok;
 } var_ctx_t;
 
 static bool resolve_var_name(const char *name, var_ctx_t *ctx)
@@ -159,11 +160,11 @@ static bool resolve_var_name(const char *name, var_ctx_t *ctx)
         return true;
     }
 
-    if ((ctx->catalog != NULL) && name_in_list(name, ctx->catalog->signals, ctx->catalog->signal_count)) {
+    if ((ctx->io_catalog != NULL) && name_in_list(name, ctx->io_catalog->signals, ctx->io_catalog->signal_count)) {
         return true;
     }
 
-    if (ctx->catalog != NULL) {
+    if (ctx->io_catalog != NULL) {
         vfail(ctx->err, ctx->errsz, "未知 DI 信号: %s", name);
         ctx->ok = false;
         return false;
@@ -186,17 +187,42 @@ static void validate_expr(const engine_expr_t *expr, var_ctx_t *ctx)
     (void)engine_expr_foreach_var(expr, var_cb, ctx);
 }
 
+static void validate_intent(const engine_intent_t *intent, var_ctx_t *ctx)
+{
+    if ((intent == NULL) || !ctx->ok) {
+        return;
+    }
+    if (intent->resource[0] == '\0') {
+        vfail(ctx->err, ctx->errsz, "%s", "意图缺少 resource");
+        ctx->ok = false;
+        return;
+    }
+    if (intent->cmd[0] == '\0') {
+        vfail(ctx->err, ctx->errsz, "%s", "意图缺少 cmd");
+        ctx->ok = false;
+        return;
+    }
+    if ((ctx->act_catalog != NULL)
+        && !name_in_list(intent->resource, ctx->act_catalog->resources, ctx->act_catalog->resource_count)) {
+        vfail(ctx->err, ctx->errsz, "未知执行机构资源: %s", intent->resource);
+        ctx->ok = false;
+        return;
+    }
+    for (unsigned p = 0U; (p < intent->path_count) && ctx->ok; ++p) {
+        if ((ctx->act_catalog != NULL) && (ctx->act_catalog->water_paths != NULL)
+            && !name_in_list(intent->paths[p], ctx->act_catalog->water_paths, ctx->act_catalog->water_path_count)) {
+            vfail(ctx->err, ctx->errsz, "未知水路路径: %s", intent->paths[p]);
+            ctx->ok = false;
+            return;
+        }
+    }
+}
+
 static void validate_actions(const engine_action_t *acts, unsigned count, var_ctx_t *ctx)
 {
     for (unsigned i = 0U; (i < count) && ctx->ok; ++i) {
-        if (acts[i].type != ENGINE_ACT_IO_SET) {
-            continue;
-        }
-        if ((ctx->catalog != NULL)
-            && !name_in_list(acts[i].channel, ctx->catalog->outputs, ctx->catalog->output_count)) {
-            vfail(ctx->err, ctx->errsz, "未知 DO 通道: %s", acts[i].channel);
-            ctx->ok = false;
-            return;
+        if (acts[i].type == ENGINE_ACT_INTENT) {
+            validate_intent(&acts[i].intent, ctx);
         }
     }
 }
@@ -204,8 +230,8 @@ static void validate_actions(const engine_action_t *acts, unsigned count, var_ct
 static void validate_step_signals(const engine_step_t *st, var_ctx_t *ctx)
 {
     if (st->trigger.type == ENGINE_TRIG_SIGNAL) {
-        if ((ctx->catalog != NULL)
-            && !name_in_list(st->trigger.signal, ctx->catalog->signals, ctx->catalog->signal_count)) {
+        if ((ctx->io_catalog != NULL)
+            && !name_in_list(st->trigger.signal, ctx->io_catalog->signals, ctx->io_catalog->signal_count)) {
             vfail(ctx->err, ctx->errsz, "未知触发信号: %s", st->trigger.signal);
             ctx->ok = false;
             return;
@@ -213,8 +239,8 @@ static void validate_step_signals(const engine_step_t *st, var_ctx_t *ctx)
     }
 
     if ((st->done.type == ENGINE_DONE_SIGNAL) && ctx->ok) {
-        if ((ctx->catalog != NULL)
-            && !name_in_list(st->done.signal, ctx->catalog->signals, ctx->catalog->signal_count)) {
+        if ((ctx->io_catalog != NULL)
+            && !name_in_list(st->done.signal, ctx->io_catalog->signals, ctx->io_catalog->signal_count)) {
             vfail(ctx->err, ctx->errsz, "未知 done 信号: %s", st->done.signal);
             ctx->ok = false;
         }
@@ -244,10 +270,11 @@ static bool has_estop_interlock(const engine_program_t *prog)
     return false;
 }
 
-sw_err_t engine_program_validate(const engine_program_t    *prog,
-                                 const engine_io_catalog_t *catalog,
-                                 char                      *err,
-                                 unsigned                   errsz)
+sw_err_t engine_program_validate(const engine_program_t          *prog,
+                                 const engine_io_catalog_t       *io_catalog,
+                                 const engine_actuator_catalog_t *act_catalog,
+                                 char                            *err,
+                                 unsigned                         errsz)
 {
     char     local_err[VAL_ERR_MAX];
     char    *werr = (err != NULL && errsz > 0U) ? err : local_err;
@@ -279,18 +306,19 @@ sw_err_t engine_program_validate(const engine_program_t    *prog,
             vfail(werr, wsz, "标记引用未知轴: %s", mk->axis);
             return SW_ERR_PARAM;
         }
-        if ((catalog != NULL) && !name_in_list(mk->signal, catalog->signals, catalog->signal_count)) {
+        if ((io_catalog != NULL) && !name_in_list(mk->signal, io_catalog->signals, io_catalog->signal_count)) {
             vfail(werr, wsz, "标记引用未知信号: %s", mk->signal);
             return SW_ERR_PARAM;
         }
     }
 
     var_ctx_t vctx = {
-        .prog    = prog,
-        .catalog = catalog,
-        .err     = werr,
-        .errsz   = wsz,
-        .ok      = true,
+        .prog        = prog,
+        .io_catalog  = io_catalog,
+        .act_catalog = act_catalog,
+        .err         = werr,
+        .errsz       = wsz,
+        .ok          = true,
     };
 
     for (unsigned i = 0U; i < prog->interlock_count; ++i) {
@@ -318,6 +346,14 @@ sw_err_t engine_program_validate(const engine_program_t    *prog,
         if (!vctx.ok) {
             return SW_ERR_PARAM;
         }
+        if (act_catalog != NULL) {
+            for (unsigned k = 0U; k < ph->keep_count; ++k) {
+                if (!name_in_list(ph->keep[k], act_catalog->resources, act_catalog->resource_count)) {
+                    vfail(werr, wsz, "未知 keep 资源: %s", ph->keep[k]);
+                    return SW_ERR_PARAM;
+                }
+            }
+        }
 
         for (unsigned l = 0U; l < ph->lane_count; ++l) {
             const engine_lane_t *lane = &ph->lanes[l];
@@ -326,12 +362,8 @@ sw_err_t engine_program_validate(const engine_program_t    *prog,
 
                 if (st->type == ENGINE_STEP_CONTROL) {
                     validate_expr(st->active_while, &vctx);
-                    validate_expr(st->value_expr, &vctx);
+                    validate_intent(&st->intent, &vctx);
                     if (!vctx.ok) {
-                        return SW_ERR_PARAM;
-                    }
-                    if ((catalog != NULL) && !name_in_list(st->output, catalog->outputs, catalog->output_count)) {
-                        vfail(werr, wsz, "未知 control 输出: %s", st->output);
                         return SW_ERR_PARAM;
                     }
                     continue;

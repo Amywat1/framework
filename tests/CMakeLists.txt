@@ -275,6 +275,8 @@ add_unit_test(test_program_engine
     ${WDF_ROOT}/domain/program_engine/engine/engine.c
     ${WDF_ROOT}/domain/program_engine/engine/engine_expr.c
     ${WDF_ROOT}/domain/program_engine/engine/engine_io.c
+    ${WDF_ROOT}/domain/program_engine/engine/engine_actuator.c
+    ${WDF_ROOT}/adapters/outbound/hal/sim/engine_actuator_sim.c
     ${WDF_ROOT}/domain/program_engine/engine/engine_profile.c
     ${WDF_ROOT}/domain/program_engine/model/engine_model.c
     ${WDF_ROOT}/domain/program_engine/model/engine_program_validate.c
@@ -300,6 +302,8 @@ add_unit_test(test_engine_session
     ${WDF_ROOT}/application/engine_session/engine_session.c
     ${WDF_ROOT}/adapters/outbound/storage/json/engine_program_json.c
     ${WDF_ROOT}/adapters/outbound/hal/sim/engine_io_sim.c
+    ${WDF_ROOT}/domain/program_engine/engine/engine_actuator.c
+    ${WDF_ROOT}/adapters/outbound/hal/sim/engine_actuator_sim.c
     ${WDF_ROOT}/ports/outbound/storage/engine_program_loader_port.c
     ${WDF_ROOT}/runtime/scheduler/thread_registry.c
     ${WDF_ROOT}/runtime/scheduler/scheduler.c
@@ -413,6 +417,8 @@ add_unit_test(test_engine_program_json
     ${CMAKE_CURRENT_SOURCE_DIR}/adapters/test_engine_program_json.c
     ${WDF_ROOT}/adapters/outbound/storage/json/engine_program_json.c
     ${WDF_ROOT}/adapters/outbound/hal/sim/engine_io_sim.c
+    ${WDF_ROOT}/domain/program_engine/engine/engine_actuator.c
+    ${WDF_ROOT}/adapters/outbound/hal/sim/engine_actuator_sim.c
     ${WDF_ROOT}/ports/outbound/storage/engine_program_loader_port.c
     ${WDF_ROOT}/domain/program_engine/engine/engine.c
     ${WDF_ROOT}/domain/program_engine/engine/engine_expr.c

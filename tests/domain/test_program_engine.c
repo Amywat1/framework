@@ -1,10 +1,12 @@
 /**
- * @file    test_wash_engine.c
+ * @file    test_program_engine.c
  * @brief   wash engine domain 单元测试
  */
 
+#include "adapters/outbound/hal/sim/engine_actuator_sim.h"
 #include "common/sw_error.h"
 #include "domain/program_engine/engine/engine.h"
+#include "domain/program_engine/engine/engine_actuator.h"
 #include "domain/program_engine/engine/engine_expr.h"
 #include "domain/program_engine/engine/engine_io.h"
 #include "domain/program_engine/engine/engine_profile.h"
@@ -96,34 +98,18 @@ typedef struct {
 
 typedef struct {
     const char *name;
-    int         value;
-} named_output_t;
-
-typedef struct {
-    const char *name;
     double      position;
     double      speed;
     bool        valid;
 } named_axis_t;
 
 static named_signal_t s_signals[IO_MAX];
-static named_output_t s_outputs[IO_MAX];
 static named_axis_t   s_axes[IO_MAX];
 
 static int find_signal(const char *name)
 {
     for (int i = 0; i < IO_MAX; ++i) {
         if ((s_signals[i].name != NULL) && (strcmp(s_signals[i].name, name) == 0)) {
-            return i;
-        }
-    }
-    return -1;
-}
-
-static int find_output(const char *name)
-{
-    for (int i = 0; i < IO_MAX; ++i) {
-        if ((s_outputs[i].name != NULL) && (strcmp(s_outputs[i].name, name) == 0)) {
             return i;
         }
     }
@@ -165,46 +151,29 @@ static sw_err_t io_read_axis(const char *name, double *out_pos, double *out_spee
     return SW_OK;
 }
 
-static void io_write_output(const char *name, int value)
-{
-    int idx = find_output(name);
-    if (idx >= 0) {
-        s_outputs[idx].value = value;
-    }
-}
-
 static const engine_io_ops_t s_io_ops = {
-    .read_signal  = io_read_signal,
-    .read_axis    = io_read_axis,
-    .write_output = io_write_output,
+    .read_signal = io_read_signal,
+    .read_axis   = io_read_axis,
 };
 
 static const char *const         s_catalog_signals[] = {"ESTOP", "EXIT", "GO", "MARK"};
-static const char *const         s_catalog_outputs[] = {"AOUT", "BOUT", "CTRL"};
 static const char *const         s_catalog_axes[]    = {"gantry"};
-static const engine_io_catalog_t s_catalog           = {
-              .signals      = s_catalog_signals,
-              .signal_count = 4U,
-              .outputs      = s_catalog_outputs,
-              .output_count = 3U,
-              .axes         = s_catalog_axes,
-              .axis_count   = 1U,
+static const engine_io_catalog_t s_io_catalog        = {
+    .signals      = s_catalog_signals,
+    .signal_count = 4U,
+    .axes         = s_catalog_axes,
+    .axis_count   = 1U,
 };
 
 static void io_reset(void)
 {
     memset(s_signals, 0, sizeof(s_signals));
-    memset(s_outputs, 0, sizeof(s_outputs));
     memset(s_axes, 0, sizeof(s_axes));
 
     s_signals[0].name = "ESTOP";
     s_signals[1].name = "EXIT";
     s_signals[2].name = "GO";
     s_signals[3].name = "MARK";
-
-    s_outputs[0].name = "AOUT";
-    s_outputs[1].name = "BOUT";
-    s_outputs[2].name = "CTRL";
 
     s_axes[0].name     = "gantry";
     s_axes[0].position = 123.0;
@@ -214,7 +183,7 @@ static void io_reset(void)
     {
         const engine_io_backend_t backend = {
             .ops     = &s_io_ops,
-            .catalog = &s_catalog,
+            .catalog = &s_io_catalog,
         };
         engine_io_register(&backend);
     }
@@ -227,13 +196,15 @@ static engine_expr_t *compile_ok(const char *text)
     return expr;
 }
 
-static engine_action_t *one_io_action(const char *channel, int value)
+static engine_action_t *one_act(const char *resource, const char *cmd, int gear)
 {
     engine_action_t *actions = (engine_action_t *)calloc(1U, sizeof(engine_action_t));
+
     TEST_ASSERT_NOT_NULL(actions);
-    actions[0].type = ENGINE_ACT_IO_SET;
-    (void)snprintf(actions[0].channel, sizeof(actions[0].channel), "%s", channel);
-    actions[0].value = value;
+    actions[0].type = ENGINE_ACT_INTENT;
+    (void)snprintf(actions[0].intent.resource, sizeof(actions[0].intent.resource), "%s", resource);
+    (void)snprintf(actions[0].intent.cmd, sizeof(actions[0].intent.cmd), "%s", cmd);
+    actions[0].intent.gear = gear;
     return actions;
 }
 
@@ -271,7 +242,7 @@ static engine_program_t *make_program(void)
     phase->exit_guard    = compile_ok("EXIT == 1");
     phase->timeout_ms    = 10000U;
     phase->on_timeout    = ENGINE_ERR_STOP;
-    phase->on_exit       = one_io_action("AOUT", 0);
+    phase->on_exit       = one_act("aout", "stop", 0);
     phase->on_exit_count = 1U;
     phase->lane_count    = 1U;
     phase->lanes         = (engine_lane_t *)calloc(1U, sizeof(engine_lane_t));
@@ -289,7 +260,7 @@ static engine_program_t *make_program(void)
     step->on_error     = ENGINE_ERR_STOP;
     step->trigger.type = ENGINE_TRIG_CONDITION;
     step->trigger.cond = compile_ok("phase.elapsed_ms >= 200");
-    step->actions      = one_io_action("AOUT", 1);
+    step->actions      = one_act("aout", "run", 1);
     step->action_count = 1U;
     step->done.type    = ENGINE_DONE_ACTIONS_COMPLETE;
 
@@ -302,7 +273,7 @@ static engine_program_t *make_program(void)
     step->trigger.edge = ENGINE_EDGE_RISING;
     (void)snprintf(step->after[0], sizeof(step->after[0]), "%s", "start");
     step->after_count  = 1U;
-    step->actions      = one_io_action("BOUT", 1);
+    step->actions      = one_act("bout", "run", 1);
     step->action_count = 1U;
     step->done.type    = ENGINE_DONE_ACTIONS_COMPLETE;
 
@@ -311,6 +282,8 @@ static engine_program_t *make_program(void)
 
 void setUp(void)
 {
+    engine_actuator_sim_reset();
+    engine_actuator_sim_register();
     io_reset();
     engine_profile_register(NULL);
 }
@@ -373,7 +346,8 @@ static void test_engine_model_parse_clone_and_validate(void)
     TEST_ASSERT_EQUAL_INT(ENGINE_ERR_HALT_PHASE, strategy);
     TEST_ASSERT_FALSE(engine_direction_from_str("sideways", &dir));
 
-    TEST_ASSERT_EQUAL_INT(SW_OK, engine_program_validate(prog, &s_catalog, err, sizeof(err)));
+    TEST_ASSERT_EQUAL_INT(SW_OK,
+                          engine_program_validate(prog, &s_io_catalog, engine_actuator_get_catalog(), err, sizeof(err)));
 
     copy = engine_program_clone(prog);
     TEST_ASSERT_NOT_NULL(copy);
@@ -395,7 +369,8 @@ static void test_engine_validate_rejects_unknown_after(void)
                    "%s",
                    "missing");
 
-    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, engine_program_validate(prog, &s_catalog, err, sizeof(err)));
+    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM,
+                          engine_program_validate(prog, &s_io_catalog, engine_actuator_get_catalog(), err, sizeof(err)));
     TEST_ASSERT_GREATER_THAN_INT(0, (int)strlen(err));
 
     engine_program_free(prog);
@@ -415,21 +390,120 @@ static void test_engine_runtime_runs_steps_and_finishes_phase(void)
     TEST_ASSERT_EQUAL_INT(ENGINE_DIR_FORWARD, engine_current_direction(engine));
 
     engine_tick(engine, 100U);
-    TEST_ASSERT_EQUAL_INT(0, s_outputs[0].value);
+    TEST_ASSERT_EQUAL_INT(0, engine_actuator_sim_active("aout"));
 
     engine_tick(engine, 100U);
     engine_tick(engine, 100U);
-    TEST_ASSERT_EQUAL_INT(1, s_outputs[0].value);
-    TEST_ASSERT_EQUAL_INT(0, s_outputs[1].value);
+    TEST_ASSERT_EQUAL_INT(1, engine_actuator_sim_active("aout"));
+    TEST_ASSERT_EQUAL_INT(0, engine_actuator_sim_active("bout"));
 
     s_signals[2].value = 1;
     engine_tick(engine, 100U);
-    TEST_ASSERT_EQUAL_INT(1, s_outputs[1].value);
+    TEST_ASSERT_EQUAL_INT(1, engine_actuator_sim_active("bout"));
 
     s_signals[1].value = 1;
     engine_tick(engine, 100U);
     TEST_ASSERT_EQUAL_INT(ENGINE_STATE_DONE, engine_state(engine));
-    TEST_ASSERT_EQUAL_INT(0, s_outputs[0].value);
+    TEST_ASSERT_EQUAL_INT(0, engine_actuator_sim_active("aout"));
+
+    engine_destroy(engine);
+}
+
+static void test_engine_runtime_auto_releases_held_except_keep(void)
+{
+    engine_t         *engine;
+    engine_program_t *prog;
+    engine_phase_t   *p0;
+    engine_phase_t   *p1;
+    engine_lane_t    *lane;
+    engine_step_t    *step;
+
+    prog = (engine_program_t *)calloc(1U, sizeof(engine_program_t));
+    TEST_ASSERT_NOT_NULL(prog);
+    (void)snprintf(prog->schema_version, sizeof(prog->schema_version), "%s", "1.0");
+    (void)snprintf(prog->id, sizeof(prog->id), "%s", "keep_ut");
+    (void)snprintf(prog->name, sizeof(prog->name), "%s", "keep_ut");
+
+    prog->phase_count = 2U;
+    prog->phases      = (engine_phase_t *)calloc(2U, sizeof(engine_phase_t));
+    TEST_ASSERT_NOT_NULL(prog->phases);
+
+    p0 = &prog->phases[0];
+    (void)snprintf(p0->id, sizeof(p0->id), "%s", "p0");
+    p0->entry_guard = compile_ok("true");
+    p0->exit_guard  = compile_ok("phase.elapsed_ms >= 100");
+    p0->timeout_ms  = 5000U;
+    p0->keep_count  = 1U;
+    p0->keep        = (char (*)[ENGINE_NAME_MAX])calloc(1U, sizeof(*p0->keep));
+    TEST_ASSERT_NOT_NULL(p0->keep);
+    (void)snprintf(p0->keep[0], ENGINE_NAME_MAX, "%s", "aout");
+    p0->lane_count = 1U;
+    p0->lanes      = (engine_lane_t *)calloc(1U, sizeof(engine_lane_t));
+    TEST_ASSERT_NOT_NULL(p0->lanes);
+    lane             = &p0->lanes[0];
+    lane->step_count = 1U;
+    lane->steps      = (engine_step_t *)calloc(1U, sizeof(engine_step_t));
+    TEST_ASSERT_NOT_NULL(lane->steps);
+    step               = &lane->steps[0];
+    (void)snprintf(step->id, sizeof(step->id), "%s", "start");
+    step->type         = ENGINE_STEP_EVENT;
+    step->on_error     = ENGINE_ERR_STOP;
+    step->trigger.type = ENGINE_TRIG_CONDITION;
+    step->trigger.cond = compile_ok("true");
+    {
+        engine_action_t *acts = (engine_action_t *)calloc(2U, sizeof(engine_action_t));
+        TEST_ASSERT_NOT_NULL(acts);
+        acts[0].type = ENGINE_ACT_INTENT;
+        (void)snprintf(acts[0].intent.resource, sizeof(acts[0].intent.resource), "%s", "aout");
+        (void)snprintf(acts[0].intent.cmd, sizeof(acts[0].intent.cmd), "%s", "run");
+        acts[0].intent.gear = 1;
+        acts[1].type        = ENGINE_ACT_INTENT;
+        (void)snprintf(acts[1].intent.resource, sizeof(acts[1].intent.resource), "%s", "bout");
+        (void)snprintf(acts[1].intent.cmd, sizeof(acts[1].intent.cmd), "%s", "run");
+        acts[1].intent.gear = 1;
+        step->actions       = acts;
+        step->action_count  = 2U;
+    }
+    step->done.type = ENGINE_DONE_ACTIONS_COMPLETE;
+
+    p1 = &prog->phases[1];
+    (void)snprintf(p1->id, sizeof(p1->id), "%s", "p1");
+    p1->entry_guard = compile_ok("true");
+    p1->exit_guard  = compile_ok("EXIT == 1");
+    p1->timeout_ms  = 5000U;
+    p1->lane_count  = 1U;
+    p1->lanes       = (engine_lane_t *)calloc(1U, sizeof(engine_lane_t));
+    TEST_ASSERT_NOT_NULL(p1->lanes);
+    p1->lanes[0].step_count = 1U;
+    p1->lanes[0].steps      = (engine_step_t *)calloc(1U, sizeof(engine_step_t));
+    TEST_ASSERT_NOT_NULL(p1->lanes[0].steps);
+    step               = &p1->lanes[0].steps[0];
+    (void)snprintf(step->id, sizeof(step->id), "%s", "idle");
+    step->type         = ENGINE_STEP_EVENT;
+    step->on_error     = ENGINE_ERR_STOP;
+    step->trigger.type = ENGINE_TRIG_CONDITION;
+    step->trigger.cond = compile_ok("false");
+    step->done.type    = ENGINE_DONE_ACTIONS_COMPLETE;
+
+    engine = engine_create();
+    TEST_ASSERT_NOT_NULL(engine);
+    TEST_ASSERT_EQUAL_INT(SW_OK, engine_load_program(engine, prog));
+    TEST_ASSERT_EQUAL_INT(SW_OK, engine_start(engine));
+
+    engine_tick(engine, 50U);
+    TEST_ASSERT_EQUAL_INT(1, engine_actuator_sim_active("aout"));
+    TEST_ASSERT_EQUAL_INT(1, engine_actuator_sim_active("bout"));
+    TEST_ASSERT_EQUAL_INT(0, engine_current_phase(engine));
+
+    engine_tick(engine, 60U);
+    TEST_ASSERT_EQUAL_INT(1, engine_current_phase(engine));
+    TEST_ASSERT_EQUAL_INT(1, engine_actuator_sim_active("aout"));
+    TEST_ASSERT_EQUAL_INT(0, engine_actuator_sim_active("bout"));
+
+    s_signals[1].value = 1;
+    engine_tick(engine, 10U);
+    TEST_ASSERT_EQUAL_INT(ENGINE_STATE_DONE, engine_state(engine));
+    TEST_ASSERT_EQUAL_INT(1, engine_actuator_sim_active("aout"));
 
     engine_destroy(engine);
 }
@@ -445,12 +519,12 @@ static void test_engine_runtime_halt_all_interlock_clears_outputs(void)
 
     engine_tick(engine, 300U);
     engine_tick(engine, 1U);
-    TEST_ASSERT_EQUAL_INT(1, s_outputs[0].value);
+    TEST_ASSERT_EQUAL_INT(1, engine_actuator_sim_active("aout"));
 
     s_signals[0].value = 1;
     engine_tick(engine, 100U);
     TEST_ASSERT_EQUAL_INT(ENGINE_STATE_HALTED, engine_state(engine));
-    TEST_ASSERT_EQUAL_INT(0, s_outputs[0].value);
+    TEST_ASSERT_EQUAL_INT(0, engine_actuator_sim_active("aout"));
 
     engine_destroy(engine);
 }
@@ -464,6 +538,7 @@ int main(void)
     RUN_TEST(test_engine_model_parse_clone_and_validate);
     RUN_TEST(test_engine_validate_rejects_unknown_after);
     RUN_TEST(test_engine_runtime_runs_steps_and_finishes_phase);
+    RUN_TEST(test_engine_runtime_auto_releases_held_except_keep);
     RUN_TEST(test_engine_runtime_halt_all_interlock_clears_outputs);
 
     return UNITY_END();

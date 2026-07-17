@@ -13,9 +13,26 @@
 /* -------------------------------------------------------------------------
  * 释放
  * ------------------------------------------------------------------------- */
-static void free_actions(engine_action_t *actions)
+static void free_intent_paths(engine_intent_t *intent)
 {
-    /* 动作内不含动态分配，直接释放数组 */
+    if (intent == NULL) {
+        return;
+    }
+    free(intent->paths);
+    intent->paths      = NULL;
+    intent->path_count = 0U;
+}
+
+static void free_actions(engine_action_t *actions, unsigned count)
+{
+    if (actions == NULL) {
+        return;
+    }
+    for (unsigned i = 0U; i < count; ++i) {
+        if (actions[i].type == ENGINE_ACT_INTENT) {
+            free_intent_paths(&actions[i].intent);
+        }
+    }
     free(actions);
 }
 
@@ -23,7 +40,7 @@ static void free_step(engine_step_t *step)
 {
     if (step->type == ENGINE_STEP_CONTROL) {
         engine_expr_free(step->active_while);
-        engine_expr_free(step->value_expr);
+        free_intent_paths(&step->intent);
         return;
     }
 
@@ -31,15 +48,18 @@ static void free_step(engine_step_t *step)
         engine_expr_free(step->trigger.cond);
     }
     engine_expr_free(step->guard);
-    free_actions(step->actions);
+    free_actions(step->actions, step->action_count);
 }
 
 static void free_phase(engine_phase_t *phase)
 {
     engine_expr_free(phase->entry_guard);
     engine_expr_free(phase->exit_guard);
-    free_actions(phase->on_enter);
-    free_actions(phase->on_exit);
+    free_actions(phase->on_enter, phase->on_enter_count);
+    free_actions(phase->on_exit, phase->on_exit_count);
+    free(phase->keep);
+    phase->keep       = NULL;
+    phase->keep_count = 0U;
 
     for (unsigned i = 0U; i < phase->lane_count; ++i) {
         engine_lane_t *lane = &phase->lanes[i];
@@ -65,7 +85,7 @@ void engine_program_free(engine_program_t *prog)
         engine_interlock_t *ilk = &prog->interlocks[i];
         engine_expr_free(ilk->condition);
         engine_expr_free(ilk->reset_condition);
-        free_actions(ilk->actions);
+        free_actions(ilk->actions, ilk->action_count);
     }
     free(prog->interlocks);
 
@@ -80,6 +100,23 @@ void engine_program_free(engine_program_t *prog)
 /* -------------------------------------------------------------------------
  * 克隆
  * ------------------------------------------------------------------------- */
+static bool clone_intent(engine_intent_t *dst, const engine_intent_t *src)
+{
+    (void)memcpy(dst, src, sizeof(*dst));
+    dst->paths      = NULL;
+    dst->path_count = 0U;
+    if ((src->paths == NULL) || (src->path_count == 0U)) {
+        return true;
+    }
+    dst->paths = (char (*)[ENGINE_NAME_MAX])calloc(src->path_count, sizeof(*dst->paths));
+    if (dst->paths == NULL) {
+        return false;
+    }
+    (void)memcpy(dst->paths, src->paths, src->path_count * sizeof(*dst->paths));
+    dst->path_count = src->path_count;
+    return true;
+}
+
 static engine_action_t *clone_actions(const engine_action_t *src, unsigned count)
 {
     if ((src == NULL) || (count == 0U)) {
@@ -87,8 +124,19 @@ static engine_action_t *clone_actions(const engine_action_t *src, unsigned count
     }
 
     engine_action_t *dst = (engine_action_t *)calloc(count, sizeof(engine_action_t));
-    if (dst != NULL) {
-        (void)memcpy(dst, src, count * sizeof(engine_action_t));
+    if (dst == NULL) {
+        return NULL;
+    }
+    for (unsigned i = 0U; i < count; ++i) {
+        dst[i] = src[i];
+        dst[i].intent.paths      = NULL;
+        dst[i].intent.path_count = 0U;
+        if (src[i].type == ENGINE_ACT_INTENT) {
+            if (!clone_intent(&dst[i].intent, &src[i].intent)) {
+                free_actions(dst, i);
+                return NULL;
+            }
+        }
     }
     return dst;
 }
@@ -101,13 +149,11 @@ static bool clone_step(engine_step_t *dst, const engine_step_t *src)
     dst->on_error = src->on_error;
 
     if (src->type == ENGINE_STEP_CONTROL) {
-        (void)memcpy(dst->output, src->output, sizeof(dst->output));
         dst->active_while = engine_expr_clone(src->active_while);
         if ((src->active_while != NULL) && (dst->active_while == NULL)) {
             return false;
         }
-        dst->value_expr = engine_expr_clone(src->value_expr);
-        if ((src->value_expr != NULL) && (dst->value_expr == NULL)) {
+        if (!clone_intent(&dst->intent, &src->intent)) {
             return false;
         }
         return true;
@@ -137,6 +183,7 @@ static bool clone_step(engine_step_t *dst, const engine_step_t *src)
     if ((src->action_count > 0U) && (dst->actions == NULL)) {
         return false;
     }
+    dst->action_count = src->action_count;
     return true;
 }
 
@@ -164,10 +211,22 @@ static bool clone_phase(engine_phase_t *dst, const engine_phase_t *src)
     if ((src->on_enter_count > 0U) && (dst->on_enter == NULL)) {
         return false;
     }
+    dst->on_enter_count = src->on_enter_count;
 
     dst->on_exit = clone_actions(src->on_exit, src->on_exit_count);
     if ((src->on_exit_count > 0U) && (dst->on_exit == NULL)) {
         return false;
+    }
+    dst->on_exit_count = src->on_exit_count;
+
+    dst->keep_count = src->keep_count;
+    dst->keep       = NULL;
+    if (src->keep_count > 0U) {
+        dst->keep = (char (*)[ENGINE_NAME_MAX])calloc(src->keep_count, sizeof(*dst->keep));
+        if (dst->keep == NULL) {
+            return false;
+        }
+        (void)memcpy(dst->keep, src->keep, src->keep_count * sizeof(*dst->keep));
     }
 
     if (src->lane_count > 0U) {

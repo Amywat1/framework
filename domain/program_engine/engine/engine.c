@@ -7,16 +7,15 @@
 
 #include "domain/program_engine/engine/engine.h"
 
+#include "domain/program_engine/engine/engine_actuator.h"
 #include "domain/program_engine/engine/engine_io.h"
-
-#include "common/log.h"
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 /* 具名常量 */
-#define ENGINE_DO_CHANNEL_CAP 64U /* 全部 DO 通道集上限（halt_all 用） */
+#define ENGINE_HELD_CAP 64U /* 本阶段持有资源上限 */
 
 /* 步骤运行态 */
 typedef enum { RT_IDLE = 0, RT_WAIT_AFTER, RT_ARMED, RT_RUNNING, RT_WAIT_DONE, RT_DONE, RT_SKIPPED } rt_step_state_t;
@@ -56,15 +55,16 @@ struct engine {
 
     marker_rt_t *markers; /* 与 prog->markers 平行 */
 
-    bool *ilk_active;     /* 与 prog->interlocks 平行 */
-    int  *ilk_order;      /* 按 priority 升序的下标 */
+    bool *ilk_active; /* 与 prog->interlocks 平行 */
+    int  *ilk_order;  /* 按 priority 升序的下标 */
 
-    char (*do_channels)[ENGINE_NAME_MAX];
-    unsigned do_count;
+    /** 本阶段持有的资源名（退出时 release，keep 除外） */
+    char     held_resources[ENGINE_HELD_CAP][ENGINE_NAME_MAX];
+    unsigned held_count;
 };
 
 /* -------------------------------------------------------------------------
- * IO 访问
+ * IO / 执行机构访问
  * ------------------------------------------------------------------------- */
 static int sig_read(const char *name)
 {
@@ -72,11 +72,71 @@ static int sig_read(const char *name)
     return (io != NULL) ? io->read_signal(name) : 0;
 }
 
-static void do_write(const char *name, int value)
+static void held_clear(engine_t *e)
 {
-    const engine_io_ops_t *io = engine_io_get_ops();
-    if (io != NULL) {
-        io->write_output(name, value);
+    e->held_count = 0U;
+}
+
+static void held_mark(engine_t *e, const char *resource)
+{
+    if ((e == NULL) || (resource == NULL) || (resource[0] == '\0')) {
+        return;
+    }
+    for (unsigned i = 0U; i < e->held_count; ++i) {
+        if (strcmp(e->held_resources[i], resource) == 0) {
+            return;
+        }
+    }
+    if (e->held_count >= ENGINE_HELD_CAP) {
+        return;
+    }
+    (void)snprintf(e->held_resources[e->held_count], ENGINE_NAME_MAX, "%s", resource);
+    e->held_count++;
+}
+
+static bool resource_in_keep(const engine_phase_t *ph, const char *resource)
+{
+    if ((ph == NULL) || (resource == NULL)) {
+        return false;
+    }
+    for (unsigned i = 0U; i < ph->keep_count; ++i) {
+        if (strcmp(ph->keep[i], resource) == 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
+static bool intent_is_stop(const engine_intent_t *intent)
+{
+    return (intent != NULL) && (strcmp(intent->cmd, "stop") == 0);
+}
+
+/**
+ * @brief 提交意图；track 为真且非 stop 时记入持有集
+ */
+static void intent_apply(engine_t *e, const engine_intent_t *intent, bool track)
+{
+    const engine_actuator_ops_t *ops = engine_actuator_get_ops();
+
+    if ((intent == NULL) || (intent->resource[0] == '\0')) {
+        return;
+    }
+    if (ops != NULL) {
+        (void)ops->apply(intent);
+    }
+    if (track && !intent_is_stop(intent)) {
+        held_mark(e, intent->resource);
+    }
+}
+
+static void resource_release(engine_t *e, const char *resource)
+{
+    const engine_actuator_ops_t *ops = engine_actuator_get_ops();
+
+    (void)e;
+    if ((ops != NULL) && (resource != NULL) && (resource[0] != '\0')) {
+        (void)ops->release(resource);
     }
 }
 
@@ -227,12 +287,12 @@ static bool trigger_level_active(engine_t *e, const engine_trigger_t *trig)
 /* -------------------------------------------------------------------------
  * 动作执行
  * ------------------------------------------------------------------------- */
-/* 立即执行动作列表（仅 io_set；wait_time 在此上下文忽略，用于 on_enter/on_exit/联锁） */
-static void run_actions_now(const engine_action_t *acts, unsigned count)
+/* 立即执行动作列表（仅 intent；wait_time 在此上下文忽略） */
+static void run_actions_now(engine_t *e, const engine_action_t *acts, unsigned count, bool track)
 {
     for (unsigned i = 0U; i < count; ++i) {
-        if (acts[i].type == ENGINE_ACT_IO_SET) {
-            do_write(acts[i].channel, acts[i].value);
+        if (acts[i].type == ENGINE_ACT_INTENT) {
+            intent_apply(e, &acts[i].intent, track);
         }
     }
 }
@@ -242,37 +302,33 @@ static void run_actions_now(const engine_action_t *acts, unsigned count)
  * ------------------------------------------------------------------------- */
 static void do_halt_all(engine_t *e)
 {
-    for (unsigned i = 0U; i < e->do_count; ++i) {
-        do_write(e->do_channels[i], 0);
+    const engine_actuator_ops_t *ops = engine_actuator_get_ops();
+
+    if (ops != NULL) {
+        (void)ops->halt_all();
     }
+    held_clear(e);
     e->state = ENGINE_STATE_HALTED;
 }
 
-static void run_phase_on_exit(engine_t *e);
-
-static void stop_control_outputs(engine_t *e)
+static void release_held_except_keep(engine_t *e)
 {
     const engine_phase_t *ph = e->cur_def;
 
-    if (ph == NULL) {
-        return;
-    }
-
-    for (unsigned i = 0U; i < ph->lane_count; ++i) {
-        for (unsigned j = 0U; j < ph->lanes[i].step_count; ++j) {
-            const engine_step_t *sd = &ph->lanes[i].steps[j];
-            if ((sd->type == ENGINE_STEP_CONTROL) && (sd->output[0] != '\0')) {
-                do_write(sd->output, 0);
-            }
+    for (unsigned i = 0U; i < e->held_count; ++i) {
+        const char *res = e->held_resources[i];
+        if (!resource_in_keep(ph, res)) {
+            resource_release(e, res);
         }
     }
+    held_clear(e);
 }
 
 static void run_phase_on_exit(engine_t *e)
 {
-    stop_control_outputs(e);
+    release_held_except_keep(e);
     if (e->cur_def != NULL) {
-        run_actions_now(e->cur_def->on_exit, e->cur_def->on_exit_count);
+        run_actions_now(e, e->cur_def->on_exit, e->cur_def->on_exit_count, false);
     }
 }
 
@@ -330,6 +386,7 @@ static bool enter_phase(engine_t *e, int idx)
     e->cur_def       = &e->prog->phases[idx];
     e->phase_entered = false;
     e->phase_elapsed = 0U;
+    held_clear(e);
 
     const engine_phase_t *ph = e->cur_def;
     e->lanes                 = (rt_lane_t *)calloc(ph->lane_count, sizeof(rt_lane_t));
@@ -394,22 +451,14 @@ static bool after_deps_met(engine_t *e, const engine_step_t *sd)
 }
 
 /* -------------------------------------------------------------------------
- * control 型步骤：每拍按 active_while / value_expr 写 DO
+ * control 型步骤：每拍按 active_while 应用/释放意图
  * ------------------------------------------------------------------------- */
 static void control_step_tick(engine_t *e, const engine_step_t *sd)
 {
-    engine_expr_env_t env = {.resolve = engine_resolve, .ctx = e};
-
     if (eval_bool(e, sd->active_while, false)) {
-        bool   ok = false;
-        double v  = engine_expr_eval(sd->value_expr, &env, &ok);
-        if (!ok) {
-            apply_on_error(e, sd->on_error, NULL);
-            return;
-        }
-        do_write(sd->output, (int)v);
+        intent_apply(e, &sd->intent, true);
     } else {
-        do_write(sd->output, 0);
+        resource_release(e, sd->intent.resource);
     }
 }
 
@@ -465,8 +514,8 @@ static void step_tick(engine_t *e, const engine_step_t *sd, rt_step_t *rt, uint3
             /* 顺序执行动作 */
             while (rt->action_idx < sd->action_count) {
                 const engine_action_t *act = &sd->actions[rt->action_idx];
-                if (act->type == ENGINE_ACT_IO_SET) {
-                    do_write(act->channel, act->value);
+                if (act->type == ENGINE_ACT_INTENT) {
+                    intent_apply(e, &act->intent, true);
                     ++rt->action_idx;
                 } else /* wait_time */
                 {
@@ -580,7 +629,7 @@ static void interlocks_tick(engine_t *e)
                     }
                     return;
                 case ENGINE_ILK_CUSTOM:
-                    run_actions_now(il->actions, il->action_count);
+                    run_actions_now(e, il->actions, il->action_count, true);
                     break;
                 default:
                     break;
@@ -621,7 +670,7 @@ static void phase_tick(engine_t *e, uint32_t dt)
         if (!eval_bool(e, ph->entry_guard, false)) {
             return; /* 仍在等待进入 */
         }
-        run_actions_now(ph->on_enter, ph->on_enter_count);
+        run_actions_now(e, ph->on_enter, ph->on_enter_count, true);
         e->phase_entered = true;
     }
 
@@ -673,34 +722,6 @@ engine_t *engine_create(void)
     return e;
 }
 
-/* 收集方案中全部 DO 通道名（halt_all 用） */
-static void collect_do_channel(engine_t *e, const char *name, unsigned *overflow)
-{
-    if ((name == NULL) || (name[0] == '\0')) {
-        return;
-    }
-    for (unsigned i = 0U; i < e->do_count; ++i) {
-        if (strcmp(e->do_channels[i], name) == 0) {
-            return;
-        }
-    }
-    if (e->do_count < ENGINE_DO_CHANNEL_CAP) {
-        (void)snprintf(e->do_channels[e->do_count], ENGINE_NAME_MAX, "%s", name);
-        ++e->do_count;
-    } else {
-        ++(*overflow);
-    }
-}
-
-static void collect_actions_channels(engine_t *e, const engine_action_t *a, unsigned n, unsigned *overflow)
-{
-    for (unsigned i = 0U; i < n; ++i) {
-        if (a[i].type == ENGINE_ACT_IO_SET) {
-            collect_do_channel(e, a[i].channel, overflow);
-        }
-    }
-}
-
 static sw_err_t build_runtime_tables(engine_t *e)
 {
     engine_program_t *p = e->prog;
@@ -733,36 +754,6 @@ static sw_err_t build_runtime_tables(engine_t *e)
         }
     }
 
-    e->do_channels = (char(*)[ENGINE_NAME_MAX])calloc(ENGINE_DO_CHANNEL_CAP, ENGINE_NAME_MAX);
-    if (e->do_channels == NULL) {
-        return SW_ERR_NOMEM;
-    }
-    e->do_count = 0U;
-
-    unsigned overflow_count = 0U;
-    for (unsigned i = 0U; i < p->phase_count; ++i) {
-        const engine_phase_t *ph = &p->phases[i];
-        collect_actions_channels(e, ph->on_enter, ph->on_enter_count, &overflow_count);
-        collect_actions_channels(e, ph->on_exit, ph->on_exit_count, &overflow_count);
-        for (unsigned l = 0U; l < ph->lane_count; ++l) {
-            for (unsigned s = 0U; s < ph->lanes[l].step_count; ++s) {
-                const engine_step_t *st = &ph->lanes[l].steps[s];
-                collect_actions_channels(e, st->actions, st->action_count, &overflow_count);
-                if ((st->type == ENGINE_STEP_CONTROL) && (st->output[0] != '\0')) {
-                    collect_do_channel(e, st->output, &overflow_count);
-                }
-            }
-        }
-    }
-    for (unsigned i = 0U; i < p->interlock_count; ++i) {
-        collect_actions_channels(e, p->interlocks[i].actions, p->interlocks[i].action_count, &overflow_count);
-    }
-
-    if (overflow_count > 0U) {
-        LOG_ERROR("DO 通道数超出上限：方案共 %u 个唯一通道，上限为 %u",
-                  ENGINE_DO_CHANNEL_CAP + overflow_count, ENGINE_DO_CHANNEL_CAP);
-        return SW_ERR_OVERFLOW;
-    }
     return SW_OK;
 }
 
@@ -774,9 +765,6 @@ static void free_runtime_tables(engine_t *e)
     e->ilk_active = NULL;
     free(e->ilk_order);
     e->ilk_order = NULL;
-    free(e->do_channels);
-    e->do_channels = NULL;
-    e->do_count    = 0U;
 }
 
 sw_err_t engine_load_program(engine_t *e, engine_program_t *prog)
@@ -887,7 +875,7 @@ sw_err_t engine_recover(engine_t *e)
     }
 
     if (e->cur_def != NULL) {
-        run_actions_now(e->cur_def->on_enter, e->cur_def->on_enter_count);
+        run_actions_now(e, e->cur_def->on_enter, e->cur_def->on_enter_count, true);
     }
 
     e->phase_entered = true;

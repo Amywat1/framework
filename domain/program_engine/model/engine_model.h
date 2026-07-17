@@ -58,15 +58,26 @@ typedef enum {
 /* 步骤类型 */
 typedef enum { ENGINE_STEP_EVENT = 0, ENGINE_STEP_CONTROL } engine_step_type_t;
 
-/* 动作原语类型（子集：io_set / wait_time） */
-typedef enum { ENGINE_ACT_IO_SET = 0, ENGINE_ACT_WAIT_TIME } engine_action_type_t;
+/* 动作原语类型（子集：act 意图 / wait_time） */
+typedef enum { ENGINE_ACT_INTENT = 0, ENGINE_ACT_WAIT_TIME } engine_action_type_t;
+
+/**
+ * @brief  执行机构意图（resource/cmd 等对框架不透明，由项目解释）
+ */
+typedef struct {
+    char     resource[ENGINE_NAME_MAX];
+    char     cmd[ENGINE_NAME_MAX];
+    char     dir[ENGINE_NAME_MAX]; /**< 可空 */
+    int      gear;                 /**< 1 基挡位；0 常表示停 */
+    char   (*paths)[ENGINE_NAME_MAX];
+    unsigned path_count;
+} engine_intent_t;
 
 /* 动作原语 */
 typedef struct {
     engine_action_type_t type;
-    char                 channel[ENGINE_NAME_MAX]; /* io_set: DO 枚举名 */
-    int                  value;                    /* io_set: 整数值 */
-    uint32_t             ms;                       /* wait_time: 毫秒 */
+    engine_intent_t      intent; /* ENGINE_ACT_INTENT */
+    uint32_t             ms;     /* wait_time: 毫秒 */
 } engine_action_t;
 
 /* 触发器 */
@@ -101,9 +112,8 @@ typedef struct {
     unsigned         after_count;
 
     /* control 型字段 */
-    engine_expr_t *active_while;
-    engine_expr_t *value_expr;
-    char           output[ENGINE_NAME_MAX];
+    engine_expr_t   *active_while;
+    engine_intent_t  intent;
 } engine_step_t;
 
 /* 通道 */
@@ -126,6 +136,9 @@ typedef struct {
     unsigned                on_enter_count;
     engine_action_t        *on_exit;
     unsigned                on_exit_count;
+    /** 阶段退出时不自动释放的资源名（跨阶段保持） */
+    char                  (*keep)[ENGINE_NAME_MAX];
+    unsigned                keep_count;
     engine_lane_t          *lanes;
     unsigned                lane_count;
 } engine_phase_t;

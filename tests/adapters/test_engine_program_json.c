@@ -1,8 +1,9 @@
 /**
  * @file    test_engine_program_json.c
- * @brief   engine program JSON loader + engine_io_sim 单元测试
+ * @brief   engine program JSON loader + actuator sim 单元测试
  */
 
+#include "adapters/outbound/hal/sim/engine_actuator_sim.h"
 #include "adapters/outbound/hal/sim/engine_io_sim.h"
 #include "adapters/outbound/storage/json/engine_program_json.h"
 #include "common/sw_error.h"
@@ -34,13 +35,13 @@ static const char *const s_program_json
       "\"entry_guard\":\"true\","
       "\"exit_guard\":\"EXIT == 1\","
       "\"timeout_ms\":10000,"
-      "\"on_exit\":[{\"io_set\":{\"channel\":\"AOUT\",\"value\":0}}],"
+      "\"on_exit\":[{\"act\":{\"resource\":\"aout\",\"cmd\":\"stop\"}}],"
       "\"lanes\":[{\"id\":\"lane\",\"steps\":["
       "{\"id\":\"a\",\"type\":\"event\",\"trigger\":{\"type\":\"condition\",\"expr\":\"phase.elapsed_ms >= "
       "$delay_ms\"},"
-      "\"actions\":[{\"io_set\":{\"channel\":\"AOUT\",\"value\":1}}],\"done\":{\"type\":\"actions_complete\"}},"
+      "\"actions\":[{\"act\":{\"resource\":\"aout\",\"cmd\":\"run\",\"gear\":1}}],\"done\":{\"type\":\"actions_complete\"}},"
       "{\"id\":\"b\",\"type\":\"event\",\"trigger\":{\"type\":\"signal\",\"signal\":\"SIG\",\"edge\":\"rising\"},"
-      "\"after\":[\"a\"],\"actions\":[{\"wait_time\":{\"ms\":100}},{\"io_set\":{\"channel\":\"BOUT\",\"value\":1}}],"
+      "\"after\":[\"a\"],\"actions\":[{\"wait_time\":{\"ms\":100}},{\"act\":{\"resource\":\"bout\",\"cmd\":\"run\",\"gear\":1}}],"
       "\"done\":{\"type\":\"actions_complete\"}}"
       "]}]"
       "}]"
@@ -51,6 +52,8 @@ void setUp(void)
 {
     engine_io_sim_register();
     engine_io_sim_reset();
+    engine_actuator_sim_reset();
+    engine_actuator_sim_register();
 }
 
 void tearDown(void)
@@ -85,7 +88,7 @@ static void test_json_loader_parses_model_and_validates_catalog(void)
     engine_program_free(program);
 }
 
-static void test_json_loader_rejects_unknown_output(void)
+static void test_json_loader_rejects_unknown_resource(void)
 {
     static const char *bad_json
         = "{"
@@ -97,7 +100,7 @@ static void test_json_loader_rejects_unknown_output(void)
           "\"phases\":[{\"id\":\"p0\",\"entry_guard\":\"true\",\"exit_guard\":\"true\",\"timeout_ms\":1000,"
           "\"lanes\":[{\"id\":\"lane\",\"steps\":[{\"id\":\"a\",\"type\":\"event\","
           "\"trigger\":{\"type\":\"condition\",\"expr\":\"true\"},"
-          "\"actions\":[{\"io_set\":{\"channel\":\"UNKNOWN_OUT\",\"value\":1}}],"
+          "\"actions\":[{\"act\":{\"resource\":\"unknown_res\",\"cmd\":\"run\",\"gear\":1}}],"
           "\"done\":{\"type\":\"actions_complete\"}}]}]}]"
           "}"
           "}";
@@ -122,18 +125,18 @@ static void test_engine_runs_loaded_json_with_sim_io(void)
     engine_io_sim_set_axis("gantry", 42.0, 1.0, true);
     engine_io_sim_set_signal("SIG", 0);
     tick_n(engine, 3U, 100U);
-    TEST_ASSERT_EQUAL_INT(1, engine_io_sim_get_output("AOUT"));
-    TEST_ASSERT_EQUAL_INT(0, engine_io_sim_get_output("BOUT"));
+    TEST_ASSERT_EQUAL_INT(1, engine_actuator_sim_active("aout"));
+    TEST_ASSERT_EQUAL_INT(0, engine_actuator_sim_active("bout"));
     TEST_ASSERT_EQUAL_INT(42, (int)engine_io_sim_get_axis_pos("gantry"));
 
     engine_io_sim_set_signal("SIG", 1);
     tick_n(engine, 2U, 100U);
-    TEST_ASSERT_EQUAL_INT(1, engine_io_sim_get_output("BOUT"));
+    TEST_ASSERT_EQUAL_INT(1, engine_actuator_sim_active("bout"));
 
     engine_io_sim_set_signal("EXIT", 1);
     engine_tick(engine, 100U);
     TEST_ASSERT_EQUAL_INT(ENGINE_STATE_DONE, engine_state(engine));
-    TEST_ASSERT_EQUAL_INT(0, engine_io_sim_get_output("AOUT"));
+    TEST_ASSERT_EQUAL_INT(0, engine_actuator_sim_active("aout"));
 
     engine_destroy(engine);
 }
@@ -146,15 +149,16 @@ static void test_json_loader_expands_step_templates(void)
           "\"schema_version\":\"1.0\","
           "\"id\":\"templated\","
           "\"templates\":{"
-          "\"always_on\":{\"type\":\"control\",\"active_while\":\"true\",\"value_expr\":\"1\","
-          "\"output\":\"AOUT\",\"on_error\":\"degrade\"}"
+          "\"always_on\":{\"type\":\"control\",\"active_while\":\"true\","
+          "\"intent\":{\"resource\":\"aout\",\"cmd\":\"run\",\"gear\":1},"
+          "\"on_error\":\"degrade\"}"
           "},"
           "\"interlocks\":[{\"id\":\"estop\",\"condition\":\"ESTOP == 1\",\"action\":\"halt_all\","
           "\"priority\":0,\"reset_condition\":\"ESTOP == 0\",\"auto_reset\":false}],"
           "\"phases\":[{\"id\":\"p0\",\"entry_guard\":\"true\",\"exit_guard\":\"EXIT == 1\",\"timeout_ms\":1000,"
           "\"lanes\":[{\"id\":\"lane\",\"steps\":["
           "{\"id\":\"templated_a\",\"use\":\"always_on\"},"
-          "{\"id\":\"templated_b\",\"use\":\"always_on\",\"output\":\"BOUT\",\"value_expr\":\"2\"}"
+          "{\"id\":\"templated_b\",\"use\":\"always_on\",\"intent\":{\"resource\":\"bout\",\"cmd\":\"run\",\"gear\":2}}"
           "]}]}]"
           "}"
           "}";
@@ -165,9 +169,10 @@ static void test_json_loader_expands_step_templates(void)
     TEST_ASSERT_NOT_NULL_MESSAGE(program, err);
     TEST_ASSERT_EQUAL_UINT(2U, program->phases[0].lanes[0].step_count);
     TEST_ASSERT_EQUAL_INT(ENGINE_STEP_CONTROL, program->phases[0].lanes[0].steps[0].type);
-    TEST_ASSERT_EQUAL_STRING("AOUT", program->phases[0].lanes[0].steps[0].output);
+    TEST_ASSERT_EQUAL_STRING("aout", program->phases[0].lanes[0].steps[0].intent.resource);
     TEST_ASSERT_EQUAL_INT(ENGINE_ERR_DEGRADE, program->phases[0].lanes[0].steps[0].on_error);
-    TEST_ASSERT_EQUAL_STRING("BOUT", program->phases[0].lanes[0].steps[1].output);
+    TEST_ASSERT_EQUAL_STRING("bout", program->phases[0].lanes[0].steps[1].intent.resource);
+    TEST_ASSERT_EQUAL_INT(2, program->phases[0].lanes[0].steps[1].intent.gear);
 
     engine = engine_create();
     TEST_ASSERT_NOT_NULL(engine);
@@ -175,8 +180,9 @@ static void test_json_loader_expands_step_templates(void)
     TEST_ASSERT_EQUAL_INT(SW_OK, engine_start(engine));
 
     engine_tick(engine, 100U);
-    TEST_ASSERT_EQUAL_INT(1, engine_io_sim_get_output("AOUT"));
-    TEST_ASSERT_EQUAL_INT(2, engine_io_sim_get_output("BOUT"));
+    TEST_ASSERT_EQUAL_INT(1, engine_actuator_sim_active("aout"));
+    TEST_ASSERT_EQUAL_INT(1, engine_actuator_sim_active("bout"));
+    TEST_ASSERT_EQUAL_INT(2, engine_actuator_sim_gear("bout"));
 
     engine_destroy(engine);
 }
@@ -205,7 +211,7 @@ int main(void)
     UNITY_BEGIN();
 
     RUN_TEST(test_json_loader_parses_model_and_validates_catalog);
-    RUN_TEST(test_json_loader_rejects_unknown_output);
+    RUN_TEST(test_json_loader_rejects_unknown_resource);
     RUN_TEST(test_engine_runs_loaded_json_with_sim_io);
     RUN_TEST(test_json_loader_expands_step_templates);
     RUN_TEST(test_json_loader_port_registers_and_loads_file);

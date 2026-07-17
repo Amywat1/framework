@@ -7,6 +7,7 @@
 
 #include "adapters/outbound/storage/json/engine_program_json.h"
 
+#include "domain/program_engine/engine/engine_actuator.h"
 #include "domain/program_engine/engine/engine_expr.h"
 #include "domain/program_engine/engine/engine_io.h"
 #include "domain/program_engine/model/engine_program_validate.h"
@@ -90,6 +91,59 @@ static engine_expr_t *build_expr(const cJSON *o, const char *key, char *err, uns
 /* -------------------------------------------------------------------------
  * 动作列表
  * ------------------------------------------------------------------------- */
+static bool parse_intent(const cJSON *node, engine_intent_t *out, char *err, unsigned errsz)
+{
+    const char *resource = jstr(node, "resource");
+    const char *cmd      = jstr(node, "cmd");
+
+    (void)memset(out, 0, sizeof(*out));
+    if ((resource == NULL) || (resource[0] == '\0') || (cmd == NULL) || (cmd[0] == '\0')) {
+        jfail(err, errsz, "%s", "act 缺少 resource/cmd");
+        return false;
+    }
+    copy_name(out->resource, ENGINE_NAME_MAX, resource);
+    copy_name(out->cmd, ENGINE_NAME_MAX, cmd);
+    copy_name(out->dir, ENGINE_NAME_MAX, jstr(node, "dir"));
+
+    if (cJSON_GetObjectItemCaseSensitive(node, "gear") != NULL) {
+        if (!jint(node, "gear", &out->gear)) {
+            jfail(err, errsz, "%s", "act.gear 非法");
+            return false;
+        }
+    }
+
+    const cJSON *paths = cJSON_GetObjectItemCaseSensitive(node, "paths");
+    if (paths == NULL) {
+        return true;
+    }
+    if (!cJSON_IsArray(paths)) {
+        jfail(err, errsz, "%s", "act.paths 应为数组");
+        return false;
+    }
+    int n = cJSON_GetArraySize(paths);
+    if (n <= 0) {
+        return true;
+    }
+    out->paths = (char (*)[ENGINE_NAME_MAX])calloc((size_t)n, sizeof(*out->paths));
+    if (out->paths == NULL) {
+        jfail(err, errsz, "%s", "内存不足");
+        return false;
+    }
+    out->path_count = (unsigned)n;
+    for (int i = 0; i < n; ++i) {
+        const cJSON *it = cJSON_GetArrayItem(paths, i);
+        if (!cJSON_IsString(it) || (it->valuestring == NULL) || (it->valuestring[0] == '\0')) {
+            jfail(err, errsz, "%s", "act.paths 项须为非空字符串");
+            free(out->paths);
+            out->paths      = NULL;
+            out->path_count = 0U;
+            return false;
+        }
+        copy_name(out->paths[i], ENGINE_NAME_MAX, it->valuestring);
+    }
+    return true;
+}
+
 static engine_action_t *build_actions(const cJSON *arr, unsigned *out_count, char *err, unsigned errsz)
 {
     *out_count = 0U;
@@ -113,31 +167,41 @@ static engine_action_t *build_actions(const cJSON *arr, unsigned *out_count, cha
 
     for (int i = 0; i < n; ++i) {
         const cJSON *item = cJSON_GetArrayItem(arr, i);
-        const cJSON *iov  = cJSON_GetObjectItemCaseSensitive(item, "io_set");
+        const cJSON *actv = cJSON_GetObjectItemCaseSensitive(item, "act");
         const cJSON *wtv  = cJSON_GetObjectItemCaseSensitive(item, "wait_time");
 
-        if (iov != NULL) {
-            const char *ch = jstr(iov, "channel");
-            int         v  = 0;
-            if ((ch == NULL) || !jint(iov, "value", &v)) {
-                jfail(err, errsz, "%s", "io_set 缺少 channel/value");
+        if (actv != NULL) {
+            acts[i].type = ENGINE_ACT_INTENT;
+            if (!parse_intent(actv, &acts[i].intent, err, errsz)) {
+                for (int k = 0; k < i; ++k) {
+                    if (acts[k].type == ENGINE_ACT_INTENT) {
+                        free(acts[k].intent.paths);
+                    }
+                }
                 free(acts);
                 return NULL;
             }
-            acts[i].type  = ENGINE_ACT_IO_SET;
-            acts[i].value = v;
-            copy_name(acts[i].channel, ENGINE_NAME_MAX, ch);
         } else if (wtv != NULL) {
             uint32_t ms = 0U;
             if (!juint(wtv, "ms", &ms)) {
                 jfail(err, errsz, "%s", "wait_time 缺少 ms");
+                for (int k = 0; k < i; ++k) {
+                    if (acts[k].type == ENGINE_ACT_INTENT) {
+                        free(acts[k].intent.paths);
+                    }
+                }
                 free(acts);
                 return NULL;
             }
             acts[i].type = ENGINE_ACT_WAIT_TIME;
             acts[i].ms   = ms;
         } else {
-            jfail(err, errsz, "%s", "不支持的动作原语（仅 io_set/wait_time）");
+            jfail(err, errsz, "%s", "不支持的动作原语（仅 act/wait_time）");
+            for (int k = 0; k < i; ++k) {
+                if (acts[k].type == ENGINE_ACT_INTENT) {
+                    free(acts[k].intent.paths);
+                }
+            }
             free(acts);
             return NULL;
         }
@@ -164,17 +228,14 @@ static bool build_control_step(engine_step_t *st, const cJSON *node, char *err, 
         return false;
     }
 
-    st->value_expr = build_expr(node, "value_expr", err, errsz);
-    if (st->value_expr == NULL) {
+    const cJSON *intent = cJSON_GetObjectItemCaseSensitive(node, "intent");
+    if (intent == NULL) {
+        jfail(err, errsz, "%s", "control 步骤缺少 intent");
         return false;
     }
-
-    const char *out = jstr(node, "output");
-    if (out == NULL) {
-        jfail(err, errsz, "%s", "control 步骤缺少 output");
+    if (!parse_intent(intent, &st->intent, err, errsz)) {
         return false;
     }
-    copy_name(st->output, ENGINE_NAME_MAX, out);
 
     st->on_error = ENGINE_ERR_HALT_PHASE;
     if (cJSON_GetObjectItemCaseSensitive(node, "on_error") != NULL) {
@@ -468,6 +529,35 @@ static bool build_phase(engine_phase_t *ph, const cJSON *node, const json_build_
         return false;
     }
 
+    ph->keep       = NULL;
+    ph->keep_count = 0U;
+    {
+        const cJSON *keep = cJSON_GetObjectItemCaseSensitive(node, "keep");
+        if (keep != NULL) {
+            if (!cJSON_IsArray(keep)) {
+                jfail(err, errsz, "%s", "keep 应为数组");
+                return false;
+            }
+            int kcnt = cJSON_GetArraySize(keep);
+            if (kcnt > 0) {
+                ph->keep = (char (*)[ENGINE_NAME_MAX])calloc((size_t)kcnt, sizeof(*ph->keep));
+                if (ph->keep == NULL) {
+                    jfail(err, errsz, "%s", "内存不足");
+                    return false;
+                }
+                ph->keep_count = (unsigned)kcnt;
+                for (int i = 0; i < kcnt; ++i) {
+                    const cJSON *it = cJSON_GetArrayItem(keep, i);
+                    if (!cJSON_IsString(it) || (it->valuestring == NULL) || (it->valuestring[0] == '\0')) {
+                        jfail(err, errsz, "%s", "keep 项须为非空字符串");
+                        return false;
+                    }
+                    copy_name(ph->keep[i], ENGINE_NAME_MAX, it->valuestring);
+                }
+            }
+        }
+    }
+
     /* lanes */
     const cJSON *lanes = cJSON_GetObjectItemCaseSensitive(node, "lanes");
     if ((lanes == NULL) || !cJSON_IsArray(lanes) || (cJSON_GetArraySize(lanes) == 0)) {
@@ -743,7 +833,7 @@ engine_program_t *engine_program_load_json_string(const char *json, char *err, u
         return NULL;
     }
 
-    if (engine_program_validate(prog, engine_io_get_catalog(), werr, wsz) != SW_OK) {
+    if (engine_program_validate(prog, engine_io_get_catalog(), engine_actuator_get_catalog(), werr, wsz) != SW_OK) {
         engine_program_free(prog);
         return NULL;
     }

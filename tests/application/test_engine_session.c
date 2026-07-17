@@ -3,6 +3,7 @@
  * @brief   engine_session 单元测试
  */
 
+#include "adapters/outbound/hal/sim/engine_actuator_sim.h"
 #include "adapters/outbound/hal/sim/engine_io_sim.h"
 #include "adapters/outbound/storage/json/engine_program_json.h"
 #include "application/engine_session/engine_session.h"
@@ -59,10 +60,10 @@ static const char *const s_program_json
       "\"entry_guard\":\"true\","
       "\"exit_guard\":\"phase.elapsed_ms >= 100\","
       "\"timeout_ms\":1000,"
-      "\"on_exit\":[{\"io_set\":{\"channel\":\"AOUT\",\"value\":0}}],"
+      "\"on_exit\":[{\"act\":{\"resource\":\"aout\",\"cmd\":\"stop\"}}],"
       "\"lanes\":[{\"id\":\"lane\",\"steps\":["
       "{\"id\":\"a\",\"type\":\"event\",\"trigger\":{\"type\":\"condition\",\"expr\":\"true\"},"
-      "\"actions\":[{\"io_set\":{\"channel\":\"AOUT\",\"value\":1}}],\"done\":{\"type\":\"actions_complete\"}}"
+      "\"actions\":[{\"act\":{\"resource\":\"aout\",\"cmd\":\"run\",\"gear\":1}}],\"done\":{\"type\":\"actions_complete\"}}"
       "]}]"
       "}]"
       "}"
@@ -99,6 +100,8 @@ static void test_engine_session_runs_to_done(void)
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
     engine_io_sim_register();
     engine_io_sim_reset();
+    engine_actuator_sim_reset();
+    engine_actuator_sim_register();
     engine_program_json_register_loader();
     write_program_file();
 
@@ -133,7 +136,7 @@ static void test_engine_session_runs_to_done(void)
     usleep(250000U);
 
     TEST_ASSERT_FALSE(engine_session_is_busy(s_session_buf));
-    TEST_ASSERT_EQUAL_INT(0, engine_io_sim_get_output("AOUT"));
+    TEST_ASSERT_EQUAL_INT(0, engine_actuator_sim_active("aout"));
     TEST_ASSERT_EQUAL_INT(1, s_started_count);
     TEST_ASSERT_EQUAL_INT(1, s_finished_count);
     TEST_ASSERT_TRUE(s_last_success);
