@@ -9,7 +9,7 @@
 
 #include "common/event_types.h"
 #include "common/log.h"
-#include "domain/command_gateway/operational_mode.h"
+#include "domain/op_mode/operational_mode.h"
 #include "domain/safety/alarm_registry/alarm_registry.h"
 #include "domain/telemetry/device_snapshot_internal.h"
 #include "domain/wash/model/wash_types.h"

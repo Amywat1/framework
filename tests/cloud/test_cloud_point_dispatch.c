@@ -5,7 +5,7 @@
 
 #include "cloud/cloud_point.h"
 #include "common/sw_error.h"
-#include "domain/command_gateway/device_command.h"
+#include "domain/op_mode/device_command.h"
 #include "unity.h"
 
 #include <string.h>

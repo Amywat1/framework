@@ -238,7 +238,7 @@ add_unit_test(test_alarm_detector_helper
 add_unit_test(test_op_mode_bridge
     ${CMAKE_CURRENT_SOURCE_DIR}/application/test_op_mode_bridge.c
     ${WDF_ROOT}/application/op_mode_bridge.c
-    ${WDF_ROOT}/domain/command_gateway/operational_mode.c
+    ${WDF_ROOT}/domain/op_mode/operational_mode.c
     ${WDF_ROOT}/domain/safety/alarm_registry/alarm_registry.c
     ${WDF_ROOT}/ports/outbound/safety/op_mode_alarm_port.c
     ${WDF_ROOT}/ports/port_registry.c
@@ -249,7 +249,7 @@ add_unit_test(test_op_mode_bridge
 
 add_unit_test(test_operational_mode
     ${CMAKE_CURRENT_SOURCE_DIR}/domain/test_operational_mode.c
-    ${WDF_ROOT}/domain/command_gateway/operational_mode.c
+    ${WDF_ROOT}/domain/op_mode/operational_mode.c
     ${WDF_ROOT}/domain/safety/alarm_registry/alarm_registry.c
     ${WDF_ROOT}/ports/port_registry.c
     ${WDF_ROOT}/runtime/event_bus/event_bus.c
@@ -286,7 +286,7 @@ add_unit_test(test_side_effect_router
     ${CMAKE_CURRENT_SOURCE_DIR}/application/test_side_effect_router.c
     ${WDF_ROOT}/application/side_effect_router.c
     ${WDF_ROOT}/application/self_check_service.c
-    ${WDF_ROOT}/domain/command_gateway/operational_mode.c
+    ${WDF_ROOT}/domain/op_mode/operational_mode.c
     ${WDF_ROOT}/domain/safety/alarm_registry/alarm_registry.c
     ${WDF_ROOT}/ports/outbound/machine/machine_ops_port.c
     ${WDF_ROOT}/ports/port_registry.c
@@ -342,7 +342,7 @@ add_unit_test(test_telemetry_projection
     ${CMAKE_CURRENT_SOURCE_DIR}/application/test_telemetry_projection.c
     ${WDF_ROOT}/application/telemetry_projection.c
     ${WDF_ROOT}/domain/telemetry/device_snapshot.c
-    ${WDF_ROOT}/domain/command_gateway/operational_mode.c
+    ${WDF_ROOT}/domain/op_mode/operational_mode.c
     ${WDF_ROOT}/domain/safety/alarm_registry/alarm_registry.c
     ${WDF_ROOT}/ports/inbound/safety/alarm_binding_port.c
     ${WDF_ROOT}/runtime/event_bus/event_bus.c
@@ -355,7 +355,7 @@ add_unit_test(test_command_gateway
     ${WDF_ROOT}/application/command_gateway.c
     ${WDF_ROOT}/application/side_effect_router.c
     ${WDF_ROOT}/application/self_check_service.c
-    ${WDF_ROOT}/domain/command_gateway/operational_mode.c
+    ${WDF_ROOT}/domain/op_mode/operational_mode.c
     ${WDF_ROOT}/domain/safety/alarm_registry/alarm_registry.c
     ${WDF_ROOT}/ports/port_registry.c
     ${WDF_ROOT}/ports/outbound/machine/machine_ops_port.c

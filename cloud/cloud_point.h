@@ -9,7 +9,7 @@
 #define FRAMEWORK_CLOUD_CLOUD_POINT_H
 
 #include "common/point_table/point_table.h"
-#include "domain/command_gateway/device_command.h"
+#include "domain/op_mode/device_command.h"
 
 #include <stddef.h>
 

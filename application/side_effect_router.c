@@ -10,7 +10,7 @@
 #include "application/orchestrators/wash_orchestrator.h"
 #include "application/self_check_service.h"
 #include "common/log.h"
-#include "domain/command_gateway/operational_mode.h"
+#include "domain/op_mode/operational_mode.h"
 #include "domain/safety/alarm_registry/alarm_registry.h"
 #include "ports/outbound/machine/machine_ops_port.h"
 

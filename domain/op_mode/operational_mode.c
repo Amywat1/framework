@@ -5,7 +5,7 @@
  * @date    2026-07-09
  */
 
-#include "domain/command_gateway/operational_mode.h"
+#include "domain/op_mode/operational_mode.h"
 
 #include "common/event_types.h"
 #include "common/log.h"

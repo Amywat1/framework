@@ -10,7 +10,7 @@
 #include "common/event_types.h"
 #include "common/sw_error.h"
 #include "common/time_util.h"
-#include "domain/command_gateway/op_mode_types.h"
+#include "domain/op_mode/op_mode_types.h"
 #include "domain/safety/alarm_registry/alarm_registry.h"
 #include "ports/outbound/machine/machine_ops_port.h"
 #include "runtime/event_bus/event_bus.h"

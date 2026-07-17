@@ -4,8 +4,8 @@
  */
 
 #include "common/sw_error.h"
-#include "domain/command_gateway/command_types.h"
-#include "domain/command_gateway/device_command.h"
+#include "domain/op_mode/command_types.h"
+#include "domain/op_mode/device_command.h"
 #include "ports/inbound/cloud/property/property_port.h"
 #include "ports/inbound/command/command_port.h"
 #include "ports/outbound/cloud/link/cloud_link_port.h"

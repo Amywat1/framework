@@ -15,7 +15,7 @@
 #include "application/telemetry_projection.h"
 #include "common/log.h"
 #include "common/time_util.h"
-#include "domain/command_gateway/operational_mode.h"
+#include "domain/op_mode/operational_mode.h"
 #include "domain/safety/alarm_registry/alarm_registry.h"
 #include "domain/safety/safety_posture/safety_posture.h"
 #include "ports/outbound/hal/hal_io_port.h"

@@ -7,9 +7,9 @@
 #include "common/event_types.h"
 #include "common/sw_error.h"
 #include "common/time_util.h"
-#include "domain/command_gateway/device_command.h"
-#include "domain/command_gateway/op_mode_types.h"
-#include "domain/command_gateway/operational_mode.h"
+#include "domain/op_mode/device_command.h"
+#include "domain/op_mode/op_mode_types.h"
+#include "domain/op_mode/operational_mode.h"
 
 #include "runtime/event_bus/event_bus.h"
 #include "unity.h"

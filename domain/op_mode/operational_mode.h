@@ -7,17 +7,17 @@
  * @note    只在 event_dispatch 线程访问；不订阅 event_bus，模式变更时主动 event_publish。
  */
 
-#ifndef DOMAIN_COMMAND_GATEWAY_OPERATIONAL_MODE_H
-#define DOMAIN_COMMAND_GATEWAY_OPERATIONAL_MODE_H
+#ifndef DOMAIN_OP_MODE_OPERATIONAL_MODE_H
+#define DOMAIN_OP_MODE_OPERATIONAL_MODE_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 #include "common/sw_error.h"
-#include "domain/command_gateway/command_types.h"
-#include "domain/command_gateway/device_command.h"
-#include "domain/command_gateway/op_mode_types.h"
+#include "domain/op_mode/command_types.h"
+#include "domain/op_mode/device_command.h"
+#include "domain/op_mode/op_mode_types.h"
 
 #include <stdbool.h>
 
@@ -120,4 +120,4 @@ void op_mode_on_legacy_reset_fault(void);
 }
 #endif
 
-#endif /* DOMAIN_COMMAND_GATEWAY_OPERATIONAL_MODE_H */
+#endif /* DOMAIN_OP_MODE_OPERATIONAL_MODE_H */

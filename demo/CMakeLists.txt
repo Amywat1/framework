@@ -38,7 +38,7 @@ set(_fw_application_src
 )
 
 set(_fw_domain_src
-    ${WDF_ROOT}/domain/command_gateway/operational_mode.c
+    ${WDF_ROOT}/domain/op_mode/operational_mode.c
     ${WDF_ROOT}/domain/safety/alarm_registry/alarm_registry.c
     ${WDF_ROOT}/domain/safety/safety_posture/safety_posture.c
 )

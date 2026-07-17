@@ -5,19 +5,17 @@
  * @date    2026-07-09
  */
 
-#ifndef DOMAIN_COMMAND_GATEWAY_OP_MODE_TYPES_H
-#define DOMAIN_COMMAND_GATEWAY_OP_MODE_TYPES_H
+#ifndef DOMAIN_OP_MODE_OP_MODE_TYPES_H
+#define DOMAIN_OP_MODE_OP_MODE_TYPES_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#include "domain/command_gateway/device_command.h"
-
 #include <stdint.h>
 
 /* -------------------------------------------------------------------------
- * 整机运行模式（原 device_state.h）
+ * 整机运行模式
  * ------------------------------------------------------------------------- */
 
 /**
@@ -91,4 +89,4 @@ static inline wash_abort_cause_t wash_abort_from_evt_param(uint32_t param)
 }
 #endif
 
-#endif /* DOMAIN_COMMAND_GATEWAY_OP_MODE_TYPES_H */
+#endif /* DOMAIN_OP_MODE_OP_MODE_TYPES_H */

@@ -4,9 +4,9 @@
  */
 
 #include "common/sw_error.h"
-#include "domain/command_gateway/device_command.h"
-#include "domain/command_gateway/op_mode_types.h"
-#include "domain/command_gateway/operational_mode.h"
+#include "domain/op_mode/device_command.h"
+#include "domain/op_mode/op_mode_types.h"
+#include "domain/op_mode/operational_mode.h"
 
 #include "domain/safety/alarm_registry/alarm_registry.h"
 #include "domain/safety/model/alarm_types.h"

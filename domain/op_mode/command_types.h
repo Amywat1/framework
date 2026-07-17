@@ -5,15 +5,15 @@
  * @date    2026-07-14
  */
 
-#ifndef DOMAIN_COMMAND_GATEWAY_COMMAND_TYPES_H
-#define DOMAIN_COMMAND_GATEWAY_COMMAND_TYPES_H
+#ifndef DOMAIN_OP_MODE_COMMAND_TYPES_H
+#define DOMAIN_OP_MODE_COMMAND_TYPES_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 #include "common/sw_error.h"
-#include "domain/command_gateway/op_mode_types.h"
+#include "domain/op_mode/op_mode_types.h"
 
 #include <stdint.h>
 
@@ -65,4 +65,4 @@ typedef struct {
 }
 #endif
 
-#endif /* DOMAIN_COMMAND_GATEWAY_COMMAND_TYPES_H */
+#endif /* DOMAIN_OP_MODE_COMMAND_TYPES_H */

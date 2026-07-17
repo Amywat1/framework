@@ -7,8 +7,8 @@
  * @note    命令类型与载荷属于 domain 层；port 层仅引用本头文件。
  */
 
-#ifndef DOMAIN_COMMAND_GATEWAY_DEVICE_COMMAND_H
-#define DOMAIN_COMMAND_GATEWAY_DEVICE_COMMAND_H
+#ifndef DOMAIN_OP_MODE_DEVICE_COMMAND_H
+#define DOMAIN_OP_MODE_DEVICE_COMMAND_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -19,7 +19,7 @@ extern "C" {
 #include <stdint.h>
 
 /**
- * @brief  设备命令种类（闭集枚举）
+ * @brief  设备命令种类
  */
 typedef enum {
     DEV_CMD_NONE = 0,
@@ -119,4 +119,4 @@ static inline dev_cmd_t dev_cmd_make_manual(uint32_t act_id, int32_t param)
 }
 #endif
 
-#endif /* DOMAIN_COMMAND_GATEWAY_DEVICE_COMMAND_H */
+#endif /* DOMAIN_OP_MODE_DEVICE_COMMAND_H */

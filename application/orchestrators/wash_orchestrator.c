@@ -15,7 +15,7 @@
 #include "common/event_types.h"
 #include "common/log.h"
 #include "common/time_util.h"
-#include "domain/command_gateway/op_mode_types.h"
+#include "domain/op_mode/op_mode_types.h"
 #include "domain/wash/engine/engine.h"
 #include "domain/wash/model/engine_model.h"
 #include "domain/wash/model/engine_program_manifest.h"

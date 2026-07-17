@@ -28,7 +28,7 @@
 #include "common/event_types.h"
 #include "common/log.h"
 #include "common/sw_error.h"
-#include "domain/command_gateway/op_mode_types.h"
+#include "domain/op_mode/op_mode_types.h"
 #include "ports/outbound/machine/machine_ops_port.h"
 #include "ports/outbound/safety/hw_estop_port.h"
 #include "runtime/event_bus/event_bus.h"

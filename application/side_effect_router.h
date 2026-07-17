@@ -13,8 +13,8 @@ extern "C" {
 #endif
 
 #include "common/sw_error.h"
-#include "domain/command_gateway/command_types.h"
-#include "domain/command_gateway/device_command.h"
+#include "domain/op_mode/command_types.h"
+#include "domain/op_mode/device_command.h"
 
 /**
  * @brief  执行命令副作用

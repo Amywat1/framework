@@ -5,9 +5,9 @@
 
 #include "application/command_gateway.h"
 #include "common/sw_error.h"
-#include "domain/command_gateway/command_types.h"
-#include "domain/command_gateway/device_command.h"
-#include "domain/command_gateway/operational_mode.h"
+#include "domain/op_mode/command_types.h"
+#include "domain/op_mode/device_command.h"
+#include "domain/op_mode/operational_mode.h"
 
 #include "ports/inbound/command/command_port.h"
 #include "runtime/event_bus/event_bus.h"

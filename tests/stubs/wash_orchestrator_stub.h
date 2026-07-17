@@ -6,7 +6,7 @@
 #ifndef TESTS_STUBS_WASH_ORCHESTRATOR_STUB_H
 #define TESTS_STUBS_WASH_ORCHESTRATOR_STUB_H
 
-#include "domain/command_gateway/op_mode_types.h"
+#include "domain/op_mode/op_mode_types.h"
 #include "domain/wash/model/wash_types.h"
 
 #ifdef __cplusplus

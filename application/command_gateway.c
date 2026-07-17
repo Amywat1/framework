@@ -10,7 +10,7 @@
 #include "application/side_effect_router.h"
 #include "common/event_types.h"
 #include "common/log.h"
-#include "domain/command_gateway/operational_mode.h"
+#include "domain/op_mode/operational_mode.h"
 #include "ports/inbound/command/command_port.h"
 #include "common/time_util.h"
 #include "runtime/event_bus/event_bus.h"
