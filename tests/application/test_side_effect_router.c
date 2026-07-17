@@ -12,10 +12,11 @@
 #include "domain/safety/model/alarm_types.h"
 #include "ports/outbound/machine/machine_ops_port.h"
 #include "runtime/event_bus/event_bus.h"
-#include "tests/stubs/wash_orchestrator_stub.h"
+#include "tests/stubs/wash_ops_stub.h"
 #include "unity.h"
 
 #include <stdint.h>
+#include <string.h>
 
 static int      s_home_count;
 static int      s_manual_count;
@@ -43,11 +44,7 @@ static sw_err_t stub_stop_all_outputs(void)
     return SW_OK;
 }
 
-static const machine_ops_t s_ops = {
-    .home_device             = stub_home_device,
-    .execute_manual_actuator = stub_manual_actuator,
-    .stop_all_outputs        = stub_stop_all_outputs,
-};
+static machine_ops_t s_ops;
 
 static void reset_counters(void)
 {
@@ -56,7 +53,7 @@ static void reset_counters(void)
     s_stop_outputs_count = 0;
     s_last_act_id        = 0U;
     s_last_act_param     = 0;
-    wash_orchestrator_stub_reset();
+    wash_ops_stub_reset();
 }
 
 void setUp(void)
@@ -65,6 +62,12 @@ void setUp(void)
     time_util_init();
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, operational_mode_init());
+
+    memset(&s_ops, 0, sizeof(s_ops));
+    s_ops.home_device             = stub_home_device;
+    s_ops.execute_manual_actuator = stub_manual_actuator;
+    s_ops.stop_all_outputs        = stub_stop_all_outputs;
+    wash_ops_stub_bind(&s_ops);
     machine_ops_register(&s_ops);
 }
 
@@ -85,8 +88,8 @@ static void test_start_wash_calls_orchestrator(void)
     dev_cmd_t cmd = dev_cmd_make_start_wash(WASH_MODE_QUICK);
 
     TEST_ASSERT_EQUAL_INT(SW_OK, side_effect_router_run(DEV_CMD_EFFECT_START_WASH, &cmd));
-    TEST_ASSERT_EQUAL_INT(1, wash_orchestrator_stub_start_count());
-    TEST_ASSERT_EQUAL_INT(WASH_MODE_QUICK, wash_orchestrator_stub_last_mode());
+    TEST_ASSERT_EQUAL_INT(1, wash_ops_stub_start_count());
+    TEST_ASSERT_EQUAL_INT(WASH_MODE_QUICK, wash_ops_stub_last_mode());
 }
 
 static void test_stop_wash_aborts_orchestrator(void)
@@ -94,8 +97,8 @@ static void test_stop_wash_aborts_orchestrator(void)
     dev_cmd_t cmd = dev_cmd_make_simple(DEV_CMD_STOP_WASH);
 
     TEST_ASSERT_EQUAL_INT(SW_OK, side_effect_router_run(DEV_CMD_EFFECT_STOP_WASH, &cmd));
-    TEST_ASSERT_EQUAL_INT(1, wash_orchestrator_stub_abort_count());
-    TEST_ASSERT_EQUAL_INT(WASH_ABORT_MANUAL, wash_orchestrator_stub_last_abort_cause());
+    TEST_ASSERT_EQUAL_INT(1, wash_ops_stub_abort_count());
+    TEST_ASSERT_EQUAL_INT(WASH_ABORT_MANUAL, wash_ops_stub_last_abort_cause());
 }
 
 static void test_home_device_calls_machine_ops(void)

@@ -3,7 +3,7 @@
 **版本**：v1.0  
 **状态**：已落地（param_store + deploy_store + engine_program_loader + JSON 适配器 + manifest 校验）  
 **最后同步代码**：2026-07-14（`ports/outbound/storage`、`adapters/outbound/storage/json`、`engine_program_manifest`）  
-**适用范围**：`ports/outbound/storage/`、`adapters/outbound/storage/json/`、`domain/program_engine/model/engine_program_manifest.*`、`application/orchestrators/wash_orchestrator.*`  
+**适用范围**：`ports/outbound/storage/`、`adapters/outbound/storage/json/`、`domain/program_engine/model/engine_program_manifest.*`、`application/engine_session.*`、项目编排器  
 **架构基线**：Ports & Adapters + 存储类型分离 + 方案资产完整性校验  
 **关键词**：param_store、deploy_store、engine_program_loader、engine_program_json、manifest、SHA256
 

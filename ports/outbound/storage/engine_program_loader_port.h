@@ -4,7 +4,7 @@
  * @author  huwangwei
  * @date    2026-06-28
  *
- * @note    application 层（wash_orchestrator）依赖本接口加载 engine_program_t，
+ * @note    application 层（engine_session / 项目编排器）依赖本接口加载 engine_program_t，
  *          不直接感知 JSON 格式。具体实现：
  *            adapters/outbound/storage/json/engine_program_json.c
  *            （调用 engine_program_json_register_loader）

@@ -7,7 +7,6 @@
 
 #include "application/side_effect_router.h"
 
-#include "application/orchestrators/wash_orchestrator.h"
 #include "application/self_check_service.h"
 #include "common/event_types.h"
 #include "common/log.h"
@@ -26,15 +25,23 @@ sw_err_t side_effect_router_run(dev_cmd_effect_t effect, const dev_cmd_t *cmd)
         return SW_ERR_PARAM;
     }
 
+    ops = machine_ops_get();
+
     switch (effect) {
     case DEV_CMD_EFFECT_NONE:
         return SW_OK;
 
     case DEV_CMD_EFFECT_START_WASH:
-        return wash_orchestrator_start(cmd->body.payload.start_wash.mode);
+        if ((ops == NULL) || (ops->start_wash == NULL)) {
+            return SW_ERR_NOT_INIT;
+        }
+        return ops->start_wash(cmd->body.payload.start_wash.mode);
 
     case DEV_CMD_EFFECT_STOP_WASH:
-        wash_orchestrator_abort(WASH_ABORT_MANUAL);
+        if ((ops == NULL) || (ops->abort_wash == NULL)) {
+            return SW_ERR_NOT_INIT;
+        }
+        ops->abort_wash(WASH_ABORT_MANUAL);
         return SW_OK;
 
     case DEV_CMD_EFFECT_SELF_CHECK:
@@ -42,8 +49,7 @@ sw_err_t side_effect_router_run(dev_cmd_effect_t effect, const dev_cmd_t *cmd)
         return SW_OK;
 
     case DEV_CMD_EFFECT_HOME_DEVICE:
-        /* home_device 仅启动异步归位；完成后由 home_orchestrator 发 HOME_COMPLETED */
-        ops = machine_ops_get();
+        /* home_device 仅启动异步归位；完成后由项目编排器发 HOME_COMPLETED */
         if ((ops != NULL) && (ops->home_device != NULL)) {
             ret = ops->home_device();
             if (ret != SW_OK) {
@@ -56,7 +62,6 @@ sw_err_t side_effect_router_run(dev_cmd_effect_t effect, const dev_cmd_t *cmd)
         return SW_ERR_NOT_INIT;
 
     case DEV_CMD_EFFECT_MANUAL_ACTUATOR:
-        ops = machine_ops_get();
         if ((ops != NULL) && (ops->execute_manual_actuator != NULL)) {
             return ops->execute_manual_actuator(cmd->body.payload.manual_actuator.act_id,
                                                 cmd->body.payload.manual_actuator.param);
@@ -64,7 +69,6 @@ sw_err_t side_effect_router_run(dev_cmd_effect_t effect, const dev_cmd_t *cmd)
         return SW_ERR_NOT_INIT;
 
     case DEV_CMD_EFFECT_STOP_ALL_OUTPUTS:
-        ops = machine_ops_get();
         if ((ops != NULL) && (ops->stop_all_outputs != NULL)) {
             return ops->stop_all_outputs();
         }

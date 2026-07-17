@@ -117,7 +117,7 @@ typedef uint16_t event_type_t;
 #define EVT_CLOUD_POINT_DIRTY  EVT_MAKE(EVT_CAT_CLOUD, EVT_CLOUD_ID_POINT_DIRTY)
 
 /* -------------------------------------------------------------------------
- * WASH 类（application/wash_orchestrator 发布）
+ * WASH 类（项目洗车编排器发布）
  * ------------------------------------------------------------------------- */
 #define EVT_WASH_ID_DONE               1U
 #define EVT_WASH_ID_ABORTED            2U

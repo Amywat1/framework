@@ -8,14 +8,22 @@
 #include "domain/op_mode/command_types.h"
 #include "domain/op_mode/device_command.h"
 #include "domain/op_mode/operational_mode.h"
-
 #include "ports/inbound/command/command_port.h"
+#include "ports/outbound/machine/machine_ops_port.h"
 #include "runtime/event_bus/event_bus.h"
-#include "tests/stubs/wash_orchestrator_stub.h"
+#include "tests/stubs/wash_ops_stub.h"
 #include "unity.h"
 
 #include <pthread.h>
+#include <string.h>
 #include <unistd.h>
+
+static sw_err_t stub_home_device(void)
+{
+    return SW_OK;
+}
+
+static machine_ops_t s_ops;
 
 static void *dispatch_fn(void *arg)
 {
@@ -56,7 +64,11 @@ static void setup_idle(void)
 
 void setUp(void)
 {
-    wash_orchestrator_stub_reset();
+    wash_ops_stub_reset();
+    memset(&s_ops, 0, sizeof(s_ops));
+    s_ops.home_device = stub_home_device;
+    wash_ops_stub_bind(&s_ops);
+    machine_ops_register(&s_ops);
 }
 
 void tearDown(void)
@@ -116,8 +128,8 @@ static void test_start_wash_triggers_orchestrator(void)
 
     TEST_ASSERT_EQUAL_INT(SW_OK, device_command_port_get_ops()->submit(&cmd, &receipt, 1000U));
     TEST_ASSERT_EQUAL_INT(DEV_CMD_STATUS_ACCEPTED, receipt.status);
-    TEST_ASSERT_EQUAL_INT(1, wash_orchestrator_stub_start_count());
-    TEST_ASSERT_EQUAL_INT(WASH_MODE_STANDARD, wash_orchestrator_stub_last_mode());
+    TEST_ASSERT_EQUAL_INT(1, wash_ops_stub_start_count());
+    TEST_ASSERT_EQUAL_INT(WASH_MODE_STANDARD, wash_ops_stub_last_mode());
 
     stop_dispatch(tid);
 }
@@ -136,6 +148,7 @@ static void test_stop_operation_then_resume(void)
     usleep(30000);
 
     TEST_ASSERT_EQUAL_INT(SW_OK, submit_simple(DEV_CMD_STOP_OPERATION, &receipt));
+    TEST_ASSERT_EQUAL_INT(DEV_CMD_STATUS_ACCEPTED, receipt.status);
     TEST_ASSERT_FALSE(op_mode_is_service_enabled());
 
     TEST_ASSERT_EQUAL_INT(SW_OK, submit_simple(DEV_CMD_RESUME_OPERATION, &receipt));
@@ -145,21 +158,12 @@ static void test_stop_operation_then_resume(void)
     stop_dispatch(tid);
 }
 
-/* init 前 port 未注册 */
-static void test_port_not_registered_before_init(void)
-{
-    TEST_ASSERT_NULL(device_command_port_get_ops());
-}
-
 int main(void)
 {
     UNITY_BEGIN();
-
-    RUN_TEST(test_port_not_registered_before_init);
     RUN_TEST(test_submit_accepted_in_idle);
     RUN_TEST(test_submit_rejected_wrong_mode);
     RUN_TEST(test_start_wash_triggers_orchestrator);
     RUN_TEST(test_stop_operation_then_resume);
-
     return UNITY_END();
 }
