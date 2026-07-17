@@ -39,7 +39,7 @@ dev_cmd_decision_t op_mode_handle_command(const dev_cmd_t *cmd);
 void op_mode_on_wash_session_started(void);
 
 /**
- * @brief  洗车会话正常完成（WASHING → WASH_DONE）
+ * @brief  洗车会话正常完成（WASHING → WASH_DONE；若仍有 MAJOR+ 则 → EXCEPTION）
  */
 void op_mode_on_wash_session_completed(void);
 

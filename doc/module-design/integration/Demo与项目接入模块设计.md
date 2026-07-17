@@ -157,12 +157,10 @@ Demo 注册 `machine_ops_t`，所有动作为空或返回 `SW_OK`。这只验证
 
 Demo 加载两个报警：
 
-| Code | 等级 | 响应 |
+| Code | 等级 | 说明 |
 |------|------|------|
-| `201101` | MAJOR | `RESP_COMPLETE_THEN_ASSESS` |
-| `201709` | CRITICAL | `RESP_STOP_IMMEDIATELY` |
-
-同时注册 `alarm_registry_set_estop_skip_fn()`，用于恢复时跳过 demo 急停报警。
+| `201101` | MAJOR | blocking |
+| `201709` | CRITICAL | LOCKOUT（AUTO_STATIC，Recover 不会清除） |
 
 ---
 

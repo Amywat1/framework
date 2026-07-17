@@ -74,7 +74,7 @@ typedef struct {
 safety_snapshot_t safety_snapshot_get(void);
 
 /**
- * @brief  是否存在告警态（blocking 或 LOCKOUT，读缓存）
+ * @brief  是否存在告警态（blocking，读缓存）
  */
 bool safety_snapshot_is_warning_active(void);
 

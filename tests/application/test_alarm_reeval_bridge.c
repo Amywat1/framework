@@ -26,21 +26,15 @@ static const alarm_def_t s_catalog[] = {
     {
      .code             = 201105U,
      .level            = ALARM_LEVEL_MAJOR,
-     .response         = RESP_COMPLETE_THEN_ASSESS,
      .clear            = ALARM_CLEAR_ON_MOTION,
-     .source_kind      = ALARM_SOURCE_PROCESS,
      .reeval_group     = TEST_GROUP_GANTRY,
-     .immediate_cutout = false,
      .desc             = "gantry timeout",
      },
     {
      .code             = 201205U,
      .level            = ALARM_LEVEL_MAJOR,
-     .response         = RESP_COMPLETE_THEN_ASSESS,
      .clear            = ALARM_CLEAR_ON_MOTION,
-     .source_kind      = ALARM_SOURCE_PROCESS,
      .reeval_group     = TEST_GROUP_EXIT,
-     .immediate_cutout = false,
      .desc             = "exit timeout",
      },
 };

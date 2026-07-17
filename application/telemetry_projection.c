@@ -60,7 +60,6 @@ sw_err_t telemetry_projection_init(void)
         {EVT_OP_MODE_CONTEXT_SYNC, on_context_sync},
         {EVT_ALARM_TRIGGERED,      refresh_safety_snapshot},
         {EVT_ALARM_CLEARED,        refresh_safety_snapshot},
-        {EVT_ALARM_BATCH_CLEARED,  refresh_safety_snapshot},
         {EVT_WASH_SESSION_STARTED, on_session_started},
     };
 

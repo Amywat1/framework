@@ -22,11 +22,8 @@ static const alarm_def_t s_catalog[] = {
     {
      .code             = 201101U,
      .level            = ALARM_LEVEL_MAJOR,
-     .response         = RESP_COMPLETE_THEN_ASSESS,
      .clear            = ALARM_CLEAR_MANUAL_RESET,
-     .source_kind      = ALARM_SOURCE_LEVEL,
      .reeval_group     = ALARM_REEVAL_GROUP_NONE,
-     .immediate_cutout = false,
      .desc             = "blocking alarm",
      },
 };

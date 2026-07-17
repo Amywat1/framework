@@ -75,7 +75,7 @@ typedef uint16_t event_type_t;
 #define EVT_COMP_MOTION_COMPLETED EVT_MAKE(EVT_CAT_COMP, EVT_COMP_ID_MOTION_COMPLETED)
 
 /* -------------------------------------------------------------------------
- * SAFETY 类（framework/domain/safety/safety_posture 发布）
+ * SAFETY 类（alarm_event_bridge 按姿态边沿发布）
  * ------------------------------------------------------------------------- */
 #define EVT_SAFETY_ID_LOCKOUT   0U
 #define EVT_SAFETY_ID_NOMINAL   1U
@@ -88,13 +88,11 @@ typedef uint16_t event_type_t;
 /* -------------------------------------------------------------------------
  * ALARM 类（alarm_event_bridge 发布）
  * ------------------------------------------------------------------------- */
-#define EVT_ALARM_ID_TRIGGERED     0U
-#define EVT_ALARM_ID_CLEARED       1U
-#define EVT_ALARM_ID_BATCH_CLEARED 2U
+#define EVT_ALARM_ID_TRIGGERED 0U
+#define EVT_ALARM_ID_CLEARED   1U
 
-#define EVT_ALARM_TRIGGERED     EVT_MAKE(EVT_CAT_ALARM, EVT_ALARM_ID_TRIGGERED)
-#define EVT_ALARM_CLEARED       EVT_MAKE(EVT_CAT_ALARM, EVT_ALARM_ID_CLEARED)
-#define EVT_ALARM_BATCH_CLEARED EVT_MAKE(EVT_CAT_ALARM, EVT_ALARM_ID_BATCH_CLEARED)
+#define EVT_ALARM_TRIGGERED EVT_MAKE(EVT_CAT_ALARM, EVT_ALARM_ID_TRIGGERED)
+#define EVT_ALARM_CLEARED   EVT_MAKE(EVT_CAT_ALARM, EVT_ALARM_ID_CLEARED)
 
 /* -------------------------------------------------------------------------
  * CMD 类（遗留事件 ID 仅保留测试用 ORDER；生产命令经 device_command_port.submit）

@@ -69,7 +69,6 @@ bootstrap_run()
     │    ├─ project_bind_hal()
     │    ├─ project_bind_machine()
     │    ├─ alarm_registry_init()
-    │    ├─ safety_posture_init()
     │    └─ project_bind_alarm_catalog()
     │
     ├─ bootstrap_validate()
@@ -123,7 +122,7 @@ bootstrap_run()
 - `project_configure_adapters()` 可读取已加载的 deploy/param 配置，但不启动连接或线程。
 - `project_bind_hal()` 绑定传感器通道、VFD 实例、backend、事件回调等。
 - `project_bind_machine()` 注册 `machine_ops_t`。
-- `project_bind_alarm_catalog()` 在 `alarm_registry_init()` 与 `safety_posture_init()` 后加载项目报警目录。
+- `project_bind_alarm_catalog()` 在 `alarm_registry_init()` 后加载项目报警目录。
 
 ### 2.3 Validate 阶段
 

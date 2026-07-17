@@ -1,6 +1,6 @@
 /**
  * @file    test_safety_posture.c
- * @brief   safety_posture 单元测试
+ * @brief   安全姿态边沿（经 alarm_event_bridge）单元测试
  */
 
 #include "adapters/inbound/event/alarm_event_bridge.h"
@@ -9,7 +9,6 @@
 #include "common/time_util.h"
 #include "domain/safety/alarm_registry/alarm_registry.h"
 #include "domain/safety/model/alarm_types.h"
-#include "domain/safety/safety_posture/safety_posture.h"
 #include "runtime/event_bus/event_bus.h"
 #include "unity.h"
 
@@ -21,24 +20,18 @@ static volatile int g_lockout_count;
 
 static const alarm_def_t s_catalog[] = {
     {
-     .code             = 201101U,
-     .level            = ALARM_LEVEL_MAJOR,
-     .response         = RESP_COMPLETE_THEN_ASSESS,
-     .clear            = ALARM_CLEAR_MANUAL_RESET,
-     .source_kind      = ALARM_SOURCE_LEVEL,
-     .reeval_group     = ALARM_REEVAL_GROUP_NONE,
-     .immediate_cutout = false,
-     .desc             = "侧刷过载",
+     .code         = 201101U,
+     .level        = ALARM_LEVEL_MAJOR,
+     .clear        = ALARM_CLEAR_MANUAL_RESET,
+     .reeval_group = ALARM_REEVAL_GROUP_NONE,
+     .desc         = "侧刷过载",
      },
     {
-     .code             = 201709U,
-     .level            = ALARM_LEVEL_CRITICAL,
-     .response         = RESP_STOP_IMMEDIATELY,
-     .clear            = ALARM_CLEAR_AUTO_STATIC,
-     .source_kind      = ALARM_SOURCE_LEVEL,
-     .reeval_group     = ALARM_REEVAL_GROUP_NONE,
-     .immediate_cutout = false,
-     .desc             = "急停",
+     .code         = 201709U,
+     .level        = ALARM_LEVEL_CRITICAL,
+     .clear        = ALARM_CLEAR_AUTO_STATIC,
+     .reeval_group = ALARM_REEVAL_GROUP_NONE,
+     .desc         = "急停",
      },
 };
 
@@ -99,7 +92,7 @@ static void test_major_no_lockout_event(void)
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
     alarm_registry_init();
     (void)alarm_registry_load_catalog(s_catalog, 2U);
-    TEST_ASSERT_EQUAL_INT(SW_OK, safety_posture_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_event_bridge_init());
     (void)event_subscribe(EVT_SAFETY_NOMINAL, on_nominal);
     (void)event_subscribe(EVT_SAFETY_LOCKOUT, on_lockout);
 
@@ -121,7 +114,7 @@ static void test_critical_publishes_lockout(void)
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
     alarm_registry_init();
     (void)alarm_registry_load_catalog(s_catalog, 2U);
-    TEST_ASSERT_EQUAL_INT(SW_OK, safety_posture_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_event_bridge_init());
     (void)event_subscribe(EVT_SAFETY_NOMINAL, on_nominal);
     (void)event_subscribe(EVT_SAFETY_LOCKOUT, on_lockout);
 

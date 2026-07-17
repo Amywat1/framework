@@ -15,26 +15,16 @@
 #include <stdbool.h>
 #include <string.h>
 
-typedef bool (*alarm_estop_skip_fn_t)(uint32_t code);
-
-static alarm_def_t           s_catalog[ALARM_CATALOG_MAX];
-static unsigned              s_catalog_count;
-static alarm_instance_t      s_active[ALARM_ACTIVE_MAX];
-static unsigned              s_active_count;
-static uint32_t              s_session_journal[ALARM_SESSION_JOURNAL_MAX];
-static unsigned              s_session_journal_count;
-static bool                  s_session_active;
-static alarm_domain_event_t  s_pending[ALARM_PENDING_EVENT_MAX];
-static unsigned              s_pending_count;
-static pthread_mutex_t       s_mutex         = PTHREAD_MUTEX_INITIALIZER;
-static alarm_estop_skip_fn_t s_estop_skip_fn = NULL;
-static bool                  s_overflow_meta_loaded;
-
-static sw_err_t insert_active_locked(const alarm_def_t *def);
-static bool     append_session_journal_locked(uint32_t code);
-static bool     evict_lowest_minor_locked(void);
-static void     append_active_slot_locked(const alarm_def_t *def);
-static sw_err_t try_insert_overflow_meta_locked(void);
+static alarm_def_t          s_catalog[ALARM_CATALOG_MAX];
+static unsigned             s_catalog_count;
+static alarm_instance_t     s_active[ALARM_ACTIVE_MAX];
+static unsigned             s_active_count;
+static uint32_t             s_session_journal[ALARM_SESSION_JOURNAL_MAX];
+static unsigned             s_session_journal_count;
+static bool                 s_session_active;
+static alarm_domain_event_t s_pending[ALARM_PENDING_EVENT_MAX];
+static unsigned             s_pending_count;
+static pthread_mutex_t      s_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 static int find_def_index(uint32_t code)
 {
@@ -97,39 +87,13 @@ static bool append_session_journal_locked(uint32_t code)
     return true;
 }
 
-static bool evict_lowest_minor_locked(void)
-{
-    int      victim = -1;
-    int      lowest = (int)ALARM_LEVEL_MINOR + 1;
-    unsigned i;
-
-    for (i = 0; i < s_active_count; ++i) {
-        if (((int)s_active[i].level < lowest) && (s_active[i].response != RESP_STOP_IMMEDIATELY)) {
-            lowest = (int)s_active[i].level;
-            victim = (int)i;
-        }
-    }
-    if (victim < 0) {
-        return false;
-    }
-    {
-        uint32_t code = s_active[(unsigned)victim].code;
-        remove_active_at_locked((unsigned)victim);
-        enqueue_event_locked(ALARM_DOMAIN_EVT_CLEARED, code);
-        LOG_WARN("alarm_registry: evicted MINOR %06u for overflow", (unsigned)code);
-    }
-    return true;
-}
-
 static void append_active_slot_locked(const alarm_def_t *def)
 {
     alarm_instance_t *inst = &s_active[s_active_count];
 
     inst->code            = def->code;
     inst->level           = def->level;
-    inst->response        = def->response;
     inst->clear           = def->clear;
-    inst->state           = ALARM_INSTANCE_ACTIVE;
     inst->triggered_at_ms = time_util_get_ms();
     s_active_count++;
 
@@ -141,77 +105,15 @@ static void append_active_slot_locked(const alarm_def_t *def)
     LOG_WARN("alarm_registry: TRIGGERED %06u (%s)", (unsigned)def->code, def->desc);
 }
 
-static sw_err_t try_insert_overflow_meta_locked(void)
-{
-    int def_idx;
-
-    if (!s_overflow_meta_loaded) {
-        return SW_OK;
-    }
-    if (find_active_index(ALARM_CODE_ACTIVE_POOL_OVERFLOW) >= 0) {
-        return SW_OK;
-    }
-
-    def_idx = find_def_index(ALARM_CODE_ACTIVE_POOL_OVERFLOW);
-    if (def_idx < 0) {
-        return SW_ERR_PARAM;
-    }
-
-    if (s_active_count >= ALARM_ACTIVE_MAX) {
-        if (!evict_lowest_minor_locked()) {
-            LOG_WARN("alarm_registry: cannot report pool overflow, pool still full");
-            return SW_ERR_OVERFLOW;
-        }
-    }
-
-    append_active_slot_locked(&s_catalog[(unsigned)def_idx]);
-    return SW_OK;
-}
-
-static void maybe_clear_overflow_meta_locked(void)
-{
-    int idx;
-
-    if (!s_overflow_meta_loaded) {
-        return;
-    }
-    if (s_active_count >= ALARM_ACTIVE_MAX) {
-        return;
-    }
-    idx = find_active_index(ALARM_CODE_ACTIVE_POOL_OVERFLOW);
-    if (idx < 0) {
-        return;
-    }
-    remove_active_at_locked((unsigned)idx);
-    enqueue_event_locked(ALARM_DOMAIN_EVT_CLEARED, ALARM_CODE_ACTIVE_POOL_OVERFLOW);
-}
-
 static sw_err_t insert_active_locked(const alarm_def_t *def)
 {
-    const bool is_overflow_meta = (def->code == ALARM_CODE_ACTIVE_POOL_OVERFLOW);
-
     if (s_active_count >= ALARM_ACTIVE_MAX) {
-        if ((def->response == RESP_STOP_IMMEDIATELY) || (def->level == ALARM_LEVEL_CRITICAL)) {
-            if (!evict_lowest_minor_locked()) {
-                if (!is_overflow_meta) {
-                    (void)try_insert_overflow_meta_locked();
-                }
-                LOG_ERROR("alarm_registry: active pool full, reject CRITICAL %06u", (unsigned)def->code);
-                return SW_ERR_OVERFLOW;
-            }
-        } else {
-            if (!is_overflow_meta) {
-                (void)try_insert_overflow_meta_locked();
-            }
-            LOG_WARN("alarm_registry: active pool full, reject %06u", (unsigned)def->code);
-            return SW_ERR_OVERFLOW;
-        }
+        LOG_ERROR("alarm_registry: active pool full, reject %06u level=%d",
+                  (unsigned)def->code, (int)def->level);
+        return SW_ERR_OVERFLOW;
     }
 
     append_active_slot_locked(def);
-    if (!is_overflow_meta) {
-        maybe_clear_overflow_meta_locked();
-    }
     return SW_OK;
 }
 
@@ -224,34 +126,7 @@ static void force_clear_locked(uint32_t code)
     }
     remove_active_at_locked((unsigned)idx);
     enqueue_event_locked(ALARM_DOMAIN_EVT_CLEARED, code);
-    maybe_clear_overflow_meta_locked();
     LOG_INFO("alarm_registry: CLEARED %06u", (unsigned)code);
-}
-
-static void load_overflow_meta_locked(void)
-{
-    static const alarm_def_t s_overflow_def = {
-        .code             = ALARM_CODE_ACTIVE_POOL_OVERFLOW,
-        .level            = ALARM_LEVEL_MINOR,
-        .response         = RESP_LOG_ONLY,
-        .clear            = ALARM_CLEAR_AUTO_STATIC,
-        .source_kind      = ALARM_SOURCE_CALLSITE,
-        .reeval_group     = ALARM_REEVAL_GROUP_NONE,
-        .immediate_cutout = false,
-        .desc             = "活跃报警池已满",
-    };
-
-    if (s_catalog_count >= ALARM_CATALOG_MAX) {
-        LOG_ERROR("alarm_registry: no room for overflow meta alarm");
-        return;
-    }
-    s_catalog[s_catalog_count++] = s_overflow_def;
-    s_overflow_meta_loaded       = true;
-}
-
-void alarm_registry_set_estop_skip_fn(alarm_estop_skip_fn_t fn)
-{
-    s_estop_skip_fn = fn;
 }
 
 sw_err_t alarm_registry_trigger(uint32_t code)
@@ -319,9 +194,6 @@ sw_err_t alarm_registry_reevaluate_group(motion_reeval_group_id_t group)
     for (i = 0; i < n; ++i) {
         force_clear_locked(codes[i]);
     }
-    if (n > 0U) {
-        enqueue_event_locked(ALARM_DOMAIN_EVT_BATCH_CLEARED, ALARM_CODE_NONE);
-    }
     pthread_mutex_unlock(&s_mutex);
     return SW_OK;
 }
@@ -353,9 +225,6 @@ void alarm_registry_recover_all(void)
         alarm_clear_t clr;
         uint32_t      code = s_active[i].code;
 
-        if ((s_estop_skip_fn != NULL) && s_estop_skip_fn(code)) {
-            continue;
-        }
         def_idx = find_def_index(code);
         if (def_idx < 0) {
             continue;
@@ -368,9 +237,6 @@ void alarm_registry_recover_all(void)
     }
     for (i = 0; i < n; ++i) {
         force_clear_locked(codes[i]);
-    }
-    if (n > 0U) {
-        enqueue_event_locked(ALARM_DOMAIN_EVT_BATCH_CLEARED, ALARM_CODE_NONE);
     }
     pthread_mutex_unlock(&s_mutex);
 }
@@ -470,18 +336,13 @@ safety_posture_t alarm_registry_safety_posture(void)
 
     pthread_mutex_lock(&s_mutex);
     for (i = 0; i < s_active_count; ++i) {
-        if (s_active[i].response == RESP_STOP_IMMEDIATELY) {
+        if (s_active[i].level == ALARM_LEVEL_CRITICAL) {
             posture = SAFETY_POSTURE_LOCKOUT;
             break;
         }
     }
     pthread_mutex_unlock(&s_mutex);
     return posture;
-}
-
-bool safety_is_warning_active(void)
-{
-    return alarm_registry_has_blocking_active() || (alarm_registry_safety_posture() == SAFETY_POSTURE_LOCKOUT);
 }
 
 unsigned alarm_registry_pull_events(alarm_domain_event_t *buf, unsigned max)
@@ -517,11 +378,9 @@ sw_err_t alarm_registry_load_catalog(const alarm_def_t *defs, unsigned count)
 
     pthread_mutex_lock(&s_mutex);
     memcpy(s_catalog, defs, count * sizeof(s_catalog[0]));
-    s_catalog_count        = count;
-    s_active_count         = 0U;
-    s_pending_count        = 0U;
-    s_overflow_meta_loaded = false;
-    load_overflow_meta_locked();
+    s_catalog_count = count;
+    s_active_count  = 0U;
+    s_pending_count = 0U;
     pthread_mutex_unlock(&s_mutex);
 
     LOG_INFO("alarm_registry: catalog loaded defs=%u", count);
@@ -533,18 +392,12 @@ static sw_err_t binding_load_catalog(const alarm_def_t *defs, unsigned count)
     return alarm_registry_load_catalog(defs, count);
 }
 
-static void binding_set_estop_skip_fn(bool (*fn)(uint32_t code))
-{
-    alarm_registry_set_estop_skip_fn(fn);
-}
-
 sw_err_t alarm_registry_init(void)
 {
     static const alarm_binding_ops_t s_ops = {
-        .trigger           = alarm_registry_trigger,
-        .clear             = alarm_registry_clear,
-        .load_catalog      = binding_load_catalog,
-        .set_estop_skip_fn = binding_set_estop_skip_fn,
+        .trigger      = alarm_registry_trigger,
+        .clear        = alarm_registry_clear,
+        .load_catalog = binding_load_catalog,
     };
 
     alarm_binding_register(&s_ops);

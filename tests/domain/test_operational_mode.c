@@ -18,11 +18,8 @@ static const alarm_def_t s_catalog[] = {
     {
      .code             = TEST_ALARM_BLOCKING,
      .level            = ALARM_LEVEL_MAJOR,
-     .response         = RESP_COMPLETE_THEN_ASSESS,
      .clear            = ALARM_CLEAR_MANUAL_RESET,
-     .source_kind      = ALARM_SOURCE_LEVEL,
      .reeval_group     = ALARM_REEVAL_GROUP_NONE,
-     .immediate_cutout = false,
      .desc             = "test blocking",
      },
 };
@@ -204,6 +201,20 @@ static void test_wash_session_lifecycle(void)
     TEST_ASSERT_EQUAL_INT(OP_MODE_EXCEPTION, op_mode_get_current());
 }
 
+/* 洗车正常结束时仍有 MAJOR+ → EXCEPTION（洗后评估）*/
+static void test_wash_done_with_blocking_enters_exception(void)
+{
+    load_alarm_catalog();
+    enter_idle();
+
+    op_mode_on_wash_session_started();
+    TEST_ASSERT_EQUAL_INT(OP_MODE_WASHING, op_mode_get_current());
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_trigger(TEST_ALARM_BLOCKING));
+    op_mode_on_wash_session_completed();
+    TEST_ASSERT_EQUAL_INT(OP_MODE_EXCEPTION, op_mode_get_current());
+}
+
 /* STOPPED 允许手动点动 */
 static void test_manual_actuator_allowed_in_stopped(void)
 {
@@ -302,6 +313,7 @@ int main(void)
     RUN_TEST(test_start_wash_denied_with_blocking_alarm);
     RUN_TEST(test_estop_blocks_recover);
     RUN_TEST(test_wash_session_lifecycle);
+    RUN_TEST(test_wash_done_with_blocking_enters_exception);
     RUN_TEST(test_manual_actuator_allowed_in_stopped);
     RUN_TEST(test_manual_actuator_allowed_in_exception_without_estop);
     RUN_TEST(test_manual_actuator_denied_in_exception_with_estop);

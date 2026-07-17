@@ -16,10 +16,13 @@ extern "C" {
 
 /**
  * @brief  初始化报警事件桥接并注册 50ms 周期 drain 任务
- * @retval SW_OK         注册成功
- * @retval SW_ERR_OVERFLOW 周期任务表已满
  */
 sw_err_t alarm_event_bridge_init(void);
+
+/**
+ * @brief  立即排空 registry pending（测试与同步场景可用）
+ */
+void alarm_event_bridge_drain(void);
 
 #ifdef __cplusplus
 }

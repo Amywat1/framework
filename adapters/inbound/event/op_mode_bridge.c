@@ -24,7 +24,7 @@ static void on_wash_session_started(const event_t *evt)
 static void on_wash_done(const event_t *evt)
 {
     (void)evt;
-    /* WASHING → WASH_DONE；客户离场后再由 EVT_WASH_CUSTOMER_GONE 触发 → IDLE */
+    /* WASHING → WASH_DONE；若洗后评估失败（仍有 MAJOR+）则已进 EXCEPTION */
     op_mode_on_wash_session_completed();
 }
 

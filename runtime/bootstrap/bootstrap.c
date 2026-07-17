@@ -19,7 +19,6 @@
 #include "common/time_util.h"
 #include "domain/op_mode/operational_mode.h"
 #include "domain/safety/alarm_registry/alarm_registry.h"
-#include "domain/safety/safety_posture/safety_posture.h"
 #include "ports/outbound/hal/hal_io_port.h"
 #include "ports/outbound/hal/hal_vfd_port.h"
 #include "ports/outbound/hal/hal_voice_port.h"
@@ -197,7 +196,6 @@ static sw_err_t bootstrap_bind(void)
     BOOT_CHECK(s_hooks->bind_hal(), "project_bind_hal");
     BOOT_CHECK(s_hooks->bind_machine(), "project_bind_machine");
     BOOT_CHECK(alarm_registry_init(), "alarm_registry_init");
-    BOOT_CHECK(safety_posture_init(), "safety_posture_init");
     BOOT_CHECK(s_hooks->bind_alarm_catalog(), "project_bind_alarm_catalog");
 
     return SW_OK;

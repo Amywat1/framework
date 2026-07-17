@@ -65,9 +65,7 @@ safety_snapshot_t safety_snapshot_get(void)
 
 bool safety_snapshot_is_warning_active(void)
 {
-    safety_snapshot_t snap = safety_snapshot_get();
-
-    return snap.blocking_active || (snap.posture == SAFETY_POSTURE_LOCKOUT);
+    return safety_snapshot_get().blocking_active;
 }
 
 wash_snapshot_t wash_snapshot_get(void)

@@ -200,11 +200,11 @@ add_unit_test(test_alarm_registry
 
 add_unit_test(test_safety_posture
     ${CMAKE_CURRENT_SOURCE_DIR}/domain/test_safety_posture.c
-    ${WDF_ROOT}/domain/safety/safety_posture/safety_posture.c
     ${WDF_ROOT}/adapters/inbound/event/alarm_event_bridge.c
     ${WDF_ROOT}/domain/safety/alarm_registry/alarm_registry.c
     ${WDF_ROOT}/ports/port_registry_infra.c
     ${WDF_ROOT}/runtime/event_bus/event_bus.c
+    ${WDF_ROOT}/runtime/scheduler/periodic_task.c
     ${WDF_ROOT}/common/time_util.c
     ${WDF_ROOT}/common/log.c
 )
@@ -215,6 +215,7 @@ add_unit_test(test_alarm_event_bridge
     ${WDF_ROOT}/domain/safety/alarm_registry/alarm_registry.c
     ${WDF_ROOT}/ports/port_registry_infra.c
     ${WDF_ROOT}/runtime/event_bus/event_bus.c
+    ${WDF_ROOT}/runtime/scheduler/periodic_task.c
     ${WDF_ROOT}/common/time_util.c
     ${WDF_ROOT}/common/log.c
 )
@@ -228,12 +229,6 @@ add_unit_test(test_alarm_reeval_bridge
     ${WDF_ROOT}/runtime/event_bus/event_bus.c
     ${WDF_ROOT}/common/time_util.c
     ${WDF_ROOT}/common/log.c
-)
-
-add_unit_test(test_alarm_detector_helper
-    ${CMAKE_CURRENT_SOURCE_DIR}/application/test_alarm_detector_helper.c
-    ${WDF_ROOT}/adapters/inbound/safety/alarm_detector_helper.c
-    ${WDF_ROOT}/ports/port_registry_infra.c
 )
 
 add_unit_test(test_op_mode_bridge

@@ -1,6 +1,6 @@
 /**
  * @file    alarm_types.h
- * @brief   报警码、等级、响应策略、清除方式与定义类型
+ * @brief   报警码、等级、清除方式与定义类型
  * @author  HUWANGWEI
  * @date    2026-07-09
  */
@@ -50,14 +50,10 @@ extern "C" {
 #define ALARM_CATALOG_MAX         64U
 #define ALARM_ACTIVE_MAX          32U
 #define ALARM_SESSION_JOURNAL_MAX 16U
-#define ALARM_RECENT_JOURNAL_MAX  64U
 #define ALARM_PENDING_EVENT_MAX   32U
 
-#define ALM_SW_ACTIVE_POOL_OVERFLOW     2U
-#define ALARM_CODE_ACTIVE_POOL_OVERFLOW ALARM_CODE_MAKE(ALM_C_SW, ALM_SW_ACTIVE_POOL_OVERFLOW, ALM_N_OTHER)
-
 /* -------------------------------------------------------------------------
- * 安全姿态（原 safety_types.h）
+ * 安全姿态
  * ------------------------------------------------------------------------- */
 typedef enum {
     SAFETY_POSTURE_NOMINAL = 0,
@@ -65,32 +61,19 @@ typedef enum {
 } safety_posture_t;
 
 /* -------------------------------------------------------------------------
- * 报警等级与策略
+ * 报警等级与清除策略
  * ------------------------------------------------------------------------- */
 typedef enum {
-    ALARM_LEVEL_MINOR = 0,
-    ALARM_LEVEL_MAJOR,
-    ALARM_LEVEL_CRITICAL,
+    ALARM_LEVEL_MINOR = 0, /**< 仅记录，不挡开洗 */
+    ALARM_LEVEL_MAJOR,     /**< 禁开洗；洗中不中断；洗完仍活跃则进 EXCEPTION */
+    ALARM_LEVEL_CRITICAL,  /**< LOCKOUT：立刻停机 */
 } alarm_level_t;
-
-typedef enum {
-    RESP_LOG_ONLY = 0,
-    RESP_COMPLETE_THEN_ASSESS,
-    RESP_STOP_IMMEDIATELY,
-} response_strategy_t;
 
 typedef enum {
     ALARM_CLEAR_AUTO_STATIC = 0,
     ALARM_CLEAR_ON_MOTION,
     ALARM_CLEAR_MANUAL_RESET,
 } alarm_clear_t;
-
-typedef enum {
-    ALARM_SOURCE_LEVEL = 0,
-    ALARM_SOURCE_COMM,
-    ALARM_SOURCE_PROCESS,
-    ALARM_SOURCE_CALLSITE,
-} alarm_source_kind_t;
 
 /** @brief ON_MOTION 重评估分组 ID；framework 只定义 NONE，具体取值由项目配置 */
 #define ALARM_REEVAL_GROUP_NONE 0U
@@ -148,53 +131,27 @@ static inline bool alarm_code_make_checked(uint32_t category, uint32_t index, ui
 typedef struct {
     uint32_t                 code;
     alarm_level_t            level;
-    response_strategy_t      response;
     alarm_clear_t            clear;
-    alarm_source_kind_t      source_kind;
     motion_reeval_group_id_t reeval_group;
-    bool                     immediate_cutout;
     char                     desc[ALARM_DESC_MAX];
 } alarm_def_t;
 
-typedef enum {
-    ALARM_INSTANCE_ACTIVE = 0,
-    ALARM_INSTANCE_CLEARED,
-} alarm_instance_state_t;
-
 typedef struct {
-    uint32_t               code;
-    alarm_level_t          level;
-    response_strategy_t    response;
-    alarm_clear_t          clear;
-    alarm_instance_state_t state;
-    uint64_t               triggered_at_ms;
+    uint32_t      code;
+    alarm_level_t level;
+    alarm_clear_t clear;
+    uint64_t      triggered_at_ms;
 } alarm_instance_t;
 
 typedef enum {
     ALARM_DOMAIN_EVT_TRIGGERED = 0,
     ALARM_DOMAIN_EVT_CLEARED,
-    ALARM_DOMAIN_EVT_BATCH_CLEARED,
 } alarm_domain_event_kind_t;
 
 typedef struct {
     alarm_domain_event_kind_t kind;
     uint32_t                  code;
 } alarm_domain_event_t;
-
-/**
- * @brief  按等级推导缺省响应策略
- */
-static inline response_strategy_t alarm_default_response(alarm_level_t level)
-{
-    switch (level) {
-    case ALARM_LEVEL_CRITICAL:
-        return RESP_STOP_IMMEDIATELY;
-    case ALARM_LEVEL_MAJOR:
-        return RESP_COMPLETE_THEN_ASSESS;
-    default:
-        return RESP_LOG_ONLY;
-    }
-}
 
 #ifdef __cplusplus
 }

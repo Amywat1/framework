@@ -373,9 +373,17 @@ void op_mode_on_wash_session_started(void)
 
 void op_mode_on_wash_session_completed(void)
 {
-    if (s_mode == OP_MODE_WASHING) {
-        set_mode(OP_MODE_WASH_DONE, NULL);
+    if (s_mode != OP_MODE_WASHING) {
+        return;
     }
+
+    /* MAJOR+：洗中已允许跑完；结束时若仍活跃则停机，不再进 WASH_DONE */
+    if (alarm_registry_has_blocking_active()) {
+        set_mode(OP_MODE_EXCEPTION, "post-wash major still active");
+        return;
+    }
+
+    set_mode(OP_MODE_WASH_DONE, NULL);
 }
 
 void op_mode_on_wash_session_aborted(wash_abort_cause_t cause)
