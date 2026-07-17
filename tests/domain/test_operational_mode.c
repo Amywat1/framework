@@ -252,8 +252,8 @@ static void test_self_check_from_stopped_fail_enters_exception(void)
     TEST_ASSERT_EQUAL_INT(OP_MODE_EXCEPTION, op_mode_get_current());
 }
 
-/* 自检：从 EXCEPTION 出发，无论结果都回 EXCEPTION */
-static void test_self_check_from_exception_always_returns_exception(void)
+/* 自检：从 EXCEPTION 出发，成功 → STOPPED，失败 → EXCEPTION */
+static void test_self_check_from_exception_success_returns_stopped(void)
 {
     dev_cmd_t cmd = dev_cmd_make_simple(DEV_CMD_START_SELF_CHECK);
 
@@ -261,7 +261,20 @@ static void test_self_check_from_exception_always_returns_exception(void)
     TEST_ASSERT_EQUAL_INT(OP_MODE_EXCEPTION, op_mode_get_current());
 
     (void)op_mode_handle_command(&cmd);
-    op_mode_on_self_check_completed(false); /* 成功也回 EXCEPTION */
+    op_mode_on_self_check_completed(false); /* 成功 → STOPPED */
+    TEST_ASSERT_EQUAL_INT(OP_MODE_STOPPED, op_mode_get_current());
+}
+
+/* 自检：从 EXCEPTION 出发，失败 → EXCEPTION */
+static void test_self_check_from_exception_fail_returns_exception(void)
+{
+    dev_cmd_t cmd = dev_cmd_make_simple(DEV_CMD_START_SELF_CHECK);
+
+    op_mode_on_critical_alarm();
+    TEST_ASSERT_EQUAL_INT(OP_MODE_EXCEPTION, op_mode_get_current());
+
+    (void)op_mode_handle_command(&cmd);
+    op_mode_on_self_check_completed(true); /* 失败 → EXCEPTION */
     TEST_ASSERT_EQUAL_INT(OP_MODE_EXCEPTION, op_mode_get_current());
 }
 
@@ -286,7 +299,8 @@ int main(void)
     RUN_TEST(test_manual_actuator_denied_in_exception_with_estop);
     RUN_TEST(test_self_check_from_stopped_success_returns_stopped);
     RUN_TEST(test_self_check_from_stopped_fail_enters_exception);
-    RUN_TEST(test_self_check_from_exception_always_returns_exception);
+    RUN_TEST(test_self_check_from_exception_success_returns_stopped);
+    RUN_TEST(test_self_check_from_exception_fail_returns_exception);
 
     return UNITY_END();
 }

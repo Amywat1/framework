@@ -21,8 +21,6 @@ typedef enum {
 static operational_mode_t s_mode            = OP_MODE_INIT;
 static bool               s_estop_active    = false;
 static bool               s_service_enabled = true;
-/** @brief  记录进入 SELF_CHECK 前的状态，以决定自检成功后的回落点 */
-static operational_mode_t s_self_check_origin = OP_MODE_STOPPED;
 
 static const char *op_mode_name(operational_mode_t mode)
 {
@@ -342,10 +340,9 @@ static bool mode_allows_critical_immediate(void)
 
 sw_err_t operational_mode_init(void)
 {
-    s_mode              = OP_MODE_STOPPED;
-    s_estop_active      = false;
-    s_service_enabled   = true;
-    s_self_check_origin = OP_MODE_STOPPED;
+    s_mode            = OP_MODE_STOPPED;
+    s_estop_active    = false;
+    s_service_enabled = true;
     LOG_INFO("operational_mode: init ok (STOPPED)");
     return SW_OK;
 }
@@ -375,7 +372,6 @@ dev_cmd_decision_t op_mode_handle_command(const dev_cmd_t *cmd)
         break;
 
     case DEV_CMD_START_SELF_CHECK:
-        s_self_check_origin = s_mode;
         set_mode(OP_MODE_SELF_CHECK, NULL);
         break;
 
@@ -446,9 +442,8 @@ void op_mode_on_self_check_completed(bool land_exception)
         return;
     }
 
-    /* 从 EXCEPTION 进入自检：无论结果如何都回 EXCEPTION */
-    if (land_exception || (s_self_check_origin == OP_MODE_EXCEPTION)) {
-        set_mode(OP_MODE_EXCEPTION, land_exception ? "self-check failed" : NULL);
+    if (land_exception) {
+        set_mode(OP_MODE_EXCEPTION, "self-check failed");
     } else {
         set_mode(OP_MODE_STOPPED, NULL);
     }
