@@ -45,7 +45,7 @@ void op_mode_on_wash_session_completed(void);
 
 /**
  * @brief  洗车会话中止
- * @param  cause  中止原因（ESTOP 时模式已由 on_estop_triggered 切换，此处无操作）
+ * @param  cause  中止原因（ESTOP 时模式已由 on_estop 切换，此处无操作）
  */
 void op_mode_on_wash_session_aborted(wash_abort_cause_t cause);
 
@@ -66,14 +66,10 @@ void op_mode_on_self_check_completed(bool land_exception);
 void op_mode_on_critical_alarm(void);
 
 /**
- * @brief  急停触发（任意模式 → EXCEPTION）
+ * @brief  急停状态变更
+ * @param  active  true → 急停触发（→ EXCEPTION）；false → 急停清除（清标志，发布 CONTEXT_SYNC）
  */
-void op_mode_on_estop_triggered(void);
-
-/**
- * @brief  急停清除（清 estop 标志，不切换模式）
- */
-void op_mode_on_estop_cleared(void);
+void op_mode_on_estop(bool active);
 
 /**
  * @brief  恢复流程结束（RECOVERING → IDLE 或 EXCEPTION）
@@ -81,15 +77,10 @@ void op_mode_on_estop_cleared(void);
 void op_mode_on_recovery_completed(recovery_result_t result);
 
 /**
- * @brief  归位完成（HOME_DEVICE 命令副作用：HOMING → IDLE 或 EXCEPTION）
- * @param  success  归位是否成功
+ * @brief  归位完成（HOMING → IDLE/EXCEPTION；ALARM_HOMING → EXCEPTION）
+ * @param  success  归位是否成功（ALARM_HOMING 路径忽略此参数，始终进入 EXCEPTION）
  */
-void op_mode_on_home_completed(bool success);
-
-/**
- * @brief  报警归位完成（ALARM_HOMING → EXCEPTION）
- */
-void op_mode_on_alarm_home_done(void);
+void op_mode_on_home_done(bool success);
 
 /**
  * @brief  读取当前运行模式
@@ -116,10 +107,6 @@ bool op_mode_is_stopping(void);
  */
 bool op_mode_is_standby(void);
 
-/**
- * @brief  设置运营接单开关（Stop/Resume Operation）
- */
-void op_mode_set_service_enabled(bool enabled);
 
 #ifdef __cplusplus
 }

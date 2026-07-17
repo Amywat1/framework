@@ -40,7 +40,7 @@ static void enter_idle(void)
 
     TEST_ASSERT_EQUAL_INT(OP_CMD_ALLOWED, d.verdict);
     TEST_ASSERT_EQUAL_INT(OP_MODE_HOMING, op_mode_get_current());
-    op_mode_on_home_completed(true);
+    op_mode_on_home_done(true);
     TEST_ASSERT_EQUAL_INT(OP_MODE_IDLE, op_mode_get_current());
 }
 
@@ -76,18 +76,26 @@ static void test_home_device_failure_enters_exception(void)
     dev_cmd_decision_t d   = op_mode_handle_command(&cmd);
 
     TEST_ASSERT_EQUAL_INT(OP_CMD_ALLOWED, d.verdict);
-    op_mode_on_home_completed(false);
+    op_mode_on_home_done(false);
     TEST_ASSERT_EQUAL_INT(OP_MODE_EXCEPTION, op_mode_get_current());
 }
 
 /* service_enabled=false 时 HOME_DEVICE 被拒绝 */
 static void test_home_device_denied_when_service_disabled(void)
 {
-    dev_cmd_t cmd;
+    dev_cmd_t home_cmd  = dev_cmd_make_simple(DEV_CMD_HOME_DEVICE);
+    dev_cmd_t stop_cmd  = dev_cmd_make_simple(DEV_CMD_STOP_OPERATION);
+    dev_cmd_t check_cmd = dev_cmd_make_simple(DEV_CMD_START_SELF_CHECK);
 
-    op_mode_set_service_enabled(false);
-    cmd = dev_cmd_make_simple(DEV_CMD_HOME_DEVICE);
-    TEST_ASSERT_EQUAL_INT(OP_REJECT_SERVICE_DISABLED, op_mode_handle_command(&cmd).reason);
+    /* 路径：IDLE（归位）→ service_disabled（STOP_OPERATION）→ EXCEPTION（报警）
+     *       → SELF_CHECK → STOPPED，此时 service_enabled 仍为 false           */
+    enter_idle();
+    (void)op_mode_handle_command(&stop_cmd);    /* service_enabled = false  */
+    op_mode_on_critical_alarm();                /* IDLE → EXCEPTION         */
+    (void)op_mode_handle_command(&check_cmd);   /* EXCEPTION → SELF_CHECK   */
+    op_mode_on_self_check_completed(false);     /* SELF_CHECK → STOPPED     */
+
+    TEST_ASSERT_EQUAL_INT(OP_REJECT_SERVICE_DISABLED, op_mode_handle_command(&home_cmd).reason);
 }
 
 /* IDLE 可以接单 */
@@ -166,7 +174,7 @@ static void test_estop_blocks_recover(void)
 {
     dev_cmd_t cmd = dev_cmd_make_simple(DEV_CMD_RECOVER);
 
-    op_mode_on_estop_triggered();
+    op_mode_on_estop(true);
     TEST_ASSERT_TRUE(op_mode_is_estop_active());
     TEST_ASSERT_EQUAL_INT(OP_MODE_EXCEPTION, op_mode_get_current());
     TEST_ASSERT_EQUAL_INT(OP_REJECT_ESTOP_ACTIVE, op_mode_handle_command(&cmd).reason);
@@ -192,7 +200,7 @@ static void test_wash_session_lifecycle(void)
     op_mode_on_wash_session_aborted(WASH_ABORT_CRITICAL);
     TEST_ASSERT_EQUAL_INT(OP_MODE_ALARM_HOMING, op_mode_get_current());
 
-    op_mode_on_alarm_home_done();
+    op_mode_on_home_done(true);
     TEST_ASSERT_EQUAL_INT(OP_MODE_EXCEPTION, op_mode_get_current());
 }
 
@@ -223,7 +231,7 @@ static void test_manual_actuator_denied_in_exception_with_estop(void)
 {
     dev_cmd_t cmd;
 
-    op_mode_on_estop_triggered();
+    op_mode_on_estop(true);
     TEST_ASSERT_EQUAL_INT(OP_MODE_EXCEPTION, op_mode_get_current());
 
     cmd = dev_cmd_make_manual(3U, 0);

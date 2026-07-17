@@ -22,6 +22,8 @@ static operational_mode_t s_mode            = OP_MODE_INIT;
 static bool               s_estop_active    = false;
 static bool               s_service_enabled = true;
 
+static void op_mode_set_service_enabled(bool enabled);
+
 static const char *op_mode_name(operational_mode_t mode)
 {
     switch (mode) {
@@ -65,16 +67,6 @@ static void publish_cmd_rejected(dev_cmd_kind_t kind, op_reject_reason_t reason)
     (void)event_publish(EVT_OP_MODE_CMD_REJECTED, param);
 }
 
-static void publish_recovery_requested(void)
-{
-    (void)event_publish(EVT_OP_MODE_RECOVERY_REQUESTED, 0U);
-}
-
-static void publish_alarm_home_requested(void)
-{
-    (void)event_publish(EVT_OP_MODE_ALARM_HOME_REQUESTED, 0U);
-}
-
 static void publish_context_sync(void)
 {
     (void)event_publish(EVT_OP_MODE_CONTEXT_SYNC, 0U);
@@ -114,11 +106,6 @@ static void set_mode(operational_mode_t next, const char *cause)
  */
 static const op_perm_t k_cmd_matrix[DEV_CMD_MAX][OP_MODE_RECOVERING + 1] =
 {
-    /* DEV_CMD_NONE */
-    [DEV_CMD_NONE] = {
-        OP_PERM_DENIED, OP_PERM_DENIED, OP_PERM_DENIED, OP_PERM_DENIED, OP_PERM_DENIED,
-        OP_PERM_DENIED, OP_PERM_DENIED, OP_PERM_DENIED, OP_PERM_DENIED, OP_PERM_DENIED,
-    },
     /* DEV_CMD_START_WASH：仅 IDLE 允许，受 service_enabled + 无阻塞告警约束 */
     [DEV_CMD_START_WASH] = {
         OP_PERM_DENIED,      /* INIT        */
@@ -248,29 +235,15 @@ static dev_cmd_decision_t make_denied(op_reject_reason_t reason)
     return d;
 }
 
-static dev_cmd_effect_t effect_for_kind(dev_cmd_kind_t kind)
-{
-    switch (kind) {
-    case DEV_CMD_START_WASH:
-        return DEV_CMD_EFFECT_START_WASH;
-    case DEV_CMD_STOP_WASH:
-        return DEV_CMD_EFFECT_STOP_WASH;
-    case DEV_CMD_START_SELF_CHECK:
-        return DEV_CMD_EFFECT_SELF_CHECK;
-    case DEV_CMD_HOME_DEVICE:
-        return DEV_CMD_EFFECT_HOME_DEVICE;
-    case DEV_CMD_MANUAL_ACTUATOR:
-        return DEV_CMD_EFFECT_MANUAL_ACTUATOR;
-    case DEV_CMD_STOP_ALL_OUTPUTS:
-        return DEV_CMD_EFFECT_STOP_ALL_OUTPUTS;
-    case DEV_CMD_STOP_OPERATION:
-    case DEV_CMD_RESUME_OPERATION:
-    case DEV_CMD_RECOVER:
-        return DEV_CMD_EFFECT_NONE;
-    default:
-        return DEV_CMD_EFFECT_NONE;
-    }
-}
+static const dev_cmd_effect_t k_cmd_effects[DEV_CMD_MAX] = {
+    [DEV_CMD_START_WASH]       = DEV_CMD_EFFECT_START_WASH,
+    [DEV_CMD_STOP_WASH]        = DEV_CMD_EFFECT_STOP_WASH,
+    [DEV_CMD_START_SELF_CHECK] = DEV_CMD_EFFECT_SELF_CHECK,
+    [DEV_CMD_HOME_DEVICE]      = DEV_CMD_EFFECT_HOME_DEVICE,
+    [DEV_CMD_MANUAL_ACTUATOR]  = DEV_CMD_EFFECT_MANUAL_ACTUATOR,
+    [DEV_CMD_STOP_ALL_OUTPUTS] = DEV_CMD_EFFECT_STOP_ALL_OUTPUTS,
+    /* 其余默认 DEV_CMD_EFFECT_NONE = 0 */
+};
 
 static dev_cmd_decision_t check_command(const dev_cmd_t *cmd)
 {
@@ -326,16 +299,8 @@ static dev_cmd_decision_t check_command(const dev_cmd_t *cmd)
     return (dev_cmd_decision_t){
         .verdict        = OP_CMD_ALLOWED,
         .reason         = OP_REJECT_NONE,
-        .pending_effect = effect_for_kind(kind),
+        .pending_effect = k_cmd_effects[kind],
     };
-}
-
-/* ALARM_HOMING / RECOVERING 期间不响应 LOCKOUT 立即迁移（已在进行中）*/
-static bool mode_allows_critical_immediate(void)
-{
-    return (s_mode != OP_MODE_WASHING)
-        && (s_mode != OP_MODE_ALARM_HOMING)
-        && (s_mode != OP_MODE_RECOVERING);
 }
 
 sw_err_t operational_mode_init(void)
@@ -377,7 +342,7 @@ dev_cmd_decision_t op_mode_handle_command(const dev_cmd_t *cmd)
 
     case DEV_CMD_RECOVER:
         set_mode(OP_MODE_RECOVERING, NULL);
-        publish_recovery_requested();
+        (void)event_publish(EVT_OP_MODE_RECOVERY_REQUESTED, 0U);
         break;
 
     case DEV_CMD_STOP_OPERATION:
@@ -392,11 +357,6 @@ dev_cmd_decision_t op_mode_handle_command(const dev_cmd_t *cmd)
     case DEV_CMD_STOP_WASH:
     case DEV_CMD_MANUAL_ACTUATOR:
     case DEV_CMD_STOP_ALL_OUTPUTS:
-        break;
-
-    default:
-        d = make_denied(OP_REJECT_UNKNOWN_CMD);
-        publish_cmd_rejected(kind, d.reason);
         break;
     }
 
@@ -426,7 +386,7 @@ void op_mode_on_wash_session_aborted(wash_abort_cause_t cause)
 
     /* 所有非急停中止原因均进入报警归位，防止机构阻碍客户离开 */
     set_mode(OP_MODE_ALARM_HOMING, wash_abort_name(cause));
-    publish_alarm_home_requested();
+    (void)event_publish(EVT_OP_MODE_ALARM_HOME_REQUESTED, 0U);
 }
 
 void op_mode_on_wash_customer_gone(void)
@@ -451,21 +411,22 @@ void op_mode_on_self_check_completed(bool land_exception)
 
 void op_mode_on_critical_alarm(void)
 {
-    if (mode_allows_critical_immediate()) {
+    /* WASHING/ALARM_HOMING/RECOVERING 期间已在处理中，不立即切换 */
+    if ((s_mode != OP_MODE_WASHING)
+     && (s_mode != OP_MODE_ALARM_HOMING)
+     && (s_mode != OP_MODE_RECOVERING)) {
         set_mode(OP_MODE_EXCEPTION, "critical alarm");
     }
 }
 
-void op_mode_on_estop_triggered(void)
+void op_mode_on_estop(bool active)
 {
-    s_estop_active = true;
-    set_mode(OP_MODE_EXCEPTION, "estop");
-}
-
-void op_mode_on_estop_cleared(void)
-{
-    s_estop_active = false;
-    publish_context_sync();
+    s_estop_active = active;
+    if (active) {
+        set_mode(OP_MODE_EXCEPTION, "estop");
+    } else {
+        publish_context_sync();
+    }
 }
 
 void op_mode_on_recovery_completed(recovery_result_t result)
@@ -481,26 +442,13 @@ void op_mode_on_recovery_completed(recovery_result_t result)
     }
 }
 
-void op_mode_on_home_completed(bool success)
+void op_mode_on_home_done(bool success)
 {
-    if (s_mode != OP_MODE_HOMING) {
-        return;
+    if (s_mode == OP_MODE_HOMING) {
+        set_mode(success ? OP_MODE_IDLE : OP_MODE_EXCEPTION, success ? NULL : "home failed");
+    } else if (s_mode == OP_MODE_ALARM_HOMING) {
+        set_mode(OP_MODE_EXCEPTION, NULL);
     }
-
-    if (success) {
-        set_mode(OP_MODE_IDLE, NULL);
-    } else {
-        set_mode(OP_MODE_EXCEPTION, "home failed");
-    }
-}
-
-void op_mode_on_alarm_home_done(void)
-{
-    if (s_mode != OP_MODE_ALARM_HOMING) {
-        return;
-    }
-
-    set_mode(OP_MODE_EXCEPTION, NULL);
 }
 
 operational_mode_t op_mode_get_current(void)
@@ -537,7 +485,7 @@ bool op_mode_is_standby(void)
     return (s_mode == OP_MODE_IDLE) && s_service_enabled;
 }
 
-void op_mode_set_service_enabled(bool enabled)
+static void op_mode_set_service_enabled(bool enabled)
 {
     s_service_enabled = enabled;
     publish_context_sync();

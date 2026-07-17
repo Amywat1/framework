@@ -51,7 +51,7 @@ static void setup_idle(void)
     dev_cmd_t cmd = dev_cmd_make_simple(DEV_CMD_HOME_DEVICE);
 
     (void)op_mode_handle_command(&cmd);
-    op_mode_on_home_completed(true);
+    op_mode_on_home_done(true);
 }
 
 void setUp(void)
