@@ -22,7 +22,7 @@ extern "C" {
 #include <stdbool.h>
 
 /**
- * @brief  初始化运行模式聚合
+ * @brief  初始化运行模式聚合（上电默认进入 STOPPED）
  */
 sw_err_t operational_mode_init(void);
 
@@ -39,47 +39,57 @@ dev_cmd_decision_t op_mode_handle_command(const dev_cmd_t *cmd);
 void op_mode_on_wash_session_started(void);
 
 /**
- * @brief  洗车会话正常完成
+ * @brief  洗车会话正常完成（WASHING → WASH_DONE）
  */
 void op_mode_on_wash_session_completed(void);
 
 /**
  * @brief  洗车会话中止
- * @param  cause  中止原因
+ * @param  cause  中止原因（ESTOP 时模式已由 on_estop_triggered 切换，此处无操作）
  */
 void op_mode_on_wash_session_aborted(wash_abort_cause_t cause);
 
 /**
- * @brief  服务完成评估结束
- * @param  enter_exception  true 时 IDLE → EXCEPTION
+ * @brief  洗车区域清空，客户离场（WASH_DONE → IDLE）
  */
-void op_mode_on_post_wash_assessment(bool enter_exception);
+void op_mode_on_wash_customer_gone(void);
 
 /**
  * @brief  自检完成后的落点决策
- * @param  land_exception  true → EXCEPTION，false → IDLE
+ * @param  land_exception  true → EXCEPTION；false → 回到进入自检前的状态（STOPPED）
  */
 void op_mode_on_self_check_completed(bool land_exception);
 
 /**
- * @brief  非急停 CRITICAL 报警（LOCKOUT 路径）
+ * @brief  非急停 CRITICAL 报警（LOCKOUT 路径）触发立即异常
  */
 void op_mode_on_critical_alarm(void);
 
 /**
- * @brief  急停触发
+ * @brief  急停触发（任意模式 → EXCEPTION）
  */
 void op_mode_on_estop_triggered(void);
 
 /**
- * @brief  急停清除
+ * @brief  急停清除（清 estop 标志，不切换模式）
  */
 void op_mode_on_estop_cleared(void);
 
 /**
- * @brief  恢复流程结束
+ * @brief  恢复流程结束（RECOVERING → IDLE 或 EXCEPTION）
  */
 void op_mode_on_recovery_completed(recovery_result_t result);
+
+/**
+ * @brief  归位完成（HOME_DEVICE 命令副作用：HOMING → IDLE 或 EXCEPTION）
+ * @param  success  归位是否成功
+ */
+void op_mode_on_home_completed(bool success);
+
+/**
+ * @brief  报警归位完成（ALARM_HOMING → EXCEPTION）
+ */
+void op_mode_on_alarm_home_done(void);
 
 /**
  * @brief  读取当前运行模式
@@ -97,7 +107,7 @@ bool op_mode_is_estop_active(void);
 bool op_mode_is_service_enabled(void);
 
 /**
- * @brief  是否处于停机态（!service_enabled 或 INIT/EXCEPTION/RECOVERING）
+ * @brief  是否处于停机态（非 IDLE/WASHING/WASH_DONE 的运营状态）
  */
 bool op_mode_is_stopping(void);
 
@@ -110,11 +120,6 @@ bool op_mode_is_standby(void);
  * @brief  设置运营接单开关（Stop/Resume Operation）
  */
 void op_mode_set_service_enabled(bool enabled);
-
-/**
- * @brief  人工复位报警后尝试回到 IDLE（DEV_CMD_RESET_FAULT 副作用）
- */
-void op_mode_on_legacy_reset_fault(void);
 
 #ifdef __cplusplus
 }

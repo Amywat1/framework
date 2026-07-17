@@ -1,6 +1,6 @@
 /**
  * @file    recovery_service.c
- * @brief   Recover 用例协调实现
+ * @brief   Recover 用例协调实现（清告警 + 全归位 + 验证）
  * @author  HUWANGWEI
  * @date    2026-07-09
  */
@@ -9,26 +9,48 @@
 
 #include "common/event_types.h"
 #include "common/log.h"
+#include "common/sw_error.h"
 #include "domain/op_mode/op_mode_types.h"
 #include "domain/safety/alarm_registry/alarm_registry.h"
 #include "domain/safety/model/alarm_types.h"
+#include "ports/outbound/machine/machine_ops_port.h"
 #include "runtime/event_bus/event_bus.h"
 
 static void on_recovery_requested(const event_t *evt)
 {
-    recovery_result_t result = RECOVERY_RESULT_IDLE;
+    recovery_result_t    result = RECOVERY_RESULT_EXCEPTION;
+    const machine_ops_t *ops;
 
     (void)evt;
 
+    /* 1. 检查安全姿态：LOCKOUT 下无法恢复 */
     if (alarm_registry_safety_posture() == SAFETY_POSTURE_LOCKOUT) {
-        result = RECOVERY_RESULT_EXCEPTION;
-    } else {
-        alarm_registry_recover_all();
-        if (alarm_registry_safety_posture() == SAFETY_POSTURE_LOCKOUT) {
-            result = RECOVERY_RESULT_EXCEPTION;
-        }
+        LOG_WARN("recovery_service: still LOCKOUT before clear, abort recovery");
+        goto done;
     }
 
+    /* 2. 清除所有可恢复告警 */
+    alarm_registry_recover_all();
+
+    if (alarm_registry_safety_posture() == SAFETY_POSTURE_LOCKOUT) {
+        LOG_WARN("recovery_service: still LOCKOUT after clear, abort recovery");
+        goto done;
+    }
+
+    /* 3. 执行全归位（刷子 + 龙门等全部回零点）*/
+    ops = machine_ops_get();
+    if ((ops == NULL) || (ops->home_device == NULL)) {
+        LOG_ERROR("recovery_service: home_device not available");
+        goto done;
+    }
+
+    if (ops->home_device() == SW_OK) {
+        result = RECOVERY_RESULT_IDLE;
+    } else {
+        LOG_ERROR("recovery_service: home_device failed");
+    }
+
+done:
     (void)event_publish(EVT_OP_MODE_RECOVERY_COMPLETED, (uint32_t)result);
     LOG_INFO("recovery_service: completed result=%d", (int)result);
 }

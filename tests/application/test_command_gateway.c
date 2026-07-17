@@ -1,6 +1,6 @@
-﻿/**
+/**
  * @file    test_command_gateway.c
- * @brief   command_gateway 鍛戒护缃戝叧鍗曞厓娴嬭瘯
+ * @brief   command_gateway 命令网关单元测试
  */
 
 #include "application/command_gateway.h"
@@ -45,6 +45,15 @@ static sw_err_t submit_simple(dev_cmd_kind_t kind, dev_cmd_receipt_t *receipt)
     return device_command_port_get_ops()->submit(&cmd, receipt, 1000U);
 }
 
+/* 辅助：把 op_mode 直接推进到 IDLE（绕过 event_bus）*/
+static void setup_idle(void)
+{
+    dev_cmd_t cmd = dev_cmd_make_simple(DEV_CMD_HOME_DEVICE);
+
+    (void)op_mode_handle_command(&cmd);
+    op_mode_on_home_completed(true);
+}
+
 void setUp(void)
 {
     wash_orchestrator_stub_reset();
@@ -54,6 +63,7 @@ void tearDown(void)
 {
 }
 
+/* IDLE 下 STOP_OPERATION 被接受 */
 static void test_submit_accepted_in_idle(void)
 {
     dev_cmd_receipt_t receipt = {0};
@@ -62,6 +72,7 @@ static void test_submit_accepted_in_idle(void)
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, operational_mode_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, command_gateway_init());
+    setup_idle();
     tid = start_dispatch();
     usleep(30000);
 
@@ -71,6 +82,7 @@ static void test_submit_accepted_in_idle(void)
     stop_dispatch(tid);
 }
 
+/* 错误模式下命令被拒绝 */
 static void test_submit_rejected_wrong_mode(void)
 {
     dev_cmd_receipt_t receipt = {0};
@@ -81,30 +93,14 @@ static void test_submit_rejected_wrong_mode(void)
     TEST_ASSERT_EQUAL_INT(SW_OK, command_gateway_init());
     tid = start_dispatch();
 
+    /* STOPPED 状态下 STOP_WASH 被拒绝 */
     TEST_ASSERT_EQUAL_INT(SW_ERR_STATE, submit_simple(DEV_CMD_STOP_WASH, &receipt));
     TEST_ASSERT_EQUAL_INT(DEV_CMD_STATUS_REJECTED, receipt.status);
 
     stop_dispatch(tid);
 }
 
-static void test_enter_manual_changes_mode(void)
-{
-    dev_cmd_receipt_t receipt = {0};
-    pthread_t         tid;
-
-    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
-    TEST_ASSERT_EQUAL_INT(SW_OK, operational_mode_init());
-    TEST_ASSERT_EQUAL_INT(SW_OK, command_gateway_init());
-    tid = start_dispatch();
-    usleep(30000);
-
-    TEST_ASSERT_EQUAL_INT(SW_OK, submit_simple(DEV_CMD_ENTER_MANUAL, &receipt));
-    TEST_ASSERT_EQUAL_INT(DEV_CMD_STATUS_ACCEPTED, receipt.status);
-    TEST_ASSERT_EQUAL_INT(OP_MODE_MANUAL, op_mode_get_current());
-
-    stop_dispatch(tid);
-}
-
+/* START_WASH 触发洗车编排器 */
 static void test_start_wash_triggers_orchestrator(void)
 {
     dev_cmd_t         cmd     = dev_cmd_make_start_wash(WASH_MODE_STANDARD);
@@ -114,6 +110,7 @@ static void test_start_wash_triggers_orchestrator(void)
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, operational_mode_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, command_gateway_init());
+    setup_idle();
     tid = start_dispatch();
     usleep(30000);
 
@@ -125,6 +122,7 @@ static void test_start_wash_triggers_orchestrator(void)
     stop_dispatch(tid);
 }
 
+/* STOP_OPERATION → RESUME_OPERATION */
 static void test_stop_operation_then_resume(void)
 {
     dev_cmd_receipt_t receipt = {0};
@@ -133,6 +131,7 @@ static void test_stop_operation_then_resume(void)
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, operational_mode_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, command_gateway_init());
+    setup_idle();
     tid = start_dispatch();
     usleep(30000);
 
@@ -146,6 +145,7 @@ static void test_stop_operation_then_resume(void)
     stop_dispatch(tid);
 }
 
+/* init 前 port 未注册 */
 static void test_port_not_registered_before_init(void)
 {
     TEST_ASSERT_NULL(device_command_port_get_ops());
@@ -158,7 +158,6 @@ int main(void)
     RUN_TEST(test_port_not_registered_before_init);
     RUN_TEST(test_submit_accepted_in_idle);
     RUN_TEST(test_submit_rejected_wrong_mode);
-    RUN_TEST(test_enter_manual_changes_mode);
     RUN_TEST(test_start_wash_triggers_orchestrator);
     RUN_TEST(test_stop_operation_then_resume);
 

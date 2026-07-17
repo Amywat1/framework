@@ -1,21 +1,21 @@
-﻿/**
+/**
  * @file    test_side_effect_router.c
- * @brief   side_effect_router 鍓綔鐢ㄨ矾鐢卞崟鍏冩祴璇?
+ * @brief   side_effect_router 副作用路由单元测试
  */
 
 #include "application/side_effect_router.h"
 #include "common/sw_error.h"
+#include "common/time_util.h"
 #include "domain/op_mode/device_command.h"
 #include "domain/op_mode/operational_mode.h"
 #include "domain/safety/alarm_registry/alarm_registry.h"
 #include "domain/safety/model/alarm_types.h"
 #include "ports/outbound/machine/machine_ops_port.h"
+#include "runtime/event_bus/event_bus.h"
 #include "tests/stubs/wash_orchestrator_stub.h"
 #include "unity.h"
 
 #include <stdint.h>
-
-#define TEST_ALARM_MANUAL ALARM_CODE_MAKE(ALM_C_SENSE, 2U, ALM_N_SIG_ERR)
 
 static int      s_home_count;
 static int      s_manual_count;
@@ -49,19 +49,6 @@ static const machine_ops_t s_ops = {
     .stop_all_outputs        = stub_stop_all_outputs,
 };
 
-static const alarm_def_t s_catalog[] = {
-    {
-     .code             = TEST_ALARM_MANUAL,
-     .level            = ALARM_LEVEL_MAJOR,
-     .response         = RESP_COMPLETE_THEN_ASSESS,
-     .clear            = ALARM_CLEAR_MANUAL_RESET,
-     .source_kind      = ALARM_SOURCE_LEVEL,
-     .reeval_group     = ALARM_REEVAL_GROUP_NONE,
-     .immediate_cutout = false,
-     .desc             = "manual reset alarm",
-     },
-};
-
 static void reset_counters(void)
 {
     s_home_count         = 0;
@@ -75,17 +62,20 @@ static void reset_counters(void)
 void setUp(void)
 {
     reset_counters();
+    time_util_init();
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, operational_mode_init());
     machine_ops_register(&s_ops);
 }
 
 void tearDown(void)
 {
+    (void)event_bus_shutdown();
 }
 
 static void test_effect_none_returns_ok(void)
 {
-    dev_cmd_t cmd = dev_cmd_make_simple(DEV_CMD_ENTER_MANUAL);
+    dev_cmd_t cmd = dev_cmd_make_simple(DEV_CMD_RECOVER);
 
     TEST_ASSERT_EQUAL_INT(SW_OK, side_effect_router_run(DEV_CMD_EFFECT_NONE, &cmd));
 }
@@ -134,28 +124,6 @@ static void test_stop_all_outputs_calls_machine_ops(void)
     TEST_ASSERT_EQUAL_INT(1, s_stop_outputs_count);
 }
 
-static void test_reset_fault_in_idle_without_alarm_rejected(void)
-{
-    dev_cmd_t cmd = dev_cmd_make_simple(DEV_CMD_RESET_FAULT);
-
-    TEST_ASSERT_EQUAL_INT(SW_ERR_STATE, side_effect_router_run(DEV_CMD_EFFECT_RESET_FAULT, &cmd));
-}
-
-static void test_reset_fault_in_exception_clears_and_transitions(void)
-{
-    dev_cmd_t cmd = dev_cmd_make_simple(DEV_CMD_RESET_FAULT);
-
-    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_load_catalog(s_catalog, 1U));
-    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_trigger(TEST_ALARM_MANUAL));
-    op_mode_on_wash_session_started();
-    op_mode_on_wash_session_aborted(WASH_ABORT_CRITICAL);
-    TEST_ASSERT_EQUAL_INT(OP_MODE_EXCEPTION, op_mode_get_current());
-
-    TEST_ASSERT_EQUAL_INT(SW_OK, side_effect_router_run(DEV_CMD_EFFECT_RESET_FAULT, &cmd));
-    TEST_ASSERT_FALSE(alarm_registry_is_active(TEST_ALARM_MANUAL));
-    TEST_ASSERT_EQUAL_INT(OP_MODE_IDLE, op_mode_get_current());
-}
-
 static void test_machine_ops_not_init_returns_error(void)
 {
     dev_cmd_t cmd = dev_cmd_make_simple(DEV_CMD_HOME_DEVICE);
@@ -174,8 +142,6 @@ int main(void)
     RUN_TEST(test_home_device_calls_machine_ops);
     RUN_TEST(test_manual_actuator_forwards_params);
     RUN_TEST(test_stop_all_outputs_calls_machine_ops);
-    RUN_TEST(test_reset_fault_in_idle_without_alarm_rejected);
-    RUN_TEST(test_reset_fault_in_exception_clears_and_transitions);
     RUN_TEST(test_machine_ops_not_init_returns_error);
 
     return UNITY_END();

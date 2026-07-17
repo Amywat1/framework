@@ -123,11 +123,13 @@ typedef uint16_t event_type_t;
 #define EVT_WASH_ID_ABORTED            2U
 #define EVT_WASH_ID_SESSION_STARTED    3U
 #define EVT_WASH_ID_CHECKPOINT_REACHED 4U
+#define EVT_WASH_ID_CUSTOMER_GONE      5U /**< 洗车区域已清空，客户离场 */
 
 #define EVT_WASH_DONE               EVT_MAKE(EVT_CAT_WASH, EVT_WASH_ID_DONE)
 #define EVT_WASH_ABORTED            EVT_MAKE(EVT_CAT_WASH, EVT_WASH_ID_ABORTED)
 #define EVT_WASH_SESSION_STARTED    EVT_MAKE(EVT_CAT_WASH, EVT_WASH_ID_SESSION_STARTED)
 #define EVT_WASH_CHECKPOINT_REACHED EVT_MAKE(EVT_CAT_WASH, EVT_WASH_ID_CHECKPOINT_REACHED)
+#define EVT_WASH_CUSTOMER_GONE      EVT_MAKE(EVT_CAT_WASH, EVT_WASH_ID_CUSTOMER_GONE)
 
 /* -------------------------------------------------------------------------
  * OP_MODE 类（OperationalMode 聚合发布）
@@ -138,7 +140,9 @@ typedef uint16_t event_type_t;
 #define EVT_OP_MODE_ID_RECOVERY_COMPLETED   3U
 #define EVT_OP_MODE_ID_SELF_CHECK_COMPLETED 4U
 #define EVT_OP_MODE_ID_CONTEXT_SYNC         5U
-#define EVT_OP_MODE_ID_CMD_HANDLED          6U /* 命令处理完成（kind/status/reason 编码于 param） */
+#define EVT_OP_MODE_ID_CMD_HANDLED          6U /**< 命令处理完成（kind/status/reason 编码于 param）*/
+#define EVT_OP_MODE_ID_HOME_COMPLETED       7U /**< 归位完成（HOME_DEVICE 副作用后发布，param=1 成功）*/
+#define EVT_OP_MODE_ID_ALARM_HOME_REQUESTED 8U /**< 报警归位请求（进入 ALARM_HOMING 时发布）*/
 
 #define EVT_OP_MODE_CHANGED              EVT_MAKE(EVT_CAT_OP_MODE, EVT_OP_MODE_ID_CHANGED)
 #define EVT_OP_MODE_CMD_REJECTED         EVT_MAKE(EVT_CAT_OP_MODE, EVT_OP_MODE_ID_CMD_REJECTED)
@@ -147,6 +151,8 @@ typedef uint16_t event_type_t;
 #define EVT_OP_MODE_SELF_CHECK_COMPLETED EVT_MAKE(EVT_CAT_OP_MODE, EVT_OP_MODE_ID_SELF_CHECK_COMPLETED)
 #define EVT_OP_MODE_CONTEXT_SYNC         EVT_MAKE(EVT_CAT_OP_MODE, EVT_OP_MODE_ID_CONTEXT_SYNC)
 #define EVT_OP_MODE_CMD_HANDLED          EVT_MAKE(EVT_CAT_OP_MODE, EVT_OP_MODE_ID_CMD_HANDLED)
+#define EVT_OP_MODE_HOME_COMPLETED       EVT_MAKE(EVT_CAT_OP_MODE, EVT_OP_MODE_ID_HOME_COMPLETED)
+#define EVT_OP_MODE_ALARM_HOME_REQUESTED EVT_MAKE(EVT_CAT_OP_MODE, EVT_OP_MODE_ID_ALARM_HOME_REQUESTED)
 
 /* -------------------------------------------------------------------------
  * 编解码辅助

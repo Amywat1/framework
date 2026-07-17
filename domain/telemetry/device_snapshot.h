@@ -41,6 +41,9 @@ static inline bool operational_snapshot_is_stopping(operational_snapshot_t s)
 {
     return !s.service_enabled
            || (s.mode == OP_MODE_INIT)
+           || (s.mode == OP_MODE_STOPPED)
+           || (s.mode == OP_MODE_HOMING)
+           || (s.mode == OP_MODE_ALARM_HOMING)
            || (s.mode == OP_MODE_EXCEPTION)
            || (s.mode == OP_MODE_RECOVERING);
 }

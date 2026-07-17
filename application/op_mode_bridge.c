@@ -12,7 +12,6 @@
 #include "common/sw_error.h"
 #include "domain/op_mode/op_mode_types.h"
 #include "domain/op_mode/operational_mode.h"
-#include "domain/safety/alarm_registry/alarm_registry.h"
 #include "ports/outbound/safety/op_mode_alarm_port.h"
 #include "runtime/event_bus/event_bus.h"
 
@@ -24,29 +23,31 @@ static void on_wash_session_started(const event_t *evt)
 
 static void on_wash_done(const event_t *evt)
 {
-    bool enter_exception;
-
     (void)evt;
+    /* WASHING → WASH_DONE；客户离场后再由 EVT_WASH_CUSTOMER_GONE 触发 → IDLE */
     op_mode_on_wash_session_completed();
-    enter_exception = alarm_registry_has_blocking_active() || op_mode_is_estop_active();
-    op_mode_on_post_wash_assessment(enter_exception);
 }
 
 static void on_wash_aborted(const event_t *evt)
 {
     wash_abort_cause_t cause = wash_abort_from_evt_param(evt->param);
 
+    /* 急停路径：on_estop_triggered 已将模式切换至 EXCEPTION，
+     * on_wash_session_aborted 内部会检测到非 WASHING 态并提前返回 */
     op_mode_on_wash_session_aborted(cause);
+}
 
-    if (cause != WASH_ABORT_MANUAL) {
-        bool enter_exception = alarm_registry_has_blocking_active() || op_mode_is_estop_active();
-        op_mode_on_post_wash_assessment(enter_exception);
-    }
+static void on_wash_customer_gone(const event_t *evt)
+{
+    (void)evt;
+    op_mode_on_wash_customer_gone();
 }
 
 static void on_safety_lockout(const event_t *evt)
 {
     (void)evt;
+    /* WASHING 时由 emergency_handler 发起中止，不在此立即切换模式；
+     * 其余状态立即进入 EXCEPTION */
     op_mode_on_critical_alarm();
 }
 
@@ -86,12 +87,26 @@ static void on_self_check_completed(const event_t *evt)
     op_mode_on_self_check_completed(evt->param != 0U);
 }
 
+static void on_home_completed(const event_t *evt)
+{
+    /* param=1 表示归位成功（HOMING → IDLE），param=0 表示失败（HOMING → EXCEPTION）*/
+    op_mode_on_home_completed(evt->param != 0U);
+}
+
+static void on_alarm_home_done(const event_t *evt)
+{
+    /* EVT_SAFETY_HOME_DONE：报警归位完成（ALARM_HOMING → EXCEPTION）*/
+    (void)evt;
+    op_mode_on_alarm_home_done();
+}
+
 sw_err_t op_mode_bridge_init(void)
 {
     static const event_subscription_t s_subs[] = {
         {EVT_WASH_SESSION_STARTED,         on_wash_session_started},
         {EVT_WASH_DONE,                    on_wash_done           },
         {EVT_WASH_ABORTED,                 on_wash_aborted        },
+        {EVT_WASH_CUSTOMER_GONE,           on_wash_customer_gone  },
         {EVT_SAFETY_LOCKOUT,               on_safety_lockout      },
         {EVT_ALARM_TRIGGERED,              on_alarm_triggered     },
         {EVT_ALARM_CLEARED,                on_alarm_cleared       },
@@ -99,6 +114,8 @@ sw_err_t op_mode_bridge_init(void)
         {EVT_HW_ESTOP_OFF,                 on_hw_estop_off        },
         {EVT_OP_MODE_RECOVERY_COMPLETED,   on_recovery_completed  },
         {EVT_OP_MODE_SELF_CHECK_COMPLETED, on_self_check_completed},
+        {EVT_OP_MODE_HOME_COMPLETED,       on_home_completed      },
+        {EVT_SAFETY_HOME_DONE,             on_alarm_home_done     },
     };
 
     sw_err_t ret = event_subscribe_table(s_subs, sizeof(s_subs) / sizeof(s_subs[0]));
