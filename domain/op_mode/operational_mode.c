@@ -357,6 +357,7 @@ dev_cmd_decision_t op_mode_handle_command(const dev_cmd_t *cmd)
     case DEV_CMD_STOP_WASH:
     case DEV_CMD_MANUAL_ACTUATOR:
     case DEV_CMD_STOP_ALL_OUTPUTS:
+    default:
         break;
     }
 
