@@ -9,22 +9,6 @@
 
 #include <stddef.h>
 
-static void axis_publish_motion_completed(const motor_axis_t *self)
-{
-    if ((self != NULL) && (self->opts.motion_actuator_id != 0U)) {
-        actuator_publish_motion_completed(self->opts.motion_actuator_id);
-    }
-}
-
-static void axis_report_process_fault(const motor_axis_t  *self,
-                                      hal_motor_dir_t      dir,
-                                      hal_motor_fault_code_t fault)
-{
-    if ((self != NULL) && (self->opts.on_process_fault != NULL)) {
-        self->opts.on_process_fault(dir == HAL_MOTOR_DIR_FORWARD, fault);
-    }
-}
-
 static motor_axis_state_t axis_phase_to_state(const motor_axis_t *self)
 {
     hal_motor_phase_t ph;
@@ -95,7 +79,7 @@ sw_err_t motor_axis_run(motor_axis_t               *self,
 
     ret = hal_motor_cmd_ok(r) ? SW_OK : SW_ERR_STATE;
     if (ret != SW_OK) {
-        axis_report_process_fault(self, dir, motor_axis_fault_code(self));
+        motion_lifecycle_report_fault(&self->opts, dir == HAL_MOTOR_DIR_FORWARD, motor_axis_fault_code(self));
     }
     return ret;
 }
@@ -110,7 +94,7 @@ sw_err_t motor_axis_stop(motor_axis_t *self)
 
     r = hal_motor_stop(self->exec, self->motor);
     if (hal_motor_cmd_ok(r)) {
-        axis_publish_motion_completed(self);
+        motion_lifecycle_publish_completed(&self->opts);
     }
     return hal_motor_cmd_ok(r) ? SW_OK : SW_ERR_STATE;
 }
@@ -169,7 +153,7 @@ sw_err_t motor_axis_recover(motor_axis_t *self, hal_motor_recovery_step_t step)
 
     r = hal_motor_recover(self->exec, self->motor, step);
     if (hal_motor_cmd_ok(r)) {
-        axis_publish_motion_completed(self);
+        motion_lifecycle_publish_completed(&self->opts);
     }
     return hal_motor_cmd_ok(r) ? SW_OK : SW_ERR_STATE;
 }

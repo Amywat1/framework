@@ -60,16 +60,15 @@ static bool is_pump_slot(fluid_path_slot_t slot)
     return (slot == FLUID_PATH_SLOT_PUMP);
 }
 
-static bool key_valid(const fluid_path_actuator_key_t *key)
-{
-    return (key != NULL) && (s_channel_count > 0U) && (key->ch < s_channel_count)
-           && ((unsigned)key->slot < FLUID_PATH_SLOT_COUNT);
-}
-
 static bool key_valid_for_channel_count(const fluid_path_actuator_key_t *key, uint8_t channel_count)
 {
     return (key != NULL) && (channel_count > 0U) && (key->ch < channel_count)
            && ((unsigned)key->slot < FLUID_PATH_SLOT_COUNT);
+}
+
+static bool key_valid(const fluid_path_actuator_key_t *key)
+{
+    return key_valid_for_channel_count(key, s_channel_count);
 }
 
 static bool paths_valid(const fluid_path_cfg_t *cfg,

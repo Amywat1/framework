@@ -14,22 +14,6 @@ static bool slot_valid(const interlocked_group_t *self, interlocked_group_slot_i
     return (self != NULL) && self->inited && (id >= 0) && (id < self->count);
 }
 
-static void group_publish_motion_completed(const interlocked_group_t *self)
-{
-    if ((self != NULL) && (self->opts.motion_actuator_id != 0U)) {
-        actuator_publish_motion_completed(self->opts.motion_actuator_id);
-    }
-}
-
-static void group_report_process_fault(const interlocked_group_t *self,
-                                       hal_motor_dir_t            dir,
-                                       hal_motor_fault_code_t     fault)
-{
-    if ((self != NULL) && (self->opts.on_process_fault != NULL)) {
-        self->opts.on_process_fault(dir == HAL_MOTOR_DIR_FORWARD, fault);
-    }
-}
-
 static interlocked_group_state_t slot_phase_to_state(hal_motor_phase_t ph)
 {
     switch (ph) {
@@ -112,7 +96,8 @@ sw_err_t interlocked_group_start(interlocked_group_t        *self,
         r = hal_motor_set_speed(self->exec, target, hal_motor_speed_gear(speed_gear), dir);
         ret = hal_motor_cmd_ok(r) ? SW_OK : SW_ERR_STATE;
         if (ret != SW_OK) {
-            group_report_process_fault(self, dir, interlocked_group_fault_code(self, id));
+            motion_lifecycle_report_fault(&self->opts, dir == HAL_MOTOR_DIR_FORWARD,
+                                          interlocked_group_fault_code(self, id));
         }
         return ret;
     }
@@ -128,7 +113,8 @@ sw_err_t interlocked_group_start(interlocked_group_t        *self,
     r   = hal_motor_run_continuous(self->exec, target, hal_motor_speed_gear(speed_gear), dir);
     ret = hal_motor_cmd_ok(r) ? SW_OK : SW_ERR_STATE;
     if (ret != SW_OK) {
-        group_report_process_fault(self, dir, interlocked_group_fault_code(self, id));
+        motion_lifecycle_report_fault(&self->opts, dir == HAL_MOTOR_DIR_FORWARD,
+                                      interlocked_group_fault_code(self, id));
     }
     return ret;
 }
@@ -157,7 +143,7 @@ sw_err_t interlocked_group_stop_all(interlocked_group_t *self)
     for (i = 0; i < self->count; i++) {
         (void)hal_motor_stop(self->exec, self->motor[i]);
     }
-    group_publish_motion_completed(self);
+    motion_lifecycle_publish_completed(&self->opts);
     return SW_OK;
 }
 
