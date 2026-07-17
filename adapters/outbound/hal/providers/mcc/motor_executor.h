@@ -262,13 +262,13 @@ typedef struct {
 /** @brief 速度指定方式。 */
 typedef enum {
     MOTOR_SPEED_FREQ = 0, /**< 直接频率（厘赫） */
-    MOTOR_SPEED_GEAR = 1  /**< 挡位索引 */
+    MOTOR_SPEED_GEAR = 1  /**< 挡位号（1 基） */
 } motor_speed_kind_t;
 
 /** @brief 速度指定。 */
 typedef struct {
     motor_speed_kind_t kind;
-    int value; /**< Freq: 厘赫；Gear: 挡位索引 */
+    int value; /**< Freq: 厘赫；Gear: 1..N（0=停止，不可用于 run） */
 } motor_speed_t;
 
 /** @brief 构造频率速度。 */
@@ -279,11 +279,14 @@ static inline motor_speed_t motor_speed_freq(int centi_hz) {
     return s;
 }
 
-/** @brief 构造挡位速度。 */
-static inline motor_speed_t motor_speed_gear(int idx) {
+/**
+ * @brief  构造挡位速度
+ * @param  gear  1 基挡位号（1..N）；0 表示停止，run/move 会拒绝
+ */
+static inline motor_speed_t motor_speed_gear(int gear) {
     motor_speed_t s;
     s.kind = MOTOR_SPEED_GEAR;
-    s.value = idx;
+    s.value = gear;
     return s;
 }
 
@@ -377,6 +380,7 @@ typedef struct {
     int64_t last_raw;
     bool baseline_trusted;
     bool homing;
+    bool origin_was_active; /**< 上一拍原点限位电平，用于上升沿清编码器 */
 
     uint64_t cooldown_until;
     bool queued;

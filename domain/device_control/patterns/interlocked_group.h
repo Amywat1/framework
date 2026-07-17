@@ -74,7 +74,7 @@ sw_err_t interlocked_group_init(interlocked_group_t            *self,
  * @param[in,out] self        模式实例
  * @param[in]     id          槽位 ID
  * @param[in]     dir         运动方向
- * @param[in]     speed_gear  速度挡位
+ * @param[in]     speed_gear  1 基速度挡位（1..N）
  * @return SW_OK 成功；SW_ERR_NOT_INIT / SW_ERR_PARAM / SW_ERR_STATE 失败
  */
 sw_err_t interlocked_group_start(interlocked_group_t        *self,

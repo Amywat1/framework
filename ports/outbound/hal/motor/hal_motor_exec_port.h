@@ -70,13 +70,13 @@ typedef enum {
 /** @brief 速度指定方式。 */
 typedef enum {
     HAL_MOTOR_SPEED_FREQ = 0, /**< 直接频率（厘赫） */
-    HAL_MOTOR_SPEED_GEAR = 1  /**< 挡位索引 */
+    HAL_MOTOR_SPEED_GEAR = 1  /**< 挡位号（1 基：1..N，0=停止） */
 } hal_motor_speed_kind_t;
 
 /** @brief 速度指定。 */
 typedef struct {
     hal_motor_speed_kind_t kind;
-    int                    value; /**< Freq: 厘赫；Gear: 挡位索引 */
+    int                    value; /**< Freq: 厘赫；Gear: 1..N（0=停止） */
 } hal_motor_speed_t;
 
 /** @brief 构造频率速度。 */
@@ -88,12 +88,15 @@ static inline hal_motor_speed_t hal_motor_speed_freq(int centi_hz)
     return s;
 }
 
-/** @brief 构造挡位速度。 */
-static inline hal_motor_speed_t hal_motor_speed_gear(int idx)
+/**
+ * @brief  构造挡位速度
+ * @param  gear  1 基挡位号（1..N）；0 表示停止，run/move 会拒绝
+ */
+static inline hal_motor_speed_t hal_motor_speed_gear(int gear)
 {
     hal_motor_speed_t s;
     s.kind  = HAL_MOTOR_SPEED_GEAR;
-    s.value = idx;
+    s.value = gear;
     return s;
 }
 

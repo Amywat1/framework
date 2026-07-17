@@ -67,6 +67,9 @@ sw_err_t motor_axis_run(motor_axis_t               *self,
     if ((self == NULL) || !self->inited) {
         return SW_ERR_NOT_INIT;
     }
+    if (speed_gear <= 0) {
+        return motor_axis_stop(self);
+    }
     if (motor_axis_state(self) == MOTOR_AXIS_STATE_FAULT) {
         return SW_ERR_STATE;
     }

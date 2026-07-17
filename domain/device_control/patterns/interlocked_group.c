@@ -87,6 +87,9 @@ sw_err_t interlocked_group_start(interlocked_group_t        *self,
     if (!slot_valid(self, id)) {
         return SW_ERR_PARAM;
     }
+    if (speed_gear <= 0) {
+        return interlocked_group_stop(self, id);
+    }
     if (interlocked_group_state(self, id) == INTERLOCKED_GROUP_STATE_FAULT) {
         return SW_ERR_STATE;
     }

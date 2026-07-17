@@ -140,15 +140,20 @@ static void push_event(motor_executor_t *e, int i, motor_event_type_t t,
 
 /* ------------------------- 速度解析 ------------------------- */
 
+/**
+ * @brief  解析速度指定为输出频率（厘赫）
+ * @note   GEAR 约定：0=停止（非法运行挡），1..N 对应 gear_freq[0..N-1]
+ */
 static int resolve_speed(motor_executor_t *e, int i, motor_speed_t spd) {
     if (spd.kind == MOTOR_SPEED_FREQ) {
         return spd.value;
     }
     const motor_motor_cfg_t *mc = &e->cfg.motors[i];
-    if (spd.value < 0 || spd.value >= mc->gear_count) {
+    /* 1 基挡位：0 表示停止，不可用于 run/move */
+    if (spd.value <= 0 || spd.value > mc->gear_count) {
         return -1;
     }
-    return mc->gear_freq[spd.value];
+    return mc->gear_freq[spd.value - 1];
 }
 
 /* ------------------------- 输出 / 加减速 ------------------------- */
@@ -378,6 +383,41 @@ static void finish_halt(motor_executor_t *e, int i) {
     }
 }
 
+/**
+ * @brief  有编码器轴到达原点后清零并建立可信基准
+ */
+static void zero_encoder_baseline(motor_executor_t *e, int i) {
+    motor_mstate_t  *s   = &e->m[i];
+    motor_encoder_t *enc;
+
+    if (!e->cfg.motors[i].has_encoder) {
+        return;
+    }
+    enc = motor_enc(e, i);
+    if (enc) {
+        (void)enc_zero(enc);
+    }
+    s->position         = 0;
+    s->last_raw         = enc ? enc_raw(enc) : 0;
+    s->baseline_trusted = true;
+}
+
+/**
+ * @brief  监视原点限位上升沿：运动中碰到原点则清编码器（B1）
+ * @note   上电已压原点时 origin_was_active 预置为 true，避免误清。
+ */
+static void update_origin_latch(motor_executor_t *e, int i) {
+    motor_mstate_t *s      = &e->m[i];
+    bool            active = sensor_limit(e, i, MOTOR_LIMIT_ORIGIN);
+
+    if (e->cfg.motors[i].has_encoder && active && !s->origin_was_active) {
+        if (s->phase == MOTOR_PHASE_RUNNING || s->phase == MOTOR_PHASE_DECELERATING) {
+            zero_encoder_baseline(e, i);
+        }
+    }
+    s->origin_was_active = active;
+}
+
 static void complete_move(motor_executor_t *e, int i, motor_event_type_t type,
                           motor_end_condition_t trig) {
     motor_mstate_t *s = &e->m[i];
@@ -385,19 +425,14 @@ static void complete_move(motor_executor_t *e, int i, motor_event_type_t type,
     motor_fault_level_t lvl = (type == MOTOR_EVENT_ARRIVED) ? MOTOR_LEVEL_WARNING
                                                              : MOTOR_LEVEL_FAULT;
     push_event(e, i, type, trig, MOTOR_FAULT_NONE, lvl);
-    bool was_homing = s->homing;
     s->homing = false;
     s->moveActive = false;
     s->emit_stop_on_halt = false;
-    if (was_homing && trig == MOTOR_END_LIMIT) {
-        /* 回原点：清零并建立可信基准。 */
-        motor_encoder_t *enc = motor_enc(e, i);
-        if (enc) {
-            (void)enc_zero(enc);
-        }
-        s->position = 0;
-        s->last_raw = enc ? enc_raw(enc) : 0;
-        s->baseline_trusted = true;
+    /* 到位条件为原点限位时清编码器（不依赖是否经 motor_home）*/
+    if (trig == MOTOR_END_LIMIT && s->spec.use_limit
+        && s->spec.limit == MOTOR_LIMIT_ORIGIN) {
+        zero_encoder_baseline(e, i);
+        s->origin_was_active = true;
     }
     if (trig == MOTOR_END_LIMIT || trig == MOTOR_END_SOFT_LIMIT) {
         finish_halt(e, i); /* 限位/软限位：触发瞬间停止 */
@@ -630,8 +665,12 @@ void motor_tick(motor_executor_t *e) {
             continue;
         }
         if (s->phase == MOTOR_PHASE_FAULT || s->phase == MOTOR_PHASE_ESTOP) {
+            /* 故障态也刷新原点采样，避免恢复后误判上升沿 */
+            s->origin_was_active = sensor_limit(e, i, MOTOR_LIMIT_ORIGIN);
             continue;
         }
+
+        update_origin_latch(e, i);
 
         switch (s->phase) {
             case MOTOR_PHASE_WAITING_START:
@@ -775,6 +814,8 @@ static motor_init_result_t do_init(motor_executor_t *e) {
     for (int i = 0; i < c->motor_count; ++i) {
         motor_encoder_t *enc = motor_enc(e, i);
         e->m[i].last_raw = enc ? enc_raw(enc) : 0;
+        /* 上电已压原点时预置，避免首次 tick 上升沿误清零 */
+        e->m[i].origin_was_active = sensor_limit(e, i, MOTOR_LIMIT_ORIGIN);
         drv_cutoff(motor_drv(e, i));
     }
     e->initialized = true;

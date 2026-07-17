@@ -59,10 +59,11 @@ sw_err_t motor_axis_init(motor_axis_t                 *self,
  * @brief  启动运动：spec 为 NULL 时连续运转，否则按 spec 到位
  * @param[in,out] self        模式实例
  * @param[in]     dir         运动方向
- * @param[in]     speed_gear  速度挡位
+ * @param[in]     speed_gear  1 基速度挡位（1..N；<=0 等价于 stop）
  * @param[in]     spec        到位条件，NULL 表示连续运转
  * @return SW_OK 命令已受理；SW_ERR_NOT_INIT / SW_ERR_STATE 失败
  * @note   到位完成须由调用方 poll state == IDLE，见文件头注释
+ * @note   speed_gear<=0 时直接 stop，不发 run 命令
  */
 sw_err_t motor_axis_run(motor_axis_t               *self,
                         hal_motor_dir_t             dir,
