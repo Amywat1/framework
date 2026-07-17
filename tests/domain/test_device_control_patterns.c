@@ -4,10 +4,9 @@
  */
 
 #include "common/sw_error.h"
-#include "domain/device_control/patterns/bidirectional_motion.h"
-#include "domain/device_control/patterns/continuous_rotary.h"
 #include "domain/device_control/patterns/fluid_path.h"
-#include "domain/device_control/patterns/interlocked_slots.h"
+#include "domain/device_control/patterns/interlocked_group.h"
+#include "domain/device_control/patterns/motor_axis.h"
 #include "ports/outbound/hal/motor/hal_motor_exec_port.h"
 #include "unity.h"
 
@@ -267,118 +266,119 @@ void tearDown(void)
 {
 }
 
-static void test_bidirectional_run_and_query_state(void)
+static void test_motor_axis_run_and_query_state(void)
 {
-    bidirectional_motion_t motion;
-    hal_motor_exec_t      *exec = (hal_motor_exec_t *)s_motor;
+    motor_axis_t     axis;
+    hal_motor_exec_t *exec = (hal_motor_exec_t *)s_motor;
 
-    memset(&motion, 0, sizeof(motion));
-    TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_INIT, bidirectional_motion_run(&motion, HAL_MOTOR_DIR_FORWARD, 1, NULL));
-    TEST_ASSERT_EQUAL_INT(SW_OK, bidirectional_motion_init(&motion, exec, 1, NULL));
-    TEST_ASSERT_EQUAL_INT(SW_OK, bidirectional_motion_run(&motion, HAL_MOTOR_DIR_REVERSE, 3, NULL));
+    memset(&axis, 0, sizeof(axis));
+    TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_INIT, motor_axis_run(&axis, HAL_MOTOR_DIR_FORWARD, 1, NULL));
+    TEST_ASSERT_EQUAL_INT(SW_OK, motor_axis_init(&axis, exec, 1, NULL));
+    TEST_ASSERT_EQUAL_INT(SW_OK, motor_axis_run(&axis, HAL_MOTOR_DIR_REVERSE, 3, NULL));
 
-    TEST_ASSERT_EQUAL_INT(BIDIR_MOTION_STATE_MOVING, bidirectional_motion_state(&motion));
-    TEST_ASSERT_EQUAL_INT(HAL_MOTOR_DIR_REVERSE, bidirectional_motion_direction(&motion));
+    TEST_ASSERT_EQUAL_INT(MOTOR_AXIS_STATE_MOVING, motor_axis_state(&axis));
+    TEST_ASSERT_EQUAL_INT(HAL_MOTOR_DIR_REVERSE, motor_axis_direction(&axis));
     TEST_ASSERT_EQUAL_INT(3, s_motor[1].speed_gear);
     TEST_ASSERT_EQUAL_INT(1, s_run_count);
 
     s_motor[1].phase = HAL_MOTOR_PHASE_DECELERATING;
-    TEST_ASSERT_EQUAL_INT(BIDIR_MOTION_STATE_STOPPING, bidirectional_motion_state(&motion));
+    TEST_ASSERT_EQUAL_INT(MOTOR_AXIS_STATE_STOPPING, motor_axis_state(&axis));
 }
 
-static void test_bidirectional_spec_uses_move_to_and_fault_callback(void)
+static void test_motor_axis_spec_uses_move_to_and_fault_callback(void)
 {
-    bidirectional_motion_t  motion;
+    motor_axis_t            axis;
     hal_motor_move_spec_t   spec;
     motion_lifecycle_opts_t opts;
     hal_motor_exec_t       *exec = (hal_motor_exec_t *)s_motor;
 
-    memset(&motion, 0, sizeof(motion));
+    memset(&axis, 0, sizeof(axis));
     memset(&spec, 0, sizeof(spec));
     opts.motion_actuator_id = 0U;
     opts.on_process_fault   = on_process_fault;
 
-    TEST_ASSERT_EQUAL_INT(SW_OK, bidirectional_motion_init(&motion, exec, 0, &opts));
-    TEST_ASSERT_EQUAL_INT(SW_OK, bidirectional_motion_run(&motion, HAL_MOTOR_DIR_FORWARD, 2, &spec));
+    TEST_ASSERT_EQUAL_INT(SW_OK, motor_axis_init(&axis, exec, 0, &opts));
+    TEST_ASSERT_EQUAL_INT(SW_OK, motor_axis_run(&axis, HAL_MOTOR_DIR_FORWARD, 2, &spec));
     TEST_ASSERT_EQUAL_INT(1, s_move_count);
 
     s_next_result    = cmd_rejected();
     s_motor[0].fault = HAL_MOTOR_FAULT_OVERCURRENT;
-    TEST_ASSERT_EQUAL_INT(SW_ERR_STATE, bidirectional_motion_run(&motion, HAL_MOTOR_DIR_FORWARD, 2, NULL));
+    TEST_ASSERT_EQUAL_INT(SW_ERR_STATE, motor_axis_run(&axis, HAL_MOTOR_DIR_FORWARD, 2, NULL));
     TEST_ASSERT_EQUAL_INT(1, s_fault_cb_count);
     TEST_ASSERT_TRUE(s_fault_cb_dir_positive);
     TEST_ASSERT_EQUAL_INT(HAL_MOTOR_FAULT_OVERCURRENT, s_fault_cb_code);
 }
 
-static void test_continuous_rotary_start_stop_and_recover(void)
+static void test_motor_axis_continuous_stop_and_recover(void)
 {
-    continuous_rotary_t rotary;
-    hal_motor_exec_t   *exec = (hal_motor_exec_t *)s_motor;
+    motor_axis_t     axis;
+    hal_motor_exec_t *exec = (hal_motor_exec_t *)s_motor;
 
-    memset(&rotary, 0, sizeof(rotary));
-    TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_INIT, continuous_rotary_start(&rotary, 1));
-    TEST_ASSERT_EQUAL_INT(SW_OK, continuous_rotary_init(&rotary, exec, 2, NULL));
-    TEST_ASSERT_EQUAL_INT(SW_OK, continuous_rotary_start(&rotary, 4));
-    TEST_ASSERT_EQUAL_INT(CONTINUOUS_ROTARY_STATE_RUNNING, continuous_rotary_state(&rotary));
-    TEST_ASSERT_EQUAL_INT(HAL_MOTOR_DIR_FORWARD, s_motor[2].dir);
+    memset(&axis, 0, sizeof(axis));
+    TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_INIT, motor_axis_run(&axis, HAL_MOTOR_DIR_FORWARD, 1, NULL));
+    TEST_ASSERT_EQUAL_INT(SW_OK, motor_axis_init(&axis, exec, 2, NULL));
+    TEST_ASSERT_EQUAL_INT(SW_OK, motor_axis_run(&axis, HAL_MOTOR_DIR_REVERSE, 4, NULL));
+    TEST_ASSERT_EQUAL_INT(MOTOR_AXIS_STATE_MOVING, motor_axis_state(&axis));
+    TEST_ASSERT_EQUAL_INT(HAL_MOTOR_DIR_REVERSE, s_motor[2].dir);
 
-    TEST_ASSERT_EQUAL_INT(SW_OK, continuous_rotary_stop(&rotary));
-    TEST_ASSERT_EQUAL_INT(CONTINUOUS_ROTARY_STATE_IDLE, continuous_rotary_state(&rotary));
+    TEST_ASSERT_EQUAL_INT(SW_OK, motor_axis_stop(&axis));
+    TEST_ASSERT_EQUAL_INT(MOTOR_AXIS_STATE_IDLE, motor_axis_state(&axis));
 
     s_motor[2].phase = HAL_MOTOR_PHASE_FAULT;
     s_motor[2].fault = HAL_MOTOR_FAULT_DRIVER_FEEDBACK;
-    TEST_ASSERT_EQUAL_INT(SW_ERR_STATE, continuous_rotary_start(&rotary, 1));
-    TEST_ASSERT_EQUAL_INT(HAL_MOTOR_FAULT_DRIVER_FEEDBACK, continuous_rotary_fault_code(&rotary));
-    TEST_ASSERT_EQUAL_INT(SW_OK, continuous_rotary_recover(&rotary, HAL_MOTOR_RECOVERY_MODULE_STOP));
+    TEST_ASSERT_EQUAL_INT(SW_ERR_STATE, motor_axis_run(&axis, HAL_MOTOR_DIR_FORWARD, 1, NULL));
+    TEST_ASSERT_EQUAL_INT(HAL_MOTOR_FAULT_DRIVER_FEEDBACK, motor_axis_fault_code(&axis));
+    TEST_ASSERT_EQUAL_INT(SW_OK, motor_axis_recover(&axis, HAL_MOTOR_RECOVERY_MODULE_STOP));
     TEST_ASSERT_EQUAL_INT(1, s_recover_count);
-    TEST_ASSERT_EQUAL_INT(CONTINUOUS_ROTARY_STATE_IDLE, continuous_rotary_state(&rotary));
+    TEST_ASSERT_EQUAL_INT(MOTOR_AXIS_STATE_IDLE, motor_axis_state(&axis));
 }
 
-static void test_interlocked_slots_switch_and_speed_update(void)
+static void test_interlocked_group_switch_and_speed_update(void)
 {
-    interlocked_slots_t           slots;
+    interlocked_group_t           group;
     const int                     motors[] = {0, 1};
-    const interlocked_slot_pair_t pairs[]  = {
+    const interlocked_group_pair_t pairs[] = {
         {0, 1}
     };
     hal_motor_exec_t *exec = (hal_motor_exec_t *)s_motor;
 
-    memset(&slots, 0, sizeof(slots));
-    TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_INIT, interlocked_slots_start(&slots, 0, 1));
-    TEST_ASSERT_EQUAL_INT(SW_OK, interlocked_slots_init(&slots, exec, motors, 2, pairs, 1, NULL));
+    memset(&group, 0, sizeof(group));
+    TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_INIT, interlocked_group_start(&group, 0, HAL_MOTOR_DIR_FORWARD, 1));
+    TEST_ASSERT_EQUAL_INT(SW_OK, interlocked_group_init(&group, exec, motors, 2, pairs, 1, NULL));
 
-    TEST_ASSERT_EQUAL_INT(SW_OK, interlocked_slots_start(&slots, 0, 1));
-    TEST_ASSERT_EQUAL_INT(INTERLOCKED_SLOT_STATE_RUNNING, interlocked_slots_state(&slots, 0));
+    TEST_ASSERT_EQUAL_INT(SW_OK, interlocked_group_start(&group, 0, HAL_MOTOR_DIR_FORWARD, 1));
+    TEST_ASSERT_EQUAL_INT(INTERLOCKED_GROUP_STATE_RUNNING, interlocked_group_state(&group, 0));
 
-    TEST_ASSERT_EQUAL_INT(SW_OK, interlocked_slots_start(&slots, 0, 3));
+    TEST_ASSERT_EQUAL_INT(SW_OK, interlocked_group_start(&group, 0, HAL_MOTOR_DIR_REVERSE, 3));
     TEST_ASSERT_EQUAL_INT(1, s_speed_count);
     TEST_ASSERT_EQUAL_INT(3, s_motor[0].speed_gear);
+    TEST_ASSERT_EQUAL_INT(HAL_MOTOR_DIR_REVERSE, s_motor[0].dir);
 
-    TEST_ASSERT_EQUAL_INT(SW_OK, interlocked_slots_start(&slots, 1, 2));
+    TEST_ASSERT_EQUAL_INT(SW_OK, interlocked_group_start(&group, 1, HAL_MOTOR_DIR_FORWARD, 2));
     TEST_ASSERT_EQUAL_INT(HAL_MOTOR_PHASE_STOPPED, s_motor[0].phase);
     TEST_ASSERT_EQUAL_INT(HAL_MOTOR_PHASE_RUNNING, s_motor[1].phase);
-    TEST_ASSERT_EQUAL_INT(INTERLOCKED_SLOT_STATE_IDLE, interlocked_slots_state(&slots, 0));
-    TEST_ASSERT_EQUAL_INT(INTERLOCKED_SLOT_STATE_RUNNING, interlocked_slots_state(&slots, 1));
+    TEST_ASSERT_EQUAL_INT(INTERLOCKED_GROUP_STATE_IDLE, interlocked_group_state(&group, 0));
+    TEST_ASSERT_EQUAL_INT(INTERLOCKED_GROUP_STATE_RUNNING, interlocked_group_state(&group, 1));
 }
 
-static void test_interlocked_slots_validation_and_fault_state(void)
+static void test_interlocked_group_validation_and_fault_state(void)
 {
-    interlocked_slots_t           slots;
-    const int                     motors[]    = {0, 1};
-    const interlocked_slot_pair_t bad_pairs[] = {
+    interlocked_group_t            group;
+    const int                      motors[]    = {0, 1};
+    const interlocked_group_pair_t bad_pairs[] = {
         {0, 4}
     };
     hal_motor_exec_t *exec = (hal_motor_exec_t *)s_motor;
 
-    memset(&slots, 0, sizeof(slots));
-    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, interlocked_slots_init(&slots, exec, motors, 2, bad_pairs, 1, NULL));
-    TEST_ASSERT_EQUAL_INT(SW_OK, interlocked_slots_init(&slots, exec, motors, 2, NULL, 0, NULL));
+    memset(&group, 0, sizeof(group));
+    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, interlocked_group_init(&group, exec, motors, 2, bad_pairs, 1, NULL));
+    TEST_ASSERT_EQUAL_INT(SW_OK, interlocked_group_init(&group, exec, motors, 2, NULL, 0, NULL));
 
     s_motor[1].phase = HAL_MOTOR_PHASE_ESTOP;
     s_motor[1].fault = HAL_MOTOR_FAULT_SHARED_DRIVER;
-    TEST_ASSERT_EQUAL_INT(INTERLOCKED_SLOT_STATE_FAULT, interlocked_slots_state(&slots, 1));
-    TEST_ASSERT_EQUAL_INT(HAL_MOTOR_FAULT_SHARED_DRIVER, interlocked_slots_fault_code(&slots, 1));
-    TEST_ASSERT_EQUAL_INT(SW_ERR_STATE, interlocked_slots_start(&slots, 1, 1));
+    TEST_ASSERT_EQUAL_INT(INTERLOCKED_GROUP_STATE_FAULT, interlocked_group_state(&group, 1));
+    TEST_ASSERT_EQUAL_INT(HAL_MOTOR_FAULT_SHARED_DRIVER, interlocked_group_fault_code(&group, 1));
+    TEST_ASSERT_EQUAL_INT(SW_ERR_STATE, interlocked_group_start(&group, 1, HAL_MOTOR_DIR_FORWARD, 1));
 }
 
 static void test_fluid_path_reference_counts_shared_pump(void)
@@ -482,11 +482,11 @@ int main(void)
 {
     UNITY_BEGIN();
 
-    RUN_TEST(test_bidirectional_run_and_query_state);
-    RUN_TEST(test_bidirectional_spec_uses_move_to_and_fault_callback);
-    RUN_TEST(test_continuous_rotary_start_stop_and_recover);
-    RUN_TEST(test_interlocked_slots_switch_and_speed_update);
-    RUN_TEST(test_interlocked_slots_validation_and_fault_state);
+    RUN_TEST(test_motor_axis_run_and_query_state);
+    RUN_TEST(test_motor_axis_spec_uses_move_to_and_fault_callback);
+    RUN_TEST(test_motor_axis_continuous_stop_and_recover);
+    RUN_TEST(test_interlocked_group_switch_and_speed_update);
+    RUN_TEST(test_interlocked_group_validation_and_fault_state);
     RUN_TEST(test_fluid_path_reference_counts_shared_pump);
     RUN_TEST(test_fluid_path_rejects_invalid_topology_and_unknown_mask);
     RUN_TEST(test_fluid_path_respects_valve_and_pump_delays);

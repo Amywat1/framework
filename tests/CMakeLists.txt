@@ -260,10 +260,9 @@ add_unit_test(test_operational_mode
 add_unit_test(test_device_control_patterns
     ${CMAKE_CURRENT_SOURCE_DIR}/domain/test_device_control_patterns.c
     ${WDF_ROOT}/domain/device_control/model/actuator_events.c
-    ${WDF_ROOT}/domain/device_control/patterns/bidirectional_motion.c
-    ${WDF_ROOT}/domain/device_control/patterns/continuous_rotary.c
+    ${WDF_ROOT}/domain/device_control/patterns/motor_axis.c
     ${WDF_ROOT}/domain/device_control/patterns/fluid_path.c
-    ${WDF_ROOT}/domain/device_control/patterns/interlocked_slots.c
+    ${WDF_ROOT}/domain/device_control/patterns/interlocked_group.c
     ${WDF_ROOT}/runtime/event_bus/event_bus.c
     ${WDF_ROOT}/common/log.c
     ${WDF_ROOT}/common/time_util.c
