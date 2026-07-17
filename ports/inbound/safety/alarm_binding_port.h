@@ -28,8 +28,6 @@ typedef struct {
     sw_err_t (*load_catalog)(const alarm_def_t *defs, unsigned count);
     /** 注入「急停免疫」判断函数，用于区分允许跳过急停的报警码 */
     void     (*set_estop_skip_fn)(bool (*fn)(uint32_t code));
-    /** 注册 ON_MOTION 重评估绑定表并订阅 lifecycle 事件 */
-    sw_err_t (*init_reeval_bridge)(const alarm_reeval_binding_t *bindings, size_t count);
 } alarm_binding_ops_t;
 
 void                       alarm_binding_register(const alarm_binding_ops_t *ops);

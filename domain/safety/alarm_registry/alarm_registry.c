@@ -7,7 +7,6 @@
 
 #include "domain/safety/alarm_registry/alarm_registry.h"
 
-#include "adapters/inbound/event/alarm_reeval_bridge.h"
 #include "common/log.h"
 #include "common/time_util.h"
 #include "ports/inbound/safety/alarm_binding_port.h"
@@ -539,11 +538,6 @@ static void binding_set_estop_skip_fn(bool (*fn)(uint32_t code))
     alarm_registry_set_estop_skip_fn(fn);
 }
 
-static sw_err_t binding_init_reeval_bridge(const alarm_reeval_binding_t *bindings, size_t count)
-{
-    return alarm_reeval_bridge_init(bindings, count);
-}
-
 sw_err_t alarm_registry_init(void)
 {
     static const alarm_binding_ops_t s_ops = {
@@ -551,7 +545,6 @@ sw_err_t alarm_registry_init(void)
         .clear             = alarm_registry_clear,
         .load_catalog      = binding_load_catalog,
         .set_estop_skip_fn = binding_set_estop_skip_fn,
-        .init_reeval_bridge = binding_init_reeval_bridge,
     };
 
     alarm_binding_register(&s_ops);
