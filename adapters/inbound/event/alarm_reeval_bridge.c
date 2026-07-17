@@ -5,7 +5,7 @@
  * @date    2026-07-12
  */
 
-#include "application/alarm_reeval_bridge.h"
+#include "adapters/inbound/event/alarm_reeval_bridge.h"
 
 #include "common/event_types.h"
 #include "domain/device_control/model/actuator_events.h"

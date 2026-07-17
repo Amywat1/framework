@@ -7,7 +7,7 @@
 
 #include "domain/safety/alarm_registry/alarm_registry.h"
 
-#include "application/alarm_reeval_bridge.h"
+#include "adapters/inbound/event/alarm_reeval_bridge.h"
 #include "common/log.h"
 #include "common/time_util.h"
 #include "ports/inbound/safety/alarm_binding_port.h"

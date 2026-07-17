@@ -5,7 +5,7 @@
  * @date    2026-07-09
  */
 
-#include "application/op_mode_bridge.h"
+#include "adapters/inbound/event/op_mode_bridge.h"
 
 #include "common/event_types.h"
 #include "common/log.h"

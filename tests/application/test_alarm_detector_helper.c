@@ -3,7 +3,7 @@
  * @brief   alarm_detector_helper 单元测试
  */
 
-#include "ports/inbound/safety/alarm_detector_helper.h"
+#include "adapters/inbound/safety/alarm_detector_helper.h"
 #include "common/sw_error.h"
 #include "ports/inbound/safety/alarm_binding_port.h"
 #include "unity.h"

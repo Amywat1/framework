@@ -5,7 +5,7 @@
  * @date    2026-07-14
  */
 
-#include "application/alarm_lifecycle_bridge.h"
+#include "adapters/inbound/event/alarm_lifecycle_bridge.h"
 
 #include "common/event_types.h"
 #include "common/log.h"

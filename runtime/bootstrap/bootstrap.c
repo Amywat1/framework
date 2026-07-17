@@ -7,10 +7,10 @@
 
 #include "runtime/bootstrap/bootstrap.h"
 
-#include "application/alarm_event_bridge.h"
-#include "application/alarm_lifecycle_bridge.h"
+#include "adapters/inbound/event/alarm_event_bridge.h"
+#include "adapters/inbound/event/alarm_lifecycle_bridge.h"
 #include "application/command_gateway.h"
-#include "application/op_mode_bridge.h"
+#include "adapters/inbound/event/op_mode_bridge.h"
 #include "application/self_check_service.h"
 #include "application/telemetry_projection.h"
 #include "common/log.h"
