@@ -150,10 +150,12 @@ static void test_stop_operation_then_resume(void)
     TEST_ASSERT_EQUAL_INT(SW_OK, submit_simple(DEV_CMD_STOP_OPERATION, &receipt));
     TEST_ASSERT_EQUAL_INT(DEV_CMD_STATUS_ACCEPTED, receipt.status);
     TEST_ASSERT_FALSE(op_mode_is_service_enabled());
+    TEST_ASSERT_EQUAL_INT(OP_MODE_STOPPED, op_mode_get_current());
 
     TEST_ASSERT_EQUAL_INT(SW_OK, submit_simple(DEV_CMD_RESUME_OPERATION, &receipt));
     TEST_ASSERT_EQUAL_INT(DEV_CMD_STATUS_ACCEPTED, receipt.status);
     TEST_ASSERT_TRUE(op_mode_is_service_enabled());
+    TEST_ASSERT_EQUAL_INT(OP_MODE_STOPPED, op_mode_get_current());
 
     stop_dispatch(tid);
 }

@@ -43,17 +43,18 @@ static inline bool operational_snapshot_is_stopping(operational_snapshot_t s)
            || (s.mode == OP_MODE_STOPPED)
            || (s.mode == OP_MODE_HOMING)
            || (s.mode == OP_MODE_ABORT_HOMING)
+           || (s.mode == OP_MODE_SELF_CHECK)
            || (s.mode == OP_MODE_EXCEPTION)
            || (s.mode == OP_MODE_RECOVERING);
 }
 
 /**
- * @brief  判断是否处于待机态
+ * @brief  判断是否处于运营待机态
  * @note   调用方须先通过 operational_snapshot_get() 取一次快照再传入。
  */
 static inline bool operational_snapshot_is_standby(operational_snapshot_t s)
 {
-    return (s.mode == OP_MODE_IDLE) && s.service_enabled;
+    return s.mode == OP_MODE_IDLE;
 }
 
 /* -------------------------------------------------------------------------

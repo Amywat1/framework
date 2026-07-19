@@ -109,6 +109,8 @@ static void test_operational_projection_syncs_current_context(void)
 {
     pthread_t              tid;
     operational_snapshot_t snap;
+    dev_cmd_t              home_cmd = dev_cmd_make_simple(DEV_CMD_HOME_DEVICE);
+    dev_cmd_t              stop_cmd = dev_cmd_make_simple(DEV_CMD_STOP_OPERATION);
 
     time_util_init();
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
@@ -117,16 +119,29 @@ static void test_operational_projection_syncs_current_context(void)
     tid = start_dispatch();
     usleep(10000);
 
+    /* 上电：STOPPED + 总开关开 */
+    snap = operational_snapshot_get();
+    TEST_ASSERT_EQUAL_INT(OP_MODE_STOPPED, snap.mode);
+    TEST_ASSERT_TRUE(snap.service_enabled);
+    TEST_ASSERT_TRUE(operational_snapshot_is_stopping(snap));
+
+    /* 归位进 IDLE → 待机投影 */
+    TEST_ASSERT_EQUAL_INT(OP_CMD_ALLOWED, op_mode_handle_command(&home_cmd).verdict);
+    op_mode_on_home_done(true);
+    publish_and_wait(EVT_OP_MODE_CHANGED, 0U);
     snap = operational_snapshot_get();
     TEST_ASSERT_EQUAL_INT(OP_MODE_IDLE, snap.mode);
     TEST_ASSERT_TRUE(snap.service_enabled);
     TEST_ASSERT_TRUE(operational_snapshot_is_standby(snap));
 
-    op_mode_set_service_enabled(false);
-    publish_and_wait(EVT_OP_MODE_CONTEXT_SYNC, 0U);
+    /* 停运：STOPPED + 总开关关 */
+    TEST_ASSERT_EQUAL_INT(OP_CMD_ALLOWED, op_mode_handle_command(&stop_cmd).verdict);
+    usleep(50000);
     snap = operational_snapshot_get();
+    TEST_ASSERT_EQUAL_INT(OP_MODE_STOPPED, snap.mode);
     TEST_ASSERT_FALSE(snap.service_enabled);
     TEST_ASSERT_TRUE(operational_snapshot_is_stopping(snap));
+    TEST_ASSERT_FALSE(operational_snapshot_is_standby(snap));
 
     stop_dispatch(tid);
 }

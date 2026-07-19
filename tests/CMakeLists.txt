@@ -337,7 +337,7 @@ add_unit_test(test_telemetry_projection
     ${WDF_ROOT}/domain/telemetry/device_snapshot.c
     ${WDF_ROOT}/domain/op_mode/operational_mode.c
     ${WDF_ROOT}/domain/safety/alarm_registry/alarm_registry.c
-    ${WDF_ROOT}/ports/inbound/safety/alarm_binding_port.c
+    ${WDF_ROOT}/ports/port_registry_infra.c
     ${WDF_ROOT}/runtime/event_bus/event_bus.c
     ${WDF_ROOT}/common/log.c
     ${WDF_ROOT}/common/time_util.c

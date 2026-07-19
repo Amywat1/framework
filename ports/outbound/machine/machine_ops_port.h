@@ -18,6 +18,7 @@ extern "C" {
 #include "common/sw_error.h"
 #include "domain/op_mode/op_mode_types.h"
 
+#include <stdbool.h>
 #include <stdint.h>
 
 /**
@@ -41,6 +42,12 @@ typedef struct {
     sw_err_t (*execute_manual_actuator)(uint32_t act_id, int32_t param);
     /** @brief DEV_CMD_STOP_ALL_OUTPUTS 副作用 */
     sw_err_t (*stop_all_outputs)(void);
+    /**
+     * @brief  洗车准入是否就绪（START_WASH 附加门禁）
+     * @note   语义由机型定义；framework 不解释具体传感器/机构条件。
+     *         未注册（NULL）时框架不拦截。
+     */
+    bool (*is_wash_entry_ready)(void);
 } machine_ops_t;
 
 /**

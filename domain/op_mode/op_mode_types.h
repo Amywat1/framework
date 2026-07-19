@@ -22,21 +22,26 @@ extern "C" {
  * @brief  整机运行模式（10 态状态机）
  *
  * 状态迁移概览：
- *   INIT → STOPPED（初始化完成）
+ *   INIT → STOPPED（初始化完成；上电默认运营总开关开启，可 HOME）
  *   STOPPED → HOMING（HOME_DEVICE，需 service_enabled）→ IDLE / EXCEPTION
+ *   IDLE → STOPPED（STOP_OPERATION：停运并关闭总开关）
+ *   STOPPED → STOPPED（RESUME_OPERATION：仅重新授权，仍须 HOME 进 IDLE）
  *   IDLE → WASHING（START_WASH）
  *   WASHING → ABORT_HOMING（非急停中止清障）→ EXCEPTION
  *   WASHING → WASH_DONE（正常完成且无 MAJOR+）→ IDLE（客户离场）
  *   WASHING → EXCEPTION（正常完成但仍有 MAJOR+，洗后评估）
+ *   WASH_DONE → STOPPED（STOP_OPERATION）
  *   STOPPED/EXCEPTION → SELF_CHECK → STOPPED / EXCEPTION
  *   EXCEPTION → RECOVERING（RECOVER）→ IDLE / EXCEPTION
  *   任意 → EXCEPTION（急停触发；LOCKOUT 在非洗车态）
+ *
+ * @note   不变量：IDLE 蕴含 service_enabled==true；关总开关时不得停留在 IDLE。
  */
 typedef enum {
     OP_MODE_INIT = 0,        /**< 系统初始化中（operational_mode_init 前）*/
-    OP_MODE_STOPPED,         /**< 停机（手动维护可用，归位后进入待机）*/
+    OP_MODE_STOPPED,         /**< 停机（未运营或待归位；总开关关时禁止 HOME）*/
     OP_MODE_HOMING,          /**< 归位中（STOPPED → IDLE）*/
-    OP_MODE_IDLE,            /**< 待机，等待洗车指令 */
+    OP_MODE_IDLE,            /**< 运营待机（总开关必开，可接单）*/
     OP_MODE_WASHING,         /**< 洗车会话执行中 */
     OP_MODE_ABORT_HOMING,    /**< 中止归位中（非急停洗车中止 → EXCEPTION）*/
     OP_MODE_WASH_DONE,       /**< 洗车完成，等待客户离场 */
@@ -75,6 +80,7 @@ typedef enum {
     OP_REJECT_WRONG_MODE,
     OP_REJECT_ESTOP_ACTIVE,
     OP_REJECT_SERVICE_DISABLED,
+    OP_REJECT_VEHICLE_NOT_READY, /**< 机型准入未就绪（抽象；具体条件由项目定义）*/
     OP_REJECT_UNKNOWN_CMD,
 } op_reject_reason_t;
 

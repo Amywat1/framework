@@ -10,6 +10,7 @@
 
 #include "domain/safety/alarm_registry/alarm_registry.h"
 #include "domain/safety/model/alarm_types.h"
+#include "ports/outbound/machine/machine_ops_port.h"
 #include "tests/stubs/test_wash_modes.h"
 #include "unity.h"
 
@@ -44,11 +45,15 @@ static void enter_idle(void)
 
 void setUp(void)
 {
+    machine_ops_register(NULL);
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_init());
+    alarm_registry_recover_all();
     TEST_ASSERT_EQUAL_INT(SW_OK, operational_mode_init());
 }
 
 void tearDown(void)
 {
+    machine_ops_register(NULL);
 }
 
 /* 上电后应处于 STOPPED，service_enabled=true，非待机 */
@@ -78,20 +83,16 @@ static void test_home_device_failure_enters_exception(void)
     TEST_ASSERT_EQUAL_INT(OP_MODE_EXCEPTION, op_mode_get_current());
 }
 
-/* service_enabled=false 时 HOME_DEVICE 被拒绝 */
+/* 停运后（STOPPED + 总开关关）HOME_DEVICE 被拒绝 */
 static void test_home_device_denied_when_service_disabled(void)
 {
-    dev_cmd_t home_cmd  = dev_cmd_make_simple(DEV_CMD_HOME_DEVICE);
-    dev_cmd_t stop_cmd  = dev_cmd_make_simple(DEV_CMD_STOP_OPERATION);
-    dev_cmd_t check_cmd = dev_cmd_make_simple(DEV_CMD_START_SELF_CHECK);
+    dev_cmd_t home_cmd = dev_cmd_make_simple(DEV_CMD_HOME_DEVICE);
+    dev_cmd_t stop_cmd = dev_cmd_make_simple(DEV_CMD_STOP_OPERATION);
 
-    /* 路径：IDLE（归位）→ service_disabled（STOP_OPERATION）→ EXCEPTION（报警）
-     *       → SELF_CHECK → STOPPED，此时 service_enabled 仍为 false           */
     enter_idle();
-    (void)op_mode_handle_command(&stop_cmd);    /* service_enabled = false  */
-    op_mode_on_critical_alarm();                /* IDLE → EXCEPTION         */
-    (void)op_mode_handle_command(&check_cmd);   /* EXCEPTION → SELF_CHECK   */
-    op_mode_on_self_check_completed(false);     /* SELF_CHECK → STOPPED     */
+    (void)op_mode_handle_command(&stop_cmd); /* → STOPPED, service=off */
+    TEST_ASSERT_EQUAL_INT(OP_MODE_STOPPED, op_mode_get_current());
+    TEST_ASSERT_FALSE(op_mode_is_service_enabled());
 
     TEST_ASSERT_EQUAL_INT(OP_REJECT_SERVICE_DISABLED, op_mode_handle_command(&home_cmd).reason);
 }
@@ -120,18 +121,20 @@ static void test_stop_wash_denied_in_idle(void)
     TEST_ASSERT_EQUAL_INT(OP_REJECT_WRONG_MODE, d.reason);
 }
 
-/* STOP_OPERATION 关闭接单 */
+/* STOP_OPERATION：关总开关并进入 STOPPED */
 static void test_stop_operation_disables_service(void)
 {
     dev_cmd_t cmd = dev_cmd_make_simple(DEV_CMD_STOP_OPERATION);
 
     enter_idle();
     TEST_ASSERT_EQUAL_INT(OP_CMD_ALLOWED, op_mode_handle_command(&cmd).verdict);
+    TEST_ASSERT_EQUAL_INT(OP_MODE_STOPPED, op_mode_get_current());
     TEST_ASSERT_FALSE(op_mode_is_service_enabled());
+    TEST_ASSERT_FALSE(op_mode_is_standby());
     TEST_ASSERT_TRUE(op_mode_is_stopping());
 }
 
-/* RESUME_OPERATION 仅在 service 已停止时有效 */
+/* RESUME_OPERATION：仅 STOPPED 且总开关关时可重新授权，模式仍为 STOPPED */
 static void test_resume_operation_only_when_service_stopped(void)
 {
     dev_cmd_t stop_cmd   = dev_cmd_make_simple(DEV_CMD_STOP_OPERATION);
@@ -141,11 +144,13 @@ static void test_resume_operation_only_when_service_stopped(void)
     TEST_ASSERT_EQUAL_INT(OP_CMD_DENIED, op_mode_handle_command(&resume_cmd).verdict);
 
     (void)op_mode_handle_command(&stop_cmd);
+    TEST_ASSERT_EQUAL_INT(OP_MODE_STOPPED, op_mode_get_current());
     TEST_ASSERT_EQUAL_INT(OP_CMD_ALLOWED, op_mode_handle_command(&resume_cmd).verdict);
     TEST_ASSERT_TRUE(op_mode_is_service_enabled());
+    TEST_ASSERT_EQUAL_INT(OP_MODE_STOPPED, op_mode_get_current());
 }
 
-/* service 停止时拒绝 START_WASH */
+/* 停运后离开 IDLE，START_WASH 因模式拒绝 */
 static void test_start_wash_denied_when_service_disabled(void)
 {
     dev_cmd_t stop_cmd = dev_cmd_make_simple(DEV_CMD_STOP_OPERATION);
@@ -153,7 +158,8 @@ static void test_start_wash_denied_when_service_disabled(void)
 
     enter_idle();
     (void)op_mode_handle_command(&stop_cmd);
-    TEST_ASSERT_EQUAL_INT(OP_REJECT_SERVICE_DISABLED, op_mode_handle_command(&cmd).reason);
+    TEST_ASSERT_EQUAL_INT(OP_MODE_STOPPED, op_mode_get_current());
+    TEST_ASSERT_EQUAL_INT(OP_REJECT_WRONG_MODE, op_mode_handle_command(&cmd).reason);
 }
 
 /* 有阻塞告警时拒绝 START_WASH */
@@ -165,6 +171,24 @@ static void test_start_wash_denied_with_blocking_alarm(void)
     enter_idle();
     TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_trigger(TEST_ALARM_BLOCKING));
     TEST_ASSERT_EQUAL_INT(OP_REJECT_WRONG_MODE, op_mode_handle_command(&cmd).reason);
+}
+
+static bool stub_wash_entry_not_ready(void)
+{
+    return false;
+}
+
+/* 机型准入门未就绪时拒绝 START_WASH */
+static void test_start_wash_denied_when_vehicle_not_ready(void)
+{
+    static const machine_ops_t s_ops = {
+        .is_wash_entry_ready = stub_wash_entry_not_ready,
+    };
+    dev_cmd_t cmd = dev_cmd_make_start_wash(TEST_WASH_MODE_A);
+
+    machine_ops_register(&s_ops);
+    enter_idle();
+    TEST_ASSERT_EQUAL_INT(OP_REJECT_VEHICLE_NOT_READY, op_mode_handle_command(&cmd).reason);
 }
 
 /* 急停激活时 RECOVER 被拒绝 */
@@ -312,6 +336,7 @@ int main(void)
     RUN_TEST(test_resume_operation_only_when_service_stopped);
     RUN_TEST(test_start_wash_denied_when_service_disabled);
     RUN_TEST(test_start_wash_denied_with_blocking_alarm);
+    RUN_TEST(test_start_wash_denied_when_vehicle_not_ready);
     RUN_TEST(test_estop_blocks_recover);
     RUN_TEST(test_wash_session_lifecycle);
     RUN_TEST(test_wash_done_with_blocking_enters_exception);

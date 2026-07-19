@@ -10,6 +10,7 @@
 #include "common/event_types.h"
 #include "common/log.h"
 #include "domain/safety/alarm_registry/alarm_registry.h"
+#include "ports/outbound/machine/machine_ops_port.h"
 #include "runtime/event_bus/event_bus.h"
 
 typedef enum {
@@ -132,7 +133,7 @@ static const op_perm_t k_cmd_matrix[DEV_CMD_MAX][OP_MODE_RECOVERING + 1] =
         OP_PERM_DENIED,      /* EXCEPTION   */
         OP_PERM_DENIED,      /* RECOVERING  */
     },
-    /* DEV_CMD_STOP_OPERATION：关闭接单（IDLE / WASH_DONE）*/
+    /* DEV_CMD_STOP_OPERATION：停运 → STOPPED 且关闭运营总开关（IDLE / WASH_DONE）*/
     [DEV_CMD_STOP_OPERATION] = {
         OP_PERM_DENIED,      /* INIT        */
         OP_PERM_DENIED,      /* STOPPED     */
@@ -145,12 +146,12 @@ static const op_perm_t k_cmd_matrix[DEV_CMD_MAX][OP_MODE_RECOVERING + 1] =
         OP_PERM_DENIED,      /* EXCEPTION   */
         OP_PERM_DENIED,      /* RECOVERING  */
     },
-    /* DEV_CMD_RESUME_OPERATION：恢复接单（IDLE / STOPPED，受 !service_enabled 约束）*/
+    /* DEV_CMD_RESUME_OPERATION：仅 STOPPED 下重新授权运营（仍须 HOME 进 IDLE）*/
     [DEV_CMD_RESUME_OPERATION] = {
         OP_PERM_DENIED,      /* INIT        */
         OP_PERM_CONDITIONAL, /* STOPPED     */
         OP_PERM_DENIED,      /* HOMING      */
-        OP_PERM_CONDITIONAL, /* IDLE        */
+        OP_PERM_DENIED,      /* IDLE        */
         OP_PERM_DENIED,      /* WASHING     */
         OP_PERM_DENIED,      /* ABORT_HOMING*/
         OP_PERM_DENIED,      /* WASH_DONE   */
@@ -158,7 +159,7 @@ static const op_perm_t k_cmd_matrix[DEV_CMD_MAX][OP_MODE_RECOVERING + 1] =
         OP_PERM_DENIED,      /* EXCEPTION   */
         OP_PERM_DENIED,      /* RECOVERING  */
     },
-    /* DEV_CMD_HOME_DEVICE：STOPPED → HOMING，需 service_enabled 且无急停 */
+    /* DEV_CMD_HOME_DEVICE：STOPPED → HOMING，需运营总开关已开且无急停 */
     [DEV_CMD_HOME_DEVICE] = {
         OP_PERM_DENIED,      /* INIT        */
         OP_PERM_CONDITIONAL, /* STOPPED     */
@@ -274,11 +275,17 @@ static dev_cmd_decision_t check_command(const dev_cmd_t *cmd)
 
     /* 各命令专属运行时条件 */
     if (kind == DEV_CMD_START_WASH) {
+        const machine_ops_t *ops;
+
         if (!s_service_enabled) {
             return make_denied(OP_REJECT_SERVICE_DISABLED);
         }
         if (alarm_registry_has_blocking_active()) {
             return make_denied(OP_REJECT_WRONG_MODE);
+        }
+        ops = machine_ops_get();
+        if ((ops != NULL) && (ops->is_wash_entry_ready != NULL) && !ops->is_wash_entry_ready()) {
+            return make_denied(OP_REJECT_VEHICLE_NOT_READY);
         }
     }
 
@@ -346,10 +353,13 @@ dev_cmd_decision_t op_mode_handle_command(const dev_cmd_t *cmd)
         break;
 
     case DEV_CMD_STOP_OPERATION:
+        /* 不运营 = 停机：关总开关并离开 IDLE/WASH_DONE */
         op_mode_set_service_enabled(false);
+        set_mode(OP_MODE_STOPPED, "stop operation");
         break;
 
     case DEV_CMD_RESUME_OPERATION:
+        /* 仅重新授权；模式保持 STOPPED，须 HOME 后才进 IDLE */
         op_mode_set_service_enabled(true);
         break;
 
@@ -477,21 +487,21 @@ bool op_mode_is_service_enabled(void)
 
 bool op_mode_is_stopping(void)
 {
-    if (!s_service_enabled) {
-        return true;
-    }
-
+    /* 非运营接单态：停机/归位中/故障处理/中止清障等 */
     return (s_mode == OP_MODE_INIT)
         || (s_mode == OP_MODE_STOPPED)
         || (s_mode == OP_MODE_HOMING)
         || (s_mode == OP_MODE_EXCEPTION)
         || (s_mode == OP_MODE_RECOVERING)
-        || (s_mode == OP_MODE_ABORT_HOMING);
+        || (s_mode == OP_MODE_ABORT_HOMING)
+        || (s_mode == OP_MODE_SELF_CHECK)
+        || !s_service_enabled;
 }
 
 bool op_mode_is_standby(void)
 {
-    return (s_mode == OP_MODE_IDLE) && s_service_enabled;
+    /* IDLE 蕴含 service_enabled（STOP_OPERATION 会离开 IDLE）*/
+    return s_mode == OP_MODE_IDLE;
 }
 
 static void op_mode_set_service_enabled(bool enabled)

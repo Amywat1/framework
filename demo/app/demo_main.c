@@ -57,6 +57,11 @@ static int check_command_stop_operation(void)
         return 1;
     }
 
+    if (op_mode_get_current() != OP_MODE_STOPPED) {
+        fprintf(stderr, "[Demo] mode should be STOPPED after STOP_OPERATION\n");
+        return 1;
+    }
+
     return 0;
 }
 

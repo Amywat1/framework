@@ -93,17 +93,17 @@ operational_mode_t op_mode_get_current(void);
 bool op_mode_is_estop_active(void);
 
 /**
- * @brief  运营是否接单
+ * @brief  运营总开关是否开启（关则禁止 HOME；上电默认开启）
  */
 bool op_mode_is_service_enabled(void);
 
 /**
- * @brief  是否处于停机态（非 IDLE/WASHING/WASH_DONE 的运营状态）
+ * @brief  是否处于非运营接单态（STOPPED/HOMING/故障处理等，或总开关已关）
  */
 bool op_mode_is_stopping(void);
 
 /**
- * @brief  是否待机（IDLE 且 service_enabled）
+ * @brief  是否运营待机（IDLE；可停车检测与接单）
  */
 bool op_mode_is_standby(void);
 
