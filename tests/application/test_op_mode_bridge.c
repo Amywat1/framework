@@ -140,7 +140,7 @@ static void test_customer_gone_returns_idle(void)
     stop_dispatch(tid);
 }
 
-/* 手动停止洗车 → ALARM_HOMING */
+/* 手动停止洗车 → ABORT_HOMING */
 static void test_wash_aborted_manual_enters_alarm_homing(void)
 {
     pthread_t tid;
@@ -155,7 +155,7 @@ static void test_wash_aborted_manual_enters_alarm_homing(void)
 
     publish_and_wait(EVT_WASH_SESSION_STARTED, 0U);
     publish_and_wait(EVT_WASH_ABORTED, wash_abort_evt_param(WASH_ABORT_MANUAL));
-    TEST_ASSERT_EQUAL_INT(OP_MODE_ALARM_HOMING, op_mode_get_current());
+    TEST_ASSERT_EQUAL_INT(OP_MODE_ABORT_HOMING, op_mode_get_current());
 
     stop_dispatch(tid);
 }
@@ -206,7 +206,7 @@ static void test_home_completed_success_enters_idle(void)
     stop_dispatch(tid);
 }
 
-/* EVT_SAFETY_HOME_DONE → ALARM_HOMING → EXCEPTION */
+/* EVT_ABORT_HOME_DONE → ABORT_HOMING → EXCEPTION */
 static void test_alarm_home_done_enters_exception(void)
 {
     pthread_t tid;
@@ -217,15 +217,15 @@ static void test_alarm_home_done_enters_exception(void)
     TEST_ASSERT_EQUAL_INT(SW_OK, op_mode_bridge_init());
     setup_idle();
 
-    /* 手动推进到 ALARM_HOMING */
+    /* 手动推进到 ABORT_HOMING */
     op_mode_on_wash_session_started();
     op_mode_on_wash_session_aborted(WASH_ABORT_CRITICAL);
-    TEST_ASSERT_EQUAL_INT(OP_MODE_ALARM_HOMING, op_mode_get_current());
+    TEST_ASSERT_EQUAL_INT(OP_MODE_ABORT_HOMING, op_mode_get_current());
 
     tid = start_dispatch();
     usleep(10000);
 
-    publish_and_wait(EVT_SAFETY_HOME_DONE, 0U);
+    publish_and_wait(EVT_ABORT_HOME_DONE, 0U);
     TEST_ASSERT_EQUAL_INT(OP_MODE_EXCEPTION, op_mode_get_current());
 
     stop_dispatch(tid);

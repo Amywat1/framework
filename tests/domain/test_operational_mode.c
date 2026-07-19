@@ -196,7 +196,7 @@ static void test_wash_session_lifecycle(void)
     /* 异常中止流程 */
     op_mode_on_wash_session_started();
     op_mode_on_wash_session_aborted(WASH_ABORT_CRITICAL);
-    TEST_ASSERT_EQUAL_INT(OP_MODE_ALARM_HOMING, op_mode_get_current());
+    TEST_ASSERT_EQUAL_INT(OP_MODE_ABORT_HOMING, op_mode_get_current());
 
     op_mode_on_home_done(true);
     TEST_ASSERT_EQUAL_INT(OP_MODE_EXCEPTION, op_mode_get_current());

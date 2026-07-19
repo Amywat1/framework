@@ -13,7 +13,7 @@ static void demo_deferred_stop_all(void)
 {
 }
 
-static void demo_safety_home(void)
+static void demo_abort_home(void)
 {
 }
 
@@ -51,7 +51,7 @@ static sw_err_t demo_stop_all_outputs(void)
 
 static const machine_ops_t s_demo_machine_ops = {
     .deferred_stop_all       = demo_deferred_stop_all,
-    .safety_home             = demo_safety_home,
+    .abort_home              = demo_abort_home,
     .start_wash              = demo_start_wash,
     .abort_wash              = demo_abort_wash,
     .home_device             = demo_home_device,

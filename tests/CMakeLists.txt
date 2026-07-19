@@ -321,7 +321,8 @@ target_compile_definitions(test_engine_session PRIVATE
 add_unit_test(test_recovery_emergency
     ${CMAKE_CURRENT_SOURCE_DIR}/application/test_recovery_emergency.c
     ${WDF_ROOT}/application/recovery_service.c
-    ${WDF_ROOT}/application/orchestrators/emergency_handler.c
+    ${WDF_ROOT}/application/orchestrators/safety_cutout_coordinator.c
+    ${WDF_ROOT}/application/orchestrators/abort_home_coordinator.c
     ${WDF_ROOT}/adapters/outbound/safety/sim/hw_estop_sim.c
     ${WDF_ROOT}/domain/safety/alarm_registry/alarm_registry.c
     ${WDF_ROOT}/ports/port_registry_infra.c

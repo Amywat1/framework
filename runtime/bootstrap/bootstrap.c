@@ -11,7 +11,8 @@
 #include "adapters/inbound/event/alarm_lifecycle_bridge.h"
 #include "application/command_gateway.h"
 #include "adapters/inbound/event/op_mode_bridge.h"
-#include "application/orchestrators/emergency_handler.h"
+#include "application/orchestrators/abort_home_coordinator.h"
+#include "application/orchestrators/safety_cutout_coordinator.h"
 #include "application/recovery_service.h"
 #include "application/self_check_service.h"
 #include "application/telemetry_projection.h"
@@ -224,7 +225,8 @@ static sw_err_t bootstrap_init_services(void)
     BOOT_CHECK(command_gateway_init(), "command_gateway_init");
     BOOT_CHECK(self_check_service_init(), "self_check_service_init");
     BOOT_CHECK(recovery_service_init(), "recovery_service_init");
-    BOOT_CHECK(emergency_handler_init(), "emergency_handler_init");
+    BOOT_CHECK(safety_cutout_coordinator_init(), "safety_cutout_coordinator_init");
+    BOOT_CHECK(abort_home_coordinator_init(), "abort_home_coordinator_init");
     BOOT_CHECK(alarm_lifecycle_bridge_init(), "alarm_lifecycle_bridge_init");
     BOOT_CHECK(op_mode_bridge_init(), "op_mode_bridge_init");
     BOOT_CHECK(telemetry_projection_init(), "telemetry_projection_init");

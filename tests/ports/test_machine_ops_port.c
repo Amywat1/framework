@@ -14,7 +14,7 @@
 #include <stdint.h>
 
 static int s_deferred_stop_count;
-static int s_safety_home_count;
+static int s_abort_home_count;
 static int s_home_device_count;
 
 static void stub_deferred_stop_all(void)
@@ -22,9 +22,9 @@ static void stub_deferred_stop_all(void)
     s_deferred_stop_count++;
 }
 
-static void stub_safety_home(void)
+static void stub_abort_home(void)
 {
-    s_safety_home_count++;
+    s_abort_home_count++;
 }
 
 static sw_err_t stub_home_device(void)
@@ -35,14 +35,14 @@ static sw_err_t stub_home_device(void)
 
 static const machine_ops_t s_stub_ops = {
     .deferred_stop_all = stub_deferred_stop_all,
-    .safety_home       = stub_safety_home,
+    .abort_home        = stub_abort_home,
     .home_device       = stub_home_device,
 };
 
 void setUp(void)
 {
     s_deferred_stop_count = 0;
-    s_safety_home_count   = 0;
+    s_abort_home_count    = 0;
     s_home_device_count   = 0;
 }
 
@@ -70,11 +70,11 @@ static void test_invoke_callbacks(void)
     TEST_ASSERT_NOT_NULL(ops);
 
     ops->deferred_stop_all();
-    ops->safety_home();
+    ops->abort_home();
     TEST_ASSERT_EQUAL_INT(SW_OK, ops->home_device());
 
     TEST_ASSERT_EQUAL_INT(1, s_deferred_stop_count);
-    TEST_ASSERT_EQUAL_INT(1, s_safety_home_count);
+    TEST_ASSERT_EQUAL_INT(1, s_abort_home_count);
     TEST_ASSERT_EQUAL_INT(1, s_home_device_count);
 }
 

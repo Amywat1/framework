@@ -25,12 +25,12 @@ extern "C" {
  *   INIT → STOPPED（初始化完成）
  *   STOPPED → HOMING（HOME_DEVICE，需 service_enabled）→ IDLE / EXCEPTION
  *   IDLE → WASHING（START_WASH）
- *   WASHING → ALARM_HOMING（非急停中止）→ EXCEPTION
+ *   WASHING → ABORT_HOMING（非急停中止清障）→ EXCEPTION
  *   WASHING → WASH_DONE（正常完成且无 MAJOR+）→ IDLE（客户离场）
  *   WASHING → EXCEPTION（正常完成但仍有 MAJOR+，洗后评估）
  *   STOPPED/EXCEPTION → SELF_CHECK → STOPPED / EXCEPTION
  *   EXCEPTION → RECOVERING（RECOVER）→ IDLE / EXCEPTION
- *   任意 → EXCEPTION（急停触发，或 LOCKOUT）
+ *   任意 → EXCEPTION（急停触发；LOCKOUT 在非洗车态）
  */
 typedef enum {
     OP_MODE_INIT = 0,        /**< 系统初始化中（operational_mode_init 前）*/
@@ -38,7 +38,7 @@ typedef enum {
     OP_MODE_HOMING,          /**< 归位中（STOPPED → IDLE）*/
     OP_MODE_IDLE,            /**< 待机，等待洗车指令 */
     OP_MODE_WASHING,         /**< 洗车会话执行中 */
-    OP_MODE_ALARM_HOMING,    /**< 报警归位中（WASHING 中止 → EXCEPTION）*/
+    OP_MODE_ABORT_HOMING,    /**< 中止归位中（非急停洗车中止 → EXCEPTION）*/
     OP_MODE_WASH_DONE,       /**< 洗车完成，等待客户离场 */
     OP_MODE_SELF_CHECK,      /**< 自检中 */
     OP_MODE_EXCEPTION,       /**< 故障停机 */

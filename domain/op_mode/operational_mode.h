@@ -77,8 +77,8 @@ void op_mode_on_estop(bool active);
 void op_mode_on_recovery_completed(recovery_result_t result);
 
 /**
- * @brief  归位完成（HOMING → IDLE/EXCEPTION；ALARM_HOMING → EXCEPTION）
- * @param  success  归位是否成功（ALARM_HOMING 路径忽略此参数，始终进入 EXCEPTION）
+ * @brief  归位完成（HOMING → IDLE/EXCEPTION；ABORT_HOMING → EXCEPTION）
+ * @param  success  归位是否成功（ABORT_HOMING 路径忽略此参数，始终进入 EXCEPTION）
  */
 void op_mode_on_home_done(bool success);
 

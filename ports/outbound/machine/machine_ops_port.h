@@ -26,8 +26,8 @@ extern "C" {
 typedef struct {
     /** @brief 延后完备停机（wash abort / estop 延后路径） */
     void (*deferred_stop_all)(void);
-    /** @brief 急停释放后安全归位 */
-    void (*safety_home)(void);
+    /** @brief 非急停洗车中止后的清障归位（ABORT_HOMING；异于 home_device） */
+    void (*abort_home)(void);
     /** @brief 启动洗车会话（项目选择方案并驱动引擎） */
     sw_err_t (*start_wash)(wash_mode_t mode);
     /** @brief 中止洗车会话 */

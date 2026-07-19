@@ -46,7 +46,7 @@ static void on_wash_customer_gone(const event_t *evt)
 static void on_safety_lockout(const event_t *evt)
 {
     (void)evt;
-    /* WASHING 时由 emergency_handler 发起中止，不在此立即切换模式；
+    /* WASHING 时由 safety_cutout_coordinator 发起中止，不在此立即切换模式；
      * 其余状态立即进入 EXCEPTION */
     op_mode_on_critical_alarm();
 }
@@ -93,9 +93,9 @@ static void on_home_completed(const event_t *evt)
     op_mode_on_home_done(evt->param != 0U);
 }
 
-static void on_alarm_home_done(const event_t *evt)
+static void on_abort_home_done(const event_t *evt)
 {
-    /* EVT_SAFETY_HOME_DONE：安全归位完成（ALARM_HOMING → EXCEPTION）*/
+    /* EVT_ABORT_HOME_DONE：中止归位完成（ABORT_HOMING → EXCEPTION）*/
     (void)evt;
     op_mode_on_home_done(true);
 }
@@ -115,7 +115,7 @@ sw_err_t op_mode_bridge_init(void)
         {EVT_OP_MODE_RECOVERY_COMPLETED,   on_recovery_completed  },
         {EVT_OP_MODE_SELF_CHECK_COMPLETED, on_self_check_completed},
         {EVT_OP_MODE_HOME_COMPLETED,       on_home_completed      },
-        {EVT_SAFETY_HOME_DONE,             on_alarm_home_done     },
+        {EVT_ABORT_HOME_DONE,             on_abort_home_done     },
     };
 
     sw_err_t ret = event_subscribe_table(s_subs, sizeof(s_subs) / sizeof(s_subs[0]));

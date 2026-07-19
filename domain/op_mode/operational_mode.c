@@ -32,7 +32,7 @@ static const char *op_mode_name(operational_mode_t mode)
     case OP_MODE_HOMING:       return "HOMING";
     case OP_MODE_IDLE:         return "IDLE";
     case OP_MODE_WASHING:      return "WASHING";
-    case OP_MODE_ALARM_HOMING: return "ALARM_HOMING";
+    case OP_MODE_ABORT_HOMING: return "ABORT_HOMING";
     case OP_MODE_WASH_DONE:    return "WASH_DONE";
     case OP_MODE_SELF_CHECK:   return "SELF_CHECK";
     case OP_MODE_EXCEPTION:    return "EXCEPTION";
@@ -82,7 +82,7 @@ static void set_mode(operational_mode_t next, const char *cause)
     }
 
     from  = s_mode;
-    level = ((next == OP_MODE_EXCEPTION) || (next == OP_MODE_ALARM_HOMING))
+    level = ((next == OP_MODE_EXCEPTION) || (next == OP_MODE_ABORT_HOMING))
                 ? SW_LOG_WARN
                 : SW_LOG_INFO;
     s_mode = next;
@@ -100,7 +100,7 @@ static void set_mode(operational_mode_t next, const char *cause)
  * 命令权限矩阵
  *
  * 列顺序与 operational_mode_t 枚举一致：
- *   INIT, STOPPED, HOMING, IDLE, WASHING, ALARM_HOMING, WASH_DONE, SELF_CHECK, EXCEPTION, RECOVERING
+ *   INIT, STOPPED, HOMING, IDLE, WASHING, ABORT_HOMING, WASH_DONE, SELF_CHECK, EXCEPTION, RECOVERING
  *
  * CONDITIONAL：允许但需后续运行时检查（急停、服务开关等）
  */
@@ -113,7 +113,7 @@ static const op_perm_t k_cmd_matrix[DEV_CMD_MAX][OP_MODE_RECOVERING + 1] =
         OP_PERM_DENIED,      /* HOMING      */
         OP_PERM_CONDITIONAL, /* IDLE        */
         OP_PERM_DENIED,      /* WASHING     */
-        OP_PERM_DENIED,      /* ALARM_HOMING*/
+        OP_PERM_DENIED,      /* ABORT_HOMING*/
         OP_PERM_DENIED,      /* WASH_DONE   */
         OP_PERM_DENIED,      /* SELF_CHECK  */
         OP_PERM_DENIED,      /* EXCEPTION   */
@@ -126,7 +126,7 @@ static const op_perm_t k_cmd_matrix[DEV_CMD_MAX][OP_MODE_RECOVERING + 1] =
         OP_PERM_DENIED,      /* HOMING      */
         OP_PERM_DENIED,      /* IDLE        */
         OP_PERM_ALLOWED,     /* WASHING     */
-        OP_PERM_DENIED,      /* ALARM_HOMING*/
+        OP_PERM_DENIED,      /* ABORT_HOMING*/
         OP_PERM_DENIED,      /* WASH_DONE   */
         OP_PERM_DENIED,      /* SELF_CHECK  */
         OP_PERM_DENIED,      /* EXCEPTION   */
@@ -139,7 +139,7 @@ static const op_perm_t k_cmd_matrix[DEV_CMD_MAX][OP_MODE_RECOVERING + 1] =
         OP_PERM_DENIED,      /* HOMING      */
         OP_PERM_ALLOWED,     /* IDLE        */
         OP_PERM_DENIED,      /* WASHING     */
-        OP_PERM_DENIED,      /* ALARM_HOMING*/
+        OP_PERM_DENIED,      /* ABORT_HOMING*/
         OP_PERM_ALLOWED,     /* WASH_DONE   */
         OP_PERM_DENIED,      /* SELF_CHECK  */
         OP_PERM_DENIED,      /* EXCEPTION   */
@@ -152,7 +152,7 @@ static const op_perm_t k_cmd_matrix[DEV_CMD_MAX][OP_MODE_RECOVERING + 1] =
         OP_PERM_DENIED,      /* HOMING      */
         OP_PERM_CONDITIONAL, /* IDLE        */
         OP_PERM_DENIED,      /* WASHING     */
-        OP_PERM_DENIED,      /* ALARM_HOMING*/
+        OP_PERM_DENIED,      /* ABORT_HOMING*/
         OP_PERM_DENIED,      /* WASH_DONE   */
         OP_PERM_DENIED,      /* SELF_CHECK  */
         OP_PERM_DENIED,      /* EXCEPTION   */
@@ -165,7 +165,7 @@ static const op_perm_t k_cmd_matrix[DEV_CMD_MAX][OP_MODE_RECOVERING + 1] =
         OP_PERM_DENIED,      /* HOMING      */
         OP_PERM_DENIED,      /* IDLE        */
         OP_PERM_DENIED,      /* WASHING     */
-        OP_PERM_DENIED,      /* ALARM_HOMING*/
+        OP_PERM_DENIED,      /* ABORT_HOMING*/
         OP_PERM_DENIED,      /* WASH_DONE   */
         OP_PERM_DENIED,      /* SELF_CHECK  */
         OP_PERM_DENIED,      /* EXCEPTION   */
@@ -178,7 +178,7 @@ static const op_perm_t k_cmd_matrix[DEV_CMD_MAX][OP_MODE_RECOVERING + 1] =
         OP_PERM_DENIED,      /* HOMING      */
         OP_PERM_DENIED,      /* IDLE        */
         OP_PERM_DENIED,      /* WASHING     */
-        OP_PERM_DENIED,      /* ALARM_HOMING*/
+        OP_PERM_DENIED,      /* ABORT_HOMING*/
         OP_PERM_DENIED,      /* WASH_DONE   */
         OP_PERM_DENIED,      /* SELF_CHECK  */
         OP_PERM_CONDITIONAL, /* EXCEPTION   */
@@ -191,7 +191,7 @@ static const op_perm_t k_cmd_matrix[DEV_CMD_MAX][OP_MODE_RECOVERING + 1] =
         OP_PERM_DENIED,      /* HOMING      */
         OP_PERM_DENIED,      /* IDLE        */
         OP_PERM_DENIED,      /* WASHING     */
-        OP_PERM_DENIED,      /* ALARM_HOMING*/
+        OP_PERM_DENIED,      /* ABORT_HOMING*/
         OP_PERM_DENIED,      /* WASH_DONE   */
         OP_PERM_DENIED,      /* SELF_CHECK  */
         OP_PERM_ALLOWED,     /* EXCEPTION   */
@@ -204,7 +204,7 @@ static const op_perm_t k_cmd_matrix[DEV_CMD_MAX][OP_MODE_RECOVERING + 1] =
         OP_PERM_DENIED,      /* HOMING      */
         OP_PERM_DENIED,      /* IDLE        */
         OP_PERM_DENIED,      /* WASHING     */
-        OP_PERM_DENIED,      /* ALARM_HOMING*/
+        OP_PERM_DENIED,      /* ABORT_HOMING*/
         OP_PERM_DENIED,      /* WASH_DONE   */
         OP_PERM_DENIED,      /* SELF_CHECK  */
         OP_PERM_CONDITIONAL, /* EXCEPTION   */
@@ -217,7 +217,7 @@ static const op_perm_t k_cmd_matrix[DEV_CMD_MAX][OP_MODE_RECOVERING + 1] =
         OP_PERM_DENIED,      /* HOMING      */
         OP_PERM_ALLOWED,     /* IDLE        */
         OP_PERM_ALLOWED,     /* WASHING     */
-        OP_PERM_ALLOWED,     /* ALARM_HOMING*/
+        OP_PERM_ALLOWED,     /* ABORT_HOMING*/
         OP_PERM_ALLOWED,     /* WASH_DONE   */
         OP_PERM_DENIED,      /* SELF_CHECK  */
         OP_PERM_ALLOWED,     /* EXCEPTION   */
@@ -393,9 +393,9 @@ void op_mode_on_wash_session_aborted(wash_abort_cause_t cause)
         return;
     }
 
-    /* 所有非急停中止原因均进入报警归位，防止机构阻碍客户离开 */
-    set_mode(OP_MODE_ALARM_HOMING, wash_abort_name(cause));
-    (void)event_publish(EVT_OP_MODE_ALARM_HOME_REQUESTED, 0U);
+    /* 所有非急停中止原因均进入中止归位，防止机构阻碍客户离开 */
+    set_mode(OP_MODE_ABORT_HOMING, wash_abort_name(cause));
+    (void)event_publish(EVT_ABORT_HOME_REQUESTED, 0U);
 }
 
 void op_mode_on_wash_customer_gone(void)
@@ -420,9 +420,9 @@ void op_mode_on_self_check_completed(bool land_exception)
 
 void op_mode_on_critical_alarm(void)
 {
-    /* WASHING/ALARM_HOMING/RECOVERING 期间已在处理中，不立即切换 */
+    /* WASHING/ABORT_HOMING/RECOVERING 期间已在处理中，不立即切换 */
     if ((s_mode != OP_MODE_WASHING)
-     && (s_mode != OP_MODE_ALARM_HOMING)
+     && (s_mode != OP_MODE_ABORT_HOMING)
      && (s_mode != OP_MODE_RECOVERING)) {
         set_mode(OP_MODE_EXCEPTION, "critical alarm");
     }
@@ -455,7 +455,7 @@ void op_mode_on_home_done(bool success)
 {
     if (s_mode == OP_MODE_HOMING) {
         set_mode(success ? OP_MODE_IDLE : OP_MODE_EXCEPTION, success ? NULL : "home failed");
-    } else if (s_mode == OP_MODE_ALARM_HOMING) {
+    } else if (s_mode == OP_MODE_ABORT_HOMING) {
         set_mode(OP_MODE_EXCEPTION, NULL);
     }
 }
@@ -486,7 +486,7 @@ bool op_mode_is_stopping(void)
         || (s_mode == OP_MODE_HOMING)
         || (s_mode == OP_MODE_EXCEPTION)
         || (s_mode == OP_MODE_RECOVERING)
-        || (s_mode == OP_MODE_ALARM_HOMING);
+        || (s_mode == OP_MODE_ABORT_HOMING);
 }
 
 bool op_mode_is_standby(void)

@@ -77,13 +77,13 @@ typedef uint16_t event_type_t;
 /* -------------------------------------------------------------------------
  * SAFETY 类（alarm_event_bridge 按姿态边沿发布）
  * ------------------------------------------------------------------------- */
-#define EVT_SAFETY_ID_LOCKOUT   0U
-#define EVT_SAFETY_ID_NOMINAL   1U
-#define EVT_SAFETY_ID_HOME_DONE 2U /* 安全归位完成（emergency_handler 发布）*/
+#define EVT_SAFETY_ID_LOCKOUT         0U
+#define EVT_SAFETY_ID_NOMINAL         1U
+#define EVT_SAFETY_ID_ABORT_HOME_DONE 2U /* 中止归位完成（abort_home_coordinator 发布；数值沿用原 HOME_DONE）*/
 
 #define EVT_SAFETY_LOCKOUT   EVT_MAKE(EVT_CAT_SAFETY, EVT_SAFETY_ID_LOCKOUT)
 #define EVT_SAFETY_NOMINAL   EVT_MAKE(EVT_CAT_SAFETY, EVT_SAFETY_ID_NOMINAL)
-#define EVT_SAFETY_HOME_DONE EVT_MAKE(EVT_CAT_SAFETY, EVT_SAFETY_ID_HOME_DONE)
+#define EVT_ABORT_HOME_DONE  EVT_MAKE(EVT_CAT_SAFETY, EVT_SAFETY_ID_ABORT_HOME_DONE)
 
 /* -------------------------------------------------------------------------
  * ALARM 类（alarm_event_bridge 发布）
@@ -139,8 +139,8 @@ typedef uint16_t event_type_t;
 #define EVT_OP_MODE_ID_SELF_CHECK_COMPLETED 4U
 #define EVT_OP_MODE_ID_CONTEXT_SYNC         5U
 #define EVT_OP_MODE_ID_CMD_HANDLED          6U /**< 命令处理完成（kind/status/reason 编码于 param）*/
-#define EVT_OP_MODE_ID_HOME_COMPLETED       7U /**< 归位完成（HOME_DEVICE 副作用后发布，param=1 成功）*/
-#define EVT_OP_MODE_ID_ALARM_HOME_REQUESTED 8U /**< 报警归位请求（进入 ALARM_HOMING 时发布）*/
+#define EVT_OP_MODE_ID_HOME_COMPLETED        7U /**< 归位完成（HOME_DEVICE 副作用后发布，param=1 成功）*/
+#define EVT_OP_MODE_ID_ABORT_HOME_REQUESTED  8U /**< 中止归位请求（进入 ABORT_HOMING 时发布）*/
 
 #define EVT_OP_MODE_CHANGED              EVT_MAKE(EVT_CAT_OP_MODE, EVT_OP_MODE_ID_CHANGED)
 #define EVT_OP_MODE_CMD_REJECTED         EVT_MAKE(EVT_CAT_OP_MODE, EVT_OP_MODE_ID_CMD_REJECTED)
@@ -150,7 +150,7 @@ typedef uint16_t event_type_t;
 #define EVT_OP_MODE_CONTEXT_SYNC         EVT_MAKE(EVT_CAT_OP_MODE, EVT_OP_MODE_ID_CONTEXT_SYNC)
 #define EVT_OP_MODE_CMD_HANDLED          EVT_MAKE(EVT_CAT_OP_MODE, EVT_OP_MODE_ID_CMD_HANDLED)
 #define EVT_OP_MODE_HOME_COMPLETED       EVT_MAKE(EVT_CAT_OP_MODE, EVT_OP_MODE_ID_HOME_COMPLETED)
-#define EVT_OP_MODE_ALARM_HOME_REQUESTED EVT_MAKE(EVT_CAT_OP_MODE, EVT_OP_MODE_ID_ALARM_HOME_REQUESTED)
+#define EVT_ABORT_HOME_REQUESTED         EVT_MAKE(EVT_CAT_OP_MODE, EVT_OP_MODE_ID_ABORT_HOME_REQUESTED)
 
 /* -------------------------------------------------------------------------
  * 编解码辅助

@@ -1,10 +1,11 @@
 /**
  * @file    test_recovery_emergency.c
- * @brief   recovery_service / emergency_handler 单元测试
+ * @brief   recovery_service / safety_cutout / abort_home 协调器单元测试
  */
 
 #include "adapters/outbound/safety/sim/hw_estop_sim.h"
-#include "application/orchestrators/emergency_handler.h"
+#include "application/orchestrators/abort_home_coordinator.h"
+#include "application/orchestrators/safety_cutout_coordinator.h"
 #include "application/recovery_service.h"
 #include "common/event_types.h"
 #include "common/sw_error.h"
@@ -21,7 +22,7 @@
 
 static volatile int                s_recovery_completed_count;
 static volatile uint32_t           s_recovery_result_param;
-static volatile int                s_safety_home_count;
+static volatile int                s_abort_home_count;
 static volatile int                s_home_device_count;
 static volatile int                s_abort_count;
 static volatile wash_abort_cause_t s_abort_cause;
@@ -38,9 +39,9 @@ static void stub_abort_wash(wash_abort_cause_t cause)
     s_abort_cause = cause;
 }
 
-static void stub_safety_home(void)
+static void stub_abort_home(void)
 {
-    s_safety_home_count++;
+    s_abort_home_count++;
 }
 
 static sw_err_t stub_home_device(void)
@@ -83,14 +84,14 @@ void setUp(void)
 {
     s_recovery_completed_count = 0;
     s_recovery_result_param    = 0U;
-    s_safety_home_count        = 0;
+    s_abort_home_count         = 0;
     s_home_device_count        = 0;
     s_abort_count              = 0;
     s_abort_cause              = WASH_ABORT_MANUAL;
     s_deferred_stop_count      = 0;
 
     memset(&s_machine_ops, 0, sizeof(s_machine_ops));
-    s_machine_ops.safety_home = stub_safety_home;
+    s_machine_ops.abort_home  = stub_abort_home;
     s_machine_ops.home_device = stub_home_device;
     s_machine_ops.abort_wash  = stub_abort_wash;
 
@@ -121,29 +122,30 @@ static void test_recovery_service_publishes_completed_idle(void)
     stop_dispatch(tid);
 }
 
-static void test_emergency_handler_estop_release_does_not_run_safety_home(void)
+static void test_cutout_estop_release_does_not_run_abort_home(void)
 {
     pthread_t tid;
 
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
     machine_ops_register(&s_machine_ops);
-    TEST_ASSERT_EQUAL_INT(SW_OK, emergency_handler_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, safety_cutout_coordinator_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, abort_home_coordinator_init());
 
     tid = start_dispatch();
     TEST_ASSERT_EQUAL_INT(SW_OK, event_publish(EVT_HW_ESTOP_OFF, 0U));
     usleep(50000U);
 
-    TEST_ASSERT_EQUAL_INT(0, s_safety_home_count);
+    TEST_ASSERT_EQUAL_INT(0, s_abort_home_count);
     stop_dispatch(tid);
 }
 
-static void test_emergency_handler_lockout_aborts_wash(void)
+static void test_cutout_lockout_aborts_wash(void)
 {
     pthread_t tid;
 
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
     machine_ops_register(&s_machine_ops);
-    TEST_ASSERT_EQUAL_INT(SW_OK, emergency_handler_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, safety_cutout_coordinator_init());
 
     tid = start_dispatch();
     TEST_ASSERT_EQUAL_INT(SW_OK, event_publish(EVT_SAFETY_LOCKOUT, 0U));
@@ -151,32 +153,34 @@ static void test_emergency_handler_lockout_aborts_wash(void)
 
     TEST_ASSERT_EQUAL_INT(1, s_abort_count);
     TEST_ASSERT_EQUAL_INT(WASH_ABORT_CRITICAL, s_abort_cause);
+    TEST_ASSERT_EQUAL_INT(0, s_deferred_stop_count);
     stop_dispatch(tid);
 }
 
-static void test_emergency_handler_alarm_home_requested_runs_safety_home(void)
+static void test_abort_home_requested_runs_abort_home(void)
 {
     pthread_t tid;
 
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
     machine_ops_register(&s_machine_ops);
-    TEST_ASSERT_EQUAL_INT(SW_OK, emergency_handler_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, abort_home_coordinator_init());
 
     tid = start_dispatch();
-    TEST_ASSERT_EQUAL_INT(SW_OK, event_publish(EVT_OP_MODE_ALARM_HOME_REQUESTED, 0U));
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_publish(EVT_ABORT_HOME_REQUESTED, 0U));
     usleep(50000U);
 
-    TEST_ASSERT_EQUAL_INT(1, s_safety_home_count);
+    TEST_ASSERT_EQUAL_INT(1, s_abort_home_count);
     stop_dispatch(tid);
 }
 
-static void test_emergency_handler_estop_on_aborts_wash_and_defers_stop(void)
+static void test_cutout_estop_on_aborts_wash_and_defers_stop(void)
 {
     pthread_t tid;
 
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
     machine_ops_register(&s_machine_ops);
-    TEST_ASSERT_EQUAL_INT(SW_OK, emergency_handler_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, safety_cutout_coordinator_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, abort_home_coordinator_init());
 
     tid = start_dispatch();
     TEST_ASSERT_EQUAL_INT(SW_OK, event_publish(EVT_HW_ESTOP_ON, 0U));
@@ -185,6 +189,7 @@ static void test_emergency_handler_estop_on_aborts_wash_and_defers_stop(void)
     TEST_ASSERT_EQUAL_INT(1, s_deferred_stop_count);
     TEST_ASSERT_EQUAL_INT(1, s_abort_count);
     TEST_ASSERT_EQUAL_INT(WASH_ABORT_ESTOP, s_abort_cause);
+    TEST_ASSERT_EQUAL_INT(0, s_abort_home_count);
     stop_dispatch(tid);
 }
 
@@ -192,9 +197,9 @@ int main(void)
 {
     UNITY_BEGIN();
     RUN_TEST(test_recovery_service_publishes_completed_idle);
-    RUN_TEST(test_emergency_handler_estop_release_does_not_run_safety_home);
-    RUN_TEST(test_emergency_handler_lockout_aborts_wash);
-    RUN_TEST(test_emergency_handler_alarm_home_requested_runs_safety_home);
-    RUN_TEST(test_emergency_handler_estop_on_aborts_wash_and_defers_stop);
+    RUN_TEST(test_cutout_estop_release_does_not_run_abort_home);
+    RUN_TEST(test_cutout_lockout_aborts_wash);
+    RUN_TEST(test_abort_home_requested_runs_abort_home);
+    RUN_TEST(test_cutout_estop_on_aborts_wash_and_defers_stop);
     return UNITY_END();
 }

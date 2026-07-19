@@ -172,12 +172,12 @@ typedef struct
 |------|------|------------|-------------------|
 | 硬件异步 | `EVT_CAT_HW` | HAL 适配器 | `EVT_HW_ESTOP_ON/OFF`、`EVT_HW_IO_OFFLINE`、`EVT_HW_IO_ONLINE` |
 | 组件完成 | `EVT_CAT_COMP` | 机构领域层 | `EVT_COMP_HOME_DONE` |
-| 安全姿态 | `EVT_CAT_SAFETY` | `alarm_event_bridge`（边沿）/ `emergency_handler` | `EVT_SAFETY_LOCKOUT`、`EVT_SAFETY_NOMINAL`、`EVT_SAFETY_HOME_DONE` |
+| 安全姿态 | `EVT_CAT_SAFETY` | `alarm_event_bridge`（边沿）；`abort_home_coordinator` 发完成事件 | `EVT_SAFETY_LOCKOUT`、`EVT_SAFETY_NOMINAL`、`EVT_ABORT_HOME_DONE` |
 | 报警生命周期 | `EVT_CAT_ALARM` | `alarm_event_bridge` | `EVT_ALARM_TRIGGERED`、`EVT_ALARM_CLEARED` |
 | 外部命令 | `EVT_CAT_CMD` | 命令网关 | `EVT_CMD_GATEWAY_WAKE`（`EVT_CMD_ORDER` 仅测试保留） |
 | 云端 | `EVT_CAT_CLOUD` | 云链路适配器 | `EVT_CLOUD_CONNECTED`、`EVT_CLOUD_DISCONNECTED`、`EVT_CLOUD_POINT_DIRTY` |
 | 洗车流程 | `EVT_CAT_WASH` | `wash_orchestrator` | `EVT_WASH_DONE`、`EVT_WASH_ABORTED`、`EVT_WASH_SESSION_STARTED` |
-| 运行模式 | `EVT_CAT_OP_MODE` | `operational_mode` 聚合 | `EVT_OP_MODE_CHANGED`、`EVT_OP_MODE_RECOVERY_*` 等 |
+| 运行模式 | `EVT_CAT_OP_MODE` | `operational_mode` 聚合 | `EVT_OP_MODE_CHANGED`、`EVT_ABORT_HOME_REQUESTED`、`EVT_OP_MODE_RECOVERY_*` 等 |
 
 **明确不走总线的能力**（由注释固化，不得改为 event）：
 
@@ -289,7 +289,7 @@ typedef void (*event_handler_t)(const event_t *evt);
 | `command_gateway` | `EVT_CMD_GATEWAY_WAKE` | ✅ |
 | `safety_thread` / `op_mode_bridge` | 安全与报警相关事件 | ✅ |
 | `recovery_service` | 恢复流程事件 | ✅ |
-| `emergency_handler` | 急停与安全归位 | ✅ |
+| `safety_cutout_coordinator` + `abort_home_coordinator` | 安全切断与中止归位 | ✅ |
 | `telemetry_projection` | `EVT_ALARM_*`、`EVT_WASH_*`、`EVT_OP_MODE_*` 等 | ✅ |
 
 **单线程模块**（如 `operational_mode`）声明只在 `event_dispatch` 线程访问，由 wiring 保证与命令网关、桥接器同线程串行。

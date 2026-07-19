@@ -171,7 +171,7 @@ Demo 加载两个报警：
 ```c
 typedef struct {
     void (*deferred_stop_all)(void);
-    void (*safety_home)(void);
+    void (*abort_home)(void);
     sw_err_t (*home_device)(void);
     sw_err_t (*execute_manual_actuator)(uint32_t act_id, int32_t param);
     sw_err_t (*stop_all_outputs)(void);
@@ -183,7 +183,7 @@ typedef struct {
 | machine op | 典型调用方 |
 |------------|------------|
 | `deferred_stop_all` | safety deferred stop / emergency completion path |
-| `safety_home` | 急停释放后的安全归位 |
+| `abort_home` | 非急停洗车中止后的清障归位 |
 | `home_device` | `DEV_CMD_HOME_DEVICE` 副作用 |
 | `execute_manual_actuator` | `DEV_CMD_MANUAL_ACTUATOR` 副作用 |
 | `stop_all_outputs` | `DEV_CMD_STOP_ALL_OUTPUTS` 副作用 |
@@ -195,7 +195,7 @@ typedef struct {
 - `project_bind_machine()` 中调用 `machine_ops_register()`。
 - `execute_manual_actuator` 的 `act_id` 和 `param` 由项目定义，并在云端/CLI 命令映射中保持一致。
 - `stop_all_outputs` 必须能落到安全输出态。
-- `home_device` 和 `safety_home` 应处理执行中冲突和硬件故障，并返回明确错误码。
+- `home_device` 和 `abort_home` 应处理执行中冲突和硬件故障，并返回明确错误码。
 
 ---
 
