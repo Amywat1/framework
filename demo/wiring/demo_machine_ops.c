@@ -15,6 +15,8 @@ static void demo_deferred_stop_all(void)
 
 static void demo_abort_home(void)
 {
+    /* Demo 无真实机构：立即回报完成，避免卡在 ABORT_HOMING */
+    (void)event_publish(EVT_ABORT_HOME_DONE, (uint32_t)SW_OK);
 }
 
 static sw_err_t demo_start_wash(wash_mode_t mode)

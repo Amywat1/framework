@@ -42,6 +42,7 @@ static void stub_abort_wash(wash_abort_cause_t cause)
 static void stub_abort_home(void)
 {
     s_abort_home_count++;
+    (void)event_publish(EVT_ABORT_HOME_DONE, (uint32_t)SW_OK);
 }
 
 static sw_err_t stub_home_device(void)

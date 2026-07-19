@@ -183,7 +183,7 @@ typedef struct {
 | machine op | 典型调用方 |
 |------------|------------|
 | `deferred_stop_all` | safety deferred stop / emergency completion path |
-| `abort_home` | 非急停洗车中止后的清障归位 |
+| `abort_home` | 启动中止归位清障（异步）；完成后须发 `EVT_ABORT_HOME_DONE` |
 | `home_device` | `DEV_CMD_HOME_DEVICE` 副作用 |
 | `execute_manual_actuator` | `DEV_CMD_MANUAL_ACTUATOR` 副作用 |
 | `stop_all_outputs` | `DEV_CMD_STOP_ALL_OUTPUTS` 副作用 |

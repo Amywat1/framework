@@ -4,7 +4,9 @@
  * @author  HUWANGWEI
  * @date    2026-07-19
  *
- * @note    仅响应 EVT_ABORT_HOME_REQUESTED；模式进入 ABORT_HOMING 由 operational_mode 决定。
+ * @note    仅响应 EVT_ABORT_HOME_REQUESTED 并启动 machine_ops.abort_home()；
+ *          模式进入 ABORT_HOMING 由 operational_mode 决定；
+ *          EVT_ABORT_HOME_DONE 由项目在清障运动结束后发布。
  */
 
 #ifndef APPLICATION_ORCHESTRATORS_ABORT_HOME_COORDINATOR_H

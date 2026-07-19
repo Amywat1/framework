@@ -4,9 +4,8 @@
  * @author  HUWANGWEI
  * @date    2026-07-19
  *
- * @note    EVT_ABORT_HOME_REQUESTED
- *            → machine_ops.abort_home()
- *            → EVT_ABORT_HOME_DONE
+ * @note    EVT_ABORT_HOME_REQUESTED → machine_ops.abort_home()（仅启动）。
+ *          完成事件 EVT_ABORT_HOME_DONE 由项目在运动结束后发布。
  */
 
 #include "application/orchestrators/abort_home_coordinator.h"
@@ -22,12 +21,13 @@ static void on_abort_home_requested(const event_t *evt)
     const machine_ops_t *ops = machine_ops_get();
 
     (void)evt;
-    LOG_INFO("abort_home: requested, executing machine_ops.abort_home");
+    LOG_INFO("abort_home: requested, starting machine_ops.abort_home");
     if ((ops != NULL) && (ops->abort_home != NULL)) {
         ops->abort_home();
+    } else {
+        LOG_ERROR("abort_home: ops.abort_home missing, publish DONE fail");
+        (void)event_publish(EVT_ABORT_HOME_DONE, (uint32_t)SW_ERR_NOT_INIT);
     }
-    (void)event_publish(EVT_ABORT_HOME_DONE, (uint32_t)SW_OK);
-    LOG_INFO("abort_home: done");
 }
 
 sw_err_t abort_home_coordinator_init(void)
