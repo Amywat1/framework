@@ -85,11 +85,11 @@ static void test_effect_none_returns_ok(void)
 
 static void test_start_wash_calls_orchestrator(void)
 {
-    dev_cmd_t cmd = dev_cmd_make_start_wash(WASH_MODE_QUICK);
+    dev_cmd_t cmd = dev_cmd_make_start_wash(TEST_WASH_MODE_B);
 
     TEST_ASSERT_EQUAL_INT(SW_OK, side_effect_router_run(DEV_CMD_EFFECT_START_WASH, &cmd));
     TEST_ASSERT_EQUAL_INT(1, wash_ops_stub_start_count());
-    TEST_ASSERT_EQUAL_INT(WASH_MODE_QUICK, wash_ops_stub_last_mode());
+    TEST_ASSERT_EQUAL_INT(TEST_WASH_MODE_B, wash_ops_stub_last_mode());
 }
 
 static void test_stop_wash_aborts_orchestrator(void)

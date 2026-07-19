@@ -7,6 +7,7 @@
 #include "domain/telemetry/device_snapshot_internal.h"
 #include "ports/outbound/cloud/link/cloud_link_port.h"
 #include "services/dev_ctx/dev_ctx.h"
+#include "tests/stubs/test_wash_modes.h"
 #include "unity.h"
 
 #include <pthread.h>
@@ -40,7 +41,7 @@ static void seed_snapshots(void)
 
     device_snapshot_update_op(&op);
     device_snapshot_update_safety(&safety);
-    device_snapshot_set_wash_mode(WASH_MODE_STANDARD);
+    device_snapshot_set_wash_mode(TEST_WASH_MODE_A);
 }
 
 void setUp(void)
@@ -64,7 +65,7 @@ static void test_snapshot_combines_domain_read_models(void)
     TEST_ASSERT_EQUAL_INT(OP_MODE_IDLE, ctx.operational_mode);
     TEST_ASSERT_TRUE(ctx.service_enabled);
     TEST_ASSERT_FALSE(ctx.estop_active);
-    TEST_ASSERT_EQUAL_INT(WASH_MODE_STANDARD, ctx.wash_mode);
+    TEST_ASSERT_EQUAL_INT(TEST_WASH_MODE_A, ctx.wash_mode);
     TEST_ASSERT_EQUAL_INT(SAFETY_POSTURE_NOMINAL, ctx.safety_posture);
     TEST_ASSERT_FALSE(ctx.blocking_active);
     TEST_ASSERT_FALSE(ctx.cloud_connected);
@@ -103,10 +104,10 @@ static void test_operational_mode_accessor_uses_cached_snapshot(void)
     };
 
     device_snapshot_update_op(&op);
-    device_snapshot_set_wash_mode(WASH_MODE_QUICK);
+    device_snapshot_set_wash_mode(TEST_WASH_MODE_B);
 
     TEST_ASSERT_EQUAL_INT(OP_MODE_WASHING, dev_ctx_get_operational_mode());
-    TEST_ASSERT_EQUAL_INT(WASH_MODE_QUICK, dev_ctx_snapshot().wash_mode);
+    TEST_ASSERT_EQUAL_INT(TEST_WASH_MODE_B, dev_ctx_snapshot().wash_mode);
 }
 
 static void test_snapshot_is_value_copy(void)

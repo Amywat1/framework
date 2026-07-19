@@ -13,6 +13,7 @@
 #include "domain/telemetry/device_snapshot.h"
 #include "domain/telemetry/device_snapshot_internal.h"
 #include "runtime/event_bus/event_bus.h"
+#include "tests/stubs/test_wash_modes.h"
 #include "unity.h"
 
 #include <pthread.h>
@@ -77,7 +78,7 @@ static void test_snapshot_direct_updates_are_read_back(void)
 
     device_snapshot_update_op(&op);
     device_snapshot_update_safety(&safety);
-    device_snapshot_set_wash_mode(WASH_MODE_QUICK);
+    device_snapshot_set_wash_mode(TEST_WASH_MODE_B);
 
     {
         operational_snapshot_t s = operational_snapshot_get();
@@ -85,7 +86,7 @@ static void test_snapshot_direct_updates_are_read_back(void)
         TEST_ASSERT_FALSE(operational_snapshot_is_stopping(s));
     }
     TEST_ASSERT_TRUE(safety_snapshot_is_warning_active());
-    TEST_ASSERT_EQUAL_INT(WASH_MODE_QUICK, wash_snapshot_get().mode);
+    TEST_ASSERT_EQUAL_INT(TEST_WASH_MODE_B, wash_snapshot_get().mode);
 }
 
 static void test_wash_projection_tracks_session_started_event(void)
@@ -98,8 +99,8 @@ static void test_wash_projection_tracks_session_started_event(void)
     tid = start_dispatch();
     usleep(10000);
 
-    publish_and_wait(EVT_WASH_SESSION_STARTED, (uint32_t)WASH_MODE_QUICK);
-    TEST_ASSERT_EQUAL_INT(WASH_MODE_QUICK, wash_snapshot_get().mode);
+    publish_and_wait(EVT_WASH_SESSION_STARTED, (uint32_t)TEST_WASH_MODE_B);
+    TEST_ASSERT_EQUAL_INT(TEST_WASH_MODE_B, wash_snapshot_get().mode);
 
     stop_dispatch(tid);
 }

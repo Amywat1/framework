@@ -14,7 +14,6 @@ extern "C" {
 
 #include "domain/op_mode/op_mode_types.h"
 #include "domain/safety/model/alarm_types.h"
-#include "domain/wash/model/wash_types.h"
 
 #include <stdbool.h>
 #include <stdint.h>

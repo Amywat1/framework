@@ -45,6 +45,15 @@ typedef enum {
     OP_MODE_RECOVERING,      /**< 恢复中（清告警 + 归位 + 验证）*/
 } operational_mode_t;
 
+/**
+ * @brief  洗车模式选择子（不透明，取值与含义由项目定义）
+ * @note   框架只传递与存储，不解释具体模式名；项目自行定义常量并映射到方案。
+ */
+typedef uint8_t wash_mode_t;
+
+/** @brief  无效洗车模式（框架侧占位，项目勿用作合法模式） */
+#define WASH_MODE_INVALID  ((wash_mode_t)0xFFU)
+
 /** @brief  洗车会话中止原因 */
 typedef enum {
     WASH_ABORT_MANUAL = 0,   /**< 人工发出 STOP_WASH 指令 */

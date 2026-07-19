@@ -10,6 +10,7 @@
 
 #include "domain/safety/alarm_registry/alarm_registry.h"
 #include "domain/safety/model/alarm_types.h"
+#include "tests/stubs/test_wash_modes.h"
 #include "unity.h"
 
 #define TEST_ALARM_BLOCKING ALARM_CODE_MAKE(ALM_C_SENSE, 1U, ALM_N_SIG_ERR)
@@ -98,7 +99,7 @@ static void test_home_device_denied_when_service_disabled(void)
 /* IDLE 可以接单 */
 static void test_start_wash_allowed_in_idle(void)
 {
-    dev_cmd_t          cmd = dev_cmd_make_start_wash(WASH_MODE_STANDARD);
+    dev_cmd_t          cmd = dev_cmd_make_start_wash(TEST_WASH_MODE_A);
     dev_cmd_decision_t d;
 
     enter_idle();
@@ -148,7 +149,7 @@ static void test_resume_operation_only_when_service_stopped(void)
 static void test_start_wash_denied_when_service_disabled(void)
 {
     dev_cmd_t stop_cmd = dev_cmd_make_simple(DEV_CMD_STOP_OPERATION);
-    dev_cmd_t cmd      = dev_cmd_make_start_wash(WASH_MODE_STANDARD);
+    dev_cmd_t cmd      = dev_cmd_make_start_wash(TEST_WASH_MODE_A);
 
     enter_idle();
     (void)op_mode_handle_command(&stop_cmd);
@@ -158,7 +159,7 @@ static void test_start_wash_denied_when_service_disabled(void)
 /* 有阻塞告警时拒绝 START_WASH */
 static void test_start_wash_denied_with_blocking_alarm(void)
 {
-    dev_cmd_t cmd = dev_cmd_make_start_wash(WASH_MODE_STANDARD);
+    dev_cmd_t cmd = dev_cmd_make_start_wash(TEST_WASH_MODE_A);
 
     load_alarm_catalog();
     enter_idle();

@@ -17,7 +17,6 @@ extern "C" {
 
 #include "common/sw_error.h"
 #include "domain/op_mode/op_mode_types.h"
-#include "domain/wash/model/wash_types.h"
 
 #include <stdint.h>
 

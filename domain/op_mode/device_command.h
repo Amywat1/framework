@@ -14,7 +14,7 @@
 extern "C" {
 #endif
 
-#include "domain/wash/model/wash_types.h"
+#include "domain/op_mode/op_mode_types.h"
 
 #include <stdint.h>
 

@@ -115,7 +115,7 @@ static void test_submit_rejected_wrong_mode(void)
 /* START_WASH 触发洗车编排器 */
 static void test_start_wash_triggers_orchestrator(void)
 {
-    dev_cmd_t         cmd     = dev_cmd_make_start_wash(WASH_MODE_STANDARD);
+    dev_cmd_t         cmd     = dev_cmd_make_start_wash(TEST_WASH_MODE_A);
     dev_cmd_receipt_t receipt = {0};
     pthread_t         tid;
 
@@ -129,7 +129,7 @@ static void test_start_wash_triggers_orchestrator(void)
     TEST_ASSERT_EQUAL_INT(SW_OK, device_command_port_get_ops()->submit(&cmd, &receipt, 1000U));
     TEST_ASSERT_EQUAL_INT(DEV_CMD_STATUS_ACCEPTED, receipt.status);
     TEST_ASSERT_EQUAL_INT(1, wash_ops_stub_start_count());
-    TEST_ASSERT_EQUAL_INT(WASH_MODE_STANDARD, wash_ops_stub_last_mode());
+    TEST_ASSERT_EQUAL_INT(TEST_WASH_MODE_A, wash_ops_stub_last_mode());
 
     stop_dispatch(tid);
 }

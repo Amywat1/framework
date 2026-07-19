@@ -16,7 +16,7 @@ void wash_ops_stub_reset(void)
 {
     s_start_count      = 0;
     s_abort_count      = 0;
-    s_last_mode        = WASH_MODE_STANDARD;
+    s_last_mode        = TEST_WASH_MODE_A;
     s_last_abort_cause = WASH_ABORT_MANUAL;
 }
 

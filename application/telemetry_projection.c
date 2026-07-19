@@ -12,7 +12,6 @@
 #include "domain/op_mode/operational_mode.h"
 #include "domain/safety/alarm_registry/alarm_registry.h"
 #include "domain/telemetry/device_snapshot_internal.h"
-#include "domain/wash/model/wash_types.h"
 #include "runtime/event_bus/event_bus.h"
 
 static void sync_op_snapshot(void)
