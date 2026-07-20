@@ -247,6 +247,47 @@ int drv_io_pulse_read(io_di_t pin);
  */
 sw_err_t drv_io_pulse_clear(io_di_t pin);
 
+/* -------------------------------------------------------------------------
+ * ADC 接口（底层调用 io_exp provider 内部 SDK 接口）
+ * ------------------------------------------------------------------------- */
+
+/** ADC 通道号下限（含） */
+#define DRV_IO_ADC_PORT_MIN 1
+/** ADC 通道号上限（含） */
+#define DRV_IO_ADC_PORT_MAX 4
+/** SDK 约定：子板未初始化时 ADC 读返回值 */
+#define DRV_IO_ADC_ERR_NOT_INIT (-99)
+
+/**
+ * @brief  读取 ADC 原始值
+ * @param  board_id  子板号，从 1 开始
+ * @param  port      ADC 通道号，范围 [DRV_IO_ADC_PORT_MIN, DRV_IO_ADC_PORT_MAX]
+ * @retval >= 0                     ADC 原始值
+ * @retval DRV_IO_ADC_ERR_NOT_INIT  子板未初始化
+ * @retval 其他负值                 参数非法或 SDO 读失败
+ */
+int drv_io_adc_read(int board_id, int port);
+
+/**
+ * @brief  读取 ADC 并换算为电压（mV）
+ * @param  board_id  子板号，从 1 开始
+ * @param  port      ADC 通道号，范围 [DRV_IO_ADC_PORT_MIN, DRV_IO_ADC_PORT_MAX]
+ * @retval >= 0                     电压值（mV）
+ * @retval DRV_IO_ADC_ERR_NOT_INIT  子板未初始化
+ * @retval 其他负值                 参数非法或 SDO 读失败
+ */
+int drv_io_adc_mv(int board_id, int port);
+
+/**
+ * @brief  读取 ADC 并换算为电流（mA）
+ * @param  board_id  子板号，从 1 开始
+ * @param  port      ADC 通道号，范围 [DRV_IO_ADC_PORT_MIN, DRV_IO_ADC_PORT_MAX]
+ * @retval >= 0                     电流值（mA）
+ * @retval DRV_IO_ADC_ERR_NOT_INIT  子板未初始化
+ * @retval 其他负值                 参数非法或 SDO 读失败
+ */
+int drv_io_adc_ma(int board_id, int port);
+
 #ifdef __cplusplus
 }
 #endif

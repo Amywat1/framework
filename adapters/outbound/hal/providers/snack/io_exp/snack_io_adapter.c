@@ -150,6 +150,21 @@ static sw_err_t pulse_clear(io_di_t pin)
     return drv_io_pulse_clear(pin);
 }
 
+static int adc_read(int board_id, int port)
+{
+    return drv_io_adc_read(board_id, port);
+}
+
+static int adc_mv(int board_id, int port)
+{
+    return drv_io_adc_mv(board_id, port);
+}
+
+static int adc_ma(int board_id, int port)
+{
+    return drv_io_adc_ma(board_id, port);
+}
+
 static const hal_io_ops_t s_ops = {
     .init                     = io_init,
     .start                    = io_start,
@@ -169,6 +184,9 @@ static const hal_io_ops_t s_ops = {
     .get_stats                = get_stats,
     .pulse_read               = pulse_read,
     .pulse_clear              = pulse_clear,
+    .adc_read                 = adc_read,
+    .adc_mv                   = adc_mv,
+    .adc_ma                   = adc_ma,
 };
 
 void snack_io_adapter_register(void)

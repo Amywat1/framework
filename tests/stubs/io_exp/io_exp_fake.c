@@ -6,6 +6,8 @@
 
 #define IO_EXP_FAKE_BOARD_MAX 8
 #define IO_EXP_FAKE_PIN_MAX   32
+#define IO_EXP_FAKE_ADC_PORT_MAX 4
+#define IO_EXP_FAKE_ADC_NOT_INIT (-99)
 
 typedef struct {
     int         init_result;
@@ -19,6 +21,10 @@ typedef struct {
     int  input[IO_EXP_FAKE_BOARD_MAX];
     int  output[IO_EXP_FAKE_BOARD_MAX];
     int  pulse[IO_EXP_FAKE_BOARD_MAX][IO_EXP_FAKE_PIN_MAX + 1];
+    int  adc_raw[IO_EXP_FAKE_BOARD_MAX][IO_EXP_FAKE_ADC_PORT_MAX + 1];
+    int  adc_mv[IO_EXP_FAKE_BOARD_MAX][IO_EXP_FAKE_ADC_PORT_MAX + 1];
+    int  adc_ma[IO_EXP_FAKE_BOARD_MAX][IO_EXP_FAKE_ADC_PORT_MAX + 1];
+    bool adc_ready[IO_EXP_FAKE_BOARD_MAX];
     int  sdo_result;
     int  sdo_board;
     int  sdo_index;
@@ -95,6 +101,19 @@ void io_exp_fake_set_pulse(int board_id, int pin_id, int value)
     }
 }
 
+void io_exp_fake_set_adc(int board_id, int port, int raw, int mv, int ma)
+{
+    if ((board_id <= 0) || (board_id >= IO_EXP_FAKE_BOARD_MAX) || (port <= 0)
+        || (port > IO_EXP_FAKE_ADC_PORT_MAX)) {
+        return;
+    }
+
+    s_fake.adc_raw[board_id][port] = raw;
+    s_fake.adc_mv[board_id][port]  = mv;
+    s_fake.adc_ma[board_id][port]  = ma;
+    s_fake.adc_ready[board_id]     = true;
+}
+
 void io_exp_fake_set_sdo_result(int result)
 {
     s_fake.sdo_result = result;
@@ -154,6 +173,33 @@ int io_pluse_read(int board_id, int pin_id)
         return -1;
     }
     return s_fake.pulse[board_id][pin_id];
+}
+
+static int io_exp_fake_adc_get(int board_id, int port, const int values[][IO_EXP_FAKE_ADC_PORT_MAX + 1])
+{
+    if ((board_id <= 0) || (board_id >= IO_EXP_FAKE_BOARD_MAX) || (port <= 0)
+        || (port > IO_EXP_FAKE_ADC_PORT_MAX)) {
+        return -1;
+    }
+    if (!s_fake.adc_ready[board_id]) {
+        return IO_EXP_FAKE_ADC_NOT_INIT;
+    }
+    return values[board_id][port];
+}
+
+int io_adc_read(int board_id, int port)
+{
+    return io_exp_fake_adc_get(board_id, port, s_fake.adc_raw);
+}
+
+int io_adc_mV(int board_id, int port)
+{
+    return io_exp_fake_adc_get(board_id, port, s_fake.adc_mv);
+}
+
+int io_adc_mA(int board_id, int port)
+{
+    return io_exp_fake_adc_get(board_id, port, s_fake.adc_ma);
 }
 
 int io_SDO_write(int board_id, int index, int sub_index, int *data)

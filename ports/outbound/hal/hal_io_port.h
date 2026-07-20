@@ -92,6 +92,36 @@ typedef struct {
 
     /** @brief  清零 DI 引脚的硬件脉冲计数器 */
     sw_err_t (*pulse_clear)(io_di_t pin);
+
+    /**
+     * @brief  读取 ADC 原始值
+     * @param  board_id  子板号，从 1 开始
+     * @param  port      ADC 通道号，范围 1~4
+     * @retval >= 0   ADC 原始值
+     * @retval -99    子板未初始化
+     * @retval 其他负值  参数非法或 SDO 读失败
+     */
+    int (*adc_read)(int board_id, int port);
+
+    /**
+     * @brief  读取 ADC 并换算为电压（mV）
+     * @param  board_id  子板号，从 1 开始
+     * @param  port      ADC 通道号，范围 1~4
+     * @retval >= 0   电压值（mV）
+     * @retval -99    子板未初始化
+     * @retval 其他负值  参数非法或 SDO 读失败
+     */
+    int (*adc_mv)(int board_id, int port);
+
+    /**
+     * @brief  读取 ADC 并换算为电流（mA）
+     * @param  board_id  子板号，从 1 开始
+     * @param  port      ADC 通道号，范围 1~4
+     * @retval >= 0   电流值（mA）
+     * @retval -99    子板未初始化
+     * @retval 其他负值  参数非法或 SDO 读失败
+     */
+    int (*adc_ma)(int board_id, int port);
 } hal_io_ops_t;
 
 void                hal_io_register(const hal_io_ops_t *ops);

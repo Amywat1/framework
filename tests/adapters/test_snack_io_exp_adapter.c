@@ -202,6 +202,23 @@ static void test_pulse_read_and_clear_delegate_to_sdk(void)
     TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, io_ops()->pulse_clear(IO_DI(9U, 1U)));
 }
 
+static void test_adc_read_delegates_to_sdk(void)
+{
+    TEST_ASSERT_EQUAL_INT(DRV_IO_ADC_ERR_NOT_INIT, io_ops()->adc_read(1, 1));
+    TEST_ASSERT_EQUAL_INT(DRV_IO_ADC_ERR_NOT_INIT, io_ops()->adc_mv(1, 2));
+    TEST_ASSERT_EQUAL_INT(DRV_IO_ADC_ERR_NOT_INIT, io_ops()->adc_ma(1, 3));
+
+    io_exp_fake_set_adc(1, 1, 100, 2500, 12);
+    TEST_ASSERT_EQUAL_INT(100, io_ops()->adc_read(1, 1));
+    TEST_ASSERT_EQUAL_INT(2500, io_ops()->adc_mv(1, 1));
+    TEST_ASSERT_EQUAL_INT(12, io_ops()->adc_ma(1, 1));
+
+    TEST_ASSERT_EQUAL_INT(-1, io_ops()->adc_read(0, 1));
+    TEST_ASSERT_EQUAL_INT(-1, io_ops()->adc_mv(1, 0));
+    TEST_ASSERT_EQUAL_INT(-1, io_ops()->adc_ma(1, 5));
+    TEST_ASSERT_EQUAL_INT(-1, io_ops()->adc_read(9, 1));
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -215,6 +232,7 @@ int main(void)
     RUN_TEST(test_di_test_override_controls_read_value);
     RUN_TEST(test_wait_boards_online_uses_sdk_probe);
     RUN_TEST(test_pulse_read_and_clear_delegate_to_sdk);
+    RUN_TEST(test_adc_read_delegates_to_sdk);
 
     return UNITY_END();
 }

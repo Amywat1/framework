@@ -32,6 +32,16 @@ void hal_io_sim_set_di_level(io_di_t pin, bool level);
  */
 void hal_io_sim_set_pulse_counter(io_di_t pin, uint32_t value);
 
+/**
+ * @brief  设置仿真 ADC 读数（raw / mV / mA）
+ * @param  board_id  子板号，从 1 开始
+ * @param  port      ADC 通道号，范围 1~4
+ * @param  raw       原始值
+ * @param  mv        电压值（mV）
+ * @param  ma        电流值（mA）
+ */
+void hal_io_sim_set_adc(int board_id, int port, int raw, int mv, int ma);
+
 #ifdef HAL_IO_SIM_UNIT_TEST
 void hal_io_sim_test_reset(void);
 #endif

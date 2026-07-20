@@ -13,13 +13,23 @@
 
 #include <string.h>
 
-#define SIM_IO_BOARD_MAX 8U
-#define SIM_IO_PIN_COUNT 32U
+#define SIM_IO_BOARD_MAX     8U
+#define SIM_IO_PIN_COUNT     32U
+#define SIM_IO_ADC_PORT_MAX  4
+#define SIM_IO_ADC_NOT_INIT  (-99)
 
 static bool     s_do_state[SIM_IO_BOARD_MAX][SIM_IO_PIN_COUNT + 1U];
 static bool     s_di_state[SIM_IO_BOARD_MAX][SIM_IO_PIN_COUNT + 1U];
 static uint32_t s_pulse_counter[SIM_IO_BOARD_MAX][SIM_IO_PIN_COUNT + 1U];
+static int      s_adc_raw[SIM_IO_BOARD_MAX][SIM_IO_ADC_PORT_MAX + 1];
+static int      s_adc_mv[SIM_IO_BOARD_MAX][SIM_IO_ADC_PORT_MAX + 1];
+static int      s_adc_ma[SIM_IO_BOARD_MAX][SIM_IO_ADC_PORT_MAX + 1];
 static bool     s_inited = false;
+
+static bool sim_is_valid_adc(int board_id, int port)
+{
+    return (board_id > 0) && (board_id < (int)SIM_IO_BOARD_MAX) && (port >= 1) && (port <= SIM_IO_ADC_PORT_MAX);
+}
 
 static bool sim_is_valid_di(io_di_t pin)
 {
@@ -112,6 +122,9 @@ static sw_err_t sim_io_init(void)
     memset(s_do_state, 0, sizeof(s_do_state));
     memset(s_di_state, 0, sizeof(s_di_state));
     memset(s_pulse_counter, 0, sizeof(s_pulse_counter));
+    memset(s_adc_raw, 0, sizeof(s_adc_raw));
+    memset(s_adc_mv, 0, sizeof(s_adc_mv));
+    memset(s_adc_ma, 0, sizeof(s_adc_ma));
     s_inited = true;
     return SW_OK;
 }
@@ -232,6 +245,53 @@ void hal_io_sim_set_pulse_counter(io_di_t pin, uint32_t value)
     s_pulse_counter[board][p] = value;
 }
 
+void hal_io_sim_set_adc(int board_id, int port, int raw, int mv, int ma)
+{
+    if (!sim_is_valid_adc(board_id, port)) {
+        return;
+    }
+    if (!s_inited) {
+        return;
+    }
+
+    s_adc_raw[board_id][port] = raw;
+    s_adc_mv[board_id][port]  = mv;
+    s_adc_ma[board_id][port]  = ma;
+}
+
+static int sim_adc_read(int board_id, int port)
+{
+    if (!sim_is_valid_adc(board_id, port)) {
+        return -1;
+    }
+    if (!s_inited) {
+        return SIM_IO_ADC_NOT_INIT;
+    }
+    return s_adc_raw[board_id][port];
+}
+
+static int sim_adc_mv(int board_id, int port)
+{
+    if (!sim_is_valid_adc(board_id, port)) {
+        return -1;
+    }
+    if (!s_inited) {
+        return SIM_IO_ADC_NOT_INIT;
+    }
+    return s_adc_mv[board_id][port];
+}
+
+static int sim_adc_ma(int board_id, int port)
+{
+    if (!sim_is_valid_adc(board_id, port)) {
+        return -1;
+    }
+    if (!s_inited) {
+        return SIM_IO_ADC_NOT_INIT;
+    }
+    return s_adc_ma[board_id][port];
+}
+
 static sw_err_t sim_get_stats(int board_id, hal_io_stats_t *out)
 {
     (void)board_id;
@@ -265,6 +325,9 @@ static const hal_io_ops_t s_ops = {
     .get_stats                = sim_get_stats,
     .pulse_read               = sim_pulse_read,
     .pulse_clear              = sim_pulse_clear,
+    .adc_read                 = sim_adc_read,
+    .adc_mv                   = sim_adc_mv,
+    .adc_ma                   = sim_adc_ma,
 };
 
 void hal_io_sim_register(void)
@@ -279,6 +342,9 @@ void hal_io_sim_test_reset(void)
     memset(s_do_state, 0, sizeof(s_do_state));
     memset(s_di_state, 0, sizeof(s_di_state));
     memset(s_pulse_counter, 0, sizeof(s_pulse_counter));
+    memset(s_adc_raw, 0, sizeof(s_adc_raw));
+    memset(s_adc_mv, 0, sizeof(s_adc_mv));
+    memset(s_adc_ma, 0, sizeof(s_adc_ma));
     s_inited = false;
 }
 #endif

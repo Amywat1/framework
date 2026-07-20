@@ -14,6 +14,7 @@ void        io_exp_fake_set_online(int board_id, int online);
 void        io_exp_fake_set_input(int board_id, int input);
 int         io_exp_fake_output(int board_id);
 void        io_exp_fake_set_pulse(int board_id, int pin_id, int value);
+void        io_exp_fake_set_adc(int board_id, int port, int raw, int mv, int ma);
 void        io_exp_fake_set_sdo_result(int result);
 bool        io_exp_fake_sdo_called(void);
 int         io_exp_fake_sdo_board(void);

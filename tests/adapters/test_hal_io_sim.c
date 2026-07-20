@@ -199,6 +199,16 @@ static void test_pulse_counter_max_value(void)
     TEST_ASSERT_EQUAL_INT((int)0x7FFFFFFFU, hal_io_get_ops()->pulse_read(pin));
 }
 
+static void test_adc_read_after_set(void)
+{
+    hal_io_sim_set_adc(1, 1, 100, 2500, 12);
+    TEST_ASSERT_EQUAL_INT(100, hal_io_get_ops()->adc_read(1, 1));
+    TEST_ASSERT_EQUAL_INT(2500, hal_io_get_ops()->adc_mv(1, 1));
+    TEST_ASSERT_EQUAL_INT(12, hal_io_get_ops()->adc_ma(1, 1));
+    TEST_ASSERT_EQUAL_INT(-1, hal_io_get_ops()->adc_read(1, 5));
+    TEST_ASSERT_EQUAL_INT(-1, hal_io_get_ops()->adc_mv(0, 1));
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -231,6 +241,7 @@ int main(void)
     RUN_TEST(test_start_returns_ok);
     RUN_TEST(test_ops_before_init_return_not_init_or_safe_value);
     RUN_TEST(test_pulse_counter_max_value);
+    RUN_TEST(test_adc_read_after_set);
 
     return UNITY_END();
 }

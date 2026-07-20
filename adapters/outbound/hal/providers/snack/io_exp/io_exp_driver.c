@@ -704,3 +704,36 @@ sw_err_t drv_io_pulse_clear(io_di_t pin)
 
     return (io_SDO_write(board_id, 0x2005, pin_id, &data) >= 0) ? SW_OK : SW_ERR_COMM;
 }
+
+static bool drv_io_is_valid_adc(int board_id, int port)
+{
+    return (board_id > 0) && (board_id <= s_board_count) && (port >= DRV_IO_ADC_PORT_MIN)
+           && (port <= DRV_IO_ADC_PORT_MAX);
+}
+
+int drv_io_adc_read(int board_id, int port)
+{
+    if (!drv_io_is_valid_adc(board_id, port)) {
+        return -1;
+    }
+
+    return io_adc_read(board_id, port);
+}
+
+int drv_io_adc_mv(int board_id, int port)
+{
+    if (!drv_io_is_valid_adc(board_id, port)) {
+        return -1;
+    }
+
+    return io_adc_mV(board_id, port);
+}
+
+int drv_io_adc_ma(int board_id, int port)
+{
+    if (!drv_io_is_valid_adc(board_id, port)) {
+        return -1;
+    }
+
+    return io_adc_mA(board_id, port);
+}
