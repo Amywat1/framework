@@ -115,7 +115,6 @@ static const char *const s_sim_signals[] = {
     "BUMPER_LEFT",
     "BUMPER_RIGHT",
     "TOP_BRUSH_COLLISION",
-    "GANTRY_PAUSE_REQUEST",
     "RADAR_CAR_TAIL",
     "EXIT",
     "EXIT0",

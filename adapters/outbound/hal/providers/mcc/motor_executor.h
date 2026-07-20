@@ -139,12 +139,24 @@ typedef struct {
 } motor_driver_t;
 
 /**
+ * @brief 编码器语义种类。
+ * @note  INCREMENTAL：raw 为累计脉冲，位置由 Δraw×方向积分；
+ *        ABSOLUTE：raw 为已标定绝对行程，每拍直接写入 position。
+ */
+typedef enum {
+    MOTOR_ENC_INCREMENTAL = 0,
+    MOTOR_ENC_ABSOLUTE    = 1,
+} motor_encoder_kind_t;
+
+/**
  * @brief 编码器端口（仅带编码器的电机使用）。
- * @note raw 返回硬件累计脉冲幅值（方向由领域层按运动方向施加）。
+ * @note  INCREMENTAL：raw 返回硬件累计脉冲幅值（方向由领域层施加）；
+ *        ABSOLUTE：raw 返回工程行程（静止时亦刷新 position）；
+ *        zero 仅对增量轴有意义；绝对轴可空操作并返回 true。
  */
 typedef struct {
-    int64_t (*raw)(void *ctx);  /**< 硬件累计脉冲计数 */
-    bool (*zero)(void *ctx);    /**< 同步清零硬件计数器，false=失败 */
+    int64_t (*raw)(void *ctx); /**< 增量=累计脉冲；绝对=工程行程 */
+    bool (*zero)(void *ctx);   /**< 同步清零硬件计数器，false=失败 */
     void *ctx;
 } motor_encoder_t;
 
@@ -201,6 +213,7 @@ typedef struct {
 typedef struct {
     int  driver_index;        /**< 指向哪个物理驱动器 */
     bool has_encoder;         /**< 是否配置编码器 */
+    motor_encoder_kind_t encoder_kind; /**< 编码器语义；无编码器时忽略 */
     bool cap_position_move;   /**< 声明具备“按位置移动”能力（需编码器） */
 
     int  cooldown_ms;         /**< 停机冷却期 */

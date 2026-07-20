@@ -385,12 +385,18 @@ static void finish_halt(motor_executor_t *e, int i) {
 
 /**
  * @brief  有编码器轴到达原点后清零并建立可信基准
+ * @note   绝对编码器：限位只作停机，不改写 position（真值始终来自传感器采样）。
  */
 static void zero_encoder_baseline(motor_executor_t *e, int i) {
     motor_mstate_t  *s   = &e->m[i];
     motor_encoder_t *enc;
 
     if (!e->cfg.motors[i].has_encoder) {
+        return;
+    }
+    if (e->cfg.motors[i].encoder_kind == MOTOR_ENC_ABSOLUTE) {
+        /* 绝对轴：触限位不改位置，仅标记基准可信 */
+        s->baseline_trusted = true;
         return;
     }
     enc = motor_enc(e, i);
@@ -405,12 +411,14 @@ static void zero_encoder_baseline(motor_executor_t *e, int i) {
 /**
  * @brief  监视原点限位上升沿：运动中碰到原点则清编码器（B1）
  * @note   上电已压原点时 origin_was_active 预置为 true，避免误清。
+ *         绝对编码器不参与原点清零（限位仅停机）。
  */
 static void update_origin_latch(motor_executor_t *e, int i) {
     motor_mstate_t *s      = &e->m[i];
     bool            active = sensor_limit(e, i, MOTOR_LIMIT_ORIGIN);
 
-    if (e->cfg.motors[i].has_encoder && active && !s->origin_was_active) {
+    if (e->cfg.motors[i].has_encoder && active && !s->origin_was_active
+        && (e->cfg.motors[i].encoder_kind != MOTOR_ENC_ABSOLUTE)) {
         if (s->phase == MOTOR_PHASE_RUNNING || s->phase == MOTOR_PHASE_DECELERATING) {
             zero_encoder_baseline(e, i);
         }
@@ -428,11 +436,16 @@ static void complete_move(motor_executor_t *e, int i, motor_event_type_t type,
     s->homing = false;
     s->moveActive = false;
     s->emit_stop_on_halt = false;
-    /* 到位条件为原点限位时清编码器（不依赖是否经 motor_home）*/
+    /* 增量轴：到位原点可清编码器；绝对轴限位只停机，不改写位置 */
     if (trig == MOTOR_END_LIMIT && s->spec.use_limit
-        && s->spec.limit == MOTOR_LIMIT_ORIGIN) {
+        && s->spec.limit == MOTOR_LIMIT_ORIGIN
+        && (e->cfg.motors[i].encoder_kind != MOTOR_ENC_ABSOLUTE)) {
         zero_encoder_baseline(e, i);
         s->origin_was_active = true;
+    } else if (trig == MOTOR_END_LIMIT && s->spec.use_limit
+               && s->spec.limit == MOTOR_LIMIT_ORIGIN) {
+        s->origin_was_active = true;
+        s->baseline_trusted  = true;
     }
     if (trig == MOTOR_END_LIMIT || trig == MOTOR_END_SOFT_LIMIT) {
         finish_halt(e, i); /* 限位/软限位：触发瞬间停止 */
@@ -484,19 +497,34 @@ static void check_end(motor_executor_t *e, int i) {
 
 static void update_encoder(motor_executor_t *e, int i, bool moving) {
     motor_encoder_t *enc = motor_enc(e, i);
+    const motor_motor_cfg_t *mc;
+    motor_mstate_t *s;
+    int64_t r;
+    int64_t d;
+    int64_t ad;
+
     if (!enc) {
         return;
     }
-    motor_mstate_t *s = &e->m[i];
-    int64_t r = enc_raw(enc);
-    int64_t d = r - s->last_raw;
+    s  = &e->m[i];
+    mc = &e->cfg.motors[i];
+    r  = enc_raw(enc);
+
+    if (mc->encoder_kind == MOTOR_ENC_ABSOLUTE) {
+        /* 绝对行程：运动/静止均直接采纳传感器值 */
+        (void)moving;
+        s->position = r;
+        s->last_raw = r;
+        return;
+    }
+
+    d           = r - s->last_raw;
     s->last_raw = r;
     if (!moving) {
         return;
     }
     s->position += (s->dir == MOTOR_DIR_FORWARD) ? d : -d;
-    const motor_motor_cfg_t *mc = &e->cfg.motors[i];
-    int64_t ad = motor_iabs64(d);
+    ad = motor_iabs64(d);
     if (mc->enc_stall_ticks > 0) {
         if (ad == 0) {
             if (++s->enc_stall >= mc->enc_stall_ticks && !s->enc_warned) {
@@ -814,6 +842,10 @@ static motor_init_result_t do_init(motor_executor_t *e) {
     for (int i = 0; i < c->motor_count; ++i) {
         motor_encoder_t *enc = motor_enc(e, i);
         e->m[i].last_raw = enc ? enc_raw(enc) : 0;
+        if (enc && (c->motors[i].encoder_kind == MOTOR_ENC_ABSOLUTE)) {
+            e->m[i].position         = e->m[i].last_raw;
+            e->m[i].baseline_trusted = true;
+        }
         /* 上电已压原点时预置，避免首次 tick 上升沿误清零 */
         e->m[i].origin_was_active = sensor_limit(e, i, MOTOR_LIMIT_ORIGIN);
         drv_cutoff(motor_drv(e, i));
@@ -1060,6 +1092,9 @@ motor_cmd_result_t motor_zero_encoder(motor_executor_t *e, int i) {
     motor_encoder_t *enc = motor_enc(e, i);
     if (!e->cfg.motors[i].has_encoder || !enc) {
         return cmd_reject("no-encoder");
+    }
+    if (e->cfg.motors[i].encoder_kind == MOTOR_ENC_ABSOLUTE) {
+        return cmd_reject("absolute-encoder");
     }
     if (e->m[i].moveActive && e->m[i].spec.use_position) {
         return cmd_reject("position-move-active");

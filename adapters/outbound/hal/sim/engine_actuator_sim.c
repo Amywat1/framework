@@ -33,7 +33,7 @@ static const char *const s_resources[] = {"aout",
                                           "brush_side",
                                           "fan",
                                           "water",
-                                          "lift_follow"};
+                                          "roof_follow"};
 static const char *const s_water_paths[] = {"curtain", "top_foam", "bottom_foam", "top_high", "bottom_high"};
 
 static const engine_actuator_catalog_t s_catalog = {
