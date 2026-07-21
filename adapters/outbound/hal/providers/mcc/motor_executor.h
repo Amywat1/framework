@@ -107,6 +107,18 @@ typedef enum {
     MOTOR_PORT_FATAL = 1
 } motor_port_status_t;
 
+/**
+ * @brief 驱动器预备动作结果（异步三态）。
+ *
+ * READY：可进入运行并允许非零输出；BUSY：切换/等待中，应留在 WAITING_START 继续轮询；
+ * FAILED：终态失败，进入 PREPARE_FAILED 故障。
+ */
+typedef enum {
+    MOTOR_PREPARE_READY = 0,
+    MOTOR_PREPARE_BUSY,
+    MOTOR_PREPARE_FAILED
+} motor_prepare_result_t;
+
 /* ------------------------- 硬件端口接口 ------------------------- */
 
 /**
@@ -122,14 +134,16 @@ typedef struct {
  * @brief 物理驱动器端口（可被多台电机共享）。
  *
  * 必填：set_output/cutoff/reset/is_running/current。
- * 选填（可置 NULL，采用默认行为）：prepare(默认成功)、temperature(默认不支持)、
+ * 选填（可置 NULL，采用默认行为）：prepare(默认 READY)、temperature(默认不支持)、
  * voltage(默认不支持)、status(默认 OK)。
+ *
+ * @note prepare 的 motor 为请求预备的逻辑电机索引，便于共享驱动区分路径。
  */
 typedef struct {
     void (*set_output)(void *ctx, int freq_centi_hz, motor_direction_t dir); /**< 频率给定+方向 */
     void (*cutoff)(void *ctx);                     /**< 立即切断输出 */
     bool (*reset)(void *ctx);                      /**< 驱动器侧故障复位，false=失败 */
-    bool (*prepare)(void *ctx);                    /**< 预备动作，false=失败；可为 NULL */
+    motor_prepare_result_t (*prepare)(void *ctx, int motor); /**< 预备动作；可为 NULL */
     bool (*is_running)(void *ctx);                 /**< 运行反馈 */
     int  (*current)(void *ctx);                    /**< 负载电流（与阈值同量纲） */
     bool (*temperature)(void *ctx, int *out);      /**< 可选温度；可为 NULL */

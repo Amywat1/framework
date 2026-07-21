@@ -42,8 +42,9 @@ static bool drv_reset(motor_driver_t *d) {
     return d->reset(d->ctx);
 }
 
-static bool drv_prepare(motor_driver_t *d) {
-    return d->prepare ? d->prepare(d->ctx) : true;
+static motor_prepare_result_t drv_prepare(motor_driver_t *d, int motor)
+{
+    return d->prepare ? d->prepare(d->ctx, motor) : MOTOR_PREPARE_READY;
 }
 
 static bool drv_is_running(motor_driver_t *d) {
@@ -248,34 +249,49 @@ static bool interlock_ok(motor_executor_t *e, int i) {
 
 /* ------------------------- 启动 ------------------------- */
 
-static void begin_start(motor_executor_t *e, int i, const motor_pending_cmd_t *pc) {
-    motor_mstate_t *s = &e->m[i];
+/**
+ * @brief 尝试完成预备并进入 RUNNING；BUSY 时留在 WAITING_START 等待下一拍。
+ */
+static void begin_start(motor_executor_t *e, int i, const motor_pending_cmd_t *pc)
+{
+    motor_mstate_t          *s  = &e->m[i];
     const motor_motor_cfg_t *mc = &e->cfg.motors[i];
-    if (mc->prep_required && !drv_prepare(motor_drv(e, i))) {
-        fault_one(e, i, MOTOR_FAULT_PREPARE_FAILED, false);
-        push_event(e, i, MOTOR_EVENT_FAULT, MOTOR_END_NONE,
-                   MOTOR_FAULT_PREPARE_FAILED, MOTOR_LEVEL_FAULT);
-        link_shared_driver(e, i);
-        return;
+
+    if (mc->prep_required) {
+        motor_prepare_result_t prep = drv_prepare(motor_drv(e, i), i);
+
+        if (prep == MOTOR_PREPARE_BUSY) {
+            s->pending = *pc;
+            s->queued  = true;
+            s->phase   = MOTOR_PHASE_WAITING_START;
+            return;
+        }
+        if (prep == MOTOR_PREPARE_FAILED) {
+            fault_one(e, i, MOTOR_FAULT_PREPARE_FAILED, false);
+            push_event(e, i, MOTOR_EVENT_FAULT, MOTOR_END_NONE, MOTOR_FAULT_PREPARE_FAILED, MOTOR_LEVEL_FAULT);
+            link_shared_driver(e, i);
+            return;
+        }
     }
-    s->dir = pc->dir;
-    s->target_freq = pc->freq;
-    s->moveActive = pc->is_move;
-    s->spec = pc->spec;
-    s->move_start_ms = e->now;
+
+    s->dir               = pc->dir;
+    s->target_freq       = pc->freq;
+    s->moveActive        = pc->is_move;
+    s->spec              = pc->spec;
+    s->move_start_ms     = e->now;
     s->paused_elapsed_ms = 0;
-    s->start_ms = e->now;
+    s->start_ms          = e->now;
     s->emit_stop_on_halt = false;
-    s->cur_over_ms = 0;
-    s->cur_under_ms = 0;
-    s->fb_bad_ms = 0;
-    s->temp_bad_ms = 0;
-    s->volt_bad_ms = 0;
-    s->fb_strikes = 0;
-    s->enc_stall = 0;
-    s->enc_warned = false;
-    s->queued = false;
-    s->phase = MOTOR_PHASE_RUNNING;
+    s->cur_over_ms       = 0;
+    s->cur_under_ms      = 0;
+    s->fb_bad_ms         = 0;
+    s->temp_bad_ms       = 0;
+    s->volt_bad_ms       = 0;
+    s->fb_strikes        = 0;
+    s->enc_stall         = 0;
+    s->enc_warned        = false;
+    s->queued            = false;
+    s->phase             = MOTOR_PHASE_RUNNING;
 }
 
 static void reversal(motor_executor_t *e, int i, const motor_pending_cmd_t *pc) {
@@ -299,6 +315,12 @@ static motor_cmd_result_t start_or_reverse(motor_executor_t *e, int i,
             return cmd_make(MOTOR_CMD_ACCEPTED, "reversal");
         }
         begin_start(e, i, pc);
+        if (s->phase == MOTOR_PHASE_WAITING_START) {
+            return cmd_make(MOTOR_CMD_QUEUED, "prepare");
+        }
+        if (s->phase == MOTOR_PHASE_FAULT) {
+            return cmd_make(MOTOR_CMD_ACCEPTED, "prepare-failed");
+        }
         return cmd_make(MOTOR_CMD_ACCEPTED, "restart");
     }
     if (s->phase == MOTOR_PHASE_STOPPED) {
@@ -312,6 +334,12 @@ static motor_cmd_result_t start_or_reverse(motor_executor_t *e, int i,
             return cmd_make(MOTOR_CMD_QUEUED, "cooldown");
         }
         begin_start(e, i, pc);
+        if (s->phase == MOTOR_PHASE_WAITING_START) {
+            return cmd_make(MOTOR_CMD_QUEUED, "prepare");
+        }
+        if (s->phase == MOTOR_PHASE_FAULT) {
+            return cmd_make(MOTOR_CMD_ACCEPTED, "prepare-failed");
+        }
         return cmd_make(MOTOR_CMD_ACCEPTED, "start");
     }
     return cmd_reject("bad-phase");
