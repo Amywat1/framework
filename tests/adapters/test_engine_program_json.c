@@ -9,12 +9,31 @@
 #include "common/sw_error.h"
 #include "domain/program_engine/engine/engine.h"
 #include "domain/program_engine/engine/engine_io.h"
+#include "domain/program_engine/engine/engine_var.h"
 #include "domain/program_engine/model/engine_model.h"
 #include "ports/outbound/storage/engine_program_loader_port.h"
 #include "unity.h"
 
 #include <stdio.h>
 #include <string.h>
+
+static bool s_tail_active;
+
+static bool test_var_resolve(const char *name, double *out)
+{
+    if ((name == NULL) || (out == NULL) || (strcmp(name, "car_tail.active") != 0)) {
+        return false;
+    }
+    *out = s_tail_active ? 1.0 : 0.0;
+    return true;
+}
+
+static const char *const s_test_var_names[] = {"car_tail.active"};
+static const engine_var_provider_t s_test_vars = {
+    .resolve    = test_var_resolve,
+    .names      = s_test_var_names,
+    .name_count = 1U,
+};
 
 static const char *const s_program_json
     = "{"
@@ -54,10 +73,15 @@ void setUp(void)
     engine_io_sim_reset();
     engine_actuator_sim_reset();
     engine_actuator_sim_register();
+    engine_var_register(&s_test_vars);
+    engine_set_pre_tick(NULL, NULL);
+    s_tail_active = false;
 }
 
 void tearDown(void)
 {
+    engine_var_register(NULL);
+    engine_set_pre_tick(NULL, NULL);
 }
 
 static void tick_n(engine_t *engine, unsigned count, uint32_t dt_ms)
@@ -80,6 +104,7 @@ static void test_json_loader_parses_model_and_validates_catalog(void)
     TEST_ASSERT_EQUAL_STRING("gantry", program->axes[0].id);
     TEST_ASSERT_EQUAL_UINT(1U, program->marker_count);
     TEST_ASSERT_EQUAL_STRING("tail", program->markers[0].id);
+    TEST_ASSERT_EQUAL_INT(ENGINE_MARKER_ON_SIGNAL, program->markers[0].on_kind);
     TEST_ASSERT_EQUAL_UINT(1U, program->interlock_count);
     TEST_ASSERT_EQUAL_UINT(1U, program->phase_count);
     TEST_ASSERT_EQUAL_INT(ENGINE_DIR_FORWARD, program->phases[0].direction);
@@ -206,6 +231,51 @@ static void test_json_loader_port_registers_and_loads_file(void)
     engine_program_free(program);
 }
 
+static void test_condition_marker_latches_on_rising(void)
+{
+    static const char *json
+        = "{"
+          "\"program\":{"
+          "\"schema_version\":\"1.0\","
+          "\"id\":\"cond_mk\","
+          "\"axes\":{\"gantry\":{\"type\":\"physical\",\"encoder\":\"enc\",\"pulse_per_mm\":1,\"direction\":1}},"
+          "\"markers\":{\"tail\":{\"type\":\"latch\",\"axis\":\"gantry\","
+          "\"on\":{\"condition\":\"car_tail.active\",\"edge\":\"rising\"}}},"
+          "\"interlocks\":[{\"id\":\"estop\",\"condition\":\"ESTOP == 1\",\"action\":\"halt_all\","
+          "\"priority\":0,\"reset_condition\":\"ESTOP == 0\",\"auto_reset\":false}],"
+          "\"phases\":[{\"id\":\"p0\",\"entry_guard\":\"true\","
+          "\"exit_guard\":\"false\",\"timeout_ms\":10000,"
+          "\"lanes\":[{\"id\":\"lane\",\"steps\":[{\"id\":\"a\",\"type\":\"event\","
+          "\"trigger\":{\"type\":\"condition\",\"expr\":\"markers.tail.valid\"},"
+          "\"actions\":[{\"act\":{\"resource\":\"aout\",\"cmd\":\"run\",\"gear\":1}}],"
+          "\"done\":{\"type\":\"actions_complete\"}}]}]}]"
+          "}"
+          "}";
+    char              err[200];
+    engine_t         *engine;
+    engine_program_t *program = engine_program_load_json_string(json, err, sizeof(err));
+
+    TEST_ASSERT_NOT_NULL_MESSAGE(program, err);
+    TEST_ASSERT_EQUAL_INT(ENGINE_MARKER_ON_CONDITION, program->markers[0].on_kind);
+    TEST_ASSERT_NOT_NULL(program->markers[0].cond);
+
+    engine = engine_create();
+    TEST_ASSERT_NOT_NULL(engine);
+    TEST_ASSERT_EQUAL_INT(SW_OK, engine_load_program(engine, program));
+    engine_io_sim_set_axis("gantry", 123.0, 0.0, true);
+    TEST_ASSERT_EQUAL_INT(SW_OK, engine_start(engine));
+
+    engine_tick(engine, 10U);
+    TEST_ASSERT_EQUAL_INT(0, engine_actuator_sim_active("aout"));
+
+    s_tail_active = true;
+    engine_tick(engine, 10U);
+    TEST_ASSERT_EQUAL_INT(1, engine_actuator_sim_active("aout"));
+    TEST_ASSERT_EQUAL_INT(ENGINE_STATE_RUNNING, engine_state(engine));
+
+    engine_destroy(engine);
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -215,6 +285,7 @@ int main(void)
     RUN_TEST(test_engine_runs_loaded_json_with_sim_io);
     RUN_TEST(test_json_loader_expands_step_templates);
     RUN_TEST(test_json_loader_port_registers_and_loads_file);
+    RUN_TEST(test_condition_marker_latches_on_rising);
 
     return UNITY_END();
 }

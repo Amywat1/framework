@@ -716,14 +716,38 @@ static engine_program_t *build_program(const cJSON *root, char *err, unsigned er
             }
             const cJSON *on  = cJSON_GetObjectItemCaseSensitive(mk, "on");
             const char  *sig = jstr(on, "signal");
-            if ((sig == NULL) || !engine_edge_from_str(jstr(on, "edge"), &p->markers[i].edge)) {
-                jfail(err, errsz, "标记缺少 on.signal/edge: %s", mk->string);
+            const char  *cex = jstr(on, "condition");
+
+            if (!engine_edge_from_str(jstr(on, "edge"), &p->markers[i].edge)) {
+                jfail(err, errsz, "标记缺少 on.edge: %s", mk->string);
                 engine_program_free(p);
                 return NULL;
             }
+            if ((sig != NULL) && (cex != NULL)) {
+                jfail(err, errsz, "标记 on.signal 与 on.condition 互斥: %s", mk->string);
+                engine_program_free(p);
+                return NULL;
+            }
+            if ((sig == NULL) && (cex == NULL)) {
+                jfail(err, errsz, "标记缺少 on.signal 或 on.condition: %s", mk->string);
+                engine_program_free(p);
+                return NULL;
+            }
+
             copy_name(p->markers[i].id, ENGINE_NAME_MAX, mk->string);
             copy_name(p->markers[i].axis, ENGINE_NAME_MAX, jstr(mk, "axis"));
-            copy_name(p->markers[i].signal, ENGINE_NAME_MAX, sig);
+            if (sig != NULL) {
+                p->markers[i].on_kind = ENGINE_MARKER_ON_SIGNAL;
+                copy_name(p->markers[i].signal, ENGINE_NAME_MAX, sig);
+            } else {
+                p->markers[i].on_kind = ENGINE_MARKER_ON_CONDITION;
+                p->markers[i].cond    = engine_expr_compile(cex);
+                if (p->markers[i].cond == NULL) {
+                    jfail(err, errsz, "标记条件编译失败: %s", mk->string);
+                    engine_program_free(p);
+                    return NULL;
+                }
+            }
             ++i;
         }
     }

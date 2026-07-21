@@ -270,6 +270,7 @@ add_unit_test(test_program_engine
     ${WDF_ROOT}/domain/program_engine/engine/engine.c
     ${WDF_ROOT}/domain/program_engine/engine/engine_expr.c
     ${WDF_ROOT}/domain/program_engine/engine/engine_io.c
+    ${WDF_ROOT}/domain/program_engine/engine/engine_var.c
     ${WDF_ROOT}/domain/program_engine/engine/engine_actuator.c
     ${WDF_ROOT}/adapters/outbound/hal/sim/engine_actuator_sim.c
     ${WDF_ROOT}/domain/program_engine/engine/engine_profile.c
@@ -306,6 +307,7 @@ add_unit_test(test_engine_session
     ${WDF_ROOT}/domain/program_engine/engine/engine.c
     ${WDF_ROOT}/domain/program_engine/engine/engine_expr.c
     ${WDF_ROOT}/domain/program_engine/engine/engine_io.c
+    ${WDF_ROOT}/domain/program_engine/engine/engine_var.c
     ${WDF_ROOT}/domain/program_engine/engine/engine_profile.c
     ${WDF_ROOT}/domain/program_engine/model/engine_model.c
     ${WDF_ROOT}/domain/program_engine/model/engine_program_validate.c
@@ -419,6 +421,7 @@ add_unit_test(test_engine_program_json
     ${WDF_ROOT}/domain/program_engine/engine/engine.c
     ${WDF_ROOT}/domain/program_engine/engine/engine_expr.c
     ${WDF_ROOT}/domain/program_engine/engine/engine_io.c
+    ${WDF_ROOT}/domain/program_engine/engine/engine_var.c
     ${WDF_ROOT}/domain/program_engine/engine/engine_profile.c
     ${WDF_ROOT}/domain/program_engine/model/engine_model.c
     ${WDF_ROOT}/domain/program_engine/model/engine_program_validate.c

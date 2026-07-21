@@ -151,12 +151,20 @@ typedef struct {
     int    direction; /* 1=正向，-1=反向 */
 } engine_axis_t;
 
+/* 标记触发源：信号边沿 或 条件边沿（互斥） */
+typedef enum {
+    ENGINE_MARKER_ON_SIGNAL = 0,
+    ENGINE_MARKER_ON_CONDITION
+} engine_marker_on_t;
+
 /* 位置标记（仅 latch 型） */
 typedef struct {
-    char          id[ENGINE_NAME_MAX];
-    char          axis[ENGINE_NAME_MAX];
-    char          signal[ENGINE_NAME_MAX];
-    engine_edge_t edge;
+    char              id[ENGINE_NAME_MAX];
+    char              axis[ENGINE_NAME_MAX];
+    engine_marker_on_t on_kind;
+    char              signal[ENGINE_NAME_MAX]; /* ON_SIGNAL */
+    engine_expr_t    *cond;                   /* ON_CONDITION：编译后表达式 */
+    engine_edge_t     edge;
 } engine_marker_t;
 
 /* 联锁 */

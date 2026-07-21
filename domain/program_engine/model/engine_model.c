@@ -79,7 +79,15 @@ void engine_program_free(engine_program_t *prog)
 
     free(prog->params);
     free(prog->axes);
-    free(prog->markers);
+    if (prog->markers != NULL) {
+        for (unsigned i = 0U; i < prog->marker_count; ++i) {
+            if (prog->markers[i].on_kind == ENGINE_MARKER_ON_CONDITION) {
+                engine_expr_free(prog->markers[i].cond);
+                prog->markers[i].cond = NULL;
+            }
+        }
+        free(prog->markers);
+    }
 
     for (unsigned i = 0U; i < prog->interlock_count; ++i) {
         engine_interlock_t *ilk = &prog->interlocks[i];
@@ -307,7 +315,24 @@ engine_program_t *engine_program_clone(const engine_program_t *src)
         if (dst->markers == NULL) {
             goto fail;
         }
-        (void)memcpy(dst->markers, src->markers, src->marker_count * sizeof(engine_marker_t));
+        for (unsigned i = 0U; i < src->marker_count; ++i) {
+            const engine_marker_t *sm = &src->markers[i];
+            engine_marker_t       *dm = &dst->markers[i];
+
+            (void)memset(dm, 0, sizeof(*dm));
+            (void)memcpy(dm->id, sm->id, sizeof(dm->id));
+            (void)memcpy(dm->axis, sm->axis, sizeof(dm->axis));
+            dm->on_kind = sm->on_kind;
+            dm->edge    = sm->edge;
+            if (sm->on_kind == ENGINE_MARKER_ON_SIGNAL) {
+                (void)memcpy(dm->signal, sm->signal, sizeof(dm->signal));
+            } else {
+                dm->cond = engine_expr_clone(sm->cond);
+                if ((sm->cond != NULL) && (dm->cond == NULL)) {
+                    goto fail;
+                }
+            }
+        }
     }
 
     if (src->interlock_count > 0U) {

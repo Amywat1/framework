@@ -9,6 +9,7 @@
 
 #include "domain/program_engine/engine/engine_actuator.h"
 #include "domain/program_engine/engine/engine_io.h"
+#include "domain/program_engine/engine/engine_var.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -16,6 +17,15 @@
 
 /* 具名常量 */
 #define ENGINE_HELD_CAP 64U /* 本阶段持有资源上限 */
+
+static void (*s_pre_tick_fn)(void *ctx) = NULL;
+static void  *s_pre_tick_ctx            = NULL;
+
+void engine_set_pre_tick(void (*fn)(void *ctx), void *ctx)
+{
+    s_pre_tick_fn  = fn;
+    s_pre_tick_ctx = ctx;
+}
 
 /* 步骤运行态 */
 typedef enum { RT_IDLE = 0, RT_WAIT_AFTER, RT_ARMED, RT_RUNNING, RT_WAIT_DONE, RT_DONE, RT_SKIPPED } rt_step_state_t;
@@ -231,6 +241,13 @@ static bool engine_resolve(void *ctx, const char *name, double *out)
             return true;
         }
         return false;
+    }
+
+    {
+        const engine_var_provider_t *vars = engine_var_get();
+        if ((vars != NULL) && (vars->resolve != NULL) && vars->resolve(name, out)) {
+            return true;
+        }
     }
 
     /* 其余按 DI 信号名（未注册按 0 处理） */
@@ -591,7 +608,13 @@ static void markers_tick(engine_t *e)
     for (unsigned i = 0U; i < e->prog->marker_count; ++i) {
         const engine_marker_t *mk  = &e->prog->markers[i];
         marker_rt_t           *rt  = &e->markers[i];
-        int                    cur = sig_read(mk->signal);
+        int                    cur;
+
+        if (mk->on_kind == ENGINE_MARKER_ON_CONDITION) {
+            cur = eval_bool(e, mk->cond, false) ? 1 : 0;
+        } else {
+            cur = sig_read(mk->signal);
+        }
         if (!rt->valid && edge_hit(mk->edge, rt->sig_prev, cur)) {
             double pos = 0.0, speed = 0.0;
             bool   valid = false;
@@ -803,9 +826,14 @@ sw_err_t engine_start(engine_t *e)
 
     /* 复位标记与联锁 */
     for (unsigned i = 0U; i < e->prog->marker_count; ++i) {
+        const engine_marker_t *mk = &e->prog->markers[i];
         e->markers[i].position = 0.0;
         e->markers[i].valid    = false;
-        e->markers[i].sig_prev = sig_read(e->prog->markers[i].signal);
+        if (mk->on_kind == ENGINE_MARKER_ON_CONDITION) {
+            e->markers[i].sig_prev = eval_bool(e, mk->cond, false) ? 1 : 0;
+        } else {
+            e->markers[i].sig_prev = sig_read(mk->signal);
+        }
     }
     for (unsigned i = 0U; i < e->prog->interlock_count; ++i) {
         e->ilk_active[i] = false;
@@ -823,6 +851,10 @@ void engine_tick(engine_t *e, uint32_t dt_ms)
 {
     if ((e == NULL) || (e->prog == NULL)) {
         return;
+    }
+
+    if (s_pre_tick_fn != NULL) {
+        s_pre_tick_fn(s_pre_tick_ctx);
     }
 
     /* 标记锁存（即使非 RUNNING 也维持边沿快照，但仅 RUNNING 期间有意义） */

@@ -8,6 +8,7 @@
 #include "domain/program_engine/model/engine_program_validate.h"
 
 #include "domain/program_engine/engine/engine_expr.h"
+#include "domain/program_engine/engine/engine_var.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -164,6 +165,10 @@ static bool resolve_var_name(const char *name, var_ctx_t *ctx)
         return true;
     }
 
+    if (engine_var_name_known(name)) {
+        return true;
+    }
+
     if (ctx->io_catalog != NULL) {
         vfail(ctx->err, ctx->errsz, "未知 DI 信号: %s", name);
         ctx->ok = false;
@@ -306,8 +311,19 @@ sw_err_t engine_program_validate(const engine_program_t          *prog,
             vfail(werr, wsz, "标记引用未知轴: %s", mk->axis);
             return SW_ERR_PARAM;
         }
-        if ((io_catalog != NULL) && !name_in_list(mk->signal, io_catalog->signals, io_catalog->signal_count)) {
-            vfail(werr, wsz, "标记引用未知信号: %s", mk->signal);
+        if (mk->on_kind == ENGINE_MARKER_ON_SIGNAL) {
+            if ((io_catalog != NULL)
+                && !name_in_list(mk->signal, io_catalog->signals, io_catalog->signal_count)) {
+                vfail(werr, wsz, "标记引用未知信号: %s", mk->signal);
+                return SW_ERR_PARAM;
+            }
+        } else if (mk->on_kind == ENGINE_MARKER_ON_CONDITION) {
+            if (mk->cond == NULL) {
+                vfail(werr, wsz, "标记缺少条件表达式: %s", mk->id);
+                return SW_ERR_PARAM;
+            }
+        } else {
+            vfail(werr, wsz, "标记触发源非法: %s", mk->id);
             return SW_ERR_PARAM;
         }
     }
@@ -320,6 +336,16 @@ sw_err_t engine_program_validate(const engine_program_t          *prog,
         .errsz       = wsz,
         .ok          = true,
     };
+
+    for (unsigned m = 0U; m < prog->marker_count; ++m) {
+        const engine_marker_t *mk = &prog->markers[m];
+        if (mk->on_kind == ENGINE_MARKER_ON_CONDITION) {
+            validate_expr(mk->cond, &vctx);
+            if (!vctx.ok) {
+                return SW_ERR_PARAM;
+            }
+        }
+    }
 
     for (unsigned i = 0U; i < prog->interlock_count; ++i) {
         const engine_interlock_t *ilk = &prog->interlocks[i];

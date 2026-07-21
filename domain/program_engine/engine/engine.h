@@ -64,6 +64,13 @@ sw_err_t engine_start(engine_t *e);
 void engine_tick(engine_t *e, uint32_t dt_ms);
 
 /**
+ * @brief  注册每拍预处理钩子（在 markers_tick 之前调用）
+ * @param  fn   回调；传 NULL 清除
+ * @param  ctx  回调上下文
+ */
+void engine_set_pre_tick(void (*fn)(void *ctx), void *ctx);
+
+/**
  * @brief  从 halt_phase 恢复，重新进入当前阶段
  * @retval SW_OK / SW_ERR_STATE
  */
