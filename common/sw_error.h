@@ -26,6 +26,7 @@ typedef enum {
     SW_ERR_UPGRADE     = -11, /* 升级错误 */
     SW_ERR_NOT_INIT    = -12, /* 模块未初始化 */
     SW_ERR_NOT_SUPPORT = -13, /* 功能不支持 */
+    SW_ERR_NOT_FOUND   = -14, /* 目标记录或资源不存在 */
 } sw_err_t;
 
 #endif /* SW_ERROR_H */
