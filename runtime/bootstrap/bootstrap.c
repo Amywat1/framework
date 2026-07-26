@@ -243,51 +243,67 @@ static sw_err_t bootstrap_start(void)
     return SW_OK;
 }
 
+typedef sw_err_t (*bootstrap_phase_fn_t)(void);
+
+static sw_err_t bootstrap_run_phase(const char *name, bootstrap_phase_fn_t phase)
+{
+    sw_err_t ret;
+
+    LOG_INFO("bootstrap: phase [%s] begin", name);
+    ret = phase();
+    if (ret != SW_OK) {
+        LOG_ERROR("bootstrap: phase [%s] failed ret=%d", name, (int)ret);
+        return ret;
+    }
+    LOG_INFO("bootstrap: phase [%s] done", name);
+    return SW_OK;
+}
+
 sw_err_t bootstrap_run(void)
 {
     sw_err_t ret;
 
-    ret = bootstrap_register();
+    ret = bootstrap_run_phase("register", bootstrap_register);
     if (ret != SW_OK) {
         return ret;
     }
 
-    ret = bootstrap_configure_storage();
+    ret = bootstrap_run_phase("configure_storage", bootstrap_configure_storage);
     if (ret != SW_OK) {
         return ret;
     }
 
-    ret = bootstrap_load_storage();
+    ret = bootstrap_run_phase("load_storage", bootstrap_load_storage);
     if (ret != SW_OK) {
         return ret;
     }
 
-    ret = bootstrap_configure();
+    ret = bootstrap_run_phase("configure", bootstrap_configure);
     if (ret != SW_OK) {
         return ret;
     }
 
-    ret = bootstrap_bind();
+    ret = bootstrap_run_phase("bind", bootstrap_bind);
     if (ret != SW_OK) {
         return ret;
     }
 
-    ret = bootstrap_validate();
+    ret = bootstrap_run_phase("validate", bootstrap_validate);
     if (ret != SW_OK) {
         return ret;
     }
 
-    ret = bootstrap_init_hal();
+    ret = bootstrap_run_phase("init_hal", bootstrap_init_hal);
     if (ret != SW_OK) {
         return ret;
     }
 
-    ret = bootstrap_init_services();
+    ret = bootstrap_run_phase("init_services", bootstrap_init_services);
     if (ret != SW_OK) {
         return ret;
     }
 
-    ret = bootstrap_start();
+    ret = bootstrap_run_phase("start", bootstrap_start);
     if (ret != SW_OK) {
         return ret;
     }

@@ -11,7 +11,10 @@
 #include <stdio.h>
 #include <string.h>
 
-static sw_log_sink_fn_t s_sink = NULL;
+#define SW_LOG_SINK_MAX 4U
+
+static sw_log_sink_fn_t s_sinks[SW_LOG_SINK_MAX];
+static size_t           s_sink_count;
 
 static void default_sink(sw_log_level_t level, const char *fmt, va_list ap)
 {
@@ -24,7 +27,31 @@ static void default_sink(sw_log_level_t level, const char *fmt, va_list ap)
 
 void sw_log_register_sink(sw_log_sink_fn_t sink)
 {
-    s_sink = sink;
+    s_sink_count = 0U;
+    if (sink != NULL) {
+        s_sinks[0] = sink;
+        s_sink_count = 1U;
+    }
+}
+
+bool sw_log_add_sink(sw_log_sink_fn_t sink)
+{
+    size_t index;
+
+    if (sink == NULL) {
+        return false;
+    }
+    for (index = 0U; index < s_sink_count; index++) {
+        if (s_sinks[index] == sink) {
+            return true;
+        }
+    }
+    if (s_sink_count >= SW_LOG_SINK_MAX) {
+        return false;
+    }
+    s_sinks[s_sink_count] = sink;
+    s_sink_count++;
+    return true;
 }
 
 void sw_log_write(sw_log_level_t level, const char *fmt, ...)
@@ -32,10 +59,18 @@ void sw_log_write(sw_log_level_t level, const char *fmt, ...)
     va_list ap;
 
     va_start(ap, fmt);
-    if (s_sink != NULL) {
-        s_sink(level, fmt, ap);
-    } else {
+    if (s_sink_count == 0U) {
         default_sink(level, fmt, ap);
+    } else {
+        size_t index;
+
+        for (index = 0U; index < s_sink_count; index++) {
+            va_list sink_ap;
+
+            va_copy(sink_ap, ap);
+            s_sinks[index](level, fmt, sink_ap);
+            va_end(sink_ap);
+        }
     }
     va_end(ap);
 }

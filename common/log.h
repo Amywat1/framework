@@ -11,6 +11,7 @@
 #ifndef LOG_H
 #define LOG_H
 
+#include <stdbool.h>
 #include <stdarg.h>
 
 #ifdef __cplusplus
@@ -28,6 +29,14 @@ typedef void (*sw_log_sink_fn_t)(sw_log_level_t level, const char *fmt, va_list 
 
 /** @brief  注册日志 sink；传 NULL 恢复内置 stderr 输出 */
 void sw_log_register_sink(sw_log_sink_fn_t sink);
+
+/**
+ * @brief 追加一个日志 sink
+ * @param sink 待追加的 sink，不能为空
+ * @retval true 追加成功或 sink 已存在
+ * @retval false 参数无效或 sink 数量已满
+ */
+bool sw_log_add_sink(sw_log_sink_fn_t sink);
 
 /** @brief  写一条日志，转发给已注册的 sink 或内置 stderr 输出 */
 void sw_log_write(sw_log_level_t level, const char *fmt, ...);

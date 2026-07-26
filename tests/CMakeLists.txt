@@ -28,6 +28,11 @@ add_unit_test(test_log
     ${WDF_ROOT}/common/log.c
 )
 
+add_unit_test(test_log_multi_sink
+    ${CMAKE_CURRENT_SOURCE_DIR}/common/test_log_multi_sink.c
+    ${WDF_ROOT}/common/log.c
+)
+
 add_unit_test(test_event_bus
     ${CMAKE_CURRENT_SOURCE_DIR}/runtime/test_event_bus.c
     ${WDF_ROOT}/runtime/event_bus/event_bus.c
