@@ -9,6 +9,7 @@
 
 #include "common/log.h"
 #include "common/time_util.h"
+#include "common/trace_context.h"
 #include "domain/program_engine/model/engine_model.h"
 #include "domain/program_engine/model/engine_program_manifest.h"
 #include "ports/outbound/storage/engine_program_loader_port.h"
@@ -24,6 +25,7 @@
 struct engine_session {
     engine_session_config_t cfg;
     engine_session_run_t    run; /* 当前/待执行运行参数 */
+    trace_context_t         run_trace;
     char                    program_path[256];
 
     sem_t           start_sem;
@@ -89,6 +91,26 @@ static void call_stop_outputs(engine_session_t *s)
     if (s->run.on_stop_outputs != NULL) {
         s->run.on_stop_outputs(s->run.user);
     }
+}
+
+static void notify_phase_changed(engine_session_t *s, const engine_t *e,
+                                 char *last_phase_id, size_t last_phase_id_size)
+{
+    const char *phase_id;
+
+    if ((s->run.on_phase_changed == NULL) || (last_phase_id == NULL) || (last_phase_id_size == 0U)) {
+        return;
+    }
+    phase_id = engine_current_phase_id(e);
+    if (phase_id == NULL) {
+        phase_id = "";
+    }
+    if (strncmp(last_phase_id, phase_id, last_phase_id_size) == 0) {
+        return;
+    }
+    (void)strncpy(last_phase_id, phase_id, last_phase_id_size - 1U);
+    last_phase_id[last_phase_id_size - 1U] = '\0';
+    s->run.on_phase_changed(s->run.user, last_phase_id, engine_current_direction(e));
 }
 
 static sw_err_t worker_prepare_engine(engine_session_t *s, engine_t **out_engine)
@@ -177,6 +199,8 @@ static void *engine_session_worker_fn(void *arg)
         uint32_t  startup_gen;
         engine_t *e = NULL;
         sw_err_t  prep_ret;
+        trace_context_t previous_trace;
+        char            last_phase_id[64] = {0};
 
         sem_wait(&s->start_sem);
 
@@ -188,11 +212,15 @@ static void *engine_session_worker_fn(void *arg)
         startup_gen = s->s_active_startup_gen;
         pthread_mutex_unlock(&s->startup_mutex);
 
+        previous_trace = trace_context_get();
+        trace_context_set(&s->run_trace);
+
         atomic_store(&s->s_abort_requested, false);
         prep_ret = worker_prepare_engine(s, &e);
         if (prep_ret != SW_OK) {
             signal_startup(s, startup_gen, prep_ret);
             atomic_store(&s->s_busy, false);
+            trace_context_set(&previous_trace);
             continue;
         }
 
@@ -207,6 +235,7 @@ static void *engine_session_worker_fn(void *arg)
                 LOG_WARN("engine_session: startup waiter gone, teardown gen=%u", startup_gen);
                 engine_destroy(e);
                 atomic_store(&s->s_busy, false);
+                trace_context_set(&previous_trace);
                 continue;
             }
         }
@@ -214,6 +243,7 @@ static void *engine_session_worker_fn(void *arg)
         if (s->run.on_started != NULL) {
             s->run.on_started(s->run.user);
         }
+        notify_phase_changed(s, e, last_phase_id, sizeof(last_phase_id));
         signal_startup(s, startup_gen, SW_OK);
 
         {
@@ -246,6 +276,7 @@ static void *engine_session_worker_fn(void *arg)
                 {
                     engine_run_state_t st = engine_state(e);
 
+                    notify_phase_changed(s, e, last_phase_id, sizeof(last_phase_id));
                     if ((st == ENGINE_STATE_DONE) || (st == ENGINE_STATE_HALTED)) {
                         break;
                     }
@@ -293,6 +324,7 @@ static void *engine_session_worker_fn(void *arg)
         }
 
         atomic_store(&s->s_busy, false);
+        trace_context_set(&previous_trace);
     }
 
     LOG_INFO("engine_session: thread exit name=%s",
@@ -370,6 +402,7 @@ sw_err_t engine_session_start(void *storage, const engine_session_run_t *run)
     s->program_path[sizeof(s->program_path) - 1U] = '\0';
     s->run.program_path                           = s->program_path;
 
+    s->run_trace = trace_context_get();
     pthread_mutex_lock(&s->startup_mutex);
     my_gen                  = ++s->s_startup_gen;
     s->s_active_startup_gen = my_gen;

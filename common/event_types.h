@@ -17,6 +17,8 @@
 extern "C" {
 #endif
 
+#include "common/trace_context.h"
+
 #include <stdbool.h>
 #include <stdint.h>
 
@@ -197,6 +199,8 @@ typedef struct {
     event_type_t type;         /**< 事件类型（复合编码）*/
     uint32_t     param;        /**< 载荷：报警码、错误码、模式等（无载荷时为 0）*/
     uint64_t     timestamp_ms; /**< 入队时间戳（由 event_bus 填充）*/
+    uint64_t     event_id;     /**< 启动周期内唯一事件编号 */
+    trace_context_t trace;     /**< 发布时捕获的业务因果上下文 */
 } event_t;
 
 #ifdef __cplusplus

@@ -50,6 +50,9 @@ typedef enum {
  */
 typedef struct {
     uint64_t         request_id;
+    uint64_t         wash_session_id;
+    uint64_t         correlation_id;
+    uint64_t         causation_id;
     dev_cmd_source_t source;
 } dev_cmd_meta_t;
 
@@ -84,7 +87,10 @@ static inline dev_cmd_t dev_cmd_make_simple(dev_cmd_kind_t kind)
 {
     dev_cmd_t cmd;
 
-    cmd.meta.request_id = 0U;
+    cmd.meta.request_id      = 0U;
+    cmd.meta.wash_session_id = 0U;
+    cmd.meta.correlation_id  = 0U;
+    cmd.meta.causation_id    = 0U;
     cmd.meta.source     = DEV_CMD_SOURCE_TEST;
     cmd.body.kind       = kind;
     return cmd;

@@ -50,6 +50,8 @@ typedef struct {
     unsigned    max_phase_recoveries; /**< phase halt 最大恢复次数；0=视为失败 */
 
     void (*on_started)(void *user);
+    /** @brief 当前方案阶段变化；phase_id 仅在回调期间有效。 */
+    void (*on_phase_changed)(void *user, const char *phase_id, engine_direction_t direction);
     void (*on_finished)(void *user, const engine_session_result_t *result);
     void (*on_stop_outputs)(void *user);
     void *user;

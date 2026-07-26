@@ -93,6 +93,7 @@ static event_bus_fatal_cb_t s_fatal_cb = NULL;
  * 运行统计
  * ------------------------------------------------------------------------- */
 static event_bus_stats_t s_stats;
+static uint64_t          s_next_event_id;
 
 /* -------------------------------------------------------------------------
  * event_bus_set_fatal_cb
@@ -120,6 +121,7 @@ sw_err_t event_bus_init(void)
     s_q_hi_tail  = 0;
     s_q_hi_count = 0;
     memset(&s_stats, 0, sizeof(s_stats));
+    s_next_event_id = 1U;
     pthread_mutex_unlock(&s_q_mutex);
 
     /* 重置订阅表 */
@@ -206,6 +208,8 @@ sw_err_t event_publish(event_type_t type, uint32_t param)
         slot->type         = type;
         slot->param        = param;
         slot->timestamp_ms = time_util_get_ms();
+        slot->event_id     = s_next_event_id++;
+        slot->trace        = trace_context_get();
 
         s_q_hi_tail = (s_q_hi_tail + 1U) % EVENT_BUS_HI_QUEUE_SIZE;
         s_q_hi_count++;
@@ -227,6 +231,8 @@ sw_err_t event_publish(event_type_t type, uint32_t param)
         slot->type         = type;
         slot->param        = param;
         slot->timestamp_ms = time_util_get_ms();
+        slot->event_id     = s_next_event_id++;
+        slot->trace        = trace_context_get();
 
         s_q_tail = (s_q_tail + 1U) % EVENT_BUS_QUEUE_SIZE;
         s_q_count++;
@@ -406,7 +412,13 @@ void event_bus_dispatch_loop(void)
         /* 逐一回调 */
         for (uint32_t i = 0; i < EVENT_BUS_MAX_SUBS_PER_EVT; i++) {
             if (handlers[i] != NULL) {
+                trace_context_t previous = trace_context_get();
+                trace_context_t current  = dispatch_evt.trace;
+
+                current.causation_id = dispatch_evt.event_id;
+                trace_context_set(&current);
                 handlers[i](&dispatch_evt);
+                trace_context_set(&previous);
             }
         }
     }

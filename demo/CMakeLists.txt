@@ -16,6 +16,7 @@ set(_demo_wiring
 set(_fw_common_src
     ${WDF_ROOT}/common/log.c
     ${WDF_ROOT}/common/time_util.c
+    ${WDF_ROOT}/common/trace_context.c
 )
 
 set(_fw_runtime_src

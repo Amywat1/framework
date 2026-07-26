@@ -34,6 +34,7 @@ typedef struct {
 static cmd_gateway_slot_t s_queue[CMD_GATEWAY_QUEUE_SIZE];
 static pthread_mutex_t    s_q_mutex    = PTHREAD_MUTEX_INITIALIZER;
 static uint32_t           s_generation = 0U;
+static uint64_t           s_next_request_id;
 
 static void publish_cmd_handled(dev_cmd_kind_t kind, dev_cmd_status_t status, op_reject_reason_t reason)
 {
@@ -99,12 +100,14 @@ static sw_err_t gateway_submit(const dev_cmd_t *cmd, dev_cmd_receipt_t *receipt,
     sw_err_t            ret;
     dev_cmd_receipt_t   local_receipt;
     uint32_t            wait_ms = (timeout_ms > 0U) ? timeout_ms : CMD_GATEWAY_WAIT_MS;
+    uint64_t            request_id;
 
     if (cmd == NULL) {
         return SW_ERR_PARAM;
     }
 
     pthread_mutex_lock(&s_q_mutex);
+    request_id = (cmd->meta.request_id != 0U) ? cmd->meta.request_id : ++s_next_request_id;
     for (unsigned i = 0; i < CMD_GATEWAY_QUEUE_SIZE; i++) {
         if (!s_queue[i].used) {
             slot                        = &s_queue[i];
@@ -112,10 +115,11 @@ static sw_err_t gateway_submit(const dev_cmd_t *cmd, dev_cmd_receipt_t *receipt,
             my_generation               = ++s_generation;
             slot->generation            = my_generation;
             slot->cmd                   = *cmd;
+            slot->cmd.meta.request_id   = request_id;
             slot->receipt.status        = DEV_CMD_STATUS_BUSY;
             slot->receipt.reject_reason = OP_REJECT_NONE;
             slot->receipt.effect_error  = SW_ERR_BUSY;
-            slot->receipt.request_id    = cmd->meta.request_id;
+            slot->receipt.request_id    = request_id;
             break;
         }
     }
@@ -126,7 +130,7 @@ static sw_err_t gateway_submit(const dev_cmd_t *cmd, dev_cmd_receipt_t *receipt,
             receipt->status        = DEV_CMD_STATUS_BUSY;
             receipt->reject_reason = OP_REJECT_NONE;
             receipt->effect_error  = SW_ERR_BUSY;
-            receipt->request_id    = cmd->meta.request_id;
+            receipt->request_id    = request_id;
         }
         return SW_ERR_BUSY;
     }
@@ -144,7 +148,7 @@ static sw_err_t gateway_submit(const dev_cmd_t *cmd, dev_cmd_receipt_t *receipt,
             receipt->status        = DEV_CMD_STATUS_TIMEOUT;
             receipt->reject_reason = OP_REJECT_NONE;
             receipt->effect_error  = SW_ERR_TIMEOUT;
-            receipt->request_id    = cmd->meta.request_id;
+            receipt->request_id    = request_id;
         }
         return SW_ERR_TIMEOUT;
     }
@@ -156,7 +160,7 @@ static sw_err_t gateway_submit(const dev_cmd_t *cmd, dev_cmd_receipt_t *receipt,
             receipt->status        = DEV_CMD_STATUS_TIMEOUT;
             receipt->reject_reason = OP_REJECT_NONE;
             receipt->effect_error  = SW_ERR_TIMEOUT;
-            receipt->request_id    = cmd->meta.request_id;
+            receipt->request_id    = request_id;
         }
         return SW_ERR_TIMEOUT;
     }
@@ -182,6 +186,8 @@ void command_gateway_drain(void)
         dev_cmd_decision_t  decision;
         sw_err_t            effect_err = SW_OK;
         dev_cmd_receipt_t   receipt;
+        trace_context_t     previous;
+        trace_context_t     current;
 
         pthread_mutex_lock(&s_q_mutex);
         if (!slot->used) {
@@ -192,6 +198,15 @@ void command_gateway_drain(void)
         generation = slot->generation;
         cmd        = slot->cmd;
         pthread_mutex_unlock(&s_q_mutex);
+
+        previous                = trace_context_get();
+        current.wash_session_id = cmd.meta.wash_session_id;
+        current.command_id      = cmd.meta.request_id;
+        current.correlation_id  = (cmd.meta.correlation_id != 0U)
+                                      ? cmd.meta.correlation_id
+                                      : cmd.meta.request_id;
+        current.causation_id    = cmd.meta.causation_id;
+        trace_context_set(&current);
 
         decision = op_mode_handle_command(&cmd);
         if (decision.verdict == OP_CMD_ALLOWED) {
@@ -205,6 +220,7 @@ void command_gateway_drain(void)
 
         publish_cmd_handled(cmd.body.kind, receipt.status, receipt.reject_reason);
 
+        trace_context_set(&previous);
         pthread_mutex_lock(&s_q_mutex);
         if (slot->used && (slot->generation == generation)) {
             slot->receipt = receipt;
@@ -222,6 +238,7 @@ sw_err_t command_gateway_init(void)
         {EVT_CMD_GATEWAY_WAKE, on_gateway_wake},
     };
 
+    s_next_request_id = 0U;
     for (unsigned i = 0; i < CMD_GATEWAY_QUEUE_SIZE; i++) {
         if (sem_init(&s_queue[i].done, 0, 0) != 0) {
             return SW_ERR_HW;

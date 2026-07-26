@@ -6,6 +6,7 @@
  */
 
 #include "common/time_util.h"
+#include "common/trace_context.h"
 #include "runtime/event_bus/event_bus.h"
 #include "runtime/event_bus/event_bus_config.h"
 #include "unity.h"
@@ -23,6 +24,11 @@ static volatile int      g_h2_called;
 static volatile int      g_h1_call_count;
 static volatile uint32_t g_h1_param;
 static volatile uint64_t g_h1_timestamp;
+static volatile uint64_t g_root_event_id;
+static volatile uint64_t g_root_command_id;
+static volatile uint64_t g_root_correlation_id;
+static volatile uint64_t g_child_causation_id;
+static volatile uint64_t g_child_command_id;
 
 #define FIFO_LOG_MAX 8
 static volatile uint32_t g_fifo_log[FIFO_LOG_MAX];
@@ -36,6 +42,11 @@ static void reset_flags(void)
     g_h1_param       = 0U;
     g_h1_timestamp   = 0U;
     g_fifo_log_count = 0;
+    g_root_event_id       = 0U;
+    g_root_command_id     = 0U;
+    g_root_correlation_id = 0U;
+    g_child_causation_id  = 0U;
+    g_child_command_id    = 0U;
     memset((void *)g_fifo_log, 0, sizeof(g_fifo_log));
 }
 
@@ -60,6 +71,20 @@ static void fifo_handler(const event_t *evt)
         g_fifo_log[idx]  = evt->param;
         g_fifo_log_count = idx + 1;
     }
+}
+
+static void trace_root_handler(const event_t *evt)
+{
+    g_root_event_id       = evt->event_id;
+    g_root_command_id     = evt->trace.command_id;
+    g_root_correlation_id = evt->trace.correlation_id;
+    (void)event_publish(EVT_CLOUD_CONNECTED, 0U);
+}
+
+static void trace_child_handler(const event_t *evt)
+{
+    g_child_causation_id = evt->trace.causation_id;
+    g_child_command_id   = evt->trace.command_id;
 }
 
 static void *dispatch_fn(void *arg)
@@ -233,6 +258,33 @@ static void test_shutdown_drains_queue(void)
     TEST_ASSERT_EQUAL_UINT(0U, stats.queue_depth);
 }
 
+static void test_trace_context_propagates_to_derived_event(void)
+{
+    trace_context_t context = {0};
+    pthread_t       tid;
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_subscribe(EVT_CMD_ORDER, trace_root_handler));
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_subscribe(EVT_CLOUD_CONNECTED, trace_child_handler));
+    context.command_id     = 42U;
+    context.correlation_id = 84U;
+    context.causation_id   = 21U;
+    trace_context_set(&context);
+    tid = start_dispatch();
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_publish(EVT_CMD_ORDER, 0U));
+    trace_context_set(NULL);
+    usleep(30000);
+
+    TEST_ASSERT_NOT_EQUAL(0U, g_root_event_id);
+    TEST_ASSERT_EQUAL_UINT64(42U, g_root_command_id);
+    TEST_ASSERT_EQUAL_UINT64(84U, g_root_correlation_id);
+    TEST_ASSERT_EQUAL_UINT64(g_root_event_id, g_child_causation_id);
+    TEST_ASSERT_EQUAL_UINT64(42U, g_child_command_id);
+
+    stop_dispatch(tid);
+}
+
 int main(void)
 {
     time_util_init();
@@ -245,5 +297,6 @@ int main(void)
     RUN_TEST(test_event_isolation);
     RUN_TEST(test_subscribe_idempotent_and_stats);
     RUN_TEST(test_shutdown_drains_queue);
+    RUN_TEST(test_trace_context_propagates_to_derived_event);
     return UNITY_END();
 }

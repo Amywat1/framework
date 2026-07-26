@@ -5,6 +5,7 @@
 
 #include "application/command_gateway.h"
 #include "common/sw_error.h"
+#include "common/trace_context.h"
 #include "domain/op_mode/command_types.h"
 #include "domain/op_mode/device_command.h"
 #include "domain/op_mode/operational_mode.h"
@@ -17,6 +18,10 @@
 #include <pthread.h>
 #include <string.h>
 #include <unistd.h>
+
+static volatile uint64_t s_handled_command_id;
+static volatile uint64_t s_handled_correlation_id;
+
 
 static sw_err_t stub_home_device(void)
 {
@@ -46,6 +51,12 @@ static void stop_dispatch(pthread_t tid)
     pthread_join(tid, NULL);
 }
 
+static void handled_handler(const event_t *evt)
+{
+    s_handled_command_id     = evt->trace.command_id;
+    s_handled_correlation_id = evt->trace.correlation_id;
+}
+
 static sw_err_t submit_simple(dev_cmd_kind_t kind, dev_cmd_receipt_t *receipt)
 {
     dev_cmd_t cmd = dev_cmd_make_simple(kind);
@@ -69,6 +80,8 @@ void setUp(void)
     s_ops.home_device = stub_home_device;
     wash_ops_stub_bind(&s_ops);
     machine_ops_register(&s_ops);
+    s_handled_command_id     = 0U;
+    s_handled_correlation_id = 0U;
 }
 
 void tearDown(void)
@@ -160,6 +173,28 @@ static void test_stop_operation_then_resume(void)
     stop_dispatch(tid);
 }
 
+static void test_gateway_assigns_request_id_and_trace(void)
+{
+    dev_cmd_receipt_t receipt = {0};
+    pthread_t         tid;
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, operational_mode_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, command_gateway_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_subscribe(EVT_OP_MODE_CMD_HANDLED, handled_handler));
+    setup_idle();
+    tid = start_dispatch();
+    usleep(30000);
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, submit_simple(DEV_CMD_STOP_OPERATION, &receipt));
+    usleep(30000);
+    TEST_ASSERT_NOT_EQUAL(0U, receipt.request_id);
+    TEST_ASSERT_EQUAL_UINT64(receipt.request_id, s_handled_command_id);
+    TEST_ASSERT_EQUAL_UINT64(receipt.request_id, s_handled_correlation_id);
+
+    stop_dispatch(tid);
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -167,5 +202,6 @@ int main(void)
     RUN_TEST(test_submit_rejected_wrong_mode);
     RUN_TEST(test_start_wash_triggers_orchestrator);
     RUN_TEST(test_stop_operation_then_resume);
+    RUN_TEST(test_gateway_assigns_request_id_and_trace);
     return UNITY_END();
 }

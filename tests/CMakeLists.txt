@@ -6,6 +6,7 @@ macro(add_unit_test name test_src)
     add_executable(${name}
         ${test_src}
         ${ARGN}
+        ${WDF_ROOT}/common/trace_context.c
         ${WDF_ROOT}/third_party/unity/unity.c
     )
     target_include_directories(${name} PRIVATE
