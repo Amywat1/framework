@@ -9,6 +9,7 @@
 
 #include <stddef.h>
 #include <stdio.h>
+#include <string.h>
 
 static sw_log_sink_fn_t s_sink = NULL;
 
@@ -37,4 +38,24 @@ void sw_log_write(sw_log_level_t level, const char *fmt, ...)
         default_sink(level, fmt, ap);
     }
     va_end(ap);
+}
+
+const char *sw_log_source_file_name(const char *source_path)
+{
+    const char *unix_separator;
+    const char *windows_separator;
+    const char *last_separator;
+
+    if (source_path == NULL) {
+        return "";
+    }
+
+    unix_separator = strrchr(source_path, '/');
+    windows_separator = strrchr(source_path, '\\');
+    last_separator = unix_separator;
+    if ((last_separator == NULL) || ((windows_separator != NULL) && (windows_separator > last_separator))) {
+        last_separator = windows_separator;
+    }
+
+    return (last_separator == NULL) ? source_path : (last_separator + 1);
 }

@@ -32,6 +32,14 @@ void sw_log_register_sink(sw_log_sink_fn_t sink);
 /** @brief  写一条日志，转发给已注册的 sink 或内置 stderr 输出 */
 void sw_log_write(sw_log_level_t level, const char *fmt, ...);
 
+/**
+ * @brief 从源码路径中提取文件名
+ *
+ * @param source_path 编译器提供的源码路径，可为 NULL
+ * @return 文件名；输入为 NULL 时返回空字符串
+ */
+const char *sw_log_source_file_name(const char *source_path);
+
 #ifdef __cplusplus
 }
 #endif
@@ -41,12 +49,16 @@ void sw_log_write(sw_log_level_t level, const char *fmt, ...);
  * 使用示例：
  *   LOG_INFO("motor speed set to %d rpm", speed);
  * ------------------------------------------------------------------------- */
-#define LOG_ERROR(fmt, ...) sw_log_write(SW_LOG_ERROR, "[%s:%d] " fmt, __FILE__, __LINE__, ##__VA_ARGS__)
+#define LOG_ERROR(fmt, ...) \
+    sw_log_write(SW_LOG_ERROR, "[%s:%d] " fmt, sw_log_source_file_name(__FILE__), __LINE__, ##__VA_ARGS__)
 
-#define LOG_WARN(fmt, ...) sw_log_write(SW_LOG_WARN, "[%s:%d] " fmt, __FILE__, __LINE__, ##__VA_ARGS__)
+#define LOG_WARN(fmt, ...) \
+    sw_log_write(SW_LOG_WARN, "[%s:%d] " fmt, sw_log_source_file_name(__FILE__), __LINE__, ##__VA_ARGS__)
 
-#define LOG_INFO(fmt, ...) sw_log_write(SW_LOG_INFO, "[%s:%d] " fmt, __FILE__, __LINE__, ##__VA_ARGS__)
+#define LOG_INFO(fmt, ...) \
+    sw_log_write(SW_LOG_INFO, "[%s:%d] " fmt, sw_log_source_file_name(__FILE__), __LINE__, ##__VA_ARGS__)
 
-#define LOG_DEBUG(fmt, ...) sw_log_write(SW_LOG_DEBUG, "[%s:%d] " fmt, __FILE__, __LINE__, ##__VA_ARGS__)
+#define LOG_DEBUG(fmt, ...) \
+    sw_log_write(SW_LOG_DEBUG, "[%s:%d] " fmt, sw_log_source_file_name(__FILE__), __LINE__, ##__VA_ARGS__)
 
 #endif /* LOG_H */
