@@ -11,6 +11,7 @@
 #include "unity.h"
 
 #include <string.h>
+#include <unistd.h>
 
 static const drv_io_name_entry_t s_di_names[] = {
     {"DI_START", IO_HANDLE_MAKE(IO_KIND_DI, 1U, 1U)},
@@ -44,6 +45,14 @@ static const hal_io_ops_t *io_ops(void)
 
     TEST_ASSERT_NOT_NULL(ops);
     return ops;
+}
+
+static io_di_sample_t read_di(io_di_t pin)
+{
+    io_di_sample_t sample;
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, io_ops()->di_read(pin, &sample));
+    return sample;
 }
 
 void setUp(void)
@@ -165,13 +174,14 @@ static void test_di_test_override_controls_read_value(void)
 {
     io_di_t pin = IO_DI(1U, 1U);
 
-    TEST_ASSERT_FALSE(io_ops()->di_read(pin));
+    TEST_ASSERT_EQUAL_INT(IO_SAMPLE_QUALITY_PROBING, read_di(pin).quality);
     drv_io_set_test_override(pin, 1);
-    TEST_ASSERT_TRUE(io_ops()->di_read(pin));
+    TEST_ASSERT_TRUE(read_di(pin).level);
+    TEST_ASSERT_EQUAL_INT(IO_SAMPLE_QUALITY_VALID, read_di(pin).quality);
     drv_io_set_test_override(pin, 0);
-    TEST_ASSERT_FALSE(io_ops()->di_read(pin));
+    TEST_ASSERT_FALSE(read_di(pin).level);
     drv_io_clear_test_override(pin);
-    TEST_ASSERT_FALSE(io_ops()->di_read(pin));
+    TEST_ASSERT_EQUAL_INT(IO_SAMPLE_QUALITY_PROBING, read_di(pin).quality);
 }
 
 static void test_wait_boards_online_uses_sdk_probe(void)
@@ -219,6 +229,21 @@ static void test_adc_read_delegates_to_sdk(void)
     TEST_ASSERT_EQUAL_INT(-1, io_ops()->adc_read(9, 1));
 }
 
+static void test_start_confirms_healthy_boards_within_watchdog_window(void)
+{
+    hal_io_stats_t stats;
+
+    io_exp_fake_set_online(1, 1);
+    io_exp_fake_set_online(2, 1);
+    TEST_ASSERT_EQUAL_INT(SW_OK, io_ops()->start());
+    usleep(200U * 1000U);
+
+    TEST_ASSERT_TRUE(io_ops()->board_is_online(1));
+    TEST_ASSERT_TRUE(io_ops()->board_is_online(2));
+    TEST_ASSERT_EQUAL_INT(SW_OK, io_ops()->get_stats(1, &stats));
+    TEST_ASSERT_GREATER_THAN_UINT32(0U, stats.input_refresh_count);
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -233,6 +258,7 @@ int main(void)
     RUN_TEST(test_wait_boards_online_uses_sdk_probe);
     RUN_TEST(test_pulse_read_and_clear_delegate_to_sdk);
     RUN_TEST(test_adc_read_delegates_to_sdk);
+    RUN_TEST(test_start_confirms_healthy_boards_within_watchdog_window);
 
     return UNITY_END();
 }

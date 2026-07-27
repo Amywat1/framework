@@ -16,6 +16,7 @@ extern "C" {
 #endif
 
 #include "common/io_handle.h"
+#include "common/io_sample.h"
 #include "common/sw_error.h"
 
 #include <stdbool.h>
@@ -68,7 +69,16 @@ typedef struct {
     sw_err_t (*wait_boards_online)(uint32_t timeout_ms);
 
     sw_err_t (*do_set)(io_do_t pin, bool val);
-    bool (*di_read)(io_di_t pin);
+
+    /**
+     * @brief 读取数字输入快照。
+     * @param pin     输入句柄。
+     * @param sample  输出采样，不可为 NULL。
+     * @retval SW_OK          句柄有效，质量由 sample->quality 表示。
+     * @retval SW_ERR_PARAM   句柄或输出参数无效。
+     * @retval SW_ERR_NOT_INIT IO 后端尚未初始化。
+     */
+    sw_err_t (*di_read)(io_di_t pin, io_di_sample_t *sample);
 
     void (*register_debug_input_cb)(hal_io_debug_input_cb_t cb);
     void (*register_board_status_cb)(hal_io_board_status_cb_t cb);

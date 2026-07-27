@@ -27,6 +27,21 @@ extern "C" {
 
 typedef uint8_t hal_sensor_channel_t;
 
+/** @brief 滤波后逻辑信号状态。 */
+typedef enum {
+    HAL_SENSOR_STATE_UNKNOWN = 0, /**< 原始输入当前不可信或尚未完成防抖确认。 */
+    HAL_SENSOR_STATE_INACTIVE,    /**< 已确认释放。 */
+    HAL_SENSOR_STATE_ACTIVE,      /**< 已确认触发。 */
+} hal_sensor_state_t;
+
+/**
+ * @brief 逻辑信号状态变化回调。
+ * @param ch     信号通道。
+ * @param state  新状态。
+ * @param ctx    注册时传入的上下文。
+ */
+typedef void (*hal_sensor_state_cb_t)(hal_sensor_channel_t ch, hal_sensor_state_t state, void *ctx);
+
 /**
  * @brief  单通道滤波绑定参数
  */
@@ -51,8 +66,18 @@ typedef struct {
      */
     sw_err_t (*warmup)(uint8_t sample_count);
 
-    /** @brief  查询通道滤波后的稳定逻辑态 */
+    /** @brief 查询通道滤波后的稳定逻辑态；UNKNOWN 返回 false。 */
     bool (*is_active)(hal_sensor_channel_t ch);
+
+    /** @brief 查询通道三态结果；参数无效或未绑定时返回 UNKNOWN。 */
+    hal_sensor_state_t (*get_state)(hal_sensor_channel_t ch);
+
+    /**
+     * @brief 订阅逻辑信号状态变化。
+     * @retval SW_OK / SW_ERR_PARAM / SW_ERR_OVERFLOW
+     * @note   回调在传感器采样任务上下文执行，不得阻塞。
+     */
+    sw_err_t (*subscribe)(hal_sensor_state_cb_t cb, void *ctx);
 } hal_sensor_ops_t;
 
 void                    hal_sensor_register(const hal_sensor_ops_t *ops);

@@ -84,9 +84,9 @@ static sw_err_t do_set(io_do_t pin, bool val)
     return drv_io_do_set(pin, val);
 }
 
-static bool di_read(io_di_t pin)
+static sw_err_t di_read(io_di_t pin, io_di_sample_t *sample)
 {
-    return drv_io_di_read(pin);
+    return drv_io_di_read(pin, sample);
 }
 
 static void register_debug_input_cb(hal_io_debug_input_cb_t cb)

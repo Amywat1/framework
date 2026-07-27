@@ -28,7 +28,6 @@
 #include "runtime/bootstrap/wiring.h"
 #include "runtime/config/thread_config.h"
 #include "runtime/event_bus/event_bus.h"
-#include "runtime/platform/safety_thread.h"
 #include "runtime/scheduler/scheduler.h"
 #include "runtime/scheduler/thread_registry.h"
 #include "services/param/svc_param.h"
@@ -234,7 +233,6 @@ static sw_err_t bootstrap_init_machine(void)
 static sw_err_t bootstrap_init_services(void)
 {
     BOOT_CHECK(alarm_event_bridge_init(), "alarm_event_bridge_init");
-    BOOT_CHECK(safety_thread_init(), "safety_thread_init");
     BOOT_CHECK(operational_mode_init(), "operational_mode_init");
     BOOT_CHECK(command_gateway_init(), "command_gateway_init");
     BOOT_CHECK(self_check_service_init(), "self_check_service_init");

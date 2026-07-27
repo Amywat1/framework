@@ -9,8 +9,10 @@
 
 #include "common/io_handle.h"
 #include "common/log.h"
+#include "common/time_util.h"
 #include "ports/outbound/hal/hal_io_port.h"
 
+#include <pthread.h>
 #include <string.h>
 
 #define SIM_IO_BOARD_MAX     8U
@@ -24,8 +26,13 @@ static uint32_t s_pulse_counter[SIM_IO_BOARD_MAX][SIM_IO_PIN_COUNT + 1U];
 static int      s_adc_raw[SIM_IO_BOARD_MAX][SIM_IO_ADC_PORT_MAX + 1];
 static int      s_adc_mv[SIM_IO_BOARD_MAX][SIM_IO_ADC_PORT_MAX + 1];
 static int      s_adc_ma[SIM_IO_BOARD_MAX][SIM_IO_ADC_PORT_MAX + 1];
+static io_sample_quality_t s_di_quality[SIM_IO_BOARD_MAX];
+static uint64_t s_di_timestamp_ms[SIM_IO_BOARD_MAX];
+static uint32_t s_di_sequence[SIM_IO_BOARD_MAX];
 static bool     s_inited = false;
+static bool     s_started = false;
 static uint32_t s_lifecycle_violation_count = 0U;
+static pthread_mutex_t s_di_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 static void sim_record_lifecycle_violation(const char *operation)
 {
@@ -76,7 +83,13 @@ void hal_io_sim_set_di_level(io_di_t pin, bool level)
     raw                   = io_di_raw(pin);
     board                 = io_handle_board(raw);
     io                    = io_handle_pin(raw);
+    pthread_mutex_lock(&s_di_mutex);
     s_di_state[board][io] = level;
+    if (s_started && (s_di_quality[board] == IO_SAMPLE_QUALITY_VALID)) {
+        s_di_timestamp_ms[board] = time_util_get_ms();
+        s_di_sequence[board]++;
+    }
+    pthread_mutex_unlock(&s_di_mutex);
 }
 
 static sw_err_t sim_do_set(io_do_t pin, bool val)
@@ -98,24 +111,55 @@ static sw_err_t sim_do_set(io_do_t pin, bool val)
     return SW_OK;
 }
 
-static bool sim_di_read(io_di_t pin)
+static sw_err_t sim_di_read(io_di_t pin, io_di_sample_t *sample)
 {
     uint16_t raw;
     uint16_t board;
     uint16_t io;
 
+    if (sample == NULL) {
+        return SW_ERR_PARAM;
+    }
+    *sample = (io_di_sample_t){.quality = IO_SAMPLE_QUALITY_UNINITIALIZED};
     if (!sim_is_valid_di(pin)) {
-        return false;
+        return SW_ERR_PARAM;
     }
     if (!s_inited) {
         sim_record_lifecycle_violation("di_read");
-        return false;
+        return SW_ERR_NOT_INIT;
     }
 
     raw   = io_di_raw(pin);
     board = io_handle_board(raw);
     io    = io_handle_pin(raw);
-    return s_di_state[board][io];
+    pthread_mutex_lock(&s_di_mutex);
+    sample->level        = s_di_state[board][io];
+    sample->quality      = s_di_quality[board];
+    if (sample->quality == IO_SAMPLE_QUALITY_VALID) {
+        s_di_timestamp_ms[board] = time_util_get_ms();
+        s_di_sequence[board]++;
+    }
+    sample->timestamp_ms = s_di_timestamp_ms[board];
+    sample->sequence     = s_di_sequence[board];
+    pthread_mutex_unlock(&s_di_mutex);
+    return SW_OK;
+}
+
+void hal_io_sim_set_board_online(int board_id, bool online)
+{
+    if (!s_inited || (board_id <= 0) || (board_id >= (int)SIM_IO_BOARD_MAX)) {
+        return;
+    }
+
+    pthread_mutex_lock(&s_di_mutex);
+    if (online) {
+        s_di_quality[board_id]      = IO_SAMPLE_QUALITY_VALID;
+        s_di_timestamp_ms[board_id] = time_util_get_ms();
+        s_di_sequence[board_id]++;
+    } else {
+        s_di_quality[board_id] = IO_SAMPLE_QUALITY_OFFLINE;
+    }
+    pthread_mutex_unlock(&s_di_mutex);
 }
 
 static void sim_register_debug_input_cb(hal_io_debug_input_cb_t cb)
@@ -136,7 +180,13 @@ static sw_err_t sim_io_init(void)
     memset(s_adc_raw, 0, sizeof(s_adc_raw));
     memset(s_adc_mv, 0, sizeof(s_adc_mv));
     memset(s_adc_ma, 0, sizeof(s_adc_ma));
+    memset(s_di_timestamp_ms, 0, sizeof(s_di_timestamp_ms));
+    memset(s_di_sequence, 0, sizeof(s_di_sequence));
+    for (int board = 0; board < (int)SIM_IO_BOARD_MAX; ++board) {
+        s_di_quality[board] = (board == 0) ? IO_SAMPLE_QUALITY_UNINITIALIZED : IO_SAMPLE_QUALITY_PROBING;
+    }
     s_inited = true;
+    s_started = false;
     return SW_OK;
 }
 
@@ -146,6 +196,14 @@ static sw_err_t sim_io_start(void)
         sim_record_lifecycle_violation("start");
         return SW_ERR_NOT_INIT;
     }
+    pthread_mutex_lock(&s_di_mutex);
+    s_started = true;
+    for (int board = 1; board < (int)SIM_IO_BOARD_MAX; ++board) {
+        s_di_quality[board]      = IO_SAMPLE_QUALITY_VALID;
+        s_di_timestamp_ms[board] = time_util_get_ms();
+        s_di_sequence[board]++;
+    }
+    pthread_mutex_unlock(&s_di_mutex);
     return SW_OK;
 }
 
@@ -165,12 +223,19 @@ static sw_err_t sim_flush_outputs_now(void)
 
 static bool sim_board_is_online(int board_id)
 {
-    (void)board_id;
+    bool online;
+
     if (!s_inited) {
         sim_record_lifecycle_violation("board_is_online");
         return false;
     }
-    return true;
+    if ((board_id <= 0) || (board_id >= (int)SIM_IO_BOARD_MAX)) {
+        return false;
+    }
+    pthread_mutex_lock(&s_di_mutex);
+    online = s_di_quality[board_id] == IO_SAMPLE_QUALITY_VALID;
+    pthread_mutex_unlock(&s_di_mutex);
+    return online;
 }
 
 static sw_err_t sim_wait_boards_online(uint32_t timeout_ms)
@@ -314,16 +379,19 @@ static int sim_adc_ma(int board_id, int port)
 
 static sw_err_t sim_get_stats(int board_id, hal_io_stats_t *out)
 {
-    (void)board_id;
-    if (out == NULL) {
+    if ((out == NULL) || (board_id <= 0) || (board_id >= (int)SIM_IO_BOARD_MAX)) {
         return SW_ERR_PARAM;
     }
     if (!s_inited) {
         sim_record_lifecycle_violation("get_stats");
         return SW_ERR_NOT_INIT;
     }
+    pthread_mutex_lock(&s_di_mutex);
     memset(out, 0, sizeof(*out));
-    out->online = true;
+    out->online                = s_di_quality[board_id] == IO_SAMPLE_QUALITY_VALID;
+    out->input_refresh_count   = s_di_sequence[board_id];
+    out->last_input_refresh_ms = s_di_timestamp_ms[board_id];
+    pthread_mutex_unlock(&s_di_mutex);
     return SW_OK;
 }
 
@@ -377,7 +445,11 @@ void hal_io_sim_test_reset(void)
     memset(s_adc_raw, 0, sizeof(s_adc_raw));
     memset(s_adc_mv, 0, sizeof(s_adc_mv));
     memset(s_adc_ma, 0, sizeof(s_adc_ma));
+    memset(s_di_quality, 0, sizeof(s_di_quality));
+    memset(s_di_timestamp_ms, 0, sizeof(s_di_timestamp_ms));
+    memset(s_di_sequence, 0, sizeof(s_di_sequence));
     s_inited                     = false;
+    s_started                    = false;
     s_lifecycle_violation_count = 0U;
 }
 #endif

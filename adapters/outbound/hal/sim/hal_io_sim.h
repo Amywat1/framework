@@ -34,6 +34,13 @@ sw_err_t hal_io_sim_validate_lifecycle(void);
 void hal_io_sim_set_di_level(io_di_t pin, bool level);
 
 /**
+ * @brief 设置仿真子板在线状态。
+ * @param board_id 子板号，从 1 开始。
+ * @param online   true=恢复并产生有效快照，false=输入质量变为 OFFLINE。
+ */
+void hal_io_sim_set_board_online(int board_id, bool online);
+
+/**
  * @brief  设置仿真脉冲计数器值（供编码器仿真与测试使用）
  * @param  pin    DI 句柄（须为有效仿真引脚）
  * @param  value  计数值

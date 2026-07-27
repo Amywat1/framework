@@ -30,6 +30,7 @@ void setUp(void)
     hal_io_sim_register();
     TEST_ASSERT_EQUAL_INT(SW_OK, hal_io_sim_validate_lifecycle());
     TEST_ASSERT_EQUAL_INT(SW_OK, hal_io_get_ops()->init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, hal_io_get_ops()->start());
 }
 
 void tearDown(void)
@@ -38,26 +39,38 @@ void tearDown(void)
 
 static void test_di_read_default_false(void)
 {
-    TEST_ASSERT_FALSE(hal_io_get_ops()->di_read(k_valid_di));
+    io_di_sample_t sample;
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, hal_io_get_ops()->di_read(k_valid_di, &sample));
+    TEST_ASSERT_FALSE(sample.level);
+    TEST_ASSERT_EQUAL_INT(IO_SAMPLE_QUALITY_VALID, sample.quality);
 }
 
 static void test_set_di_level_true_and_read(void)
 {
+    io_di_sample_t sample;
+
     hal_io_sim_set_di_level(k_valid_di, true);
-    TEST_ASSERT_TRUE(hal_io_get_ops()->di_read(k_valid_di));
+    TEST_ASSERT_EQUAL_INT(SW_OK, hal_io_get_ops()->di_read(k_valid_di, &sample));
+    TEST_ASSERT_TRUE(sample.level);
 }
 
 static void test_set_di_level_false_and_read(void)
 {
+    io_di_sample_t sample;
+
     hal_io_sim_set_di_level(k_valid_di, true);
     hal_io_sim_set_di_level(k_valid_di, false);
-    TEST_ASSERT_FALSE(hal_io_get_ops()->di_read(k_valid_di));
+    TEST_ASSERT_EQUAL_INT(SW_OK, hal_io_get_ops()->di_read(k_valid_di, &sample));
+    TEST_ASSERT_FALSE(sample.level);
 }
 
 static void test_di_invalid_board_returns_false(void)
 {
+    io_di_sample_t sample;
+
     hal_io_sim_set_di_level(k_bad_di, true);
-    TEST_ASSERT_FALSE(hal_io_get_ops()->di_read(k_bad_di));
+    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, hal_io_get_ops()->di_read(k_bad_di, &sample));
 }
 
 static void test_do_set_valid_returns_ok(void)
@@ -130,19 +143,24 @@ static void test_get_stats_null_returns_err(void)
 static void test_di_pin_zero_returns_false(void)
 {
     io_di_t pin_zero = IO_DI(1U, 0U);
+    io_di_sample_t sample;
+
     hal_io_sim_set_di_level(pin_zero, true);
-    TEST_ASSERT_FALSE(hal_io_get_ops()->di_read(pin_zero));
+    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, hal_io_get_ops()->di_read(pin_zero, &sample));
 }
 
 static void test_di_board_max_boundary(void)
 {
     io_di_t pin_max_board = IO_DI(7U, 1U);
+    io_di_sample_t sample;
+
     hal_io_sim_set_di_level(pin_max_board, true);
-    TEST_ASSERT_TRUE(hal_io_get_ops()->di_read(pin_max_board));
+    TEST_ASSERT_EQUAL_INT(SW_OK, hal_io_get_ops()->di_read(pin_max_board, &sample));
+    TEST_ASSERT_TRUE(sample.level);
 
     io_di_t pin_over_board = IO_DI(8U, 1U);
     hal_io_sim_set_di_level(pin_over_board, true);
-    TEST_ASSERT_FALSE(hal_io_get_ops()->di_read(pin_over_board));
+    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, hal_io_get_ops()->di_read(pin_over_board, &sample));
 }
 
 static void test_do_pin_zero_returns_err(void)
@@ -155,12 +173,15 @@ static void test_two_di_pins_independent(void)
 {
     io_di_t pin1 = IO_DI(1U, 1U);
     io_di_t pin2 = IO_DI(1U, 2U);
+    io_di_sample_t sample;
 
     hal_io_sim_set_di_level(pin1, true);
     hal_io_sim_set_di_level(pin2, false);
 
-    TEST_ASSERT_TRUE(hal_io_get_ops()->di_read(pin1));
-    TEST_ASSERT_FALSE(hal_io_get_ops()->di_read(pin2));
+    TEST_ASSERT_EQUAL_INT(SW_OK, hal_io_get_ops()->di_read(pin1, &sample));
+    TEST_ASSERT_TRUE(sample.level);
+    TEST_ASSERT_EQUAL_INT(SW_OK, hal_io_get_ops()->di_read(pin2, &sample));
+    TEST_ASSERT_FALSE(sample.level);
 }
 
 static void test_two_pulse_counters_independent(void)
@@ -183,12 +204,13 @@ static void test_start_returns_ok(void)
 static void test_ops_before_init_return_not_init_or_safe_value(void)
 {
     hal_io_stats_t stats;
+    io_di_sample_t sample;
 
     hal_io_sim_test_reset();
     hal_io_sim_register();
     TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_INIT, hal_io_get_ops()->start());
     TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_INIT, hal_io_get_ops()->do_set(k_valid_do, true));
-    TEST_ASSERT_FALSE(hal_io_get_ops()->di_read(k_valid_di));
+    TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_INIT, hal_io_get_ops()->di_read(k_valid_di, &sample));
     TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_INIT, hal_io_get_ops()->pulse_clear(k_valid_di));
     TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_INIT, hal_io_get_ops()->get_stats(1, &stats));
     TEST_ASSERT_EQUAL_INT(SW_ERR_STATE, hal_io_sim_validate_lifecycle());
@@ -209,6 +231,29 @@ static void test_adc_read_after_set(void)
     TEST_ASSERT_EQUAL_INT(12, hal_io_get_ops()->adc_ma(1, 1));
     TEST_ASSERT_EQUAL_INT(-1, hal_io_get_ops()->adc_read(1, 5));
     TEST_ASSERT_EQUAL_INT(-1, hal_io_get_ops()->adc_mv(0, 1));
+}
+
+static void test_di_quality_tracks_lifecycle(void)
+{
+    io_di_sample_t sample;
+
+    hal_io_sim_test_reset();
+    hal_io_sim_register();
+    TEST_ASSERT_EQUAL_INT(SW_OK, hal_io_get_ops()->init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, hal_io_get_ops()->di_read(k_valid_di, &sample));
+    TEST_ASSERT_EQUAL_INT(IO_SAMPLE_QUALITY_PROBING, sample.quality);
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, hal_io_get_ops()->start());
+    TEST_ASSERT_EQUAL_INT(SW_OK, hal_io_get_ops()->di_read(k_valid_di, &sample));
+    TEST_ASSERT_EQUAL_INT(IO_SAMPLE_QUALITY_VALID, sample.quality);
+
+    hal_io_sim_set_board_online(1, false);
+    TEST_ASSERT_EQUAL_INT(SW_OK, hal_io_get_ops()->di_read(k_valid_di, &sample));
+    TEST_ASSERT_EQUAL_INT(IO_SAMPLE_QUALITY_OFFLINE, sample.quality);
+
+    hal_io_sim_set_board_online(1, true);
+    TEST_ASSERT_EQUAL_INT(SW_OK, hal_io_get_ops()->di_read(k_valid_di, &sample));
+    TEST_ASSERT_EQUAL_INT(IO_SAMPLE_QUALITY_VALID, sample.quality);
 }
 
 int main(void)
@@ -244,6 +289,7 @@ int main(void)
     RUN_TEST(test_ops_before_init_return_not_init_or_safe_value);
     RUN_TEST(test_pulse_counter_max_value);
     RUN_TEST(test_adc_read_after_set);
+    RUN_TEST(test_di_quality_tracks_lifecycle);
 
     return UNITY_END();
 }

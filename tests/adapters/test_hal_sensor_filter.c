@@ -36,6 +36,7 @@ void setUp(void)
     hal_sensor_filter_register();
     TEST_ASSERT_NOT_NULL(hal_sensor_get_ops());
     hal_io_sim_set_di_level(TEST_DI, false);
+    TEST_ASSERT_EQUAL_INT(SW_OK, hal_io_get_ops()->start());
 }
 
 void tearDown(void)
@@ -153,6 +154,27 @@ static void test_warmup_before_bind_or_init_returns_not_init(void)
     TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_INIT, hal_sensor_get_ops()->warmup(1U));
 }
 
+static void test_invalid_input_becomes_unknown_and_recovers_after_debounce(void)
+{
+    hal_sensor_bind_cfg_t cfg = make_cfg();
+
+    bind_and_init(0U, &cfg);
+    hal_io_sim_set_di_level(TEST_DI, true);
+    TEST_ASSERT_EQUAL_INT(SW_OK, hal_sensor_get_ops()->warmup(2U));
+    TEST_ASSERT_EQUAL_INT(HAL_SENSOR_STATE_ACTIVE, hal_sensor_get_ops()->get_state(0U));
+
+    hal_io_sim_set_board_online(1, false);
+    TEST_ASSERT_EQUAL_INT(SW_OK, hal_sensor_get_ops()->warmup(1U));
+    TEST_ASSERT_EQUAL_INT(HAL_SENSOR_STATE_UNKNOWN, hal_sensor_get_ops()->get_state(0U));
+
+    hal_io_sim_set_di_level(TEST_DI, false);
+    hal_io_sim_set_board_online(1, true);
+    TEST_ASSERT_EQUAL_INT(SW_OK, hal_sensor_get_ops()->warmup(2U));
+    TEST_ASSERT_EQUAL_INT(HAL_SENSOR_STATE_UNKNOWN, hal_sensor_get_ops()->get_state(0U));
+    TEST_ASSERT_EQUAL_INT(SW_OK, hal_sensor_get_ops()->warmup(1U));
+    TEST_ASSERT_EQUAL_INT(HAL_SENSOR_STATE_INACTIVE, hal_sensor_get_ops()->get_state(0U));
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -164,6 +186,7 @@ int main(void)
     RUN_TEST(test_init_resets_runtime_but_keeps_bindings);
     RUN_TEST(test_warmup_requires_registered_io_ops);
     RUN_TEST(test_warmup_before_bind_or_init_returns_not_init);
+    RUN_TEST(test_invalid_input_becomes_unknown_and_recovers_after_debounce);
 
     return UNITY_END();
 }

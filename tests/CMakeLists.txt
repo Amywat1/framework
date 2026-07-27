@@ -42,8 +42,10 @@ add_unit_test(test_event_bus
 add_unit_test(test_hal_io_sim
     ${CMAKE_CURRENT_SOURCE_DIR}/adapters/test_hal_io_sim.c
     ${WDF_ROOT}/adapters/outbound/hal/sim/hal_io_sim.c
+    ${WDF_ROOT}/ports/port_registry_hal.c
     ${WDF_ROOT}/ports/port_registry_infra.c
     ${WDF_ROOT}/common/log.c
+    ${WDF_ROOT}/common/time_util.c
 )
 target_compile_definitions(test_hal_io_sim PRIVATE HAL_IO_SIM_UNIT_TEST)
 
@@ -53,8 +55,10 @@ add_unit_test(test_hal_sensor_filter
     ${WDF_ROOT}/adapters/outbound/hal/sim/hal_io_sim.c
     ${WDF_ROOT}/runtime/scheduler/periodic_task.c
     ${WDF_ROOT}/runtime/scheduler/thread_registry.c
+    ${WDF_ROOT}/ports/port_registry_hal.c
     ${WDF_ROOT}/ports/port_registry_infra.c
     ${WDF_ROOT}/common/log.c
+    ${WDF_ROOT}/common/time_util.c
 )
 target_compile_definitions(test_hal_sensor_filter PRIVATE HAL_SENSOR_FILTER_UNIT_TEST HAL_IO_SIM_UNIT_TEST)
 
@@ -99,6 +103,7 @@ add_unit_test(test_snack_io_exp_adapter
     ${WDF_ROOT}/adapters/outbound/hal/providers/snack/io_exp/io_exp_driver.c
     ${WDF_ROOT}/adapters/outbound/hal/providers/snack/io_exp/snack_io_adapter.c
     ${WDF_ROOT}/tests/stubs/io_exp/io_exp_fake.c
+    ${WDF_ROOT}/ports/port_registry_hal.c
     ${WDF_ROOT}/ports/port_registry_infra.c
     ${WDF_ROOT}/common/log.c
     ${WDF_ROOT}/common/time_util.c

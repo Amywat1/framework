@@ -60,10 +60,12 @@ sw_err_t io_exp_driver_sdk_init(const char *can_bus, int can_baud, int self_node
 #define IO_PIN_COUNT_MAX    32U            /* 每块子板 IO 点数上限，仅用于静态数组维度 */
 #define IO_RW_STACK_BYTES   (16U * 1024U)  /* io_rw 线程栈 */
 #define IO_UPDATE_FREQ_MS   30U            /* 输入/输出缓冲刷新周期（ms） */
+#define IO_CHECK_PROBING_MS IO_UPDATE_FREQ_MS /* 启动和恢复确认期间快速探测 */
 #define IO_CHECK_OFFLINE_MS 300U           /* 全部在线时的在线检测间隔（ms） */
 #define IO_CHECK_ONLINE_MS  2000U          /* 存在掉线子板时的重连检测间隔（ms） */
 #define IO_OFFLINE_CNT      3U             /* 连续无响应次数达到该值后判定掉线 */
 #define IO_ONLINE_CNT       IO_OFFLINE_CNT /* 连续响应次数达到该值后确认上线（对称防抖）*/
+#define IO_STARTUP_SAFE_STOP_DELAY_MS 3000U /* 上电无板时执行安全停机的等待时间 */
 
 sw_err_t drv_io_cfg_validate(const drv_io_cfg_t *cfg)
 {
@@ -78,13 +80,16 @@ sw_err_t drv_io_cfg_validate(const drv_io_cfg_t *cfg)
 /* -------------------------------------------------------------------------
  * 内部状态
  * ------------------------------------------------------------------------- */
-static volatile unsigned int s_input_buf[IO_BOARD_MAX]    = {0};
-static volatile unsigned int s_output_buf[IO_BOARD_MAX]   = {0};
-static volatile bool         s_output_dirty[IO_BOARD_MAX] = {false};
-static volatile bool         s_board_online[IO_BOARD_MAX] = {0};
-static pthread_mutex_t       s_output_mutex               = PTHREAD_MUTEX_INITIALIZER;
-static drv_io_stats_t        s_stats[IO_BOARD_MAX]        = {{0}};
-static bool                  s_seen_online[IO_BOARD_MAX]  = {false};
+static unsigned int       s_input_buf[IO_BOARD_MAX]    = {0};
+static unsigned int       s_output_buf[IO_BOARD_MAX]   = {0};
+static bool               s_output_dirty[IO_BOARD_MAX] = {false};
+static bool               s_board_online[IO_BOARD_MAX] = {0};
+static io_sample_quality_t s_input_quality[IO_BOARD_MAX];
+static uint32_t           s_input_sequence[IO_BOARD_MAX];
+static pthread_mutex_t    s_input_mutex  = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t    s_output_mutex = PTHREAD_MUTEX_INITIALIZER;
+static drv_io_stats_t     s_stats[IO_BOARD_MAX] = {{0}};
+static bool               s_seen_online[IO_BOARD_MAX] = {false};
 
 /* 运行时配置（由 drv_io_init 写入，后续只读） */
 static int                        s_board_count = 0;
@@ -220,9 +225,14 @@ const char *drv_io_do_name(io_do_t pin)
 /* 检测到在线时的单板状态处理（含上线防抖） */
 static void poll_handle_detected_online(int id, uint8_t online_cnt[], uint8_t offline_cnt[], bool offline_confirmed[])
 {
+    bool already_online;
+
     offline_cnt[id] = 0U;
 
-    if (s_board_online[id]) {
+    pthread_mutex_lock(&s_input_mutex);
+    already_online = s_board_online[id];
+    pthread_mutex_unlock(&s_input_mutex);
+    if (already_online) {
         online_cnt[id] = 0U;
         return;
     }
@@ -235,11 +245,14 @@ static void poll_handle_detected_online(int id, uint8_t online_cnt[], uint8_t of
     /* 连续在线次数达到阈值：确认上线 */
     {
         uint64_t now_ms    = time_util_get_ms();
-        bool     recovered = s_seen_online[id];
+        bool     recovered;
 
         online_cnt[id]             = 0U;
         offline_confirmed[id]      = false; /* 连续确认后才解除已确认离线状态 */
+        pthread_mutex_lock(&s_input_mutex);
+        recovered                   = s_seen_online[id];
         s_board_online[id]         = true;
+        s_input_quality[id]        = IO_SAMPLE_QUALITY_PROBING;
         s_stats[id].online         = true;
         s_stats[id].last_online_ms = now_ms;
         if (recovered) {
@@ -247,6 +260,7 @@ static void poll_handle_detected_online(int id, uint8_t online_cnt[], uint8_t of
         } else {
             s_seen_online[id] = true;
         }
+        pthread_mutex_unlock(&s_input_mutex);
 
         /* 子板离线期间硬件输出可能丢失，恢复后强制重发 */
         pthread_mutex_lock(&s_output_mutex);
@@ -280,11 +294,14 @@ static void poll_handle_detected_offline(int id, uint8_t online_cnt[], uint8_t o
     if (!offline_confirmed[id]) {
         uint64_t now_ms = time_util_get_ms();
 
-        s_board_online[id]    = false;
         offline_confirmed[id] = true;
+        pthread_mutex_lock(&s_input_mutex);
+        s_board_online[id]    = false;
+        s_input_quality[id]   = IO_SAMPLE_QUALITY_OFFLINE;
         s_stats[id].online    = false;
         s_stats[id].offline_count++;
         s_stats[id].last_offline_ms = now_ms;
+        pthread_mutex_unlock(&s_input_mutex);
 
         if (s_board_error_cb != NULL) {
             s_board_error_cb(id, true);
@@ -306,18 +323,25 @@ static void poll_check_board(int id, uint8_t online_cnt[], uint8_t offline_cnt[]
 /* 单块在线子板的输入刷新 + 输出落地 */
 static void poll_rw_board(int id)
 {
-    unsigned int prev    = s_input_buf[id];
+    unsigned int prev;
+    unsigned int input;
     unsigned int out_val = 0U;
     uint64_t     now_ms;
     bool         dirty = false;
 
     /* SDO 读写一次约 1~2ms；读失败时 SDK 会保留上次值 */
-    s_input_buf[id]    = (unsigned int)io_read_input_s(id);
-    now_ms             = time_util_get_ms();
-    s_stats[id].online = true;
+    input  = (unsigned int)io_read_input_s(id);
+    now_ms = time_util_get_ms();
+    pthread_mutex_lock(&s_input_mutex);
+    prev                        = s_input_buf[id];
+    s_input_buf[id]             = input;
+    s_input_quality[id]         = IO_SAMPLE_QUALITY_VALID;
+    s_input_sequence[id]++;
+    s_stats[id].online          = true;
     s_stats[id].input_refresh_count++;
     s_stats[id].last_input_refresh_ms = now_ms;
-    s_stats[id].last_input_snapshot   = s_input_buf[id];
+    s_stats[id].last_input_snapshot   = input;
+    pthread_mutex_unlock(&s_input_mutex);
 
     pthread_mutex_lock(&s_output_mutex);
     dirty   = s_output_dirty[id];
@@ -339,11 +363,11 @@ static void poll_rw_board(int id)
 
     /* 输入变化调试通知，仅用于观察，不参与正式业务判断 */
     if (s_debug_input_cb != NULL) {
-        unsigned int changed = prev ^ s_input_buf[id];
+        unsigned int changed = prev ^ input;
         for (int bit = 0; bit < s_pin_count; ++bit) {
             if (((changed >> bit) & 1U) != 0U) {
                 io_di_t pin       = io_di_make((uint16_t)id, (uint16_t)(bit + 1));
-                bool    new_state = (bool)((s_input_buf[id] >> bit) & 1U);
+                bool    new_state = (bool)((input >> bit) & 1U);
                 s_debug_input_cb(pin, new_state);
             }
         }
@@ -351,9 +375,9 @@ static void poll_rw_board(int id)
 }
 
 /* 全板确认离线时的安全停机处理 */
-static void poll_all_offline_panic(void)
+static void poll_all_offline_safe_stop_and_abort(void)
 {
-    LOG_ERROR("drv_io: all boards offline, safe stop and abort");
+    LOG_ERROR("drv_io: all boards offline, safe stop then abort");
 
     /* panic_cb（如 m8_assert_safe_outputs）通过 drv_io_do_set 把缓冲设为安全态，
      * 不负责 flush；flush 由驱动在此处统一执行，保证一定能写到硬件。*/
@@ -375,8 +399,6 @@ static void poll_all_offline_panic(void)
             io_write_all_s(i, (int)snapshot[i]);
         }
     }
-
-    sleep(2);
     abort();
 }
 
@@ -389,14 +411,16 @@ static void *drv_io_poll_loop(void *arg)
     uint8_t  offline_cnt[IO_BOARD_MAX]       = {0U};
     uint8_t  online_cnt[IO_BOARD_MAX]        = {0U};
     bool     offline_confirmed[IO_BOARD_MAX] = {false};
-    int      check_interval_ms               = IO_CHECK_OFFLINE_MS;
+    int      check_interval_ms               = IO_CHECK_PROBING_MS;
+    uint64_t startup_ms                      = time_util_get_ms();
+    bool     all_offline_action_done         = false;
 
     (void)arg;
 
     while (1) {
         int  online_count            = 0;
         int  offline_confirmed_count = 0;
-        bool any_recovering          = false;
+        bool fast_probe_needed       = false;
         int  check_loops             = check_interval_ms / IO_UPDATE_FREQ_MS;
 
         if (check_loops < 1) {
@@ -410,25 +434,38 @@ static void *drv_io_poll_loop(void *arg)
                 poll_check_board(i, online_cnt, offline_cnt, offline_confirmed);
             }
 
-            if (s_board_online[i]) {
+            if (drv_io_board_is_online(i)) {
                 poll_rw_board(i);
                 ++online_count;
             } else if (offline_confirmed[i]) {
                 ++offline_confirmed_count;
                 if (online_cnt[i] > 0U) {
-                    any_recovering = true; /* 正在恢复中，暂缓 panic */
+                    fast_probe_needed = true;
                 }
+            } else {
+                fast_probe_needed = true;
             }
 
             usleep((unsigned int)(IO_UPDATE_FREQ_MS * 1000) / (unsigned int)s_board_count);
         }
 
-        if (offline_confirmed_count == s_board_count && !any_recovering) {
-            poll_all_offline_panic();
+        if (offline_confirmed_count == s_board_count) {
+            if (!all_offline_action_done
+                && (time_elapsed_ms(startup_ms, time_util_get_ms()) >= IO_STARTUP_SAFE_STOP_DELAY_MS)) {
+                all_offline_action_done = true;
+                poll_all_offline_safe_stop_and_abort();
+            }
+        } else {
+            all_offline_action_done = false;
         }
 
-        /* 有子板掉线则不允许设备启动，加大检测周期为了减少日志输出 */
-        check_interval_ms = (online_count == s_board_count) ? IO_CHECK_OFFLINE_MS : IO_CHECK_ONLINE_MS;
+        if (online_count == s_board_count) {
+            check_interval_ms = IO_CHECK_OFFLINE_MS;
+        } else if (fast_probe_needed) {
+            check_interval_ms = IO_CHECK_PROBING_MS;
+        } else {
+            check_interval_ms = IO_CHECK_ONLINE_MS;
+        }
     }
 
     return NULL; /* 不可达：while(1) 永不退出，满足编译器对非 void 函数的返回要求 */
@@ -458,6 +495,12 @@ sw_err_t drv_io_init(const drv_io_cfg_t *cfg)
     memset((void *)s_board_online, 0, sizeof(s_board_online));
     memset(s_stats, 0, sizeof(s_stats));
     memset(s_seen_online, 0, sizeof(s_seen_online));
+    memset(s_input_sequence, 0, sizeof(s_input_sequence));
+    for (int i = 0; i < (int)IO_BOARD_MAX; ++i) {
+        s_input_quality[i] = (i > 0) && (i <= s_board_count)
+                                 ? IO_SAMPLE_QUALITY_PROBING
+                                 : IO_SAMPLE_QUALITY_UNINITIALIZED;
+    }
     memset(s_test_enable, 0, sizeof(s_test_enable));
     memset(s_test_value, 0, sizeof(s_test_value));
 
@@ -563,22 +606,42 @@ sw_err_t drv_io_flush_outputs_now(void)
     return SW_OK;
 }
 
-bool drv_io_di_read(io_di_t pin)
+sw_err_t drv_io_di_read(io_di_t pin, io_di_sample_t *sample)
 {
     uint16_t raw      = io_di_raw(pin);
     int      board_id = (int)io_handle_board(raw);
     int      pin_id   = (int)io_handle_pin(raw);
 
+    if (sample == NULL) {
+        return SW_ERR_PARAM;
+    }
+    *sample = (io_di_sample_t){.quality = IO_SAMPLE_QUALITY_UNINITIALIZED};
+
     if (!drv_io_is_valid_di_raw(raw)) {
-        return false;
+        return SW_ERR_PARAM;
     }
 
+    pthread_mutex_lock(&s_input_mutex);
     /* 测试覆盖优先 */
     if (s_test_enable[board_id][pin_id]) {
-        return s_test_value[board_id][pin_id];
+        sample->level        = s_test_value[board_id][pin_id];
+        sample->quality      = IO_SAMPLE_QUALITY_VALID;
+        sample->timestamp_ms = time_util_get_ms();
+        sample->sequence     = s_input_sequence[board_id];
+        pthread_mutex_unlock(&s_input_mutex);
+        return SW_OK;
     }
 
-    return (bool)((s_input_buf[board_id] >> (pin_id - 1)) & 1U);
+    sample->level        = (bool)((s_input_buf[board_id] >> (pin_id - 1)) & 1U);
+    sample->quality      = s_input_quality[board_id];
+    sample->timestamp_ms = s_stats[board_id].last_input_refresh_ms;
+    sample->sequence     = s_input_sequence[board_id];
+    if ((sample->quality == IO_SAMPLE_QUALITY_VALID)
+        && (time_elapsed_ms(sample->timestamp_ms, time_util_get_ms()) > IO_INPUT_FRESHNESS_TIMEOUT_MS)) {
+        sample->quality = IO_SAMPLE_QUALITY_STALE;
+    }
+    pthread_mutex_unlock(&s_input_mutex);
+    return SW_OK;
 }
 
 void drv_io_register_debug_input_cb(drv_io_debug_input_cb_t cb)
@@ -588,11 +651,16 @@ void drv_io_register_debug_input_cb(drv_io_debug_input_cb_t cb)
 
 bool drv_io_board_is_online(int board_id)
 {
+    bool online;
+
     if ((board_id <= 0) || (board_id > s_board_count)) {
         return false;
     }
 
-    return s_board_online[board_id];
+    pthread_mutex_lock(&s_input_mutex);
+    online = s_board_online[board_id];
+    pthread_mutex_unlock(&s_input_mutex);
+    return online;
 }
 
 #define DRV_IO_WAIT_POLL_MS 50U /* 子板就绪轮询间隔（ms）*/
@@ -642,10 +710,14 @@ void drv_io_set_test_override(io_di_t pin, int value)
     }
 
     if ((value == 0) || (value == 1)) {
+        pthread_mutex_lock(&s_input_mutex);
         s_test_value[board_id][pin_id]  = (bool)value;
         s_test_enable[board_id][pin_id] = true;
+        pthread_mutex_unlock(&s_input_mutex);
     } else {
+        pthread_mutex_lock(&s_input_mutex);
         s_test_enable[board_id][pin_id] = false;
+        pthread_mutex_unlock(&s_input_mutex);
     }
 }
 
@@ -659,7 +731,9 @@ void drv_io_clear_test_override(io_di_t pin)
         return;
     }
 
+    pthread_mutex_lock(&s_input_mutex);
     s_test_enable[board_id][pin_id] = false;
+    pthread_mutex_unlock(&s_input_mutex);
 }
 
 sw_err_t drv_io_get_stats(int board_id, drv_io_stats_t *out)
@@ -668,8 +742,17 @@ sw_err_t drv_io_get_stats(int board_id, drv_io_stats_t *out)
         return SW_ERR_PARAM;
     }
 
-    /* 无锁近似快照：stats 只用于调试诊断，允许读到瞬时变化中的值。 */
+    pthread_mutex_lock(&s_input_mutex);
     *out = s_stats[board_id];
+    pthread_mutex_unlock(&s_input_mutex);
+    pthread_mutex_lock(&s_output_mutex);
+    out->dirty_pending        = s_stats[board_id].dirty_pending;
+    out->output_request_count = s_stats[board_id].output_request_count;
+    out->output_flush_count   = s_stats[board_id].output_flush_count;
+    out->last_output_req_ms   = s_stats[board_id].last_output_req_ms;
+    out->last_output_flush_ms = s_stats[board_id].last_output_flush_ms;
+    out->last_output_snapshot = s_stats[board_id].last_output_snapshot;
+    pthread_mutex_unlock(&s_output_mutex);
     return SW_OK;
 }
 

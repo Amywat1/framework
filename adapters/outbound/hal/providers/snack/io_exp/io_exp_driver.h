@@ -22,6 +22,7 @@ extern "C" {
 #endif
 
 #include "common/io_handle.h"
+#include "common/io_sample.h"
 #include "common/sw_error.h"
 #include "common/sw_types.h"
 
@@ -151,11 +152,12 @@ sw_err_t drv_io_flush_outputs_now(void);
 sw_err_t drv_io_do_set(io_do_t pin, bool val);
 
 /**
- * @brief  读取数字输入缓存
- * @param  pin  输入句柄
- * @retval true=ON，false=OFF
+ * @brief  读取数字输入快照
+ * @param  pin     输入句柄
+ * @param  sample  输出采样，不可为 NULL
+ * @retval SW_OK / SW_ERR_PARAM / SW_ERR_NOT_INIT
  */
-bool drv_io_di_read(io_di_t pin);
+sw_err_t drv_io_di_read(io_di_t pin, io_di_sample_t *sample);
 
 typedef void (*drv_io_debug_input_cb_t)(io_di_t pin, bool state);
 
