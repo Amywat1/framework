@@ -41,6 +41,11 @@ static sw_err_t configure_safety(void)
     return SW_OK;
 }
 
+static sw_err_t init_safety(void)
+{
+    return SW_OK;
+}
+
 static sw_err_t configure_adapters(void)
 {
     return SW_OK;
@@ -49,6 +54,11 @@ static sw_err_t configure_adapters(void)
 static sw_err_t bind_machine(void)
 {
     return demo_machine_ops_register();
+}
+
+static sw_err_t init_machine(void)
+{
+    return SW_OK;
 }
 
 static sw_err_t bind_alarm_catalog(void)
@@ -88,8 +98,10 @@ sw_err_t project_hooks_register(void)
         .bind_hal             = bind_hal,
         .init_hal             = init_hal,
         .configure_safety     = configure_safety,
+        .init_safety          = init_safety,
         .configure_adapters   = configure_adapters,
         .bind_machine         = bind_machine,
+        .init_machine         = init_machine,
         .bind_alarm_catalog   = bind_alarm_catalog,
         .validate             = validate,
         .init_adapters        = init_adapters,

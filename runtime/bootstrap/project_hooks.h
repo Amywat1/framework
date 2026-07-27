@@ -28,12 +28,16 @@ typedef struct {
     sw_err_t (*bind_hal)(void);
     /** 初始化阶段：初始化项目专属 HAL 组合层状态。*/
     sw_err_t (*init_hal)(void);
-    /** 配置阶段：建立项目安全默认态。*/
+    /** 配置阶段：注入项目安全策略参数。禁止访问硬件或等待设备就绪。*/
     sw_err_t (*configure_safety)(void);
+    /** 安全初始化阶段：HAL 初始化完成后建立项目故障安全状态。*/
+    sw_err_t (*init_safety)(void);
     /** 配置阶段：配置项目入站/出站适配器。禁止初始化连接或启动线程。*/
     sw_err_t (*configure_adapters)(void);
     /** 绑定阶段：注册项目设备装配接口，例如 machine_ops。*/
     sw_err_t (*bind_machine)(void);
+    /** 机器初始化阶段：HAL 初始化完成后初始化项目机构与执行器。*/
+    sw_err_t (*init_machine)(void);
     /** 绑定阶段：注入项目报警目录并建立报警适配绑定。*/
     sw_err_t (*bind_alarm_catalog)(void);
     /** 校验阶段：执行项目启动前一致性校验。*/

@@ -47,8 +47,10 @@ sw_err_t bootstrap_register_hooks(const project_hooks_t *hooks)
         || (hooks->bind_hal == NULL)
         || (hooks->init_hal == NULL)
         || (hooks->configure_safety == NULL)
+        || (hooks->init_safety == NULL)
         || (hooks->configure_adapters == NULL)
         || (hooks->bind_machine == NULL)
+        || (hooks->init_machine == NULL)
         || (hooks->bind_alarm_catalog == NULL)
         || (hooks->validate == NULL)
         || (hooks->init_adapters == NULL)
@@ -217,6 +219,18 @@ static sw_err_t bootstrap_init_hal(void)
     return SW_OK;
 }
 
+static sw_err_t bootstrap_init_safety(void)
+{
+    BOOT_CHECK(s_hooks->init_safety(), "project_init_safety");
+    return SW_OK;
+}
+
+static sw_err_t bootstrap_init_machine(void)
+{
+    BOOT_CHECK(s_hooks->init_machine(), "project_init_machine");
+    return SW_OK;
+}
+
 static sw_err_t bootstrap_init_services(void)
 {
     BOOT_CHECK(alarm_event_bridge_init(), "alarm_event_bridge_init");
@@ -294,6 +308,16 @@ sw_err_t bootstrap_run(void)
     }
 
     ret = bootstrap_run_phase("init_hal", bootstrap_init_hal);
+    if (ret != SW_OK) {
+        return ret;
+    }
+
+    ret = bootstrap_run_phase("init_machine", bootstrap_init_machine);
+    if (ret != SW_OK) {
+        return ret;
+    }
+
+    ret = bootstrap_run_phase("init_safety", bootstrap_init_safety);
     if (ret != SW_OK) {
         return ret;
     }

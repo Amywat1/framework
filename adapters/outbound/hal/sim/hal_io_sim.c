@@ -25,6 +25,15 @@ static int      s_adc_raw[SIM_IO_BOARD_MAX][SIM_IO_ADC_PORT_MAX + 1];
 static int      s_adc_mv[SIM_IO_BOARD_MAX][SIM_IO_ADC_PORT_MAX + 1];
 static int      s_adc_ma[SIM_IO_BOARD_MAX][SIM_IO_ADC_PORT_MAX + 1];
 static bool     s_inited = false;
+static uint32_t s_lifecycle_violation_count = 0U;
+
+static void sim_record_lifecycle_violation(const char *operation)
+{
+    if (s_lifecycle_violation_count < UINT32_MAX) {
+        s_lifecycle_violation_count++;
+    }
+    LOG_ERROR("hal_io_sim: %s called before init", operation);
+}
 
 static bool sim_is_valid_adc(int board_id, int port)
 {
@@ -80,6 +89,7 @@ static sw_err_t sim_do_set(io_do_t pin, bool val)
         return SW_ERR_PARAM;
     }
     if (!s_inited) {
+        sim_record_lifecycle_violation("do_set");
         return SW_ERR_NOT_INIT;
     }
 
@@ -98,6 +108,7 @@ static bool sim_di_read(io_di_t pin)
         return false;
     }
     if (!s_inited) {
+        sim_record_lifecycle_violation("di_read");
         return false;
     }
 
@@ -132,6 +143,7 @@ static sw_err_t sim_io_init(void)
 static sw_err_t sim_io_start(void)
 {
     if (!s_inited) {
+        sim_record_lifecycle_violation("start");
         return SW_ERR_NOT_INIT;
     }
     return SW_OK;
@@ -145,6 +157,7 @@ static void sim_register_panic_cb(hal_io_panic_cb_t cb)
 static sw_err_t sim_flush_outputs_now(void)
 {
     if (!s_inited) {
+        sim_record_lifecycle_violation("flush_outputs_now");
         return SW_ERR_NOT_INIT;
     }
     return SW_OK;
@@ -154,6 +167,7 @@ static bool sim_board_is_online(int board_id)
 {
     (void)board_id;
     if (!s_inited) {
+        sim_record_lifecycle_violation("board_is_online");
         return false;
     }
     return true;
@@ -163,6 +177,7 @@ static sw_err_t sim_wait_boards_online(uint32_t timeout_ms)
 {
     (void)timeout_ms;
     if (!s_inited) {
+        sim_record_lifecycle_violation("wait_boards_online");
         return SW_ERR_NOT_INIT;
     }
     return SW_OK;
@@ -208,6 +223,7 @@ static int sim_pulse_read(io_di_t pin)
         return -1;
     }
     if (!s_inited) {
+        sim_record_lifecycle_violation("pulse_read");
         return -1;
     }
 
@@ -223,6 +239,7 @@ static sw_err_t sim_pulse_clear(io_di_t pin)
         return SW_ERR_PARAM;
     }
     if (!s_inited) {
+        sim_record_lifecycle_violation("pulse_clear");
         return SW_ERR_NOT_INIT;
     }
 
@@ -265,6 +282,7 @@ static int sim_adc_read(int board_id, int port)
         return -1;
     }
     if (!s_inited) {
+        sim_record_lifecycle_violation("adc_read");
         return SIM_IO_ADC_NOT_INIT;
     }
     return s_adc_raw[board_id][port];
@@ -276,6 +294,7 @@ static int sim_adc_mv(int board_id, int port)
         return -1;
     }
     if (!s_inited) {
+        sim_record_lifecycle_violation("adc_mv");
         return SIM_IO_ADC_NOT_INIT;
     }
     return s_adc_mv[board_id][port];
@@ -287,6 +306,7 @@ static int sim_adc_ma(int board_id, int port)
         return -1;
     }
     if (!s_inited) {
+        sim_record_lifecycle_violation("adc_ma");
         return SIM_IO_ADC_NOT_INIT;
     }
     return s_adc_ma[board_id][port];
@@ -299,6 +319,7 @@ static sw_err_t sim_get_stats(int board_id, hal_io_stats_t *out)
         return SW_ERR_PARAM;
     }
     if (!s_inited) {
+        sim_record_lifecycle_violation("get_stats");
         return SW_ERR_NOT_INIT;
     }
     memset(out, 0, sizeof(*out));
@@ -332,8 +353,19 @@ static const hal_io_ops_t s_ops = {
 
 void hal_io_sim_register(void)
 {
+    s_lifecycle_violation_count = 0U;
     hal_io_register(&s_ops);
     LOG_INFO("hal_io_sim: registered");
+}
+
+sw_err_t hal_io_sim_validate_lifecycle(void)
+{
+    if (s_lifecycle_violation_count != 0U) {
+        LOG_ERROR("hal_io_sim: lifecycle validation failed, violations=%u",
+                  (unsigned)s_lifecycle_violation_count);
+        return SW_ERR_STATE;
+    }
+    return SW_OK;
 }
 
 #ifdef HAL_IO_SIM_UNIT_TEST
@@ -345,6 +377,7 @@ void hal_io_sim_test_reset(void)
     memset(s_adc_raw, 0, sizeof(s_adc_raw));
     memset(s_adc_mv, 0, sizeof(s_adc_mv));
     memset(s_adc_ma, 0, sizeof(s_adc_ma));
-    s_inited = false;
+    s_inited                     = false;
+    s_lifecycle_violation_count = 0U;
 }
 #endif

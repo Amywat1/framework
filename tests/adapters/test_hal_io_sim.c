@@ -28,6 +28,7 @@ void setUp(void)
 {
     hal_io_sim_test_reset();
     hal_io_sim_register();
+    TEST_ASSERT_EQUAL_INT(SW_OK, hal_io_sim_validate_lifecycle());
     TEST_ASSERT_EQUAL_INT(SW_OK, hal_io_get_ops()->init());
 }
 
@@ -190,6 +191,7 @@ static void test_ops_before_init_return_not_init_or_safe_value(void)
     TEST_ASSERT_FALSE(hal_io_get_ops()->di_read(k_valid_di));
     TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_INIT, hal_io_get_ops()->pulse_clear(k_valid_di));
     TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_INIT, hal_io_get_ops()->get_stats(1, &stats));
+    TEST_ASSERT_EQUAL_INT(SW_ERR_STATE, hal_io_sim_validate_lifecycle());
 }
 
 static void test_pulse_counter_max_value(void)

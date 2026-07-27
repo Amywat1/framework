@@ -11,12 +11,20 @@ extern "C" {
 #endif
 
 #include "common/io_handle.h"
+#include "common/sw_error.h"
 
 #include <stdbool.h>
 #include <stdint.h>
 
 /** @brief  注册 hal_io_sim 操作集到 hal_io_port；不隐式初始化仿真状态。 */
 void hal_io_sim_register(void);
+
+/**
+ * @brief  校验本次仿真生命周期中是否发生过初始化前 HAL 访问。
+ * @retval SW_OK        未发生生命周期违规。
+ * @retval SW_ERR_STATE 发生过至少一次初始化前 HAL 访问。
+ */
+sw_err_t hal_io_sim_validate_lifecycle(void);
 
 /**
  * @brief  设置仿真 DI 原始电平（极性转换由 signal_filter 处理）
