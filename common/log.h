@@ -18,6 +18,12 @@
 extern "C" {
 #endif
 
+#define SW_LOG_COMPONENT_FRAME "FRAME"
+
+#ifndef SW_LOG_COMPONENT
+#define SW_LOG_COMPONENT SW_LOG_COMPONENT_FRAME
+#endif
+
 typedef enum {
     SW_LOG_ERROR = 0,
     SW_LOG_WARN,
@@ -25,7 +31,7 @@ typedef enum {
     SW_LOG_DEBUG,
 } sw_log_level_t;
 
-typedef void (*sw_log_sink_fn_t)(sw_log_level_t level, const char *fmt, va_list ap);
+typedef void (*sw_log_sink_fn_t)(sw_log_level_t level, const char *component, const char *fmt, va_list ap);
 
 /** @brief  注册日志 sink；传 NULL 恢复内置 stderr 输出 */
 void sw_log_register_sink(sw_log_sink_fn_t sink);
@@ -39,7 +45,7 @@ void sw_log_register_sink(sw_log_sink_fn_t sink);
 bool sw_log_add_sink(sw_log_sink_fn_t sink);
 
 /** @brief  写一条日志，转发给已注册的 sink 或内置 stderr 输出 */
-void sw_log_write(sw_log_level_t level, const char *fmt, ...);
+void sw_log_write(sw_log_level_t level, const char *component, const char *fmt, ...);
 
 /**
  * @brief 从源码路径中提取文件名
@@ -59,15 +65,19 @@ const char *sw_log_source_file_name(const char *source_path);
  *   LOG_INFO("motor speed set to %d rpm", speed);
  * ------------------------------------------------------------------------- */
 #define LOG_ERROR(fmt, ...) \
-    sw_log_write(SW_LOG_ERROR, "[%s:%d] " fmt, sw_log_source_file_name(__FILE__), __LINE__, ##__VA_ARGS__)
+    sw_log_write(SW_LOG_ERROR, SW_LOG_COMPONENT, "[%s:%d] " fmt, sw_log_source_file_name(__FILE__), __LINE__, \
+                 ##__VA_ARGS__)
 
 #define LOG_WARN(fmt, ...) \
-    sw_log_write(SW_LOG_WARN, "[%s:%d] " fmt, sw_log_source_file_name(__FILE__), __LINE__, ##__VA_ARGS__)
+    sw_log_write(SW_LOG_WARN, SW_LOG_COMPONENT, "[%s:%d] " fmt, sw_log_source_file_name(__FILE__), __LINE__, \
+                 ##__VA_ARGS__)
 
 #define LOG_INFO(fmt, ...) \
-    sw_log_write(SW_LOG_INFO, "[%s:%d] " fmt, sw_log_source_file_name(__FILE__), __LINE__, ##__VA_ARGS__)
+    sw_log_write(SW_LOG_INFO, SW_LOG_COMPONENT, "[%s:%d] " fmt, sw_log_source_file_name(__FILE__), __LINE__, \
+                 ##__VA_ARGS__)
 
 #define LOG_DEBUG(fmt, ...) \
-    sw_log_write(SW_LOG_DEBUG, "[%s:%d] " fmt, sw_log_source_file_name(__FILE__), __LINE__, ##__VA_ARGS__)
+    sw_log_write(SW_LOG_DEBUG, SW_LOG_COMPONENT, "[%s:%d] " fmt, sw_log_source_file_name(__FILE__), __LINE__, \
+                 ##__VA_ARGS__)
 
 #endif /* LOG_H */

@@ -13,6 +13,7 @@
 #include "third_party/cJSON/cJSON.h"
 #include "aliot/aiot.h"
 #include "ble.h"
+#include <cstring>
 #include <stdarg.h>
 #include <sstream>
 #include <string>
@@ -21,7 +22,8 @@
 /* -------------------------------------------------------------------------
  * 日志
  * ------------------------------------------------------------------------- */
-static mlog       *s_log             = NULL;
+static mlog       *s_product_log      = NULL;
+static mlog       *s_framework_log    = NULL;
 static const char *k_default_log_name = "snack";
 
 static void ensure_log_ready(const char *name)
@@ -32,24 +34,36 @@ static void ensure_log_ready(const char *name)
         resolved = k_default_log_name;
     }
 
-    if (s_log == NULL) {
-        s_log = new mlog(resolved);
+    if (s_product_log == NULL) {
+        s_product_log = new mlog(resolved);
+    }
+    if (s_framework_log == NULL) {
+        s_framework_log = new mlog(SW_LOG_COMPONENT_FRAME);
     }
 }
 
-static void snack_log_sink(sw_log_level_t level, const char *fmt, va_list ap)
+static mlog *log_for_component(const char *component)
+{
+    ensure_log_ready(NULL);
+    if ((component != NULL) && (std::strcmp(component, SW_LOG_COMPONENT_FRAME) == 0)) {
+        return s_framework_log;
+    }
+    return s_product_log;
+}
+
+static void snack_log_sink(sw_log_level_t level, const char *component, const char *fmt, va_list ap)
 {
     char buf[1024] = {0};
+    mlog *logger    = log_for_component(component);
 
-    ensure_log_ready(NULL);
     vsnprintf(buf, sizeof(buf), fmt, ap);
     switch (level)
     {
-        case SW_LOG_ERROR: s_log->e(buf); break;
-        case SW_LOG_WARN:  s_log->w(buf); break;
-        case SW_LOG_INFO:  s_log->i(buf); break;
-        case SW_LOG_DEBUG: s_log->d(buf); break;
-        default:           s_log->i(buf); break;
+        case SW_LOG_ERROR: logger->e(buf); break;
+        case SW_LOG_WARN:  logger->w(buf); break;
+        case SW_LOG_INFO:  logger->i(buf); break;
+        case SW_LOG_DEBUG: logger->d(buf); break;
+        default:           logger->i(buf); break;
     }
 }
 
@@ -62,8 +76,10 @@ void snack_log_sink_register(const char *name)
 void set_log_level(int type)
 {
     ensure_log_ready(NULL);
-    s_log->levelSet((MLOG_type)type);
-    s_log->setLogClearDays(0);
+    s_product_log->levelSet((MLOG_type)type);
+    s_product_log->setLogClearDays(0);
+    s_framework_log->levelSet((MLOG_type)type);
+    s_framework_log->setLogClearDays(0);
 }
 
 void set_remote_port(int port)
@@ -88,7 +104,7 @@ static void client_deal(char *topic, char *msg, int msg_len)
 
     if (s_mqtt_callback != NULL && param != NULL) {
         char *str = cJSON_PrintUnformatted(param);
-        s_log->i("mqtt recv: %s", str);
+        s_framework_log->i("mqtt recv: %s", str);
         s_mqtt_callback(str);
         free(str);
     }

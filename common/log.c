@@ -16,11 +16,11 @@
 static sw_log_sink_fn_t s_sinks[SW_LOG_SINK_MAX];
 static size_t           s_sink_count;
 
-static void default_sink(sw_log_level_t level, const char *fmt, va_list ap)
+static void default_sink(sw_log_level_t level, const char *component, const char *fmt, va_list ap)
 {
     static const char *const s_level_tag[] = {"ERR", "WRN", "INF", "DBG"};
 
-    fprintf(stderr, "[%s] ", s_level_tag[level]);
+    fprintf(stderr, "[%s] [%s] ", s_level_tag[level], component);
     vfprintf(stderr, fmt, ap);
     fputc('\n', stderr);
 }
@@ -54,13 +54,13 @@ bool sw_log_add_sink(sw_log_sink_fn_t sink)
     return true;
 }
 
-void sw_log_write(sw_log_level_t level, const char *fmt, ...)
+void sw_log_write(sw_log_level_t level, const char *component, const char *fmt, ...)
 {
     va_list ap;
 
     va_start(ap, fmt);
     if (s_sink_count == 0U) {
-        default_sink(level, fmt, ap);
+        default_sink(level, component, fmt, ap);
     } else {
         size_t index;
 
@@ -68,7 +68,7 @@ void sw_log_write(sw_log_level_t level, const char *fmt, ...)
             va_list sink_ap;
 
             va_copy(sink_ap, ap);
-            s_sinks[index](level, fmt, sink_ap);
+            s_sinks[index](level, component, fmt, sink_ap);
             va_end(sink_ap);
         }
     }

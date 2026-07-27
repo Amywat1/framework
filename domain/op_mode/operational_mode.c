@@ -89,9 +89,9 @@ static void set_mode(operational_mode_t next, const char *cause)
     s_mode = next;
 
     if (cause != NULL) {
-        sw_log_write(level, "op_mode: %s -> %s (%s)", op_mode_name(from), op_mode_name(next), cause);
+        sw_log_write(level, SW_LOG_COMPONENT, "op_mode: %s -> %s (%s)", op_mode_name(from), op_mode_name(next), cause);
     } else {
-        sw_log_write(level, "op_mode: %s -> %s", op_mode_name(from), op_mode_name(next));
+        sw_log_write(level, SW_LOG_COMPONENT, "op_mode: %s -> %s", op_mode_name(from), op_mode_name(next));
     }
 
     publish_mode_changed(from, next);
