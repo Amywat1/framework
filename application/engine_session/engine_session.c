@@ -215,7 +215,6 @@ static void *engine_session_worker_fn(void *arg)
         previous_trace = trace_context_get();
         trace_context_set(&s->run_trace);
 
-        atomic_store(&s->s_abort_requested, false);
         prep_ret = worker_prepare_engine(s, &e);
         if (prep_ret != SW_OK) {
             signal_startup(s, startup_gen, prep_ret);
@@ -437,17 +436,20 @@ sw_err_t engine_session_start(void *storage, const engine_session_run_t *run)
     return ret;
 }
 
-void engine_session_abort(void *storage)
+bool engine_session_abort(void *storage)
 {
     engine_session_t *s = as_session(storage);
 
-    if ((s == NULL) || !s->inited) {
-        return;
+    if ((s == NULL) || !s->inited || !atomic_load(&s->s_busy)) {
+        return false;
+    }
+    if (atomic_exchange(&s->s_abort_requested, true)) {
+        return false;
     }
 
-    atomic_store(&s->s_abort_requested, true);
     call_stop_outputs(s);
     LOG_WARN("engine_session: abort requested name=%s", s->cfg.thread_name);
+    return true;
 }
 
 bool engine_session_is_busy(const void *storage)

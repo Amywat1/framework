@@ -27,6 +27,7 @@ static int  s_stop_count;
 static int  s_started_count;
 static int  s_finished_count;
 static bool s_last_success;
+static bool s_last_aborted;
 static uint8_t s_session_buf[2048];
 
 static void on_stop(void *user)
@@ -46,6 +47,21 @@ static void on_finished(void *user, const engine_session_result_t *result)
     (void)user;
     s_finished_count++;
     s_last_success = result->success;
+    s_last_aborted = result->aborted;
+}
+
+static engine_session_run_t make_run(void)
+{
+    engine_session_run_t run;
+
+    memset(&run, 0, sizeof(run));
+    run.program_path         = TEST_ENGINE_SESSION_PROGRAM_PATH;
+    run.total_timeout_ms     = 5000U;
+    run.max_phase_recoveries = 5U;
+    run.on_started           = on_started;
+    run.on_finished          = on_finished;
+    run.on_stop_outputs      = on_stop;
+    return run;
 }
 
 static const char *const s_program_json
@@ -95,6 +111,7 @@ static void test_engine_session_runs_to_done(void)
     s_started_count  = 0;
     s_finished_count = 0;
     s_last_success   = false;
+    s_last_aborted   = false;
 
     time_util_init();
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
@@ -118,15 +135,7 @@ static void test_engine_session_runs_to_done(void)
     TEST_ASSERT_EQUAL_INT(SW_OK, scheduler_start_all());
 
     {
-        engine_session_run_t run;
-
-        memset(&run, 0, sizeof(run));
-        run.program_path         = TEST_ENGINE_SESSION_PROGRAM_PATH;
-        run.total_timeout_ms     = 5000U;
-        run.max_phase_recoveries = 5U;
-        run.on_started           = on_started;
-        run.on_finished          = on_finished;
-        run.on_stop_outputs      = on_stop;
+        engine_session_run_t run = make_run();
 
         TEST_ASSERT_FALSE(engine_session_is_busy(s_session_buf));
         TEST_ASSERT_EQUAL_INT(SW_OK, engine_session_start(s_session_buf, &run));
@@ -140,8 +149,35 @@ static void test_engine_session_runs_to_done(void)
     TEST_ASSERT_EQUAL_INT(1, s_started_count);
     TEST_ASSERT_EQUAL_INT(1, s_finished_count);
     TEST_ASSERT_TRUE(s_last_success);
+    TEST_ASSERT_FALSE(s_last_aborted);
     TEST_ASSERT_EQUAL_INT(1, s_stop_count);
     TEST_ASSERT_EQUAL_INT(ENGINE_DIR_NONE, engine_session_direction(s_session_buf));
+
+    TEST_ASSERT_FALSE(engine_session_abort(NULL));
+    TEST_ASSERT_FALSE(engine_session_abort(s_session_buf));
+    TEST_ASSERT_EQUAL_INT(1, s_stop_count);
+
+    {
+        engine_session_run_t run = make_run();
+
+        s_stop_count     = 0;
+        s_finished_count = 0;
+        s_last_success   = true;
+        s_last_aborted   = false;
+
+        TEST_ASSERT_EQUAL_INT(SW_OK, engine_session_start(s_session_buf, &run));
+        TEST_ASSERT_TRUE(engine_session_abort(s_session_buf));
+        TEST_ASSERT_FALSE(engine_session_abort(s_session_buf));
+        TEST_ASSERT_EQUAL_INT(1, s_stop_count);
+    }
+
+    usleep(100000U);
+
+    TEST_ASSERT_FALSE(engine_session_is_busy(s_session_buf));
+    TEST_ASSERT_EQUAL_INT(1, s_finished_count);
+    TEST_ASSERT_FALSE(s_last_success);
+    TEST_ASSERT_TRUE(s_last_aborted);
+    TEST_ASSERT_EQUAL_INT(2, s_stop_count);
 }
 
 int main(void)

@@ -76,8 +76,11 @@ sw_err_t engine_session_start(void *storage, const engine_session_run_t *run);
 
 /**
  * @brief  请求中止当前运行
+ * @param  storage  init 时传入的存储
+ * @retval true  本次请求首次中止了正在运行的会话
+ * @retval false 会话未运行、尚未初始化或已经请求中止
  */
-void engine_session_abort(void *storage);
+bool engine_session_abort(void *storage);
 
 /**
  * @brief  查询是否正在运行

@@ -43,7 +43,7 @@ static void on_estop_on(const event_t *evt)
     (void)evt;
     safety_deferred_stop();
     abort_wash(WASH_ABORT_ESTOP);
-    LOG_WARN("safety_cutout: EVT_HW_ESTOP_ON, deferred stop + wash abort");
+    LOG_WARN("safety_cutout: EVT_HW_ESTOP_ON, deferred stop + active session abort request");
 }
 
 static void on_estop_off(const event_t *evt)
@@ -56,7 +56,7 @@ static void on_safety_lockout(const event_t *evt)
 {
     (void)evt;
     abort_wash(WASH_ABORT_CRITICAL);
-    LOG_WARN("safety_cutout: LOCKOUT, wash aborted");
+    LOG_WARN("safety_cutout: LOCKOUT, active session abort request");
 }
 
 sw_err_t safety_cutout_coordinator_init(void)
