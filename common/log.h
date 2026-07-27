@@ -18,10 +18,10 @@
 extern "C" {
 #endif
 
-#define SW_LOG_COMPONENT_FRAME "FRAME"
+#define SW_LOG_COMPONENT_BASE "Base"
 
 #ifndef SW_LOG_COMPONENT
-#define SW_LOG_COMPONENT SW_LOG_COMPONENT_FRAME
+#define SW_LOG_COMPONENT SW_LOG_COMPONENT_BASE
 #endif
 
 typedef enum {

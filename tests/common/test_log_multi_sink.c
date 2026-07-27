@@ -15,7 +15,7 @@ static unsigned s_second_count;
 static void first_sink(sw_log_level_t level, const char *component, const char *fmt, va_list ap)
 {
     (void)level;
-    TEST_ASSERT_EQUAL_STRING(SW_LOG_COMPONENT_FRAME, component);
+    TEST_ASSERT_EQUAL_STRING(SW_LOG_COMPONENT_BASE, component);
     (void)vsnprintf(s_first_message, sizeof(s_first_message), fmt, ap);
     s_first_count++;
 }
@@ -23,7 +23,7 @@ static void first_sink(sw_log_level_t level, const char *component, const char *
 static void second_sink(sw_log_level_t level, const char *component, const char *fmt, va_list ap)
 {
     (void)level;
-    TEST_ASSERT_EQUAL_STRING(SW_LOG_COMPONENT_FRAME, component);
+    TEST_ASSERT_EQUAL_STRING(SW_LOG_COMPONENT_BASE, component);
     (void)vsnprintf(s_second_message, sizeof(s_second_message), fmt, ap);
     s_second_count++;
 }
@@ -45,7 +45,7 @@ static void test_log_dispatches_to_all_sinks(void)
 {
     TEST_ASSERT_TRUE(sw_log_add_sink(first_sink));
     TEST_ASSERT_TRUE(sw_log_add_sink(second_sink));
-    sw_log_write(SW_LOG_INFO, SW_LOG_COMPONENT_FRAME, "value=%d", 7);
+    sw_log_write(SW_LOG_INFO, SW_LOG_COMPONENT_BASE, "value=%d", 7);
     TEST_ASSERT_EQUAL_UINT(1U, s_first_count);
     TEST_ASSERT_EQUAL_UINT(1U, s_second_count);
     TEST_ASSERT_EQUAL_STRING("value=7", s_first_message);
@@ -56,7 +56,7 @@ static void test_log_ignores_duplicate_sink(void)
 {
     TEST_ASSERT_TRUE(sw_log_add_sink(first_sink));
     TEST_ASSERT_TRUE(sw_log_add_sink(first_sink));
-    sw_log_write(SW_LOG_INFO, SW_LOG_COMPONENT_FRAME, "duplicate");
+    sw_log_write(SW_LOG_INFO, SW_LOG_COMPONENT_BASE, "duplicate");
     TEST_ASSERT_EQUAL_UINT(1U, s_first_count);
 }
 

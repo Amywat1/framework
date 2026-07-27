@@ -38,14 +38,14 @@ static void ensure_log_ready(const char *name)
         s_product_log = new mlog(resolved);
     }
     if (s_framework_log == NULL) {
-        s_framework_log = new mlog(SW_LOG_COMPONENT_FRAME);
+        s_framework_log = new mlog(SW_LOG_COMPONENT_BASE);
     }
 }
 
 static mlog *log_for_component(const char *component)
 {
     ensure_log_ready(NULL);
-    if ((component != NULL) && (std::strcmp(component, SW_LOG_COMPONENT_FRAME) == 0)) {
+    if ((component != NULL) && (std::strcmp(component, SW_LOG_COMPONENT_BASE) == 0)) {
         return s_framework_log;
     }
     return s_product_log;
