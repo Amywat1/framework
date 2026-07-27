@@ -12,7 +12,7 @@
 #include <string.h>
 #include <unistd.h>
 
-#define PERIODIC_TASK_MAX 8U
+#define PERIODIC_TASK_MAX 9U
 
 typedef struct {
     bool               used;
