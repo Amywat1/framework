@@ -24,8 +24,11 @@ extern "C" {
 /** @brief 默认 RST 脉冲宽度（ms） */
 #define HAL_VFD_DEFAULT_RST_PULSE_MS 200U
 
-/** @brief 默认慢速监测轮询间隔（ms） */
+/** @brief 默认慢速监测轮询间隔（ms），故障码固定使用该值，电流未指定实例覆盖值时也使用该值 */
 #define HAL_VFD_DEFAULT_MONITOR_PERIOD_MS 2000U
+
+/** @brief 电流闭环控制场景下的快速采样间隔（ms），供需要电流反馈的实例覆盖使用 */
+#define HAL_VFD_FAST_CURRENT_PERIOD_MS 150U
 
 /**
  * @brief  通信监测项掩码（可按位组合）
@@ -70,7 +73,8 @@ typedef struct {
     void                        *drv_ctx;
 
     uint32_t               rst_pulse_ms;
-    uint32_t               monitor_period_ms;
+    uint32_t               fault_period_ms;
+    uint32_t               current_period_ms;
     hal_vfd_monitor_mask_t monitor_mask;
 } hal_vfd_manager_bind_cfg_t;
 

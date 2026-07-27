@@ -42,6 +42,9 @@ typedef struct {
     uint8_t speed_io[SNACK_VFD_BACKEND_SPEED_GEAR_COUNT];
 
     hal_vfd_monitor_mask_t monitor_mask;
+
+    /** @brief 电流采样周期（ms），0 表示使用默认值 HAL_VFD_DEFAULT_MONITOR_PERIOD_MS */
+    uint32_t current_period_ms;
 } snack_vfd_backend_instance_cfg_t;
 
 /** @brief  注册 snack_vfd_backend（内部调用 hal_vfd_manager_register），不绑定实例、不初始化硬件。 */

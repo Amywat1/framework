@@ -180,11 +180,13 @@ static sw_err_t snack_bind_instance(hal_vfd_id_t id, snack_vfd_slot_t *slot)
 {
     hal_vfd_manager_bind_cfg_t cfg;
 
-    cfg.ops               = &s_snack_vfd_backend_ops;
-    cfg.drv_ctx           = slot;
-    cfg.rst_pulse_ms      = HAL_VFD_DEFAULT_RST_PULSE_MS;
-    cfg.monitor_period_ms = HAL_VFD_DEFAULT_MONITOR_PERIOD_MS;
-    cfg.monitor_mask      = slot->cfg.monitor_mask;
+    cfg.ops             = &s_snack_vfd_backend_ops;
+    cfg.drv_ctx         = slot;
+    cfg.rst_pulse_ms    = HAL_VFD_DEFAULT_RST_PULSE_MS;
+    cfg.fault_period_ms = HAL_VFD_DEFAULT_MONITOR_PERIOD_MS;
+    cfg.current_period_ms
+        = (slot->cfg.current_period_ms != 0U) ? slot->cfg.current_period_ms : HAL_VFD_DEFAULT_MONITOR_PERIOD_MS;
+    cfg.monitor_mask = slot->cfg.monitor_mask;
     return hal_vfd_manager_bind(id, &cfg);
 }
 

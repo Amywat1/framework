@@ -138,7 +138,8 @@ static hal_vfd_manager_bind_cfg_t make_cfg(void)
         .ops               = &s_backend_ops,
         .drv_ctx           = &s_vfd,
         .rst_pulse_ms      = 5U,
-        .monitor_period_ms = 1U,
+        .fault_period_ms   = 1U,
+        .current_period_ms = 1U,
         .monitor_mask      = HAL_VFD_MON_NONE,
     };
 
@@ -200,6 +201,14 @@ static void test_bind_rejects_invalid_config(void)
 
     cfg              = make_cfg();
     cfg.rst_pulse_ms = 0U;
+    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, hal_vfd_manager_bind(TEST_VFD_ID, &cfg));
+
+    cfg                 = make_cfg();
+    cfg.fault_period_ms = 0U;
+    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, hal_vfd_manager_bind(TEST_VFD_ID, &cfg));
+
+    cfg                   = make_cfg();
+    cfg.current_period_ms = 0U;
     TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, hal_vfd_manager_bind(TEST_VFD_ID, &cfg));
 
     cfg = make_cfg();
@@ -312,6 +321,48 @@ static void test_monitor_reports_comm_lost_and_restored(void)
     TEST_ASSERT_EQUAL_INT(HAL_VFD_EVT_COMM_RESTORED, s_events[1]);
 }
 
+static void test_monitor_independent_periods_current_faster_than_fault(void)
+{
+    hal_vfd_manager_bind_cfg_t cfg = make_cfg();
+    uint16_t                   val;
+
+    cfg.fault_period_ms   = 100000U;
+    cfg.current_period_ms = 1U;
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, hal_vfd_manager_bind(TEST_VFD_ID, &cfg));
+    TEST_ASSERT_EQUAL_INT(SW_OK, hal_vfd_get_ops()->init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, hal_vfd_manager_set_monitor_mask(TEST_VFD_ID, HAL_VFD_MON_ALL));
+
+    s_vfd.state      = HAL_VFD_STATE_FWD;
+    s_vfd.fault_code = 55U;
+    s_vfd.current    = 111U;
+    /* 绑定后首次 tick 两个指标都尚未采样过（last_*_ms == 0），必然各自采样一次 */
+    run_due_tick();
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, hal_vfd_get_ops()->get_cached(TEST_VFD_ID, HAL_VFD_REG_CURRENT, &val));
+    TEST_ASSERT_EQUAL_UINT16(111U, val);
+    TEST_ASSERT_EQUAL_INT(SW_OK, hal_vfd_get_ops()->get_cached(TEST_VFD_ID, HAL_VFD_REG_FAULT_CODE, &val));
+    TEST_ASSERT_EQUAL_UINT16(55U, val);
+
+    /* 之后：电流周期 1ms，每次 tick 都到期；故障码周期 100000ms，短时间内不会再次到期 */
+    s_vfd.fault_code = 77U;
+    s_vfd.current    = 222U;
+    run_due_tick();
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, hal_vfd_get_ops()->get_cached(TEST_VFD_ID, HAL_VFD_REG_CURRENT, &val));
+    TEST_ASSERT_EQUAL_UINT16(222U, val);
+    TEST_ASSERT_EQUAL_INT(SW_OK, hal_vfd_get_ops()->get_cached(TEST_VFD_ID, HAL_VFD_REG_FAULT_CODE, &val));
+    TEST_ASSERT_EQUAL_UINT16(55U, val);
+
+    s_vfd.current = 333U;
+    run_due_tick();
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, hal_vfd_get_ops()->get_cached(TEST_VFD_ID, HAL_VFD_REG_CURRENT, &val));
+    TEST_ASSERT_EQUAL_UINT16(333U, val);
+    TEST_ASSERT_EQUAL_INT(SW_OK, hal_vfd_get_ops()->get_cached(TEST_VFD_ID, HAL_VFD_REG_FAULT_CODE, &val));
+    TEST_ASSERT_EQUAL_UINT16(55U, val);
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -323,6 +374,7 @@ int main(void)
     RUN_TEST(test_fault_reset_uses_rst_pulse_when_pin_exists);
     RUN_TEST(test_monitor_updates_cached_fault_and_current_and_events);
     RUN_TEST(test_monitor_reports_comm_lost_and_restored);
+    RUN_TEST(test_monitor_independent_periods_current_faster_than_fault);
 
     return UNITY_END();
 }
