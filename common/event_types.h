@@ -141,7 +141,7 @@ typedef uint16_t event_type_t;
 #define EVT_OP_MODE_ID_SELF_CHECK_COMPLETED 4U
 #define EVT_OP_MODE_ID_CONTEXT_SYNC         5U
 #define EVT_OP_MODE_ID_CMD_HANDLED          6U /**< 命令处理完成（kind/status/reason 编码于 param）*/
-#define EVT_OP_MODE_ID_HOME_COMPLETED        7U /**< 归位完成（HOME_DEVICE 副作用后发布，param=1 成功）*/
+#define EVT_OP_MODE_ID_HOME_COMPLETED        7U /**< 内部归位完成（param=1 成功）*/
 #define EVT_OP_MODE_ID_ABORT_HOME_REQUESTED  8U /**< 中止归位请求（进入 ABORT_HOMING 时发布）*/
 
 #define EVT_OP_MODE_CHANGED              EVT_MAKE(EVT_CAT_OP_MODE, EVT_OP_MODE_ID_CHANGED)

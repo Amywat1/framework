@@ -101,9 +101,9 @@ static void test_stop_wash_aborts_orchestrator(void)
     TEST_ASSERT_EQUAL_INT(WASH_ABORT_MANUAL, wash_ops_stub_last_abort_cause());
 }
 
-static void test_home_device_calls_machine_ops(void)
+static void test_home_effect_calls_machine_ops(void)
 {
-    dev_cmd_t cmd = dev_cmd_make_simple(DEV_CMD_HOME_DEVICE);
+    dev_cmd_t cmd = dev_cmd_make_simple(DEV_CMD_RECOVER);
 
     TEST_ASSERT_EQUAL_INT(SW_OK, side_effect_router_run(DEV_CMD_EFFECT_HOME_DEVICE, &cmd));
     TEST_ASSERT_EQUAL_INT(1, s_home_count);
@@ -129,7 +129,7 @@ static void test_stop_all_outputs_calls_machine_ops(void)
 
 static void test_machine_ops_not_init_returns_error(void)
 {
-    dev_cmd_t cmd = dev_cmd_make_simple(DEV_CMD_HOME_DEVICE);
+    dev_cmd_t cmd = dev_cmd_make_simple(DEV_CMD_RECOVER);
 
     machine_ops_register(NULL);
     TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_INIT, side_effect_router_run(DEV_CMD_EFFECT_HOME_DEVICE, &cmd));
@@ -142,7 +142,7 @@ int main(void)
     RUN_TEST(test_effect_none_returns_ok);
     RUN_TEST(test_start_wash_calls_orchestrator);
     RUN_TEST(test_stop_wash_aborts_orchestrator);
-    RUN_TEST(test_home_device_calls_machine_ops);
+    RUN_TEST(test_home_effect_calls_machine_ops);
     RUN_TEST(test_manual_actuator_forwards_params);
     RUN_TEST(test_stop_all_outputs_calls_machine_ops);
     RUN_TEST(test_machine_ops_not_init_returns_error);

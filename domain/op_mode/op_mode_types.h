@@ -22,17 +22,17 @@ extern "C" {
  * @brief  整机运行模式（10 态状态机）
  *
  * 状态迁移概览：
- *   INIT → STOPPED（初始化完成；上电默认运营总开关开启，可 HOME）
- *   STOPPED → HOMING（HOME_DEVICE，需 service_enabled）→ IDLE / EXCEPTION
+ *   INIT → STOPPED（初始化完成；上电默认运营总开关开启，可 RECOVER）
+ *   STOPPED → HOMING（RECOVER 正常归位，需 service_enabled）→ IDLE / EXCEPTION
  *   IDLE → STOPPED（STOP_OPERATION：停运并关闭总开关）
- *   STOPPED → STOPPED（RESUME_OPERATION：仅重新授权，仍须 HOME 进 IDLE）
+ *   STOPPED → STOPPED（RESUME_OPERATION：仅重新授权，仍须 RECOVER 进 IDLE）
  *   IDLE → WASHING（START_WASH）
  *   WASHING → ABORT_HOMING（非急停中止清障）→ EXCEPTION
  *   WASHING → WASH_DONE（正常完成且无 MAJOR+）→ IDLE（客户离场）
  *   WASHING → EXCEPTION（正常完成但仍有 MAJOR+，洗后评估）
  *   WASH_DONE → STOPPED（STOP_OPERATION）
  *   STOPPED/EXCEPTION → SELF_CHECK → STOPPED / EXCEPTION
- *   EXCEPTION → RECOVERING（RECOVER）→ IDLE / EXCEPTION
+ *   EXCEPTION → RECOVERING（RECOVER 故障恢复）→ IDLE / EXCEPTION
  *   任意 → EXCEPTION（急停触发；LOCKOUT 在非洗车态）
  *
  * @note   不变量：IDLE 蕴含 service_enabled==true；关总开关时不得停留在 IDLE。

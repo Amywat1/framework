@@ -93,7 +93,7 @@ operational_mode_t op_mode_get_current(void);
 bool op_mode_is_estop_active(void);
 
 /**
- * @brief  运营总开关是否开启（关则禁止 HOME；上电默认开启）
+ * @brief  运营总开关是否开启（关则禁止 RECOVER；上电默认开启）
  */
 bool op_mode_is_service_enabled(void);
 

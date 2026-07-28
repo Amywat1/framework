@@ -47,7 +47,7 @@ static void publish_and_wait(event_type_t type, uint32_t param)
 /* 辅助：直接将 op_mode 推进到 IDLE（绕过 event_bus）*/
 static void setup_idle(void)
 {
-    dev_cmd_t cmd = dev_cmd_make_simple(DEV_CMD_HOME_DEVICE);
+    dev_cmd_t cmd = dev_cmd_make_simple(DEV_CMD_RECOVER);
 
     (void)op_mode_handle_command(&cmd); /* STOPPED → HOMING */
     op_mode_on_home_done(true);         /* HOMING → IDLE */
@@ -192,7 +192,7 @@ static void test_home_completed_success_enters_idle(void)
 
     /* 手动推进到 HOMING 态 */
     {
-        dev_cmd_t cmd = dev_cmd_make_simple(DEV_CMD_HOME_DEVICE);
+        dev_cmd_t cmd = dev_cmd_make_simple(DEV_CMD_RECOVER);
         (void)op_mode_handle_command(&cmd);
     }
     TEST_ASSERT_EQUAL_INT(OP_MODE_HOMING, op_mode_get_current());

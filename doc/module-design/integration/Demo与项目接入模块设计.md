@@ -184,7 +184,7 @@ typedef struct {
 |------------|------------|
 | `deferred_stop_all` | safety deferred stop / emergency completion path |
 | `abort_home` | 启动中止归位清障（异步）；完成后须发 `EVT_ABORT_HOME_DONE` |
-| `home_device` | `DEV_CMD_HOME_DEVICE` 副作用 |
+| `home_device` | `DEV_CMD_RECOVER` 在 STOPPED 下的内部归位副作用，以及故障恢复服务 |
 | `execute_manual_actuator` | `DEV_CMD_MANUAL_ACTUATOR` 副作用 |
 | `stop_all_outputs` | `DEV_CMD_STOP_ALL_OUTPUTS` 副作用 |
 

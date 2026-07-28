@@ -159,19 +159,6 @@ static const op_perm_t k_cmd_matrix[DEV_CMD_MAX][OP_MODE_RECOVERING + 1] =
         OP_PERM_DENIED,      /* EXCEPTION   */
         OP_PERM_DENIED,      /* RECOVERING  */
     },
-    /* DEV_CMD_HOME_DEVICE：STOPPED → HOMING，需运营总开关已开且无急停 */
-    [DEV_CMD_HOME_DEVICE] = {
-        OP_PERM_DENIED,      /* INIT        */
-        OP_PERM_CONDITIONAL, /* STOPPED     */
-        OP_PERM_DENIED,      /* HOMING      */
-        OP_PERM_DENIED,      /* IDLE        */
-        OP_PERM_DENIED,      /* WASHING     */
-        OP_PERM_DENIED,      /* ABORT_HOMING*/
-        OP_PERM_DENIED,      /* WASH_DONE   */
-        OP_PERM_DENIED,      /* SELF_CHECK  */
-        OP_PERM_DENIED,      /* EXCEPTION   */
-        OP_PERM_DENIED,      /* RECOVERING  */
-    },
     /* DEV_CMD_MANUAL_ACTUATOR：STOPPED 直接允许；EXCEPTION 需无急停 */
     [DEV_CMD_MANUAL_ACTUATOR] = {
         OP_PERM_DENIED,      /* INIT        */
@@ -198,12 +185,12 @@ static const op_perm_t k_cmd_matrix[DEV_CMD_MAX][OP_MODE_RECOVERING + 1] =
         OP_PERM_ALLOWED,     /* EXCEPTION   */
         OP_PERM_DENIED,      /* RECOVERING  */
     },
-    /* DEV_CMD_RECOVER：EXCEPTION → RECOVERING，需无急停 */
+    /* DEV_CMD_RECOVER：STOPPED 正常归位，EXCEPTION 故障恢复，IDLE 幂等成功 */
     [DEV_CMD_RECOVER] = {
         OP_PERM_DENIED,      /* INIT        */
-        OP_PERM_DENIED,      /* STOPPED     */
+        OP_PERM_CONDITIONAL, /* STOPPED     */
         OP_PERM_DENIED,      /* HOMING      */
-        OP_PERM_DENIED,      /* IDLE        */
+        OP_PERM_ALLOWED,     /* IDLE        */
         OP_PERM_DENIED,      /* WASHING     */
         OP_PERM_DENIED,      /* ABORT_HOMING*/
         OP_PERM_DENIED,      /* WASH_DONE   */
@@ -240,7 +227,6 @@ static const dev_cmd_effect_t k_cmd_effects[DEV_CMD_MAX] = {
     [DEV_CMD_START_WASH]       = DEV_CMD_EFFECT_START_WASH,
     [DEV_CMD_STOP_WASH]        = DEV_CMD_EFFECT_STOP_WASH,
     [DEV_CMD_START_SELF_CHECK] = DEV_CMD_EFFECT_SELF_CHECK,
-    [DEV_CMD_HOME_DEVICE]      = DEV_CMD_EFFECT_HOME_DEVICE,
     [DEV_CMD_MANUAL_ACTUATOR]  = DEV_CMD_EFFECT_MANUAL_ACTUATOR,
     [DEV_CMD_STOP_ALL_OUTPUTS] = DEV_CMD_EFFECT_STOP_ALL_OUTPUTS,
     /* 其余默认 DEV_CMD_EFFECT_NONE = 0 */
@@ -289,8 +275,8 @@ static dev_cmd_decision_t check_command(const dev_cmd_t *cmd)
         }
     }
 
-    if (kind == DEV_CMD_HOME_DEVICE) {
-        /* HOME_DEVICE 需要 service_enabled（确认设备可以开始运营再归位）*/
+    if (kind == DEV_CMD_RECOVER) {
+        /* 运营总开关关闭时禁止归位和故障恢复。 */
         if (!s_service_enabled) {
             return make_denied(OP_REJECT_SERVICE_DISABLED);
         }
@@ -337,19 +323,18 @@ dev_cmd_decision_t op_mode_handle_command(const dev_cmd_t *cmd)
     kind = cmd->body.kind;
 
     switch (kind) {
-    case DEV_CMD_HOME_DEVICE:
-        /* STOPPED → HOMING；副作用 HOME_DEVICE 由 side_effect_router 执行，
-         * 完成后发布 EVT_OP_MODE_HOME_COMPLETED，桥接层再调 on_home_completed */
-        set_mode(OP_MODE_HOMING, NULL);
-        break;
-
     case DEV_CMD_START_SELF_CHECK:
         set_mode(OP_MODE_SELF_CHECK, NULL);
         break;
 
     case DEV_CMD_RECOVER:
-        set_mode(OP_MODE_RECOVERING, NULL);
-        (void)event_publish(EVT_OP_MODE_RECOVERY_REQUESTED, 0U);
+        if (s_mode == OP_MODE_STOPPED) {
+            set_mode(OP_MODE_HOMING, NULL);
+            d.pending_effect = DEV_CMD_EFFECT_HOME_DEVICE;
+        } else if (s_mode == OP_MODE_EXCEPTION) {
+            set_mode(OP_MODE_RECOVERING, NULL);
+            (void)event_publish(EVT_OP_MODE_RECOVERY_REQUESTED, 0U);
+        }
         break;
 
     case DEV_CMD_STOP_OPERATION:

@@ -67,7 +67,7 @@ static sw_err_t submit_simple(dev_cmd_kind_t kind, dev_cmd_receipt_t *receipt)
 /* 辅助：把 op_mode 直接推进到 IDLE（绕过 event_bus）*/
 static void setup_idle(void)
 {
-    dev_cmd_t cmd = dev_cmd_make_simple(DEV_CMD_HOME_DEVICE);
+    dev_cmd_t cmd = dev_cmd_make_simple(DEV_CMD_RECOVER);
 
     (void)op_mode_handle_command(&cmd);
     op_mode_on_home_done(true);

@@ -34,10 +34,11 @@ static void load_alarm_catalog(void)
 /* 辅助：从 STOPPED 归位到 IDLE */
 static void enter_idle(void)
 {
-    dev_cmd_t          cmd = dev_cmd_make_simple(DEV_CMD_HOME_DEVICE);
+    dev_cmd_t          cmd = dev_cmd_make_simple(DEV_CMD_RECOVER);
     dev_cmd_decision_t d   = op_mode_handle_command(&cmd);
 
     TEST_ASSERT_EQUAL_INT(OP_CMD_ALLOWED, d.verdict);
+    TEST_ASSERT_EQUAL_INT(DEV_CMD_EFFECT_HOME_DEVICE, d.pending_effect);
     TEST_ASSERT_EQUAL_INT(OP_MODE_HOMING, op_mode_get_current());
     op_mode_on_home_done(true);
     TEST_ASSERT_EQUAL_INT(OP_MODE_IDLE, op_mode_get_current());
@@ -65,17 +66,17 @@ static void test_init_stopped_and_service_enabled(void)
     TEST_ASSERT_FALSE(op_mode_is_estop_active());
 }
 
-/* STOPPED → HOME_DEVICE → HOMING → IDLE */
-static void test_home_device_enters_idle(void)
+/* STOPPED → RECOVER → HOMING → IDLE */
+static void test_recover_from_stopped_enters_idle(void)
 {
     enter_idle();
     TEST_ASSERT_TRUE(op_mode_is_standby());
 }
 
 /* 归位失败 → EXCEPTION */
-static void test_home_device_failure_enters_exception(void)
+static void test_recover_home_failure_enters_exception(void)
 {
-    dev_cmd_t          cmd = dev_cmd_make_simple(DEV_CMD_HOME_DEVICE);
+    dev_cmd_t          cmd = dev_cmd_make_simple(DEV_CMD_RECOVER);
     dev_cmd_decision_t d   = op_mode_handle_command(&cmd);
 
     TEST_ASSERT_EQUAL_INT(OP_CMD_ALLOWED, d.verdict);
@@ -83,10 +84,10 @@ static void test_home_device_failure_enters_exception(void)
     TEST_ASSERT_EQUAL_INT(OP_MODE_EXCEPTION, op_mode_get_current());
 }
 
-/* 停运后（STOPPED + 总开关关）HOME_DEVICE 被拒绝 */
-static void test_home_device_denied_when_service_disabled(void)
+/* 停运后（STOPPED + 总开关关）RECOVER 被拒绝 */
+static void test_recover_denied_when_service_disabled(void)
 {
-    dev_cmd_t home_cmd = dev_cmd_make_simple(DEV_CMD_HOME_DEVICE);
+    dev_cmd_t recover_cmd = dev_cmd_make_simple(DEV_CMD_RECOVER);
     dev_cmd_t stop_cmd = dev_cmd_make_simple(DEV_CMD_STOP_OPERATION);
 
     enter_idle();
@@ -94,7 +95,20 @@ static void test_home_device_denied_when_service_disabled(void)
     TEST_ASSERT_EQUAL_INT(OP_MODE_STOPPED, op_mode_get_current());
     TEST_ASSERT_FALSE(op_mode_is_service_enabled());
 
-    TEST_ASSERT_EQUAL_INT(OP_REJECT_SERVICE_DISABLED, op_mode_handle_command(&home_cmd).reason);
+    TEST_ASSERT_EQUAL_INT(OP_REJECT_SERVICE_DISABLED, op_mode_handle_command(&recover_cmd).reason);
+}
+
+/* IDLE 下重复 RECOVER 幂等成功且不产生副作用 */
+static void test_recover_in_idle_is_idempotent(void)
+{
+    dev_cmd_t          cmd = dev_cmd_make_simple(DEV_CMD_RECOVER);
+    dev_cmd_decision_t d;
+
+    enter_idle();
+    d = op_mode_handle_command(&cmd);
+    TEST_ASSERT_EQUAL_INT(OP_CMD_ALLOWED, d.verdict);
+    TEST_ASSERT_EQUAL_INT(DEV_CMD_EFFECT_NONE, d.pending_effect);
+    TEST_ASSERT_EQUAL_INT(OP_MODE_IDLE, op_mode_get_current());
 }
 
 /* IDLE 可以接单 */
@@ -200,6 +214,32 @@ static void test_estop_blocks_recover(void)
     TEST_ASSERT_TRUE(op_mode_is_estop_active());
     TEST_ASSERT_EQUAL_INT(OP_MODE_EXCEPTION, op_mode_get_current());
     TEST_ASSERT_EQUAL_INT(OP_REJECT_ESTOP_ACTIVE, op_mode_handle_command(&cmd).reason);
+}
+
+/* EXCEPTION 下 RECOVER 进入故障恢复流程 */
+static void test_recover_from_exception_enters_recovering(void)
+{
+    dev_cmd_t          cmd = dev_cmd_make_simple(DEV_CMD_RECOVER);
+    dev_cmd_decision_t d;
+
+    op_mode_on_critical_alarm();
+    d = op_mode_handle_command(&cmd);
+    TEST_ASSERT_EQUAL_INT(OP_CMD_ALLOWED, d.verdict);
+    TEST_ASSERT_EQUAL_INT(DEV_CMD_EFFECT_NONE, d.pending_effect);
+    TEST_ASSERT_EQUAL_INT(OP_MODE_RECOVERING, op_mode_get_current());
+}
+
+/* EXCEPTION 下运营总开关关闭时 RECOVER 仍被拒绝 */
+static void test_recover_from_exception_denied_when_service_disabled(void)
+{
+    dev_cmd_t recover_cmd = dev_cmd_make_simple(DEV_CMD_RECOVER);
+    dev_cmd_t stop_cmd    = dev_cmd_make_simple(DEV_CMD_STOP_OPERATION);
+
+    enter_idle();
+    (void)op_mode_handle_command(&stop_cmd);
+    op_mode_on_critical_alarm();
+    TEST_ASSERT_EQUAL_INT(OP_MODE_EXCEPTION, op_mode_get_current());
+    TEST_ASSERT_EQUAL_INT(OP_REJECT_SERVICE_DISABLED, op_mode_handle_command(&recover_cmd).reason);
 }
 
 /* 洗车完整生命周期 */
@@ -327,9 +367,10 @@ int main(void)
     UNITY_BEGIN();
 
     RUN_TEST(test_init_stopped_and_service_enabled);
-    RUN_TEST(test_home_device_enters_idle);
-    RUN_TEST(test_home_device_failure_enters_exception);
-    RUN_TEST(test_home_device_denied_when_service_disabled);
+    RUN_TEST(test_recover_from_stopped_enters_idle);
+    RUN_TEST(test_recover_home_failure_enters_exception);
+    RUN_TEST(test_recover_denied_when_service_disabled);
+    RUN_TEST(test_recover_in_idle_is_idempotent);
     RUN_TEST(test_start_wash_allowed_in_idle);
     RUN_TEST(test_stop_wash_denied_in_idle);
     RUN_TEST(test_stop_operation_disables_service);
@@ -338,6 +379,8 @@ int main(void)
     RUN_TEST(test_start_wash_denied_with_blocking_alarm);
     RUN_TEST(test_start_wash_denied_when_vehicle_not_ready);
     RUN_TEST(test_estop_blocks_recover);
+    RUN_TEST(test_recover_from_exception_enters_recovering);
+    RUN_TEST(test_recover_from_exception_denied_when_service_disabled);
     RUN_TEST(test_wash_session_lifecycle);
     RUN_TEST(test_wash_done_with_blocking_enters_exception);
     RUN_TEST(test_manual_actuator_allowed_in_stopped);

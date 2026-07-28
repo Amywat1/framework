@@ -36,7 +36,7 @@ typedef struct {
     sw_err_t (*start_wash)(wash_mode_t mode);
     /** @brief 中止洗车会话 */
     void (*abort_wash)(wash_abort_cause_t cause);
-    /** @brief DEV_CMD_HOME_DEVICE 副作用：启动异步全机归位（完成后发 EVT_OP_MODE_HOME_COMPLETED） */
+    /** @brief 启动异步全机归位（完成后发 EVT_OP_MODE_HOME_COMPLETED） */
     sw_err_t (*home_device)(void);
     /** @brief DEV_CMD_MANUAL_ACTUATOR 副作用（act_id/param 由项目定义） */
     sw_err_t (*execute_manual_actuator)(uint32_t act_id, int32_t param);
