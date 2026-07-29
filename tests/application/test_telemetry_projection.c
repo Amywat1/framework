@@ -73,7 +73,7 @@ static void test_snapshot_direct_updates_are_read_back(void)
     };
     safety_snapshot_t safety = {
         .posture         = SAFETY_POSTURE_LOCKOUT,
-        .blocking_active = false,
+        .blocking_active = true,
     };
 
     device_snapshot_update_op(&op);

@@ -26,29 +26,30 @@ set(_fw_runtime_src
     ${WDF_ROOT}/runtime/scheduler/scheduler.c
     ${WDF_ROOT}/runtime/scheduler/periodic_task.c
     ${WDF_ROOT}/runtime/platform/safety_thread.c
-    ${WDF_ROOT}/runtime/platform/device_safety_actuator.c
 )
 
 set(_fw_application_src
-    ${WDF_ROOT}/application/alarm_event_bridge.c
+    ${WDF_ROOT}/adapters/inbound/event/alarm_event_bridge.c
+    ${WDF_ROOT}/adapters/inbound/event/alarm_lifecycle_bridge.c
     ${WDF_ROOT}/application/command_gateway.c
-    ${WDF_ROOT}/application/op_mode_bridge.c
+    ${WDF_ROOT}/adapters/inbound/event/op_mode_bridge.c
     ${WDF_ROOT}/application/self_check_service.c
     ${WDF_ROOT}/application/side_effect_router.c
+    ${WDF_ROOT}/application/telemetry_projection.c
     ${WDF_ROOT}/tests/stubs/wash_orchestrator_stub.c
 )
 
 set(_fw_domain_src
     ${WDF_ROOT}/domain/op_mode/operational_mode.c
     ${WDF_ROOT}/domain/safety/alarm_registry/alarm_registry.c
+    ${WDF_ROOT}/domain/telemetry/device_snapshot.c
 )
 
 set(_fw_ports_src
-    ${WDF_ROOT}/ports/port_registry.c
-    ${WDF_ROOT}/ports/outbound/safety/hw_estop_port.c
-    ${WDF_ROOT}/ports/outbound/safety/safety_cutout_port.c
-    ${WDF_ROOT}/ports/outbound/safety/op_mode_alarm_port.c
-    ${WDF_ROOT}/ports/outbound/machine/machine_ops_port.c
+    ${WDF_ROOT}/ports/port_registry_hal.c
+    ${WDF_ROOT}/ports/port_registry_cloud.c
+    ${WDF_ROOT}/ports/port_registry_infra.c
+    ${WDF_ROOT}/adapters/outbound/safety/sim/safety_weak_defaults.c
 )
 
 set(_fw_services_src

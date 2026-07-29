@@ -35,7 +35,7 @@ void setUp(void)
     memset(s_events, 0, sizeof(s_events));
     s_event_count = 0;
     snack_voice_adapter_test_reset();
-    snack_voice_adapter_register();
+    snack_voice_adapter_register(NULL, 0, 0);
 }
 
 void tearDown(void)
@@ -55,8 +55,7 @@ static void test_registered_ops_reject_commands_before_instance_init(void)
 
 static void test_instance_init_passes_modbus_parameters(void)
 {
-    TEST_ASSERT_EQUAL_INT(SW_OK, snack_voice_adapter_configure("/dev/ttyS1", 9600, 7));
-    TEST_ASSERT_EQUAL_INT(SW_ERR_BUSY, snack_voice_adapter_configure("/dev/ttyS1", 9600, 7));
+    snack_voice_adapter_register("/dev/ttyS1", 9600, 7);
     TEST_ASSERT_EQUAL_INT(SW_OK, voice()->init());
     TEST_ASSERT_TRUE(snack_modbus_fake_init_called());
     TEST_ASSERT_EQUAL_STRING("/dev/ttyS1", snack_modbus_fake_serial_port());
@@ -66,7 +65,7 @@ static void test_instance_init_passes_modbus_parameters(void)
 
 static void test_commands_write_expected_registers(void)
 {
-    TEST_ASSERT_EQUAL_INT(SW_OK, snack_voice_adapter_configure("/dev/ttyS1", 9600, 7));
+    snack_voice_adapter_register("/dev/ttyS1", 9600, 7);
     TEST_ASSERT_EQUAL_INT(SW_OK, voice()->init());
 
     TEST_ASSERT_EQUAL_INT(SW_OK, voice()->play(12));
@@ -96,7 +95,7 @@ static void test_commands_write_expected_registers(void)
 
 static void test_comm_lost_and_restored_events_are_reported(void)
 {
-    TEST_ASSERT_EQUAL_INT(SW_OK, snack_voice_adapter_configure("/dev/ttyS1", 9600, 7));
+    snack_voice_adapter_register("/dev/ttyS1", 9600, 7);
     voice()->register_event_cb(event_cb);
     TEST_ASSERT_EQUAL_INT(SW_OK, voice()->init());
 
@@ -120,7 +119,7 @@ static void test_instance_init_failure_keeps_adapter_not_ready(void)
 {
     snack_modbus_fake_set_init_result(SW_ERR_HW);
 
-    TEST_ASSERT_EQUAL_INT(SW_OK, snack_voice_adapter_configure("/dev/ttyS1", 9600, 7));
+    snack_voice_adapter_register("/dev/ttyS1", 9600, 7);
     TEST_ASSERT_EQUAL_INT(SW_ERR_HW, voice()->init());
     TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_INIT, voice()->play(1));
 }

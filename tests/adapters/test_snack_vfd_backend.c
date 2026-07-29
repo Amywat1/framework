@@ -89,8 +89,7 @@ void tearDown(void)
 
 static void configure_bind_init(hal_vfd_id_t id, const snack_vfd_backend_instance_cfg_t *cfg)
 {
-    TEST_ASSERT_EQUAL_INT(SW_OK, snack_vfd_backend_instance_configure(id, cfg));
-    TEST_ASSERT_EQUAL_INT(SW_OK, snack_vfd_backend_instance_bind(id));
+    TEST_ASSERT_EQUAL_INT(SW_OK, snack_vfd_backend_instance_setup(id, cfg));
     TEST_ASSERT_EQUAL_INT(SW_OK, vfd_ops()->init());
 }
 
@@ -98,19 +97,17 @@ static void test_instance_configure_rejects_invalid_config(void)
 {
     snack_vfd_backend_instance_cfg_t cfg = make_cfg();
 
-    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, snack_vfd_backend_instance_configure(-1, &cfg));
-    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, snack_vfd_backend_instance_configure(8, &cfg));
-    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, snack_vfd_backend_instance_configure(TEST_VFD_ID, NULL));
+    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, snack_vfd_backend_instance_setup(-1, &cfg));
+    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, snack_vfd_backend_instance_setup(8, &cfg));
+    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, snack_vfd_backend_instance_setup(TEST_VFD_ID, NULL));
 }
 
 static void test_instance_configure_bind_and_hal_init_pass_modbus_parameters(void)
 {
     snack_vfd_backend_instance_cfg_t cfg = make_cfg();
 
-    TEST_ASSERT_EQUAL_INT(SW_OK, snack_vfd_backend_instance_configure(TEST_VFD_ID, &cfg));
-    TEST_ASSERT_EQUAL_INT(SW_ERR_BUSY, snack_vfd_backend_instance_configure(TEST_VFD_ID, &cfg));
-    TEST_ASSERT_EQUAL_INT(SW_OK, snack_vfd_backend_instance_bind(TEST_VFD_ID));
-    TEST_ASSERT_EQUAL_INT(SW_ERR_BUSY, snack_vfd_backend_instance_bind(TEST_VFD_ID));
+    TEST_ASSERT_EQUAL_INT(SW_OK, snack_vfd_backend_instance_setup(TEST_VFD_ID, &cfg));
+    TEST_ASSERT_EQUAL_INT(SW_ERR_BUSY, snack_vfd_backend_instance_setup(TEST_VFD_ID, &cfg));
     TEST_ASSERT_EQUAL_INT(SW_OK, vfd_ops()->init());
     TEST_ASSERT_TRUE(snack_modbus_fake_init_called());
     TEST_ASSERT_EQUAL_STRING("/dev/ttyS2", snack_modbus_fake_serial_port());
@@ -142,8 +139,7 @@ static void test_run_rejects_invalid_gear_and_unsupported_reverse(void)
 
     cfg         = make_cfg();
     cfg.pin_rev = (io_do_t){IO_HANDLE_NULL};
-    TEST_ASSERT_EQUAL_INT(SW_OK, snack_vfd_backend_instance_configure(1, &cfg));
-    TEST_ASSERT_EQUAL_INT(SW_OK, snack_vfd_backend_instance_bind(1));
+    TEST_ASSERT_EQUAL_INT(SW_OK, snack_vfd_backend_instance_setup(1, &cfg));
     TEST_ASSERT_EQUAL_INT(SW_OK, vfd_ops()->init());
     TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, vfd_ops()->run(1, -1));
 }
@@ -191,8 +187,7 @@ static void test_monitor_mask_can_be_updated_after_init(void)
 
     TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_INIT, snack_vfd_backend_instance_set_monitor_mask(7, HAL_VFD_MON_FAULT));
 
-    TEST_ASSERT_EQUAL_INT(SW_OK, snack_vfd_backend_instance_configure(TEST_VFD_ID, &cfg));
-    TEST_ASSERT_EQUAL_INT(SW_OK, snack_vfd_backend_instance_bind(TEST_VFD_ID));
+    TEST_ASSERT_EQUAL_INT(SW_OK, snack_vfd_backend_instance_setup(TEST_VFD_ID, &cfg));
     vfd_ops()->register_event_cb(TEST_VFD_ID, event_cb);
     TEST_ASSERT_EQUAL_INT(SW_OK, snack_vfd_backend_instance_set_monitor_mask(TEST_VFD_ID, HAL_VFD_MON_FAULT));
 }
@@ -201,8 +196,7 @@ static void test_bound_but_not_hal_inited_operations_return_not_init(void)
 {
     snack_vfd_backend_instance_cfg_t cfg = make_cfg();
 
-    TEST_ASSERT_EQUAL_INT(SW_OK, snack_vfd_backend_instance_configure(TEST_VFD_ID, &cfg));
-    TEST_ASSERT_EQUAL_INT(SW_OK, snack_vfd_backend_instance_bind(TEST_VFD_ID));
+    TEST_ASSERT_EQUAL_INT(SW_OK, snack_vfd_backend_instance_setup(TEST_VFD_ID, &cfg));
     TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_INIT, vfd_ops()->run(TEST_VFD_ID, 1));
 }
 
