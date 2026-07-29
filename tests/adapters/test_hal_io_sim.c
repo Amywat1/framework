@@ -78,6 +78,18 @@ static void test_do_set_valid_returns_ok(void)
     TEST_ASSERT_EQUAL_INT(SW_OK, hal_io_get_ops()->do_set(k_valid_do, true));
 }
 
+static void test_do_level_tracks_output(void)
+{
+    bool level = false;
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, hal_io_get_ops()->do_set(k_valid_do, true));
+    TEST_ASSERT_EQUAL_INT(SW_OK, hal_io_sim_get_do_level(k_valid_do, &level));
+    TEST_ASSERT_TRUE(level);
+    TEST_ASSERT_EQUAL_INT(SW_OK, hal_io_get_ops()->do_set(k_valid_do, false));
+    TEST_ASSERT_EQUAL_INT(SW_OK, hal_io_sim_get_do_level(k_valid_do, &level));
+    TEST_ASSERT_FALSE(level);
+}
+
 static void test_do_set_invalid_board_returns_err(void)
 {
     TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, hal_io_get_ops()->do_set(k_bad_do, true));
@@ -266,6 +278,7 @@ int main(void)
     RUN_TEST(test_di_invalid_board_returns_false);
 
     RUN_TEST(test_do_set_valid_returns_ok);
+    RUN_TEST(test_do_level_tracks_output);
     RUN_TEST(test_do_set_invalid_board_returns_err);
 
     RUN_TEST(test_pulse_read_after_set_counter);

@@ -10,6 +10,8 @@
 #include "domain/op_mode/device_command.h"
 #include "domain/op_mode/op_mode_types.h"
 #include "domain/op_mode/operational_mode.h"
+#include "domain/safety/alarm_registry/alarm_registry.h"
+#include "domain/safety/model/alarm_types.h"
 
 #include "runtime/event_bus/event_bus.h"
 #include "unity.h"
@@ -231,6 +233,34 @@ static void test_alarm_home_done_enters_exception(void)
     stop_dispatch(tid);
 }
 
+/* MAJOR 告警事件使静态 STOPPED 进入 EXCEPTION */
+static void test_blocking_alarm_event_enters_exception(void)
+{
+    static const alarm_def_t catalog[] = {
+        {
+         .code         = 201101U,
+         .level        = ALARM_LEVEL_MAJOR,
+         .clear        = ALARM_CLEAR_MANUAL_RESET,
+         .reeval_group = ALARM_REEVAL_GROUP_NONE,
+         .desc         = "test blocking",
+         },
+    };
+    pthread_t tid;
+
+    time_util_init();
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_load_catalog(catalog, 1U));
+    TEST_ASSERT_EQUAL_INT(SW_OK, operational_mode_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, op_mode_bridge_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_trigger(201101U));
+
+    tid = start_dispatch();
+    publish_and_wait(EVT_ALARM_TRIGGERED, 201101U);
+    TEST_ASSERT_EQUAL_INT(OP_MODE_EXCEPTION, op_mode_get_current());
+    stop_dispatch(tid);
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -243,6 +273,7 @@ int main(void)
     RUN_TEST(test_self_check_from_stopped_lands_stopped);
     RUN_TEST(test_home_completed_success_enters_idle);
     RUN_TEST(test_alarm_home_done_enters_exception);
+    RUN_TEST(test_blocking_alarm_event_enters_exception);
 
     return UNITY_END();
 }

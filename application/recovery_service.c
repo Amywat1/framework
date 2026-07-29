@@ -1,6 +1,6 @@
 /**
  * @file    recovery_service.c
- * @brief   Recover 用例协调实现（清告警 + 异步全归位 + 验证）
+ * @brief   Recover 用例协调实现（复位锁存告警 + 异步全归位 + 阻塞告警验证）
  * @author  HUWANGWEI
  * @date    2026-07-09
  */
@@ -26,14 +26,23 @@ static atomic_bool s_waiting_home = false;
 static void on_home_completed(const event_t *evt)
 {
     recovery_result_t result;
+    bool              home_success;
+    bool              blocking_active;
 
     if (!atomic_exchange(&s_waiting_home, false)) {
         return;
     }
 
-    result = (evt->param != 0U) ? RECOVERY_RESULT_IDLE : RECOVERY_RESULT_EXCEPTION;
-    if (result != RECOVERY_RESULT_IDLE) {
+    home_success    = evt->param != 0U;
+    alarm_registry_reset_all();
+    blocking_active = alarm_registry_has_blocking_active();
+    result = (home_success && !blocking_active)
+                ? RECOVERY_RESULT_IDLE
+                : RECOVERY_RESULT_EXCEPTION;
+    if (!home_success) {
         LOG_ERROR("recovery_service: home failed during recover");
+    } else if (blocking_active) {
+        LOG_WARN("recovery_service: blocking alarm remains after home");
     }
 
     (void)event_publish(EVT_OP_MODE_RECOVERY_COMPLETED, (uint32_t)result);
@@ -48,21 +57,14 @@ static void on_recovery_requested(const event_t *evt)
     (void)evt;
     atomic_store(&s_waiting_home, false);
 
-    /* 1. 检查安全姿态：LOCKOUT 下无法恢复 */
+    /* 先复位故障条件已经消失的锁存告警，再检查是否仍处于 LOCKOUT。 */
+    alarm_registry_reset_all();
     if (alarm_registry_safety_posture() == SAFETY_POSTURE_LOCKOUT) {
-        LOG_WARN("recovery_service: still LOCKOUT before clear, abort recovery");
+        LOG_WARN("recovery_service: still LOCKOUT after reset, abort recovery");
         goto done;
     }
 
-    /* 2. 清除所有可恢复告警 */
-    alarm_registry_recover_all();
-
-    if (alarm_registry_safety_posture() == SAFETY_POSTURE_LOCKOUT) {
-        LOG_WARN("recovery_service: still LOCKOUT after clear, abort recovery");
-        goto done;
-    }
-
-    /* 3. 启动异步全归位；完成事件见 on_home_completed */
+    /* 启动异步全归位；完成时统一验证阻塞告警。 */
     ops = machine_ops_get();
     if ((ops == NULL) || (ops->home_device == NULL)) {
         LOG_ERROR("recovery_service: home_device not available");

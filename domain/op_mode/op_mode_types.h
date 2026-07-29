@@ -36,6 +36,8 @@ extern "C" {
  *   任意 → EXCEPTION（急停触发；LOCKOUT 在非洗车态）
  *
  * @note   不变量：IDLE 蕴含 service_enabled==true；关总开关时不得停留在 IDLE。
+ *         静态状态 STOPPED/IDLE/WASH_DONE 收敛后不得存在 MAJOR 及以上活动告警；
+ *         MINOR 告警可与正常状态共存。
  */
 typedef enum {
     OP_MODE_INIT = 0,        /**< 系统初始化中（operational_mode_init 前）*/
@@ -47,7 +49,7 @@ typedef enum {
     OP_MODE_WASH_DONE,       /**< 洗车完成，等待客户离场 */
     OP_MODE_SELF_CHECK,      /**< 自检中 */
     OP_MODE_EXCEPTION,       /**< 故障停机 */
-    OP_MODE_RECOVERING,      /**< 恢复中（清告警 + 归位 + 验证）*/
+    OP_MODE_RECOVERING,      /**< 恢复中（归位 + 阻塞告警验证）*/
 } operational_mode_t;
 
 /**

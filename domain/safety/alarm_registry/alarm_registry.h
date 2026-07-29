@@ -27,7 +27,11 @@ sw_err_t alarm_registry_reevaluate_group(motion_reeval_group_id_t group);
 
 void alarm_registry_on_wash_session_started(void);
 void alarm_registry_on_wash_session_ended(void);
-void alarm_registry_recover_all(void);
+/**
+ * @brief 请求复位全部可人工复位告警。
+ * @note  仅清除故障条件已经消失的告警；条件仍成立时保留活动状态。
+ */
+void alarm_registry_reset_all(void);
 
 bool             alarm_registry_is_active(uint32_t code);
 bool             alarm_registry_has_blocking_active(void);

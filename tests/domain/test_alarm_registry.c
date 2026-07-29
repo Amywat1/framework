@@ -85,12 +85,27 @@ static void test_critical_lockout(void)
     TEST_ASSERT_TRUE(alarm_registry_has_blocking_active());
 }
 
-static void test_recover_keeps_auto_static_clears_manual(void)
+static void test_reset_requires_manual_condition_clear(void)
 {
     (void)alarm_registry_trigger(201709U);
     (void)alarm_registry_trigger(201101U);
-    alarm_registry_recover_all();
+    alarm_registry_reset_all();
     TEST_ASSERT_TRUE(alarm_registry_is_active(201709U));
+    TEST_ASSERT_TRUE(alarm_registry_is_active(201101U));
+
+    (void)alarm_registry_clear(201101U);
+    TEST_ASSERT_TRUE(alarm_registry_is_active(201101U));
+    alarm_registry_reset_all();
+    TEST_ASSERT_FALSE(alarm_registry_is_active(201101U));
+}
+
+static void test_manual_condition_clear_waits_for_reset(void)
+{
+    (void)alarm_registry_trigger(201101U);
+    (void)alarm_registry_clear(201101U);
+    TEST_ASSERT_TRUE(alarm_registry_is_active(201101U));
+
+    alarm_registry_reset_all();
     TEST_ASSERT_FALSE(alarm_registry_is_active(201101U));
 }
 
@@ -158,7 +173,8 @@ int main(void)
     RUN_TEST(test_trigger_clear_idempotent);
     RUN_TEST(test_major_not_lockout);
     RUN_TEST(test_critical_lockout);
-    RUN_TEST(test_recover_keeps_auto_static_clears_manual);
+    RUN_TEST(test_reset_requires_manual_condition_clear);
+    RUN_TEST(test_manual_condition_clear_waits_for_reset);
     RUN_TEST(test_reevaluate_by_group);
     RUN_TEST(test_pull_events);
     RUN_TEST(test_session_journal_blocking_levels);

@@ -415,11 +415,21 @@ void op_mode_on_self_check_completed(bool land_exception)
 
 void op_mode_on_critical_alarm(void)
 {
-    /* WASHING/ABORT_HOMING/RECOVERING 期间已在处理中，不立即切换 */
     if ((s_mode != OP_MODE_WASHING)
      && (s_mode != OP_MODE_ABORT_HOMING)
      && (s_mode != OP_MODE_RECOVERING)) {
         set_mode(OP_MODE_EXCEPTION, "critical alarm");
+    }
+}
+
+void op_mode_on_blocking_alarm(void)
+{
+    /* 运行中的动作先按既定流程安全结束，静态状态立即进入故障停机。 */
+    if ((s_mode != OP_MODE_WASHING)
+     && (s_mode != OP_MODE_HOMING)
+     && (s_mode != OP_MODE_ABORT_HOMING)
+     && (s_mode != OP_MODE_RECOVERING)) {
+        set_mode(OP_MODE_EXCEPTION, "blocking alarm");
     }
 }
 
@@ -449,7 +459,11 @@ void op_mode_on_recovery_completed(recovery_result_t result)
 void op_mode_on_home_done(bool success)
 {
     if (s_mode == OP_MODE_HOMING) {
-        set_mode(success ? OP_MODE_IDLE : OP_MODE_EXCEPTION, success ? NULL : "home failed");
+        if (!success || alarm_registry_has_blocking_active()) {
+            set_mode(OP_MODE_EXCEPTION, success ? "blocking alarm after home" : "home failed");
+        } else {
+            set_mode(OP_MODE_IDLE, NULL);
+        }
     } else if (s_mode == OP_MODE_ABORT_HOMING) {
         set_mode(OP_MODE_EXCEPTION, NULL);
     }

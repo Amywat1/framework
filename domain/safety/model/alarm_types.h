@@ -136,11 +136,13 @@ typedef struct {
     char                     desc[ALARM_DESC_MAX];
 } alarm_def_t;
 
+/** @brief 活动告警实例。 */
 typedef struct {
-    uint32_t      code;
-    alarm_level_t level;
-    alarm_clear_t clear;
-    uint64_t      triggered_at_ms;
+    uint32_t      code;             /**< 告警码。 */
+    alarm_level_t level;            /**< 告警等级。 */
+    alarm_clear_t clear;            /**< 清除策略。 */
+    uint64_t      triggered_at_ms;  /**< 首次触发时间。 */
+    bool          condition_active; /**< 故障源当前是否仍成立。 */
 } alarm_instance_t;
 
 typedef enum {

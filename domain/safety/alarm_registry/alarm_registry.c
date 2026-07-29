@@ -95,6 +95,7 @@ static void append_active_slot_locked(const alarm_def_t *def)
     inst->level           = def->level;
     inst->clear           = def->clear;
     inst->triggered_at_ms = time_util_get_ms();
+    inst->condition_active = true;
     s_active_count++;
 
     if (def->level >= ALARM_LEVEL_MAJOR) {
@@ -141,9 +142,14 @@ sw_err_t alarm_registry_trigger(uint32_t code)
     }
 
     pthread_mutex_lock(&s_mutex);
-    if (find_active_index(code) >= 0) {
-        pthread_mutex_unlock(&s_mutex);
-        return SW_OK;
+    {
+        int active_idx = find_active_index(code);
+
+        if (active_idx >= 0) {
+            s_active[(unsigned)active_idx].condition_active = true;
+            pthread_mutex_unlock(&s_mutex);
+            return SW_OK;
+        }
     }
     ret = insert_active_locked(&s_catalog[(unsigned)def_idx]);
     pthread_mutex_unlock(&s_mutex);
@@ -153,6 +159,7 @@ sw_err_t alarm_registry_trigger(uint32_t code)
 sw_err_t alarm_registry_clear(uint32_t code)
 {
     int           def_idx;
+    int           active_idx;
     alarm_clear_t clr;
 
     def_idx = find_def_index(code);
@@ -161,13 +168,17 @@ sw_err_t alarm_registry_clear(uint32_t code)
         return SW_ERR_PARAM;
     }
 
-    clr = s_catalog[(unsigned)def_idx].clear;
-    if ((clr == ALARM_CLEAR_MANUAL_RESET) || (clr == ALARM_CLEAR_ON_MOTION)) {
-        return SW_OK;
-    }
-
     pthread_mutex_lock(&s_mutex);
-    force_clear_locked(code);
+    active_idx = find_active_index(code);
+    if (active_idx >= 0) {
+        alarm_instance_t *inst = &s_active[(unsigned)active_idx];
+
+        clr = s_catalog[(unsigned)def_idx].clear;
+        inst->condition_active = false;
+        if (clr == ALARM_CLEAR_AUTO_STATIC) {
+            force_clear_locked(code);
+        }
+    }
     pthread_mutex_unlock(&s_mutex);
     return SW_OK;
 }
@@ -192,7 +203,12 @@ sw_err_t alarm_registry_reevaluate_group(motion_reeval_group_id_t group)
         }
     }
     for (i = 0; i < n; ++i) {
-        force_clear_locked(codes[i]);
+        int active_idx = find_active_index(codes[i]);
+
+        if (active_idx >= 0) {
+            s_active[(unsigned)active_idx].condition_active = false;
+            force_clear_locked(codes[i]);
+        }
     }
     pthread_mutex_unlock(&s_mutex);
     return SW_OK;
@@ -213,7 +229,7 @@ void alarm_registry_on_wash_session_ended(void)
     pthread_mutex_unlock(&s_mutex);
 }
 
-void alarm_registry_recover_all(void)
+void alarm_registry_reset_all(void)
 {
     uint32_t codes[ALARM_ACTIVE_MAX];
     unsigned n = 0U;
@@ -236,7 +252,15 @@ void alarm_registry_recover_all(void)
         codes[n++] = code;
     }
     for (i = 0; i < n; ++i) {
-        force_clear_locked(codes[i]);
+        int active_idx = find_active_index(codes[i]);
+
+        if (active_idx >= 0) {
+            alarm_instance_t *inst = &s_active[(unsigned)active_idx];
+
+            if (!inst->condition_active) {
+                force_clear_locked(codes[i]);
+            }
+        }
     }
     pthread_mutex_unlock(&s_mutex);
 }

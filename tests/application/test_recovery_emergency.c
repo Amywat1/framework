@@ -12,6 +12,7 @@
 #include "common/time_util.h"
 #include "domain/op_mode/op_mode_types.h"
 #include "domain/safety/alarm_registry/alarm_registry.h"
+#include "domain/safety/model/alarm_types.h"
 #include "ports/outbound/machine/machine_ops_port.h"
 #include "runtime/event_bus/event_bus.h"
 #include "unity.h"
@@ -27,6 +28,10 @@ static volatile int                s_home_device_count;
 static volatile int                s_abort_count;
 static volatile wash_abort_cause_t s_abort_cause;
 static volatile int                s_deferred_stop_count;
+static uint32_t                    s_clear_on_home_code;
+
+#define TEST_BLOCKING_ALARM_CODE 201101U
+#define TEST_LOCKOUT_ALARM_CODE  201102U
 
 void safety_deferred_stop(void)
 {
@@ -48,11 +53,34 @@ static void stub_abort_home(void)
 static sw_err_t stub_home_device(void)
 {
     s_home_device_count++;
+    if (s_clear_on_home_code != 0U) {
+        (void)alarm_registry_clear(s_clear_on_home_code);
+    }
     (void)event_publish(EVT_OP_MODE_HOME_COMPLETED, 1U);
     return SW_OK;
 }
 
 static machine_ops_t s_machine_ops;
+
+static const alarm_def_t s_blocking_catalog[] = {
+    {
+     .code         = TEST_BLOCKING_ALARM_CODE,
+     .level        = ALARM_LEVEL_MAJOR,
+     .clear        = ALARM_CLEAR_MANUAL_RESET,
+     .reeval_group = ALARM_REEVAL_GROUP_NONE,
+     .desc         = "test blocking",
+     },
+};
+
+static const alarm_def_t s_lockout_catalog[] = {
+    {
+     .code         = TEST_LOCKOUT_ALARM_CODE,
+     .level        = ALARM_LEVEL_CRITICAL,
+     .clear        = ALARM_CLEAR_MANUAL_RESET,
+     .reeval_group = ALARM_REEVAL_GROUP_NONE,
+     .desc         = "test lockout",
+     },
+};
 
 static void on_recovery_completed(const event_t *evt)
 {
@@ -90,6 +118,7 @@ void setUp(void)
     s_abort_count              = 0;
     s_abort_cause              = WASH_ABORT_MANUAL;
     s_deferred_stop_count      = 0;
+    s_clear_on_home_code       = 0U;
 
     memset(&s_machine_ops, 0, sizeof(s_machine_ops));
     s_machine_ops.abort_home  = stub_abort_home;
@@ -119,6 +148,77 @@ static void test_recovery_service_publishes_completed_idle(void)
 
     TEST_ASSERT_EQUAL_INT(1, s_recovery_completed_count);
     TEST_ASSERT_EQUAL_UINT32((uint32_t)RECOVERY_RESULT_IDLE, s_recovery_result_param);
+    TEST_ASSERT_EQUAL_INT(1, s_home_device_count);
+    stop_dispatch(tid);
+}
+
+static void test_recovery_service_keeps_exception_when_blocking_remains(void)
+{
+    pthread_t tid;
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_load_catalog(s_blocking_catalog, 1U));
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_trigger(TEST_BLOCKING_ALARM_CODE));
+    machine_ops_register(&s_machine_ops);
+    TEST_ASSERT_EQUAL_INT(SW_OK, recovery_service_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_subscribe(EVT_OP_MODE_RECOVERY_COMPLETED, on_recovery_completed));
+
+    tid = start_dispatch();
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_publish(EVT_OP_MODE_RECOVERY_REQUESTED, 0U));
+    usleep(50000U);
+
+    TEST_ASSERT_EQUAL_INT(1, s_recovery_completed_count);
+    TEST_ASSERT_EQUAL_UINT32((uint32_t)RECOVERY_RESULT_EXCEPTION, s_recovery_result_param);
+    TEST_ASSERT_EQUAL_INT(1, s_home_device_count);
+    stop_dispatch(tid);
+}
+
+static void test_recovery_resets_blocking_alarm_cleared_during_home(void)
+{
+    pthread_t tid;
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_load_catalog(s_blocking_catalog, 1U));
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_trigger(TEST_BLOCKING_ALARM_CODE));
+    s_clear_on_home_code = TEST_BLOCKING_ALARM_CODE;
+    machine_ops_register(&s_machine_ops);
+    TEST_ASSERT_EQUAL_INT(SW_OK, recovery_service_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_subscribe(EVT_OP_MODE_RECOVERY_COMPLETED, on_recovery_completed));
+
+    tid = start_dispatch();
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_publish(EVT_OP_MODE_RECOVERY_REQUESTED, 0U));
+    usleep(50000U);
+
+    TEST_ASSERT_EQUAL_INT(1, s_recovery_completed_count);
+    TEST_ASSERT_EQUAL_UINT32((uint32_t)RECOVERY_RESULT_IDLE, s_recovery_result_param);
+    TEST_ASSERT_FALSE(alarm_registry_is_active(TEST_BLOCKING_ALARM_CODE));
+    TEST_ASSERT_EQUAL_INT(1, s_home_device_count);
+    stop_dispatch(tid);
+}
+
+static void test_recovery_resets_inactive_lockout_before_home(void)
+{
+    pthread_t tid;
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_load_catalog(s_lockout_catalog, 1U));
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_trigger(TEST_LOCKOUT_ALARM_CODE));
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_clear(TEST_LOCKOUT_ALARM_CODE));
+    TEST_ASSERT_EQUAL_INT(SAFETY_POSTURE_LOCKOUT, alarm_registry_safety_posture());
+    machine_ops_register(&s_machine_ops);
+    TEST_ASSERT_EQUAL_INT(SW_OK, recovery_service_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_subscribe(EVT_OP_MODE_RECOVERY_COMPLETED, on_recovery_completed));
+
+    tid = start_dispatch();
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_publish(EVT_OP_MODE_RECOVERY_REQUESTED, 0U));
+    usleep(50000U);
+
+    TEST_ASSERT_EQUAL_INT(1, s_recovery_completed_count);
+    TEST_ASSERT_EQUAL_UINT32((uint32_t)RECOVERY_RESULT_IDLE, s_recovery_result_param);
+    TEST_ASSERT_FALSE(alarm_registry_is_active(TEST_LOCKOUT_ALARM_CODE));
     TEST_ASSERT_EQUAL_INT(1, s_home_device_count);
     stop_dispatch(tid);
 }
@@ -198,6 +298,9 @@ int main(void)
 {
     UNITY_BEGIN();
     RUN_TEST(test_recovery_service_publishes_completed_idle);
+    RUN_TEST(test_recovery_service_keeps_exception_when_blocking_remains);
+    RUN_TEST(test_recovery_resets_blocking_alarm_cleared_during_home);
+    RUN_TEST(test_recovery_resets_inactive_lockout_before_home);
     RUN_TEST(test_cutout_estop_release_does_not_run_abort_home);
     RUN_TEST(test_cutout_lockout_aborts_wash);
     RUN_TEST(test_abort_home_requested_runs_abort_home);

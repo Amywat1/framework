@@ -34,6 +34,16 @@ sw_err_t hal_io_sim_validate_lifecycle(void);
 void hal_io_sim_set_di_level(io_di_t pin, bool level);
 
 /**
+ * @brief 读取仿真数字输出电平。
+ * @param pin   数字输出句柄。
+ * @param level 输出电平接收地址。
+ * @retval SW_OK 成功。
+ * @retval SW_ERR_PARAM 参数非法。
+ * @retval SW_ERR_NOT_INIT 仿真 IO 尚未初始化。
+ */
+sw_err_t hal_io_sim_get_do_level(io_do_t pin, bool *level);
+
+/**
  * @brief 设置仿真子板在线状态。
  * @param board_id 子板号，从 1 开始。
  * @param online   true=恢复并产生有效快照，false=输入质量变为 OFFLINE。

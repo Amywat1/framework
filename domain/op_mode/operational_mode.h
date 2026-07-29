@@ -61,7 +61,13 @@ void op_mode_on_wash_customer_gone(void);
 void op_mode_on_self_check_completed(bool land_exception);
 
 /**
- * @brief  非急停 CRITICAL 报警（LOCKOUT 路径）触发立即异常
+ * @brief  阻塞告警触发运行模式收敛。
+ */
+void op_mode_on_blocking_alarm(void);
+
+/**
+ * @brief  CRITICAL 告警触发运行模式收敛。
+ * @note   保留为安全事件桥接入口，行为与阻塞告警一致。
  */
 void op_mode_on_critical_alarm(void);
 

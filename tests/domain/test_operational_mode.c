@@ -48,7 +48,7 @@ void setUp(void)
 {
     machine_ops_register(NULL);
     TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_init());
-    alarm_registry_recover_all();
+    load_alarm_catalog();
     TEST_ASSERT_EQUAL_INT(SW_OK, operational_mode_init());
 }
 
@@ -81,6 +81,29 @@ static void test_recover_home_failure_enters_exception(void)
 
     TEST_ASSERT_EQUAL_INT(OP_CMD_ALLOWED, d.verdict);
     op_mode_on_home_done(false);
+    TEST_ASSERT_EQUAL_INT(OP_MODE_EXCEPTION, op_mode_get_current());
+}
+
+/* STOPPED 下阻塞告警立即进入 EXCEPTION */
+static void test_blocking_alarm_from_stopped_enters_exception(void)
+{
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_trigger(TEST_ALARM_BLOCKING));
+    op_mode_on_blocking_alarm();
+    TEST_ASSERT_EQUAL_INT(OP_MODE_EXCEPTION, op_mode_get_current());
+}
+
+/* HOMING 不立即中断，但完成后仍有阻塞告警则进入 EXCEPTION */
+static void test_blocking_alarm_during_home_lands_exception(void)
+{
+    dev_cmd_t cmd = dev_cmd_make_simple(DEV_CMD_RECOVER);
+
+    (void)op_mode_handle_command(&cmd);
+    TEST_ASSERT_EQUAL_INT(OP_MODE_HOMING, op_mode_get_current());
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_trigger(TEST_ALARM_BLOCKING));
+    op_mode_on_blocking_alarm();
+    TEST_ASSERT_EQUAL_INT(OP_MODE_HOMING, op_mode_get_current());
+
+    op_mode_on_home_done(true);
     TEST_ASSERT_EQUAL_INT(OP_MODE_EXCEPTION, op_mode_get_current());
 }
 
@@ -369,6 +392,8 @@ int main(void)
     RUN_TEST(test_init_stopped_and_service_enabled);
     RUN_TEST(test_recover_from_stopped_enters_idle);
     RUN_TEST(test_recover_home_failure_enters_exception);
+    RUN_TEST(test_blocking_alarm_from_stopped_enters_exception);
+    RUN_TEST(test_blocking_alarm_during_home_lands_exception);
     RUN_TEST(test_recover_denied_when_service_disabled);
     RUN_TEST(test_recover_in_idle_is_idempotent);
     RUN_TEST(test_start_wash_allowed_in_idle);

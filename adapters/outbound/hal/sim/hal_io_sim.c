@@ -32,6 +32,7 @@ static uint32_t s_di_sequence[SIM_IO_BOARD_MAX];
 static bool     s_inited = false;
 static bool     s_started = false;
 static uint32_t s_lifecycle_violation_count = 0U;
+static pthread_mutex_t s_do_mutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_mutex_t s_di_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 static void sim_record_lifecycle_violation(const char *operation)
@@ -97,6 +98,7 @@ static sw_err_t sim_do_set(io_do_t pin, bool val)
     uint16_t raw   = io_do_raw(pin);
     uint16_t board = io_handle_board(raw);
     uint16_t io    = io_handle_pin(raw);
+    bool     changed;
 
     if (!sim_is_valid_do(pin)) {
         return SW_ERR_PARAM;
@@ -106,8 +108,36 @@ static sw_err_t sim_do_set(io_do_t pin, bool val)
         return SW_ERR_NOT_INIT;
     }
 
+    pthread_mutex_lock(&s_do_mutex);
+    changed               = s_do_state[board][io] != val;
     s_do_state[board][io] = val;
-    LOG_INFO("sim_io: DO(board=%u,pin=%u) = %d", (unsigned)board, (unsigned)io, (int)val);
+    pthread_mutex_unlock(&s_do_mutex);
+    if (changed) {
+        LOG_INFO("sim_io: DO(board=%u,pin=%u) = %d", (unsigned)board, (unsigned)io, (int)val);
+    }
+    return SW_OK;
+}
+
+sw_err_t hal_io_sim_get_do_level(io_do_t pin, bool *level)
+{
+    uint16_t raw;
+    uint16_t board;
+    uint16_t io;
+
+    if ((level == NULL) || !sim_is_valid_do(pin)) {
+        return SW_ERR_PARAM;
+    }
+    if (!s_inited) {
+        sim_record_lifecycle_violation("get_do_level");
+        return SW_ERR_NOT_INIT;
+    }
+
+    raw   = io_do_raw(pin);
+    board = io_handle_board(raw);
+    io    = io_handle_pin(raw);
+    pthread_mutex_lock(&s_do_mutex);
+    *level = s_do_state[board][io];
+    pthread_mutex_unlock(&s_do_mutex);
     return SW_OK;
 }
 
@@ -283,6 +313,7 @@ static int sim_pulse_read(io_di_t pin)
 {
     uint16_t board = io_handle_board(io_di_raw(pin));
     uint16_t p     = io_handle_pin(io_di_raw(pin));
+    int      value;
 
     if (!sim_is_valid_di(pin)) {
         return -1;
@@ -292,7 +323,10 @@ static int sim_pulse_read(io_di_t pin)
         return -1;
     }
 
-    return (int)s_pulse_counter[board][p];
+    pthread_mutex_lock(&s_di_mutex);
+    value = (int)s_pulse_counter[board][p];
+    pthread_mutex_unlock(&s_di_mutex);
+    return value;
 }
 
 static sw_err_t sim_pulse_clear(io_di_t pin)
@@ -308,7 +342,9 @@ static sw_err_t sim_pulse_clear(io_di_t pin)
         return SW_ERR_NOT_INIT;
     }
 
+    pthread_mutex_lock(&s_di_mutex);
     s_pulse_counter[board][p] = 0U;
+    pthread_mutex_unlock(&s_di_mutex);
     return SW_OK;
 }
 
@@ -324,7 +360,9 @@ void hal_io_sim_set_pulse_counter(io_di_t pin, uint32_t value)
         return;
     }
 
+    pthread_mutex_lock(&s_di_mutex);
     s_pulse_counter[board][p] = value;
+    pthread_mutex_unlock(&s_di_mutex);
 }
 
 void hal_io_sim_set_adc(int board_id, int port, int raw, int mv, int ma)
