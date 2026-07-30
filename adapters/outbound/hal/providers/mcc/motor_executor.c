@@ -953,6 +953,8 @@ motor_cmd_result_t motor_run_continuous(motor_executor_t *e, int i,
 
 motor_cmd_result_t motor_move_to(motor_executor_t *e, int i, motor_speed_t spd,
                                  motor_direction_t dir, const motor_move_spec_t *spec) {
+    motor_mstate_t *s;
+
     if (e->in_dispatch) {
         return cmd_reject("reentrant");
     }
@@ -979,6 +981,14 @@ motor_cmd_result_t motor_move_to(motor_executor_t *e, int i, motor_speed_t spd,
     }
     if (!speed_valid(e, i, spd)) {
         return cmd_reject("bad-speed");
+    }
+    s = &e->m[i];
+    if ((s->phase == MOTOR_PHASE_RUNNING) && s->moveActive
+        && s->spec.use_position && spec->use_position
+        && (s->dir == dir) && (s->speed.kind == spd.kind)) {
+        s->speed = spd;
+        s->spec  = *spec;
+        return cmd_make(MOTOR_CMD_ACCEPTED, "position-target-updated");
     }
     motor_pending_cmd_t pc = {0};
     pc.is_move = true;

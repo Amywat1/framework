@@ -19,6 +19,7 @@ typedef struct {
     bool              zero_succeeds;
     bool              origin_active;
     int               arrived_count;
+    int               timeout_count;
     int               fault_count;
     motor_speed_t     last_speed;
     motor_direction_t last_direction;
@@ -108,6 +109,8 @@ static void capture_event(const motor_event_t *event, void *ctx)
 
     if (event->type == MOTOR_EVENT_ARRIVED) {
         fixture->arrived_count++;
+    } else if (event->type == MOTOR_EVENT_TIMEOUT) {
+        fixture->timeout_count++;
     } else if (event->type == MOTOR_EVENT_FAULT) {
         fixture->fault_count++;
     }
@@ -235,6 +238,34 @@ static void test_reverse_position_move_stops_after_overshoot(void)
     TEST_ASSERT_EQUAL_INT(2, s_fixture.output_count);
 }
 
+static void test_active_position_target_update_keeps_start_time_and_output(void)
+{
+    motor_move_spec_t spec = {0};
+    motor_cmd_result_t result;
+
+    init_executor(0, MOTOR_ENC_ABSOLUTE);
+    spec.use_position = true;
+    spec.target_pos   = 100;
+    result = motor_move_to(&s_executor, 0, motor_speed_gear(1), MOTOR_DIR_FORWARD, &spec);
+    TEST_ASSERT_TRUE(motor_cmd_ok(result));
+    tick_at(0);
+    TEST_ASSERT_EQUAL_INT(1, s_fixture.output_count);
+
+    s_executor.cfg.watchdog_ms = 2000;
+    s_fixture.now_ms = 989U;
+    spec.target_pos  = 150;
+    result = motor_move_to(&s_executor, 0, motor_speed_gear(1), MOTOR_DIR_FORWARD, &spec);
+    TEST_ASSERT_TRUE(motor_cmd_ok(result));
+    tick_at(20);
+
+    TEST_ASSERT_EQUAL_INT(1, s_fixture.output_count);
+    TEST_ASSERT_EQUAL_INT(MOTOR_PHASE_RUNNING, motor_phase(&s_executor, 0));
+
+    tick_at(20);
+    TEST_ASSERT_EQUAL_INT(MOTOR_PHASE_STOPPED, motor_phase(&s_executor, 0));
+    TEST_ASSERT_EQUAL_INT(1, s_fixture.timeout_count);
+}
+
 static void test_origin_move_clears_hardware_and_software_once(void)
 {
     motor_move_spec_t spec = {0};
@@ -288,6 +319,7 @@ int main(void)
     UNITY_BEGIN();
     RUN_TEST(test_forward_position_move_slows_once_and_stops_after_overshoot);
     RUN_TEST(test_reverse_position_move_stops_after_overshoot);
+    RUN_TEST(test_active_position_target_update_keeps_start_time_and_output);
     RUN_TEST(test_origin_move_clears_hardware_and_software_once);
     RUN_TEST(test_origin_clear_failure_keeps_baseline_untrusted_and_faults);
     return UNITY_END();
