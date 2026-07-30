@@ -499,3 +499,10 @@ add_unit_test(test_safety_thread
     ${WDF_ROOT}/common/log.c
     ${WDF_ROOT}/common/time_util.c
 )
+
+add_unit_test(test_observation_core
+    ${CMAKE_CURRENT_SOURCE_DIR}/observability/test_observation_core.c
+    ${WDF_ROOT}/observability/core/observation.c
+    ${WDF_ROOT}/observability/recorder/blackbox_recorder.c
+    ${WDF_ROOT}/common/time_util.c
+)
