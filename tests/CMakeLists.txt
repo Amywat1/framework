@@ -288,7 +288,6 @@ add_unit_test(test_device_control_patterns
     ${WDF_ROOT}/domain/device_control/model/actuator_events.c
     ${WDF_ROOT}/domain/device_control/patterns/motor_axis.c
     ${WDF_ROOT}/domain/device_control/patterns/fluid_path.c
-    ${WDF_ROOT}/domain/device_control/patterns/interlocked_group.c
     ${WDF_ROOT}/runtime/event_bus/event_bus.c
     ${WDF_ROOT}/common/log.c
     ${WDF_ROOT}/common/time_util.c

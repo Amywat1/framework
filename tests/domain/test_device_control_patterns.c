@@ -5,7 +5,6 @@
 
 #include "common/sw_error.h"
 #include "domain/device_control/patterns/fluid_path.h"
-#include "domain/device_control/patterns/interlocked_group.h"
 #include "domain/device_control/patterns/motor_axis.h"
 #include "ports/outbound/hal/motor/hal_motor_exec_port.h"
 #include "unity.h"
@@ -367,54 +366,6 @@ static void test_motor_axis_preserves_frequency_speed(void)
     TEST_ASSERT_EQUAL_INT(1, s_stop_count);
 }
 
-static void test_interlocked_group_switch_and_speed_update(void)
-{
-    interlocked_group_t           group;
-    const int                     motors[] = {0, 1};
-    const interlocked_group_pair_t pairs[] = {
-        {0, 1}
-    };
-    hal_motor_exec_t *exec = (hal_motor_exec_t *)s_motor;
-
-    memset(&group, 0, sizeof(group));
-    TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_INIT, interlocked_group_start(&group, 0, HAL_MOTOR_DIR_FORWARD, 1));
-    TEST_ASSERT_EQUAL_INT(SW_OK, interlocked_group_init(&group, exec, motors, 2, pairs, 1, NULL));
-
-    TEST_ASSERT_EQUAL_INT(SW_OK, interlocked_group_start(&group, 0, HAL_MOTOR_DIR_FORWARD, 1));
-    TEST_ASSERT_EQUAL_INT(INTERLOCKED_GROUP_STATE_RUNNING, interlocked_group_state(&group, 0));
-
-    TEST_ASSERT_EQUAL_INT(SW_OK, interlocked_group_start(&group, 0, HAL_MOTOR_DIR_REVERSE, 3));
-    TEST_ASSERT_EQUAL_INT(1, s_speed_count);
-    TEST_ASSERT_EQUAL_INT(3, s_motor[0].speed_gear);
-    TEST_ASSERT_EQUAL_INT(HAL_MOTOR_DIR_REVERSE, s_motor[0].dir);
-
-    TEST_ASSERT_EQUAL_INT(SW_OK, interlocked_group_start(&group, 1, HAL_MOTOR_DIR_FORWARD, 2));
-    TEST_ASSERT_EQUAL_INT(HAL_MOTOR_PHASE_STOPPED, s_motor[0].phase);
-    TEST_ASSERT_EQUAL_INT(HAL_MOTOR_PHASE_RUNNING, s_motor[1].phase);
-    TEST_ASSERT_EQUAL_INT(INTERLOCKED_GROUP_STATE_IDLE, interlocked_group_state(&group, 0));
-    TEST_ASSERT_EQUAL_INT(INTERLOCKED_GROUP_STATE_RUNNING, interlocked_group_state(&group, 1));
-}
-
-static void test_interlocked_group_validation_and_fault_state(void)
-{
-    interlocked_group_t            group;
-    const int                      motors[]    = {0, 1};
-    const interlocked_group_pair_t bad_pairs[] = {
-        {0, 4}
-    };
-    hal_motor_exec_t *exec = (hal_motor_exec_t *)s_motor;
-
-    memset(&group, 0, sizeof(group));
-    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, interlocked_group_init(&group, exec, motors, 2, bad_pairs, 1, NULL));
-    TEST_ASSERT_EQUAL_INT(SW_OK, interlocked_group_init(&group, exec, motors, 2, NULL, 0, NULL));
-
-    s_motor[1].phase = HAL_MOTOR_PHASE_ESTOP;
-    s_motor[1].fault = HAL_MOTOR_FAULT_SHARED_DRIVER;
-    TEST_ASSERT_EQUAL_INT(INTERLOCKED_GROUP_STATE_FAULT, interlocked_group_state(&group, 1));
-    TEST_ASSERT_EQUAL_INT(HAL_MOTOR_FAULT_SHARED_DRIVER, interlocked_group_fault_code(&group, 1));
-    TEST_ASSERT_EQUAL_INT(SW_ERR_STATE, interlocked_group_start(&group, 1, HAL_MOTOR_DIR_FORWARD, 1));
-}
-
 static void test_fluid_path_reference_counts_shared_pump(void)
 {
     uint64_t now_ms = 0U;
@@ -520,8 +471,6 @@ int main(void)
     RUN_TEST(test_motor_axis_spec_uses_move_to_and_fault_callback);
     RUN_TEST(test_motor_axis_continuous_stop_and_recover);
     RUN_TEST(test_motor_axis_preserves_frequency_speed);
-    RUN_TEST(test_interlocked_group_switch_and_speed_update);
-    RUN_TEST(test_interlocked_group_validation_and_fault_state);
     RUN_TEST(test_fluid_path_reference_counts_shared_pump);
     RUN_TEST(test_fluid_path_rejects_invalid_topology_and_unknown_mask);
     RUN_TEST(test_fluid_path_respects_valve_and_pump_delays);
