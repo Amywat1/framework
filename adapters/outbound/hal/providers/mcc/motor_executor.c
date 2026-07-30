@@ -7,10 +7,8 @@
  * 上电默认态与故障安全态均为“停止且输出关断”。
  */
 #include "adapters/outbound/hal/providers/mcc/motor_executor.h"
-#include <limits.h>
 
-/* 加减速步进哨兵：表示“无斜坡，立即到目标”。 */
-#define MOTOR_RAMP_INSTANT  INT_MAX
+#include <limits.h>
 
 /* ------------------------- 小工具 ------------------------- */
 
@@ -19,9 +17,22 @@ static int64_t motor_iabs64(int64_t v) {
     return v < 0 ? -v : v;
 }
 
-/** @brief 取二者较小值。 */
-static int motor_imin(int a, int b) {
-    return a < b ? a : b;
+static bool within_distance(int64_t left, int64_t right, int distance)
+{
+    if (left >= right) {
+        return (right > INT64_MAX - distance) || (left <= right + distance);
+    }
+    return (right < INT64_MIN + distance) || (left >= right - distance);
+}
+
+static int64_t lower_bound(int64_t value, int margin)
+{
+    return (value < INT64_MIN + margin) ? INT64_MIN : value - margin;
+}
+
+static int64_t upper_bound(int64_t value, int margin)
+{
+    return (value > INT64_MAX - margin) ? INT64_MAX : value + margin;
 }
 
 /* ------------------------- 端口封装（可选方法 NULL 安全） ------------------------- */
@@ -30,12 +41,12 @@ static motor_driver_t *motor_drv(motor_executor_t *e, int i) {
     return e->ports.drivers[e->cfg.motors[i].driver_index];
 }
 
-static void drv_set_output(motor_driver_t *d, int freq, motor_direction_t dir) {
-    d->set_output(d->ctx, freq, dir);
+static sw_err_t drv_set_output(motor_driver_t *d, motor_speed_t speed, motor_direction_t dir) {
+    return d->set_output(d->ctx, speed, dir);
 }
 
-static void drv_cutoff(motor_driver_t *d) {
-    d->cutoff(d->ctx);
+static sw_err_t drv_cutoff(motor_driver_t *d) {
+    return d->cutoff(d->ctx);
 }
 
 static bool drv_reset(motor_driver_t *d) {
@@ -142,75 +153,59 @@ static void push_event(motor_executor_t *e, int i, motor_event_type_t t,
 /* ------------------------- 速度解析 ------------------------- */
 
 /**
- * @brief  解析速度指定为输出频率（厘赫）
- * @note   GEAR 约定：0=停止（非法运行挡），1..N 对应 gear_freq[0..N-1]
+ * @brief 校验速度指定，不改变控制类型和值
  */
-static int resolve_speed(motor_executor_t *e, int i, motor_speed_t spd) {
-    if (spd.kind == MOTOR_SPEED_FREQ) {
-        return spd.value;
+static bool speed_valid(motor_executor_t *e, int i, motor_speed_t speed) {
+    if (speed.value <= 0) {
+        return false;
     }
-    const motor_motor_cfg_t *mc = &e->cfg.motors[i];
-    /* 1 基挡位：0 表示停止，不可用于 run/move */
-    if (spd.value <= 0 || spd.value > mc->gear_count) {
-        return -1;
+    if (speed.kind == MOTOR_SPEED_FREQ) {
+        return true;
     }
-    return mc->gear_freq[spd.value - 1];
+    return (speed.kind == MOTOR_SPEED_GEAR) && (speed.value <= e->cfg.motors[i].gear_count);
 }
 
-/* ------------------------- 输出 / 加减速 ------------------------- */
+/* ------------------------- 输出 ------------------------- */
 
-static void apply_output(motor_executor_t *e, int i) {
+static bool speed_equal(motor_speed_t left, motor_speed_t right)
+{
+    return (left.kind == right.kind) && (left.value == right.value);
+}
+
+static motor_speed_t desired_output_speed(motor_executor_t *e, int i)
+{
+    motor_mstate_t          *state = &e->m[i];
+    const motor_motor_cfg_t *cfg   = &e->cfg.motors[i];
+    motor_speed_t            speed = state->speed;
+
+    if (state->moveActive && state->spec.use_position
+        && (speed.kind == MOTOR_SPEED_GEAR) && (cfg->decel_point > 0)
+        && (cfg->position_slow_gear > 0)
+        && within_distance(state->spec.target_pos, state->position, cfg->decel_point)
+        && (speed.value > cfg->position_slow_gear)) {
+        speed.value = cfg->position_slow_gear;
+    }
+    return speed;
+}
+
+static bool apply_output(motor_executor_t *e, int i) {
     motor_mstate_t *s = &e->m[i];
-    if (s->cur_freq > 0) {
-        drv_set_output(motor_drv(e, i), s->cur_freq, s->dir);
-    } else {
-        drv_cutoff(motor_drv(e, i));
+    motor_speed_t   desired = desired_output_speed(e, i);
+
+    if (s->output_applied && speed_equal(s->applied_speed, desired)) {
+        return true;
     }
+    if (drv_set_output(motor_drv(e, i), desired, s->dir) != SW_OK) {
+        return false;
+    }
+    s->applied_speed = desired;
+    s->output_applied = true;
+    return true;
 }
 
-static void immediate_cut(motor_executor_t *e, int i) {
-    e->m[i].cur_freq = 0;
-    drv_cutoff(motor_drv(e, i));
-}
-
-static int ramp_step(motor_executor_t *e, int ref_freq, int ramp_ms) {
-    if (ramp_ms <= 0) {
-        return MOTOR_RAMP_INSTANT;
-    }
-    int64_t step = (int64_t)ref_freq * e->cfg.tick_ms / ramp_ms;
-    return step < 1 ? 1 : (int)step;
-}
-
-static int effective_target(motor_executor_t *e, int i) {
-    motor_mstate_t *s = &e->m[i];
-    const motor_motor_cfg_t *mc = &e->cfg.motors[i];
-    int t = s->target_freq;
-    if (s->moveActive && s->spec.use_position && mc->decel_point > 0 && mc->slow_freq > 0) {
-        if (motor_iabs64(s->spec.target_pos - s->position) <= mc->decel_point) {
-            t = motor_imin(t, mc->slow_freq);
-        }
-    }
-    return t;
-}
-
-static void ramp_toward(motor_executor_t *e, int i, int target) {
-    motor_mstate_t *s = &e->m[i];
-    const motor_motor_cfg_t *mc = &e->cfg.motors[i];
-    if (target > s->cur_freq) {
-        int step = ramp_step(e, s->target_freq, mc->accel_ms);
-        if (step == MOTOR_RAMP_INSTANT || s->cur_freq + step >= target) {
-            s->cur_freq = target;
-        } else {
-            s->cur_freq += step;
-        }
-    } else if (target < s->cur_freq) {
-        int step = ramp_step(e, s->target_freq, mc->decel_ms);
-        if (step == MOTOR_RAMP_INSTANT || s->cur_freq - step <= target) {
-            s->cur_freq = target;
-        } else {
-            s->cur_freq -= step;
-        }
-    }
+static bool immediate_cut(motor_executor_t *e, int i) {
+    e->m[i].output_applied = false;
+    return drv_cutoff(motor_drv(e, i)) == SW_OK;
 }
 
 /* ------------------------- 前向声明 ------------------------- */
@@ -275,7 +270,8 @@ static void begin_start(motor_executor_t *e, int i, const motor_pending_cmd_t *p
     }
 
     s->dir               = pc->dir;
-    s->target_freq       = pc->freq;
+    s->speed             = pc->speed;
+    s->output_applied    = false;
     s->moveActive        = pc->is_move;
     s->spec              = pc->spec;
     s->move_start_ms     = e->now;
@@ -294,12 +290,17 @@ static void begin_start(motor_executor_t *e, int i, const motor_pending_cmd_t *p
     s->phase             = MOTOR_PHASE_RUNNING;
 }
 
-static void reversal(motor_executor_t *e, int i, const motor_pending_cmd_t *pc) {
+static bool reversal(motor_executor_t *e, int i, const motor_pending_cmd_t *pc) {
     motor_mstate_t *s = &e->m[i];
-    immediate_cut(e, i);
+
+    if (!immediate_cut(e, i)) {
+        enter_fault(e, i, MOTOR_FAULT_DRIVER_PORT_FATAL);
+        return false;
+    }
     s->after_reversal = *pc;
     s->reversal_until = e->now + e->cfg.motors[i].reversal_stop_ms;
     s->phase = MOTOR_PHASE_REVERSAL_WAIT;
+    return true;
 }
 
 static bool in_cooldown(motor_executor_t *e, int i) {
@@ -310,9 +311,11 @@ static motor_cmd_result_t start_or_reverse(motor_executor_t *e, int i,
                                            const motor_pending_cmd_t *pc) {
     motor_mstate_t *s = &e->m[i];
     if (s->phase == MOTOR_PHASE_RUNNING || s->phase == MOTOR_PHASE_DECELERATING) {
-        if (pc->dir != s->dir) {
-            reversal(e, i, pc);
-            return cmd_make(MOTOR_CMD_ACCEPTED, "reversal");
+        if ((pc->dir != s->dir) || (pc->speed.kind != s->speed.kind)) {
+            if (!reversal(e, i, pc)) {
+                return cmd_make(MOTOR_CMD_ACCEPTED, "cutoff-failed");
+            }
+            return cmd_make(MOTOR_CMD_ACCEPTED, "output-mode-change");
         }
         begin_start(e, i, pc);
         if (s->phase == MOTOR_PHASE_WAITING_START) {
@@ -349,7 +352,7 @@ static motor_cmd_result_t start_or_reverse(motor_executor_t *e, int i,
 
 static void fault_one(motor_executor_t *e, int i, motor_fault_code_t code, bool fatal) {
     motor_mstate_t *s = &e->m[i];
-    immediate_cut(e, i);
+    (void)immediate_cut(e, i);
     s->phase = MOTOR_PHASE_FAULT;
     s->fault = true;
     s->fatal = fatal;
@@ -400,7 +403,10 @@ static void warn(motor_executor_t *e, int i, motor_fault_code_t code) {
 
 static void finish_halt(motor_executor_t *e, int i) {
     motor_mstate_t *s = &e->m[i];
-    immediate_cut(e, i);
+    if (!immediate_cut(e, i)) {
+        enter_fault(e, i, MOTOR_FAULT_DRIVER_PORT_FATAL);
+        return;
+    }
     s->phase = MOTOR_PHASE_STOPPED;
     s->moveActive = false;
     s->cooldown_until = e->now + e->cfg.motors[i].cooldown_ms;
@@ -415,71 +421,73 @@ static void finish_halt(motor_executor_t *e, int i) {
  * @brief  有编码器轴到达原点后清零并建立可信基准
  * @note   绝对编码器：限位只作停机，不改写 position（真值始终来自传感器采样）。
  */
-static void zero_encoder_baseline(motor_executor_t *e, int i) {
+static bool zero_encoder_baseline(motor_executor_t *e, int i) {
     motor_mstate_t  *s   = &e->m[i];
     motor_encoder_t *enc;
 
     if (!e->cfg.motors[i].has_encoder) {
-        return;
+        return false;
     }
     if (e->cfg.motors[i].encoder_kind == MOTOR_ENC_ABSOLUTE) {
         /* 绝对轴：触限位不改位置，仅标记基准可信 */
         s->baseline_trusted = true;
-        return;
+        return true;
     }
     enc = motor_enc(e, i);
-    if (enc) {
-        (void)enc_zero(enc);
+    if (!enc) {
+        s->baseline_trusted = false;
+        return false;
     }
-    s->position         = 0;
-    s->last_raw         = enc ? enc_raw(enc) : 0;
-    s->baseline_trusted = true;
+    s->baseline_trusted = false;
+    for (int attempt = 0; attempt < MOTOR_ZERO_MAX_TRIES; ++attempt) {
+        if (enc_zero(enc)) {
+            s->position         = 0;
+            s->last_raw         = enc_raw(enc);
+            s->baseline_trusted = true;
+            return true;
+        }
+    }
+    return false;
 }
 
 /**
- * @brief  监视原点限位上升沿：运动中碰到原点则清编码器（B1）
- * @note   上电已压原点时 origin_was_active 预置为 true，避免误清。
- *         绝对编码器不参与原点清零（限位仅停机）。
+ * @brief  更新原点限位采样状态
+ * @note   清零只由原点到位事务执行，避免限位上升沿与到位路径重复清零。
  */
 static void update_origin_latch(motor_executor_t *e, int i) {
-    motor_mstate_t *s      = &e->m[i];
-    bool            active = sensor_limit(e, i, MOTOR_LIMIT_ORIGIN);
-
-    if (e->cfg.motors[i].has_encoder && active && !s->origin_was_active
-        && (e->cfg.motors[i].encoder_kind != MOTOR_ENC_ABSOLUTE)) {
-        if (s->phase == MOTOR_PHASE_RUNNING || s->phase == MOTOR_PHASE_DECELERATING) {
-            zero_encoder_baseline(e, i);
-        }
-    }
-    s->origin_was_active = active;
+    e->m[i].origin_was_active = sensor_limit(e, i, MOTOR_LIMIT_ORIGIN);
 }
 
 static void complete_move(motor_executor_t *e, int i, motor_event_type_t type,
                           motor_end_condition_t trig) {
     motor_mstate_t *s = &e->m[i];
-    /* 事件先于停机动作上报，保证载荷（最终位置/耗时/触发条件）反映到位瞬间。 */
     motor_fault_level_t lvl = (type == MOTOR_EVENT_ARRIVED) ? MOTOR_LEVEL_WARNING
                                                              : MOTOR_LEVEL_FAULT;
-    push_event(e, i, type, trig, MOTOR_FAULT_NONE, lvl);
+    bool origin_reached = trig == MOTOR_END_LIMIT && s->spec.use_limit
+                          && s->spec.limit == MOTOR_LIMIT_ORIGIN;
+    uint64_t completed_elapsed_ms = eff_elapsed(e, i);
+
     s->homing = false;
     s->moveActive = false;
     s->emit_stop_on_halt = false;
-    /* 增量轴：到位原点可清编码器；绝对轴限位只停机，不改写位置 */
-    if (trig == MOTOR_END_LIMIT && s->spec.use_limit
-        && s->spec.limit == MOTOR_LIMIT_ORIGIN
-        && (e->cfg.motors[i].encoder_kind != MOTOR_ENC_ABSOLUTE)) {
-        zero_encoder_baseline(e, i);
+    s->paused_elapsed_ms = completed_elapsed_ms;
+    if (origin_reached) {
+        finish_halt(e, i);
+        if (s->phase == MOTOR_PHASE_FAULT) {
+            return;
+        }
+        if (!zero_encoder_baseline(e, i)) {
+            enter_fault(e, i, MOTOR_FAULT_ENCODER_SIGNAL);
+            return;
+        }
         s->origin_was_active = true;
-    } else if (trig == MOTOR_END_LIMIT && s->spec.use_limit
-               && s->spec.limit == MOTOR_LIMIT_ORIGIN) {
-        s->origin_was_active = true;
-        s->baseline_trusted  = true;
+        push_event(e, i, type, trig, MOTOR_FAULT_NONE, lvl);
+        return;
     }
-    if (trig == MOTOR_END_LIMIT || trig == MOTOR_END_SOFT_LIMIT) {
-        finish_halt(e, i); /* 限位/软限位：触发瞬间停止 */
-    } else {
-        s->phase = MOTOR_PHASE_DECELERATING; /* 位置/时间/超时：减速停机 */
-    }
+
+    /* 非原点动作保留到位瞬间的位置和耗时。 */
+    push_event(e, i, type, trig, MOTOR_FAULT_NONE, lvl);
+    finish_halt(e, i);
 }
 
 static void check_end(motor_executor_t *e, int i) {
@@ -493,10 +501,17 @@ static void check_end(motor_executor_t *e, int i) {
         complete_move(e, i, MOTOR_EVENT_ARRIVED, MOTOR_END_LIMIT);
         return;
     }
-    if (s->spec.use_position &&
-        motor_iabs64(s->position - s->spec.target_pos) <= mc->pos_tolerance) {
-        complete_move(e, i, MOTOR_EVENT_ARRIVED, MOTOR_END_POSITION);
-        return;
+    if (s->spec.use_position) {
+        int64_t target    = s->spec.target_pos;
+        int     tolerance = mc->pos_tolerance;
+        bool reached = (s->dir == MOTOR_DIR_FORWARD)
+                           ? (s->position >= lower_bound(target, tolerance))
+                           : (s->position <= upper_bound(target, tolerance));
+
+        if (reached) {
+            complete_move(e, i, MOTOR_EVENT_ARRIVED, MOTOR_END_POSITION);
+            return;
+        }
     }
     if (s->spec.use_soft_limit && mc->has_soft_limit) {
         if (s->dir == MOTOR_DIR_FORWARD && s->position >= mc->soft_max) {
@@ -578,7 +593,7 @@ static void monitor(motor_executor_t *e, int i) {
     if ((e->now - s->start_ms) < (uint64_t)mn->startup_delay_ms) {
         /* 启动延迟窗口内不做电流判定。 */
     } else if (mn->monitor_current) {
-        bool accel_seg = s->cur_freq < s->target_freq;
+        bool accel_seg = (e->now - s->start_ms) < (uint64_t)e->cfg.motors[i].accel_ms;
         int cmax = accel_seg ? mn->cur_max_accel : mn->cur_max_steady;
         int cmin = accel_seg ? mn->cur_min_accel : mn->cur_min_steady;
         int cur = drv_current(motor_drv(e, i));
@@ -638,7 +653,7 @@ static void trigger_estop(motor_executor_t *e) {
     for (int i = 0; i < e->motor_count; ++i) {
         motor_mstate_t *s = &e->m[i];
         bool was_active = (s->phase != MOTOR_PHASE_STOPPED && s->phase != MOTOR_PHASE_FAULT);
-        immediate_cut(e, i);
+        (void)immediate_cut(e, i);
         s->queued = false;
         s->moveActive = false;
         s->phase = MOTOR_PHASE_ESTOP;
@@ -655,7 +670,7 @@ static void trigger_safe(motor_executor_t *e) {
         bool was_active = (e->m[i].phase != MOTOR_PHASE_STOPPED &&
                            e->m[i].phase != MOTOR_PHASE_FAULT &&
                            e->m[i].phase != MOTOR_PHASE_ESTOP);
-        immediate_cut(e, i);
+        (void)immediate_cut(e, i);
         e->m[i].queued = false;
         e->m[i].moveActive = false;
         fault_one(e, i, MOTOR_FAULT_WATCHDOG, false);
@@ -741,20 +756,18 @@ void motor_tick(motor_executor_t *e) {
                 break;
             case MOTOR_PHASE_RUNNING:
                 update_encoder(e, i, true);
-                ramp_toward(e, i, effective_target(e, i));
-                apply_output(e, i);
                 check_end(e, i);
                 if (s->phase == MOTOR_PHASE_RUNNING) {
+                    if (!apply_output(e, i)) {
+                        enter_fault(e, i, MOTOR_FAULT_DRIVER_PORT_FATAL);
+                        break;
+                    }
                     monitor(e, i);
                 }
                 break;
             case MOTOR_PHASE_DECELERATING:
                 update_encoder(e, i, true);
-                ramp_toward(e, i, 0);
-                apply_output(e, i);
-                if (s->cur_freq == 0) {
-                    finish_halt(e, i);
-                }
+                finish_halt(e, i);
                 break;
             case MOTOR_PHASE_PAUSED:
                 update_encoder(e, i, false);
@@ -821,8 +834,15 @@ static motor_init_result_t do_init(motor_executor_t *e) {
             return init_err("defaultMaxMoveMs must be > 0");
         }
         if (mc->cooldown_ms < 0 || mc->reversal_stop_ms < 0 ||
-            mc->accel_ms < 0 || mc->decel_ms < 0) {
+            mc->accel_ms < 0 || mc->decel_ms < 0 || mc->pos_tolerance < 0
+            || mc->decel_point < 0) {
             return init_err("time params must be >= 0");
+        }
+        if ((mc->position_slow_gear < 0) || (mc->position_slow_gear > mc->gear_count)) {
+            return init_err("position slow gear out of range");
+        }
+        if (mc->has_soft_limit && (mc->soft_min > mc->soft_max)) {
+            return init_err("soft limit range invalid");
         }
         if (mc->cap_position_move && !mc->has_encoder) {
             return init_err("position-move capability requires encoder");
@@ -876,7 +896,9 @@ static motor_init_result_t do_init(motor_executor_t *e) {
         }
         /* 上电已压原点时预置，避免首次 tick 上升沿误清零 */
         e->m[i].origin_was_active = sensor_limit(e, i, MOTOR_LIMIT_ORIGIN);
-        drv_cutoff(motor_drv(e, i));
+        if (drv_cutoff(motor_drv(e, i)) != SW_OK) {
+            return init_err("driver cutoff failed");
+        }
     }
     e->initialized = true;
     return init_ok();
@@ -919,13 +941,12 @@ motor_cmd_result_t motor_run_continuous(motor_executor_t *e, int i,
     if (e->m[i].phase == MOTOR_PHASE_PAUSED) {
         return cmd_reject("paused");
     }
-    int f = resolve_speed(e, i, spd);
-    if (f <= 0) {
+    if (!speed_valid(e, i, spd)) {
         return cmd_reject("bad-speed");
     }
     motor_pending_cmd_t pc = {0};
     pc.is_move = false;
-    pc.freq = f;
+    pc.speed = spd;
     pc.dir = dir;
     return start_or_reverse(e, i, &pc);
 }
@@ -956,13 +977,12 @@ motor_cmd_result_t motor_move_to(motor_executor_t *e, int i, motor_speed_t spd,
             return cmd_reject("baseline-untrusted");
         }
     }
-    int f = resolve_speed(e, i, spd);
-    if (f <= 0) {
+    if (!speed_valid(e, i, spd)) {
         return cmd_reject("bad-speed");
     }
     motor_pending_cmd_t pc = {0};
     pc.is_move = true;
-    pc.freq = f;
+    pc.speed = spd;
     pc.dir = dir;
     pc.spec = *spec;
     return start_or_reverse(e, i, &pc);
@@ -995,7 +1015,6 @@ motor_cmd_result_t motor_stop(motor_executor_t *e, int i) {
         case MOTOR_PHASE_PAUSED:
             s->emit_stop_on_halt = true;
             s->phase = MOTOR_PHASE_DECELERATING;
-            s->cur_freq = 0;
             finish_halt(e, i);
             return cmd_make(MOTOR_CMD_ACCEPTED, "stopped");
         default:
@@ -1018,7 +1037,10 @@ motor_cmd_result_t motor_pause(motor_executor_t *e, int i) {
     if (s->moveActive) {
         s->paused_elapsed_ms += e->now - s->move_start_ms;
     }
-    immediate_cut(e, i);
+    if (!immediate_cut(e, i)) {
+        enter_fault(e, i, MOTOR_FAULT_DRIVER_PORT_FATAL);
+        return cmd_make(MOTOR_CMD_ACCEPTED, "cutoff-failed");
+    }
     s->phase = MOTOR_PHASE_PAUSED;
     return cmd_make(MOTOR_CMD_ACCEPTED, "paused");
 }
@@ -1037,6 +1059,7 @@ motor_cmd_result_t motor_resume(motor_executor_t *e, int i) {
     }
     s->move_start_ms = e->now;
     s->phase = MOTOR_PHASE_RUNNING;
+    s->output_applied = false;
     return cmd_make(MOTOR_CMD_ACCEPTED, "resumed");
 }
 
@@ -1053,20 +1076,22 @@ motor_cmd_result_t motor_set_speed(motor_executor_t *e, int i,
     if (s->phase != MOTOR_PHASE_RUNNING) {
         return cmd_reject("not-running");
     }
-    int f = resolve_speed(e, i, spd);
-    if (f <= 0) {
+    if (!speed_valid(e, i, spd)) {
         return cmd_reject("bad-speed");
     }
-    if (dir == s->dir) {
-        s->target_freq = f;
+    if ((dir == s->dir) && (spd.kind == s->speed.kind)) {
+        s->speed = spd;
+        s->output_applied = false;
         return cmd_make(MOTOR_CMD_ACCEPTED, "speed-changed");
     }
     motor_pending_cmd_t pc = {0};
     pc.is_move = s->moveActive;
     pc.spec = s->spec;
-    pc.freq = f;
+    pc.speed = spd;
     pc.dir = dir;
-    reversal(e, i, &pc);
+    if (!reversal(e, i, &pc)) {
+        return cmd_make(MOTOR_CMD_ACCEPTED, "cutoff-failed");
+    }
     return cmd_make(MOTOR_CMD_ACCEPTED, "reversal");
 }
 
@@ -1093,8 +1118,8 @@ motor_cmd_result_t motor_home(motor_executor_t *e, int i) {
     }
     motor_pending_cmd_t pc = {0};
     pc.is_move = true;
-    pc.freq = e->cfg.motors[i].slow_freq > 0 ? e->cfg.motors[i].slow_freq
-                                             : MOTOR_HOME_DEFAULT_FREQ_CENTI_HZ;
+    pc.speed = motor_speed_freq(e->cfg.motors[i].slow_freq > 0 ? e->cfg.motors[i].slow_freq
+                                                               : MOTOR_HOME_DEFAULT_FREQ_CENTI_HZ);
     pc.dir = MOTOR_DIR_REVERSE;
     pc.spec.use_limit = true;
     pc.spec.limit = MOTOR_LIMIT_ORIGIN;
@@ -1237,7 +1262,12 @@ int64_t motor_position(const motor_executor_t *e, int i) {
 }
 
 int motor_current_freq(const motor_executor_t *e, int i) {
-    return e->m[i].cur_freq;
+    const motor_mstate_t *state = &e->m[i];
+
+    if ((state->phase != MOTOR_PHASE_RUNNING) || (state->speed.kind != MOTOR_SPEED_FREQ)) {
+        return 0;
+    }
+    return state->speed.value;
 }
 
 motor_direction_t motor_direction(const motor_executor_t *e, int i) {

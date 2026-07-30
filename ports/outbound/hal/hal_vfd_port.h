@@ -26,6 +26,11 @@ extern "C" {
 typedef int8_t hal_vfd_gear_t;
 
 /**
+ * @brief VFD 频率命令，正值=正转，负值=反转，0=停止，绝对值单位为 0.01 Hz。
+ */
+typedef int32_t hal_vfd_frequency_t;
+
+/**
  * @brief  VFD 寄存器操作枚举（供 read / get_cached / write 使用）
  * @note   各操作支持的 reg 值见 hal_vfd_ops_t 各函数注释
  */
@@ -33,7 +38,7 @@ typedef enum {
     HAL_VFD_REG_STATE,       /**< VFD 运行状态字（只读）*/
     HAL_VFD_REG_FAULT_CODE,  /**< 故障码（只读，monitor 周期缓存）*/
     HAL_VFD_REG_CURRENT,     /**< 输出电流，0.01A（只读，monitor 周期缓存）*/
-    HAL_VFD_REG_FREQ,        /**< 目标频率 Hz（只写；须厂商定义 VFD_REG_FREQ_SET）*/
+    HAL_VFD_REG_FREQ,        /**< 目标频率 0.01 Hz（只写；须厂商定义 VFD_REG_FREQ_SET）*/
     HAL_VFD_REG_CLEAR_FAULT, /**< 清除故障（只写；须厂商定义 VFD_REG_CLEAR_FAULT）*/
 } hal_vfd_reg_t;
 
@@ -63,8 +68,23 @@ typedef struct {
     /** @brief  初始化全部 VFD 实例运行时状态 */
     sw_err_t (*init)(void);
 
-    sw_err_t (*run)(hal_vfd_id_t id, hal_vfd_gear_t gear);
-    sw_err_t (*set_freq)(hal_vfd_id_t id, uint16_t freq_hz);
+    /**
+     * @brief 按速度 IO 挡位运行，不写频率寄存器
+     * @param id VFD 实例编号
+     * @param gear 正值正转、负值反转、0 停止，绝对值为挡位号
+     * @retval SW_OK / SW_ERR_PARAM / SW_ERR_NOT_INIT / SW_ERR_STATE / SW_ERR_HW
+     * @note 运行中从频率模式切换会返回 SW_ERR_STATE，调用方须先停止。
+     */
+    sw_err_t (*set_gear)(hal_vfd_id_t id, hal_vfd_gear_t gear);
+    /**
+     * @brief 按寄存器频率运行，不修改速度 IO
+     * @param id VFD 实例编号
+     * @param frequency_centi_hz 正值正转、负值反转、0 停止，绝对值单位为 0.01 Hz
+     * @retval SW_OK / SW_ERR_PARAM / SW_ERR_NOT_INIT / SW_ERR_STATE / SW_ERR_COMM / SW_ERR_HW
+     * @note 运行中从挡位模式切换会返回 SW_ERR_STATE，调用方须先停止。
+     */
+    sw_err_t (*set_frequency)(hal_vfd_id_t id, hal_vfd_frequency_t frequency_centi_hz);
+    /** @brief 停止并关断方向与已配置的速度 IO。 */
     sw_err_t (*stop)(hal_vfd_id_t id);
     sw_err_t (*fault_reset)(hal_vfd_id_t id);
 
@@ -74,8 +94,6 @@ typedef struct {
     sw_err_t (*read)(hal_vfd_id_t id, hal_vfd_reg_t reg, uint16_t *p_val);
     /** @brief  读缓存值（无 Modbus IO），支持 FAULT_CODE / CURRENT */
     sw_err_t (*get_cached)(hal_vfd_id_t id, hal_vfd_reg_t reg, uint16_t *p_val);
-
-    // TODO 缺少个写寄存器的接口
 
     void (*register_event_cb)(hal_vfd_id_t id, void (*cb)(int event_code));
 } hal_vfd_ops_t;

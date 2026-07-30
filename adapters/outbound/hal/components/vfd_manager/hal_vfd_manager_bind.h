@@ -41,6 +41,7 @@ typedef uint8_t hal_vfd_monitor_mask_t;
 #define HAL_VFD_MON_ALL     ((hal_vfd_monitor_mask_t)0x03U)
 
 typedef sw_err_t (*hal_vfd_backend_apply_gear_fn)(void *ctx, hal_vfd_gear_t gear);
+typedef sw_err_t (*hal_vfd_backend_apply_frequency_fn)(void *ctx, hal_vfd_frequency_t frequency_centi_hz);
 typedef sw_err_t (*hal_vfd_backend_init_fn)(void *ctx);
 typedef sw_err_t (*hal_vfd_backend_stop_outputs_fn)(void *ctx);
 typedef sw_err_t (*hal_vfd_backend_set_rst_fn)(void *ctx, bool level);
@@ -57,6 +58,7 @@ typedef struct {
     /** @brief 初始化 backend 上下文；可为 NULL，表示无硬件初始化动作 */
     hal_vfd_backend_init_fn         init;
     hal_vfd_backend_apply_gear_fn   apply_gear;
+    hal_vfd_backend_apply_frequency_fn apply_frequency;
     hal_vfd_backend_stop_outputs_fn stop_outputs;
     hal_vfd_backend_set_rst_fn      set_rst;
     hal_vfd_backend_read_fn         read;

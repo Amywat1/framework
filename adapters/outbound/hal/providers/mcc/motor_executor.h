@@ -12,6 +12,8 @@
 #ifndef MOTOR_EXECUTOR_H
 #define MOTOR_EXECUTOR_H
 
+#include "common/sw_error.h"
+
 #include <stdint.h>
 #include <stdbool.h>
 #include <stddef.h>
@@ -24,7 +26,6 @@ extern "C" {
 #define MOTOR_MAX_MOTORS       8   /**< 单执行器最多管理的电机数 */
 #define MOTOR_MAX_DRIVERS      8   /**< 单执行器最多管理的物理驱动器数 */
 #define MOTOR_MAX_INTERLOCKS   8   /**< 互锁规则条数上限 */
-#define MOTOR_MAX_GEARS        16  /**< 挡位映射表长度上限 */
 #define MOTOR_EVENT_QUEUE_CAP  64  /**< 事件队列容量（环形缓冲） */
 
 /* 回原点默认低速频率（配置未提供 slowFreq 时使用），单位厘赫 */
@@ -39,6 +40,18 @@ typedef enum {
     MOTOR_DIR_FORWARD = 0, /**< 正向 */
     MOTOR_DIR_REVERSE = 1  /**< 反向 */
 } motor_direction_t;
+
+/** @brief 速度指定方式。 */
+typedef enum {
+    MOTOR_SPEED_FREQ = 0, /**< 直接频率（厘赫） */
+    MOTOR_SPEED_GEAR = 1  /**< 挡位号（1 基） */
+} motor_speed_kind_t;
+
+/** @brief 速度指定。 */
+typedef struct {
+    motor_speed_kind_t kind;
+    int value; /**< Freq: 厘赫；Gear: 1..N（0=停止，不可用于 run） */
+} motor_speed_t;
 
 /** @brief 限位/原点采集种类。 */
 typedef enum {
@@ -140,8 +153,8 @@ typedef struct {
  * @note prepare 的 motor 为请求预备的逻辑电机索引，便于共享驱动区分路径。
  */
 typedef struct {
-    void (*set_output)(void *ctx, int freq_centi_hz, motor_direction_t dir); /**< 频率给定+方向 */
-    void (*cutoff)(void *ctx);                     /**< 立即切断输出 */
+    sw_err_t (*set_output)(void *ctx, motor_speed_t speed, motor_direction_t dir); /**< 速度给定+方向 */
+    sw_err_t (*cutoff)(void *ctx);                 /**< 立即切断输出 */
     bool (*reset)(void *ctx);                      /**< 驱动器侧故障复位，false=失败 */
     motor_prepare_result_t (*prepare)(void *ctx, int motor); /**< 预备动作；可为 NULL */
     bool (*is_running)(void *ctx);                 /**< 运行反馈 */
@@ -237,6 +250,7 @@ typedef struct {
 
     int  pos_tolerance;       /**< 到位容差（脉冲） */
     int  decel_point;         /**< 定位降速点（距目标脉冲数，0=不启用） */
+    int  position_slow_gear;  /**< 挡位定位进入减速区后的挡位，0=不切换 */
     int  slow_freq;           /**< 定位低速段频率 */
 
     bool prep_required;       /**< 启动前需预备动作 */
@@ -251,8 +265,7 @@ typedef struct {
     int  enc_jump_max;        /**< 单拍跳变上限→告警（0=不检测） */
     bool enc_escalate;        /**< 编码器告警升级为故障 */
 
-    int  gear_freq[MOTOR_MAX_GEARS]; /**< 挡位→频率映射表 */
-    int  gear_count;                 /**< 有效挡位数 */
+    int  gear_count;                 /**< 可用挡位数；MCC 仅校验范围，不转换频率 */
 
     motor_monitor_cfg_t mon;  /**< 监测项配置 */
 } motor_motor_cfg_t;
@@ -285,18 +298,6 @@ typedef struct {
 } motor_config_t;
 
 /* ------------------------- 命令 / 结果 ------------------------- */
-
-/** @brief 速度指定方式。 */
-typedef enum {
-    MOTOR_SPEED_FREQ = 0, /**< 直接频率（厘赫） */
-    MOTOR_SPEED_GEAR = 1  /**< 挡位号（1 基） */
-} motor_speed_kind_t;
-
-/** @brief 速度指定。 */
-typedef struct {
-    motor_speed_kind_t kind;
-    int value; /**< Freq: 厘赫；Gear: 1..N（0=停止，不可用于 run） */
-} motor_speed_t;
 
 /** @brief 构造频率速度。 */
 static inline motor_speed_t motor_speed_freq(int centi_hz) {
@@ -384,7 +385,7 @@ typedef void (*motor_event_cb_t)(const motor_event_t *ev, void *ctx);
 /** @brief 内部命令描述（暂存排队/换向后的启动请求）。 */
 typedef struct {
     bool is_move;
-    int  freq;
+    motor_speed_t speed;
     motor_direction_t dir;
     motor_move_spec_t spec;
 } motor_pending_cmd_t;
@@ -394,8 +395,9 @@ typedef struct {
     motor_phase_t phase;
     motor_direction_t dir;
 
-    int target_freq;
-    int cur_freq;
+    motor_speed_t speed;
+    motor_speed_t applied_speed;
+    bool output_applied;
 
     bool moveActive;
     motor_move_spec_t spec;

@@ -58,7 +58,7 @@ sw_err_t motor_axis_init(motor_axis_t                 *self,
 
 sw_err_t motor_axis_run(motor_axis_t               *self,
                         hal_motor_dir_t             dir,
-                        int                         speed_gear,
+                        hal_motor_speed_t           speed,
                         const hal_motor_move_spec_t *spec)
 {
     hal_motor_cmd_result_t r;
@@ -67,17 +67,25 @@ sw_err_t motor_axis_run(motor_axis_t               *self,
     if ((self == NULL) || !self->inited) {
         return SW_ERR_NOT_INIT;
     }
-    if (speed_gear <= 0) {
+    if ((speed.kind != HAL_MOTOR_SPEED_FREQ) && (speed.kind != HAL_MOTOR_SPEED_GEAR)) {
+        return SW_ERR_PARAM;
+    }
+    if (speed.value < 0) {
+        return SW_ERR_PARAM;
+    }
+    if (speed.value == 0) {
         return motor_axis_stop(self);
     }
     if (motor_axis_state(self) == MOTOR_AXIS_STATE_FAULT) {
         return SW_ERR_STATE;
     }
 
-    if (spec == NULL) {
-        r = hal_motor_run_continuous(self->exec, self->motor, hal_motor_speed_gear(speed_gear), dir);
+    if ((spec == NULL) && (motor_axis_state(self) == MOTOR_AXIS_STATE_MOVING)) {
+        r = hal_motor_set_speed(self->exec, self->motor, speed, dir);
+    } else if (spec == NULL) {
+        r = hal_motor_run_continuous(self->exec, self->motor, speed, dir);
     } else {
-        r = hal_motor_move_to(self->exec, self->motor, hal_motor_speed_gear(speed_gear), dir, spec);
+        r = hal_motor_move_to(self->exec, self->motor, speed, dir, spec);
     }
 
     ret = hal_motor_cmd_ok(r) ? SW_OK : SW_ERR_STATE;

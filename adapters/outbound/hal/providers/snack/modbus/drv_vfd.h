@@ -11,8 +11,7 @@
  *          共用同一 serial_port 的实例在 drv 内自动共享 Modbus 互斥锁。
  *
  * 速度控制模型：
- *   - 两路速度 IO（pin_spd1/pin_spd2）组合最多 3 个有效速度挡；
- *     (spd1=0, spd2=0) 保留为停止态，不可作为速度挡。
+ *   - 可配置 0~2 路速度 IO；各挡位的 IO 组合可全低。
  *   - 挡位值：正=正转，负=反转，0=停止；绝对值为速度挡（1~VFD_GEAR_MAX）。
  *   - 频率通过 Modbus 单独设置（drv_vfd_write REG_FREQ），与挡位 IO 控制相互独立。
  */
@@ -36,9 +35,9 @@ extern "C" {
 /* -------------------------------------------------------------------------
  * 驱动层速度 IO 约束（hal_vfd_port.h 不含此硬件细节）
  * ------------------------------------------------------------------------- */
-#define VFD_GEAR_MAX 3U /* 两路速度 IO 可组合的有效挡位数（(0,0) 保留为停止态）*/
+#define VFD_GEAR_MAX 3U
 
-/** @brief 速度挡位 IO 编码：bit0=spd1，bit1=spd2；禁止 VFD_SPD_IO(0,0) */
+/** @brief 速度挡位 IO 编码：bit0=spd1，bit1=spd2。 */
 #define VFD_SPD_IO(s1, s2) ((uint8_t)(((s2) ? 0x02U : 0U) | ((s1) ? 0x01U : 0U)))
 
 /** DO 写回调类型，由上层注入，用于驱动操作底层引脚 */
@@ -56,8 +55,9 @@ typedef struct {
     io_do_t           pin_spd1;              /* 速度 IO1；IO_HANDLE_NULL 表示未配置 */
     io_do_t           pin_spd2;              /* 速度 IO2；IO_HANDLE_NULL 表示未配置 */
     uint8_t           spd_cfg[VFD_GEAR_MAX]; /* 挡位 1~3 对应 IO 状态，由 drv_vfd_config_speed_io 写入 */
-    bool              spd_io_ready;          /* 内部：drv_vfd_config_speed_io 已完成配置 */
+    uint8_t           gear_count;            /* 内部：有效挡位数 */
     hal_vfd_gear_t    gear;                  /* 内部：当前已应用到硬件的挡位，0=停止 */
+    hal_vfd_state_t   state;                 /* 内部：当前方向状态 */
     drv_vfd_do_set_fn do_set;
     pthread_mutex_t   io_mutex;              /* 内部：保护 gear 与 IO 写操作 */
 } drv_vfd_t;
@@ -90,19 +90,18 @@ sw_err_t drv_vfd_init(drv_vfd_t        *vfd,
 /**
  * @brief  配置速度 IO 引脚与挡位映射，必须在首次调用 drv_vfd_apply_gear 非停止挡前完成
  * @param[in]  vfd       已完成 drv_vfd_init 的 VFD 实例
- * @param[in]  pin_spd1  速度 IO1，不可为 IO_HANDLE_NULL
- * @param[in]  pin_spd2  速度 IO2，不可为 IO_HANDLE_NULL
- * @param[in]  spd_cfg   长度为 VFD_GEAR_MAX 的挡位映射数组；
- *                       spd_cfg[0..2] 依次对应挡位 1~3，
- *                       每元素用 VFD_SPD_IO(s1,s2) 填写，禁止使用 VFD_SPD_IO(0,0)
+ * @param[in]  pin_spd1   速度 IO1，可为 IO_HANDLE_NULL
+ * @param[in]  pin_spd2   速度 IO2，可为 IO_HANDLE_NULL
+ * @param[in]  gear_count 有效挡位数，范围 1..VFD_GEAR_MAX
+ * @param[in]  spd_cfg    挡位映射数组；全低是合法挡位输出
  * @retval     SW_OK        配置成功，速度 IO 已拉低至安全态
- * @retval     SW_ERR_PARAM 参数非法（vfd/spd_cfg 为 NULL、引脚为 IO_HANDLE_NULL、
- *                          任一挡位映射值为 0x00）
+ * @retval     SW_ERR_PARAM 参数非法或映射引用未配置的速度 IO
  * @retval     SW_ERR_NOT_INIT  vfd 未完成初始化
  */
 sw_err_t drv_vfd_config_speed_io(drv_vfd_t    *vfd,
                                  io_do_t       pin_spd1,
                                  io_do_t       pin_spd2,
+                                 uint8_t       gear_count,
                                  const uint8_t spd_cfg[VFD_GEAR_MAX]);
 
 /**
@@ -119,6 +118,14 @@ sw_err_t drv_vfd_config_speed_io(drv_vfd_t    *vfd,
  *         本接口不控制 Modbus 频率，频率须单独调用 drv_vfd_write(REG_FREQ)
  */
 sw_err_t drv_vfd_apply_gear(drv_vfd_t *vfd, hal_vfd_gear_t gear);
+
+/**
+ * @brief 通过 Modbus 写入有符号目标频率并控制方向，不修改速度 IO
+ * @param[in] vfd 已初始化的 VFD 实例
+ * @param[in] frequency_centi_hz 正值正转、负值反转、0 停止，绝对值单位 0.01 Hz
+ * @retval SW_OK / SW_ERR_PARAM / SW_ERR_NOT_INIT / SW_ERR_COMM / SW_ERR_HW
+ */
+sw_err_t drv_vfd_apply_frequency(drv_vfd_t *vfd, hal_vfd_frequency_t frequency_centi_hz);
 
 /**
  * @brief  关断所有运行输出（spd/fwd/rev），gear 置为 STOP

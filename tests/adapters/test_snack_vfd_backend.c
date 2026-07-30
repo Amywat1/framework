@@ -62,9 +62,9 @@ static snack_vfd_backend_instance_cfg_t make_cfg(void)
     cfg.pin_fwd          = IO_DO(1U, 1U);
     cfg.pin_rev          = IO_DO(1U, 2U);
     cfg.pin_rst          = IO_DO(1U, 3U);
-    cfg.speed_io_enabled = true;
     cfg.pin_spd1         = IO_DO(1U, 4U);
     cfg.pin_spd2         = IO_DO(1U, 5U);
+    cfg.gear_count       = 3U;
     cfg.speed_io[0]      = SNACK_VFD_BACKEND_SPEED_IO(true, false);
     cfg.speed_io[1]      = SNACK_VFD_BACKEND_SPEED_IO(false, true);
     cfg.speed_io[2]      = SNACK_VFD_BACKEND_SPEED_IO(true, true);
@@ -118,16 +118,33 @@ static void test_instance_configure_bind_and_hal_init_pass_modbus_parameters(voi
 static void test_run_stop_and_state_use_io_backend(void)
 {
     snack_vfd_backend_instance_cfg_t cfg = make_cfg();
+    unsigned                         writes_before;
 
     configure_bind_init(TEST_VFD_ID, &cfg);
-    TEST_ASSERT_EQUAL_INT(SW_OK, vfd_ops()->run(TEST_VFD_ID, 2));
+    writes_before = snack_modbus_fake_write_count();
+    TEST_ASSERT_EQUAL_INT(SW_OK, vfd_ops()->set_gear(TEST_VFD_ID, 2));
+    TEST_ASSERT_EQUAL_UINT(writes_before, snack_modbus_fake_write_count());
     TEST_ASSERT_EQUAL_INT(HAL_VFD_STATE_FWD, vfd_ops()->get_state(TEST_VFD_ID));
 
-    TEST_ASSERT_EQUAL_INT(SW_OK, vfd_ops()->run(TEST_VFD_ID, -1));
+    TEST_ASSERT_EQUAL_INT(SW_OK, vfd_ops()->set_gear(TEST_VFD_ID, -1));
     TEST_ASSERT_EQUAL_INT(HAL_VFD_STATE_REV, vfd_ops()->get_state(TEST_VFD_ID));
 
     TEST_ASSERT_EQUAL_INT(SW_OK, vfd_ops()->stop(TEST_VFD_ID));
     TEST_ASSERT_EQUAL_INT(HAL_VFD_STATE_STOPPED, vfd_ops()->get_state(TEST_VFD_ID));
+}
+
+static void test_single_speed_io_accepts_all_low_gear(void)
+{
+    snack_vfd_backend_instance_cfg_t cfg = make_cfg();
+
+    cfg.pin_spd2    = (io_do_t){IO_HANDLE_NULL};
+    cfg.gear_count  = 2U;
+    cfg.speed_io[0] = SNACK_VFD_BACKEND_SPEED_IO(false, false);
+    cfg.speed_io[1] = SNACK_VFD_BACKEND_SPEED_IO(true, false);
+    configure_bind_init(TEST_VFD_ID, &cfg);
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, vfd_ops()->set_gear(TEST_VFD_ID, 1));
+    TEST_ASSERT_EQUAL_INT(SW_OK, vfd_ops()->set_gear(TEST_VFD_ID, 2));
 }
 
 static void test_run_rejects_invalid_gear_and_unsupported_reverse(void)
@@ -135,13 +152,13 @@ static void test_run_rejects_invalid_gear_and_unsupported_reverse(void)
     snack_vfd_backend_instance_cfg_t cfg = make_cfg();
 
     configure_bind_init(TEST_VFD_ID, &cfg);
-    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, vfd_ops()->run(TEST_VFD_ID, 4));
+    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, vfd_ops()->set_gear(TEST_VFD_ID, 4));
 
     cfg         = make_cfg();
     cfg.pin_rev = (io_do_t){IO_HANDLE_NULL};
     TEST_ASSERT_EQUAL_INT(SW_OK, snack_vfd_backend_instance_setup(1, &cfg));
     TEST_ASSERT_EQUAL_INT(SW_OK, vfd_ops()->init());
-    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, vfd_ops()->run(1, -1));
+    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, vfd_ops()->set_gear(1, -1));
 }
 
 static void test_set_freq_is_not_supported_for_current_vendor(void)
@@ -149,7 +166,7 @@ static void test_set_freq_is_not_supported_for_current_vendor(void)
     snack_vfd_backend_instance_cfg_t cfg = make_cfg();
 
     configure_bind_init(TEST_VFD_ID, &cfg);
-    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, vfd_ops()->set_freq(TEST_VFD_ID, 50U));
+    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, vfd_ops()->set_frequency(TEST_VFD_ID, 50));
 }
 
 static void test_read_and_clear_fault_delegate_to_modbus(void)
@@ -197,7 +214,7 @@ static void test_bound_but_not_hal_inited_operations_return_not_init(void)
     snack_vfd_backend_instance_cfg_t cfg = make_cfg();
 
     TEST_ASSERT_EQUAL_INT(SW_OK, snack_vfd_backend_instance_setup(TEST_VFD_ID, &cfg));
-    TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_INIT, vfd_ops()->run(TEST_VFD_ID, 1));
+    TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_INIT, vfd_ops()->set_gear(TEST_VFD_ID, 1));
 }
 
 int main(void)
@@ -208,6 +225,7 @@ int main(void)
     RUN_TEST(test_instance_configure_bind_and_hal_init_pass_modbus_parameters);
     RUN_TEST(test_bound_but_not_hal_inited_operations_return_not_init);
     RUN_TEST(test_run_stop_and_state_use_io_backend);
+    RUN_TEST(test_single_speed_io_accepts_all_low_gear);
     RUN_TEST(test_run_rejects_invalid_gear_and_unsupported_reverse);
     RUN_TEST(test_set_freq_is_not_supported_for_current_vendor);
     RUN_TEST(test_read_and_clear_fault_delegate_to_modbus);

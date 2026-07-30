@@ -24,6 +24,7 @@ typedef struct {
     bool            rst_level;
     bool            force_comm_fail;
     unsigned        apply_count;
+    unsigned        frequency_count;
     unsigned        stop_count;
     unsigned        write_count;
     unsigned        read_count;
@@ -53,6 +54,16 @@ static sw_err_t mock_stop_outputs(void *ctx)
     vfd->last_gear = 0;
     vfd->state     = HAL_VFD_STATE_STOPPED;
     vfd->stop_count++;
+    return SW_OK;
+}
+
+static sw_err_t mock_apply_frequency(void *ctx, hal_vfd_frequency_t frequency_centi_hz)
+{
+    mock_vfd_t *vfd = (mock_vfd_t *)ctx;
+
+    vfd->freq = (uint16_t)((frequency_centi_hz < 0) ? -frequency_centi_hz : frequency_centi_hz);
+    vfd->state = (frequency_centi_hz > 0) ? HAL_VFD_STATE_FWD : HAL_VFD_STATE_REV;
+    vfd->frequency_count++;
     return SW_OK;
 }
 
@@ -124,6 +135,7 @@ static bool mock_has_rst_pin(void *ctx)
 
 static const hal_vfd_backend_ops_t s_backend_ops = {
     .apply_gear   = mock_apply_gear,
+    .apply_frequency = mock_apply_frequency,
     .stop_outputs = mock_stop_outputs,
     .set_rst      = mock_set_rst,
     .read         = mock_read,
@@ -220,28 +232,32 @@ static void test_unbound_operations_return_not_init(void)
 {
     uint16_t val;
 
-    TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_INIT, hal_vfd_get_ops()->run(TEST_VFD_ID, 1));
-    TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_INIT, hal_vfd_get_ops()->set_freq(TEST_VFD_ID, 50U));
+    TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_INIT, hal_vfd_get_ops()->set_gear(TEST_VFD_ID, 1));
+    TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_INIT, hal_vfd_get_ops()->set_frequency(TEST_VFD_ID, 50));
     TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_INIT, hal_vfd_get_ops()->stop(TEST_VFD_ID));
     TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_INIT, hal_vfd_get_ops()->fault_reset(TEST_VFD_ID));
     TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_INIT, hal_vfd_get_ops()->read(TEST_VFD_ID, HAL_VFD_REG_CURRENT, &val));
     TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_INIT, hal_vfd_get_ops()->get_cached(TEST_VFD_ID, HAL_VFD_REG_CURRENT, &val));
 }
 
-static void test_run_stop_and_set_freq_delegate_to_backend(void)
+static void test_control_mode_is_selected_by_api_and_switch_requires_stop(void)
 {
     bind_default();
 
-    TEST_ASSERT_EQUAL_INT(SW_OK, hal_vfd_get_ops()->run(TEST_VFD_ID, 2));
+    TEST_ASSERT_EQUAL_INT(SW_OK, hal_vfd_get_ops()->set_gear(TEST_VFD_ID, 2));
     TEST_ASSERT_EQUAL_INT(2, s_vfd.last_gear);
     TEST_ASSERT_EQUAL_INT(HAL_VFD_STATE_FWD, hal_vfd_get_ops()->get_state(TEST_VFD_ID));
     TEST_ASSERT_EQUAL_UINT(1U, s_vfd.apply_count);
 
-    TEST_ASSERT_EQUAL_INT(SW_OK, hal_vfd_get_ops()->set_freq(TEST_VFD_ID, 45U));
+    TEST_ASSERT_EQUAL_UINT(0U, s_vfd.frequency_count);
+    TEST_ASSERT_EQUAL_INT(SW_ERR_STATE, hal_vfd_get_ops()->set_frequency(TEST_VFD_ID, 45));
+    TEST_ASSERT_EQUAL_INT(SW_OK, hal_vfd_get_ops()->stop(TEST_VFD_ID));
+    TEST_ASSERT_EQUAL_INT(SW_OK, hal_vfd_get_ops()->set_frequency(TEST_VFD_ID, -45));
     TEST_ASSERT_EQUAL_UINT16(45U, s_vfd.freq);
+    TEST_ASSERT_EQUAL_UINT(1U, s_vfd.frequency_count);
+    TEST_ASSERT_EQUAL_UINT(1U, s_vfd.apply_count);
 
-    TEST_ASSERT_EQUAL_INT(SW_OK, hal_vfd_get_ops()->run(TEST_VFD_ID, 0));
-    TEST_ASSERT_EQUAL_UINT(1U, s_vfd.stop_count);
+    TEST_ASSERT_EQUAL_INT(SW_ERR_STATE, hal_vfd_get_ops()->set_gear(TEST_VFD_ID, 1));
 
     TEST_ASSERT_EQUAL_INT(SW_OK, hal_vfd_get_ops()->stop(TEST_VFD_ID));
     TEST_ASSERT_EQUAL_UINT(2U, s_vfd.stop_count);
@@ -369,7 +385,7 @@ int main(void)
 
     RUN_TEST(test_bind_rejects_invalid_config);
     RUN_TEST(test_unbound_operations_return_not_init);
-    RUN_TEST(test_run_stop_and_set_freq_delegate_to_backend);
+    RUN_TEST(test_control_mode_is_selected_by_api_and_switch_requires_stop);
     RUN_TEST(test_fault_reset_uses_modbus_clear_when_no_rst_pin);
     RUN_TEST(test_fault_reset_uses_rst_pulse_when_pin_exists);
     RUN_TEST(test_monitor_updates_cached_fault_and_current_and_events);

@@ -24,7 +24,7 @@ extern "C" {
 #include <stdint.h>
 
 #define SNACK_VFD_BACKEND_SPEED_GEAR_COUNT 3U
-/** @brief speed_io 数组元素编码；0 保留为停止态，不可作为有效挡位。 */
+/** @brief speed_io 数组元素编码；0 表示该挡位的速度 IO 全低。 */
 #define SNACK_VFD_BACKEND_SPEED_IO(s1, s2) ((uint8_t)(((s2) ? 0x02U : 0U) | ((s1) ? 0x01U : 0U)))
 
 typedef struct {
@@ -36,9 +36,9 @@ typedef struct {
     io_do_t pin_rev;
     io_do_t pin_rst;
 
-    bool    speed_io_enabled;
     io_do_t pin_spd1;
     io_do_t pin_spd2;
+    uint8_t gear_count;
     uint8_t speed_io[SNACK_VFD_BACKEND_SPEED_GEAR_COUNT];
 
     hal_vfd_monitor_mask_t monitor_mask;

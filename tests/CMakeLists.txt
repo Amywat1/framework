@@ -81,6 +81,11 @@ add_unit_test(test_hal_motor_exec_mcc
     ${WDF_ROOT}/tests/stubs/mcc/motor_control_core_fake.c
 )
 
+add_unit_test(test_motor_executor_position
+    ${CMAKE_CURRENT_SOURCE_DIR}/adapters/test_motor_executor_position.c
+    ${WDF_ROOT}/adapters/outbound/hal/providers/mcc/motor_executor.c
+)
+
 add_unit_test(test_hal_voice_sim
     ${CMAKE_CURRENT_SOURCE_DIR}/adapters/test_hal_voice_sim.c
     ${WDF_ROOT}/adapters/outbound/hal/sim/hal_voice_sim.c

@@ -88,7 +88,7 @@ adapters/outbound/hal
 | 能力 | API |
 |------|-----|
 | 生命周期 | `init()` |
-| 控制 | `run(id, gear)`、`set_freq(id, hz)`、`stop(id)`、`fault_reset(id)` |
+| 控制 | `set_gear(id, signed_gear)` 仅控制方向与速度 IO；`set_frequency(id, signed_centi_hz)` 仅写频率寄存器并控制方向；`stop(id)`、`fault_reset(id)` |
 | 状态 | `get_state(id)` |
 | 寄存器读 | `read(id, reg, val)`、`get_cached(id, reg, val)` |
 | 事件 | `register_event_cb(id, cb)` |

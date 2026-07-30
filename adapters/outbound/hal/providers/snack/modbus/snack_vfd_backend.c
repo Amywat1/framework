@@ -41,14 +41,14 @@ static bool instance_cfg_valid(const snack_vfd_backend_instance_cfg_t *cfg)
     if ((cfg == NULL) || (cfg->serial_port == NULL) || (cfg->modbus_addr <= 0) || (cfg->modbus_addr > 247)) {
         return false;
     }
-    if (cfg->speed_io_enabled) {
-        if ((cfg->pin_spd1.raw == IO_HANDLE_NULL) || (cfg->pin_spd2.raw == IO_HANDLE_NULL)) {
+    if ((cfg->gear_count == 0U) || (cfg->gear_count > SNACK_VFD_BACKEND_SPEED_GEAR_COUNT)) {
+        return false;
+    }
+    for (i = 0U; i < cfg->gear_count; i++) {
+        if (((cfg->speed_io[i] & 0x01U) != 0U && cfg->pin_spd1.raw == IO_HANDLE_NULL)
+            || ((cfg->speed_io[i] & 0x02U) != 0U && cfg->pin_spd2.raw == IO_HANDLE_NULL)
+            || ((cfg->speed_io[i] & 0xFCU) != 0U)) {
             return false;
-        }
-        for (i = 0U; i < SNACK_VFD_BACKEND_SPEED_GEAR_COUNT; i++) {
-            if (cfg->speed_io[i] == 0U) {
-                return false;
-            }
         }
     }
     return true;
@@ -87,12 +87,11 @@ static sw_err_t backend_init(void *ctx)
         return ret;
     }
 
-    if (slot->cfg.speed_io_enabled) {
-        ret = drv_vfd_config_speed_io(&slot->drv, slot->cfg.pin_spd1, slot->cfg.pin_spd2, slot->cfg.speed_io);
-        if (ret != SW_OK) {
-            slot->inited = false;
-            return ret;
-        }
+    ret = drv_vfd_config_speed_io(
+        &slot->drv, slot->cfg.pin_spd1, slot->cfg.pin_spd2, slot->cfg.gear_count, slot->cfg.speed_io);
+    if (ret != SW_OK) {
+        slot->inited = false;
+        return ret;
     }
 
     slot->inited = true;
@@ -107,6 +106,16 @@ static sw_err_t backend_apply_gear(void *ctx, hal_vfd_gear_t gear)
         return SW_ERR_NOT_INIT;
     }
     return drv_vfd_apply_gear(drv, gear);
+}
+
+static sw_err_t backend_apply_frequency(void *ctx, hal_vfd_frequency_t frequency_centi_hz)
+{
+    drv_vfd_t *drv = drv_from_ctx(ctx);
+
+    if (drv == NULL) {
+        return SW_ERR_NOT_INIT;
+    }
+    return drv_vfd_apply_frequency(drv, frequency_centi_hz);
 }
 
 static sw_err_t backend_stop_outputs(void *ctx)
@@ -168,6 +177,7 @@ static bool backend_has_rst_pin(void *ctx)
 static const hal_vfd_backend_ops_t s_snack_vfd_backend_ops = {
     .init         = backend_init,
     .apply_gear   = backend_apply_gear,
+    .apply_frequency = backend_apply_frequency,
     .stop_outputs = backend_stop_outputs,
     .set_rst      = backend_set_rst,
     .read         = backend_read,

@@ -37,12 +37,22 @@ typedef struct {
     uint64_t last_current_ms;
 
     pulse_out_slot_t rst_pulse;
+    enum {
+        VFD_CONTROL_NONE = 0,
+        VFD_CONTROL_GEAR,
+        VFD_CONTROL_FREQUENCY,
+    } control_mode;
 } hal_vfd_slot_t;
 
 static hal_vfd_slot_t s_slot[HAL_VFD_MANAGER_SLOT_MAX];
 
 /** @brief 保护上面除 backend 调用以外的全部运行时簿记字段 */
 static pthread_mutex_t s_vfd_lock = PTHREAD_MUTEX_INITIALIZER;
+
+/** @brief 串行化控制命令，保证模式检查、硬件输出与模式提交不可交叉 */
+static pthread_mutex_t s_control_lock = PTHREAD_MUTEX_INITIALIZER;
+
+static sw_err_t vfd_stop(hal_vfd_id_t id);
 
 static bool slot_id_valid(hal_vfd_id_t id)
 {
@@ -72,7 +82,8 @@ static bool bind_cfg_valid(const hal_vfd_manager_bind_cfg_t *cfg)
     if ((cfg == NULL) || (cfg->ops == NULL) || (cfg->drv_ctx == NULL)) {
         return false;
     }
-    if ((cfg->ops->apply_gear == NULL) || (cfg->ops->stop_outputs == NULL) || (cfg->ops->set_rst == NULL)
+    if ((cfg->ops->apply_gear == NULL) || (cfg->ops->apply_frequency == NULL)
+        || (cfg->ops->stop_outputs == NULL) || (cfg->ops->set_rst == NULL)
         || (cfg->ops->read == NULL) || (cfg->ops->write == NULL) || (cfg->ops->get_state == NULL)) {
         return false;
     }
@@ -275,6 +286,7 @@ sw_err_t hal_vfd_manager_bind(hal_vfd_id_t id, const hal_vfd_manager_bind_cfg_t 
     slot->rst_pulse.ctx       = slot;
     slot->rst_pulse.set_level = pulse_set_rst_level;
     slot->rst_pulse.active    = false;
+    slot->control_mode        = VFD_CONTROL_NONE;
     pthread_mutex_unlock(&s_vfd_lock);
     return SW_OK;
 }
@@ -325,6 +337,7 @@ static sw_err_t vfd_init(void)
         s_slot[i].comm_fail_count   = 0U;
         s_slot[i].last_fault_ms     = 0U;
         s_slot[i].last_current_ms   = 0U;
+        s_slot[i].control_mode      = VFD_CONTROL_NONE;
         s_slot[i].initialized       = (ret == SW_OK);
         pthread_mutex_unlock(&s_vfd_lock);
 
@@ -377,38 +390,83 @@ sw_err_t hal_vfd_manager_poll_register_task(void)
         "vfd_manager_poll", HAL_VFD_MANAGER_POLL_PERIOD_MS, vfd_poll_task, NULL, SCHED_OTHER, 0, THD_VFD_TICK_STACK);
 }
 
-static sw_err_t vfd_run(hal_vfd_id_t id, hal_vfd_gear_t gear)
+static sw_err_t vfd_set_gear(hal_vfd_id_t id, hal_vfd_gear_t gear)
 {
     hal_vfd_slot_t *slot = ready_slot_by_id(id);
+    sw_err_t        ret;
 
     if (slot == NULL) {
         return SW_ERR_NOT_INIT;
     }
 
     if (gear == 0) {
-        return slot->cfg.ops->stop_outputs(slot->cfg.drv_ctx);
+        return vfd_stop(id);
     }
-    return slot->cfg.ops->apply_gear(slot->cfg.drv_ctx, gear);
+    pthread_mutex_lock(&s_control_lock);
+    pthread_mutex_lock(&s_vfd_lock);
+    if (slot->control_mode == VFD_CONTROL_FREQUENCY) {
+        pthread_mutex_unlock(&s_vfd_lock);
+        pthread_mutex_unlock(&s_control_lock);
+        return SW_ERR_STATE;
+    }
+    pthread_mutex_unlock(&s_vfd_lock);
+    ret = slot->cfg.ops->apply_gear(slot->cfg.drv_ctx, gear);
+    if (ret == SW_OK) {
+        pthread_mutex_lock(&s_vfd_lock);
+        slot->control_mode = VFD_CONTROL_GEAR;
+        pthread_mutex_unlock(&s_vfd_lock);
+    }
+    pthread_mutex_unlock(&s_control_lock);
+    return ret;
 }
 
-static sw_err_t vfd_set_freq(hal_vfd_id_t id, uint16_t freq_hz)
+static sw_err_t vfd_set_frequency(hal_vfd_id_t id, hal_vfd_frequency_t frequency_centi_hz)
 {
     hal_vfd_slot_t *slot = ready_slot_by_id(id);
+    sw_err_t        ret;
 
     if (slot == NULL) {
         return SW_ERR_NOT_INIT;
     }
-    return slot->cfg.ops->write(slot->cfg.drv_ctx, HAL_VFD_REG_FREQ, freq_hz);
+    if (frequency_centi_hz == 0) {
+        return vfd_stop(id);
+    }
+    pthread_mutex_lock(&s_control_lock);
+    pthread_mutex_lock(&s_vfd_lock);
+    if (slot->control_mode == VFD_CONTROL_GEAR) {
+        pthread_mutex_unlock(&s_vfd_lock);
+        pthread_mutex_unlock(&s_control_lock);
+        return SW_ERR_STATE;
+    }
+    pthread_mutex_unlock(&s_vfd_lock);
+    ret = slot->cfg.ops->apply_frequency(slot->cfg.drv_ctx, frequency_centi_hz);
+    if (ret == SW_OK) {
+        pthread_mutex_lock(&s_vfd_lock);
+        slot->control_mode = VFD_CONTROL_FREQUENCY;
+        pthread_mutex_unlock(&s_vfd_lock);
+    }
+    pthread_mutex_unlock(&s_control_lock);
+    return ret;
 }
 
 static sw_err_t vfd_stop(hal_vfd_id_t id)
 {
     hal_vfd_slot_t *slot = ready_slot_by_id(id);
+    sw_err_t        ret;
 
     if (slot == NULL) {
         return SW_ERR_NOT_INIT;
     }
-    return slot->cfg.ops->stop_outputs(slot->cfg.drv_ctx);
+    pthread_mutex_lock(&s_control_lock);
+    ret = slot->cfg.ops->stop_outputs(slot->cfg.drv_ctx);
+
+    if (ret == SW_OK) {
+        pthread_mutex_lock(&s_vfd_lock);
+        slot->control_mode = VFD_CONTROL_NONE;
+        pthread_mutex_unlock(&s_vfd_lock);
+    }
+    pthread_mutex_unlock(&s_control_lock);
+    return ret;
 }
 
 static sw_err_t vfd_fault_reset(hal_vfd_id_t id)
@@ -426,7 +484,7 @@ static sw_err_t vfd_fault_reset(hal_vfd_id_t id)
     pulse_out_cancel(&slot->rst_pulse);
     pthread_mutex_unlock(&s_vfd_lock);
 
-    ret = slot->cfg.ops->stop_outputs(slot->cfg.drv_ctx);
+    ret = vfd_stop(id);
     if (ret != SW_OK) {
         return ret;
     }
@@ -512,8 +570,8 @@ static void vfd_register_event_cb(hal_vfd_id_t id, void (*cb)(int event_code))
 
 static const hal_vfd_ops_t s_ops = {
     .init              = vfd_init,
-    .run               = vfd_run,
-    .set_freq          = vfd_set_freq,
+    .set_gear          = vfd_set_gear,
+    .set_frequency     = vfd_set_frequency,
     .stop              = vfd_stop,
     .fault_reset       = vfd_fault_reset,
     .get_state         = vfd_get_state,

@@ -72,59 +72,86 @@ static int vfd_abs_gear(hal_vfd_gear_t gear)
     return (gear < 0) ? -(int)gear : (int)gear;
 }
 
-static void vfd_do_set(drv_vfd_t *vfd, io_do_t pin, bool val)
+static sw_err_t vfd_do_set(drv_vfd_t *vfd, io_do_t pin, bool val)
 {
-    if ((vfd != NULL) && (vfd->do_set != NULL)) {
-        (void)vfd->do_set(pin, val);
+    if ((vfd == NULL) || (vfd->do_set == NULL)) {
+        return SW_ERR_NOT_INIT;
     }
+    if (pin.raw == IO_HANDLE_NULL) {
+        return SW_OK;
+    }
+    return vfd->do_set(pin, val);
 }
 
 /* -------------------------------------------------------------------------
  * 速度 IO 操作（仅在 spd_io_ready 时调用）
  * ------------------------------------------------------------------------- */
-static void vfd_spd_io_clear(drv_vfd_t *vfd)
+static sw_err_t vfd_spd_io_clear(drv_vfd_t *vfd)
 {
-    if (vfd->spd_io_ready) {
-        vfd_do_set(vfd, vfd->pin_spd1, false);
-        vfd_do_set(vfd, vfd->pin_spd2, false);
+    sw_err_t ret;
+
+    ret = vfd_do_set(vfd, vfd->pin_spd1, false);
+    if (ret != SW_OK) {
+        return ret;
     }
+    return vfd_do_set(vfd, vfd->pin_spd2, false);
 }
 
 /** @brief  关断运行相关 DO（spd/fwd/rev，不含 rst） */
-static void vfd_run_outputs_off(drv_vfd_t *vfd)
+static sw_err_t vfd_run_outputs_off(drv_vfd_t *vfd)
 {
-    vfd_spd_io_clear(vfd);
-    vfd_do_set(vfd, vfd->pin_fwd, false);
-    if (vfd_has_rev(vfd)) {
-        vfd_do_set(vfd, vfd->pin_rev, false);
+    sw_err_t ret = vfd_spd_io_clear(vfd);
+
+    if (ret != SW_OK) {
+        return ret;
     }
+    ret = vfd_do_set(vfd, vfd->pin_fwd, false);
+    if (ret != SW_OK) {
+        return ret;
+    }
+    if (vfd_has_rev(vfd)) {
+        return vfd_do_set(vfd, vfd->pin_rev, false);
+    }
+    return SW_OK;
 }
 
-static void vfd_spd_io_apply(drv_vfd_t *vfd, uint8_t abs_gear)
+static sw_err_t vfd_spd_io_apply(drv_vfd_t *vfd, uint8_t abs_gear)
 {
     uint8_t spd_state;
 
     if ((abs_gear == 0U) || (abs_gear > (uint8_t)VFD_GEAR_MAX)) {
         LOG_ERROR("drv_vfd: vfd_spd_io_apply 非法挡位 abs_gear=%u", (unsigned)abs_gear);
-        return;
+        return SW_ERR_PARAM;
     }
     spd_state = vfd->spd_cfg[abs_gear - 1U];
-    vfd_do_set(vfd, vfd->pin_spd1, (spd_state & 0x01U) != 0U);
-    vfd_do_set(vfd, vfd->pin_spd2, (spd_state & 0x02U) != 0U);
+    if (vfd_do_set(vfd, vfd->pin_spd1, (spd_state & 0x01U) != 0U) != SW_OK) {
+        return SW_ERR_HW;
+    }
+    return vfd_do_set(vfd, vfd->pin_spd2, (spd_state & 0x02U) != 0U);
 }
 
-static void vfd_apply_gear_impl(drv_vfd_t *vfd, hal_vfd_gear_t gear)
+static sw_err_t vfd_apply_gear_impl(drv_vfd_t *vfd, hal_vfd_gear_t gear)
 {
     int abs_gear = vfd_abs_gear(gear);
+    sw_err_t ret;
 
-    if (vfd->spd_io_ready) {
-        vfd_spd_io_apply(vfd, (uint8_t)abs_gear);
+    ret = vfd_spd_io_apply(vfd, (uint8_t)abs_gear);
+    if (ret != SW_OK) {
+        return ret;
     }
-    vfd_do_set(vfd, vfd->pin_fwd, gear > 0);
+    ret = vfd_do_set(vfd, vfd->pin_fwd, gear > 0);
+    if (ret != SW_OK) {
+        return ret;
+    }
     if (vfd_has_rev(vfd)) {
-        vfd_do_set(vfd, vfd->pin_rev, gear < 0);
+        ret = vfd_do_set(vfd, vfd->pin_rev, gear < 0);
+        if (ret != SW_OK) {
+            return ret;
+        }
     }
-    vfd->gear = gear;
+    vfd->gear  = gear;
+    vfd->state = (gear > 0) ? HAL_VFD_STATE_FWD : HAL_VFD_STATE_REV;
+    return SW_OK;
 }
 
 /* -------------------------------------------------------------------------
@@ -165,8 +192,13 @@ sw_err_t drv_vfd_init(drv_vfd_t        *vfd,
     vfd->gear    = 0;
     vfd->do_set  = do_set;
 
-    vfd_run_outputs_off(vfd);
-    vfd_do_set(vfd, pin_rst, false);
+    ret = vfd_run_outputs_off(vfd);
+    if (ret == SW_OK) {
+        ret = vfd_do_set(vfd, pin_rst, false);
+    }
+    if (ret != SW_OK) {
+        return ret;
+    }
 
     LOG_INFO("drv_vfd_init[addr=%d] ok", modbus_addr);
     return SW_OK;
@@ -175,6 +207,7 @@ sw_err_t drv_vfd_init(drv_vfd_t        *vfd,
 sw_err_t drv_vfd_config_speed_io(drv_vfd_t    *vfd,
                                  io_do_t       pin_spd1,
                                  io_do_t       pin_spd2,
+                                 uint8_t       gear_count,
                                  const uint8_t spd_cfg[VFD_GEAR_MAX])
 {
     uint8_t i;
@@ -182,16 +215,14 @@ sw_err_t drv_vfd_config_speed_io(drv_vfd_t    *vfd,
     if (!vfd_is_initialized(vfd) || (spd_cfg == NULL)) {
         return SW_ERR_PARAM;
     }
-    if ((pin_spd1.raw == IO_HANDLE_NULL) || (pin_spd2.raw == IO_HANDLE_NULL)) {
-        LOG_ERROR("drv_vfd_config_speed_io[addr=%d]: invalid speed IO pins", vfd->link.modbus_addr);
+    if ((gear_count == 0U) || (gear_count > VFD_GEAR_MAX)) {
         return SW_ERR_PARAM;
     }
 
-    for (i = 0U; i < (uint8_t)VFD_GEAR_MAX; i++) {
-        if (spd_cfg[i] == 0U) {
-            LOG_ERROR("drv_vfd_config_speed_io[addr=%d]: gear %u uses VFD_SPD_IO(0,0), conflicts with stop",
-                      vfd->link.modbus_addr,
-                      (unsigned)(i + 1U));
+    for (i = 0U; i < gear_count; i++) {
+        if (((spd_cfg[i] & 0x01U) != 0U && pin_spd1.raw == IO_HANDLE_NULL)
+            || ((spd_cfg[i] & 0x02U) != 0U && pin_spd2.raw == IO_HANDLE_NULL)
+            || ((spd_cfg[i] & 0xFCU) != 0U)) {
             return SW_ERR_PARAM;
         }
         vfd->spd_cfg[i] = spd_cfg[i];
@@ -200,10 +231,10 @@ sw_err_t drv_vfd_config_speed_io(drv_vfd_t    *vfd,
     vfd->pin_spd1 = pin_spd1;
     vfd->pin_spd2 = pin_spd2;
 
-    vfd_do_set(vfd, pin_spd1, false);
-    vfd_do_set(vfd, pin_spd2, false);
-
-    vfd->spd_io_ready = true;
+    if (vfd_spd_io_clear(vfd) != SW_OK) {
+        return SW_ERR_HW;
+    }
+    vfd->gear_count = gear_count;
     LOG_INFO("drv_vfd_config_speed_io[addr=%d] ok", vfd->link.modbus_addr);
     return SW_OK;
 }
@@ -215,8 +246,12 @@ sw_err_t drv_vfd_stop_outputs(drv_vfd_t *vfd)
     }
 
     (void)pthread_mutex_lock(&vfd->io_mutex);
-    vfd_run_outputs_off(vfd);
+    if (vfd_run_outputs_off(vfd) != SW_OK) {
+        (void)pthread_mutex_unlock(&vfd->io_mutex);
+        return SW_ERR_HW;
+    }
     vfd->gear = 0;
+    vfd->state = HAL_VFD_STATE_STOPPED;
     (void)pthread_mutex_unlock(&vfd->io_mutex);
     return SW_OK;
 }
@@ -235,7 +270,7 @@ sw_err_t drv_vfd_apply_gear(drv_vfd_t *vfd, hal_vfd_gear_t gear)
 
     abs_gear_int = vfd_abs_gear(gear);
 
-    if (abs_gear_int > (int)VFD_GEAR_MAX) {
+    if ((abs_gear_int > (int)vfd->gear_count) || (vfd->gear_count == 0U)) {
         return SW_ERR_PARAM;
     }
     if ((gear < 0) && !vfd_has_rev(vfd)) {
@@ -243,9 +278,46 @@ sw_err_t drv_vfd_apply_gear(drv_vfd_t *vfd, hal_vfd_gear_t gear)
         return SW_ERR_PARAM;
     }
     (void)pthread_mutex_lock(&vfd->io_mutex);
-    vfd_apply_gear_impl(vfd, gear);
+    sw_err_t ret = vfd_apply_gear_impl(vfd, gear);
     (void)pthread_mutex_unlock(&vfd->io_mutex);
-    return SW_OK;
+    return ret;
+}
+
+sw_err_t drv_vfd_apply_frequency(drv_vfd_t *vfd, hal_vfd_frequency_t frequency_centi_hz)
+{
+    uint32_t abs_frequency;
+    sw_err_t ret;
+
+    if (!vfd_is_initialized(vfd)) {
+        return SW_ERR_NOT_INIT;
+    }
+    if (frequency_centi_hz == 0) {
+        return drv_vfd_stop_outputs(vfd);
+    }
+    if ((frequency_centi_hz < 0) && !vfd_has_rev(vfd)) {
+        return SW_ERR_PARAM;
+    }
+    abs_frequency = (frequency_centi_hz < 0)
+                        ? (uint32_t)(-(int64_t)frequency_centi_hz)
+                        : (uint32_t)frequency_centi_hz;
+    if (abs_frequency > UINT16_MAX) {
+        return SW_ERR_PARAM;
+    }
+    ret = drv_vfd_write(vfd, HAL_VFD_REG_FREQ, (uint16_t)abs_frequency);
+    if (ret != SW_OK) {
+        return ret;
+    }
+    (void)pthread_mutex_lock(&vfd->io_mutex);
+    ret = vfd_do_set(vfd, vfd->pin_fwd, frequency_centi_hz > 0);
+    if ((ret == SW_OK) && vfd_has_rev(vfd)) {
+        ret = vfd_do_set(vfd, vfd->pin_rev, frequency_centi_hz < 0);
+    }
+    if (ret == SW_OK) {
+        vfd->gear  = 0;
+        vfd->state = (frequency_centi_hz > 0) ? HAL_VFD_STATE_FWD : HAL_VFD_STATE_REV;
+    }
+    (void)pthread_mutex_unlock(&vfd->io_mutex);
+    return ret;
 }
 
 sw_err_t drv_vfd_set_rst(drv_vfd_t *vfd, bool level)
@@ -256,27 +328,20 @@ sw_err_t drv_vfd_set_rst(drv_vfd_t *vfd, bool level)
     if (vfd->pin_rst.raw == IO_HANDLE_NULL) {
         return SW_ERR_PARAM;
     }
-    vfd_do_set(vfd, vfd->pin_rst, level);
-    return SW_OK;
+    return vfd_do_set(vfd, vfd->pin_rst, level);
 }
 
 hal_vfd_state_t drv_vfd_get_state(drv_vfd_t *vfd)
 {
-    hal_vfd_gear_t gear;
+    hal_vfd_state_t state;
 
     if (vfd == NULL) {
         return HAL_VFD_STATE_STOPPED;
     }
     (void)pthread_mutex_lock(&vfd->io_mutex);
-    gear = vfd->gear;
+    state = vfd->state;
     (void)pthread_mutex_unlock(&vfd->io_mutex);
-    if (gear > 0) {
-        return HAL_VFD_STATE_FWD;
-    }
-    if (gear < 0) {
-        return HAL_VFD_STATE_REV;
-    }
-    return HAL_VFD_STATE_STOPPED;
+    return state;
 }
 
 sw_err_t drv_vfd_read(drv_vfd_t *vfd, hal_vfd_reg_t reg, uint16_t *p_val)
