@@ -84,6 +84,44 @@ static hal_motor_fault_code_t from_mcc_fault(motor_fault_code_t fc)
     }
 }
 
+static hal_motor_end_condition_t from_mcc_end_condition(motor_end_condition_t trig)
+{
+    switch (trig) {
+    case MOTOR_END_LIMIT:
+        return HAL_MOTOR_END_LIMIT;
+    case MOTOR_END_POSITION:
+        return HAL_MOTOR_END_POSITION;
+    case MOTOR_END_SOFT_LIMIT:
+        return HAL_MOTOR_END_SOFT_LIMIT;
+    case MOTOR_END_TIME:
+        return HAL_MOTOR_END_TIME;
+    case MOTOR_END_TIMEOUT:
+        return HAL_MOTOR_END_TIMEOUT;
+    case MOTOR_END_NONE:
+    default:
+        return HAL_MOTOR_END_NONE;
+    }
+}
+
+static hal_motor_event_type_t from_mcc_event_type(motor_event_type_t type)
+{
+    switch (type) {
+    case MOTOR_EVENT_TIMEOUT:
+        return HAL_MOTOR_EVENT_TIMEOUT;
+    case MOTOR_EVENT_STOPPED:
+        return HAL_MOTOR_EVENT_STOPPED;
+    case MOTOR_EVENT_FAULT:
+        return HAL_MOTOR_EVENT_FAULT;
+    case MOTOR_EVENT_ESTOP:
+        return HAL_MOTOR_EVENT_ESTOP;
+    case MOTOR_EVENT_WARNING:
+        return HAL_MOTOR_EVENT_WARNING;
+    case MOTOR_EVENT_ARRIVED:
+    default:
+        return HAL_MOTOR_EVENT_ARRIVED;
+    }
+}
+
 static motor_recovery_step_t to_mcc_recovery_step(hal_motor_recovery_step_t step)
 {
     return (step == HAL_MOTOR_RECOVERY_MODULE_STOP) ? MOTOR_RECOVERY_MODULE_STOP : MOTOR_RECOVERY_DRIVER_RESET;
@@ -193,4 +231,23 @@ hal_motor_dir_t hal_motor_direction(const hal_motor_exec_t *exec, int motor)
 hal_motor_fault_code_t hal_motor_fault_code(const hal_motor_exec_t *exec, int motor)
 {
     return from_mcc_fault(motor_fault_code((const motor_executor_t *)exec, motor));
+}
+
+bool hal_motor_pop_event(hal_motor_exec_t *exec, hal_motor_event_t *out)
+{
+    motor_event_t ev;
+
+    if (out == NULL) {
+        return false;
+    }
+    if (!motor_pop_event((motor_executor_t *)exec, &ev)) {
+        return false;
+    }
+    out->motor      = ev.motor;
+    out->type       = from_mcc_event_type(ev.type);
+    out->trigger    = from_mcc_end_condition(ev.trigger);
+    out->final_pos  = ev.final_pos;
+    out->elapsed_ms = ev.elapsed_ms;
+    out->fault      = from_mcc_fault(ev.fault);
+    return true;
 }

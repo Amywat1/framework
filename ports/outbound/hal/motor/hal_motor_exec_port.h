@@ -67,6 +67,36 @@ typedef enum {
     HAL_MOTOR_RECOVERY_MODULE_STOP       /**< 第二步：模块停止（之后可重新启动） */
 } hal_motor_recovery_step_t;
 
+/** @brief 运动结束的触发条件，说明本次运动“为什么”停下。 */
+typedef enum {
+    HAL_MOTOR_END_NONE = 0,     /**< 无结束条件（被显式停止或急停切断） */
+    HAL_MOTOR_END_LIMIT,        /**< 触发限位开关 */
+    HAL_MOTOR_END_POSITION,     /**< 到达目标位置 */
+    HAL_MOTOR_END_SOFT_LIMIT,   /**< 触发软限位 */
+    HAL_MOTOR_END_TIME,         /**< 运行时长达到设定值 */
+    HAL_MOTOR_END_TIMEOUT       /**< 超时兜底（错误结果） */
+} hal_motor_end_condition_t;
+
+/** @brief 运动结束事件类型。 */
+typedef enum {
+    HAL_MOTOR_EVENT_ARRIVED = 0, /**< 正常到位 */
+    HAL_MOTOR_EVENT_TIMEOUT,     /**< 超时（错误结果） */
+    HAL_MOTOR_EVENT_STOPPED,     /**< 被显式停止 */
+    HAL_MOTOR_EVENT_FAULT,       /**< 故障 */
+    HAL_MOTOR_EVENT_ESTOP,       /**< 急停 */
+    HAL_MOTOR_EVENT_WARNING      /**< 告警（不切断） */
+} hal_motor_event_type_t;
+
+/** @brief 运动结束事件载荷，供上层记录状态变化原因。 */
+typedef struct {
+    int                       motor;      /**< 电机号 */
+    hal_motor_event_type_t    type;       /**< 事件类型 */
+    hal_motor_end_condition_t trigger;    /**< 触发条件 */
+    int64_t                   final_pos;  /**< 结束时位置（脉冲） */
+    uint64_t                  elapsed_ms; /**< 本次运动耗时（ms） */
+    hal_motor_fault_code_t    fault;      /**< 故障码；无故障为 HAL_MOTOR_FAULT_NONE */
+} hal_motor_event_t;
+
 /** @brief 速度指定方式。 */
 typedef enum {
     HAL_MOTOR_SPEED_FREQ = 0, /**< 直接频率（厘赫） */
@@ -172,6 +202,15 @@ hal_motor_dir_t hal_motor_direction(const hal_motor_exec_t *exec, int motor);
 
 /** @brief 查询电机当前故障码；无故障时为 HAL_MOTOR_FAULT_NONE。 */
 hal_motor_fault_code_t hal_motor_fault_code(const hal_motor_exec_t *exec, int motor);
+
+/**
+ * @brief  取出一条运动结束事件，用于记录状态变化原因。
+ * @param  exec 电机执行器句柄。
+ * @param  out  输出事件；仅在返回 true 时有效。
+ * @return true 取出一条事件；false 队列已空。
+ * @note   队列容量有限，调用方须按节拍持续排空，否则最旧事件会被覆盖丢弃。
+ */
+bool hal_motor_pop_event(hal_motor_exec_t *exec, hal_motor_event_t *out);
 
 #ifdef __cplusplus
 }
