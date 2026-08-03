@@ -1,6 +1,6 @@
 /**
  * @file    safety_cutout_port.h
- * @brief   硬件急停快速切断端口（safety_thread 热路径）
+ * @brief   硬件急停快速切断端口（急停热路径）
  * @author  HUWANGWEI
  * @date    2026-07-09
  *

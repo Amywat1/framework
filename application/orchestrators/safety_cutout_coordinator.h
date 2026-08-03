@@ -4,7 +4,7 @@
  * @author  HUWANGWEI
  * @date    2026-07-19
  *
- * @note    硬件急停热路径切断由 safety_thread + safety_cutout_execute 负责；
+ * @note    硬件急停热路径切断由急停采集通路调用 safety_cutout_execute 负责；
  *          本模块在 dispatch 线程做 deferred_stop 与 abort_wash。
  *          不执行中止归位（见 abort_home_coordinator）。
  */

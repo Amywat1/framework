@@ -42,6 +42,9 @@ void port_registry_infra_reset(void);
 /** @brief 清空云与存储层端口注册（link / report / property / deploy / param）*/
 void port_registry_cloud_reset(void);
 
+/** @brief 清空安全端口注册（cutout / estop / alarm 判定 / deferred stop）*/
+void port_registry_safety_reset(void);
+
 #ifdef __cplusplus
 }
 #endif

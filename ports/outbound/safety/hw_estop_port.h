@@ -1,6 +1,6 @@
 /**
  * @file    hw_estop_port.h
- * @brief   硬件急停输入端口（safety_thread 快速通道专用）
+ * @brief   硬件急停输入端口（急停快速通道专用）
  * @author  HUWANGWEI
  * @date    2026-07-09
  *
