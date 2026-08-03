@@ -12,6 +12,7 @@
 #include "domain/op_mode/operational_mode.h"
 #include "domain/safety/alarm_registry/alarm_registry.h"
 #include "domain/telemetry/device_snapshot_internal.h"
+#include "ports/outbound/cloud/link/cloud_link_port.h"
 #include "runtime/event_bus/event_bus.h"
 
 static void sync_op_snapshot(void)
@@ -49,7 +50,30 @@ static void refresh_safety_snapshot(const event_t *evt)
 
 static void on_session_started(const event_t *evt)
 {
-    device_snapshot_set_wash_mode((wash_mode_t)(evt->param & 0xFFU));
+    device_snapshot_set_wash_mode(wash_session_started_mode(evt->param));
+}
+
+/**
+ * @brief  从云端口刷新连接状态到快照
+ *
+ * 领域层不依赖云端口，故由本投影承担这次读取；
+ * 未注册云端口（例如仿真目标）时按未连接处理。
+ */
+static void sync_cloud_connected(void)
+{
+    const cloud_link_ops_t *ops = cloud_link_get_ops();
+    bool                    online = false;
+
+    if ((ops != NULL) && (ops->is_online != NULL)) {
+        online = ops->is_online();
+    }
+    device_snapshot_set_cloud_connected(online);
+}
+
+static void on_cloud_link_changed(const event_t *evt)
+{
+    (void)evt;
+    sync_cloud_connected();
 }
 
 sw_err_t telemetry_projection_init(void)
@@ -65,6 +89,10 @@ sw_err_t telemetry_projection_init(void)
         {EVT_SAFETY_LOCKOUT,       refresh_safety_snapshot},
         {EVT_SAFETY_NOMINAL,       refresh_safety_snapshot},
         {EVT_WASH_SESSION_STARTED, on_session_started     },
+        /* 云连接状态并入同一快照，使读侧（CLI / 诊断 / 状态上报）看到的
+         * 连接状态与运行模式、安全状态来自同一时刻。 */
+        {EVT_CLOUD_CONNECTED,      on_cloud_link_changed  },
+        {EVT_CLOUD_DISCONNECTED,   on_cloud_link_changed  },
     };
 
     sw_err_t ret = event_subscribe_table(s_subs, sizeof(s_subs) / sizeof(s_subs[0]));
@@ -74,6 +102,7 @@ sw_err_t telemetry_projection_init(void)
 
     sync_op_snapshot();
     refresh_safety_snapshot(NULL);
+    sync_cloud_connected();
     LOG_INFO("telemetry_projection: init ok");
     return SW_OK;
 }

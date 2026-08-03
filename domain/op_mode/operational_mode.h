@@ -88,28 +88,48 @@ void op_mode_on_recovery_completed(recovery_result_t result);
  */
 void op_mode_on_home_done(bool success);
 
+/* -------------------------------------------------------------------------
+ * 直读接口（线程约束）
+ *
+ * 以下读接口直接返回聚合根的内部状态，不加锁：本模块的状态只在 event_dispatch
+ * 线程内被修改（命令裁决与各事件桥接都在该线程执行），因此同线程内读取总是
+ * 一致的，无需同步开销。
+ *
+ * 其他线程（周期任务、项目工作线程、CLI）不得调用这些接口——那会构成无保护
+ * 的跨线程读，可能读到撕裂或过期的组合状态。跨线程读一律改用
+ * `domain/telemetry/device_snapshot.h` 的 device_snapshot_get()：它是加锁的
+ * 原子快照，且能保证运行模式、安全状态、洗车模式来自同一时刻。
+ * ------------------------------------------------------------------------- */
+
 /**
  * @brief  读取当前运行模式
+ * @note   仅限 event_dispatch 线程调用；跨线程请用 device_snapshot_get()。
  */
 operational_mode_t op_mode_get_current(void);
 
 /**
  * @brief  急停是否激活
+ * @note   仅限 event_dispatch 线程调用；跨线程请用 device_snapshot_get()。
  */
 bool op_mode_is_estop_active(void);
 
 /**
  * @brief  运营总开关是否开启（关则禁止 RECOVER；上电默认开启）
+ * @note   仅限 event_dispatch 线程调用；跨线程请用 device_snapshot_get()。
  */
 bool op_mode_is_service_enabled(void);
 
 /**
  * @brief  是否处于非运营接单态（STOPPED/HOMING/故障处理等，或总开关已关）
+ * @note   仅限 event_dispatch 线程调用；跨线程请用 device_snapshot_get()
+ *         配合 operational_snapshot_is_stopping()。
  */
 bool op_mode_is_stopping(void);
 
 /**
  * @brief  是否运营待机（IDLE；可停车检测与接单）
+ * @note   仅限 event_dispatch 线程调用；跨线程请用 device_snapshot_get()
+ *         配合 operational_snapshot_is_standby()。
  */
 bool op_mode_is_standby(void);
 

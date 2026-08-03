@@ -19,7 +19,7 @@ static const cloud_link_ops_t *s_link_ops;
 
 sw_err_t cloud_link_register(const cloud_link_ops_t *ops)
 {
-    /* 各字段由 dev_ctx / 上报链路逐个判空，允许注册部分能力的链路实现 */
+    /* 各字段由遥测投影 / 上报链路逐个判空，允许注册部分能力的链路实现 */
     s_link_ops = ops;
     return SW_OK;
 }

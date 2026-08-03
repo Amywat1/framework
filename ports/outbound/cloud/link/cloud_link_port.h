@@ -5,7 +5,7 @@
  * @date    2026-07-08
  *
  * @note    合并 MQTT init/online/send/recv 与连接边沿 poll；
- *          dev_ctx / report_scheduler 只依赖本 port。
+ *          遥测投影 / report_scheduler 只依赖本 port。
  */
 
 #ifndef PORTS_OUTBOUND_CLOUD_LINK_CLOUD_LINK_PORT_H

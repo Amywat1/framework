@@ -29,6 +29,12 @@ void device_snapshot_update_safety(const safety_snapshot_t *safety);
  */
 void device_snapshot_set_wash_mode(wash_mode_t mode);
 
+/**
+ * @brief  更新云连接状态
+ * @note   由遥测投影从云端口读取后写入，使读侧与其他子域在同一次快照中一致。
+ */
+void device_snapshot_set_cloud_connected(bool connected);
+
 #ifdef __cplusplus
 }
 #endif

@@ -43,6 +43,13 @@ void device_snapshot_set_wash_mode(wash_mode_t mode)
     pthread_mutex_unlock(&s_mutex);
 }
 
+void device_snapshot_set_cloud_connected(bool connected)
+{
+    pthread_mutex_lock(&s_mutex);
+    s_state.connectivity.cloud_connected = connected;
+    pthread_mutex_unlock(&s_mutex);
+}
+
 device_snapshot_t device_snapshot_get(void)
 {
     device_snapshot_t out;
