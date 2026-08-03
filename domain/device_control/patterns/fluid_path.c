@@ -9,8 +9,6 @@
 
 #include "common/log.h"
 #include "common/time_util.h"
-#include "runtime/config/thread_config.h"
-#include "runtime/scheduler/periodic_task.h"
 
 #include <pthread.h>
 #include <sched.h>
@@ -436,38 +434,6 @@ static void tick_locked(uint64_t now_ms)
     }
 }
 
-#ifndef FLUID_PATH_UNIT_TEST
-
-static void fluid_path_poll_task(void *ctx)
-{
-    (void)ctx;
-
-    pthread_mutex_lock(&s_mutex);
-    if (s_ready) {
-        tick_locked(time_util_get_ms());
-    }
-    pthread_mutex_unlock(&s_mutex);
-}
-
-static sw_err_t poll_task_register(void)
-{
-    sw_err_t ret;
-
-    ret = periodic_task_register("fluid_path_poll",
-                                 THD_FLUID_PATH_POLL_PERIOD_MS,
-                                 fluid_path_poll_task,
-                                 NULL,
-                                 SCHED_OTHER,
-                                 0,
-                                 THD_FLUID_PATH_POLL_STACK);
-    if (ret != SW_OK) {
-        LOG_ERROR("fluid_path: periodic_task_register failed ret=%d", (int)ret);
-    }
-    return ret;
-}
-
-#endif /* FLUID_PATH_UNIT_TEST */
-
 sw_err_t fluid_path_init(const fluid_path_cfg_t          *cfg,
                          const fluid_path_actuator_ops_t *ops,
                          const fluid_path_def_t          *paths,
@@ -495,11 +461,8 @@ sw_err_t fluid_path_init(const fluid_path_cfg_t          *cfg,
     force_off_locked();
     pthread_mutex_unlock(&s_mutex);
 
-#ifndef FLUID_PATH_UNIT_TEST
-    return poll_task_register();
-#else
+    /* 领域层不创建线程：时序推进由调用方登记 fluid_path_poll 为周期任务驱动。 */
     return SW_OK;
-#endif
 }
 
 sw_err_t fluid_path_set(fluid_path_mask_t target)
@@ -568,8 +531,6 @@ sw_err_t fluid_path_all_off(void)
     return SW_OK;
 }
 
-#ifdef FLUID_PATH_UNIT_TEST
-
 void fluid_path_poll(uint64_t now_ms)
 {
     pthread_mutex_lock(&s_mutex);
@@ -588,5 +549,3 @@ bool fluid_path_is_settled(void)
     pthread_mutex_unlock(&s_mutex);
     return settled;
 }
-
-#endif /* FLUID_PATH_UNIT_TEST */

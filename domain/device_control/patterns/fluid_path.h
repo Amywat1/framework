@@ -77,14 +77,24 @@ sw_err_t fluid_path_all_off(void);
 
 /**
  * @brief  急停快速切断请求（无锁，由 fluid_path_poll 异步收敛）
- * @note   safety_thread 热路径专用，不持 s_mutex
+ * @note   急停热路径专用，不持 s_mutex
  */
 void fluid_path_emergency_off(void);
 
-#ifdef FLUID_PATH_UNIT_TEST
+/**
+ * @brief  推进一次水路时序状态机
+ * @param  now_ms  当前单调时钟毫秒数
+ *
+ * @note   领域层不自建线程：调用方须把本函数登记为周期任务驱动，
+ *         推荐周期见 THD_FLUID_PATH_POLL_PERIOD_MS。不周期调用时
+ *         fluid_path_set / enable / disable 请求会停留在 pending 而不生效。
+ */
 void fluid_path_poll(uint64_t now_ms);
+
+/**
+ * @brief  判断水路是否已收敛到目标状态（无强制关断、时序空闲、目标已达成）
+ */
 bool fluid_path_is_settled(void);
-#endif
 
 #ifdef __cplusplus
 }
