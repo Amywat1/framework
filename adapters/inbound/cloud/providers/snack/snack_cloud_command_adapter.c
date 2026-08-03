@@ -16,8 +16,8 @@
 #include <stdio.h>
 #include <string.h>
 
-#define REPLY_JSON_BUF_SIZE    128U
-#define SNACK_CLOUD_TOPIC_MAX  128U
+#define REPLY_JSON_BUF_SIZE   128U
+#define SNACK_CLOUD_TOPIC_MAX 128U
 
 static char s_topic_reply[SNACK_CLOUD_TOPIC_MAX] = "";
 
@@ -96,7 +96,7 @@ sw_err_t snack_cloud_command_adapter_configure(const char *topic_property_reply)
         return SW_ERR_PARAM;
     }
 
-    strcpy(s_topic_reply, topic_property_reply);
+    (void)snprintf(s_topic_reply, sizeof(s_topic_reply), "%s", topic_property_reply);
     return SW_OK;
 }
 

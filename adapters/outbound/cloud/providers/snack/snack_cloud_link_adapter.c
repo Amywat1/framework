@@ -14,6 +14,7 @@
 #include "runtime/event_bus/event_bus.h"
 
 #include <stdbool.h>
+#include <stdio.h>
 #include <string.h>
 
 #define SNACK_CLOUD_CRED_MAX 64U
@@ -144,8 +145,8 @@ sw_err_t snack_cloud_link_adapter_configure(const char *product_key, const char 
         return SW_ERR_PARAM;
     }
 
-    strcpy(s_product_key, product_key);
-    strcpy(s_device_sn, device_sn);
-    strcpy(s_device_secret, device_secret);
+    (void)snprintf(s_product_key, sizeof(s_product_key), "%s", product_key);
+    (void)snprintf(s_device_sn, sizeof(s_device_sn), "%s", device_sn);
+    (void)snprintf(s_device_secret, sizeof(s_device_secret), "%s", device_secret);
     return SW_OK;
 }

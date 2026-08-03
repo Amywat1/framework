@@ -14,6 +14,7 @@
 #include "ports/outbound/cloud/report/report_port.h"
 
 #include <stdbool.h>
+#include <stdio.h>
 #include <string.h>
 
 #define SNACK_CLOUD_TOPIC_MAX 128U
@@ -89,6 +90,6 @@ sw_err_t snack_cloud_report_adapter_configure(const char *topic_property_up)
         return SW_ERR_PARAM;
     }
 
-    strcpy(s_topic_up, topic_property_up);
+    (void)snprintf(s_topic_up, sizeof(s_topic_up), "%s", topic_property_up);
     return SW_OK;
 }

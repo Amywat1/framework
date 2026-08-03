@@ -31,6 +31,9 @@ sw_err_t util_fifo_init(util_fifo_t *p_fifo, uint8_t *p_buf, uint32_t size)
 
 sw_err_t util_fifo_put(util_fifo_t *p_fifo, uint8_t byte)
 {
+    if (p_fifo == NULL) {
+        return SW_ERR_PARAM;
+    }
     if (util_fifo_free(p_fifo) == 0U) {
         return SW_ERR_OVERFLOW;
     }
@@ -43,7 +46,7 @@ sw_err_t util_fifo_put(util_fifo_t *p_fifo, uint8_t byte)
 
 sw_err_t util_fifo_get(util_fifo_t *p_fifo, uint8_t *p_byte)
 {
-    if (p_byte == NULL) {
+    if ((p_fifo == NULL) || (p_byte == NULL)) {
         return SW_ERR_PARAM;
     }
 
@@ -97,16 +100,25 @@ uint32_t util_fifo_read(util_fifo_t *p_fifo, uint8_t *p_data, uint32_t len)
 
 uint32_t util_fifo_used(const util_fifo_t *p_fifo)
 {
+    if (p_fifo == NULL) {
+        return 0U;
+    }
     return p_fifo->tail - p_fifo->head;
 }
 
 uint32_t util_fifo_free(const util_fifo_t *p_fifo)
 {
+    if (p_fifo == NULL) {
+        return 0U;
+    }
     return p_fifo->size - util_fifo_used(p_fifo);
 }
 
 void util_fifo_flush(util_fifo_t *p_fifo)
 {
+    if (p_fifo == NULL) {
+        return;
+    }
     p_fifo->head = 0U;
     p_fifo->tail = 0U;
 }

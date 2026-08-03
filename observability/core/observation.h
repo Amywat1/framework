@@ -11,6 +11,7 @@ extern "C" {
 #endif
 
 #include "common/sw_error.h"
+#include "common/trace_context.h"
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -49,23 +50,24 @@ typedef enum {
     OBSERVATION_PAYLOAD_BINARY,
 } observation_payload_format_t;
 
-/** @brief  当前业务关联上下文。 */
-typedef struct {
-    uint64_t wash_session_id;
-    uint64_t command_id;
-    uint64_t correlation_id;
-    uint64_t causation_id;
-} observation_context_t;
+/**
+ * @brief  当前业务关联上下文。
+ * @note   与 common/trace_context.h 的 trace_context_t 是同一模型（同名同序四字段），
+ *         此处以别名复用而非重复定义，避免两套关联标识各自演进后失同步。
+ *         两者的差别只在存储方式：trace_context 是线程局部的“当前链路”，
+ *         本模块的 s_context 是可被显式设置的“记录默认上下文”。
+ */
+typedef trace_context_t observation_context_t;
 
 /** @brief  发布方提供的记录字段。 */
 typedef struct {
-    observation_record_kind_t   kind;
-    observation_severity_t      severity;
+    observation_record_kind_t    kind;
+    observation_severity_t       severity;
     observation_payload_format_t payload_format;
-    uint32_t                    event_code;
-    const char                 *source;
-    const void                 *payload;
-    size_t                      payload_size;
+    uint32_t                     event_code;
+    const char                  *source;
+    const void                  *payload;
+    size_t                       payload_size;
     const observation_context_t *context;
 } observation_record_spec_t;
 
