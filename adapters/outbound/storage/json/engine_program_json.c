@@ -8,6 +8,7 @@
 #include "adapters/outbound/storage/json/engine_program_json.h"
 
 #include "adapters/outbound/storage/json/engine_program_manifest.h"
+#include "common/asset_version.h"
 #include "domain/program_engine/engine/engine_actuator.h"
 #include "domain/program_engine/engine/engine_expr.h"
 #include "domain/program_engine/engine/engine_io.h"
@@ -617,9 +618,17 @@ static engine_program_t *build_program(const cJSON *root, char *err, unsigned er
         jfail(err, errsz, "%s", "缺少 schema_version");
         return NULL;
     }
-    if (strcmp(ver, "1.0") != 0) {
-        jfail(err, errsz, "不支持的 schema_version: %s", ver);
-        return NULL;
+    /* 改用通用版本校验而非精确串匹配：原先 strcmp("1.0") 使 "1.0.1" 这类
+     * 带修订号的合法资产被拒，且无法表达"接受同主版本的较低次版本"。 */
+    {
+        char     ver_err[128] = {0};
+        sw_err_t vr = asset_version_check("engine_program", ver, ENGINE_PROGRAM_SCHEMA_SUPPORTED, ver_err,
+                                         (unsigned)sizeof(ver_err));
+
+        if (vr != SW_OK) {
+            jfail(err, errsz, "%s", ver_err);
+            return NULL;
+        }
     }
 
     engine_program_t *p = (engine_program_t *)calloc(1U, sizeof(engine_program_t));

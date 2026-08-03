@@ -17,6 +17,14 @@
 extern "C" {
 #endif
 
+/**
+ * @brief 本加载器支持的方案 schema 版本
+ *
+ * 兼容规则见 common/asset_version.h：同主版本且资产次版本不高于此值即可加载。
+ * 方案格式发生结构性变更时提升主版本，仅追加可选字段时提升次版本。
+ */
+#define ENGINE_PROGRAM_SCHEMA_SUPPORTED "1.0"
+
 #include "domain/program_engine/model/engine_model.h"
 
 /**

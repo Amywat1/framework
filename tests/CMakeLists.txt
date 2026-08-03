@@ -275,6 +275,16 @@ add_unit_test(test_alarm_reeval_bridge
     ${WDF_ROOT}/common/log.c
 )
 
+add_unit_test(test_alarm_lifecycle_bridge
+    ${CMAKE_CURRENT_SOURCE_DIR}/application/test_alarm_lifecycle_bridge.c
+    ${WDF_ROOT}/application/bridges/alarm_lifecycle_bridge.c
+    ${WDF_ROOT}/domain/safety/alarm_registry/alarm_registry.c
+    ${WDF_ROOT}/ports/port_registry_infra.c
+    ${WDF_ROOT}/runtime/event_bus/event_bus.c
+    ${WDF_ROOT}/common/time_util.c
+    ${WDF_ROOT}/common/log.c
+)
+
 add_unit_test(test_op_mode_bridge
     ${CMAKE_CURRENT_SOURCE_DIR}/application/test_op_mode_bridge.c
     ${WDF_ROOT}/application/bridges/op_mode_bridge.c
@@ -289,6 +299,26 @@ add_unit_test(test_op_mode_bridge
 
 add_unit_test(test_event_param_codec
     ${CMAKE_CURRENT_SOURCE_DIR}/domain/test_event_param_codec.c
+)
+
+add_unit_test(test_sw_error
+    ${CMAKE_CURRENT_SOURCE_DIR}/common/test_sw_error.c
+)
+
+add_unit_test(test_asset_version
+    ${CMAKE_CURRENT_SOURCE_DIR}/common/test_asset_version.c
+    ${WDF_ROOT}/common/asset_version.c
+)
+
+add_unit_test(test_event_bus_capacity
+    ${CMAKE_CURRENT_SOURCE_DIR}/runtime/test_event_bus_capacity.c
+    ${WDF_ROOT}/runtime/event_bus/event_bus.c
+    ${WDF_ROOT}/common/time_util.c
+    ${WDF_ROOT}/common/log.c
+)
+
+add_unit_test(test_safety_matrix
+    ${CMAKE_CURRENT_SOURCE_DIR}/domain/test_safety_matrix.c
 )
 
 add_unit_test(test_operational_mode
@@ -344,6 +374,7 @@ add_unit_test(test_engine_session
     ${CMAKE_CURRENT_SOURCE_DIR}/application/test_engine_session.c
     ${WDF_ROOT}/application/engine_session/engine_session.c
     ${WDF_ROOT}/adapters/outbound/storage/json/engine_program_json.c
+    ${WDF_ROOT}/common/asset_version.c
     ${WDF_ROOT}/adapters/outbound/hal/sim/engine_io_sim.c
     ${WDF_ROOT}/domain/program_engine/engine/engine_actuator.c
     ${WDF_ROOT}/adapters/outbound/hal/sim/engine_actuator_sim.c
@@ -463,6 +494,7 @@ target_compile_definitions(test_json_deploy_store PRIVATE
 
 add_unit_test(test_engine_program_json
     ${CMAKE_CURRENT_SOURCE_DIR}/adapters/test_engine_program_json.c
+    ${WDF_ROOT}/common/asset_version.c
     ${WDF_ROOT}/adapters/outbound/storage/json/engine_program_json.c
     ${WDF_ROOT}/adapters/outbound/hal/sim/engine_io_sim.c
     ${WDF_ROOT}/domain/program_engine/engine/engine_actuator.c

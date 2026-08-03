@@ -81,6 +81,7 @@ _wdf_add_interface_lib(wdf_cjson
 # ---------------------------------------------------------------------------
 _wdf_add_interface_lib(wdf_common
     SOURCES
+        common/asset_version.c
         common/log.c
         common/time_util.c
         common/trace_context.c
