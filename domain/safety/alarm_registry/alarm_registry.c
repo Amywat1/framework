@@ -9,6 +9,7 @@
 
 #include "common/log.h"
 #include "common/time_util.h"
+#include "domain/safety/model/safety_matrix.h"
 #include "ports/inbound/safety/alarm_binding_port.h"
 
 #include <pthread.h>
@@ -98,7 +99,7 @@ static void append_active_slot_locked(const alarm_def_t *def)
     inst->condition_active = true;
     s_active_count++;
 
-    if (def->level >= ALARM_LEVEL_MAJOR) {
+    if (alarm_level_records_in_journal(def->level)) {
         (void)append_session_journal_locked(def->code);
     }
 
@@ -180,7 +181,7 @@ sw_err_t alarm_registry_clear(uint32_t code)
 
         clr                    = s_catalog[(unsigned)def_idx].clear;
         inst->condition_active = false;
-        if (clr == ALARM_CLEAR_AUTO_STATIC) {
+        if (alarm_clear_is_auto(clr)) {
             force_clear_locked(code);
         }
     }
@@ -202,7 +203,7 @@ sw_err_t alarm_registry_reevaluate_group(motion_reeval_group_id_t group)
         }
         {
             const alarm_def_t *def = &s_catalog[(unsigned)def_idx];
-            if ((def->clear == ALARM_CLEAR_ON_MOTION) && (def->reeval_group == group)) {
+            if (alarm_clear_needs_motion_reeval(def->clear) && (def->reeval_group == group)) {
                 codes[n++] = def->code;
             }
         }
@@ -251,7 +252,7 @@ void alarm_registry_reset_all(void)
             continue;
         }
         clr = s_catalog[(unsigned)def_idx].clear;
-        if ((clr != ALARM_CLEAR_ON_MOTION) && (clr != ALARM_CLEAR_MANUAL_RESET)) {
+        if (!alarm_clear_allows_manual_reset(clr)) {
             continue;
         }
         codes[n++] = code;
@@ -287,7 +288,7 @@ bool alarm_registry_has_blocking_active(void)
 
     pthread_mutex_lock(&s_mutex);
     for (i = 0; i < s_active_count; ++i) {
-        if (s_active[i].level >= ALARM_LEVEL_MAJOR) {
+        if (alarm_level_blocks_wash(s_active[i].level)) {
             blocking = true;
             break;
         }
@@ -342,10 +343,10 @@ static unsigned copy_safety_view_locked(alarm_instance_t *list,
     }
 
     for (i = 0U; i < s_active_count; ++i) {
-        if (s_active[i].level >= ALARM_LEVEL_MAJOR) {
+        if (alarm_level_blocks_wash(s_active[i].level)) {
             blocking = true;
         }
-        if (s_active[i].level == ALARM_LEVEL_CRITICAL) {
+        if (alarm_level_forces_lockout(s_active[i].level)) {
             posture = SAFETY_POSTURE_LOCKOUT;
         }
         if ((int)s_active[i].level > highest) {
@@ -400,7 +401,7 @@ safety_posture_t alarm_registry_safety_posture(void)
 
     pthread_mutex_lock(&s_mutex);
     for (i = 0; i < s_active_count; ++i) {
-        if (s_active[i].level == ALARM_LEVEL_CRITICAL) {
+        if (alarm_level_forces_lockout(s_active[i].level)) {
             posture = SAFETY_POSTURE_LOCKOUT;
             break;
         }
