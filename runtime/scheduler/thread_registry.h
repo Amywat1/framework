@@ -24,7 +24,7 @@ extern "C" {
  * 线程表最大容量
  *
  * 槽位构成（M8 实测，其他项目按同样口径核算）：
- *   框架固定占用      2  event_dispatch、safety_thread
+ *   框架固定占用      1  event_dispatch（急停轮询适配器如接入再加 1）
  *   引擎会话 worker   1~2 每个 engine_session 配置一个
  *   周期任务          9  见 periodic_task.c，与本上限共用同一容量
  * 合计约 13，留出余量以便项目新增周期任务时不必同步改框架常量。

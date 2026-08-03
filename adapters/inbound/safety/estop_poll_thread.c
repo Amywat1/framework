@@ -1,11 +1,11 @@
 /**
- * @file    safety_thread.c
- * @brief   EStop 硬件快速通道实现
+ * @file    estop_poll_thread.c
+ * @brief   急停轮询采集线程实现
  * @author  HUWANGWEI
  * @date    2026-07-09
  */
 
-#include "runtime/platform/safety_thread.h"
+#include "adapters/inbound/safety/estop_poll_thread.h"
 
 #include "common/event_types.h"
 #include "common/log.h"
@@ -26,10 +26,10 @@ static void handle_estop_edge(bool active)
     if (active) {
         safety_cutout_execute();
         (void)event_publish(EVT_HW_ESTOP_ON, 0U);
-        LOG_WARN("safety_thread: HW ESTOP ON");
+        LOG_WARN("estop_poll: HW ESTOP ON");
     } else {
         (void)event_publish(EVT_HW_ESTOP_OFF, 0U);
-        LOG_INFO("safety_thread: HW ESTOP OFF");
+        LOG_INFO("estop_poll: HW ESTOP OFF");
     }
 }
 
@@ -38,7 +38,7 @@ static void handle_estop_edge(bool active)
  * 线程以 pthread_detach 创建，进程退出即随之终止；不提供 stop 接口，
  * 以免在急停热路径上引入额外判断和可被误用的关闭时序。
  */
-static void *safety_thread_fn(void *arg)
+static void *estop_poll_thread_fn(void *arg)
 {
     bool last_active = false;
     bool initialized = false;
@@ -66,8 +66,8 @@ static void *safety_thread_fn(void *arg)
     return NULL;
 }
 
-sw_err_t safety_thread_init(void)
+sw_err_t estop_poll_thread_init(void)
 {
     return thread_register(
-        "safety_thread", safety_thread_fn, SCHED_FIFO, THD_SAFETY_THREAD_PRIO, THD_SAFETY_THREAD_STACK);
+        "estop_poll", estop_poll_thread_fn, SCHED_FIFO, THD_SAFETY_THREAD_PRIO, THD_SAFETY_THREAD_STACK);
 }
