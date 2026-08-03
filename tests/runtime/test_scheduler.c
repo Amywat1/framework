@@ -35,6 +35,8 @@ static void periodic_tick_fn(void *ctx)
 
 void setUp(void)
 {
+    /* 复位线程登记表，使各用例不依赖执行顺序 */
+    thread_registry_reset_for_test();
 }
 
 void tearDown(void)
@@ -85,8 +87,8 @@ static void test_register_arg_passes_context(void)
 
     ret = thread_register_arg("ctx_worker", one_shot_thread_fn, &ctx_value, SCHED_OTHER, 0, 4096U);
     TEST_ASSERT_EQUAL_INT(SW_OK, ret);
-    TEST_ASSERT_EQUAL_INT(2, thread_registry_count());
-    TEST_ASSERT_EQUAL_PTR(&ctx_value, thread_registry_get(1)->arg);
+    TEST_ASSERT_EQUAL_INT(1, thread_registry_count());
+    TEST_ASSERT_EQUAL_PTR(&ctx_value, thread_registry_get(0)->arg);
 }
 
 static void test_registry_get_out_of_range(void)
@@ -102,18 +104,21 @@ static void test_periodic_task_register_rejects_invalid_args(void)
     TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM,
                           periodic_task_register("tick", 0U, periodic_tick_fn, NULL, SCHED_OTHER, 0, 4096U));
     TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, periodic_task_register("tick", 10U, NULL, NULL, SCHED_OTHER, 0, 4096U));
-    TEST_ASSERT_EQUAL_INT(2, thread_registry_count());
+    /* 三次非法注册都不应占用登记槽 */
+    TEST_ASSERT_EQUAL_INT(0, thread_registry_count());
 }
 
 static void test_periodic_task_register_and_scheduler_start(void)
 {
     sw_err_t ret;
-    int      before_count;
 
-    before_count = thread_registry_count();
-    ret          = periodic_task_register("tick", 10U, periodic_tick_fn, NULL, SCHED_OTHER, 0, 8192U);
+    /* 自行注册两类线程，不依赖其他用例的遗留登记 */
+    ret = thread_register("one_shot", one_shot_thread_fn, SCHED_OTHER, 0, 8192U);
     TEST_ASSERT_EQUAL_INT(SW_OK, ret);
-    TEST_ASSERT_EQUAL_INT(before_count + 1, thread_registry_count());
+
+    ret = periodic_task_register("tick", 10U, periodic_tick_fn, NULL, SCHED_OTHER, 0, 8192U);
+    TEST_ASSERT_EQUAL_INT(SW_OK, ret);
+    TEST_ASSERT_EQUAL_INT(2, thread_registry_count());
 
     s_one_shot_done       = 0;
     s_periodic_tick_count = 0;
@@ -130,9 +135,9 @@ static void test_periodic_task_register_and_scheduler_start(void)
 static void test_registry_overflow(void)
 {
     int i;
-    int base = thread_registry_count();
 
-    for (i = base; i < THREAD_REGISTRY_MAX; i++) {
+    /* setUp 已复位登记表，从 0 填到满即可，无需读取当前值 */
+    for (i = 0; i < THREAD_REGISTRY_MAX; i++) {
         TEST_ASSERT_EQUAL_INT(SW_OK, thread_register("fill", one_shot_thread_fn, SCHED_OTHER, 0, 4096U));
     }
 

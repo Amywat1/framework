@@ -73,6 +73,15 @@ sw_err_t thread_register_arg(const char *name,
 int thread_registry_count(void);
 
 /**
+ * @brief  清空线程注册表（仅供单元测试消除用例间残留）
+ * @note   生产路径不得调用：线程一经 scheduler_start_all 创建即以
+ *         pthread_detach 运行且无法回收，清空登记表不会停止已启动的线程，
+ *         只会让后续注册重新从 0 号槽开始，造成登记与实际线程不一致。
+ *         周期任务槽由 periodic_task 自行管理，本函数不影响其占用。
+ */
+void thread_registry_reset_for_test(void);
+
+/**
  * @brief  按下标获取线程条目（只读）
  */
 const thread_entry_t *thread_registry_get(int idx);

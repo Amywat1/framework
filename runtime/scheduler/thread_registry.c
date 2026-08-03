@@ -58,3 +58,9 @@ const thread_entry_t *thread_registry_get(int idx)
     }
     return &s_entries[idx];
 }
+
+void thread_registry_reset_for_test(void)
+{
+    memset(s_entries, 0, sizeof(s_entries));
+    s_count = 0;
+}
