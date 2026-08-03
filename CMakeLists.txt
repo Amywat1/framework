@@ -9,6 +9,10 @@ set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g")
 include(${CMAKE_SOURCE_DIR}/cmake/generate_version.cmake)
 include_directories(${WDF_GENERATED_INCLUDE_DIR})
 
+# 框架核心分层目标（wdf_common / wdf_runtime / wdf_domain / ...）。
+# 项目仓库可直接 include 本文件复用同一批目标，无需手抄框架源清单。
+include(${CMAKE_SOURCE_DIR}/cmake/wdf_targets.cmake)
+
 option(WDF_BUILD_DEMO "Build in-repo smoke demo" ON)
 option(WDF_BUILD_TESTS "Build unit tests" ON)
 option(WDF_ENABLE_MCC_PROVIDER "Build MCC motor executor HAL provider" OFF)
