@@ -113,7 +113,6 @@ bool op_mode_is_stopping(void);
  */
 bool op_mode_is_standby(void);
 
-
 #ifdef __cplusplus
 }
 #endif

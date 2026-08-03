@@ -13,7 +13,8 @@
 /* ------------------------- 小工具 ------------------------- */
 
 /** @brief 64 位绝对值。 */
-static int64_t motor_iabs64(int64_t v) {
+static int64_t motor_iabs64(int64_t v)
+{
     return v < 0 ? -v : v;
 }
 
@@ -37,19 +38,23 @@ static int64_t upper_bound(int64_t value, int margin)
 
 /* ------------------------- 端口封装（可选方法 NULL 安全） ------------------------- */
 
-static motor_driver_t *motor_drv(motor_executor_t *e, int i) {
+static motor_driver_t *motor_drv(motor_executor_t *e, int i)
+{
     return e->ports.drivers[e->cfg.motors[i].driver_index];
 }
 
-static sw_err_t drv_set_output(motor_driver_t *d, motor_speed_t speed, motor_direction_t dir) {
+static sw_err_t drv_set_output(motor_driver_t *d, motor_speed_t speed, motor_direction_t dir)
+{
     return d->set_output(d->ctx, speed, dir);
 }
 
-static sw_err_t drv_cutoff(motor_driver_t *d) {
+static sw_err_t drv_cutoff(motor_driver_t *d)
+{
     return d->cutoff(d->ctx);
 }
 
-static bool drv_reset(motor_driver_t *d) {
+static bool drv_reset(motor_driver_t *d)
+{
     return d->reset(d->ctx);
 }
 
@@ -58,72 +63,86 @@ static motor_prepare_result_t drv_prepare(motor_driver_t *d, int motor)
     return d->prepare ? d->prepare(d->ctx, motor) : MOTOR_PREPARE_READY;
 }
 
-static bool drv_is_running(motor_driver_t *d) {
+static bool drv_is_running(motor_driver_t *d)
+{
     return d->is_running(d->ctx);
 }
 
-static int drv_current(motor_driver_t *d) {
+static int drv_current(motor_driver_t *d)
+{
     return d->current(d->ctx);
 }
 
-static bool drv_temperature(motor_driver_t *d, int *out) {
+static bool drv_temperature(motor_driver_t *d, int *out)
+{
     return d->temperature ? d->temperature(d->ctx, out) : false;
 }
 
-static bool drv_voltage(motor_driver_t *d, int *out) {
+static bool drv_voltage(motor_driver_t *d, int *out)
+{
     return d->voltage ? d->voltage(d->ctx, out) : false;
 }
 
-static motor_port_status_t drv_status(motor_driver_t *d) {
+static motor_port_status_t drv_status(motor_driver_t *d)
+{
     return d->status ? d->status(d->ctx) : MOTOR_PORT_OK;
 }
 
-static int64_t enc_raw(motor_encoder_t *e) {
+static int64_t enc_raw(motor_encoder_t *e)
+{
     return e->raw(e->ctx);
 }
 
-static bool enc_zero(motor_encoder_t *e) {
+static bool enc_zero(motor_encoder_t *e)
+{
     return e->zero(e->ctx);
 }
 
-static motor_encoder_t *motor_enc(motor_executor_t *e, int i) {
+static motor_encoder_t *motor_enc(motor_executor_t *e, int i)
+{
     return e->ports.encoders[i];
 }
 
-static bool sensor_limit(motor_executor_t *e, int i, motor_limit_kind_t k) {
+static bool sensor_limit(motor_executor_t *e, int i, motor_limit_kind_t k)
+{
     return e->ports.sensors->limit(e->ports.sensors->ctx, i, k);
 }
 
-static bool estop_active(motor_executor_t *e) {
+static bool estop_active(motor_executor_t *e)
+{
     return e->ports.estop->active(e->ports.estop->ctx);
 }
 
-static uint64_t clock_now(motor_executor_t *e) {
+static uint64_t clock_now(motor_executor_t *e)
+{
     return e->ports.clock->now_ms(e->ports.clock->ctx);
 }
 
 /* ------------------------- 结果构造 ------------------------- */
 
-static motor_cmd_result_t cmd_make(motor_cmd_status_t st, const char *reason) {
+static motor_cmd_result_t cmd_make(motor_cmd_status_t st, const char *reason)
+{
     motor_cmd_result_t r;
     r.status = st;
     r.reason = reason;
     return r;
 }
 
-static motor_cmd_result_t cmd_reject(const char *reason) {
+static motor_cmd_result_t cmd_reject(const char *reason)
+{
     return cmd_make(MOTOR_CMD_REJECTED, reason);
 }
 
 /* ------------------------- 事件队列（环形缓冲） ------------------------- */
 
-static void ev_push(motor_executor_t *e, const motor_event_t *ev) {
+static void ev_push(motor_executor_t *e, const motor_event_t *ev)
+{
     if (e->ev_count >= MOTOR_EVENT_QUEUE_CAP) {
         /* 队列满：丢弃最旧事件以容纳新事件（保证最新状态可达）。 */
         e->ev_head = (e->ev_head + 1) % MOTOR_EVENT_QUEUE_CAP;
         e->ev_count--;
     }
-    int tail = (e->ev_head + e->ev_count) % MOTOR_EVENT_QUEUE_CAP;
+    int tail        = (e->ev_head + e->ev_count) % MOTOR_EVENT_QUEUE_CAP;
     e->events[tail] = *ev;
     e->ev_count++;
 }
@@ -133,7 +152,8 @@ static void ev_push(motor_executor_t *e, const motor_event_t *ev) {
  * @note   run 型（无结束条件）与 move 型同样在 begin_start 记录 move_start_ms，
  *         耗时对两者都有意义，故不以 moveActive 为条件，否则 run 型恒为 0。
  */
-static uint64_t eff_elapsed(motor_executor_t *e, int i) {
+static uint64_t eff_elapsed(motor_executor_t *e, int i)
+{
     motor_mstate_t *s = &e->m[i];
     if (s->phase == MOTOR_PHASE_RUNNING) {
         return s->paused_elapsed_ms + (e->now - s->move_start_ms);
@@ -145,7 +165,8 @@ static uint64_t eff_elapsed(motor_executor_t *e, int i) {
  * @brief  把本段运行时长累加进 paused_elapsed_ms 并重置计时起点
  * @note   同时前移 move_start_ms，因此可重复调用而不会重复累加。
  */
-static void settle_elapsed(motor_executor_t *e, int i) {
+static void settle_elapsed(motor_executor_t *e, int i)
+{
     motor_mstate_t *s = &e->m[i];
     if (s->phase == MOTOR_PHASE_RUNNING) {
         s->paused_elapsed_ms += e->now - s->move_start_ms;
@@ -153,20 +174,24 @@ static void settle_elapsed(motor_executor_t *e, int i) {
     }
 }
 
-static void push_event(motor_executor_t *e, int i, motor_event_type_t t,
-                       motor_end_condition_t trig, motor_fault_code_t fc,
-                       motor_fault_level_t lvl) {
+static void push_event(motor_executor_t     *e,
+                       int                   i,
+                       motor_event_type_t    t,
+                       motor_end_condition_t trig,
+                       motor_fault_code_t    fc,
+                       motor_fault_level_t   lvl)
+{
     motor_event_t ev;
-    ev.motor = i;
-    ev.type = t;
+    ev.motor   = i;
+    ev.type    = t;
     ev.trigger = trig;
     /* 限位种类取本次运动的结束条件描述，仅在确实由限位终止时有效。 */
-    ev.has_limit = (trig == MOTOR_END_LIMIT) && e->m[i].spec.use_limit;
-    ev.limit = e->m[i].spec.limit;
-    ev.final_pos = e->m[i].position;
+    ev.has_limit  = (trig == MOTOR_END_LIMIT) && e->m[i].spec.use_limit;
+    ev.limit      = e->m[i].spec.limit;
+    ev.final_pos  = e->m[i].position;
     ev.elapsed_ms = eff_elapsed(e, i);
-    ev.fault = fc;
-    ev.level = lvl;
+    ev.fault      = fc;
+    ev.level      = lvl;
     ev_push(e, &ev);
 }
 
@@ -175,7 +200,8 @@ static void push_event(motor_executor_t *e, int i, motor_event_type_t t,
 /**
  * @brief 校验速度指定，不改变控制类型和值
  */
-static bool speed_valid(motor_executor_t *e, int i, motor_speed_t speed) {
+static bool speed_valid(motor_executor_t *e, int i, motor_speed_t speed)
+{
     if (speed.value <= 0) {
         return false;
     }
@@ -198,18 +224,17 @@ static motor_speed_t desired_output_speed(motor_executor_t *e, int i)
     const motor_motor_cfg_t *cfg   = &e->cfg.motors[i];
     motor_speed_t            speed = state->speed;
 
-    if (state->moveActive && state->spec.use_position
-        && (speed.kind == MOTOR_SPEED_GEAR) && (cfg->decel_point > 0)
-        && (cfg->position_slow_gear > 0)
-        && within_distance(state->spec.target_pos, state->position, cfg->decel_point)
+    if (state->moveActive && state->spec.use_position && (speed.kind == MOTOR_SPEED_GEAR) && (cfg->decel_point > 0)
+        && (cfg->position_slow_gear > 0) && within_distance(state->spec.target_pos, state->position, cfg->decel_point)
         && (speed.value > cfg->position_slow_gear)) {
         speed.value = cfg->position_slow_gear;
     }
     return speed;
 }
 
-static bool apply_output(motor_executor_t *e, int i) {
-    motor_mstate_t *s = &e->m[i];
+static bool apply_output(motor_executor_t *e, int i)
+{
+    motor_mstate_t *s       = &e->m[i];
     motor_speed_t   desired = desired_output_speed(e, i);
 
     if (s->output_applied && speed_equal(s->applied_speed, desired)) {
@@ -218,12 +243,13 @@ static bool apply_output(motor_executor_t *e, int i) {
     if (drv_set_output(motor_drv(e, i), desired, s->dir) != SW_OK) {
         return false;
     }
-    s->applied_speed = desired;
+    s->applied_speed  = desired;
     s->output_applied = true;
     return true;
 }
 
-static bool immediate_cut(motor_executor_t *e, int i) {
+static bool immediate_cut(motor_executor_t *e, int i)
+{
     e->m[i].output_applied = false;
     return drv_cutoff(motor_drv(e, i)) == SW_OK;
 }
@@ -236,7 +262,8 @@ static void begin_start(motor_executor_t *e, int i, const motor_pending_cmd_t *p
 
 /* ------------------------- 互锁 ------------------------- */
 
-static bool interlock_ok(motor_executor_t *e, int i) {
+static bool interlock_ok(motor_executor_t *e, int i)
+{
     for (int k = 0; k < e->cfg.interlock_count; ++k) {
         const motor_interlock_t *il = &e->cfg.interlocks[k];
         if (il->a != i) {
@@ -244,9 +271,8 @@ static bool interlock_ok(motor_executor_t *e, int i) {
         }
         if (il->kind == MOTOR_INTERLOCK_MUTEX) {
             motor_phase_t bp = e->m[il->b].phase;
-            if (bp == MOTOR_PHASE_RUNNING || bp == MOTOR_PHASE_DECELERATING ||
-                bp == MOTOR_PHASE_WAITING_START || bp == MOTOR_PHASE_REVERSAL_WAIT ||
-                bp == MOTOR_PHASE_PAUSED) {
+            if (bp == MOTOR_PHASE_RUNNING || bp == MOTOR_PHASE_DECELERATING || bp == MOTOR_PHASE_WAITING_START
+                || bp == MOTOR_PHASE_REVERSAL_WAIT || bp == MOTOR_PHASE_PAUSED) {
                 return false;
             }
         } else {
@@ -310,7 +336,8 @@ static void begin_start(motor_executor_t *e, int i, const motor_pending_cmd_t *p
     s->phase             = MOTOR_PHASE_RUNNING;
 }
 
-static bool reversal(motor_executor_t *e, int i, const motor_pending_cmd_t *pc) {
+static bool reversal(motor_executor_t *e, int i, const motor_pending_cmd_t *pc)
+{
     motor_mstate_t *s = &e->m[i];
 
     if (!immediate_cut(e, i)) {
@@ -319,16 +346,17 @@ static bool reversal(motor_executor_t *e, int i, const motor_pending_cmd_t *pc) 
     }
     s->after_reversal = *pc;
     s->reversal_until = e->now + e->cfg.motors[i].reversal_stop_ms;
-    s->phase = MOTOR_PHASE_REVERSAL_WAIT;
+    s->phase          = MOTOR_PHASE_REVERSAL_WAIT;
     return true;
 }
 
-static bool in_cooldown(motor_executor_t *e, int i) {
+static bool in_cooldown(motor_executor_t *e, int i)
+{
     return e->now < e->m[i].cooldown_until;
 }
 
-static motor_cmd_result_t start_or_reverse(motor_executor_t *e, int i,
-                                           const motor_pending_cmd_t *pc) {
+static motor_cmd_result_t start_or_reverse(motor_executor_t *e, int i, const motor_pending_cmd_t *pc)
+{
     motor_mstate_t *s = &e->m[i];
     if (s->phase == MOTOR_PHASE_RUNNING || s->phase == MOTOR_PHASE_DECELERATING) {
         if ((pc->dir != s->dir) || (pc->speed.kind != s->speed.kind)) {
@@ -352,8 +380,8 @@ static motor_cmd_result_t start_or_reverse(motor_executor_t *e, int i,
         }
         if (in_cooldown(e, i)) {
             s->pending = *pc;
-            s->queued = true;
-            s->phase = MOTOR_PHASE_WAITING_START;
+            s->queued  = true;
+            s->phase   = MOTOR_PHASE_WAITING_START;
             return cmd_make(MOTOR_CMD_QUEUED, "cooldown");
         }
         begin_start(e, i, pc);
@@ -370,21 +398,23 @@ static motor_cmd_result_t start_or_reverse(motor_executor_t *e, int i,
 
 /* ------------------------- 故障 ------------------------- */
 
-static void fault_one(motor_executor_t *e, int i, motor_fault_code_t code, bool fatal) {
+static void fault_one(motor_executor_t *e, int i, motor_fault_code_t code, bool fatal)
+{
     motor_mstate_t *s = &e->m[i];
     (void)immediate_cut(e, i);
     /* 结算耗时后再转入故障态，故障事件才能带上已运行时长。 */
     settle_elapsed(e, i);
-    s->phase = MOTOR_PHASE_FAULT;
-    s->fault = true;
-    s->fatal = fatal;
-    s->fault_code = code;
-    s->moveActive = false;
-    s->queued = false;
+    s->phase             = MOTOR_PHASE_FAULT;
+    s->fault             = true;
+    s->fatal             = fatal;
+    s->fault_code        = code;
+    s->moveActive        = false;
+    s->queued            = false;
     s->driver_reset_done = false;
 }
 
-static void link_shared_driver(motor_executor_t *e, int i) {
+static void link_shared_driver(motor_executor_t *e, int i)
+{
     int di = e->cfg.motors[i].driver_index;
     for (int j = 0; j < e->motor_count; ++j) {
         if (j == i) {
@@ -397,23 +427,25 @@ static void link_shared_driver(motor_executor_t *e, int i) {
             continue;
         }
         fault_one(e, j, MOTOR_FAULT_SHARED_DRIVER, false);
-        push_event(e, j, MOTOR_EVENT_FAULT, MOTOR_END_NONE,
-                   MOTOR_FAULT_SHARED_DRIVER, MOTOR_LEVEL_FAULT);
+        push_event(e, j, MOTOR_EVENT_FAULT, MOTOR_END_NONE, MOTOR_FAULT_SHARED_DRIVER, MOTOR_LEVEL_FAULT);
     }
 }
 
-static void enter_fault(motor_executor_t *e, int i, motor_fault_code_t code) {
+static void enter_fault(motor_executor_t *e, int i, motor_fault_code_t code)
+{
     fault_one(e, i, code, false);
     push_event(e, i, MOTOR_EVENT_FAULT, MOTOR_END_NONE, code, MOTOR_LEVEL_FAULT);
     link_shared_driver(e, i);
 }
 
-static void enter_fatal(motor_executor_t *e, int i, motor_fault_code_t code) {
+static void enter_fatal(motor_executor_t *e, int i, motor_fault_code_t code)
+{
     fault_one(e, i, code, true);
     push_event(e, i, MOTOR_EVENT_FAULT, MOTOR_END_NONE, code, MOTOR_LEVEL_FATAL);
 }
 
-static void warn(motor_executor_t *e, int i, motor_fault_code_t code) {
+static void warn(motor_executor_t *e, int i, motor_fault_code_t code)
+{
     if (e->cfg.motors[i].enc_escalate && code == MOTOR_FAULT_ENCODER_SIGNAL) {
         enter_fault(e, i, code);
         return;
@@ -423,7 +455,8 @@ static void warn(motor_executor_t *e, int i, motor_fault_code_t code) {
 
 /* ------------------------- 停止 / 到位 ------------------------- */
 
-static void finish_halt(motor_executor_t *e, int i) {
+static void finish_halt(motor_executor_t *e, int i)
+{
     motor_mstate_t *s = &e->m[i];
     if (!immediate_cut(e, i)) {
         enter_fault(e, i, MOTOR_FAULT_DRIVER_PORT_FATAL);
@@ -431,13 +464,12 @@ static void finish_halt(motor_executor_t *e, int i) {
     }
     /* 置 STOPPED 前先结算耗时，否则随后的停止事件只能读到未累加的 0。 */
     settle_elapsed(e, i);
-    s->phase = MOTOR_PHASE_STOPPED;
-    s->moveActive = false;
+    s->phase          = MOTOR_PHASE_STOPPED;
+    s->moveActive     = false;
     s->cooldown_until = e->now + e->cfg.motors[i].cooldown_ms;
     if (s->emit_stop_on_halt) {
         s->emit_stop_on_halt = false;
-        push_event(e, i, MOTOR_EVENT_STOPPED, MOTOR_END_NONE,
-                   MOTOR_FAULT_NONE, MOTOR_LEVEL_WARNING);
+        push_event(e, i, MOTOR_EVENT_STOPPED, MOTOR_END_NONE, MOTOR_FAULT_NONE, MOTOR_LEVEL_WARNING);
     }
 }
 
@@ -445,8 +477,9 @@ static void finish_halt(motor_executor_t *e, int i) {
  * @brief  有编码器轴到达原点后清零并建立可信基准
  * @note   绝对编码器：限位只作停机，不改写 position（真值始终来自传感器采样）。
  */
-static bool zero_encoder_baseline(motor_executor_t *e, int i) {
-    motor_mstate_t  *s   = &e->m[i];
+static bool zero_encoder_baseline(motor_executor_t *e, int i)
+{
+    motor_mstate_t  *s = &e->m[i];
     motor_encoder_t *enc;
 
     if (!e->cfg.motors[i].has_encoder) {
@@ -478,22 +511,21 @@ static bool zero_encoder_baseline(motor_executor_t *e, int i) {
  * @brief  更新原点限位采样状态
  * @note   清零只由原点到位事务执行，避免限位上升沿与到位路径重复清零。
  */
-static void update_origin_latch(motor_executor_t *e, int i) {
+static void update_origin_latch(motor_executor_t *e, int i)
+{
     e->m[i].origin_was_active = sensor_limit(e, i, MOTOR_LIMIT_ORIGIN);
 }
 
-static void complete_move(motor_executor_t *e, int i, motor_event_type_t type,
-                          motor_end_condition_t trig) {
-    motor_mstate_t *s = &e->m[i];
-    motor_fault_level_t lvl = (type == MOTOR_EVENT_ARRIVED) ? MOTOR_LEVEL_WARNING
-                                                             : MOTOR_LEVEL_FAULT;
-    bool origin_reached = trig == MOTOR_END_LIMIT && s->spec.use_limit
-                          && s->spec.limit == MOTOR_LIMIT_ORIGIN;
+static void complete_move(motor_executor_t *e, int i, motor_event_type_t type, motor_end_condition_t trig)
+{
+    motor_mstate_t     *s   = &e->m[i];
+    motor_fault_level_t lvl = (type == MOTOR_EVENT_ARRIVED) ? MOTOR_LEVEL_WARNING : MOTOR_LEVEL_FAULT;
+    bool origin_reached     = trig == MOTOR_END_LIMIT && s->spec.use_limit && s->spec.limit == MOTOR_LIMIT_ORIGIN;
 
     /* 先结算耗时，保留到位瞬间的时长供随后的事件读取。 */
     settle_elapsed(e, i);
-    s->homing = false;
-    s->moveActive = false;
+    s->homing            = false;
+    s->moveActive        = false;
     s->emit_stop_on_halt = false;
     if (origin_reached) {
         finish_halt(e, i);
@@ -514,8 +546,9 @@ static void complete_move(motor_executor_t *e, int i, motor_event_type_t type,
     finish_halt(e, i);
 }
 
-static void check_end(motor_executor_t *e, int i) {
-    motor_mstate_t *s = &e->m[i];
+static void check_end(motor_executor_t *e, int i)
+{
+    motor_mstate_t          *s  = &e->m[i];
     const motor_motor_cfg_t *mc = &e->cfg.motors[i];
     if (!s->moveActive) {
         return;
@@ -528,9 +561,8 @@ static void check_end(motor_executor_t *e, int i) {
     if (s->spec.use_position) {
         int64_t target    = s->spec.target_pos;
         int     tolerance = mc->pos_tolerance;
-        bool reached = (s->dir == MOTOR_DIR_FORWARD)
-                           ? (s->position >= lower_bound(target, tolerance))
-                           : (s->position <= upper_bound(target, tolerance));
+        bool    reached   = (s->dir == MOTOR_DIR_FORWARD) ? (s->position >= lower_bound(target, tolerance))
+                                                          : (s->position <= upper_bound(target, tolerance));
 
         if (reached) {
             complete_move(e, i, MOTOR_EVENT_ARRIVED, MOTOR_END_POSITION);
@@ -552,8 +584,7 @@ static void check_end(motor_executor_t *e, int i) {
         complete_move(e, i, MOTOR_EVENT_ARRIVED, MOTOR_END_TIME);
         return;
     }
-    uint64_t max_t = s->spec.max_time_ms ? s->spec.max_time_ms
-                                         : (uint64_t)mc->default_max_move_ms;
+    uint64_t max_t = s->spec.max_time_ms ? s->spec.max_time_ms : (uint64_t)mc->default_max_move_ms;
     if (el >= max_t) {
         complete_move(e, i, MOTOR_EVENT_TIMEOUT, MOTOR_END_TIMEOUT);
         return;
@@ -562,13 +593,14 @@ static void check_end(motor_executor_t *e, int i) {
 
 /* ------------------------- 编码器 ------------------------- */
 
-static void update_encoder(motor_executor_t *e, int i, bool moving) {
-    motor_encoder_t *enc = motor_enc(e, i);
+static void update_encoder(motor_executor_t *e, int i, bool moving)
+{
+    motor_encoder_t         *enc = motor_enc(e, i);
     const motor_motor_cfg_t *mc;
-    motor_mstate_t *s;
-    int64_t r;
-    int64_t d;
-    int64_t ad;
+    motor_mstate_t          *s;
+    int64_t                  r;
+    int64_t                  d;
+    int64_t                  ad;
 
     if (!enc) {
         return;
@@ -610,18 +642,19 @@ static void update_encoder(motor_executor_t *e, int i, bool moving) {
 
 /* ------------------------- 监测 ------------------------- */
 
-static void monitor(motor_executor_t *e, int i) {
-    motor_mstate_t *s = &e->m[i];
+static void monitor(motor_executor_t *e, int i)
+{
+    motor_mstate_t            *s  = &e->m[i];
     const motor_monitor_cfg_t *mn = &e->cfg.motors[i].mon;
 
     if ((e->now - s->start_ms) < (uint64_t)mn->startup_delay_ms) {
         /* 启动延迟窗口内不做电流判定。 */
     } else if (mn->monitor_current) {
-        bool accel_seg = (e->now - s->start_ms) < (uint64_t)e->cfg.motors[i].accel_ms;
-        int cmax = accel_seg ? mn->cur_max_accel : mn->cur_max_steady;
-        int cmin = accel_seg ? mn->cur_min_accel : mn->cur_min_steady;
-        int cur = drv_current(motor_drv(e, i));
-        s->cur_over_ms = (cur > cmax) ? s->cur_over_ms + e->cfg.tick_ms : 0;
+        bool accel_seg  = (e->now - s->start_ms) < (uint64_t)e->cfg.motors[i].accel_ms;
+        int  cmax       = accel_seg ? mn->cur_max_accel : mn->cur_max_steady;
+        int  cmin       = accel_seg ? mn->cur_min_accel : mn->cur_min_steady;
+        int  cur        = drv_current(motor_drv(e, i));
+        s->cur_over_ms  = (cur > cmax) ? s->cur_over_ms + e->cfg.tick_ms : 0;
         s->cur_under_ms = (cur < cmin) ? s->cur_under_ms + e->cfg.tick_ms : 0;
         if (s->cur_over_ms >= mn->cur_confirm_ms && cur > cmax) {
             enter_fault(e, i, MOTOR_FAULT_OVERCURRENT);
@@ -673,36 +706,35 @@ static void monitor(motor_executor_t *e, int i) {
 
 /* ------------------------- 急停 / 看门狗 ------------------------- */
 
-static void trigger_estop(motor_executor_t *e) {
+static void trigger_estop(motor_executor_t *e)
+{
     for (int i = 0; i < e->motor_count; ++i) {
-        motor_mstate_t *s = &e->m[i];
-        bool was_active = (s->phase != MOTOR_PHASE_STOPPED && s->phase != MOTOR_PHASE_FAULT);
+        motor_mstate_t *s          = &e->m[i];
+        bool            was_active = (s->phase != MOTOR_PHASE_STOPPED && s->phase != MOTOR_PHASE_FAULT);
         (void)immediate_cut(e, i);
         /* 结算耗时后再转入急停态，急停事件才能带上被切断时的已运行时长。 */
         settle_elapsed(e, i);
-        s->queued = false;
+        s->queued     = false;
         s->moveActive = false;
-        s->phase = MOTOR_PHASE_ESTOP;
+        s->phase      = MOTOR_PHASE_ESTOP;
         if (was_active) {
-            push_event(e, i, MOTOR_EVENT_ESTOP, MOTOR_END_NONE,
-                       MOTOR_FAULT_NONE, MOTOR_LEVEL_FAULT);
+            push_event(e, i, MOTOR_EVENT_ESTOP, MOTOR_END_NONE, MOTOR_FAULT_NONE, MOTOR_LEVEL_FAULT);
         }
     }
     e->estop_latched = true;
 }
 
-static void trigger_safe(motor_executor_t *e) {
+static void trigger_safe(motor_executor_t *e)
+{
     for (int i = 0; i < e->motor_count; ++i) {
-        bool was_active = (e->m[i].phase != MOTOR_PHASE_STOPPED &&
-                           e->m[i].phase != MOTOR_PHASE_FAULT &&
-                           e->m[i].phase != MOTOR_PHASE_ESTOP);
+        bool was_active = (e->m[i].phase != MOTOR_PHASE_STOPPED && e->m[i].phase != MOTOR_PHASE_FAULT
+                           && e->m[i].phase != MOTOR_PHASE_ESTOP);
         (void)immediate_cut(e, i);
-        e->m[i].queued = false;
+        e->m[i].queued     = false;
         e->m[i].moveActive = false;
         fault_one(e, i, MOTOR_FAULT_WATCHDOG, false);
         if (was_active) {
-            push_event(e, i, MOTOR_EVENT_FAULT, MOTOR_END_NONE,
-                       MOTOR_FAULT_WATCHDOG, MOTOR_LEVEL_FAULT);
+            push_event(e, i, MOTOR_EVENT_FAULT, MOTOR_END_NONE, MOTOR_FAULT_WATCHDOG, MOTOR_LEVEL_FAULT);
         }
     }
     e->safe_latched = true;
@@ -710,14 +742,15 @@ static void trigger_safe(motor_executor_t *e) {
 
 /* ------------------------- 事件分发 ------------------------- */
 
-static void dispatch(motor_executor_t *e) {
+static void dispatch(motor_executor_t *e)
+{
     if (!e->cb) {
         return;
     }
     e->in_dispatch = true;
     motor_event_t ev;
     while (e->ev_count > 0) {
-        ev = e->events[e->ev_head];
+        ev         = e->events[e->ev_head];
         e->ev_head = (e->ev_head + 1) % MOTOR_EVENT_QUEUE_CAP;
         e->ev_count--;
         e->cb(&ev, e->cb_ctx);
@@ -727,15 +760,15 @@ static void dispatch(motor_executor_t *e) {
 
 /* ------------------------- tick ------------------------- */
 
-void motor_tick(motor_executor_t *e) {
+void motor_tick(motor_executor_t *e)
+{
     e->now = clock_now(e);
 
     /* 看门狗：检测 tick 缺拍。 */
-    if (!e->safe_latched && e->last_tick_valid &&
-        (e->now - e->last_tick_ms) > (uint64_t)e->cfg.watchdog_ms) {
+    if (!e->safe_latched && e->last_tick_valid && (e->now - e->last_tick_ms) > (uint64_t)e->cfg.watchdog_ms) {
         trigger_safe(e);
     }
-    e->last_tick_ms = e->now;
+    e->last_tick_ms    = e->now;
     e->last_tick_valid = true;
 
     if (e->safe_latched) {
@@ -770,37 +803,37 @@ void motor_tick(motor_executor_t *e) {
         update_origin_latch(e, i);
 
         switch (s->phase) {
-            case MOTOR_PHASE_WAITING_START:
-                if (e->now >= s->cooldown_until && interlock_ok(e, i) && s->queued) {
-                    begin_start(e, i, &s->pending);
+        case MOTOR_PHASE_WAITING_START:
+            if (e->now >= s->cooldown_until && interlock_ok(e, i) && s->queued) {
+                begin_start(e, i, &s->pending);
+            }
+            break;
+        case MOTOR_PHASE_REVERSAL_WAIT:
+            if (e->now >= s->reversal_until) {
+                begin_start(e, i, &s->after_reversal);
+            }
+            break;
+        case MOTOR_PHASE_RUNNING:
+            update_encoder(e, i, true);
+            check_end(e, i);
+            if (s->phase == MOTOR_PHASE_RUNNING) {
+                if (!apply_output(e, i)) {
+                    enter_fault(e, i, MOTOR_FAULT_DRIVER_PORT_FATAL);
+                    break;
                 }
-                break;
-            case MOTOR_PHASE_REVERSAL_WAIT:
-                if (e->now >= s->reversal_until) {
-                    begin_start(e, i, &s->after_reversal);
-                }
-                break;
-            case MOTOR_PHASE_RUNNING:
-                update_encoder(e, i, true);
-                check_end(e, i);
-                if (s->phase == MOTOR_PHASE_RUNNING) {
-                    if (!apply_output(e, i)) {
-                        enter_fault(e, i, MOTOR_FAULT_DRIVER_PORT_FATAL);
-                        break;
-                    }
-                    monitor(e, i);
-                }
-                break;
-            case MOTOR_PHASE_DECELERATING:
-                update_encoder(e, i, true);
-                finish_halt(e, i);
-                break;
-            case MOTOR_PHASE_PAUSED:
-                update_encoder(e, i, false);
-                break;
-            default:
-                update_encoder(e, i, false);
-                break;
+                monitor(e, i);
+            }
+            break;
+        case MOTOR_PHASE_DECELERATING:
+            update_encoder(e, i, true);
+            finish_halt(e, i);
+            break;
+        case MOTOR_PHASE_PAUSED:
+            update_encoder(e, i, false);
+            break;
+        default:
+            update_encoder(e, i, false);
+            break;
         }
     }
     dispatch(e);
@@ -808,27 +841,31 @@ void motor_tick(motor_executor_t *e) {
 
 /* ------------------------- 初始化 ------------------------- */
 
-static motor_init_result_t init_ok(void) {
+static motor_init_result_t init_ok(void)
+{
     motor_init_result_t r;
-    r.ok = true;
+    r.ok    = true;
     r.error = "";
     return r;
 }
 
-static motor_init_result_t init_err(const char *msg) {
+static motor_init_result_t init_err(const char *msg)
+{
     motor_init_result_t r;
-    r.ok = false;
+    r.ok    = false;
     r.error = msg;
     return r;
 }
 
-static int monitor_channel_count(const motor_monitor_cfg_t *mn) {
-    return (mn->monitor_current ? 1 : 0) + (mn->monitor_feedback ? 1 : 0)
-         + (mn->monitor_temp ? 1 : 0) + (mn->monitor_voltage ? 1 : 0);
+static int monitor_channel_count(const motor_monitor_cfg_t *mn)
+{
+    return (mn->monitor_current ? 1 : 0) + (mn->monitor_feedback ? 1 : 0) + (mn->monitor_temp ? 1 : 0)
+           + (mn->monitor_voltage ? 1 : 0);
 }
 
 /** @brief 执行 fail-fast 校验并把状态归零。cfg/ports 已存入 exec。 */
-static motor_init_result_t do_init(motor_executor_t *e) {
+static motor_init_result_t do_init(motor_executor_t *e)
+{
     const motor_config_t *c = &e->cfg;
 
     if (c->motor_count <= 0 || c->motor_count > MOTOR_MAX_MOTORS) {
@@ -859,9 +896,8 @@ static motor_init_result_t do_init(motor_executor_t *e) {
         if (mc->default_max_move_ms <= 0) {
             return init_err("defaultMaxMoveMs must be > 0");
         }
-        if (mc->cooldown_ms < 0 || mc->reversal_stop_ms < 0 ||
-            mc->accel_ms < 0 || mc->decel_ms < 0 || mc->pos_tolerance < 0
-            || mc->decel_point < 0) {
+        if (mc->cooldown_ms < 0 || mc->reversal_stop_ms < 0 || mc->accel_ms < 0 || mc->decel_ms < 0
+            || mc->pos_tolerance < 0 || mc->decel_point < 0) {
             return init_err("time params must be >= 0");
         }
         if ((mc->position_slow_gear < 0) || (mc->position_slow_gear > mc->gear_count)) {
@@ -890,8 +926,7 @@ static motor_init_result_t do_init(motor_executor_t *e) {
 
     for (int k = 0; k < c->interlock_count; ++k) {
         const motor_interlock_t *il = &c->interlocks[k];
-        if (il->a < 0 || il->a >= c->motor_count ||
-            il->b < 0 || il->b >= c->motor_count) {
+        if (il->a < 0 || il->a >= c->motor_count || il->b < 0 || il->b >= c->motor_count) {
             return init_err("interlock references unknown motor");
         }
     }
@@ -900,22 +935,22 @@ static motor_init_result_t do_init(motor_executor_t *e) {
     e->motor_count = c->motor_count;
     for (int i = 0; i < c->motor_count; ++i) {
         motor_mstate_t empty = {0};
-        e->m[i] = empty;
-        e->m[i].phase = MOTOR_PHASE_STOPPED;
-        e->m[i].dir = MOTOR_DIR_FORWARD;
-        e->m[i].fault_code = MOTOR_FAULT_NONE;
+        e->m[i]              = empty;
+        e->m[i].phase        = MOTOR_PHASE_STOPPED;
+        e->m[i].dir          = MOTOR_DIR_FORWARD;
+        e->m[i].fault_code   = MOTOR_FAULT_NONE;
     }
-    e->now = clock_now(e);
-    e->last_tick_ms = e->now;
+    e->now             = clock_now(e);
+    e->last_tick_ms    = e->now;
     e->last_tick_valid = true;
-    e->estop_latched = false;
-    e->safe_latched = false;
-    e->ev_head = 0;
-    e->ev_count = 0;
-    e->in_dispatch = false;
+    e->estop_latched   = false;
+    e->safe_latched    = false;
+    e->ev_head         = 0;
+    e->ev_count        = 0;
+    e->in_dispatch     = false;
     for (int i = 0; i < c->motor_count; ++i) {
         motor_encoder_t *enc = motor_enc(e, i);
-        e->m[i].last_raw = enc ? enc_raw(enc) : 0;
+        e->m[i].last_raw     = enc ? enc_raw(enc) : 0;
         if (enc && (c->motors[i].encoder_kind == MOTOR_ENC_ABSOLUTE)) {
             e->m[i].position         = e->m[i].last_raw;
             e->m[i].baseline_trusted = true;
@@ -930,27 +965,29 @@ static motor_init_result_t do_init(motor_executor_t *e) {
     return init_ok();
 }
 
-motor_init_result_t motor_init(motor_executor_t *e, const motor_config_t *cfg,
-                               const motor_ports_t *ports) {
-    e->cfg = *cfg;
-    e->ports = *ports;
-    e->cb = NULL;
+motor_init_result_t motor_init(motor_executor_t *e, const motor_config_t *cfg, const motor_ports_t *ports)
+{
+    e->cfg    = *cfg;
+    e->ports  = *ports;
+    e->cb     = NULL;
     e->cb_ctx = NULL;
     return do_init(e);
 }
 
-motor_init_result_t motor_reinit(motor_executor_t *e) {
+motor_init_result_t motor_reinit(motor_executor_t *e)
+{
     return do_init(e);
 }
 
 /* ------------------------- 命令 ------------------------- */
 
-static bool bad_motor(motor_executor_t *e, int i) {
+static bool bad_motor(motor_executor_t *e, int i)
+{
     return i < 0 || i >= e->motor_count;
 }
 
-motor_cmd_result_t motor_run_continuous(motor_executor_t *e, int i,
-                                        motor_speed_t spd, motor_direction_t dir) {
+motor_cmd_result_t motor_run_continuous(motor_executor_t *e, int i, motor_speed_t spd, motor_direction_t dir)
+{
     if (e->in_dispatch) {
         return cmd_reject("reentrant");
     }
@@ -971,14 +1008,18 @@ motor_cmd_result_t motor_run_continuous(motor_executor_t *e, int i,
         return cmd_reject("bad-speed");
     }
     motor_pending_cmd_t pc = {0};
-    pc.is_move = false;
-    pc.speed = spd;
-    pc.dir = dir;
+    pc.is_move             = false;
+    pc.speed               = spd;
+    pc.dir                 = dir;
     return start_or_reverse(e, i, &pc);
 }
 
-motor_cmd_result_t motor_move_to(motor_executor_t *e, int i, motor_speed_t spd,
-                                 motor_direction_t dir, const motor_move_spec_t *spec) {
+motor_cmd_result_t motor_move_to(motor_executor_t        *e,
+                                 int                      i,
+                                 motor_speed_t            spd,
+                                 motor_direction_t        dir,
+                                 const motor_move_spec_t *spec)
+{
     motor_mstate_t *s;
 
     if (e->in_dispatch) {
@@ -1009,65 +1050,66 @@ motor_cmd_result_t motor_move_to(motor_executor_t *e, int i, motor_speed_t spd,
         return cmd_reject("bad-speed");
     }
     s = &e->m[i];
-    if ((s->phase == MOTOR_PHASE_RUNNING) && s->moveActive
-        && s->spec.use_position && spec->use_position
+    if ((s->phase == MOTOR_PHASE_RUNNING) && s->moveActive && s->spec.use_position && spec->use_position
         && (s->dir == dir) && (s->speed.kind == spd.kind)) {
         s->speed = spd;
         s->spec  = *spec;
         return cmd_make(MOTOR_CMD_ACCEPTED, "position-target-updated");
     }
     motor_pending_cmd_t pc = {0};
-    pc.is_move = true;
-    pc.speed = spd;
-    pc.dir = dir;
-    pc.spec = *spec;
+    pc.is_move             = true;
+    pc.speed               = spd;
+    pc.dir                 = dir;
+    pc.spec                = *spec;
     return start_or_reverse(e, i, &pc);
 }
 
-motor_cmd_result_t motor_stop(motor_executor_t *e, int i) {
+motor_cmd_result_t motor_stop(motor_executor_t *e, int i)
+{
     if (e->in_dispatch) {
         return cmd_reject("reentrant");
     }
     if (bad_motor(e, i)) {
         return cmd_reject("bad-motor");
     }
-    e->now = clock_now(e);
+    e->now            = clock_now(e);
     motor_mstate_t *s = &e->m[i];
     switch (s->phase) {
-        case MOTOR_PHASE_WAITING_START:
-            s->queued = false;
-            s->phase = MOTOR_PHASE_STOPPED;
-            return cmd_make(MOTOR_CMD_ACCEPTED, "queue-cancel");
-        case MOTOR_PHASE_REVERSAL_WAIT:
-            s->phase = MOTOR_PHASE_STOPPED;
-            s->cooldown_until = e->now + e->cfg.motors[i].cooldown_ms;
-            return cmd_make(MOTOR_CMD_ACCEPTED, "reversal-cancel");
-        case MOTOR_PHASE_RUNNING:
-        case MOTOR_PHASE_DECELERATING:
-            /* 先结算已运行时长，转入减速后计时起点失效，随后的停止事件才有耗时。 */
-            settle_elapsed(e, i);
-            s->emit_stop_on_halt = true;
-            s->moveActive = false;
-            s->phase = MOTOR_PHASE_DECELERATING;
-            return cmd_make(MOTOR_CMD_ACCEPTED, "stopping");
-        case MOTOR_PHASE_PAUSED:
-            s->emit_stop_on_halt = true;
-            s->phase = MOTOR_PHASE_DECELERATING;
-            finish_halt(e, i);
-            return cmd_make(MOTOR_CMD_ACCEPTED, "stopped");
-        default:
-            return cmd_make(MOTOR_CMD_ACCEPTED, "already-stopped");
+    case MOTOR_PHASE_WAITING_START:
+        s->queued = false;
+        s->phase  = MOTOR_PHASE_STOPPED;
+        return cmd_make(MOTOR_CMD_ACCEPTED, "queue-cancel");
+    case MOTOR_PHASE_REVERSAL_WAIT:
+        s->phase          = MOTOR_PHASE_STOPPED;
+        s->cooldown_until = e->now + e->cfg.motors[i].cooldown_ms;
+        return cmd_make(MOTOR_CMD_ACCEPTED, "reversal-cancel");
+    case MOTOR_PHASE_RUNNING:
+    case MOTOR_PHASE_DECELERATING:
+        /* 先结算已运行时长，转入减速后计时起点失效，随后的停止事件才有耗时。 */
+        settle_elapsed(e, i);
+        s->emit_stop_on_halt = true;
+        s->moveActive        = false;
+        s->phase             = MOTOR_PHASE_DECELERATING;
+        return cmd_make(MOTOR_CMD_ACCEPTED, "stopping");
+    case MOTOR_PHASE_PAUSED:
+        s->emit_stop_on_halt = true;
+        s->phase             = MOTOR_PHASE_DECELERATING;
+        finish_halt(e, i);
+        return cmd_make(MOTOR_CMD_ACCEPTED, "stopped");
+    default:
+        return cmd_make(MOTOR_CMD_ACCEPTED, "already-stopped");
     }
 }
 
-motor_cmd_result_t motor_pause(motor_executor_t *e, int i) {
+motor_cmd_result_t motor_pause(motor_executor_t *e, int i)
+{
     if (e->in_dispatch) {
         return cmd_reject("reentrant");
     }
     if (bad_motor(e, i)) {
         return cmd_reject("bad-motor");
     }
-    e->now = clock_now(e);
+    e->now            = clock_now(e);
     motor_mstate_t *s = &e->m[i];
     if (s->phase != MOTOR_PHASE_RUNNING) {
         return cmd_reject("not-running");
@@ -1081,33 +1123,34 @@ motor_cmd_result_t motor_pause(motor_executor_t *e, int i) {
     return cmd_make(MOTOR_CMD_ACCEPTED, "paused");
 }
 
-motor_cmd_result_t motor_resume(motor_executor_t *e, int i) {
+motor_cmd_result_t motor_resume(motor_executor_t *e, int i)
+{
     if (e->in_dispatch) {
         return cmd_reject("reentrant");
     }
     if (bad_motor(e, i)) {
         return cmd_reject("bad-motor");
     }
-    e->now = clock_now(e);
+    e->now            = clock_now(e);
     motor_mstate_t *s = &e->m[i];
     if (s->phase != MOTOR_PHASE_PAUSED) {
         return cmd_reject("not-paused");
     }
-    s->move_start_ms = e->now;
-    s->phase = MOTOR_PHASE_RUNNING;
+    s->move_start_ms  = e->now;
+    s->phase          = MOTOR_PHASE_RUNNING;
     s->output_applied = false;
     return cmd_make(MOTOR_CMD_ACCEPTED, "resumed");
 }
 
-motor_cmd_result_t motor_set_speed(motor_executor_t *e, int i,
-                                   motor_speed_t spd, motor_direction_t dir) {
+motor_cmd_result_t motor_set_speed(motor_executor_t *e, int i, motor_speed_t spd, motor_direction_t dir)
+{
     if (e->in_dispatch) {
         return cmd_reject("reentrant");
     }
     if (bad_motor(e, i)) {
         return cmd_reject("bad-motor");
     }
-    e->now = clock_now(e);
+    e->now            = clock_now(e);
     motor_mstate_t *s = &e->m[i];
     if (s->phase != MOTOR_PHASE_RUNNING) {
         return cmd_reject("not-running");
@@ -1116,22 +1159,23 @@ motor_cmd_result_t motor_set_speed(motor_executor_t *e, int i,
         return cmd_reject("bad-speed");
     }
     if ((dir == s->dir) && (spd.kind == s->speed.kind)) {
-        s->speed = spd;
+        s->speed          = spd;
         s->output_applied = false;
         return cmd_make(MOTOR_CMD_ACCEPTED, "speed-changed");
     }
     motor_pending_cmd_t pc = {0};
-    pc.is_move = s->moveActive;
-    pc.spec = s->spec;
-    pc.speed = spd;
-    pc.dir = dir;
+    pc.is_move             = s->moveActive;
+    pc.spec                = s->spec;
+    pc.speed               = spd;
+    pc.dir                 = dir;
     if (!reversal(e, i, &pc)) {
         return cmd_make(MOTOR_CMD_ACCEPTED, "cutoff-failed");
     }
     return cmd_make(MOTOR_CMD_ACCEPTED, "reversal");
 }
 
-motor_cmd_result_t motor_home(motor_executor_t *e, int i) {
+motor_cmd_result_t motor_home(motor_executor_t *e, int i)
+{
     if (e->in_dispatch) {
         return cmd_reject("reentrant");
     }
@@ -1153,17 +1197,17 @@ motor_cmd_result_t motor_home(motor_executor_t *e, int i) {
         return cmd_reject("interlock");
     }
     motor_pending_cmd_t pc = {0};
-    pc.is_move = true;
-    pc.speed = motor_speed_freq(e->cfg.motors[i].slow_freq > 0 ? e->cfg.motors[i].slow_freq
+    pc.is_move             = true;
+    pc.speed               = motor_speed_freq(e->cfg.motors[i].slow_freq > 0 ? e->cfg.motors[i].slow_freq
                                                                : MOTOR_HOME_DEFAULT_FREQ_CENTI_HZ);
-    pc.dir = MOTOR_DIR_REVERSE;
-    pc.spec.use_limit = true;
-    pc.spec.limit = MOTOR_LIMIT_ORIGIN;
+    pc.dir                 = MOTOR_DIR_REVERSE;
+    pc.spec.use_limit      = true;
+    pc.spec.limit          = MOTOR_LIMIT_ORIGIN;
     if (in_cooldown(e, i)) {
         s->pending = pc;
-        s->queued = true;
-        s->phase = MOTOR_PHASE_WAITING_START;
-        s->homing = true;
+        s->queued  = true;
+        s->phase   = MOTOR_PHASE_WAITING_START;
+        s->homing  = true;
         return cmd_make(MOTOR_CMD_QUEUED, "cooldown");
     }
     begin_start(e, i, &pc);
@@ -1171,7 +1215,8 @@ motor_cmd_result_t motor_home(motor_executor_t *e, int i) {
     return cmd_make(MOTOR_CMD_ACCEPTED, "homing");
 }
 
-motor_cmd_result_t motor_zero_encoder(motor_executor_t *e, int i) {
+motor_cmd_result_t motor_zero_encoder(motor_executor_t *e, int i)
+{
     if (e->in_dispatch) {
         return cmd_reject("reentrant");
     }
@@ -1196,12 +1241,12 @@ motor_cmd_result_t motor_zero_encoder(motor_executor_t *e, int i) {
             return cmd_make(MOTOR_CMD_ACCEPTED, "zeroed");
         }
     }
-    push_event(e, i, MOTOR_EVENT_WARNING, MOTOR_END_NONE,
-               MOTOR_FAULT_ENCODER_SIGNAL, MOTOR_LEVEL_WARNING);
+    push_event(e, i, MOTOR_EVENT_WARNING, MOTOR_END_NONE, MOTOR_FAULT_ENCODER_SIGNAL, MOTOR_LEVEL_WARNING);
     return cmd_reject("zero-failed");
 }
 
-motor_cmd_result_t motor_confirm_baseline(motor_executor_t *e, int i) {
+motor_cmd_result_t motor_confirm_baseline(motor_executor_t *e, int i)
+{
     if (bad_motor(e, i)) {
         return cmd_reject("bad-motor");
     }
@@ -1209,7 +1254,8 @@ motor_cmd_result_t motor_confirm_baseline(motor_executor_t *e, int i) {
     return cmd_make(MOTOR_CMD_ACCEPTED, "baseline-confirmed");
 }
 
-void motor_reset_estop(motor_executor_t *e) {
+void motor_reset_estop(motor_executor_t *e)
+{
     if (e->in_dispatch) {
         return;
     }
@@ -1231,27 +1277,29 @@ void motor_reset_estop(motor_executor_t *e) {
     }
 }
 
-void motor_reset_watchdog(motor_executor_t *e) {
+void motor_reset_watchdog(motor_executor_t *e)
+{
     if (e->in_dispatch) {
         return;
     }
     if (!e->safe_latched) {
         return;
     }
-    e->safe_latched = false;
-    e->now = clock_now(e);
-    e->last_tick_ms = e->now;
+    e->safe_latched    = false;
+    e->now             = clock_now(e);
+    e->last_tick_ms    = e->now;
     e->last_tick_valid = true;
     for (int i = 0; i < e->motor_count; ++i) {
         if (e->m[i].fault_code == MOTOR_FAULT_WATCHDOG) {
-            e->m[i].phase = MOTOR_PHASE_STOPPED;
-            e->m[i].fault = false;
+            e->m[i].phase      = MOTOR_PHASE_STOPPED;
+            e->m[i].fault      = false;
             e->m[i].fault_code = MOTOR_FAULT_NONE;
         }
     }
 }
 
-motor_cmd_result_t motor_recover(motor_executor_t *e, int i, motor_recovery_step_t step) {
+motor_cmd_result_t motor_recover(motor_executor_t *e, int i, motor_recovery_step_t step)
+{
     if (e->in_dispatch) {
         return cmd_reject("reentrant");
     }
@@ -1267,8 +1315,7 @@ motor_cmd_result_t motor_recover(motor_executor_t *e, int i, motor_recovery_step
     }
     if (step == MOTOR_RECOVERY_DRIVER_RESET) {
         if (!drv_reset(motor_drv(e, i))) {
-            push_event(e, i, MOTOR_EVENT_FAULT, MOTOR_END_NONE,
-                       s->fault_code, MOTOR_LEVEL_FAULT);
+            push_event(e, i, MOTOR_EVENT_FAULT, MOTOR_END_NONE, s->fault_code, MOTOR_LEVEL_FAULT);
             return cmd_reject("driver-reset-failed");
         }
         s->driver_reset_done = true;
@@ -1278,26 +1325,29 @@ motor_cmd_result_t motor_recover(motor_executor_t *e, int i, motor_recovery_step
     if (!s->driver_reset_done) {
         return cmd_reject("must-reset-first");
     }
-    e->now = clock_now(e);
-    s->phase = MOTOR_PHASE_STOPPED;
-    s->fault = false;
-    s->fault_code = MOTOR_FAULT_NONE;
+    e->now               = clock_now(e);
+    s->phase             = MOTOR_PHASE_STOPPED;
+    s->fault             = false;
+    s->fault_code        = MOTOR_FAULT_NONE;
     s->driver_reset_done = false;
-    s->cooldown_until = e->now;
+    s->cooldown_until    = e->now;
     return cmd_make(MOTOR_CMD_ACCEPTED, "recovered");
 }
 
 /* ------------------------- 查询 ------------------------- */
 
-motor_phase_t motor_phase(const motor_executor_t *e, int i) {
+motor_phase_t motor_phase(const motor_executor_t *e, int i)
+{
     return e->m[i].phase;
 }
 
-int64_t motor_position(const motor_executor_t *e, int i) {
+int64_t motor_position(const motor_executor_t *e, int i)
+{
     return e->m[i].position;
 }
 
-int motor_current_freq(const motor_executor_t *e, int i) {
+int motor_current_freq(const motor_executor_t *e, int i)
+{
     const motor_mstate_t *state = &e->m[i];
 
     if ((state->phase != MOTOR_PHASE_RUNNING) || (state->speed.kind != MOTOR_SPEED_FREQ)) {
@@ -1306,37 +1356,43 @@ int motor_current_freq(const motor_executor_t *e, int i) {
     return state->speed.value;
 }
 
-motor_direction_t motor_direction(const motor_executor_t *e, int i) {
+motor_direction_t motor_direction(const motor_executor_t *e, int i)
+{
     return e->m[i].dir;
 }
 
-motor_fault_code_t motor_fault_code(const motor_executor_t *e, int i) {
+motor_fault_code_t motor_fault_code(const motor_executor_t *e, int i)
+{
     return e->m[i].fault_code;
 }
 
-bool motor_baseline_trusted(const motor_executor_t *e, int i) {
+bool motor_baseline_trusted(const motor_executor_t *e, int i)
+{
     return e->m[i].baseline_trusted;
 }
 
-bool motor_in_safe_state(const motor_executor_t *e) {
+bool motor_in_safe_state(const motor_executor_t *e)
+{
     return e->safe_latched;
 }
 
 /* ------------------------- 事件 ------------------------- */
 
-void motor_set_event_callback(motor_executor_t *e, motor_event_cb_t cb, void *ctx) {
+void motor_set_event_callback(motor_executor_t *e, motor_event_cb_t cb, void *ctx)
+{
     if (e->in_dispatch) {
         return;
     }
-    e->cb = cb;
+    e->cb     = cb;
     e->cb_ctx = ctx;
 }
 
-bool motor_pop_event(motor_executor_t *e, motor_event_t *out) {
+bool motor_pop_event(motor_executor_t *e, motor_event_t *out)
+{
     if (e->ev_count <= 0) {
         return false;
     }
-    *out = e->events[e->ev_head];
+    *out       = e->events[e->ev_head];
     e->ev_head = (e->ev_head + 1) % MOTOR_EVENT_QUEUE_CAP;
     e->ev_count--;
     return true;

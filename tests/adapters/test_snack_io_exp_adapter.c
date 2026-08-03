@@ -91,8 +91,8 @@ static void test_init_rejects_invalid_config(void)
     TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, drv_io_cfg_validate(NULL));
     TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, drv_io_init(NULL));
 
-    cfg             = make_cfg();
-    cfg.can_bus     = NULL;
+    cfg         = make_cfg();
+    cfg.can_bus = NULL;
     TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, drv_io_cfg_validate(&cfg));
 
     cfg             = make_cfg();

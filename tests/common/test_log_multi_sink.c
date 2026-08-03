@@ -1,6 +1,5 @@
-#include "unity.h"
-
 #include "common/log.h"
+#include "unity.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -32,7 +31,7 @@ void setUp(void)
 {
     memset(s_first_message, 0, sizeof(s_first_message));
     memset(s_second_message, 0, sizeof(s_second_message));
-    s_first_count = 0U;
+    s_first_count  = 0U;
     s_second_count = 0U;
     sw_log_register_sink(NULL);
 }

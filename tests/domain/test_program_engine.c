@@ -159,10 +159,10 @@ static const engine_io_ops_t s_io_ops = {
 static const char *const         s_catalog_signals[] = {"ESTOP", "EXIT", "GO", "MARK"};
 static const char *const         s_catalog_axes[]    = {"gantry"};
 static const engine_io_catalog_t s_io_catalog        = {
-    .signals      = s_catalog_signals,
-    .signal_count = 4U,
-    .axes         = s_catalog_axes,
-    .axis_count   = 1U,
+           .signals      = s_catalog_signals,
+           .signal_count = 4U,
+           .axes         = s_catalog_axes,
+           .axis_count   = 1U,
 };
 
 static void io_reset(void)
@@ -346,8 +346,8 @@ static void test_engine_model_parse_clone_and_validate(void)
     TEST_ASSERT_EQUAL_INT(ENGINE_ERR_HALT_PHASE, strategy);
     TEST_ASSERT_FALSE(engine_direction_from_str("sideways", &dir));
 
-    TEST_ASSERT_EQUAL_INT(SW_OK,
-                          engine_program_validate(prog, &s_io_catalog, engine_actuator_get_catalog(), err, sizeof(err)));
+    TEST_ASSERT_EQUAL_INT(
+        SW_OK, engine_program_validate(prog, &s_io_catalog, engine_actuator_get_catalog(), err, sizeof(err)));
 
     copy = engine_program_clone(prog);
     TEST_ASSERT_NOT_NULL(copy);
@@ -369,8 +369,8 @@ static void test_engine_validate_rejects_unknown_after(void)
                    "%s",
                    "missing");
 
-    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM,
-                          engine_program_validate(prog, &s_io_catalog, engine_actuator_get_catalog(), err, sizeof(err)));
+    TEST_ASSERT_EQUAL_INT(
+        SW_ERR_PARAM, engine_program_validate(prog, &s_io_catalog, engine_actuator_get_catalog(), err, sizeof(err)));
     TEST_ASSERT_GREATER_THAN_INT(0, (int)strlen(err));
 
     engine_program_free(prog);
@@ -444,7 +444,7 @@ static void test_engine_runtime_auto_releases_held_except_keep(void)
     lane->step_count = 1U;
     lane->steps      = (engine_step_t *)calloc(1U, sizeof(engine_step_t));
     TEST_ASSERT_NOT_NULL(lane->steps);
-    step               = &lane->steps[0];
+    step = &lane->steps[0];
     (void)snprintf(step->id, sizeof(step->id), "%s", "start");
     step->type         = ENGINE_STEP_EVENT;
     step->on_error     = ENGINE_ERR_STOP;
@@ -477,7 +477,7 @@ static void test_engine_runtime_auto_releases_held_except_keep(void)
     p1->lanes[0].step_count = 1U;
     p1->lanes[0].steps      = (engine_step_t *)calloc(1U, sizeof(engine_step_t));
     TEST_ASSERT_NOT_NULL(p1->lanes[0].steps);
-    step               = &p1->lanes[0].steps[0];
+    step = &p1->lanes[0].steps[0];
     (void)snprintf(step->id, sizeof(step->id), "%s", "idle");
     step->type         = ENGINE_STEP_EVENT;
     step->on_error     = ENGINE_ERR_STOP;

@@ -33,12 +33,10 @@ static void on_home_completed(const event_t *evt)
         return;
     }
 
-    home_success    = evt->param != 0U;
+    home_success = evt->param != 0U;
     alarm_registry_reset_all();
     blocking_active = alarm_registry_has_blocking_active();
-    result = (home_success && !blocking_active)
-                ? RECOVERY_RESULT_IDLE
-                : RECOVERY_RESULT_EXCEPTION;
+    result          = (home_success && !blocking_active) ? RECOVERY_RESULT_IDLE : RECOVERY_RESULT_EXCEPTION;
     if (!home_success) {
         LOG_ERROR("recovery_service: home failed during recover");
     } else if (blocking_active) {

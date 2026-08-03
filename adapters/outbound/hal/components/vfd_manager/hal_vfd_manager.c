@@ -82,9 +82,9 @@ static bool bind_cfg_valid(const hal_vfd_manager_bind_cfg_t *cfg)
     if ((cfg == NULL) || (cfg->ops == NULL) || (cfg->drv_ctx == NULL)) {
         return false;
     }
-    if ((cfg->ops->apply_gear == NULL) || (cfg->ops->apply_frequency == NULL)
-        || (cfg->ops->stop_outputs == NULL) || (cfg->ops->set_rst == NULL)
-        || (cfg->ops->read == NULL) || (cfg->ops->write == NULL) || (cfg->ops->get_state == NULL)) {
+    if ((cfg->ops->apply_gear == NULL) || (cfg->ops->apply_frequency == NULL) || (cfg->ops->stop_outputs == NULL)
+        || (cfg->ops->set_rst == NULL) || (cfg->ops->read == NULL) || (cfg->ops->write == NULL)
+        || (cfg->ops->get_state == NULL)) {
         return false;
     }
     if ((cfg->rst_pulse_ms == 0U) || (cfg->fault_period_ms == 0U) || (cfg->current_period_ms == 0U)) {

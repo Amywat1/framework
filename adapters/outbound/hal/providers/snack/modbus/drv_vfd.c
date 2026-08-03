@@ -132,7 +132,7 @@ static sw_err_t vfd_spd_io_apply(drv_vfd_t *vfd, uint8_t abs_gear)
 
 static sw_err_t vfd_apply_gear_impl(drv_vfd_t *vfd, hal_vfd_gear_t gear)
 {
-    int abs_gear = vfd_abs_gear(gear);
+    int      abs_gear = vfd_abs_gear(gear);
     sw_err_t ret;
 
     ret = vfd_spd_io_apply(vfd, (uint8_t)abs_gear);
@@ -221,8 +221,7 @@ sw_err_t drv_vfd_config_speed_io(drv_vfd_t    *vfd,
 
     for (i = 0U; i < gear_count; i++) {
         if (((spd_cfg[i] & 0x01U) != 0U && pin_spd1.raw == IO_HANDLE_NULL)
-            || ((spd_cfg[i] & 0x02U) != 0U && pin_spd2.raw == IO_HANDLE_NULL)
-            || ((spd_cfg[i] & 0xFCU) != 0U)) {
+            || ((spd_cfg[i] & 0x02U) != 0U && pin_spd2.raw == IO_HANDLE_NULL) || ((spd_cfg[i] & 0xFCU) != 0U)) {
             return SW_ERR_PARAM;
         }
         vfd->spd_cfg[i] = spd_cfg[i];
@@ -250,7 +249,7 @@ sw_err_t drv_vfd_stop_outputs(drv_vfd_t *vfd)
         (void)pthread_mutex_unlock(&vfd->io_mutex);
         return SW_ERR_HW;
     }
-    vfd->gear = 0;
+    vfd->gear  = 0;
     vfd->state = HAL_VFD_STATE_STOPPED;
     (void)pthread_mutex_unlock(&vfd->io_mutex);
     return SW_OK;
@@ -297,9 +296,7 @@ sw_err_t drv_vfd_apply_frequency(drv_vfd_t *vfd, hal_vfd_frequency_t frequency_c
     if ((frequency_centi_hz < 0) && !vfd_has_rev(vfd)) {
         return SW_ERR_PARAM;
     }
-    abs_frequency = (frequency_centi_hz < 0)
-                        ? (uint32_t)(-(int64_t)frequency_centi_hz)
-                        : (uint32_t)frequency_centi_hz;
+    abs_frequency = (frequency_centi_hz < 0) ? (uint32_t)(-(int64_t)frequency_centi_hz) : (uint32_t)frequency_centi_hz;
     if (abs_frequency > UINT16_MAX) {
         return SW_ERR_PARAM;
     }

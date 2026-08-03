@@ -28,29 +28,46 @@ static void op_mode_set_service_enabled(bool enabled);
 static const char *op_mode_name(operational_mode_t mode)
 {
     switch (mode) {
-    case OP_MODE_INIT:         return "INIT";
-    case OP_MODE_STOPPED:      return "STOPPED";
-    case OP_MODE_HOMING:       return "HOMING";
-    case OP_MODE_IDLE:         return "IDLE";
-    case OP_MODE_WASHING:      return "WASHING";
-    case OP_MODE_ABORT_HOMING: return "ABORT_HOMING";
-    case OP_MODE_WASH_DONE:    return "WASH_DONE";
-    case OP_MODE_SELF_CHECK:   return "SELF_CHECK";
-    case OP_MODE_EXCEPTION:    return "EXCEPTION";
-    case OP_MODE_RECOVERING:   return "RECOVERING";
-    default:                   return "UNKNOWN";
+    case OP_MODE_INIT:
+        return "INIT";
+    case OP_MODE_STOPPED:
+        return "STOPPED";
+    case OP_MODE_HOMING:
+        return "HOMING";
+    case OP_MODE_IDLE:
+        return "IDLE";
+    case OP_MODE_WASHING:
+        return "WASHING";
+    case OP_MODE_ABORT_HOMING:
+        return "ABORT_HOMING";
+    case OP_MODE_WASH_DONE:
+        return "WASH_DONE";
+    case OP_MODE_SELF_CHECK:
+        return "SELF_CHECK";
+    case OP_MODE_EXCEPTION:
+        return "EXCEPTION";
+    case OP_MODE_RECOVERING:
+        return "RECOVERING";
+    default:
+        return "UNKNOWN";
     }
 }
 
 static const char *wash_abort_name(wash_abort_cause_t cause)
 {
     switch (cause) {
-    case WASH_ABORT_MANUAL:       return "manual";
-    case WASH_ABORT_CRITICAL:     return "critical";
-    case WASH_ABORT_STEP_TIMEOUT: return "timeout";
-    case WASH_ABORT_INTERNAL:     return "internal";
-    case WASH_ABORT_ESTOP:        return "estop";
-    default:                      return "unknown";
+    case WASH_ABORT_MANUAL:
+        return "manual";
+    case WASH_ABORT_CRITICAL:
+        return "critical";
+    case WASH_ABORT_STEP_TIMEOUT:
+        return "timeout";
+    case WASH_ABORT_INTERNAL:
+        return "internal";
+    case WASH_ABORT_ESTOP:
+        return "estop";
+    default:
+        return "unknown";
     }
 }
 
@@ -82,10 +99,8 @@ static void set_mode(operational_mode_t next, const char *cause)
         return;
     }
 
-    from  = s_mode;
-    level = ((next == OP_MODE_EXCEPTION) || (next == OP_MODE_ABORT_HOMING))
-                ? SW_LOG_WARN
-                : SW_LOG_INFO;
+    from   = s_mode;
+    level  = ((next == OP_MODE_EXCEPTION) || (next == OP_MODE_ABORT_HOMING)) ? SW_LOG_WARN : SW_LOG_INFO;
     s_mode = next;
 
     if (cause != NULL) {
@@ -314,7 +329,9 @@ dev_cmd_decision_t op_mode_handle_command(const dev_cmd_t *cmd)
     if (d.verdict != OP_CMD_ALLOWED) {
         if (cmd != NULL) {
             LOG_WARN("op_mode: cmd %d rejected (reason=%d, mode=%s)",
-                     (int)cmd->body.kind, (int)d.reason, op_mode_name(s_mode));
+                     (int)cmd->body.kind,
+                     (int)d.reason,
+                     op_mode_name(s_mode));
             publish_cmd_rejected(cmd->body.kind, d.reason);
         }
         return d;
@@ -415,9 +432,7 @@ void op_mode_on_self_check_completed(bool land_exception)
 
 void op_mode_on_critical_alarm(void)
 {
-    if ((s_mode != OP_MODE_WASHING)
-     && (s_mode != OP_MODE_ABORT_HOMING)
-     && (s_mode != OP_MODE_RECOVERING)) {
+    if ((s_mode != OP_MODE_WASHING) && (s_mode != OP_MODE_ABORT_HOMING) && (s_mode != OP_MODE_RECOVERING)) {
         set_mode(OP_MODE_EXCEPTION, "critical alarm");
     }
 }
@@ -425,10 +440,8 @@ void op_mode_on_critical_alarm(void)
 void op_mode_on_blocking_alarm(void)
 {
     /* 运行中的动作先按既定流程安全结束，静态状态立即进入故障停机。 */
-    if ((s_mode != OP_MODE_WASHING)
-     && (s_mode != OP_MODE_HOMING)
-     && (s_mode != OP_MODE_ABORT_HOMING)
-     && (s_mode != OP_MODE_RECOVERING)) {
+    if ((s_mode != OP_MODE_WASHING) && (s_mode != OP_MODE_HOMING) && (s_mode != OP_MODE_ABORT_HOMING)
+        && (s_mode != OP_MODE_RECOVERING)) {
         set_mode(OP_MODE_EXCEPTION, "blocking alarm");
     }
 }
@@ -487,14 +500,9 @@ bool op_mode_is_service_enabled(void)
 bool op_mode_is_stopping(void)
 {
     /* 非运营接单态：停机/归位中/故障处理/中止清障等 */
-    return (s_mode == OP_MODE_INIT)
-        || (s_mode == OP_MODE_STOPPED)
-        || (s_mode == OP_MODE_HOMING)
-        || (s_mode == OP_MODE_EXCEPTION)
-        || (s_mode == OP_MODE_RECOVERING)
-        || (s_mode == OP_MODE_ABORT_HOMING)
-        || (s_mode == OP_MODE_SELF_CHECK)
-        || !s_service_enabled;
+    return (s_mode == OP_MODE_INIT) || (s_mode == OP_MODE_STOPPED) || (s_mode == OP_MODE_HOMING)
+           || (s_mode == OP_MODE_EXCEPTION) || (s_mode == OP_MODE_RECOVERING) || (s_mode == OP_MODE_ABORT_HOMING)
+           || (s_mode == OP_MODE_SELF_CHECK) || !s_service_enabled;
 }
 
 bool op_mode_is_standby(void)

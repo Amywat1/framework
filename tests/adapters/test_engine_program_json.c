@@ -28,11 +28,11 @@ static bool test_var_resolve(const char *name, double *out)
     return true;
 }
 
-static const char *const s_test_var_names[] = {"car_tail.active"};
-static const engine_var_provider_t s_test_vars = {
-    .resolve    = test_var_resolve,
-    .names      = s_test_var_names,
-    .name_count = 1U,
+static const char *const           s_test_var_names[] = {"car_tail.active"};
+static const engine_var_provider_t s_test_vars        = {
+           .resolve    = test_var_resolve,
+           .names      = s_test_var_names,
+           .name_count = 1U,
 };
 
 static const char *const s_program_json
@@ -58,9 +58,11 @@ static const char *const s_program_json
       "\"lanes\":[{\"id\":\"lane\",\"steps\":["
       "{\"id\":\"a\",\"type\":\"event\",\"trigger\":{\"type\":\"condition\",\"expr\":\"phase.elapsed_ms >= "
       "$delay_ms\"},"
-      "\"actions\":[{\"act\":{\"resource\":\"aout\",\"cmd\":\"run\",\"gear\":1}}],\"done\":{\"type\":\"actions_complete\"}},"
+      "\"actions\":[{\"act\":{\"resource\":\"aout\",\"cmd\":\"run\",\"gear\":1}}],\"done\":{\"type\":\"actions_"
+      "complete\"}},"
       "{\"id\":\"b\",\"type\":\"event\",\"trigger\":{\"type\":\"signal\",\"signal\":\"SIG\",\"edge\":\"rising\"},"
-      "\"after\":[\"a\"],\"actions\":[{\"wait_time\":{\"ms\":100}},{\"act\":{\"resource\":\"bout\",\"cmd\":\"run\",\"gear\":1}}],"
+      "\"after\":[\"a\"],\"actions\":[{\"wait_time\":{\"ms\":100}},{\"act\":{\"resource\":\"bout\",\"cmd\":\"run\","
+      "\"gear\":1}}],"
       "\"done\":{\"type\":\"actions_complete\"}}"
       "]}]"
       "}]"

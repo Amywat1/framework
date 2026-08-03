@@ -22,7 +22,7 @@ extern "C" {
  * @brief  项目声明的资源/水路路径名目录（加载期校验）
  */
 typedef struct {
-    const char *const *resources; /**< 资源名，如 "gantry" */
+    const char *const *resources;   /**< 资源名，如 "gantry" */
     unsigned           resource_count;
     const char *const *water_paths; /**< 水路路径名，可为空 */
     unsigned           water_path_count;

@@ -15,8 +15,8 @@ extern "C" {
 #include "domain/device_control/model/actuator_events.h"
 #include "ports/outbound/hal/motor/hal_motor_exec_port.h"
 
-#include <stddef.h>
 #include <stdbool.h>
+#include <stddef.h>
 
 /**
  * @brief  流程类运动故障回调（项目层映射为 alarm trigger）
@@ -49,8 +49,8 @@ static inline void motion_lifecycle_publish_completed(const motion_lifecycle_opt
  * @param[in] fault            故障码
  */
 static inline void motion_lifecycle_report_fault(const motion_lifecycle_opts_t *opts,
-                                                 bool                          is_positive_dir,
-                                                 hal_motor_fault_code_t        fault)
+                                                 bool                           is_positive_dir,
+                                                 hal_motor_fault_code_t         fault)
 {
     if ((opts != NULL) && (opts->on_process_fault != NULL)) {
         opts->on_process_fault(is_positive_dir, fault);

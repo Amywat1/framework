@@ -24,7 +24,7 @@ extern "C" {
 typedef struct {
     const char *const *signals; /**< DI 信号枚举名数组 */
     unsigned           signal_count;
-    const char *const *axes; /**< 坐标轴 ID 数组 */
+    const char *const *axes;    /**< 坐标轴 ID 数组 */
     unsigned           axis_count;
 } engine_io_catalog_t;
 
@@ -52,8 +52,8 @@ typedef struct {
     const engine_io_catalog_t *catalog;
 } engine_io_backend_t;
 
-void                      engine_io_register(const engine_io_backend_t *backend);
-const engine_io_ops_t    *engine_io_get_ops(void);
+void                       engine_io_register(const engine_io_backend_t *backend);
+const engine_io_ops_t     *engine_io_get_ops(void);
 const engine_io_catalog_t *engine_io_get_catalog(void);
 
 #ifdef __cplusplus

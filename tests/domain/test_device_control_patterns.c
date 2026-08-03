@@ -270,12 +270,11 @@ void tearDown(void)
 
 static void test_motor_axis_run_and_query_state(void)
 {
-    motor_axis_t     axis;
+    motor_axis_t      axis;
     hal_motor_exec_t *exec = (hal_motor_exec_t *)s_motor;
 
     memset(&axis, 0, sizeof(axis));
-    TEST_ASSERT_EQUAL_INT(
-        SW_ERR_NOT_INIT, motor_axis_run(&axis, HAL_MOTOR_DIR_FORWARD, hal_motor_speed_gear(1), NULL));
+    TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_INIT, motor_axis_run(&axis, HAL_MOTOR_DIR_FORWARD, hal_motor_speed_gear(1), NULL));
     TEST_ASSERT_EQUAL_INT(SW_OK, motor_axis_init(&axis, exec, 1, NULL));
     TEST_ASSERT_EQUAL_INT(SW_OK, motor_axis_run(&axis, HAL_MOTOR_DIR_REVERSE, hal_motor_speed_gear(3), NULL));
 
@@ -284,11 +283,7 @@ static void test_motor_axis_run_and_query_state(void)
     TEST_ASSERT_EQUAL_INT(3, s_motor[1].speed_gear);
     TEST_ASSERT_EQUAL_INT(1, s_run_count);
 
-    TEST_ASSERT_EQUAL_INT(SW_OK,
-                          motor_axis_run(&axis,
-                                         HAL_MOTOR_DIR_REVERSE,
-                                         hal_motor_speed_gear(3),
-                                         NULL));
+    TEST_ASSERT_EQUAL_INT(SW_OK, motor_axis_run(&axis, HAL_MOTOR_DIR_REVERSE, hal_motor_speed_gear(3), NULL));
     TEST_ASSERT_EQUAL_INT(1, s_run_count);
     TEST_ASSERT_EQUAL_INT(1, s_speed_count);
 
@@ -314,8 +309,7 @@ static void test_motor_axis_spec_uses_move_to_and_fault_callback(void)
 
     s_next_result    = cmd_rejected();
     s_motor[0].fault = HAL_MOTOR_FAULT_OVERCURRENT;
-    TEST_ASSERT_EQUAL_INT(
-        SW_ERR_STATE, motor_axis_run(&axis, HAL_MOTOR_DIR_FORWARD, hal_motor_speed_gear(2), NULL));
+    TEST_ASSERT_EQUAL_INT(SW_ERR_STATE, motor_axis_run(&axis, HAL_MOTOR_DIR_FORWARD, hal_motor_speed_gear(2), NULL));
     TEST_ASSERT_EQUAL_INT(1, s_fault_cb_count);
     TEST_ASSERT_TRUE(s_fault_cb_dir_positive);
     TEST_ASSERT_EQUAL_INT(HAL_MOTOR_FAULT_OVERCURRENT, s_fault_cb_code);
@@ -323,12 +317,11 @@ static void test_motor_axis_spec_uses_move_to_and_fault_callback(void)
 
 static void test_motor_axis_continuous_stop_and_recover(void)
 {
-    motor_axis_t     axis;
+    motor_axis_t      axis;
     hal_motor_exec_t *exec = (hal_motor_exec_t *)s_motor;
 
     memset(&axis, 0, sizeof(axis));
-    TEST_ASSERT_EQUAL_INT(
-        SW_ERR_NOT_INIT, motor_axis_run(&axis, HAL_MOTOR_DIR_FORWARD, hal_motor_speed_gear(1), NULL));
+    TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_INIT, motor_axis_run(&axis, HAL_MOTOR_DIR_FORWARD, hal_motor_speed_gear(1), NULL));
     TEST_ASSERT_EQUAL_INT(SW_OK, motor_axis_init(&axis, exec, 2, NULL));
     TEST_ASSERT_EQUAL_INT(SW_OK, motor_axis_run(&axis, HAL_MOTOR_DIR_REVERSE, hal_motor_speed_gear(4), NULL));
     TEST_ASSERT_EQUAL_INT(MOTOR_AXIS_STATE_MOVING, motor_axis_state(&axis));
@@ -339,8 +332,7 @@ static void test_motor_axis_continuous_stop_and_recover(void)
 
     s_motor[2].phase = HAL_MOTOR_PHASE_FAULT;
     s_motor[2].fault = HAL_MOTOR_FAULT_DRIVER_FEEDBACK;
-    TEST_ASSERT_EQUAL_INT(
-        SW_ERR_STATE, motor_axis_run(&axis, HAL_MOTOR_DIR_FORWARD, hal_motor_speed_gear(1), NULL));
+    TEST_ASSERT_EQUAL_INT(SW_ERR_STATE, motor_axis_run(&axis, HAL_MOTOR_DIR_FORWARD, hal_motor_speed_gear(1), NULL));
     TEST_ASSERT_EQUAL_INT(HAL_MOTOR_FAULT_DRIVER_FEEDBACK, motor_axis_fault_code(&axis));
     TEST_ASSERT_EQUAL_INT(SW_OK, motor_axis_recover(&axis, HAL_MOTOR_RECOVERY_MODULE_STOP));
     TEST_ASSERT_EQUAL_INT(1, s_recover_count);
@@ -349,20 +341,17 @@ static void test_motor_axis_continuous_stop_and_recover(void)
 
 static void test_motor_axis_preserves_frequency_speed(void)
 {
-    motor_axis_t     axis;
+    motor_axis_t      axis;
     hal_motor_exec_t *exec = (hal_motor_exec_t *)s_motor;
 
     memset(&axis, 0, sizeof(axis));
     TEST_ASSERT_EQUAL_INT(SW_OK, motor_axis_init(&axis, exec, 3, NULL));
-    TEST_ASSERT_EQUAL_INT(
-        SW_OK, motor_axis_run(&axis, HAL_MOTOR_DIR_FORWARD, hal_motor_speed_freq(2350), NULL));
+    TEST_ASSERT_EQUAL_INT(SW_OK, motor_axis_run(&axis, HAL_MOTOR_DIR_FORWARD, hal_motor_speed_freq(2350), NULL));
     TEST_ASSERT_EQUAL_INT(HAL_MOTOR_SPEED_FREQ, s_motor[3].speed_kind);
     TEST_ASSERT_EQUAL_INT(2350, s_motor[3].speed_gear);
 
-    TEST_ASSERT_EQUAL_INT(
-        SW_ERR_PARAM, motor_axis_run(&axis, HAL_MOTOR_DIR_FORWARD, hal_motor_speed_freq(-1), NULL));
-    TEST_ASSERT_EQUAL_INT(
-        SW_OK, motor_axis_run(&axis, HAL_MOTOR_DIR_FORWARD, hal_motor_speed_freq(0), NULL));
+    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, motor_axis_run(&axis, HAL_MOTOR_DIR_FORWARD, hal_motor_speed_freq(-1), NULL));
+    TEST_ASSERT_EQUAL_INT(SW_OK, motor_axis_run(&axis, HAL_MOTOR_DIR_FORWARD, hal_motor_speed_freq(0), NULL));
     TEST_ASSERT_EQUAL_INT(1, s_stop_count);
 }
 

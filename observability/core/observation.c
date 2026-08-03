@@ -55,8 +55,7 @@ static bool spec_is_valid(const observation_record_spec_t *spec)
     if ((spec->severity < OBSERVATION_SEVERITY_DEBUG) || (spec->severity > OBSERVATION_SEVERITY_CRITICAL)) {
         return false;
     }
-    if ((spec->payload_format < OBSERVATION_PAYLOAD_NONE)
-        || (spec->payload_format > OBSERVATION_PAYLOAD_BINARY)) {
+    if ((spec->payload_format < OBSERVATION_PAYLOAD_NONE) || (spec->payload_format > OBSERVATION_PAYLOAD_BINARY)) {
         return false;
     }
     if (spec->payload_size > OBSERVATION_PAYLOAD_MAX) {
@@ -188,12 +187,12 @@ sw_err_t observation_try_pop(observation_record_t *out)
         return SW_ERR_NOT_FOUND;
     }
     if (s_critical_queue.count > 0U) {
-        *out = s_critical_queue.records[s_critical_queue.head];
+        *out                  = s_critical_queue.records[s_critical_queue.head];
         s_critical_queue.head = (s_critical_queue.head + 1U) % OBSERVATION_CRITICAL_QUEUE_CAPACITY;
         s_critical_queue.count--;
         s_stats.critical_queue_depth = s_critical_queue.count;
     } else if (s_normal_queue.count > 0U) {
-        *out = s_normal_queue.records[s_normal_queue.head];
+        *out                = s_normal_queue.records[s_normal_queue.head];
         s_normal_queue.head = (s_normal_queue.head + 1U) % OBSERVATION_NORMAL_QUEUE_CAPACITY;
         s_normal_queue.count--;
         s_stats.normal_queue_depth = s_normal_queue.count;

@@ -154,7 +154,7 @@ static void test_get_stats_null_returns_err(void)
 
 static void test_di_pin_zero_returns_false(void)
 {
-    io_di_t pin_zero = IO_DI(1U, 0U);
+    io_di_t        pin_zero = IO_DI(1U, 0U);
     io_di_sample_t sample;
 
     hal_io_sim_set_di_level(pin_zero, true);
@@ -163,7 +163,7 @@ static void test_di_pin_zero_returns_false(void)
 
 static void test_di_board_max_boundary(void)
 {
-    io_di_t pin_max_board = IO_DI(7U, 1U);
+    io_di_t        pin_max_board = IO_DI(7U, 1U);
     io_di_sample_t sample;
 
     hal_io_sim_set_di_level(pin_max_board, true);
@@ -183,8 +183,8 @@ static void test_do_pin_zero_returns_err(void)
 
 static void test_two_di_pins_independent(void)
 {
-    io_di_t pin1 = IO_DI(1U, 1U);
-    io_di_t pin2 = IO_DI(1U, 2U);
+    io_di_t        pin1 = IO_DI(1U, 1U);
+    io_di_t        pin2 = IO_DI(1U, 2U);
     io_di_sample_t sample;
 
     hal_io_sim_set_di_level(pin1, true);

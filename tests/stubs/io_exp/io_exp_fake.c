@@ -4,8 +4,8 @@
 #include <stdbool.h>
 #include <string.h>
 
-#define IO_EXP_FAKE_BOARD_MAX 8
-#define IO_EXP_FAKE_PIN_MAX   32
+#define IO_EXP_FAKE_BOARD_MAX    8
+#define IO_EXP_FAKE_PIN_MAX      32
 #define IO_EXP_FAKE_ADC_PORT_MAX 4
 #define IO_EXP_FAKE_ADC_NOT_INIT (-99)
 
@@ -103,8 +103,7 @@ void io_exp_fake_set_pulse(int board_id, int pin_id, int value)
 
 void io_exp_fake_set_adc(int board_id, int port, int raw, int mv, int ma)
 {
-    if ((board_id <= 0) || (board_id >= IO_EXP_FAKE_BOARD_MAX) || (port <= 0)
-        || (port > IO_EXP_FAKE_ADC_PORT_MAX)) {
+    if ((board_id <= 0) || (board_id >= IO_EXP_FAKE_BOARD_MAX) || (port <= 0) || (port > IO_EXP_FAKE_ADC_PORT_MAX)) {
         return;
     }
 
@@ -177,8 +176,7 @@ int io_pluse_read(int board_id, int pin_id)
 
 static int io_exp_fake_adc_get(int board_id, int port, const int values[][IO_EXP_FAKE_ADC_PORT_MAX + 1])
 {
-    if ((board_id <= 0) || (board_id >= IO_EXP_FAKE_BOARD_MAX) || (port <= 0)
-        || (port > IO_EXP_FAKE_ADC_PORT_MAX)) {
+    if ((board_id <= 0) || (board_id >= IO_EXP_FAKE_BOARD_MAX) || (port <= 0) || (port > IO_EXP_FAKE_ADC_PORT_MAX)) {
         return -1;
     }
     if (!s_fake.adc_ready[board_id]) {

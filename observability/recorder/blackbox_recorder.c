@@ -41,19 +41,19 @@ sw_err_t blackbox_recorder_init(const blackbox_config_t *config)
 
     pthread_mutex_lock(&s_mutex);
     memset(s_samples, 0, sizeof(s_samples));
-    s_config                = *config;
-    s_pre_capacity          = (uint32_t)config->sample_rate_hz * (uint32_t)config->pre_trigger_seconds;
-    s_total_capacity        = configured_total_samples(config);
-    s_head                  = 0U;
-    s_count                 = 0U;
-    s_post_remaining        = 0U;
-    s_incident_id           = 0U;
-    s_trigger_code          = 0U;
-    s_trigger_monotonic_ms  = 0U;
-    s_dropped_busy_count    = 0U;
-    s_dropped_frozen_count  = 0U;
-    s_state                 = BLACKBOX_STATE_ARMED;
-    s_initialized           = true;
+    s_config               = *config;
+    s_pre_capacity         = (uint32_t)config->sample_rate_hz * (uint32_t)config->pre_trigger_seconds;
+    s_total_capacity       = configured_total_samples(config);
+    s_head                 = 0U;
+    s_count                = 0U;
+    s_post_remaining       = 0U;
+    s_incident_id          = 0U;
+    s_trigger_code         = 0U;
+    s_trigger_monotonic_ms = 0U;
+    s_dropped_busy_count   = 0U;
+    s_dropped_frozen_count = 0U;
+    s_state                = BLACKBOX_STATE_ARMED;
+    s_initialized          = true;
     pthread_mutex_unlock(&s_mutex);
     return SW_OK;
 }
@@ -87,7 +87,7 @@ sw_err_t blackbox_recorder_record(uint32_t sample_group, const void *payload, si
         s_count++;
     } else {
         write_index = s_head;
-        s_head       = (s_head + 1U) % s_total_capacity;
+        s_head      = (s_head + 1U) % s_total_capacity;
     }
 
     sample = &s_samples[write_index];

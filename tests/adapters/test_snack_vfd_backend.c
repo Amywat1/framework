@@ -56,19 +56,19 @@ static snack_vfd_backend_instance_cfg_t make_cfg(void)
     snack_vfd_backend_instance_cfg_t cfg;
 
     memset(&cfg, 0, sizeof(cfg));
-    cfg.serial_port      = "/dev/ttyS2";
-    cfg.baud             = 19200;
-    cfg.modbus_addr      = 3;
-    cfg.pin_fwd          = IO_DO(1U, 1U);
-    cfg.pin_rev          = IO_DO(1U, 2U);
-    cfg.pin_rst          = IO_DO(1U, 3U);
-    cfg.pin_spd1         = IO_DO(1U, 4U);
-    cfg.pin_spd2         = IO_DO(1U, 5U);
-    cfg.gear_count       = 3U;
-    cfg.speed_io[0]      = SNACK_VFD_BACKEND_SPEED_IO(true, false);
-    cfg.speed_io[1]      = SNACK_VFD_BACKEND_SPEED_IO(false, true);
-    cfg.speed_io[2]      = SNACK_VFD_BACKEND_SPEED_IO(true, true);
-    cfg.monitor_mask     = HAL_VFD_MON_NONE;
+    cfg.serial_port  = "/dev/ttyS2";
+    cfg.baud         = 19200;
+    cfg.modbus_addr  = 3;
+    cfg.pin_fwd      = IO_DO(1U, 1U);
+    cfg.pin_rev      = IO_DO(1U, 2U);
+    cfg.pin_rst      = IO_DO(1U, 3U);
+    cfg.pin_spd1     = IO_DO(1U, 4U);
+    cfg.pin_spd2     = IO_DO(1U, 5U);
+    cfg.gear_count   = 3U;
+    cfg.speed_io[0]  = SNACK_VFD_BACKEND_SPEED_IO(true, false);
+    cfg.speed_io[1]  = SNACK_VFD_BACKEND_SPEED_IO(false, true);
+    cfg.speed_io[2]  = SNACK_VFD_BACKEND_SPEED_IO(true, true);
+    cfg.monitor_mask = HAL_VFD_MON_NONE;
     return cfg;
 }
 

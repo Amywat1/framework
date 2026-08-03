@@ -23,17 +23,8 @@ typedef struct {
 static sim_res_t s_res[SIM_RES_MAX];
 static unsigned  s_res_count;
 
-static const char *const s_resources[] = {"aout",
-                                          "bout",
-                                          "ctrl",
-                                          "gantry",
-                                          "lift",
-                                          "rear_lock",
-                                          "brush_top",
-                                          "brush_side",
-                                          "fan",
-                                          "water",
-                                          "roof_follow"};
+static const char *const s_resources[]
+    = {"aout", "bout", "ctrl", "gantry", "lift", "rear_lock", "brush_top", "brush_side", "fan", "water", "roof_follow"};
 static const char *const s_water_paths[] = {"curtain", "top_foam", "bottom_foam", "top_high", "bottom_high"};
 
 static const engine_actuator_catalog_t s_catalog = {

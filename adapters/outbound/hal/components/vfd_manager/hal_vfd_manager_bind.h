@@ -56,15 +56,15 @@ typedef bool (*hal_vfd_backend_has_rst_pin_fn)(void *ctx);
  */
 typedef struct {
     /** @brief 初始化 backend 上下文；可为 NULL，表示无硬件初始化动作 */
-    hal_vfd_backend_init_fn         init;
-    hal_vfd_backend_apply_gear_fn   apply_gear;
+    hal_vfd_backend_init_fn            init;
+    hal_vfd_backend_apply_gear_fn      apply_gear;
     hal_vfd_backend_apply_frequency_fn apply_frequency;
-    hal_vfd_backend_stop_outputs_fn stop_outputs;
-    hal_vfd_backend_set_rst_fn      set_rst;
-    hal_vfd_backend_read_fn         read;
-    hal_vfd_backend_write_fn        write;
-    hal_vfd_backend_get_state_fn    get_state;
-    hal_vfd_backend_has_rst_pin_fn  has_rst_pin;
+    hal_vfd_backend_stop_outputs_fn    stop_outputs;
+    hal_vfd_backend_set_rst_fn         set_rst;
+    hal_vfd_backend_read_fn            read;
+    hal_vfd_backend_write_fn           write;
+    hal_vfd_backend_get_state_fn       get_state;
+    hal_vfd_backend_has_rst_pin_fn     has_rst_pin;
 } hal_vfd_backend_ops_t;
 
 /**

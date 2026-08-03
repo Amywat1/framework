@@ -69,12 +69,12 @@ typedef enum {
 
 /** @brief 运动结束的触发条件，说明本次运动“为什么”停下。 */
 typedef enum {
-    HAL_MOTOR_END_NONE = 0,     /**< 无结束条件（被显式停止或急停切断） */
-    HAL_MOTOR_END_LIMIT,        /**< 触发限位开关 */
-    HAL_MOTOR_END_POSITION,     /**< 到达目标位置 */
-    HAL_MOTOR_END_SOFT_LIMIT,   /**< 触发软限位 */
-    HAL_MOTOR_END_TIME,         /**< 运行时长达到设定值 */
-    HAL_MOTOR_END_TIMEOUT       /**< 超时兜底（错误结果） */
+    HAL_MOTOR_END_NONE = 0,   /**< 无结束条件（被显式停止或急停切断） */
+    HAL_MOTOR_END_LIMIT,      /**< 触发限位开关 */
+    HAL_MOTOR_END_POSITION,   /**< 到达目标位置 */
+    HAL_MOTOR_END_SOFT_LIMIT, /**< 触发软限位 */
+    HAL_MOTOR_END_TIME,       /**< 运行时长达到设定值 */
+    HAL_MOTOR_END_TIMEOUT     /**< 超时兜底（错误结果） */
 } hal_motor_end_condition_t;
 
 /** @brief 运动结束事件类型。 */

@@ -93,8 +93,7 @@ static void call_stop_outputs(engine_session_t *s)
     }
 }
 
-static void notify_phase_changed(engine_session_t *s, const engine_t *e,
-                                 char *last_phase_id, size_t last_phase_id_size)
+static void notify_phase_changed(engine_session_t *s, const engine_t *e, char *last_phase_id, size_t last_phase_id_size)
 {
     const char *phase_id;
 
@@ -196,9 +195,9 @@ static void *engine_session_worker_fn(void *arg)
     engine_session_t *s = (engine_session_t *)arg;
 
     while (true) {
-        uint32_t  startup_gen;
-        engine_t *e = NULL;
-        sw_err_t  prep_ret;
+        uint32_t        startup_gen;
+        engine_t       *e = NULL;
+        sw_err_t        prep_ret;
         trace_context_t previous_trace;
         char            last_phase_id[64] = {0};
 
@@ -311,8 +310,7 @@ static void *engine_session_worker_fn(void *arg)
             result.final_state = engine_state(e);
             result.timed_out   = timed_out;
             result.aborted     = aborted;
-            result.success
-                = (result.final_state == ENGINE_STATE_DONE) && !timed_out && !aborted;
+            result.success     = (result.final_state == ENGINE_STATE_DONE) && !timed_out && !aborted;
 
             engine_destroy(e);
             call_stop_outputs(s);
@@ -326,8 +324,7 @@ static void *engine_session_worker_fn(void *arg)
         trace_context_set(&previous_trace);
     }
 
-    LOG_INFO("engine_session: thread exit name=%s",
-             s->cfg.thread_name != NULL ? s->cfg.thread_name : "?");
+    LOG_INFO("engine_session: thread exit name=%s", s->cfg.thread_name != NULL ? s->cfg.thread_name : "?");
     return NULL;
 }
 
@@ -360,8 +357,8 @@ sw_err_t engine_session_init(void *storage, const engine_session_config_t *cfg)
     }
 
     {
-        sw_err_t ret = thread_register_arg(cfg->thread_name, engine_session_worker_fn, s, SCHED_OTHER, 0,
-                                           cfg->stack_size);
+        sw_err_t ret
+            = thread_register_arg(cfg->thread_name, engine_session_worker_fn, s, SCHED_OTHER, 0, cfg->stack_size);
 
         if (ret != SW_OK) {
             return ret;
@@ -381,8 +378,7 @@ sw_err_t engine_session_start(void *storage, const engine_session_run_t *run)
     int               sem_ret;
     sw_err_t          ret;
 
-    if ((s == NULL) || !s->inited || (run == NULL) || (run->program_path == NULL)
-        || (run->program_path[0] == '\0')) {
+    if ((s == NULL) || !s->inited || (run == NULL) || (run->program_path == NULL) || (run->program_path[0] == '\0')) {
         return SW_ERR_PARAM;
     }
 

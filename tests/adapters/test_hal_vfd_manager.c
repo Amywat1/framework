@@ -61,7 +61,7 @@ static sw_err_t mock_apply_frequency(void *ctx, hal_vfd_frequency_t frequency_ce
 {
     mock_vfd_t *vfd = (mock_vfd_t *)ctx;
 
-    vfd->freq = (uint16_t)((frequency_centi_hz < 0) ? -frequency_centi_hz : frequency_centi_hz);
+    vfd->freq  = (uint16_t)((frequency_centi_hz < 0) ? -frequency_centi_hz : frequency_centi_hz);
     vfd->state = (frequency_centi_hz > 0) ? HAL_VFD_STATE_FWD : HAL_VFD_STATE_REV;
     vfd->frequency_count++;
     return SW_OK;
@@ -134,14 +134,14 @@ static bool mock_has_rst_pin(void *ctx)
 }
 
 static const hal_vfd_backend_ops_t s_backend_ops = {
-    .apply_gear   = mock_apply_gear,
+    .apply_gear      = mock_apply_gear,
     .apply_frequency = mock_apply_frequency,
-    .stop_outputs = mock_stop_outputs,
-    .set_rst      = mock_set_rst,
-    .read         = mock_read,
-    .write        = mock_write,
-    .get_state    = mock_get_state,
-    .has_rst_pin  = mock_has_rst_pin,
+    .stop_outputs    = mock_stop_outputs,
+    .set_rst         = mock_set_rst,
+    .read            = mock_read,
+    .write           = mock_write,
+    .get_state       = mock_get_state,
+    .has_rst_pin     = mock_has_rst_pin,
 };
 
 static hal_vfd_manager_bind_cfg_t make_cfg(void)

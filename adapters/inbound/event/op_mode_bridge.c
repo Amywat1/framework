@@ -118,7 +118,7 @@ sw_err_t op_mode_bridge_init(void)
         {EVT_OP_MODE_RECOVERY_COMPLETED,   on_recovery_completed  },
         {EVT_OP_MODE_SELF_CHECK_COMPLETED, on_self_check_completed},
         {EVT_OP_MODE_HOME_COMPLETED,       on_home_completed      },
-        {EVT_ABORT_HOME_DONE,             on_abort_home_done     },
+        {EVT_ABORT_HOME_DONE,              on_abort_home_done     },
     };
 
     sw_err_t ret = event_subscribe_table(s_subs, sizeof(s_subs) / sizeof(s_subs[0]));

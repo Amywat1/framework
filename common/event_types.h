@@ -83,9 +83,9 @@ typedef uint16_t event_type_t;
 #define EVT_SAFETY_ID_NOMINAL         1U
 #define EVT_SAFETY_ID_ABORT_HOME_DONE 2U /* 中止归位完成（abort_home_coordinator 发布；数值沿用原 HOME_DONE）*/
 
-#define EVT_SAFETY_LOCKOUT   EVT_MAKE(EVT_CAT_SAFETY, EVT_SAFETY_ID_LOCKOUT)
-#define EVT_SAFETY_NOMINAL   EVT_MAKE(EVT_CAT_SAFETY, EVT_SAFETY_ID_NOMINAL)
-#define EVT_ABORT_HOME_DONE  EVT_MAKE(EVT_CAT_SAFETY, EVT_SAFETY_ID_ABORT_HOME_DONE)
+#define EVT_SAFETY_LOCKOUT  EVT_MAKE(EVT_CAT_SAFETY, EVT_SAFETY_ID_LOCKOUT)
+#define EVT_SAFETY_NOMINAL  EVT_MAKE(EVT_CAT_SAFETY, EVT_SAFETY_ID_NOMINAL)
+#define EVT_ABORT_HOME_DONE EVT_MAKE(EVT_CAT_SAFETY, EVT_SAFETY_ID_ABORT_HOME_DONE)
 
 /* -------------------------------------------------------------------------
  * ALARM 类（alarm_event_bridge 发布）
@@ -141,8 +141,8 @@ typedef uint16_t event_type_t;
 #define EVT_OP_MODE_ID_SELF_CHECK_COMPLETED 4U
 #define EVT_OP_MODE_ID_CONTEXT_SYNC         5U
 #define EVT_OP_MODE_ID_CMD_HANDLED          6U /**< 命令处理完成（kind/status/reason 编码于 param）*/
-#define EVT_OP_MODE_ID_HOME_COMPLETED        7U /**< 内部归位完成（param=1 成功）*/
-#define EVT_OP_MODE_ID_ABORT_HOME_REQUESTED  8U /**< 中止归位请求（进入 ABORT_HOMING 时发布）*/
+#define EVT_OP_MODE_ID_HOME_COMPLETED       7U /**< 内部归位完成（param=1 成功）*/
+#define EVT_OP_MODE_ID_ABORT_HOME_REQUESTED 8U /**< 中止归位请求（进入 ABORT_HOMING 时发布）*/
 
 #define EVT_OP_MODE_CHANGED              EVT_MAKE(EVT_CAT_OP_MODE, EVT_OP_MODE_ID_CHANGED)
 #define EVT_OP_MODE_CMD_REJECTED         EVT_MAKE(EVT_CAT_OP_MODE, EVT_OP_MODE_ID_CMD_REJECTED)
@@ -196,11 +196,11 @@ static inline bool event_type_is_valid(event_type_t type)
  * 事件结构体
  * ------------------------------------------------------------------------- */
 typedef struct {
-    event_type_t type;         /**< 事件类型（复合编码）*/
-    uint32_t     param;        /**< 载荷：报警码、错误码、模式等（无载荷时为 0）*/
-    uint64_t     timestamp_ms; /**< 入队时间戳（由 event_bus 填充）*/
-    uint64_t     event_id;     /**< 启动周期内唯一事件编号 */
-    trace_context_t trace;     /**< 发布时捕获的业务因果上下文 */
+    event_type_t    type;         /**< 事件类型（复合编码）*/
+    uint32_t        param;        /**< 载荷：报警码、错误码、模式等（无载荷时为 0）*/
+    uint64_t        timestamp_ms; /**< 入队时间戳（由 event_bus 填充）*/
+    uint64_t        event_id;     /**< 启动周期内唯一事件编号 */
+    trace_context_t trace;        /**< 发布时捕获的业务因果上下文 */
 } event_t;
 
 #ifdef __cplusplus

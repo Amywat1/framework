@@ -6,6 +6,7 @@
  */
 
 #include "domain/telemetry/device_snapshot.h"
+
 #include "domain/telemetry/device_snapshot_internal.h"
 
 #include <pthread.h>

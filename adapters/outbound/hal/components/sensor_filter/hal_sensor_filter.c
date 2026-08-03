@@ -78,8 +78,8 @@ sw_err_t hal_sensor_filter_bind(hal_sensor_channel_t ch, const hal_sensor_bind_c
         pthread_mutex_unlock(&s_sensor_lock);
         return SW_ERR_BUSY;
     }
-    s_cfg[ch]   = *cfg;
-    s_bound[ch] = true;
+    s_cfg[ch]     = *cfg;
+    s_bound[ch]   = true;
     s_initialized = false;
     pthread_mutex_unlock(&s_sensor_lock);
     return SW_OK;
@@ -156,7 +156,7 @@ static sw_err_t sensor_tick(void)
             rt->last_raw     = false;
             rt->stable_count = 0U;
             if (rt->state != HAL_SENSOR_STATE_UNKNOWN) {
-                rt->state = HAL_SENSOR_STATE_UNKNOWN;
+                rt->state                       = HAL_SENSOR_STATE_UNKNOWN;
                 transitions[transition_count++] = (sensor_transition_t){ch, HAL_SENSOR_STATE_UNKNOWN};
             }
             continue;
@@ -173,10 +173,10 @@ static sw_err_t sensor_tick(void)
             rt->stable_count = 1U;
         }
 
-        threshold = raw_active ? cfg->trig_count : cfg->release_count;
+        threshold  = raw_active ? cfg->trig_count : cfg->release_count;
         next_state = raw_active ? HAL_SENSOR_STATE_ACTIVE : HAL_SENSOR_STATE_INACTIVE;
         if ((rt->stable_count >= threshold) && (rt->state != next_state)) {
-            rt->state = next_state;
+            rt->state                       = next_state;
             transitions[transition_count++] = (sensor_transition_t){ch, next_state};
         }
     }

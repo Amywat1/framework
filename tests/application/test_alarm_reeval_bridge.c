@@ -24,18 +24,18 @@ enum {
 
 static const alarm_def_t s_catalog[] = {
     {
-     .code             = 201105U,
-     .level            = ALARM_LEVEL_MAJOR,
-     .clear            = ALARM_CLEAR_ON_MOTION,
-     .reeval_group     = TEST_GROUP_GANTRY,
-     .desc             = "gantry timeout",
+     .code         = 201105U,
+     .level        = ALARM_LEVEL_MAJOR,
+     .clear        = ALARM_CLEAR_ON_MOTION,
+     .reeval_group = TEST_GROUP_GANTRY,
+     .desc         = "gantry timeout",
      },
     {
-     .code             = 201205U,
-     .level            = ALARM_LEVEL_MAJOR,
-     .clear            = ALARM_CLEAR_ON_MOTION,
-     .reeval_group     = TEST_GROUP_EXIT,
-     .desc             = "exit timeout",
+     .code         = 201205U,
+     .level        = ALARM_LEVEL_MAJOR,
+     .clear        = ALARM_CLEAR_ON_MOTION,
+     .reeval_group = TEST_GROUP_EXIT,
+     .desc         = "exit timeout",
      },
 };
 

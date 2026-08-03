@@ -209,7 +209,7 @@ sw_err_t snack_io_adapter_configure(const drv_io_cfg_t *cfg)
     if (s_configured) {
         return SW_ERR_BUSY;
     }
-    s_cfg = *cfg;
+    s_cfg        = *cfg;
     s_configured = true;
     s_inited     = false;
     return SW_OK;

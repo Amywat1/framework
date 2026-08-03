@@ -175,15 +175,15 @@ static bool backend_has_rst_pin(void *ctx)
 
 /** @brief 本 provider 的 backend 契约单例，所有 snack VFD 实例共用 */
 static const hal_vfd_backend_ops_t s_snack_vfd_backend_ops = {
-    .init         = backend_init,
-    .apply_gear   = backend_apply_gear,
+    .init            = backend_init,
+    .apply_gear      = backend_apply_gear,
     .apply_frequency = backend_apply_frequency,
-    .stop_outputs = backend_stop_outputs,
-    .set_rst      = backend_set_rst,
-    .read         = backend_read,
-    .write        = backend_write,
-    .get_state    = backend_get_state,
-    .has_rst_pin  = backend_has_rst_pin,
+    .stop_outputs    = backend_stop_outputs,
+    .set_rst         = backend_set_rst,
+    .read            = backend_read,
+    .write           = backend_write,
+    .get_state       = backend_get_state,
+    .has_rst_pin     = backend_has_rst_pin,
 };
 
 static sw_err_t snack_bind_instance(hal_vfd_id_t id, snack_vfd_slot_t *slot)

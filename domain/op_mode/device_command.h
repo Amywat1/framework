@@ -90,8 +90,8 @@ static inline dev_cmd_t dev_cmd_make_simple(dev_cmd_kind_t kind)
     cmd.meta.wash_session_id = 0U;
     cmd.meta.correlation_id  = 0U;
     cmd.meta.causation_id    = 0U;
-    cmd.meta.source     = DEV_CMD_SOURCE_TEST;
-    cmd.body.kind       = kind;
+    cmd.meta.source          = DEV_CMD_SOURCE_TEST;
+    cmd.body.kind            = kind;
     return cmd;
 }
 

@@ -14,14 +14,14 @@ extern "C" {
 #include "ports/outbound/machine/machine_ops_port.h"
 #include "tests/stubs/test_wash_modes.h"
 
-void wash_ops_stub_reset(void);
-int wash_ops_stub_start_count(void);
-int wash_ops_stub_abort_count(void);
-wash_mode_t wash_ops_stub_last_mode(void);
+void               wash_ops_stub_reset(void);
+int                wash_ops_stub_start_count(void);
+int                wash_ops_stub_abort_count(void);
+wash_mode_t        wash_ops_stub_last_mode(void);
 wash_abort_cause_t wash_ops_stub_last_abort_cause(void);
 
 sw_err_t wash_ops_stub_start(wash_mode_t mode);
-void wash_ops_stub_abort(wash_abort_cause_t cause);
+void     wash_ops_stub_abort(wash_abort_cause_t cause);
 
 /** 填充 ops 中与洗车相关的字段（其余保持调用方已设值）*/
 void wash_ops_stub_bind(machine_ops_t *ops);

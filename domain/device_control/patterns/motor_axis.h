@@ -50,10 +50,7 @@ typedef struct {
  * @param[in]     opts   lifecycle 选项，可为 NULL
  * @return SW_OK 成功；SW_ERR_PARAM 参数非法
  */
-sw_err_t motor_axis_init(motor_axis_t                 *self,
-                         hal_motor_exec_t             *exec,
-                         int                           motor,
-                         const motion_lifecycle_opts_t *opts);
+sw_err_t motor_axis_init(motor_axis_t *self, hal_motor_exec_t *exec, int motor, const motion_lifecycle_opts_t *opts);
 
 /**
  * @brief  启动运动：spec 为 NULL 时连续运转，否则按 spec 到位
@@ -66,9 +63,9 @@ sw_err_t motor_axis_init(motor_axis_t                 *self,
  * @note   speed.value == 0 时直接 stop，不发 run 命令
  * @note   连续运行期间重复调用会更新速度或方向，不会重新启动运动生命周期
  */
-sw_err_t motor_axis_run(motor_axis_t               *self,
-                        hal_motor_dir_t             dir,
-                        hal_motor_speed_t           speed,
+sw_err_t motor_axis_run(motor_axis_t                *self,
+                        hal_motor_dir_t              dir,
+                        hal_motor_speed_t            speed,
                         const hal_motor_move_spec_t *spec);
 
 /**

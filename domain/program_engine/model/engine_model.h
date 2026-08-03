@@ -65,11 +65,11 @@ typedef enum { ENGINE_ACT_INTENT = 0, ENGINE_ACT_WAIT_TIME } engine_action_type_
  * @brief  执行机构意图（resource/cmd 等对框架不透明，由项目解释）
  */
 typedef struct {
-    char     resource[ENGINE_NAME_MAX];
-    char     cmd[ENGINE_NAME_MAX];
-    char     dir[ENGINE_NAME_MAX]; /**< 可空 */
-    int      gear;                 /**< 1 基挡位；0 常表示停 */
-    char   (*paths)[ENGINE_NAME_MAX];
+    char resource[ENGINE_NAME_MAX];
+    char cmd[ENGINE_NAME_MAX];
+    char dir[ENGINE_NAME_MAX]; /**< 可空 */
+    int  gear;                 /**< 1 基挡位；0 常表示停 */
+    char (*paths)[ENGINE_NAME_MAX];
     unsigned path_count;
 } engine_intent_t;
 
@@ -112,8 +112,8 @@ typedef struct {
     unsigned         after_count;
 
     /* control 型字段 */
-    engine_expr_t   *active_while;
-    engine_intent_t  intent;
+    engine_expr_t  *active_while;
+    engine_intent_t intent;
 } engine_step_t;
 
 /* 通道 */
@@ -137,10 +137,10 @@ typedef struct {
     engine_action_t        *on_exit;
     unsigned                on_exit_count;
     /** 阶段退出时不自动释放的资源名（跨阶段保持） */
-    char                  (*keep)[ENGINE_NAME_MAX];
-    unsigned                keep_count;
-    engine_lane_t          *lanes;
-    unsigned                lane_count;
+    char (*keep)[ENGINE_NAME_MAX];
+    unsigned       keep_count;
+    engine_lane_t *lanes;
+    unsigned       lane_count;
 } engine_phase_t;
 
 /* 坐标轴（仅 physical 型） */
@@ -152,19 +152,16 @@ typedef struct {
 } engine_axis_t;
 
 /* 标记触发源：信号边沿 或 条件边沿（互斥） */
-typedef enum {
-    ENGINE_MARKER_ON_SIGNAL = 0,
-    ENGINE_MARKER_ON_CONDITION
-} engine_marker_on_t;
+typedef enum { ENGINE_MARKER_ON_SIGNAL = 0, ENGINE_MARKER_ON_CONDITION } engine_marker_on_t;
 
 /* 位置标记（仅 latch 型） */
 typedef struct {
-    char              id[ENGINE_NAME_MAX];
-    char              axis[ENGINE_NAME_MAX];
+    char               id[ENGINE_NAME_MAX];
+    char               axis[ENGINE_NAME_MAX];
     engine_marker_on_t on_kind;
-    char              signal[ENGINE_NAME_MAX]; /* ON_SIGNAL */
-    engine_expr_t    *cond;                   /* ON_CONDITION：编译后表达式 */
-    engine_edge_t     edge;
+    char               signal[ENGINE_NAME_MAX]; /* ON_SIGNAL */
+    engine_expr_t     *cond;                    /* ON_CONDITION：编译后表达式 */
+    engine_edge_t      edge;
 } engine_marker_t;
 
 /* 联锁 */

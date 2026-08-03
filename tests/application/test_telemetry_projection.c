@@ -21,11 +21,11 @@
 
 static const alarm_def_t s_catalog[] = {
     {
-     .code             = 201101U,
-     .level            = ALARM_LEVEL_MAJOR,
-     .clear            = ALARM_CLEAR_MANUAL_RESET,
-     .reeval_group     = ALARM_REEVAL_GROUP_NONE,
-     .desc             = "blocking alarm",
+     .code         = 201101U,
+     .level        = ALARM_LEVEL_MAJOR,
+     .clear        = ALARM_CLEAR_MANUAL_RESET,
+     .reeval_group = ALARM_REEVAL_GROUP_NONE,
+     .desc         = "blocking alarm",
      },
 };
 
@@ -110,7 +110,7 @@ static void test_operational_projection_syncs_current_context(void)
     pthread_t              tid;
     operational_snapshot_t snap;
     dev_cmd_t              recover_cmd = dev_cmd_make_simple(DEV_CMD_RECOVER);
-    dev_cmd_t              stop_cmd = dev_cmd_make_simple(DEV_CMD_STOP_OPERATION);
+    dev_cmd_t              stop_cmd    = dev_cmd_make_simple(DEV_CMD_STOP_OPERATION);
 
     time_util_init();
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());

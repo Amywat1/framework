@@ -40,16 +40,16 @@ extern "C" {
  *         MINOR 告警可与正常状态共存。
  */
 typedef enum {
-    OP_MODE_INIT = 0,        /**< 系统初始化中（operational_mode_init 前）*/
-    OP_MODE_STOPPED,         /**< 停机（未运营或待归位；总开关关时禁止 HOME）*/
-    OP_MODE_HOMING,          /**< 归位中（STOPPED → IDLE）*/
-    OP_MODE_IDLE,            /**< 运营待机（总开关必开，可接单）*/
-    OP_MODE_WASHING,         /**< 洗车会话执行中 */
-    OP_MODE_ABORT_HOMING,    /**< 中止归位中（非急停洗车中止 → EXCEPTION）*/
-    OP_MODE_WASH_DONE,       /**< 洗车完成，等待客户离场 */
-    OP_MODE_SELF_CHECK,      /**< 自检中 */
-    OP_MODE_EXCEPTION,       /**< 故障停机 */
-    OP_MODE_RECOVERING,      /**< 恢复中（归位 + 阻塞告警验证）*/
+    OP_MODE_INIT = 0,     /**< 系统初始化中（operational_mode_init 前）*/
+    OP_MODE_STOPPED,      /**< 停机（未运营或待归位；总开关关时禁止 HOME）*/
+    OP_MODE_HOMING,       /**< 归位中（STOPPED → IDLE）*/
+    OP_MODE_IDLE,         /**< 运营待机（总开关必开，可接单）*/
+    OP_MODE_WASHING,      /**< 洗车会话执行中 */
+    OP_MODE_ABORT_HOMING, /**< 中止归位中（非急停洗车中止 → EXCEPTION）*/
+    OP_MODE_WASH_DONE,    /**< 洗车完成，等待客户离场 */
+    OP_MODE_SELF_CHECK,   /**< 自检中 */
+    OP_MODE_EXCEPTION,    /**< 故障停机 */
+    OP_MODE_RECOVERING,   /**< 恢复中（归位 + 阻塞告警验证）*/
 } operational_mode_t;
 
 /**
@@ -59,7 +59,7 @@ typedef enum {
 typedef uint8_t wash_mode_t;
 
 /** @brief  无效洗车模式（框架侧占位，项目勿用作合法模式） */
-#define WASH_MODE_INVALID  ((wash_mode_t)0xFFU)
+#define WASH_MODE_INVALID ((wash_mode_t)0xFFU)
 
 /** @brief  洗车会话中止原因 */
 typedef enum {

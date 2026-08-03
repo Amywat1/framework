@@ -7,7 +7,6 @@
 #include "domain/op_mode/device_command.h"
 #include "domain/op_mode/op_mode_types.h"
 #include "domain/op_mode/operational_mode.h"
-
 #include "domain/safety/alarm_registry/alarm_registry.h"
 #include "domain/safety/model/alarm_types.h"
 #include "ports/outbound/machine/machine_ops_port.h"
@@ -18,11 +17,11 @@
 
 static const alarm_def_t s_catalog[] = {
     {
-     .code             = TEST_ALARM_BLOCKING,
-     .level            = ALARM_LEVEL_MAJOR,
-     .clear            = ALARM_CLEAR_MANUAL_RESET,
-     .reeval_group     = ALARM_REEVAL_GROUP_NONE,
-     .desc             = "test blocking",
+     .code         = TEST_ALARM_BLOCKING,
+     .level        = ALARM_LEVEL_MAJOR,
+     .clear        = ALARM_CLEAR_MANUAL_RESET,
+     .reeval_group = ALARM_REEVAL_GROUP_NONE,
+     .desc         = "test blocking",
      },
 };
 
@@ -111,7 +110,7 @@ static void test_blocking_alarm_during_home_lands_exception(void)
 static void test_recover_denied_when_service_disabled(void)
 {
     dev_cmd_t recover_cmd = dev_cmd_make_simple(DEV_CMD_RECOVER);
-    dev_cmd_t stop_cmd = dev_cmd_make_simple(DEV_CMD_STOP_OPERATION);
+    dev_cmd_t stop_cmd    = dev_cmd_make_simple(DEV_CMD_STOP_OPERATION);
 
     enter_idle();
     (void)op_mode_handle_command(&stop_cmd); /* → STOPPED, service=off */

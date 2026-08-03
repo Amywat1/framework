@@ -93,21 +93,21 @@ static void assert_safe_outputs(void)
 sw_err_t project_hooks_register(void)
 {
     static const project_hooks_t s_hooks = {
-        .configure_storage    = configure_storage,
-        .configure_hal        = configure_hal,
-        .bind_hal             = bind_hal,
-        .init_hal             = init_hal,
-        .configure_safety     = configure_safety,
-        .init_safety          = init_safety,
-        .configure_adapters   = configure_adapters,
-        .bind_machine         = bind_machine,
-        .init_machine         = init_machine,
-        .bind_alarm_catalog   = bind_alarm_catalog,
-        .validate             = validate,
-        .init_adapters        = init_adapters,
+        .configure_storage      = configure_storage,
+        .configure_hal          = configure_hal,
+        .bind_hal               = bind_hal,
+        .init_hal               = init_hal,
+        .configure_safety       = configure_safety,
+        .init_safety            = init_safety,
+        .configure_adapters     = configure_adapters,
+        .bind_machine           = bind_machine,
+        .init_machine           = init_machine,
+        .bind_alarm_catalog     = bind_alarm_catalog,
+        .validate               = validate,
+        .init_adapters          = init_adapters,
         .register_runtime_tasks = register_runtime_tasks,
-        .start_runtime        = start_runtime,
-        .assert_safe_outputs  = assert_safe_outputs,
+        .start_runtime          = start_runtime,
+        .assert_safe_outputs    = assert_safe_outputs,
     };
     return bootstrap_register_hooks(&s_hooks);
 }

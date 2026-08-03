@@ -136,7 +136,7 @@ static engine_action_t *clone_actions(const engine_action_t *src, unsigned count
         return NULL;
     }
     for (unsigned i = 0U; i < count; ++i) {
-        dst[i] = src[i];
+        dst[i]                   = src[i];
         dst[i].intent.paths      = NULL;
         dst[i].intent.path_count = 0U;
         if (src[i].type == ENGINE_ACT_INTENT) {

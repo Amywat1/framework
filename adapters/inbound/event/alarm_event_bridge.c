@@ -75,6 +75,5 @@ static void bridge_tick(void *ctx)
 sw_err_t alarm_event_bridge_init(void)
 {
     s_posture = SAFETY_POSTURE_NOMINAL;
-    return periodic_task_register("alarm_bridge", 50U, bridge_tick, NULL,
-                                  SCHED_OTHER, 0, THD_SENSOR_POLL_STACK);
+    return periodic_task_register("alarm_bridge", 50U, bridge_tick, NULL, SCHED_OTHER, 0, THD_SENSOR_POLL_STACK);
 }

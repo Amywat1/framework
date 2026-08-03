@@ -13,10 +13,10 @@
 #include <string.h>
 
 static drv_voice_t s_voice;
-static bool        s_voice_inited = false;
-static const char *s_serial_port  = NULL;
-static int         s_baud         = 0;
-static int         s_modbus_addr  = 0;
+static bool        s_voice_inited         = false;
+static const char *s_serial_port          = NULL;
+static int         s_baud                 = 0;
+static int         s_modbus_addr          = 0;
 static void (*s_event_cb)(int event_code) = NULL;
 
 static bool voice_ready(void)

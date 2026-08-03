@@ -118,21 +118,21 @@ static void capture_event(const motor_event_t *event, void *ctx)
 
 static void init_executor(int64_t initial_position, motor_encoder_kind_t encoder_kind)
 {
-    static motor_driver_t  driver;
-    static motor_encoder_t encoder;
-    static motor_driver_t *drivers[1];
+    static motor_driver_t   driver;
+    static motor_encoder_t  encoder;
+    static motor_driver_t  *drivers[1];
     static motor_encoder_t *encoders[1];
-    static motor_clock_t   clock;
-    static motor_sensors_t sensors;
-    static motor_estop_t   estop;
-    motor_config_t         config;
-    motor_ports_t          ports;
-    motor_init_result_t    result;
+    static motor_clock_t    clock;
+    static motor_sensors_t  sensors;
+    static motor_estop_t    estop;
+    motor_config_t          config;
+    motor_ports_t           ports;
+    motor_init_result_t     result;
 
     memset(&s_fixture, 0, sizeof(s_fixture));
     memset(&s_executor, 0, sizeof(s_executor));
     memset(&config, 0, sizeof(config));
-    s_fixture.position = initial_position;
+    s_fixture.position      = initial_position;
     s_fixture.zero_succeeds = true;
 
     driver = (motor_driver_t){
@@ -148,31 +148,31 @@ static void init_executor(int64_t initial_position, motor_encoder_kind_t encoder
         .zero = encoder_zero,
         .ctx  = &s_fixture,
     };
-    clock   = (motor_clock_t){clock_now, &s_fixture};
-    sensors = (motor_sensors_t){sensor_limit, &s_fixture};
-    estop   = (motor_estop_t){estop_active, &s_fixture};
-    drivers[0] = &driver;
+    clock       = (motor_clock_t){clock_now, &s_fixture};
+    sensors     = (motor_sensors_t){sensor_limit, &s_fixture};
+    estop       = (motor_estop_t){estop_active, &s_fixture};
+    drivers[0]  = &driver;
     encoders[0] = &encoder;
-    ports = (motor_ports_t){
-        .clock    = &clock,
-        .drivers  = drivers,
-        .encoders = encoders,
-        .sensors  = &sensors,
-        .estop    = &estop,
+    ports       = (motor_ports_t){
+              .clock    = &clock,
+              .drivers  = drivers,
+              .encoders = encoders,
+              .sensors  = &sensors,
+              .estop    = &estop,
     };
-    config.motor_count                    = 1;
-    config.driver_count                   = 1;
-    config.tick_ms                        = 10;
-    config.watchdog_ms                    = 100;
-    config.motors[0].driver_index         = 0;
-    config.motors[0].has_encoder          = true;
-    config.motors[0].encoder_kind         = encoder_kind;
-    config.motors[0].cap_position_move    = true;
-    config.motors[0].pos_tolerance        = 5;
-    config.motors[0].decel_point          = 20;
-    config.motors[0].position_slow_gear   = 1;
-    config.motors[0].default_max_move_ms  = 1000;
-    config.motors[0].gear_count           = 2;
+    config.motor_count                   = 1;
+    config.driver_count                  = 1;
+    config.tick_ms                       = 10;
+    config.watchdog_ms                   = 100;
+    config.motors[0].driver_index        = 0;
+    config.motors[0].has_encoder         = true;
+    config.motors[0].encoder_kind        = encoder_kind;
+    config.motors[0].cap_position_move   = true;
+    config.motors[0].pos_tolerance       = 5;
+    config.motors[0].decel_point         = 20;
+    config.motors[0].position_slow_gear  = 1;
+    config.motors[0].default_max_move_ms = 1000;
+    config.motors[0].gear_count          = 2;
 
     result = motor_init(&s_executor, &config, &ports);
     TEST_ASSERT_TRUE_MESSAGE(result.ok, result.error);
@@ -190,13 +190,13 @@ void tearDown(void)
 
 static void test_forward_position_move_slows_once_and_stops_after_overshoot(void)
 {
-    motor_move_spec_t spec = {0};
+    motor_move_spec_t  spec = {0};
     motor_cmd_result_t result;
 
     init_executor(0, MOTOR_ENC_ABSOLUTE);
     spec.use_position = true;
     spec.target_pos   = 100;
-    result = motor_move_to(&s_executor, 0, motor_speed_gear(2), MOTOR_DIR_FORWARD, &spec);
+    result            = motor_move_to(&s_executor, 0, motor_speed_gear(2), MOTOR_DIR_FORWARD, &spec);
     TEST_ASSERT_TRUE(motor_cmd_ok(result));
 
     tick_at(0);
@@ -218,13 +218,13 @@ static void test_forward_position_move_slows_once_and_stops_after_overshoot(void
 
 static void test_reverse_position_move_stops_after_overshoot(void)
 {
-    motor_move_spec_t spec = {0};
+    motor_move_spec_t  spec = {0};
     motor_cmd_result_t result;
 
     init_executor(200, MOTOR_ENC_ABSOLUTE);
     spec.use_position = true;
     spec.target_pos   = 100;
-    result = motor_move_to(&s_executor, 0, motor_speed_gear(2), MOTOR_DIR_REVERSE, &spec);
+    result            = motor_move_to(&s_executor, 0, motor_speed_gear(2), MOTOR_DIR_REVERSE, &spec);
     TEST_ASSERT_TRUE(motor_cmd_ok(result));
 
     tick_at(200);
@@ -240,21 +240,21 @@ static void test_reverse_position_move_stops_after_overshoot(void)
 
 static void test_active_position_target_update_keeps_start_time_and_output(void)
 {
-    motor_move_spec_t spec = {0};
+    motor_move_spec_t  spec = {0};
     motor_cmd_result_t result;
 
     init_executor(0, MOTOR_ENC_ABSOLUTE);
     spec.use_position = true;
     spec.target_pos   = 100;
-    result = motor_move_to(&s_executor, 0, motor_speed_gear(1), MOTOR_DIR_FORWARD, &spec);
+    result            = motor_move_to(&s_executor, 0, motor_speed_gear(1), MOTOR_DIR_FORWARD, &spec);
     TEST_ASSERT_TRUE(motor_cmd_ok(result));
     tick_at(0);
     TEST_ASSERT_EQUAL_INT(1, s_fixture.output_count);
 
     s_executor.cfg.watchdog_ms = 2000;
-    s_fixture.now_ms = 989U;
-    spec.target_pos  = 150;
-    result = motor_move_to(&s_executor, 0, motor_speed_gear(1), MOTOR_DIR_FORWARD, &spec);
+    s_fixture.now_ms           = 989U;
+    spec.target_pos            = 150;
+    result                     = motor_move_to(&s_executor, 0, motor_speed_gear(1), MOTOR_DIR_FORWARD, &spec);
     TEST_ASSERT_TRUE(motor_cmd_ok(result));
     tick_at(20);
 
@@ -268,13 +268,13 @@ static void test_active_position_target_update_keeps_start_time_and_output(void)
 
 static void test_origin_move_clears_hardware_and_software_once(void)
 {
-    motor_move_spec_t spec = {0};
+    motor_move_spec_t  spec = {0};
     motor_cmd_result_t result;
 
     init_executor(40, MOTOR_ENC_INCREMENTAL);
     spec.use_limit = true;
     spec.limit     = MOTOR_LIMIT_ORIGIN;
-    result = motor_move_to(&s_executor, 0, motor_speed_gear(1), MOTOR_DIR_REVERSE, &spec);
+    result         = motor_move_to(&s_executor, 0, motor_speed_gear(1), MOTOR_DIR_REVERSE, &spec);
     TEST_ASSERT_TRUE(motor_cmd_ok(result));
 
     tick_at(45);
@@ -291,14 +291,14 @@ static void test_origin_move_clears_hardware_and_software_once(void)
 
 static void test_origin_clear_failure_keeps_baseline_untrusted_and_faults(void)
 {
-    motor_move_spec_t spec = {0};
+    motor_move_spec_t  spec = {0};
     motor_cmd_result_t result;
 
     init_executor(40, MOTOR_ENC_INCREMENTAL);
     s_fixture.zero_succeeds = false;
-    spec.use_limit = true;
-    spec.limit     = MOTOR_LIMIT_ORIGIN;
-    result = motor_move_to(&s_executor, 0, motor_speed_gear(1), MOTOR_DIR_REVERSE, &spec);
+    spec.use_limit          = true;
+    spec.limit              = MOTOR_LIMIT_ORIGIN;
+    result                  = motor_move_to(&s_executor, 0, motor_speed_gear(1), MOTOR_DIR_REVERSE, &spec);
     TEST_ASSERT_TRUE(motor_cmd_ok(result));
 
     tick_at(45);

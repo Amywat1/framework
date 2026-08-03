@@ -15,25 +15,25 @@
 #include <pthread.h>
 #include <string.h>
 
-#define SIM_IO_BOARD_MAX     8U
-#define SIM_IO_PIN_COUNT     32U
-#define SIM_IO_ADC_PORT_MAX  4
-#define SIM_IO_ADC_NOT_INIT  (-99)
+#define SIM_IO_BOARD_MAX    8U
+#define SIM_IO_PIN_COUNT    32U
+#define SIM_IO_ADC_PORT_MAX 4
+#define SIM_IO_ADC_NOT_INIT (-99)
 
-static bool     s_do_state[SIM_IO_BOARD_MAX][SIM_IO_PIN_COUNT + 1U];
-static bool     s_di_state[SIM_IO_BOARD_MAX][SIM_IO_PIN_COUNT + 1U];
-static uint32_t s_pulse_counter[SIM_IO_BOARD_MAX][SIM_IO_PIN_COUNT + 1U];
-static int      s_adc_raw[SIM_IO_BOARD_MAX][SIM_IO_ADC_PORT_MAX + 1];
-static int      s_adc_mv[SIM_IO_BOARD_MAX][SIM_IO_ADC_PORT_MAX + 1];
-static int      s_adc_ma[SIM_IO_BOARD_MAX][SIM_IO_ADC_PORT_MAX + 1];
+static bool                s_do_state[SIM_IO_BOARD_MAX][SIM_IO_PIN_COUNT + 1U];
+static bool                s_di_state[SIM_IO_BOARD_MAX][SIM_IO_PIN_COUNT + 1U];
+static uint32_t            s_pulse_counter[SIM_IO_BOARD_MAX][SIM_IO_PIN_COUNT + 1U];
+static int                 s_adc_raw[SIM_IO_BOARD_MAX][SIM_IO_ADC_PORT_MAX + 1];
+static int                 s_adc_mv[SIM_IO_BOARD_MAX][SIM_IO_ADC_PORT_MAX + 1];
+static int                 s_adc_ma[SIM_IO_BOARD_MAX][SIM_IO_ADC_PORT_MAX + 1];
 static io_sample_quality_t s_di_quality[SIM_IO_BOARD_MAX];
-static uint64_t s_di_timestamp_ms[SIM_IO_BOARD_MAX];
-static uint32_t s_di_sequence[SIM_IO_BOARD_MAX];
-static bool     s_inited = false;
-static bool     s_started = false;
-static uint32_t s_lifecycle_violation_count = 0U;
-static pthread_mutex_t s_do_mutex = PTHREAD_MUTEX_INITIALIZER;
-static pthread_mutex_t s_di_mutex = PTHREAD_MUTEX_INITIALIZER;
+static uint64_t            s_di_timestamp_ms[SIM_IO_BOARD_MAX];
+static uint32_t            s_di_sequence[SIM_IO_BOARD_MAX];
+static bool                s_inited                    = false;
+static bool                s_started                   = false;
+static uint32_t            s_lifecycle_violation_count = 0U;
+static pthread_mutex_t     s_do_mutex                  = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t     s_di_mutex                  = PTHREAD_MUTEX_INITIALIZER;
 
 static void sim_record_lifecycle_violation(const char *operation)
 {
@@ -81,9 +81,9 @@ void hal_io_sim_set_di_level(io_di_t pin, bool level)
         return;
     }
 
-    raw                   = io_di_raw(pin);
-    board                 = io_handle_board(raw);
-    io                    = io_handle_pin(raw);
+    raw   = io_di_raw(pin);
+    board = io_handle_board(raw);
+    io    = io_handle_pin(raw);
     pthread_mutex_lock(&s_di_mutex);
     s_di_state[board][io] = level;
     if (s_started && (s_di_quality[board] == IO_SAMPLE_QUALITY_VALID)) {
@@ -163,8 +163,8 @@ static sw_err_t sim_di_read(io_di_t pin, io_di_sample_t *sample)
     board = io_handle_board(raw);
     io    = io_handle_pin(raw);
     pthread_mutex_lock(&s_di_mutex);
-    sample->level        = s_di_state[board][io];
-    sample->quality      = s_di_quality[board];
+    sample->level   = s_di_state[board][io];
+    sample->quality = s_di_quality[board];
     if (sample->quality == IO_SAMPLE_QUALITY_VALID) {
         s_di_timestamp_ms[board] = time_util_get_ms();
         s_di_sequence[board]++;
@@ -215,7 +215,7 @@ static sw_err_t sim_io_init(void)
     for (int board = 0; board < (int)SIM_IO_BOARD_MAX; ++board) {
         s_di_quality[board] = (board == 0) ? IO_SAMPLE_QUALITY_UNINITIALIZED : IO_SAMPLE_QUALITY_PROBING;
     }
-    s_inited = true;
+    s_inited  = true;
     s_started = false;
     return SW_OK;
 }
@@ -467,8 +467,7 @@ void hal_io_sim_register(void)
 sw_err_t hal_io_sim_validate_lifecycle(void)
 {
     if (s_lifecycle_violation_count != 0U) {
-        LOG_ERROR("hal_io_sim: lifecycle validation failed, violations=%u",
-                  (unsigned)s_lifecycle_violation_count);
+        LOG_ERROR("hal_io_sim: lifecycle validation failed, violations=%u", (unsigned)s_lifecycle_violation_count);
         return SW_ERR_STATE;
     }
     return SW_OK;
@@ -486,8 +485,8 @@ void hal_io_sim_test_reset(void)
     memset(s_di_quality, 0, sizeof(s_di_quality));
     memset(s_di_timestamp_ms, 0, sizeof(s_di_timestamp_ms));
     memset(s_di_sequence, 0, sizeof(s_di_sequence));
-    s_inited                     = false;
-    s_started                    = false;
+    s_inited                    = false;
+    s_started                   = false;
     s_lifecycle_violation_count = 0U;
 }
 #endif

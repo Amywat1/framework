@@ -9,8 +9,8 @@
 
 #include "adapters/inbound/event/alarm_event_bridge.h"
 #include "adapters/inbound/event/alarm_lifecycle_bridge.h"
-#include "application/command_gateway.h"
 #include "adapters/inbound/event/op_mode_bridge.h"
+#include "application/command_gateway.h"
 #include "application/orchestrators/abort_home_coordinator.h"
 #include "application/orchestrators/safety_cutout_coordinator.h"
 #include "application/recovery_service.h"
@@ -40,21 +40,11 @@ static const project_hooks_t *s_hooks;
 
 sw_err_t bootstrap_register_hooks(const project_hooks_t *hooks)
 {
-    if ((hooks == NULL)
-        || (hooks->configure_storage == NULL)
-        || (hooks->configure_hal == NULL)
-        || (hooks->bind_hal == NULL)
-        || (hooks->init_hal == NULL)
-        || (hooks->configure_safety == NULL)
-        || (hooks->init_safety == NULL)
-        || (hooks->configure_adapters == NULL)
-        || (hooks->bind_machine == NULL)
-        || (hooks->init_machine == NULL)
-        || (hooks->bind_alarm_catalog == NULL)
-        || (hooks->validate == NULL)
-        || (hooks->init_adapters == NULL)
-        || (hooks->register_runtime_tasks == NULL)
-        || (hooks->start_runtime == NULL)
+    if ((hooks == NULL) || (hooks->configure_storage == NULL) || (hooks->configure_hal == NULL)
+        || (hooks->bind_hal == NULL) || (hooks->init_hal == NULL) || (hooks->configure_safety == NULL)
+        || (hooks->init_safety == NULL) || (hooks->configure_adapters == NULL) || (hooks->bind_machine == NULL)
+        || (hooks->init_machine == NULL) || (hooks->bind_alarm_catalog == NULL) || (hooks->validate == NULL)
+        || (hooks->init_adapters == NULL) || (hooks->register_runtime_tasks == NULL) || (hooks->start_runtime == NULL)
         || (hooks->assert_safe_outputs == NULL)) {
         return SW_ERR_PARAM;
     }

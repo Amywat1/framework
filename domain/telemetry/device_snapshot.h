@@ -38,13 +38,8 @@ operational_snapshot_t operational_snapshot_get(void);
  */
 static inline bool operational_snapshot_is_stopping(operational_snapshot_t s)
 {
-    return !s.service_enabled
-           || (s.mode == OP_MODE_INIT)
-           || (s.mode == OP_MODE_STOPPED)
-           || (s.mode == OP_MODE_HOMING)
-           || (s.mode == OP_MODE_ABORT_HOMING)
-           || (s.mode == OP_MODE_SELF_CHECK)
-           || (s.mode == OP_MODE_EXCEPTION)
+    return !s.service_enabled || (s.mode == OP_MODE_INIT) || (s.mode == OP_MODE_STOPPED) || (s.mode == OP_MODE_HOMING)
+           || (s.mode == OP_MODE_ABORT_HOMING) || (s.mode == OP_MODE_SELF_CHECK) || (s.mode == OP_MODE_EXCEPTION)
            || (s.mode == OP_MODE_RECOVERING);
 }
 

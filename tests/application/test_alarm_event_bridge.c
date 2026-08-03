@@ -20,11 +20,11 @@ static volatile uint32_t g_last_code;
 
 static const alarm_def_t s_catalog[] = {
     {
-     .code             = 201101U,
-     .level            = ALARM_LEVEL_MAJOR,
-     .clear            = ALARM_CLEAR_MANUAL_RESET,
-     .reeval_group     = ALARM_REEVAL_GROUP_NONE,
-     .desc             = "test",
+     .code         = 201101U,
+     .level        = ALARM_LEVEL_MAJOR,
+     .clear        = ALARM_CLEAR_MANUAL_RESET,
+     .reeval_group = ALARM_REEVAL_GROUP_NONE,
+     .desc         = "test",
      },
 };
 

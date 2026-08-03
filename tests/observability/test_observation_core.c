@@ -18,9 +18,7 @@ void tearDown(void)
 {
 }
 
-static observation_record_spec_t make_record(observation_severity_t severity,
-                                             uint32_t               event_code,
-                                             const char            *text)
+static observation_record_spec_t make_record(observation_severity_t severity, uint32_t event_code, const char *text)
 {
     observation_record_spec_t spec;
 

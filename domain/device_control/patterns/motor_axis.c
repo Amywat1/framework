@@ -40,10 +40,7 @@ static motor_axis_state_t axis_phase_to_state(const motor_axis_t *self)
     }
 }
 
-sw_err_t motor_axis_init(motor_axis_t                 *self,
-                         hal_motor_exec_t             *exec,
-                         int                           motor,
-                         const motion_lifecycle_opts_t *opts)
+sw_err_t motor_axis_init(motor_axis_t *self, hal_motor_exec_t *exec, int motor, const motion_lifecycle_opts_t *opts)
 {
     if ((self == NULL) || (exec == NULL)) {
         return SW_ERR_PARAM;
@@ -56,9 +53,9 @@ sw_err_t motor_axis_init(motor_axis_t                 *self,
     return SW_OK;
 }
 
-sw_err_t motor_axis_run(motor_axis_t               *self,
-                        hal_motor_dir_t             dir,
-                        hal_motor_speed_t           speed,
+sw_err_t motor_axis_run(motor_axis_t                *self,
+                        hal_motor_dir_t              dir,
+                        hal_motor_speed_t            speed,
                         const hal_motor_move_spec_t *spec)
 {
     hal_motor_cmd_result_t r;

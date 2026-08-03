@@ -12,7 +12,6 @@
 #include "domain/op_mode/operational_mode.h"
 #include "domain/safety/alarm_registry/alarm_registry.h"
 #include "domain/safety/model/alarm_types.h"
-
 #include "runtime/event_bus/event_bus.h"
 #include "unity.h"
 

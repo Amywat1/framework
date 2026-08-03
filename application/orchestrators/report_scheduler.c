@@ -21,21 +21,21 @@
 #include <string.h>
 
 /* 支持的最大策略条目数 */
-#define REPORT_POLICY_MAX  8U
+#define REPORT_POLICY_MAX 8U
 /* 支持的最大不同周期数（PERIODIC 类型策略去重后） */
-#define REPORT_PERIOD_MAX  4U
+#define REPORT_PERIOD_MAX 4U
 /* 任务名称缓冲区长度（"cloud_report_" + 10位数字 + "ms" + '\0' = 26） */
-#define TASK_NAME_LEN      32U
+#define TASK_NAME_LEN     32U
 
 typedef struct {
     report_policy_entry_t entry;
 } report_policy_slot_t;
 
-static report_policy_slot_t          s_policies[REPORT_POLICY_MAX];
-static size_t                        s_policy_count   = 0U;
+static report_policy_slot_t s_policies[REPORT_POLICY_MAX];
+static size_t               s_policy_count = 0U;
 /* 已注册的唯一 period_ms 列表；每个元素作为 periodic_cb 的 ctx 传入 */
-static uint32_t                      s_periods[REPORT_PERIOD_MAX];
-static size_t                        s_period_count   = 0U;
+static uint32_t s_periods[REPORT_PERIOD_MAX];
+static size_t   s_period_count = 0U;
 /* 对应每个周期的任务名称缓冲区 */
 static char                          s_task_names[REPORT_PERIOD_MAX][TASK_NAME_LEN];
 static bool                          s_started        = false;
@@ -138,8 +138,7 @@ static void periodic_cb(void *ctx)
     cloud_point_watcher_poll();
 
     for (i = 0U; i < s_policy_count; i++) {
-        if ((s_policies[i].entry.kind == REPORT_TRIGGER_PERIODIC) &&
-            (s_policies[i].entry.period_ms == period)) {
+        if ((s_policies[i].entry.kind == REPORT_TRIGGER_PERIODIC) && (s_policies[i].entry.period_ms == period)) {
             run_policy(&s_policies[i].entry, NULL);
         }
     }
@@ -217,8 +216,8 @@ sw_err_t report_scheduler_register(const report_policy_entry_t *policies, size_t
     /* 为每个唯一周期注册独立的 periodic_task */
     for (j = 0U; j < s_period_count; j++) {
         snprintf(s_task_names[j], TASK_NAME_LEN, "cloud_report_%ums", (unsigned)s_periods[j]);
-        ret = periodic_task_register(s_task_names[j], s_periods[j], periodic_cb,
-                                     &s_periods[j], SCHED_OTHER, 0, THD_CLOUD_STACK);
+        ret = periodic_task_register(
+            s_task_names[j], s_periods[j], periodic_cb, &s_periods[j], SCHED_OTHER, 0, THD_CLOUD_STACK);
         if (ret != SW_OK) {
             return ret;
         }
@@ -235,7 +234,6 @@ sw_err_t report_scheduler_register(const report_policy_entry_t *policies, size_t
     }
 
     s_started = true;
-    LOG_INFO("report_scheduler: registered policies=%u periods=%u",
-             (unsigned)count, (unsigned)s_period_count);
+    LOG_INFO("report_scheduler: registered policies=%u periods=%u", (unsigned)count, (unsigned)s_period_count);
     return SW_OK;
 }

@@ -23,11 +23,11 @@
 #define TEST_ENGINE_SESSION_PROGRAM_PATH "/tmp/wdf_engine_session_program.json"
 #endif
 
-static int  s_stop_count;
-static int  s_started_count;
-static int  s_finished_count;
-static bool s_last_success;
-static bool s_last_aborted;
+static int     s_stop_count;
+static int     s_started_count;
+static int     s_finished_count;
+static bool    s_last_success;
+static bool    s_last_aborted;
 static uint8_t s_session_buf[2048];
 
 static void on_stop(void *user)
@@ -79,7 +79,8 @@ static const char *const s_program_json
       "\"on_exit\":[{\"act\":{\"resource\":\"aout\",\"cmd\":\"stop\"}}],"
       "\"lanes\":[{\"id\":\"lane\",\"steps\":["
       "{\"id\":\"a\",\"type\":\"event\",\"trigger\":{\"type\":\"condition\",\"expr\":\"true\"},"
-      "\"actions\":[{\"act\":{\"resource\":\"aout\",\"cmd\":\"run\",\"gear\":1}}],\"done\":{\"type\":\"actions_complete\"}}"
+      "\"actions\":[{\"act\":{\"resource\":\"aout\",\"cmd\":\"run\",\"gear\":1}}],\"done\":{\"type\":\"actions_"
+      "complete\"}}"
       "]}]"
       "}]"
       "}"

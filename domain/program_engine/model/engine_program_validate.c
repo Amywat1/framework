@@ -312,8 +312,7 @@ sw_err_t engine_program_validate(const engine_program_t          *prog,
             return SW_ERR_PARAM;
         }
         if (mk->on_kind == ENGINE_MARKER_ON_SIGNAL) {
-            if ((io_catalog != NULL)
-                && !name_in_list(mk->signal, io_catalog->signals, io_catalog->signal_count)) {
+            if ((io_catalog != NULL) && !name_in_list(mk->signal, io_catalog->signals, io_catalog->signal_count)) {
                 vfail(werr, wsz, "标记引用未知信号: %s", mk->signal);
                 return SW_ERR_PARAM;
             }

@@ -254,9 +254,9 @@ sw_err_t drv_io_pulse_clear(io_di_t pin);
  * ------------------------------------------------------------------------- */
 
 /** ADC 通道号下限（含） */
-#define DRV_IO_ADC_PORT_MIN 1
+#define DRV_IO_ADC_PORT_MIN     1
 /** ADC 通道号上限（含） */
-#define DRV_IO_ADC_PORT_MAX 4
+#define DRV_IO_ADC_PORT_MAX     4
 /** SDK 约定：子板未初始化时 ADC 读返回值 */
 #define DRV_IO_ADC_ERR_NOT_INIT (-99)
 

@@ -20,9 +20,9 @@
 #include "io_exp/slave.h"
 
 #include <pthread.h>
-#include <stdlib.h>
 #include <stdarg.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 
@@ -56,16 +56,16 @@ sw_err_t io_exp_driver_sdk_init(const char *can_bus, int can_baud, int self_node
 /* -------------------------------------------------------------------------
  * 内部常量
  * ------------------------------------------------------------------------- */
-#define IO_BOARD_MAX        7U             /* 最大子板数，含 0 号占位 */
-#define IO_PIN_COUNT_MAX    32U            /* 每块子板 IO 点数上限，仅用于静态数组维度 */
-#define IO_RW_STACK_BYTES   (16U * 1024U)  /* io_rw 线程栈 */
-#define IO_UPDATE_FREQ_MS   30U            /* 输入/输出缓冲刷新周期（ms） */
-#define IO_CHECK_PROBING_MS IO_UPDATE_FREQ_MS /* 启动和恢复确认期间快速探测 */
-#define IO_CHECK_OFFLINE_MS 300U           /* 全部在线时的在线检测间隔（ms） */
-#define IO_CHECK_ONLINE_MS  2000U          /* 存在掉线子板时的重连检测间隔（ms） */
-#define IO_OFFLINE_CNT      3U             /* 连续无响应次数达到该值后判定掉线 */
-#define IO_ONLINE_CNT       IO_OFFLINE_CNT /* 连续响应次数达到该值后确认上线（对称防抖）*/
-#define IO_STARTUP_SAFE_STOP_DELAY_MS 3000U /* 上电无板时执行安全停机的等待时间 */
+#define IO_BOARD_MAX                  7U                /* 最大子板数，含 0 号占位 */
+#define IO_PIN_COUNT_MAX              32U               /* 每块子板 IO 点数上限，仅用于静态数组维度 */
+#define IO_RW_STACK_BYTES             (16U * 1024U)     /* io_rw 线程栈 */
+#define IO_UPDATE_FREQ_MS             30U               /* 输入/输出缓冲刷新周期（ms） */
+#define IO_CHECK_PROBING_MS           IO_UPDATE_FREQ_MS /* 启动和恢复确认期间快速探测 */
+#define IO_CHECK_OFFLINE_MS           300U              /* 全部在线时的在线检测间隔（ms） */
+#define IO_CHECK_ONLINE_MS            2000U             /* 存在掉线子板时的重连检测间隔（ms） */
+#define IO_OFFLINE_CNT                3U                /* 连续无响应次数达到该值后判定掉线 */
+#define IO_ONLINE_CNT                 IO_OFFLINE_CNT    /* 连续响应次数达到该值后确认上线（对称防抖）*/
+#define IO_STARTUP_SAFE_STOP_DELAY_MS 3000U             /* 上电无板时执行安全停机的等待时间 */
 
 sw_err_t drv_io_cfg_validate(const drv_io_cfg_t *cfg)
 {
@@ -80,16 +80,16 @@ sw_err_t drv_io_cfg_validate(const drv_io_cfg_t *cfg)
 /* -------------------------------------------------------------------------
  * 内部状态
  * ------------------------------------------------------------------------- */
-static unsigned int       s_input_buf[IO_BOARD_MAX]    = {0};
-static unsigned int       s_output_buf[IO_BOARD_MAX]   = {0};
-static bool               s_output_dirty[IO_BOARD_MAX] = {false};
-static bool               s_board_online[IO_BOARD_MAX] = {0};
+static unsigned int        s_input_buf[IO_BOARD_MAX]    = {0};
+static unsigned int        s_output_buf[IO_BOARD_MAX]   = {0};
+static bool                s_output_dirty[IO_BOARD_MAX] = {false};
+static bool                s_board_online[IO_BOARD_MAX] = {0};
 static io_sample_quality_t s_input_quality[IO_BOARD_MAX];
-static uint32_t           s_input_sequence[IO_BOARD_MAX];
-static pthread_mutex_t    s_input_mutex  = PTHREAD_MUTEX_INITIALIZER;
-static pthread_mutex_t    s_output_mutex = PTHREAD_MUTEX_INITIALIZER;
-static drv_io_stats_t     s_stats[IO_BOARD_MAX] = {{0}};
-static bool               s_seen_online[IO_BOARD_MAX] = {false};
+static uint32_t            s_input_sequence[IO_BOARD_MAX];
+static pthread_mutex_t     s_input_mutex               = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t     s_output_mutex              = PTHREAD_MUTEX_INITIALIZER;
+static drv_io_stats_t      s_stats[IO_BOARD_MAX]       = {{0}};
+static bool                s_seen_online[IO_BOARD_MAX] = {false};
 
 /* 运行时配置（由 drv_io_init 写入，后续只读） */
 static int                        s_board_count = 0;
@@ -244,13 +244,13 @@ static void poll_handle_detected_online(int id, uint8_t online_cnt[], uint8_t of
 
     /* 连续在线次数达到阈值：确认上线 */
     {
-        uint64_t now_ms    = time_util_get_ms();
+        uint64_t now_ms = time_util_get_ms();
         bool     recovered;
 
-        online_cnt[id]             = 0U;
-        offline_confirmed[id]      = false; /* 连续确认后才解除已确认离线状态 */
+        online_cnt[id]        = 0U;
+        offline_confirmed[id] = false; /* 连续确认后才解除已确认离线状态 */
         pthread_mutex_lock(&s_input_mutex);
-        recovered                   = s_seen_online[id];
+        recovered                  = s_seen_online[id];
         s_board_online[id]         = true;
         s_input_quality[id]        = IO_SAMPLE_QUALITY_PROBING;
         s_stats[id].online         = true;
@@ -296,9 +296,9 @@ static void poll_handle_detected_offline(int id, uint8_t online_cnt[], uint8_t o
 
         offline_confirmed[id] = true;
         pthread_mutex_lock(&s_input_mutex);
-        s_board_online[id]    = false;
-        s_input_quality[id]   = IO_SAMPLE_QUALITY_OFFLINE;
-        s_stats[id].online    = false;
+        s_board_online[id]  = false;
+        s_input_quality[id] = IO_SAMPLE_QUALITY_OFFLINE;
+        s_stats[id].online  = false;
         s_stats[id].offline_count++;
         s_stats[id].last_offline_ms = now_ms;
         pthread_mutex_unlock(&s_input_mutex);
@@ -333,11 +333,11 @@ static void poll_rw_board(int id)
     input  = (unsigned int)io_read_input_s(id);
     now_ms = time_util_get_ms();
     pthread_mutex_lock(&s_input_mutex);
-    prev                        = s_input_buf[id];
-    s_input_buf[id]             = input;
-    s_input_quality[id]         = IO_SAMPLE_QUALITY_VALID;
+    prev                = s_input_buf[id];
+    s_input_buf[id]     = input;
+    s_input_quality[id] = IO_SAMPLE_QUALITY_VALID;
     s_input_sequence[id]++;
-    s_stats[id].online          = true;
+    s_stats[id].online = true;
     s_stats[id].input_refresh_count++;
     s_stats[id].last_input_refresh_ms = now_ms;
     s_stats[id].last_input_snapshot   = input;
@@ -497,9 +497,8 @@ sw_err_t drv_io_init(const drv_io_cfg_t *cfg)
     memset(s_seen_online, 0, sizeof(s_seen_online));
     memset(s_input_sequence, 0, sizeof(s_input_sequence));
     for (int i = 0; i < (int)IO_BOARD_MAX; ++i) {
-        s_input_quality[i] = (i > 0) && (i <= s_board_count)
-                                 ? IO_SAMPLE_QUALITY_PROBING
-                                 : IO_SAMPLE_QUALITY_UNINITIALIZED;
+        s_input_quality[i]
+            = (i > 0) && (i <= s_board_count) ? IO_SAMPLE_QUALITY_PROBING : IO_SAMPLE_QUALITY_UNINITIALIZED;
     }
     memset(s_test_enable, 0, sizeof(s_test_enable));
     memset(s_test_value, 0, sizeof(s_test_value));
