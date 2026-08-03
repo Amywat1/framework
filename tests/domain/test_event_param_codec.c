@@ -48,8 +48,8 @@ static void test_cmd_rejected_roundtrip(void)
 /* EVT_OP_MODE_CMD_HANDLED：三字段往返一致 */
 static void test_cmd_handled_roundtrip(void)
 {
-    uint32_t param =
-        cmd_handled_evt_param((uint8_t)DEV_CMD_MANUAL_ACTUATOR, DEV_CMD_STATUS_REJECTED, OP_REJECT_WRONG_MODE);
+    uint32_t param
+        = cmd_handled_evt_param((uint8_t)DEV_CMD_MANUAL_ACTUATOR, DEV_CMD_STATUS_REJECTED, OP_REJECT_WRONG_MODE);
 
     TEST_ASSERT_EQUAL_UINT8((uint8_t)DEV_CMD_MANUAL_ACTUATOR, cmd_handled_kind(param));
     TEST_ASSERT_EQUAL_INT(DEV_CMD_STATUS_REJECTED, cmd_handled_status(param));

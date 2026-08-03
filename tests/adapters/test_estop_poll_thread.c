@@ -5,13 +5,13 @@
  * @note    thread_registry 无 reset；用例按顺序执行并累加注册数。
  */
 
+#include "adapters/inbound/safety/estop_poll_thread.h"
 #include "adapters/outbound/safety/sim/hw_estop_sim.h"
 #include "common/event_types.h"
 #include "common/sw_error.h"
 #include "common/time_util.h"
 #include "ports/outbound/safety/safety_port.h"
 #include "runtime/event_bus/event_bus.h"
-#include "adapters/inbound/safety/estop_poll_thread.h"
 #include "runtime/scheduler/scheduler.h"
 #include "runtime/scheduler/thread_registry.h"
 #include "unity.h"

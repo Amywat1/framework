@@ -61,7 +61,7 @@ static void on_session_started(const event_t *evt)
  */
 static void sync_cloud_connected(void)
 {
-    const cloud_link_ops_t *ops = cloud_link_get_ops();
+    const cloud_link_ops_t *ops    = cloud_link_get_ops();
     bool                    online = false;
 
     if ((ops != NULL) && (ops->is_online != NULL)) {

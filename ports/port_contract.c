@@ -35,37 +35,79 @@ typedef struct {
     port_present_fn_t  present;
 } port_contract_entry_t;
 
-static bool io_present(void) { return hal_io_get_ops() != NULL; }
-static bool sensor_present(void) { return hal_sensor_get_ops() != NULL; }
-static bool vfd_present(void) { return hal_vfd_get_ops() != NULL; }
-static bool voice_present(void) { return hal_voice_get_ops() != NULL; }
-static bool command_present(void) { return device_command_port_get_ops() != NULL; }
-static bool alarm_binding_present(void) { return alarm_binding_get_ops() != NULL; }
-static bool machine_present(void) { return machine_ops_get() != NULL; }
-static bool cloud_link_present(void) { return cloud_link_get_ops() != NULL; }
-static bool cloud_report_present(void) { return cloud_report_get_ops() != NULL; }
-static bool cloud_property_present(void) { return cloud_property_get_ops() != NULL; }
-static bool deploy_store_present(void) { return deploy_store_get_ops() != NULL; }
-static bool param_store_present(void) { return param_store_get_ops() != NULL; }
-static bool program_loader_present(void) { return engine_program_loader_get_ops() != NULL; }
-static bool safety_present(void) { return safety_port_get_ops() != NULL; }
+static bool io_present(void)
+{
+    return hal_io_get_ops() != NULL;
+}
+static bool sensor_present(void)
+{
+    return hal_sensor_get_ops() != NULL;
+}
+static bool vfd_present(void)
+{
+    return hal_vfd_get_ops() != NULL;
+}
+static bool voice_present(void)
+{
+    return hal_voice_get_ops() != NULL;
+}
+static bool command_present(void)
+{
+    return device_command_port_get_ops() != NULL;
+}
+static bool alarm_binding_present(void)
+{
+    return alarm_binding_get_ops() != NULL;
+}
+static bool machine_present(void)
+{
+    return machine_ops_get() != NULL;
+}
+static bool cloud_link_present(void)
+{
+    return cloud_link_get_ops() != NULL;
+}
+static bool cloud_report_present(void)
+{
+    return cloud_report_get_ops() != NULL;
+}
+static bool cloud_property_present(void)
+{
+    return cloud_property_get_ops() != NULL;
+}
+static bool deploy_store_present(void)
+{
+    return deploy_store_get_ops() != NULL;
+}
+static bool param_store_present(void)
+{
+    return param_store_get_ops() != NULL;
+}
+static bool program_loader_present(void)
+{
+    return engine_program_loader_get_ops() != NULL;
+}
+static bool safety_present(void)
+{
+    return safety_port_get_ops() != NULL;
+}
 
 /* 表驱动：新增端口只在此追加一行，校验逻辑本身不变 */
 static const port_contract_entry_t k_entries[] = {
-    {PORT_REQ_HAL_IO,         "hal_io",             io_present            },
-    {PORT_REQ_HAL_SENSOR,     "hal_sensor",         sensor_present        },
-    {PORT_REQ_HAL_VFD,        "hal_vfd",            vfd_present           },
-    {PORT_REQ_HAL_VOICE,      "hal_voice",          voice_present         },
-    {PORT_REQ_DEVICE_COMMAND, "device_command",     command_present       },
-    {PORT_REQ_ALARM_BINDING,  "alarm_binding",      alarm_binding_present },
-    {PORT_REQ_MACHINE_OPS,    "machine_ops",        machine_present       },
-    {PORT_REQ_CLOUD_LINK,     "cloud_link",         cloud_link_present    },
-    {PORT_REQ_CLOUD_REPORT,   "cloud_report",       cloud_report_present  },
-    {PORT_REQ_CLOUD_PROPERTY, "cloud_property",     cloud_property_present},
-    {PORT_REQ_DEPLOY_STORE,   "deploy_store",       deploy_store_present  },
-    {PORT_REQ_PARAM_STORE,    "param_store",        param_store_present   },
+    {PORT_REQ_HAL_IO,         "hal_io",                io_present            },
+    {PORT_REQ_HAL_SENSOR,     "hal_sensor",            sensor_present        },
+    {PORT_REQ_HAL_VFD,        "hal_vfd",               vfd_present           },
+    {PORT_REQ_HAL_VOICE,      "hal_voice",             voice_present         },
+    {PORT_REQ_DEVICE_COMMAND, "device_command",        command_present       },
+    {PORT_REQ_ALARM_BINDING,  "alarm_binding",         alarm_binding_present },
+    {PORT_REQ_MACHINE_OPS,    "machine_ops",           machine_present       },
+    {PORT_REQ_CLOUD_LINK,     "cloud_link",            cloud_link_present    },
+    {PORT_REQ_CLOUD_REPORT,   "cloud_report",          cloud_report_present  },
+    {PORT_REQ_CLOUD_PROPERTY, "cloud_property",        cloud_property_present},
+    {PORT_REQ_DEPLOY_STORE,   "deploy_store",          deploy_store_present  },
+    {PORT_REQ_PARAM_STORE,    "param_store",           param_store_present   },
     {PORT_REQ_PROGRAM_LOADER, "engine_program_loader", program_loader_present},
-    {PORT_REQ_SAFETY,         "safety",             safety_present        },
+    {PORT_REQ_SAFETY,         "safety",                safety_present        },
 };
 
 #define PORT_CONTRACT_ENTRY_COUNT (sizeof(k_entries) / sizeof(k_entries[0]))

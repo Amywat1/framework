@@ -534,8 +534,8 @@ static void complete_move(motor_executor_t *e, int i, motor_event_type_t type, m
     /* 清零依据是"寻原点运动结束时机构确实压在原点"，与运动因何结束无关：
      * 上层可能在同一拍看到原点限位并先下发停止，运动因此以 END_NONE 结束，
      * 但机构已到原点，基准仍必须重建。只认 END_LIMIT 会漏掉这条路径。 */
-    bool origin_reached     = s->spec.use_limit && (s->spec.limit == MOTOR_LIMIT_ORIGIN)
-                           && sensor_limit(e, i, MOTOR_LIMIT_ORIGIN);
+    bool origin_reached
+        = s->spec.use_limit && (s->spec.limit == MOTOR_LIMIT_ORIGIN) && sensor_limit(e, i, MOTOR_LIMIT_ORIGIN);
 
     /* 先结算耗时，保留到位瞬间的时长供随后的事件读取。 */
     settle_elapsed(e, i);

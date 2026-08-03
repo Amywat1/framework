@@ -75,8 +75,8 @@ typedef struct {
  */
 static inline uint32_t cmd_handled_evt_param(uint8_t cmd_kind, dev_cmd_status_t status, op_reject_reason_t reason)
 {
-    return (((uint32_t)cmd_kind & OP_MODE_EVT_FIELD_MASK) << 16)
-           | (((uint32_t)status & OP_MODE_EVT_FIELD_MASK) << 8) | ((uint32_t)reason & OP_MODE_EVT_FIELD_MASK);
+    return (((uint32_t)cmd_kind & OP_MODE_EVT_FIELD_MASK) << 16) | (((uint32_t)status & OP_MODE_EVT_FIELD_MASK) << 8)
+           | ((uint32_t)reason & OP_MODE_EVT_FIELD_MASK);
 }
 
 /** @brief 从 EVT_OP_MODE_CMD_HANDLED 的 param 解出命令类别 */

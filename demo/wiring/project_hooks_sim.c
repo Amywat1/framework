@@ -72,9 +72,8 @@ static sw_err_t validate(void)
     /* demo 用到的端口：IO 与语音仿真后端、参数与部署存储、机型操作，
      * 以及框架自身注册的命令入站与报警绑定。
      * 未用到的云端与方案加载不声明，因此不会被要求注册。 */
-    return port_contract_validate(PORT_REQ_HAL_IO | PORT_REQ_HAL_VOICE | PORT_REQ_PARAM_STORE
-                                  | PORT_REQ_DEPLOY_STORE | PORT_REQ_MACHINE_OPS
-                                  | PORT_REQ_ALARM_BINDING | PORT_REQ_SAFETY);
+    return port_contract_validate(PORT_REQ_HAL_IO | PORT_REQ_HAL_VOICE | PORT_REQ_PARAM_STORE | PORT_REQ_DEPLOY_STORE
+                                  | PORT_REQ_MACHINE_OPS | PORT_REQ_ALARM_BINDING | PORT_REQ_SAFETY);
 }
 
 static sw_err_t init_adapters(void)

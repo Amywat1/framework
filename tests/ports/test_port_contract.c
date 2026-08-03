@@ -16,7 +16,10 @@
 /* -------------------------------------------------------------------------
  * 测试替身：仅需非空 ops 让 get_ops 返回非 NULL
  * ------------------------------------------------------------------------- */
-static sw_err_t fake_io_init(void) { return SW_OK; }
+static sw_err_t fake_io_init(void)
+{
+    return SW_OK;
+}
 static sw_err_t fake_do_set(io_do_t pin, bool val)
 {
     (void)pin;
@@ -89,13 +92,11 @@ static void test_partial_registration_fails(void)
 
     /* machine_ops 未注册 */
     TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_INIT,
-                          port_contract_validate(PORT_REQ_HAL_IO | PORT_REQ_DEVICE_COMMAND
-                                                 | PORT_REQ_MACHINE_OPS));
+                          port_contract_validate(PORT_REQ_HAL_IO | PORT_REQ_DEVICE_COMMAND | PORT_REQ_MACHINE_OPS));
 
     TEST_ASSERT_EQUAL_INT(SW_OK, machine_ops_register(&s_machine_ops));
     TEST_ASSERT_EQUAL_INT(SW_OK,
-                          port_contract_validate(PORT_REQ_HAL_IO | PORT_REQ_DEVICE_COMMAND
-                                                 | PORT_REQ_MACHINE_OPS));
+                          port_contract_validate(PORT_REQ_HAL_IO | PORT_REQ_DEVICE_COMMAND | PORT_REQ_MACHINE_OPS));
 }
 
 /* 未声明的端口不参与校验：无云项目不应被要求注册 cloud 端口 */

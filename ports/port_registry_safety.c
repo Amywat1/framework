@@ -9,13 +9,12 @@
  *          注册，未注册时行为明确（故障安全 + 首次告警），而不是静默空转。
  */
 
-#include "ports/outbound/safety/safety_port.h"
-
 #include "common/log.h"
 #include "ports/outbound/safety/hw_estop_port.h"
 #include "ports/outbound/safety/op_mode_alarm_port.h"
 #include "ports/outbound/safety/safety_cutout_port.h"
 #include "ports/outbound/safety/safety_deferred_stop.h"
+#include "ports/outbound/safety/safety_port.h"
 
 #include <stddef.h>
 
