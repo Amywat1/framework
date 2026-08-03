@@ -9,6 +9,11 @@ static int64_t              s_position;
 static motor_direction_t    s_dir;
 static motor_fault_code_t   s_fault;
 
+/* 伪造事件队列（FIFO，供 motor_pop_event 消费）*/
+static motor_event_t s_events[MCC_FAKE_EVENT_CAP];
+static unsigned      s_ev_head;
+static unsigned      s_ev_count;
+
 void mcc_fake_reset(void)
 {
     memset(&s_last, 0, sizeof(s_last));
@@ -18,6 +23,18 @@ void mcc_fake_reset(void)
     s_position      = 0;
     s_dir           = MOTOR_DIR_FORWARD;
     s_fault         = MOTOR_FAULT_NONE;
+    memset(s_events, 0, sizeof(s_events));
+    s_ev_head  = 0U;
+    s_ev_count = 0U;
+}
+
+void mcc_fake_push_event(const motor_event_t *ev)
+{
+    if ((ev == NULL) || (s_ev_count >= MCC_FAKE_EVENT_CAP)) {
+        return;
+    }
+    s_events[(s_ev_head + s_ev_count) % MCC_FAKE_EVENT_CAP] = *ev;
+    s_ev_count++;
 }
 
 void mcc_fake_set_cmd_result(motor_cmd_status_t status, const char *reason)
@@ -128,4 +145,17 @@ motor_fault_code_t motor_fault_code(const motor_executor_t *exec, int motor)
     (void)exec;
     (void)motor;
     return s_fault;
+}
+
+bool motor_pop_event(motor_executor_t *exec, motor_event_t *out)
+{
+    (void)exec;
+
+    if ((out == NULL) || (s_ev_count == 0U)) {
+        return false;
+    }
+    *out      = s_events[s_ev_head];
+    s_ev_head = (s_ev_head + 1U) % MCC_FAKE_EVENT_CAP;
+    s_ev_count--;
+    return true;
 }
