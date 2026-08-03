@@ -7,8 +7,8 @@
  * @note    manifest 由构建期 tools/gen_program_manifest.py 生成，运行期比对 JSON 文件哈希。
  */
 
-#ifndef DOMAIN_PROGRAM_ENGINE_PROGRAM_MANIFEST_H
-#define DOMAIN_PROGRAM_ENGINE_PROGRAM_MANIFEST_H
+#ifndef ADAPTERS_STORAGE_JSON_ENGINE_PROGRAM_MANIFEST_H
+#define ADAPTERS_STORAGE_JSON_ENGINE_PROGRAM_MANIFEST_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -17,6 +17,14 @@ extern "C" {
 #include "common/sw_error.h"
 
 #include <stdbool.h>
+
+/**
+ * @brief manifest 路径缓冲建议长度
+ *
+ * 由方案路径推导 manifest 路径时后缀会增长 10 字节（.json → .manifest.json），
+ * 调用方按此长度声明缓冲即可容纳常规部署路径。
+ */
+#define ENGINE_PROGRAM_MANIFEST_PATH_MAX 256U
 
 /**
  * @brief  校验方案 JSON 文件与 manifest 记录一致
@@ -43,4 +51,4 @@ bool engine_program_manifest_path_from_json(const char *json_path, char *out, un
 }
 #endif
 
-#endif /* DOMAIN_PROGRAM_ENGINE_PROGRAM_MANIFEST_H */
+#endif /* ADAPTERS_STORAGE_JSON_ENGINE_PROGRAM_MANIFEST_H */

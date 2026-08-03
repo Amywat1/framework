@@ -5,7 +5,7 @@
  * @date    2026-07-08
  */
 
-#include "domain/program_engine/model/engine_program_manifest.h"
+#include "adapters/outbound/storage/json/engine_program_manifest.h"
 
 #include "third_party/cJSON/cJSON.h"
 

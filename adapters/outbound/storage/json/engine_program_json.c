@@ -7,6 +7,7 @@
 
 #include "adapters/outbound/storage/json/engine_program_json.h"
 
+#include "adapters/outbound/storage/json/engine_program_manifest.h"
 #include "domain/program_engine/engine/engine_actuator.h"
 #include "domain/program_engine/engine/engine_expr.h"
 #include "domain/program_engine/engine/engine_io.h"
@@ -901,8 +902,29 @@ engine_program_t *engine_program_load_json_file(const char *path, char *err, uns
     return prog;
 }
 
+/**
+ * @brief  校验方案 JSON 与其同名 manifest 摘要一致
+ *
+ * manifest 路径由方案路径推导（xxx.json → xxx.manifest.json），
+ * 这一命名约定属于 JSON 存储格式细节，不经端口暴露。
+ */
+static sw_err_t engine_program_verify_json_integrity(const char *path, char *err, unsigned errsz)
+{
+    char manifest_path[ENGINE_PROGRAM_MANIFEST_PATH_MAX] = {0};
+
+    if (!engine_program_manifest_path_from_json(path, manifest_path, (unsigned)sizeof(manifest_path))) {
+        if ((err != NULL) && (errsz > 0U)) {
+            (void)snprintf(err, (size_t)errsz, "无法由方案路径推导 manifest 路径: %s", path);
+        }
+        return SW_ERR_PARAM;
+    }
+
+    return engine_program_manifest_verify(path, manifest_path, err, errsz);
+}
+
 static const engine_program_loader_ops_t s_json_loader_ops = {
-    .load = engine_program_load_json_file,
+    .load             = engine_program_load_json_file,
+    .verify_integrity = engine_program_verify_json_integrity,
 };
 
 void engine_program_json_register_loader(void)

@@ -33,6 +33,21 @@ typedef struct {
      * @return 成功返回方案指针（调用方负责 engine_program_free）；失败返回 NULL
      */
     engine_program_t *(*load)(const char *path, char *err, unsigned errsz);
+
+    /**
+     * @brief  校验方案资产完整性（可选）
+     * @param  path   方案文件路径
+     * @param  err    错误描述输出缓冲（可为空）
+     * @param  errsz  缓冲大小
+     * @retval SW_OK          校验通过
+     * @retval SW_ERR_CRC     摘要或长度不匹配
+     * @retval 其他            无法读取校验资产
+     *
+     * @note   为 NULL 表示该实现不提供完整性校验；此时调用方按"跳过校验"处理，
+     *         而不是当作失败。校验资产（摘要文件）的命名与格式属于存储格式
+     *         细节，由实现自行决定，端口不暴露。
+     */
+    sw_err_t (*verify_integrity)(const char *path, char *err, unsigned errsz);
 } engine_program_loader_ops_t;
 
 /* -------------------------------------------------------------------------
@@ -45,6 +60,17 @@ const engine_program_loader_ops_t *engine_program_loader_get_ops(void);
  * @brief  加载方案（透传到已注册的实现；未注册则返回 NULL 并填充错误描述）
  */
 engine_program_t *engine_program_load(const char *path, char *err, unsigned errsz);
+
+/**
+ * @brief  校验方案完整性（透传到已注册实现）
+ * @param  path   方案文件路径
+ * @param  err    错误描述输出缓冲（可为空）
+ * @param  errsz  缓冲大小
+ * @retval SW_OK           校验通过，或实现未提供校验能力（视为跳过）
+ * @retval SW_ERR_NOT_INIT loader 未注册
+ * @retval 其他             实现返回的校验失败原因
+ */
+sw_err_t engine_program_verify_integrity(const char *path, char *err, unsigned errsz);
 
 #ifdef __cplusplus
 }

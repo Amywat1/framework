@@ -11,7 +11,6 @@
 #include "common/time_util.h"
 #include "common/trace_context.h"
 #include "domain/program_engine/model/engine_model.h"
-#include "domain/program_engine/model/engine_program_manifest.h"
 #include "ports/outbound/storage/engine_program_loader_port.h"
 #include "runtime/scheduler/thread_registry.h"
 
@@ -130,17 +129,10 @@ static sw_err_t worker_prepare_engine(engine_session_t *s, engine_t **out_engine
     }
 
     if (s->cfg.integrity_check) {
-        char manifest_path[256] = {0};
-        char manifest_err[256]  = {0};
+        char manifest_err[256] = {0};
 
-        if (!engine_program_manifest_path_from_json(prog_path, manifest_path, (unsigned)sizeof(manifest_path))) {
-            LOG_ERROR("engine_session: manifest path derive failed path=[%s]", prog_path);
-            return SW_ERR_PARAM;
-        }
-
-        if (engine_program_manifest_verify(prog_path, manifest_path, manifest_err, (unsigned)sizeof(manifest_err))
-            != SW_OK) {
-            LOG_ERROR("engine_session: manifest verify failed json=[%s] err=[%s]", prog_path, manifest_err);
+        if (engine_program_verify_integrity(prog_path, manifest_err, (unsigned)sizeof(manifest_err)) != SW_OK) {
+            LOG_ERROR("engine_session: integrity verify failed path=[%s] err=[%s]", prog_path, manifest_err);
             return SW_ERR_CRC;
         }
     }
