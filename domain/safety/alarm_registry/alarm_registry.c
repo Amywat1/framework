@@ -91,10 +91,10 @@ static void append_active_slot_locked(const alarm_def_t *def)
 {
     alarm_instance_t *inst = &s_active[s_active_count];
 
-    inst->code            = def->code;
-    inst->level           = def->level;
-    inst->clear           = def->clear;
-    inst->triggered_at_ms = time_util_get_ms();
+    inst->code             = def->code;
+    inst->level            = def->level;
+    inst->clear            = def->clear;
+    inst->triggered_at_ms  = time_util_get_ms();
     inst->condition_active = true;
     s_active_count++;
 
@@ -109,8 +109,7 @@ static void append_active_slot_locked(const alarm_def_t *def)
 static sw_err_t insert_active_locked(const alarm_def_t *def)
 {
     if (s_active_count >= ALARM_ACTIVE_MAX) {
-        LOG_ERROR("alarm_registry: active pool full, reject %06u level=%d",
-                  (unsigned)def->code, (int)def->level);
+        LOG_ERROR("alarm_registry: active pool full, reject %06u level=%d", (unsigned)def->code, (int)def->level);
         return SW_ERR_OVERFLOW;
     }
 
@@ -135,13 +134,17 @@ sw_err_t alarm_registry_trigger(uint32_t code)
     int      def_idx;
     sw_err_t ret;
 
+    /* catalog 查找必须与 load_catalog 用同一把锁：后者持锁改写 s_catalog
+     * 与 s_catalog_count，锁外查找会读到不一致的中间态。 */
+    pthread_mutex_lock(&s_mutex);
+
     def_idx = find_def_index(code);
     if (def_idx < 0) {
+        pthread_mutex_unlock(&s_mutex);
         LOG_WARN("alarm_registry: trigger unknown code=%06u", (unsigned)code);
         return SW_ERR_PARAM;
     }
 
-    pthread_mutex_lock(&s_mutex);
     {
         int active_idx = find_active_index(code);
 
@@ -162,18 +165,20 @@ sw_err_t alarm_registry_clear(uint32_t code)
     int           active_idx;
     alarm_clear_t clr;
 
+    pthread_mutex_lock(&s_mutex);
+
     def_idx = find_def_index(code);
     if (def_idx < 0) {
+        pthread_mutex_unlock(&s_mutex);
         LOG_WARN("alarm_registry: clear unknown code=%06u", (unsigned)code);
         return SW_ERR_PARAM;
     }
 
-    pthread_mutex_lock(&s_mutex);
     active_idx = find_active_index(code);
     if (active_idx >= 0) {
         alarm_instance_t *inst = &s_active[(unsigned)active_idx];
 
-        clr = s_catalog[(unsigned)def_idx].clear;
+        clr                    = s_catalog[(unsigned)def_idx].clear;
         inst->condition_active = false;
         if (clr == ALARM_CLEAR_AUTO_STATIC) {
             force_clear_locked(code);
@@ -309,23 +314,26 @@ unsigned alarm_registry_get_session_journal(uint32_t *buf, unsigned max)
     return copied;
 }
 
-unsigned alarm_registry_copy_active_projection(alarm_instance_t *list,
-                                               unsigned          list_max,
-                                               bool             *blocking_out,
-                                               uint32_t         *top_out)
+/**
+ * @brief  在已持锁前提下汇总安全投影，供三个公开读接口共用
+ * @note   调用方必须已持有 s_mutex。
+ */
+static unsigned copy_safety_view_locked(alarm_instance_t *list,
+                                        unsigned          list_max,
+                                        bool             *blocking_out,
+                                        uint32_t         *top_out,
+                                        safety_posture_t *posture_out)
 {
-    unsigned copied = 0U;
-    unsigned i;
-    int      highest  = -1;
-    uint32_t top      = ALARM_CODE_NONE;
-    bool     blocking = false;
+    unsigned         copied = s_active_count;
+    unsigned         i;
+    int              highest  = -1;
+    uint32_t         top      = ALARM_CODE_NONE;
+    bool             blocking = false;
+    safety_posture_t posture  = SAFETY_POSTURE_NOMINAL;
 
     if (list_max == 0U) {
         list = NULL;
     }
-
-    pthread_mutex_lock(&s_mutex);
-    copied = s_active_count;
     if ((list != NULL) && (copied > list_max)) {
         copied = list_max;
     }
@@ -336,6 +344,9 @@ unsigned alarm_registry_copy_active_projection(alarm_instance_t *list,
     for (i = 0U; i < s_active_count; ++i) {
         if (s_active[i].level >= ALARM_LEVEL_MAJOR) {
             blocking = true;
+        }
+        if (s_active[i].level == ALARM_LEVEL_CRITICAL) {
+            posture = SAFETY_POSTURE_LOCKOUT;
         }
         if ((int)s_active[i].level > highest) {
             highest = (int)s_active[i].level;
@@ -349,6 +360,35 @@ unsigned alarm_registry_copy_active_projection(alarm_instance_t *list,
     if (top_out != NULL) {
         *top_out = top;
     }
+    if (posture_out != NULL) {
+        *posture_out = posture;
+    }
+    return copied;
+}
+
+unsigned alarm_registry_copy_active_projection(alarm_instance_t *list,
+                                               unsigned          list_max,
+                                               bool             *blocking_out,
+                                               uint32_t         *top_out)
+{
+    unsigned copied;
+
+    pthread_mutex_lock(&s_mutex);
+    copied = copy_safety_view_locked(list, list_max, blocking_out, top_out, NULL);
+    pthread_mutex_unlock(&s_mutex);
+    return copied;
+}
+
+unsigned alarm_registry_copy_safety_view(alarm_instance_t *list,
+                                         unsigned          list_max,
+                                         bool             *blocking_out,
+                                         uint32_t         *top_out,
+                                         safety_posture_t *posture_out)
+{
+    unsigned copied;
+
+    pthread_mutex_lock(&s_mutex);
+    copied = copy_safety_view_locked(list, list_max, blocking_out, top_out, posture_out);
     pthread_mutex_unlock(&s_mutex);
     return copied;
 }
@@ -424,7 +464,12 @@ sw_err_t alarm_registry_init(void)
         .load_catalog = binding_load_catalog,
     };
 
-    alarm_binding_register(&s_ops);
+    sw_err_t ret = alarm_binding_register(&s_ops);
+
+    if (ret != SW_OK) {
+        LOG_ERROR("alarm_registry: alarm_binding_register ret=%d", (int)ret);
+        return ret;
+    }
     LOG_INFO("alarm_registry: init ok");
     return SW_OK;
 }

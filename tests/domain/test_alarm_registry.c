@@ -165,6 +165,83 @@ static void test_active_pool_full_rejects(void)
     TEST_ASSERT_EQUAL_INT(SW_ERR_OVERFLOW, alarm_registry_trigger(902100U + ALARM_ACTIVE_MAX));
 }
 
+/* 合并读接口一次返回四项，且与分别调用的旧接口结果一致 */
+static void test_copy_safety_view_returns_consistent_snapshot(void)
+{
+    alarm_instance_t list[ALARM_ACTIVE_MAX];
+    bool             blocking = false;
+    uint32_t         top      = ALARM_CODE_NONE;
+    safety_posture_t posture  = SAFETY_POSTURE_NOMINAL;
+    unsigned         n;
+
+    (void)alarm_registry_trigger(201101U); /* MAJOR */
+    (void)alarm_registry_trigger(201709U); /* CRITICAL */
+
+    n = alarm_registry_copy_safety_view(list, ALARM_ACTIVE_MAX, &blocking, &top, &posture);
+
+    TEST_ASSERT_EQUAL_UINT(2U, n);
+    TEST_ASSERT_TRUE(blocking);
+    TEST_ASSERT_EQUAL_UINT(201709U, top); /* CRITICAL 级别最高 */
+    TEST_ASSERT_EQUAL_INT(SAFETY_POSTURE_LOCKOUT, posture);
+
+    /* 与旧接口逐项对齐，确认重构未改变语义 */
+    {
+        alarm_instance_t old_list[ALARM_ACTIVE_MAX];
+        bool             old_blocking = false;
+        uint32_t         old_top      = ALARM_CODE_NONE;
+        unsigned         old_n;
+
+        old_n = alarm_registry_copy_active_projection(old_list, ALARM_ACTIVE_MAX, &old_blocking, &old_top);
+        TEST_ASSERT_EQUAL_UINT(old_n, n);
+        TEST_ASSERT_EQUAL_INT(old_blocking, blocking);
+        TEST_ASSERT_EQUAL_UINT(old_top, top);
+        TEST_ASSERT_EQUAL_INT(alarm_registry_safety_posture(), posture);
+    }
+}
+
+/* 空表与 NULL 出参均不得崩溃 */
+static void test_copy_safety_view_handles_empty_and_null(void)
+{
+    safety_posture_t posture = SAFETY_POSTURE_LOCKOUT;
+    unsigned         n;
+
+    n = alarm_registry_copy_safety_view(NULL, 0U, NULL, NULL, &posture);
+    TEST_ASSERT_EQUAL_UINT(0U, n);
+    TEST_ASSERT_EQUAL_INT(SAFETY_POSTURE_NOMINAL, posture);
+
+    (void)alarm_registry_trigger(201101U);
+    n = alarm_registry_copy_safety_view(NULL, 0U, NULL, NULL, NULL);
+    TEST_ASSERT_EQUAL_UINT(1U, n);
+}
+
+/* list_max 小于活动数时按容量截断，但聚合值仍反映全部活动告警 */
+static void test_copy_safety_view_truncates_list_but_not_aggregates(void)
+{
+    alarm_instance_t one[1];
+    bool             blocking = false;
+    uint32_t         top      = ALARM_CODE_NONE;
+    safety_posture_t posture  = SAFETY_POSTURE_NOMINAL;
+    unsigned         n;
+
+    (void)alarm_registry_trigger(201101U);
+    (void)alarm_registry_trigger(201709U);
+
+    n = alarm_registry_copy_safety_view(one, 1U, &blocking, &top, &posture);
+
+    TEST_ASSERT_EQUAL_UINT(1U, n); /* 只装得下一条 */
+    TEST_ASSERT_TRUE(blocking);
+    TEST_ASSERT_EQUAL_UINT(201709U, top);
+    TEST_ASSERT_EQUAL_INT(SAFETY_POSTURE_LOCKOUT, posture);
+}
+
+/* 未知告警码在锁内查表后仍返回 PARAM，不改变活动表 */
+static void test_unknown_code_rejected(void)
+{
+    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, alarm_registry_trigger(999999U));
+    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, alarm_registry_clear(999999U));
+    TEST_ASSERT_FALSE(alarm_registry_is_active(999999U));
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -179,6 +256,10 @@ int main(void)
     RUN_TEST(test_pull_events);
     RUN_TEST(test_session_journal_blocking_levels);
     RUN_TEST(test_active_pool_full_rejects);
+    RUN_TEST(test_copy_safety_view_returns_consistent_snapshot);
+    RUN_TEST(test_copy_safety_view_handles_empty_and_null);
+    RUN_TEST(test_copy_safety_view_truncates_list_but_not_aggregates);
+    RUN_TEST(test_unknown_code_rejected);
 
     return UNITY_END();
 }
