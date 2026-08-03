@@ -20,7 +20,7 @@ typedef struct {
     sw_err_t (*reply_property_set)(const char *request_json, const point_apply_result_t *result);
 } cloud_property_ops_t;
 
-void                        cloud_property_register(const cloud_property_ops_t *ops);
+sw_err_t                    cloud_property_register(const cloud_property_ops_t *ops);
 const cloud_property_ops_t *cloud_property_get_ops(void);
 
 #ifdef __cplusplus

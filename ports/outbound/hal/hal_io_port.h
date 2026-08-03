@@ -134,7 +134,7 @@ typedef struct {
     int (*adc_ma)(int board_id, int port);
 } hal_io_ops_t;
 
-void                hal_io_register(const hal_io_ops_t *ops);
+sw_err_t            hal_io_register(const hal_io_ops_t *ops);
 const hal_io_ops_t *hal_io_get_ops(void);
 
 #ifdef __cplusplus

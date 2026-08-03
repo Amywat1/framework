@@ -45,7 +45,7 @@ typedef struct {
 /* -------------------------------------------------------------------------
  * 注册 / 获取（由 bootstrap/wiring.c 调用）
  * ------------------------------------------------------------------------- */
-void                      deploy_store_register(const deploy_store_ops_t *ops);
+sw_err_t                  deploy_store_register(const deploy_store_ops_t *ops);
 const deploy_store_ops_t *deploy_store_get_ops(void);
 
 #ifdef __cplusplus

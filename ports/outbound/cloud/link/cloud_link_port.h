@@ -52,7 +52,7 @@ typedef struct {
     void (*set_recv_handler)(cloud_link_recv_fn_t cb);
 } cloud_link_ops_t;
 
-void                    cloud_link_register(const cloud_link_ops_t *ops);
+sw_err_t                cloud_link_register(const cloud_link_ops_t *ops);
 const cloud_link_ops_t *cloud_link_get_ops(void);
 
 #ifdef __cplusplus

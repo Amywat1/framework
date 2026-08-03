@@ -60,7 +60,7 @@ typedef struct {
 } hal_voice_ops_t;
 
 /** @brief  注册语音模块 HAL 实现（由平台适配器在 wiring 阶段调用） */
-void hal_voice_register(const hal_voice_ops_t *ops);
+sw_err_t hal_voice_register(const hal_voice_ops_t *ops);
 
 /** @brief  获取已注册的语音模块 HAL 操作集；未注册时返回 NULL */
 const hal_voice_ops_t *hal_voice_get_ops(void);

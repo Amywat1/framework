@@ -23,8 +23,8 @@
 
 #define JSON_PARAM_STORE_PATH_MAX 256U
 
-static cJSON          *s_root  = NULL;
-static pthread_mutex_t s_mutex = PTHREAD_MUTEX_INITIALIZER;
+static cJSON          *s_root                                 = NULL;
+static pthread_mutex_t s_mutex                                = PTHREAD_MUTEX_INITIALIZER;
 static char            s_file_path[JSON_PARAM_STORE_PATH_MAX] = PARAM_STORE_JSON_FILE_PATH;
 
 static sw_err_t get_file_path(char *buf, size_t buf_size)
@@ -200,7 +200,11 @@ static const param_store_ops_t s_ops = {
 
 void json_param_store_register(void)
 {
-    param_store_register(&s_ops);
+    /* s_ops 静态定义且必填字段齐全，注册不应失败；失败即为编程错误 */
+    if (param_store_register(&s_ops) != SW_OK) {
+        LOG_ERROR("json_param_store: register rejected (ops incomplete)");
+        return;
+    }
     LOG_INFO("json_param_store: registered");
 }
 

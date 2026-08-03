@@ -907,5 +907,6 @@ static const engine_program_loader_ops_t s_json_loader_ops = {
 
 void engine_program_json_register_loader(void)
 {
-    engine_program_loader_register(&s_json_loader_ops);
+    /* s_json_loader_ops 静态定义且 load 非空，注册不应失败 */
+    (void)engine_program_loader_register(&s_json_loader_ops);
 }

@@ -98,7 +98,7 @@ typedef struct {
     void (*register_event_cb)(hal_vfd_id_t id, void (*cb)(int event_code));
 } hal_vfd_ops_t;
 
-void                 hal_vfd_register(const hal_vfd_ops_t *ops);
+sw_err_t             hal_vfd_register(const hal_vfd_ops_t *ops);
 const hal_vfd_ops_t *hal_vfd_get_ops(void);
 
 #ifdef __cplusplus

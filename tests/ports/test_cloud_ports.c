@@ -10,6 +10,9 @@
 #include "ports/inbound/command/command_port.h"
 #include "ports/outbound/cloud/link/cloud_link_port.h"
 #include "ports/outbound/cloud/report/report_port.h"
+#include "ports/outbound/storage/deploy_store.h"
+#include "ports/outbound/storage/param_store.h"
+#include "ports/port_registry.h"
 #include "unity.h"
 
 static sw_err_t stub_publish_properties(void)
@@ -65,10 +68,15 @@ static const device_command_port_ops_t s_command_ops = {
 
 void setUp(void)
 {
+    /* 复位全局端口单例，消除用例间顺序耦合 */
+    port_registry_cloud_reset();
+    port_registry_infra_reset();
 }
 
 void tearDown(void)
 {
+    port_registry_cloud_reset();
+    port_registry_infra_reset();
 }
 
 static void test_cloud_report_register_and_get(void)
@@ -107,6 +115,133 @@ static void test_device_command_port_register_and_get(void)
     TEST_ASSERT_EQUAL_INT(DEV_CMD_STATUS_ACCEPTED, receipt.status);
 }
 
+/* ---- 统一注册语义 ---- */
+
+static sw_err_t stub_store_load(void)
+{
+    return SW_OK;
+}
+
+static sw_err_t stub_store_save(void)
+{
+    return SW_OK;
+}
+
+static sw_err_t stub_store_get(const char *key, char *buf, size_t buf_size)
+{
+    (void)key;
+    (void)buf;
+    (void)buf_size;
+    return SW_OK;
+}
+
+static sw_err_t stub_store_set(const char *key, const char *val)
+{
+    (void)key;
+    (void)val;
+    return SW_OK;
+}
+
+/* 注册合法函数表返回 SW_OK */
+static void test_register_returns_ok_for_valid_ops(void)
+{
+    TEST_ASSERT_EQUAL_INT(SW_OK, cloud_report_register(&s_report_ops));
+    TEST_ASSERT_EQUAL_INT(SW_OK, cloud_link_register(&s_link_ops));
+    TEST_ASSERT_EQUAL_INT(SW_OK, cloud_property_register(&s_property_ops));
+    TEST_ASSERT_EQUAL_INT(SW_OK, device_command_port_register(&s_command_ops));
+}
+
+/* NULL 表示解除注册，是受支持的显式操作 */
+static void test_register_null_unregisters(void)
+{
+    TEST_ASSERT_EQUAL_INT(SW_OK, cloud_link_register(&s_link_ops));
+    TEST_ASSERT_NOT_NULL(cloud_link_get_ops());
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, cloud_link_register(NULL));
+    TEST_ASSERT_NULL(cloud_link_get_ops());
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, device_command_port_register(&s_command_ops));
+    TEST_ASSERT_EQUAL_INT(SW_OK, device_command_port_register(NULL));
+    TEST_ASSERT_NULL(device_command_port_get_ops());
+}
+
+/* 缺必填字段被拒绝，且不覆盖既有注册 */
+static void test_register_rejects_missing_mandatory_field(void)
+{
+    static const device_command_port_ops_t s_empty_cmd = {.submit = NULL};
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, device_command_port_register(&s_command_ops));
+    TEST_ASSERT_EQUAL_PTR(&s_command_ops, device_command_port_get_ops());
+
+    /* 拒绝后原注册必须保持不变，不能被半个 ops 覆盖 */
+    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, device_command_port_register(&s_empty_cmd));
+    TEST_ASSERT_EQUAL_PTR(&s_command_ops, device_command_port_get_ops());
+}
+
+/* param_store 四个字段全必填，缺任一项都拒绝 */
+static void test_param_store_requires_all_four_fields(void)
+{
+    static const param_store_ops_t s_full = {
+        .load = stub_store_load,
+        .save = stub_store_save,
+        .get  = stub_store_get,
+        .set  = stub_store_set,
+    };
+    static const param_store_ops_t s_no_set = {
+        .load = stub_store_load,
+        .save = stub_store_save,
+        .get  = stub_store_get,
+        .set  = NULL,
+    };
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, param_store_register(&s_full));
+    TEST_ASSERT_EQUAL_PTR(&s_full, param_store_get_ops());
+
+    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, param_store_register(&s_no_set));
+    TEST_ASSERT_EQUAL_PTR(&s_full, param_store_get_ops());
+}
+
+/* deploy_store 只有 load 必填 */
+static void test_deploy_store_requires_load(void)
+{
+    static const deploy_store_ops_t s_ok      = {.load = stub_store_load, .get = stub_store_get};
+    static const deploy_store_ops_t s_no_load = {.load = NULL, .get = stub_store_get};
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, deploy_store_register(&s_ok));
+    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, deploy_store_register(&s_no_load));
+    TEST_ASSERT_EQUAL_PTR(&s_ok, deploy_store_get_ops());
+}
+
+/* 重复注册以最后一次为准 */
+static void test_register_replaces_on_duplicate(void)
+{
+    static const cloud_report_ops_t s_other = {
+        .publish_properties       = stub_publish_properties,
+        .publish_properties_delta = stub_publish_delta,
+    };
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, cloud_report_register(&s_report_ops));
+    TEST_ASSERT_EQUAL_PTR(&s_report_ops, cloud_report_get_ops());
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, cloud_report_register(&s_other));
+    TEST_ASSERT_EQUAL_PTR(&s_other, cloud_report_get_ops());
+}
+
+/* 复位清空全部端口 */
+static void test_reset_clears_all_ports(void)
+{
+    TEST_ASSERT_EQUAL_INT(SW_OK, cloud_link_register(&s_link_ops));
+    TEST_ASSERT_EQUAL_INT(SW_OK, cloud_report_register(&s_report_ops));
+    TEST_ASSERT_EQUAL_INT(SW_OK, device_command_port_register(&s_command_ops));
+
+    port_registry_cloud_reset();
+    port_registry_infra_reset();
+
+    TEST_ASSERT_NULL(cloud_link_get_ops());
+    TEST_ASSERT_NULL(cloud_report_get_ops());
+    TEST_ASSERT_NULL(device_command_port_get_ops());
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -115,6 +250,13 @@ int main(void)
     RUN_TEST(test_cloud_link_register_and_get);
     RUN_TEST(test_cloud_property_register_and_get);
     RUN_TEST(test_device_command_port_register_and_get);
+    RUN_TEST(test_register_returns_ok_for_valid_ops);
+    RUN_TEST(test_register_null_unregisters);
+    RUN_TEST(test_register_rejects_missing_mandatory_field);
+    RUN_TEST(test_param_store_requires_all_four_fields);
+    RUN_TEST(test_deploy_store_requires_load);
+    RUN_TEST(test_register_replaces_on_duplicate);
+    RUN_TEST(test_reset_clears_all_ports);
 
     return UNITY_END();
 }

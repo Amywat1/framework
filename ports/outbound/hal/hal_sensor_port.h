@@ -75,14 +75,14 @@ typedef struct {
     /**
      * @brief 订阅逻辑信号状态变化。
      * @retval SW_OK / SW_ERR_PARAM / SW_ERR_OVERFLOW
-     * @note   回调在传感器采样任务上下文同步执行，必须在有界时间内返回；
-     *         允许短临界区、安全切断和非阻塞事件投递，禁止 sleep、
-     *         等待外部 IO、动态内存分配及其他无界阻塞。
+     * @note 回调在传感器采样任务上下文同步执行，必须在有界时间内返回。
+     *       允许短临界区、安全切断和非阻塞事件投递；
+     *       禁止 sleep、等待外部 IO、动态内存分配及其他无界阻塞。
      */
     sw_err_t (*subscribe)(hal_sensor_state_cb_t cb, void *ctx);
 } hal_sensor_ops_t;
 
-void                    hal_sensor_register(const hal_sensor_ops_t *ops);
+sw_err_t                hal_sensor_register(const hal_sensor_ops_t *ops);
 const hal_sensor_ops_t *hal_sensor_get_ops(void);
 
 #ifdef __cplusplus

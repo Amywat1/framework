@@ -61,7 +61,7 @@ typedef struct {
 /* -------------------------------------------------------------------------
  * 注册 / 获取（由 bootstrap/wiring.c 调用）
  * ------------------------------------------------------------------------- */
-void                     param_store_register(const param_store_ops_t *ops);
+sw_err_t                 param_store_register(const param_store_ops_t *ops);
 const param_store_ops_t *param_store_get_ops(void);
 
 #ifdef __cplusplus

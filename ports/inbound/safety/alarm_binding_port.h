@@ -35,7 +35,7 @@ typedef struct {
  * @brief 注册报警绑定端口实现。
  * @param ops 端口操作表，生命周期必须覆盖后续调用。
  */
-void                       alarm_binding_register(const alarm_binding_ops_t *ops);
+sw_err_t alarm_binding_register(const alarm_binding_ops_t *ops);
 
 /**
  * @brief 获取已注册的报警绑定端口实现。

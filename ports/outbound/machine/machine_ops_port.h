@@ -54,7 +54,7 @@ typedef struct {
  * @brief  注册机型运行时操作
  * @param  ops  操作表；须非 NULL
  */
-void machine_ops_register(const machine_ops_t *ops);
+sw_err_t machine_ops_register(const machine_ops_t *ops);
 
 /**
  * @brief  获取已注册的机型操作表

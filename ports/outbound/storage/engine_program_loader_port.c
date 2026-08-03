@@ -12,11 +12,15 @@
 
 static const engine_program_loader_ops_t *s_ops = NULL;
 
-void engine_program_loader_register(const engine_program_loader_ops_t *ops)
+sw_err_t engine_program_loader_register(const engine_program_loader_ops_t *ops)
 {
-    if ((ops != NULL) && (ops->load != NULL)) {
-        s_ops = ops;
+    /* 原实现校验失败后静默忽略，调用方无从得知；现按统一语义返回错误。
+     * load 是本端口唯一入口，缺失即不可用。 */
+    if ((ops != NULL) && (ops->load == NULL)) {
+        return SW_ERR_PARAM;
     }
+    s_ops = ops;
+    return SW_OK;
 }
 
 const engine_program_loader_ops_t *engine_program_loader_get_ops(void)

@@ -44,7 +44,7 @@ typedef struct {
 /**
  * @brief  注册云端上报 port 实现
  */
-void cloud_report_register(const cloud_report_ops_t *ops);
+sw_err_t cloud_report_register(const cloud_report_ops_t *ops);
 
 /**
  * @brief  获取已注册的云端上报 port 实现

@@ -18,6 +18,7 @@
 extern "C" {
 #endif
 
+#include "common/sw_error.h"
 #include "domain/program_engine/model/engine_model.h"
 
 /* -------------------------------------------------------------------------
@@ -37,7 +38,7 @@ typedef struct {
 /* -------------------------------------------------------------------------
  * 注册 / 获取（由 bootstrap/wiring 调用一次）
  * ------------------------------------------------------------------------- */
-void                               engine_program_loader_register(const engine_program_loader_ops_t *ops);
+sw_err_t                           engine_program_loader_register(const engine_program_loader_ops_t *ops);
 const engine_program_loader_ops_t *engine_program_loader_get_ops(void);
 
 /**
