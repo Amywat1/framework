@@ -36,12 +36,12 @@ static volatile int      g_fifo_log_count;
 
 static void reset_flags(void)
 {
-    g_h1_called      = 0;
-    g_h2_called      = 0;
-    g_h1_call_count  = 0;
-    g_h1_param       = 0U;
-    g_h1_timestamp   = 0U;
-    g_fifo_log_count = 0;
+    g_h1_called           = 0;
+    g_h2_called           = 0;
+    g_h1_call_count       = 0;
+    g_h1_param            = 0U;
+    g_h1_timestamp        = 0U;
+    g_fifo_log_count      = 0;
     g_root_event_id       = 0U;
     g_root_command_id     = 0U;
     g_root_correlation_id = 0U;
@@ -258,6 +258,99 @@ static void test_shutdown_drains_queue(void)
     TEST_ASSERT_EQUAL_UINT(0U, stats.queue_depth);
 }
 
+/* 分类别计数：不同类别事件各自计入自己的槽位 */
+static void test_stats_count_by_category(void)
+{
+    event_bus_stats_t stats;
+    pthread_t         tid;
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_subscribe(EVT_ALARM_TRIGGERED, handler1));
+    tid = start_dispatch();
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_publish(EVT_ALARM_TRIGGERED, 1U));
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_publish(EVT_ALARM_CLEARED, 2U));
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_publish(EVT_CMD_ORDER, 3U));
+    usleep(50000);
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_get_stats(&stats));
+    TEST_ASSERT_EQUAL_UINT(2U, stats.published_by_cat[EVT_CAT_ALARM]);
+    TEST_ASSERT_EQUAL_UINT(1U, stats.published_by_cat[EVT_CAT_CMD]);
+    TEST_ASSERT_EQUAL_UINT(0U, stats.published_by_cat[EVT_CAT_WASH]);
+    TEST_ASSERT_EQUAL_UINT(2U, stats.dispatched_by_cat[EVT_CAT_ALARM]);
+    TEST_ASSERT_EQUAL_UINT(1U, stats.dispatched_by_cat[EVT_CAT_CMD]);
+    /* 分类别之和必须等于总计 */
+    TEST_ASSERT_EQUAL_UINT(3U, stats.published_count);
+    TEST_ASSERT_EQUAL_UINT(3U, stats.dispatched_count);
+
+    stop_dispatch(tid);
+}
+
+/* 队列满时丢弃计数同样按类别归集 */
+static void test_stats_dropped_by_category(void)
+{
+    event_bus_stats_t stats;
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
+
+    /* 不启 dispatch，灌满普通队列 */
+    for (unsigned i = 0; i < EVENT_BUS_QUEUE_SIZE + 3U; i++) {
+        (void)event_publish(EVT_CMD_ORDER, i);
+    }
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_get_stats(&stats));
+    TEST_ASSERT_EQUAL_UINT(3U, stats.dropped_count);
+    TEST_ASSERT_EQUAL_UINT(3U, stats.dropped_by_cat[EVT_CAT_CMD]);
+    TEST_ASSERT_EQUAL_UINT(EVENT_BUS_QUEUE_SIZE, stats.queue_peak_depth);
+}
+
+/* 慢 handler 被记入耗时统计并定位到事件类型 */
+static void slow_handler(const event_t *evt)
+{
+    (void)evt;
+    usleep((EVENT_BUS_SLOW_HANDLER_MS + 20U) * 1000U);
+}
+
+static void test_stats_records_slow_handler(void)
+{
+    event_bus_stats_t stats;
+    pthread_t         tid;
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_subscribe(EVT_WASH_DONE, slow_handler));
+    tid = start_dispatch();
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_publish(EVT_WASH_DONE, 0U));
+    usleep((EVENT_BUS_SLOW_HANDLER_MS + 80U) * 1000U);
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_get_stats(&stats));
+    TEST_ASSERT_EQUAL_UINT(1U, stats.slow_handler_count);
+    TEST_ASSERT_TRUE(stats.handler_max_ms >= EVENT_BUS_SLOW_HANDLER_MS);
+    TEST_ASSERT_EQUAL_UINT16(EVT_WASH_DONE, stats.handler_max_type);
+    TEST_ASSERT_TRUE(stats.dispatch_max_ms >= stats.handler_max_ms);
+
+    stop_dispatch(tid);
+}
+
+/* 快 handler 不应被误判为慢 handler */
+static void test_stats_fast_handler_not_flagged_slow(void)
+{
+    event_bus_stats_t stats;
+    pthread_t         tid;
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_subscribe(EVT_ALARM_TRIGGERED, handler1));
+    tid = start_dispatch();
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_publish(EVT_ALARM_TRIGGERED, 1U));
+    usleep(50000);
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_get_stats(&stats));
+    TEST_ASSERT_EQUAL_UINT(0U, stats.slow_handler_count);
+
+    stop_dispatch(tid);
+}
+
 static void test_trace_context_propagates_to_derived_event(void)
 {
     trace_context_t context = {0};
@@ -297,6 +390,10 @@ int main(void)
     RUN_TEST(test_event_isolation);
     RUN_TEST(test_subscribe_idempotent_and_stats);
     RUN_TEST(test_shutdown_drains_queue);
+    RUN_TEST(test_stats_count_by_category);
+    RUN_TEST(test_stats_dropped_by_category);
+    RUN_TEST(test_stats_records_slow_handler);
+    RUN_TEST(test_stats_fast_handler_not_flagged_slow);
     RUN_TEST(test_trace_context_propagates_to_derived_event);
     return UNITY_END();
 }

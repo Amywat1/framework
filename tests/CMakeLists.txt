@@ -36,6 +36,7 @@ add_unit_test(test_log_multi_sink
 add_unit_test(test_event_bus
     ${CMAKE_CURRENT_SOURCE_DIR}/runtime/test_event_bus.c
     ${WDF_ROOT}/runtime/event_bus/event_bus.c
+    ${WDF_ROOT}/common/log.c
     ${WDF_ROOT}/common/time_util.c
 )
 
@@ -196,6 +197,7 @@ add_unit_test(test_cloud_point_watcher
     ${CMAKE_CURRENT_SOURCE_DIR}/cloud/test_cloud_point_watcher.c
     ${WDF_ROOT}/cloud/cloud_point_watcher.c
     ${WDF_ROOT}/runtime/event_bus/event_bus.c
+    ${WDF_ROOT}/common/log.c
     ${WDF_ROOT}/common/time_util.c
 )
 

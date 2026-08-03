@@ -68,6 +68,13 @@ typedef void (*event_bus_fatal_cb_t)(event_bus_fatal_reason_t reason, int sys_er
 /* -------------------------------------------------------------------------
  * 运行统计
  * ------------------------------------------------------------------------- */
+/**
+ * @brief  慢 handler 判定门限（毫秒）
+ * @note   单个 handler 执行超过此值时记入 slow_handler_count 并打印告警。
+ *         dispatch 线程串行执行所有 handler，慢 handler 会直接推高队列水位。
+ */
+#define EVENT_BUS_SLOW_HANDLER_MS 50U
+
 typedef struct {
     uint32_t published_count;     /* 成功入队的事件数（高 + 普通） */
     uint32_t dispatched_count;    /* 成功出队并进入分发的事件数 */
@@ -79,6 +86,17 @@ typedef struct {
     uint32_t hi_queue_peak_depth; /* 高优先级队列历史最大深度 */
     uint32_t sem_post_fail_count; /* sem_post 失败次数 */
     uint32_t sem_wait_fail_count; /* sem_wait 非 EINTR 失败次数 */
+
+    /* 分类别计数：下标为 event_category_t，便于定位是哪一类事件在刷队列 */
+    uint32_t published_by_cat[EVT_CAT_MAX];  /* 各类别成功入队数 */
+    uint32_t dispatched_by_cat[EVT_CAT_MAX]; /* 各类别成功分发数 */
+    uint32_t dropped_by_cat[EVT_CAT_MAX];    /* 各类别因队列满丢弃数 */
+
+    /* handler 执行耗时诊断 */
+    uint32_t     handler_max_ms;     /* 单个 handler 最长执行耗时 */
+    event_type_t handler_max_type;   /* 产生上述最长耗时的事件类型 */
+    uint32_t     slow_handler_count; /* 超过 EVENT_BUS_SLOW_HANDLER_MS 的次数 */
+    uint32_t     dispatch_max_ms;    /* 单个事件全部 handler 合计最长耗时 */
 } event_bus_stats_t;
 
 /* -------------------------------------------------------------------------
