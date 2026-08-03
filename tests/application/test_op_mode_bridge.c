@@ -3,7 +3,7 @@
  * @brief   op_mode_bridge 运行模式事件桥接单测
  */
 
-#include "adapters/inbound/event/op_mode_bridge.h"
+#include "application/bridges/op_mode_bridge.h"
 #include "common/event_types.h"
 #include "common/sw_error.h"
 #include "common/time_util.h"

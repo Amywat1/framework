@@ -3,7 +3,7 @@
  * @brief   安全姿态边沿（经 alarm_event_bridge）单元测试
  */
 
-#include "adapters/inbound/event/alarm_event_bridge.h"
+#include "application/bridges/alarm_event_bridge.h"
 #include "common/event_types.h"
 #include "common/sw_error.h"
 #include "common/time_util.h"

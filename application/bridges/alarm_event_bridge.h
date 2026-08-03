@@ -5,8 +5,8 @@
  * @date    2026-07-09
  */
 
-#ifndef APPLICATION_ALARM_EVENT_BRIDGE_H
-#define APPLICATION_ALARM_EVENT_BRIDGE_H
+#ifndef APPLICATION_BRIDGES_ALARM_EVENT_BRIDGE_H
+#define APPLICATION_BRIDGES_ALARM_EVENT_BRIDGE_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -28,4 +28,4 @@ void alarm_event_bridge_drain(void);
 }
 #endif
 
-#endif /* APPLICATION_ALARM_EVENT_BRIDGE_H */
+#endif /* APPLICATION_BRIDGES_ALARM_EVENT_BRIDGE_H */

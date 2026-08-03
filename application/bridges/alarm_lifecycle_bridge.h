@@ -5,8 +5,8 @@
  * @date    2026-07-14
  */
 
-#ifndef APPLICATION_ALARM_LIFECYCLE_BRIDGE_H
-#define APPLICATION_ALARM_LIFECYCLE_BRIDGE_H
+#ifndef APPLICATION_BRIDGES_ALARM_LIFECYCLE_BRIDGE_H
+#define APPLICATION_BRIDGES_ALARM_LIFECYCLE_BRIDGE_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -24,4 +24,4 @@ sw_err_t alarm_lifecycle_bridge_init(void);
 }
 #endif
 
-#endif /* APPLICATION_ALARM_LIFECYCLE_BRIDGE_H */
+#endif /* APPLICATION_BRIDGES_ALARM_LIFECYCLE_BRIDGE_H */

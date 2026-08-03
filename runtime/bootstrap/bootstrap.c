@@ -7,9 +7,9 @@
 
 #include "runtime/bootstrap/bootstrap.h"
 
-#include "adapters/inbound/event/alarm_event_bridge.h"
-#include "adapters/inbound/event/alarm_lifecycle_bridge.h"
-#include "adapters/inbound/event/op_mode_bridge.h"
+#include "application/bridges/alarm_event_bridge.h"
+#include "application/bridges/alarm_lifecycle_bridge.h"
+#include "application/bridges/op_mode_bridge.h"
 #include "application/command_gateway.h"
 #include "application/orchestrators/abort_home_coordinator.h"
 #include "application/orchestrators/safety_cutout_coordinator.h"

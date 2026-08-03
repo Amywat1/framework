@@ -5,8 +5,8 @@
  * @date    2026-07-12
  */
 
-#ifndef APPLICATION_ALARM_REEVAL_BRIDGE_H
-#define APPLICATION_ALARM_REEVAL_BRIDGE_H
+#ifndef APPLICATION_BRIDGES_ALARM_REEVAL_BRIDGE_H
+#define APPLICATION_BRIDGES_ALARM_REEVAL_BRIDGE_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -34,4 +34,4 @@ sw_err_t alarm_reeval_bridge_handle(alarm_reeval_trigger_kind_t kind, uint16_t t
 }
 #endif
 
-#endif /* APPLICATION_ALARM_REEVAL_BRIDGE_H */
+#endif /* APPLICATION_BRIDGES_ALARM_REEVAL_BRIDGE_H */

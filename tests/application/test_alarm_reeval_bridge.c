@@ -3,7 +3,7 @@
  * @brief   alarm_reeval_bridge 鍗曞厓娴嬭瘯
  */
 
-#include "adapters/inbound/event/alarm_reeval_bridge.h"
+#include "application/bridges/alarm_reeval_bridge.h"
 #include "common/sw_error.h"
 #include "common/time_util.h"
 #include "domain/device_control/model/actuator_events.h"

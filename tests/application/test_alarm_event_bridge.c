@@ -3,7 +3,7 @@
  * @brief   alarm_event_bridge 鍗曞厓娴嬭瘯
  */
 
-#include "adapters/inbound/event/alarm_event_bridge.h"
+#include "application/bridges/alarm_event_bridge.h"
 #include "common/event_types.h"
 #include "common/sw_error.h"
 #include "common/time_util.h"

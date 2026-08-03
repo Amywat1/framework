@@ -3,7 +3,7 @@
  * @brief   Demo 入口：bootstrap 启动与集成验证
  */
 
-#include "adapters/inbound/event/alarm_event_bridge.h"
+#include "application/bridges/alarm_event_bridge.h"
 #include "adapters/outbound/safety/sim/hw_estop_sim.h"
 #include "common/event_types.h"
 #include "common/log.h"
