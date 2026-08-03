@@ -5,7 +5,7 @@
 **最后同步代码**：2026-07-14（`runtime/bootstrap`、`runtime/scheduler`、`runtime/platform`、Demo project hooks）  
 **适用范围**：`runtime/bootstrap/`、`runtime/scheduler/`、`runtime/platform/`、`runtime/config/thread_config.h`、`demo/wiring/`  
 **架构基线**：统一启动序列 + runtime tasks 阶段注册线程 + scheduler 统一启动  
-**关键词**：bootstrap_run、project_hooks、thread_registry、scheduler_start_all、periodic_task、safety_thread、event_dispatch
+**关键词**：bootstrap_run、project_hooks、thread_registry、scheduler_start_all、periodic_task、estop_poll、event_dispatch
 
 ---
 
@@ -82,7 +82,7 @@ bootstrap_run()
     │
     ├─ bootstrap_init_services()
     │    ├─ alarm_event_bridge_init()
-    │    ├─ safety_thread_init()
+    │    ├─ estop_poll_thread_init()   # 可选
     │    ├─ operational_mode_init()
     │    ├─ command_gateway_init()
     │    ├─ self_check_service_init()
@@ -137,7 +137,7 @@ Init HAL 阶段初始化 HAL port 层及项目 HAL 组合层。顺序约束：`h
 Init Services 阶段初始化所有应用服务、适配器，并注册运行期任务。关键顺序约束：
 
 - `operational_mode_init()` 必须早于 `command_gateway_init()` / `op_mode_bridge_init()`。
-- `safety_thread_init()` 只注册线程，不立即启动。
+- `estop_poll_thread_init()` 只注册线程，不立即启动；项目自行采集急停时不接入。
 - `project_init_adapters()` 初始化项目入站适配器，禁止启动后台线程。
 - `project_register_runtime_tasks()` 只注册周期任务和运行期线程，禁止直接启动线程，线程统一由 Start 阶段的 `scheduler_start_all()` 创建。
 
@@ -250,7 +250,7 @@ periodic_task_thread_fn(slot)
 | 名称 | 注册方 | 类型 | 职责 |
 |------|--------|------|------|
 | `event_dispatch` | `bootstrap_register()` | 线程 | 调用 `event_bus_dispatch_loop()` |
-| `safety_thread` | `safety_thread_init()` | 线程 | 轮询硬件急停边沿 |
+| `estop_poll` | `estop_poll_thread_init()` | 线程 | 轮询硬件急停边沿（可选） |
 | `wash_worker` | `wash_orchestrator_init()` | 线程 | 洗车 engine worker tick |
 | `cloud_report` | `report_scheduler_register()` | 周期任务 | 云端链路 poll、watcher poll、周期/重同步上报 |
 | `hal_sensor_poll` | `hal_sensor_poll_register_task()` | 周期任务 | DI 滤波推进 |
@@ -266,7 +266,7 @@ periodic_task_thread_fn(slot)
 
 ### 6.1 Safety Thread
 
-`safety_thread_init()` 注册 `safety_thread`，调度配置来自 `thread_config.h`：
+`estop_poll_thread_init()` 注册 `estop_poll`，调度配置来自 `thread_config.h`：
 
 | 配置 | 值 |
 |------|----|
@@ -343,7 +343,7 @@ IO 子板 provider 的后台线程由 `io_exp_driver` 自行管理，不走 core
 | 测试 | 覆盖 |
 |------|------|
 | `tests/runtime/test_scheduler.c` | thread registry、periodic task、scheduler start、表满 |
-| `tests/runtime/test_safety_thread.c` | safety_thread 注册、急停边沿事件 |
+| `tests/adapters/test_estop_poll_thread.c` | 急停轮询线程注册、急停边沿事件 |
 | `tests/runtime/test_event_bus.c` | event dispatch 线程手动启动与 shutdown |
 | 应用/云端/HAL 单测 | 间接覆盖周期任务注册与事件订阅 |
 

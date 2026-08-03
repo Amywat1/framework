@@ -287,7 +287,7 @@ typedef void (*event_handler_t)(const event_t *evt);
 | `op_mode_bridge` | `EVT_WASH_*`、`EVT_HW_ESTOP_*`、`EVT_SAFETY_LOCKOUT`、`EVT_ALARM_*` 等 | ✅ |
 | `alarm_event_bridge` | （发布方）`EVT_ALARM_*`、`EVT_SAFETY_LOCKOUT/NOMINAL` | ✅ |
 | `command_gateway` | `EVT_CMD_GATEWAY_WAKE` | ✅ |
-| `safety_thread` / `op_mode_bridge` | 安全与报警相关事件 | ✅ |
+| `estop_poll` / `op_mode_bridge` | 安全与报警相关事件 | ✅ |
 | `recovery_service` | 恢复流程事件 | ✅ |
 | `safety_cutout_coordinator` + `abort_home_coordinator` | 安全切断与中止归位 | ✅ |
 | `telemetry_projection` | `EVT_ALARM_*`、`EVT_WASH_*`、`EVT_OP_MODE_*` 等 | ✅ |
@@ -314,7 +314,7 @@ typedef void (*event_handler_t)(const event_t *evt);
 
 | 通道 | 机制 | 职责 |
 |------|------|------|
-| 快速通道 | `safety_thread`（`SCHED_FIFO`）同步切断 | 立即停止执行机构；更新运行模式/急停标志 |
+| 快速通道 | 急停采集通路（`SCHED_FIFO`）同步切断 | 立即停止执行机构；更新运行模式/急停标志 |
 | 普通通道 | `EVT_HW_ESTOP_ON` → 报警记录 → `EVT_ALARM_*` / 上报 | 记录、广播、云端与日志 |
 
 允许极短窗口期：快速通道已生效时，普通通道可能尚未完成报警实例记录；`Recover` 合法性以快速通道急停标志为准（框架 §12.4）。
