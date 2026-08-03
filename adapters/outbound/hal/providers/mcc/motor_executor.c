@@ -128,12 +128,29 @@ static void ev_push(motor_executor_t *e, const motor_event_t *ev) {
     e->ev_count++;
 }
 
+/**
+ * @brief  本次运行的累计时长
+ * @note   run 型（无结束条件）与 move 型同样在 begin_start 记录 move_start_ms，
+ *         耗时对两者都有意义，故不以 moveActive 为条件，否则 run 型恒为 0。
+ */
 static uint64_t eff_elapsed(motor_executor_t *e, int i) {
     motor_mstate_t *s = &e->m[i];
-    if (s->phase == MOTOR_PHASE_RUNNING && s->moveActive) {
+    if (s->phase == MOTOR_PHASE_RUNNING) {
         return s->paused_elapsed_ms + (e->now - s->move_start_ms);
     }
     return s->paused_elapsed_ms;
+}
+
+/**
+ * @brief  把本段运行时长累加进 paused_elapsed_ms 并重置计时起点
+ * @note   同时前移 move_start_ms，因此可重复调用而不会重复累加。
+ */
+static void settle_elapsed(motor_executor_t *e, int i) {
+    motor_mstate_t *s = &e->m[i];
+    if (s->phase == MOTOR_PHASE_RUNNING) {
+        s->paused_elapsed_ms += e->now - s->move_start_ms;
+        s->move_start_ms = e->now;
+    }
 }
 
 static void push_event(motor_executor_t *e, int i, motor_event_type_t t,
@@ -143,6 +160,9 @@ static void push_event(motor_executor_t *e, int i, motor_event_type_t t,
     ev.motor = i;
     ev.type = t;
     ev.trigger = trig;
+    /* 限位种类取本次运动的结束条件描述，仅在确实由限位终止时有效。 */
+    ev.has_limit = (trig == MOTOR_END_LIMIT) && e->m[i].spec.use_limit;
+    ev.limit = e->m[i].spec.limit;
     ev.final_pos = e->m[i].position;
     ev.elapsed_ms = eff_elapsed(e, i);
     ev.fault = fc;
@@ -353,6 +373,8 @@ static motor_cmd_result_t start_or_reverse(motor_executor_t *e, int i,
 static void fault_one(motor_executor_t *e, int i, motor_fault_code_t code, bool fatal) {
     motor_mstate_t *s = &e->m[i];
     (void)immediate_cut(e, i);
+    /* 结算耗时后再转入故障态，故障事件才能带上已运行时长。 */
+    settle_elapsed(e, i);
     s->phase = MOTOR_PHASE_FAULT;
     s->fault = true;
     s->fatal = fatal;
@@ -407,6 +429,8 @@ static void finish_halt(motor_executor_t *e, int i) {
         enter_fault(e, i, MOTOR_FAULT_DRIVER_PORT_FATAL);
         return;
     }
+    /* 置 STOPPED 前先结算耗时，否则随后的停止事件只能读到未累加的 0。 */
+    settle_elapsed(e, i);
     s->phase = MOTOR_PHASE_STOPPED;
     s->moveActive = false;
     s->cooldown_until = e->now + e->cfg.motors[i].cooldown_ms;
@@ -465,12 +489,12 @@ static void complete_move(motor_executor_t *e, int i, motor_event_type_t type,
                                                              : MOTOR_LEVEL_FAULT;
     bool origin_reached = trig == MOTOR_END_LIMIT && s->spec.use_limit
                           && s->spec.limit == MOTOR_LIMIT_ORIGIN;
-    uint64_t completed_elapsed_ms = eff_elapsed(e, i);
 
+    /* 先结算耗时，保留到位瞬间的时长供随后的事件读取。 */
+    settle_elapsed(e, i);
     s->homing = false;
     s->moveActive = false;
     s->emit_stop_on_halt = false;
-    s->paused_elapsed_ms = completed_elapsed_ms;
     if (origin_reached) {
         finish_halt(e, i);
         if (s->phase == MOTOR_PHASE_FAULT) {
@@ -654,6 +678,8 @@ static void trigger_estop(motor_executor_t *e) {
         motor_mstate_t *s = &e->m[i];
         bool was_active = (s->phase != MOTOR_PHASE_STOPPED && s->phase != MOTOR_PHASE_FAULT);
         (void)immediate_cut(e, i);
+        /* 结算耗时后再转入急停态，急停事件才能带上被切断时的已运行时长。 */
+        settle_elapsed(e, i);
         s->queued = false;
         s->moveActive = false;
         s->phase = MOTOR_PHASE_ESTOP;
@@ -1018,6 +1044,8 @@ motor_cmd_result_t motor_stop(motor_executor_t *e, int i) {
             return cmd_make(MOTOR_CMD_ACCEPTED, "reversal-cancel");
         case MOTOR_PHASE_RUNNING:
         case MOTOR_PHASE_DECELERATING:
+            /* 先结算已运行时长，转入减速后计时起点失效，随后的停止事件才有耗时。 */
+            settle_elapsed(e, i);
             s->emit_stop_on_halt = true;
             s->moveActive = false;
             s->phase = MOTOR_PHASE_DECELERATING;
@@ -1044,9 +1072,7 @@ motor_cmd_result_t motor_pause(motor_executor_t *e, int i) {
     if (s->phase != MOTOR_PHASE_RUNNING) {
         return cmd_reject("not-running");
     }
-    if (s->moveActive) {
-        s->paused_elapsed_ms += e->now - s->move_start_ms;
-    }
+    settle_elapsed(e, i);
     if (!immediate_cut(e, i)) {
         enter_fault(e, i, MOTOR_FAULT_DRIVER_PORT_FATAL);
         return cmd_make(MOTOR_CMD_ACCEPTED, "cutoff-failed");

@@ -103,6 +103,19 @@ static hal_motor_end_condition_t from_mcc_end_condition(motor_end_condition_t tr
     }
 }
 
+static hal_motor_limit_kind_t from_mcc_limit(motor_limit_kind_t kind)
+{
+    switch (kind) {
+    case MOTOR_LIMIT_NEG:
+        return HAL_MOTOR_LIMIT_NEG;
+    case MOTOR_LIMIT_ORIGIN:
+        return HAL_MOTOR_LIMIT_ORIGIN;
+    case MOTOR_LIMIT_POS:
+    default:
+        return HAL_MOTOR_LIMIT_POS;
+    }
+}
+
 static hal_motor_event_type_t from_mcc_event_type(motor_event_type_t type)
 {
     switch (type) {
@@ -246,6 +259,8 @@ bool hal_motor_pop_event(hal_motor_exec_t *exec, hal_motor_event_t *out)
     out->motor      = ev.motor;
     out->type       = from_mcc_event_type(ev.type);
     out->trigger    = from_mcc_end_condition(ev.trigger);
+    out->has_limit  = ev.has_limit;
+    out->limit      = from_mcc_limit(ev.limit);
     out->final_pos  = ev.final_pos;
     out->elapsed_ms = ev.elapsed_ms;
     out->fault      = from_mcc_fault(ev.fault);

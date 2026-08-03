@@ -92,6 +92,8 @@ typedef struct {
     int                       motor;      /**< 电机号 */
     hal_motor_event_type_t    type;       /**< 事件类型 */
     hal_motor_end_condition_t trigger;    /**< 触发条件 */
+    bool                      has_limit;  /**< limit 是否有效（仅限位终止时为真） */
+    hal_motor_limit_kind_t    limit;      /**< 触发的限位种类 */
     int64_t                   final_pos;  /**< 结束时位置（脉冲） */
     uint64_t                  elapsed_ms; /**< 本次运动耗时（ms） */
     hal_motor_fault_code_t    fault;      /**< 故障码；无故障为 HAL_MOTOR_FAULT_NONE */
