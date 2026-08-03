@@ -11,8 +11,8 @@
 #ifndef LOG_H
 #define LOG_H
 
-#include <stdbool.h>
 #include <stdarg.h>
+#include <stdbool.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -32,6 +32,28 @@ typedef enum {
 } sw_log_level_t;
 
 typedef void (*sw_log_sink_fn_t)(sw_log_level_t level, const char *component, const char *fmt, va_list ap);
+
+/**
+ * @brief  设置运行期日志级别门限
+ * @param  level 允许输出的最低级别（数值越大越详细）；
+ *               例如设为 SW_LOG_INFO 时，SW_LOG_DEBUG 被丢弃
+ * @note   上电默认为 SW_LOG_DEBUG（全部输出）。级别过滤在格式化之前完成，
+ *         被丢弃的日志不产生 vsnprintf 开销。
+ */
+void sw_log_set_level(sw_log_level_t level);
+
+/**
+ * @brief  读取当前日志级别门限
+ */
+sw_log_level_t sw_log_get_level(void);
+
+/**
+ * @brief  判断给定级别当前是否会被输出
+ * @param  level 待判断级别
+ * @retval true  该级别会被输出
+ * @note   供调用方在构造昂贵日志参数前提前短路使用
+ */
+bool sw_log_level_enabled(sw_log_level_t level);
 
 /** @brief  注册日志 sink；传 NULL 恢复内置 stderr 输出 */
 void sw_log_register_sink(sw_log_sink_fn_t sink);
@@ -64,20 +86,20 @@ const char *sw_log_source_file_name(const char *source_path);
  * 使用示例：
  *   LOG_INFO("motor speed set to %d rpm", speed);
  * ------------------------------------------------------------------------- */
-#define LOG_ERROR(fmt, ...) \
-    sw_log_write(SW_LOG_ERROR, SW_LOG_COMPONENT, "[%s:%d] " fmt, sw_log_source_file_name(__FILE__), __LINE__, \
-                 ##__VA_ARGS__)
+#define LOG_ERROR(fmt, ...)                                                                                            \
+    sw_log_write(                                                                                                      \
+        SW_LOG_ERROR, SW_LOG_COMPONENT, "[%s:%d] " fmt, sw_log_source_file_name(__FILE__), __LINE__, ##__VA_ARGS__)
 
-#define LOG_WARN(fmt, ...) \
-    sw_log_write(SW_LOG_WARN, SW_LOG_COMPONENT, "[%s:%d] " fmt, sw_log_source_file_name(__FILE__), __LINE__, \
-                 ##__VA_ARGS__)
+#define LOG_WARN(fmt, ...)                                                                                             \
+    sw_log_write(                                                                                                      \
+        SW_LOG_WARN, SW_LOG_COMPONENT, "[%s:%d] " fmt, sw_log_source_file_name(__FILE__), __LINE__, ##__VA_ARGS__)
 
-#define LOG_INFO(fmt, ...) \
-    sw_log_write(SW_LOG_INFO, SW_LOG_COMPONENT, "[%s:%d] " fmt, sw_log_source_file_name(__FILE__), __LINE__, \
-                 ##__VA_ARGS__)
+#define LOG_INFO(fmt, ...)                                                                                             \
+    sw_log_write(                                                                                                      \
+        SW_LOG_INFO, SW_LOG_COMPONENT, "[%s:%d] " fmt, sw_log_source_file_name(__FILE__), __LINE__, ##__VA_ARGS__)
 
-#define LOG_DEBUG(fmt, ...) \
-    sw_log_write(SW_LOG_DEBUG, SW_LOG_COMPONENT, "[%s:%d] " fmt, sw_log_source_file_name(__FILE__), __LINE__, \
-                 ##__VA_ARGS__)
+#define LOG_DEBUG(fmt, ...)                                                                                            \
+    sw_log_write(                                                                                                      \
+        SW_LOG_DEBUG, SW_LOG_COMPONENT, "[%s:%d] " fmt, sw_log_source_file_name(__FILE__), __LINE__, ##__VA_ARGS__)
 
 #endif /* LOG_H */
