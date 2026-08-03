@@ -17,6 +17,7 @@
 #   R5  runtime/scheduler/   不依赖业务层
 #   R6  各框架层        不引用项目专属头文件路径（m8/ 前缀）
 #   R7  框架核心目录    不含项目机型前缀文件名（m8_*.c / m8_*.h）
+#   R8  全框架          不使用 "../" 相对 include（兜底，防止绕过 R1~R6）
 
 set -euo pipefail
 
@@ -133,6 +134,29 @@ else
     echo ""
     echo "[FAIL] R7: 框架核心目录中存在项目机型前缀文件"
     printf '%s\n' "$m8_files" | sed "s|^${FW_ROOT}/|  |"
+    TOTAL_VIOLATIONS=$((TOTAL_VIOLATIONS + 1))
+fi
+
+# R8: 禁止相对路径向上跳的 include
+#
+# R1~R6 依赖 "#include \"<层>/" 的前缀形式匹配，若改用 "../" 形式引用上层，
+# 依赖违规会绕过全部前缀规则而不被发现。此规则作为兜底：
+# 框架内一律使用以仓库根为基准的层级路径 include，不得出现 "../"。
+# （同目录内的 "#include \"xxx.h\"" 不受影响，其目标必在同层。）
+TOTAL_RULES=$((TOTAL_RULES + 1))
+relative_includes=$(grep -rn --include='*.c' --include='*.h' \
+    '#include[[:space:]]*"\.\.' \
+    "${FW_ROOT}" 2>/dev/null \
+    | grep -v "^${FW_ROOT}/third_party/" \
+    | grep -v "^${FW_ROOT}/build" \
+    || true)
+
+if [ -z "$relative_includes" ]; then
+    echo "[PASS] R8: 无相对路径向上跳的 include（\"../\" 形式）"
+else
+    echo ""
+    echo "[FAIL] R8: 存在相对路径向上跳的 include，会绕过 R1~R6 前缀检查"
+    printf '%s\n' "$relative_includes" | sed "s|^${FW_ROOT}/|  |"
     TOTAL_VIOLATIONS=$((TOTAL_VIOLATIONS + 1))
 fi
 
