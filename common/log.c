@@ -23,8 +23,47 @@ static sw_log_level_t   s_level = SW_LOG_DEBUG;
 
 /* sink 表与级别门限的保护锁。
  * sw_log_register_sink 会先把 count 清零再赋值，若无锁保护，
- * 并发写日志的线程可能读到"count 已归零但 sink 未就绪"的中间态。 */
-static pthread_mutex_t s_mutex = PTHREAD_MUTEX_INITIALIZER;
+ * 并发写日志的线程可能读到"count 已归零但 sink 未就绪"的中间态。
+ *
+ * 启用优先级继承：estop_poll 线程以 SCHED_FIFO 90 运行，每次急停边沿都会
+ * LOG_WARN/LOG_INFO，而本锁同时被 9 个 SCHED_OTHER 周期任务竞争。若普通
+ * 优先级线程持锁期间被抢占，急停线程会阻塞且时长不受优先级保护——急停边沿
+ * 正是最不能容忍这种阻塞的时刻。与 event_bus 两把锁同样处理。
+ *
+ * 用 pthread_once 而非静态初始化：日志可能在任何 init 之前就被调用，
+ * 没有可靠的集中初始化时机；once 保证首次使用前恰好初始化一次。 */
+static pthread_mutex_t s_mutex;
+static pthread_once_t  s_mutex_once = PTHREAD_ONCE_INIT;
+
+static void log_mutex_init_once(void)
+{
+    pthread_mutexattr_t attr;
+
+    if (pthread_mutexattr_init(&attr) != 0) {
+        (void)pthread_mutex_init(&s_mutex, NULL);
+        return;
+    }
+    if (pthread_mutexattr_setprotocol(&attr, PTHREAD_PRIO_INHERIT) != 0) {
+        /* 平台不支持优先级继承：退化为默认互斥量，功能不受影响 */
+        (void)pthread_mutex_init(&s_mutex, NULL);
+        (void)pthread_mutexattr_destroy(&attr);
+        return;
+    }
+    (void)pthread_mutex_init(&s_mutex, &attr);
+    (void)pthread_mutexattr_destroy(&attr);
+}
+
+/** @brief 确保锁已初始化（幂等，所有加锁点入口调用）*/
+static void log_lock(void)
+{
+    (void)pthread_once(&s_mutex_once, log_mutex_init_once);
+    (void)pthread_mutex_lock(&s_mutex);
+}
+
+static void log_unlock(void)
+{
+    (void)pthread_mutex_unlock(&s_mutex);
+}
 
 static const char *level_tag(sw_log_level_t level)
 {
@@ -74,18 +113,18 @@ void sw_log_set_level(sw_log_level_t level)
     if ((level < SW_LOG_ERROR) || (level > SW_LOG_DEBUG)) {
         return;
     }
-    pthread_mutex_lock(&s_mutex);
+    log_lock();
     s_level = level;
-    pthread_mutex_unlock(&s_mutex);
+    log_unlock();
 }
 
 sw_log_level_t sw_log_get_level(void)
 {
     sw_log_level_t level;
 
-    pthread_mutex_lock(&s_mutex);
+    log_lock();
     level = s_level;
-    pthread_mutex_unlock(&s_mutex);
+    log_unlock();
     return level;
 }
 
@@ -96,13 +135,13 @@ bool sw_log_level_enabled(sw_log_level_t level)
 
 void sw_log_register_sink(sw_log_sink_fn_t sink)
 {
-    pthread_mutex_lock(&s_mutex);
+    log_lock();
     s_sink_count = 0U;
     if (sink != NULL) {
         s_sinks[0]   = sink;
         s_sink_count = 1U;
     }
-    pthread_mutex_unlock(&s_mutex);
+    log_unlock();
 }
 
 bool sw_log_add_sink(sw_log_sink_fn_t sink)
@@ -114,10 +153,10 @@ bool sw_log_add_sink(sw_log_sink_fn_t sink)
         return false;
     }
 
-    pthread_mutex_lock(&s_mutex);
+    log_lock();
     for (index = 0U; index < s_sink_count; index++) {
         if (s_sinks[index] == sink) {
-            pthread_mutex_unlock(&s_mutex);
+            log_unlock();
             return true;
         }
     }
@@ -126,7 +165,7 @@ bool sw_log_add_sink(sw_log_sink_fn_t sink)
         s_sink_count++;
         ok = true;
     }
-    pthread_mutex_unlock(&s_mutex);
+    log_unlock();
     return ok;
 }
 
@@ -138,9 +177,9 @@ void sw_log_write(sw_log_level_t level, const char *component, const char *fmt, 
     size_t           index;
 
     /* 级别过滤前置：被丢弃的日志不付出格式化代价 */
-    pthread_mutex_lock(&s_mutex);
+    log_lock();
     if (level > s_level) {
-        pthread_mutex_unlock(&s_mutex);
+        log_unlock();
         return;
     }
     /* 取 sink 快照后即释放锁，避免 sink 内部再次写日志造成自锁 */
@@ -148,7 +187,7 @@ void sw_log_write(sw_log_level_t level, const char *component, const char *fmt, 
     for (index = 0U; index < count; index++) {
         sinks[index] = s_sinks[index];
     }
-    pthread_mutex_unlock(&s_mutex);
+    log_unlock();
 
     va_start(ap, fmt);
     if (count == 0U) {
