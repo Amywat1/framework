@@ -45,9 +45,7 @@ static bool      s_drain_thread_known;
 
 static void publish_cmd_handled(dev_cmd_kind_t kind, dev_cmd_status_t status, op_reject_reason_t reason)
 {
-    uint32_t param = ((uint32_t)kind << 16) | ((uint32_t)status << 8) | (uint32_t)reason;
-
-    (void)event_publish(EVT_OP_MODE_CMD_HANDLED, param);
+    (void)event_publish(EVT_OP_MODE_CMD_HANDLED, cmd_handled_evt_param((uint8_t)kind, status, reason));
 }
 
 static dev_cmd_status_t status_from_effect(sw_err_t effect_err, op_cmd_result_t verdict)

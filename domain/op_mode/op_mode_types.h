@@ -111,6 +111,79 @@ static inline wash_abort_cause_t wash_abort_from_evt_param(uint32_t param)
     return WASH_ABORT_INTERNAL;
 }
 
+/* -------------------------------------------------------------------------
+ * 事件 param 编解码
+ *
+ * event_t.param 是单个 uint32_t，多字段事件靠位段承载。发布方与订阅方若各自
+ * 手写移位，字段顺序或宽度调整时编译器无法发现不一致，只会表现为运行期取到
+ * 错位的值。因此所有多字段 param 一律经这里的 encode/decode 收口，禁止在
+ * 调用点手写 `<<` / `&`。
+ *
+ * 布局（低位在右）：
+ *   EVT_OP_MODE_CHANGED       [15:8]=from      [7:0]=to
+ *   EVT_OP_MODE_CMD_REJECTED  [15:8]=cmd_kind  [7:0]=reject_reason
+ *   EVT_WASH_SESSION_STARTED  [7:0]=wash_mode
+ * ------------------------------------------------------------------------- */
+
+/** @brief 单字段位宽掩码 */
+#define OP_MODE_EVT_FIELD_MASK 0xFFU
+
+/**
+ * @brief  编码 EVT_OP_MODE_CHANGED 的 param
+ * @param  from  变更前模式
+ * @param  to    变更后模式
+ */
+static inline uint32_t op_mode_changed_evt_param(operational_mode_t from, operational_mode_t to)
+{
+    return (((uint32_t)from & OP_MODE_EVT_FIELD_MASK) << 8) | ((uint32_t)to & OP_MODE_EVT_FIELD_MASK);
+}
+
+/** @brief 从 EVT_OP_MODE_CHANGED 的 param 解出变更前模式 */
+static inline operational_mode_t op_mode_changed_from(uint32_t param)
+{
+    return (operational_mode_t)((param >> 8) & OP_MODE_EVT_FIELD_MASK);
+}
+
+/** @brief 从 EVT_OP_MODE_CHANGED 的 param 解出变更后模式 */
+static inline operational_mode_t op_mode_changed_to(uint32_t param)
+{
+    return (operational_mode_t)(param & OP_MODE_EVT_FIELD_MASK);
+}
+
+/**
+ * @brief  编码 EVT_OP_MODE_CMD_REJECTED 的 param
+ * @param  cmd_kind  被拒命令类别（dev_cmd_kind_t，此处以整型承载以免头文件反向依赖）
+ * @param  reason    拒绝原因
+ */
+static inline uint32_t op_mode_cmd_rejected_evt_param(uint8_t cmd_kind, op_reject_reason_t reason)
+{
+    return (((uint32_t)cmd_kind & OP_MODE_EVT_FIELD_MASK) << 8) | ((uint32_t)reason & OP_MODE_EVT_FIELD_MASK);
+}
+
+/** @brief 从 EVT_OP_MODE_CMD_REJECTED 的 param 解出命令类别 */
+static inline uint8_t op_mode_cmd_rejected_kind(uint32_t param)
+{
+    return (uint8_t)((param >> 8) & OP_MODE_EVT_FIELD_MASK);
+}
+
+/** @brief 从 EVT_OP_MODE_CMD_REJECTED 的 param 解出拒绝原因 */
+static inline op_reject_reason_t op_mode_cmd_rejected_reason(uint32_t param)
+{
+    return (op_reject_reason_t)(param & OP_MODE_EVT_FIELD_MASK);
+}
+
+/** @brief 编码 EVT_WASH_SESSION_STARTED 的 param */
+static inline uint32_t wash_session_started_evt_param(wash_mode_t mode)
+{
+    return (uint32_t)mode & OP_MODE_EVT_FIELD_MASK;
+}
+
+/** @brief 从 EVT_WASH_SESSION_STARTED 的 param 解出洗车模式 */
+static inline wash_mode_t wash_session_started_mode(uint32_t param)
+{
+    return (wash_mode_t)(param & OP_MODE_EVT_FIELD_MASK);
+}
+
 #ifdef __cplusplus
 }
 #endif

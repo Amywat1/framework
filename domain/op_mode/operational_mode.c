@@ -73,16 +73,12 @@ static const char *wash_abort_name(wash_abort_cause_t cause)
 
 static void publish_mode_changed(operational_mode_t from, operational_mode_t to)
 {
-    uint32_t param = ((uint32_t)from << 8) | (uint32_t)to;
-
-    (void)event_publish(EVT_OP_MODE_CHANGED, param);
+    (void)event_publish(EVT_OP_MODE_CHANGED, op_mode_changed_evt_param(from, to));
 }
 
 static void publish_cmd_rejected(dev_cmd_kind_t kind, op_reject_reason_t reason)
 {
-    uint32_t param = ((uint32_t)kind << 8) | (uint32_t)reason;
-
-    (void)event_publish(EVT_OP_MODE_CMD_REJECTED, param);
+    (void)event_publish(EVT_OP_MODE_CMD_REJECTED, op_mode_cmd_rejected_evt_param((uint8_t)kind, reason));
 }
 
 static void publish_context_sync(void)

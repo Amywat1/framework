@@ -22,7 +22,7 @@ static void demo_abort_home(void)
 static sw_err_t demo_start_wash(wash_mode_t mode)
 {
     (void)mode;
-    (void)event_publish(EVT_WASH_SESSION_STARTED, (uint32_t)mode);
+    (void)event_publish(EVT_WASH_SESSION_STARTED, wash_session_started_evt_param(mode));
     (void)event_publish(EVT_WASH_DONE, 0U);
     return SW_OK;
 }
