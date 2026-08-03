@@ -19,7 +19,7 @@
 #define ENGINE_HELD_CAP 64U /* 本阶段持有资源上限 */
 
 static void (*s_pre_tick_fn)(void *ctx) = NULL;
-static void  *s_pre_tick_ctx            = NULL;
+static void *s_pre_tick_ctx             = NULL;
 
 void engine_set_pre_tick(void (*fn)(void *ctx), void *ctx)
 {
@@ -60,13 +60,19 @@ struct engine {
     bool                  phase_entered;
     uint32_t              phase_elapsed;
 
-    rt_lane_t *lanes;
-    unsigned   lane_count;
+    /* 运行态通道表：load 期按「全阶段最大规模」一次性分配后复用。
+     * 早期实现在每次 enter_phase 里 calloc/free，长时间运行的设备反复切换阶段
+     * 会持续制造堆碎片；预分配后 tick 路径不再有任何堆操作。 */
+    rt_lane_t *lanes;          /* 容量 max_lane_count */
+    unsigned   lane_count;     /* 当前阶段实际使用的通道数 */
+    rt_step_t *step_pool;      /* 扁平步骤池，容量 max_lane_count * step_stride */
+    unsigned   max_lane_count; /* 全阶段最大通道数 */
+    unsigned   step_stride;    /* 每通道预留的步骤槽数（全阶段最大步骤数）*/
 
-    marker_rt_t *markers; /* 与 prog->markers 平行 */
+    marker_rt_t *markers;      /* 与 prog->markers 平行 */
 
-    bool *ilk_active; /* 与 prog->interlocks 平行 */
-    int  *ilk_order;  /* 按 priority 升序的下标 */
+    bool *ilk_active;          /* 与 prog->interlocks 平行 */
+    int  *ilk_order;           /* 按 priority 升序的下标 */
 
     /** 本阶段持有的资源名（退出时 release，keep 除外） */
     char     held_resources[ENGINE_HELD_CAP][ENGINE_NAME_MAX];
@@ -382,23 +388,77 @@ static void apply_on_error(engine_t *e, engine_error_strategy_t st, rt_step_t *r
 /* -------------------------------------------------------------------------
  * 阶段运行态分配/释放
  * ------------------------------------------------------------------------- */
+/** 释放预分配的通道表与步骤池（仅在重新加载方案或销毁引擎时调用）*/
 static void free_lanes(engine_t *e)
 {
-    if (e->lanes != NULL) {
-        for (unsigned i = 0U; i < e->lane_count; ++i) {
-            free(e->lanes[i].steps);
-        }
-        free(e->lanes);
-        e->lanes = NULL;
-    }
-    e->lane_count = 0U;
+    free(e->lanes);
+    e->lanes = NULL;
+    free(e->step_pool);
+    e->step_pool      = NULL;
+    e->lane_count     = 0U;
+    e->max_lane_count = 0U;
+    e->step_stride    = 0U;
 }
 
-/* 进入阶段 i：分配运行态、初始化步骤（不求 entry_guard、不执行 on_enter） */
+/**
+ * @brief  按全阶段最大规模预分配通道表与步骤池
+ * @note   在 load 期调用一次；此后 enter_phase 只做复位，不再触碰堆。
+ */
+static bool alloc_lanes(engine_t *e)
+{
+    const engine_program_t *p         = e->prog;
+    unsigned                max_lanes = 0U;
+    unsigned                max_steps = 0U;
+
+    for (unsigned i = 0U; i < p->phase_count; ++i) {
+        const engine_phase_t *ph = &p->phases[i];
+
+        if (ph->lane_count > max_lanes) {
+            max_lanes = ph->lane_count;
+        }
+        for (unsigned j = 0U; j < ph->lane_count; ++j) {
+            if (ph->lanes[j].step_count > max_steps) {
+                max_steps = ph->lanes[j].step_count;
+            }
+        }
+    }
+
+    /* 即使方案里没有任何通道/步骤也保留 1 个槽，避免零长度分配 */
+    if (max_lanes == 0U) {
+        max_lanes = 1U;
+    }
+    if (max_steps == 0U) {
+        max_steps = 1U;
+    }
+
+    e->lanes = (rt_lane_t *)calloc(max_lanes, sizeof(rt_lane_t));
+    if (e->lanes == NULL) {
+        return false;
+    }
+    e->step_pool = (rt_step_t *)calloc((size_t)max_lanes * (size_t)max_steps, sizeof(rt_step_t));
+    if (e->step_pool == NULL) {
+        free(e->lanes);
+        e->lanes = NULL;
+        return false;
+    }
+
+    e->max_lane_count = max_lanes;
+    e->step_stride    = max_steps;
+    e->lane_count     = 0U;
+
+    /* 各通道的步骤区间在池中固定切分，运行期不再变动 */
+    for (unsigned i = 0U; i < max_lanes; ++i) {
+        e->lanes[i].steps = &e->step_pool[(size_t)i * (size_t)max_steps];
+        e->lanes[i].count = 0U;
+    }
+
+    return true;
+}
+
+/* 进入阶段 i：复位运行态、初始化步骤（不求 entry_guard、不执行 on_enter）
+ * 本函数不做任何堆分配，容量已在 alloc_lanes 阶段按全阶段最大值预留。 */
 static bool enter_phase(engine_t *e, int idx)
 {
-    free_lanes(e);
-
     e->cur_phase     = idx;
     e->cur_def       = &e->prog->phases[idx];
     e->phase_entered = false;
@@ -406,19 +466,22 @@ static bool enter_phase(engine_t *e, int idx)
     held_clear(e);
 
     const engine_phase_t *ph = e->cur_def;
-    e->lanes                 = (rt_lane_t *)calloc(ph->lane_count, sizeof(rt_lane_t));
-    if (e->lanes == NULL) {
+
+    /* 防御：容量取自同一 prog 的全阶段最大值，越界说明 prog 在 load 后被改写 */
+    if ((e->lanes == NULL) || (ph->lane_count > e->max_lane_count)) {
         return false;
     }
     e->lane_count = ph->lane_count;
 
     for (unsigned i = 0U; i < ph->lane_count; ++i) {
-        unsigned sc       = ph->lanes[i].step_count;
-        e->lanes[i].steps = (rt_step_t *)calloc((sc > 0U) ? sc : 1U, sizeof(rt_step_t));
-        if (e->lanes[i].steps == NULL) {
+        unsigned sc = ph->lanes[i].step_count;
+
+        if (sc > e->step_stride) {
             return false;
         }
         e->lanes[i].count = sc;
+        /* 复用槽位必须清零，否则会残留上一阶段的步骤状态 */
+        (void)memset(e->lanes[i].steps, 0, (size_t)e->step_stride * sizeof(rt_step_t));
         for (unsigned j = 0U; j < sc; ++j) {
             const engine_step_t *sd = &ph->lanes[i].steps[j];
             rt_step_t           *rt = &e->lanes[i].steps[j];
@@ -606,8 +669,8 @@ static void markers_tick(engine_t *e)
 {
     const engine_io_ops_t *io = engine_io_get_ops();
     for (unsigned i = 0U; i < e->prog->marker_count; ++i) {
-        const engine_marker_t *mk  = &e->prog->markers[i];
-        marker_rt_t           *rt  = &e->markers[i];
+        const engine_marker_t *mk = &e->prog->markers[i];
+        marker_rt_t           *rt = &e->markers[i];
         int                    cur;
 
         if (mk->on_kind == ENGINE_MARKER_ON_CONDITION) {
@@ -673,10 +736,12 @@ static void advance_phase(engine_t *e)
 {
     int next = e->cur_phase + 1;
     if (next >= (int)e->prog->phase_count) {
-        free_lanes(e);
-        e->cur_def   = NULL;
-        e->cur_phase = next;
-        e->state     = ENGINE_STATE_DONE;
+        /* 方案跑完只停用通道，不释放预分配的池：
+         * 引擎可被 engine_start 重新启动，池须保持可用。 */
+        e->lane_count = 0U;
+        e->cur_def    = NULL;
+        e->cur_phase  = next;
+        e->state      = ENGINE_STATE_DONE;
         return;
     }
     if (!enter_phase(e, next)) {
@@ -749,6 +814,11 @@ static sw_err_t build_runtime_tables(engine_t *e)
 {
     engine_program_t *p = e->prog;
 
+    /* 通道表与步骤池按全阶段最大规模预分配，之后 tick 路径无堆操作 */
+    if (!alloc_lanes(e)) {
+        return SW_ERR_NOMEM;
+    }
+
     if (p->marker_count > 0U) {
         e->markers = (marker_rt_t *)calloc(p->marker_count, sizeof(marker_rt_t));
         if (e->markers == NULL) {
@@ -810,6 +880,15 @@ sw_err_t engine_load_program(engine_t *e, engine_program_t *prog)
 
     sw_err_t rc = build_runtime_tables(e);
     if (rc != SW_OK) {
+        /* 失败时必须解绑并置 HALTED：否则 prog 已挂上但运行态表可能只建了一半，
+         * 调用方若忽略本函数返回值直接 engine_start，会在遍历 interlock_count
+         * 时对 NULL 的 ilk_active 解引用。 */
+        free_lanes(e);
+        free_runtime_tables(e);
+        engine_program_free(prog);
+        e->prog      = NULL;
+        e->owns_prog = false;
+        e->state     = ENGINE_STATE_HALTED;
         return rc;
     }
     return SW_OK;
@@ -827,8 +906,8 @@ sw_err_t engine_start(engine_t *e)
     /* 复位标记与联锁 */
     for (unsigned i = 0U; i < e->prog->marker_count; ++i) {
         const engine_marker_t *mk = &e->prog->markers[i];
-        e->markers[i].position = 0.0;
-        e->markers[i].valid    = false;
+        e->markers[i].position    = 0.0;
+        e->markers[i].valid       = false;
         if (mk->on_kind == ENGINE_MARKER_ON_CONDITION) {
             e->markers[i].sig_prev = eval_bool(e, mk->cond, false) ? 1 : 0;
         } else {
