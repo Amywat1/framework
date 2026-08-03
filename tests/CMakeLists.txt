@@ -168,13 +168,25 @@ add_unit_test(test_machine_ops_port
 
 add_unit_test(test_op_mode_alarm_port
     ${CMAKE_CURRENT_SOURCE_DIR}/ports/test_op_mode_alarm_port.c
-    ${WDF_ROOT}/adapters/outbound/safety/sim/safety_weak_defaults.c
+    ${WDF_ROOT}/ports/port_registry_safety.c
+    ${WDF_ROOT}/common/log.c
 )
 
 add_unit_test(test_cloud_ports
     ${CMAKE_CURRENT_SOURCE_DIR}/ports/test_cloud_ports.c
     ${WDF_ROOT}/ports/port_registry_cloud.c
     ${WDF_ROOT}/ports/port_registry_infra.c
+)
+
+add_unit_test(test_port_contract
+    ${CMAKE_CURRENT_SOURCE_DIR}/ports/test_port_contract.c
+    ${WDF_ROOT}/ports/port_contract.c
+    ${WDF_ROOT}/ports/port_registry_safety.c
+    ${WDF_ROOT}/ports/port_registry_hal.c
+    ${WDF_ROOT}/ports/port_registry_infra.c
+    ${WDF_ROOT}/ports/port_registry_cloud.c
+    ${WDF_ROOT}/ports/outbound/storage/engine_program_loader_port.c
+    ${WDF_ROOT}/common/log.c
 )
 
 add_unit_test(test_cloud_point_validate
@@ -230,7 +242,7 @@ add_unit_test(test_alarm_registry
 
 add_unit_test(test_safety_posture
     ${CMAKE_CURRENT_SOURCE_DIR}/domain/test_safety_posture.c
-    ${WDF_ROOT}/adapters/inbound/event/alarm_event_bridge.c
+    ${WDF_ROOT}/application/bridges/alarm_event_bridge.c
     ${WDF_ROOT}/domain/safety/alarm_registry/alarm_registry.c
     ${WDF_ROOT}/ports/port_registry_infra.c
     ${WDF_ROOT}/runtime/event_bus/event_bus.c
@@ -242,7 +254,7 @@ add_unit_test(test_safety_posture
 
 add_unit_test(test_alarm_event_bridge
     ${CMAKE_CURRENT_SOURCE_DIR}/application/test_alarm_event_bridge.c
-    ${WDF_ROOT}/adapters/inbound/event/alarm_event_bridge.c
+    ${WDF_ROOT}/application/bridges/alarm_event_bridge.c
     ${WDF_ROOT}/domain/safety/alarm_registry/alarm_registry.c
     ${WDF_ROOT}/ports/port_registry_infra.c
     ${WDF_ROOT}/runtime/event_bus/event_bus.c
@@ -254,7 +266,7 @@ add_unit_test(test_alarm_event_bridge
 
 add_unit_test(test_alarm_reeval_bridge
     ${CMAKE_CURRENT_SOURCE_DIR}/application/test_alarm_reeval_bridge.c
-    ${WDF_ROOT}/adapters/inbound/event/alarm_reeval_bridge.c
+    ${WDF_ROOT}/application/bridges/alarm_reeval_bridge.c
     ${WDF_ROOT}/domain/device_control/model/actuator_events.c
     ${WDF_ROOT}/domain/safety/alarm_registry/alarm_registry.c
     ${WDF_ROOT}/ports/port_registry_infra.c
@@ -265,14 +277,18 @@ add_unit_test(test_alarm_reeval_bridge
 
 add_unit_test(test_op_mode_bridge
     ${CMAKE_CURRENT_SOURCE_DIR}/application/test_op_mode_bridge.c
-    ${WDF_ROOT}/adapters/inbound/event/op_mode_bridge.c
+    ${WDF_ROOT}/application/bridges/op_mode_bridge.c
     ${WDF_ROOT}/domain/op_mode/operational_mode.c
     ${WDF_ROOT}/domain/safety/alarm_registry/alarm_registry.c
-    ${WDF_ROOT}/adapters/outbound/safety/sim/safety_weak_defaults.c
+    ${WDF_ROOT}/ports/port_registry_safety.c
     ${WDF_ROOT}/ports/port_registry_infra.c
     ${WDF_ROOT}/runtime/event_bus/event_bus.c
     ${WDF_ROOT}/common/time_util.c
     ${WDF_ROOT}/common/log.c
+)
+
+add_unit_test(test_event_param_codec
+    ${CMAKE_CURRENT_SOURCE_DIR}/domain/test_event_param_codec.c
 )
 
 add_unit_test(test_operational_mode
@@ -307,7 +323,7 @@ add_unit_test(test_program_engine
     ${WDF_ROOT}/domain/program_engine/engine/engine_profile.c
     ${WDF_ROOT}/domain/program_engine/model/engine_model.c
     ${WDF_ROOT}/domain/program_engine/model/engine_program_validate.c
-    ${WDF_ROOT}/domain/program_engine/model/engine_program_manifest.c
+    ${WDF_ROOT}/adapters/outbound/storage/json/engine_program_manifest.c
     ${WDF_ROOT}/third_party/cJSON/cJSON.c
 )
 
@@ -342,7 +358,7 @@ add_unit_test(test_engine_session
     ${WDF_ROOT}/domain/program_engine/engine/engine_profile.c
     ${WDF_ROOT}/domain/program_engine/model/engine_model.c
     ${WDF_ROOT}/domain/program_engine/model/engine_program_validate.c
-    ${WDF_ROOT}/domain/program_engine/model/engine_program_manifest.c
+    ${WDF_ROOT}/adapters/outbound/storage/json/engine_program_manifest.c
     ${WDF_ROOT}/common/log.c
     ${WDF_ROOT}/common/time_util.c
     ${WDF_ROOT}/third_party/cJSON/cJSON.c
@@ -370,6 +386,7 @@ add_unit_test(test_telemetry_projection
     ${WDF_ROOT}/domain/telemetry/device_snapshot.c
     ${WDF_ROOT}/domain/op_mode/operational_mode.c
     ${WDF_ROOT}/domain/safety/alarm_registry/alarm_registry.c
+    ${WDF_ROOT}/ports/port_registry_cloud.c
     ${WDF_ROOT}/ports/port_registry_infra.c
     ${WDF_ROOT}/runtime/event_bus/event_bus.c
     ${WDF_ROOT}/common/log.c
@@ -458,7 +475,7 @@ add_unit_test(test_engine_program_json
     ${WDF_ROOT}/domain/program_engine/engine/engine_profile.c
     ${WDF_ROOT}/domain/program_engine/model/engine_model.c
     ${WDF_ROOT}/domain/program_engine/model/engine_program_validate.c
-    ${WDF_ROOT}/domain/program_engine/model/engine_program_manifest.c
+    ${WDF_ROOT}/adapters/outbound/storage/json/engine_program_manifest.c
     ${WDF_ROOT}/third_party/cJSON/cJSON.c
 )
 
@@ -483,21 +500,14 @@ target_compile_definitions(test_svc_param PRIVATE
     PARAM_STORE_JSON_FILE_PATH="${CMAKE_BINARY_DIR}/tests/svc_param_test.json"
 )
 
-add_unit_test(test_dev_ctx
-    ${CMAKE_CURRENT_SOURCE_DIR}/services/test_dev_ctx.c
-    ${WDF_ROOT}/services/dev_ctx/dev_ctx.c
-    ${WDF_ROOT}/domain/telemetry/device_snapshot.c
-    ${WDF_ROOT}/ports/port_registry_cloud.c
-    ${WDF_ROOT}/common/log.c
-)
-
-add_unit_test(test_safety_thread
-    ${CMAKE_CURRENT_SOURCE_DIR}/runtime/test_safety_thread.c
-    ${WDF_ROOT}/runtime/platform/safety_thread.c
+add_unit_test(test_estop_poll_thread
+    ${CMAKE_CURRENT_SOURCE_DIR}/adapters/test_estop_poll_thread.c
+    ${WDF_ROOT}/adapters/inbound/safety/estop_poll_thread.c
     ${WDF_ROOT}/runtime/scheduler/thread_registry.c
     ${WDF_ROOT}/runtime/scheduler/scheduler.c
     ${WDF_ROOT}/runtime/event_bus/event_bus.c
     ${WDF_ROOT}/adapters/outbound/safety/sim/hw_estop_sim.c
+    ${WDF_ROOT}/ports/port_registry_safety.c
     ${WDF_ROOT}/common/log.c
     ${WDF_ROOT}/common/time_util.c
 )

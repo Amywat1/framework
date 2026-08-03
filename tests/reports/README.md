@@ -27,9 +27,9 @@ ctest --test-dir build -V
 | — | `test_cloud_point_dispatch` | 8 | 通过 | `cloud/` |
 | — | `test_cloud_point_watcher` | 3 | 通过 | `cloud/` |
 | — | `test_alarm_registry` | 9 | 通过 | `domain/safety/alarm_registry/` |
-| — | `test_safety_posture` | 2 | 通过 | `adapters/inbound/event/alarm_event_bridge`（姿态边沿） |
-| — | `test_alarm_event_bridge` | 2 | 通过 | `adapters/inbound/event/alarm_event_bridge.c` |
-| — | `test_op_mode_bridge` | 5 | 通过 | `adapters/inbound/event/op_mode_bridge.c` |
+| — | `test_safety_posture` | 2 | 通过 | `application/bridges/alarm_event_bridge`（姿态边沿） |
+| — | `test_alarm_event_bridge` | 2 | 通过 | `application/bridges/alarm_event_bridge.c` |
+| — | `test_op_mode_bridge` | 5 | 通过 | `application/bridges/op_mode_bridge.c` |
 | — | `test_operational_mode` | 11 | 通过 | `domain/command_gateway/` |
 | — | `test_side_effect_router` | 9 | 通过 | `application/side_effect_router.c` |
 | — | `test_command_gateway` | 6 | 通过 | `application/`、`domain/command_gateway/` |
@@ -42,7 +42,7 @@ ctest --test-dir build -V
 | — | `test_json_deploy_store` | 9 | 通过 | `adapters/outbound/storage/json/` |
 | — | `test_scheduler` | 9 | 通过 | `runtime/scheduler/` |
 | — | `test_svc_param` | 9 | 通过 | `services/param/` |
-| — | `test_safety_thread` | 2 | 通过 | `runtime/platform/` |
+| — | `test_estop_poll_thread` | 2 | 通过 | `adapters/inbound/safety/` |
 
 **合计：27 个测试目标，193 个用例，全部通过。**
 

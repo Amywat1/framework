@@ -161,6 +161,101 @@ else
 fi
 
 # -----------------------------------------------------------------------------
+# R9: domain/ 不使用违背领域层定位的设施
+#
+# R1~R6 只看 include 路径，管不住"用标准库直接做本不属于领域层的事"。
+# 以下四类是领域层最容易悄然引入的越界，一旦出现，领域规则就不再可纯逻辑测试：
+#
+#   文件 IO      文件格式与路径属于存储适配职责，应经 storage 端口
+#   JSON 解析    序列化格式属于适配层，领域只接收已解析的模型
+#   线程注册     领域不自建线程，时序推进由调用方登记周期任务
+#   动态内存     嵌入式领域层优先静态分配，避免运行期分配失败与碎片
+#
+# 白名单：方案引擎的模型/表达式/运行时按可变规模方案树分配，改为静态池需要
+# 预设方案规模上限，当前按加载期一次性分配 + 显式 free 管理（engine_destroy /
+# engine_program_free），故豁免动态内存一项。豁免仅限这三个文件，新增文件
+# 若同样需要动态内存，须在此显式登记并说明理由。
+# -----------------------------------------------------------------------------
+check_domain_antipattern() {
+    local rule="$1"
+    local pattern="$2"
+    shift 2
+    local exempt_args=()
+    local f
+
+    for f in "$@"; do
+        exempt_args+=(-e "^${FW_ROOT}/domain/${f}:")
+    done
+
+    TOTAL_RULES=$((TOTAL_RULES + 1))
+
+    # 过滤纯注释行：行首（忽略缩进）为 //、/* 或续行 * 的一律跳过。
+    # 文档里提到某个设施的名字不构成依赖，只有代码引用才算违规。
+    local hits
+    hits=$(grep -rnE --include='*.c' --include='*.h' "${pattern}" "${FW_ROOT}/domain" 2>/dev/null \
+        | grep -vE '^[^:]+:[0-9]+:[[:space:]]*(//|/\*|\*)' \
+        || true)
+
+    if [ ${#exempt_args[@]} -gt 0 ] && [ -n "$hits" ]; then
+        hits=$(printf '%s\n' "$hits" | grep -v "${exempt_args[@]}" || true)
+    fi
+
+    if [ -z "$hits" ]; then
+        echo "[PASS] ${rule}"
+    else
+        echo ""
+        echo "[FAIL] ${rule}"
+        printf '%s\n' "$hits" | sed "s|^${FW_ROOT}/|  |"
+        TOTAL_VIOLATIONS=$((TOTAL_VIOLATIONS + 1))
+    fi
+}
+
+check_domain_antipattern \
+    "R9a: domain/ 不做文件 IO（应经 storage 端口）" \
+    '\b(fopen|freopen|fread|fwrite|fclose|remove|rename)[[:space:]]*\('
+
+check_domain_antipattern \
+    "R9b: domain/ 不解析序列化格式（应由适配层传入已解析模型）" \
+    '\bcJSON'
+
+check_domain_antipattern \
+    "R9c: domain/ 不自建线程或周期任务（由调用方驱动 tick）" \
+    '\b(periodic_task_register|pthread_create|thread_register(_arg)?)[[:space:]]*\('
+
+check_domain_antipattern \
+    "R9d: domain/ 不使用动态内存（方案引擎三文件已登记豁免）" \
+    '\b(malloc|calloc|realloc|strdup)[[:space:]]*\(' \
+    'program_engine/engine/engine.c' \
+    'program_engine/engine/engine_expr.c' \
+    'program_engine/model/engine_model.c'
+
+# -----------------------------------------------------------------------------
+# R10: adapters/ 不承载跨领域编排
+#
+# adapters 的职责是适配外部系统（SDK、协议、硬件、仿真后端）。事件桥接、投影、
+# 协调器这类"只依赖 domain + runtime、不碰任何外部系统"的代码属于 application：
+# 混在 adapters 里会让"adapters 是外部适配"这条边界失去可判定性，后续 review
+# 无法据此判断新代码该放哪。
+#
+# 判据：adapters 下的文件名不得出现 application 层的编排后缀。
+# -----------------------------------------------------------------------------
+TOTAL_RULES=$((TOTAL_RULES + 1))
+orchestration_in_adapters=$(find "${FW_ROOT}/adapters" \
+    \( -name '*_bridge.c' -o -name '*_bridge.h' \
+       -o -name '*_projection.c' -o -name '*_projection.h' \
+       -o -name '*_coordinator.c' -o -name '*_coordinator.h' \) \
+    -print 2>/dev/null | sort || true)
+
+if [ -z "$orchestration_in_adapters" ]; then
+    echo "[PASS] R10: adapters/ 不含 bridge / projection / coordinator（应归 application）"
+else
+    echo ""
+    echo "[FAIL] R10: adapters/ 混入了跨领域编排代码，应迁至 application/"
+    printf '%s\n' "$orchestration_in_adapters" | sed "s|^${FW_ROOT}/|  |"
+    TOTAL_VIOLATIONS=$((TOTAL_VIOLATIONS + 1))
+fi
+
+# -----------------------------------------------------------------------------
 echo ""
 echo "======================================================="
 if [ "${TOTAL_VIOLATIONS}" -eq 0 ]; then
