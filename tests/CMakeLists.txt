@@ -519,6 +519,7 @@ add_unit_test(test_json_deploy_store
     ${WDF_ROOT}/adapters/outbound/storage/json/json_deploy_store.c
     ${WDF_ROOT}/ports/port_registry_cloud.c
     ${WDF_ROOT}/ports/port_registry_infra.c
+    ${WDF_ROOT}/common/asset_version.c
     ${WDF_ROOT}/common/log.c
     ${WDF_ROOT}/common/sw_mutex.c
     ${WDF_ROOT}/third_party/cJSON/cJSON.c

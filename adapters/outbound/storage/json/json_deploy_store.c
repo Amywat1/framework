@@ -16,6 +16,7 @@
 #define DEPLOY_STORE_JSON_FILE_PATH ""
 #endif
 
+#include "common/asset_version.h"
 #include "common/log.h"
 #include "ports/outbound/storage/deploy_store.h"
 #include "third_party/cJSON/cJSON.h"
@@ -46,6 +47,32 @@ static sw_err_t get_file_path(char *buf, size_t buf_size)
     buf[buf_size - 1U] = '\0';
     pthread_mutex_unlock(&s_mutex);
     return SW_OK;
+}
+
+/**
+ * @brief  校验部署配置的 schema 版本
+ *
+ * @note   缺少 schemaVersion 字段即视为不合规而非按最早版本处理：部署配置里
+ *         有设备身份与云端主题，静默接受一份不声明版本的配置，等于让字段
+ *         含义的任何变更都无从被发现。
+ */
+static sw_err_t deploy_check_schema_version(const cJSON *root)
+{
+    const cJSON *ver          = cJSON_GetObjectItem(root, "schemaVersion");
+    char         ver_err[128] = {0};
+    sw_err_t     ret;
+
+    if ((ver == NULL) || !cJSON_IsString(ver) || (ver->valuestring == NULL)) {
+        LOG_ERROR("json_deploy_store: 缺少 schemaVersion 字段，拒绝加载");
+        return SW_ERR_PARAM;
+    }
+
+    ret = asset_version_check(
+        "deploy_config", ver->valuestring, DEPLOY_CONFIG_SCHEMA_SUPPORTED, ver_err, (unsigned)sizeof(ver_err));
+    if (ret != SW_OK) {
+        LOG_ERROR("json_deploy_store: %s", ver_err);
+    }
+    return ret;
 }
 
 static sw_err_t deploy_load(void)
@@ -80,11 +107,20 @@ static sw_err_t deploy_load(void)
                 buf[len]      = '\0';
                 cJSON *parsed = cJSON_Parse(buf);
                 if (parsed != NULL) {
-                    if (s_cfg != NULL) {
-                        cJSON_Delete(s_cfg);
+                    ret = deploy_check_schema_version(parsed);
+                    if (ret == SW_OK) {
+                        if (s_cfg != NULL) {
+                            cJSON_Delete(s_cfg);
+                        }
+                        s_cfg = parsed;
+                    } else {
+                        /* 整份丢弃新配置，保留上一次加载成功的内容：不做部分接受，
+                         * 半套配置比旧配置更难排查。保留而非清空是因为本函数也用于
+                         * 重新加载——运行期推来一份版本不对的配置时，清空会连设备
+                         * 身份与云端主题一起丢掉，反而扩大故障面；首次加载失败则由
+                         * bootstrap 的 BOOT_CHECK 终止启动，不存在"带着空配置运行"。 */
+                        cJSON_Delete(parsed);
                     }
-                    s_cfg = parsed;
-                    ret   = SW_OK;
                 }
             }
             free(buf);

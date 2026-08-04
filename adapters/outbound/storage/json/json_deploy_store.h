@@ -13,6 +13,19 @@ extern "C" {
 #endif
 
 /**
+ * @brief 框架当前支持的部署配置 schema 版本
+ *
+ * @note  兼容规则见 common/asset_version.h：主版本不同或资产次版本更高即拒绝
+ *        加载。新增可选字段时提升次版本，删改既有字段含义时提升主版本。
+ * @note  部署 JSON 必须声明 schemaVersion 字段，缺失即拒绝加载——该文件承载
+ *        设备身份与云端主题，静默接受一份不声明版本的配置，等于让字段含义的
+ *        任何变更都无从被发现。
+ * @note  load 的两种失败要分开看：版本串缺失或无法解析返回 SW_ERR_PARAM，
+ *        版本可解析但不兼容返回 SW_ERR_STATE（资产本身合法、只是与本框架不配）。
+ */
+#define DEPLOY_CONFIG_SCHEMA_SUPPORTED "1.0"
+
+/**
  * @brief  注册 JSON 文件部署配置存储实现到 deploy_store 端口。
  *
  * @note   本函数只注册 ops，不保存项目路径，也不执行文件读写。
