@@ -11,6 +11,7 @@
 
 #include <ctype.h>
 #include <math.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -97,6 +98,44 @@ static void set_error(const char *msg)
 {
     (void)strncpy(s_last_error, msg, EXPR_ERR_MAX - 1U);
     s_last_error[EXPR_ERR_MAX - 1U] = '\0';
+}
+
+/* -------------------------------------------------------------------------
+ * 内建函数白名单
+ *
+ * 表在此集中声明，加载期据它校验函数名与参数个数，求值期据同一张表分派。
+ * 原先只有求值期用 strcmp 逐个比对：未知函数名与参数个数不符都只是置
+ * *ok = false，方案里写错一个函数名要洗到那一步才失败，且错误里没有名称。
+ * 方案是部署时下发的资产，加载期拒绝比运行中途失败代价低得多。
+ *
+ * first_arg_is_zone_name 用于 profile.in_zone：它的首参必须是字符串字面量
+ * （区域名），而字符串在求值期一律置 *ok = false，故这类位置只能在加载期查。
+ * ------------------------------------------------------------------------- */
+typedef struct {
+    const char *name;
+    unsigned    arg_count;
+    bool        first_arg_is_zone_name;
+} expr_builtin_t;
+
+static const expr_builtin_t k_builtins[] = {
+    {"body_contains",     3U, false},
+    {"body_covers",       3U, false},
+    {"profile.height_at", 2U, false},
+    {"profile.in_zone",   3U, true },
+};
+
+#define EXPR_BUILTIN_COUNT (sizeof(k_builtins) / sizeof(k_builtins[0]))
+
+static const expr_builtin_t *find_builtin(const char *name)
+{
+    unsigned i;
+
+    for (i = 0U; i < EXPR_BUILTIN_COUNT; i++) {
+        if (strcmp(name, k_builtins[i].name) == 0) {
+            return &k_builtins[i];
+        }
+    }
+    return NULL;
 }
 
 const char *engine_expr_last_error(void)
@@ -630,6 +669,55 @@ static expr_node_t *parse_expr(parser_t *p)
 /* -------------------------------------------------------------------------
  * 编译入口
  * ------------------------------------------------------------------------- */
+/* -------------------------------------------------------------------------
+ * 加载期函数校验
+ *
+ * 递归全树，任一 NODE_FUNC 不在白名单或参数个数不符即失败，并把函数名写进
+ * 错误描述——求值期的 *ok = false 无法回答"哪个函数错了"。
+ * ------------------------------------------------------------------------- */
+static bool check_functions(const expr_node_t *n)
+{
+    unsigned i;
+
+    if (n == NULL) {
+        return true;
+    }
+
+    if (n->kind == NODE_FUNC) {
+        const expr_builtin_t *b = find_builtin(n->name);
+
+        if (b == NULL) {
+            char msg[EXPR_ERR_MAX];
+
+            (void)snprintf(msg, sizeof(msg), "未知函数 '%s'", n->name);
+            set_error(msg);
+            return false;
+        }
+        if (n->arg_count != b->arg_count) {
+            char msg[EXPR_ERR_MAX];
+
+            (void)snprintf(
+                msg, sizeof(msg), "函数 '%s' 需要 %u 个参数，实际 %u 个", n->name, b->arg_count, n->arg_count);
+            set_error(msg);
+            return false;
+        }
+        if (b->first_arg_is_zone_name && ((n->args[0] == NULL) || (n->args[0]->kind != NODE_STR))) {
+            char msg[EXPR_ERR_MAX];
+
+            (void)snprintf(msg, sizeof(msg), "函数 '%s' 首参必须是字符串字面量", n->name);
+            set_error(msg);
+            return false;
+        }
+    }
+
+    for (i = 0U; i < n->arg_count; i++) {
+        if (!check_functions(n->args[i])) {
+            return false;
+        }
+    }
+    return check_functions(n->a) && check_functions(n->b) && check_functions(n->c);
+}
+
 engine_expr_t *engine_expr_compile(const char *text)
 {
     if (text == NULL) {
@@ -661,6 +749,14 @@ engine_expr_t *engine_expr_compile(const char *text)
         parse_fail(p, "表达式有多余 token");
     }
     if (!p->ok) {
+        node_free(root);
+        free(p);
+        return NULL;
+    }
+
+    /* 语法正确不等于语义可执行：函数名与参数个数在此拒绝，
+     * 否则错误要推迟到求值期，且届时拿不到函数名。 */
+    if (!check_functions(root)) {
         node_free(root);
         free(p);
         return NULL;

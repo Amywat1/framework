@@ -332,6 +332,72 @@ static void test_engine_expr_evaluates_profile_functions(void)
     TEST_ASSERT_TRUE(eval_bool_value("profile.in_zone(\"missing\", axes.gantry.position, true)", vars));
 }
 
+/* -------------------------------------------------------------------------
+ * 加载期函数校验
+ *
+ * 这些错误原先只在求值期表现为 *ok = false，且拿不到函数名——方案里写错一个
+ * 函数名要洗到那一步才失败。方案是部署时下发的资产，加载期拒绝代价低得多。
+ * ------------------------------------------------------------------------- */
+static void test_engine_expr_rejects_unknown_function_at_compile(void)
+{
+    TEST_ASSERT_NULL(engine_expr_compile("body_containz(150, 100, 200)"));
+    TEST_ASSERT_NOT_NULL(strstr(engine_expr_last_error(), "未知函数"));
+    /* 错误里必须点名函数，否则排查还得回去翻方案 */
+    TEST_ASSERT_NOT_NULL(strstr(engine_expr_last_error(), "body_containz"));
+}
+
+static void test_engine_expr_rejects_wrong_arity_at_compile(void)
+{
+    TEST_ASSERT_NULL(engine_expr_compile("body_contains(150, 100)"));
+    TEST_ASSERT_NOT_NULL(strstr(engine_expr_last_error(), "body_contains"));
+    TEST_ASSERT_NOT_NULL(strstr(engine_expr_last_error(), "3"));
+
+    TEST_ASSERT_NULL(engine_expr_compile("profile.height_at(1, 2, 3)"));
+    TEST_ASSERT_NOT_NULL(strstr(engine_expr_last_error(), "profile.height_at"));
+}
+
+/* profile.in_zone 首参是区域名，必须为字符串字面量：字符串在求值期一律
+ * 置 *ok = false，故这类位置只能在加载期查出来 */
+static void test_engine_expr_rejects_non_literal_zone_name(void)
+{
+    TEST_ASSERT_NULL(engine_expr_compile("profile.in_zone(axes.gantry.position, 1, 0)"));
+    TEST_ASSERT_NOT_NULL(strstr(engine_expr_last_error(), "字符串字面量"));
+}
+
+/* 嵌套位置同样要查：函数出现在参数里、三目分支里都不能漏 */
+static void test_engine_expr_checks_nested_functions(void)
+{
+    TEST_ASSERT_NULL(engine_expr_compile("body_contains(profile.bogus(1), 100, 200)"));
+    TEST_ASSERT_NOT_NULL(strstr(engine_expr_last_error(), "profile.bogus"));
+
+    TEST_ASSERT_NULL(engine_expr_compile("1 > 0 ? body_contains(1, 2, 3) : nope(1)"));
+    TEST_ASSERT_NOT_NULL(strstr(engine_expr_last_error(), "nope"));
+
+    TEST_ASSERT_NULL(engine_expr_compile("NOT bad_fn(1)"));
+    TEST_ASSERT_NOT_NULL(strstr(engine_expr_last_error(), "bad_fn"));
+}
+
+/* 白名单里的每个函数都必须真能求值，防白名单与求值分派漂移：
+ * 表里加了名字而 eval_node 漏加分支时，加载期放过、求值期落到兜底的
+ * *ok = false。故这里逐个实际求值——eval_int / eval_bool_value 内部断言
+ * ok 为真，只判"能编译"是抓不到漏分支的。
+ *
+ * 新增内建函数时同步在此加一行，否则漂移不会被拦住。 */
+static void test_engine_expr_whitelist_all_evaluable(void)
+{
+    const expr_var_t vars[] = {
+        {NULL, 0.0},
+    };
+
+    TEST_ASSERT_TRUE(eval_bool_value("body_contains(150, 100, 200)", vars));
+    TEST_ASSERT_TRUE(eval_bool_value("body_covers(150, 200, 100)", vars));
+
+    /* provider 未注册时走默认值分支，同样要求 ok 为真 */
+    engine_profile_register(NULL);
+    TEST_ASSERT_EQUAL_INT(42, eval_int("profile.height_at(1, 42)", vars));
+    TEST_ASSERT_TRUE(eval_bool_value("profile.in_zone(\"z\", 1, 1)", vars));
+}
+
 static void test_engine_model_parse_clone_and_validate(void)
 {
     char                    err[160];
@@ -535,6 +601,11 @@ int main(void)
 
     RUN_TEST(test_engine_expr_evaluates_arithmetic_logic_and_vars);
     RUN_TEST(test_engine_expr_evaluates_profile_functions);
+    RUN_TEST(test_engine_expr_rejects_unknown_function_at_compile);
+    RUN_TEST(test_engine_expr_rejects_wrong_arity_at_compile);
+    RUN_TEST(test_engine_expr_rejects_non_literal_zone_name);
+    RUN_TEST(test_engine_expr_checks_nested_functions);
+    RUN_TEST(test_engine_expr_whitelist_all_evaluable);
     RUN_TEST(test_engine_model_parse_clone_and_validate);
     RUN_TEST(test_engine_validate_rejects_unknown_after);
     RUN_TEST(test_engine_runtime_runs_steps_and_finishes_phase);
