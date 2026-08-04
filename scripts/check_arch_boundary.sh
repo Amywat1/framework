@@ -18,6 +18,12 @@
 #   R6  各框架层        不引用项目专属头文件路径（m8/ 前缀）
 #   R7  框架核心目录    不含项目机型前缀文件名（m8_*.c / m8_*.h）
 #   R8  全框架          不使用 "../" 相对 include（兜底，防止绕过 R1~R6）
+#   R9  domain/         不使用文件 IO / JSON / 线程注册 / 动态内存
+#   R10 adapters/       不承载跨领域编排（bridge / projection / coordinator）
+#   R11 application/    不依赖 adapters/ 或 services/
+#   R12 cloud/          不依赖 adapters/、application/ 或 services/
+#   R13 services/       不依赖 adapters/、application/ 或 cloud/
+#   R14 observability/  只依赖 common/
 
 set -euo pipefail
 
@@ -254,6 +260,44 @@ else
     printf '%s\n' "$orchestration_in_adapters" | sed "s|^${FW_ROOT}/|  |"
     TOTAL_VIOLATIONS=$((TOTAL_VIOLATIONS + 1))
 fi
+
+# -----------------------------------------------------------------------------
+# R11~R14: 上层目录的出向依赖
+#
+# R1~R10 只约束了 common/domain/ports/runtime 的出向依赖，application、cloud、
+# services、observability 的出向依赖此前无任何规则——它们只作为"禁止被引用的
+# 上层"出现在别人的规则里。这个缺口让目录级双向依赖可以长期存在而不被发现：
+# cloud_model.h 曾 include application/orchestrators/report_scheduler.h，同时
+# report_scheduler.c include cloud/cloud_point_watcher.h，两个目录互相依赖、
+# 谁都无法单独提取，而全部 10 条规则都通过。
+#
+# 各层允许的出向依赖按实际需要确定，不做超出现状的收紧：
+#   application  common / domain / ports / runtime / cloud
+#   cloud        common / domain / ports / runtime
+#   services     common / ports / domain
+#   observability common（旁路设施，不参与主链路，故约束最严）
+# -----------------------------------------------------------------------------
+check_includes \
+    "R11: application/ 不依赖 adapters/ 或 services/" \
+    "application" \
+    "adapters/" "services/"
+
+check_includes \
+    "R12: cloud/ 不依赖 adapters/、application/ 或 services/" \
+    "cloud" \
+    "adapters/" "application/" "services/"
+
+check_includes \
+    "R13: services/ 不依赖 adapters/、application/ 或 cloud/" \
+    "services" \
+    "adapters/" "application/" "cloud/"
+
+# observability 是旁路设施：任何层都可向它发布记录，它不回调任何层，因此不构成
+# 环。这条性质只有在它除 common 之外什么都不依赖时才成立，故这里逐一排除其余层。
+check_includes \
+    "R14: observability/ 只依赖 common/" \
+    "observability" \
+    "domain/" "ports/" "application/" "adapters/" "runtime/" "services/" "cloud/"
 
 # -----------------------------------------------------------------------------
 echo ""
