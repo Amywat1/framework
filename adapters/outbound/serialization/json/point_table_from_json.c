@@ -5,56 +5,11 @@
  * @date    2026-07-02
  */
 
+#include "adapters/outbound/serialization/json/point_table_json.h"
 #include "common/log.h"
-#include "common/point_table/point_table.h"
 #include "third_party/cJSON/cJSON.h"
 
 #include <string.h>
-
-void point_apply_result_init(point_apply_result_t *result)
-{
-    if (result != NULL) {
-        memset(result, 0, sizeof(*result));
-    }
-}
-
-void point_apply_result_record_error(point_apply_result_t *result, const char *id, sw_err_t err)
-{
-    if ((result == NULL) || (result->first_error != SW_OK)) {
-        return;
-    }
-
-    result->first_error = err;
-    if (id != NULL) {
-        strncpy(result->first_error_id, id, sizeof(result->first_error_id) - 1U);
-    }
-}
-
-const point_table_entry_t *point_table_find_entry_at(const void *entries,
-                                                     size_t      count,
-                                                     size_t      entry_stride,
-                                                     const char *id)
-{
-    const char *row;
-
-    if ((entries == NULL) || (id == NULL) || (entry_stride == 0U)) {
-        return NULL;
-    }
-
-    for (size_t i = 0U; i < count; i++) {
-        row = ((const char *)entries) + (i * entry_stride);
-        if ((((const point_table_entry_t *)row)->id != NULL)
-            && (strcmp(((const point_table_entry_t *)row)->id, id) == 0)) {
-            return (const point_table_entry_t *)row;
-        }
-    }
-    return NULL;
-}
-
-const point_table_entry_t *point_table_find_entry(const point_table_entry_t *entries, size_t count, const char *id)
-{
-    return point_table_find_entry_at(entries, count, sizeof(point_table_entry_t), id);
-}
 
 sw_err_t point_table_parse_cjson_value(point_type_t type, const struct cJSON *item, point_value_t *out)
 {

@@ -4,8 +4,15 @@
  * @author  HUWANGWEI
  * @date    2026-07-02
  *
- * @note    传输无关：定义"标识符+类型+get/set"点位表，以及 JSON 序列化/反序列化。
+ * @note    传输无关且序列化无关：只定义"标识符+类型+get/set"点位表模型与查表。
  *          具体点位由调用方登记；云端物模型、CLI 调试等场景均可复用。
+ *
+ * @note    JSON 编解码不在此处，见
+ *          `adapters/outbound/serialization/json/point_table_json.h`。
+ *          分开的理由：本文件是 `common/` 的一部分，而 `common/` 应对上层与外部
+ *          格式均无依赖。编解码留在这里会让最底层绑定一种序列化格式，使
+ *          「domain 不解析序列化格式」（边界规则 R9b）失去基础——domain 依赖
+ *          common，而 common 自己就 include cJSON。
  */
 
 #ifndef COMMON_POINT_TABLE_POINT_TABLE_H
@@ -95,17 +102,6 @@ void point_apply_result_init(point_apply_result_t *result);
  */
 void point_apply_result_record_error(point_apply_result_t *result, const char *id, sw_err_t err);
 
-struct cJSON;
-
-/**
- * @brief  按点位类型从 cJSON 节点解析值
- * @param  type  点位类型
- * @param  item  JSON 节点
- * @param  out   输出值
- * @retval SW_OK 解析成功
- */
-sw_err_t point_table_parse_cjson_value(point_type_t type, const struct cJSON *item, point_value_t *out);
-
 /**
  * @brief  按 id 查找点位表条目
  * @param  entries 点位表数组
@@ -127,44 +123,6 @@ const point_table_entry_t *point_table_find_entry_at(const void *entries,
                                                      size_t      count,
                                                      size_t      entry_stride,
                                                      const char *id);
-
-/**
- * @brief  遍历点表，将所有 get!=NULL 的点位序列化为 JSON
- */
-sw_err_t point_table_to_json(const point_table_entry_t *entries, size_t count, char *buf, size_t buf_size);
-
-/**
- * @brief  遍历点表序列化，并可选统计 get 失败数
- */
-sw_err_t point_table_to_json_ex(const point_table_entry_t *entries,
-                                size_t                     count,
-                                char                      *buf,
-                                size_t                     buf_size,
-                                point_get_fail_policy_t    fail_policy,
-                                point_apply_result_t      *result_opt);
-
-/**
- * @brief  将指定 id 列表对应的可读点位序列化为 JSON
- */
-sw_err_t point_table_to_json_filtered(const point_table_entry_t *entries,
-                                      size_t                     count,
-                                      const char *const         *ids,
-                                      size_t                     id_count,
-                                      char                      *buf,
-                                      size_t                     buf_size);
-
-/**
- * @brief  解析 JSON 并逐 key 调用 set()，汇总处理结果
- */
-sw_err_t point_table_apply_json(const point_table_entry_t *entries,
-                                size_t                     count,
-                                const char                *json_str,
-                                point_apply_result_t      *result_opt);
-
-/**
- * @brief  解析 JSON 并逐 key 调用 set()（兼容入口，不返回结果）
- */
-void point_table_from_json(const point_table_entry_t *entries, size_t count, const char *json_str);
 
 #ifdef __cplusplus
 }

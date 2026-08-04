@@ -3,7 +3,7 @@
  * @brief   point_table JSON 序列化/反序列化单元测试
  */
 
-#include "common/point_table/point_table.h"
+#include "adapters/outbound/serialization/json/point_table_json.h"
 #include "common/sw_error.h"
 #include "unity.h"
 

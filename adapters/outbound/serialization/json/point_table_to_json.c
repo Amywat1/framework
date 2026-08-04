@@ -5,7 +5,7 @@
  * @date    2026-07-02
  */
 
-#include "common/point_table/point_table.h"
+#include "adapters/outbound/serialization/json/point_table_json.h"
 #include "third_party/cJSON/cJSON.h"
 
 #include <stdlib.h>
