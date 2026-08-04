@@ -5,8 +5,8 @@
  * @date    2026-06-25
  */
 
-#ifndef ADAPTERS_HAL_SIM_HW_ENGINE_IO_SIM_H
-#define ADAPTERS_HAL_SIM_HW_ENGINE_IO_SIM_H
+#ifndef ADAPTERS_OUTBOUND_HAL_SIM_ENGINE_IO_SIM_H
+#define ADAPTERS_OUTBOUND_HAL_SIM_ENGINE_IO_SIM_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -24,4 +24,4 @@ double engine_io_sim_get_axis_pos(const char *name);
 }
 #endif
 
-#endif /* ADAPTERS_HAL_SIM_HW_ENGINE_IO_SIM_H */
+#endif /* ADAPTERS_OUTBOUND_HAL_SIM_ENGINE_IO_SIM_H */

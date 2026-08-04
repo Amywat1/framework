@@ -4,12 +4,12 @@
  * @author  HUWANGWEI
  * @date    2026-04-10
  *
- * @note    应用层线程由 core/scheduler 统一创建；IO 读写后台线程由 drv_io 自行管理。
+ * @note    应用层线程由 runtime/scheduler 统一创建；IO 读写后台线程由 drv_io 自行管理。
  *          SCHED_FIFO 线程使用 THD_*_PRIO（1~99）；SCHED_OTHER 线程 prio 固定传 0。
  */
 
-#ifndef CONFIG_THREADING_THREAD_CONFIG_H
-#define CONFIG_THREADING_THREAD_CONFIG_H
+#ifndef RUNTIME_CONFIG_THREAD_CONFIG_H
+#define RUNTIME_CONFIG_THREAD_CONFIG_H
 
 /* -------------------------------------------------------------------------
  * 线程配置
@@ -44,4 +44,4 @@
 #define THD_SAFETY_THREAD_PRIO    90
 #define THD_SAFETY_THREAD_POLL_US 5000U
 
-#endif /* CONFIG_THREADING_THREAD_CONFIG_H */
+#endif /* RUNTIME_CONFIG_THREAD_CONFIG_H */

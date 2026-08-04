@@ -10,8 +10,8 @@
  *          机构语义，可供任意 ADC 通道复用。
  */
 
-#ifndef ADAPTERS_HAL_COMPONENTS_ADC_GATE_HAL_ADC_GATE_H
-#define ADAPTERS_HAL_COMPONENTS_ADC_GATE_HAL_ADC_GATE_H
+#ifndef ADAPTERS_OUTBOUND_HAL_COMPONENTS_ADC_GATE_HAL_ADC_GATE_H
+#define ADAPTERS_OUTBOUND_HAL_COMPONENTS_ADC_GATE_HAL_ADC_GATE_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -47,4 +47,4 @@ bool hal_adc_gate_is_needed(int board_id, int port);
 }
 #endif
 
-#endif /* ADAPTERS_HAL_COMPONENTS_ADC_GATE_HAL_ADC_GATE_H */
+#endif /* ADAPTERS_OUTBOUND_HAL_COMPONENTS_ADC_GATE_HAL_ADC_GATE_H */

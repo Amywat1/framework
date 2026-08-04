@@ -7,8 +7,8 @@
  * @note    manifest 由构建期 tools/gen_program_manifest.py 生成，运行期比对 JSON 文件哈希。
  */
 
-#ifndef ADAPTERS_STORAGE_JSON_ENGINE_PROGRAM_MANIFEST_H
-#define ADAPTERS_STORAGE_JSON_ENGINE_PROGRAM_MANIFEST_H
+#ifndef ADAPTERS_OUTBOUND_STORAGE_JSON_ENGINE_PROGRAM_MANIFEST_H
+#define ADAPTERS_OUTBOUND_STORAGE_JSON_ENGINE_PROGRAM_MANIFEST_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -51,4 +51,4 @@ bool engine_program_manifest_path_from_json(const char *json_path, char *out, un
 }
 #endif
 
-#endif /* ADAPTERS_STORAGE_JSON_ENGINE_PROGRAM_MANIFEST_H */
+#endif /* ADAPTERS_OUTBOUND_STORAGE_JSON_ENGINE_PROGRAM_MANIFEST_H */

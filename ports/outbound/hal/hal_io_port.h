@@ -8,8 +8,8 @@
  *          平台实现（m8_io_adapter / hal_io_sim）内部对接 drv_io 或仿真状态。
  */
 
-#ifndef PORTS_HAL_IO_PORT_H
-#define PORTS_HAL_IO_PORT_H
+#ifndef PORTS_OUTBOUND_HAL_HAL_IO_PORT_H
+#define PORTS_OUTBOUND_HAL_HAL_IO_PORT_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -141,4 +141,4 @@ const hal_io_ops_t *hal_io_get_ops(void);
 }
 #endif
 
-#endif /* PORTS_HAL_IO_PORT_H */
+#endif /* PORTS_OUTBOUND_HAL_HAL_IO_PORT_H */

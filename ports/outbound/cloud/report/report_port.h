@@ -8,8 +8,8 @@
  *          JSON 内容由 cloud_model_build_* 构建。
  */
 
-#ifndef PORTS_CLOUD_REPORT_PORT_H
-#define PORTS_CLOUD_REPORT_PORT_H
+#ifndef PORTS_OUTBOUND_CLOUD_REPORT_REPORT_PORT_H
+#define PORTS_OUTBOUND_CLOUD_REPORT_REPORT_PORT_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -56,4 +56,4 @@ const cloud_report_ops_t *cloud_report_get_ops(void);
 }
 #endif
 
-#endif /* PORTS_CLOUD_REPORT_PORT_H */
+#endif /* PORTS_OUTBOUND_CLOUD_REPORT_REPORT_PORT_H */

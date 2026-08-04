@@ -9,8 +9,8 @@
  *          集成调优时可分别修改本文件与 thread_config.h。
  */
 
-#ifndef EVENT_BUS_CONFIG_H
-#define EVENT_BUS_CONFIG_H
+#ifndef RUNTIME_EVENT_BUS_EVENT_BUS_CONFIG_H
+#define RUNTIME_EVENT_BUS_EVENT_BUS_CONFIG_H
 
 /* -------------------------------------------------------------------------
  * 容量依据（实测，见 tests/runtime/test_event_bus_capacity.c）
@@ -41,4 +41,4 @@
 /** 每种事件类型最多允许注册的 handler 数量（M8 实际最多 4） */
 #define EVENT_BUS_MAX_SUBS_PER_EVT 8U
 
-#endif /* EVENT_BUS_CONFIG_H */
+#endif /* RUNTIME_EVENT_BUS_EVENT_BUS_CONFIG_H */

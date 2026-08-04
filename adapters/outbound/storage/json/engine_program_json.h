@@ -10,8 +10,8 @@
  *          未支持字段或结构会返回错误并给出描述（schema 校验是引擎职责）。
  */
 
-#ifndef ADAPTERS_STORAGE_JSON_ENGINE_PROGRAM_JSON_H
-#define ADAPTERS_STORAGE_JSON_ENGINE_PROGRAM_JSON_H
+#ifndef ADAPTERS_OUTBOUND_STORAGE_JSON_ENGINE_PROGRAM_JSON_H
+#define ADAPTERS_OUTBOUND_STORAGE_JSON_ENGINE_PROGRAM_JSON_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -54,4 +54,4 @@ void engine_program_json_register_loader(void);
 }
 #endif
 
-#endif /* ADAPTERS_STORAGE_JSON_ENGINE_PROGRAM_JSON_H */
+#endif /* ADAPTERS_OUTBOUND_STORAGE_JSON_ENGINE_PROGRAM_JSON_H */

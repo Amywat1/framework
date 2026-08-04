@@ -9,8 +9,8 @@
  * 电流由适配层约定。执行器与配置采用编译期上限的定长存储，
  * 由调用方静态分配，领域层内部不做动态内存分配。
  */
-#ifndef MOTOR_EXECUTOR_H
-#define MOTOR_EXECUTOR_H
+#ifndef ADAPTERS_OUTBOUND_HAL_PROVIDERS_MCC_MOTOR_EXECUTOR_H
+#define ADAPTERS_OUTBOUND_HAL_PROVIDERS_MCC_MOTOR_EXECUTOR_H
 
 #include "common/sw_error.h"
 
@@ -603,4 +603,4 @@ bool motor_pop_event(motor_executor_t *exec, motor_event_t *out);
 }
 #endif
 
-#endif /* MOTOR_EXECUTOR_H */
+#endif /* ADAPTERS_OUTBOUND_HAL_PROVIDERS_MCC_MOTOR_EXECUTOR_H */

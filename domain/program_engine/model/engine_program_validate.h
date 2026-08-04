@@ -7,8 +7,8 @@
  * @note    在 JSON 结构解析成功后调用；目录为空时跳过对应名校验。
  */
 
-#ifndef DOMAIN_PROGRAM_ENGINE_PROGRAM_VALIDATE_H
-#define DOMAIN_PROGRAM_ENGINE_PROGRAM_VALIDATE_H
+#ifndef DOMAIN_PROGRAM_ENGINE_MODEL_ENGINE_PROGRAM_VALIDATE_H
+#define DOMAIN_PROGRAM_ENGINE_MODEL_ENGINE_PROGRAM_VALIDATE_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -39,4 +39,4 @@ sw_err_t engine_program_validate(const engine_program_t          *prog,
 }
 #endif
 
-#endif /* DOMAIN_PROGRAM_ENGINE_PROGRAM_VALIDATE_H */
+#endif /* DOMAIN_PROGRAM_ENGINE_MODEL_ENGINE_PROGRAM_VALIDATE_H */

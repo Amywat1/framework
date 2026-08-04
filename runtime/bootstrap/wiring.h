@@ -8,8 +8,8 @@
  *          仿真构建使用 wiring_sim.c。
  */
 
-#ifndef CORE_BOOTSTRAP_WIRING_H
-#define CORE_BOOTSTRAP_WIRING_H
+#ifndef RUNTIME_BOOTSTRAP_WIRING_H
+#define RUNTIME_BOOTSTRAP_WIRING_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -31,4 +31,4 @@ sw_err_t wiring(void);
 }
 #endif
 
-#endif /* CORE_BOOTSTRAP_WIRING_H */
+#endif /* RUNTIME_BOOTSTRAP_WIRING_H */

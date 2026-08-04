@@ -8,8 +8,8 @@
  * 并完成 motor_init，随后以 hal_motor_exec_t 指针形式注入各机构模块；MCC provider
  * 适配器位于 adapters/outbound/hal/providers/mcc/hal_motor_exec_adapter.c。
  */
-#ifndef FRAMEWORK_PORTS_OUTBOUND_HAL_MOTOR_HAL_MOTOR_EXEC_PORT_H
-#define FRAMEWORK_PORTS_OUTBOUND_HAL_MOTOR_HAL_MOTOR_EXEC_PORT_H
+#ifndef PORTS_OUTBOUND_HAL_MOTOR_HAL_MOTOR_EXEC_PORT_H
+#define PORTS_OUTBOUND_HAL_MOTOR_HAL_MOTOR_EXEC_PORT_H
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -226,4 +226,4 @@ bool hal_motor_pop_event(hal_motor_exec_t *exec, hal_motor_event_t *out);
 }
 #endif
 
-#endif /* FRAMEWORK_PORTS_OUTBOUND_HAL_MOTOR_HAL_MOTOR_EXEC_PORT_H */
+#endif /* PORTS_OUTBOUND_HAL_MOTOR_HAL_MOTOR_EXEC_PORT_H */

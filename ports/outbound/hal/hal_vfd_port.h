@@ -8,8 +8,8 @@
  *          组合层 components/vfd_manager 实现完整语义，providers/<xx> / sim 注入 backend。
  */
 
-#ifndef PORTS_HAL_VFD_PORT_H
-#define PORTS_HAL_VFD_PORT_H
+#ifndef PORTS_OUTBOUND_HAL_HAL_VFD_PORT_H
+#define PORTS_OUTBOUND_HAL_HAL_VFD_PORT_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -105,4 +105,4 @@ const hal_vfd_ops_t *hal_vfd_get_ops(void);
 }
 #endif
 
-#endif /* PORTS_HAL_VFD_PORT_H */
+#endif /* PORTS_OUTBOUND_HAL_HAL_VFD_PORT_H */

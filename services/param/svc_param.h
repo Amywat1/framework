@@ -8,8 +8,8 @@
  *          持久化能力由存储端口实现提供。
  */
 
-#ifndef SERVICE_SVC_PARAM_H
-#define SERVICE_SVC_PARAM_H
+#ifndef SERVICES_PARAM_SVC_PARAM_H
+#define SERVICES_PARAM_SVC_PARAM_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -67,4 +67,4 @@ sw_err_t svc_param_save(void);
 }
 #endif
 
-#endif /* SERVICE_SVC_PARAM_H */
+#endif /* SERVICES_PARAM_SVC_PARAM_H */

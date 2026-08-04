@@ -14,8 +14,8 @@
  *          notify_fail_count）。
  */
 
-#ifndef DRV_MODBUS_LINK_H
-#define DRV_MODBUS_LINK_H
+#ifndef ADAPTERS_OUTBOUND_HAL_PROVIDERS_SNACK_MODBUS_DRV_MODBUS_LINK_H
+#define ADAPTERS_OUTBOUND_HAL_PROVIDERS_SNACK_MODBUS_DRV_MODBUS_LINK_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -92,4 +92,4 @@ sw_err_t drv_modbus_link_write_reg(drv_modbus_link_t *link, uint16_t addr, uint1
 }
 #endif
 
-#endif /* DRV_MODBUS_LINK_H */
+#endif /* ADAPTERS_OUTBOUND_HAL_PROVIDERS_SNACK_MODBUS_DRV_MODBUS_LINK_H */

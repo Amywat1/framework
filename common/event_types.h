@@ -10,8 +10,8 @@
  *          event_t.timestamp_ms 由 event_bus 入队时自动填充。
  */
 
-#ifndef EVENT_TYPES_H
-#define EVENT_TYPES_H
+#ifndef COMMON_EVENT_TYPES_H
+#define COMMON_EVENT_TYPES_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -207,4 +207,4 @@ typedef struct {
 }
 #endif
 
-#endif /* EVENT_TYPES_H */
+#endif /* COMMON_EVENT_TYPES_H */

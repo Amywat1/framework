@@ -9,8 +9,8 @@
  *          HAL 组合层提供装配接口，port ops 不承载项目点位绑定。
  */
 
-#ifndef PORTS_HAL_SENSOR_PORT_H
-#define PORTS_HAL_SENSOR_PORT_H
+#ifndef PORTS_OUTBOUND_HAL_HAL_SENSOR_PORT_H
+#define PORTS_OUTBOUND_HAL_HAL_SENSOR_PORT_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -89,4 +89,4 @@ const hal_sensor_ops_t *hal_sensor_get_ops(void);
 }
 #endif
 
-#endif /* PORTS_HAL_SENSOR_PORT_H */
+#endif /* PORTS_OUTBOUND_HAL_HAL_SENSOR_PORT_H */

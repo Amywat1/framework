@@ -11,8 +11,8 @@
  *          由项目 wiring 完成注册。
  */
 
-#ifndef PORTS_STORAGE_ENGINE_PROGRAM_LOADER_PORT_H
-#define PORTS_STORAGE_ENGINE_PROGRAM_LOADER_PORT_H
+#ifndef PORTS_OUTBOUND_STORAGE_ENGINE_PROGRAM_LOADER_PORT_H
+#define PORTS_OUTBOUND_STORAGE_ENGINE_PROGRAM_LOADER_PORT_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -76,4 +76,4 @@ sw_err_t engine_program_verify_integrity(const char *path, char *err, unsigned e
 }
 #endif
 
-#endif /* PORTS_STORAGE_ENGINE_PROGRAM_LOADER_PORT_H */
+#endif /* PORTS_OUTBOUND_STORAGE_ENGINE_PROGRAM_LOADER_PORT_H */

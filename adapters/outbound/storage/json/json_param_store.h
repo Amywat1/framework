@@ -8,8 +8,8 @@
  *          由 wiring.c 调用 json_param_store_register() 注册到 param_store 端口。
  */
 
-#ifndef ADAPTERS_STORAGE_JSON_PARAM_STORE_H
-#define ADAPTERS_STORAGE_JSON_PARAM_STORE_H
+#ifndef ADAPTERS_OUTBOUND_STORAGE_JSON_JSON_PARAM_STORE_H
+#define ADAPTERS_OUTBOUND_STORAGE_JSON_JSON_PARAM_STORE_H
 
 #include "common/sw_error.h"
 
@@ -38,4 +38,4 @@ sw_err_t json_param_store_configure(const char *path);
 }
 #endif
 
-#endif /* ADAPTERS_STORAGE_JSON_PARAM_STORE_H */
+#endif /* ADAPTERS_OUTBOUND_STORAGE_JSON_JSON_PARAM_STORE_H */

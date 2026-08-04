@@ -3,8 +3,8 @@
  * @brief   引擎执行机构仿真后端（单元测试）
  */
 
-#ifndef ADAPTERS_HAL_SIM_ENGINE_ACTUATOR_SIM_H
-#define ADAPTERS_HAL_SIM_ENGINE_ACTUATOR_SIM_H
+#ifndef ADAPTERS_OUTBOUND_HAL_SIM_ENGINE_ACTUATOR_SIM_H
+#define ADAPTERS_OUTBOUND_HAL_SIM_ENGINE_ACTUATOR_SIM_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -28,4 +28,4 @@ const char *engine_actuator_sim_dir(const char *resource);
 }
 #endif
 
-#endif /* ADAPTERS_HAL_SIM_ENGINE_ACTUATOR_SIM_H */
+#endif /* ADAPTERS_OUTBOUND_HAL_SIM_ENGINE_ACTUATOR_SIM_H */

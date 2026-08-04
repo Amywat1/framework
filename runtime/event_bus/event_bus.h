@@ -12,8 +12,8 @@
  *          - 零动态内存，队列大小编译期固定（event_bus_config.h）
  */
 
-#ifndef CORE_EVENT_BUS_H
-#define CORE_EVENT_BUS_H
+#ifndef RUNTIME_EVENT_BUS_EVENT_BUS_H
+#define RUNTIME_EVENT_BUS_EVENT_BUS_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -180,4 +180,4 @@ void event_bus_dispatch_loop(void);
 }
 #endif
 
-#endif /* CORE_EVENT_BUS_H */
+#endif /* RUNTIME_EVENT_BUS_EVENT_BUS_H */

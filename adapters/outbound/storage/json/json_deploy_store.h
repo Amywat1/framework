@@ -3,8 +3,8 @@
  * @brief   JSON 文件部署配置存储适配器接口
  */
 
-#ifndef ADAPTERS_STORAGE_JSON_DEPLOY_STORE_H
-#define ADAPTERS_STORAGE_JSON_DEPLOY_STORE_H
+#ifndef ADAPTERS_OUTBOUND_STORAGE_JSON_JSON_DEPLOY_STORE_H
+#define ADAPTERS_OUTBOUND_STORAGE_JSON_JSON_DEPLOY_STORE_H
 
 #include "common/sw_error.h"
 
@@ -46,4 +46,4 @@ sw_err_t json_deploy_store_configure(const char *path);
 }
 #endif
 
-#endif /* ADAPTERS_STORAGE_JSON_DEPLOY_STORE_H */
+#endif /* ADAPTERS_OUTBOUND_STORAGE_JSON_JSON_DEPLOY_STORE_H */

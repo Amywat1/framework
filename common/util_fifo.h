@@ -13,8 +13,8 @@
  *          并补充内存序约束，再更新本说明。
  */
 
-#ifndef UTIL_FIFO_H
-#define UTIL_FIFO_H
+#ifndef COMMON_UTIL_FIFO_H
+#define COMMON_UTIL_FIFO_H
 
 #include "common/sw_error.h"
 #include "common/sw_types.h"
@@ -85,4 +85,4 @@ uint32_t util_fifo_free(const util_fifo_t *p_fifo);
  */
 void util_fifo_flush(util_fifo_t *p_fifo);
 
-#endif /* UTIL_FIFO_H */
+#endif /* COMMON_UTIL_FIFO_H */

@@ -7,8 +7,8 @@
  * @note    引擎通过本接口读取 DI 与坐标轴。写侧由 engine_actuator 提交机构意图。
  */
 
-#ifndef DOMAIN_PROGRAM_ENGINE_IO_H
-#define DOMAIN_PROGRAM_ENGINE_IO_H
+#ifndef DOMAIN_PROGRAM_ENGINE_ENGINE_ENGINE_IO_H
+#define DOMAIN_PROGRAM_ENGINE_ENGINE_ENGINE_IO_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -60,4 +60,4 @@ const engine_io_catalog_t *engine_io_get_catalog(void);
 }
 #endif
 
-#endif /* DOMAIN_PROGRAM_ENGINE_IO_H */
+#endif /* DOMAIN_PROGRAM_ENGINE_ENGINE_ENGINE_IO_H */

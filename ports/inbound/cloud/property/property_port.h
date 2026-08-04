@@ -5,8 +5,8 @@
  * @date    2026-07-08
  */
 
-#ifndef PORTS_INBOUND_CLOUD_PROPERTY_PORT_H
-#define PORTS_INBOUND_CLOUD_PROPERTY_PORT_H
+#ifndef PORTS_INBOUND_CLOUD_PROPERTY_PROPERTY_PORT_H
+#define PORTS_INBOUND_CLOUD_PROPERTY_PROPERTY_PORT_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -27,4 +27,4 @@ const cloud_property_ops_t *cloud_property_get_ops(void);
 }
 #endif
 
-#endif /* PORTS_INBOUND_CLOUD_PROPERTY_PORT_H */
+#endif /* PORTS_INBOUND_CLOUD_PROPERTY_PROPERTY_PORT_H */

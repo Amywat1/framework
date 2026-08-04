@@ -3,8 +3,8 @@
  * @brief   调度器周期任务注册辅助接口
  */
 
-#ifndef FRAMEWORK_RUNTIME_SCHEDULER_PERIODIC_TASK_H
-#define FRAMEWORK_RUNTIME_SCHEDULER_PERIODIC_TASK_H
+#ifndef RUNTIME_SCHEDULER_PERIODIC_TASK_H
+#define RUNTIME_SCHEDULER_PERIODIC_TASK_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -52,4 +52,4 @@ sw_err_t periodic_task_register(const char        *name,
 }
 #endif
 
-#endif /* FRAMEWORK_RUNTIME_SCHEDULER_PERIODIC_TASK_H */
+#endif /* RUNTIME_SCHEDULER_PERIODIC_TASK_H */

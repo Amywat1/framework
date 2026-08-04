@@ -8,8 +8,8 @@
  *          time_util_init() 须在 event_bus_init() 之前调用（见 bootstrap 顺序）。
  */
 
-#ifndef TIME_UTIL_H
-#define TIME_UTIL_H
+#ifndef COMMON_TIME_UTIL_H
+#define COMMON_TIME_UTIL_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -54,4 +54,4 @@ void time_util_fill_deadline(uint32_t timeout_ms, struct timespec *ts);
 }
 #endif
 
-#endif /* TIME_UTIL_H */
+#endif /* COMMON_TIME_UTIL_H */

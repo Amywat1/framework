@@ -7,8 +7,8 @@
  * @note    供方案表达式引用机型语义量（如 car_tail.active），不进入 DI catalog。
  */
 
-#ifndef DOMAIN_PROGRAM_ENGINE_VAR_H
-#define DOMAIN_PROGRAM_ENGINE_VAR_H
+#ifndef DOMAIN_PROGRAM_ENGINE_ENGINE_ENGINE_VAR_H
+#define DOMAIN_PROGRAM_ENGINE_ENGINE_ENGINE_VAR_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -52,4 +52,4 @@ bool engine_var_name_known(const char *name);
 }
 #endif
 
-#endif /* DOMAIN_PROGRAM_ENGINE_VAR_H */
+#endif /* DOMAIN_PROGRAM_ENGINE_ENGINE_ENGINE_VAR_H */

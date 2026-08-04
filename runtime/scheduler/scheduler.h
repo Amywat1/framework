@@ -5,8 +5,8 @@
  * @date    2026-04-10
  */
 
-#ifndef CORE_SCHEDULER_SCHEDULER_H
-#define CORE_SCHEDULER_SCHEDULER_H
+#ifndef RUNTIME_SCHEDULER_SCHEDULER_H
+#define RUNTIME_SCHEDULER_SCHEDULER_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -25,4 +25,4 @@ sw_err_t scheduler_start_all(void);
 }
 #endif
 
-#endif /* CORE_SCHEDULER_SCHEDULER_H */
+#endif /* RUNTIME_SCHEDULER_SCHEDULER_H */

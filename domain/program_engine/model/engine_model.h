@@ -9,8 +9,8 @@
  *          模型。表达式字段在加载期编译为 engine_expr_t。仅实现该方案所需的规格子集。
  */
 
-#ifndef DOMAIN_PROGRAM_ENGINE_MODEL_H
-#define DOMAIN_PROGRAM_ENGINE_MODEL_H
+#ifndef DOMAIN_PROGRAM_ENGINE_MODEL_ENGINE_MODEL_H
+#define DOMAIN_PROGRAM_ENGINE_MODEL_ENGINE_MODEL_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -226,4 +226,4 @@ bool engine_step_type_from_str(const char *s, engine_step_type_t *out);
 }
 #endif
 
-#endif /* DOMAIN_PROGRAM_ENGINE_MODEL_H */
+#endif /* DOMAIN_PROGRAM_ENGINE_MODEL_ENGINE_MODEL_H */

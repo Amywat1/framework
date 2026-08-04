@@ -8,8 +8,8 @@
  *          bootstrap 最后调用 scheduler_start_all() 统一创建。
  */
 
-#ifndef CORE_SCHEDULER_THREAD_REGISTRY_H
-#define CORE_SCHEDULER_THREAD_REGISTRY_H
+#ifndef RUNTIME_SCHEDULER_THREAD_REGISTRY_H
+#define RUNTIME_SCHEDULER_THREAD_REGISTRY_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -90,4 +90,4 @@ const thread_entry_t *thread_registry_get(int idx);
 }
 #endif
 
-#endif /* CORE_SCHEDULER_THREAD_REGISTRY_H */
+#endif /* RUNTIME_SCHEDULER_THREAD_REGISTRY_H */

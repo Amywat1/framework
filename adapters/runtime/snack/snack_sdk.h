@@ -6,8 +6,8 @@
  *          仿真构建路径不链接 Snack SDK，不得包含本头文件。
  */
 
-#ifndef FRAMEWORK_ADAPTERS_RUNTIME_SNACK_SDK_H
-#define FRAMEWORK_ADAPTERS_RUNTIME_SNACK_SDK_H
+#ifndef ADAPTERS_RUNTIME_SNACK_SNACK_SDK_H
+#define ADAPTERS_RUNTIME_SNACK_SNACK_SDK_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -100,4 +100,4 @@ char *cli_adapter_get(int idx);
 }
 #endif
 
-#endif /* FRAMEWORK_ADAPTERS_RUNTIME_SNACK_SDK_H */
+#endif /* ADAPTERS_RUNTIME_SNACK_SNACK_SDK_H */

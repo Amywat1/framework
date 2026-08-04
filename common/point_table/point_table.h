@@ -8,8 +8,8 @@
  *          具体点位由调用方登记；云端物模型、CLI 调试等场景均可复用。
  */
 
-#ifndef FRAMEWORK_COMMON_POINT_TABLE_H
-#define FRAMEWORK_COMMON_POINT_TABLE_H
+#ifndef COMMON_POINT_TABLE_POINT_TABLE_H
+#define COMMON_POINT_TABLE_POINT_TABLE_H
 
 #include "common/sw_error.h"
 
@@ -170,4 +170,4 @@ void point_table_from_json(const point_table_entry_t *entries, size_t count, con
 }
 #endif
 
-#endif /* FRAMEWORK_COMMON_POINT_TABLE_H */
+#endif /* COMMON_POINT_TABLE_POINT_TABLE_H */

@@ -3,8 +3,8 @@
  * @brief   语音模块 HAL 仿真注册接口
  */
 
-#ifndef ADAPTERS_HAL_SIM_HAL_VOICE_SIM_H
-#define ADAPTERS_HAL_SIM_HAL_VOICE_SIM_H
+#ifndef ADAPTERS_OUTBOUND_HAL_SIM_HAL_VOICE_SIM_H
+#define ADAPTERS_OUTBOUND_HAL_SIM_HAL_VOICE_SIM_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -22,4 +22,4 @@ void hal_voice_sim_test_reset(void);
 }
 #endif
 
-#endif /* ADAPTERS_HAL_SIM_HAL_VOICE_SIM_H */
+#endif /* ADAPTERS_OUTBOUND_HAL_SIM_HAL_VOICE_SIM_H */

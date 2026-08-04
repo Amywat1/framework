@@ -24,6 +24,7 @@
 #   R12 cloud/          不依赖 adapters/、application/ 或 services/
 #   R13 services/       不依赖 adapters/、application/ 或 cloud/
 #   R14 observability/  只依赖 common/
+#   R15 全框架头文件    保护宏等于其路径的全大写下划线形式
 
 set -euo pipefail
 
@@ -298,6 +299,60 @@ check_includes \
     "R14: observability/ 只依赖 common/" \
     "observability" \
     "domain/" "ports/" "application/" "adapters/" "runtime/" "services/" "cloud/"
+
+# -----------------------------------------------------------------------------
+# R15: 头文件保护宏必须等于其路径的全大写下划线形式
+#
+# 加这条规则的直接原因：本轮核对发现 67 个头文件的保护宏与路径不符，其中包括
+# 三类已经造成实际风险的情形：
+#
+#   撞名风险   DRV_VFD_H / TIME_UTIL_H / SW_ERROR_H 等无任何路径前缀，vendor SDK
+#              出现同名宏时，后包含的头会被静默跳过，报"类型未定义"而非重复定义，
+#              排查成本远高于改名成本。
+#   路径失同步 CORE_BOOTSTRAP_BOOTSTRAP_H —— core/ 是早已改名的旧目录；
+#              CONFIG_THREADING_THREAD_CONFIG_H —— 目录从未叫 threading。
+#   层级缺失   ADAPTERS_HAL_SIM_HW_HAL_IO_SIM_H 缺 OUTBOUND、多余 HW_。
+#
+# 这些都是"目录搬过、宏没跟"的遗留。只改一次而不加规则，下次搬目录同样不会跟，
+# 等于把同一笔债重新记一遍——所以规则本身才是这项的主要产出。
+#
+# 排除条件定义：#ifndef TRUE、#ifndef SW_LOG_COMPONENT 这类不是保护宏，
+# 判据是只取文件中第一个 #ifndef，且要求其后紧跟同名 #define。
+# -----------------------------------------------------------------------------
+TOTAL_RULES=$((TOTAL_RULES + 1))
+guard_violations=""
+while IFS= read -r hdr; do
+    rel="${hdr#${FW_ROOT}/}"
+    # 首个 #ifndef 及其后一行 #define；\r 不计入宏名（部分头文件是 CRLF）
+    guard=$(grep -m1 -E '^#ifndef[[:space:]]+[A-Za-z_][A-Za-z0-9_]*[[:space:]]*$' "$hdr" 2>/dev/null \
+            | tr -d '\r' | awk '{print $2}')
+    [ -z "$guard" ] && continue
+    define=$(grep -m1 -E '^#define[[:space:]]+[A-Za-z_][A-Za-z0-9_]*' "$hdr" 2>/dev/null \
+             | tr -d '\r' | awk '{print $2}')
+    # 首个 #ifndef 未被同名 #define 紧跟，说明它是条件定义而非保护宏，跳过
+    [ "$guard" != "$define" ] && continue
+    expected=$(printf '%s' "$rel" | tr 'a-z' 'A-Z' | tr -c 'A-Z0-9\n' '_')
+    if [ "$guard" != "$expected" ]; then
+        guard_violations="${guard_violations}  ${rel}: ${guard}（应为 ${expected}）
+"
+    fi
+done <<EOF
+$(find "${FW_ROOT}" -name '*.h' \
+    -not -path "${FW_ROOT}/third_party/*" \
+    -not -path "${FW_ROOT}/build*/*" \
+    -not -path "${FW_ROOT}/tests/stubs/*" \
+    -not -path "${FW_ROOT}/demo/*" \
+    -print 2>/dev/null | sort)
+EOF
+
+if [ -z "$guard_violations" ]; then
+    echo "[PASS] R15: 头文件保护宏与路径一致"
+else
+    echo ""
+    echo "[FAIL] R15: 以下头文件的保护宏与路径不一致"
+    printf '%s' "$guard_violations"
+    TOTAL_VIOLATIONS=$((TOTAL_VIOLATIONS + 1))
+fi
 
 # -----------------------------------------------------------------------------
 echo ""

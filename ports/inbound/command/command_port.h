@@ -8,8 +8,8 @@
  *          command_gateway 在 event_dispatch 线程仲裁并执行副作用。
  */
 
-#ifndef PORTS_INBOUND_COMMAND_PORT_H
-#define PORTS_INBOUND_COMMAND_PORT_H
+#ifndef PORTS_INBOUND_COMMAND_COMMAND_PORT_H
+#define PORTS_INBOUND_COMMAND_COMMAND_PORT_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -48,4 +48,4 @@ const device_command_port_ops_t *device_command_port_get_ops(void);
 }
 #endif
 
-#endif /* PORTS_INBOUND_COMMAND_PORT_H */
+#endif /* PORTS_INBOUND_COMMAND_COMMAND_PORT_H */

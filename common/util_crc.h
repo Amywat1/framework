@@ -5,8 +5,8 @@
  * @date    2026-04-07
  */
 
-#ifndef UTIL_CRC_H
-#define UTIL_CRC_H
+#ifndef COMMON_UTIL_CRC_H
+#define COMMON_UTIL_CRC_H
 
 #include "common/sw_types.h"
 
@@ -34,4 +34,4 @@ uint16_t util_crc16_modbus(const uint8_t *p_data, uint32_t len);
  */
 uint32_t util_crc32(const uint8_t *p_data, uint32_t len);
 
-#endif /* UTIL_CRC_H */
+#endif /* COMMON_UTIL_CRC_H */

@@ -5,8 +5,8 @@
  * @date    2026-07-09
  */
 
-#ifndef DOMAIN_SAFETY_ALARM_REGISTRY_H
-#define DOMAIN_SAFETY_ALARM_REGISTRY_H
+#ifndef DOMAIN_SAFETY_ALARM_REGISTRY_ALARM_REGISTRY_H
+#define DOMAIN_SAFETY_ALARM_REGISTRY_ALARM_REGISTRY_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -77,4 +77,4 @@ unsigned alarm_registry_pull_events(alarm_domain_event_t *buf, unsigned max);
 }
 #endif
 
-#endif /* DOMAIN_SAFETY_ALARM_REGISTRY_H */
+#endif /* DOMAIN_SAFETY_ALARM_REGISTRY_ALARM_REGISTRY_H */

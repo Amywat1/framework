@@ -9,8 +9,8 @@
  *          端口实现由 alarm_registry_init() 注册。
  */
 
-#ifndef PORTS_SAFETY_ALARM_BINDING_PORT_H
-#define PORTS_SAFETY_ALARM_BINDING_PORT_H
+#ifndef PORTS_INBOUND_SAFETY_ALARM_BINDING_PORT_H
+#define PORTS_INBOUND_SAFETY_ALARM_BINDING_PORT_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -47,4 +47,4 @@ const alarm_binding_ops_t *alarm_binding_get_ops(void);
 }
 #endif
 
-#endif /* PORTS_SAFETY_ALARM_BINDING_PORT_H */
+#endif /* PORTS_INBOUND_SAFETY_ALARM_BINDING_PORT_H */

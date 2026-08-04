@@ -9,8 +9,8 @@
  *          通信失败/恢复事件在操作调用点同步触发，不依赖后台线程。
  */
 
-#ifndef DRV_VOICE_H
-#define DRV_VOICE_H
+#ifndef ADAPTERS_OUTBOUND_HAL_PROVIDERS_SNACK_MODBUS_DRV_VOICE_H
+#define ADAPTERS_OUTBOUND_HAL_PROVIDERS_SNACK_MODBUS_DRV_VOICE_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -113,4 +113,4 @@ void drv_voice_register_event_cb(drv_voice_t *v, void (*cb)(int event_code));
 }
 #endif
 
-#endif /* DRV_VOICE_H */
+#endif /* ADAPTERS_OUTBOUND_HAL_PROVIDERS_SNACK_MODBUS_DRV_VOICE_H */

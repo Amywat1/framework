@@ -8,8 +8,8 @@
  *          sw_log_write() 使用内置的 stderr 输出兜底。
  */
 
-#ifndef LOG_H
-#define LOG_H
+#ifndef COMMON_LOG_H
+#define COMMON_LOG_H
 
 #include <stdarg.h>
 #include <stdbool.h>
@@ -102,4 +102,4 @@ const char *sw_log_source_file_name(const char *source_path);
     sw_log_write(                                                                                                      \
         SW_LOG_DEBUG, SW_LOG_COMPONENT, "[%s:%d] " fmt, sw_log_source_file_name(__FILE__), __LINE__, ##__VA_ARGS__)
 
-#endif /* LOG_H */
+#endif /* COMMON_LOG_H */

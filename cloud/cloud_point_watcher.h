@@ -7,8 +7,8 @@
  * @note    周期 poll 比对 shadow 值，变更时发布 EVT_CLOUD_POINT_DIRTY（param=点位表索引）。
  */
 
-#ifndef FRAMEWORK_CLOUD_CLOUD_POINT_WATCHER_H
-#define FRAMEWORK_CLOUD_CLOUD_POINT_WATCHER_H
+#ifndef CLOUD_CLOUD_POINT_WATCHER_H
+#define CLOUD_CLOUD_POINT_WATCHER_H
 
 #include "cloud/cloud_point.h"
 
@@ -32,4 +32,4 @@ void cloud_point_watcher_poll(void);
 }
 #endif
 
-#endif /* FRAMEWORK_CLOUD_CLOUD_POINT_WATCHER_H */
+#endif /* CLOUD_CLOUD_POINT_WATCHER_H */

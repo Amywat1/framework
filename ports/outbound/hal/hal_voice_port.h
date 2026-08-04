@@ -9,8 +9,8 @@
  *          语音模块为单实例设备，ops 接口不带 id 参数。
  */
 
-#ifndef PORTS_HAL_VOICE_PORT_H
-#define PORTS_HAL_VOICE_PORT_H
+#ifndef PORTS_OUTBOUND_HAL_HAL_VOICE_PORT_H
+#define PORTS_OUTBOUND_HAL_HAL_VOICE_PORT_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -69,4 +69,4 @@ const hal_voice_ops_t *hal_voice_get_ops(void);
 }
 #endif
 
-#endif /* PORTS_HAL_VOICE_PORT_H */
+#endif /* PORTS_OUTBOUND_HAL_HAL_VOICE_PORT_H */

@@ -5,8 +5,8 @@
  * @date    2026-04-10
  */
 
-#ifndef CORE_BOOTSTRAP_PROJECT_HOOKS_H
-#define CORE_BOOTSTRAP_PROJECT_HOOKS_H
+#ifndef RUNTIME_BOOTSTRAP_PROJECT_HOOKS_H
+#define RUNTIME_BOOTSTRAP_PROJECT_HOOKS_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -71,4 +71,4 @@ sw_err_t project_hooks_register(void);
 }
 #endif
 
-#endif /* CORE_BOOTSTRAP_PROJECT_HOOKS_H */
+#endif /* RUNTIME_BOOTSTRAP_PROJECT_HOOKS_H */

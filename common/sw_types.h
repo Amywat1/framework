@@ -5,8 +5,8 @@
  * @date    2026-04-07
  */
 
-#ifndef SW_TYPES_H
-#define SW_TYPES_H
+#ifndef COMMON_SW_TYPES_H
+#define COMMON_SW_TYPES_H
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -51,4 +51,4 @@
  * ------------------------------------------------------------------------- */
 #define UNUSED(x) ((void)(x))
 
-#endif /* SW_TYPES_H */
+#endif /* COMMON_SW_TYPES_H */

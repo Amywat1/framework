@@ -3,8 +3,8 @@
  * @brief   方案引擎可选车辆轮廓查询 provider 契约
  */
 
-#ifndef DOMAIN_PROGRAM_ENGINE_PROFILE_H
-#define DOMAIN_PROGRAM_ENGINE_PROFILE_H
+#ifndef DOMAIN_PROGRAM_ENGINE_ENGINE_ENGINE_PROFILE_H
+#define DOMAIN_PROGRAM_ENGINE_ENGINE_ENGINE_PROFILE_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -28,4 +28,4 @@ bool   engine_profile_in_zone(const char *zone, double pos, bool default_value);
 }
 #endif
 
-#endif /* DOMAIN_PROGRAM_ENGINE_PROFILE_H */
+#endif /* DOMAIN_PROGRAM_ENGINE_ENGINE_ENGINE_PROFILE_H */

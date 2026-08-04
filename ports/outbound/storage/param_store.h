@@ -13,8 +13,8 @@
  *          业务层应优先依赖 svc_param，而非直接调用 param_store。
  */
 
-#ifndef PORTS_STORAGE_PARAM_STORE_H
-#define PORTS_STORAGE_PARAM_STORE_H
+#ifndef PORTS_OUTBOUND_STORAGE_PARAM_STORE_H
+#define PORTS_OUTBOUND_STORAGE_PARAM_STORE_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -68,4 +68,4 @@ const param_store_ops_t *param_store_get_ops(void);
 }
 #endif
 
-#endif /* PORTS_STORAGE_PARAM_STORE_H */
+#endif /* PORTS_OUTBOUND_STORAGE_PARAM_STORE_H */

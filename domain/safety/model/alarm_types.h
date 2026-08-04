@@ -5,8 +5,8 @@
  * @date    2026-07-09
  */
 
-#ifndef DOMAIN_MODEL_ALARM_TYPES_H
-#define DOMAIN_MODEL_ALARM_TYPES_H
+#ifndef DOMAIN_SAFETY_MODEL_ALARM_TYPES_H
+#define DOMAIN_SAFETY_MODEL_ALARM_TYPES_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -172,4 +172,4 @@ typedef struct {
 }
 #endif
 
-#endif /* DOMAIN_MODEL_ALARM_TYPES_H */
+#endif /* DOMAIN_SAFETY_MODEL_ALARM_TYPES_H */

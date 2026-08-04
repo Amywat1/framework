@@ -8,8 +8,8 @@
  *          项目注册 ops 与 catalog，将意图映射到本机机构 API。
  */
 
-#ifndef DOMAIN_PROGRAM_ENGINE_ACTUATOR_H
-#define DOMAIN_PROGRAM_ENGINE_ACTUATOR_H
+#ifndef DOMAIN_PROGRAM_ENGINE_ENGINE_ENGINE_ACTUATOR_H
+#define DOMAIN_PROGRAM_ENGINE_ENGINE_ENGINE_ACTUATOR_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -80,4 +80,4 @@ const engine_actuator_catalog_t *engine_actuator_get_catalog(void);
 }
 #endif
 
-#endif /* DOMAIN_PROGRAM_ENGINE_ACTUATOR_H */
+#endif /* DOMAIN_PROGRAM_ENGINE_ENGINE_ENGINE_ACTUATOR_H */

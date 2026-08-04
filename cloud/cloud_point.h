@@ -5,8 +5,8 @@
  * @date    2026-07-08
  */
 
-#ifndef FRAMEWORK_CLOUD_CLOUD_POINT_H
-#define FRAMEWORK_CLOUD_CLOUD_POINT_H
+#ifndef CLOUD_CLOUD_POINT_H
+#define CLOUD_CLOUD_POINT_H
 
 #include "common/point_table/point_table.h"
 #include "domain/op_mode/device_command.h"
@@ -84,4 +84,4 @@ sw_err_t cloud_point_apply_json(const cloud_point_entry_t *entries,
 }
 #endif
 
-#endif /* FRAMEWORK_CLOUD_CLOUD_POINT_H */
+#endif /* CLOUD_CLOUD_POINT_H */

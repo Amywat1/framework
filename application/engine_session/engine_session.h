@@ -8,8 +8,8 @@
  *          本模块不包含任何机型方案或固定程序。
  */
 
-#ifndef APPLICATION_ENGINE_SESSION_H
-#define APPLICATION_ENGINE_SESSION_H
+#ifndef APPLICATION_ENGINE_SESSION_ENGINE_SESSION_H
+#define APPLICATION_ENGINE_SESSION_ENGINE_SESSION_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -96,4 +96,4 @@ engine_direction_t engine_session_direction(const void *storage);
 }
 #endif
 
-#endif /* APPLICATION_ENGINE_SESSION_H */
+#endif /* APPLICATION_ENGINE_SESSION_ENGINE_SESSION_H */

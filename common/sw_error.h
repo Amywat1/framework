@@ -10,8 +10,8 @@
  *          废弃的错误码保留数值并标注，不得删除后让后续值前移。
  */
 
-#ifndef SW_ERROR_H
-#define SW_ERROR_H
+#ifndef COMMON_SW_ERROR_H
+#define COMMON_SW_ERROR_H
 
 /* -------------------------------------------------------------------------
  * 错误码类型
@@ -131,4 +131,4 @@ static inline const char *sw_err_name(sw_err_t err)
     }
 }
 
-#endif /* SW_ERROR_H */
+#endif /* COMMON_SW_ERROR_H */

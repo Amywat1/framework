@@ -11,8 +11,8 @@
  *          样例见 projects/<project>/config/deployment/）
  */
 
-#ifndef PORTS_STORAGE_DEPLOY_STORE_H
-#define PORTS_STORAGE_DEPLOY_STORE_H
+#ifndef PORTS_OUTBOUND_STORAGE_DEPLOY_STORE_H
+#define PORTS_OUTBOUND_STORAGE_DEPLOY_STORE_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -52,4 +52,4 @@ const deploy_store_ops_t *deploy_store_get_ops(void);
 }
 #endif
 
-#endif /* PORTS_STORAGE_DEPLOY_STORE_H */
+#endif /* PORTS_OUTBOUND_STORAGE_DEPLOY_STORE_H */

@@ -16,8 +16,8 @@
  *   - 频率通过 Modbus 单独设置（drv_vfd_write REG_FREQ），与挡位 IO 控制相互独立。
  */
 
-#ifndef DRV_VFD_H
-#define DRV_VFD_H
+#ifndef ADAPTERS_OUTBOUND_HAL_PROVIDERS_SNACK_MODBUS_DRV_VFD_H
+#define ADAPTERS_OUTBOUND_HAL_PROVIDERS_SNACK_MODBUS_DRV_VFD_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -177,4 +177,4 @@ sw_err_t drv_vfd_write(drv_vfd_t *vfd, hal_vfd_reg_t reg, uint16_t val);
 }
 #endif
 
-#endif /* DRV_VFD_H */
+#endif /* ADAPTERS_OUTBOUND_HAL_PROVIDERS_SNACK_MODBUS_DRV_VFD_H */
