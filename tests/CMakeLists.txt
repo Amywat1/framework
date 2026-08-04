@@ -312,6 +312,17 @@ add_unit_test(test_alarm_event_bridge
     ${WDF_ROOT}/common/sw_mutex.c
 )
 
+add_unit_test(test_observation_event_bridge
+    ${CMAKE_CURRENT_SOURCE_DIR}/application/test_observation_event_bridge.c
+    ${WDF_ROOT}/application/bridges/observation_event_bridge.c
+    ${WDF_ROOT}/observability/core/observation.c
+    ${WDF_ROOT}/runtime/event_bus/event_bus.c
+    ${WDF_ROOT}/common/trace_context.c
+    ${WDF_ROOT}/common/time_util.c
+    ${WDF_ROOT}/common/log.c
+    ${WDF_ROOT}/common/sw_mutex.c
+)
+
 add_unit_test(test_alarm_reeval_bridge
     ${CMAKE_CURRENT_SOURCE_DIR}/application/test_alarm_reeval_bridge.c
     ${WDF_ROOT}/application/bridges/alarm_reeval_bridge.c

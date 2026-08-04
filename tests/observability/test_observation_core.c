@@ -38,6 +38,21 @@ static void test_observation_rejects_invalid_boot_id(void)
     TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, observation_init(0U));
 }
 
+/* 就绪查询必须与 publish 的可用性一致：bootstrap 用它决定是否挂事件桥接，
+ * 若非法 boot_id 被误判为就绪，桥接会挂上去而所有记录都被 NOT_INIT 丢掉。 */
+static void test_observation_ready_tracks_init(void)
+{
+    observation_record_spec_t rec = make_record(OBSERVATION_SEVERITY_INFO, 1U, "x");
+
+    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, observation_init(0U));
+    TEST_ASSERT_FALSE(observation_is_ready());
+    TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_INIT, observation_publish(&rec));
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, observation_init(77U));
+    TEST_ASSERT_TRUE(observation_is_ready());
+    TEST_ASSERT_EQUAL_INT(SW_OK, observation_publish(&rec));
+}
+
 static void test_observation_stamps_context_and_prioritizes_critical(void)
 {
     observation_context_t     context = {.wash_session_id = 10U, .command_id = 20U, .correlation_id = 30U};
@@ -116,6 +131,9 @@ static void test_blackbox_rejects_window_larger_than_capacity(void)
 int main(void)
 {
     UNITY_BEGIN();
+    /* 必须第一个跑：它断言"未初始化时不就绪"，依赖静态变量的进程初值 false。
+     * observation 没有 reset 接口，一旦别的用例先 init 过就无法回到未初始化态。 */
+    RUN_TEST(test_observation_ready_tracks_init);
     RUN_TEST(test_observation_rejects_invalid_boot_id);
     RUN_TEST(test_observation_stamps_context_and_prioritizes_critical);
     RUN_TEST(test_observation_reports_normal_queue_overflow);

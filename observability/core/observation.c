@@ -105,6 +105,16 @@ sw_err_t observation_init(uint64_t boot_id)
     return SW_OK;
 }
 
+bool observation_is_ready(void)
+{
+    bool ready;
+
+    pthread_mutex_lock(&s_mutex);
+    ready = s_initialized;
+    pthread_mutex_unlock(&s_mutex);
+    return ready;
+}
+
 void observation_context_set(const observation_context_t *context)
 {
     pthread_mutex_lock(&s_mutex);

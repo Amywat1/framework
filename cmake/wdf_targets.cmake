@@ -21,6 +21,7 @@
 #   wdf_runtime     启动编排、事件总线、调度器（依赖 common）
 #   wdf_application 跨领域编排、桥接、投影（依赖 domain + runtime）
 #   wdf_asset_contract 必需资产启动期校验（依赖 cloud + program_engine）
+#   wdf_observation_bridge 框架事件转观测记录（依赖 observability）
 #   wdf_cloud       通用云点位模型与变化检测
 #   wdf_services    参数服务等共享服务
 #   wdf_observability 观测记录与黑匣子
@@ -225,6 +226,20 @@ _wdf_add_interface_lib(wdf_application
     DEPENDS
         wdf_domain
         wdf_runtime
+)
+
+# ---------------------------------------------------------------------------
+# wdf_observation_bridge — 框架事件转观测记录
+#
+# 独立成目标而非并入 wdf_application：它是 observability 的唯一框架侧接入点，
+# 不接观测的项目不该被迫链接 observability。
+# ---------------------------------------------------------------------------
+_wdf_add_interface_lib(wdf_observation_bridge
+    SOURCES
+        application/bridges/observation_event_bridge.c
+    DEPENDS
+        wdf_application
+        wdf_observability
 )
 
 # ---------------------------------------------------------------------------

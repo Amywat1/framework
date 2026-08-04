@@ -110,6 +110,14 @@ typedef struct {
 sw_err_t observation_init(uint64_t boot_id);
 
 /**
+ * @brief  查询可观测核心是否已初始化。
+ * @return true 表示已初始化，发布的记录会真正入队。
+ * @note   可观测是旁路设施，项目可以选择不启用。装配层用本接口判断是否
+ *         需要挂接事件桥接，避免在未启用观测的项目里做无用订阅。
+ */
+bool observation_is_ready(void);
+
+/**
  * @brief  设置后续记录使用的默认业务上下文。
  * @param  context 上下文；传 NULL 清空。
  */

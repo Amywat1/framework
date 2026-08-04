@@ -9,6 +9,7 @@
 
 #include "application/bridges/alarm_event_bridge.h"
 #include "application/bridges/alarm_lifecycle_bridge.h"
+#include "application/bridges/observation_event_bridge.h"
 #include "application/bridges/op_mode_bridge.h"
 #include "application/command_gateway.h"
 #include "application/orchestrators/abort_home_coordinator.h"
@@ -20,6 +21,7 @@
 #include "common/time_util.h"
 #include "domain/op_mode/operational_mode.h"
 #include "domain/safety/alarm_registry/alarm_registry.h"
+#include "observability/core/observation.h"
 #include "ports/outbound/hal/hal_io_port.h"
 #include "ports/outbound/hal/hal_vfd_port.h"
 #include "ports/outbound/hal/hal_voice_port.h"
@@ -233,6 +235,12 @@ static sw_err_t bootstrap_init_services(void)
     BOOT_CHECK(op_mode_bridge_init(), "op_mode_bridge_init");
     BOOT_CHECK(telemetry_projection_init(), "telemetry_projection_init");
     BOOT_CHECK(s_hooks->init_adapters(), "project_init_adapters");
+    /* 可观测是旁路设施，由项目在 init_adapters 中决定是否启用；启用了才挂桥接 */
+    if (observation_is_ready()) {
+        BOOT_CHECK(observation_event_bridge_init(), "observation_event_bridge_init");
+    } else {
+        LOG_INFO("bootstrap: observation disabled, event bridge skipped");
+    }
     BOOT_CHECK(s_hooks->register_runtime_tasks(), "project_register_runtime_tasks");
     return SW_OK;
 }
