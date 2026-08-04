@@ -12,24 +12,25 @@
 extern "C" {
 #endif
 
-#include "application/orchestrators/report_scheduler.h"
 #include "cloud/cloud_point.h"
 #include "common/point_table/point_table.h"
 #include "common/sw_error.h"
 
 #include <stddef.h>
+#include <stdint.h>
 
 typedef sw_err_t (*cloud_property_reply_fn_t)(const char *request_json, const point_apply_result_t *result);
 
 /**
  * @brief  项目物模型注册包（wiring 阶段一次传入）
+ *
+ * @note   不含上报策略：策略是 application 层 report_scheduler 的输入格式，
+ *         由项目直接注册到调度器，避免 cloud/ 反向依赖 application/。
  */
 typedef struct {
-    const cloud_point_entry_t   *entries;
-    size_t                       count;
-    const report_policy_entry_t *report_policies;
-    size_t                       policy_count;
-    cloud_property_reply_fn_t    property_reply;
+    const cloud_point_entry_t *entries;
+    size_t                     count;
+    cloud_property_reply_fn_t  property_reply;
 } cloud_model_bundle_t;
 
 /**
@@ -63,20 +64,14 @@ sw_err_t cloud_model_validate(void);
 sw_err_t cloud_model_init(void);
 
 /**
- * @brief  注册上报调度策略。
+ * @brief  按点位表索引取物模型 id。
  *
- * @retval SW_OK 注册成功。
- * @retval SW_ERR_NOT_INIT 未配置上报策略。
- * @retval 其他 调度任务或事件订阅注册失败。
- * @note   本函数只注册周期任务和事件订阅，实际执行由 scheduler start 阶段统一启动。
+ * @param  index 点位表索引（EVT_CLOUD_POINT_DIRTY 的事件 param）。
+ * @return 对应的物模型 id；索引越界或物模型未注册时返回 NULL。
+ * @note   供项目在注册上报调度器时作为 report_point_id_resolver_fn_t 传入，
+ *         使 ON_CHANGE 事件能定位到具体点位做增量上报。
  */
-sw_err_t cloud_model_register_scheduler(void);
-
-/**
- * @brief  请求立即执行一次全量重同步上报。
- * @note   云端离线或上报端口未注册时静默跳过。
- */
-void cloud_model_request_resync(void);
+const char *cloud_model_point_id_by_index(uint32_t index);
 
 /**
  * @brief  构建全量属性 JSON。

@@ -159,13 +159,19 @@ static void register_model(void)
     s_entries[0] = make_counter();
     s_entries[1] = make_enabled();
     bundle       = (cloud_model_bundle_t){
-              .entries         = s_entries,
-              .count           = 2U,
-              .report_policies = s_policies,
-              .policy_count    = sizeof(s_policies) / sizeof(s_policies[0]),
+              .entries = s_entries,
+              .count   = 2U,
     };
 
     TEST_ASSERT_EQUAL_INT(SW_OK, cloud_model_register(&bundle));
+}
+
+/* 上报策略由项目直接注册到调度器（原先经 cloud_model bundle 转发，
+ * 那条路径让 cloud/ 反向依赖 application/）。这里复现项目侧的接法。 */
+static void register_report_scheduler(void)
+{
+    report_scheduler_register_point_resolver(cloud_model_point_id_by_index);
+    TEST_ASSERT_EQUAL_INT(SW_OK, report_scheduler_register(s_policies, sizeof(s_policies) / sizeof(s_policies[0])));
 }
 
 void setUp(void)
@@ -218,7 +224,7 @@ static void test_report_scheduler_runs_event_policies(void)
     register_model();
     TEST_ASSERT_EQUAL_INT(SW_OK, cloud_model_validate());
     TEST_ASSERT_EQUAL_INT(SW_OK, cloud_model_init());
-    TEST_ASSERT_EQUAL_INT(SW_OK, cloud_model_register_scheduler());
+    register_report_scheduler();
     tid = start_dispatch();
     usleep(10000);
 

@@ -243,6 +243,8 @@ _wdf_add_interface_lib(wdf_cloud
     DEPENDS
         wdf_common
         wdf_ports
+        wdf_domain
+        wdf_runtime
 )
 
 # ---------------------------------------------------------------------------
