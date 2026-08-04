@@ -246,6 +246,11 @@ hal_motor_fault_code_t hal_motor_fault_code(const hal_motor_exec_t *exec, int mo
     return from_mcc_fault(motor_fault_code((const motor_executor_t *)exec, motor));
 }
 
+bool hal_motor_encoder_healthy(const hal_motor_exec_t *exec, int motor)
+{
+    return motor_encoder_healthy((const motor_executor_t *)exec, motor);
+}
+
 bool hal_motor_pop_event(hal_motor_exec_t *exec, hal_motor_event_t *out)
 {
     motor_event_t ev;

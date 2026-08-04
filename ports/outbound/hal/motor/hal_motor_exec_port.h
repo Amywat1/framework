@@ -206,6 +206,14 @@ hal_motor_dir_t hal_motor_direction(const hal_motor_exec_t *exec, int motor);
 hal_motor_fault_code_t hal_motor_fault_code(const hal_motor_exec_t *exec, int motor);
 
 /**
+ * @brief  查询编码器健康状态。
+ * @return true 编码器读数可信；false 已检测到停滞或跳变，尚未经归位恢复。
+ * @note   无编码器的机构恒为 true。这是跨运动的持续状态，供上层作为报警条件；
+ *         与"位置基准是否已建立"不同，增量编码器上电时基准未建立但编码器健康。
+ */
+bool hal_motor_encoder_healthy(const hal_motor_exec_t *exec, int motor);
+
+/**
  * @brief  取出一条运动结束事件，用于记录状态变化原因。
  * @param  exec 电机执行器句柄。
  * @param  out  输出事件；仅在返回 true 时有效。

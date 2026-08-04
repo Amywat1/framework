@@ -499,6 +499,7 @@ static bool zero_encoder_baseline(motor_executor_t *e, int i)
     if (e->cfg.motors[i].encoder_kind == MOTOR_ENC_ABSOLUTE) {
         /* 绝对轴：触限位不改位置，仅标记基准可信 */
         s->baseline_trusted = true;
+        s->enc_healthy      = true;
         return true;
     }
     enc = motor_enc(e, i);
@@ -512,6 +513,8 @@ static bool zero_encoder_baseline(motor_executor_t *e, int i)
             s->position         = 0;
             s->last_raw         = enc_raw(enc);
             s->baseline_trusted = true;
+            /* 归位成功重建基准，编码器读数重新可信：这是异常后的唯一恢复路径。 */
+            s->enc_healthy = true;
             return true;
         }
     }
@@ -642,7 +645,8 @@ static void update_encoder(motor_executor_t *e, int i, bool moving)
     if (mc->enc_stall_ticks > 0) {
         if (ad == 0) {
             if (++s->enc_stall >= mc->enc_stall_ticks && !s->enc_warned) {
-                s->enc_warned = true;
+                s->enc_warned  = true;
+                s->enc_healthy = false;
                 warn(e, i, MOTOR_FAULT_ENCODER_SIGNAL);
             }
         } else {
@@ -650,7 +654,8 @@ static void update_encoder(motor_executor_t *e, int i, bool moving)
         }
     }
     if (mc->enc_jump_max > 0 && ad > mc->enc_jump_max && !s->enc_warned) {
-        s->enc_warned = true;
+        s->enc_warned  = true;
+        s->enc_healthy = false;
         warn(e, i, MOTOR_FAULT_ENCODER_SIGNAL);
     }
 }
@@ -966,6 +971,8 @@ static motor_init_result_t do_init(motor_executor_t *e)
     for (int i = 0; i < c->motor_count; ++i) {
         motor_encoder_t *enc = motor_enc(e, i);
         e->m[i].last_raw     = enc ? enc_raw(enc) : 0;
+        /* 上电默认编码器健康：增量轴此时基准尚未建立，但这不是编码器异常。 */
+        e->m[i].enc_healthy = true;
         if (enc && (c->motors[i].encoder_kind == MOTOR_ENC_ABSOLUTE)) {
             e->m[i].position         = e->m[i].last_raw;
             e->m[i].baseline_trusted = true;
@@ -1059,6 +1066,11 @@ motor_cmd_result_t motor_move_to(motor_executor_t        *e,
         }
         if (!e->m[i].baseline_trusted) {
             return cmd_reject("baseline-untrusted");
+        }
+        /* 降级策略：编码器异常后位置读数不可信，拒绝按位置运动，避免依据错误位置
+         * 动作造成碰撞。限位运动与归位仍放行，机器据此可自行走回原点恢复。 */
+        if (!e->m[i].enc_healthy) {
+            return cmd_reject("encoder-unhealthy");
         }
     }
     if (!speed_valid(e, i, spd)) {
@@ -1384,6 +1396,15 @@ motor_fault_code_t motor_fault_code(const motor_executor_t *e, int i)
 bool motor_baseline_trusted(const motor_executor_t *e, int i)
 {
     return e->m[i].baseline_trusted;
+}
+
+bool motor_encoder_healthy(const motor_executor_t *e, int i)
+{
+    /* 无编码器的机构没有编码器可言，恒报健康，避免上层为它们维护无意义的条件。 */
+    if (!e->cfg.motors[i].has_encoder) {
+        return true;
+    }
+    return e->m[i].enc_healthy;
 }
 
 bool motor_in_safe_state(const motor_executor_t *e)

@@ -431,6 +431,13 @@ typedef struct {
 
     int  enc_stall;
     bool enc_warned;
+    /** @brief 编码器健康状态：上电为真，检测到停滞或跳变置假，归位重建基准后恢复。
+     *
+     * 与 enc_warned 不同：后者是单次运动内的告警去重标志，每次启动即复位；
+     * 本字段是跨运动的持续状态，供上层作为报警条件与降级依据。
+     * 也与 baseline_trusted 不同：增量编码器上电时基准尚未建立但编码器是健康的。
+     */
+    bool enc_healthy;
 } motor_mstate_t;
 
 /** @brief 执行器对象（调用方静态分配后传入 motor_init）。 */
@@ -571,6 +578,12 @@ motor_fault_code_t motor_fault_code(const motor_executor_t *exec, int motor);
  *         false 时禁止使用按位置到位功能。
  */
 bool motor_baseline_trusted(const motor_executor_t *exec, int motor);
+
+/**
+ * @brief  查询编码器健康状态。
+ * @return true 编码器读数可信或该轴无编码器；false 已检测到停滞或跳变且尚未归位恢复。
+ */
+bool motor_encoder_healthy(const motor_executor_t *exec, int motor);
 
 /**
  * @brief 查询执行器是否处于看门狗安全态。
