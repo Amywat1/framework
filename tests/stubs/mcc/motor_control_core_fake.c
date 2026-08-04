@@ -8,6 +8,7 @@ static motor_phase_t        s_phase;
 static int64_t              s_position;
 static motor_direction_t    s_dir;
 static motor_fault_code_t   s_fault;
+static bool                 s_enc_healthy;
 
 /* 伪造事件队列（FIFO，供 motor_pop_event 消费）*/
 static motor_event_t s_events[MCC_FAKE_EVENT_CAP];
@@ -23,6 +24,9 @@ void mcc_fake_reset(void)
     s_position      = 0;
     s_dir           = MOTOR_DIR_FORWARD;
     s_fault         = MOTOR_FAULT_NONE;
+    /* 默认健康：端口约定"无编码器的机构恒为 true"，健康是常态，
+     * 需要验证不健康分支的用例显式调 mcc_fake_set_encoder_healthy(false)。 */
+    s_enc_healthy = true;
     memset(s_events, 0, sizeof(s_events));
     s_ev_head  = 0U;
     s_ev_count = 0U;
@@ -41,6 +45,11 @@ void mcc_fake_set_cmd_result(motor_cmd_status_t status, const char *reason)
 {
     s_result.status = status;
     s_result.reason = reason;
+}
+
+void mcc_fake_set_encoder_healthy(bool healthy)
+{
+    s_enc_healthy = healthy;
 }
 
 void mcc_fake_set_query(motor_phase_t phase, int64_t position, motor_direction_t dir, motor_fault_code_t fault)
@@ -145,6 +154,13 @@ motor_fault_code_t motor_fault_code(const motor_executor_t *exec, int motor)
     (void)exec;
     (void)motor;
     return s_fault;
+}
+
+bool motor_encoder_healthy(const motor_executor_t *exec, int motor)
+{
+    (void)exec;
+    (void)motor;
+    return s_enc_healthy;
 }
 
 bool motor_pop_event(motor_executor_t *exec, motor_event_t *out)

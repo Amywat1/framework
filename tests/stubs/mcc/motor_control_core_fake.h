@@ -30,6 +30,14 @@ typedef struct {
 void mcc_fake_reset(void);
 void mcc_fake_set_cmd_result(motor_cmd_status_t status, const char *reason);
 void mcc_fake_set_query(motor_phase_t phase, int64_t position, motor_direction_t dir, motor_fault_code_t fault);
+
+/**
+ * @brief 设定 motor_encoder_healthy 的返回值
+ * @param healthy true 编码器健康（mcc_fake_reset 后的默认值）
+ * @note  不并入 mcc_fake_set_query：编码器健康是跨运动的持续状态，
+ *        与 phase/position/dir/fault 这组"当次运动快照"生命周期不同。
+ */
+void                        mcc_fake_set_encoder_healthy(bool healthy);
 const mcc_fake_last_call_t *mcc_fake_last_call(void);
 
 /**
