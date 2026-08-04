@@ -10,6 +10,7 @@
 #include "cloud/cloud_point_watcher.h"
 #include "common/event_types.h"
 #include "common/log.h"
+#include "common/sw_error.h"
 #include "ports/outbound/cloud/link/cloud_link_port.h"
 #include "ports/outbound/cloud/report/report_port.h"
 #include "runtime/config/thread_config.h"
@@ -74,8 +75,12 @@ static void report_properties_once(void)
     }
 
     sw_err_t ret = ops->publish_properties();
-    if ((ret != SW_OK) && (ret != SW_ERR_COMM)) {
-        LOG_WARN("report_scheduler: publish_properties failed ret=%d", (int)ret);
+
+    /* 瞬时错误不告警：上报按周期重来，一次失败无需现场关注。原先只放过
+     * SW_ERR_COMM，但 BUSY 与 TIMEOUT 在上报路径上同样是等下一拍即可的情形，
+     * 为它们打 WARN 只会淹没真正需要看的错误。 */
+    if ((ret != SW_OK) && !sw_err_is_transient(ret)) {
+        LOG_WARN("report_scheduler: publish_properties failed ret=%s", sw_err_name(ret));
     }
 }
 
@@ -91,8 +96,9 @@ static void report_delta_once(const char *const *ids, size_t count)
     }
 
     sw_err_t ret = ops->publish_properties_delta(ids, count);
-    if ((ret != SW_OK) && (ret != SW_ERR_COMM)) {
-        LOG_WARN("report_scheduler: publish_properties_delta failed ret=%d", (int)ret);
+
+    if ((ret != SW_OK) && !sw_err_is_transient(ret)) {
+        LOG_WARN("report_scheduler: publish_properties_delta failed ret=%s", sw_err_name(ret));
     }
 }
 
