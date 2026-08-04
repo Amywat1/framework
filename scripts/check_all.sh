@@ -3,8 +3,9 @@
 #
 # 串联三项现成检查，任一失败即整体失败：
 #   1. 架构依赖边界检查   scripts/check_arch_boundary.sh
-#   2. 代码格式检查       scripts/format.sh --check
-#   3. 单元测试           cmake 配置 + 构建 + ctest
+#   2. 行为契约结构检查   scripts/check_behaviour_contract.sh
+#   3. 代码格式检查       scripts/format.sh --check
+#   4. 单元测试           cmake 配置 + 构建 + ctest
 #
 # 用法:
 #   ./scripts/check_all.sh                # 全部检查
@@ -56,6 +57,7 @@ run_tests() {
 }
 
 run_step "架构依赖边界" "${ROOT}/scripts/check_arch_boundary.sh"
+run_step "行为契约结构" "${ROOT}/scripts/check_behaviour_contract.sh"
 run_step "代码格式" "${ROOT}/scripts/format.sh" --check
 
 if [[ $SKIP_TESTS -eq 0 ]]; then

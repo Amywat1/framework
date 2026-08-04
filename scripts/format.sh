@@ -21,10 +21,13 @@ if [[ "${1:-}" == "--check" ]]; then
     CHECK=1
 fi
 
+# 排除 build* 而非仅 build/：check_all.sh 默认构建到 build-check/，若只排除
+# build/，门禁就会扫描自己的构建产物（CMake 生成的 CompilerIdC.c、sw_version.h
+# 等），导致默认配置下格式检查永远失败。
 mapfile -t FILES < <(
     find . \
         -type f \( -name '*.c' -o -name '*.h' \) \
-        ! -path './build/*' \
+        ! -path './build*' \
         ! -path './third_party/*' \
         ! -path './.cache/*' \
         ! -path './.git/*' \
