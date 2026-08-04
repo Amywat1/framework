@@ -33,6 +33,16 @@ extern "C" {
 sw_err_t alarm_registry_init(void);
 sw_err_t alarm_registry_load_catalog(const alarm_def_t *defs, unsigned count);
 
+/**
+ * @brief  返回已加载的报警定义条数
+ * @return 目录条数；未加载或已复位时为 0
+ *
+ * @note   供启动期资产校验判断"报警目录是否已加载"。目录为空时框架无法
+ *         把任何报警码解析为定义，trigger 会静默失败——这正是需要在启动期
+ *         拦住的情形，而不是等到现场触发报警才发现报警链路不工作。
+ */
+unsigned alarm_registry_catalog_count(void);
+
 sw_err_t alarm_registry_trigger(uint32_t code);
 sw_err_t alarm_registry_clear(uint32_t code);
 sw_err_t alarm_registry_reevaluate_group(motion_reeval_group_id_t group);

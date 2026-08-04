@@ -452,6 +452,16 @@ sw_err_t alarm_registry_load_catalog(const alarm_def_t *defs, unsigned count)
     return SW_OK;
 }
 
+unsigned alarm_registry_catalog_count(void)
+{
+    unsigned count;
+
+    pthread_mutex_lock(&s_mutex);
+    count = s_catalog_count;
+    pthread_mutex_unlock(&s_mutex);
+    return count;
+}
+
 static sw_err_t binding_load_catalog(const alarm_def_t *defs, unsigned count)
 {
     return alarm_registry_load_catalog(defs, count);

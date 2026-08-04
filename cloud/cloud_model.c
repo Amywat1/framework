@@ -23,6 +23,17 @@ static sw_err_t model_on_property_set(const char *json_payload, point_apply_resu
     return cloud_point_apply_json(s_entries, s_entry_count, json_payload, result);
 }
 
+size_t cloud_model_point_count(void)
+{
+    return (s_entries == NULL) ? 0U : s_entry_count;
+}
+
+void cloud_model_reset_for_test(void)
+{
+    s_entries     = NULL;
+    s_entry_count = 0U;
+}
+
 const char *cloud_model_point_id_by_index(uint32_t index)
 {
     if ((s_entries == NULL) || (index >= s_entry_count)) {

@@ -20,6 +20,7 @@
 #   wdf_domain      领域规则（依赖 common + ports）
 #   wdf_runtime     启动编排、事件总线、调度器（依赖 common）
 #   wdf_application 跨领域编排、桥接、投影（依赖 domain + runtime）
+#   wdf_asset_contract 必需资产启动期校验（依赖 cloud + program_engine）
 #   wdf_cloud       通用云点位模型与变化检测
 #   wdf_services    参数服务等共享服务
 #   wdf_observability 观测记录与黑匣子
@@ -207,6 +208,22 @@ _wdf_add_interface_lib(wdf_application
     DEPENDS
         wdf_domain
         wdf_runtime
+)
+
+# ---------------------------------------------------------------------------
+# wdf_asset_contract — 必需资产启动期校验
+#
+# 独立成目标而不并入 wdf_application：它要探测报警目录、云物模型与方案引擎 IO
+# 目录三处资产，并入会让最小接入被迫链接 cloud 与 program_engine。项目按自己
+# 声明了哪些资产决定是否链接，与 wdf_report_scheduler 的拆分理由相同。
+# ---------------------------------------------------------------------------
+_wdf_add_interface_lib(wdf_asset_contract
+    SOURCES
+        application/asset_contract.c
+    DEPENDS
+        wdf_application
+        wdf_cloud
+        wdf_program_engine
 )
 
 # ---------------------------------------------------------------------------

@@ -203,6 +203,26 @@ add_unit_test(test_port_contract
     ${WDF_ROOT}/common/sw_mutex.c
 )
 
+add_unit_test(test_asset_contract
+    ${CMAKE_CURRENT_SOURCE_DIR}/application/test_asset_contract.c
+    ${WDF_ROOT}/application/asset_contract.c
+    ${WDF_ROOT}/cloud/cloud_model.c
+    ${WDF_ROOT}/cloud/cloud_point_dispatch.c
+    ${WDF_ROOT}/cloud/cloud_point_validate.c
+    ${WDF_ROOT}/cloud/cloud_point_watcher.c
+    ${WDF_ROOT}/domain/program_engine/engine/engine_io.c
+    ${WDF_ROOT}/domain/safety/alarm_registry/alarm_registry.c
+    ${WDF_ROOT}/common/point_table/point_table_from_json.c
+    ${WDF_ROOT}/common/point_table/point_table_to_json.c
+    ${WDF_ROOT}/ports/port_registry_cloud.c
+    ${WDF_ROOT}/ports/port_registry_infra.c
+    ${WDF_ROOT}/runtime/event_bus/event_bus.c
+    ${WDF_ROOT}/common/log.c
+    ${WDF_ROOT}/common/sw_mutex.c
+    ${WDF_ROOT}/common/time_util.c
+    ${WDF_ROOT}/third_party/cJSON/cJSON.c
+)
+
 add_unit_test(test_cloud_point_validate
     ${CMAKE_CURRENT_SOURCE_DIR}/cloud/test_cloud_point_validate.c
     ${WDF_ROOT}/cloud/cloud_point_validate.c

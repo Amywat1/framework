@@ -74,6 +74,22 @@ sw_err_t cloud_model_init(void);
 const char *cloud_model_point_id_by_index(uint32_t index);
 
 /**
+ * @brief  返回已注册的物模型点位条数
+ * @return 点位条数；未注册时为 0
+ * @note   供启动期资产校验判断"物模型是否已注册"。此处只答"有没有"，
+ *         点位内容是否合法由 cloud_model_validate() 回答。
+ */
+size_t cloud_model_point_count(void);
+
+/**
+ * @brief  清空物模型注册（仅供单元测试消除用例间残留）
+ * @note   `cloud_model_register(NULL)` 是参数错误而非解除注册，本模块也无 init
+ *         入口可复用，故按 device_snapshot 的先例单独提供复位。生产路径不应调用：
+ *         运行期清空物模型会让上报与属性下行同时失效。
+ */
+void cloud_model_reset_for_test(void);
+
+/**
  * @brief  构建全量属性 JSON。
  *
  * @param  buf 输出缓冲区。
