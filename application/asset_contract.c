@@ -7,8 +7,8 @@
 
 #include "application/asset_contract.h"
 
-#include "cloud/cloud_model.h"
 #include "common/log.h"
+#include "domain/cloud/cloud_model.h"
 #include "domain/program_engine/engine/engine_io.h"
 #include "domain/safety/alarm_registry/alarm_registry.h"
 

@@ -3,24 +3,27 @@
  * @brief   项目物模型一次注册入口实现
  * @author  HUWANGWEI
  * @date    2026-07-08
+ *
+ * @note    本文件只持有点位表并提供查询与校验，不涉及任何序列化格式。
+ *          属性 JSON 的构建/解析与 property_port 的安装在
+ *          `adapters/outbound/cloud/cloud_model_json.c`——该端口的契约本身
+ *          就是 JSON 载荷，实现它必须解析 JSON，故归适配层。
  */
 
-#include "cloud/cloud_model.h"
+#include "domain/cloud/cloud_model.h"
 
-#include "cloud/cloud_point_watcher.h"
 #include "common/log.h"
-#include "ports/inbound/cloud/property/property_port.h"
+#include "domain/cloud/cloud_point_watcher.h"
 
 static const cloud_point_entry_t *s_entries     = NULL;
 static size_t                     s_entry_count = 0U;
-static cloud_property_ops_t       s_property_ops;
 
-static sw_err_t model_on_property_set(const char *json_payload, point_apply_result_t *result)
+const cloud_point_entry_t *cloud_model_entries(size_t *count_out)
 {
-    if ((s_entries == NULL) || (s_entry_count == 0U)) {
-        return SW_ERR_NOT_INIT;
+    if (count_out != NULL) {
+        *count_out = (s_entries == NULL) ? 0U : s_entry_count;
     }
-    return cloud_point_apply_json(s_entries, s_entry_count, json_payload, result);
+    return s_entries;
 }
 
 size_t cloud_model_point_count(void)
@@ -50,10 +53,6 @@ sw_err_t cloud_model_register(const cloud_model_bundle_t *bundle)
 
     s_entries     = bundle->entries;
     s_entry_count = bundle->count;
-
-    s_property_ops.on_property_set    = model_on_property_set;
-    s_property_ops.reply_property_set = bundle->property_reply;
-    cloud_property_register(&s_property_ops);
 
     LOG_INFO("cloud_model: registered entries=%u", (unsigned)s_entry_count);
     return SW_OK;
@@ -87,25 +86,4 @@ sw_err_t cloud_model_init(void)
         LOG_ERROR("cloud_model: watcher init failed");
     }
     return ret;
-}
-
-sw_err_t cloud_model_build_properties(char *buf, size_t buf_size)
-{
-    if ((s_entries == NULL) || (s_entry_count == 0U)) {
-        return SW_ERR_NOT_INIT;
-    }
-    return cloud_point_to_json(s_entries, s_entry_count, buf, buf_size);
-}
-
-sw_err_t cloud_model_build_properties_delta(const char *const *ids, size_t count, char *buf, size_t buf_size)
-{
-    if ((s_entries == NULL) || (s_entry_count == 0U)) {
-        return SW_ERR_NOT_INIT;
-    }
-    return cloud_point_to_json_filtered(s_entries, s_entry_count, ids, count, buf, buf_size);
-}
-
-sw_err_t cloud_model_apply_property_set(const char *json_str, point_apply_result_t *result)
-{
-    return model_on_property_set(json_str, result);
 }

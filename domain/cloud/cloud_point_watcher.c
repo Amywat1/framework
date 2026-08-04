@@ -5,7 +5,7 @@
  * @date    2026-07-08
  */
 
-#include "cloud/cloud_point_watcher.h"
+#include "domain/cloud/cloud_point_watcher.h"
 
 #include "common/event_types.h"
 #include "runtime/event_bus/event_bus.h"

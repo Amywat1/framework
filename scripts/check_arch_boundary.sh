@@ -10,7 +10,7 @@
 #   2  参数错误
 #
 # 规则概览:
-#   R1  common/        不依赖上层目录（domain/ports/application/adapters/runtime/services/cloud/）
+#   R1  common/        不依赖上层目录（domain/ports/application/adapters/runtime/services/）
 #   R2  domain/        不依赖 adapters/ 或 application/
 #   R3  ports/         不依赖 adapters/、application/ 或 runtime/
 #   R4  runtime/event_bus/   不依赖业务层
@@ -21,8 +21,7 @@
 #   R9  domain/         不使用文件 IO / JSON / 线程注册 / 动态内存
 #   R10 adapters/       不承载跨领域编排（bridge / projection / coordinator）
 #   R11 application/    不依赖 adapters/ 或 services/
-#   R12 cloud/          不依赖 adapters/、application/ 或 services/
-#   R13 services/       不依赖 adapters/、application/ 或 cloud/
+#   R13 services/       不依赖 adapters/ 或 application/
 #   R14 observability/  只依赖 common/
 #   R15 全框架头文件    保护宏等于其路径的全大写下划线形式
 
@@ -86,7 +85,7 @@ echo "======================================================="
 check_includes \
     "R1: common/ 不依赖上层模块" \
     "common" \
-    "domain/" "ports/" "application/" "adapters/" "runtime/" "services/" "cloud/"
+    "domain/" "ports/" "application/" "adapters/" "runtime/" "services/"
 
 # R2: domain/ 不依赖 adapters/ 或 application/
 # domain 可引用 common/、ports/、runtime/，但不得依赖具体实现层或用例层
@@ -108,13 +107,13 @@ check_includes \
 check_includes \
     "R4: runtime/event_bus/ 不依赖业务层" \
     "runtime/event_bus" \
-    "domain/" "ports/" "application/" "adapters/" "services/" "cloud/"
+    "domain/" "ports/" "application/" "adapters/" "services/"
 
 # R5: runtime/scheduler/ 不依赖业务层
 check_includes \
     "R5: runtime/scheduler/ 不依赖业务层" \
     "runtime/scheduler" \
-    "domain/" "ports/" "application/" "adapters/" "services/" "cloud/"
+    "domain/" "ports/" "application/" "adapters/" "services/"
 
 # R6: 框架各层不引用项目专属头文件路径（m8/ 前缀）
 # 防止通用框架代码引用项目版本头、机型配置头等污染框架可复用性
@@ -268,8 +267,8 @@ fi
 # R1~R10 只约束了 common/domain/ports/runtime 的出向依赖，application、cloud、
 # services、observability 的出向依赖此前无任何规则——它们只作为"禁止被引用的
 # 上层"出现在别人的规则里。这个缺口让目录级双向依赖可以长期存在而不被发现：
-# cloud_model.h 曾 include application/orchestrators/report_scheduler.h，同时
-# report_scheduler.c include cloud/cloud_point_watcher.h，两个目录互相依赖、
+# cloud_model.h（当时在顶层 cloud/）曾 include application/orchestrators/report_scheduler.h，同时
+# report_scheduler.c include domain/cloud/cloud_point_watcher.h，两个目录互相依赖、
 # 谁都无法单独提取，而全部 10 条规则都通过。
 #
 # 各层允许的出向依赖按实际需要确定，不做超出现状的收紧：
@@ -284,21 +283,16 @@ check_includes \
     "adapters/" "services/"
 
 check_includes \
-    "R12: cloud/ 不依赖 adapters/、application/ 或 services/" \
-    "cloud" \
-    "adapters/" "application/" "services/"
-
-check_includes \
-    "R13: services/ 不依赖 adapters/、application/ 或 cloud/" \
+    "R13: services/ 不依赖 adapters/ 或 application/" \
     "services" \
-    "adapters/" "application/" "cloud/"
+    "adapters/" "application/"
 
 # observability 是旁路设施：任何层都可向它发布记录，它不回调任何层，因此不构成
 # 环。这条性质只有在它除 common 之外什么都不依赖时才成立，故这里逐一排除其余层。
 check_includes \
     "R14: observability/ 只依赖 common/" \
     "observability" \
-    "domain/" "ports/" "application/" "adapters/" "runtime/" "services/" "cloud/"
+    "domain/" "ports/" "application/" "adapters/" "runtime/" "services/"
 
 # -----------------------------------------------------------------------------
 # R15: 头文件保护宏必须等于其路径的全大写下划线形式
@@ -461,6 +455,51 @@ else
         echo "  修正: 在 check_arch_boundary.sh 的 RT_REACHABLE_FILES 或 NON_RT_FILES 中登记"
         echo "        判据: 该锁是否可能被急停切断链路取得（含项目 cutout 的合理实现）"
     fi
+    TOTAL_VIOLATIONS=$((TOTAL_VIOLATIONS + 1))
+fi
+
+# -----------------------------------------------------------------------------
+# R17: 表达式求值器只允许依赖白名单内的框架头
+#
+# 对应行为契约 ENGN-04（表达式求值不产生副作用）。方案表达式来自部署时下发的
+# 资产，若求值能写 IO、触发报警或改状态，方案作者就获得了绕过命令裁决与安全
+# 矩阵的旁路——一个条件表达式本该只回答"是否满足"，不该能让设备动作。
+#
+# 为何用依赖白名单而不是运行期断言：断言只能证明"这次没有副作用"，白名单证明
+# "无法有副作用"。求值器不 include IO/报警/事件总线的头，就调不到它们。
+# 已核对 engine_expr.o 的未定义符号，框架侧只有 engine_profile_height_at 与
+# engine_profile_in_zone 两个，均为读形接口（结果经 out 参数返回、返回值仅表示
+# 成功与否），无写入通路。
+#
+# engine_profile 是允许的例外：轮廓查询是条件判断的合法输入。它自身也只持有一个
+# provider 指针，转发给项目实现的读接口。
+# -----------------------------------------------------------------------------
+EXPR_PURE_FILE="domain/program_engine/engine/engine_expr.c"
+EXPR_ALLOWED_INCLUDES='^(domain/program_engine/engine/engine_expr\.h|domain/program_engine/engine/engine_profile\.h|common/)'
+
+expr_violations=""
+if [ -f "${FW_ROOT}/${EXPR_PURE_FILE}" ]; then
+    while IFS= read -r inc; do
+        [ -z "$inc" ] && continue
+        if ! printf '%s' "$inc" | grep -qE "$EXPR_ALLOWED_INCLUDES"; then
+            expr_violations="${expr_violations}  ${EXPR_PURE_FILE}: #include \"${inc}\""$'\n'
+        fi
+    done <<EOF
+$(grep -oE '#include[[:space:]]*"[^"]+"' "${FW_ROOT}/${EXPR_PURE_FILE}" 2>/dev/null \
+    | sed 's/.*"\(.*\)"/\1/')
+EOF
+else
+    expr_violations="  ${EXPR_PURE_FILE}: 文件不存在（R17 的被检查目标已改名或移动，请同步更新规则）"$'\n'
+fi
+
+TOTAL_RULES=$((TOTAL_RULES + 1))
+if [ -z "$expr_violations" ]; then
+    echo "[PASS] R17: 表达式求值器依赖白名单（仅 common/ 与 engine_profile）"
+else
+    echo ""
+    echo "[FAIL] R17: 表达式求值器引入了白名单外的依赖"
+    printf '%s' "$expr_violations"
+    echo "  依据: 求值能写 IO / 触发报警即等于方案资产可绕过命令裁决与安全矩阵"
     TOTAL_VIOLATIONS=$((TOTAL_VIOLATIONS + 1))
 fi
 

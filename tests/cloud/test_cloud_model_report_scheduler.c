@@ -3,12 +3,13 @@
  * @brief   cloud_model 与 report_scheduler 单元测试
  */
 
+#include "adapters/outbound/cloud/cloud_model_json.h"
 #include "application/orchestrators/report_scheduler.h"
-#include "cloud/cloud_model.h"
-#include "cloud/cloud_point.h"
 #include "common/event_types.h"
 #include "common/sw_error.h"
 #include "common/time_util.h"
+#include "domain/cloud/cloud_model.h"
+#include "domain/cloud/cloud_point.h"
 #include "ports/inbound/cloud/property/property_port.h"
 #include "ports/outbound/cloud/link/cloud_link_port.h"
 #include "ports/outbound/cloud/report/report_port.h"
@@ -205,6 +206,10 @@ static void test_cloud_model_builds_and_applies_properties(void)
     TEST_ASSERT_EQUAL_INT(SW_OK, cloud_model_build_properties_delta(ids, 1U, buf, sizeof(buf)));
     TEST_ASSERT_NULL(strstr(buf, "\"counter\""));
     TEST_ASSERT_NOT_NULL(strstr(buf, "\"enabled\":false"));
+
+    /* property_port 的安装从 cloud_model_register 移到适配层：该端口的契约
+     * 参数是 JSON 载荷，安装它属序列化适配，不属物模型注册。 */
+    TEST_ASSERT_EQUAL_INT(SW_OK, cloud_model_json_install(NULL));
 
     ops = cloud_property_get_ops();
     TEST_ASSERT_NOT_NULL(ops);

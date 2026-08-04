@@ -7,10 +7,10 @@
 
 #include "application/orchestrators/report_scheduler.h"
 
-#include "cloud/cloud_point_watcher.h"
 #include "common/event_types.h"
 #include "common/log.h"
 #include "common/sw_error.h"
+#include "domain/cloud/cloud_point_watcher.h"
 #include "ports/outbound/cloud/link/cloud_link_port.h"
 #include "ports/outbound/cloud/report/report_port.h"
 #include "runtime/config/thread_config.h"

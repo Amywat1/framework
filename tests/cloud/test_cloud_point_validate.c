@@ -3,8 +3,8 @@
  * @brief   cloud_point_validate 云端物模型登记期校验单元测试
  */
 
-#include "cloud/cloud_point.h"
 #include "common/sw_error.h"
+#include "domain/cloud/cloud_point.h"
 #include "domain/op_mode/device_command.h"
 #include "unity.h"
 

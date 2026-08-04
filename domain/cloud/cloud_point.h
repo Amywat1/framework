@@ -5,8 +5,8 @@
  * @date    2026-07-08
  */
 
-#ifndef CLOUD_CLOUD_POINT_H
-#define CLOUD_CLOUD_POINT_H
+#ifndef DOMAIN_CLOUD_CLOUD_POINT_H
+#define DOMAIN_CLOUD_CLOUD_POINT_H
 
 #include "common/point_table/point_table.h"
 #include "domain/op_mode/device_command.h"
@@ -59,7 +59,6 @@ typedef struct {
 
 /** @brief 脉冲命令回显空闲态（恒定 false） */
 sw_err_t cloud_point_get_echo_idle(point_value_t *out);
-void     cloud_point_set_get_fail_policy(cloud_point_get_fail_policy_t policy);
 
 /** @brief  DEVICE_CMD 语义提交回调（由项目 wiring 注册） */
 typedef sw_err_t (*cloud_device_cmd_submit_fn_t)(dev_cmd_kind_t kind);
@@ -68,20 +67,26 @@ typedef sw_err_t (*cloud_device_cmd_submit_fn_t)(dev_cmd_kind_t kind);
 void cloud_point_set_device_cmd_submit(cloud_device_cmd_submit_fn_t fn);
 
 sw_err_t cloud_point_validate(const cloud_point_entry_t *entries, size_t count);
-sw_err_t cloud_point_to_json(const cloud_point_entry_t *entries, size_t count, char *buf, size_t buf_size);
-sw_err_t cloud_point_to_json_filtered(const cloud_point_entry_t *entries,
-                                      size_t                     count,
-                                      const char *const         *ids,
-                                      size_t                     id_count,
-                                      char                      *buf,
-                                      size_t                     buf_size);
-sw_err_t cloud_point_apply_json(const cloud_point_entry_t *entries,
-                                size_t                     count,
-                                const char                *json_str,
-                                point_apply_result_t      *result_opt);
+
+/**
+ * @brief  按点位语义把已解析的值分派到实处
+ * @param  entry   点位条目
+ * @param  val     已解析的值（类型已与 entry->base.type 校验一致）
+ * @param  result  逐 key 结果汇总，可为 NULL
+ * @retval SW_OK           分派成功，或 DEVICE_CMD 置假的空操作
+ * @retval SW_ERR_STATE    点位只读，拒绝写入
+ * @retval SW_ERR_NOT_INIT 语义要求的回调未注册
+ * @retval SW_ERR_PARAM    入参非法或语义未知
+ *
+ * @note   本函数只答"该值交给谁"，不涉及任何序列化格式。JSON 载荷的解析入口
+ *         见 `adapters/outbound/cloud/cloud_point_json.h`。
+ */
+sw_err_t cloud_point_apply_value(const cloud_point_entry_t *entry,
+                                 const point_value_t       *val,
+                                 point_apply_result_t      *result);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* CLOUD_CLOUD_POINT_H */
+#endif /* DOMAIN_CLOUD_CLOUD_POINT_H */

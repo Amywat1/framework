@@ -5,8 +5,8 @@
  * @date    2026-07-08
  */
 
-#include "cloud/cloud_point.h"
 #include "common/log.h"
+#include "domain/cloud/cloud_point.h"
 
 #include <string.h>
 

@@ -3,10 +3,10 @@
  * @brief   cloud_point_watcher ON_CHANGE 变更检测单元测试
  */
 
-#include "cloud/cloud_point.h"
-#include "cloud/cloud_point_watcher.h"
 #include "common/event_types.h"
 #include "common/sw_error.h"
+#include "domain/cloud/cloud_point.h"
+#include "domain/cloud/cloud_point_watcher.h"
 #include "runtime/event_bus/event_bus.h"
 #include "unity.h"
 

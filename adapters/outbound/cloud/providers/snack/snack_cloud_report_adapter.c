@@ -7,9 +7,10 @@
 
 #include "adapters/outbound/cloud/providers/snack/snack_cloud_report_adapter.h"
 
-#include "cloud/cloud_model.h"
-#include "cloud/cloud_point.h"
+#include "adapters/outbound/cloud/cloud_model_json.h"
 #include "common/log.h"
+#include "domain/cloud/cloud_model.h"
+#include "domain/cloud/cloud_point.h"
 #include "ports/outbound/cloud/link/cloud_link_port.h"
 #include "ports/outbound/cloud/report/report_port.h"
 

@@ -1,4 +1,4 @@
-#include "cloud/cloud_model.h"
+#include "domain/cloud/cloud_model.h"
 
 #include <stdio.h>
 #include <string.h>

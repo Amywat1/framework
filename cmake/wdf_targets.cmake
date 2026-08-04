@@ -15,7 +15,7 @@
 #   target_link_libraries(my_app PRIVATE wdf_runtime wdf_domain wdf_storage_json)
 #
 # 分层目标（依赖方向与 architecture/01 一致，逐层向下传递）：
-#   wdf_common      错误码、日志、时间、追踪上下文、点表、基础工具
+#   wdf_common      错误码、日志、时间、追踪上下文、点表模型、基础工具
 #   wdf_ports       端口注册表与端口内自带实现
 #   wdf_domain      领域规则（依赖 common + ports）
 #   wdf_runtime     启动编排、事件总线、调度器（依赖 common）
@@ -30,6 +30,8 @@
 #   wdf_hal_sim          IO / 语音仿真后端
 #   wdf_hal_engine_sim   方案引擎 IO / 执行器仿真后端
 #   wdf_hal_components   ADC 门控、传感器滤波、VFD 管理器
+#   wdf_point_table_json 点位表的 JSON 编解码
+#   wdf_cloud_json       物模型属性 JSON 与 property_port 安装
 #   wdf_cjson            随框架分发的 cJSON
 #
 # 注意：vendor provider（mcc / snack）仍由 framework/CMakeLists.txt 的
@@ -76,9 +78,12 @@ _wdf_add_interface_lib(wdf_cjson
 )
 
 # ---------------------------------------------------------------------------
-# wdf_common — 最底层，不依赖任何框架上层
+# wdf_common — 最底层，不依赖任何框架上层，也不依赖任何外部格式
 #
-# point_table 的 JSON 编解码依赖 cJSON，因此 common 传递 wdf_cjson。
+# 原先 point_table 的 JSON 编解码在此，使 wdf_common 传递 wdf_cjson——最底层
+# 绑定了一种序列化格式，且让「domain 不解析序列化格式」（R9b）失去基础：
+# domain 依赖 common，而 common 自己 include cJSON。编解码已移入
+# wdf_point_table_json，wdf_common 现在零外部依赖。
 # ---------------------------------------------------------------------------
 _wdf_add_interface_lib(wdf_common
     SOURCES
@@ -90,9 +95,21 @@ _wdf_add_interface_lib(wdf_common
         common/pulse_out.c
         common/util_crc.c
         common/util_fifo.c
-        common/point_table/point_table_from_json.c
-        common/point_table/point_table_to_json.c
+        common/point_table/point_table.c
+)
+
+# ---------------------------------------------------------------------------
+# wdf_point_table_json — 点位表的 JSON 编解码（可选适配器）
+#
+# 需要另一种编码时在同目录并列新增实现，点位表模型（wdf_common）不必改动。
+# 不接云、不用 JSON 存储的项目可以完全不链接它，也就不链接 cJSON。
+# ---------------------------------------------------------------------------
+_wdf_add_interface_lib(wdf_point_table_json
+    SOURCES
+        adapters/outbound/serialization/json/point_table_from_json.c
+        adapters/outbound/serialization/json/point_table_to_json.c
     DEPENDS
+        wdf_common
         wdf_cjson
 )
 
@@ -253,15 +270,30 @@ _wdf_add_interface_lib(wdf_report_scheduler
 # ---------------------------------------------------------------------------
 _wdf_add_interface_lib(wdf_cloud
     SOURCES
-        cloud/cloud_model.c
-        cloud/cloud_point_dispatch.c
-        cloud/cloud_point_validate.c
-        cloud/cloud_point_watcher.c
+        domain/cloud/cloud_model.c
+        domain/cloud/cloud_point_dispatch.c
+        domain/cloud/cloud_point_validate.c
+        domain/cloud/cloud_point_watcher.c
     DEPENDS
         wdf_common
         wdf_ports
-        wdf_domain
         wdf_runtime
+)
+
+# ---------------------------------------------------------------------------
+# wdf_cloud_json — 物模型的属性 JSON 编解码与 property_port 安装（可选适配器）
+#
+# 与 wdf_cloud 分开：property_port 的契约参数是 JSON 载荷，实现它必须解析
+# JSON。留在 wdf_cloud 会让点位模型与语义分派绑定一种传输格式，也会使
+# cloud/ 依赖 adapters/（违反 R12）。换协议时并列新增实现即可。
+# ---------------------------------------------------------------------------
+_wdf_add_interface_lib(wdf_cloud_json
+    SOURCES
+        adapters/outbound/cloud/cloud_model_json.c
+        adapters/outbound/cloud/cloud_point_json.c
+    DEPENDS
+        wdf_cloud
+        wdf_point_table_json
 )
 
 # ---------------------------------------------------------------------------

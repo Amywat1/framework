@@ -3,8 +3,9 @@
  * @brief   cloud_point dispatch 与 JSON 编解码单元测试
  */
 
-#include "cloud/cloud_point.h"
+#include "adapters/outbound/cloud/cloud_point_json.h"
 #include "common/sw_error.h"
+#include "domain/cloud/cloud_point.h"
 #include "domain/op_mode/device_command.h"
 #include "unity.h"
 
