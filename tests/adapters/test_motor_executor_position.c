@@ -289,6 +289,92 @@ static void test_origin_move_clears_hardware_and_software_once(void)
     TEST_ASSERT_EQUAL_INT(0, s_fixture.fault_count);
 }
 
+/**
+ * @brief  编码器停滞后位置运动被拒，限位运动与归位仍放行
+ * @note   降级的目的是不再依据不可信的位置动作，同时保留设备自行走回原点的能力：
+ *         若一并拒绝限位运动与归位，机器就只能等人现场处理。
+ */
+static void test_unhealthy_encoder_rejects_position_move_but_allows_homing(void)
+{
+    motor_move_spec_t  spec = {0};
+    motor_cmd_result_t result;
+    int                i;
+
+    init_executor(40, MOTOR_ENC_INCREMENTAL);
+    /* 连续 3 拍无脉冲即判定停滞；夹具默认不配置该阈值，检测不启用。 */
+    s_executor.cfg.motors[0].enc_stall_ticks = 3;
+
+    /* 先归位建立可信基准，否则位置运动会先被 baseline-untrusted 拦下，
+     * 无法区分是基准未建立还是编码器不健康。限位须在运动开始后才生效。 */
+    result = motor_home(&s_executor, 0);
+    TEST_ASSERT_TRUE(motor_cmd_ok(result));
+    tick_at(45);
+    s_fixture.origin_active = true;
+    tick_at(50);
+    TEST_ASSERT_TRUE(motor_baseline_trusted(&s_executor, 0));
+    TEST_ASSERT_TRUE(motor_encoder_healthy(&s_executor, 0));
+
+    /* 运动中冻结脉冲：位置读数不再变化，累计到阈值后判定编码器不健康。 */
+    s_fixture.origin_active = false;
+    spec.use_position       = true;
+    spec.target_pos         = 500;
+    result = motor_move_to(&s_executor, 0, motor_speed_gear(1), MOTOR_DIR_FORWARD, &spec);
+    TEST_ASSERT_TRUE(motor_cmd_ok(result));
+    for (i = 0; i < 5; ++i) {
+        tick_at(50);
+    }
+    TEST_ASSERT_FALSE(motor_encoder_healthy(&s_executor, 0));
+
+    /* 位置运动被拒，理由是编码器不健康而非基准未建立。 */
+    result = motor_move_to(&s_executor, 0, motor_speed_gear(1), MOTOR_DIR_FORWARD, &spec);
+    TEST_ASSERT_FALSE(motor_cmd_ok(result));
+
+    /* 归位仍可下发，机器据此自行恢复。归位要求电机已停，先停当前运动。 */
+    TEST_ASSERT_TRUE(motor_cmd_ok(motor_stop(&s_executor, 0)));
+    tick_at(50);
+    result = motor_home(&s_executor, 0);
+    TEST_ASSERT_TRUE(motor_cmd_ok(result));
+}
+
+/**
+ * @brief  归位重建基准后编码器恢复健康
+ */
+static void test_homing_restores_encoder_health(void)
+{
+    motor_move_spec_t spec = {0};
+    int               i;
+
+    init_executor(40, MOTOR_ENC_INCREMENTAL);
+    s_executor.cfg.motors[0].enc_stall_ticks = 3;
+
+    spec.use_position = true;
+    spec.target_pos   = 500;
+    TEST_ASSERT_TRUE(motor_cmd_ok(motor_home(&s_executor, 0)));
+    tick_at(45);
+    s_fixture.origin_active = true;
+    tick_at(50);
+    TEST_ASSERT_TRUE(motor_encoder_healthy(&s_executor, 0));
+
+    /* 冻结脉冲使编码器判定为不健康。 */
+    s_fixture.origin_active = false;
+    TEST_ASSERT_TRUE(motor_cmd_ok(
+        motor_move_to(&s_executor, 0, motor_speed_gear(1), MOTOR_DIR_FORWARD, &spec)));
+    for (i = 0; i < 5; ++i) {
+        tick_at(50);
+    }
+    TEST_ASSERT_FALSE(motor_encoder_healthy(&s_executor, 0));
+
+    /* 归位撞上原点限位：清零基准的同一路径恢复健康。归位要求电机已停。 */
+    TEST_ASSERT_TRUE(motor_cmd_ok(motor_stop(&s_executor, 0)));
+    tick_at(50);
+    TEST_ASSERT_TRUE(motor_cmd_ok(motor_home(&s_executor, 0)));
+    tick_at(55);
+    s_fixture.origin_active = true;
+    tick_at(60);
+    TEST_ASSERT_TRUE(motor_encoder_healthy(&s_executor, 0));
+    TEST_ASSERT_TRUE(motor_baseline_trusted(&s_executor, 0));
+}
+
 static void test_origin_clear_failure_keeps_baseline_untrusted_and_faults(void)
 {
     motor_move_spec_t  spec = {0};
@@ -322,5 +408,7 @@ int main(void)
     RUN_TEST(test_active_position_target_update_keeps_start_time_and_output);
     RUN_TEST(test_origin_move_clears_hardware_and_software_once);
     RUN_TEST(test_origin_clear_failure_keeps_baseline_untrusted_and_faults);
+    RUN_TEST(test_unhealthy_encoder_rejects_position_move_but_allows_homing);
+    RUN_TEST(test_homing_restores_encoder_health);
     return UNITY_END();
 }
