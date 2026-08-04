@@ -609,3 +609,35 @@ add_unit_test(test_observation_core
     ${WDF_ROOT}/observability/recorder/blackbox_recorder.c
     ${WDF_ROOT}/common/time_util.c
 )
+
+# ---------------------------------------------------------------------------
+# tick 路径零动态分配（行为契约 ARCH-15）
+#
+# 用链接期 --wrap 截获分配，而不是静态检查：tick 回调会向下调用多层，静态
+# 检查只能看第一层，分配可能发生在任意深度的被调函数里。
+# ---------------------------------------------------------------------------
+add_unit_test(test_tick_no_alloc
+    ${CMAKE_CURRENT_SOURCE_DIR}/runtime/test_tick_no_alloc.c
+    ${WDF_ROOT}/adapters/outbound/hal/components/sensor_filter/hal_sensor_filter.c
+    ${WDF_ROOT}/adapters/outbound/hal/components/vfd_manager/hal_vfd_manager.c
+    ${WDF_ROOT}/adapters/outbound/hal/sim/hal_io_sim.c
+    ${WDF_ROOT}/common/pulse_out.c
+    ${WDF_ROOT}/common/time_util.c
+    ${WDF_ROOT}/runtime/scheduler/periodic_task.c
+    ${WDF_ROOT}/runtime/scheduler/thread_registry.c
+    ${WDF_ROOT}/ports/port_registry_hal.c
+    ${WDF_ROOT}/ports/port_registry_infra.c
+    ${WDF_ROOT}/common/log.c
+    ${WDF_ROOT}/common/sw_mutex.c
+)
+target_compile_definitions(test_tick_no_alloc PRIVATE
+    HAL_SENSOR_FILTER_UNIT_TEST
+    HAL_VFD_MANAGER_UNIT_TEST
+    HAL_IO_SIM_UNIT_TEST
+)
+target_link_options(test_tick_no_alloc PRIVATE
+    -Wl,--wrap=malloc
+    -Wl,--wrap=calloc
+    -Wl,--wrap=realloc
+    -Wl,--wrap=strdup
+)

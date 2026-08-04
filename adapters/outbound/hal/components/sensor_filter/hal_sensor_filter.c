@@ -285,6 +285,18 @@ void hal_sensor_filter_test_reset(void)
     s_observer_count   = 0U;
     pthread_mutex_unlock(&s_sensor_lock);
 }
+
+/**
+ * @brief  直接驱动一次滤波 tick（仅测试）
+ *
+ * @note   与 hal_vfd_manager_test_tick 同一用途：tick 回调是 static，且经
+ *         scheduler 启动后跑在独立线程里，测试无法确定地驱动它。导出本入口
+ *         使 tick 路径可在单线程下被断言（例如 ARCH-15 的零分配验证）。
+ */
+sw_err_t hal_sensor_filter_test_tick(void)
+{
+    return sensor_tick();
+}
 #endif
 
 static void sensor_poll_task(void *ctx)
