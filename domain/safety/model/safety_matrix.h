@@ -68,11 +68,9 @@ static inline alarm_level_behaviour_t alarm_level_behaviour(alarm_level_t level)
         return (alarm_level_behaviour_t){
             .blocks_wash_start = true, .forces_lockout = false, .records_in_journal = true};
     case ALARM_LEVEL_CRITICAL:
-        return (alarm_level_behaviour_t){
-            .blocks_wash_start = true, .forces_lockout = true, .records_in_journal = true};
+        return (alarm_level_behaviour_t){.blocks_wash_start = true, .forces_lockout = true, .records_in_journal = true};
     default:
-        return (alarm_level_behaviour_t){
-            .blocks_wash_start = true, .forces_lockout = true, .records_in_journal = true};
+        return (alarm_level_behaviour_t){.blocks_wash_start = true, .forces_lockout = true, .records_in_journal = true};
     }
 }
 

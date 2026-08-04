@@ -25,10 +25,10 @@
 #include <stdio.h>
 #include <unistd.h>
 
-static pthread_t     s_dispatch_tid;
-static volatile int  s_handled;
-static volatile int  s_block_handler;
-static volatile int  s_handler_entered;
+static pthread_t    s_dispatch_tid;
+static volatile int s_handled;
+static volatile int s_block_handler;
+static volatile int s_handler_entered;
 
 static void *dispatch_fn(void *arg)
 {
@@ -231,15 +231,42 @@ static void test_hi_queue_unaffected_by_normal_backlog(void)
  *
  * 单事件订阅者上限 8。实测 M8 上单个事件最多几个订阅者，用以判断余量。
  * ------------------------------------------------------------------------- */
-static void h1(const event_t *e) { (void)e; }
-static void h2(const event_t *e) { (void)e; }
-static void h3(const event_t *e) { (void)e; }
-static void h4(const event_t *e) { (void)e; }
-static void h5(const event_t *e) { (void)e; }
-static void h6(const event_t *e) { (void)e; }
-static void h7(const event_t *e) { (void)e; }
-static void h8(const event_t *e) { (void)e; }
-static void h9(const event_t *e) { (void)e; }
+static void h1(const event_t *e)
+{
+    (void)e;
+}
+static void h2(const event_t *e)
+{
+    (void)e;
+}
+static void h3(const event_t *e)
+{
+    (void)e;
+}
+static void h4(const event_t *e)
+{
+    (void)e;
+}
+static void h5(const event_t *e)
+{
+    (void)e;
+}
+static void h6(const event_t *e)
+{
+    (void)e;
+}
+static void h7(const event_t *e)
+{
+    (void)e;
+}
+static void h8(const event_t *e)
+{
+    (void)e;
+}
+static void h9(const event_t *e)
+{
+    (void)e;
+}
 
 static void test_subscriber_slot_capacity(void)
 {

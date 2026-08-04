@@ -100,20 +100,34 @@ static inline bool sw_err_is_missing_binding(sw_err_t err)
 static inline const char *sw_err_name(sw_err_t err)
 {
     switch (err) {
-    case SW_OK:              return "SW_OK";
-    case SW_ERR_PARAM:       return "SW_ERR_PARAM";
-    case SW_ERR_TIMEOUT:     return "SW_ERR_TIMEOUT";
-    case SW_ERR_HW:          return "SW_ERR_HW";
-    case SW_ERR_BUSY:        return "SW_ERR_BUSY";
-    case SW_ERR_NOMEM:       return "SW_ERR_NOMEM";
-    case SW_ERR_OVERFLOW:    return "SW_ERR_OVERFLOW";
-    case SW_ERR_STATE:       return "SW_ERR_STATE";
-    case SW_ERR_CRC:         return "SW_ERR_CRC";
-    case SW_ERR_STORAGE:     return "SW_ERR_STORAGE";
-    case SW_ERR_COMM:        return "SW_ERR_COMM";
-    case SW_ERR_NOT_INIT:    return "SW_ERR_NOT_INIT";
-    case SW_ERR_NOT_FOUND:   return "SW_ERR_NOT_FOUND";
-    default:                 return "SW_ERR_UNKNOWN";
+    case SW_OK:
+        return "SW_OK";
+    case SW_ERR_PARAM:
+        return "SW_ERR_PARAM";
+    case SW_ERR_TIMEOUT:
+        return "SW_ERR_TIMEOUT";
+    case SW_ERR_HW:
+        return "SW_ERR_HW";
+    case SW_ERR_BUSY:
+        return "SW_ERR_BUSY";
+    case SW_ERR_NOMEM:
+        return "SW_ERR_NOMEM";
+    case SW_ERR_OVERFLOW:
+        return "SW_ERR_OVERFLOW";
+    case SW_ERR_STATE:
+        return "SW_ERR_STATE";
+    case SW_ERR_CRC:
+        return "SW_ERR_CRC";
+    case SW_ERR_STORAGE:
+        return "SW_ERR_STORAGE";
+    case SW_ERR_COMM:
+        return "SW_ERR_COMM";
+    case SW_ERR_NOT_INIT:
+        return "SW_ERR_NOT_INIT";
+    case SW_ERR_NOT_FOUND:
+        return "SW_ERR_NOT_FOUND";
+    default:
+        return "SW_ERR_UNKNOWN";
     }
 }
 

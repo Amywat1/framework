@@ -94,8 +94,7 @@ void setUp(void)
     time_util_init();
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_init());
-    TEST_ASSERT_EQUAL_INT(SW_OK,
-                          alarm_registry_load_catalog(s_catalog, sizeof(s_catalog) / sizeof(s_catalog[0])));
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_load_catalog(s_catalog, sizeof(s_catalog) / sizeof(s_catalog[0])));
     TEST_ASSERT_EQUAL_INT(SW_OK, alarm_lifecycle_bridge_init());
     pthread_create(&s_dispatch_tid, NULL, dispatch_fn, NULL);
     usleep(10000U);

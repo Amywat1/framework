@@ -622,8 +622,8 @@ static engine_program_t *build_program(const cJSON *root, char *err, unsigned er
      * 带修订号的合法资产被拒，且无法表达"接受同主版本的较低次版本"。 */
     {
         char     ver_err[128] = {0};
-        sw_err_t vr = asset_version_check("engine_program", ver, ENGINE_PROGRAM_SCHEMA_SUPPORTED, ver_err,
-                                         (unsigned)sizeof(ver_err));
+        sw_err_t vr           = asset_version_check(
+            "engine_program", ver, ENGINE_PROGRAM_SCHEMA_SUPPORTED, ver_err, (unsigned)sizeof(ver_err));
 
         if (vr != SW_OK) {
             jfail(err, errsz, "%s", ver_err);

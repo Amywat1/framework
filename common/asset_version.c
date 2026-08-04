@@ -7,8 +7,8 @@
 
 #include "common/asset_version.h"
 
-#include <stdio.h>
 #include <stddef.h>
+#include <stdio.h>
 
 #define ASSET_VERSION_FIELD_MAX 65535U
 
@@ -20,8 +20,8 @@
  */
 static bool parse_field(const char **cursor, uint16_t *out)
 {
-    const char *p     = *cursor;
-    uint32_t    value = 0U;
+    const char *p      = *cursor;
+    uint32_t    value  = 0U;
     unsigned    digits = 0U;
 
     while ((*p >= '0') && (*p <= '9')) {
@@ -92,10 +92,10 @@ bool asset_version_is_compatible(asset_version_t asset, asset_version_t supporte
 }
 
 sw_err_t asset_version_check(const char *asset_name,
-                            const char *asset_text,
-                            const char *supported_text,
-                            char       *err,
-                            unsigned    errsz)
+                             const char *asset_text,
+                             const char *supported_text,
+                             char       *err,
+                             unsigned    errsz)
 {
     asset_version_t asset     = asset_version_parse(asset_text);
     asset_version_t supported = asset_version_parse(supported_text);
@@ -104,7 +104,10 @@ sw_err_t asset_version_check(const char *asset_name,
     if (!supported.valid) {
         /* 框架自身的支持版本串写错，属于框架缺陷而非资产问题 */
         if ((err != NULL) && (errsz > 0U)) {
-            (void)snprintf(err, (size_t)errsz, "%s: 框架支持版本串非法 [%s]", name,
+            (void)snprintf(err,
+                           (size_t)errsz,
+                           "%s: 框架支持版本串非法 [%s]",
+                           name,
                            (supported_text != NULL) ? supported_text : "(null)");
         }
         return SW_ERR_PARAM;
@@ -112,7 +115,10 @@ sw_err_t asset_version_check(const char *asset_name,
 
     if (!asset.valid) {
         if ((err != NULL) && (errsz > 0U)) {
-            (void)snprintf(err, (size_t)errsz, "%s: 版本串无法解析 [%s]，期望 主.次[.修订]", name,
+            (void)snprintf(err,
+                           (size_t)errsz,
+                           "%s: 版本串无法解析 [%s]，期望 主.次[.修订]",
+                           name,
                            (asset_text != NULL) ? asset_text : "(null)");
         }
         return SW_ERR_PARAM;

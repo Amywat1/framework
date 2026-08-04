@@ -90,18 +90,33 @@ static void test_missing_binding_classification(void)
 static void test_classifications_are_mutually_exclusive(void)
 {
     const sw_err_t all[] = {
-        SW_ERR_PARAM, SW_ERR_TIMEOUT,  SW_ERR_HW,       SW_ERR_BUSY,  SW_ERR_NOMEM,
-        SW_ERR_OVERFLOW, SW_ERR_STATE, SW_ERR_CRC,      SW_ERR_STORAGE,
-        SW_ERR_COMM,  SW_ERR_NOT_INIT, SW_ERR_NOT_FOUND,
+        SW_ERR_PARAM,
+        SW_ERR_TIMEOUT,
+        SW_ERR_HW,
+        SW_ERR_BUSY,
+        SW_ERR_NOMEM,
+        SW_ERR_OVERFLOW,
+        SW_ERR_STATE,
+        SW_ERR_CRC,
+        SW_ERR_STORAGE,
+        SW_ERR_COMM,
+        SW_ERR_NOT_INIT,
+        SW_ERR_NOT_FOUND,
     };
     unsigned i;
 
     for (i = 0U; i < sizeof(all) / sizeof(all[0]); i++) {
         int hits = 0;
 
-        if (sw_err_is_transient(all[i])) { hits++; }
-        if (sw_err_is_caller_fault(all[i])) { hits++; }
-        if (sw_err_is_missing_binding(all[i])) { hits++; }
+        if (sw_err_is_transient(all[i])) {
+            hits++;
+        }
+        if (sw_err_is_caller_fault(all[i])) {
+            hits++;
+        }
+        if (sw_err_is_missing_binding(all[i])) {
+            hits++;
+        }
 
         /* 至多命中一类；允许 0 类（持久性失败无专用 helper，取补集） */
         TEST_ASSERT_TRUE_MESSAGE(hits <= 1, sw_err_name(all[i]));

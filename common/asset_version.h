@@ -36,10 +36,10 @@ extern "C" {
 
 /** @brief 语义化版本号 */
 typedef struct {
-    uint16_t major;    /**< 主版本：结构性变更 */
-    uint16_t minor;    /**< 次版本：向后兼容的追加 */
-    uint16_t patch;    /**< 修订号：不参与兼容判定 */
-    bool     valid;    /**< 解析是否成功 */
+    uint16_t major; /**< 主版本：结构性变更 */
+    uint16_t minor; /**< 次版本：向后兼容的追加 */
+    uint16_t patch; /**< 修订号：不参与兼容判定 */
+    bool     valid; /**< 解析是否成功 */
 } asset_version_t;
 
 /**
@@ -78,10 +78,10 @@ bool asset_version_is_compatible(asset_version_t asset, asset_version_t supporte
  *         后者是版本不匹配（部署问题），两者的排查方向完全不同。
  */
 sw_err_t asset_version_check(const char *asset_name,
-                            const char *asset_text,
-                            const char *supported_text,
-                            char       *err,
-                            unsigned    errsz);
+                             const char *asset_text,
+                             const char *supported_text,
+                             char       *err,
+                             unsigned    errsz);
 
 #ifdef __cplusplus
 }
