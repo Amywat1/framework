@@ -9,8 +9,7 @@
 
 #include "common/event_types.h"
 #include "common/log.h"
-#include "ports/outbound/safety/hw_estop_port.h"
-#include "ports/outbound/safety/safety_cutout_port.h"
+#include "ports/outbound/safety/safety_port.h"
 #include "runtime/config/thread_config.h"
 #include "runtime/event_bus/event_bus.h"
 #include "runtime/scheduler/thread_registry.h"

@@ -86,6 +86,57 @@ sw_err_t safety_port_register(const safety_ops_t *ops);
  */
 const safety_ops_t *safety_port_get_ops(void);
 
+/* -------------------------------------------------------------------------
+ * 调用侧包装
+ *
+ * 以下入口由 port_registry_safety.c 实现，转调已注册 ops 的对应字段。
+ * 未注册时行为明确（故障安全 + 每条路径首次告警一次），而不是静默空转。
+ * 框架内既有调用点直接用这些函数名，不必自行取 ops 再判空。
+ * ------------------------------------------------------------------------- */
+
+/**
+ * @brief  立即切断动力输出（缓冲写入 + 驱动 cutoff，不 flush 总线）
+ *
+ * @retval SW_OK           全部切断动作均成功
+ * @retval SW_ERR_NOT_INIT 安全端口未注册，切断未执行
+ * @retval 其他            至少一路切断失败，返回实现给出的首个失败码
+ *
+ * @note   急停热路径专用：必须无阻塞、不持领域层 mutex、不执行总线 flush。
+ * @note   本函数自身已记录失败日志并累加统计，调用方通常无需再次记录；
+ *         返回值供调用方决定是否叠加自己的上报（如报警、事件）。
+ */
+sw_err_t safety_cutout_execute(void);
+
+/**
+ * @brief  读取累计的切断失败次数（诊断与测试用）
+ * @return 自进程启动以来 safety_cutout_execute 返回非 SW_OK 的次数
+ * @note   未注册导致的「未执行」不计入此处，由未注册告警单独反映，两者语义分开。
+ */
+unsigned safety_cutout_failure_count(void);
+
+/**
+ * @brief  读取硬件急停是否处于激活（按下/断电）状态
+ * @retval true   急停激活
+ * @retval false  急停未激活或安全端口未注册
+ * @note   实现须读取原始 DI，不走传感器滤波防抖链，以保证 ≤5ms 级响应。
+ */
+bool hw_estop_port_is_active(void);
+
+/**
+ * @brief  判断报警码是否为急停报警
+ * @param  alarm_code  报警码
+ * @retval true   急停报警
+ * @retval false  其他报警，或安全端口未注册
+ */
+bool op_mode_alarm_port_is_estop(uint32_t alarm_code);
+
+/**
+ * @brief  执行延后完备停机（领域 API + 可选全量安全输出）
+ * @note   在 EVT_HW_ESTOP_ON 消费后于 event_dispatch 线程调用，
+ *         可含总线 flush 与领域状态收敛。
+ */
+void safety_deferred_stop(void);
+
 #ifdef __cplusplus
 }
 #endif

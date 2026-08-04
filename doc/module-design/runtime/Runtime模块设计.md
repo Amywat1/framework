@@ -288,7 +288,9 @@ loop:
     usleep(THD_SAFETY_THREAD_POLL_US)
 ```
 
-`device_stop_all_actuators()` 委托 `safety_cutout_execute()`。`hw_estop_port_is_active()` 与 `safety_cutout_execute()` 都有弱符号默认实现，项目可覆盖。
+`device_stop_all_actuators()` 委托 `safety_cutout_execute()`。这两个入口与 `hw_estop_port_is_active()`
+均由项目通过 `safety_port_register()` 注册 `safety_ops_t` 提供实现，未注册时故障安全并首次告警，
+可由 `port_contract_validate(PORT_REQ_SAFETY)` 在启动期拦住。
 
 ### 6.2 Event Bus Fatal
 

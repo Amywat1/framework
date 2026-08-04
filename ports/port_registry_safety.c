@@ -10,10 +10,6 @@
  */
 
 #include "common/log.h"
-#include "ports/outbound/safety/hw_estop_port.h"
-#include "ports/outbound/safety/op_mode_alarm_port.h"
-#include "ports/outbound/safety/safety_cutout_port.h"
-#include "ports/outbound/safety/safety_deferred_stop.h"
 #include "ports/outbound/safety/safety_port.h"
 
 #include <limits.h>
