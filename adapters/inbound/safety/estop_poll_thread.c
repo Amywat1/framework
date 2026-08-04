@@ -24,9 +24,18 @@
 static void handle_estop_edge(bool active)
 {
     if (active) {
-        safety_cutout_execute();
+        /* 切断失败不在此重试：重试会延长动力输出未确认切断的窗口，且失败原因
+         * 通常在硬件链路本身（总线离线、板卡无响应），重试无从改变。此处只保证
+         * 失败被记录，并且失败不阻断后续事件发布——EVT_HW_ESTOP_ON 必须照常送出，
+         * 否则领域层不会进入急停态，故障会同时丢掉切断与状态收敛两条路径。 */
+        sw_err_t cut_ret = safety_cutout_execute();
+
         (void)event_publish(EVT_HW_ESTOP_ON, 0U);
-        LOG_WARN("estop_poll: HW ESTOP ON");
+        if (cut_ret != SW_OK) {
+            LOG_ERROR("estop_poll: HW ESTOP ON，但切断未确认完成 ret=%d", (int)cut_ret);
+        } else {
+            LOG_WARN("estop_poll: HW ESTOP ON");
+        }
     } else {
         (void)event_publish(EVT_HW_ESTOP_OFF, 0U);
         LOG_INFO("estop_poll: HW ESTOP OFF");

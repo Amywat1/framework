@@ -20,10 +20,13 @@
 static atomic_uint s_cutout_count;
 static atomic_uint s_deferred_stop_count;
 
-static void sim_cutout(void)
+static sw_err_t sim_cutout(void)
 {
     atomic_fetch_add(&s_cutout_count, 1U);
     LOG_WARN("safety_sim: cutout（仿真：无实际输出可切断）");
+    /* 仿真没有可失败的硬件写入，恒为成功。若需验证失败分支，
+     * 由测试注册自己的 ops 返回错误码，不在此处埋可配置的失败开关。 */
+    return SW_OK;
 }
 
 static bool sim_estop_is_active(void)

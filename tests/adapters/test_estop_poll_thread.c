@@ -44,9 +44,12 @@ static void *event_dispatch_thread_fn(void *arg)
 }
 
 /* 安全端口测试替身：cutout 计数，急停状态取自 hw_estop_sim */
-static void fake_cutout(void)
+static sw_err_t s_cutout_ret = SW_OK;
+
+static sw_err_t fake_cutout(void)
 {
     s_cutout_count++;
+    return s_cutout_ret;
 }
 
 static bool fake_estop_is_active(void)
@@ -80,6 +83,7 @@ void setUp(void)
     s_estop_on_count  = 0;
     s_estop_off_count = 0;
     s_cutout_count    = 0;
+    s_cutout_ret      = SW_OK;
 }
 
 void tearDown(void)
@@ -130,10 +134,38 @@ static void test_estop_edges_publish_events(void)
     TEST_ASSERT_TRUE(s_estop_off_count >= 1);
 }
 
+/*
+ * 切断失败时事件仍须照常发布。
+ *
+ * 这是本轮改动要锁住的关键性质：若 cutout 失败让 estop 线程提前返回，领域层
+ * 就收不到 EVT_HW_ESTOP_ON，设备既没切断也不进急停态，两条路径同时丢失。
+ * 复用上一用例已启动的线程（线程 detach 后无法停止，故不重复启动）。
+ */
+static void test_cutout_failure_still_publishes_event(void)
+{
+    /* setUp 的 event_bus_init 会清空订阅表，故本用例自行订阅，不依赖前序用例 */
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_subscribe(EVT_HW_ESTOP_ON, on_estop_on));
+
+    s_cutout_ret     = SW_ERR_HW;
+    s_estop_on_count = 0;
+    s_cutout_count   = 0;
+
+    hw_estop_sim_set_active(true);
+    usleep(30000U);
+
+    TEST_ASSERT_TRUE(s_cutout_count >= 1);
+    TEST_ASSERT_TRUE(s_estop_on_count >= 1);
+
+    s_cutout_ret = SW_OK;
+    hw_estop_sim_set_active(false);
+    usleep(30000U);
+}
+
 int main(void)
 {
     UNITY_BEGIN();
     RUN_TEST(test_init_registers_estop_poll_thread);
     RUN_TEST(test_estop_edges_publish_events);
+    RUN_TEST(test_cutout_failure_still_publishes_event);
     return UNITY_END();
 }

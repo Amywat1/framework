@@ -16,6 +16,7 @@
 #include "ports/outbound/safety/safety_deferred_stop.h"
 #include "ports/outbound/safety/safety_port.h"
 
+#include <limits.h>
 #include <stddef.h>
 
 static const safety_ops_t *s_ops;
@@ -49,6 +50,9 @@ static bool s_warned_estop;
 static bool s_warned_alarm;
 static bool s_warned_deferred;
 
+/** 累计切断失败次数；未注册导致的未执行不计入此处，由 warn_once 单独反映 */
+static unsigned s_cutout_failure_count;
+
 static void warn_once(bool *flag, const char *what)
 {
     if (!*flag) {
@@ -61,15 +65,33 @@ static void warn_once(bool *flag, const char *what)
  * 调用侧包装
  * ------------------------------------------------------------------------- */
 
-void safety_cutout_execute(void)
+sw_err_t safety_cutout_execute(void)
 {
     const safety_ops_t *ops = s_ops;
+    sw_err_t            ret;
 
     if ((ops == NULL) || (ops->cutout == NULL)) {
         warn_once(&s_warned_cutout, "safety_cutout_execute");
-        return;
+        return SW_ERR_NOT_INIT;
     }
-    ops->cutout();
+
+    ret = ops->cutout();
+    if (ret != SW_OK) {
+        /* 切断未能确认完成，是安全链路最严重的失败之一，因此不做首次节流，
+         * 每次都记录：急停期间这里的每一条都是现场判因的关键证据。
+         * 计数用于诊断上报与测试断言。 */
+        if (s_cutout_failure_count < UINT_MAX) {
+            s_cutout_failure_count++;
+        }
+        LOG_ERROR(
+            "safety_port: 切断动力输出失败 ret=%d（累计 %u 次），无法确认已完全切断", (int)ret, s_cutout_failure_count);
+    }
+    return ret;
+}
+
+unsigned safety_cutout_failure_count(void)
+{
+    return s_cutout_failure_count;
 }
 
 bool hw_estop_port_is_active(void)
@@ -109,9 +131,10 @@ void safety_deferred_stop(void)
 
 void port_registry_safety_reset(void)
 {
-    s_ops             = NULL;
-    s_warned_cutout   = false;
-    s_warned_estop    = false;
-    s_warned_alarm    = false;
-    s_warned_deferred = false;
+    s_ops                  = NULL;
+    s_warned_cutout        = false;
+    s_warned_estop         = false;
+    s_warned_alarm         = false;
+    s_warned_deferred      = false;
+    s_cutout_failure_count = 0U;
 }

@@ -18,9 +18,12 @@ static unsigned s_deferred_calls;
 static bool     s_estop_state;
 static uint32_t s_last_alarm_code;
 
-static void fake_cutout(void)
+static sw_err_t s_cutout_ret = SW_OK;
+
+static sw_err_t fake_cutout(void)
 {
     s_cutout_calls++;
+    return s_cutout_ret;
 }
 
 static bool fake_estop_is_active(void)
@@ -53,6 +56,7 @@ void setUp(void)
     s_deferred_calls  = 0U;
     s_estop_state     = false;
     s_last_alarm_code = 0U;
+    s_cutout_ret      = SW_OK;
 }
 
 void tearDown(void)
@@ -65,7 +69,8 @@ static void test_unregistered_is_safe(void)
 {
     TEST_ASSERT_NULL(safety_port_get_ops());
 
-    safety_cutout_execute();
+    /* 未注册返回 SW_ERR_NOT_INIT，与"已执行但失败"区分开 */
+    TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_INIT, safety_cutout_execute());
     safety_deferred_stop();
     TEST_ASSERT_FALSE(hw_estop_port_is_active());
     TEST_ASSERT_FALSE(op_mode_alarm_port_is_estop(0U));
@@ -77,7 +82,7 @@ static void test_registered_delegates(void)
 {
     TEST_ASSERT_EQUAL_INT(SW_OK, safety_port_register(&s_fake_ops));
 
-    safety_cutout_execute();
+    TEST_ASSERT_EQUAL_INT(SW_OK, safety_cutout_execute());
     TEST_ASSERT_EQUAL_UINT(1U, s_cutout_calls);
 
     safety_deferred_stop();
@@ -130,7 +135,7 @@ static void test_rejected_registration_keeps_previous(void)
     TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, safety_port_register(&s_bad));
 
     TEST_ASSERT_EQUAL_PTR(&s_fake_ops, safety_port_get_ops());
-    safety_cutout_execute();
+    TEST_ASSERT_EQUAL_INT(SW_OK, safety_cutout_execute());
     TEST_ASSERT_EQUAL_UINT(1U, s_cutout_calls);
 }
 
@@ -142,8 +147,36 @@ static void test_null_unregisters(void)
     TEST_ASSERT_NULL(safety_port_get_ops());
 
     /* 解除后回到故障安全行为 */
-    safety_cutout_execute();
+    TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_INIT, safety_cutout_execute());
     TEST_ASSERT_EQUAL_UINT(0U, s_cutout_calls);
+}
+
+/* 切断失败必须原样上传给调用方，并被计数 */
+static void test_cutout_failure_reported_and_counted(void)
+{
+    TEST_ASSERT_EQUAL_INT(SW_OK, safety_port_register(&s_fake_ops));
+    TEST_ASSERT_EQUAL_UINT(0U, safety_cutout_failure_count());
+
+    s_cutout_ret = SW_ERR_HW;
+    TEST_ASSERT_EQUAL_INT(SW_ERR_HW, safety_cutout_execute());
+    TEST_ASSERT_EQUAL_UINT(1U, s_cutout_calls);
+    TEST_ASSERT_EQUAL_UINT(1U, safety_cutout_failure_count());
+
+    /* 连续失败逐次累加，不做首次节流：每一条都是现场判因证据 */
+    TEST_ASSERT_EQUAL_INT(SW_ERR_HW, safety_cutout_execute());
+    TEST_ASSERT_EQUAL_UINT(2U, safety_cutout_failure_count());
+
+    /* 恢复成功后不再累加，计数只反映失败 */
+    s_cutout_ret = SW_OK;
+    TEST_ASSERT_EQUAL_INT(SW_OK, safety_cutout_execute());
+    TEST_ASSERT_EQUAL_UINT(2U, safety_cutout_failure_count());
+}
+
+/* 未注册导致的"未执行"不计入切断失败计数，两者语义不同 */
+static void test_unregistered_not_counted_as_failure(void)
+{
+    TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_INIT, safety_cutout_execute());
+    TEST_ASSERT_EQUAL_UINT(0U, safety_cutout_failure_count());
 }
 
 int main(void)
@@ -154,5 +187,7 @@ int main(void)
     RUN_TEST(test_partial_ops_rejected);
     RUN_TEST(test_rejected_registration_keeps_previous);
     RUN_TEST(test_null_unregisters);
+    RUN_TEST(test_cutout_failure_reported_and_counted);
+    RUN_TEST(test_unregistered_not_counted_as_failure);
     return UNITY_END();
 }
