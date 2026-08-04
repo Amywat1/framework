@@ -14,6 +14,7 @@ extern "C" {
 
 #include <stddef.h>
 #include <stdint.h>
+#include <time.h>
 
 /**
  * @brief 周期任务回调函数
@@ -47,6 +48,20 @@ sw_err_t periodic_task_register(const char        *name,
                                 int                sched_policy,
                                 int                prio,
                                 size_t             stack_size);
+
+/**
+ * @brief  计算下一拍的绝对截止时间
+ * @param  deadline  [in,out] 当前拍的截止时间，返回时被推进到下一拍
+ * @param  period_ms 周期毫秒数，必须大于 0
+ * @param  now       调用时刻的当前时间（CLOCK_MONOTONIC）
+ * @return 本次跳过的拍数，0 表示未超时、未跳拍
+ * @note   周期任务线程体的时间推进逻辑本体，独立导出以便直接验证时序行为，
+ *         无需依赖真实 sleep。语义：先推进一个周期；若推进后仍不晚于 now，
+ *         说明回调耗时超过一个周期，继续推进直到截止时间严格晚于 now，
+ *         即跳过已错过的拍而不逐拍追赶。
+ * @note   参数非法（deadline 为空或 period_ms 为 0）时不做任何修改并返回 0。
+ */
+uint32_t periodic_task_next_deadline(struct timespec *deadline, uint32_t period_ms, const struct timespec *now);
 
 #ifdef __cplusplus
 }

@@ -60,6 +60,25 @@ static bool deadline_reached(const struct timespec *a, const struct timespec *b)
     return a->tv_nsec >= b->tv_nsec;
 }
 
+uint32_t periodic_task_next_deadline(struct timespec *deadline, uint32_t period_ms, const struct timespec *now)
+{
+    uint32_t skipped = 0U;
+
+    if ((deadline == NULL) || (now == NULL) || (period_ms == 0U)) {
+        return 0U;
+    }
+
+    advance_deadline(deadline, period_ms);
+
+    /* 推进后若仍不晚于 now，说明回调耗时超过一个周期：跳过已错过的拍而不追赶 */
+    while (deadline_reached(now, deadline)) {
+        advance_deadline(deadline, period_ms);
+        skipped++;
+    }
+
+    return skipped;
+}
+
 static void *periodic_task_thread_fn(void *arg)
 {
     periodic_task_slot_t *slot = (periodic_task_slot_t *)arg;
@@ -78,12 +97,8 @@ static void *periodic_task_thread_fn(void *arg)
 
         slot->fn(slot->ctx);
 
-        advance_deadline(&deadline, slot->period_ms);
-
         (void)clock_gettime(CLOCK_MONOTONIC, &now);
-        while (deadline_reached(&now, &deadline)) {
-            advance_deadline(&deadline, slot->period_ms);
-        }
+        (void)periodic_task_next_deadline(&deadline, slot->period_ms, &now);
 
         while (clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &deadline, NULL) != 0) {
             /* 仅 EINTR 需要重试；其余错误无法通过重试恢复，退出线程交由上层诊断 */

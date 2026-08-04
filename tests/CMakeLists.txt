@@ -575,6 +575,14 @@ add_unit_test(test_engine_program_json
     ${WDF_ROOT}/third_party/cJSON/cJSON.c
 )
 
+add_unit_test(test_periodic_deadline
+    ${CMAKE_CURRENT_SOURCE_DIR}/runtime/test_periodic_deadline.c
+    ${WDF_ROOT}/runtime/scheduler/periodic_task.c
+    ${WDF_ROOT}/runtime/scheduler/thread_registry.c
+    ${WDF_ROOT}/common/log.c
+    ${WDF_ROOT}/common/sw_mutex.c
+)
+
 add_unit_test(test_scheduler
     ${CMAKE_CURRENT_SOURCE_DIR}/runtime/test_scheduler.c
     ${WDF_ROOT}/runtime/scheduler/thread_registry.c
@@ -648,4 +656,17 @@ target_link_options(test_tick_no_alloc PRIVATE
     -Wl,--wrap=calloc
     -Wl,--wrap=realloc
     -Wl,--wrap=strdup
+)
+
+# ---------------------------------------------------------------------------
+# bootstrap 钩子注册契约（行为契约 BOOT-08）
+#
+# 只链接 bootstrap.c，其余外部符号由测试内桩提供：本测试验证的是钩子字段
+# 校验，把真实模块链进来会让失败原因可能来自任意被链接模块，失去定位价值。
+# ---------------------------------------------------------------------------
+add_unit_test(test_bootstrap_hooks
+    ${CMAKE_CURRENT_SOURCE_DIR}/runtime/test_bootstrap_hooks.c
+    ${WDF_ROOT}/runtime/bootstrap/bootstrap.c
+    ${WDF_ROOT}/common/log.c
+    ${WDF_ROOT}/common/sw_mutex.c
 )

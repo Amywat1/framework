@@ -459,6 +459,124 @@ else
 fi
 
 # -----------------------------------------------------------------------------
+# R18: 阻塞等待必须分类，等应答类必须有界，且截止时间不得在重试循环内重算
+#
+# 对应行为契约 ERRM-05、CMD-04。
+#
+# 为何做成分类规则：ERRM-05 原文写"所有等待操作有超时上限"，逐点核查后该表述
+# 不成立——事件总线 dispatch 与引擎会话工作线程都在无限等待"下一件工作到来"，
+# 给它们加超时只会得到一个空转唤醒的循环，没有任何收益。真正的不变量是：
+# 等"对方的应答/完成"必须有界（否则一次丢失的 post 就永久挂死一条链路），
+# 等"新工作到来"不需要有界。这个区分静态判不出来，故逐点登记，未登记即报错。
+#
+# CMD-04 部分是结构性质：sem_timedwait 是绝对截止时间语义，若 EINTR 重试时
+# 重新计算截止时间，每次信号都会把总等待时长再延长一个 wait_ms，超时上限失效。
+# 故断言 time_util_fill_deadline 必须出现在重试循环之前，且循环体内没有它。
+#
+# 已知局限：本规则只扫描下列 WAIT_PRIMITIVES 中显式列出的原语。若引入
+# pthread_barrier_wait、mq_receive、epoll_wait 等未列入的阻塞调用，规则不会报错。
+# 建表时已核查过 nanosleep/poll/select/epoll_wait/pthread_join/recv/read/sigwait/
+# mq_receive/pthread_barrier_wait，框架生产代码中均无真实调用（poll 与 read 的命中
+# 是 ops->poll()、ops->read() 这类函数指针调用，属项目注册的回调，不是 POSIX 原语）。
+# 新增阻塞原语时须同步扩充 WAIT_PRIMITIVES，否则这条规则对它是空过。
+# -----------------------------------------------------------------------------
+
+# 被扫描的阻塞原语，新增阻塞调用方式时须同步扩充
+WAIT_PRIMITIVES=(
+    sem_wait sem_timedwait
+    pthread_cond_wait pthread_cond_timedwait
+    clock_nanosleep usleep
+)
+
+# 有界等待：等应答或等完成，必须带绝对截止时间
+BOUNDED_WAIT_SITES=(
+    "application/command_gateway.c:sem_timedwait"          # 等 handler 回执
+    "application/engine_session/engine_session.c:sem_timedwait" # 等启动完成
+    "runtime/scheduler/periodic_task.c:clock_nanosleep"    # 绝对下一拍唤醒
+)
+
+# 无界等待：等新工作到来，不设超时须逐个说明依据
+UNBOUNDED_WAIT_SITES=(
+    "runtime/event_bus/event_bus.c:sem_wait"               # dispatch 线程等下一个事件
+    "application/engine_session/engine_session.c:sem_wait" # 工作线程等下一次启动请求
+)
+
+# 固定时长轮询：睡眠时长是编译期常量或配置值，本身即上限
+FIXED_SLEEP_SITES=(
+    "adapters/inbound/safety/estop_poll_thread.c:usleep"
+    "adapters/outbound/hal/providers/snack/io_exp/io_exp_driver.c:usleep"
+    "application/engine_session/engine_session.c:usleep"
+)
+
+wait_unclassified=""
+deadline_violations=""
+
+while IFS= read -r line; do
+    [ -z "$line" ] && continue
+    f="${line%%:*}"
+    prim="${line##*:}"
+    rel="${f#"${FW_ROOT}"/}"
+    key="${rel}:${prim}"
+    is_known=0
+    for k in "${BOUNDED_WAIT_SITES[@]}" "${UNBOUNDED_WAIT_SITES[@]}" "${FIXED_SLEEP_SITES[@]}"; do
+        if [ "$key" = "$k" ]; then is_known=1; break; fi
+    done
+    if [ "$is_known" -eq 0 ]; then
+        wait_unclassified="${wait_unclassified}  ${key}"$'\n'
+    fi
+done <<EOF
+$(for prim in "${WAIT_PRIMITIVES[@]}"; do
+    grep -rlE "(^|[^_[:alnum:]])${prim}[[:space:]]*\(" --include='*.c' "${FW_ROOT}" 2>/dev/null \
+        | grep -v "${FW_ROOT}/third_party/" \
+        | grep -v "${FW_ROOT}/tests/" \
+        | grep -v "${FW_ROOT}/build" \
+        | grep -v "${FW_ROOT}/demo/" \
+        | while IFS= read -r ff; do echo "${ff}:${prim}"; done
+  done | sort -u)
+EOF
+
+# CMD-04: 截止时间必须在重试循环之外计算
+for site in "${BOUNDED_WAIT_SITES[@]}"; do
+    sf="${FW_ROOT}/${site%%:*}"
+    sp="${site##*:}"
+    [ "$sp" = "sem_timedwait" ] || continue
+    [ -f "$sf" ] || continue
+    if ! grep -q 'time_util_fill_deadline' "$sf" 2>/dev/null; then
+        deadline_violations="${deadline_violations}  ${site%%:*}: 用了 sem_timedwait 但未见 time_util_fill_deadline"$'\n'
+        continue
+    fi
+    # 取 fill_deadline 与 sem_timedwait 的行号，前者必须严格早于后者
+    fill_ln="$(grep -n 'time_util_fill_deadline' "$sf" | head -1 | cut -d: -f1)"
+    wait_ln="$(grep -n 'sem_timedwait' "$sf" | tail -1 | cut -d: -f1)"
+    if [ -n "$fill_ln" ] && [ -n "$wait_ln" ] && [ "$fill_ln" -ge "$wait_ln" ]; then
+        deadline_violations="${deadline_violations}  ${site%%:*}: 截止时间计算未早于等待调用"$'\n'
+    fi
+    # 重试循环体内不得重算截止时间：do{...}while(EINTR) 区间内出现即违规
+    if awk '/do[[:space:]]*\{/{ind=1} ind&&/time_util_fill_deadline/{found=1} ind&&/while.*EINTR/{ind=0} END{exit !found}' "$sf"; then
+        deadline_violations="${deadline_violations}  ${site%%:*}: EINTR 重试循环内重算了截止时间"$'\n'
+    fi
+done
+
+TOTAL_RULES=$((TOTAL_RULES + 1))
+if [ -z "$wait_unclassified" ] && [ -z "$deadline_violations" ]; then
+    echo "[PASS] R18: 阻塞等待均已分类（有界 ${#BOUNDED_WAIT_SITES[@]}、无界 ${#UNBOUNDED_WAIT_SITES[@]}、定时 ${#FIXED_SLEEP_SITES[@]}），截止时间未在重试内重算"
+else
+    echo ""
+    if [ -n "$wait_unclassified" ]; then
+        echo "[FAIL] R18: 以下阻塞等待调用点未登记分类"
+        printf '%s' "$wait_unclassified"
+        echo "  修正: 在 check_arch_boundary.sh 的 BOUNDED_WAIT_SITES / UNBOUNDED_WAIT_SITES / FIXED_SLEEP_SITES 中登记"
+        echo '        判据: 等应答或等完成必须有界；仅“等新工作到来”可无界'
+    fi
+    if [ -n "$deadline_violations" ]; then
+        echo "[FAIL] R18: 以下有界等待的截止时间计算位置有问题"
+        printf '%s' "$deadline_violations"
+        echo "  修正: 截止时间须在 EINTR 重试循环之前计算一次并按指针复用"
+    fi
+    TOTAL_VIOLATIONS=$((TOTAL_VIOLATIONS + 1))
+fi
+
+# -----------------------------------------------------------------------------
 # R17: 表达式求值器只允许依赖白名单内的框架头
 #
 # 对应行为契约 ENGN-04（表达式求值不产生副作用）。方案表达式来自部署时下发的
