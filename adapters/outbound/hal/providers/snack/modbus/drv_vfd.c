@@ -8,6 +8,7 @@
 #include "drv_vfd.h"
 
 #include "common/log.h"
+#include "common/sw_mutex.h"
 #include "drv_modbus_link.h"
 
 #include <pthread.h>
@@ -174,9 +175,14 @@ sw_err_t drv_vfd_init(drv_vfd_t        *vfd,
 
     (void)memset(vfd, 0, sizeof(*vfd));
 
-    if (pthread_mutex_init(&vfd->io_mutex, NULL) != 0) {
-        LOG_ERROR("drv_vfd_init[addr=%d]: io_mutex init failed", modbus_addr);
-        return SW_ERR_HW;
+    /* io_mutex 位于急停切断链路上：
+     *   estop_poll(SCHED_FIFO) → safety_cutout_execute → 项目 cutout
+     *     → hal_vfd 停机 → ops->stop_outputs → drv_vfd_stop_outputs → 本锁
+     * 同一把锁又被 VFD 轮询等 SCHED_OTHER 周期任务竞争，故须启用优先级继承，
+     * 否则普通优先级线程持锁期间被抢占会让急停线程无界阻塞。
+     * 返回 false 表示平台不支持、已退化为默认互斥量，功能不受影响。 */
+    if (!sw_mutex_init_prio_inherit(&vfd->io_mutex)) {
+        LOG_WARN("drv_vfd_init[addr=%d]: 优先级继承不可用，已退化为默认互斥量", modbus_addr);
     }
 
     ret = drv_modbus_link_init(

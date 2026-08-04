@@ -8,6 +8,7 @@
 #include "drv_modbus_link.h"
 
 #include "common/log.h"
+#include "common/sw_mutex.h"
 #include "modbus/modbus-rtu.h"
 
 #include <pthread.h>
@@ -27,7 +28,25 @@ typedef struct {
 } link_bus_port_t;
 
 static link_bus_port_t s_bus_ports[LINK_BUS_PORT_MAX];
-static pthread_mutex_t s_global_mutex = PTHREAD_MUTEX_INITIALIZER;
+
+/* 本锁只保护总线端口表的分配与释放（init/deinit），不在急停链路上。但本文件
+ * 整体被登记为 RT 可达（见 check_arch_boundary.sh 的 R16），故此处同样启用优先级
+ * 继承：让"同一文件内的锁统一处理"成为不变量，比逐把锁记录可达性更容易维持，
+ * 也免除了后来者在此处重新做判断。用 pthread_once 是因为静态初始化过的互斥量
+ * 无法再调用 pthread_mutex_init（POSIX 未定义行为）。 */
+static pthread_mutex_t s_global_mutex;
+static pthread_once_t  s_global_mutex_once = PTHREAD_ONCE_INIT;
+
+static void link_global_mutex_init_once(void)
+{
+    (void)sw_mutex_init_prio_inherit(&s_global_mutex);
+}
+
+/** @brief 确保总线表锁已初始化（幂等，所有加锁点入口调用）*/
+static void link_global_mutex_ready(void)
+{
+    (void)pthread_once(&s_global_mutex_once, link_global_mutex_init_once);
+}
 
 /* -------------------------------------------------------------------------
  * 总线端口表管理
@@ -42,6 +61,7 @@ static sw_err_t link_bus_port_bind(const char *serial_port, int baud, void **out
         return SW_ERR_PARAM;
     }
 
+    link_global_mutex_ready();
     (void)pthread_mutex_lock(&s_global_mutex);
 
     for (i = 0U; i < LINK_BUS_PORT_MAX; i++) {
@@ -75,13 +95,14 @@ static sw_err_t link_bus_port_bind(const char *serial_port, int baud, void **out
     s_bus_ports[free_idx].ref_count                              = 1U;
     s_bus_ports[free_idx].mutex_inited                           = false;
 
-    if (pthread_mutex_init(&s_bus_ports[free_idx].mutex, NULL) != 0) {
-        s_bus_ports[free_idx].port_path[0] = '\0';
-        s_bus_ports[free_idx].baud         = 0;
-        s_bus_ports[free_idx].ref_count    = 0U;
-        LOG_ERROR("drv_modbus_link: pthread_mutex_init failed for %s", serial_port);
-        ret = SW_ERR_HW;
-        goto out;
+    /* 总线锁按 RT 可达处理：本框架自带的切断链路只写 DO、不写寄存器，故当前
+     * 这把锁不在急停路径上。但项目的 cutout 实现完全可能改为直写变频器停机
+     * 寄存器（这是等效且常见的做法），届时本锁即进入急停链路。
+     *
+     * 对非 RT 锁启用优先级继承的代价不可测量；对 RT 锁漏启用的代价是无界优先级
+     * 反转。故这里取保守侧，不依赖"项目不会那样实现"这一假设。 */
+    if (!sw_mutex_init_prio_inherit(&s_bus_ports[free_idx].mutex)) {
+        LOG_WARN("drv_modbus_link: 优先级继承不可用，已退化为默认互斥量 (%s)", serial_port);
     }
     s_bus_ports[free_idx].mutex_inited = true;
     s_bus_ports[free_idx].in_use       = true;
@@ -100,6 +121,7 @@ static void link_bus_port_unbind(void *bus_lock)
         return;
     }
 
+    link_global_mutex_ready();
     (void)pthread_mutex_lock(&s_global_mutex);
 
     for (i = 0U; i < LINK_BUS_PORT_MAX; i++) {

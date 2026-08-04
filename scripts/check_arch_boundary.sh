@@ -355,6 +355,116 @@ else
 fi
 
 # -----------------------------------------------------------------------------
+# R16: 实时可达的互斥量必须启用优先级继承
+#
+# 对应行为契约 ARCH-16。急停采集线程以 SCHED_FIFO 高优先级运行，其切断链路会
+# 取得多把互斥量，而同样的锁被 SCHED_OTHER 周期任务竞争。普通优先级线程持锁
+# 期间被抢占时，急停线程的阻塞时长不受任何优先级保护，构成无界优先级反转。
+#
+# 为何做成分类规则而不是调用图分析：切断链路全程经端口跳转
+# （safety_cutout_execute → 项目注册的 cutout → HAL 端口 → 项目适配器），
+# 可达集合取决于项目注册了什么，框架静态分析不出来。故改为对每个持锁文件
+# 显式分类，RT 可达的必须用 sw_mutex_init_prio_inherit()。
+#
+# 分类取保守侧：对非 RT 锁启用优先级继承的代价不可测量，对 RT 锁漏启用的代价
+# 是无界优先级反转。凡"项目的合理实现可能使其进入急停链路"的锁一律计入 RT。
+#
+# 本规则同时防两种漏：
+#   1) RT 可达文件里出现裸 PTHREAD_MUTEX_INITIALIZER 或 pthread_mutex_init(,NULL)
+#   2) 新增持锁文件未登记分类（未登记即报错，强制作者表态）
+#
+# 加这条规则的直接起因：上一轮转换六把锁时只 grep 了静态宏
+# PTHREAD_MUTEX_INITIALIZER，运行期 pthread_mutex_init(&m, NULL) 建的锁全部漏掉，
+# 其中 drv_vfd.c 的 io_mutex 确实在切断链路上。单次人工审计会漏，规则不会。
+# -----------------------------------------------------------------------------
+
+# RT 可达：必须启用优先级继承
+RT_REACHABLE_FILES=(
+    "common/log.c"                                                  # 急停边沿每次都写日志
+    "runtime/event_bus/event_bus.c"                                 # 急停事件发布
+    "adapters/outbound/hal/sim/hal_io_sim.c"                        # 仿真 DO 写
+    "adapters/outbound/hal/providers/snack/io_exp/io_exp_driver.c"  # 真机 DO 写
+    "adapters/outbound/hal/components/vfd_manager/hal_vfd_manager.c" # 电机停机
+    "adapters/outbound/hal/providers/snack/modbus/drv_vfd.c"        # stop_outputs
+    "adapters/outbound/hal/providers/snack/modbus/drv_modbus_link.c" # 项目 cutout 可能直写寄存器
+)
+
+# 非 RT 可达：允许默认互斥量，须逐个说明依据
+NON_RT_FILES=(
+    "application/command_gateway.c"                       # 命令提交，非急停路径
+    "domain/safety/alarm_registry/alarm_registry.c"        # 由报警采集线程驱动
+    "domain/telemetry/device_snapshot.c"                   # 投影读写
+    "domain/device_control/patterns/fluid_path.c"          # emergency_off 是无锁原子写
+    "adapters/outbound/storage/json/json_deploy_store.c"   # 启动期加载
+    "adapters/outbound/storage/json/json_param_store.c"    # 参数存取
+    "adapters/outbound/hal/components/adc_gate/hal_adc_gate.c"       # 模拟量采样
+    "adapters/outbound/hal/components/sensor_filter/hal_sensor_filter.c" # 传感器滤波
+    "adapters/outbound/hal/providers/snack/modbus/drv_voice.c"       # 语音播报
+    "application/engine_session/engine_session.c"          # 会话启动
+    "observability/core/observation.c"                     # 旁路记录
+    "observability/recorder/blackbox_recorder.c"           # 旁路记录
+)
+
+rt_violations=""
+unclassified=""
+
+while IFS= read -r f; do
+    rel="${f#"${FW_ROOT}"/}"
+    is_rt=0
+    is_known=0
+    for k in "${RT_REACHABLE_FILES[@]}"; do
+        if [ "$rel" = "$k" ]; then is_rt=1; is_known=1; break; fi
+    done
+    if [ "$is_known" -eq 0 ]; then
+        for k in "${NON_RT_FILES[@]}"; do
+            if [ "$rel" = "$k" ]; then is_known=1; break; fi
+        done
+    fi
+
+    if [ "$is_known" -eq 0 ]; then
+        unclassified="${unclassified}  ${rel}"$'\n'
+        continue
+    fi
+
+    if [ "$is_rt" -eq 1 ]; then
+        # RT 可达文件中不得出现裸初始化
+        if grep -qE 'PTHREAD_MUTEX_INITIALIZER' "$f" 2>/dev/null; then
+            rt_violations="${rt_violations}  ${rel}: 使用了 PTHREAD_MUTEX_INITIALIZER"$'\n'
+        fi
+        if grep -qE 'pthread_mutex_init[[:space:]]*\([^,]+,[[:space:]]*NULL' "$f" 2>/dev/null; then
+            rt_violations="${rt_violations}  ${rel}: 使用了 pthread_mutex_init(, NULL)"$'\n'
+        fi
+    fi
+done <<EOF
+$(grep -rlE 'pthread_mutex_t' --include='*.c' "${FW_ROOT}" 2>/dev/null \
+    | grep -v "${FW_ROOT}/third_party/" \
+    | grep -v "${FW_ROOT}/tests/" \
+    | grep -v "${FW_ROOT}/build" \
+    | grep -v "${FW_ROOT}/common/sw_mutex.c" \
+    | grep -v "${FW_ROOT}/demo/" \
+    | sort)
+EOF
+
+TOTAL_RULES=$((TOTAL_RULES + 1))
+if [ -z "$rt_violations" ] && [ -z "$unclassified" ]; then
+    echo "[PASS] R16: 实时可达互斥量均启用优先级继承（${#RT_REACHABLE_FILES[@]} 个 RT 文件已登记）"
+else
+    echo ""
+    if [ -n "$rt_violations" ]; then
+        echo "[FAIL] R16: 以下 RT 可达文件使用了默认互斥量"
+        printf '%s' "$rt_violations"
+        echo "  修正: 改用 common/sw_mutex.h 的 sw_mutex_init_prio_inherit()"
+    fi
+    if [ -n "$unclassified" ]; then
+        echo "[FAIL] R16: 以下持锁文件未登记 RT 可达性分类"
+        printf '%s' "$unclassified"
+        echo "  修正: 在 check_arch_boundary.sh 的 RT_REACHABLE_FILES 或 NON_RT_FILES 中登记"
+        echo "        判据: 该锁是否可能被急停切断链路取得（含项目 cutout 的合理实现）"
+    fi
+    TOTAL_VIOLATIONS=$((TOTAL_VIOLATIONS + 1))
+fi
+
+# -----------------------------------------------------------------------------
 echo ""
 echo "======================================================="
 if [ "${TOTAL_VIOLATIONS}" -eq 0 ]; then
