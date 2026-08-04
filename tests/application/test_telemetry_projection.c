@@ -58,6 +58,13 @@ static void publish_and_wait(event_type_t type, uint32_t param)
 
 void setUp(void)
 {
+    /* 快照是进程级全局态，不复位则用例只在"先写后读"的写法下偶然成立，
+     * 一旦有用例断言某子域的绝对值就会依赖执行顺序。 */
+    device_snapshot_reset_for_test();
+
+    /* 同理清空报警表：残留的活动报警会让 op_mode 推导出 EXCEPTION，
+     * 断言 IDLE 的用例便只在"报警用例之后不执行"的顺序下成立。 */
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_init());
 }
 
 void tearDown(void)

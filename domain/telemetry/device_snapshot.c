@@ -10,6 +10,7 @@
 #include "domain/telemetry/device_snapshot_internal.h"
 
 #include <pthread.h>
+#include <string.h>
 
 static device_snapshot_t s_state;
 static pthread_mutex_t   s_mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -79,4 +80,11 @@ bool safety_snapshot_is_warning_active(void)
 wash_snapshot_t wash_snapshot_get(void)
 {
     return device_snapshot_get().wash;
+}
+
+void device_snapshot_reset_for_test(void)
+{
+    pthread_mutex_lock(&s_mutex);
+    memset(&s_state, 0, sizeof(s_state));
+    pthread_mutex_unlock(&s_mutex);
 }

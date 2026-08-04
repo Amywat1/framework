@@ -471,6 +471,21 @@ sw_err_t alarm_registry_init(void)
         LOG_ERROR("alarm_registry: alarm_binding_register ret=%d", (int)ret);
         return ret;
     }
+
+    /* 清空全部运行期状态。bootstrap 在 bind 阶段调用本函数，且在
+     * project_bind_alarm_catalog 之前，故清空目录不会丢掉已加载的资产。 */
+    pthread_mutex_lock(&s_mutex);
+    memset(s_catalog, 0, sizeof(s_catalog));
+    s_catalog_count = 0U;
+    memset(s_active, 0, sizeof(s_active));
+    s_active_count = 0U;
+    memset(s_session_journal, 0, sizeof(s_session_journal));
+    s_session_journal_count = 0U;
+    s_session_active        = false;
+    memset(s_pending, 0, sizeof(s_pending));
+    s_pending_count = 0U;
+    pthread_mutex_unlock(&s_mutex);
+
     LOG_INFO("alarm_registry: init ok");
     return SW_OK;
 }

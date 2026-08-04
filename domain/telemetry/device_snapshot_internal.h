@@ -35,6 +35,17 @@ void device_snapshot_set_wash_mode(wash_mode_t mode);
  */
 void device_snapshot_set_cloud_connected(bool connected);
 
+/**
+ * @brief  清空快照全部子域（仅测试使用）
+ *
+ * @note   本模块没有 init 入口，快照靠加载期零初始化，进程内无从复位。
+ *         单元测试若断言快照的绝对值，就会隐式依赖用例执行顺序；本函数供
+ *         setUp 调用以消除该依赖。
+ * @note   禁止在生产路径调用：快照被云上报与状态投影读取，运行期清零会让
+ *         下游看到一个设备从未处于过的状态。
+ */
+void device_snapshot_reset_for_test(void);
+
 #ifdef __cplusplus
 }
 #endif
