@@ -9,6 +9,7 @@
 
 #include "common/io_handle.h"
 #include "common/log.h"
+#include "common/sw_mutex.h"
 #include "common/time_util.h"
 #include "ports/outbound/hal/hal_io_port.h"
 
@@ -32,8 +33,26 @@ static uint32_t            s_di_sequence[SIM_IO_BOARD_MAX];
 static bool                s_inited                    = false;
 static bool                s_started                   = false;
 static uint32_t            s_lifecycle_violation_count = 0U;
-static pthread_mutex_t     s_do_mutex                  = PTHREAD_MUTEX_INITIALIZER;
-static pthread_mutex_t     s_di_mutex                  = PTHREAD_MUTEX_INITIALIZER;
+/* DO 写位于急停切断热路径：safety_cutout_execute -> m8_safety_cutout ->
+ * hal_io do_set。该路径由 estop_poll 线程以 SCHED_FIFO 高优先级执行，而同
+ * 两把锁又被 SCHED_OTHER 周期任务（IO 刷新、传感器采样）竞争，故启用优先级
+ * 继承。本模块无 init 入口（靠加载期零初始化 + 首次使用），因此用
+ * pthread_once 在首次上锁前完成初始化。 */
+static pthread_mutex_t s_do_mutex;
+static pthread_mutex_t s_di_mutex;
+static pthread_once_t  s_mutex_once = PTHREAD_ONCE_INIT;
+
+static void sim_mutex_init_once(void)
+{
+    (void)sw_mutex_init_prio_inherit(&s_do_mutex);
+    (void)sw_mutex_init_prio_inherit(&s_di_mutex);
+}
+
+/** @brief 确保两把锁已初始化（幂等，所有加锁点入口调用）*/
+static void sim_mutexes_ready(void)
+{
+    (void)pthread_once(&s_mutex_once, sim_mutex_init_once);
+}
 
 static void sim_record_lifecycle_violation(const char *operation)
 {
@@ -84,6 +103,7 @@ void hal_io_sim_set_di_level(io_di_t pin, bool level)
     raw   = io_di_raw(pin);
     board = io_handle_board(raw);
     io    = io_handle_pin(raw);
+    sim_mutexes_ready();
     pthread_mutex_lock(&s_di_mutex);
     s_di_state[board][io] = level;
     if (s_started && (s_di_quality[board] == IO_SAMPLE_QUALITY_VALID)) {
@@ -108,6 +128,7 @@ static sw_err_t sim_do_set(io_do_t pin, bool val)
         return SW_ERR_NOT_INIT;
     }
 
+    sim_mutexes_ready();
     pthread_mutex_lock(&s_do_mutex);
     changed               = s_do_state[board][io] != val;
     s_do_state[board][io] = val;
@@ -135,6 +156,7 @@ sw_err_t hal_io_sim_get_do_level(io_do_t pin, bool *level)
     raw   = io_do_raw(pin);
     board = io_handle_board(raw);
     io    = io_handle_pin(raw);
+    sim_mutexes_ready();
     pthread_mutex_lock(&s_do_mutex);
     *level = s_do_state[board][io];
     pthread_mutex_unlock(&s_do_mutex);
@@ -162,6 +184,7 @@ static sw_err_t sim_di_read(io_di_t pin, io_di_sample_t *sample)
     raw   = io_di_raw(pin);
     board = io_handle_board(raw);
     io    = io_handle_pin(raw);
+    sim_mutexes_ready();
     pthread_mutex_lock(&s_di_mutex);
     sample->level   = s_di_state[board][io];
     sample->quality = s_di_quality[board];
@@ -181,6 +204,7 @@ void hal_io_sim_set_board_online(int board_id, bool online)
         return;
     }
 
+    sim_mutexes_ready();
     pthread_mutex_lock(&s_di_mutex);
     if (online) {
         s_di_quality[board_id]      = IO_SAMPLE_QUALITY_VALID;
@@ -226,6 +250,7 @@ static sw_err_t sim_io_start(void)
         sim_record_lifecycle_violation("start");
         return SW_ERR_NOT_INIT;
     }
+    sim_mutexes_ready();
     pthread_mutex_lock(&s_di_mutex);
     s_started = true;
     for (int board = 1; board < (int)SIM_IO_BOARD_MAX; ++board) {
@@ -262,6 +287,7 @@ static bool sim_board_is_online(int board_id)
     if ((board_id <= 0) || (board_id >= (int)SIM_IO_BOARD_MAX)) {
         return false;
     }
+    sim_mutexes_ready();
     pthread_mutex_lock(&s_di_mutex);
     online = s_di_quality[board_id] == IO_SAMPLE_QUALITY_VALID;
     pthread_mutex_unlock(&s_di_mutex);
@@ -323,6 +349,7 @@ static int sim_pulse_read(io_di_t pin)
         return -1;
     }
 
+    sim_mutexes_ready();
     pthread_mutex_lock(&s_di_mutex);
     value = (int)s_pulse_counter[board][p];
     pthread_mutex_unlock(&s_di_mutex);
@@ -342,6 +369,7 @@ static sw_err_t sim_pulse_clear(io_di_t pin)
         return SW_ERR_NOT_INIT;
     }
 
+    sim_mutexes_ready();
     pthread_mutex_lock(&s_di_mutex);
     s_pulse_counter[board][p] = 0U;
     pthread_mutex_unlock(&s_di_mutex);
@@ -360,6 +388,7 @@ void hal_io_sim_set_pulse_counter(io_di_t pin, uint32_t value)
         return;
     }
 
+    sim_mutexes_ready();
     pthread_mutex_lock(&s_di_mutex);
     s_pulse_counter[board][p] = value;
     pthread_mutex_unlock(&s_di_mutex);
@@ -424,6 +453,7 @@ static sw_err_t sim_get_stats(int board_id, hal_io_stats_t *out)
         sim_record_lifecycle_violation("get_stats");
         return SW_ERR_NOT_INIT;
     }
+    sim_mutexes_ready();
     pthread_mutex_lock(&s_di_mutex);
     memset(out, 0, sizeof(*out));
     out->online                = s_di_quality[board_id] == IO_SAMPLE_QUALITY_VALID;

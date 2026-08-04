@@ -8,6 +8,7 @@
 #include "runtime/event_bus/event_bus.h"
 
 #include "common/log.h"
+#include "common/sw_mutex.h"
 #include "common/time_util.h"
 #include "runtime/event_bus/event_bus_config.h"
 
@@ -66,26 +67,8 @@ static pthread_once_t s_mutex_once = PTHREAD_ONCE_INIT;
 
 static void event_bus_mutex_init_once(void)
 {
-    pthread_mutexattr_t attr;
-
-    if (pthread_mutexattr_init(&attr) != 0) {
-        /* 属性初始化失败：退化为默认互斥量，功能可用但失去优先级继承 */
-        (void)pthread_mutex_init(&s_q_mutex, NULL);
-        (void)pthread_mutex_init(&s_sub_mutex, NULL);
-        return;
-    }
-
-    if (pthread_mutexattr_setprotocol(&attr, PTHREAD_PRIO_INHERIT) != 0) {
-        /* 平台不支持优先级继承：同样退化为默认互斥量 */
-        (void)pthread_mutex_init(&s_q_mutex, NULL);
-        (void)pthread_mutex_init(&s_sub_mutex, NULL);
-        (void)pthread_mutexattr_destroy(&attr);
-        return;
-    }
-
-    (void)pthread_mutex_init(&s_q_mutex, &attr);
-    (void)pthread_mutex_init(&s_sub_mutex, &attr);
-    (void)pthread_mutexattr_destroy(&attr);
+    (void)sw_mutex_init_prio_inherit(&s_q_mutex);
+    (void)sw_mutex_init_prio_inherit(&s_sub_mutex);
 }
 
 /**

@@ -9,6 +9,7 @@
 
 #include "common/log.h"
 #include "common/pulse_out.h"
+#include "common/sw_mutex.h"
 #include "common/time_util.h"
 #include "ports/outbound/hal/hal_vfd_port.h"
 #include "runtime/config/thread_config.h"
@@ -46,11 +47,31 @@ typedef struct {
 
 static hal_vfd_slot_t s_slot[HAL_VFD_MANAGER_SLOT_MAX];
 
+/* 两把锁均位于急停切断热路径：safety_cutout_execute -> m8_safety_cutout ->
+ * m8_motor_emergency_cutoff -> 驱动 cutoff -> 本模块停机。该路径由 estop_poll
+ * 线程以 SCHED_FIFO 高优先级执行，而两把锁又被 SCHED_OTHER 周期任务（变频器
+ * 轮询、通信保活）竞争，故启用优先级继承。本模块无 init 入口，用 pthread_once
+ * 在首次上锁前完成初始化。 */
+
 /** @brief 保护上面除 backend 调用以外的全部运行时簿记字段 */
-static pthread_mutex_t s_vfd_lock = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t s_vfd_lock;
 
 /** @brief 串行化控制命令，保证模式检查、硬件输出与模式提交不可交叉 */
-static pthread_mutex_t s_control_lock = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t s_control_lock;
+
+static pthread_once_t s_mutex_once = PTHREAD_ONCE_INIT;
+
+static void vfd_mutex_init_once(void)
+{
+    (void)sw_mutex_init_prio_inherit(&s_vfd_lock);
+    (void)sw_mutex_init_prio_inherit(&s_control_lock);
+}
+
+/** @brief 确保两把锁已初始化（幂等，所有加锁点入口调用）*/
+static void vfd_mutexes_ready(void)
+{
+    (void)pthread_once(&s_mutex_once, vfd_mutex_init_once);
+}
 
 static sw_err_t vfd_stop(hal_vfd_id_t id);
 
@@ -112,6 +133,7 @@ static void emit_event(hal_vfd_slot_t *slot, int event_code)
         return;
     }
 
+    vfd_mutexes_ready();
     pthread_mutex_lock(&s_vfd_lock);
     cb = slot->event_cb;
     pthread_mutex_unlock(&s_vfd_lock);
@@ -183,6 +205,7 @@ static void monitor_sample_fault(hal_vfd_slot_t *slot, uint64_t now_ms)
     comm_lost     = false;
     fault_evt     = 0;
 
+    vfd_mutexes_ready();
     pthread_mutex_lock(&s_vfd_lock);
     if (ret == SW_OK) {
         comm_restored = on_comm_success_locked(slot);
@@ -216,6 +239,7 @@ static void monitor_sample_current(hal_vfd_slot_t *slot, uint64_t now_ms)
     if ((st == HAL_VFD_STATE_FWD) || (st == HAL_VFD_STATE_REV)) {
         ret = slot->cfg.ops->read(slot->cfg.drv_ctx, HAL_VFD_REG_CURRENT, &val);
 
+        vfd_mutexes_ready();
         pthread_mutex_lock(&s_vfd_lock);
         if (ret == SW_OK) {
             comm_restored        = on_comm_success_locked(slot);
@@ -236,6 +260,7 @@ static void monitor_sample_current(hal_vfd_slot_t *slot, uint64_t now_ms)
             emit_event(slot, HAL_VFD_EVT_CURRENT_UPDATE);
         }
     } else {
+        vfd_mutexes_ready();
         pthread_mutex_lock(&s_vfd_lock);
         slot->last_current_ms = now_ms;
         pthread_mutex_unlock(&s_vfd_lock);
@@ -262,6 +287,7 @@ sw_err_t hal_vfd_manager_bind(hal_vfd_id_t id, const hal_vfd_manager_bind_cfg_t 
 
     slot = &s_slot[(unsigned)id];
 
+    vfd_mutexes_ready();
     pthread_mutex_lock(&s_vfd_lock);
     {
         void (*saved_cb)(int) = slot->event_cb;
@@ -299,6 +325,7 @@ sw_err_t hal_vfd_manager_set_monitor_mask(hal_vfd_id_t id, hal_vfd_monitor_mask_
         return SW_ERR_NOT_INIT;
     }
 
+    vfd_mutexes_ready();
     pthread_mutex_lock(&s_vfd_lock);
     slot->cfg.monitor_mask = mask;
     pthread_mutex_unlock(&s_vfd_lock);
@@ -315,6 +342,7 @@ static sw_err_t vfd_init(void)
         bool                       bound;
         sw_err_t                   ret = SW_OK;
 
+        vfd_mutexes_ready();
         pthread_mutex_lock(&s_vfd_lock);
         bound = s_slot[i].bound;
         cfg   = s_slot[i].cfg;
@@ -328,6 +356,7 @@ static sw_err_t vfd_init(void)
             ret = cfg.ops->init(cfg.drv_ctx);
         }
 
+        vfd_mutexes_ready();
         pthread_mutex_lock(&s_vfd_lock);
         pulse_out_cancel(&s_slot[i].rst_pulse);
         s_slot[i].cached_fault_code = 0U;
@@ -363,6 +392,7 @@ static void vfd_tick(void)
             continue;
         }
 
+        vfd_mutexes_ready();
         pthread_mutex_lock(&s_vfd_lock);
         pulse_out_tick(&slot->rst_pulse, now_ms);
         mask      = slot->cfg.monitor_mask;
@@ -402,7 +432,9 @@ static sw_err_t vfd_set_gear(hal_vfd_id_t id, hal_vfd_gear_t gear)
     if (gear == 0) {
         return vfd_stop(id);
     }
+    vfd_mutexes_ready();
     pthread_mutex_lock(&s_control_lock);
+    vfd_mutexes_ready();
     pthread_mutex_lock(&s_vfd_lock);
     if (slot->control_mode == VFD_CONTROL_FREQUENCY) {
         pthread_mutex_unlock(&s_vfd_lock);
@@ -412,6 +444,7 @@ static sw_err_t vfd_set_gear(hal_vfd_id_t id, hal_vfd_gear_t gear)
     pthread_mutex_unlock(&s_vfd_lock);
     ret = slot->cfg.ops->apply_gear(slot->cfg.drv_ctx, gear);
     if (ret == SW_OK) {
+        vfd_mutexes_ready();
         pthread_mutex_lock(&s_vfd_lock);
         slot->control_mode = VFD_CONTROL_GEAR;
         pthread_mutex_unlock(&s_vfd_lock);
@@ -431,7 +464,9 @@ static sw_err_t vfd_set_frequency(hal_vfd_id_t id, hal_vfd_frequency_t frequency
     if (frequency_centi_hz == 0) {
         return vfd_stop(id);
     }
+    vfd_mutexes_ready();
     pthread_mutex_lock(&s_control_lock);
+    vfd_mutexes_ready();
     pthread_mutex_lock(&s_vfd_lock);
     if (slot->control_mode == VFD_CONTROL_GEAR) {
         pthread_mutex_unlock(&s_vfd_lock);
@@ -441,6 +476,7 @@ static sw_err_t vfd_set_frequency(hal_vfd_id_t id, hal_vfd_frequency_t frequency
     pthread_mutex_unlock(&s_vfd_lock);
     ret = slot->cfg.ops->apply_frequency(slot->cfg.drv_ctx, frequency_centi_hz);
     if (ret == SW_OK) {
+        vfd_mutexes_ready();
         pthread_mutex_lock(&s_vfd_lock);
         slot->control_mode = VFD_CONTROL_FREQUENCY;
         pthread_mutex_unlock(&s_vfd_lock);
@@ -457,10 +493,12 @@ static sw_err_t vfd_stop(hal_vfd_id_t id)
     if (slot == NULL) {
         return SW_ERR_NOT_INIT;
     }
+    vfd_mutexes_ready();
     pthread_mutex_lock(&s_control_lock);
     ret = slot->cfg.ops->stop_outputs(slot->cfg.drv_ctx);
 
     if (ret == SW_OK) {
+        vfd_mutexes_ready();
         pthread_mutex_lock(&s_vfd_lock);
         slot->control_mode = VFD_CONTROL_NONE;
         pthread_mutex_unlock(&s_vfd_lock);
@@ -480,6 +518,7 @@ static sw_err_t vfd_fault_reset(hal_vfd_id_t id)
         return SW_ERR_NOT_INIT;
     }
 
+    vfd_mutexes_ready();
     pthread_mutex_lock(&s_vfd_lock);
     pulse_out_cancel(&slot->rst_pulse);
     pthread_mutex_unlock(&s_vfd_lock);
@@ -492,6 +531,7 @@ static sw_err_t vfd_fault_reset(hal_vfd_id_t id)
     use_io = (slot->cfg.ops->has_rst_pin != NULL) && slot->cfg.ops->has_rst_pin(slot->cfg.drv_ctx);
     if (use_io) {
         now_ms = time_util_get_ms();
+        vfd_mutexes_ready();
         pthread_mutex_lock(&s_vfd_lock);
         ret = pulse_out_start(&slot->rst_pulse, slot->cfg.rst_pulse_ms, now_ms);
         pthread_mutex_unlock(&s_vfd_lock);
@@ -541,6 +581,7 @@ static sw_err_t vfd_get_cached(hal_vfd_id_t id, hal_vfd_reg_t reg, uint16_t *p_v
         return SW_ERR_PARAM;
     }
 
+    vfd_mutexes_ready();
     pthread_mutex_lock(&s_vfd_lock);
     switch (reg) {
     case HAL_VFD_REG_FAULT_CODE:
@@ -562,6 +603,7 @@ static void vfd_register_event_cb(hal_vfd_id_t id, void (*cb)(int event_code))
     hal_vfd_slot_t *slot = ready_slot_by_id(id);
 
     if (slot != NULL) {
+        vfd_mutexes_ready();
         pthread_mutex_lock(&s_vfd_lock);
         slot->event_cb = cb;
         pthread_mutex_unlock(&s_vfd_lock);
@@ -593,6 +635,7 @@ void hal_vfd_manager_test_tick(void)
 
 void hal_vfd_manager_test_reset(void)
 {
+    vfd_mutexes_ready();
     pthread_mutex_lock(&s_vfd_lock);
     memset(s_slot, 0, sizeof(s_slot));
     pthread_mutex_unlock(&s_vfd_lock);

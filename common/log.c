@@ -7,6 +7,8 @@
 
 #include "common/log.h"
 
+#include "common/sw_mutex.h"
+
 #include <pthread.h>
 #include <stddef.h>
 #include <stdio.h>
@@ -37,20 +39,7 @@ static pthread_once_t  s_mutex_once = PTHREAD_ONCE_INIT;
 
 static void log_mutex_init_once(void)
 {
-    pthread_mutexattr_t attr;
-
-    if (pthread_mutexattr_init(&attr) != 0) {
-        (void)pthread_mutex_init(&s_mutex, NULL);
-        return;
-    }
-    if (pthread_mutexattr_setprotocol(&attr, PTHREAD_PRIO_INHERIT) != 0) {
-        /* 平台不支持优先级继承：退化为默认互斥量，功能不受影响 */
-        (void)pthread_mutex_init(&s_mutex, NULL);
-        (void)pthread_mutexattr_destroy(&attr);
-        return;
-    }
-    (void)pthread_mutex_init(&s_mutex, &attr);
-    (void)pthread_mutexattr_destroy(&attr);
+    (void)sw_mutex_init_prio_inherit(&s_mutex);
 }
 
 /** @brief 确保锁已初始化（幂等，所有加锁点入口调用）*/

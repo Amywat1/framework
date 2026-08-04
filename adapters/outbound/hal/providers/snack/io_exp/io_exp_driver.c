@@ -15,6 +15,7 @@
 #include "adapters/outbound/hal/providers/snack/io_exp/io_exp_driver.h"
 
 #include "common/log.h"
+#include "common/sw_mutex.h"
 #include "common/time_util.h"
 #include "io_exp/demo.h"
 #include "io_exp/slave.h"
@@ -86,10 +87,29 @@ static bool                s_output_dirty[IO_BOARD_MAX] = {false};
 static bool                s_board_online[IO_BOARD_MAX] = {0};
 static io_sample_quality_t s_input_quality[IO_BOARD_MAX];
 static uint32_t            s_input_sequence[IO_BOARD_MAX];
-static pthread_mutex_t     s_input_mutex               = PTHREAD_MUTEX_INITIALIZER;
-static pthread_mutex_t     s_output_mutex              = PTHREAD_MUTEX_INITIALIZER;
-static drv_io_stats_t      s_stats[IO_BOARD_MAX]       = {{0}};
-static bool                s_seen_online[IO_BOARD_MAX] = {false};
+/* s_output_mutex 位于急停切断热路径：safety_cutout_execute -> m8_safety_cutout
+ * -> hal_io do_set -> 本驱动写输出缓冲。该路径由 estop_poll 线程以 SCHED_FIFO
+ * 高优先级执行，而两把锁又被 SCHED_OTHER 周期任务（CAN 刷新、输入采样）竞争，
+ * 故启用优先级继承。用 pthread_once 而非在 drv_io_init 中初始化：本驱动的
+ * getter 类接口允许在 init 之前被调用，锁必须在首次使用前就绪。 */
+static pthread_mutex_t s_input_mutex;
+static pthread_mutex_t s_output_mutex;
+static pthread_once_t  s_mutex_once = PTHREAD_ONCE_INIT;
+
+static drv_io_stats_t s_stats[IO_BOARD_MAX]       = {{0}};
+static bool           s_seen_online[IO_BOARD_MAX] = {false};
+
+static void drv_io_mutex_init_once(void)
+{
+    (void)sw_mutex_init_prio_inherit(&s_input_mutex);
+    (void)sw_mutex_init_prio_inherit(&s_output_mutex);
+}
+
+/** @brief 确保两把锁已初始化（幂等，所有加锁点入口调用）*/
+static void drv_io_mutexes_ready(void)
+{
+    (void)pthread_once(&s_mutex_once, drv_io_mutex_init_once);
+}
 
 /* 运行时配置（由 drv_io_init 写入，后续只读） */
 static int                        s_board_count = 0;
@@ -229,6 +249,7 @@ static void poll_handle_detected_online(int id, uint8_t online_cnt[], uint8_t of
 
     offline_cnt[id] = 0U;
 
+    drv_io_mutexes_ready();
     pthread_mutex_lock(&s_input_mutex);
     already_online = s_board_online[id];
     pthread_mutex_unlock(&s_input_mutex);
@@ -249,6 +270,7 @@ static void poll_handle_detected_online(int id, uint8_t online_cnt[], uint8_t of
 
         online_cnt[id]        = 0U;
         offline_confirmed[id] = false; /* 连续确认后才解除已确认离线状态 */
+        drv_io_mutexes_ready();
         pthread_mutex_lock(&s_input_mutex);
         recovered                  = s_seen_online[id];
         s_board_online[id]         = true;
@@ -263,6 +285,7 @@ static void poll_handle_detected_online(int id, uint8_t online_cnt[], uint8_t of
         pthread_mutex_unlock(&s_input_mutex);
 
         /* 子板离线期间硬件输出可能丢失，恢复后强制重发 */
+        drv_io_mutexes_ready();
         pthread_mutex_lock(&s_output_mutex);
         s_output_dirty[id]        = true;
         s_stats[id].dirty_pending = true;
@@ -295,6 +318,7 @@ static void poll_handle_detected_offline(int id, uint8_t online_cnt[], uint8_t o
         uint64_t now_ms = time_util_get_ms();
 
         offline_confirmed[id] = true;
+        drv_io_mutexes_ready();
         pthread_mutex_lock(&s_input_mutex);
         s_board_online[id]  = false;
         s_input_quality[id] = IO_SAMPLE_QUALITY_OFFLINE;
@@ -332,6 +356,7 @@ static void poll_rw_board(int id)
     /* SDO 读写一次约 1~2ms；读失败时 SDK 会保留上次值 */
     input  = (unsigned int)io_read_input_s(id);
     now_ms = time_util_get_ms();
+    drv_io_mutexes_ready();
     pthread_mutex_lock(&s_input_mutex);
     prev                = s_input_buf[id];
     s_input_buf[id]     = input;
@@ -343,6 +368,7 @@ static void poll_rw_board(int id)
     s_stats[id].last_input_snapshot   = input;
     pthread_mutex_unlock(&s_input_mutex);
 
+    drv_io_mutexes_ready();
     pthread_mutex_lock(&s_output_mutex);
     dirty   = s_output_dirty[id];
     out_val = s_output_buf[id];
@@ -390,6 +416,7 @@ static void poll_all_offline_safe_stop_and_abort(void)
      * 若 CAN 真的断开，写入失败无副作用。*/
     {
         unsigned int snapshot[IO_BOARD_MAX] = {0U};
+        drv_io_mutexes_ready();
         pthread_mutex_lock(&s_output_mutex);
         for (int i = 1; i <= s_board_count; ++i) {
             snapshot[i] = s_output_buf[i];
@@ -551,6 +578,7 @@ sw_err_t drv_io_do_set(io_do_t pin, bool val)
         return SW_ERR_PARAM;
     }
 
+    drv_io_mutexes_ready();
     pthread_mutex_lock(&s_output_mutex);
     prev_out = s_output_buf[board_id];
 
@@ -580,6 +608,7 @@ sw_err_t drv_io_flush_outputs_now(void)
     bool         online[IO_BOARD_MAX]   = {false};
 
     /* 快照输出缓冲和在线状态，缩短持锁时间 */
+    drv_io_mutexes_ready();
     pthread_mutex_lock(&s_output_mutex);
     for (int i = 1; i <= s_board_count; ++i) {
         snapshot[i] = s_output_buf[i];
@@ -620,6 +649,7 @@ sw_err_t drv_io_di_read(io_di_t pin, io_di_sample_t *sample)
         return SW_ERR_PARAM;
     }
 
+    drv_io_mutexes_ready();
     pthread_mutex_lock(&s_input_mutex);
     /* 测试覆盖优先 */
     if (s_test_enable[board_id][pin_id]) {
@@ -656,6 +686,7 @@ bool drv_io_board_is_online(int board_id)
         return false;
     }
 
+    drv_io_mutexes_ready();
     pthread_mutex_lock(&s_input_mutex);
     online = s_board_online[board_id];
     pthread_mutex_unlock(&s_input_mutex);
@@ -709,11 +740,13 @@ void drv_io_set_test_override(io_di_t pin, int value)
     }
 
     if ((value == 0) || (value == 1)) {
+        drv_io_mutexes_ready();
         pthread_mutex_lock(&s_input_mutex);
         s_test_value[board_id][pin_id]  = (bool)value;
         s_test_enable[board_id][pin_id] = true;
         pthread_mutex_unlock(&s_input_mutex);
     } else {
+        drv_io_mutexes_ready();
         pthread_mutex_lock(&s_input_mutex);
         s_test_enable[board_id][pin_id] = false;
         pthread_mutex_unlock(&s_input_mutex);
@@ -730,6 +763,7 @@ void drv_io_clear_test_override(io_di_t pin)
         return;
     }
 
+    drv_io_mutexes_ready();
     pthread_mutex_lock(&s_input_mutex);
     s_test_enable[board_id][pin_id] = false;
     pthread_mutex_unlock(&s_input_mutex);
@@ -741,9 +775,11 @@ sw_err_t drv_io_get_stats(int board_id, drv_io_stats_t *out)
         return SW_ERR_PARAM;
     }
 
+    drv_io_mutexes_ready();
     pthread_mutex_lock(&s_input_mutex);
     *out = s_stats[board_id];
     pthread_mutex_unlock(&s_input_mutex);
+    drv_io_mutexes_ready();
     pthread_mutex_lock(&s_output_mutex);
     out->dirty_pending        = s_stats[board_id].dirty_pending;
     out->output_request_count = s_stats[board_id].output_request_count;

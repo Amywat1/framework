@@ -83,6 +83,7 @@ _wdf_add_interface_lib(wdf_common
     SOURCES
         common/asset_version.c
         common/log.c
+        common/sw_mutex.c
         common/time_util.c
         common/trace_context.c
         common/pulse_out.c

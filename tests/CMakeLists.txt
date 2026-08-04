@@ -26,17 +26,20 @@ endmacro()
 add_unit_test(test_log
     ${CMAKE_CURRENT_SOURCE_DIR}/common/test_log.c
     ${WDF_ROOT}/common/log.c
+    ${WDF_ROOT}/common/sw_mutex.c
 )
 
 add_unit_test(test_log_multi_sink
     ${CMAKE_CURRENT_SOURCE_DIR}/common/test_log_multi_sink.c
     ${WDF_ROOT}/common/log.c
+    ${WDF_ROOT}/common/sw_mutex.c
 )
 
 add_unit_test(test_event_bus
     ${CMAKE_CURRENT_SOURCE_DIR}/runtime/test_event_bus.c
     ${WDF_ROOT}/runtime/event_bus/event_bus.c
     ${WDF_ROOT}/common/log.c
+    ${WDF_ROOT}/common/sw_mutex.c
     ${WDF_ROOT}/common/time_util.c
 )
 
@@ -46,6 +49,7 @@ add_unit_test(test_hal_io_sim
     ${WDF_ROOT}/ports/port_registry_hal.c
     ${WDF_ROOT}/ports/port_registry_infra.c
     ${WDF_ROOT}/common/log.c
+    ${WDF_ROOT}/common/sw_mutex.c
     ${WDF_ROOT}/common/time_util.c
 )
 target_compile_definitions(test_hal_io_sim PRIVATE HAL_IO_SIM_UNIT_TEST)
@@ -59,6 +63,7 @@ add_unit_test(test_hal_sensor_filter
     ${WDF_ROOT}/ports/port_registry_hal.c
     ${WDF_ROOT}/ports/port_registry_infra.c
     ${WDF_ROOT}/common/log.c
+    ${WDF_ROOT}/common/sw_mutex.c
     ${WDF_ROOT}/common/time_util.c
 )
 target_compile_definitions(test_hal_sensor_filter PRIVATE HAL_SENSOR_FILTER_UNIT_TEST HAL_IO_SIM_UNIT_TEST)
@@ -73,6 +78,7 @@ add_unit_test(test_hal_vfd_manager
     ${WDF_ROOT}/ports/port_registry_hal.c
     ${WDF_ROOT}/ports/port_registry_infra.c
     ${WDF_ROOT}/common/log.c
+    ${WDF_ROOT}/common/sw_mutex.c
 )
 target_compile_definitions(test_hal_vfd_manager PRIVATE HAL_VFD_MANAGER_UNIT_TEST)
 
@@ -93,6 +99,7 @@ add_unit_test(test_hal_voice_sim
     ${WDF_ROOT}/ports/port_registry_hal.c
     ${WDF_ROOT}/ports/port_registry_infra.c
     ${WDF_ROOT}/common/log.c
+    ${WDF_ROOT}/common/sw_mutex.c
 )
 target_compile_definitions(test_hal_voice_sim PRIVATE HAL_VOICE_SIM_UNIT_TEST)
 
@@ -104,6 +111,7 @@ add_unit_test(test_snack_voice_adapter
     ${WDF_ROOT}/ports/port_registry_hal.c
     ${WDF_ROOT}/ports/port_registry_infra.c
     ${WDF_ROOT}/common/log.c
+    ${WDF_ROOT}/common/sw_mutex.c
 )
 target_compile_definitions(test_snack_voice_adapter PRIVATE SNACK_VOICE_ADAPTER_UNIT_TEST)
 
@@ -115,6 +123,7 @@ add_unit_test(test_snack_io_exp_adapter
     ${WDF_ROOT}/ports/port_registry_hal.c
     ${WDF_ROOT}/ports/port_registry_infra.c
     ${WDF_ROOT}/common/log.c
+    ${WDF_ROOT}/common/sw_mutex.c
     ${WDF_ROOT}/common/time_util.c
 )
 target_include_directories(test_snack_io_exp_adapter PRIVATE
@@ -137,6 +146,7 @@ add_unit_test(test_snack_vfd_backend
     ${WDF_ROOT}/ports/port_registry_hal.c
     ${WDF_ROOT}/ports/port_registry_infra.c
     ${WDF_ROOT}/common/log.c
+    ${WDF_ROOT}/common/sw_mutex.c
 )
 target_include_directories(test_snack_vfd_backend PRIVATE
     ${WDF_ROOT}/tests/stubs
@@ -156,6 +166,7 @@ add_unit_test(test_snack_cloud_adapters
     ${WDF_ROOT}/ports/port_registry_cloud.c
     ${WDF_ROOT}/ports/port_registry_infra.c
     ${WDF_ROOT}/common/log.c
+    ${WDF_ROOT}/common/sw_mutex.c
     ${WDF_ROOT}/common/time_util.c
     ${WDF_ROOT}/third_party/cJSON/cJSON.c
 )
@@ -164,12 +175,14 @@ add_unit_test(test_machine_ops_port
     ${CMAKE_CURRENT_SOURCE_DIR}/ports/test_machine_ops_port.c
     ${WDF_ROOT}/ports/port_registry_infra.c
     ${WDF_ROOT}/common/log.c
+    ${WDF_ROOT}/common/sw_mutex.c
 )
 
 add_unit_test(test_op_mode_alarm_port
     ${CMAKE_CURRENT_SOURCE_DIR}/ports/test_op_mode_alarm_port.c
     ${WDF_ROOT}/ports/port_registry_safety.c
     ${WDF_ROOT}/common/log.c
+    ${WDF_ROOT}/common/sw_mutex.c
 )
 
 add_unit_test(test_cloud_ports
@@ -187,12 +200,14 @@ add_unit_test(test_port_contract
     ${WDF_ROOT}/ports/port_registry_cloud.c
     ${WDF_ROOT}/ports/outbound/storage/engine_program_loader_port.c
     ${WDF_ROOT}/common/log.c
+    ${WDF_ROOT}/common/sw_mutex.c
 )
 
 add_unit_test(test_cloud_point_validate
     ${CMAKE_CURRENT_SOURCE_DIR}/cloud/test_cloud_point_validate.c
     ${WDF_ROOT}/cloud/cloud_point_validate.c
     ${WDF_ROOT}/common/log.c
+    ${WDF_ROOT}/common/sw_mutex.c
 )
 
 add_unit_test(test_cloud_point_dispatch
@@ -202,6 +217,7 @@ add_unit_test(test_cloud_point_dispatch
     ${WDF_ROOT}/common/point_table/point_table_to_json.c
     ${WDF_ROOT}/ports/port_registry_infra.c
     ${WDF_ROOT}/common/log.c
+    ${WDF_ROOT}/common/sw_mutex.c
     ${WDF_ROOT}/third_party/cJSON/cJSON.c
 )
 
@@ -210,6 +226,7 @@ add_unit_test(test_cloud_point_watcher
     ${WDF_ROOT}/cloud/cloud_point_watcher.c
     ${WDF_ROOT}/runtime/event_bus/event_bus.c
     ${WDF_ROOT}/common/log.c
+    ${WDF_ROOT}/common/sw_mutex.c
     ${WDF_ROOT}/common/time_util.c
 )
 
@@ -228,6 +245,7 @@ add_unit_test(test_cloud_model_report_scheduler
     ${WDF_ROOT}/runtime/scheduler/periodic_task.c
     ${WDF_ROOT}/runtime/scheduler/thread_registry.c
     ${WDF_ROOT}/common/log.c
+    ${WDF_ROOT}/common/sw_mutex.c
     ${WDF_ROOT}/common/time_util.c
     ${WDF_ROOT}/third_party/cJSON/cJSON.c
 )
@@ -238,6 +256,7 @@ add_unit_test(test_alarm_registry
     ${WDF_ROOT}/ports/port_registry_infra.c
     ${WDF_ROOT}/common/time_util.c
     ${WDF_ROOT}/common/log.c
+    ${WDF_ROOT}/common/sw_mutex.c
 )
 
 add_unit_test(test_safety_posture
@@ -250,6 +269,7 @@ add_unit_test(test_safety_posture
     ${WDF_ROOT}/runtime/scheduler/thread_registry.c
     ${WDF_ROOT}/common/time_util.c
     ${WDF_ROOT}/common/log.c
+    ${WDF_ROOT}/common/sw_mutex.c
 )
 
 add_unit_test(test_alarm_event_bridge
@@ -262,6 +282,7 @@ add_unit_test(test_alarm_event_bridge
     ${WDF_ROOT}/runtime/scheduler/thread_registry.c
     ${WDF_ROOT}/common/time_util.c
     ${WDF_ROOT}/common/log.c
+    ${WDF_ROOT}/common/sw_mutex.c
 )
 
 add_unit_test(test_alarm_reeval_bridge
@@ -273,6 +294,7 @@ add_unit_test(test_alarm_reeval_bridge
     ${WDF_ROOT}/runtime/event_bus/event_bus.c
     ${WDF_ROOT}/common/time_util.c
     ${WDF_ROOT}/common/log.c
+    ${WDF_ROOT}/common/sw_mutex.c
 )
 
 add_unit_test(test_alarm_lifecycle_bridge
@@ -283,6 +305,7 @@ add_unit_test(test_alarm_lifecycle_bridge
     ${WDF_ROOT}/runtime/event_bus/event_bus.c
     ${WDF_ROOT}/common/time_util.c
     ${WDF_ROOT}/common/log.c
+    ${WDF_ROOT}/common/sw_mutex.c
 )
 
 add_unit_test(test_op_mode_bridge
@@ -295,6 +318,7 @@ add_unit_test(test_op_mode_bridge
     ${WDF_ROOT}/runtime/event_bus/event_bus.c
     ${WDF_ROOT}/common/time_util.c
     ${WDF_ROOT}/common/log.c
+    ${WDF_ROOT}/common/sw_mutex.c
 )
 
 add_unit_test(test_event_param_codec
@@ -315,6 +339,7 @@ add_unit_test(test_event_bus_capacity
     ${WDF_ROOT}/runtime/event_bus/event_bus.c
     ${WDF_ROOT}/common/time_util.c
     ${WDF_ROOT}/common/log.c
+    ${WDF_ROOT}/common/sw_mutex.c
 )
 
 add_unit_test(test_safety_matrix
@@ -329,6 +354,7 @@ add_unit_test(test_operational_mode
     ${WDF_ROOT}/runtime/event_bus/event_bus.c
     ${WDF_ROOT}/common/time_util.c
     ${WDF_ROOT}/common/log.c
+    ${WDF_ROOT}/common/sw_mutex.c
 )
 
 add_unit_test(test_device_control_patterns
@@ -338,6 +364,7 @@ add_unit_test(test_device_control_patterns
     ${WDF_ROOT}/domain/device_control/patterns/fluid_path.c
     ${WDF_ROOT}/runtime/event_bus/event_bus.c
     ${WDF_ROOT}/common/log.c
+    ${WDF_ROOT}/common/sw_mutex.c
     ${WDF_ROOT}/common/time_util.c
 )
 target_compile_definitions(test_device_control_patterns PRIVATE FLUID_PATH_UNIT_TEST)
@@ -368,6 +395,7 @@ add_unit_test(test_side_effect_router
     ${WDF_ROOT}/runtime/event_bus/event_bus.c
     ${WDF_ROOT}/common/time_util.c
     ${WDF_ROOT}/common/log.c
+    ${WDF_ROOT}/common/sw_mutex.c
 )
 
 add_unit_test(test_engine_session
@@ -391,6 +419,7 @@ add_unit_test(test_engine_session
     ${WDF_ROOT}/domain/program_engine/model/engine_program_validate.c
     ${WDF_ROOT}/adapters/outbound/storage/json/engine_program_manifest.c
     ${WDF_ROOT}/common/log.c
+    ${WDF_ROOT}/common/sw_mutex.c
     ${WDF_ROOT}/common/time_util.c
     ${WDF_ROOT}/third_party/cJSON/cJSON.c
 )
@@ -408,6 +437,7 @@ add_unit_test(test_recovery_emergency
     ${WDF_ROOT}/ports/port_registry_infra.c
     ${WDF_ROOT}/runtime/event_bus/event_bus.c
     ${WDF_ROOT}/common/log.c
+    ${WDF_ROOT}/common/sw_mutex.c
     ${WDF_ROOT}/common/time_util.c
 )
 
@@ -421,6 +451,7 @@ add_unit_test(test_telemetry_projection
     ${WDF_ROOT}/ports/port_registry_infra.c
     ${WDF_ROOT}/runtime/event_bus/event_bus.c
     ${WDF_ROOT}/common/log.c
+    ${WDF_ROOT}/common/sw_mutex.c
     ${WDF_ROOT}/common/time_util.c
 )
 
@@ -436,6 +467,7 @@ add_unit_test(test_command_gateway
     ${WDF_ROOT}/runtime/event_bus/event_bus.c
     ${WDF_ROOT}/common/time_util.c
     ${WDF_ROOT}/common/log.c
+    ${WDF_ROOT}/common/sw_mutex.c
 )
 
 add_unit_test(test_pulse_out
@@ -463,6 +495,7 @@ add_unit_test(test_point_table
     ${WDF_ROOT}/common/point_table/point_table_from_json.c
     ${WDF_ROOT}/common/point_table/point_table_to_json.c
     ${WDF_ROOT}/common/log.c
+    ${WDF_ROOT}/common/sw_mutex.c
     ${WDF_ROOT}/third_party/cJSON/cJSON.c
 )
 
@@ -474,6 +507,7 @@ add_unit_test(test_json_param_store
     ${WDF_ROOT}/ports/port_registry_cloud.c
     ${WDF_ROOT}/ports/port_registry_infra.c
     ${WDF_ROOT}/common/log.c
+    ${WDF_ROOT}/common/sw_mutex.c
     ${WDF_ROOT}/third_party/cJSON/cJSON.c
 )
 target_compile_definitions(test_json_param_store PRIVATE
@@ -486,6 +520,7 @@ add_unit_test(test_json_deploy_store
     ${WDF_ROOT}/ports/port_registry_cloud.c
     ${WDF_ROOT}/ports/port_registry_infra.c
     ${WDF_ROOT}/common/log.c
+    ${WDF_ROOT}/common/sw_mutex.c
     ${WDF_ROOT}/third_party/cJSON/cJSON.c
 )
 target_compile_definitions(test_json_deploy_store PRIVATE
@@ -517,6 +552,7 @@ add_unit_test(test_scheduler
     ${WDF_ROOT}/runtime/scheduler/scheduler.c
     ${WDF_ROOT}/runtime/scheduler/periodic_task.c
     ${WDF_ROOT}/common/log.c
+    ${WDF_ROOT}/common/sw_mutex.c
 )
 
 add_unit_test(test_svc_param
@@ -526,6 +562,7 @@ add_unit_test(test_svc_param
     ${WDF_ROOT}/ports/port_registry_cloud.c
     ${WDF_ROOT}/ports/port_registry_infra.c
     ${WDF_ROOT}/common/log.c
+    ${WDF_ROOT}/common/sw_mutex.c
     ${WDF_ROOT}/third_party/cJSON/cJSON.c
 )
 target_compile_definitions(test_svc_param PRIVATE
@@ -541,6 +578,7 @@ add_unit_test(test_estop_poll_thread
     ${WDF_ROOT}/adapters/outbound/safety/sim/hw_estop_sim.c
     ${WDF_ROOT}/ports/port_registry_safety.c
     ${WDF_ROOT}/common/log.c
+    ${WDF_ROOT}/common/sw_mutex.c
     ${WDF_ROOT}/common/time_util.c
 )
 
