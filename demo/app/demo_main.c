@@ -22,6 +22,9 @@
 
 #define DEMO_ALARM_MAJOR 201101U
 
+/** 轮询间隔：取急停采集周期的两倍，避免空转 */
+#define DEMO_POLL_STEP_US 10000U
+
 static volatile int s_estop_on_seen;
 
 static void on_estop_on(const event_t *evt)
@@ -30,9 +33,38 @@ static void on_estop_on(const event_t *evt)
     s_estop_on_seen = 1;
 }
 
-static int check_command_stop_operation(void)
+/**
+ * @brief  等待标志置位，带超时上限
+ * @param  flag        被等待的标志（由事件回调置位）
+ * @param  timeout_ms  最长等待时间
+ * @retval 0  标志已置位
+ * @retval 1  超时
+ */
+static int wait_flag(volatile int *flag, unsigned int timeout_ms)
 {
-    dev_cmd_t                        cmd     = dev_cmd_make_simple(DEV_CMD_STOP_OPERATION);
+    unsigned int waited_us = 0U;
+    unsigned int limit_us  = timeout_ms * 1000U;
+
+    while (!*flag) {
+        if (waited_us >= limit_us) {
+            return 1;
+        }
+        usleep(DEMO_POLL_STEP_US);
+        waited_us += DEMO_POLL_STEP_US;
+    }
+
+    return 0;
+}
+
+/**
+ * @brief  提交一条设备命令并要求被受理
+ * @param  kind  命令种类
+ * @retval 0     命令被受理
+ * @retval 1     端口未注册、提交失败或命令被拒
+ */
+static int submit_expect_accepted(dev_cmd_kind_t kind)
+{
+    dev_cmd_t                        cmd     = dev_cmd_make_simple(kind);
     dev_cmd_receipt_t                receipt = {0};
     const device_command_port_ops_t *ops;
 
@@ -43,12 +75,47 @@ static int check_command_stop_operation(void)
     }
 
     if (ops->submit(&cmd, &receipt, 2000U) != SW_OK) {
-        fprintf(stderr, "[Demo] command submit failed\n");
+        fprintf(stderr, "[Demo] command %d submit failed\n", (int)kind);
         return 1;
     }
 
     if (receipt.status != DEV_CMD_STATUS_ACCEPTED) {
-        fprintf(stderr, "[Demo] command receipt status=%d\n", (int)receipt.status);
+        fprintf(stderr, "[Demo] command %d receipt status=%d\n", (int)kind, (int)receipt.status);
+        return 1;
+    }
+
+    return 0;
+}
+
+/*
+ * 启动后为 OP_MODE_STOPPED，而命令矩阵中 STOP_OPERATION 仅在 IDLE / WASH_DONE 允许
+ * ——"停运"本就该从"在运营"发起。故先经 RECOVER 归位进 IDLE，再验证停运。
+ *
+ * RECOVER 在 STOPPED 下是 CONDITIONAL，只要求 service_enabled，而
+ * operational_mode_init() 已将其置真，因此这条路走得通；顺带把归位链路
+ * （side_effect_router → machine_ops.home_device → EVT_OP_MODE_HOME_COMPLETED
+ * → op_mode_on_home_done）一并纳入 smoke，比原先只提交一条命令覆盖得更宽。
+ */
+static int check_recover_to_idle(void)
+{
+    if (submit_expect_accepted(DEV_CMD_RECOVER) != 0) {
+        return 1;
+    }
+
+    /* home_device 是异步语义：demo 实现立即发事件，仍需等 dispatch 线程处理完 */
+    usleep(100000U);
+
+    if (op_mode_get_current() != OP_MODE_IDLE) {
+        fprintf(stderr, "[Demo] mode should be IDLE after RECOVER+home, got %d\n", (int)op_mode_get_current());
+        return 1;
+    }
+
+    return 0;
+}
+
+static int check_command_stop_operation(void)
+{
+    if (submit_expect_accepted(DEV_CMD_STOP_OPERATION) != 0) {
         return 1;
     }
 
@@ -108,6 +175,10 @@ int main(void)
 
     hw_estop_sim_set_active(false);
 
+    if (check_recover_to_idle() != 0) {
+        return 1;
+    }
+
     if (check_command_stop_operation() != 0) {
         return 1;
     }
@@ -121,9 +192,12 @@ int main(void)
     usleep(20000U);
 
     hw_estop_sim_set_active(true);
-    usleep(80000U);
 
-    if (!s_estop_on_seen) {
+    /* 轮询而非固定等待：急停采集线程以 SCHED_FIFO 注册，非特权环境下会被
+     * scheduler 降级为 SCHED_OTHER（见其 fallback 日志），此时边沿检测延迟
+     * 取决于系统负载。固定等 80ms 在负载机器上会偶发失败，而 smoke 的偶发
+     * 失败比不跑更糟——它会让真实回归被当成抖动忽略。 */
+    if (wait_flag(&s_estop_on_seen, 2000U) != 0) {
         fprintf(stderr, "[Demo] ESTOP ON event not received\n");
         return 1;
     }

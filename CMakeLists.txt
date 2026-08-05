@@ -115,11 +115,16 @@ if(WDF_ENABLE_SNACK_CLOUD_PROVIDER)
     )
 endif()
 
+# enable_testing() 须在 add_subdirectory(demo) 之前：demo 会把 wdf_smoke 注册为
+# 端到端测试，而 add_test 在 enable_testing 之前调用不生效（且不报错）。
+if(WDF_BUILD_TESTS)
+    enable_testing()
+endif()
+
 if(WDF_BUILD_DEMO)
     add_subdirectory(demo)
 endif()
 
 if(WDF_BUILD_TESTS)
-    enable_testing()
     add_subdirectory(tests)
 endif()

@@ -178,10 +178,10 @@ wiring()
 | `project_init_machine()` | 空实现 |
 | `project_bind_alarm_catalog()` | `demo_alarm_catalog_load()` |
 | `project_validate()` | `port_contract_validate()` 校验必需端口 |
-| `project_init_adapters()` | 空实现（不接入急停轮询与观测桥） |
+| `project_init_adapters()` | 接入急停轮询适配器；不接观测桥（观测设施由项目显式启用） |
 | `project_register_runtime_tasks()` | 空实现 |
 | `project_start_runtime()` | 空实现 |
-| `assert_safe_outputs`（hook 字段） | 空实现 |
+| `assert_safe_outputs`（hook 字段） | 空实现（仿真无真实输出可切断） |
 
 ### 4.4 `demo_machine_ops`
 
@@ -346,8 +346,8 @@ vendor provider 仍由根 CMake 开关以 STATIC 库提供，它们有外部 SDK
 「探测函数恒返回 true」验证检查确有约束力。
 
 用例数与通过情况以 `scripts/check_all.sh` 生成的 `build-check/test-results/report.html`
-为准，本文不记录动态结论（原则见 `tests/reports/README.md`）。`wdf_smoke` 不在
-`ctest` 内，其现状见第 9.1 节。
+为准，本文不记录动态结论（原则见 `tests/reports/README.md`）。端到端的 `wdf_smoke`
+同样在 `ctest` 内（标签 `framework;smoke`），覆盖范围见第 9.1 节。
 
 ---
 
@@ -355,16 +355,36 @@ vendor provider 仍由根 CMake 开关以 STATIC 库提供，它们有外部 SDK
 
 ### 9.1 Demo Smoke
 
-`wdf_smoke` 目标依次检查 bootstrap 完成、命令网关处理命令、急停边沿事件、报警链路联通，全部通过时输出 `[Demo] All checks passed.`。
+`wdf_smoke` 是全仓唯一的跨层链路存在性证明（`../../contract/行为契约.md` 里唯一一条
+L4）。它依次验证：
 
-**当前状态：该目标运行失败，退出码 1**（`ctest` 不包含它，因此门禁不覆盖）。两处与框架现状不一致，都在 demo 侧：
+| 步骤 | 覆盖的链路 |
+|------|-----------|
+| `bootstrap_run()` | 11 阶段启动全过程 |
+| `RECOVER` → IDLE | 命令网关 → 裁决 → `side_effect_router` → `machine_ops.home_device` → `EVT_OP_MODE_HOME_COMPLETED` → `op_mode_on_home_done` |
+| `STOP_OPERATION` | IDLE 下的停运裁决与运营开关 |
+| 急停边沿 | `hw_estop_sim` → `estop_poll_thread` → `safety_cutout_execute` → `EVT_HW_ESTOP_ON` → 姿态收敛 |
+| 报警触发 | `alarm_binding.trigger` → `alarm_event_bridge` → blocking 判定 |
 
-| 检查 | 失败原因 |
-|------|----------|
-| STOP_OPERATION | bootstrap 后模式为 `OP_MODE_STOPPED`，而命令矩阵中 `STOP_OPERATION` 在 STOPPED 下为 DENIED（仅 IDLE / WASH_DONE 允许），`submit()` 返回 `SW_ERR_STATE` |
-| HW ESTOP | demo 未接入急停轮询适配器，且 `hw_estop_sim` 只维护状态、不发布事件，因此无人发出 `EVT_HW_ESTOP_ON` |
+全部通过时输出 `[Demo] All checks passed.`。
 
-两者都是 demo 用例与当前框架语义脱节，不是框架缺陷：前者需改用 STOPPED 下允许的命令（或先 RECOVER 进 IDLE 再停运），后者需在 `project_init_adapters()` 调 `estop_poll_thread_init()`。修复 demo 属独立改动，本文只记录现状，不假称通过。
+**已纳入 `ctest`**（标签 `framework;smoke`）。此前它不在 `ctest` 内，长期以退出码 1
+的状态腐化而无人察觉——而"demo 用例与框架语义脱节"和"某次改动真的打断了急停链路"
+这两种失败表现完全一样，都是退出码 1。不进门禁，这一级验证等于不存在。
+
+两处历史失败已修，都在 demo 侧而非框架：
+
+| 原失败 | 原因与修法 |
+|--------|-----------|
+| `STOP_OPERATION` 被拒 | 启动后是 `OP_MODE_STOPPED`，而矩阵中该命令仅 IDLE / WASH_DONE 允许——"停运"本就该从"在运营"发起。改为先 `RECOVER` 归位进 IDLE 再停运，顺带把归位链路纳入覆盖 |
+| `EVT_HW_ESTOP_ON` 收不到 | `hw_estop_sim` 只维护状态，发布方是 `estop_poll_thread`，而 demo 的 `init_adapters()` 是空实现。改为在此接入该可选适配器 |
+
+急停等待改为轮询而非固定睡眠：采集线程以 `SCHED_FIFO` 注册，非特权环境下会被
+scheduler 降级为 `SCHED_OTHER`，边沿检测延迟随负载变化。固定等待会偶发失败，而
+smoke 的偶发失败比不跑更糟——它会让真实回归被当成抖动忽略。
+
+已注入验证两条链路确有约束力：`init_adapters` 不接急停采集时 smoke 失败；
+`demo_home_device` 不回报归位完成时报 `mode should be IDLE after RECOVER+home`。
 
 ### 9.2 项目 Bring-up
 
@@ -403,7 +423,7 @@ vendor provider 仍由根 CMake 开关以 STATIC 库提供，它们有外部 SDK
 | 端口契约校验（`PORT_REQ_*`，14 位） | ✅ |
 | 资产契约校验（`ASSET_REQ_*`，3 位） | ✅ |
 | Demo 最小 wiring（sim HAL / storage / safety） | ✅ |
-| `wdf_smoke` 端到端场景 | ⚠️ 退出码 1，两处 demo 侧用例与框架语义脱节，见第 9.1 节 |
+| `wdf_smoke` 端到端场景 | ✅ 已纳入 `ctest`，覆盖启动/命令/归位/急停/报警五条链路，见第 9.1 节 |
 | 真机项目 wiring 参考实现 | 项目侧职责，框架只提供 Demo 作为对照 |
 
 ---

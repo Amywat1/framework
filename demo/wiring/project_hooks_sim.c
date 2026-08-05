@@ -3,6 +3,7 @@
  * @brief   Demo 仿真项目生命周期钩子
  */
 
+#include "adapters/inbound/safety/estop_poll_thread.h"
 #include "adapters/outbound/storage/json/json_deploy_store.h"
 #include "adapters/outbound/storage/json/json_param_store.h"
 #include "ports/port_contract.h"
@@ -76,9 +77,20 @@ static sw_err_t validate(void)
                                   | PORT_REQ_MACHINE_OPS | PORT_REQ_ALARM_BINDING | PORT_REQ_SAFETY);
 }
 
+/*
+ * 接入框架自带的急停轮询适配器。
+ *
+ * 它是可选适配器：项目若已有自己的 DI detector 采集通路（采样后经报警链路发布
+ * 同样的事件），就不该再接它，否则同一物理输入会产生两条并发事件源。Demo 没有
+ * 别的采集通路，故在此接入——否则 hw_estop_sim 只维护状态、无人发布
+ * EVT_HW_ESTOP_ON，急停链路在 smoke 里无法被验证。
+ *
+ * 放在 init_adapters 而非更早的阶段：thread_register 只登记不创建，真正起线程
+ * 由 start 阶段的 scheduler_start_all 统一负责。
+ */
 static sw_err_t init_adapters(void)
 {
-    return SW_OK;
+    return estop_poll_thread_init();
 }
 
 static sw_err_t register_runtime_tasks(void)
