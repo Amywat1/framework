@@ -80,7 +80,8 @@ static const param_store_ops_t *s_param_ops;
 
 sw_err_t param_store_register(const param_store_ops_t *ops)
 {
-    /* svc_param 只判 ops 非空即调用四者，缺任一项都会空指针解引用 */
+    /* 端口契约要求四个回调齐备：调用方按"取到 ops 即四者可用"使用，
+     * 缺任一项都会在调用处空指针解引用，故在注册时整表拒绝 */
     if ((ops != NULL) && ((ops->load == NULL) || (ops->save == NULL) || (ops->get == NULL) || (ops->set == NULL))) {
         return SW_ERR_PARAM;
     }

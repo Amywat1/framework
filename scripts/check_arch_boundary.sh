@@ -12,7 +12,7 @@
 # 规则概览:
 #   R1  common/        不依赖上层目录（domain/ports/application/adapters/runtime/services/）
 #   R2  domain/        不依赖 adapters/ 或 application/
-#   R3  ports/         不依赖 adapters/、application/ 或 runtime/
+#   R3  ports/         不依赖 adapters/、application/、runtime/ 或 services/
 #   R4  runtime/event_bus/   不依赖业务层
 #   R5  runtime/scheduler/   不依赖业务层
 #   R6  各框架层        不引用项目专属头文件路径（m8/ 前缀）
@@ -94,12 +94,13 @@ check_includes \
     "domain" \
     "adapters/" "application/"
 
-# R3: ports/ 不依赖 adapters/、application/ 或 runtime/
-# ports 是纯抽象契约，不依赖任何实现层或运行时基础设施
+# R3: ports/ 不依赖 adapters/、application/、runtime/ 或 services/
+# ports 是纯抽象契约，不依赖任何实现层、运行时基础设施或服务层。
+# 依赖表中 ports 的允许出向依赖只有 common/ 与 domain/，services/ 同属禁止项。
 check_includes \
-    "R3: ports/ 不依赖 adapters/、application/ 或 runtime/" \
+    "R3: ports/ 不依赖 adapters/、application/、runtime/ 或 services/" \
     "ports" \
-    "adapters/" "application/" "runtime/"
+    "adapters/" "application/" "runtime/" "services/"
 
 # R4: runtime/event_bus/ 不依赖业务层
 # event_bus 是核心基础设施，必须对业务层保持无知
