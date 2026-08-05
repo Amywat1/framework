@@ -5,7 +5,7 @@
 
 #include "observability/core/observation.h"
 #include "observability/recorder/blackbox_recorder.h"
-#include "unity.h"
+#include "wdf_test_spec.h"
 
 #include <stdint.h>
 #include <string.h>
@@ -133,11 +133,12 @@ int main(void)
     UNITY_BEGIN();
     /* 必须第一个跑：它断言"未初始化时不就绪"，依赖静态变量的进程初值 false。
      * observation 没有 reset 接口，一旦别的用例先 init 过就无法回到未初始化态。 */
-    RUN_TEST(test_observation_ready_tracks_init);
-    RUN_TEST(test_observation_rejects_invalid_boot_id);
-    RUN_TEST(test_observation_stamps_context_and_prioritizes_critical);
-    RUN_TEST(test_observation_reports_normal_queue_overflow);
-    RUN_TEST(test_blackbox_preserves_configured_pre_and_post_window);
-    RUN_TEST(test_blackbox_rejects_window_larger_than_capacity);
+    WDF_RUN_TEST(test_observation_ready_tracks_init, "", "验证观测系统就绪跟踪初始化");
+    WDF_RUN_TEST(test_observation_rejects_invalid_boot_id, "", "验证观测系统拒绝无效启动ID");
+    WDF_RUN_TEST(
+        test_observation_stamps_context_and_prioritizes_critical, "", "验证观测系统写入上下文并优先处理严重级");
+    WDF_RUN_TEST(test_observation_reports_normal_queue_overflow, "", "验证观测系统上报普通队列溢出");
+    WDF_RUN_TEST(test_blackbox_preserves_configured_pre_and_post_window, "", "验证黑匣子保留配置的前置和后置窗口");
+    WDF_RUN_TEST(test_blackbox_rejects_window_larger_than_capacity, "", "验证黑匣子拒绝超过容量的窗口配置");
     return UNITY_END();
 }

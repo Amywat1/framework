@@ -9,7 +9,7 @@
 #include "domain/cloud/cloud_model.h"
 #include "domain/program_engine/engine/engine_io.h"
 #include "domain/safety/alarm_registry/alarm_registry.h"
-#include "unity.h"
+#include "wdf_test_spec.h"
 
 #include <string.h>
 
@@ -220,18 +220,18 @@ static void test_name_lookup(void)
 int main(void)
 {
     UNITY_BEGIN();
-    RUN_TEST(test_empty_requirement_passes);
-    RUN_TEST(test_missing_alarm_catalog_fails);
-    RUN_TEST(test_loaded_alarm_catalog_passes);
-    RUN_TEST(test_missing_cloud_point_table_fails);
-    RUN_TEST(test_registered_cloud_point_table_passes);
-    RUN_TEST(test_missing_engine_io_catalog_fails);
-    RUN_TEST(test_registered_engine_io_catalog_passes);
-    RUN_TEST(test_empty_engine_io_catalog_fails);
-    RUN_TEST(test_partial_assets_fail);
-    RUN_TEST(test_undeclared_asset_not_checked);
-    RUN_TEST(test_reset_makes_validation_fail);
-    RUN_TEST(test_unknown_bits_ignored);
-    RUN_TEST(test_name_lookup);
+    WDF_RUN_TEST(test_empty_requirement_passes, "", "验证空需求通过");
+    WDF_RUN_TEST(test_missing_alarm_catalog_fails, "", "验证缺失报警目录失败");
+    WDF_RUN_TEST(test_loaded_alarm_catalog_passes, "", "验证已加载报警目录通过");
+    WDF_RUN_TEST(test_missing_cloud_point_table_fails, "", "验证缺失云端点位表失败");
+    WDF_RUN_TEST(test_registered_cloud_point_table_passes, "", "验证已注册云端点位表通过");
+    WDF_RUN_TEST(test_missing_engine_io_catalog_fails, "", "验证缺失程序引擎IO目录失败");
+    WDF_RUN_TEST(test_registered_engine_io_catalog_passes, "", "验证已注册程序引擎IO目录通过");
+    WDF_RUN_TEST(test_empty_engine_io_catalog_fails, "", "验证空程序引擎IO目录失败");
+    WDF_RUN_TEST(test_partial_assets_fail, "", "验证部分资产失败");
+    WDF_RUN_TEST(test_undeclared_asset_not_checked, "", "验证未声明资产未被检查");
+    WDF_RUN_TEST(test_reset_makes_validation_fail, "", "验证复位导致校验失败");
+    WDF_RUN_TEST(test_unknown_bits_ignored, "", "验证未知位被忽略");
+    WDF_RUN_TEST(test_name_lookup, "", "验证名称查询");
     return UNITY_END();
 }

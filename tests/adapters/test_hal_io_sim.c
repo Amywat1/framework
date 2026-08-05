@@ -14,7 +14,7 @@
 #include "common/io_handle.h"
 #include "common/sw_error.h"
 #include "ports/outbound/hal/hal_io_port.h"
-#include "unity.h"
+#include "wdf_test_spec.h"
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -272,37 +272,37 @@ int main(void)
 {
     UNITY_BEGIN();
 
-    RUN_TEST(test_di_read_default_false);
-    RUN_TEST(test_set_di_level_true_and_read);
-    RUN_TEST(test_set_di_level_false_and_read);
-    RUN_TEST(test_di_invalid_board_returns_false);
+    WDF_RUN_TEST(test_di_read_default_false, "", "验证DI读取默认值false");
+    WDF_RUN_TEST(test_set_di_level_true_and_read, "", "验证设置DI级别true并读取");
+    WDF_RUN_TEST(test_set_di_level_false_and_read, "", "验证设置DI级别false并读取");
+    WDF_RUN_TEST(test_di_invalid_board_returns_false, "", "验证DI无效板卡返回false");
 
-    RUN_TEST(test_do_set_valid_returns_ok);
-    RUN_TEST(test_do_level_tracks_output);
-    RUN_TEST(test_do_set_invalid_board_returns_err);
+    WDF_RUN_TEST(test_do_set_valid_returns_ok, "", "验证DO设置有效返回成功");
+    WDF_RUN_TEST(test_do_level_tracks_output, "", "验证DO级别跟踪输出");
+    WDF_RUN_TEST(test_do_set_invalid_board_returns_err, "", "验证DO设置无效板卡返回错误");
 
-    RUN_TEST(test_pulse_read_after_set_counter);
-    RUN_TEST(test_pulse_clear_zeros_counter);
-    RUN_TEST(test_pulse_read_invalid_pin_returns_negative);
-    RUN_TEST(test_pulse_clear_invalid_pin_returns_err);
-    RUN_TEST(test_pulse_counter_init_clears_value);
+    WDF_RUN_TEST(test_pulse_read_after_set_counter, "", "验证设置脉冲计数器后可以读取新值");
+    WDF_RUN_TEST(test_pulse_clear_zeros_counter, "", "验证脉冲清除归零计数器");
+    WDF_RUN_TEST(test_pulse_read_invalid_pin_returns_negative, "", "验证脉冲读取无效引脚返回负数");
+    WDF_RUN_TEST(test_pulse_clear_invalid_pin_returns_err, "", "验证脉冲清除无效引脚返回错误");
+    WDF_RUN_TEST(test_pulse_counter_init_clears_value, "", "验证脉冲计数器初始化清除值");
 
-    RUN_TEST(test_board_is_online_always_true);
-    RUN_TEST(test_flush_outputs_returns_ok);
-    RUN_TEST(test_wait_boards_online_returns_ok);
-    RUN_TEST(test_get_stats_valid);
-    RUN_TEST(test_get_stats_null_returns_err);
+    WDF_RUN_TEST(test_board_is_online_always_true, "", "验证模拟板卡始终报告在线");
+    WDF_RUN_TEST(test_flush_outputs_returns_ok, "", "验证刷新输出返回成功");
+    WDF_RUN_TEST(test_wait_boards_online_returns_ok, "", "验证等待板卡在线返回成功");
+    WDF_RUN_TEST(test_get_stats_valid, "", "验证获取统计有效");
+    WDF_RUN_TEST(test_get_stats_null_returns_err, "", "验证获取统计空指针返回错误");
 
-    RUN_TEST(test_di_pin_zero_returns_false);
-    RUN_TEST(test_di_board_max_boundary);
-    RUN_TEST(test_do_pin_zero_returns_err);
-    RUN_TEST(test_two_di_pins_independent);
-    RUN_TEST(test_two_pulse_counters_independent);
-    RUN_TEST(test_start_returns_ok);
-    RUN_TEST(test_ops_before_init_return_not_init_or_safe_value);
-    RUN_TEST(test_pulse_counter_max_value);
-    RUN_TEST(test_adc_read_after_set);
-    RUN_TEST(test_di_quality_tracks_lifecycle);
+    WDF_RUN_TEST(test_di_pin_zero_returns_false, "", "验证DI引脚零返回false");
+    WDF_RUN_TEST(test_di_board_max_boundary, "", "验证DI板卡最大值边界");
+    WDF_RUN_TEST(test_do_pin_zero_returns_err, "", "验证DO引脚零返回错误");
+    WDF_RUN_TEST(test_two_di_pins_independent, "", "验证两个 DI 引脚状态相互独立");
+    WDF_RUN_TEST(test_two_pulse_counters_independent, "", "验证两个脉冲计数器相互独立");
+    WDF_RUN_TEST(test_start_returns_ok, "", "验证启动返回成功");
+    WDF_RUN_TEST(test_ops_before_init_return_not_init_or_safe_value, "", "验证初始化前操作返回未初始化或安全值");
+    WDF_RUN_TEST(test_pulse_counter_max_value, "", "验证脉冲计数器支持最大值");
+    WDF_RUN_TEST(test_adc_read_after_set, "", "验证设置 ADC 值后可以读取");
+    WDF_RUN_TEST(test_di_quality_tracks_lifecycle, "", "验证DI质量状态跟踪生命周期");
 
     return UNITY_END();
 }

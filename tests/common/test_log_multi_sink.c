@@ -1,5 +1,5 @@
 #include "common/log.h"
-#include "unity.h"
+#include "wdf_test_spec.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -62,7 +62,7 @@ static void test_log_ignores_duplicate_sink(void)
 int main(void)
 {
     UNITY_BEGIN();
-    RUN_TEST(test_log_dispatches_to_all_sinks);
-    RUN_TEST(test_log_ignores_duplicate_sink);
+    WDF_RUN_TEST(test_log_dispatches_to_all_sinks, "", "验证日志分发到全部输出端");
+    WDF_RUN_TEST(test_log_ignores_duplicate_sink, "", "验证日志忽略重复输出端");
     return UNITY_END();
 }

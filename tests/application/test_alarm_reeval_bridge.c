@@ -10,7 +10,7 @@
 #include "domain/safety/alarm_registry/alarm_registry.h"
 #include "domain/safety/model/alarm_types.h"
 #include "runtime/event_bus/event_bus.h"
-#include "unity.h"
+#include "wdf_test_spec.h"
 
 #include <pthread.h>
 #include <unistd.h>
@@ -143,10 +143,10 @@ int main(void)
 {
     UNITY_BEGIN();
 
-    RUN_TEST(test_init_rejects_invalid_binding_table);
-    RUN_TEST(test_actuator_event_reevaluates_bound_group_only);
-    RUN_TEST(test_checkpoint_event_reevaluates_bound_group);
-    RUN_TEST(test_unbound_trigger_is_noop);
+    WDF_RUN_TEST(test_init_rejects_invalid_binding_table, "", "验证初始化拒绝无效绑定表");
+    WDF_RUN_TEST(test_actuator_event_reevaluates_bound_group_only, "", "验证执行器事件仅重新评估绑定的报警组");
+    WDF_RUN_TEST(test_checkpoint_event_reevaluates_bound_group, "", "验证检查点事件重新评估已绑定分组");
+    WDF_RUN_TEST(test_unbound_trigger_is_noop, "", "验证未绑定触发源为无操作");
 
     return UNITY_END();
 }

@@ -17,7 +17,7 @@
 #include "domain/safety/alarm_registry/alarm_registry.h"
 #include "domain/safety/model/alarm_types.h"
 #include "runtime/event_bus/event_bus.h"
-#include "unity.h"
+#include "wdf_test_spec.h"
 
 #include <pthread.h>
 #include <unistd.h>
@@ -208,14 +208,14 @@ static void test_journal_retains_cleared_alarm(void)
 int main(void)
 {
     UNITY_BEGIN();
-    RUN_TEST(test_no_journal_before_session_start);
-    RUN_TEST(test_session_started_enables_journal);
-    RUN_TEST(test_wash_done_disables_journal);
-    RUN_TEST(test_wash_aborted_disables_journal);
-    RUN_TEST(test_new_session_clears_previous_journal);
-    RUN_TEST(test_minor_not_recorded);
-    RUN_TEST(test_critical_recorded);
-    RUN_TEST(test_duplicate_trigger_recorded_once);
-    RUN_TEST(test_journal_retains_cleared_alarm);
+    WDF_RUN_TEST(test_no_journal_before_session_start, "", "验证会话启动前不记录报警日志");
+    WDF_RUN_TEST(test_session_started_enables_journal, "", "验证会话已启动启用会话日志");
+    WDF_RUN_TEST(test_wash_done_disables_journal, "", "验证洗车完成禁用会话日志");
+    WDF_RUN_TEST(test_wash_aborted_disables_journal, "", "验证洗车已中止禁用会话日志");
+    WDF_RUN_TEST(test_new_session_clears_previous_journal, "", "验证新会话清除原有会话日志");
+    WDF_RUN_TEST(test_minor_not_recorded, "", "验证轻微级未被记录");
+    WDF_RUN_TEST(test_critical_recorded, "", "验证严重级被记录");
+    WDF_RUN_TEST(test_duplicate_trigger_recorded_once, "", "验证重复触发源被记录一次");
+    WDF_RUN_TEST(test_journal_retains_cleared_alarm, "", "验证会话日志保留已清除报警");
     return UNITY_END();
 }

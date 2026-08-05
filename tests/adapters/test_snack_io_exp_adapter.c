@@ -8,7 +8,7 @@
 #include "common/io_handle.h"
 #include "ports/outbound/hal/hal_io_port.h"
 #include "tests/stubs/io_exp/io_exp_fake.h"
-#include "unity.h"
+#include "wdf_test_spec.h"
 
 #include <string.h>
 #include <unistd.h>
@@ -248,17 +248,21 @@ int main(void)
 {
     UNITY_BEGIN();
 
-    RUN_TEST(test_sdk_init_registers_internal_log_and_delegates_to_io_exp_sdk);
-    RUN_TEST(test_init_rejects_invalid_config);
-    RUN_TEST(test_hal_adapter_validates_cfg_before_sdk_init);
-    RUN_TEST(test_hal_adapter_rejects_init_before_configure_and_duplicate_configure);
-    RUN_TEST(test_hal_adapter_exposes_name_resolution_and_board_count);
-    RUN_TEST(test_do_set_updates_stats_and_rejects_invalid_pin);
-    RUN_TEST(test_di_test_override_controls_read_value);
-    RUN_TEST(test_wait_boards_online_uses_sdk_probe);
-    RUN_TEST(test_pulse_read_and_clear_delegate_to_sdk);
-    RUN_TEST(test_adc_read_delegates_to_sdk);
-    RUN_TEST(test_start_confirms_healthy_boards_within_watchdog_window);
+    WDF_RUN_TEST(test_sdk_init_registers_internal_log_and_delegates_to_io_exp_sdk,
+                 "",
+                 "验证SDK初始化注册内部日志并委托到IO扩展SDK");
+    WDF_RUN_TEST(test_init_rejects_invalid_config, "", "验证初始化拒绝无效配置");
+    WDF_RUN_TEST(test_hal_adapter_validates_cfg_before_sdk_init, "", "验证 HAL 适配器在 SDK 初始化前校验配置");
+    WDF_RUN_TEST(test_hal_adapter_rejects_init_before_configure_and_duplicate_configure,
+                 "",
+                 "验证 HAL 适配器拒绝配置前初始化和重复配置");
+    WDF_RUN_TEST(test_hal_adapter_exposes_name_resolution_and_board_count, "", "验证 HAL 适配器提供名称解析和板卡数量");
+    WDF_RUN_TEST(test_do_set_updates_stats_and_rejects_invalid_pin, "", "验证DO设置更新统计并拒绝无效引脚");
+    WDF_RUN_TEST(test_di_test_override_controls_read_value, "", "验证DI测试覆盖值控制读取值");
+    WDF_RUN_TEST(test_wait_boards_online_uses_sdk_probe, "", "验证等待板卡在线使用SDK探测");
+    WDF_RUN_TEST(test_pulse_read_and_clear_delegate_to_sdk, "", "验证脉冲读取并清除委托到SDK");
+    WDF_RUN_TEST(test_adc_read_delegates_to_sdk, "", "验证ADC读取委托到SDK");
+    WDF_RUN_TEST(test_start_confirms_healthy_boards_within_watchdog_window, "", "验证启动在看门狗窗口内确认健康板卡");
 
     return UNITY_END();
 }

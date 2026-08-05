@@ -12,7 +12,7 @@
 #include "domain/op_mode/command_types.h"
 #include "domain/op_mode/device_command.h"
 #include "domain/op_mode/op_mode_types.h"
-#include "unity.h"
+#include "wdf_test_spec.h"
 
 void setUp(void)
 {
@@ -92,11 +92,11 @@ static void test_wash_abort_roundtrip(void)
 int main(void)
 {
     UNITY_BEGIN();
-    RUN_TEST(test_mode_changed_roundtrip);
-    RUN_TEST(test_cmd_rejected_roundtrip);
-    RUN_TEST(test_cmd_handled_roundtrip);
-    RUN_TEST(test_cmd_handled_field_isolation);
-    RUN_TEST(test_wash_session_started_roundtrip);
-    RUN_TEST(test_wash_abort_roundtrip);
+    WDF_RUN_TEST(test_mode_changed_roundtrip, "", "验证模式变化往返编解码");
+    WDF_RUN_TEST(test_cmd_rejected_roundtrip, "", "验证命令被拒绝往返编解码");
+    WDF_RUN_TEST(test_cmd_handled_roundtrip, "", "验证命令已处理往返编解码");
+    WDF_RUN_TEST(test_cmd_handled_field_isolation, "", "验证命令已处理字段隔离");
+    WDF_RUN_TEST(test_wash_session_started_roundtrip, "", "验证洗车会话已启动往返编解码");
+    WDF_RUN_TEST(test_wash_abort_roundtrip, "", "验证洗车中止往返编解码");
     return UNITY_END();
 }

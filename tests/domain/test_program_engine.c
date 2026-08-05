@@ -12,7 +12,7 @@
 #include "domain/program_engine/engine/engine_profile.h"
 #include "domain/program_engine/model/engine_model.h"
 #include "domain/program_engine/model/engine_program_validate.h"
-#include "unity.h"
+#include "wdf_test_spec.h"
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -599,18 +599,18 @@ int main(void)
 {
     UNITY_BEGIN();
 
-    RUN_TEST(test_engine_expr_evaluates_arithmetic_logic_and_vars);
-    RUN_TEST(test_engine_expr_evaluates_profile_functions);
-    RUN_TEST(test_engine_expr_rejects_unknown_function_at_compile);
-    RUN_TEST(test_engine_expr_rejects_wrong_arity_at_compile);
-    RUN_TEST(test_engine_expr_rejects_non_literal_zone_name);
-    RUN_TEST(test_engine_expr_checks_nested_functions);
-    RUN_TEST(test_engine_expr_whitelist_all_evaluable);
-    RUN_TEST(test_engine_model_parse_clone_and_validate);
-    RUN_TEST(test_engine_validate_rejects_unknown_after);
-    RUN_TEST(test_engine_runtime_runs_steps_and_finishes_phase);
-    RUN_TEST(test_engine_runtime_auto_releases_held_except_keep);
-    RUN_TEST(test_engine_runtime_halt_all_interlock_clears_outputs);
+    WDF_RUN_TEST(test_engine_expr_evaluates_arithmetic_logic_and_vars, "", "验证引擎表达式计算算术、逻辑和变量");
+    WDF_RUN_TEST(test_engine_expr_evaluates_profile_functions, "", "验证引擎表达式计算配置函数");
+    WDF_RUN_TEST(test_engine_expr_rejects_unknown_function_at_compile, "", "验证表达式在编译期拒绝未知函数");
+    WDF_RUN_TEST(test_engine_expr_rejects_wrong_arity_at_compile, "", "验证表达式在编译期拒绝错误参数数量");
+    WDF_RUN_TEST(test_engine_expr_rejects_non_literal_zone_name, "", "验证表达式拒绝非字面量区域名称");
+    WDF_RUN_TEST(test_engine_expr_checks_nested_functions, "", "验证程序引擎表达式检查嵌套函数");
+    WDF_RUN_TEST(test_engine_expr_whitelist_all_evaluable, "", "验证程序引擎表达式白名单全部可求值");
+    WDF_RUN_TEST(test_engine_model_parse_clone_and_validate, "", "验证程序引擎模型解析克隆并校验");
+    WDF_RUN_TEST(test_engine_validate_rejects_unknown_after, "", "验证引擎校验拒绝未知后继步骤");
+    WDF_RUN_TEST(test_engine_runtime_runs_steps_and_finishes_phase, "", "验证程序引擎运行时运行步骤并完成阶段");
+    WDF_RUN_TEST(test_engine_runtime_auto_releases_held_except_keep, "", "验证引擎自动释放除保留项外的占用资源");
+    WDF_RUN_TEST(test_engine_runtime_halt_all_interlock_clears_outputs, "", "验证程序引擎运行时停止全部联锁清除输出");
 
     return UNITY_END();
 }

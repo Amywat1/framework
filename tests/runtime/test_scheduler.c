@@ -9,7 +9,7 @@
 #include "runtime/scheduler/periodic_task.h"
 #include "runtime/scheduler/scheduler.h"
 #include "runtime/scheduler/thread_registry.h"
-#include "unity.h"
+#include "wdf_test_spec.h"
 
 #include <pthread.h>
 #include <sched.h>
@@ -148,14 +148,14 @@ static void test_registry_overflow(void)
 int main(void)
 {
     UNITY_BEGIN();
-    RUN_TEST(test_registry_count_initial_zero);
-    RUN_TEST(test_register_rejects_null_name);
-    RUN_TEST(test_register_rejects_null_fn);
-    RUN_TEST(test_register_and_get_entry);
-    RUN_TEST(test_register_arg_passes_context);
-    RUN_TEST(test_registry_get_out_of_range);
-    RUN_TEST(test_periodic_task_register_rejects_invalid_args);
-    RUN_TEST(test_periodic_task_register_and_scheduler_start);
-    RUN_TEST(test_registry_overflow);
+    WDF_RUN_TEST(test_registry_count_initial_zero, "", "验证注册表数量初始零");
+    WDF_RUN_TEST(test_register_rejects_null_name, "", "验证注册拒绝空指针名称");
+    WDF_RUN_TEST(test_register_rejects_null_fn, "", "验证注册拒绝空指针函数");
+    WDF_RUN_TEST(test_register_and_get_entry, "", "验证注册并获取条目");
+    WDF_RUN_TEST(test_register_arg_passes_context, "", "验证注册参数通过上下文");
+    WDF_RUN_TEST(test_registry_get_out_of_range, "", "验证读取注册表范围外条目时返回错误");
+    WDF_RUN_TEST(test_periodic_task_register_rejects_invalid_args, "", "验证周期任务注册拒绝无效参数");
+    WDF_RUN_TEST(test_periodic_task_register_and_scheduler_start, "", "验证周期任务注册后由调度器启动");
+    WDF_RUN_TEST(test_registry_overflow, "", "验证注册表溢出");
     return UNITY_END();
 }

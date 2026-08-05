@@ -10,7 +10,7 @@
 #include "adapters/outbound/storage/json/json_deploy_store.h"
 #include "common/sw_error.h"
 #include "ports/outbound/storage/deploy_store.h"
-#include "unity.h"
+#include "wdf_test_spec.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -202,21 +202,21 @@ int main(void)
 {
     UNITY_BEGIN();
 
-    RUN_TEST(test_load_file_not_found);
-    RUN_TEST(test_load_valid_json_string_key);
-    RUN_TEST(test_load_valid_json_number_key);
-    RUN_TEST(test_load_invalid_json);
-    RUN_TEST(test_get_missing_key);
-    RUN_TEST(test_get_without_load);
-    RUN_TEST(test_get_null_args);
-    RUN_TEST(test_get_truncates_long_string);
-    RUN_TEST(test_reload_overwrites_config);
+    WDF_RUN_TEST(test_load_file_not_found, "", "验证加载不存在的文件返回未找到");
+    WDF_RUN_TEST(test_load_valid_json_string_key, "", "验证加载有效JSON字符串键");
+    WDF_RUN_TEST(test_load_valid_json_number_key, "", "验证加载有效JSON数值键");
+    WDF_RUN_TEST(test_load_invalid_json, "", "验证加载无效JSON");
+    WDF_RUN_TEST(test_get_missing_key, "", "验证获取缺失键");
+    WDF_RUN_TEST(test_get_without_load, "", "验证未加载配置时拒绝读取");
+    WDF_RUN_TEST(test_get_null_args, "", "验证获取空指针参数");
+    WDF_RUN_TEST(test_get_truncates_long_string, "", "验证读取长字符串时按缓冲区长度截断");
+    WDF_RUN_TEST(test_reload_overwrites_config, "", "验证重新加载覆盖配置");
 
-    RUN_TEST(test_load_rejects_missing_schema_version);
-    RUN_TEST(test_load_rejects_major_version_mismatch);
-    RUN_TEST(test_load_rejects_higher_minor_version);
-    RUN_TEST(test_load_accepts_patch_suffix);
-    RUN_TEST(test_rejected_version_keeps_previous_config);
+    WDF_RUN_TEST(test_load_rejects_missing_schema_version, "", "验证加载时拒绝缺失模式版本");
+    WDF_RUN_TEST(test_load_rejects_major_version_mismatch, "", "验证加载时拒绝主版本不匹配");
+    WDF_RUN_TEST(test_load_rejects_higher_minor_version, "", "验证加载时拒绝更高的次版本");
+    WDF_RUN_TEST(test_load_accepts_patch_suffix, "", "验证加载接受修订版本后缀");
+    WDF_RUN_TEST(test_rejected_version_keeps_previous_config, "", "验证被拒绝版本保持原有配置");
 
     return UNITY_END();
 }

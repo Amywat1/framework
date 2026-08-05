@@ -7,7 +7,7 @@
 #include "common/sw_error.h"
 #include "common/time_util.h"
 #include "ports/outbound/hal/hal_vfd_port.h"
-#include "unity.h"
+#include "wdf_test_spec.h"
 
 #include <string.h>
 #include <unistd.h>
@@ -383,14 +383,15 @@ int main(void)
 {
     UNITY_BEGIN();
 
-    RUN_TEST(test_bind_rejects_invalid_config);
-    RUN_TEST(test_unbound_operations_return_not_init);
-    RUN_TEST(test_control_mode_is_selected_by_api_and_switch_requires_stop);
-    RUN_TEST(test_fault_reset_uses_modbus_clear_when_no_rst_pin);
-    RUN_TEST(test_fault_reset_uses_rst_pulse_when_pin_exists);
-    RUN_TEST(test_monitor_updates_cached_fault_and_current_and_events);
-    RUN_TEST(test_monitor_reports_comm_lost_and_restored);
-    RUN_TEST(test_monitor_independent_periods_current_faster_than_fault);
+    WDF_RUN_TEST(test_bind_rejects_invalid_config, "", "验证绑定拒绝无效配置");
+    WDF_RUN_TEST(test_unbound_operations_return_not_init, "", "验证未绑定操作返回未初始化");
+    WDF_RUN_TEST(
+        test_control_mode_is_selected_by_api_and_switch_requires_stop, "", "验证 API 选择控制模式且切换前必须停止");
+    WDF_RUN_TEST(test_fault_reset_uses_modbus_clear_when_no_rst_pin, "", "验证无复位引脚时通过 Modbus 清除故障");
+    WDF_RUN_TEST(test_fault_reset_uses_rst_pulse_when_pin_exists, "", "验证存在复位引脚时通过脉冲清除故障");
+    WDF_RUN_TEST(test_monitor_updates_cached_fault_and_current_and_events, "", "验证监控更新缓存的故障、电流和事件");
+    WDF_RUN_TEST(test_monitor_reports_comm_lost_and_restored, "", "验证监控上报通信丢失并恢复");
+    WDF_RUN_TEST(test_monitor_independent_periods_current_faster_than_fault, "", "验证电流监控周期独立且快于故障监控");
 
     return UNITY_END();
 }

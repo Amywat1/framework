@@ -13,7 +13,7 @@
 #include "domain/safety/alarm_registry/alarm_registry.h"
 #include "domain/safety/model/alarm_types.h"
 #include "runtime/event_bus/event_bus.h"
-#include "unity.h"
+#include "wdf_test_spec.h"
 
 #include <pthread.h>
 #include <unistd.h>
@@ -264,15 +264,15 @@ int main(void)
 {
     UNITY_BEGIN();
 
-    RUN_TEST(test_hw_estop_on_enters_exception);
-    RUN_TEST(test_wash_session_started_enters_washing);
-    RUN_TEST(test_wash_done_enters_wash_done);
-    RUN_TEST(test_customer_gone_returns_idle);
-    RUN_TEST(test_wash_aborted_manual_enters_alarm_homing);
-    RUN_TEST(test_self_check_from_stopped_lands_stopped);
-    RUN_TEST(test_home_completed_success_enters_idle);
-    RUN_TEST(test_alarm_home_done_enters_exception);
-    RUN_TEST(test_blocking_alarm_event_enters_exception);
+    WDF_RUN_TEST(test_hw_estop_on_enters_exception, "", "验证HW急停开启进入异常模式");
+    WDF_RUN_TEST(test_wash_session_started_enters_washing, "", "验证洗车会话已启动进入洗车模式");
+    WDF_RUN_TEST(test_wash_done_enters_wash_done, "", "验证洗车完成进入洗车完成");
+    WDF_RUN_TEST(test_customer_gone_returns_idle, "", "验证客户离场返回空闲模式");
+    WDF_RUN_TEST(test_wash_aborted_manual_enters_alarm_homing, "", "验证洗车已中止手动进入报警回零");
+    WDF_RUN_TEST(test_self_check_from_stopped_lands_stopped, "", "验证自检检查从停止模式最终进入停止模式");
+    WDF_RUN_TEST(test_home_completed_success_enters_idle, "", "验证回零完成成功进入空闲模式");
+    WDF_RUN_TEST(test_alarm_home_done_enters_exception, "", "验证报警回零完成进入异常模式");
+    WDF_RUN_TEST(test_blocking_alarm_event_enters_exception, "", "验证阻断性报警事件进入异常模式");
 
     return UNITY_END();
 }

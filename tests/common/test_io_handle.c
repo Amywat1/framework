@@ -4,7 +4,7 @@
  */
 
 #include "common/io_handle.h"
-#include "unity.h"
+#include "wdf_test_spec.h"
 
 #include <stdint.h>
 
@@ -78,12 +78,12 @@ int main(void)
 {
     UNITY_BEGIN();
 
-    RUN_TEST(test_di_encode_decode);
-    RUN_TEST(test_do_encode_decode);
-    RUN_TEST(test_di_do_kind_distinct);
-    RUN_TEST(test_make_helpers_match_macros);
-    RUN_TEST(test_board_pin_mask_boundary);
-    RUN_TEST(test_board_overflow_is_masked);
+    WDF_RUN_TEST(test_di_encode_decode, "", "验证DI编码解码");
+    WDF_RUN_TEST(test_do_encode_decode, "", "验证DO编码解码");
+    WDF_RUN_TEST(test_di_do_kind_distinct, "", "验证DIDO类型互不相同");
+    WDF_RUN_TEST(test_make_helpers_match_macros, "", "验证句柄构造辅助函数与宏结果一致");
+    WDF_RUN_TEST(test_board_pin_mask_boundary, "", "验证板卡引脚掩码边界");
+    WDF_RUN_TEST(test_board_overflow_is_masked, "", "验证超出范围的板卡编号按掩码截断");
 
     return UNITY_END();
 }

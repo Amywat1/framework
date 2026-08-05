@@ -10,7 +10,7 @@
  */
 
 #include "domain/safety/model/safety_matrix.h"
-#include "unity.h"
+#include "wdf_test_spec.h"
 
 void setUp(void)
 {
@@ -192,17 +192,17 @@ static void test_severity_is_monotonic(void)
 int main(void)
 {
     UNITY_BEGIN();
-    RUN_TEST(test_minor_level_grid);
-    RUN_TEST(test_major_level_grid);
-    RUN_TEST(test_critical_level_grid);
-    RUN_TEST(test_unknown_level_is_most_restrictive);
-    RUN_TEST(test_level_helpers_match_matrix);
-    RUN_TEST(test_auto_static_clear_grid);
-    RUN_TEST(test_on_motion_clear_grid);
-    RUN_TEST(test_manual_reset_clear_grid);
-    RUN_TEST(test_unknown_clear_never_auto);
-    RUN_TEST(test_clear_helpers_match_matrix);
-    RUN_TEST(test_posture_derivation);
-    RUN_TEST(test_severity_is_monotonic);
+    WDF_RUN_TEST(test_minor_level_grid, "", "验证轻微级报警行为矩阵");
+    WDF_RUN_TEST(test_major_level_grid, "", "验证重大级报警行为矩阵");
+    WDF_RUN_TEST(test_critical_level_grid, "", "验证严重级报警行为矩阵");
+    WDF_RUN_TEST(test_unknown_level_is_most_restrictive, "", "验证未知级别为最严格限制");
+    WDF_RUN_TEST(test_level_helpers_match_matrix, "", "验证级别辅助函数与安全矩阵一致");
+    WDF_RUN_TEST(test_auto_static_clear_grid, "", "验证自动静止时清除组合矩阵");
+    WDF_RUN_TEST(test_on_motion_clear_grid, "", "验证开启运动时清除组合矩阵");
+    WDF_RUN_TEST(test_manual_reset_clear_grid, "", "验证手动复位清除组合矩阵");
+    WDF_RUN_TEST(test_unknown_clear_never_auto, "", "验证未知清除永不自动");
+    WDF_RUN_TEST(test_clear_helpers_match_matrix, "", "验证清除辅助函数与安全矩阵一致");
+    WDF_RUN_TEST(test_posture_derivation, "", "验证安全姿态推导");
+    WDF_RUN_TEST(test_severity_is_monotonic, "", "验证报警严重度保持单调");
     return UNITY_END();
 }

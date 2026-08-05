@@ -8,7 +8,7 @@
 #include "domain/cloud/cloud_point.h"
 #include "domain/cloud/cloud_point_watcher.h"
 #include "runtime/event_bus/event_bus.h"
-#include "unity.h"
+#include "wdf_test_spec.h"
 
 #include <pthread.h>
 #include <string.h>
@@ -130,9 +130,9 @@ int main(void)
 {
     UNITY_BEGIN();
 
-    RUN_TEST(test_poll_without_change_no_event);
-    RUN_TEST(test_poll_after_change_publishes_dirty);
-    RUN_TEST(test_init_rejects_invalid_args);
+    WDF_RUN_TEST(test_poll_without_change_no_event, "", "验证点位无变化时轮询不发布事件");
+    WDF_RUN_TEST(test_poll_after_change_publishes_dirty, "", "验证点位变化后轮询发布脏标记事件");
+    WDF_RUN_TEST(test_init_rejects_invalid_args, "", "验证初始化拒绝无效参数");
 
     return UNITY_END();
 }

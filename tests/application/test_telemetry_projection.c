@@ -14,7 +14,7 @@
 #include "domain/telemetry/device_snapshot_internal.h"
 #include "runtime/event_bus/event_bus.h"
 #include "tests/stubs/test_wash_modes.h"
-#include "unity.h"
+#include "wdf_test_spec.h"
 
 #include <pthread.h>
 #include <unistd.h>
@@ -182,10 +182,10 @@ int main(void)
 {
     UNITY_BEGIN();
 
-    RUN_TEST(test_snapshot_direct_updates_are_read_back);
-    RUN_TEST(test_wash_projection_tracks_session_started_event);
-    RUN_TEST(test_operational_projection_syncs_current_context);
-    RUN_TEST(test_safety_projection_refreshes_alarm_snapshot);
+    WDF_RUN_TEST(test_snapshot_direct_updates_are_read_back, "", "验证直接更新快照后可以读取新值");
+    WDF_RUN_TEST(test_wash_projection_tracks_session_started_event, "", "验证洗车投影跟踪会话已启动事件");
+    WDF_RUN_TEST(test_operational_projection_syncs_current_context, "", "验证运行状态投影同步当前上下文");
+    WDF_RUN_TEST(test_safety_projection_refreshes_alarm_snapshot, "", "验证安全投影刷新报警快照");
 
     return UNITY_END();
 }

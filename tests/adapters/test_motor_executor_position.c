@@ -4,7 +4,7 @@
  */
 
 #include "adapters/outbound/hal/providers/mcc/motor_executor.h"
-#include "unity.h"
+#include "wdf_test_spec.h"
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -318,7 +318,7 @@ static void test_unhealthy_encoder_rejects_position_move_but_allows_homing(void)
     s_fixture.origin_active = false;
     spec.use_position       = true;
     spec.target_pos         = 500;
-    result = motor_move_to(&s_executor, 0, motor_speed_gear(1), MOTOR_DIR_FORWARD, &spec);
+    result                  = motor_move_to(&s_executor, 0, motor_speed_gear(1), MOTOR_DIR_FORWARD, &spec);
     TEST_ASSERT_TRUE(motor_cmd_ok(result));
     for (i = 0; i < 5; ++i) {
         tick_at(50);
@@ -357,8 +357,7 @@ static void test_homing_restores_encoder_health(void)
 
     /* 冻结脉冲使编码器判定为不健康。 */
     s_fixture.origin_active = false;
-    TEST_ASSERT_TRUE(motor_cmd_ok(
-        motor_move_to(&s_executor, 0, motor_speed_gear(1), MOTOR_DIR_FORWARD, &spec)));
+    TEST_ASSERT_TRUE(motor_cmd_ok(motor_move_to(&s_executor, 0, motor_speed_gear(1), MOTOR_DIR_FORWARD, &spec)));
     for (i = 0; i < 5; ++i) {
         tick_at(50);
     }
@@ -403,12 +402,18 @@ static void test_origin_clear_failure_keeps_baseline_untrusted_and_faults(void)
 int main(void)
 {
     UNITY_BEGIN();
-    RUN_TEST(test_forward_position_move_slows_once_and_stops_after_overshoot);
-    RUN_TEST(test_reverse_position_move_stops_after_overshoot);
-    RUN_TEST(test_active_position_target_update_keeps_start_time_and_output);
-    RUN_TEST(test_origin_move_clears_hardware_and_software_once);
-    RUN_TEST(test_origin_clear_failure_keeps_baseline_untrusted_and_faults);
-    RUN_TEST(test_unhealthy_encoder_rejects_position_move_but_allows_homing);
-    RUN_TEST(test_homing_restores_encoder_health);
+    WDF_RUN_TEST(test_forward_position_move_slows_once_and_stops_after_overshoot,
+                 "",
+                 "验证正向位置移动仅减速一次并在越过目标后停止");
+    WDF_RUN_TEST(test_reverse_position_move_stops_after_overshoot, "", "验证反向位置移动在越过目标后停止");
+    WDF_RUN_TEST(test_active_position_target_update_keeps_start_time_and_output,
+                 "",
+                 "验证活动状态位置目标更新保持启动时间并输出");
+    WDF_RUN_TEST(test_origin_move_clears_hardware_and_software_once, "", "验证原点移动仅清除一次软硬件位置");
+    WDF_RUN_TEST(
+        test_origin_clear_failure_keeps_baseline_untrusted_and_faults, "", "验证原点清除失败保持基线不可信并进入故障");
+    WDF_RUN_TEST(
+        test_unhealthy_encoder_rejects_position_move_but_allows_homing, "", "验证不健康编码器拒绝位置移动但允许回零");
+    WDF_RUN_TEST(test_homing_restores_encoder_health, "", "验证回零恢复编码器健康状态");
     return UNITY_END();
 }

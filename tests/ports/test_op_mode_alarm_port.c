@@ -5,7 +5,7 @@
 
 #include "ports/outbound/safety/safety_port.h"
 #include "ports/port_registry.h"
-#include "unity.h"
+#include "wdf_test_spec.h"
 
 #include <stdint.h>
 
@@ -178,12 +178,12 @@ static void test_unregistered_not_counted_as_failure(void)
 int main(void)
 {
     UNITY_BEGIN();
-    RUN_TEST(test_unregistered_is_safe);
-    RUN_TEST(test_registered_delegates);
-    RUN_TEST(test_partial_ops_rejected);
-    RUN_TEST(test_rejected_registration_keeps_previous);
-    RUN_TEST(test_null_unregisters);
-    RUN_TEST(test_cutout_failure_reported_and_counted);
-    RUN_TEST(test_unregistered_not_counted_as_failure);
+    WDF_RUN_TEST(test_unregistered_is_safe, "", "验证端口未注册时调用保持安全");
+    WDF_RUN_TEST(test_registered_delegates, "", "验证已注册委托");
+    WDF_RUN_TEST(test_partial_ops_rejected, "", "验证部分操作接口被拒绝");
+    WDF_RUN_TEST(test_rejected_registration_keeps_previous, "", "验证被拒绝注册保持原有");
+    WDF_RUN_TEST(test_null_unregisters, "", "验证空指针注销");
+    WDF_RUN_TEST(test_cutout_failure_reported_and_counted, "", "验证安全切断失败被上报并计数");
+    WDF_RUN_TEST(test_unregistered_not_counted_as_failure, "", "验证端口未注册不计为安全切断失败");
     return UNITY_END();
 }

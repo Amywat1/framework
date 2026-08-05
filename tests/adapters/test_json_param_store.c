@@ -12,7 +12,7 @@
 #include "adapters/outbound/storage/json/json_param_store.h"
 #include "common/sw_error.h"
 #include "ports/outbound/storage/param_store.h"
-#include "unity.h"
+#include "wdf_test_spec.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -171,19 +171,19 @@ int main(void)
 {
     UNITY_BEGIN();
 
-    RUN_TEST(test_load_file_not_found);
-    RUN_TEST(test_load_valid_json_string_key);
-    RUN_TEST(test_load_valid_json_number_key);
-    RUN_TEST(test_load_invalid_json);
-    RUN_TEST(test_get_missing_key);
-    RUN_TEST(test_get_null_args);
-    RUN_TEST(test_set_and_get_new_key);
-    RUN_TEST(test_set_update_string_key);
-    RUN_TEST(test_set_update_number_key);
-    RUN_TEST(test_set_null_args);
-    RUN_TEST(test_save_and_reload);
-    RUN_TEST(test_save_empty_json_object);
-    RUN_TEST(test_get_truncates_long_string);
+    WDF_RUN_TEST(test_load_file_not_found, "", "验证加载不存在的文件返回未找到");
+    WDF_RUN_TEST(test_load_valid_json_string_key, "", "验证加载有效JSON字符串键");
+    WDF_RUN_TEST(test_load_valid_json_number_key, "", "验证加载有效JSON数值键");
+    WDF_RUN_TEST(test_load_invalid_json, "", "验证加载无效JSON");
+    WDF_RUN_TEST(test_get_missing_key, "", "验证获取缺失键");
+    WDF_RUN_TEST(test_get_null_args, "", "验证获取空指针参数");
+    WDF_RUN_TEST(test_set_and_get_new_key, "", "验证设置并获取新键");
+    WDF_RUN_TEST(test_set_update_string_key, "", "验证设置更新字符串键");
+    WDF_RUN_TEST(test_set_update_number_key, "", "验证设置更新数值键");
+    WDF_RUN_TEST(test_set_null_args, "", "验证设置空指针参数");
+    WDF_RUN_TEST(test_save_and_reload, "", "验证保存并重新加载");
+    WDF_RUN_TEST(test_save_empty_json_object, "", "验证保存空JSON对象");
+    WDF_RUN_TEST(test_get_truncates_long_string, "", "验证读取长字符串时按缓冲区长度截断");
 
     return UNITY_END();
 }

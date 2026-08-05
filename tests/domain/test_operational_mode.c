@@ -11,7 +11,7 @@
 #include "domain/safety/model/alarm_types.h"
 #include "ports/outbound/machine/machine_ops_port.h"
 #include "tests/stubs/test_wash_modes.h"
-#include "unity.h"
+#include "wdf_test_spec.h"
 
 #define TEST_ALARM_BLOCKING ALARM_CODE_MAKE(ALM_C_SENSE, 1U, ALM_N_SIG_ERR)
 
@@ -388,32 +388,32 @@ int main(void)
 {
     UNITY_BEGIN();
 
-    RUN_TEST(test_init_stopped_and_service_enabled);
-    RUN_TEST(test_recover_from_stopped_enters_idle);
-    RUN_TEST(test_recover_home_failure_enters_exception);
-    RUN_TEST(test_blocking_alarm_from_stopped_enters_exception);
-    RUN_TEST(test_blocking_alarm_during_home_lands_exception);
-    RUN_TEST(test_recover_denied_when_service_disabled);
-    RUN_TEST(test_recover_in_idle_is_idempotent);
-    RUN_TEST(test_start_wash_allowed_in_idle);
-    RUN_TEST(test_stop_wash_denied_in_idle);
-    RUN_TEST(test_stop_operation_disables_service);
-    RUN_TEST(test_resume_operation_only_when_service_stopped);
-    RUN_TEST(test_start_wash_denied_when_service_disabled);
-    RUN_TEST(test_start_wash_denied_with_blocking_alarm);
-    RUN_TEST(test_start_wash_denied_when_vehicle_not_ready);
-    RUN_TEST(test_estop_blocks_recover);
-    RUN_TEST(test_recover_from_exception_enters_recovering);
-    RUN_TEST(test_recover_from_exception_denied_when_service_disabled);
-    RUN_TEST(test_wash_session_lifecycle);
-    RUN_TEST(test_wash_done_with_blocking_enters_exception);
-    RUN_TEST(test_manual_actuator_allowed_in_stopped);
-    RUN_TEST(test_manual_actuator_allowed_in_exception_without_estop);
-    RUN_TEST(test_manual_actuator_denied_in_exception_with_estop);
-    RUN_TEST(test_self_check_from_stopped_success_returns_stopped);
-    RUN_TEST(test_self_check_from_stopped_fail_enters_exception);
-    RUN_TEST(test_self_check_from_exception_success_returns_stopped);
-    RUN_TEST(test_self_check_from_exception_fail_returns_exception);
+    WDF_RUN_TEST(test_init_stopped_and_service_enabled, "", "验证初始化停止模式并服务启用");
+    WDF_RUN_TEST(test_recover_from_stopped_enters_idle, "", "验证恢复从停止模式进入空闲模式");
+    WDF_RUN_TEST(test_recover_home_failure_enters_exception, "", "验证恢复回零失败进入异常模式");
+    WDF_RUN_TEST(test_blocking_alarm_from_stopped_enters_exception, "", "验证停止模式出现阻断报警时进入异常模式");
+    WDF_RUN_TEST(test_blocking_alarm_during_home_lands_exception, "", "验证回零期间出现阻断报警后进入异常模式");
+    WDF_RUN_TEST(test_recover_denied_when_service_disabled, "", "验证恢复被拒绝时服务禁用");
+    WDF_RUN_TEST(test_recover_in_idle_is_idempotent, "", "验证恢复在空闲模式为幂等");
+    WDF_RUN_TEST(test_start_wash_allowed_in_idle, "", "验证启动洗车被允许在空闲模式");
+    WDF_RUN_TEST(test_stop_wash_denied_in_idle, "", "验证停止洗车被拒绝在空闲模式");
+    WDF_RUN_TEST(test_stop_operation_disables_service, "", "验证停止运行禁用服务");
+    WDF_RUN_TEST(test_resume_operation_only_when_service_stopped, "", "验证仅服务停止时允许恢复运行");
+    WDF_RUN_TEST(test_start_wash_denied_when_service_disabled, "", "验证启动洗车被拒绝时服务禁用");
+    WDF_RUN_TEST(test_start_wash_denied_with_blocking_alarm, "", "验证存在阻断报警时拒绝启动洗车");
+    WDF_RUN_TEST(test_start_wash_denied_when_vehicle_not_ready, "", "验证启动洗车被拒绝时车辆未就绪");
+    WDF_RUN_TEST(test_estop_blocks_recover, "", "验证急停阻止恢复");
+    WDF_RUN_TEST(test_recover_from_exception_enters_recovering, "", "验证恢复从异常模式进入恢复中模式");
+    WDF_RUN_TEST(test_recover_from_exception_denied_when_service_disabled, "", "验证恢复从异常模式被拒绝时服务禁用");
+    WDF_RUN_TEST(test_wash_session_lifecycle, "", "验证洗车会话生命周期");
+    WDF_RUN_TEST(test_wash_done_with_blocking_enters_exception, "", "验证洗车完成时存在阻断报警则进入异常模式");
+    WDF_RUN_TEST(test_manual_actuator_allowed_in_stopped, "", "验证手动执行器被允许在停止模式");
+    WDF_RUN_TEST(test_manual_actuator_allowed_in_exception_without_estop, "", "验证异常模式无急停时允许手动执行器");
+    WDF_RUN_TEST(test_manual_actuator_denied_in_exception_with_estop, "", "验证异常模式存在急停时拒绝手动执行器");
+    WDF_RUN_TEST(test_self_check_from_stopped_success_returns_stopped, "", "验证停止模式自检成功后返回停止模式");
+    WDF_RUN_TEST(test_self_check_from_stopped_fail_enters_exception, "", "验证停止模式自检失败后进入异常模式");
+    WDF_RUN_TEST(test_self_check_from_exception_success_returns_stopped, "", "验证异常模式自检成功后返回停止模式");
+    WDF_RUN_TEST(test_self_check_from_exception_fail_returns_exception, "", "验证异常模式自检失败后返回异常模式");
 
     return UNITY_END();
 }

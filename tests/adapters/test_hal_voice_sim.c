@@ -9,7 +9,7 @@
 
 #include "common/sw_error.h"
 #include "ports/outbound/hal/hal_voice_port.h"
-#include "unity.h"
+#include "wdf_test_spec.h"
 
 #include <stdint.h>
 
@@ -84,12 +84,12 @@ int main(void)
 {
     UNITY_BEGIN();
 
-    RUN_TEST(test_register_returns_ops);
-    RUN_TEST(test_init_returns_ok);
-    RUN_TEST(test_ops_before_init_return_not_init);
-    RUN_TEST(test_play_returns_ok);
-    RUN_TEST(test_stop_pause_volume_ops_return_ok);
-    RUN_TEST(test_register_event_cb_accepts_null);
+    WDF_RUN_TEST(test_register_returns_ops, "", "验证注册返回操作接口");
+    WDF_RUN_TEST(test_init_returns_ok, "", "验证初始化返回成功");
+    WDF_RUN_TEST(test_ops_before_init_return_not_init, "", "验证初始化前调用操作接口返回未初始化");
+    WDF_RUN_TEST(test_play_returns_ok, "", "验证播放返回成功");
+    WDF_RUN_TEST(test_stop_pause_volume_ops_return_ok, "", "验证停止暂停音量操作接口返回成功");
+    WDF_RUN_TEST(test_register_event_cb_accepts_null, "", "验证注册事件回调接受空指针");
 
     return UNITY_END();
 }

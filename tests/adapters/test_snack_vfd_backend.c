@@ -8,7 +8,7 @@
 #include "common/io_handle.h"
 #include "ports/outbound/hal/hal_vfd_port.h"
 #include "tests/stubs/snack/drv_modbus_link_fake.h"
-#include "unity.h"
+#include "wdf_test_spec.h"
 
 #include <string.h>
 
@@ -221,16 +221,20 @@ int main(void)
 {
     UNITY_BEGIN();
 
-    RUN_TEST(test_instance_configure_rejects_invalid_config);
-    RUN_TEST(test_instance_configure_bind_and_hal_init_pass_modbus_parameters);
-    RUN_TEST(test_bound_but_not_hal_inited_operations_return_not_init);
-    RUN_TEST(test_run_stop_and_state_use_io_backend);
-    RUN_TEST(test_single_speed_io_accepts_all_low_gear);
-    RUN_TEST(test_run_rejects_invalid_gear_and_unsupported_reverse);
-    RUN_TEST(test_set_freq_is_not_supported_for_current_vendor);
-    RUN_TEST(test_read_and_clear_fault_delegate_to_modbus);
-    RUN_TEST(test_fault_reset_uses_rst_pin_when_modbus_clear_not_available);
-    RUN_TEST(test_monitor_mask_can_be_updated_after_init);
+    WDF_RUN_TEST(test_instance_configure_rejects_invalid_config, "", "验证实例配置拒绝无效配置");
+    WDF_RUN_TEST(test_instance_configure_bind_and_hal_init_pass_modbus_parameters,
+                 "",
+                 "验证实例配置绑定并HAL初始化通过MODBUS参数");
+    WDF_RUN_TEST(
+        test_bound_but_not_hal_inited_operations_return_not_init, "", "验证已绑定但未HAL已初始化操作返回未初始化");
+    WDF_RUN_TEST(test_run_stop_and_state_use_io_backend, "", "验证运行、停止和状态查询使用 IO 后端");
+    WDF_RUN_TEST(test_single_speed_io_accepts_all_low_gear, "", "验证单个速度IO接受全部低电平档位");
+    WDF_RUN_TEST(test_run_rejects_invalid_gear_and_unsupported_reverse, "", "验证运行拒绝无效档位并不支持反向");
+    WDF_RUN_TEST(test_set_freq_is_not_supported_for_current_vendor, "", "验证当前供应商不支持设置频率");
+    WDF_RUN_TEST(test_read_and_clear_fault_delegate_to_modbus, "", "验证读取并清除故障委托到MODBUS");
+    WDF_RUN_TEST(
+        test_fault_reset_uses_rst_pin_when_modbus_clear_not_available, "", "验证故障复位使用RST引脚时MODBUS清除未可用");
+    WDF_RUN_TEST(test_monitor_mask_can_be_updated_after_init, "", "验证初始化后可以更新监控掩码");
 
     return UNITY_END();
 }

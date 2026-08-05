@@ -13,7 +13,7 @@
 #include "ports/outbound/machine/machine_ops_port.h"
 #include "runtime/event_bus/event_bus.h"
 #include "tests/stubs/wash_ops_stub.h"
-#include "unity.h"
+#include "wdf_test_spec.h"
 
 #include <pthread.h>
 #include <string.h>
@@ -276,12 +276,12 @@ static void test_submit_from_dispatch_thread_is_rejected(void)
 int main(void)
 {
     UNITY_BEGIN();
-    RUN_TEST(test_submit_accepted_in_idle);
-    RUN_TEST(test_submit_rejected_wrong_mode);
-    RUN_TEST(test_start_wash_triggers_orchestrator);
-    RUN_TEST(test_stop_operation_then_resume);
-    RUN_TEST(test_gateway_assigns_request_id_and_trace);
-    RUN_TEST(test_timeout_then_reuse_gets_real_verdict);
-    RUN_TEST(test_submit_from_dispatch_thread_is_rejected);
+    WDF_RUN_TEST(test_submit_accepted_in_idle, "", "验证空闲模式接受命令提交");
+    WDF_RUN_TEST(test_submit_rejected_wrong_mode, "", "验证模式不匹配时拒绝命令提交");
+    WDF_RUN_TEST(test_start_wash_triggers_orchestrator, "", "验证启动洗车触发流程编排器");
+    WDF_RUN_TEST(test_stop_operation_then_resume, "", "验证停止运行随后恢复运行");
+    WDF_RUN_TEST(test_gateway_assigns_request_id_and_trace, "", "验证网关分配请求ID并追踪上下文");
+    WDF_RUN_TEST(test_timeout_then_reuse_gets_real_verdict, "", "验证超时随后复用获得真实判定结果");
+    WDF_RUN_TEST(test_submit_from_dispatch_thread_is_rejected, "", "验证从分发线程提交命令时被拒绝");
     return UNITY_END();
 }

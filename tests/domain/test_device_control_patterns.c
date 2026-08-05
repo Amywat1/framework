@@ -7,7 +7,7 @@
 #include "domain/device_control/patterns/fluid_path.h"
 #include "domain/device_control/patterns/motor_axis.h"
 #include "ports/outbound/hal/motor/hal_motor_exec_port.h"
-#include "unity.h"
+#include "wdf_test_spec.h"
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -456,14 +456,14 @@ int main(void)
 {
     UNITY_BEGIN();
 
-    RUN_TEST(test_motor_axis_run_and_query_state);
-    RUN_TEST(test_motor_axis_spec_uses_move_to_and_fault_callback);
-    RUN_TEST(test_motor_axis_continuous_stop_and_recover);
-    RUN_TEST(test_motor_axis_preserves_frequency_speed);
-    RUN_TEST(test_fluid_path_reference_counts_shared_pump);
-    RUN_TEST(test_fluid_path_rejects_invalid_topology_and_unknown_mask);
-    RUN_TEST(test_fluid_path_respects_valve_and_pump_delays);
-    RUN_TEST(test_fluid_path_emergency_off_is_polled);
+    WDF_RUN_TEST(test_motor_axis_run_and_query_state, "", "验证电机轴运行并查询状态");
+    WDF_RUN_TEST(test_motor_axis_spec_uses_move_to_and_fault_callback, "", "验证电机轴规格调用位置移动和故障回调");
+    WDF_RUN_TEST(test_motor_axis_continuous_stop_and_recover, "", "验证电机轴连续运行停止并恢复");
+    WDF_RUN_TEST(test_motor_axis_preserves_frequency_speed, "", "验证电机轴保留频率速度");
+    WDF_RUN_TEST(test_fluid_path_reference_counts_shared_pump, "", "验证流体路径对共享水泵进行引用计数");
+    WDF_RUN_TEST(test_fluid_path_rejects_invalid_topology_and_unknown_mask, "", "验证流体路径拒绝无效拓扑和未知掩码");
+    WDF_RUN_TEST(test_fluid_path_respects_valve_and_pump_delays, "", "验证流体路径遵守阀门和水泵延时");
+    WDF_RUN_TEST(test_fluid_path_emergency_off_is_polled, "", "验证轮询处理流体路径紧急关闭");
 
     return UNITY_END();
 }

@@ -5,7 +5,7 @@
 
 #include "common/pulse_out.h"
 #include "common/time_util.h"
-#include "unity.h"
+#include "wdf_test_spec.h"
 
 #include <stdint.h>
 
@@ -150,18 +150,18 @@ int main(void)
     time_util_init();
     UNITY_BEGIN();
 
-    RUN_TEST(test_start_null_slot_returns_param_err);
-    RUN_TEST(test_start_null_callback_returns_param_err);
-    RUN_TEST(test_start_zero_pulse_ms_returns_param_err);
-    RUN_TEST(test_start_sets_active_and_pulls_high);
-    RUN_TEST(test_tick_before_expiry_stays_active);
-    RUN_TEST(test_tick_at_expiry_pulls_low);
-    RUN_TEST(test_cancel_during_active_pulls_low);
-    RUN_TEST(test_cancel_when_inactive_is_noop);
-    RUN_TEST(test_is_active_null_returns_false);
-    RUN_TEST(test_tick_null_slot_is_safe);
-    RUN_TEST(test_elapsed_ms_basic);
-    RUN_TEST(test_elapsed_ms_wraparound);
+    WDF_RUN_TEST(test_start_null_slot_returns_param_err, "", "验证启动空指针槽位返回参数错误");
+    WDF_RUN_TEST(test_start_null_callback_returns_param_err, "", "验证启动空指针回调返回参数错误");
+    WDF_RUN_TEST(test_start_zero_pulse_ms_returns_param_err, "", "验证脉冲时长为零时启动返回参数错误");
+    WDF_RUN_TEST(test_start_sets_active_and_pulls_high, "", "验证启动设置活动状态并拉为高电平");
+    WDF_RUN_TEST(test_tick_before_expiry_stays_active, "", "验证到期前执行周期检查仍保持活动状态");
+    WDF_RUN_TEST(test_tick_at_expiry_pulls_low, "", "验证到期时执行周期检查将输出拉低");
+    WDF_RUN_TEST(test_cancel_during_active_pulls_low, "", "验证活动期间取消脉冲将输出拉低");
+    WDF_RUN_TEST(test_cancel_when_inactive_is_noop, "", "验证取消时非活动状态为无操作");
+    WDF_RUN_TEST(test_is_active_null_returns_false, "", "验证空槽位的活动状态查询返回 false");
+    WDF_RUN_TEST(test_tick_null_slot_is_safe, "", "验证空槽位执行周期检查不会崩溃");
+    WDF_RUN_TEST(test_elapsed_ms_basic, "", "验证经过时间毫秒基本计算");
+    WDF_RUN_TEST(test_elapsed_ms_wraparound, "", "验证经过时间毫秒回绕");
 
     return UNITY_END();
 }

@@ -7,7 +7,7 @@
 #include "common/sw_error.h"
 #include "domain/cloud/cloud_point.h"
 #include "domain/op_mode/device_command.h"
-#include "unity.h"
+#include "wdf_test_spec.h"
 
 #include <string.h>
 
@@ -169,14 +169,14 @@ int main(void)
 {
     UNITY_BEGIN();
 
-    RUN_TEST(test_get_echo_idle_returns_false);
-    RUN_TEST(test_to_json_serializes_telemetry);
-    RUN_TEST(test_apply_json_manual_act);
-    RUN_TEST(test_apply_json_device_cmd_triggers_submit);
-    RUN_TEST(test_apply_json_rejects_readonly_telemetry);
-    RUN_TEST(test_apply_json_device_cmd_false_is_noop);
-    RUN_TEST(test_apply_json_unknown_key_partial_reject);
-    RUN_TEST(test_to_json_filtered_selects_id);
+    WDF_RUN_TEST(test_get_echo_idle_returns_false, "", "验证获取回显空闲模式返回false");
+    WDF_RUN_TEST(test_to_json_serializes_telemetry, "", "验证将遥测点位序列化为 JSON");
+    WDF_RUN_TEST(test_apply_json_manual_act, "", "验证应用JSON手动动作");
+    WDF_RUN_TEST(test_apply_json_device_cmd_triggers_submit, "", "验证应用JSON设备命令触发提交");
+    WDF_RUN_TEST(test_apply_json_rejects_readonly_telemetry, "", "验证应用JSON拒绝只读遥测");
+    WDF_RUN_TEST(test_apply_json_device_cmd_false_is_noop, "", "验证应用JSON设备命令false为无操作");
+    WDF_RUN_TEST(test_apply_json_unknown_key_partial_reject, "", "验证应用JSON未知键部分拒绝");
+    WDF_RUN_TEST(test_to_json_filtered_selects_id, "", "验证过滤序列化时只输出指定点位 ID");
 
     return UNITY_END();
 }

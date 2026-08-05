@@ -6,7 +6,7 @@
  */
 
 #include "common/asset_version.h"
-#include "unity.h"
+#include "wdf_test_spec.h"
 
 #include <string.h>
 
@@ -159,20 +159,20 @@ static void test_check_tolerates_null_err(void)
 int main(void)
 {
     UNITY_BEGIN();
-    RUN_TEST(test_parse_two_field);
-    RUN_TEST(test_parse_three_field);
-    RUN_TEST(test_parse_rejects_malformed);
-    RUN_TEST(test_parse_rejects_overflow);
-    RUN_TEST(test_same_version_compatible);
-    RUN_TEST(test_major_mismatch_incompatible);
-    RUN_TEST(test_lower_minor_compatible);
-    RUN_TEST(test_higher_minor_incompatible);
-    RUN_TEST(test_patch_ignored);
-    RUN_TEST(test_invalid_never_compatible);
-    RUN_TEST(test_check_ok);
-    RUN_TEST(test_check_malformed_is_param_error);
-    RUN_TEST(test_check_incompatible_is_state_error);
-    RUN_TEST(test_check_bad_supported_string);
-    RUN_TEST(test_check_tolerates_null_err);
+    WDF_RUN_TEST(test_parse_two_field, "", "验证双字段版本号解析");
+    WDF_RUN_TEST(test_parse_three_field, "", "验证三字段版本号解析");
+    WDF_RUN_TEST(test_parse_rejects_malformed, "", "验证解析拒绝格式错误");
+    WDF_RUN_TEST(test_parse_rejects_overflow, "", "验证解析拒绝溢出");
+    WDF_RUN_TEST(test_same_version_compatible, "", "验证相同版本兼容");
+    WDF_RUN_TEST(test_major_mismatch_incompatible, "", "验证主版本不一致时判定不兼容");
+    WDF_RUN_TEST(test_lower_minor_compatible, "", "验证较低次版本保持兼容");
+    WDF_RUN_TEST(test_higher_minor_incompatible, "", "验证较高次版本判定不兼容");
+    WDF_RUN_TEST(test_patch_ignored, "", "验证修订版本被忽略");
+    WDF_RUN_TEST(test_invalid_never_compatible, "", "验证无效永不兼容");
+    WDF_RUN_TEST(test_check_ok, "", "验证检查成功");
+    WDF_RUN_TEST(test_check_malformed_is_param_error, "", "验证检查格式错误为参数错误");
+    WDF_RUN_TEST(test_check_incompatible_is_state_error, "", "验证检查不兼容为状态错误");
+    WDF_RUN_TEST(test_check_bad_supported_string, "", "验证检查错误受支持字符串");
+    WDF_RUN_TEST(test_check_tolerates_null_err, "", "验证检查允许空指针错误");
     return UNITY_END();
 }

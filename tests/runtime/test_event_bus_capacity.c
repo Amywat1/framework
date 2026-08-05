@@ -19,7 +19,7 @@
 #include "common/time_util.h"
 #include "runtime/event_bus/event_bus.h"
 #include "runtime/event_bus/event_bus_config.h"
-#include "unity.h"
+#include "wdf_test_spec.h"
 
 #include <pthread.h>
 #include <stdio.h>
@@ -290,9 +290,9 @@ static void test_subscriber_slot_capacity(void)
 int main(void)
 {
     UNITY_BEGIN();
-    RUN_TEST(test_steady_state_watermark);
-    RUN_TEST(test_slow_handler_backlog);
-    RUN_TEST(test_hi_queue_unaffected_by_normal_backlog);
-    RUN_TEST(test_subscriber_slot_capacity);
+    WDF_RUN_TEST(test_steady_state_watermark, "", "验证稳态状态水位线");
+    WDF_RUN_TEST(test_slow_handler_backlog, "", "验证慢速处理器积压");
+    WDF_RUN_TEST(test_hi_queue_unaffected_by_normal_backlog, "", "验证HI队列不受影响按普通积压");
+    WDF_RUN_TEST(test_subscriber_slot_capacity, "", "验证订阅者槽位容量");
     return UNITY_END();
 }

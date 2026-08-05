@@ -13,7 +13,7 @@
 #include "common/sw_error.h"
 #include "runtime/bootstrap/bootstrap.h"
 #include "runtime/bootstrap/project_hooks.h"
-#include "unity.h"
+#include "wdf_test_spec.h"
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -262,10 +262,10 @@ static void test_rejected_registration_keeps_previous(void)
 int main(void)
 {
     UNITY_BEGIN();
-    RUN_TEST(test_full_hooks_accepted);
-    RUN_TEST(test_null_hooks_rejected);
-    RUN_TEST(test_each_hook_is_required);
-    RUN_TEST(test_hook_count_matches_coverage);
-    RUN_TEST(test_rejected_registration_keeps_previous);
+    WDF_RUN_TEST(test_full_hooks_accepted, "", "验证完整启动钩子集合被接受");
+    WDF_RUN_TEST(test_null_hooks_rejected, "", "验证空指针钩子被拒绝");
+    WDF_RUN_TEST(test_each_hook_is_required, "", "验证每个钩子为必需");
+    WDF_RUN_TEST(test_hook_count_matches_coverage, "", "验证启动钩子数量与覆盖项一致");
+    WDF_RUN_TEST(test_rejected_registration_keeps_previous, "", "验证被拒绝注册保持原有");
     return UNITY_END();
 }

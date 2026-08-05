@@ -14,7 +14,7 @@
 #include "ports/outbound/cloud/link/cloud_link_port.h"
 #include "ports/outbound/cloud/report/report_port.h"
 #include "runtime/event_bus/event_bus.h"
-#include "unity.h"
+#include "wdf_test_spec.h"
 
 #include <pthread.h>
 #include <string.h>
@@ -255,8 +255,8 @@ int main(void)
 {
     UNITY_BEGIN();
 
-    RUN_TEST(test_cloud_model_builds_and_applies_properties);
-    RUN_TEST(test_report_scheduler_runs_event_policies);
+    WDF_RUN_TEST(test_cloud_model_builds_and_applies_properties, "", "验证云端模型构建并应用属性");
+    WDF_RUN_TEST(test_report_scheduler_runs_event_policies, "", "验证上报调度器运行事件策略");
 
     return UNITY_END();
 }

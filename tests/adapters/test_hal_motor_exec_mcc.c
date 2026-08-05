@@ -5,7 +5,7 @@
 
 #include "ports/outbound/hal/motor/hal_motor_exec_port.h"
 #include "tests/stubs/mcc/motor_control_core_fake.h"
-#include "unity.h"
+#include "wdf_test_spec.h"
 
 static motor_executor_t s_exec;
 
@@ -233,15 +233,15 @@ int main(void)
 {
     UNITY_BEGIN();
 
-    RUN_TEST(test_run_continuous_maps_speed_direction_and_result);
-    RUN_TEST(test_move_to_maps_move_spec);
-    RUN_TEST(test_move_to_accepts_null_spec);
-    RUN_TEST(test_command_helpers_delegate_to_mcc);
-    RUN_TEST(test_rejected_result_is_mapped);
-    RUN_TEST(test_phase_direction_position_and_fault_are_mapped);
-    RUN_TEST(test_pop_event_maps_all_fields);
-    RUN_TEST(test_pop_event_returns_false_when_empty_or_null);
-    RUN_TEST(test_pop_event_preserves_fifo_order);
+    WDF_RUN_TEST(test_run_continuous_maps_speed_direction_and_result, "", "验证连续运行映射速度、方向和结果");
+    WDF_RUN_TEST(test_move_to_maps_move_spec, "", "验证位置移动规格正确映射到 MCC");
+    WDF_RUN_TEST(test_move_to_accepts_null_spec, "", "验证位置移动允许空规格参数");
+    WDF_RUN_TEST(test_command_helpers_delegate_to_mcc, "", "验证命令辅助函数委托到MCC");
+    WDF_RUN_TEST(test_rejected_result_is_mapped, "", "验证 MCC 拒绝结果被正确映射");
+    WDF_RUN_TEST(test_phase_direction_position_and_fault_are_mapped, "", "验证阶段、方向、位置和故障状态正确映射");
+    WDF_RUN_TEST(test_pop_event_maps_all_fields, "", "验证取出事件映射全部字段");
+    WDF_RUN_TEST(test_pop_event_returns_false_when_empty_or_null, "", "验证事件队列为空或参数为空时取出返回 false");
+    WDF_RUN_TEST(test_pop_event_preserves_fifo_order, "", "验证取出事件保留FIFO顺序");
 
     return UNITY_END();
 }

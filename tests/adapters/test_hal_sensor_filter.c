@@ -9,7 +9,7 @@
 #include "common/sw_error.h"
 #include "ports/outbound/hal/hal_io_port.h"
 #include "ports/outbound/hal/hal_sensor_port.h"
-#include "unity.h"
+#include "wdf_test_spec.h"
 
 #define TEST_DI io_di_make(1U, 1U)
 
@@ -179,14 +179,15 @@ int main(void)
 {
     UNITY_BEGIN();
 
-    RUN_TEST(test_bind_rejects_invalid_params);
-    RUN_TEST(test_warmup_confirms_active_after_threshold);
-    RUN_TEST(test_release_uses_release_threshold);
-    RUN_TEST(test_active_low_inverts_raw_level);
-    RUN_TEST(test_init_resets_runtime_but_keeps_bindings);
-    RUN_TEST(test_warmup_requires_registered_io_ops);
-    RUN_TEST(test_warmup_before_bind_or_init_returns_not_init);
-    RUN_TEST(test_invalid_input_becomes_unknown_and_recovers_after_debounce);
+    WDF_RUN_TEST(test_bind_rejects_invalid_params, "", "验证绑定拒绝无效参数");
+    WDF_RUN_TEST(test_warmup_confirms_active_after_threshold, "", "验证预热达到阈值后确认输入活动");
+    WDF_RUN_TEST(test_release_uses_release_threshold, "", "验证释放使用释放阈值");
+    WDF_RUN_TEST(test_active_low_inverts_raw_level, "", "验证活动状态低电平反转原始级别");
+    WDF_RUN_TEST(test_init_resets_runtime_but_keeps_bindings, "", "验证初始化复位运行时但保持绑定");
+    WDF_RUN_TEST(test_warmup_requires_registered_io_ops, "", "验证预热要求已注册IO操作接口");
+    WDF_RUN_TEST(test_warmup_before_bind_or_init_returns_not_init, "", "验证绑定或初始化前预热返回未初始化");
+    WDF_RUN_TEST(
+        test_invalid_input_becomes_unknown_and_recovers_after_debounce, "", "验证无效输入变为未知并在去抖后恢复");
 
     return UNITY_END();
 }

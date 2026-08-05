@@ -4,7 +4,7 @@
  */
 
 #include "common/util_fifo.h"
-#include "unity.h"
+#include "wdf_test_spec.h"
 
 #include <string.h>
 
@@ -79,11 +79,11 @@ static void test_flush_clears_data(void)
 int main(void)
 {
     UNITY_BEGIN();
-    RUN_TEST(test_init_rejects_non_power_of_two);
-    RUN_TEST(test_put_get_single_byte);
-    RUN_TEST(test_get_empty_returns_timeout);
-    RUN_TEST(test_overflow_when_full);
-    RUN_TEST(test_write_read_bulk);
-    RUN_TEST(test_flush_clears_data);
+    WDF_RUN_TEST(test_init_rejects_non_power_of_two, "", "验证 FIFO 容量不是 2 的幂时初始化被拒绝");
+    WDF_RUN_TEST(test_put_get_single_byte, "", "验证写入获取单个字节");
+    WDF_RUN_TEST(test_get_empty_returns_timeout, "", "验证获取空返回超时");
+    WDF_RUN_TEST(test_overflow_when_full, "", "验证 FIFO 已满时写入返回溢出");
+    WDF_RUN_TEST(test_write_read_bulk, "", "验证写入读取批量数据");
+    WDF_RUN_TEST(test_flush_clears_data, "", "验证刷新清除数据");
     return UNITY_END();
 }

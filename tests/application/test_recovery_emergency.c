@@ -15,7 +15,7 @@
 #include "domain/safety/model/alarm_types.h"
 #include "ports/outbound/machine/machine_ops_port.h"
 #include "runtime/event_bus/event_bus.h"
-#include "unity.h"
+#include "wdf_test_spec.h"
 
 #include <pthread.h>
 #include <string.h>
@@ -297,13 +297,14 @@ static void test_cutout_estop_on_aborts_wash_and_defers_stop(void)
 int main(void)
 {
     UNITY_BEGIN();
-    RUN_TEST(test_recovery_service_publishes_completed_idle);
-    RUN_TEST(test_recovery_service_keeps_exception_when_blocking_remains);
-    RUN_TEST(test_recovery_resets_blocking_alarm_cleared_during_home);
-    RUN_TEST(test_recovery_resets_inactive_lockout_before_home);
-    RUN_TEST(test_cutout_estop_release_does_not_run_abort_home);
-    RUN_TEST(test_cutout_lockout_aborts_wash);
-    RUN_TEST(test_abort_home_requested_runs_abort_home);
-    RUN_TEST(test_cutout_estop_on_aborts_wash_and_defers_stop);
+    WDF_RUN_TEST(test_recovery_service_publishes_completed_idle, "", "验证恢复完成后发布空闲状态事件");
+    WDF_RUN_TEST(
+        test_recovery_service_keeps_exception_when_blocking_remains, "", "验证恢复流程服务保持异常模式时阻断性仍存在");
+    WDF_RUN_TEST(test_recovery_resets_blocking_alarm_cleared_during_home, "", "验证回零期间条件消失的阻断报警被复位");
+    WDF_RUN_TEST(test_recovery_resets_inactive_lockout_before_home, "", "验证回零前复位已失活的锁定报警");
+    WDF_RUN_TEST(test_cutout_estop_release_does_not_run_abort_home, "", "验证急停释放的安全切断不执行中止回零");
+    WDF_RUN_TEST(test_cutout_lockout_aborts_wash, "", "验证安全切断锁定中止洗车");
+    WDF_RUN_TEST(test_abort_home_requested_runs_abort_home, "", "验证请求中止回零时执行中止回零操作");
+    WDF_RUN_TEST(test_cutout_estop_on_aborts_wash_and_defers_stop, "", "验证安全切断急停开启中止洗车并延后停止");
     return UNITY_END();
 }

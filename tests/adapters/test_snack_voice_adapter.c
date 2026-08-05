@@ -7,7 +7,7 @@
 #include "adapters/outbound/hal/providers/snack/modbus/snack_voice_adapter.h"
 #include "ports/outbound/hal/hal_voice_port.h"
 #include "tests/stubs/snack/drv_modbus_link_fake.h"
-#include "unity.h"
+#include "wdf_test_spec.h"
 
 #include <string.h>
 
@@ -128,11 +128,11 @@ int main(void)
 {
     UNITY_BEGIN();
 
-    RUN_TEST(test_registered_ops_reject_commands_before_instance_init);
-    RUN_TEST(test_instance_init_passes_modbus_parameters);
-    RUN_TEST(test_commands_write_expected_registers);
-    RUN_TEST(test_comm_lost_and_restored_events_are_reported);
-    RUN_TEST(test_instance_init_failure_keeps_adapter_not_ready);
+    WDF_RUN_TEST(test_registered_ops_reject_commands_before_instance_init, "", "验证实例初始化前已注册接口拒绝命令");
+    WDF_RUN_TEST(test_instance_init_passes_modbus_parameters, "", "验证实例初始化向 Modbus 传递配置参数");
+    WDF_RUN_TEST(test_commands_write_expected_registers, "", "验证语音命令写入预期寄存器");
+    WDF_RUN_TEST(test_comm_lost_and_restored_events_are_reported, "", "验证通信丢失和恢复事件被上报");
+    WDF_RUN_TEST(test_instance_init_failure_keeps_adapter_not_ready, "", "验证实例初始化失败保持适配器未就绪");
 
     return UNITY_END();
 }

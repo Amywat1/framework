@@ -12,7 +12,7 @@
 #include "ports/outbound/cloud/report/report_port.h"
 #include "tests/stubs/snack_cloud/cloud_model_fake.h"
 #include "tests/stubs/snack_cloud/snack_mqtt_fake.h"
-#include "unity.h"
+#include "wdf_test_spec.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -187,12 +187,13 @@ int main(void)
 {
     UNITY_BEGIN();
 
-    RUN_TEST(test_link_init_loads_credentials_and_publish_uses_mqtt);
-    RUN_TEST(test_link_offline_publish_returns_comm_error);
-    RUN_TEST(test_report_adapter_publishes_full_and_delta_json);
-    RUN_TEST(test_report_adapter_handles_builder_failure_and_offline_link);
-    RUN_TEST(test_command_adapter_dispatches_inbound_property_and_reply);
-    RUN_TEST(test_command_reply_publishes_summary_when_topic_exists);
+    WDF_RUN_TEST(test_link_init_loads_credentials_and_publish_uses_mqtt, "", "验证链路初始化加载凭据且通过 MQTT 发布");
+    WDF_RUN_TEST(test_link_offline_publish_returns_comm_error, "", "验证链路离线发布返回通信错误");
+    WDF_RUN_TEST(test_report_adapter_publishes_full_and_delta_json, "", "验证上报适配器发布全量和增量 JSON");
+    WDF_RUN_TEST(
+        test_report_adapter_handles_builder_failure_and_offline_link, "", "验证上报适配器处理构建失败和链路离线");
+    WDF_RUN_TEST(test_command_adapter_dispatches_inbound_property_and_reply, "", "验证命令适配器分发入站属性并应答");
+    WDF_RUN_TEST(test_command_reply_publishes_summary_when_topic_exists, "", "验证存在应答主题时发布命令摘要");
 
     return UNITY_END();
 }

@@ -1,73 +1,34 @@
-# wash-device-framework 单元测试报告索引
+# Framework 测试结果与设计说明
 
-> 最后更新：2026-07-12  
-> 框架版本：v0.1.0  
-> 测试框架：Unity 2.6 + CTest
+Framework 的实际测试结果由统一门禁脚本在每次执行时生成，不在本目录手工维护通过数、
+用例数或“全部通过”等动态结论。
 
-## 运行方式
+## 查看本次测试结果
+
+在 Framework 根目录运行：
 
 ```bash
-cmake -B build -DWDF_BUILD_TESTS=ON
-cmake --build build -j4
-ctest --test-dir build -V
+./scripts/check_all.sh
 ```
 
-## 汇总
+浏览器打开 `build-check/test-results/report.html`。报告包含：
 
-| 报告 | 测试目标 | 用例数 | 结果 | 被测模块 |
-|------|----------|--------|------|----------|
-| [event_bus.md](event_bus.md) | `test_event_bus` | 8 | 通过 | `runtime/event_bus/` |
-| [hal_io_sim.md](hal_io_sim.md) | `test_hal_io_sim` | 23 | 通过 | `adapters/outbound/hal/sim/` |
-| — | `test_sim_encoder_counter` | 10 | 通过 | `adapters/outbound/hal/sim/` |
-| — | `test_hal_voice_sim` | 5 | 通过 | `adapters/outbound/hal/sim/` |
-| — | `test_machine_ops_port` | 3 | 通过 | `ports/outbound/machine/` |
-| — | `test_op_mode_alarm_port` | 1 | 通过 | `ports/outbound/safety/` |
-| — | `test_cloud_ports` | 4 | 通过 | `ports/inbound/cloud/`、`ports/outbound/cloud/` |
-| — | `test_cloud_point_validate` | 9 | 通过 | `cloud/` |
-| — | `test_cloud_point_dispatch` | 8 | 通过 | `cloud/` |
-| — | `test_cloud_point_watcher` | 3 | 通过 | `cloud/` |
-| — | `test_alarm_registry` | 9 | 通过 | `domain/safety/alarm_registry/` |
-| — | `test_safety_posture` | 2 | 通过 | `application/bridges/alarm_event_bridge`（姿态边沿） |
-| — | `test_alarm_event_bridge` | 2 | 通过 | `application/bridges/alarm_event_bridge.c` |
-| — | `test_op_mode_bridge` | 5 | 通过 | `application/bridges/op_mode_bridge.c` |
-| — | `test_operational_mode` | 11 | 通过 | `domain/command_gateway/` |
-| — | `test_side_effect_router` | 9 | 通过 | `application/side_effect_router.c` |
-| — | `test_command_gateway` | 6 | 通过 | `application/`、`domain/command_gateway/` |
-| [pulse_out.md](pulse_out.md) | `test_pulse_out` | 12 | 通过 | `common/pulse_out.c`、`common/time_util.h` |
-| [io_handle.md](io_handle.md) | `test_io_handle` | 6 | 通过 | `common/io_handle.h` |
-| — | `test_util_crc` | 5 | 通过 | `common/util_crc.c` |
-| — | `test_util_fifo` | 6 | 通过 | `common/util_fifo.c` |
-| — | `test_point_table` | 5 | 通过 | `common/point_table/` |
-| [json_param_store.md](json_param_store.md) | `test_json_param_store` | 12 | 通过 | `adapters/outbound/storage/json/` |
-| — | `test_json_deploy_store` | 9 | 通过 | `adapters/outbound/storage/json/` |
-| — | `test_scheduler` | 9 | 通过 | `runtime/scheduler/` |
-| — | `test_svc_param` | 9 | 通过 | `services/param/` |
-| — | `test_estop_poll_thread` | 2 | 通过 | `adapters/inbound/safety/` |
+- 架构依赖边界、行为契约结构、代码格式、自动化测试四项门禁；
+- 本次提交、工作区状态、运行时间和耗时；
+- 按“模块 → 测试目标 → 用例”组织的测试内容与结果；
+- 全部、仅失败、行为契约三种视图；
+- 失败位置、失败信息和每个测试目标的 Unity 原始输出。
 
-**合计：27 个测试目标，193 个用例，全部通过。**
+同目录下的 `junit.xml` 是 CTest 结构化结果，`raw/` 保存按测试目标拆分的原始输出。
+测试失败时仍会生成报告，脚本最终退出码仍反映门禁是否通过。
 
-## 本次 git 变更测试映射
+使用 `--skip-tests` 时，报告会将自动化测试明确标记为“未测试”，不会沿用以前的结果。
 
-| 变更模块 | 测试目标 | 覆盖要点 |
-|----------|----------|----------|
-| `cloud/cloud_point_*` | `test_cloud_point_validate` | 登记期校验、语义/access 约束 |
-| `cloud/cloud_point_dispatch.c` | `test_cloud_point_dispatch` | JSON 上下行、DEVICE_CMD/MANUAL_ACT 分流、只读拒写 |
-| `cloud/cloud_point_watcher.c` | `test_cloud_point_watcher` | ON_CHANGE shadow、`EVT_CLOUD_POINT_DIRTY` |
-| `ports/**/cloud/`、`command_port` | `test_cloud_ports` | register/get 契约 |
-| `domain/command_gateway/operational_mode.*` | `test_operational_mode` | 命令矩阵、模式转移、急停/报警/service 条件 |
-| `application/side_effect_router.*` | `test_side_effect_router` | 各 effect 路由、RESET_FAULT 前置条件 |
-| `application/command_gateway.*` | `test_command_gateway` | 跨线程 submit/drain、端到端 ACCEPTED/REJECTED |
-| `common/point_table/*`（变更） | `test_point_table` | `point_apply_result`、只读拒写（已有） |
+## 本目录边界
 
-## 目录约定
+本目录其余 Markdown 文件只记录模块测试设计、验证意图和历史分析，不代表最近一次执行结果。
+新增或调整用例时可以更新对应设计说明，但实际结果只能以本次生成报告为准。
 
-- 每个模块一份独立报告，新增功能时在对应报告末尾的「待补充」章节追加条目。
-- 新增测试目标时：创建 `tests/reports/<模块名>.md`，并更新本索引表。
-- 报告字段统一为：用例名、测试目的、前置条件、验证点、结果。
-
-## 未覆盖模块（待后续补充报告）
-
-| 模块 | 说明 |
-|------|------|
-| `bootstrap` / MQTT 适配器 | 尚未迁入 |
-| `wash_orchestrator.c` | 仅有头文件与测试桩 |
+所有 Unity 用例必须使用 `tests/support/wdf_test_spec.h` 中的
+`WDF_RUN_TEST(test_func, behaviour, summary)` 填写中文测试目的。行为契约相关用例还应填写
+行为编号；非契约测试的行为编号传空字符串。报告生成器发现空目的时会失败，防止新增用例遗漏说明。

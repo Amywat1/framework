@@ -27,7 +27,7 @@
 #include "ports/outbound/hal/hal_io_port.h"
 #include "ports/outbound/hal/hal_sensor_port.h"
 #include "ports/outbound/hal/hal_vfd_port.h"
-#include "unity.h"
+#include "wdf_test_spec.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -282,10 +282,10 @@ static void test_unbound_tick_does_not_allocate(void)
 int main(void)
 {
     UNITY_BEGIN();
-    RUN_TEST(test_hook_detects_allocation);
-    RUN_TEST(test_hook_ignores_free);
-    RUN_TEST(test_sensor_tick_does_not_allocate);
-    RUN_TEST(test_vfd_tick_does_not_allocate);
-    RUN_TEST(test_unbound_tick_does_not_allocate);
+    WDF_RUN_TEST(test_hook_detects_allocation, "", "验证钩子检测内存分配");
+    WDF_RUN_TEST(test_hook_ignores_free, "", "验证钩子忽略释放内存");
+    WDF_RUN_TEST(test_sensor_tick_does_not_allocate, "", "验证传感器周期执行未分配内存");
+    WDF_RUN_TEST(test_vfd_tick_does_not_allocate, "", "验证VFD周期执行未分配内存");
+    WDF_RUN_TEST(test_unbound_tick_does_not_allocate, "", "验证未绑定周期执行未分配内存");
     return UNITY_END();
 }

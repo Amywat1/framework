@@ -11,7 +11,7 @@
 #include "common/time_util.h"
 #include "observability/core/observation.h"
 #include "runtime/event_bus/event_bus.h"
-#include "unity.h"
+#include "wdf_test_spec.h"
 
 #include <pthread.h>
 #include <string.h>
@@ -215,11 +215,11 @@ static void test_backlog_does_not_block_dispatch(void)
 int main(void)
 {
     UNITY_BEGIN();
-    RUN_TEST(test_estop_event_becomes_critical_incident);
-    RUN_TEST(test_event_param_is_carried_in_payload);
-    RUN_TEST(test_severity_differs_by_event);
-    RUN_TEST(test_unlisted_event_produces_no_record);
-    RUN_TEST(test_records_preserve_publish_order);
-    RUN_TEST(test_backlog_does_not_block_dispatch);
+    WDF_RUN_TEST(test_estop_event_becomes_critical_incident, "", "验证急停事件变为严重级事故记录");
+    WDF_RUN_TEST(test_event_param_is_carried_in_payload, "", "验证事件参数被携带到观测载荷");
+    WDF_RUN_TEST(test_severity_differs_by_event, "", "验证严重度不同按事件");
+    WDF_RUN_TEST(test_unlisted_event_produces_no_record, "", "验证未列出事件产生无记录");
+    WDF_RUN_TEST(test_records_preserve_publish_order, "", "验证记录保留发布顺序");
+    WDF_RUN_TEST(test_backlog_does_not_block_dispatch, "", "验证积压未阻止分发");
     return UNITY_END();
 }

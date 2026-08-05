@@ -10,7 +10,7 @@
  */
 
 #include "common/sw_error.h"
-#include "unity.h"
+#include "wdf_test_spec.h"
 
 #include <string.h>
 
@@ -142,11 +142,11 @@ static void test_names_present(void)
 int main(void)
 {
     UNITY_BEGIN();
-    RUN_TEST(test_error_values_are_stable);
-    RUN_TEST(test_transient_classification);
-    RUN_TEST(test_caller_fault_classification);
-    RUN_TEST(test_missing_binding_classification);
-    RUN_TEST(test_classifications_are_mutually_exclusive);
-    RUN_TEST(test_names_present);
+    WDF_RUN_TEST(test_error_values_are_stable, "", "验证错误码取值保持稳定");
+    WDF_RUN_TEST(test_transient_classification, "", "验证瞬态错误分类");
+    WDF_RUN_TEST(test_caller_fault_classification, "", "验证调用方故障分类");
+    WDF_RUN_TEST(test_missing_binding_classification, "", "验证缺失绑定分类");
+    WDF_RUN_TEST(test_classifications_are_mutually_exclusive, "", "验证错误分类相互互斥");
+    WDF_RUN_TEST(test_names_present, "", "验证名称存在");
     return UNITY_END();
 }

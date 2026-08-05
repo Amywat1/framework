@@ -10,7 +10,7 @@
 #include "domain/safety/alarm_registry/alarm_registry.h"
 #include "domain/safety/model/alarm_types.h"
 #include "runtime/event_bus/event_bus.h"
-#include "unity.h"
+#include "wdf_test_spec.h"
 
 #include <pthread.h>
 #include <unistd.h>
@@ -133,8 +133,8 @@ int main(void)
 {
     UNITY_BEGIN();
 
-    RUN_TEST(test_major_no_lockout_event);
-    RUN_TEST(test_critical_publishes_lockout);
+    WDF_RUN_TEST(test_major_no_lockout_event, "", "验证重大级无锁定事件");
+    WDF_RUN_TEST(test_critical_publishes_lockout, "", "验证严重级发布锁定");
 
     return UNITY_END();
 }

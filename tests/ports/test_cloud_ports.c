@@ -13,7 +13,7 @@
 #include "ports/outbound/storage/deploy_store.h"
 #include "ports/outbound/storage/param_store.h"
 #include "ports/port_registry.h"
-#include "unity.h"
+#include "wdf_test_spec.h"
 
 static sw_err_t stub_publish_properties(void)
 {
@@ -246,17 +246,17 @@ int main(void)
 {
     UNITY_BEGIN();
 
-    RUN_TEST(test_cloud_report_register_and_get);
-    RUN_TEST(test_cloud_link_register_and_get);
-    RUN_TEST(test_cloud_property_register_and_get);
-    RUN_TEST(test_device_command_port_register_and_get);
-    RUN_TEST(test_register_returns_ok_for_valid_ops);
-    RUN_TEST(test_register_null_unregisters);
-    RUN_TEST(test_register_rejects_missing_mandatory_field);
-    RUN_TEST(test_param_store_requires_all_four_fields);
-    RUN_TEST(test_deploy_store_requires_load);
-    RUN_TEST(test_register_replaces_on_duplicate);
-    RUN_TEST(test_reset_clears_all_ports);
+    WDF_RUN_TEST(test_cloud_report_register_and_get, "", "验证云端上报注册并获取");
+    WDF_RUN_TEST(test_cloud_link_register_and_get, "", "验证云端链路注册并获取");
+    WDF_RUN_TEST(test_cloud_property_register_and_get, "", "验证云端属性注册并获取");
+    WDF_RUN_TEST(test_device_command_port_register_and_get, "", "验证设备命令端口注册并获取");
+    WDF_RUN_TEST(test_register_returns_ok_for_valid_ops, "", "验证注册返回成功针对有效操作接口");
+    WDF_RUN_TEST(test_register_null_unregisters, "", "验证注册空指针注销");
+    WDF_RUN_TEST(test_register_rejects_missing_mandatory_field, "", "验证注册拒绝缺失必填字段");
+    WDF_RUN_TEST(test_param_store_requires_all_four_fields, "", "验证参数存储要求全部四个字段");
+    WDF_RUN_TEST(test_deploy_store_requires_load, "", "验证部署配置存储要求加载");
+    WDF_RUN_TEST(test_register_replaces_on_duplicate, "", "验证注册替换开启重复");
+    WDF_RUN_TEST(test_reset_clears_all_ports, "", "验证复位清除全部端口");
 
     return UNITY_END();
 }

@@ -9,7 +9,7 @@
 
 #include "common/sw_error.h"
 #include "ports/outbound/machine/machine_ops_port.h"
-#include "unity.h"
+#include "wdf_test_spec.h"
 
 #include <stdint.h>
 
@@ -82,9 +82,9 @@ int main(void)
 {
     UNITY_BEGIN();
 
-    RUN_TEST(test_get_before_register_returns_null);
-    RUN_TEST(test_register_and_get);
-    RUN_TEST(test_invoke_callbacks);
+    WDF_RUN_TEST(test_get_before_register_returns_null, "", "验证端口注册前获取返回空指针");
+    WDF_RUN_TEST(test_register_and_get, "", "验证注册并获取");
+    WDF_RUN_TEST(test_invoke_callbacks, "", "验证调用回调");
 
     return UNITY_END();
 }

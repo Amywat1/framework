@@ -12,7 +12,7 @@
 #include "domain/program_engine/engine/engine_var.h"
 #include "domain/program_engine/model/engine_model.h"
 #include "ports/outbound/storage/engine_program_loader_port.h"
-#include "unity.h"
+#include "wdf_test_spec.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -282,12 +282,12 @@ int main(void)
 {
     UNITY_BEGIN();
 
-    RUN_TEST(test_json_loader_parses_model_and_validates_catalog);
-    RUN_TEST(test_json_loader_rejects_unknown_resource);
-    RUN_TEST(test_engine_runs_loaded_json_with_sim_io);
-    RUN_TEST(test_json_loader_expands_step_templates);
-    RUN_TEST(test_json_loader_port_registers_and_loads_file);
-    RUN_TEST(test_condition_marker_latches_on_rising);
+    WDF_RUN_TEST(test_json_loader_parses_model_and_validates_catalog, "", "验证JSON加载器解析模型并校验目录");
+    WDF_RUN_TEST(test_json_loader_rejects_unknown_resource, "", "验证JSON加载器拒绝未知资源");
+    WDF_RUN_TEST(test_engine_runs_loaded_json_with_sim_io, "", "验证程序引擎使用模拟 IO 运行已加载的 JSON");
+    WDF_RUN_TEST(test_json_loader_expands_step_templates, "", "验证JSON加载器展开步骤模板");
+    WDF_RUN_TEST(test_json_loader_port_registers_and_loads_file, "", "验证JSON加载器端口注册并加载文件");
+    WDF_RUN_TEST(test_condition_marker_latches_on_rising, "", "验证条件标记在上升沿锁存");
 
     return UNITY_END();
 }

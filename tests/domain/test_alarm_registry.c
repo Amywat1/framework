@@ -6,7 +6,7 @@
 #include "common/sw_error.h"
 #include "domain/safety/alarm_registry/alarm_registry.h"
 #include "domain/safety/model/alarm_types.h"
-#include "unity.h"
+#include "wdf_test_spec.h"
 
 static const alarm_def_t s_catalog[] = {
     {
@@ -246,20 +246,20 @@ int main(void)
 {
     UNITY_BEGIN();
 
-    RUN_TEST(test_alarm_code_helpers_make_decode_and_validate);
-    RUN_TEST(test_trigger_clear_idempotent);
-    RUN_TEST(test_major_not_lockout);
-    RUN_TEST(test_critical_lockout);
-    RUN_TEST(test_reset_requires_manual_condition_clear);
-    RUN_TEST(test_manual_condition_clear_waits_for_reset);
-    RUN_TEST(test_reevaluate_by_group);
-    RUN_TEST(test_pull_events);
-    RUN_TEST(test_session_journal_blocking_levels);
-    RUN_TEST(test_active_pool_full_rejects);
-    RUN_TEST(test_copy_safety_view_returns_consistent_snapshot);
-    RUN_TEST(test_copy_safety_view_handles_empty_and_null);
-    RUN_TEST(test_copy_safety_view_truncates_list_but_not_aggregates);
-    RUN_TEST(test_unknown_code_rejected);
+    WDF_RUN_TEST(test_alarm_code_helpers_make_decode_and_validate, "", "验证报警编码辅助函数构造解码并校验");
+    WDF_RUN_TEST(test_trigger_clear_idempotent, "", "验证触发源清除幂等");
+    WDF_RUN_TEST(test_major_not_lockout, "", "验证重大级未锁定");
+    WDF_RUN_TEST(test_critical_lockout, "", "验证严重级锁定");
+    WDF_RUN_TEST(test_reset_requires_manual_condition_clear, "", "验证复位要求手动条件清除");
+    WDF_RUN_TEST(test_manual_condition_clear_waits_for_reset, "", "验证手动清除条件后等待复位");
+    WDF_RUN_TEST(test_reevaluate_by_group, "", "验证重新评估按分组");
+    WDF_RUN_TEST(test_pull_events, "", "验证拉取事件");
+    WDF_RUN_TEST(test_session_journal_blocking_levels, "", "验证会话日志仅记录阻断级别报警");
+    WDF_RUN_TEST(test_active_pool_full_rejects, "", "验证活动报警池已满时拒绝新报警");
+    WDF_RUN_TEST(test_copy_safety_view_returns_consistent_snapshot, "", "验证复制安全视图返回一致的快照");
+    WDF_RUN_TEST(test_copy_safety_view_handles_empty_and_null, "", "验证复制安全视图处理空并空指针");
+    WDF_RUN_TEST(test_copy_safety_view_truncates_list_but_not_aggregates, "", "验证安全视图仅截断列表而不影响聚合值");
+    WDF_RUN_TEST(test_unknown_code_rejected, "", "验证未知编码被拒绝");
 
     return UNITY_END();
 }

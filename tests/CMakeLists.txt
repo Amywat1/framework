@@ -1,4 +1,5 @@
 set(WDF_ROOT ${CMAKE_SOURCE_DIR})
+find_package(Python3 REQUIRED COMPONENTS Interpreter)
 
 # 辅助宏：添加单元测试（每个测试只链接自身逻辑所需的最小源集）
 # 用法：add_unit_test(<name> <test_src> [extra_src ...])
@@ -11,12 +12,26 @@ macro(add_unit_test name test_src)
     )
     target_include_directories(${name} PRIVATE
         ${WDF_ROOT}
+        ${WDF_ROOT}/tests/support
         ${WDF_ROOT}/third_party/unity
     )
     target_link_libraries(${name} PRIVATE pthread)
     target_compile_options(${name} PRIVATE -Wall -Wextra -Werror -g)
     add_test(NAME ${name} COMMAND ${name})
+    set_tests_properties(${name} PROPERTIES
+        LABELS "framework;unit"
+        TIMEOUT 60
+    )
 endmacro()
+
+add_test(
+    NAME test_report_generator
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/report/test_generate_test_report.py
+)
+set_tests_properties(test_report_generator PROPERTIES
+    LABELS "framework;report"
+    TIMEOUT 30
+)
 
 # ---------------------------------------------------------------------------
 # 单元测试

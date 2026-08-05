@@ -11,7 +11,7 @@
 #include "ports/outbound/machine/machine_ops_port.h"
 #include "ports/port_contract.h"
 #include "ports/port_registry.h"
-#include "unity.h"
+#include "wdf_test_spec.h"
 
 /* -------------------------------------------------------------------------
  * 测试替身：仅需非空 ops 让 get_ops 返回非 NULL
@@ -136,13 +136,13 @@ static void test_name_lookup(void)
 int main(void)
 {
     UNITY_BEGIN();
-    RUN_TEST(test_empty_requirement_passes);
-    RUN_TEST(test_missing_port_fails);
-    RUN_TEST(test_registered_port_passes);
-    RUN_TEST(test_partial_registration_fails);
-    RUN_TEST(test_undeclared_port_not_checked);
-    RUN_TEST(test_unregister_makes_validation_fail);
-    RUN_TEST(test_unknown_bits_ignored);
-    RUN_TEST(test_name_lookup);
+    WDF_RUN_TEST(test_empty_requirement_passes, "", "验证空需求通过");
+    WDF_RUN_TEST(test_missing_port_fails, "", "验证缺失端口失败");
+    WDF_RUN_TEST(test_registered_port_passes, "", "验证已注册端口通过");
+    WDF_RUN_TEST(test_partial_registration_fails, "", "验证部分注册失败");
+    WDF_RUN_TEST(test_undeclared_port_not_checked, "", "验证未声明端口未被检查");
+    WDF_RUN_TEST(test_unregister_makes_validation_fail, "", "验证注销导致校验失败");
+    WDF_RUN_TEST(test_unknown_bits_ignored, "", "验证未知位被忽略");
+    WDF_RUN_TEST(test_name_lookup, "", "验证名称查询");
     return UNITY_END();
 }

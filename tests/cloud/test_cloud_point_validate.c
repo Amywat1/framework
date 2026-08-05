@@ -6,7 +6,7 @@
 #include "common/sw_error.h"
 #include "domain/cloud/cloud_point.h"
 #include "domain/op_mode/device_command.h"
-#include "unity.h"
+#include "wdf_test_spec.h"
 
 #include <string.h>
 
@@ -176,15 +176,15 @@ int main(void)
 {
     UNITY_BEGIN();
 
-    RUN_TEST(test_valid_telemetry_model);
-    RUN_TEST(test_empty_model_rejected);
-    RUN_TEST(test_duplicate_id_rejected);
-    RUN_TEST(test_ro_with_set_rejected);
-    RUN_TEST(test_device_cmd_missing_cmd_kind_rejected);
-    RUN_TEST(test_cloud_service_missing_handler_rejected);
-    RUN_TEST(test_manual_act_missing_set_rejected);
-    RUN_TEST(test_valid_device_cmd_and_manual_act);
-    RUN_TEST(test_valid_cloud_service);
+    WDF_RUN_TEST(test_valid_telemetry_model, "", "验证有效遥测模型");
+    WDF_RUN_TEST(test_empty_model_rejected, "", "验证空模型被拒绝");
+    WDF_RUN_TEST(test_duplicate_id_rejected, "", "验证重复ID被拒绝");
+    WDF_RUN_TEST(test_ro_with_set_rejected, "", "验证只读点位配置写入接口时被拒绝");
+    WDF_RUN_TEST(test_device_cmd_missing_cmd_kind_rejected, "", "验证设备命令缺失命令类型被拒绝");
+    WDF_RUN_TEST(test_cloud_service_missing_handler_rejected, "", "验证云端服务缺失处理器被拒绝");
+    WDF_RUN_TEST(test_manual_act_missing_set_rejected, "", "验证手动动作缺失设置被拒绝");
+    WDF_RUN_TEST(test_valid_device_cmd_and_manual_act, "", "验证设备命令和手动动作模型配置有效");
+    WDF_RUN_TEST(test_valid_cloud_service, "", "验证有效云端服务");
 
     return UNITY_END();
 }

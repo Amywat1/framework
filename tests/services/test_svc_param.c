@@ -6,7 +6,7 @@
 #include "adapters/outbound/storage/json/json_param_store.h"
 #include "common/sw_error.h"
 #include "services/param/svc_param.h"
-#include "unity.h"
+#include "wdf_test_spec.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -108,14 +108,14 @@ static void test_save_persists_values(void)
 int main(void)
 {
     UNITY_BEGIN();
-    RUN_TEST(test_init_empty_file_returns_storage_err);
-    RUN_TEST(test_get_int_default_when_key_missing);
-    RUN_TEST(test_set_get_int_roundtrip);
-    RUN_TEST(test_get_int_from_loaded_file);
-    RUN_TEST(test_set_str_and_get_str);
-    RUN_TEST(test_get_str_uses_default_when_missing);
-    RUN_TEST(test_get_str_rejects_null_buf);
-    RUN_TEST(test_set_int_rejects_null_key);
-    RUN_TEST(test_save_persists_values);
+    WDF_RUN_TEST(test_init_empty_file_returns_storage_err, "", "验证初始化空文件返回存储错误");
+    WDF_RUN_TEST(test_get_int_default_when_key_missing, "", "验证整数键缺失时返回默认值");
+    WDF_RUN_TEST(test_set_get_int_roundtrip, "", "验证设置获取整数往返编解码");
+    WDF_RUN_TEST(test_get_int_from_loaded_file, "", "验证从已加载文件读取整数值");
+    WDF_RUN_TEST(test_set_str_and_get_str, "", "验证设置字符串并获取字符串");
+    WDF_RUN_TEST(test_get_str_uses_default_when_missing, "", "验证字符串键缺失时返回默认值");
+    WDF_RUN_TEST(test_get_str_rejects_null_buf, "", "验证获取字符串拒绝空指针缓冲区");
+    WDF_RUN_TEST(test_set_int_rejects_null_key, "", "验证设置整数拒绝空指针键");
+    WDF_RUN_TEST(test_save_persists_values, "", "验证保存持久化值");
     return UNITY_END();
 }

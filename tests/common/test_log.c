@@ -1,5 +1,5 @@
 #include "common/log.h"
-#include "unity.h"
+#include "wdf_test_spec.h"
 
 #include <stdarg.h>
 #include <stddef.h>
@@ -102,13 +102,13 @@ static void test_set_level_rejects_out_of_range(void)
 int main(void)
 {
     UNITY_BEGIN();
-    RUN_TEST(test_source_file_name_extracts_linux_path);
-    RUN_TEST(test_source_file_name_extracts_windows_path);
-    RUN_TEST(test_source_file_name_keeps_plain_name);
-    RUN_TEST(test_source_file_name_handles_null);
-    RUN_TEST(test_level_defaults_to_debug);
-    RUN_TEST(test_level_filter_drops_below_threshold);
-    RUN_TEST(test_level_error_only_keeps_error);
-    RUN_TEST(test_set_level_rejects_out_of_range);
+    WDF_RUN_TEST(test_source_file_name_extracts_linux_path, "", "验证源文件名称提取LINUX路径");
+    WDF_RUN_TEST(test_source_file_name_extracts_windows_path, "", "验证源文件名称提取WINDOWS路径");
+    WDF_RUN_TEST(test_source_file_name_keeps_plain_name, "", "验证源文件名称保持普通名称");
+    WDF_RUN_TEST(test_source_file_name_handles_null, "", "验证源文件名称处理空指针");
+    WDF_RUN_TEST(test_level_defaults_to_debug, "", "验证日志级别默认使用调试级");
+    WDF_RUN_TEST(test_level_filter_drops_below_threshold, "", "验证级别过滤丢弃低于阈值");
+    WDF_RUN_TEST(test_level_error_only_keeps_error, "", "验证级别错误仅保持错误");
+    WDF_RUN_TEST(test_set_level_rejects_out_of_range, "", "验证日志拒绝范围外的级别");
     return UNITY_END();
 }

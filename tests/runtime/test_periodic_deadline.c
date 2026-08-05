@@ -7,7 +7,7 @@
  */
 
 #include "runtime/scheduler/periodic_task.h"
-#include "unity.h"
+#include "wdf_test_spec.h"
 
 #define NS_PER_MS  1000000L
 #define NS_PER_SEC 1000000000L
@@ -172,13 +172,13 @@ static void test_invalid_params_leave_deadline_untouched(void)
 int main(void)
 {
     UNITY_BEGIN();
-    RUN_TEST(test_no_overrun_advances_exactly_one_period);
-    RUN_TEST(test_repeated_ticks_do_not_drift);
-    RUN_TEST(test_overrun_skips_missed_ticks);
-    RUN_TEST(test_long_stall_skips_proportionally);
-    RUN_TEST(test_now_equal_to_deadline_skips_one);
-    RUN_TEST(test_nsec_carry_normalizes);
-    RUN_TEST(test_period_over_one_second);
-    RUN_TEST(test_invalid_params_leave_deadline_untouched);
+    WDF_RUN_TEST(test_no_overrun_advances_exactly_one_period, "", "验证无超期推进恰好一个周期");
+    WDF_RUN_TEST(test_repeated_ticks_do_not_drift, "", "验证重复周期执行DO未漂移");
+    WDF_RUN_TEST(test_overrun_skips_missed_ticks, "", "验证超期跳过错过的周期执行");
+    WDF_RUN_TEST(test_long_stall_skips_proportionally, "", "验证长时间停顿跳过按比例");
+    WDF_RUN_TEST(test_now_equal_to_deadline_skips_one, "", "验证当前时间等于截止时间时跳过一个周期");
+    WDF_RUN_TEST(test_nsec_carry_normalizes, "", "验证NSEC进位规范化");
+    WDF_RUN_TEST(test_period_over_one_second, "", "验证周期超过一个一秒");
+    WDF_RUN_TEST(test_invalid_params_leave_deadline_untouched, "", "验证无效参数保持截止时间不变");
     return UNITY_END();
 }

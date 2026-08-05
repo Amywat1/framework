@@ -12,7 +12,7 @@
 #include "runtime/config/thread_config.h"
 #include "runtime/event_bus/event_bus.h"
 #include "runtime/scheduler/scheduler.h"
-#include "unity.h"
+#include "wdf_test_spec.h"
 
 #include <stdbool.h>
 #include <stdio.h>
@@ -184,6 +184,6 @@ static void test_engine_session_runs_to_done(void)
 int main(void)
 {
     UNITY_BEGIN();
-    RUN_TEST(test_engine_session_runs_to_done);
+    WDF_RUN_TEST(test_engine_session_runs_to_done, "", "验证程序引擎会话运行到完成");
     return UNITY_END();
 }

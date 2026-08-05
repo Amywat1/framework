@@ -9,7 +9,7 @@
 #include "common/trace_context.h"
 #include "runtime/event_bus/event_bus.h"
 #include "runtime/event_bus/event_bus_config.h"
-#include "unity.h"
+#include "wdf_test_spec.h"
 
 #include <pthread.h>
 #include <stdio.h>
@@ -382,18 +382,18 @@ int main(void)
 {
     time_util_init();
     UNITY_BEGIN();
-    RUN_TEST(test_not_init_guard);
-    RUN_TEST(test_publish_subscribe);
-    RUN_TEST(test_queue_full);
-    RUN_TEST(test_multi_subscriber);
-    RUN_TEST(test_fifo_order);
-    RUN_TEST(test_event_isolation);
-    RUN_TEST(test_subscribe_idempotent_and_stats);
-    RUN_TEST(test_shutdown_drains_queue);
-    RUN_TEST(test_stats_count_by_category);
-    RUN_TEST(test_stats_dropped_by_category);
-    RUN_TEST(test_stats_records_slow_handler);
-    RUN_TEST(test_stats_fast_handler_not_flagged_slow);
-    RUN_TEST(test_trace_context_propagates_to_derived_event);
+    WDF_RUN_TEST(test_not_init_guard, "", "验证未初始化保护");
+    WDF_RUN_TEST(test_publish_subscribe, "", "验证发布订阅");
+    WDF_RUN_TEST(test_queue_full, "", "验证事件队列满时拒绝发布");
+    WDF_RUN_TEST(test_multi_subscriber, "", "验证多个订阅者");
+    WDF_RUN_TEST(test_fifo_order, "", "验证FIFO顺序");
+    WDF_RUN_TEST(test_event_isolation, "", "验证事件隔离");
+    WDF_RUN_TEST(test_subscribe_idempotent_and_stats, "", "验证订阅幂等并统计");
+    WDF_RUN_TEST(test_shutdown_drains_queue, "", "验证关闭排空队列");
+    WDF_RUN_TEST(test_stats_count_by_category, "", "验证统计数量按类别");
+    WDF_RUN_TEST(test_stats_dropped_by_category, "", "验证统计丢弃按类别");
+    WDF_RUN_TEST(test_stats_records_slow_handler, "", "验证统计记录慢速处理器");
+    WDF_RUN_TEST(test_stats_fast_handler_not_flagged_slow, "", "验证统计快速处理器未标记慢速");
+    WDF_RUN_TEST(test_trace_context_propagates_to_derived_event, "", "验证追踪上下文传播到派生事件");
     return UNITY_END();
 }

@@ -4,7 +4,7 @@
  */
 
 #include "common/util_crc.h"
-#include "unity.h"
+#include "wdf_test_spec.h"
 
 #include <string.h>
 
@@ -48,10 +48,10 @@ static void test_crc16_single_byte(void)
 int main(void)
 {
     UNITY_BEGIN();
-    RUN_TEST(test_crc32_known_vector);
-    RUN_TEST(test_crc16_modbus_known_vector);
-    RUN_TEST(test_crc8_empty_input);
-    RUN_TEST(test_crc32_empty_input);
-    RUN_TEST(test_crc16_single_byte);
+    WDF_RUN_TEST(test_crc32_known_vector, "", "验证 CRC32 已知测试向量");
+    WDF_RUN_TEST(test_crc16_modbus_known_vector, "", "验证 Modbus CRC16 已知测试向量");
+    WDF_RUN_TEST(test_crc8_empty_input, "", "验证CRC8空输入");
+    WDF_RUN_TEST(test_crc32_empty_input, "", "验证CRC32空输入");
+    WDF_RUN_TEST(test_crc16_single_byte, "", "验证CRC16单个字节");
     return UNITY_END();
 }

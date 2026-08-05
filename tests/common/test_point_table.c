@@ -5,7 +5,7 @@
 
 #include "adapters/outbound/serialization/json/point_table_json.h"
 #include "common/sw_error.h"
-#include "unity.h"
+#include "wdf_test_spec.h"
 
 #include <string.h>
 
@@ -138,10 +138,10 @@ static void test_roundtrip_via_json(void)
 int main(void)
 {
     UNITY_BEGIN();
-    RUN_TEST(test_to_json_serializes_readable_points);
-    RUN_TEST(test_apply_json_updates_values);
-    RUN_TEST(test_apply_json_rejects_unknown_key);
-    RUN_TEST(test_apply_json_readonly_rejected);
-    RUN_TEST(test_roundtrip_via_json);
+    WDF_RUN_TEST(test_to_json_serializes_readable_points, "", "验证仅将可读点位序列化为 JSON");
+    WDF_RUN_TEST(test_apply_json_updates_values, "", "验证应用JSON更新值");
+    WDF_RUN_TEST(test_apply_json_rejects_unknown_key, "", "验证应用JSON拒绝未知键");
+    WDF_RUN_TEST(test_apply_json_readonly_rejected, "", "验证应用JSON只读被拒绝");
+    WDF_RUN_TEST(test_roundtrip_via_json, "", "验证往返编解码通过JSON");
     return UNITY_END();
 }

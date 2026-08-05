@@ -13,7 +13,7 @@
 #include "ports/outbound/machine/machine_ops_port.h"
 #include "runtime/event_bus/event_bus.h"
 #include "tests/stubs/wash_ops_stub.h"
-#include "unity.h"
+#include "wdf_test_spec.h"
 
 #include <stdint.h>
 #include <string.h>
@@ -139,13 +139,13 @@ int main(void)
 {
     UNITY_BEGIN();
 
-    RUN_TEST(test_effect_none_returns_ok);
-    RUN_TEST(test_start_wash_calls_orchestrator);
-    RUN_TEST(test_stop_wash_aborts_orchestrator);
-    RUN_TEST(test_home_effect_calls_machine_ops);
-    RUN_TEST(test_manual_actuator_forwards_params);
-    RUN_TEST(test_stop_all_outputs_calls_machine_ops);
-    RUN_TEST(test_machine_ops_not_init_returns_error);
+    WDF_RUN_TEST(test_effect_none_returns_ok, "", "验证副作用无操作返回成功");
+    WDF_RUN_TEST(test_start_wash_calls_orchestrator, "", "验证启动洗车调用流程编排器");
+    WDF_RUN_TEST(test_stop_wash_aborts_orchestrator, "", "验证停止洗车中止流程编排器");
+    WDF_RUN_TEST(test_home_effect_calls_machine_ops, "", "验证回零副作用调用设备操作接口");
+    WDF_RUN_TEST(test_manual_actuator_forwards_params, "", "验证手动执行器转发参数");
+    WDF_RUN_TEST(test_stop_all_outputs_calls_machine_ops, "", "验证停止全部输出时调用设备操作接口");
+    WDF_RUN_TEST(test_machine_ops_not_init_returns_error, "", "验证设备操作接口未初始化时返回错误");
 
     return UNITY_END();
 }

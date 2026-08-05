@@ -14,7 +14,7 @@
 #include "runtime/event_bus/event_bus.h"
 #include "runtime/scheduler/scheduler.h"
 #include "runtime/scheduler/thread_registry.h"
-#include "unity.h"
+#include "wdf_test_spec.h"
 
 #include <pthread.h>
 #include <sched.h>
@@ -164,8 +164,8 @@ static void test_cutout_failure_still_publishes_event(void)
 int main(void)
 {
     UNITY_BEGIN();
-    RUN_TEST(test_init_registers_estop_poll_thread);
-    RUN_TEST(test_estop_edges_publish_events);
-    RUN_TEST(test_cutout_failure_still_publishes_event);
+    WDF_RUN_TEST(test_init_registers_estop_poll_thread, "", "验证初始化注册急停轮询线程");
+    WDF_RUN_TEST(test_estop_edges_publish_events, "", "验证急停边沿发布事件");
+    WDF_RUN_TEST(test_cutout_failure_still_publishes_event, "", "验证安全切断失败仍然发布事件");
     return UNITY_END();
 }

@@ -10,7 +10,7 @@
 #include "domain/safety/alarm_registry/alarm_registry.h"
 #include "domain/safety/model/alarm_types.h"
 #include "runtime/event_bus/event_bus.h"
-#include "unity.h"
+#include "wdf_test_spec.h"
 
 #include <pthread.h>
 #include <unistd.h>
@@ -112,8 +112,8 @@ int main(void)
 {
     UNITY_BEGIN();
 
-    RUN_TEST(test_drain_publishes_triggered_event);
-    RUN_TEST(test_drain_empty_queue_no_event);
+    WDF_RUN_TEST(test_drain_publishes_triggered_event, "", "验证排空发布触发事件");
+    WDF_RUN_TEST(test_drain_empty_queue_no_event, "", "验证排空空队列无事件");
 
     return UNITY_END();
 }
