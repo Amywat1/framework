@@ -79,7 +79,7 @@ static void start_dispatch(void)
 /* -------------------------------------------------------------------------
  * 稳态密度
  *
- * M8 实测的周期任务构成（周期越短发布越密）：
+ * 已接入项目实测的周期任务构成（周期越短发布越密）：
  *   10ms  水路时序、龙门 tick、仿真模型 tick
  *   50ms  报警桥接
  *   500ms 云端上报
@@ -229,7 +229,7 @@ static void test_hi_queue_unaffected_by_normal_backlog(void)
 /* -------------------------------------------------------------------------
  * 订阅槽容量
  *
- * 单事件订阅者上限 8。实测 M8 上单个事件最多几个订阅者，用以判断余量。
+ * 单事件订阅者上限 8。实测真机上单个事件最多几个订阅者，用以判断余量。
  * ------------------------------------------------------------------------- */
 static void h1(const event_t *e)
 {
@@ -282,7 +282,7 @@ static void test_subscriber_slot_capacity(void)
     /* 第 9 个必须被拒绝且有明确错误码 */
     TEST_ASSERT_EQUAL_INT(SW_ERR_OVERFLOW, event_subscribe(EVT_ALARM_TRIGGERED, h9));
 
-    printf("[容量实测] 单事件订阅槽=%u（M8 实际最多 4 个订阅者：op_mode_bridge / "
+    printf("[容量实测] 单事件订阅槽=%u（实测最多 4 个订阅者：op_mode_bridge / "
            "telemetry_projection / lifecycle_bridge / 项目观测）\n",
            (unsigned)EVENT_BUS_MAX_SUBS_PER_EVT);
 }

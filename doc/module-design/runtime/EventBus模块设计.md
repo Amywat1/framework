@@ -27,7 +27,7 @@
 |------|------|
 | 总线不决策 | event_bus 只负责入队、出队、回调；业务规则留在 domain / application |
 | 载荷极简 | `param` 为 `uint32_t` 标量（报警码、模式枚举、点位索引等）；复杂状态通过领域模块查询 |
-| 不适合总线的场景 | 同一用例内部顺序步骤、简单即时动作、需同步返回结果的调用（见框架 §11） |
+| 不适合总线的场景 | 同一用例内部顺序步骤、简单即时动作、需同步返回结果的调用 |
 | 与急停双通道并存 | 急停快速通道负责即时切断；event_bus 负责记录、上报、姿态广播（见 §6.4） |
 
 ### 1.3 核心概念一览
@@ -80,7 +80,7 @@ application / domain / adapters
 
 **依赖禁令**：
 
-- `event_bus` 不得依赖 `projects/`、`adapters/`、`domain/` 业务头文件。
+- `event_bus` 不得依赖 `adapters/`、`domain/` 或任何项目业务头文件。
 - `event_bus` 不得承载设备业务语义（不得解析 `param` 含义）。
 - 业务模块不得绕过总线直接调用其他模块的 handler。
 - handler 内不得调用 `event_publish()` / `event_subscribe()`（避免死锁；fatal 回调同样禁止）。
@@ -171,18 +171,21 @@ typedef struct
 | 类别 | 枚举 | 典型发布方 | 已定义事件（节选） |
 |------|------|------------|-------------------|
 | 硬件异步 | `EVT_CAT_HW` | HAL 适配器 | `EVT_HW_ESTOP_ON/OFF`、`EVT_HW_IO_OFFLINE`、`EVT_HW_IO_ONLINE` |
-| 组件完成 | `EVT_CAT_COMP` | 机构领域层 | `EVT_COMP_HOME_DONE` |
+| 组件完成 | `EVT_CAT_COMP` | 机构领域层 | `EVT_COMP_HOME_DONE`、`EVT_COMP_MOTION_COMPLETED` |
 | 安全姿态 | `EVT_CAT_SAFETY` | `alarm_event_bridge`（边沿）；`abort_home_coordinator` 发完成事件 | `EVT_SAFETY_LOCKOUT`、`EVT_SAFETY_NOMINAL`、`EVT_ABORT_HOME_DONE` |
 | 报警生命周期 | `EVT_CAT_ALARM` | `alarm_event_bridge` | `EVT_ALARM_TRIGGERED`、`EVT_ALARM_CLEARED` |
 | 外部命令 | `EVT_CAT_CMD` | 命令网关 | `EVT_CMD_GATEWAY_WAKE`（`EVT_CMD_ORDER` 仅测试保留） |
 | 云端 | `EVT_CAT_CLOUD` | 云链路适配器 | `EVT_CLOUD_CONNECTED`、`EVT_CLOUD_DISCONNECTED`、`EVT_CLOUD_POINT_DIRTY` |
-| 洗车流程 | `EVT_CAT_WASH` | `wash_orchestrator` | `EVT_WASH_DONE`、`EVT_WASH_ABORTED`、`EVT_WASH_SESSION_STARTED` |
+| 洗车流程 | `EVT_CAT_WASH` | 项目洗车编排器 | `EVT_WASH_DONE`、`EVT_WASH_ABORTED`、`EVT_WASH_SESSION_STARTED`、`EVT_WASH_CHECKPOINT_REACHED` |
 | 运行模式 | `EVT_CAT_OP_MODE` | `operational_mode` 聚合 | `EVT_OP_MODE_CHANGED`、`EVT_ABORT_HOME_REQUESTED`、`EVT_OP_MODE_RECOVERY_*` 等 |
 
 **明确不走总线的能力**（由注释固化，不得改为 event）：
 
-- 限位信号（龙门/升降上下限）：由 `motor_tick` 直接轮询。
-- 电机单次动作完成、刷子启动通知：由 `motor_set_done_cb` 回调传递。
+- 限位信号等高频 IO 状态：由持有该机构的模块直接轮询，不逐次广播。
+- 运动命令是否被接受：由 `hal_motor_exec_port` 的同步返回值表达。
+- 运动过程故障：由 `motion_lifecycle_opts_t.on_process_fault` 回调传递给项目层。
+
+判据是「需不需要跨模块异步通知事实」。机构完成这类事实走总线（`EVT_COMP_MOTION_COMPLETED`），而每拍都在变的输入状态、以及需要立即拿到结果的调用不走。
 
 ### 4.4 运行统计
 
@@ -218,7 +221,7 @@ typedef struct
 |----|--------|------|
 | `THD_EVENT_DISPATCH_STACK` | 16 KiB | `event_dispatch` 线程栈 |
 
-队列满时：`event_publish()` 返回 `SW_ERR_OVERFLOW`，事件**丢弃**，`dropped_count++`，并打印 `[EVT WARN]` 日志（高/普通队列分别告警）。
+队列满时：`event_publish()` 返回 `SW_ERR_OVERFLOW`，事件**丢弃**，`dropped_count++`，并打 WARN 日志（高/普通队列分别告警，日志中带 type 与 param）。
 
 ### 5.2 优先级路由
 
@@ -317,7 +320,7 @@ typedef void (*event_handler_t)(const event_t *evt);
 | 快速通道 | 急停采集通路（`SCHED_FIFO`）同步切断 | 立即停止执行机构；更新运行模式/急停标志 |
 | 普通通道 | `EVT_HW_ESTOP_ON` → 报警记录 → `EVT_ALARM_*` / 上报 | 记录、广播、云端与日志 |
 
-允许极短窗口期：快速通道已生效时，普通通道可能尚未完成报警实例记录；`Recover` 合法性以快速通道急停标志为准（框架 §12.4）。
+允许极短窗口期：快速通道已生效时，普通通道可能尚未完成报警实例记录；`Recover` 合法性以 `operational_mode` 中的急停标志为准，该标志由快速通道经 `op_mode_bridge` 置位。
 
 ---
 
@@ -392,8 +395,8 @@ event_bus_dispatch_loop();
 | 事件 ID 宏 | `EVT_<CAT>_<NAME>`，由 `EVT_MAKE(EVT_CAT_*, EVT_*_ID_*)` 生成 |
 | 新增类别 | 在 `event_category_t` 末尾追加，不改动已有类别值 |
 | 新增类内事件 | 使用该类未占用的 `local_id`；在 `event_types.h` 集中声明 |
-| 头文件守卫 | `event_types.h` → `EVENT_TYPES_H`；`event_bus.h` → `CORE_EVENT_BUS_H` |
-| 日志 | core 层使用 `printf` 前缀 `[EVT WARN]` / `[EVT ERR]`，不依赖外部 SDK |
+| 头文件守卫 | 与路径一致：`common/event_types.h` → `COMMON_EVENT_TYPES_H`；`runtime/event_bus/event_bus.h` → `RUNTIME_EVENT_BUS_EVENT_BUS_H`（由 `check_arch_boundary.sh` R15 检查） |
+| 日志 | 经 `EVT_LOG_WARN` / `EVT_LOG_ERROR` 宏转 `common/log.h`，不直接依赖外部 SDK |
 
 ---
 
@@ -433,11 +436,13 @@ event_bus_dispatch_loop();
 | `event_bus` 核心实现 | ✅ 已迁入 |
 | `event_bus_config.h` 容量配置 | ✅ 已从 `thread_config.h` 拆出 |
 | `event_types.h` 类型契约 | ✅ 已迁入（HW 类当前仅 ESTOP + IO 在线/离线） |
-| `runtime/scheduler/` | ✅ 已迁入（`test_scheduler` 9 用例） |
+| `runtime/scheduler/` | ✅ 已迁入（`test_scheduler` 覆盖） |
 | 业务订阅（gateway / bridge / posture） | ✅ bootstrap + 单测 |
 | Demo bootstrap + dispatch 线程 | ✅ `bootstrap_run()` |
-| 单元测试 | ✅ `test_event_bus`（8 用例）；cloud/command/alarm 等模块单测亦覆盖订阅 |
-| 单测未覆盖 | 高优先级 IO 路由、fatal 回调 |
+| 单元测试 | ✅ `test_event_bus` 覆盖发布/订阅/优先级/shutdown，`test_event_bus_capacity` 按真机密度压测并断言余量；cloud/command/alarm 等模块单测亦覆盖订阅 |
+| 单测未覆盖 | fatal 回调路径；高优先级路由只按 `EVT_CAT_SAFETY` 验证，`EVT_HW_ESTOP_*` / `EVT_HW_IO_*` 四个显式入列事件未单独断言 |
+
+用例数与通过情况以 `scripts/check_all.sh` 生成的 `build-check/test-results/report.html` 为准，本文不记录动态结论（原则见 `tests/reports/README.md`）。
 
 ---
 

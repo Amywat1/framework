@@ -32,12 +32,12 @@ void tearDown(void)
 
 static void test_source_file_name_extracts_linux_path(void)
 {
-    TEST_ASSERT_EQUAL_STRING("motor_axis.c", sw_log_source_file_name("/opt/m8/framework/motor_axis.c"));
+    TEST_ASSERT_EQUAL_STRING("motor_axis.c", sw_log_source_file_name("/opt/app/framework/motor_axis.c"));
 }
 
 static void test_source_file_name_extracts_windows_path(void)
 {
-    TEST_ASSERT_EQUAL_STRING("motor_axis.c", sw_log_source_file_name("C:\\m8\\framework\\motor_axis.c"));
+    TEST_ASSERT_EQUAL_STRING("motor_axis.c", sw_log_source_file_name("C:\\app\\framework\\motor_axis.c"));
 }
 
 static void test_source_file_name_keeps_plain_name(void)

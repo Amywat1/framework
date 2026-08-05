@@ -11,7 +11,7 @@
 
 ## 1. 设计目标与核心理念
 
-Demo 与项目接入层展示如何把通用框架装配成一个可启动设备实例。框架提供 `bootstrap_run()` 和固定生命周期，项目只通过 `wiring()`、`project_hooks`、端口注册和弱符号覆盖接入具体硬件、报警目录、物模型和后台任务。
+Demo 与项目接入层展示如何把通用框架装配成一个可启动设备实例。框架提供 `bootstrap_run()` 和固定生命周期，项目只通过 `wiring()`、`project_hooks` 和端口注册接入具体硬件、报警目录、物模型和后台任务。
 
 ### 1.1 设计目标
 
@@ -28,12 +28,13 @@ Demo 与项目接入层展示如何把通用框架装配成一个可启动设备
 | 能力 | Demo 实现 |
 |------|-----------|
 | 启动入口 | `demo/app/demo_main.c` |
-| HAL | `hal_io_sim`、`hal_voice_sim`、`hw_estop_sim` |
+| HAL | `hal_io_sim`、`hal_voice_sim` |
+| 安全端口 | `safety_sim` 注册 `safety_ops_t`，急停状态由 `hw_estop_sim` 维护 |
 | 存储 | `json_param_store`、`json_deploy_store` |
 | machine ops | 空操作/成功返回的 `demo_machine_ops` |
 | 报警目录 | 两个 demo alarm code |
-| wash orchestrator | 使用测试 stub |
-| 周期任务 | `alarm_bridge` 50ms drain |
+| 洗车编排 | 无（`machine_ops` 空实现返回成功） |
+| 周期任务 | 无项目任务；`alarm_bridge` 由框架 `alarm_event_bridge_init()` 自行登记 |
 | 验证链路 | STOP_OPERATION、硬件急停事件、报警触发链 |
 
 ---
@@ -52,7 +53,7 @@ Demo 与项目接入层展示如何把通用框架装配成一个可启动设备
 | `project_hooks.c` | 实现 `project_*` 生命周期钩子 |
 | `machine_ops.c` | 注册 `machine_ops_t`，承接命令副作用 |
 | `alarm_catalog.c` | 加载项目报警目录 |
-| `safety_ports.c` | 覆盖急停输入和安全切断弱符号 |
+| `safety_ports.c` | 经 `safety_port_register()` 注册急停输入、安全切断与急停码判定 |
 | `hal_bindings.c` | 绑定电机、VFD、sensor、IO、fluid path 等实例 |
 | `cloud_model.c` | 注册项目物模型 bundle |
 | `engine_io_binding.c` | 注册真实 `engine_io_ops_t` / catalog |
@@ -92,14 +93,24 @@ bootstrap_bind()
 bootstrap_validate()
     └─ project_validate()
 
-bootstrap_init()
-    ├─ project_init_hal()
+bootstrap_init_hal()
+    └─ project_init_hal()
+
+bootstrap_init_machine()
+    └─ project_init_machine()
+
+bootstrap_init_safety()
+    └─ project_init_safety()
+
+bootstrap_init_services()
     ├─ project_init_adapters()
     └─ project_register_runtime_tasks()
 
 bootstrap_start()
     └─ project_start_runtime()
 ```
+
+完整阶段序列（含框架自身的 init 调用）见 `doc/module-design/runtime/Runtime模块设计.md` §2。
 
 ---
 
@@ -115,7 +126,7 @@ bootstrap_start()
 | HW ESTOP | `hw_estop_sim_set_active(true)` → `EVT_HW_ESTOP_ON` → op mode estop flag |
 | Alarm trigger | `alarm_binding.trigger()` → `alarm_event_bridge_drain()` → registry blocking |
 
-Demo 直接订阅 `EVT_HW_ESTOP_ON`，用于确认 event dispatch 线程已工作。
+Demo 直接订阅 `EVT_HW_ESTOP_ON`，用于确认 event dispatch 线程已工作。该事件需要有采集方发布，见 §7.1。
 
 ### 3.2 `wiring_sim`
 
@@ -140,12 +151,14 @@ wiring()
 | `project_bind_hal()` | 空实现 |
 | `project_init_hal()` | 空实现 |
 | `project_configure_safety()` | 空实现 |
+| `project_init_safety()` | 空实现 |
 | `project_configure_adapters()` | 空实现 |
 | `project_bind_machine()` | `demo_machine_ops_register()` |
+| `project_init_machine()` | 空实现 |
 | `project_bind_alarm_catalog()` | `demo_alarm_catalog_load()` |
-| `project_validate()` | 空实现 |
-| `project_init_adapters()` | 空实现 |
-| `project_register_runtime_tasks()` | 注册 `alarm_bridge` 50ms 周期任务 |
+| `project_validate()` | `port_contract_validate()` 校验必需端口 |
+| `project_init_adapters()` | 空实现（不接入急停轮询与观测桥） |
+| `project_register_runtime_tasks()` | 空实现 |
 | `project_start_runtime()` | 空实现 |
 | `project_assert_safe_outputs()` | 空实现 |
 
@@ -172,9 +185,12 @@ Demo 加载两个报警：
 typedef struct {
     void (*deferred_stop_all)(void);
     void (*abort_home)(void);
+    sw_err_t (*start_wash)(wash_mode_t mode);
+    void (*abort_wash)(wash_abort_cause_t cause);
     sw_err_t (*home_device)(void);
     sw_err_t (*execute_manual_actuator)(uint32_t act_id, int32_t param);
     sw_err_t (*stop_all_outputs)(void);
+    bool (*is_wash_entry_ready)(void);
 } machine_ops_t;
 ```
 
@@ -182,11 +198,14 @@ typedef struct {
 
 | machine op | 典型调用方 |
 |------------|------------|
-| `deferred_stop_all` | safety deferred stop / emergency completion path |
+| `deferred_stop_all` | 安全延后停机路径 |
 | `abort_home` | 启动中止归位清障（异步）；完成后须发 `EVT_ABORT_HOME_DONE` |
+| `start_wash` | `DEV_CMD_START_WASH` 副作用：项目选方案并启动会话 |
+| `abort_wash` | `DEV_CMD_STOP_WASH` 副作用，以及急停/LOCKOUT 切断路径 |
 | `home_device` | `DEV_CMD_RECOVER` 在 STOPPED 下的内部归位副作用，以及故障恢复服务 |
 | `execute_manual_actuator` | `DEV_CMD_MANUAL_ACTUATOR` 副作用 |
 | `stop_all_outputs` | `DEV_CMD_STOP_ALL_OUTPUTS` 副作用 |
+| `is_wash_entry_ready` | `START_WASH` 附加门禁；未注册（NULL）时框架不拦截 |
 
 `side_effect_router` 不做权限判断，只执行 `operational_mode` 已裁决允许的副作用。未注册或函数缺失时返回 `SW_ERR_NOT_INIT`。
 
@@ -217,14 +236,14 @@ typedef struct {
 - 在 `project_bind_hal()` 绑定传感器通道、VFD 实例、backend 与事件回调。
 - 在 `project_init_hal()` 执行传感器预热等依赖 HAL init 后的项目初始化。
 - 创建并注入 `hal_motor_exec_t` 给设备控制模式。
-- 覆盖 `hw_estop_port_is_active()` 和 `safety_cutout_execute()`。
+- 经 `safety_port_register()` 注册 `safety_ops_t`，提供急停输入与安全切断实现。
 
 ### 5.3 Domain / Application
 
 - 在 `project_bind_machine()` 注册 `machine_ops_t`。
 - 在 `project_bind_alarm_catalog()` 加载项目报警目录。
 - 初始化洗车 orchestrator 所需的 engine IO 后端和方案 loader。
-- 根据需要初始化 telemetry projection 和 `dev_ctx`。
+- 遥测投影由 `bootstrap_init_services()` 自动接入，项目无需初始化；读侧用 `device_snapshot_get()`。
 - 在 `project_validate()` 校验 cloud model，在 `project_register_runtime_tasks()` 注册 `report_scheduler`。
 
 ### 5.4 Cloud / Inbound
@@ -248,22 +267,41 @@ typedef struct {
 
 ## 6. 构建接入
 
-Demo 的 `demo/CMakeLists.txt` 展示最小 smoke target：
+框架源清单由 `cmake/wdf_targets.cmake` 以 INTERFACE 库形式导出，项目不再手抄路径：
 
-| 分组 | 内容 |
+```cmake
+include(${FW_ROOT}/cmake/wdf_targets.cmake)
+target_link_libraries(my_app PRIVATE wdf_application wdf_services wdf_storage_json wdf_hal_sim pthread)
+```
+
+选 INTERFACE 而非 STATIC，是因为同一份框架源在不同目标下需要不同编译定义（例如测试目标为 `fluid_path.c` 定义 `FLUID_PATH_UNIT_TEST`）。收益不是少编译一次，而是把源清单维护权收回框架内部：框架增删文件时项目只需重新配置。
+
+可用分层目标（依赖逐层向下传递，link 上层自动带入下层）：
+
+| 目标 | 内容 |
 |------|------|
-| `_demo_app` | `demo/app/*.c` |
-| `_demo_wiring` | wiring、hooks、machine ops、alarm catalog |
-| `_fw_runtime_src` | bootstrap、event bus、scheduler、safety thread |
-| `_fw_application_src` | gateway、bridge、mode、router 等 |
-| `_fw_domain_src` | operational mode、alarm registry、safety posture |
-| `_fw_ports_src` | port registry、safety/machine ports |
-| `_fw_services_src` | `svc_param` |
-| `_fw_adapters_src` | sim HAL、storage JSON |
+| `wdf_common` | 错误码、日志、时间、追踪上下文、点表模型、基础工具 |
+| `wdf_ports` | 端口注册表与端口内自带实现 |
+| `wdf_runtime` | bootstrap、事件总线、调度器 |
+| `wdf_domain` | 运行模式、报警注册表、设备快照 |
+| `wdf_application` | 命令网关、副作用路由、自检、恢复、遥测投影、报警与模式桥接 |
+| `wdf_device_control` | 单轴运动、流体路径（需项目提供 motor provider） |
+| `wdf_program_engine` | 方案引擎模型、表达式、tick 运行时 |
+| `wdf_engine_session` | 方案会话 worker |
+| `wdf_cloud` / `wdf_cloud_json` | 云点位模型 / 属性 JSON 与 property_port 安装 |
+| `wdf_report_scheduler` | 云端上报调度 |
+| `wdf_asset_contract` | 必需资产启动期校验 |
+| `wdf_observability` / `wdf_observation_bridge` | 观测记录与黑匣子 / 框架事件转观测记录 |
+| `wdf_services` | `svc_param` |
+| `wdf_storage_json` / `wdf_storage_program_json` | 参数与部署存储 / 方案资产加载 |
+| `wdf_hal_sim` / `wdf_hal_engine_sim` / `wdf_hal_components` | 仿真后端 / 引擎仿真后端 / HAL 组合件 |
+| `wdf_point_table_json` / `wdf_cjson` | 点位表 JSON 编解码 / 随框架分发的 cJSON |
 
-产品构建不必照搬 demo 的源列表，但必须满足链接闭包：项目提供的 wiring/hooks 与所需框架模块、provider、third_party 一起进入目标。
+`wdf_domain` 刻意不含设备控制与方案引擎：两者分别要求项目提供 motor provider 与方案资产，最小接入（如框架自带 demo）并不需要，捆绑进核心会造成链接期缺符号。同理 `wdf_asset_contract`、`wdf_report_scheduler`、`wdf_observation_bridge` 各自独立，不接入的项目不必被迫链接 cloud、program_engine 或 observability。
 
-可选真机 provider 通过根 CMake 开关启用：
+Demo 的 `demo/CMakeLists.txt` 即按此方式装配，只额外补 `safety_sim` 与 `hw_estop_sim` 两个 sim 装配选择。
+
+vendor provider 仍由根 CMake 开关以 STATIC 库提供，它们有外部 SDK 依赖，不适合无条件导出：
 
 | 开关 | 用途 |
 |------|------|
@@ -278,12 +316,16 @@ Demo 的 `demo/CMakeLists.txt` 展示最小 smoke target：
 
 ### 7.1 Demo Smoke
 
-构建 `wdf_smoke` 后运行，期望输出 `[Demo] All checks passed.`。它验证：
+`wdf_smoke` 目标依次检查 bootstrap 完成、命令网关处理命令、急停边沿事件、报警链路联通，全部通过时输出 `[Demo] All checks passed.`。
 
-- bootstrap 能完成。
-- command gateway 能处理命令。
-- safety thread 能检测急停 sim 边沿。
-- alarm binding / bridge / registry 能联通。
+**当前状态：该目标运行失败，退出码 1**（`ctest` 不包含它，因此门禁不覆盖）。两处与框架现状不一致，都在 demo 侧：
+
+| 检查 | 失败原因 |
+|------|----------|
+| STOP_OPERATION | bootstrap 后模式为 `OP_MODE_STOPPED`，而命令矩阵中 `STOP_OPERATION` 在 STOPPED 下为 DENIED（仅 IDLE / WASH_DONE 允许），`submit()` 返回 `SW_ERR_STATE` |
+| HW ESTOP | demo 未接入急停轮询适配器，且 `hw_estop_sim` 只维护状态、不发布事件，因此无人发出 `EVT_HW_ESTOP_ON` |
+
+两者都是 demo 用例与当前框架语义脱节，不是框架缺陷：前者需改用 STOPPED 下允许的命令（或先 RECOVER 进 IDLE 再停运），后者需在 `project_init_adapters()` 调 `estop_poll_thread_init()`。修复 demo 属独立改动，本文只记录现状，不假称通过。
 
 ### 7.2 项目 Bring-up
 

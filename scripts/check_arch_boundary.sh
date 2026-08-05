@@ -15,9 +15,9 @@
 #   R3  ports/         不依赖 adapters/、application/、runtime/ 或 services/
 #   R4  runtime/event_bus/   不依赖业务层
 #   R5  runtime/scheduler/   不依赖业务层
-#   R6  各框架层        不引用项目专属头文件路径（m8/ 前缀）
-#   R7  框架核心目录    不含项目机型前缀文件名（m8_*.c / m8_*.h）
-#   R8  全框架          不使用 "../" 相对 include（兜底，防止绕过 R1~R6）
+#   R6  各框架层        引号 include 均可在框架树内解析（vendor 头限 providers/）
+#   R7  框架层 .c       均已在框架构建清单中登记
+#   R8  全框架          不使用 "../" 相对 include（兜底，防止绕过 R1~R5）
 #   R9  domain/         不使用文件 IO / JSON / 线程注册 / 动态内存
 #   R10 adapters/       不承载跨领域编排（bridge / projection / coordinator）
 #   R11 application/    不依赖 adapters/ 或 services/
@@ -116,38 +116,134 @@ check_includes \
     "runtime/scheduler" \
     "domain/" "ports/" "application/" "adapters/" "services/"
 
-# R6: 框架各层不引用项目专属头文件路径（m8/ 前缀）
-# 防止通用框架代码引用项目版本头、机型配置头等污染框架可复用性
-for layer in domain common ports application runtime services cloud adapters; do
-    check_includes \
-        "R6-${layer}: ${layer}/ 不引用项目专属头（m8/ 前缀）" \
-        "${layer}" \
-        "m8/"
+# -----------------------------------------------------------------------------
+# R6: 框架层不引用框架树之外的头文件
+#
+# 判据不是"名字像不像项目专属"，而是"能不能在框架树内解析"。
+#
+# 前一版判据是 grep '#include "m8/'，把"项目专属"绑定到一个写死的项目名。
+# 框架无从预知下一个项目叫什么，换个名字规则就完全失效：把
+# #include "acme_robot/io_table.h" 注入 domain/ 后全部规则仍报通过。
+#
+# 反过来立判据即可摆脱对项目命名的依赖：框架不需要知道项目有什么，只需要
+# 知道自己有什么。凡引号 include 既不能以仓库根为基准解析、也不在同目录，
+# 即为框架外引用——该集合天然覆盖全部项目专属头，与命名无关。
+#
+# 例外只有 vendor SDK 头：其搜索路径由根 CMakeLists 的 provider 开关在编译期
+# 注入（WDF_IO_EXP_ROOT 等），确实不在框架树内。白名单逐项登记，并附加位置
+# 约束——必须位于 adapters/**/providers/ 下，使 vendor 依赖无法渗入其它层。
+# 新增 vendor provider 须在此显式登记，这一步正是要让评审看见新的外部依赖。
+#
+# 本规则不替代 R8：指向真实框架文件的 "../" include 是可解析的，会通过本
+# 规则却绕过 R1~R5 的前缀匹配，故 R8 仍作为前缀类规则的兜底独立存在。
+# -----------------------------------------------------------------------------
+VENDOR_INCLUDE_ALLOW='^(io_exp|modbus)/'
+
+TOTAL_RULES=$((TOTAL_RULES + 1))
+foreign_includes=""
+
+for layer in common domain ports application adapters runtime services observability; do
+    [ -d "${FW_ROOT}/${layer}" ] || continue
+
+    while IFS= read -r src; do
+        src_dir=$(dirname "${src}")
+        rel_src="${src#"${FW_ROOT}"/}"
+
+        while IFS= read -r inc; do
+            [ -n "${inc}" ] || continue
+
+            # 以仓库根为基准可解析（框架内标准形式）
+            if [ -f "${FW_ROOT}/${inc}" ]; then
+                continue
+            fi
+            # 同目录内可解析（provider 内部私有头）
+            if [ -f "${src_dir}/${inc}" ]; then
+                continue
+            fi
+
+            if printf '%s' "${inc}" | grep -qE "${VENDOR_INCLUDE_ALLOW}"; then
+                case "${rel_src}" in
+                    adapters/*/providers/*)
+                        continue
+                        ;;
+                esac
+                foreign_includes+="  ${rel_src}: vendor 头 \"${inc}\" 出现在 adapters/**/providers/ 之外"$'\n'
+                continue
+            fi
+
+            foreign_includes+="  ${rel_src}: \"${inc}\" 无法在框架树内解析"$'\n'
+        done < <(grep -oE '#include[[:space:]]*"[^"]+"' "${src}" 2>/dev/null \
+            | sed 's/.*"\(.*\)"/\1/')
+    done < <(find "${FW_ROOT}/${layer}" \( -name '*.c' -o -name '*.h' \) -print | sort)
 done
 
-# R7: 框架核心目录中文件名不含项目机型前缀 m8_
-# 防止项目专属文件混入通用框架目录（tests/ 和 demo/ 除外）
-TOTAL_RULES=$((TOTAL_RULES + 1))
-m8_files=$(find "${FW_ROOT}" \
-    -not -path "${FW_ROOT}/tests/*" \
-    -not -path "${FW_ROOT}/demo/*" \
-    -not -path "${FW_ROOT}/scripts/*" \
-    \( -name 'm8_*.c' -o -name 'm8_*.h' \) \
-    -print 2>/dev/null | sort || true)
-
-if [ -z "$m8_files" ]; then
-    echo "[PASS] R7: 框架核心目录中无项目机型前缀文件（m8_*.c / m8_*.h）"
+if [ -z "$foreign_includes" ]; then
+    echo "[PASS] R6: 框架层引号 include 均可在框架树内解析（vendor 头限 providers/）"
 else
     echo ""
-    echo "[FAIL] R7: 框架核心目录中存在项目机型前缀文件"
-    printf '%s\n' "$m8_files" | sed "s|^${FW_ROOT}/|  |"
+    echo "[FAIL] R6: 框架层引用了框架树之外的头文件"
+    printf '%s' "$foreign_includes"
+    TOTAL_VIOLATIONS=$((TOTAL_VIOLATIONS + 1))
+fi
+
+# -----------------------------------------------------------------------------
+# R7: 框架层每个 .c 都必须被框架自己的构建清单登记
+#
+# 前一版判据是 find -name 'm8_*.c'，与 R6 同病：绑定写死的项目前缀。
+#
+# 改为登记完整性：框架层的每个 .c 都应出现在 cmake/wdf_targets.cmake（导出给
+# 项目的分层目标）或根 CMakeLists.txt（有外部 SDK 依赖的 vendor provider）中。
+# 混进框架目录的项目文件不会被任何框架目标构建，因此必然在此暴露；顺带也能
+# 抓出框架自身的死代码。
+#
+# 例外：仅由 demo/ 与 tests/ 按路径直接装配、刻意不导出为公共目标的源文件。
+# 逐项登记而非按目录豁免——每一项都是"为什么不导出"的显式决定。
+# -----------------------------------------------------------------------------
+UNEXPORTED_SOURCES="
+adapters/inbound/safety/estop_poll_thread.c
+adapters/outbound/safety/sim/hw_estop_sim.c
+adapters/outbound/safety/sim/safety_sim.c
+"
+
+TOTAL_RULES=$((TOTAL_RULES + 1))
+unregistered=""
+
+for layer in common domain ports application adapters runtime services observability; do
+    [ -d "${FW_ROOT}/${layer}" ] || continue
+
+    while IFS= read -r src; do
+        rel_src="${src#"${FW_ROOT}"/}"
+
+        if printf '%s' "${UNEXPORTED_SOURCES}" | grep -qxF "${rel_src}"; then
+            continue
+        fi
+        if grep -qF -- "${rel_src}" "${FW_ROOT}/cmake/wdf_targets.cmake" 2>/dev/null; then
+            continue
+        fi
+        if grep -qF -- "${rel_src}" "${FW_ROOT}/CMakeLists.txt" 2>/dev/null; then
+            continue
+        fi
+
+        unregistered+="  ${rel_src}"$'\n'
+    done < <(find "${FW_ROOT}/${layer}" -name '*.c' -print | sort)
+done
+
+if [ -z "$unregistered" ]; then
+    echo "[PASS] R7: 框架层 .c 均已在框架构建清单中登记"
+else
+    echo ""
+    echo "[FAIL] R7: 以下框架层 .c 未被任何框架构建目标登记"
+    printf '%s' "$unregistered"
+    echo "  （项目专属文件应移出框架目录；框架自有文件须登记到 cmake/wdf_targets.cmake"
+    echo "    或根 CMakeLists.txt；刻意不导出的须登记到本脚本 UNEXPORTED_SOURCES）"
     TOTAL_VIOLATIONS=$((TOTAL_VIOLATIONS + 1))
 fi
 
 # R8: 禁止相对路径向上跳的 include
 #
-# R1~R6 依赖 "#include \"<层>/" 的前缀形式匹配，若改用 "../" 形式引用上层，
-# 依赖违规会绕过全部前缀规则而不被发现。此规则作为兜底：
+# R1~R5 依赖 "#include \"<层>/" 的前缀形式匹配，若改用 "../" 形式引用上层，
+# 依赖违规会绕过全部前缀规则而不被发现。R6 也拦不住这类：".." 形式指向的是
+# 真实存在的框架文件，在框架树内可解析。此规则作为兜底：
 # 框架内一律使用以仓库根为基准的层级路径 include，不得出现 "../"。
 # （同目录内的 "#include \"xxx.h\"" 不受影响，其目标必在同层。）
 TOTAL_RULES=$((TOTAL_RULES + 1))

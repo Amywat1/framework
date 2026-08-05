@@ -5,7 +5,7 @@
  * @date    2026-04-10
  *
  * @note    业务层与其它 HAL 适配器仅通过本接口访问 IO；
- *          平台实现（m8_io_adapter / hal_io_sim）内部对接 drv_io 或仿真状态。
+ *          平台实现（项目真机 IO 适配器 / hal_io_sim）内部对接 drv_io 或仿真状态。
  */
 
 #ifndef PORTS_OUTBOUND_HAL_HAL_IO_PORT_H

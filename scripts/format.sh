@@ -24,10 +24,16 @@ fi
 # 排除 build* 而非仅 build/：check_all.sh 默认构建到 build-check/，若只排除
 # build/，门禁就会扫描自己的构建产物（CMake 生成的 CompilerIdC.c、sw_version.h
 # 等），导致默认配置下格式检查永远失败。
+#
+# 同理排除任意深度的 */build*/：示例与子项目各有自己的构建目录
+# （如 examples/Demo/build/），它们同样会生成 CMake 探测文件。只排顶层
+# ./build* 拦不住这些，门禁会因一个非我方编写、且未被 git 跟踪的生成文件失败。
 mapfile -t FILES < <(
     find . \
         -type f \( -name '*.c' -o -name '*.h' \) \
         ! -path './build*' \
+        ! -path '*/build/*' \
+        ! -path '*/build-*/*' \
         ! -path './third_party/*' \
         ! -path './.cache/*' \
         ! -path './.git/*' \

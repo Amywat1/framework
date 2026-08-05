@@ -47,8 +47,8 @@ typedef struct {
 
 static hal_vfd_slot_t s_slot[HAL_VFD_MANAGER_SLOT_MAX];
 
-/* 两把锁均位于急停切断热路径：safety_cutout_execute -> m8_safety_cutout ->
- * m8_motor_emergency_cutoff -> 驱动 cutoff -> 本模块停机。该路径由 estop_poll
+/* 两把锁均位于急停切断热路径：safety_cutout_execute -> 项目 cutout 实现 ->
+ * 项目电机紧急切断 -> 驱动 cutoff -> 本模块停机。该路径由 estop_poll
  * 线程以 SCHED_FIFO 高优先级执行，而两把锁又被 SCHED_OTHER 周期任务（变频器
  * 轮询、通信保活）竞争，故启用优先级继承。本模块无 init 入口，用 pthread_once
  * 在首次上锁前完成初始化。 */

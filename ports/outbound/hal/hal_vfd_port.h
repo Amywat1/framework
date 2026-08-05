@@ -59,8 +59,8 @@ typedef enum {
 
 /**
  * @brief  VFD 实例标识（整数，具体值由机型配置层定义）
- * @note   各项目在 projects/<project>/config/xxx_vfd_table.h 中定义具体实例标识
- *         （如 M8 项目在 config/hal/m8_vfd_table.h 中定义 HAL_VFD_GANTRY / HAL_VFD_BRUSH）
+ * @note   各项目在自己的 config 层 VFD 表头文件中定义具体实例标识
+ *         （例如把龙门、毛刷等机构各分配一个 hal_vfd_id_t 常量）
  */
 typedef int hal_vfd_id_t;
 

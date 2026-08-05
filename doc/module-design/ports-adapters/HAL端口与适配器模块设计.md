@@ -34,6 +34,7 @@ adapters/outbound/hal
         ├─ sim/                         测试与 Demo 后端
         ├─ components/sensor_filter     DI 滤波组合层，依赖 hal_io_port
         ├─ components/vfd_manager       VFD 组合层，依赖 backend ops
+        ├─ components/adc_gate          ADC 采样按需门控，无向下依赖
         └─ providers/
              ├─ mcc                     电机执行器 provider
              └─ snack
@@ -171,7 +172,19 @@ hal_vfd_manager
 | 注册周期任务 | `hal_vfd_manager_poll_register_task()` |
 | 更新监测项 | `hal_vfd_manager_set_monitor_mask(id, mask)` |
 
-默认容量 `HAL_VFD_MANAGER_SLOT_MAX = 8`。`monitor_mask` 可组合 `HAL_VFD_MON_FAULT` 与 `HAL_VFD_MON_CURRENT`。
+默认容量 `HAL_VFD_MANAGER_SLOT_MAX = 8`（定义在 `hal_vfd_manager_bind.h`）。`monitor_mask` 可组合 `HAL_VFD_MON_FAULT` 与 `HAL_VFD_MON_CURRENT`。
+
+### 3.3 `hal_adc_gate`
+
+`hal_adc_gate` 解决"无人需要时仍周期性触发阻塞 ADC 读"的问题，是按 `(board_id, port)` 计数的门控，不注册任何端口，也不感知机构语义：
+
+| 接口 | 行为 |
+|------|------|
+| `hal_adc_gate_acquire(board, port)` | 消费者声明需要持续新鲜采样，计数 +1 |
+| `hal_adc_gate_release(board, port)` | 声明不再需要，计数 -1；多余 release 不会使计数为负 |
+| `hal_adc_gate_is_needed(board, port)` | 采样生产者据此判断是否真正执行一次 ADC 读 |
+
+acquire / release 必须成对调用。它只按板号与通道号区分，可供任意 ADC 通道复用。
 
 ---
 
@@ -181,10 +194,11 @@ hal_vfd_manager
 
 | 文件 | 职责 |
 |------|------|
-| `adapters/outbound/hal/sim/hal_io_sim.*` | 注册内存 DI/DO 后端，支持测试注入 DI 与脉冲值 |
-| `adapters/outbound/hal/sim/hal_voice_sim.c` | 注册语音仿真 ops |
-| `adapters/outbound/hal/sim/sim_encoder_counter.*` | 仿真编码器累计计数源 |
-| `adapters/outbound/hal/sim/engine_io_sim.*` | 洗车 engine 专用 IO 仿真后端 |
+| `adapters/outbound/hal/sim/hal_io_sim.*` | 注册内存 DI/DO 后端，支持测试注入 DI 与脉冲计数值 |
+| `adapters/outbound/hal/sim/hal_voice_sim.*` | 注册语音仿真 ops |
+| `adapters/outbound/hal/sim/engine_io_sim.*` | 方案引擎专用 IO 仿真后端（按名 DI / 轴） |
+| `adapters/outbound/hal/sim/engine_actuator_sim.*` | 方案引擎执行机构仿真后端 |
+| `adapters/outbound/safety/sim/{safety_sim,hw_estop_sim}.*` | 安全端口仿真实现与急停仿真状态 |
 
 Sim 后端用于 demo 与单元测试，不表达真实设备时序保证。
 
@@ -306,7 +320,7 @@ bootstrap_start()
 - panic 回调应只做安全输出落地，不做复杂业务决策。
 - `flush_outputs_now()` 用于 panic 或启动安全态，正常路径由后台线程/周期任务推进。
 - `register_event_cb` 回调只传递硬件事件，不直接改变运行模式。
-- 急停热路径应通过 `safety_cutout_execute()`（弱符号，项目可覆盖）或 `machine_ops.stop_all_outputs()` 统一收敛。
+- 急停热路径应通过 `safety_cutout_execute()` 或 `machine_ops.stop_all_outputs()` 统一收敛。前者由项目经 `safety_port_register()` 注册 `safety_ops_t` 提供实现（不是弱符号覆盖），未注册时故障安全并告警。
 
 ---
 
@@ -322,14 +336,9 @@ bootstrap_start()
 | `test_snack_vfd_backend` | Snack VFD backend 与 manager 联动 |
 | `test_snack_voice_adapter` | Snack voice Modbus adapter |
 | `test_hal_voice_sim` | 语音 sim 注册和操作 |
-| `test_sim_encoder_counter` | 仿真编码器计数 |
+| `test_motor_executor_position` | MCC executor 位置推进 |
 
-验证命令：
-
-```bash
-cmake --build build-native -j4
-ctest --test-dir build-native --output-on-failure
-```
+用例数与通过情况以 `scripts/check_all.sh` 生成的 `build-check/test-results/report.html` 为准，本文不记录动态结论（原则见 `tests/reports/README.md`）。
 
 ---
 
@@ -338,8 +347,8 @@ ctest --test-dir build-native --output-on-failure
 ### 8.1 框架已提供
 
 - HAL 端口契约：IO、sensor、VFD、voice、motor executor。
-- 通用组件：DI 滤波、VFD manager。
-- 仿真后端：IO、voice、encoder、engine IO。
+- 通用组件：DI 滤波、VFD manager、ADC 门控。
+- 仿真后端：IO、voice、engine IO、engine actuator、安全端口与急停。
 - 可选真机 provider：MCC、Snack io_exp、Snack Modbus voice/VFD。
 
 ### 8.2 项目侧负责

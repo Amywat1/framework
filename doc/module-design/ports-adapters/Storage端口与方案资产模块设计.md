@@ -3,7 +3,7 @@
 **版本**：v1.0  
 **状态**：已落地（param_store + deploy_store + engine_program_loader + JSON 适配器 + manifest 校验）  
 **最后同步代码**：2026-07-14（`ports/outbound/storage`、`adapters/outbound/storage/json`、`engine_program_manifest`）  
-**适用范围**：`ports/outbound/storage/`、`adapters/outbound/storage/json/`、`domain/program_engine/model/engine_program_manifest.*`、`application/engine_session.*`、项目编排器  
+**适用范围**：`ports/outbound/storage/`、`adapters/outbound/storage/json/`、`services/param/`、项目方案加载流程  
 **架构基线**：Ports & Adapters + 存储类型分离 + 方案资产完整性校验  
 **关键词**：param_store、deploy_store、engine_program_loader、engine_program_json、manifest、SHA256
 
@@ -28,7 +28,7 @@
 | 运行期参数 | `param_store` | `json_param_store` | `set` + `save` | 运行模式、计数、校准值 |
 | 部署期配置 | `deploy_store` | `json_deploy_store` | 无 | SN、站点、MQTT topic、服务器地址 |
 | 洗车方案 | `engine_program_loader_port` | `engine_program_json` | 无 | phase/lane/step/interlock 配置 |
-| 方案 manifest | 直接 domain API | `engine_program_manifest` | 无 | JSON 文件 size + SHA256 |
+| 方案 manifest | 无端口，直接调适配器 API | `engine_program_manifest` | 无 | JSON 文件 size + SHA256 |
 
 ---
 
@@ -44,9 +44,9 @@
 | **JSON 参数适配器** | `adapters/outbound/storage/json/json_param_store.*` | 基于 cJSON 的可写 KV 文件 |
 | **JSON 部署适配器** | `adapters/outbound/storage/json/json_deploy_store.c` | 基于 cJSON 的只读部署文件 |
 | **JSON 方案加载器** | `adapters/outbound/storage/json/engine_program_json.*` | JSON → `engine_program_t` |
-| **manifest 校验** | `domain/program_engine/model/engine_program_manifest.*` | SHA256 + manifest 文件比对 |
+| **manifest 校验** | `adapters/outbound/storage/json/engine_program_manifest.*` | SHA256 + manifest 文件比对 |
 | **消费方** | `services/param/svc_param.*` | 运行期参数具名 API |
-| **消费方** | `wash_orchestrator` | 启动洗车前校验并加载方案 |
+| **消费方** | 项目洗车编排器 | 启动洗车前校验并加载方案，再交给 `engine_session` |
 
 ### 2.2 依赖方向
 
@@ -62,7 +62,7 @@ adapters/outbound/storage/json
         ├─ third_party/cJSON
         └─ 标准 C 文件 I/O
 
-wash_orchestrator
+项目洗车编排器
         ├─ engine_program_manifest_verify()
         └─ engine_program_load()
 ```
@@ -106,7 +106,7 @@ typedef struct {
 
 ```json
 {
-  "deviceName": "M8-001",
+  "deviceName": "DEV-001",
   "maxSpeed": 120,
   "mode": "auto"
 }
@@ -209,7 +209,7 @@ JSON loader 支持：
 
 ## 6. 方案 Manifest 校验
 
-`engine_program_manifest` 在 `domain/wash/model` 中实现，因为它约束的是洗车方案资产完整性，不是通用 KV 存储。
+`engine_program_manifest` 与 JSON loader 同处 `adapters/outbound/storage/json/`：它读取文件原始字节并解析 manifest JSON，两者都是 domain 明确不做的事（不做文件 IO、不解析序列化格式）。它约束的是方案资产完整性而非通用 KV，因此不设端口，调用方直接调适配器 API。
 
 ### 6.1 路径规则
 
@@ -248,7 +248,7 @@ xxx.json → xxx.manifest.json
 | sha256 不匹配 | `SW_ERR_CRC` |
 | 全部匹配 | `SW_OK` |
 
-`wash_orchestrator` 在 worker 启动阶段先推导 manifest 路径，再调用 `engine_program_manifest_verify()`，校验通过后才 `engine_program_load()`。
+推荐调用顺序：先推导 manifest 路径，再 `engine_program_manifest_verify()`，校验通过后才 `engine_program_load()`。框架不强制这条顺序——`engine_program_load()` 不会自行校验 manifest，选择方案并按序校验加载是项目编排器的职责。
 
 ---
 
@@ -271,14 +271,11 @@ bootstrap_load_storage()
     │    └─ param_store.load()
     └─ deploy_store.load()
 
-bootstrap_init()
-    └─ project_register_runtime_tasks()
-
-wash_orchestrator worker
+项目洗车编排器（启动会话前）
     ├─ engine_program_manifest_path_from_json()
     ├─ engine_program_manifest_verify()
     ├─ engine_program_load()
-    └─ engine_load_program()
+    └─ engine_session_start()  → 会话 worker 驱动 engine tick
 ```
 
 当前 Demo wiring 注册 param/deploy store；JSON 路径由 Demo `project_configure_storage()` 注入。方案 loader 在相关测试和项目 wiring 中按需注册。
@@ -368,15 +365,11 @@ engine_program_t *program = engine_program_load(path, err, sizeof(err));
 | `tests/services/test_svc_param.c` | `svc_param` 对 param_store 的封装 |
 | `tests/adapters/test_json_deploy_store.c` | 部署 JSON load/get |
 | `tests/adapters/test_engine_program_json.c` | JSON 方案加载器、loader port、sim IO 闭环 |
-| `tests/domain/test_wash_engine.c` | engine 模型/表达式/运行时 |
-| `tests/application/test_wash_orchestrator.c` | orchestrator 加载方案并驱动 engine |
+| `tests/domain/test_program_engine.c` | engine 模型/表达式/运行时 |
+| `tests/application/test_engine_session.c` | 会话装载方案并驱动 engine |
+| `tests/application/test_asset_contract.c` | 必需资产缺失场景 |
 
-验证命令：
-
-```bash
-cmake --build build-native -j4
-ctest --test-dir build-native --output-on-failure
-```
+用例数与通过情况以 `scripts/check_all.sh` 生成的 `build-check/test-results/report.html` 为准，本文不记录动态结论（原则见 `tests/reports/README.md`）。
 
 ---
 

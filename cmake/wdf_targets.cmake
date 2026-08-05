@@ -236,7 +236,7 @@ _wdf_add_interface_lib(wdf_application
 #
 # 只有需要这套通用事件投影的项目才链接本目标并在 init_adapters 中调
 # observation_event_bridge_init()；bootstrap 不引用该符号。自带事件投影的项目
-# （如 M8 有自己的事件编码与载荷）应只链接 wdf_observability。
+# （有自己的事件编码与载荷）应只链接 wdf_observability。
 # ---------------------------------------------------------------------------
 _wdf_add_interface_lib(wdf_observation_bridge
     SOURCES

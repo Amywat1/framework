@@ -62,7 +62,7 @@ sw_err_t blackbox_recorder_init(const blackbox_config_t *config);
 
 /**
  * @brief  非阻塞记录一条采样。
- * @param  sample_group M8 定义的采样组稳定编号。
+ * @param  sample_group 项目定义的采样组稳定编号。
  * @param  payload 采样载荷。
  * @param  payload_size 载荷字节数。
  * @retval SW_OK 写入成功。

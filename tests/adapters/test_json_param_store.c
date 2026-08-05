@@ -57,10 +57,10 @@ static void test_load_valid_json_string_key(void)
 {
     char buf[32];
 
-    write_json_file("{\"deviceName\":\"M8-001\"}");
+    write_json_file("{\"deviceName\":\"DEV-001\"}");
     TEST_ASSERT_EQUAL_INT(SW_OK, store()->load());
     TEST_ASSERT_EQUAL_INT(SW_OK, store()->get("deviceName", buf, sizeof(buf)));
-    TEST_ASSERT_EQUAL_STRING("M8-001", buf);
+    TEST_ASSERT_EQUAL_STRING("DEV-001", buf);
 }
 
 static void test_load_valid_json_number_key(void)

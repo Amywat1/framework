@@ -87,7 +87,7 @@ static bool                s_output_dirty[IO_BOARD_MAX] = {false};
 static bool                s_board_online[IO_BOARD_MAX] = {0};
 static io_sample_quality_t s_input_quality[IO_BOARD_MAX];
 static uint32_t            s_input_sequence[IO_BOARD_MAX];
-/* s_output_mutex 位于急停切断热路径：safety_cutout_execute -> m8_safety_cutout
+/* s_output_mutex 位于急停切断热路径：safety_cutout_execute -> 项目 cutout 实现
  * -> hal_io do_set -> 本驱动写输出缓冲。该路径由 estop_poll 线程以 SCHED_FIFO
  * 高优先级执行，而两把锁又被 SCHED_OTHER 周期任务（CAN 刷新、输入采样）竞争，
  * 故启用优先级继承。用 pthread_once 而非在 drv_io_init 中初始化：本驱动的
@@ -405,7 +405,7 @@ static void poll_all_offline_safe_stop_and_abort(void)
 {
     LOG_ERROR("drv_io: all boards offline, safe stop then abort");
 
-    /* panic_cb（如 m8_assert_safe_outputs）通过 drv_io_do_set 把缓冲设为安全态，
+    /* panic_cb（项目 assert_safe_outputs 实现）通过 drv_io_do_set 把缓冲设为安全态，
      * 不负责 flush；flush 由驱动在此处统一执行，保证一定能写到硬件。*/
     if (s_panic_cb != NULL) {
         s_panic_cb();

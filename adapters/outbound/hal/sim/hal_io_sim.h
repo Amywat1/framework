@@ -1,6 +1,6 @@
 /**
  * @file    hal_io_sim.h
- * @brief   仿真 DI 注入接口（供 m8_signal_sim 与测试使用）
+ * @brief   仿真 DI 注入接口（供项目信号仿真层与测试使用）
  */
 
 #ifndef ADAPTERS_OUTBOUND_HAL_SIM_HAL_IO_SIM_H

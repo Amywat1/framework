@@ -3,7 +3,7 @@
 **版本**：v1.0  
 **状态**：已落地（物模型核心 + 端口契约 + 上报调度器 + Snack MQTT 适配器）  
 **最后同步代码**：2026-07-14（`cloud_point_*`、`cloud_model`、`report_scheduler`、Snack cloud provider）  
-**适用范围**：`cloud/`、`ports/**/cloud/`、`application/orchestrators/report_scheduler.*`、`adapters/**/cloud/providers/snack/`  
+**适用范围**：`domain/cloud/`、`ports/**/cloud/`、`adapters/outbound/cloud/`、`application/orchestrators/report_scheduler.*`、`adapters/**/cloud/providers/snack/`  
 **架构基线**：Ports & Adapters（六边形）+ 物模型点位表（复用 `point_table` 引擎）  
 **关键词**：cloud_point、物模型、属性下发、变更上报、DEVICE_CMD、`EVT_CLOUD_*`
 
@@ -26,7 +26,7 @@
 | 原则 | 规定 |
 |------|------|
 | 复用 point_table | `cloud_point_entry_t.base` 即 `point_table_entry_t`；JSON 解析/序列化委托通用引擎 |
-| 分阶段生命周期 | `cloud_model_register()` 只登记 bundle，`cloud_model_validate()` 做静态校验，`cloud_model_init()` 初始化 watcher，`cloud_model_register_scheduler()` 注册上报任务 |
+| 分阶段生命周期 | `cloud_model_register()` 只登记 bundle，`cloud_model_validate()` 做静态校验，`cloud_model_init()` 初始化 watcher，`cloud_model_json_install()` 安装属性下行，`report_scheduler_register()` 注册上报任务 |
 | 脉冲命令模型 | `DEVICE_CMD` 通常为 `bool` WO 点位；`true` 触发，`false` 忽略；`get` 用 `cloud_point_get_echo_idle` 回显空闲 |
 | 与命令网关正交 | cloud 层只识别 `dev_cmd_kind_t`；裁决与副作用在 `command_gateway` / `operational_mode` |
 | 事件通知边沿 | 连接上下线、点位脏标记走 `event_bus`；poll 线程不直接调用 MQTT |
@@ -72,18 +72,20 @@
 
 | 层次 | 路径 | 职责 |
 |------|------|------|
-| **物模型核心** | `cloud/cloud_point.h` | 点位元模型、`cloud_point_entry_t`、对外 API 声明 |
-| **登记期校验** | `cloud/cloud_point_validate.c` | id 唯一性、access/semantic/get/set/cmd_kind 一致性 |
-| **下行 dispatch** | `cloud/cloud_point_dispatch.c` | JSON 应用、上行序列化、`DEVICE_CMD` 提交回调 |
-| **变更检测** | `cloud/cloud_point_watcher.{h,c}` | `ON_CHANGE` shadow 比对，发布 `EVT_CLOUD_POINT_DIRTY` |
+| **物模型核心** | `domain/cloud/cloud_point.h` | 点位元模型、`cloud_point_entry_t`、对外 API 声明 |
+| **登记期校验** | `domain/cloud/cloud_point_validate.c` | id 唯一性、access/semantic/get/set/cmd_kind 一致性 |
+| **下行 dispatch** | `domain/cloud/cloud_point_dispatch.c` | JSON 应用、上行序列化、`DEVICE_CMD` 提交回调 |
+| **变更检测** | `domain/cloud/cloud_point_watcher.{h,c}` | `ON_CHANGE` shadow 比对，发布 `EVT_CLOUD_POINT_DIRTY` |
 | **通用引擎** | `common/point_table/` | id 查找、JSON 解析/序列化、apply 结果汇总 |
 | **入站端口** | `ports/inbound/cloud/property/property_port.h` | 属性下发 / 应答 |
 | **出站端口** | `ports/outbound/cloud/link/cloud_link_port.h` | 传输 init/online/publish/recv/poll |
 | **出站端口** | `ports/outbound/cloud/report/report_port.h` | 全量/增量属性上报触发 |
-| **端口注册** | `ports/port_registry.c` | `cloud_*_register()` / `get_ops()` |
-| **物模型注册** | `cloud/cloud_model.{h,c}` | 物模型 bundle 注册、property_port 安装、JSON 构建入口 |
+| **端口注册** | `ports/port_registry_cloud.c` | `cloud_*_register()` / `get_ops()` |
+| **物模型注册** | `domain/cloud/cloud_model.{h,c}` | 物模型 bundle 注册、watcher init、点位 id 查询 |
+| **属性 JSON** | `adapters/outbound/cloud/cloud_point_json.*` | 点位表的属性 JSON 编解码 |
+| **property_port 安装** | `adapters/outbound/cloud/cloud_model_json.*` | `cloud_model_json_install()`、`cloud_model_apply_property_set()` |
 | **上报调度** | `application/orchestrators/report_scheduler.{h,c}` | 周期/事件策略驱动全量或增量上报 |
-| **命令词汇** | `domain/command_gateway/device_command.h` | `dev_cmd_kind_t`（DEVICE_CMD 映射目标） |
+| **命令词汇** | `domain/op_mode/device_command.h` | `dev_cmd_kind_t`（DEVICE_CMD 映射目标） |
 | **事件契约** | `common/event_types.h` | `EVT_CLOUD_*` |
 | **项目 wiring/hooks** | `projects/*/wiring.c`、`project_hooks.c` | 物模型表注册、validate、watcher init、上报任务注册、port 适配器注册 |
 
@@ -101,9 +103,10 @@ adapters / report_scheduler / cloud_model
 
 **依赖禁令**：
 
-- `cloud/` 不得依赖 MQTT SDK、cJSON 以外的云平台 SDK，或 `application/` 业务模块。
-- `cloud_point` 不得直接调用 `operational_mode` / `wash_orchestrator`；`DEVICE_CMD` 必须经注册的 submit 回调。
+- `domain/cloud/` 不得依赖 MQTT SDK、云平台 SDK 或 `application/` 业务模块，**也不得解析 JSON**——它是 domain 子域，受「domain 不解析序列化格式」约束，编解码在 `adapters/outbound/cloud/`。
+- `cloud_point` 不得直接调用 `operational_mode` 或项目编排器；`DEVICE_CMD` 必须经注册的 submit 回调。
 - 端口头文件不得包含适配器实现；适配器在 `adapters/` 注册 ops。
+- 上报策略不经 `cloud_model` 转发：`report_policy_entry_t` 是 `report_scheduler` 的输入格式，由项目直接注册到调度器。曾经的转发路径使当时的顶层 `cloud/` 反向依赖 `application/`。
 
 ---
 
@@ -111,15 +114,18 @@ adapters / report_scheduler / cloud_model
 
 | 文件 | 职责 |
 |------|------|
-| `cloud/cloud_point.h` | 枚举、结构体、validate/to_json/apply_json API |
-| `cloud/cloud_point_validate.c` | 登记期表项校验 |
-| `cloud/cloud_point_dispatch.c` | dispatch_set、JSON 编解码、device_cmd 回调注册 |
-| `cloud/cloud_point_watcher.h` | watcher init/poll 接口 |
-| `cloud/cloud_point_watcher.c` | shadow 状态、变更发布 |
+| `domain/cloud/cloud_point.h` | 枚举、结构体、validate/to_json/apply_json API |
+| `domain/cloud/cloud_point_validate.c` | 登记期表项校验 |
+| `domain/cloud/cloud_point_dispatch.c` | dispatch_set、JSON 编解码、device_cmd 回调注册 |
+| `domain/cloud/cloud_point_watcher.h` | watcher init/poll 接口 |
+| `domain/cloud/cloud_point_watcher.c` | shadow 状态、变更发布 |
 | `ports/inbound/cloud/property/property_port.h` | 属性下发 port |
 | `ports/outbound/cloud/link/cloud_link_port.h` | 链路 port |
 | `ports/outbound/cloud/report/report_port.h` | 上报 port |
-| `ports/port_registry.c` | 三端 cloud port + command port 注册器 |
+| `domain/cloud/cloud_model.{h,c}` | bundle 注册、watcher init、点位 id 查询 |
+| `adapters/outbound/cloud/cloud_point_json.*` | 属性 JSON 编解码 |
+| `adapters/outbound/cloud/cloud_model_json.*` | property_port 安装与下行应用入口 |
+| `ports/port_registry_cloud.c` | 三端 cloud port 注册器 |
 | `tests/cloud/test_cloud_point_validate.c` | 校验单元测试 |
 | `tests/cloud/test_cloud_point_dispatch.c` | dispatch / JSON 单元测试 |
 | `tests/cloud/test_cloud_point_watcher.c` | ON_CHANGE + event 单元测试 |
@@ -170,10 +176,14 @@ typedef struct {
 
 ### 4.5 容量常量
 
+两者定义在 `domain/cloud/cloud_point.h`：
+
 | 宏 | 值 | 说明 |
 |----|-----|------|
-| `CLOUD_POINT_TABLE_MAX` | 96 | 单次 JSON 序列化栈缓冲上限 |
-| `CLOUD_REPORT_JSON_MAX` | 4096 | 上报 JSON 缓冲建议上限（项目层使用） |
+| `CLOUD_POINT_TABLE_MAX` | 96 | 点位表条目上限；同时是 watcher shadow 表长度和 JSON 序列化栈缓冲上限 |
+| `CLOUD_REPORT_JSON_MAX` | 4096 | 上报 JSON 缓冲上限（provider 适配器使用） |
+
+`cloud_point_watcher_init()` 在 `count > CLOUD_POINT_TABLE_MAX` 时返回参数错误，JSON 序列化在超限时返回 `SW_ERR_OVERFLOW`。
 
 ### 4.6 云端相关事件
 
@@ -293,13 +303,9 @@ static sw_err_t cloud_cmd_submit(dev_cmd_kind_t kind)
 void wiring_cloud(void)
 {
     static const cloud_point_entry_t s_model[] = { /* 项目物模型表 */ };
-    static const report_policy_entry_t s_policies[] = { /* 项目上报策略 */ };
     static const cloud_model_bundle_t s_bundle = {
         .entries = s_model,
-        .count = ARRAY_SIZE(s_model),
-        .report_policies = s_policies,
-        .policy_count = ARRAY_SIZE(s_policies),
-        .property_reply = NULL,
+        .count   = ARRAY_SIZE(s_model),
     };
 
     cloud_model_register(&s_bundle);
@@ -308,6 +314,8 @@ void wiring_cloud(void)
 }
 ```
 
+`cloud_model_bundle_t` 只有 `entries` 与 `count`。上报策略与属性回复回调都不在其中：前者是 `report_scheduler` 的输入格式，后者是 `property_port` 的 JSON 契约的一部分，各自由对应层接收。
+
 生命周期 hook：
 
 ```text
@@ -315,11 +323,14 @@ project_validate()
     └─ cloud_model_validate()
 
 project_init_adapters()
-    └─ cloud_model_init()
+    ├─ cloud_model_init()                 // watcher shadow 初始化
+    └─ cloud_model_json_install(reply)    // 安装 property_port 下行
 
 project_register_runtime_tasks()
-    └─ cloud_model_register_scheduler()
+    └─ report_scheduler_register(policies, count)
 ```
+
+若物模型中的点位需要按 index 反查 id（增量上报用），还需 `report_scheduler_register_point_resolver(cloud_model_point_id_by_index)`。
 
 ---
 
@@ -340,7 +351,7 @@ project_register_runtime_tasks()
 |------|--------|
 | 物模型表内容 | 项目 wiring 传入 `cloud_model_bundle_t` |
 | MQTT Topic / 凭证 | deploy_store + link 适配器 |
-| 上报时机与节流 | report_scheduler policy，由 `cloud_model_register_scheduler()` 注册 |
+| 上报时机与节流 | 项目直接向 `report_scheduler_register()` 注册 `report_policy_entry_t[]` |
 | DEVICE_CMD → dev_cmd_t 填充 | wiring 中 submit 回调（载荷、request_id） |
 | 连接边沿检测细节 | link 适配器 `poll()` |
 
@@ -354,7 +365,7 @@ project_register_runtime_tasks()
 2. 选择 `access`、`semantic`、`report_policy`。
 3. 实现 `get`/`set`/`service`/`cmd_kind` 之一。
 4. 确保 `project_validate()` 调用 `cloud_model_validate()`。
-5. 若 `ON_CHANGE`，确保 `project_init_adapters()` 调用 `cloud_model_init()`，并在 `project_register_runtime_tasks()` 调用 `cloud_model_register_scheduler()`。
+5. 若 `ON_CHANGE`，确保 `project_init_adapters()` 调用 `cloud_model_init()`，并在 `project_register_runtime_tasks()` 调用 `report_scheduler_register()`。
 
 ### 9.2 新增 DEVICE_CMD 种类
 
@@ -379,7 +390,7 @@ project_register_runtime_tasks()
 | cloud 三端 port 契约 + port_registry | ✅ 已迁入 |
 | `cloud_model` | ✅ 已迁入 |
 | `report_scheduler` | ✅ 已迁入 |
-| 单元测试 | ✅ validate(9) / dispatch(8) / watcher(3) / ports(4) / model+scheduler(2) |
+| 单元测试 | ✅ validate / dispatch / watcher / ports / model+scheduler；用例数见生成报告 |
 | Snack MQTT link 适配器 | ✅ 已迁入，`WDF_ENABLE_SNACK_CLOUD_PROVIDER` 可选启用 |
 | Snack cloud_property 适配器 | ✅ 已迁入，负责下行属性转 `cloud_model_apply_property_set()` |
 | Demo wiring / 完整物模型表 | 项目侧职责，当前 Demo 未接入完整云物模型 |

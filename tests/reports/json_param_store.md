@@ -23,7 +23,7 @@
 | 用例 | 目的 | 验证点 | 结果 |
 |------|------|--------|------|
 | `test_load_file_not_found` | 文件缺失 | 返回 `SW_ERR_STORAGE` | 通过 |
-| `test_load_valid_json_string_key` | 加载字符串键 | load OK，get 返回 `"M8-001"` | 通过 |
+| `test_load_valid_json_string_key` | 加载字符串键 | load OK，get 返回 `"DEV-001"` | 通过 |
 | `test_load_valid_json_number_key` | 加载数值键 | get 返回 `"120"` | 通过 |
 | `test_load_invalid_json` | 非法 JSON | 返回 `SW_ERR_STORAGE` | 通过 |
 

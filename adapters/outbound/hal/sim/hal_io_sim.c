@@ -33,7 +33,7 @@ static uint32_t            s_di_sequence[SIM_IO_BOARD_MAX];
 static bool                s_inited                    = false;
 static bool                s_started                   = false;
 static uint32_t            s_lifecycle_violation_count = 0U;
-/* DO 写位于急停切断热路径：safety_cutout_execute -> m8_safety_cutout ->
+/* DO 写位于急停切断热路径：safety_cutout_execute -> 项目 cutout 实现 ->
  * hal_io do_set。该路径由 estop_poll 线程以 SCHED_FIFO 高优先级执行，而同
  * 两把锁又被 SCHED_OTHER 周期任务（IO 刷新、传感器采样）竞争，故启用优先级
  * 继承。本模块无 init 入口（靠加载期零初始化 + 首次使用），因此用

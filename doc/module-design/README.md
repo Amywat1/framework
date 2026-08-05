@@ -7,17 +7,28 @@
 | 代码范围 | 基线文档 |
 |----------|----------|
 | `common/`、整体分层 | `00-模块设计总览.md` |
-| `runtime/bootstrap/`、`runtime/scheduler/`、`runtime/platform/` | `runtime/Runtime模块设计.md` |
-| `runtime/event_bus/`、`common/events.h` | `runtime/EventBus模块设计.md` |
-| `domain/program_engine/`、`domain/wash/model/wash_types.h`、`ports/outbound/storage/engine_program_loader_port.*`、`engine_io_sim` | `domain/方案引擎模块设计.md` |
-| `domain/command_gateway/`、`application/command_gateway.*`、`side_effect_router` | `domain/命令网关模块设计.md` |
-| `domain/safety/`、`application/alarm_*`、`ports/outbound/safety/` | `domain/报警系统模块设计.md` |
-| `domain/device_control/`、`ports/outbound/hal/hal_motor_exec_port.*` | `domain/设备控制模式模块设计.md` |
-| `domain/telemetry/snapshot/`、`services/device_ctx/`、`application/*projection*` | `domain/状态投影与设备上下文模块设计.md` |
+| `runtime/bootstrap/`、`runtime/scheduler/`、`runtime/config/thread_config.h` | `runtime/Runtime模块设计.md` |
+| `runtime/event_bus/`、`common/event_types.h` | `runtime/EventBus模块设计.md` |
+| `domain/program_engine/`、`ports/outbound/storage/engine_program_loader_port.*`、`application/engine_session/`、`engine_io_sim` | `domain/方案引擎模块设计.md` |
+| `domain/op_mode/`、`application/command_gateway.*`、`application/side_effect_router.*`、`application/bridges/op_mode_bridge.*` | `domain/命令网关模块设计.md` |
+| `domain/safety/`、`application/bridges/alarm_*`、`ports/inbound/safety/`、`ports/outbound/safety/` | `domain/报警系统模块设计.md` |
+| `domain/device_control/`、`ports/outbound/hal/motor/hal_motor_exec_port.h` | `domain/设备控制模式模块设计.md` |
+| `domain/telemetry/`、`application/telemetry_projection.*` | `domain/状态投影与设备快照模块设计.md` |
 | `ports/outbound/hal/`、`adapters/outbound/hal/` | `ports-adapters/HAL端口与适配器模块设计.md` |
 | `ports/outbound/storage/`、`adapters/outbound/storage/json/` | `ports-adapters/Storage端口与方案资产模块设计.md` |
-| `cloud/`、`ports/outbound/cloud/`、`adapters/outbound/cloud/` | `ports-adapters/CloudModel模块设计.md` |
-| `demo/`、`runtime/bootstrap/project_hooks.*`、项目 wiring | `integration/Demo与项目接入模块设计.md` |
+| `domain/cloud/`、`ports/**/cloud/`、`adapters/**/cloud/`、`application/orchestrators/report_scheduler.*` | `ports-adapters/CloudModel模块设计.md` |
+| `demo/`、`runtime/bootstrap/project_hooks.*`、`ports/outbound/machine/`、项目 wiring | `integration/Demo与项目接入模块设计.md` |
+
+## 尚未收录的代码
+
+以下代码目前没有对应模块设计文档。它们的设计意图记录在 `architecture/` 中，需要代码级基线时应在本目录补文档，而不是把说明散落到架构篇：
+
+| 代码范围 | 现有说明位置 |
+|----------|--------------|
+| `observability/core/`、`observability/recorder/`、`application/bridges/observation_event_bridge.*` | `architecture/00-通用框架架构说明.md` §3、`architecture/01-分层架构与依赖边界.md` §2 |
+| `ports/port_contract.*`、`application/asset_contract.*` | `architecture/08-框架优化方向.md` |
+| `common/trace_context.*`、`common/asset_version.*` | `architecture/08-框架优化方向.md` |
+| `adapters/outbound/hal/components/adc_gate/`、`adapters/outbound/hal/sim/engine_actuator_sim.*` | 无 |
 
 ## 单篇文档建议结构
 
