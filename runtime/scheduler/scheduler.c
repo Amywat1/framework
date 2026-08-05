@@ -5,6 +5,12 @@
  * @date    2026-04-10
  */
 
+/* pthread_setname_np 是 glibc 扩展，需在任何头文件之前开启 _GNU_SOURCE。
+ * 仅本文件需要，故就地 define 而不在 CMakeLists 全局加编译选项。 */
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
+
 #include "runtime/scheduler/scheduler.h"
 
 #include "common/log.h"
@@ -12,7 +18,11 @@
 
 #include <pthread.h>
 #include <sched.h>
+#include <stdio.h>
 #include <sys/resource.h>
+
+/* Linux 线程名上限 16 字节（含结尾 '\0'）*/
+#define SCHED_OS_THREAD_NAME_MAX 16
 
 sw_err_t scheduler_start_all(void)
 {
@@ -57,6 +67,18 @@ sw_err_t scheduler_start_all(void)
                 LOG_ERROR("scheduler: failed to create thread [%s]", e->name);
                 pthread_attr_destroy(&attr);
                 return SW_ERR_HW;
+            }
+        }
+
+        /* 同步 OS 层线程名，便于 top/gdb/perf 与日志 sink 区分线程。
+         * 超长必须先截断，否则 pthread_setname_np 直接返回 ERANGE 而不做任何设置。
+         * 线程名纯属可观测性辅助，设置失败降级为 WARN 继续启动。 */
+        {
+            char os_name[SCHED_OS_THREAD_NAME_MAX];
+
+            (void)snprintf(os_name, sizeof(os_name), "%s", e->name);
+            if (pthread_setname_np(tid, os_name) != 0) {
+                LOG_WARN("scheduler: setname failed for [%s]", e->name);
             }
         }
 
