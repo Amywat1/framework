@@ -3,3 +3,4 @@ build/
 build-native
 .clangd
 build-check/
+__pycache__/

@@ -39,16 +39,37 @@ Demo 与项目接入层展示如何把通用框架装配成一个可启动设备
 
 ---
 
-## 2. 接入点总览
+## 2. 框架侧文件清单
 
-### 2.1 必备文件
+Demo 是框架自带的最小接入实例，可直接作为新项目 wiring 的对照物。
+
+| 文件 | 职责 |
+|------|------|
+| `runtime/bootstrap/bootstrap.h` | `bootstrap_run()` 与启动失败后的进程约束 |
+| `runtime/bootstrap/project_hooks.h` | `project_hooks_t` 15 个必填钩子 |
+| `runtime/bootstrap/wiring.h` | `wiring()` 声明 |
+| `ports/outbound/machine/machine_ops_port.h` | 命令副作用对应的项目动作契约 |
+| `ports/port_contract.h` | 必需端口的启动期集中校验（`PORT_REQ_*`） |
+| `application/asset_contract.h` | 必需资产的启动期集中校验（`ASSET_REQ_*`） |
+| `demo/app/demo_main.c` | 最小 main：调 `bootstrap_run()` 后驱动 smoke 场景 |
+| `demo/wiring/wiring_sim.c` | 最小 provider 注册（sim HAL、storage、safety） |
+| `demo/wiring/project_hooks_sim.c` | 15 个钩子的最小实现 |
+| `demo/wiring/demo_machine_ops.c` | 最小 `machine_ops_t` |
+| `demo/wiring/demo_alarm_catalog.c` | 最小报警目录 |
+| `demo/config/demo_config.h` | Demo 资产路径与常量 |
+
+---
+
+## 3. 接入点总览
+
+### 3.1 必备文件
 
 一个产品项目通常需要提供以下实现：
 
 | 文件/模块 | 职责 |
 |-----------|------|
-| `app/target/*.cpp` | 真机入口进程级准备与 `bootstrap_run()` 调用 |
-| `target runtime glue` | 对外部 Snack runtime API 做项目内封装 |
+| 项目进程入口 | 进程级准备与 `bootstrap_run()` 调用（目录布局由项目自定） |
+| 运行时 glue | 对外部平台 SDK 做项目内封装 |
 | `wiring.c` | 注册 HAL、storage、cloud、engine loader 等 provider |
 | `project_hooks.c` | 实现 `project_*` 生命周期钩子 |
 | `machine_ops.c` | 注册 `machine_ops_t`，承接命令副作用 |
@@ -59,7 +80,7 @@ Demo 与项目接入层展示如何把通用框架装配成一个可启动设备
 | `engine_io_binding.c` | 注册真实 `engine_io_ops_t` / catalog |
 | `config/*.json` | 参数、部署配置、洗车方案及 manifest |
 
-### 2.2 启动阶段与接入点
+### 3.2 启动阶段与接入点
 
 ```text
 target entry
@@ -114,9 +135,9 @@ bootstrap_start()
 
 ---
 
-## 3. Demo 实现说明
+## 4. Demo 实现说明
 
-### 3.1 `demo_main`
+### 4.1 `demo_main`
 
 `demo/app/demo_main.c` 调用 `bootstrap_run()` 后执行三段 smoke 检查：
 
@@ -126,9 +147,9 @@ bootstrap_start()
 | HW ESTOP | `hw_estop_sim_set_active(true)` → `EVT_HW_ESTOP_ON` → op mode estop flag |
 | Alarm trigger | `alarm_binding.trigger()` → `alarm_event_bridge_drain()` → registry blocking |
 
-Demo 直接订阅 `EVT_HW_ESTOP_ON`，用于确认 event dispatch 线程已工作。该事件需要有采集方发布，见 §7.1。
+Demo 直接订阅 `EVT_HW_ESTOP_ON`，用于确认 event dispatch 线程已工作。该事件需要有采集方发布，见 §9.1。
 
-### 3.2 `wiring_sim`
+### 4.2 `wiring_sim`
 
 `demo/wiring/wiring_sim.c` 只注册最小 sim adapter：
 
@@ -142,7 +163,7 @@ wiring()
 
 它不注册真实 HAL、cloud provider、engine program loader 或完整物模型。JSON 文件路径不在 `wiring()` 中注入，而由 `project_configure_storage()` 调用 `json_param_store_configure()` / `json_deploy_store_configure()` 完成。
 
-### 3.3 `project_hooks_sim`
+### 4.3 `project_hooks_sim`
 
 | Hook | Demo 行为 |
 |------|-----------|
@@ -160,13 +181,13 @@ wiring()
 | `project_init_adapters()` | 空实现（不接入急停轮询与观测桥） |
 | `project_register_runtime_tasks()` | 空实现 |
 | `project_start_runtime()` | 空实现 |
-| `project_assert_safe_outputs()` | 空实现 |
+| `assert_safe_outputs`（hook 字段） | 空实现 |
 
-### 3.4 `demo_machine_ops`
+### 4.4 `demo_machine_ops`
 
 Demo 注册 `machine_ops_t`，所有动作为空或返回 `SW_OK`。这只验证 `side_effect_router` 能调用到项目端口，不验证真实机构动作。
 
-### 3.5 `demo_alarm_catalog`
+### 4.5 `demo_alarm_catalog`
 
 Demo 加载两个报警：
 
@@ -177,7 +198,7 @@ Demo 加载两个报警：
 
 ---
 
-## 4. Machine Ops 接入
+## 5. Machine Ops 接入
 
 `machine_ops_port` 是 framework application 到项目机构能力的出站端口。
 
@@ -194,7 +215,7 @@ typedef struct {
 } machine_ops_t;
 ```
 
-### 4.1 调用方
+### 5.1 调用方
 
 | machine op | 典型调用方 |
 |------------|------------|
@@ -209,7 +230,7 @@ typedef struct {
 
 `side_effect_router` 不做权限判断，只执行 `operational_mode` 已裁决允许的副作用。未注册或函数缺失时返回 `SW_ERR_NOT_INIT`。
 
-### 4.2 项目实现要求
+### 5.2 项目实现要求
 
 - `project_bind_machine()` 中调用 `machine_ops_register()`。
 - `execute_manual_actuator` 的 `act_id` 和 `param` 由项目定义，并在云端/CLI 命令映射中保持一致。
@@ -218,9 +239,9 @@ typedef struct {
 
 ---
 
-## 5. 真机项目接入 Checklist
+## 6. 真机项目接入 Checklist
 
-### 5.1 Storage
+### 6.1 Storage
 
 - 在 `wiring()` 注册 `json_param_store_register()` 或替代后端。
 - 在 `wiring()` 注册 `json_deploy_store_register()` 或替代后端。
@@ -228,7 +249,7 @@ typedef struct {
 - 若使用洗车 engine，注册 `engine_program_json_register_loader()`。
 - 部署方案 JSON 与对应 `*.manifest.json`。
 
-### 5.2 HAL
+### 6.2 HAL
 
 - 选择 sim 或真机 provider。
 - 在 `wiring()` 注册 `hal_io` provider、`hal_sensor_filter`、`hal_vfd_manager` / provider backend、`hal_voice` provider。
@@ -238,7 +259,7 @@ typedef struct {
 - 创建并注入 `hal_motor_exec_t` 给设备控制模式。
 - 经 `safety_port_register()` 注册 `safety_ops_t`，提供急停输入与安全切断实现。
 
-### 5.3 Domain / Application
+### 6.3 Domain / Application
 
 - 在 `project_bind_machine()` 注册 `machine_ops_t`。
 - 在 `project_bind_alarm_catalog()` 加载项目报警目录。
@@ -246,7 +267,7 @@ typedef struct {
 - 遥测投影由 `bootstrap_init_services()` 自动接入，项目无需初始化；读侧用 `device_snapshot_get()`。
 - 在 `project_validate()` 校验 cloud model，在 `project_register_runtime_tasks()` 注册 `report_scheduler`。
 
-### 5.4 Cloud / Inbound
+### 6.4 Cloud / Inbound
 
 - 注册 `cloud_link_port`、`cloud_report_port`、`cloud_property_port` provider。
 - 注册项目物模型 `cloud_model_bundle_t`。
@@ -254,18 +275,18 @@ typedef struct {
 - 在 `project_configure_adapters()` 配置云端或 CLI 入站适配器。
 - 在 `project_init_adapters()` 初始化云端或 CLI 入站适配器。
 
-### 5.5 Runtime
+### 6.5 Runtime
 
-- `app/target/` 只做进程级运行时准备，不直接初始化某个 HAL SDK。
+- 项目进程入口只做进程级运行时准备，不直接初始化某个 HAL SDK。
 - 在 `project_register_runtime_tasks()` 注册项目周期任务。
 - 只有无法纳入 scheduler 的项目线程才放在 `project_start_runtime()`。
 - 不直接修改 `bootstrap_run()` 顺序。
 - 长耗时任务不要放在 event handler 中。
-- fatal/panic 路径必须能调用 `project_assert_safe_outputs()` 落安全态。
+- fatal/panic 路径必须能调用 `project_hooks_t.assert_safe_outputs` 落安全态。
 
 ---
 
-## 6. 构建接入
+## 7. 构建接入
 
 框架源清单由 `cmake/wdf_targets.cmake` 以 INTERFACE 库形式导出，项目不再手抄路径：
 
@@ -312,9 +333,27 @@ vendor provider 仍由根 CMake 开关以 STATIC 库提供，它们有外部 SDK
 
 ---
 
-## 7. 验证策略
+## 8. 测试覆盖
 
-### 7.1 Demo Smoke
+| 测试 | 覆盖点 |
+|------|--------|
+| `test_bootstrap_hooks` | 15 个钩子的 NULL 校验、启动阶段顺序、失败即返回 |
+| `test_port_contract` | `PORT_REQ_*` 位掩码校验、缺失端口一次报全 |
+| `test_asset_contract` | `ASSET_REQ_*` 校验：报警目录为空、点位表缺失、IO 目录空 |
+| `test_machine_ops_port` | `machine_ops_t` 注册与命令副作用转发 |
+
+`test_port_contract` 与 `test_asset_contract` 是接入契约的核心防线：两者都注入过
+「探测函数恒返回 true」验证检查确有约束力。
+
+用例数与通过情况以 `scripts/check_all.sh` 生成的 `build-check/test-results/report.html`
+为准，本文不记录动态结论（原则见 `tests/reports/README.md`）。`wdf_smoke` 不在
+`ctest` 内，其现状见第 9.1 节。
+
+---
+
+## 9. 验证策略
+
+### 9.1 Demo Smoke
 
 `wdf_smoke` 目标依次检查 bootstrap 完成、命令网关处理命令、急停边沿事件、报警链路联通，全部通过时输出 `[Demo] All checks passed.`。
 
@@ -327,7 +366,7 @@ vendor provider 仍由根 CMake 开关以 STATIC 库提供，它们有外部 SDK
 
 两者都是 demo 用例与当前框架语义脱节，不是框架缺陷：前者需改用 STOPPED 下允许的命令（或先 RECOVER 进 IDLE 再停运），后者需在 `project_init_adapters()` 调 `estop_poll_thread_init()`。修复 demo 属独立改动，本文只记录现状，不假称通过。
 
-### 7.2 项目 Bring-up
+### 9.2 项目 Bring-up
 
 建议按以下顺序逐步验证：
 
@@ -341,7 +380,7 @@ vendor provider 仍由根 CMake 开关以 STATIC 库提供，它们有外部 SDK
 
 ---
 
-## 8. 常见错误
+## 10. 常见错误
 
 | 问题 | 结果 |
 |------|------|
@@ -350,12 +389,26 @@ vendor provider 仍由根 CMake 开关以 STATIC 库提供，它们有外部 SDK
 | 报警目录晚于 detector 启动 | detector 触发未知报警码 |
 | `project_start_runtime()` 后再注册周期任务 | 任务不会被当前 `scheduler_start_all()` 启动 |
 | event handler 中执行阻塞 IO | 阻塞全局 event dispatch |
-| 跳过 `project_assert_safe_outputs()` 实现 | event bus fatal / IO panic 时无法兜底切断 |
+| 跳过 `project_hooks_t.assert_safe_outputs` 实现 | event bus fatal / IO panic 时无法兜底切断 |
 | Demo stub 被误用于产品 | 命令看似成功但没有真实机构动作 |
 
 ---
 
-## 9. 相关文档
+## 11. 当前落地状态
+
+| 能力 | 状态 |
+|------|------|
+| `bootstrap_run()` 11 阶段编排 | ✅ |
+| `project_hooks_t` 15 钩子契约与 NULL 校验 | ✅ |
+| 端口契约校验（`PORT_REQ_*`，14 位） | ✅ |
+| 资产契约校验（`ASSET_REQ_*`，3 位） | ✅ |
+| Demo 最小 wiring（sim HAL / storage / safety） | ✅ |
+| `wdf_smoke` 端到端场景 | ⚠️ 退出码 1，两处 demo 侧用例与框架语义脱节，见第 9.1 节 |
+| 真机项目 wiring 参考实现 | 项目侧职责，框架只提供 Demo 作为对照 |
+
+---
+
+## 12. 相关文档
 
 - `doc/module-design/runtime/Runtime模块设计.md` — bootstrap 和 project hooks 顺序
 - `doc/module-design/ports-adapters/HAL端口与适配器模块设计.md` — HAL provider 与实例绑定

@@ -35,7 +35,7 @@ if [[ ! -d "$ROOT" ]]; then
 fi
 cd "$ROOT"
 
-DOC="doc/行为契约.md"
+DOC="doc/contract/行为契约.md"
 if [[ ! -f "$DOC" ]]; then
     echo "错误: 契约文档不存在: $DOC" >&2
     exit 2

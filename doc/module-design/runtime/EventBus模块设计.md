@@ -457,7 +457,9 @@ event_bus_dispatch_loop();
 
 ---
 
-## 附录 A：自检对照（module-design-spec B 类）
+## 附录 A：结构自检对照
+
+对照 `../README.md`「单篇文档建议结构」逐项自检。
 
 | 检查项 | 状态 |
 |--------|------|

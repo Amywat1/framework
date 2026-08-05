@@ -74,9 +74,10 @@
 |------|------|------|
 | **物模型核心** | `domain/cloud/cloud_point.h` | 点位元模型、`cloud_point_entry_t`、对外 API 声明 |
 | **登记期校验** | `domain/cloud/cloud_point_validate.c` | id 唯一性、access/semantic/get/set/cmd_kind 一致性 |
-| **下行 dispatch** | `domain/cloud/cloud_point_dispatch.c` | JSON 应用、上行序列化、`DEVICE_CMD` 提交回调 |
+| **下行语义分派** | `domain/cloud/cloud_point_dispatch.c` | 按 semantic 分派已解析的值、拒绝只读点位、`DEVICE_CMD` 提交回调 |
 | **变更检测** | `domain/cloud/cloud_point_watcher.{h,c}` | `ON_CHANGE` shadow 比对，发布 `EVT_CLOUD_POINT_DIRTY` |
-| **通用引擎** | `common/point_table/` | id 查找、JSON 解析/序列化、apply 结果汇总 |
+| **通用引擎** | `common/point_table/` | 点位表模型、id 查找、apply 结果汇总；无 cJSON |
+| **点位表 JSON** | `adapters/outbound/serialization/json/point_table_json.*` | 点位表的 JSON 编解码 |
 | **入站端口** | `ports/inbound/cloud/property/property_port.h` | 属性下发 / 应答 |
 | **出站端口** | `ports/outbound/cloud/link/cloud_link_port.h` | 传输 init/online/publish/recv/poll |
 | **出站端口** | `ports/outbound/cloud/report/report_port.h` | 全量/增量属性上报触发 |
@@ -116,7 +117,7 @@ adapters / report_scheduler / cloud_model
 |------|------|
 | `domain/cloud/cloud_point.h` | 枚举、结构体、validate/to_json/apply_json API |
 | `domain/cloud/cloud_point_validate.c` | 登记期表项校验 |
-| `domain/cloud/cloud_point_dispatch.c` | dispatch_set、JSON 编解码、device_cmd 回调注册 |
+| `domain/cloud/cloud_point_dispatch.c` | 按 semantic 语义分派已解析的值、device_cmd 回调注册；无序列化 |
 | `domain/cloud/cloud_point_watcher.h` | watcher init/poll 接口 |
 | `domain/cloud/cloud_point_watcher.c` | shadow 状态、变更发布 |
 | `ports/inbound/cloud/property/property_port.h` | 属性下发 port |
@@ -219,7 +220,7 @@ typedef struct {
 3. 未知 id → `rejected++`，记录错误，**继续**下一 key（部分成功模型）。
 4. RO 或 TELEMETRY → 拒写，`SW_ERR_STATE`。
 5. 类型解析失败 → `rejected++`。
-6. 调用 `dispatch_set()` 按 semantic 路由。
+6. 调用 `cloud_point_apply_value()` 按 semantic 路由（domain 侧，不接触 JSON）。
 7. 函数总返回值恒为 `SW_OK`（除非入参非法或 JSON 解析失败）；逐 key 成败看 `point_apply_result_t`。
 
 **DEVICE_CMD dispatch 规则**：
@@ -357,9 +358,25 @@ project_register_runtime_tasks()
 
 ---
 
-## 9. 扩展指南
+## 9. 测试覆盖
 
-### 9.1 新增物模型属性
+| 测试 | 覆盖点 |
+|------|--------|
+| `test_cloud_point_validate` | id 唯一性、access/semantic/get/set/cmd_kind 一致性 |
+| `test_cloud_point_dispatch` | 按 semantic 分派、只读点位拒写、DEVICE_CMD 脉冲语义、部分成功模型 |
+| `test_cloud_point_watcher` | ON_CHANGE shadow 比对与 `EVT_CLOUD_POINT_DIRTY` 发布 |
+| `test_cloud_model_report_scheduler` | 周期/事件策略驱动的全量与增量上报 |
+| `test_cloud_ports` | 三端 cloud port 注册、NULL 解除、缺必填字段被拒、复位清空 |
+| `test_point_table` | 通用点位表模型查表与 apply 结果汇总 |
+| `test_snack_cloud_adapters` | vendor MQTT link 与属性下行适配器 |
+
+用例数与通过情况以 `scripts/check_all.sh` 生成的 `build-check/test-results/report.html` 为准，本文不记录动态结论（原则见 `tests/reports/README.md`）。
+
+---
+
+## 10. 扩展指南
+
+### 10.1 新增物模型属性
 
 1. 在项目物模型表追加 `cloud_point_entry_t`。
 2. 选择 `access`、`semantic`、`report_policy`。
@@ -367,13 +384,13 @@ project_register_runtime_tasks()
 4. 确保 `project_validate()` 调用 `cloud_model_validate()`。
 5. 若 `ON_CHANGE`，确保 `project_init_adapters()` 调用 `cloud_model_init()`，并在 `project_register_runtime_tasks()` 调用 `report_scheduler_register()`。
 
-### 9.2 新增 DEVICE_CMD 种类
+### 10.2 新增 DEVICE_CMD 种类
 
 1. 在 `device_command.h` 扩展 `dev_cmd_kind_t`（domain 闭集）。
 2. 在 `operational_mode` 命令矩阵与 `side_effect_router` 中登记（见命令网关文档）。
 3. 物模型表新增 WO bool 点位，`semantic = DEVICE_CMD`，`cmd_kind` 指向新枚举。
 
-### 9.3 禁止的扩展方式
+### 10.3 禁止的扩展方式
 
 - 在 `cloud_point_dispatch.c` 内硬编码机型分支或云平台字段名。
 - `DEVICE_CMD` 绕过 `device_command_port` 直接调 orchestrator。
@@ -382,7 +399,7 @@ project_register_runtime_tasks()
 
 ---
 
-## 10. 当前落地状态（wash-device-framework）
+## 11. 当前落地状态（wash-device-framework）
 
 | 能力 | 状态 |
 |------|------|
@@ -398,7 +415,7 @@ project_register_runtime_tasks()
 
 ---
 
-## 11. 相关文档
+## 12. 相关文档
 
 - `doc/module-design/domain/命令网关模块设计.md` — `device_command_port` 与 `DEVICE_CMD` 衔接
 - `doc/module-design/domain/报警系统模块设计.md` — 与命令/安全域正交；报警态可通过 `safety_snapshot` 读取
@@ -408,7 +425,9 @@ project_register_runtime_tasks()
 
 ---
 
-## 附录 A：自检对照（module-design-spec B 类）
+## 附录 A：结构自检对照
+
+对照 `../README.md`「单篇文档建议结构」逐项自检。
 
 | 检查项 | 状态 |
 |--------|------|
@@ -416,8 +435,9 @@ project_register_runtime_tasks()
 | 文件清单 | §3 |
 | 数据模型 + API 行为 | §4、§5 |
 | 与命令网关衔接 | §6 |
-| 扩展指南 | §9 |
-| 落地状态 | §10 |
+| 测试覆盖 | §9 |
+| 扩展指南 | §10 |
+| 落地状态 | §11 |
 | 无函数级 walkthrough | 已遵守 |
 | 无测试/构建命令 | 已遵守 |
 | 示例已标注「仅供参考」 | §7 |

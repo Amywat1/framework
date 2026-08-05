@@ -21,7 +21,7 @@ Runtime 层负责把框架基础设施、项目 wiring、应用模块、适配�
 - **项目扩展受控**：项目只能通过 `wiring()` 与 `project_hooks` 填充装配点，不改框架主流程。
 - **线程统一创建**：框架线程通过 `thread_register()` 登记，最后由 scheduler 创建并 detach。
 - **周期任务统一模型**：周期任务用 `periodic_task_register()` 转成线程注册表条目。
-- **致命故障安全停机**：event bus fatal 回调先执行 `project_assert_safe_outputs()`，再 `abort()`。
+- **致命故障安全停机**：event bus fatal 回调先执行 `project_hooks_t.assert_safe_outputs`，再 `abort()`。
 
 ### 1.2 当前生命周期模型
 
@@ -42,7 +42,27 @@ Runtime 层负责把框架基础设施、项目 wiring、应用模块、适配�
 
 ---
 
-## 2. 启动序列
+## 2. 文件清单
+
+| 文件 | 职责 |
+|------|------|
+| `runtime/bootstrap/bootstrap.h` | `bootstrap_run()` 入口、启动失败后的进程约束契约 |
+| `runtime/bootstrap/bootstrap.c` | 11 阶段启动编排、`BOOT_CHECK` 失败即返回 |
+| `runtime/bootstrap/project_hooks.h` | `project_hooks_t` 15 个必填钩子与阶段语义 |
+| `runtime/bootstrap/wiring.h` | `wiring()` 声明：项目只在此注册 provider |
+| `runtime/scheduler/thread_registry.{h,c}` | 线程登记表、容量核算口径、`*_reset_for_test()` |
+| `runtime/scheduler/scheduler.{h,c}` | `scheduler_start_all()` 统一创建并 detach 线程 |
+| `runtime/scheduler/periodic_task.{h,c}` | 绝对下一拍唤醒的周期任务，跳过而不追赶 |
+| `runtime/config/thread_config.h` | 各线程栈大小与优先级、周期档常量 |
+| `tests/runtime/test_bootstrap_hooks.c` | 钩子校验与启动序列 |
+| `tests/runtime/test_scheduler.c` | 线程登记、复位、scheduler 启动 |
+| `tests/runtime/test_periodic_deadline.c` | 周期时序纯函数验证 |
+
+事件总线虽在 `runtime/` 下，但契约独立，见 `EventBus模块设计.md`。
+
+---
+
+## 3. 启动序列
 
 `bootstrap_run()` 是通用框架入口，当前顺序如下：
 
@@ -110,7 +130,7 @@ bootstrap_run()
 
 每个阶段由 `bootstrap_run_phase()` 包裹，进入和完成都打 INFO 日志，失败时记录阶段名与错误码后立即返回，不继续后续阶段。
 
-### 2.1 Register 阶段
+### 3.1 Register 阶段
 
 | 步骤 | 说明 |
 |------|------|
@@ -125,7 +145,7 @@ bootstrap_run()
 - 入口层只做进程级配置，通过 runtime glue 调用进程 API，不直接调用 HAL SDK init。
 - provider 若依赖外部 SDK，应在自身 `init` 内完成 SDK 初始化与日志桥接。
 
-### 2.2 Configure / Load / Bind 阶段
+### 3.2 Configure / Load / Bind 阶段
 
 配置与绑定阶段用于把项目参数和实例关系注入到已注册的通用 provider 中：
 
@@ -136,11 +156,11 @@ bootstrap_run()
 - `project_bind_machine()` 注册 `machine_ops_t`。
 - `project_bind_alarm_catalog()` 在 `alarm_registry_init()` 后加载项目报警目录。
 
-### 2.3 Validate 阶段
+### 3.3 Validate 阶段
 
 `project_validate()` 执行启动前一致性校验，例如云物模型表、部署配置、必选端口是否齐备。该阶段禁止初始化 watcher、读取实时 getter、发布事件或注册任务。
 
-### 2.4 Init HAL / Machine / Safety 阶段
+### 3.4 Init HAL / Machine / Safety 阶段
 
 三个阶段按固定顺序拆开，因为它们的前置条件是递进的：
 
@@ -152,7 +172,7 @@ bootstrap_run()
 
 `hal_io_bootstrap_init()` 在 IO port init 成功后，若 provider 提供 `register_panic_cb()`，会把项目的 `assert_safe_outputs` 注册为 IO panic 回调。三个 HAL port 的 `init` 均为可选：ops 未注册或未提供 `init` 时跳过并继续。
 
-### 2.5 Init Services 阶段
+### 3.5 Init Services 阶段
 
 Init Services 阶段初始化所有应用服务、适配器，并注册运行期任务。关键顺序约束：
 
@@ -165,13 +185,13 @@ Init Services 阶段初始化所有应用服务、适配器，并注册运行期
 
 **可观测桥接同样不在此阶段**：`observation_event_bridge_init()` 由项目在 `project_init_adapters()` 中决定是否调用。自带事件投影的项目不调，以免同一事件被两个订阅者各记一条。bootstrap 不代替项目做这个选择，也就不引用该符号。
 
-### 2.6 Start 阶段
+### 3.6 Start 阶段
 
 Start 阶段先调用 `hal_io.start()`，再调用 `project_start_runtime()` 启动无法纳入 scheduler 的项目运行期线程，最后 `scheduler_start_all()` 创建线程表中的所有线程。新增后台任务应优先接入 `project_register_runtime_tasks()`，不要放到 `project_start_runtime()`。
 
 ---
 
-## 3. Project Hooks
+## 4. Project Hooks
 
 项目钩子定义在 `runtime/bootstrap/project_hooks.h`。
 
@@ -199,7 +219,7 @@ Start 阶段先调用 `hal_io.start()`，再调用 `project_start_runtime()` 启
 
 Demo 实现位于 `demo/wiring/project_hooks_sim.c`：只有 `configure_storage`（注入 JSON 路径）、`bind_machine`（`demo_machine_ops_register()`）、`bind_alarm_catalog`（`demo_alarm_catalog_load()`）和 `validate`（端口契约校验）有实质内容，其余为空实现。
 
-### 3.1 何时使用 project hook
+### 4.1 何时使用 project hook
 
 满足以下任意一条，该操作应放入 project hook，而非在项目侧直接调接口：
 
@@ -225,9 +245,9 @@ Demo 实现位于 `demo/wiring/project_hooks_sim.c`：只有 `configure_storage`
 
 ---
 
-## 4. Scheduler 模型
+## 5. Scheduler 模型
 
-### 4.1 Thread Registry
+### 5.1 Thread Registry
 
 `thread_registry` 是静态表，容量为 `THREAD_REGISTRY_MAX = 24`。槽位构成的实测口径记在 `thread_registry.h` 头部：框架固定占用 1（`event_dispatch`，接入急停轮询适配器再加 1）、引擎会话 worker 1~2、周期任务 9，合计约 13，余量留给项目新增周期任务，避免项目为加一个任务去改框架常量。
 
@@ -243,7 +263,7 @@ Demo 实现位于 `demo/wiring/project_hooks_sim.c`：只有 `configure_storage`
 
 `thread_registry_reset_for_test()` 禁止在生产路径调用：线程一经 `scheduler_start_all()` 创建即 detach 且无法回收，清空登记表不会停止已启动的线程，只会让后续注册从 0 号槽开始，造成登记与实际线程不一致。
 
-### 4.2 Scheduler Start
+### 5.2 Scheduler Start
 
 `scheduler_start_all()` 顺序遍历线程表，为每个条目设置栈大小和调度策略，然后 `pthread_create()`。
 
@@ -257,7 +277,7 @@ Demo 实现位于 `demo/wiring/project_hooks_sim.c`：只有 `configure_storage`
 
 当前实现不保存 `pthread_t`，所以不提供停止、join 或重启接口。
 
-### 4.3 Periodic Task
+### 5.3 Periodic Task
 
 `periodic_task_register()` 把周期任务封装为一个线程注册表条目。周期任务表容量 `PERIODIC_TASK_MAX` 直接取 `THREAD_REGISTRY_MAX`（当前 24）：每个周期任务必然占一个线程槽，两者取同一上限就不会出现"周期任务表还有位、线程表已满"的半失败，容量调整也只需改一处。该关系由编译期断言固定。
 
@@ -287,7 +307,7 @@ periodic_task_thread_fn(slot)
 
 ---
 
-## 5. 已注册线程与周期任务
+## 6. 已注册线程与周期任务
 
 | 名称 | 注册方 | 类型 | 职责 |
 |------|--------|------|------|
@@ -305,9 +325,9 @@ periodic_task_thread_fn(slot)
 
 ---
 
-## 6. Safety Thread 与 Panic
+## 7. Safety Thread 与 Panic
 
-### 6.1 急停轮询适配器（可选）
+### 7.1 急停轮询适配器（可选）
 
 急停采集方式由项目决定，框架只提供一种可选实现：`adapters/inbound/safety/estop_poll_thread.c`。它属入站适配器而非运行时核心，bootstrap 不引用它；需要轮询采集的项目在 `project_init_adapters()` 中调用 `estop_poll_thread_init()` 登记线程。已有自采集通路的项目不接入。
 
@@ -338,19 +358,19 @@ loop:
 
 `safety_cutout_execute()` 与 `hw_estop_port_is_active()` 均由项目通过 `safety_port_register()` 注册 `safety_ops_t` 提供实现，未注册时故障安全并首次告警，可由 `port_contract_validate(PORT_REQ_SAFETY)` 在启动期拦住。该线程注册后不可停止，与周期任务一致。
 
-### 6.2 Event Bus Fatal
+### 7.2 Event Bus Fatal
 
 `bootstrap_register()` 注册 `system_panic_safe_stop()` 作为 event bus fatal 回调。发生不可恢复故障时：
 
 1. 打印 fatal 日志。
-2. 调用 `project_assert_safe_outputs()`。
+2. 调用 `project_hooks_t.assert_safe_outputs`。
 3. `abort()` 终止进程。
 
 fatal 回调不尝试恢复 event bus，也不继续运行，因为 dispatch 线程为 detach 线程，返回会留下不完整运行状态。
 
 ---
 
-## 7. Thread Config
+## 8. Thread Config
 
 `runtime/config/thread_config.h` 统一定义栈大小、周期和实时优先级。
 
@@ -373,7 +393,7 @@ IO 子板 provider 的后台线程由 `io_exp_driver` 自行管理，不走 core
 
 ---
 
-## 8. 错误处理策略
+## 9. 错误处理策略
 
 | 场景 | 行为 |
 |------|------|
@@ -386,7 +406,7 @@ IO 子板 provider 的后台线程由 `io_exp_driver` 自行管理，不走 core
 | event bus fatal | 安全输出兜底后 abort |
 | `bootstrap_run()` 返回非 `SW_OK` | **调用方必须终止进程**，见下 |
 
-### 8.1 启动失败后的进程约束
+### 9.1 启动失败后的进程约束
 
 启动序列没有回滚路径：失败点之前的副作用全部保留（端口已注册、报警目录已载入、HAL 可能已初始化、线程可能已登记但未启动）。不提供 teardown 是有意的取舍——为覆盖任意阶段失败而维护一套对称的反初始化路径，其自身正确性比"失败即退出"更难保证，而嵌入式设备由进程管理器重启即可回到确定状态。
 
@@ -396,7 +416,7 @@ IO 子板 provider 的后台线程由 `io_exp_driver` 自行管理，不走 core
 
 ---
 
-## 9. 测试覆盖
+## 10. 测试覆盖
 
 | 测试 | 覆盖 |
 |------|------|
@@ -411,27 +431,27 @@ IO 子板 provider 的后台线程由 `io_exp_driver` 自行管理，不走 core
 
 ---
 
-## 10. 扩展指南
+## 11. 扩展指南
 
-### 10.1 新增框架线程
+### 11.1 新增框架线程
 
 1. 在模块 init 中调用 `thread_register()` 或 `thread_register_arg()`。
 2. 线程入口不得依赖尚未初始化的 port 或服务。
 3. 栈大小放入 `thread_config.h`，不要在业务代码中散落魔法数。
 4. 若需要周期行为，优先使用 `periodic_task_register()`。
 
-### 10.2 新增项目启动逻辑
+### 11.2 新增项目启动逻辑
 
-判断该在哪里加逻辑，先用 §3.1 的判断流程确认是否需要 hook；确认后再按以下规则选择具体调用点：
+判断该在哪里加逻辑，先用 §4.1 的判断流程确认是否需要 hook；确认后再按以下规则选择具体调用点：
 
 1. **不在 `bootstrap.c` 中加入项目分支**：框架主流程不感知项目差异，所有项目逻辑通过 hook 注入。
-2. **优先复用已有调用点**：从 §3 的 hook 表格中找时机匹配的调用点，不新增 hook 阶段。
+2. **优先复用已有调用点**：从 §4 的 hook 表格中找时机匹配的调用点，不新增 hook 阶段。
 3. **需要先加载部署配置再配置的适配器**放在 `project_configure_adapters()`（storage load 后）。
 4. **需要初始化外部连接但不创建线程的适配器**放在 `project_init_adapters()`。
 5. **需要随 scheduler 启动的后台周期任务**放在 `project_register_runtime_tasks()`。
 6. **只有无法纳入 scheduler 的项目线程**才放在 `project_start_runtime()`。
 
-### 10.3 禁止的扩展方式
+### 11.3 禁止的扩展方式
 
 - 在 init 阶段直接创建框架线程，绕过 `thread_registry`。
 - 在线程回调中执行长时间阻塞的同步网络/文件操作。
@@ -440,7 +460,23 @@ IO 子板 provider 的后台线程由 `io_exp_driver` 自行管理，不走 core
 
 ---
 
-## 11. 相关文档
+## 12. 当前落地状态
+
+| 能力 | 状态 |
+|------|------|
+| `bootstrap_run()` 11 阶段编排 | ✅ |
+| `project_hooks_t` 15 钩子全必填校验 | ✅ |
+| 线程登记表 + 统一 detach 启动 | ✅（`THREAD_REGISTRY_MAX` = 24） |
+| 周期任务绝对下一拍唤醒 | ✅（跳过而不追赶，不累积漂移） |
+| `thread_registry_reset_for_test()` | ✅（仅测试可用；已启动线程无法回收） |
+| 启动失败后的进程约束 | ✅ 文档与头文件均已写明：失败即终止进程，不提供 teardown |
+| 事件总线 fatal → 安全停机 | ✅ 经 `project_hooks_t.assert_safe_outputs` 后 `abort()` |
+| 急停轮询适配器 | ✅ 可选接入（项目已有采集通路时不接） |
+| 启动阶段回滚 / teardown | ❌ 有意不做，理由见第 9.1 节 |
+
+---
+
+## 13. 相关文档
 
 - `doc/module-design/runtime/EventBus模块设计.md` — `event_dispatch` 与 fatal 回调契约
 - `doc/module-design/ports-adapters/HAL端口与适配器模块设计.md` — HAL init、周期任务与 provider 装配

@@ -300,7 +300,8 @@ main {{ width:min(1180px,calc(100% - 32px)); margin:0 auto 64px; }}
 .top {{ padding:32px 0 22px; border-bottom:1px solid var(--line); }}
 h1,h2,h3,h4,p {{ margin-top:0; }} h1 {{ margin-bottom:8px; font-size:28px; }}
 .meta {{ display:flex; flex-wrap:wrap; gap:8px 20px; color:var(--muted); }}
-.gates {{ display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; margin:20px 0; }}
+/* auto-fit 而非写死列数：门禁项增减时无需同步改这里，否则新增第 5 项会独占一行 */
+.gates {{ display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:10px; margin:20px 0; }}
 .gate {{ border:1px solid var(--line); border-top:3px solid var(--muted); border-radius:6px; padding:14px; display:grid; gap:8px; min-width:0; }}
 .gate.passed {{ border-top-color:var(--pass); }} .gate.failed {{ border-top-color:var(--fail); }} .gate.skipped {{ border-top-color:var(--skip); }}
 .status-dot {{ display:inline-block; width:8px; height:8px; margin-right:8px; border-radius:50%; background:var(--muted); }}
@@ -321,7 +322,7 @@ button {{ border:1px solid var(--line); border-radius:5px; padding:7px 12px; bac
 .raw-output {{ margin:8px 12px; }} .raw-output summary {{ color:#245b8f; cursor:pointer; }} .raw-output pre {{ max-height:360px; overflow:auto; padding:12px; background:#161b22; color:#e6edf3; white-space:pre-wrap; overflow-wrap:anywhere; font-size:12px; }}
 .notice {{ margin:18px 0; padding:12px; border-left:4px solid var(--skip); background:#fff8e8; }} .notice.failed {{ border-color:var(--fail); background:#fff1f0; }}
 [hidden] {{ display:none!important; }}
-@media (max-width:760px) {{ .gates {{ grid-template-columns:repeat(2,minmax(0,1fr)); }} .target>header {{ align-items:flex-start; flex-direction:column; gap:2px; }} .case-meta,.failure {{ margin-left:0; }} }}
+@media (max-width:760px) {{ .gates {{ grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); }} .target>header {{ align-items:flex-start; flex-direction:column; gap:2px; }} .case-meta,.failure {{ margin-left:0; }} }}
 </style>
 </head>
 <body><main>

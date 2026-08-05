@@ -76,7 +76,27 @@ adapters/outbound/storage/json
 
 ---
 
-## 3. 运行期参数存储
+## 3. 文件清单
+
+| 文件 | 职责 |
+|------|------|
+| `ports/outbound/storage/param_store.h` | 运行期参数端口契约（键值读写 + 持久化） |
+| `ports/outbound/storage/deploy_store.h` | 部署期配置端口契约（只读） |
+| `ports/outbound/storage/engine_program_loader_port.h` | 方案加载端口契约，屏蔽存储格式 |
+| `adapters/outbound/storage/json/json_param_store.{h,c}` | 参数 JSON 适配器 |
+| `adapters/outbound/storage/json/json_deploy_store.{h,c}` | 部署配置 JSON 适配器，含 schemaVersion 校验 |
+| `adapters/outbound/storage/json/engine_program_json.{h,c}` | 方案 JSON 解析与模板展开 |
+| `adapters/outbound/storage/json/engine_program_manifest.{h,c}` | manifest 完整性校验（SHA256） |
+| `services/param/svc_param.{h,c}` | 带语义的参数访问层 |
+| `common/asset_version.h` | 通用语义化版本解析与兼容判定 |
+| `tests/adapters/test_json_param_store.c` | 参数存储适配器 |
+| `tests/adapters/test_json_deploy_store.c` | 部署配置版本校验与拒绝后回退 |
+| `tests/adapters/test_engine_program_json.c` | 方案 JSON 加载与 loader port |
+| `tests/services/test_svc_param.c` | 参数访问层 |
+
+---
+
+## 4. 运行期参数存储
 
 `param_store_ops_t`：
 
@@ -89,7 +109,7 @@ typedef struct {
 } param_store_ops_t;
 ```
 
-### 3.1 JSON 适配器行为
+### 5.1 JSON 适配器行为
 
 | API | 行为 |
 |-----|------|
@@ -100,7 +120,7 @@ typedef struct {
 
 文件不存在、空文件或 JSON 非法返回 `SW_ERR_STORAGE`。`bootstrap` 中 `svc_param_init()` 返回 `SW_ERR_STORAGE` 时允许继续，由业务默认值兜底。
 
-### 3.2 JSON 文件形态
+### 4.2 JSON 文件形态
 
 文件为扁平 JSON 对象，键为参数名，值为字符串或数值：
 
@@ -116,7 +136,7 @@ typedef struct {
 - 数组、布尔等类型在 `get()` 时视为键不存在，返回 `SW_ERR_PARAM`。
 - 新增键统一以 cJSON String 写入。
 
-### 3.3 API 行为细节
+### 4.3 API 行为细节
 
 | API | 条件 | 行为 / 返回 |
 |-----|------|-------------|
@@ -135,7 +155,7 @@ typedef struct {
 
 > 头文件注释曾写“文件不存在返回 SW_OK”，当前实现为 `SW_ERR_STORAGE`；调用方应以实现为准处理默认值。
 
-### 3.4 路径注入
+### 4.4 路径注入
 
 JSON 适配器注册与路径配置分离：
 
@@ -149,13 +169,13 @@ project_configure_storage()
 
 若项目未显式调用 `json_param_store_configure()`，适配器才回退到编译期 `PARAM_STORE_JSON_FILE_PATH`。Demo 和真机项目应优先在 `project_configure_storage()` 注入路径，测试可继续使用编译宏作为默认值。
 
-### 3.5 `svc_param` 边界
+### 4.5 `svc_param` 边界
 
 `param_store` 是原始 KV 端口，`services/param/svc_param.*` 是带业务语义的具名访问层。业务优先依赖 `svc_param`，避免在多处散落参数键名。项目负责定义键名语义、默认值策略和参数变更后的保存时机。
 
 ---
 
-## 4. 部署期配置存储
+## 5. 部署期配置存储
 
 `deploy_store_ops_t`：
 
@@ -168,7 +188,7 @@ typedef struct {
 
 部署配置只读，没有 `set` / `save`。适配器通过 `json_deploy_store_configure(path)` 注入路径；未显式配置时才回退到编译期 `DEPLOY_STORE_JSON_FILE_PATH`，支持顶层 String / Number。
 
-### 4.1 JSON 适配器行为
+### 5.1 JSON 适配器行为
 
 | 场景 | 返回 |
 |------|------|
@@ -182,7 +202,7 @@ typedef struct {
 
 ---
 
-## 5. 洗车方案加载端口
+## 6. 洗车方案加载端口
 
 `engine_program_loader_port` 屏蔽 JSON 或未来二进制格式：
 
@@ -207,11 +227,11 @@ JSON loader 支持：
 
 ---
 
-## 6. 方案 Manifest 校验
+## 7. 方案 Manifest 校验
 
 `engine_program_manifest` 与 JSON loader 同处 `adapters/outbound/storage/json/`：它读取文件原始字节并解析 manifest JSON，两者都是 domain 明确不做的事（不做文件 IO、不解析序列化格式）。它约束的是方案资产完整性而非通用 KV，因此不设端口，调用方直接调适配器 API。
 
-### 6.1 路径规则
+### 7.1 路径规则
 
 ```text
 xxx.json → xxx.manifest.json
@@ -219,7 +239,7 @@ xxx.json → xxx.manifest.json
 
 `engine_program_manifest_path_from_json()` 只接受 `.json` 后缀，输出缓冲不足或参数非法返回 `false`。
 
-### 6.2 Manifest 格式
+### 7.2 Manifest 格式
 
 运行期校验当前只读取两个字段：
 
@@ -235,7 +255,7 @@ xxx.json → xxx.manifest.json
 | `sha256` | JSON 文件原始字节的 SHA256，小写 64 位 hex |
 | `size` | JSON 文件字节数 |
 
-### 6.3 校验行为
+### 7.3 校验行为
 
 | 场景 | 返回 |
 |------|------|
@@ -252,7 +272,7 @@ xxx.json → xxx.manifest.json
 
 ---
 
-## 7. 启动与接入顺序
+## 8. 启动与接入顺序
 
 推荐顺序：
 
@@ -282,7 +302,7 @@ bootstrap_load_storage()
 
 ---
 
-## 8. 线程安全与并发
+## 9. 线程安全与并发
 
 | 模块 | 线程安全策略 |
 |------|--------------|
@@ -303,7 +323,7 @@ bootstrap_load_storage()
 
 ---
 
-## 9. 错误码与日志
+## 10. 错误码与日志
 
 | 场景 | 错误码 | 日志 |
 |------|--------|------|
@@ -320,9 +340,9 @@ bootstrap_load_storage()
 
 ---
 
-## 10. 典型用法
+## 11. 典型用法
 
-### 10.1 参数读写
+### 11.1 参数读写
 
 ```c
 const param_store_ops_t *ps = param_store_get_ops();
@@ -337,7 +357,7 @@ if ((ps != NULL) && (ps->set("mode", "auto") == SW_OK)) {
 }
 ```
 
-### 10.2 部署配置读取
+### 11.2 部署配置读取
 
 ```c
 const deploy_store_ops_t *ds = deploy_store_get_ops();
@@ -348,7 +368,7 @@ if ((ds != NULL) && (ds->get("topicPropertyUp", topic, sizeof(topic)) == SW_OK))
 }
 ```
 
-### 10.3 方案加载
+### 11.3 方案加载
 
 ```c
 char err[160];
@@ -357,7 +377,7 @@ engine_program_t *program = engine_program_load(path, err, sizeof(err));
 
 ---
 
-## 11. 测试覆盖
+## 12. 测试覆盖
 
 | 测试 | 覆盖 |
 |------|------|
@@ -373,30 +393,30 @@ engine_program_t *program = engine_program_load(path, err, sizeof(err));
 
 ---
 
-## 12. 扩展指南
+## 13. 扩展指南
 
-### 12.1 新增存储后端
+### 13.1 新增存储后端
 
 1. 保持 port 契约不变。
 2. 新增 `adapters/outbound/storage/<backend>/...`。
 3. 在项目 wiring 中注册新 ops。
 4. 保持错误码语义与 JSON 适配器一致。
 
-### 12.2 新增业务参数
+### 13.2 新增业务参数
 
 1. 在 `svc_param` 或业务模块定义具名 getter/setter。
 2. 内部调用 `param_store_get_ops()->get/set`。
 3. 在参数变更流程末尾显式调用 `save()`。
 4. 不要在 `json_param_store.c` 增加业务键名常量。
 
-### 12.3 新增方案格式
+### 13.3 新增方案格式
 
 1. 实现新的 `engine_program_loader_ops_t.load`。
 2. 构建完整 `engine_program_t` 并调用语义校验。
 3. 明确资产完整性校验方式，可以复用 manifest 或提供等价机制。
 4. application 层仍只调用 `engine_program_load()`。
 
-### 12.4 禁止的扩展方式
+### 13.4 禁止的扩展方式
 
 - 在业务模块中直接读写参数/部署 JSON 文件。
 - 运行期修改 deploy store。
@@ -408,7 +428,7 @@ engine_program_t *program = engine_program_load(path, err, sizeof(err));
 
 ---
 
-## 13. 当前落地状态
+## 14. 当前落地状态
 
 | 能力 | 状态 |
 |------|------|
@@ -424,7 +444,7 @@ engine_program_t *program = engine_program_load(path, err, sizeof(err));
 
 ---
 
-## 14. 相关文档
+## 15. 相关文档
 
 - `doc/module-design/domain/方案引擎模块设计.md` — engine program 模型与运行时
 - `doc/module-design/runtime/Runtime模块设计.md` — wiring、bootstrap 与 worker 启动顺序

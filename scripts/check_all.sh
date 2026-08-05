@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 # check_all.sh — 框架提交前统一门禁
 #
-# 串联四项检查，任一失败即整体失败：
+# 串联五项检查，任一失败即整体失败：
 #   1. 架构依赖边界检查   scripts/check_arch_boundary.sh
 #   2. 行为契约结构检查   scripts/check_behaviour_contract.sh
-#   3. 代码格式检查       scripts/format.sh --check
-#   4. 单元测试           cmake 配置 + 构建 + ctest
+#   3. 文档引用一致性     scripts/check_doc_refs.sh
+#   4. 代码格式检查       scripts/format.sh --check
+#   5. 单元测试           cmake 配置 + 构建 + ctest
 #
 # 用法:
 #   ./scripts/check_all.sh                # 全部检查
@@ -135,6 +136,7 @@ generate_report() {
 
 run_step "架构依赖边界" "architecture" "${ROOT}/scripts/check_arch_boundary.sh"
 run_step "行为契约结构" "behaviour-contract" "${ROOT}/scripts/check_behaviour_contract.sh"
+run_step "文档引用一致性" "doc-refs" "${ROOT}/scripts/check_doc_refs.sh"
 run_step "代码格式" "format" "${ROOT}/scripts/format.sh" --check
 
 if [[ $SKIP_TESTS -eq 0 ]]; then
