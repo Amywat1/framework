@@ -5,9 +5,9 @@
 | 测试目标 | `test_hal_io_sim` |
 | 源文件 | `tests/adapters/test_hal_io_sim.c` |
 | 被测代码 | `adapters/outbound/hal/sim/hal_io_sim.c` |
-| 关联端口 | `ports/outbound/hal/hal_io_port.h`、`ports/port_registry.c` |
-| 最后执行 | 2026-07-09 |
-| 结果 | **23/23 通过** |
+| 关联端口 | `ports/outbound/hal/hal_io_port.h`、`ports/port_registry_hal.c` |
+
+> 用例数与通过情况以 `scripts/check_all.sh` 生成的 `build-check/test-results/report.html` 为准。本文只记录测试设计（环境、用例意图、边界），不记录动态结论——原先此处写死的「23/23 通过」在用例增至 27 例后已失真。
 
 ## 测试环境
 

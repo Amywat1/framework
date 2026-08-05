@@ -5,8 +5,8 @@
 | 测试目标 | `test_io_handle` |
 | 源文件 | `tests/common/test_io_handle.c` |
 | 被测代码 | `common/io_handle.h`（头文件内联函数） |
-| 最后执行 | 2026-07-09 |
-| 结果 | **6/6 通过** |
+
+> 用例数与通过情况以 `scripts/check_all.sh` 生成的 `build-check/test-results/report.html` 为准。本文只记录测试设计（环境、用例意图、边界），不记录动态结论——写死的数字必然滞后于测试本身。
 
 ## 编码规则（被测契约）
 

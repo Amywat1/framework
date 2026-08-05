@@ -6,8 +6,8 @@
 | 源文件 | `tests/runtime/test_event_bus.c` |
 | 被测代码 | `runtime/event_bus/event_bus.c`、`common/time_util.c` |
 | 依赖 | pthread、sem |
-| 最后执行 | 2026-07-09 |
-| 结果 | **8/8 通过** |
+
+> 用例数与通过情况以 `scripts/check_all.sh` 生成的 `build-check/test-results/report.html` 为准。本文只记录测试设计（环境、用例意图、边界），不记录动态结论——原先此处写死的「8/8 通过」在用例增至 13 例后已失真。
 
 ## 测试环境
 

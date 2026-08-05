@@ -30,6 +30,10 @@
 # （见 doc/contract/行为契约.md 第 5 节）。因此判据不是"文档写得对不对"——那不可自动判定——
 # 而是"文档指到的东西还在不在"，这一条可判定，且恰好覆盖绝大多数实际失真。
 #
+# 扫描全仓 Markdown 而非只扫 doc/：把范围限在 doc/ 时，根 CLAUDE.md 与
+# tests/reports/*.md 都在盲区，而扩大范围后当即在后者查出两处失效路径、一处
+# 断链和三处失真的用例数。判据与文件位置无关，限定目录只是漏检。
+#
 # 白名单的存在是必要的而非妥协：变更记录必须能引用已删除的符号与旧路径，否则
 # "为什么删掉它"就无处可写。故白名单逐项登记并附理由，新增一项即是一次显式决定。
 
@@ -46,6 +50,19 @@ cd "${FW_ROOT}"
 
 TOTAL_VIOLATIONS=0
 TOTAL_RULES=0
+
+# -----------------------------------------------------------------------------
+# 扫描范围：全仓被 git 跟踪的 Markdown，不限于 doc/
+#
+# 原先只扫 doc/，于是根 CLAUDE.md 与 tests/reports/*.md 都在盲区里——而后者正是
+# 本仓最早那起文档失真的现场（event_bus.md 长期声称 8/8 通过，实际 13 例）。
+# 判据本身与文件位置无关，限定目录只是漏检。
+# -----------------------------------------------------------------------------
+mapfile -t DOC_FILES < <(git -c core.quotepath=false ls-files '*.md' 2>/dev/null | sort)
+if [ ${#DOC_FILES[@]} -eq 0 ]; then
+    mapfile -t DOC_FILES < <(find . -name '*.md' -not -path './third_party/*' \
+        -not -path './build*' | sed 's|^\./||' | sort)
+fi
 
 # 框架顶层目录：路径引用须以其中之一开头才纳入检查
 LAYER_RE='^(common|domain|ports|application|adapters|runtime|services|observability|demo|tests|cmake|scripts|tools|third_party|doc)/'
@@ -116,11 +133,11 @@ while IFS= read -r line; do
 
     missing_paths+="  ${doc_file}: \`${ref}\` 不存在"$'\n'
 done < <(
-    for f in $(find doc -name '*.md' | sort); do
+    for f in "${DOC_FILES[@]}"; do
         grep -oE '`[^`]+`' "${f}" 2>/dev/null \
             | tr -d '`' \
             | grep -E "${LAYER_RE}" \
-            | sed "s|^|${f}:|"
+            | while IFS= read -r r; do printf '%s:%s\n' "${f}" "${r}"; done
     done | sort -u
 )
 
@@ -162,10 +179,10 @@ while IFS= read -r line; do
 
     missing_symbols+="  ${doc_file}: \`${sym}()\` 在代码中不存在"$'\n'
 done < <(
-    for f in $(find doc -name '*.md' | sort); do
+    for f in "${DOC_FILES[@]}"; do
         grep -oE '`[a-z_][a-z0-9_]{4,}\(\)`' "${f}" 2>/dev/null \
             | tr -d '`()' \
-            | sed "s|^|${f}:|"
+            | while IFS= read -r r; do printf '%s:%s\n' "${f}" "${r}"; done
     done | sort -u
 )
 
@@ -205,11 +222,11 @@ while IFS= read -r line; do
 
     broken_links+="  ${doc_file}: 链接 \`${target}\` 无法解析"$'\n'
 done < <(
-    for f in $(find doc -name '*.md' | sort); do
+    for f in "${DOC_FILES[@]}"; do
         {
             grep -oE '\]\([^)]+\.md\)' "${f}" 2>/dev/null | sed 's/^](\(.*\))$/\1/'
             grep -oE '`[^`]+\.md`' "${f}" 2>/dev/null | tr -d '`'
-        } | sed "s|^|${f}:|"
+        } | while IFS= read -r r; do printf '%s:%s\n' "${f}" "${r}"; done
     done | sort -u
 )
 
@@ -260,7 +277,11 @@ import sys
 from pathlib import Path
 
 root = Path(sys.argv[1])
-docs = sorted((root / "doc").rglob("*.md"))
+docs = sorted(
+    p for p in root.rglob("*.md")
+    if not any(part in {"third_party", ".git"} or part.startswith("build")
+               for part in p.relative_to(root).parts)
+)
 
 # 每篇文档实际拥有的章节号集合（含 N 与 N.M 两级）
 owned: dict[Path, set[str]] = {}
@@ -360,10 +381,10 @@ while IFS= read -r line; do
 
     missing_tests+="  ${doc_file}: 测试 \`${tname}\` 既无同名源文件也无同名用例函数"$'\n'
 done < <(
-    for f in $(find doc -name '*.md' | sort); do
+    for f in "${DOC_FILES[@]}"; do
         grep -oE '`test_[a-z0-9_]+`' "${f}" 2>/dev/null \
             | tr -d '`' \
-            | sed "s|^|${f}:|"
+            | while IFS= read -r r; do printf '%s:%s\n' "${f}" "${r}"; done
     done | sort -u
 )
 

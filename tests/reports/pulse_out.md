@@ -6,8 +6,8 @@
 | 源文件 | `tests/common/test_pulse_out.c` |
 | 被测代码 | `common/pulse_out.c` |
 | 关联代码 | `common/time_util.h`（`time_elapsed_ms`） |
-| 最后执行 | 2026-07-09 |
-| 结果 | **12/12 通过** |
+
+> 用例数与通过情况以 `scripts/check_all.sh` 生成的 `build-check/test-results/report.html` 为准。本文只记录测试设计（环境、用例意图、边界），不记录动态结论——写死的数字必然滞后于测试本身。
 
 ## 测试环境
 
@@ -69,7 +69,7 @@
 
 ## 待补充
 
-> 新增用例时在此追加。若 `time_util.c` 测试增多，可拆分为独立报告 `time_util.md` 并更新索引。
+> 新增用例时在此追加。若 `time_util.c` 测试增多，可拆分为独立报告 time_util.md 并更新索引。
 
 | 用例 | 目的 | 状态 |
 |------|------|------|
