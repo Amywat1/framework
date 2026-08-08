@@ -5,7 +5,7 @@
  * @date    2026-07-09
  */
 
-#include "application/recovery_service.h"
+#include "application/orchestrators/recovery_service.h"
 
 #include "common/event_types.h"
 #include "common/log.h"

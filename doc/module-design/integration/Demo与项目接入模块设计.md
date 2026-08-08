@@ -88,16 +88,14 @@ target entry
     └─ 调用 bootstrap_run()
 
 bootstrap_register()
-    └─ wiring()
+    └─ wiring() + project_hooks_register()
          ├─ 注册 storage adapter
          ├─ 注册 HAL provider
          ├─ 注册 cloud provider
          └─ 注册 engine program loader
 
-bootstrap_configure_storage()
-    └─ project_configure_storage()
-
 bootstrap_load_storage()
+    ├─ project_configure_storage()
     ├─ svc_param_init()
     └─ deploy_store.load()
 
@@ -109,18 +107,12 @@ bootstrap_configure()
 bootstrap_bind()
     ├─ project_bind_hal()
     ├─ project_bind_machine()
-    └─ project_bind_alarm_catalog()
-
-bootstrap_validate()
+    ├─ project_bind_alarm_catalog()
     └─ project_validate()
 
 bootstrap_init_hal()
-    └─ project_init_hal()
-
-bootstrap_init_machine()
-    └─ project_init_machine()
-
-bootstrap_init_safety()
+    ├─ project_init_hal()
+    ├─ project_init_machine()
     └─ project_init_safety()
 
 bootstrap_init_services()
@@ -131,7 +123,7 @@ bootstrap_start()
     └─ project_start_runtime()
 ```
 
-完整阶段序列（含框架自身的 init 调用）见 `doc/module-design/runtime/Runtime模块设计.md` §2。
+完整阶段序列（含框架自身的 init 调用）见 `doc/module-design/runtime/Runtime模块设计.md` §3。
 
 ---
 

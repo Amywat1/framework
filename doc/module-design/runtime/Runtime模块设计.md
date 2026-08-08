@@ -2,7 +2,7 @@
 
 **版本**：v1.1  
 **状态**：已落地（bootstrap 编排 + 线程注册表 + 周期任务 + Demo hooks）  
-**最后同步代码**：2026-08-05（`runtime/bootstrap`、`runtime/scheduler`、`runtime/config`、Demo project hooks）  
+**最后同步代码**：2026-08-08（`runtime/bootstrap` 7 阶段、`runtime/scheduler`、`runtime/config`、Demo project hooks）  
 **适用范围**：`runtime/bootstrap/`、`runtime/scheduler/`、`runtime/config/thread_config.h`、`demo/wiring/`  
 **架构基线**：统一启动序列 + runtime tasks 阶段注册线程 + scheduler 统一启动  
 **关键词**：bootstrap_run、project_hooks、thread_registry、scheduler_start_all、periodic_task、event_dispatch
@@ -11,13 +11,13 @@
 
 ## 1. 设计目标与核心理念
 
-Runtime 层负责把框架基础设施、项目 wiring、应用模块、适配器和后台线程按固定顺序启动。启动生命周期按 `register → configure_storage → load_storage → configure → bind → validate → init_hal → init_machine → init_safety → init_services → start` 拆分；模块在注册、绑定和各 init 阶段只注册端口、订阅事件或登记线程，真正创建线程统一延后到 `scheduler_start_all()`。
+Runtime 层负责把框架基础设施、项目 wiring、应用模块、适配器和后台线程按固定顺序启动。`bootstrap_run()` 对外是 7 个 phase：`register → load_storage → configure → bind → init_hal → init_services → start`。项目 hooks 仍按更细的 configure/bind/init 语义调用（例如 validate 并入 bind 末尾，init_machine/init_safety 并入 init_hal）。模块在注册、绑定和各 init 阶段只注册端口、订阅事件或登记线程，真正创建线程统一延后到 `scheduler_start_all()`。
 
 真机入口层不参与设备 HAL 初始化编排。入口只负责进程级运行时配置，并在完成后调用 `bootstrap_run()`；具体 HAL 或外部 SDK 初始化由 provider 的 `init` 实现承接。
 
 ### 1.1 设计目标
 
-- **启动顺序确定**：`bootstrap_run()` 固定 register → configure_storage → load_storage → configure → bind → validate → init_hal → init_machine → init_safety → init_services → start。
+- **启动顺序确定**：`bootstrap_run()` 固定上述 7 个 phase；hooks 调用顺序仍保证 configure → bind → validate → init_hal → init_machine → init_safety → start。
 - **项目扩展受控**：项目只能通过 `wiring()` 与 `project_hooks` 填充装配点，不改框架主流程。
 - **线程统一创建**：框架线程通过 `thread_register()` 登记，最后由 scheduler 创建并 detach。
 - **周期任务统一模型**：周期任务用 `periodic_task_register()` 转成线程注册表条目。
@@ -28,15 +28,12 @@ Runtime 层负责把框架基础设施、项目 wiring、应用模块、适配�
 | 阶段 | 规则 |
 |------|------|
 | 注册期 | `wiring()` 只注册 port/provider/loader，不注入项目参数、不绑定实例、不初始化硬件 |
-| 配置期 | 项目 hooks 注入存储路径、HAL 参数、安全默认态和适配器参数 |
-| 加载期 | `svc_param_init()` 与 `deploy_store.load()` 读取存储，`SW_ERR_STORAGE` 允许继续 |
-| 绑定期 | 项目 hooks 绑定 HAL 实例、`machine_ops`、报警目录等依赖关系 |
-| 校验期 | 项目执行启动前一致性校验，不启动 watcher、线程或外部连接 |
-| HAL 初始化期 | HAL port `init`（io/vfd/voice）及项目 HAL 组合层 init |
-| 机构初始化期 | 项目机构与执行器 init，前置为 HAL 已就绪 |
-| 安全初始化期 | 项目故障安全状态建立，前置为 HAL 与机构已就绪 |
-| 服务初始化期 | 应用服务 init、适配器 init、项目运行期任务注册 |
-| 启动期 | `scheduler_start_all()` 一次性创建所有已注册线程 |
+| 加载期 | `configure_storage` 后 `svc_param_init()` 与 `deploy_store.load()`，`SW_ERR_STORAGE` 允许继续 |
+| 配置期 | 项目 hooks 注入 HAL 参数、安全默认态和适配器参数 |
+| 绑定期 | 绑定 HAL/`machine_ops`/报警目录，末尾执行 `project_validate()` |
+| HAL 初始化期 | HAL port `init`，再依次 `init_hal` / `init_machine` / `init_safety` |
+| 服务初始化期 | 应用协调器/桥接 init、适配器 init、项目运行期任务注册 |
+| 启动期 | `hal_io.start()`、`project_start_runtime()`、`scheduler_start_all()` |
 | 运行期 | 线程 detach，当前不提供 join/stop/restart 语义 |
 | 致命故障 | 安全输出兜底后终止进程，交由外部 supervisor 拉起 |
 
@@ -73,12 +70,11 @@ bootstrap_run()
     │    ├─ event_bus_init()
     │    ├─ event_bus_set_fatal_cb(system_panic_safe_stop)
     │    ├─ wiring()
+    │    ├─ project_hooks_register()
     │    └─ thread_register("event_dispatch", ...)
     │
-    ├─ bootstrap_configure_storage()
-    │    └─ project_configure_storage()
-    │
     ├─ bootstrap_load_storage()
+    │    ├─ project_configure_storage()
     │    ├─ svc_param_init()
     │    └─ deploy_store.load()
     │
@@ -91,21 +87,15 @@ bootstrap_run()
     │    ├─ project_bind_hal()
     │    ├─ project_bind_machine()
     │    ├─ alarm_registry_init()
-    │    └─ project_bind_alarm_catalog()
-    │
-    ├─ bootstrap_validate()
+    │    ├─ project_bind_alarm_catalog()
     │    └─ project_validate()
     │
     ├─ bootstrap_init_hal()
     │    ├─ hal_io_bootstrap_init()      → 并注册 IO panic 回调
     │    ├─ hal_vfd_bootstrap_init()
     │    ├─ hal_voice_bootstrap_init()
-    │    └─ project_init_hal()
-    │
-    ├─ bootstrap_init_machine()
-    │    └─ project_init_machine()
-    │
-    ├─ bootstrap_init_safety()
+    │    ├─ project_init_hal()
+    │    ├─ project_init_machine()
     │    └─ project_init_safety()
     │
     ├─ bootstrap_init_services()
@@ -114,8 +104,6 @@ bootstrap_run()
     │    ├─ command_gateway_init()
     │    ├─ recovery_service_init()
     │    ├─ safety_session_coordinator_init()
-    │    ├─ safety_session_coordinator_init()
-    │    ├─ alarm_bridge_init()
     │    ├─ op_mode_bridge_init()
     │    ├─ telemetry_projection_init()
     │    ├─ project_init_adapters()
@@ -144,34 +132,31 @@ bootstrap_run()
 - 入口层只做进程级配置，通过 runtime glue 调用进程 API，不直接调用 HAL SDK init。
 - provider 若依赖外部 SDK，应在自身 `init` 内完成 SDK 初始化与日志桥接。
 
-### 3.2 Configure / Load / Bind 阶段
+### 3.2 Load / Configure / Bind 阶段
 
-配置与绑定阶段用于把项目参数和实例关系注入到已注册的通用 provider 中：
+加载、配置与绑定用于把项目参数和实例关系注入到已注册的通用 provider 中：
 
-- `project_configure_storage()` 在存储 load 前注入 JSON 路径或后端参数。
+- `project_configure_storage()` 在存储 load 前注入 JSON 路径或后端参数（位于 `load_storage` phase 开头）。
 - `project_configure_hal()` 只下发 HAL 参数，例如 IO 子板配置、VFD/voice 串口参数。
 - `project_configure_adapters()` 可读取已加载的 deploy/param 配置，但不启动连接或线程。
 - `project_bind_hal()` 绑定传感器通道、VFD 实例、backend、事件回调等。
 - `project_bind_machine()` 注册 `machine_ops_t`。
 - `project_bind_alarm_catalog()` 在 `alarm_registry_init()` 后加载项目报警目录。
+- `project_validate()` 在 bind phase 末尾执行启动前一致性校验，禁止初始化 watcher、读取实时 getter、发布事件或注册任务。
 
-### 3.3 Validate 阶段
+### 3.3 Init HAL 阶段（含机构与安全）
 
-`project_validate()` 执行启动前一致性校验，例如云物模型表、部署配置、必选端口是否齐备。该阶段禁止初始化 watcher、读取实时 getter、发布事件或注册任务。
+`bootstrap_init_hal` 内按固定顺序完成 HAL / 机构 / 安全初始化，前置条件递进：
 
-### 3.4 Init HAL / Machine / Safety 阶段
-
-三个阶段按固定顺序拆开，因为它们的前置条件是递进的：
-
-| 阶段 | 内容 | 为什么在这个位置 |
+| 顺序 | 内容 | 为什么在这个位置 |
 |------|------|------------------|
-| `init_hal` | `hal_io/vfd/voice` port init，然后 `project_init_hal()` | port ops 就绪后才能做项目级传感器预热和组合层初始化 |
-| `init_machine` | `project_init_machine()` | 机构与执行器初始化要读写 HAL，必须晚于 HAL init |
-| `init_safety` | `project_init_safety()` | 建立故障安全输出态要求 HAL 与机构都已就绪，因此排在最后 |
+| 1 | `hal_io/vfd/voice` port init，然后 `project_init_hal()` | port ops 就绪后才能做项目级传感器预热和组合层初始化 |
+| 2 | `project_init_machine()` | 机构与执行器初始化要读写 HAL，必须晚于 HAL init |
+| 3 | `project_init_safety()` | 建立故障安全输出态要求 HAL 与机构都已就绪 |
 
 `hal_io_bootstrap_init()` 在 IO port init 成功后，若 provider 提供 `register_panic_cb()`，会把项目的 `assert_safe_outputs` 注册为 IO panic 回调。三个 HAL port 的 `init` 均为可选：ops 未注册或未提供 `init` 时跳过并继续。
 
-### 3.5 Init Services 阶段
+### 3.4 Init Services 阶段
 
 Init Services 阶段初始化所有应用服务、适配器，并注册运行期任务。关键顺序约束：
 
@@ -184,7 +169,7 @@ Init Services 阶段初始化所有应用服务、适配器，并注册运行期
 
 **可观测桥接同样不在此阶段**：`observation_event_bridge_init()` 由项目在 `project_init_adapters()` 中决定是否调用。自带事件投影的项目不调，以免同一事件被两个订阅者各记一条。bootstrap 不代替项目做这个选择，也就不引用该符号。
 
-### 3.6 Start 阶段
+### 3.5 Start 阶段
 
 Start 阶段先调用 `hal_io.start()`，再调用 `project_start_runtime()` 启动无法纳入 scheduler 的项目运行期线程，最后 `scheduler_start_all()` 创建线程表中的所有线程。新增后台任务应优先接入 `project_register_runtime_tasks()`，不要放到 `project_start_runtime()`。
 
@@ -205,10 +190,10 @@ Start 阶段先调用 `hal_io.start()`，再调用 `project_start_runtime()` 启
 | `bind_hal` | HAL init 前 | 绑定传感器通道、VFD 实例、backend、事件回调 |
 | `bind_machine` | bind 阶段 | 注册 `machine_ops` 等设备装配接口 |
 | `bind_alarm_catalog` | `alarm_registry_init()` 后 | 加载项目报警目录 |
-| `validate` | 各 init 之前 | 启动前一致性校验 |
+| `validate` | bind phase 末尾、各 init 之前 | 启动前一致性校验 |
 | `init_hal` | init_hal 阶段，HAL port init 后 | 初始化项目 HAL 组合层、预热传感器 |
-| `init_machine` | init_machine 阶段 | 初始化项目机构与执行器 |
-| `init_safety` | init_safety 阶段 | 建立项目故障安全状态 |
+| `init_machine` | init_hal phase 内、`init_hal` 之后 | 初始化项目机构与执行器 |
+| `init_safety` | init_hal phase 内、`init_machine` 之后 | 建立项目故障安全状态 |
 | `init_adapters` | init_services 阶段 | 初始化云端、CLI 等入站适配器；可选启用观测桥接、急停轮询 |
 | `register_runtime_tasks` | init_services 阶段末 | 注册项目周期任务和运行期线程 |
 | `start_runtime` | scheduler 启动前 | 启动无法纳入 scheduler 的项目线程 |

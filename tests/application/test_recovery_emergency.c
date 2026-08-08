@@ -1,11 +1,11 @@
 /**
  * @file    test_recovery_emergency.c
- * @brief   recovery_service / safety_cutout / abort_home 协调器单元测试
+ * @brief   recovery_service / safety_session_coordinator 单元测试
  */
 
 #include "adapters/outbound/safety/sim/hw_estop_sim.h"
+#include "application/orchestrators/recovery_service.h"
 #include "application/orchestrators/safety_session_coordinator.h"
-#include "application/recovery_service.h"
 #include "common/event_types.h"
 #include "common/sw_error.h"
 #include "common/time_util.h"

@@ -485,7 +485,7 @@ target_compile_definitions(test_engine_session PRIVATE
 
 add_unit_test(test_recovery_emergency
     ${CMAKE_CURRENT_SOURCE_DIR}/application/test_recovery_emergency.c
-    ${WDF_ROOT}/application/recovery_service.c
+    ${WDF_ROOT}/application/orchestrators/recovery_service.c
     ${WDF_ROOT}/application/orchestrators/safety_session_coordinator.c
     ${WDF_ROOT}/adapters/outbound/safety/sim/hw_estop_sim.c
     ${WDF_ROOT}/domain/safety/alarm_registry/alarm_registry.c

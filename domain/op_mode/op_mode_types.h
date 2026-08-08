@@ -42,7 +42,7 @@ extern "C" {
 typedef enum {
     OP_MODE_INIT = 0,     /**< 系统初始化中（operational_mode_init 前）*/
     OP_MODE_STOPPED,      /**< 停机（未运营或待归位；总开关关时禁止 HOME）*/
-    OP_MODE_HOMING,       /**< 归位中（STOPPED → IDLE）*/
+    OP_MODE_HOMING,       /**< 枚举保留；当前 RECOVER 走 RECOVERING，不进入此态 */
     OP_MODE_IDLE,         /**< 运营待机（总开关必开，可接单）*/
     OP_MODE_WASHING,      /**< 洗车会话执行中 */
     OP_MODE_ABORT_HOMING, /**< 中止归位中（非急停洗车中止 → EXCEPTION）*/

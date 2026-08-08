@@ -214,8 +214,8 @@ _wdf_add_interface_lib(wdf_application
     SOURCES
         application/command_gateway.c
         application/side_effect_router.c
-        application/recovery_service.c
         application/telemetry_projection.c
+        application/orchestrators/recovery_service.c
         application/orchestrators/safety_session_coordinator.c
         application/bridges/alarm_bridge.c
         application/bridges/op_mode_bridge.c
