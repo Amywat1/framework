@@ -50,8 +50,8 @@ static void setup_idle(void)
 {
     dev_cmd_t cmd = dev_cmd_make_simple(DEV_CMD_RECOVER);
 
-    (void)op_mode_handle_command(&cmd); /* STOPPED → HOMING */
-    op_mode_on_home_done(true);         /* HOMING → IDLE */
+    (void)op_mode_handle_command(&cmd); /* STOPPED → RECOVERING */
+    op_mode_on_recovery_completed(RECOVERY_RESULT_IDLE);
 }
 
 void setUp(void)
@@ -181,8 +181,8 @@ static void test_self_check_from_stopped_lands_stopped(void)
     stop_dispatch(tid);
 }
 
-/* EVT_OP_MODE_HOME_COMPLETED(1) → HOMING → IDLE */
-static void test_home_completed_success_enters_idle(void)
+/* EVT_OP_MODE_RECOVERY_COMPLETED → RECOVERING → IDLE */
+static void test_recovery_completed_success_enters_idle(void)
 {
     pthread_t tid;
 
@@ -191,17 +191,16 @@ static void test_home_completed_success_enters_idle(void)
     TEST_ASSERT_EQUAL_INT(SW_OK, operational_mode_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, op_mode_bridge_init());
 
-    /* 手动推进到 HOMING 态 */
     {
         dev_cmd_t cmd = dev_cmd_make_simple(DEV_CMD_RECOVER);
         (void)op_mode_handle_command(&cmd);
     }
-    TEST_ASSERT_EQUAL_INT(OP_MODE_HOMING, op_mode_get_current());
+    TEST_ASSERT_EQUAL_INT(OP_MODE_RECOVERING, op_mode_get_current());
 
     tid = start_dispatch();
     usleep(10000);
 
-    publish_and_wait(EVT_OP_MODE_HOME_COMPLETED, 1U); /* 成功 */
+    publish_and_wait(EVT_OP_MODE_RECOVERY_COMPLETED, (uint32_t)RECOVERY_RESULT_IDLE);
     TEST_ASSERT_EQUAL_INT(OP_MODE_IDLE, op_mode_get_current());
 
     stop_dispatch(tid);
@@ -270,7 +269,7 @@ int main(void)
     WDF_RUN_TEST(test_customer_gone_returns_idle, "", "验证客户离场返回空闲模式");
     WDF_RUN_TEST(test_wash_aborted_manual_enters_alarm_homing, "", "验证洗车已中止手动进入报警回零");
     WDF_RUN_TEST(test_self_check_from_stopped_lands_stopped, "", "验证自检检查从停止模式最终进入停止模式");
-    WDF_RUN_TEST(test_home_completed_success_enters_idle, "", "验证回零完成成功进入空闲模式");
+    WDF_RUN_TEST(test_recovery_completed_success_enters_idle, "", "验证恢复完成成功进入空闲模式");
     WDF_RUN_TEST(test_alarm_home_done_enters_exception, "", "验证报警回零完成进入异常模式");
     WDF_RUN_TEST(test_blocking_alarm_event_enters_exception, "", "验证阻断性报警事件进入异常模式");
 

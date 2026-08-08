@@ -1,20 +1,40 @@
 /**
  * @file    side_effect_router.c
- * @brief   命令副作用路由实现
- * @author  HUWANGWEI
- * @date    2026-07-11
+ * @brief   命令副作用路由实现（含自检完成判定）
  */
 
 #include "application/side_effect_router.h"
 
-#include "application/self_check_service.h"
 #include "common/event_types.h"
 #include "common/log.h"
 #include "domain/op_mode/op_mode_types.h"
+#include "domain/op_mode/operational_mode.h"
+#include "domain/safety/alarm_registry/alarm_registry.h"
+#include "domain/safety/model/alarm_types.h"
 #include "ports/outbound/machine/machine_ops_port.h"
 #include "runtime/event_bus/event_bus.h"
 
 #include <stddef.h>
+
+/**
+ * @brief  执行自检判定并发布完成事件
+ * @note   阶段一：仅根据急停 / LOCKOUT / 阻塞报警决定是否落入 EXCEPTION。
+ */
+static void run_self_check(void)
+{
+    bool land_exception = false;
+
+    if (op_mode_is_estop_active()) {
+        land_exception = true;
+    } else if (alarm_registry_safety_posture() == SAFETY_POSTURE_LOCKOUT) {
+        land_exception = true;
+    } else if (alarm_registry_has_blocking_active()) {
+        land_exception = true;
+    }
+
+    (void)event_publish(EVT_OP_MODE_SELF_CHECK_COMPLETED, land_exception ? 1U : 0U);
+    LOG_INFO("side_effect_router: self_check completed land_exception=%d", (int)land_exception);
+}
 
 sw_err_t side_effect_router_run(dev_cmd_effect_t effect, const dev_cmd_t *cmd)
 {
@@ -45,7 +65,7 @@ sw_err_t side_effect_router_run(dev_cmd_effect_t effect, const dev_cmd_t *cmd)
         return SW_OK;
 
     case DEV_CMD_EFFECT_SELF_CHECK:
-        self_check_service_start();
+        run_self_check();
         return SW_OK;
 
     case DEV_CMD_EFFECT_HOME_DEVICE:

@@ -3,7 +3,7 @@
  * @brief   alarm_reeval_bridge 鍗曞厓娴嬭瘯
  */
 
-#include "application/bridges/alarm_reeval_bridge.h"
+#include "application/bridges/alarm_bridge.h"
 #include "common/sw_error.h"
 #include "common/time_util.h"
 #include "domain/device_control/model/actuator_events.h"
@@ -90,17 +90,17 @@ static void test_init_rejects_invalid_binding_table(void)
         {ALARM_REEVAL_TRIGGER_ACTUATOR_COMPLETED, TEST_ACTUATOR_GANTRY, TEST_GROUP_EXIT  },
     };
 
-    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, alarm_reeval_bridge_init(NULL, 1U));
-    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, alarm_reeval_bridge_init(zero_trigger, 1U));
-    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, alarm_reeval_bridge_init(no_group, 1U));
-    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, alarm_reeval_bridge_init(duplicate, 2U));
+    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, alarm_bridge_reeval_init(NULL, 1U));
+    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, alarm_bridge_reeval_init(zero_trigger, 1U));
+    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, alarm_bridge_reeval_init(no_group, 1U));
+    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, alarm_bridge_reeval_init(duplicate, 2U));
 }
 
 static void test_actuator_event_reevaluates_bound_group_only(void)
 {
     pthread_t tid;
 
-    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_reeval_bridge_init(s_bindings, 2U));
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_bridge_reeval_init(s_bindings, 2U));
     TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_trigger(201105U));
     TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_trigger(201205U));
     TEST_ASSERT_TRUE(alarm_registry_is_active(201105U));
@@ -119,7 +119,7 @@ static void test_checkpoint_event_reevaluates_bound_group(void)
 {
     pthread_t tid;
 
-    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_reeval_bridge_init(s_bindings, 2U));
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_bridge_reeval_init(s_bindings, 2U));
     TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_trigger(201205U));
 
     tid = start_dispatch();
@@ -132,10 +132,10 @@ static void test_checkpoint_event_reevaluates_bound_group(void)
 
 static void test_unbound_trigger_is_noop(void)
 {
-    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_reeval_bridge_init(s_bindings, 2U));
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_bridge_reeval_init(s_bindings, 2U));
     TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_trigger(201105U));
 
-    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_reeval_bridge_handle(ALARM_REEVAL_TRIGGER_ACTUATOR_COMPLETED, 99U));
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_bridge_reeval_handle(ALARM_REEVAL_TRIGGER_ACTUATOR_COMPLETED, 99U));
     TEST_ASSERT_TRUE(alarm_registry_is_active(201105U));
 }
 

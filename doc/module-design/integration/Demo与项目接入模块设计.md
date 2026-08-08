@@ -34,7 +34,7 @@ Demo 与项目接入层展示如何把通用框架装配成一个可启动设备
 | machine ops | 空操作/成功返回的 `demo_machine_ops` |
 | 报警目录 | 两个 demo alarm code |
 | 洗车编排 | 无（`machine_ops` 空实现返回成功） |
-| 周期任务 | 无项目任务；`alarm_bridge` 由框架 `alarm_event_bridge_init()` 自行登记 |
+| 周期任务 | 无项目任务；`alarm_bridge` 由框架 `alarm_bridge_init()` 自行登记 |
 | 验证链路 | STOP_OPERATION、硬件急停事件、报警触发链 |
 
 ---
@@ -145,7 +145,7 @@ bootstrap_start()
 |------|----------|
 | STOP_OPERATION | `device_command_port.submit()` → command gateway → operational mode |
 | HW ESTOP | `hw_estop_sim_set_active(true)` → `EVT_HW_ESTOP_ON` → op mode estop flag |
-| Alarm trigger | `alarm_binding.trigger()` → `alarm_event_bridge_drain()` → registry blocking |
+| Alarm trigger | `alarm_binding.trigger()` → `alarm_bridge_drain()` → registry blocking |
 
 Demo 直接订阅 `EVT_HW_ESTOP_ON`，用于确认 event dispatch 线程已工作。该事件需要有采集方发布，见 §9.1。
 
@@ -204,7 +204,7 @@ Demo 加载两个报警：
 
 ```c
 typedef struct {
-    void (*deferred_stop_all)(void);
+    /* deferred_stop 在 safety_ops，不在 machine_ops */
     void (*abort_home)(void);
     sw_err_t (*start_wash)(wash_mode_t mode);
     void (*abort_wash)(wash_abort_cause_t cause);
@@ -219,11 +219,11 @@ typedef struct {
 
 | machine op | 典型调用方 |
 |------------|------------|
-| `deferred_stop_all` | 安全延后停机路径 |
+| （停机） | 延后完备停机走 `safety_ops.deferred_stop` |
 | `abort_home` | 启动中止归位清障（异步）；完成后须发 `EVT_ABORT_HOME_DONE` |
 | `start_wash` | `DEV_CMD_START_WASH` 副作用：项目选方案并启动会话 |
 | `abort_wash` | `DEV_CMD_STOP_WASH` 副作用，以及急停/LOCKOUT 切断路径 |
-| `home_device` | `DEV_CMD_RECOVER` 在 STOPPED 下的内部归位副作用，以及故障恢复服务 |
+| `home_device` | `recovery_service` 在 Recover 路径中启动的异步全机归位 |
 | `execute_manual_actuator` | `DEV_CMD_MANUAL_ACTUATOR` 副作用 |
 | `stop_all_outputs` | `DEV_CMD_STOP_ALL_OUTPUTS` 副作用 |
 | `is_wash_entry_ready` | `START_WASH` 附加门禁；未注册（NULL）时框架不拦截 |
@@ -360,11 +360,11 @@ L4）。它依次验证：
 
 | 步骤 | 覆盖的链路 |
 |------|-----------|
-| `bootstrap_run()` | 11 阶段启动全过程 |
+| `bootstrap_run()` | 7 阶段启动全过程 |
 | `RECOVER` → IDLE | 命令网关 → 裁决 → `side_effect_router` → `machine_ops.home_device` → `EVT_OP_MODE_HOME_COMPLETED` → `op_mode_on_home_done` |
 | `STOP_OPERATION` | IDLE 下的停运裁决与运营开关 |
 | 急停边沿 | `hw_estop_sim` → `estop_poll_thread` → `safety_cutout_execute` → `EVT_HW_ESTOP_ON` → 姿态收敛 |
-| 报警触发 | `alarm_binding.trigger` → `alarm_event_bridge` → blocking 判定 |
+| 报警触发 | `alarm_binding.trigger` → `alarm_bridge` → blocking 判定 |
 
 全部通过时输出 `[Demo] All checks passed.`。
 
@@ -418,7 +418,7 @@ smoke 的偶发失败比不跑更糟——它会让真实回归被当成抖动�
 
 | 能力 | 状态 |
 |------|------|
-| `bootstrap_run()` 11 阶段编排 | ✅ |
+| `bootstrap_run()` 7 阶段编排 | ✅ |
 | `project_hooks_t` 15 钩子契约与 NULL 校验 | ✅ |
 | 端口契约校验（`PORT_REQ_*`，14 位） | ✅ |
 | 资产契约校验（`ASSET_REQ_*`，3 位） | ✅ |

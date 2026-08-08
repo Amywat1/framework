@@ -121,8 +121,8 @@ static inline wash_abort_cause_t wash_abort_from_evt_param(uint32_t param)
  *
  * 布局（低位在右）：
  *   EVT_OP_MODE_CHANGED       [15:8]=from      [7:0]=to
- *   EVT_OP_MODE_CMD_REJECTED  [15:8]=cmd_kind  [7:0]=reject_reason
  *   EVT_WASH_SESSION_STARTED  [7:0]=wash_mode
+ *   命令完成见 command_types.h 的 EVT_OP_MODE_CMD_HANDLED 编解码
  * ------------------------------------------------------------------------- */
 
 /** @brief 单字段位宽掩码 */
@@ -148,28 +148,6 @@ static inline operational_mode_t op_mode_changed_from(uint32_t param)
 static inline operational_mode_t op_mode_changed_to(uint32_t param)
 {
     return (operational_mode_t)(param & OP_MODE_EVT_FIELD_MASK);
-}
-
-/**
- * @brief  编码 EVT_OP_MODE_CMD_REJECTED 的 param
- * @param  cmd_kind  被拒命令类别（dev_cmd_kind_t，此处以整型承载以免头文件反向依赖）
- * @param  reason    拒绝原因
- */
-static inline uint32_t op_mode_cmd_rejected_evt_param(uint8_t cmd_kind, op_reject_reason_t reason)
-{
-    return (((uint32_t)cmd_kind & OP_MODE_EVT_FIELD_MASK) << 8) | ((uint32_t)reason & OP_MODE_EVT_FIELD_MASK);
-}
-
-/** @brief 从 EVT_OP_MODE_CMD_REJECTED 的 param 解出命令类别 */
-static inline uint8_t op_mode_cmd_rejected_kind(uint32_t param)
-{
-    return (uint8_t)((param >> 8) & OP_MODE_EVT_FIELD_MASK);
-}
-
-/** @brief 从 EVT_OP_MODE_CMD_REJECTED 的 param 解出拒绝原因 */
-static inline op_reject_reason_t op_mode_cmd_rejected_reason(uint32_t param)
-{
-    return (op_reject_reason_t)(param & OP_MODE_EVT_FIELD_MASK);
 }
 
 /** @brief 编码 EVT_WASH_SESSION_STARTED 的 param */

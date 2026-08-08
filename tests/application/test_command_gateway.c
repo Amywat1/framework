@@ -69,7 +69,7 @@ static void setup_idle(void)
     dev_cmd_t cmd = dev_cmd_make_simple(DEV_CMD_RECOVER);
 
     (void)op_mode_handle_command(&cmd);
-    op_mode_on_home_done(true);
+    op_mode_on_recovery_completed(RECOVERY_RESULT_IDLE);
 }
 
 void setUp(void)

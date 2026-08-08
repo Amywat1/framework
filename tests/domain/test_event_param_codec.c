@@ -36,15 +36,6 @@ static void test_mode_changed_roundtrip(void)
     TEST_ASSERT_EQUAL_INT(OP_MODE_RECOVERING, op_mode_changed_to(param));
 }
 
-/* EVT_OP_MODE_CMD_REJECTED：kind/reason 往返一致 */
-static void test_cmd_rejected_roundtrip(void)
-{
-    uint32_t param = op_mode_cmd_rejected_evt_param((uint8_t)DEV_CMD_START_WASH, OP_REJECT_ESTOP_ACTIVE);
-
-    TEST_ASSERT_EQUAL_UINT8((uint8_t)DEV_CMD_START_WASH, op_mode_cmd_rejected_kind(param));
-    TEST_ASSERT_EQUAL_INT(OP_REJECT_ESTOP_ACTIVE, op_mode_cmd_rejected_reason(param));
-}
-
 /* EVT_OP_MODE_CMD_HANDLED：三字段往返一致 */
 static void test_cmd_handled_roundtrip(void)
 {
@@ -93,7 +84,6 @@ int main(void)
 {
     UNITY_BEGIN();
     WDF_RUN_TEST(test_mode_changed_roundtrip, "", "验证模式变化往返编解码");
-    WDF_RUN_TEST(test_cmd_rejected_roundtrip, "", "验证命令被拒绝往返编解码");
     WDF_RUN_TEST(test_cmd_handled_roundtrip, "", "验证命令已处理往返编解码");
     WDF_RUN_TEST(test_cmd_handled_field_isolation, "", "验证命令已处理字段隔离");
     WDF_RUN_TEST(test_wash_session_started_roundtrip, "", "验证洗车会话已启动往返编解码");

@@ -9,10 +9,6 @@
 #include "ports/outbound/machine/machine_ops_port.h"
 #include "runtime/event_bus/event_bus.h"
 
-static void demo_deferred_stop_all(void)
-{
-}
-
 static void demo_abort_home(void)
 {
     /* Demo 无真实机构：立即回报完成，避免卡在 ABORT_HOMING */
@@ -52,7 +48,6 @@ static sw_err_t demo_stop_all_outputs(void)
 }
 
 static const machine_ops_t s_demo_machine_ops = {
-    .deferred_stop_all       = demo_deferred_stop_all,
     .abort_home              = demo_abort_home,
     .start_wash              = demo_start_wash,
     .abort_wash              = demo_abort_wash,

@@ -9,6 +9,7 @@
 
 #include "common/event_types.h"
 #include "common/log.h"
+#include "domain/op_mode/command_types.h"
 #include "observability/core/observation.h"
 #include "runtime/event_bus/event_bus.h"
 
@@ -22,7 +23,7 @@
  *   报警触发/清除        与安全姿态互为因果，缺一条链就断
  *   IO 掉线/恢复         通信类故障的根因常在此，且与报警不一一对应
  *   洗车中止             区分"正常完成"与"中途中止"，后者需要现场
- *   命令被拒             拒绝原因编码在 param，是排查"指令没反应"的唯一线索
+ *   命令被拒             订阅 CMD_HANDLED，仅记录 status=REJECTED 的完成事件
  *   恢复请求/完成        故障恢复是否走完，只能靠这两条配对判断
  *   云连接断开           上报中断期间的数据缺口需要有边界标记
  *
@@ -47,7 +48,7 @@ static const observed_event_t k_observed[] = {
     {EVT_ALARM_TRIGGERED,            OBSERVATION_SEVERITY_ERROR,    OBSERVATION_RECORD_EVENT,    "alarm"           },
     {EVT_ALARM_CLEARED,              OBSERVATION_SEVERITY_INFO,     OBSERVATION_RECORD_EVENT,    "alarm"           },
     {EVT_WASH_ABORTED,               OBSERVATION_SEVERITY_WARN,     OBSERVATION_RECORD_EVENT,    "wash"            },
-    {EVT_OP_MODE_CMD_REJECTED,       OBSERVATION_SEVERITY_WARN,     OBSERVATION_RECORD_EVENT,    "op_mode.cmd"     },
+    {EVT_OP_MODE_CMD_HANDLED,        OBSERVATION_SEVERITY_WARN,     OBSERVATION_RECORD_EVENT,    "op_mode.cmd"     },
     {EVT_OP_MODE_RECOVERY_REQUESTED, OBSERVATION_SEVERITY_WARN,     OBSERVATION_RECORD_EVENT,    "op_mode.recovery"},
     {EVT_OP_MODE_RECOVERY_COMPLETED, OBSERVATION_SEVERITY_INFO,     OBSERVATION_RECORD_EVENT,    "op_mode.recovery"},
     {EVT_CLOUD_DISCONNECTED,         OBSERVATION_SEVERITY_WARN,     OBSERVATION_RECORD_EVENT,    "cloud.link"      },
@@ -83,6 +84,11 @@ static void on_observed_event(const event_t *evt)
 
     def = find_observed(evt->type);
     if (def == NULL) {
+        return;
+    }
+
+    /* 命令完成事件面很宽，观测只保留被拒记录，避免成功路径淹没时间线 */
+    if ((evt->type == EVT_OP_MODE_CMD_HANDLED) && (cmd_handled_status(evt->param) != DEV_CMD_STATUS_REJECTED)) {
         return;
     }
 

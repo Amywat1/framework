@@ -76,11 +76,6 @@ static void publish_mode_changed(operational_mode_t from, operational_mode_t to)
     (void)event_publish(EVT_OP_MODE_CHANGED, op_mode_changed_evt_param(from, to));
 }
 
-static void publish_cmd_rejected(dev_cmd_kind_t kind, op_reject_reason_t reason)
-{
-    (void)event_publish(EVT_OP_MODE_CMD_REJECTED, op_mode_cmd_rejected_evt_param((uint8_t)kind, reason));
-}
-
 static void publish_context_sync(void)
 {
     (void)event_publish(EVT_OP_MODE_CONTEXT_SYNC, 0U);
@@ -328,7 +323,7 @@ dev_cmd_decision_t op_mode_handle_command(const dev_cmd_t *cmd)
                      (int)cmd->body.kind,
                      (int)d.reason,
                      op_mode_name(s_mode));
-            publish_cmd_rejected(cmd->body.kind, d.reason);
+            /* 拒绝结果由 command_gateway 统一发 EVT_OP_MODE_CMD_HANDLED，此处不另发事件 */
         }
         return d;
     }
@@ -341,11 +336,10 @@ dev_cmd_decision_t op_mode_handle_command(const dev_cmd_t *cmd)
         break;
 
     case DEV_CMD_RECOVER:
-        if (s_mode == OP_MODE_STOPPED) {
-            set_mode(OP_MODE_HOMING, NULL);
-            d.pending_effect = DEV_CMD_EFFECT_HOME_DEVICE;
-        } else if (s_mode == OP_MODE_EXCEPTION) {
+        /* STOPPED 与 EXCEPTION 统一走 recovery_service（复位锁存告警 + 异步归位）*/
+        if ((s_mode == OP_MODE_STOPPED) || (s_mode == OP_MODE_EXCEPTION)) {
             set_mode(OP_MODE_RECOVERING, NULL);
+            d.pending_effect = DEV_CMD_EFFECT_NONE;
             (void)event_publish(EVT_OP_MODE_RECOVERY_REQUESTED, 0U);
         }
         break;

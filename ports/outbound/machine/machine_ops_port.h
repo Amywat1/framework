@@ -25,11 +25,10 @@ extern "C" {
  * @brief 机型运行时操作集合
  */
 typedef struct {
-    /** @brief 延后完备停机（wash abort / estop 延后路径） */
-    void (*deferred_stop_all)(void);
     /**
      * @brief  启动中止归位清障（ABORT_HOMING；异于 home_device）
      * @note   仅启动异步流程；完成后须发布 EVT_ABORT_HOME_DONE。
+     * @note   延后完备停机统一走 safety_ops.deferred_stop，不在此重复暴露。
      */
     void (*abort_home)(void);
     /** @brief 启动洗车会话（项目选择方案并驱动引擎） */

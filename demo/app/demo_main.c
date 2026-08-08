@@ -4,7 +4,7 @@
  */
 
 #include "adapters/outbound/safety/sim/hw_estop_sim.h"
-#include "application/bridges/alarm_event_bridge.h"
+#include "application/bridges/alarm_bridge.h"
 #include "common/event_types.h"
 #include "common/log.h"
 #include "domain/op_mode/command_types.h"
@@ -146,7 +146,7 @@ static int check_alarm_trigger_chain(void)
         return 1;
     }
 
-    alarm_event_bridge_drain();
+    alarm_bridge_drain();
     usleep(50000U);
 
     if (!alarm_registry_has_blocking_active()) {

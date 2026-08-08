@@ -303,7 +303,7 @@ add_unit_test(test_alarm_registry
 
 add_unit_test(test_safety_posture
     ${CMAKE_CURRENT_SOURCE_DIR}/domain/test_safety_posture.c
-    ${WDF_ROOT}/application/bridges/alarm_event_bridge.c
+    ${WDF_ROOT}/application/bridges/alarm_bridge.c
     ${WDF_ROOT}/domain/safety/alarm_registry/alarm_registry.c
     ${WDF_ROOT}/ports/port_registry_infra.c
     ${WDF_ROOT}/runtime/event_bus/event_bus.c
@@ -316,7 +316,7 @@ add_unit_test(test_safety_posture
 
 add_unit_test(test_alarm_event_bridge
     ${CMAKE_CURRENT_SOURCE_DIR}/application/test_alarm_event_bridge.c
-    ${WDF_ROOT}/application/bridges/alarm_event_bridge.c
+    ${WDF_ROOT}/application/bridges/alarm_bridge.c
     ${WDF_ROOT}/domain/safety/alarm_registry/alarm_registry.c
     ${WDF_ROOT}/ports/port_registry_infra.c
     ${WDF_ROOT}/runtime/event_bus/event_bus.c
@@ -340,11 +340,13 @@ add_unit_test(test_observation_event_bridge
 
 add_unit_test(test_alarm_reeval_bridge
     ${CMAKE_CURRENT_SOURCE_DIR}/application/test_alarm_reeval_bridge.c
-    ${WDF_ROOT}/application/bridges/alarm_reeval_bridge.c
+    ${WDF_ROOT}/application/bridges/alarm_bridge.c
     ${WDF_ROOT}/domain/device_control/model/actuator_events.c
     ${WDF_ROOT}/domain/safety/alarm_registry/alarm_registry.c
     ${WDF_ROOT}/ports/port_registry_infra.c
     ${WDF_ROOT}/runtime/event_bus/event_bus.c
+    ${WDF_ROOT}/runtime/scheduler/periodic_task.c
+    ${WDF_ROOT}/runtime/scheduler/thread_registry.c
     ${WDF_ROOT}/common/time_util.c
     ${WDF_ROOT}/common/log.c
     ${WDF_ROOT}/common/sw_mutex.c
@@ -352,10 +354,12 @@ add_unit_test(test_alarm_reeval_bridge
 
 add_unit_test(test_alarm_lifecycle_bridge
     ${CMAKE_CURRENT_SOURCE_DIR}/application/test_alarm_lifecycle_bridge.c
-    ${WDF_ROOT}/application/bridges/alarm_lifecycle_bridge.c
+    ${WDF_ROOT}/application/bridges/alarm_bridge.c
     ${WDF_ROOT}/domain/safety/alarm_registry/alarm_registry.c
     ${WDF_ROOT}/ports/port_registry_infra.c
     ${WDF_ROOT}/runtime/event_bus/event_bus.c
+    ${WDF_ROOT}/runtime/scheduler/periodic_task.c
+    ${WDF_ROOT}/runtime/scheduler/thread_registry.c
     ${WDF_ROOT}/common/time_util.c
     ${WDF_ROOT}/common/log.c
     ${WDF_ROOT}/common/sw_mutex.c
@@ -440,7 +444,6 @@ add_unit_test(test_program_engine
 add_unit_test(test_side_effect_router
     ${CMAKE_CURRENT_SOURCE_DIR}/application/test_side_effect_router.c
     ${WDF_ROOT}/application/side_effect_router.c
-    ${WDF_ROOT}/application/self_check_service.c
     ${WDF_ROOT}/domain/op_mode/operational_mode.c
     ${WDF_ROOT}/domain/safety/alarm_registry/alarm_registry.c
     ${WDF_ROOT}/ports/port_registry_infra.c
@@ -483,8 +486,7 @@ target_compile_definitions(test_engine_session PRIVATE
 add_unit_test(test_recovery_emergency
     ${CMAKE_CURRENT_SOURCE_DIR}/application/test_recovery_emergency.c
     ${WDF_ROOT}/application/recovery_service.c
-    ${WDF_ROOT}/application/orchestrators/safety_cutout_coordinator.c
-    ${WDF_ROOT}/application/orchestrators/abort_home_coordinator.c
+    ${WDF_ROOT}/application/orchestrators/safety_session_coordinator.c
     ${WDF_ROOT}/adapters/outbound/safety/sim/hw_estop_sim.c
     ${WDF_ROOT}/domain/safety/alarm_registry/alarm_registry.c
     ${WDF_ROOT}/ports/port_registry_infra.c
@@ -512,7 +514,6 @@ add_unit_test(test_command_gateway
     ${CMAKE_CURRENT_SOURCE_DIR}/application/test_command_gateway.c
     ${WDF_ROOT}/application/command_gateway.c
     ${WDF_ROOT}/application/side_effect_router.c
-    ${WDF_ROOT}/application/self_check_service.c
     ${WDF_ROOT}/domain/op_mode/operational_mode.c
     ${WDF_ROOT}/domain/safety/alarm_registry/alarm_registry.c
     ${WDF_ROOT}/ports/port_registry_infra.c

@@ -47,13 +47,14 @@ static void on_wash_customer_gone(const event_t *evt)
 static void on_safety_lockout(const event_t *evt)
 {
     (void)evt;
-    /* WASHING 时由 safety_cutout_coordinator 发起中止，不在此立即切换模式；
+    /* WASHING 时由 safety_session_coordinator 发起中止，不在此立即切换模式；
      * 其余状态立即进入 EXCEPTION */
     op_mode_on_critical_alarm();
 }
 
 static void on_alarm_triggered(const event_t *evt)
 {
+    /* 急停类报警与 HW_ESTOP 事件是两种可选接入方式，均汇入 op_mode_on_estop（幂等）*/
     if (op_mode_alarm_port_is_estop(evt->param)) {
         op_mode_on_estop(true);
     } else if (alarm_registry_has_blocking_active()) {
@@ -63,7 +64,8 @@ static void on_alarm_triggered(const event_t *evt)
 
 static void on_alarm_cleared(const event_t *evt)
 {
-    if (op_mode_alarm_port_is_estop(evt->param)) {
+    /* 硬件急停仍激活时，不以报警清除覆盖急停标志——HW 边沿为权威源 */
+    if (op_mode_alarm_port_is_estop(evt->param) && !hw_estop_port_is_active()) {
         op_mode_on_estop(false);
     }
 }

@@ -3,7 +3,7 @@
  * @brief   alarm_event_bridge 鍗曞厓娴嬭瘯
  */
 
-#include "application/bridges/alarm_event_bridge.h"
+#include "application/bridges/alarm_bridge.h"
 #include "common/event_types.h"
 #include "common/sw_error.h"
 #include "common/time_util.h"
@@ -73,14 +73,14 @@ static void test_drain_publishes_triggered_event(void)
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_init());
     (void)alarm_registry_load_catalog(s_catalog, 1U);
-    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_event_bridge_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_bridge_init());
     (void)event_subscribe(EVT_ALARM_TRIGGERED, on_triggered);
 
     tid = start_dispatch();
     usleep(10000);
 
     (void)alarm_registry_trigger(201101U);
-    alarm_event_bridge_drain();
+    alarm_bridge_drain();
     usleep(50000);
 
     TEST_ASSERT_EQUAL_INT(1, g_trigger_count);
@@ -101,7 +101,7 @@ static void test_drain_empty_queue_no_event(void)
     tid = start_dispatch();
     usleep(10000);
 
-    alarm_event_bridge_drain();
+    alarm_bridge_drain();
     usleep(30000);
 
     TEST_ASSERT_EQUAL_INT(0, g_trigger_count);

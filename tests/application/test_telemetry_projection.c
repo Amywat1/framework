@@ -132,9 +132,9 @@ static void test_operational_projection_syncs_current_context(void)
     TEST_ASSERT_TRUE(snap.service_enabled);
     TEST_ASSERT_TRUE(operational_snapshot_is_stopping(snap));
 
-    /* 归位进 IDLE → 待机投影 */
+    /* 恢复进 IDLE → 待机投影 */
     TEST_ASSERT_EQUAL_INT(OP_CMD_ALLOWED, op_mode_handle_command(&recover_cmd).verdict);
-    op_mode_on_home_done(true);
+    op_mode_on_recovery_completed(RECOVERY_RESULT_IDLE);
     publish_and_wait(EVT_OP_MODE_CHANGED, 0U);
     snap = operational_snapshot_get();
     TEST_ASSERT_EQUAL_INT(OP_MODE_IDLE, snap.mode);

@@ -1,20 +1,15 @@
 /**
  * @file    bootstrap.c
- * @brief   系统启动序列实现（wash-device-framework 仿真子集）
- * @author  HUWANGWEI
- * @date    2026-07-12
+ * @brief   系统启动序列实现
  */
 
 #include "runtime/bootstrap/bootstrap.h"
 
-#include "application/bridges/alarm_event_bridge.h"
-#include "application/bridges/alarm_lifecycle_bridge.h"
+#include "application/bridges/alarm_bridge.h"
 #include "application/bridges/op_mode_bridge.h"
 #include "application/command_gateway.h"
-#include "application/orchestrators/abort_home_coordinator.h"
-#include "application/orchestrators/safety_cutout_coordinator.h"
+#include "application/orchestrators/safety_session_coordinator.h"
 #include "application/recovery_service.h"
-#include "application/self_check_service.h"
 #include "application/telemetry_projection.h"
 #include "common/log.h"
 #include "common/time_util.h"
@@ -128,9 +123,27 @@ static sw_err_t hal_voice_bootstrap_init(void)
     return SW_OK;
 }
 
+static sw_err_t bootstrap_register(void)
+{
+    time_util_init();
+
+    BOOT_CHECK(event_bus_init(), "event_bus_init");
+    event_bus_set_fatal_cb(system_panic_safe_stop);
+
+    BOOT_CHECK(wiring(), "wiring");
+    BOOT_CHECK(project_hooks_register(), "project_hooks_register");
+    BOOT_CHECK(thread_register("event_dispatch", event_dispatch_thread_fn, SCHED_OTHER, 0, THD_EVENT_DISPATCH_STACK),
+               "register event_dispatch");
+
+    return SW_OK;
+}
+
+/** configure_storage + 加载参数/部署配置 */
 static sw_err_t bootstrap_load_storage(void)
 {
     const deploy_store_ops_t *ds = deploy_store_get_ops();
+
+    BOOT_CHECK(s_hooks->configure_storage(), "project_configure_storage");
 
     {
         sw_err_t r = svc_param_init();
@@ -153,89 +166,47 @@ static sw_err_t bootstrap_load_storage(void)
     return SW_OK;
 }
 
-static sw_err_t bootstrap_register(void)
-{
-    time_util_init();
-
-    BOOT_CHECK(event_bus_init(), "event_bus_init");
-    event_bus_set_fatal_cb(system_panic_safe_stop);
-
-    BOOT_CHECK(wiring(), "wiring");
-    BOOT_CHECK(project_hooks_register(), "project_hooks_register");
-    BOOT_CHECK(thread_register("event_dispatch", event_dispatch_thread_fn, SCHED_OTHER, 0, THD_EVENT_DISPATCH_STACK),
-               "register event_dispatch");
-
-    return SW_OK;
-}
-
-static sw_err_t bootstrap_configure_storage(void)
-{
-    BOOT_CHECK(s_hooks->configure_storage(), "project_configure_storage");
-    return SW_OK;
-}
-
 static sw_err_t bootstrap_configure(void)
 {
     BOOT_CHECK(s_hooks->configure_hal(), "project_configure_hal");
     BOOT_CHECK(s_hooks->configure_safety(), "project_configure_safety");
     BOOT_CHECK(s_hooks->configure_adapters(), "project_configure_adapters");
-
     return SW_OK;
 }
 
+/** bind + validate（validate 并入本阶段末尾，仍在 init 之前）*/
 static sw_err_t bootstrap_bind(void)
 {
     BOOT_CHECK(s_hooks->bind_hal(), "project_bind_hal");
     BOOT_CHECK(s_hooks->bind_machine(), "project_bind_machine");
     BOOT_CHECK(alarm_registry_init(), "alarm_registry_init");
     BOOT_CHECK(s_hooks->bind_alarm_catalog(), "project_bind_alarm_catalog");
-
-    return SW_OK;
-}
-
-static sw_err_t bootstrap_validate(void)
-{
     BOOT_CHECK(s_hooks->validate(), "project_validate");
     return SW_OK;
 }
 
+/** HAL 框架 init + 项目 init_hal/init_machine/init_safety */
 static sw_err_t bootstrap_init_hal(void)
 {
     BOOT_CHECK(hal_io_bootstrap_init(), "hal_io_bootstrap");
     BOOT_CHECK(hal_vfd_bootstrap_init(), "hal_vfd_bootstrap");
     BOOT_CHECK(hal_voice_bootstrap_init(), "hal_voice_bootstrap");
     BOOT_CHECK(s_hooks->init_hal(), "project_init_hal");
-    return SW_OK;
-}
-
-static sw_err_t bootstrap_init_safety(void)
-{
-    BOOT_CHECK(s_hooks->init_safety(), "project_init_safety");
-    return SW_OK;
-}
-
-static sw_err_t bootstrap_init_machine(void)
-{
     BOOT_CHECK(s_hooks->init_machine(), "project_init_machine");
+    BOOT_CHECK(s_hooks->init_safety(), "project_init_safety");
     return SW_OK;
 }
 
 static sw_err_t bootstrap_init_services(void)
 {
-    BOOT_CHECK(alarm_event_bridge_init(), "alarm_event_bridge_init");
+    BOOT_CHECK(alarm_bridge_init(), "alarm_bridge_init");
     BOOT_CHECK(operational_mode_init(), "operational_mode_init");
     BOOT_CHECK(command_gateway_init(), "command_gateway_init");
-    BOOT_CHECK(self_check_service_init(), "self_check_service_init");
     BOOT_CHECK(recovery_service_init(), "recovery_service_init");
-    BOOT_CHECK(safety_cutout_coordinator_init(), "safety_cutout_coordinator_init");
-    BOOT_CHECK(abort_home_coordinator_init(), "abort_home_coordinator_init");
-    BOOT_CHECK(alarm_lifecycle_bridge_init(), "alarm_lifecycle_bridge_init");
+    BOOT_CHECK(safety_session_coordinator_init(), "safety_session_coordinator_init");
     BOOT_CHECK(op_mode_bridge_init(), "op_mode_bridge_init");
     BOOT_CHECK(telemetry_projection_init(), "telemetry_projection_init");
-    /* 可观测是旁路设施，是否启用、以及用通用桥接还是项目自有投影，都由项目在
-     * init_adapters 中决定：需要通用桥接的项目在此调 observation_event_bridge_init()，
-     * 自带事件投影的项目（如把事件转成带项目语义编码的记录）不调，以免同一事件
-     * 被两个订阅者各记一条。bootstrap 不代替项目做这个选择。 */
+    /* 可观测是旁路设施，是否启用由项目在 init_adapters 中决定 */
     BOOT_CHECK(s_hooks->init_adapters(), "project_init_adapters");
     BOOT_CHECK(s_hooks->register_runtime_tasks(), "project_register_runtime_tasks");
     return SW_OK;
@@ -274,11 +245,6 @@ sw_err_t bootstrap_run(void)
         return ret;
     }
 
-    ret = bootstrap_run_phase("configure_storage", bootstrap_configure_storage);
-    if (ret != SW_OK) {
-        return ret;
-    }
-
     ret = bootstrap_run_phase("load_storage", bootstrap_load_storage);
     if (ret != SW_OK) {
         return ret;
@@ -294,22 +260,7 @@ sw_err_t bootstrap_run(void)
         return ret;
     }
 
-    ret = bootstrap_run_phase("validate", bootstrap_validate);
-    if (ret != SW_OK) {
-        return ret;
-    }
-
     ret = bootstrap_run_phase("init_hal", bootstrap_init_hal);
-    if (ret != SW_OK) {
-        return ret;
-    }
-
-    ret = bootstrap_run_phase("init_machine", bootstrap_init_machine);
-    if (ret != SW_OK) {
-        return ret;
-    }
-
-    ret = bootstrap_run_phase("init_safety", bootstrap_init_safety);
     if (ret != SW_OK) {
         return ret;
     }

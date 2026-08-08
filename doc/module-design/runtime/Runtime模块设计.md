@@ -47,7 +47,7 @@ Runtime 层负责把框架基础设施、项目 wiring、应用模块、适配�
 | 文件 | 职责 |
 |------|------|
 | `runtime/bootstrap/bootstrap.h` | `bootstrap_run()` 入口、启动失败后的进程约束契约 |
-| `runtime/bootstrap/bootstrap.c` | 11 阶段启动编排、`BOOT_CHECK` 失败即返回 |
+| `runtime/bootstrap/bootstrap.c` | 7 阶段启动编排、`BOOT_CHECK` 失败即返回 |
 | `runtime/bootstrap/project_hooks.h` | `project_hooks_t` 15 个必填钩子与阶段语义 |
 | `runtime/bootstrap/wiring.h` | `wiring()` 声明：项目只在此注册 provider |
 | `runtime/scheduler/thread_registry.{h,c}` | 线程登记表、容量核算口径、`*_reset_for_test()` |
@@ -109,14 +109,13 @@ bootstrap_run()
     │    └─ project_init_safety()
     │
     ├─ bootstrap_init_services()
-    │    ├─ alarm_event_bridge_init()
+    │    ├─ alarm_bridge_init()
     │    ├─ operational_mode_init()
     │    ├─ command_gateway_init()
-    │    ├─ self_check_service_init()
     │    ├─ recovery_service_init()
-    │    ├─ safety_cutout_coordinator_init()
-    │    ├─ abort_home_coordinator_init()
-    │    ├─ alarm_lifecycle_bridge_init()
+    │    ├─ safety_session_coordinator_init()
+    │    ├─ safety_session_coordinator_init()
+    │    ├─ alarm_bridge_init()
     │    ├─ op_mode_bridge_init()
     │    ├─ telemetry_projection_init()
     │    ├─ project_init_adapters()
@@ -312,7 +311,7 @@ periodic_task_thread_fn(slot)
 | 名称 | 注册方 | 类型 | 职责 |
 |------|--------|------|------|
 | `event_dispatch` | `bootstrap_register()` | 线程 | 调用 `event_bus_dispatch_loop()` |
-| `alarm_bridge` | `alarm_event_bridge_init()` | 周期任务（50ms） | drain alarm registry pending 事件并算姿态边沿 |
+| `alarm_bridge` | `alarm_bridge_init()` | 周期任务（50ms） | drain alarm registry pending 事件并算姿态边沿 |
 | 会话 worker | `engine_session_init()`，名称与栈由调用方配置传入 | 线程 | 驱动方案引擎 tick |
 | `cloud_report_<period>ms` | `report_scheduler_register()` | 周期任务 | 云端链路 poll、watcher poll、周期/重同步上报；每种周期一个任务 |
 | `hal_sensor_poll` | `hal_sensor_poll_register_task()` | 周期任务 | DI 滤波推进 |
@@ -464,7 +463,7 @@ IO 子板 provider 的后台线程由 `io_exp_driver` 自行管理，不走 core
 
 | 能力 | 状态 |
 |------|------|
-| `bootstrap_run()` 11 阶段编排 | ✅ |
+| `bootstrap_run()` 7 阶段编排 | ✅ |
 | `project_hooks_t` 15 钩子全必填校验 | ✅ |
 | 线程登记表 + 统一 detach 启动 | ✅（`THREAD_REGISTRY_MAX` = 24） |
 | 周期任务绝对下一拍唤醒 | ✅（跳过而不追赶，不累积漂移） |

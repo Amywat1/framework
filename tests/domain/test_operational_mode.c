@@ -30,16 +30,16 @@ static void load_alarm_catalog(void)
     TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_load_catalog(s_catalog, 1U));
 }
 
-/* 辅助：从 STOPPED 归位到 IDLE */
+/* 辅助：从 STOPPED 经统一 recovery 路径进入 IDLE */
 static void enter_idle(void)
 {
     dev_cmd_t          cmd = dev_cmd_make_simple(DEV_CMD_RECOVER);
     dev_cmd_decision_t d   = op_mode_handle_command(&cmd);
 
     TEST_ASSERT_EQUAL_INT(OP_CMD_ALLOWED, d.verdict);
-    TEST_ASSERT_EQUAL_INT(DEV_CMD_EFFECT_HOME_DEVICE, d.pending_effect);
-    TEST_ASSERT_EQUAL_INT(OP_MODE_HOMING, op_mode_get_current());
-    op_mode_on_home_done(true);
+    TEST_ASSERT_EQUAL_INT(DEV_CMD_EFFECT_NONE, d.pending_effect);
+    TEST_ASSERT_EQUAL_INT(OP_MODE_RECOVERING, op_mode_get_current());
+    op_mode_on_recovery_completed(RECOVERY_RESULT_IDLE);
     TEST_ASSERT_EQUAL_INT(OP_MODE_IDLE, op_mode_get_current());
 }
 
@@ -65,21 +65,21 @@ static void test_init_stopped_and_service_enabled(void)
     TEST_ASSERT_FALSE(op_mode_is_estop_active());
 }
 
-/* STOPPED → RECOVER → HOMING → IDLE */
+/* STOPPED → RECOVER → RECOVERING → IDLE */
 static void test_recover_from_stopped_enters_idle(void)
 {
     enter_idle();
     TEST_ASSERT_TRUE(op_mode_is_standby());
 }
 
-/* 归位失败 → EXCEPTION */
+/* 恢复失败 → EXCEPTION */
 static void test_recover_home_failure_enters_exception(void)
 {
     dev_cmd_t          cmd = dev_cmd_make_simple(DEV_CMD_RECOVER);
     dev_cmd_decision_t d   = op_mode_handle_command(&cmd);
 
     TEST_ASSERT_EQUAL_INT(OP_CMD_ALLOWED, d.verdict);
-    op_mode_on_home_done(false);
+    op_mode_on_recovery_completed(RECOVERY_RESULT_EXCEPTION);
     TEST_ASSERT_EQUAL_INT(OP_MODE_EXCEPTION, op_mode_get_current());
 }
 
@@ -91,18 +91,18 @@ static void test_blocking_alarm_from_stopped_enters_exception(void)
     TEST_ASSERT_EQUAL_INT(OP_MODE_EXCEPTION, op_mode_get_current());
 }
 
-/* HOMING 不立即中断，但完成后仍有阻塞告警则进入 EXCEPTION */
+/* RECOVERING 不立即中断；完成时由 recovery 结果落入 EXCEPTION */
 static void test_blocking_alarm_during_home_lands_exception(void)
 {
     dev_cmd_t cmd = dev_cmd_make_simple(DEV_CMD_RECOVER);
 
     (void)op_mode_handle_command(&cmd);
-    TEST_ASSERT_EQUAL_INT(OP_MODE_HOMING, op_mode_get_current());
+    TEST_ASSERT_EQUAL_INT(OP_MODE_RECOVERING, op_mode_get_current());
     TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_trigger(TEST_ALARM_BLOCKING));
     op_mode_on_blocking_alarm();
-    TEST_ASSERT_EQUAL_INT(OP_MODE_HOMING, op_mode_get_current());
+    TEST_ASSERT_EQUAL_INT(OP_MODE_RECOVERING, op_mode_get_current());
 
-    op_mode_on_home_done(true);
+    op_mode_on_recovery_completed(RECOVERY_RESULT_EXCEPTION);
     TEST_ASSERT_EQUAL_INT(OP_MODE_EXCEPTION, op_mode_get_current());
 }
 

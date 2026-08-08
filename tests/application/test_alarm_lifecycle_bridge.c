@@ -9,7 +9,7 @@
  *          这条链路错了，现场表现是"洗完车该停机却没停"，属安全相关。
  */
 
-#include "application/bridges/alarm_lifecycle_bridge.h"
+#include "application/bridges/alarm_bridge.h"
 #include "common/event_types.h"
 #include "common/sw_error.h"
 #include "common/time_util.h"
@@ -95,7 +95,7 @@ void setUp(void)
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_load_catalog(s_catalog, sizeof(s_catalog) / sizeof(s_catalog[0])));
-    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_lifecycle_bridge_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_bridge_init());
     pthread_create(&s_dispatch_tid, NULL, dispatch_fn, NULL);
     usleep(10000U);
 }

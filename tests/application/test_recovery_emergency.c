@@ -4,8 +4,7 @@
  */
 
 #include "adapters/outbound/safety/sim/hw_estop_sim.h"
-#include "application/orchestrators/abort_home_coordinator.h"
-#include "application/orchestrators/safety_cutout_coordinator.h"
+#include "application/orchestrators/safety_session_coordinator.h"
 #include "application/recovery_service.h"
 #include "common/event_types.h"
 #include "common/sw_error.h"
@@ -229,8 +228,7 @@ static void test_cutout_estop_release_does_not_run_abort_home(void)
 
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
     machine_ops_register(&s_machine_ops);
-    TEST_ASSERT_EQUAL_INT(SW_OK, safety_cutout_coordinator_init());
-    TEST_ASSERT_EQUAL_INT(SW_OK, abort_home_coordinator_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, safety_session_coordinator_init());
 
     tid = start_dispatch();
     TEST_ASSERT_EQUAL_INT(SW_OK, event_publish(EVT_HW_ESTOP_OFF, 0U));
@@ -246,7 +244,7 @@ static void test_cutout_lockout_aborts_wash(void)
 
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
     machine_ops_register(&s_machine_ops);
-    TEST_ASSERT_EQUAL_INT(SW_OK, safety_cutout_coordinator_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, safety_session_coordinator_init());
 
     tid = start_dispatch();
     TEST_ASSERT_EQUAL_INT(SW_OK, event_publish(EVT_SAFETY_LOCKOUT, 0U));
@@ -264,7 +262,7 @@ static void test_abort_home_requested_runs_abort_home(void)
 
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
     machine_ops_register(&s_machine_ops);
-    TEST_ASSERT_EQUAL_INT(SW_OK, abort_home_coordinator_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, safety_session_coordinator_init());
 
     tid = start_dispatch();
     TEST_ASSERT_EQUAL_INT(SW_OK, event_publish(EVT_ABORT_HOME_REQUESTED, 0U));
@@ -280,8 +278,7 @@ static void test_cutout_estop_on_aborts_wash_and_defers_stop(void)
 
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
     machine_ops_register(&s_machine_ops);
-    TEST_ASSERT_EQUAL_INT(SW_OK, safety_cutout_coordinator_init());
-    TEST_ASSERT_EQUAL_INT(SW_OK, abort_home_coordinator_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, safety_session_coordinator_init());
 
     tid = start_dispatch();
     TEST_ASSERT_EQUAL_INT(SW_OK, event_publish(EVT_HW_ESTOP_ON, 0U));

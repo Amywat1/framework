@@ -214,14 +214,10 @@ _wdf_add_interface_lib(wdf_application
     SOURCES
         application/command_gateway.c
         application/side_effect_router.c
-        application/self_check_service.c
         application/recovery_service.c
         application/telemetry_projection.c
-        application/orchestrators/abort_home_coordinator.c
-        application/orchestrators/safety_cutout_coordinator.c
-        application/bridges/alarm_event_bridge.c
-        application/bridges/alarm_lifecycle_bridge.c
-        application/bridges/alarm_reeval_bridge.c
+        application/orchestrators/safety_session_coordinator.c
+        application/bridges/alarm_bridge.c
         application/bridges/op_mode_bridge.c
     DEPENDS
         wdf_domain
