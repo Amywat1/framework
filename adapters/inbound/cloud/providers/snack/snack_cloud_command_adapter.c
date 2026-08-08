@@ -9,8 +9,8 @@
 
 #include "common/log.h"
 #include "common/point_table/point_table.h"
-#include "ports/inbound/cloud/property/property_port.h"
-#include "ports/outbound/cloud/link/cloud_link_port.h"
+#include "application/ports/inbound/cloud/property/property_port.h"
+#include "application/ports/outbound/cloud/link/cloud_link_port.h"
 
 #include <stdbool.h>
 #include <stdio.h>

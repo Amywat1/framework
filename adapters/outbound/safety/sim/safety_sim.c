@@ -13,7 +13,7 @@
 
 #include "adapters/outbound/safety/sim/hw_estop_sim.h"
 #include "common/log.h"
-#include "ports/outbound/safety/safety_port.h"
+#include "domain/ports/outbound/safety/safety_port.h"
 
 #include <stdatomic.h>
 

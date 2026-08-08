@@ -5,6 +5,7 @@
 
 #include "runtime/bootstrap/bootstrap.h"
 
+#include "application/bridges/alarm_binding_bridge.h"
 #include "application/bridges/alarm_bridge.h"
 #include "application/bridges/op_mode_bridge.h"
 #include "application/command_gateway.h"
@@ -15,10 +16,10 @@
 #include "common/time_util.h"
 #include "domain/op_mode/operational_mode.h"
 #include "domain/safety/alarm_registry/alarm_registry.h"
-#include "ports/outbound/hal/hal_io_port.h"
-#include "ports/outbound/hal/hal_vfd_port.h"
-#include "ports/outbound/hal/hal_voice_port.h"
-#include "ports/outbound/storage/deploy_store.h"
+#include "domain/ports/outbound/hal/hal_io_port.h"
+#include "domain/ports/outbound/hal/hal_vfd_port.h"
+#include "domain/ports/outbound/hal/hal_voice_port.h"
+#include "domain/ports/outbound/storage/deploy_store.h"
 #include "runtime/bootstrap/project_hooks.h"
 #include "runtime/bootstrap/wiring.h"
 #include "runtime/config/thread_config.h"
@@ -180,6 +181,7 @@ static sw_err_t bootstrap_bind(void)
     BOOT_CHECK(s_hooks->bind_hal(), "project_bind_hal");
     BOOT_CHECK(s_hooks->bind_machine(), "project_bind_machine");
     BOOT_CHECK(alarm_registry_init(), "alarm_registry_init");
+    BOOT_CHECK(alarm_binding_bridge_bind(), "alarm_binding_bridge_bind");
     BOOT_CHECK(s_hooks->bind_alarm_catalog(), "project_bind_alarm_catalog");
     BOOT_CHECK(s_hooks->validate(), "project_validate");
     return SW_OK;

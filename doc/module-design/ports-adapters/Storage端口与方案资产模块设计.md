@@ -2,8 +2,8 @@
 
 **版本**：v1.0  
 **状态**：已落地（param_store + deploy_store + engine_program_loader + JSON 适配器 + manifest 校验）  
-**最后同步代码**：2026-07-14（`ports/outbound/storage`、`adapters/outbound/storage/json`、`engine_program_manifest`）  
-**适用范围**：`ports/outbound/storage/`、`adapters/outbound/storage/json/`、`services/param/`、项目方案加载流程  
+**最后同步代码**：2026-07-14（`domain/ports/outbound/storage`、`adapters/outbound/storage/json`、`engine_program_manifest`）  
+**适用范围**：`domain/ports/outbound/storage/`、`adapters/outbound/storage/json/`、`services/param/`、项目方案加载流程  
 **架构基线**：Ports & Adapters + 存储类型分离 + 方案资产完整性校验  
 **关键词**：param_store、deploy_store、engine_program_loader、engine_program_json、manifest、SHA256
 
@@ -38,9 +38,9 @@
 
 | 层次 | 路径 | 职责 |
 |------|------|------|
-| **运行参数端口** | `ports/outbound/storage/param_store.h` | KV load/save/get/set 契约 |
-| **部署配置端口** | `ports/outbound/storage/deploy_store.h` | 只读 load/get 契约 |
-| **方案加载端口** | `ports/outbound/storage/engine_program_loader_port.*` | `engine_program_t` 加载抽象 |
+| **运行参数端口** | `domain/ports/outbound/storage/param_store.h` | KV load/save/get/set 契约 |
+| **部署配置端口** | `domain/ports/outbound/storage/deploy_store.h` | 只读 load/get 契约 |
+| **方案加载端口** | `domain/ports/outbound/storage/engine_program_loader_port.*` | `engine_program_t` 加载抽象 |
 | **JSON 参数适配器** | `adapters/outbound/storage/json/json_param_store.*` | 基于 cJSON 的可写 KV 文件 |
 | **JSON 部署适配器** | `adapters/outbound/storage/json/json_deploy_store.c` | 基于 cJSON 的只读部署文件 |
 | **JSON 方案加载器** | `adapters/outbound/storage/json/engine_program_json.*` | JSON → `engine_program_t` |
@@ -54,7 +54,7 @@
 application / services
         │ storage ports
         ▼
-ports/outbound/storage
+domain/ports/outbound/storage
         ▲
         │ register ops
 adapters/outbound/storage/json
@@ -70,7 +70,7 @@ adapters/outbound/storage/json
 **依赖禁令**：
 
 - 业务模块不得直接 `fopen` 参数/部署 JSON。
-- `ports/outbound/storage` 不得 include cJSON 或具体适配器头。
+- `domain/ports/outbound/storage` 不得 include cJSON 或具体适配器头。
 - `json_param_store` / `json_deploy_store` 不得包含业务键名常量。
 - 方案 loader 不得执行洗车流程，只构建并校验模型。
 
@@ -80,9 +80,9 @@ adapters/outbound/storage/json
 
 | 文件 | 职责 |
 |------|------|
-| `ports/outbound/storage/param_store.h` | 运行期参数端口契约（键值读写 + 持久化） |
-| `ports/outbound/storage/deploy_store.h` | 部署期配置端口契约（只读） |
-| `ports/outbound/storage/engine_program_loader_port.h` | 方案加载端口契约，屏蔽存储格式 |
+| `domain/ports/outbound/storage/param_store.h` | 运行期参数端口契约（键值读写 + 持久化） |
+| `domain/ports/outbound/storage/deploy_store.h` | 部署期配置端口契约（只读） |
+| `domain/ports/outbound/storage/engine_program_loader_port.h` | 方案加载端口契约，屏蔽存储格式 |
 | `adapters/outbound/storage/json/json_param_store.{h,c}` | 参数 JSON 适配器 |
 | `adapters/outbound/storage/json/json_deploy_store.{h,c}` | 部署配置 JSON 适配器，含 schemaVersion 校验 |
 | `adapters/outbound/storage/json/engine_program_json.{h,c}` | 方案 JSON 解析与模板展开 |

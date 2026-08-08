@@ -5,12 +5,12 @@
  * @date    2026-08-03
  */
 
-#include "ports/inbound/command/command_port.h"
-#include "ports/outbound/hal/hal_io_port.h"
-#include "ports/outbound/hal/hal_voice_port.h"
-#include "ports/outbound/machine/machine_ops_port.h"
-#include "ports/port_contract.h"
-#include "ports/port_registry.h"
+#include "application/ports/inbound/command/command_port.h"
+#include "domain/ports/outbound/hal/hal_io_port.h"
+#include "domain/ports/outbound/hal/hal_voice_port.h"
+#include "domain/ports/outbound/machine/machine_ops_port.h"
+#include "runtime/ports/port_contract.h"
+#include "runtime/ports/port_registry.h"
 #include "wdf_test_spec.h"
 
 /* -------------------------------------------------------------------------

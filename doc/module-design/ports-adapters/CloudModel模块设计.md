@@ -3,7 +3,7 @@
 **版本**：v1.0  
 **状态**：已落地（物模型核心 + 端口契约 + 上报调度器 + Snack MQTT 适配器）  
 **最后同步代码**：2026-07-14（`cloud_point_*`、`cloud_model`、`report_scheduler`、Snack cloud provider）  
-**适用范围**：`domain/cloud/`、`ports/**/cloud/`、`adapters/outbound/cloud/`、`application/orchestrators/report_scheduler.*`、`adapters/**/cloud/providers/snack/`  
+**适用范围**：`domain/cloud/`、`application/ports/**/cloud/` / `domain` 无云入站、`adapters/outbound/cloud/`、`application/orchestrators/report_scheduler.*`、`adapters/**/cloud/providers/snack/`  
 **架构基线**：Ports & Adapters（六边形）+ 物模型点位表（复用 `point_table` 引擎）  
 **关键词**：cloud_point、物模型、属性下发、变更上报、DEVICE_CMD、`EVT_CLOUD_*`
 
@@ -78,10 +78,10 @@
 | **变更检测** | `domain/cloud/cloud_point_watcher.{h,c}` | `ON_CHANGE` shadow 比对，发布 `EVT_CLOUD_POINT_DIRTY` |
 | **通用引擎** | `common/point_table/` | 点位表模型、id 查找、apply 结果汇总；无 cJSON |
 | **点位表 JSON** | `adapters/outbound/serialization/json/point_table_json.*` | 点位表的 JSON 编解码 |
-| **入站端口** | `ports/inbound/cloud/property/property_port.h` | 属性下发 / 应答 |
-| **出站端口** | `ports/outbound/cloud/link/cloud_link_port.h` | 传输 init/online/publish/recv/poll |
-| **出站端口** | `ports/outbound/cloud/report/report_port.h` | 全量/增量属性上报触发 |
-| **端口注册** | `ports/port_registry_cloud.c` | `cloud_*_register()` / `get_ops()` |
+| **入站端口** | `application/ports/inbound/cloud/property/property_port.h` | 属性下发 / 应答 |
+| **出站端口** | `application/ports/outbound/cloud/link/cloud_link_port.h` | 传输 init/online/publish/recv/poll |
+| **出站端口** | `application/ports/outbound/cloud/report/report_port.h` | 全量/增量属性上报触发 |
+| **端口注册** | `runtime/ports/port_registry_cloud.c` | `cloud_*_register()` / `get_ops()` |
 | **物模型注册** | `domain/cloud/cloud_model.{h,c}` | 物模型 bundle 注册、watcher init、点位 id 查询 |
 | **属性 JSON** | `adapters/outbound/cloud/cloud_point_json.*` | 点位表的属性 JSON 编解码 |
 | **property_port 安装** | `adapters/outbound/cloud/cloud_model_json.*` | `cloud_model_json_install()`、`cloud_model_apply_property_set()` |
@@ -120,13 +120,13 @@ adapters / report_scheduler / cloud_model
 | `domain/cloud/cloud_point_dispatch.c` | 按 semantic 语义分派已解析的值、device_cmd 回调注册；无序列化 |
 | `domain/cloud/cloud_point_watcher.h` | watcher init/poll 接口 |
 | `domain/cloud/cloud_point_watcher.c` | shadow 状态、变更发布 |
-| `ports/inbound/cloud/property/property_port.h` | 属性下发 port |
-| `ports/outbound/cloud/link/cloud_link_port.h` | 链路 port |
-| `ports/outbound/cloud/report/report_port.h` | 上报 port |
+| `application/ports/inbound/cloud/property/property_port.h` | 属性下发 port |
+| `application/ports/outbound/cloud/link/cloud_link_port.h` | 链路 port |
+| `application/ports/outbound/cloud/report/report_port.h` | 上报 port |
 | `domain/cloud/cloud_model.{h,c}` | bundle 注册、watcher init、点位 id 查询 |
 | `adapters/outbound/cloud/cloud_point_json.*` | 属性 JSON 编解码 |
 | `adapters/outbound/cloud/cloud_model_json.*` | property_port 安装与下行应用入口 |
-| `ports/port_registry_cloud.c` | 三端 cloud port 注册器 |
+| `runtime/ports/port_registry_cloud.c` | 三端 cloud port 注册器 |
 | `tests/cloud/test_cloud_point_validate.c` | 校验单元测试 |
 | `tests/cloud/test_cloud_point_dispatch.c` | dispatch / JSON 单元测试 |
 | `tests/cloud/test_cloud_point_watcher.c` | ON_CHANGE + event 单元测试 |

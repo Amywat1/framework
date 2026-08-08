@@ -4,7 +4,7 @@
  */
 
 #include "common/sw_error.h"
-#include "ports/outbound/machine/machine_ops_port.h"
+#include "domain/ports/outbound/machine/machine_ops_port.h"
 #include "wdf_test_spec.h"
 
 #include <stdint.h>

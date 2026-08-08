@@ -6,7 +6,7 @@
 #include "adapters/outbound/hal/components/vfd_manager/hal_vfd_manager.h"
 #include "common/sw_error.h"
 #include "common/time_util.h"
-#include "ports/outbound/hal/hal_vfd_port.h"
+#include "domain/ports/outbound/hal/hal_vfd_port.h"
 #include "wdf_test_spec.h"
 
 #include <string.h>

@@ -3,8 +3,8 @@
  * @brief   安全端口注册表与调用侧包装单元测试
  */
 
-#include "ports/outbound/safety/safety_port.h"
-#include "ports/port_registry.h"
+#include "domain/ports/outbound/safety/safety_port.h"
+#include "runtime/ports/port_registry.h"
 #include "wdf_test_spec.h"
 
 #include <stdint.h>

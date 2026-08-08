@@ -11,8 +11,8 @@
 #include "adapters/outbound/hal/components/sensor_filter/hal_sensor_filter.h"
 
 #include "common/log.h"
-#include "ports/outbound/hal/hal_io_port.h"
-#include "ports/outbound/hal/hal_sensor_port.h"
+#include "domain/ports/outbound/hal/hal_io_port.h"
+#include "domain/ports/outbound/hal/hal_sensor_port.h"
 #include "runtime/config/thread_config.h"
 #include "runtime/scheduler/periodic_task.h"
 

@@ -1,6 +1,8 @@
 /**
  * @file    alarm_bridge.c
  * @brief   报警域应用桥接实现
+ * @author  HUWANGWEI
+ * @date    2026-08-08
  */
 
 #include "application/bridges/alarm_bridge.h"

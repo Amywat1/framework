@@ -13,7 +13,7 @@
 #include "domain/op_mode/op_mode_types.h"
 #include "domain/op_mode/operational_mode.h"
 #include "domain/safety/alarm_registry/alarm_registry.h"
-#include "ports/outbound/safety/safety_port.h"
+#include "domain/ports/outbound/safety/safety_port.h"
 #include "runtime/event_bus/event_bus.h"
 
 static void on_wash_session_started(const event_t *evt)

@@ -10,7 +10,7 @@
 #include "common/event_types.h"
 #include "common/log.h"
 #include "domain/safety/alarm_registry/alarm_registry.h"
-#include "ports/outbound/machine/machine_ops_port.h"
+#include "domain/ports/outbound/machine/machine_ops_port.h"
 #include "runtime/event_bus/event_bus.h"
 
 typedef enum {

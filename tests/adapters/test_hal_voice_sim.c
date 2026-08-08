@@ -8,7 +8,7 @@
  */
 
 #include "common/sw_error.h"
-#include "ports/outbound/hal/hal_voice_port.h"
+#include "domain/ports/outbound/hal/hal_voice_port.h"
 #include "wdf_test_spec.h"
 
 #include <stdint.h>

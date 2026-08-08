@@ -16,7 +16,7 @@
 
 #include "adapters/outbound/cloud/cloud_point_json.h"
 #include "domain/cloud/cloud_model.h"
-#include "ports/inbound/cloud/property/property_port.h"
+#include "application/ports/inbound/cloud/property/property_port.h"
 
 #include <stddef.h>
 

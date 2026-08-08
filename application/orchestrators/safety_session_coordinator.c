@@ -23,8 +23,8 @@
 #include "common/log.h"
 #include "common/sw_error.h"
 #include "domain/op_mode/op_mode_types.h"
-#include "ports/outbound/machine/machine_ops_port.h"
-#include "ports/outbound/safety/safety_port.h"
+#include "domain/ports/outbound/machine/machine_ops_port.h"
+#include "domain/ports/outbound/safety/safety_port.h"
 #include "runtime/event_bus/event_bus.h"
 
 static void abort_wash(wash_abort_cause_t cause)

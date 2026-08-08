@@ -30,6 +30,10 @@ sw_err_t alarm_registry_init(void)
 {
     return SW_ERR_NOT_INIT;
 }
+sw_err_t alarm_binding_bridge_bind(void)
+{
+    return SW_ERR_NOT_INIT;
+}
 sw_err_t command_gateway_init(void)
 {
     return SW_ERR_NOT_INIT;

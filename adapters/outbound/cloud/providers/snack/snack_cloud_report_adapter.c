@@ -11,8 +11,8 @@
 #include "common/log.h"
 #include "domain/cloud/cloud_model.h"
 #include "domain/cloud/cloud_point.h"
-#include "ports/outbound/cloud/link/cloud_link_port.h"
-#include "ports/outbound/cloud/report/report_port.h"
+#include "application/ports/outbound/cloud/link/cloud_link_port.h"
+#include "application/ports/outbound/cloud/report/report_port.h"
 
 #include <stdbool.h>
 #include <stdio.h>

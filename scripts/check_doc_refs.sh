@@ -74,6 +74,8 @@ LAYER_RE='^(common|domain|ports|application|adapters|runtime|services|observabil
 # 一律不得进入本表——那正是本规则要抓的东西。
 # -----------------------------------------------------------------------------
 PATH_ALLOW="
+ports|history/整治记录与 architecture 记录顶层 ports/ 目录已删除并拆分
+ports/outbound/safety|history 记录四单函数头已并入 safety_port.h
 services/dev_ctx|architecture/08 第 18.4 节记录该层已删除并入 device_snapshot
 adapters/providers|architecture/08 第 12 节的泛指写法，指 adapters 下各 providers 目录
 "

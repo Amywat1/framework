@@ -119,12 +119,12 @@ _wdf_add_interface_lib(wdf_point_table_json
 # ---------------------------------------------------------------------------
 _wdf_add_interface_lib(wdf_ports
     SOURCES
-        ports/port_contract.c
-        ports/port_registry_hal.c
-        ports/port_registry_safety.c
-        ports/port_registry_cloud.c
-        ports/port_registry_infra.c
-        ports/outbound/storage/engine_program_loader_port.c
+        runtime/ports/port_contract.c
+        runtime/ports/port_registry_hal.c
+        runtime/ports/port_registry_safety.c
+        runtime/ports/port_registry_cloud.c
+        runtime/ports/port_registry_infra.c
+        domain/ports/outbound/storage/engine_program_loader_port.c
     DEPENDS
         wdf_common
 )
@@ -217,6 +217,7 @@ _wdf_add_interface_lib(wdf_application
         application/telemetry_projection.c
         application/orchestrators/recovery_service.c
         application/orchestrators/safety_session_coordinator.c
+        application/bridges/alarm_binding_bridge.c
         application/bridges/alarm_bridge.c
         application/bridges/op_mode_bridge.c
     DEPENDS

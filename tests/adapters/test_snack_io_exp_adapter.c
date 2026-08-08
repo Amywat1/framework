@@ -6,7 +6,7 @@
 #include "adapters/outbound/hal/providers/snack/io_exp/io_exp_driver.h"
 #include "adapters/outbound/hal/providers/snack/io_exp/snack_io_adapter.h"
 #include "common/io_handle.h"
-#include "ports/outbound/hal/hal_io_port.h"
+#include "domain/ports/outbound/hal/hal_io_port.h"
 #include "tests/stubs/io_exp/io_exp_fake.h"
 #include "wdf_test_spec.h"
 

@@ -22,7 +22,7 @@ extern "C" {
 
 #include "common/sw_error.h"
 #include "domain/device_control/patterns/motion_lifecycle.h"
-#include "ports/outbound/hal/motor/hal_motor_exec_port.h"
+#include "domain/ports/outbound/hal/motor/hal_motor_exec_port.h"
 
 #include <stdbool.h>
 #include <stddef.h>

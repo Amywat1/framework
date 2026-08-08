@@ -3,7 +3,7 @@
 **版本**：v1.0  
 **状态**：已落地（Demo smoke + wiring/project hooks 接入骨架）  
 **最后同步代码**：2026-07-14（`demo/`、`runtime/bootstrap/wiring.h`、`runtime/bootstrap/project_hooks.h`、`machine_ops_port`）  
-**适用范围**：`demo/`、`runtime/bootstrap/`、`ports/outbound/machine/`、项目 wiring/bindings  
+**适用范围**：`demo/`、`runtime/bootstrap/`、`domain/ports/outbound/machine/`、项目 wiring/bindings  
 **架构基线**：通用 bootstrap + 项目依赖注入 + 项目 hooks  
 **关键词**：demo、wiring、project_hooks、machine_ops、bootstrap_run、smoke、project bring-up
 
@@ -48,8 +48,8 @@ Demo 是框架自带的最小接入实例，可直接作为新项目 wiring 的�
 | `runtime/bootstrap/bootstrap.h` | `bootstrap_run()` 与启动失败后的进程约束 |
 | `runtime/bootstrap/project_hooks.h` | `project_hooks_t` 15 个必填钩子 |
 | `runtime/bootstrap/wiring.h` | `wiring()` 声明 |
-| `ports/outbound/machine/machine_ops_port.h` | 命令副作用对应的项目动作契约 |
-| `ports/port_contract.h` | 必需端口的启动期集中校验（`PORT_REQ_*`） |
+| `domain/ports/outbound/machine/machine_ops_port.h` | 命令副作用对应的项目动作契约 |
+| `runtime/ports/port_contract.h` | 必需端口的启动期集中校验（`PORT_REQ_*`） |
 | `application/asset_contract.h` | 必需资产的启动期集中校验（`ASSET_REQ_*`） |
 | `demo/app/demo_main.c` | 最小 main：调 `bootstrap_run()` 后驱动 smoke 场景 |
 | `demo/wiring/wiring_sim.c` | 最小 provider 注册（sim HAL、storage、safety） |

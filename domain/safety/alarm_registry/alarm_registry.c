@@ -10,7 +10,6 @@
 #include "common/log.h"
 #include "common/time_util.h"
 #include "domain/safety/model/safety_matrix.h"
-#include "ports/inbound/safety/alarm_binding_port.h"
 
 #include <pthread.h>
 #include <stdbool.h>
@@ -462,28 +461,11 @@ unsigned alarm_registry_catalog_count(void)
     return count;
 }
 
-static sw_err_t binding_load_catalog(const alarm_def_t *defs, unsigned count)
-{
-    return alarm_registry_load_catalog(defs, count);
-}
-
 sw_err_t alarm_registry_init(void)
 {
-    static const alarm_binding_ops_t s_ops = {
-        .trigger      = alarm_registry_trigger,
-        .clear        = alarm_registry_clear,
-        .load_catalog = binding_load_catalog,
-    };
-
-    sw_err_t ret = alarm_binding_register(&s_ops);
-
-    if (ret != SW_OK) {
-        LOG_ERROR("alarm_registry: alarm_binding_register ret=%d", (int)ret);
-        return ret;
-    }
-
-    /* 清空全部运行期状态。bootstrap 在 bind 阶段调用本函数，且在
-     * project_bind_alarm_catalog 之前，故清空目录不会丢掉已加载的资产。 */
+    /* 清空全部运行期状态。bootstrap 在 bind 阶段调用本函数；入站端口由
+     * application/bridges/alarm_binding_bridge 在其后注册，再执行
+     * project_bind_alarm_catalog，故此处清空目录不会丢掉已加载的资产。 */
     pthread_mutex_lock(&s_mutex);
     memset(s_catalog, 0, sizeof(s_catalog));
     s_catalog_count = 0U;

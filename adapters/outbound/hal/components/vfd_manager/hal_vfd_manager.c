@@ -11,7 +11,7 @@
 #include "common/pulse_out.h"
 #include "common/sw_mutex.h"
 #include "common/time_util.h"
-#include "ports/outbound/hal/hal_vfd_port.h"
+#include "domain/ports/outbound/hal/hal_vfd_port.h"
 #include "runtime/config/thread_config.h"
 #include "runtime/scheduler/periodic_task.h"
 

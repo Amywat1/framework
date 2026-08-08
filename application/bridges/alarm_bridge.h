@@ -1,6 +1,8 @@
 /**
  * @file    alarm_bridge.h
  * @brief   报警域应用桥接（pending 排空、会话生命周期、ON_MOTION 重评估）
+ * @author  HUWANGWEI
+ * @date    2026-08-08
  */
 
 #ifndef APPLICATION_BRIDGES_ALARM_BRIDGE_H

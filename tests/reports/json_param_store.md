@@ -5,7 +5,7 @@
 | 测试目标 | `test_json_param_store` |
 | 源文件 | `tests/adapters/test_json_param_store.c` |
 | 被测代码 | `adapters/outbound/storage/json/json_param_store.c` |
-| 关联端口 | `ports/outbound/storage/param_store.h`、`ports/port_registry_infra.c` |
+| 关联端口 | `domain/ports/outbound/storage/param_store.h`、`runtime/ports/port_registry_infra.c` |
 | 测试文件 | `${CMAKE_BINARY_DIR}/tests/param_store_test.json`（编译宏注入） |
 
 > 用例数与通过情况以 `scripts/check_all.sh` 生成的 `build-check/test-results/report.html` 为准。本文只记录测试设计（环境、用例意图、边界），不记录动态结论——原先此处写死的「12/12 通过」在用例增至 13 例后已失真。

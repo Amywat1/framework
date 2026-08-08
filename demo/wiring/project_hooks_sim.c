@@ -6,7 +6,7 @@
 #include "adapters/inbound/safety/estop_poll_thread.h"
 #include "adapters/outbound/storage/json/json_deploy_store.h"
 #include "adapters/outbound/storage/json/json_param_store.h"
-#include "ports/port_contract.h"
+#include "runtime/ports/port_contract.h"
 #include "runtime/bootstrap/project_hooks.h"
 
 extern sw_err_t demo_machine_ops_register(void);

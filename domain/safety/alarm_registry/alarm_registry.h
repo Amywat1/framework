@@ -21,12 +21,13 @@ extern "C" {
 /**
  * @brief  初始化报警注册表，并清空全部运行期状态
  *
- * @retval SW_OK        注册报警绑定成功，状态已清空
- * @retval SW_ERR_PARAM 报警绑定注册失败，状态保持不变
+ * @retval SW_OK 状态已清空
  *
  * @note   清空范围：报警目录、活动报警表、会话日志、待发领域事件。
  *         因此本函数兼作测试复位入口，单元测试可在 setUp 中调用以消除
  *         用例间的状态残留，无需另设 *_reset_for_test()。
+ * @note   入站端口绑定已迁至 application/bridges/alarm_binding_bridge_bind()，
+ *         本函数不再注册 alarm_binding。
  * @note   调用时机约束：必须在加载报警目录之前调用，否则会清掉已加载的目录。
  *         bootstrap 的 bind 阶段已保证该顺序。
  */

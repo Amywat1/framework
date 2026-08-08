@@ -8,7 +8,7 @@
 #include "adapters/outbound/hal/providers/snack/io_exp/snack_io_adapter.h"
 
 #include "common/log.h"
-#include "ports/outbound/hal/hal_io_port.h"
+#include "domain/ports/outbound/hal/hal_io_port.h"
 
 #include <string.h>
 

@@ -11,7 +11,7 @@
 #include "common/log.h"
 #include "common/sw_mutex.h"
 #include "common/time_util.h"
-#include "ports/outbound/hal/hal_io_port.h"
+#include "domain/ports/outbound/hal/hal_io_port.h"
 
 #include <pthread.h>
 #include <string.h>

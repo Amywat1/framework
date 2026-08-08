@@ -10,7 +10,7 @@
 #include "adapters/runtime/snack/snack_sdk.h"
 #include "common/event_types.h"
 #include "common/log.h"
-#include "ports/outbound/cloud/link/cloud_link_port.h"
+#include "application/ports/outbound/cloud/link/cloud_link_port.h"
 #include "runtime/event_bus/event_bus.h"
 
 #include <stdbool.h>

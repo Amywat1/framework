@@ -15,7 +15,7 @@
 extern "C" {
 #endif
 
-#include "ports/outbound/hal/hal_sensor_port.h"
+#include "domain/ports/outbound/hal/hal_sensor_port.h"
 
 /** @brief  注册通用 DI 滤波 HAL 实现到 hal_sensor_port */
 void hal_sensor_filter_register(void);

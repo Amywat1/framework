@@ -18,7 +18,7 @@
 
 #include "common/asset_version.h"
 #include "common/log.h"
-#include "ports/outbound/storage/deploy_store.h"
+#include "domain/ports/outbound/storage/deploy_store.h"
 #include "third_party/cJSON/cJSON.h"
 
 #include <pthread.h>

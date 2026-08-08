@@ -7,8 +7,8 @@
 #include "adapters/outbound/hal/sim/hal_io_sim.h"
 #include "common/io_handle.h"
 #include "common/sw_error.h"
-#include "ports/outbound/hal/hal_io_port.h"
-#include "ports/outbound/hal/hal_sensor_port.h"
+#include "domain/ports/outbound/hal/hal_io_port.h"
+#include "domain/ports/outbound/hal/hal_sensor_port.h"
 #include "wdf_test_spec.h"
 
 #define TEST_DI io_di_make(1U, 1U)

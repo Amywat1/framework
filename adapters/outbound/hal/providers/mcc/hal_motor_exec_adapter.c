@@ -7,7 +7,7 @@
  */
 
 #include "adapters/outbound/hal/providers/mcc/motor_executor.h"
-#include "ports/outbound/hal/motor/hal_motor_exec_port.h"
+#include "domain/ports/outbound/hal/motor/hal_motor_exec_port.h"
 
 static motor_direction_t to_mcc_dir(hal_motor_dir_t dir)
 {

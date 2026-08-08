@@ -18,7 +18,7 @@ extern "C" {
 #include "adapters/outbound/hal/components/vfd_manager/hal_vfd_manager_bind.h"
 #include "common/io_handle.h"
 #include "common/sw_error.h"
-#include "ports/outbound/hal/hal_vfd_port.h"
+#include "domain/ports/outbound/hal/hal_vfd_port.h"
 
 #include <stdbool.h>
 #include <stdint.h>

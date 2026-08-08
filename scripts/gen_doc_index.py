@@ -23,7 +23,7 @@ event_bus 8 例、实际 13 例）。
 
 所以本脚本的输出全部从代码抽取：事件表来自 common/event_types.h 的宏定义与全仓
 的 event_publish / 订阅表调用点，端口表来自 ports/**/*.h 的 doxygen @brief 与
-注册表，目录表来自 cmake/wdf_targets.cmake。框架 79 个头文件 @brief 覆盖率 100%，
+注册表，目录表来自 cmake/wdf_targets.cmake。框架 109 个头文件 @brief 覆盖率 100%，
 这些信息本来就在代码里，缺的只是抽取。
 
 --check 模式进门禁：代码改了而索引没重生成即失败，这样索引不可能落后于代码。
@@ -44,7 +44,6 @@ AI_DIR = ROOT / "doc" / "ai"
 LAYERS = [
     "common",
     "domain",
-    "ports",
     "application",
     "adapters",
     "runtime",
@@ -167,7 +166,7 @@ BRIEF_RE = re.compile(r"@brief\s+(.+)")
 
 
 def file_brief(p: Path) -> str:
-    """取文件头 doxygen 的 @brief。框架 79 个头文件覆盖率 100%。"""
+    """取文件头 doxygen 的 @brief。框架 109 个头文件覆盖率 100%。"""
     text = p.read_text(encoding="utf-8", errors="replace")
     m = BRIEF_RE.search(text)
     return m.group(1).strip().rstrip("*/").strip() if m else ""
@@ -303,7 +302,7 @@ def build_code_map() -> str:
     dir_targets: dict[str, set[str]] = {}
     for tgt, srcs in targets.items():
         for s in srcs:
-            dir_targets.setdefault(str(Path(s).parent), set()).add(tgt)
+            dir_targets.setdefault(Path(s).parent.as_posix(), set()).add(tgt)
 
     # 目录 → 提及它的设计文档
     doc_files = sorted((ROOT / "doc").rglob("*.md"))
@@ -343,7 +342,7 @@ def build_code_map() -> str:
 
     all_dirs = set()
     for p in sources((".c", ".h")):
-        all_dirs.add(str(p.parent.relative_to(ROOT)))
+        all_dirs.add(p.parent.relative_to(ROOT).as_posix())
 
     for d in sorted(all_dirs):
         c_files = sorted((ROOT / d).glob("*.c"))
@@ -366,7 +365,7 @@ def build_code_map() -> str:
         scored = [(v.count(d), k) for k, v in doc_texts.items() if v.count(d) >= 3]
         scored.sort(key=lambda t: (-t[0], t[1]))
         doc_col = (
-            "<br>".join(f"`{Path(k).relative_to('doc') if k.startswith('doc/') else k}` ({c})"
+            "<br>".join(f"`{(Path(k).relative_to('doc').as_posix() if k.startswith('doc/') else k)}` ({c})"
                         for c, k in scored[:3])
             or "**无**"
         )

@@ -13,7 +13,7 @@
 #define PARAM_STORE_JSON_FILE_PATH ""
 #endif
 #include "common/log.h"
-#include "ports/outbound/storage/param_store.h"
+#include "domain/ports/outbound/storage/param_store.h"
 #include "third_party/cJSON/cJSON.h"
 
 #include <pthread.h>

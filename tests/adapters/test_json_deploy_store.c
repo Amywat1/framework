@@ -9,7 +9,7 @@
 
 #include "adapters/outbound/storage/json/json_deploy_store.h"
 #include "common/sw_error.h"
-#include "ports/outbound/storage/deploy_store.h"
+#include "domain/ports/outbound/storage/deploy_store.h"
 #include "wdf_test_spec.h"
 
 #include <stdio.h>

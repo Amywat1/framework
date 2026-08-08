@@ -2,8 +2,8 @@
 
 **版本**：v1.0  
 **状态**：已落地（HAL 端口 + 通用组件 + sim 后端 + MCC/Snack 可选 provider）  
-**最后同步代码**：2026-07-14（`ports/outbound/hal`、`components/sensor_filter`、`components/vfd_manager`、MCC provider、Snack io_exp/Modbus provider）  
-**适用范围**：`ports/outbound/hal/`、`adapters/outbound/hal/`、`CMakeLists.txt` 可选 provider  
+**最后同步代码**：2026-07-14（`domain/ports/outbound/hal`、`components/sensor_filter`、`components/vfd_manager`、MCC provider、Snack io_exp/Modbus provider）  
+**适用范围**：`domain/ports/outbound/hal/`、`adapters/outbound/hal/`、`CMakeLists.txt` 可选 provider  
 **架构基线**：Ports & Adapters + 通用组件组合层 + 项目 wiring 注入  
 **关键词**：HAL port、hal_io、hal_sensor、hal_vfd、hal_voice、hal_motor_exec、sensor_filter、vfd_manager、MCC、Snack
 
@@ -11,7 +11,7 @@
 
 ## 1. 设计目标与核心理念
 
-HAL 层为 domain/application 提供稳定的硬件能力边界。框架内的业务代码只依赖 `ports/outbound/hal/*` 契约；真实 SDK、总线协议、IO 板点位表和串口配置由 adapter/provider 或项目 wiring 处理。
+HAL 层为 domain/application 提供稳定的硬件能力边界。框架内的业务代码只依赖 `domain/ports/outbound/hal/*` 契约；真实 SDK、总线协议、IO 板点位表和串口配置由 adapter/provider 或项目 wiring 处理。
 
 ### 1.1 设计目标
 
@@ -27,7 +27,7 @@ HAL 层为 domain/application 提供稳定的硬件能力边界。框架内的�
 domain / application / services
         │ hal_*_get_ops() / hal_motor_*()
         ▼
-ports/outbound/hal
+domain/ports/outbound/hal
         ▲
         │ register ops 或端口函数实现
 adapters/outbound/hal
@@ -45,7 +45,7 @@ adapters/outbound/hal
 **依赖禁令**：
 
 - `domain/` 不得 include provider SDK 头文件。
-- `ports/outbound/hal` 不得 include `adapters/` 实现头文件。
+- `domain/ports/outbound/hal` 不得 include `adapters/` 实现头文件。
 - provider 不得写业务命令裁决、报警等级或项目流程逻辑。
 - sim 后端不得成为真机默认 wiring。
 
@@ -55,17 +55,17 @@ adapters/outbound/hal
 
 | 位置 | 内容 |
 |------|------|
-| `ports/outbound/hal/hal_io_port.h` | 数字 IO 端口契约 |
-| `ports/outbound/hal/hal_sensor_port.h` | DI 滤波端口契约 |
-| `ports/outbound/hal/hal_vfd_port.h` | 变频器端口契约 |
-| `ports/outbound/hal/hal_voice_port.h` | 语音端口契约 |
-| `ports/outbound/hal/motor/hal_motor_exec_port.h` | 电机执行器端口契约 |
+| `domain/ports/outbound/hal/hal_io_port.h` | 数字 IO 端口契约 |
+| `domain/ports/outbound/hal/hal_sensor_port.h` | DI 滤波端口契约 |
+| `domain/ports/outbound/hal/hal_vfd_port.h` | 变频器端口契约 |
+| `domain/ports/outbound/hal/hal_voice_port.h` | 语音端口契约 |
+| `domain/ports/outbound/hal/motor/hal_motor_exec_port.h` | 电机执行器端口契约 |
 | `adapters/outbound/hal/components/` | 通用组件：`sensor_filter`、`vfd_manager`、`adc_gate` |
 | `adapters/outbound/hal/sim/` | IO / 语音 / 方案引擎 IO 与执行器仿真后端 |
 | `adapters/outbound/hal/providers/mcc/` | 电机 vendor provider（`WDF_ENABLE_MCC_PROVIDER`） |
 | `adapters/outbound/hal/providers/snack/io_exp/` | CAN IO 子板 vendor provider |
 | `adapters/outbound/hal/providers/snack/modbus/` | Modbus 语音与变频器 vendor provider |
-| `ports/port_registry_hal.c` | HAL 端口注册器与 `port_registry_hal_reset()` |
+| `runtime/ports/port_registry_hal.c` | HAL 端口注册器与 `port_registry_hal_reset()` |
 
 端口全表（含各端口的注册入口）由 `../../ai/符号索引.md` 自动生成。
 

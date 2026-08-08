@@ -13,7 +13,7 @@ extern "C" {
 #endif
 
 #include "common/sw_error.h"
-#include "ports/outbound/hal/hal_vfd_port.h"
+#include "domain/ports/outbound/hal/hal_vfd_port.h"
 
 #include <stdbool.h>
 #include <stdint.h>

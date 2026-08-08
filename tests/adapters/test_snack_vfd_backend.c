@@ -6,7 +6,7 @@
 #include "adapters/outbound/hal/providers/snack/io_exp/io_exp_driver.h"
 #include "adapters/outbound/hal/providers/snack/modbus/snack_vfd_backend.h"
 #include "common/io_handle.h"
-#include "ports/outbound/hal/hal_vfd_port.h"
+#include "domain/ports/outbound/hal/hal_vfd_port.h"
 #include "tests/stubs/snack/drv_modbus_link_fake.h"
 #include "wdf_test_spec.h"
 

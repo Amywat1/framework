@@ -94,12 +94,16 @@ wiring、配置、绑定表和 provider 里。**框架不含任何具体项目�
 
 ## 分层与依赖方向
 
+依赖方向（include）与调用方向分开看。端口契约按所有权落在
+`domain/ports`、`application/ports`；`runtime/ports` 只做装配。
+详见 `doc/architecture/01-分层架构与依赖边界.md`。
+
 ```text
 adapters / demo / 项目 wiring
         ↓
-ports / application
+application / services
         ↓
-domain
+domain ──► domain/ports/outbound
         ↓
 common
 
@@ -108,8 +112,8 @@ observability 是旁路设施，只依赖 common，不回调任何层。
 ```
 
 `domain/` 另有四条层内禁令：不做文件 IO、不解析序列化格式、不自建线程或周期任务、
-不使用动态内存（方案引擎三文件已登记豁免）。各层允许的出向依赖见
-`doc/ai/任务索引.md`，规则实现见 `scripts/check_arch_boundary.sh`。
+不使用动态内存（方案引擎三文件已登记豁免）。`domain` 不得依赖 `application/`。
+各层允许的出向依赖见 `doc/ai/任务索引.md`，规则实现见 `scripts/check_arch_boundary.sh`。
 
 ---
 
@@ -123,7 +127,7 @@ observability 是旁路设施，只依赖 common，不回调任何层。
 
 代码注释必须中文。所有对外公开接口必须有中文 Doxygen 注释——至少覆盖公开头文件中的
 函数声明、可供外部使用的结构体、枚举、回调接口和硬件相关 API，说明用途、关键参数、
-返回值以及必要的状态约束或调用前提。状态机相关接口同样适用。当前 79 个框架头文件
+返回值以及必要的状态约束或调用前提。状态机相关接口同样适用。当前 109 个框架头文件
 `@brief` 覆盖率 100%，`doc/ai/符号索引.md` 从这些注释抽取。
 
 提交消息格式 `[type]: 中文摘要`，type 取 `feat` / `fix` / `refactor` / `test` /

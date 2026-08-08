@@ -11,7 +11,7 @@
 
 #include "adapters/outbound/storage/json/json_param_store.h"
 #include "common/sw_error.h"
-#include "ports/outbound/storage/param_store.h"
+#include "domain/ports/outbound/storage/param_store.h"
 #include "wdf_test_spec.h"
 
 #include <stdio.h>

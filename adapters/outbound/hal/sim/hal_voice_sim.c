@@ -8,7 +8,7 @@
 #include "adapters/outbound/hal/sim/hal_voice_sim.h"
 
 #include "common/log.h"
-#include "ports/outbound/hal/hal_voice_port.h"
+#include "domain/ports/outbound/hal/hal_voice_port.h"
 
 #include <stdbool.h>
 

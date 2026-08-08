@@ -10,9 +10,9 @@
 #   2  参数错误
 #
 # 规则概览:
-#   R1  common/        不依赖上层目录（domain/ports/application/adapters/runtime/services/）
-#   R2  domain/        不依赖 adapters/ 或 application/
-#   R3  ports/         不依赖 adapters/、application/、runtime/ 或 services/
+#   R1  common/        不依赖上层目录（domain/application/adapters/runtime/services/）
+#   R2  domain/        不依赖 adapters/ 或 application/（含 application/ports）
+#   R3  domain|application 下契约头  不依赖 adapters/
 #   R4  runtime/event_bus/   不依赖业务层
 #   R5  runtime/scheduler/   不依赖业务层
 #   R6  各框架层        引号 include 均可在框架树内解析（vendor 头限 providers/）
@@ -85,36 +85,38 @@ echo "======================================================="
 check_includes \
     "R1: common/ 不依赖上层模块" \
     "common" \
-    "domain/" "ports/" "application/" "adapters/" "runtime/" "services/"
+    "domain/" "application/" "adapters/" "runtime/" "services/"
 
 # R2: domain/ 不依赖 adapters/ 或 application/
-# domain 可引用 common/、ports/、runtime/，但不得依赖具体实现层或用例层
+# domain 可引用 common/、自身 domain/ports/outbound、runtime/event_bus
 check_includes \
     "R2: domain/ 不依赖 adapters/ 或 application/" \
     "domain" \
     "adapters/" "application/"
 
-# R3: ports/ 不依赖 adapters/、application/、runtime/ 或 services/
-# ports 是纯抽象契约，不依赖任何实现层、运行时基础设施或服务层。
-# 依赖表中 ports 的允许出向依赖只有 common/ 与 domain/，services/ 同属禁止项。
+# R3: 契约目录不依赖 adapters（runtime/ports 是装配器，允许依赖 domain/application）
 check_includes \
-    "R3: ports/ 不依赖 adapters/、application/、runtime/ 或 services/" \
-    "ports" \
-    "adapters/" "application/" "runtime/" "services/"
+    "R3a: domain/ports/ 不依赖 adapters/" \
+    "domain/ports" \
+    "adapters/"
+check_includes \
+    "R3b: application/ports/ 不依赖 adapters/" \
+    "application/ports" \
+    "adapters/"
 
 # R4: runtime/event_bus/ 不依赖业务层
 # event_bus 是核心基础设施，必须对业务层保持无知
-# （runtime/bootstrap/ 是装配器，不在此规则范围内）
+# （runtime/bootstrap/ 与 runtime/ports/ 是装配器，不在此规则范围内）
 check_includes \
     "R4: runtime/event_bus/ 不依赖业务层" \
     "runtime/event_bus" \
-    "domain/" "ports/" "application/" "adapters/" "services/"
+    "domain/" "application/" "adapters/" "services/"
 
 # R5: runtime/scheduler/ 不依赖业务层
 check_includes \
     "R5: runtime/scheduler/ 不依赖业务层" \
     "runtime/scheduler" \
-    "domain/" "ports/" "application/" "adapters/" "services/"
+    "domain/" "application/" "adapters/" "services/"
 
 # -----------------------------------------------------------------------------
 # R6: 框架层不引用框架树之外的头文件
@@ -142,7 +144,7 @@ VENDOR_INCLUDE_ALLOW='^(io_exp|modbus)/'
 TOTAL_RULES=$((TOTAL_RULES + 1))
 foreign_includes=""
 
-for layer in common domain ports application adapters runtime services observability; do
+for layer in common domain application adapters runtime services observability; do
     [ -d "${FW_ROOT}/${layer}" ] || continue
 
     while IFS= read -r src; do
@@ -224,7 +226,7 @@ adapters/outbound/safety/sim/safety_sim.c
 TOTAL_RULES=$((TOTAL_RULES + 1))
 unregistered=""
 
-for layer in common domain ports application adapters runtime services observability; do
+for layer in common domain application adapters runtime services observability; do
     [ -d "${FW_ROOT}/${layer}" ] || continue
 
     while IFS= read -r src; do
@@ -405,7 +407,7 @@ check_includes \
 check_includes \
     "R14: observability/ 只依赖 common/" \
     "observability" \
-    "domain/" "ports/" "application/" "adapters/" "runtime/" "services/"
+    "domain/" "application/" "adapters/" "runtime/" "services/"
 
 # -----------------------------------------------------------------------------
 # R15: 头文件保护宏必须等于其路径的全大写下划线形式

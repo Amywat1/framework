@@ -12,7 +12,7 @@
 #include "common/log.h"
 #include "common/time_util.h"
 #include "domain/op_mode/operational_mode.h"
-#include "ports/inbound/command/command_port.h"
+#include "application/ports/inbound/command/command_port.h"
 #include "runtime/event_bus/event_bus.h"
 
 #include <errno.h>

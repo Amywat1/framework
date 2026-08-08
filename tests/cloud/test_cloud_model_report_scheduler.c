@@ -10,9 +10,9 @@
 #include "common/time_util.h"
 #include "domain/cloud/cloud_model.h"
 #include "domain/cloud/cloud_point.h"
-#include "ports/inbound/cloud/property/property_port.h"
-#include "ports/outbound/cloud/link/cloud_link_port.h"
-#include "ports/outbound/cloud/report/report_port.h"
+#include "application/ports/inbound/cloud/property/property_port.h"
+#include "application/ports/outbound/cloud/link/cloud_link_port.h"
+#include "application/ports/outbound/cloud/report/report_port.h"
 #include "runtime/event_bus/event_bus.h"
 #include "wdf_test_spec.h"
 

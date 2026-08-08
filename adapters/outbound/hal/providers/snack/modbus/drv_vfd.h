@@ -26,7 +26,7 @@ extern "C" {
 #include "adapters/outbound/hal/providers/snack/modbus/drv_modbus_link.h"
 #include "common/io_handle.h"
 #include "common/sw_error.h"
-#include "ports/outbound/hal/hal_vfd_port.h"
+#include "domain/ports/outbound/hal/hal_vfd_port.h"
 
 #include <pthread.h>
 #include <stdbool.h>

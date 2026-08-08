@@ -11,7 +11,7 @@ extern "C" {
 #endif
 
 #include "domain/op_mode/op_mode_types.h"
-#include "ports/outbound/machine/machine_ops_port.h"
+#include "domain/ports/outbound/machine/machine_ops_port.h"
 #include "tests/stubs/test_wash_modes.h"
 
 void               wash_ops_stub_reset(void);

@@ -3,7 +3,7 @@
  * @brief   MCC 电机执行器 HAL provider 单元测试。
  */
 
-#include "ports/outbound/hal/motor/hal_motor_exec_port.h"
+#include "domain/ports/outbound/hal/motor/hal_motor_exec_port.h"
 #include "tests/stubs/mcc/motor_control_core_fake.h"
 #include "wdf_test_spec.h"
 

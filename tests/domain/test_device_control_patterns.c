@@ -6,7 +6,7 @@
 #include "common/sw_error.h"
 #include "domain/device_control/patterns/fluid_path.h"
 #include "domain/device_control/patterns/motor_axis.h"
-#include "ports/outbound/hal/motor/hal_motor_exec_port.h"
+#include "domain/ports/outbound/hal/motor/hal_motor_exec_port.h"
 #include "wdf_test_spec.h"
 
 #include <stdbool.h>
