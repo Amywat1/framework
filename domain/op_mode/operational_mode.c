@@ -270,13 +270,6 @@ static dev_cmd_decision_t check_command(const dev_cmd_t *cmd)
         }
     }
 
-    if (kind == DEV_CMD_RESUME_OPERATION) {
-        /* 已开则拒绝；与当前模式无关 */
-        if (s_service_enabled) {
-            return make_denied(OP_REJECT_WRONG_MODE);
-        }
-    }
-
     return (dev_cmd_decision_t){
         .verdict        = OP_CMD_ALLOWED,
         .reason         = OP_REJECT_NONE,
@@ -333,7 +326,7 @@ dev_cmd_decision_t op_mode_handle_command(const dev_cmd_t *cmd)
         break;
 
     case DEV_CMD_RESUME_OPERATION:
-        /* 仅重新授权；不改模式（接单仍须 RECOVER → IDLE）*/
+        /* 仅重新授权（已开则幂等）；不改模式（接单仍须 RECOVER → IDLE）*/
         op_mode_set_service_enabled(true);
         break;
 
@@ -500,6 +493,10 @@ bool op_mode_is_standby(void)
 
 static void op_mode_set_service_enabled(bool enabled)
 {
+    if (s_service_enabled == enabled) {
+        return;
+    }
+
     s_service_enabled = enabled;
     publish_context_sync();
 }
