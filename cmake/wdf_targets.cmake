@@ -30,12 +30,12 @@
 #   wdf_storage_json     JSON 参数/部署/方案存储适配器
 #   wdf_hal_sim          IO / 语音仿真后端
 #   wdf_hal_engine_sim   方案引擎 IO / 执行器仿真后端
-#   wdf_hal_components   ADC 门控、传感器滤波、VFD 管理器
+#   wdf_hal_components   ADC 门控、传感器滤波、VFD 管理器、电机执行器
 #   wdf_point_table_json 点位表的 JSON 编解码
 #   wdf_cloud_json       物模型属性 JSON 与 property_port 安装
 #   wdf_cjson            随框架分发的 cJSON
 #
-# 注意：vendor provider（mcc / snack）仍由 framework/CMakeLists.txt 的
+# 注意：vendor provider（snack）仍由 framework/CMakeLists.txt 的
 #       WDF_ENABLE_* 选项以 STATIC 库形式提供，它们有外部 SDK 依赖，
 #       不适合作为无条件导出的 INTERFACE 源。
 
@@ -168,8 +168,8 @@ _wdf_add_interface_lib(wdf_domain
 # ---------------------------------------------------------------------------
 # wdf_device_control — 设备控制通用模式（运动、旋转、互锁、流体路径）
 #
-# motor_axis 会调用 hal_motor_exec_port 声明的函数，这些符号由项目选择的
-# motor provider（例如 wdf_hal_motor_exec_mcc）提供，必须一并链接。
+# motor_axis 会调用 hal_motor_exec_port 声明的函数，这些符号由
+# wdf_hal_components 中的电机执行器实现提供，项目须一并链接。
 # ---------------------------------------------------------------------------
 _wdf_add_interface_lib(wdf_device_control
     SOURCES
@@ -397,6 +397,7 @@ _wdf_add_interface_lib(wdf_hal_components
         adapters/outbound/hal/components/adc_gate/hal_adc_gate.c
         adapters/outbound/hal/components/sensor_filter/hal_sensor_filter.c
         adapters/outbound/hal/components/vfd_manager/hal_vfd_manager.c
+        adapters/outbound/hal/components/motor_exec/hal_motor_executor.c
     DEPENDS
         wdf_common
         wdf_ports

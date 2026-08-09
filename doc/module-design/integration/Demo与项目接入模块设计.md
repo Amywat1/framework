@@ -312,15 +312,14 @@ target_link_libraries(my_app PRIVATE wdf_application wdf_services wdf_storage_js
 | `wdf_hal_sim` / `wdf_hal_engine_sim` / `wdf_hal_components` | 仿真后端 / 引擎仿真后端 / HAL 组合件 |
 | `wdf_point_table_json` / `wdf_cjson` | 点位表 JSON 编解码 / 随框架分发的 cJSON |
 
-`wdf_domain` 刻意不含设备控制与方案引擎：两者分别要求项目提供 motor provider 与方案资产，最小接入（如框架自带 demo）并不需要，捆绑进核心会造成链接期缺符号。同理 `wdf_asset_contract`、`wdf_report_scheduler`、`wdf_observation_bridge` 各自独立，不接入的项目不必被迫链接 cloud、program_engine 或 observability。
+`wdf_domain` 刻意不含设备控制与方案引擎：两者分别要求项目链接电机执行器实现与方案资产，最小接入（如框架自带 demo）并不需要，捆绑进核心会造成链接期缺符号。同理 `wdf_asset_contract`、`wdf_report_scheduler`、`wdf_observation_bridge` 各自独立，不接入的项目不必被迫链接 cloud、program_engine 或 observability。
 
 Demo 的 `demo/CMakeLists.txt` 即按此方式装配，只额外补 `safety_sim` 与 `hw_estop_sim` 两个 sim 装配选择。
 
-vendor provider 仍由根 CMake 开关以 STATIC 库提供，它们有外部 SDK 依赖，不适合无条件导出：
+Snack 等 vendor provider 仍由根 CMake 开关以 STATIC 库提供，它们有外部 SDK 依赖，不适合无条件导出；电机执行器已纳入 `wdf_hal_components`：
 
 | 开关 | 用途 |
 |------|------|
-| `WDF_ENABLE_MCC_PROVIDER` | MCC 电机执行器 |
 | `WDF_ENABLE_SNACK_IO_EXP_PROVIDER` | Snack io_exp IO 子板 |
 | `WDF_ENABLE_SNACK_MODBUS_PROVIDER` | Snack voice / VFD Modbus |
 | `WDF_ENABLE_SNACK_CLOUD_PROVIDER` | Snack MQTT cloud provider |

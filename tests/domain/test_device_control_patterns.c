@@ -34,9 +34,15 @@ static int                    s_move_count;
 static int                    s_stop_count;
 static int                    s_speed_count;
 static int                    s_recover_count;
-static bool                   s_fault_cb_dir_positive;
-static hal_motor_fault_code_t s_fault_cb_code;
-static int                    s_fault_cb_count;
+static bool                   s_end_cb_valid;
+static actuator_id_t          s_end_cb_id;
+static motor_axis_end_result_t s_end_cb_result;
+static int                    s_end_cb_count;
+
+#define MOCK_EVENT_CAP 8
+static hal_motor_event_t s_events[MOCK_EVENT_CAP];
+static int               s_ev_head;
+static int               s_ev_count;
 
 static hal_motor_cmd_result_t cmd_ok(void)
 {
@@ -53,15 +59,18 @@ static hal_motor_cmd_result_t cmd_rejected(void)
 static void mock_motor_reset(void)
 {
     memset(s_motor, 0, sizeof(s_motor));
-    s_next_result           = cmd_ok();
-    s_run_count             = 0;
-    s_move_count            = 0;
-    s_stop_count            = 0;
-    s_speed_count           = 0;
-    s_recover_count         = 0;
-    s_fault_cb_dir_positive = false;
-    s_fault_cb_code         = HAL_MOTOR_FAULT_NONE;
-    s_fault_cb_count        = 0;
+    s_next_result   = cmd_ok();
+    s_run_count     = 0;
+    s_move_count    = 0;
+    s_stop_count    = 0;
+    s_speed_count   = 0;
+    s_recover_count = 0;
+    s_end_cb_valid  = false;
+    s_end_cb_id     = 0;
+    memset(&s_end_cb_result, 0, sizeof(s_end_cb_result));
+    s_end_cb_count = 0;
+    s_ev_head      = 0;
+    s_ev_count     = 0;
 }
 
 static bool motor_index_valid(int motor)
@@ -178,11 +187,63 @@ hal_motor_fault_code_t hal_motor_fault_code(const hal_motor_exec_t *exec, int mo
     return motor_index_valid(motor) ? s_motor[motor].fault : HAL_MOTOR_FAULT_NONE;
 }
 
-static void on_process_fault(bool is_positive_dir, hal_motor_fault_code_t fault)
+bool hal_motor_pop_event(hal_motor_exec_t *exec, hal_motor_event_t *out)
 {
-    s_fault_cb_dir_positive = is_positive_dir;
-    s_fault_cb_code         = fault;
-    s_fault_cb_count++;
+    (void)exec;
+    if ((out == NULL) || (s_ev_count <= 0)) {
+        return false;
+    }
+    *out       = s_events[s_ev_head];
+    s_ev_head  = (s_ev_head + 1) % MOCK_EVENT_CAP;
+    s_ev_count--;
+    return true;
+}
+
+bool hal_motor_pop_event_for(hal_motor_exec_t *exec, int motor, hal_motor_event_t *out)
+{
+    int n;
+
+    (void)exec;
+    if ((out == NULL) || (s_ev_count <= 0)) {
+        return false;
+    }
+    for (n = 0; n < s_ev_count; ++n) {
+        int idx = (s_ev_head + n) % MOCK_EVENT_CAP;
+        int m;
+
+        if (s_events[idx].motor != motor) {
+            continue;
+        }
+        *out = s_events[idx];
+        for (m = n; m < s_ev_count - 1; ++m) {
+            int from = (s_ev_head + m + 1) % MOCK_EVENT_CAP;
+            int to   = (s_ev_head + m) % MOCK_EVENT_CAP;
+            s_events[to] = s_events[from];
+        }
+        s_ev_count--;
+        return true;
+    }
+    return false;
+}
+
+static void mock_push_event(const hal_motor_event_t *ev)
+{
+    int tail;
+
+    if (s_ev_count >= MOCK_EVENT_CAP) {
+        return;
+    }
+    tail           = (s_ev_head + s_ev_count) % MOCK_EVENT_CAP;
+    s_events[tail] = *ev;
+    s_ev_count++;
+}
+
+static void on_motion_end(actuator_id_t id, const motor_axis_end_result_t *result)
+{
+    s_end_cb_id     = id;
+    s_end_cb_result = *result;
+    s_end_cb_valid  = result->valid;
+    s_end_cb_count++;
 }
 
 #define TEST_CH_SHARED 0U
@@ -299,21 +360,22 @@ static void test_motor_axis_run_and_query_state(void)
     TEST_ASSERT_EQUAL_INT(MOTOR_AXIS_STATE_MOVING, motor_axis_state(&axis));
     s_motor[1].phase = HAL_MOTOR_PHASE_WAITING_START;
     TEST_ASSERT_EQUAL_INT(MOTOR_AXIS_STATE_MOVING, motor_axis_state(&axis));
-    s_motor[1].phase = HAL_MOTOR_PHASE_PAUSED;
+    s_motor[1].phase = HAL_MOTOR_PHASE_REVERSAL_WAIT;
     TEST_ASSERT_EQUAL_INT(MOTOR_AXIS_STATE_MOVING, motor_axis_state(&axis));
 }
 
-static void test_motor_axis_spec_uses_move_to_and_fault_callback(void)
+static void test_motor_axis_spec_uses_move_to_and_end_callback(void)
 {
     motor_axis_t            axis;
     hal_motor_move_spec_t   spec;
     motion_lifecycle_opts_t opts;
+    motor_axis_end_result_t last;
     hal_motor_exec_t       *exec = (hal_motor_exec_t *)s_motor;
 
     memset(&axis, 0, sizeof(axis));
     memset(&spec, 0, sizeof(spec));
     opts.motion_actuator_id = 0U;
-    opts.on_process_fault   = on_process_fault;
+    opts.on_motion_end      = on_motion_end;
 
     TEST_ASSERT_EQUAL_INT(SW_OK, motor_axis_init(&axis, exec, 0, &opts));
     TEST_ASSERT_EQUAL_INT(SW_OK, motor_axis_run(&axis, HAL_MOTOR_DIR_FORWARD, hal_motor_speed_gear(2), &spec));
@@ -322,9 +384,68 @@ static void test_motor_axis_spec_uses_move_to_and_fault_callback(void)
     s_next_result    = cmd_rejected();
     s_motor[0].fault = HAL_MOTOR_FAULT_OVERCURRENT;
     TEST_ASSERT_EQUAL_INT(SW_ERR_STATE, motor_axis_run(&axis, HAL_MOTOR_DIR_FORWARD, hal_motor_speed_gear(2), NULL));
-    TEST_ASSERT_EQUAL_INT(1, s_fault_cb_count);
-    TEST_ASSERT_TRUE(s_fault_cb_dir_positive);
-    TEST_ASSERT_EQUAL_INT(HAL_MOTOR_FAULT_OVERCURRENT, s_fault_cb_code);
+    TEST_ASSERT_EQUAL_INT(1, s_end_cb_count);
+    TEST_ASSERT_TRUE(s_end_cb_valid);
+    TEST_ASSERT_EQUAL_INT(MOTOR_AXIS_OUTCOME_FAULT, s_end_cb_result.outcome);
+    TEST_ASSERT_EQUAL_INT(HAL_MOTOR_FAULT_OVERCURRENT, s_end_cb_result.fault);
+    last = motor_axis_last_result(&axis);
+    TEST_ASSERT_TRUE(last.valid);
+    TEST_ASSERT_EQUAL_INT(MOTOR_AXIS_OUTCOME_FAULT, last.outcome);
+}
+
+/** @brief 纯命令拒绝（无故障码）不上报故障结局。 */
+/** @brief 同故障闩锁下事件与拒令合成只回调一次。 */
+static void test_motor_axis_fault_end_dedupes_event_and_reject(void)
+{
+    motor_axis_t            axis;
+    motion_lifecycle_opts_t opts;
+    hal_motor_event_t       ev;
+    hal_motor_exec_t       *exec = (hal_motor_exec_t *)s_motor;
+
+    memset(&axis, 0, sizeof(axis));
+    opts.motion_actuator_id = 0U;
+    opts.on_motion_end      = on_motion_end;
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, motor_axis_init(&axis, exec, 0, &opts));
+
+    memset(&ev, 0, sizeof(ev));
+    ev.motor   = 0;
+    ev.type    = HAL_MOTOR_EVENT_FAULT;
+    ev.fault   = HAL_MOTOR_FAULT_OVERCURRENT;
+    s_events[0] = ev;
+    s_ev_head   = 0;
+    s_ev_count  = 1;
+    s_motor[0].phase = HAL_MOTOR_PHASE_FAULT;
+    s_motor[0].fault = HAL_MOTOR_FAULT_OVERCURRENT;
+
+    motor_axis_poll(&axis);
+    TEST_ASSERT_EQUAL_INT(1, s_end_cb_count);
+    TEST_ASSERT_EQUAL_INT(MOTOR_AXIS_OUTCOME_FAULT, s_end_cb_result.outcome);
+
+    s_next_result = cmd_rejected();
+    TEST_ASSERT_EQUAL_INT(SW_ERR_STATE, motor_axis_run(&axis, HAL_MOTOR_DIR_FORWARD, hal_motor_speed_gear(1), NULL));
+    TEST_ASSERT_EQUAL_INT(1, s_end_cb_count);
+}
+
+static void test_motor_axis_reject_without_fault_skips_end_callback(void)
+{
+    motor_axis_t            axis;
+    motion_lifecycle_opts_t opts;
+    motor_axis_end_result_t last;
+    hal_motor_exec_t       *exec = (hal_motor_exec_t *)s_motor;
+
+    memset(&axis, 0, sizeof(axis));
+    opts.motion_actuator_id = 0U;
+    opts.on_motion_end      = on_motion_end;
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, motor_axis_init(&axis, exec, 0, &opts));
+    s_next_result    = cmd_rejected();
+    s_motor[0].fault = HAL_MOTOR_FAULT_NONE;
+    s_motor[0].phase = HAL_MOTOR_PHASE_STOPPED;
+    TEST_ASSERT_EQUAL_INT(SW_ERR_STATE, motor_axis_run(&axis, HAL_MOTOR_DIR_FORWARD, hal_motor_speed_gear(2), NULL));
+    TEST_ASSERT_EQUAL_INT(0, s_end_cb_count);
+    last = motor_axis_last_result(&axis);
+    TEST_ASSERT_FALSE(last.valid);
 }
 
 static void test_motor_axis_continuous_stop_and_recover(void)
@@ -335,7 +456,7 @@ static void test_motor_axis_continuous_stop_and_recover(void)
 
     memset(&axis, 0, sizeof(axis));
     opts.motion_actuator_id = 0U;
-    opts.on_process_fault   = on_process_fault;
+    opts.on_motion_end      = on_motion_end;
 
     TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_INIT, motor_axis_run(&axis, HAL_MOTOR_DIR_FORWARD, hal_motor_speed_gear(1), NULL));
     TEST_ASSERT_EQUAL_INT(SW_OK, motor_axis_init(&axis, exec, 2, &opts));
@@ -350,8 +471,8 @@ static void test_motor_axis_continuous_stop_and_recover(void)
     s_motor[2].phase = HAL_MOTOR_PHASE_FAULT;
     s_motor[2].fault = HAL_MOTOR_FAULT_DRIVER_FEEDBACK;
     TEST_ASSERT_EQUAL_INT(SW_ERR_STATE, motor_axis_run(&axis, HAL_MOTOR_DIR_FORWARD, hal_motor_speed_gear(1), NULL));
-    TEST_ASSERT_EQUAL_INT(1, s_fault_cb_count);
-    TEST_ASSERT_EQUAL_INT(HAL_MOTOR_FAULT_DRIVER_FEEDBACK, s_fault_cb_code);
+    TEST_ASSERT_EQUAL_INT(1, s_end_cb_count);
+    TEST_ASSERT_EQUAL_INT(HAL_MOTOR_FAULT_DRIVER_FEEDBACK, s_end_cb_result.fault);
     TEST_ASSERT_EQUAL_INT(SW_OK, motor_axis_recover(&axis));
     TEST_ASSERT_EQUAL_INT(2, s_recover_count);
     TEST_ASSERT_EQUAL_INT(MOTOR_AXIS_STATE_IDLE, motor_axis_state(&axis));
@@ -386,7 +507,7 @@ static void test_motor_axis_poll_publishes_completed_on_idle(void)
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
 
     opts.motion_actuator_id = 9U;
-    opts.on_process_fault   = NULL;
+    opts.on_motion_end      = NULL;
     TEST_ASSERT_EQUAL_INT(SW_OK, motor_axis_init(&axis, exec, 0, &opts));
     TEST_ASSERT_EQUAL_INT(SW_OK, motor_axis_run(&axis, HAL_MOTOR_DIR_FORWARD, hal_motor_speed_gear(1), NULL));
     motor_axis_poll(&axis);
@@ -416,7 +537,7 @@ static void test_motor_axis_poll_skips_waiting_start(void)
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
 
     opts.motion_actuator_id = 11U;
-    opts.on_process_fault   = NULL;
+    opts.on_motion_end      = NULL;
     TEST_ASSERT_EQUAL_INT(SW_OK, motor_axis_init(&axis, exec, 0, &opts));
     TEST_ASSERT_EQUAL_INT(SW_OK, motor_axis_run(&axis, HAL_MOTOR_DIR_FORWARD, hal_motor_speed_gear(1), NULL));
 
@@ -430,6 +551,64 @@ static void test_motor_axis_poll_skips_waiting_start(void)
     motor_axis_poll(&axis);
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_get_stats(&stats));
     TEST_ASSERT_EQUAL_UINT32(1U, stats.published_count);
+    event_bus_shutdown();
+}
+
+/** @brief poll 消费本电机事件：先 on_motion_end（含限位种类），再发空闲事件。 */
+static void test_motor_axis_poll_reports_limit_end_then_idle(void)
+{
+    motor_axis_t            axis;
+    motion_lifecycle_opts_t opts;
+    hal_motor_event_t       ev;
+    motor_axis_end_result_t last;
+    hal_motor_exec_t       *exec = (hal_motor_exec_t *)s_motor;
+    event_bus_stats_t       stats;
+
+    memset(&axis, 0, sizeof(axis));
+    time_util_init();
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
+
+    opts.motion_actuator_id = 21U;
+    opts.on_motion_end      = on_motion_end;
+    TEST_ASSERT_EQUAL_INT(SW_OK, motor_axis_init(&axis, exec, 0, &opts));
+    TEST_ASSERT_EQUAL_INT(SW_OK, motor_axis_run(&axis, HAL_MOTOR_DIR_FORWARD, hal_motor_speed_gear(1), NULL));
+
+    memset(&ev, 0, sizeof(ev));
+    ev.motor     = 1; /* 其它电机，应被保留 */
+    ev.type      = HAL_MOTOR_EVENT_ARRIVED;
+    ev.trigger   = HAL_MOTOR_END_TIME;
+    mock_push_event(&ev);
+
+    memset(&ev, 0, sizeof(ev));
+    ev.motor      = 0;
+    ev.type       = HAL_MOTOR_EVENT_ARRIVED;
+    ev.trigger    = HAL_MOTOR_END_LIMIT;
+    ev.has_limit  = true;
+    ev.limit      = HAL_MOTOR_LIMIT_ORIGIN;
+    ev.final_pos  = 12;
+    ev.elapsed_ms = 34;
+    mock_push_event(&ev);
+
+    s_motor[0].phase = HAL_MOTOR_PHASE_STOPPED;
+    motor_axis_poll(&axis);
+
+    TEST_ASSERT_EQUAL_INT(1, s_end_cb_count);
+    TEST_ASSERT_EQUAL_INT(21, (int)s_end_cb_id);
+    TEST_ASSERT_EQUAL_INT(MOTOR_AXIS_OUTCOME_ARRIVED, s_end_cb_result.outcome);
+    TEST_ASSERT_EQUAL_INT(HAL_MOTOR_END_LIMIT, s_end_cb_result.trigger);
+    TEST_ASSERT_TRUE(s_end_cb_result.has_limit);
+    TEST_ASSERT_EQUAL_INT(HAL_MOTOR_LIMIT_ORIGIN, s_end_cb_result.limit);
+    last = motor_axis_last_result(&axis);
+    TEST_ASSERT_EQUAL_INT(HAL_MOTOR_LIMIT_ORIGIN, last.limit);
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_get_stats(&stats));
+    TEST_ASSERT_EQUAL_UINT32(1U, stats.published_count);
+
+    /* 其它电机事件仍在队列 */
+    TEST_ASSERT_TRUE(hal_motor_pop_event(exec, &ev));
+    TEST_ASSERT_EQUAL_INT(1, ev.motor);
+    TEST_ASSERT_EQUAL_INT(HAL_MOTOR_END_TIME, ev.trigger);
+
     event_bus_shutdown();
 }
 
@@ -535,11 +714,18 @@ int main(void)
     UNITY_BEGIN();
 
     WDF_RUN_TEST(test_motor_axis_run_and_query_state, "", "验证电机轴运行并查询状态");
-    WDF_RUN_TEST(test_motor_axis_spec_uses_move_to_and_fault_callback, "", "验证电机轴规格调用位置移动和故障回调");
+    WDF_RUN_TEST(test_motor_axis_spec_uses_move_to_and_end_callback, "", "验证电机轴规格调用到位并上报结局回调");
+    WDF_RUN_TEST(test_motor_axis_fault_end_dedupes_event_and_reject,
+                 "",
+                 "验证故障事件与拒令合成结局去重");
+    WDF_RUN_TEST(test_motor_axis_reject_without_fault_skips_end_callback,
+                 "",
+                 "验证无故障码的命令拒绝不上报结局");
     WDF_RUN_TEST(test_motor_axis_continuous_stop_and_recover, "", "验证电机轴连续运行停止并恢复");
     WDF_RUN_TEST(test_motor_axis_preserves_frequency_speed, "", "验证电机轴保留频率速度");
     WDF_RUN_TEST(test_motor_axis_poll_publishes_completed_on_idle, "", "验证电机轴在空闲边沿发布完成事件");
     WDF_RUN_TEST(test_motor_axis_poll_skips_waiting_start, "", "验证排队启动态不发布完成事件");
+    WDF_RUN_TEST(test_motor_axis_poll_reports_limit_end_then_idle, "", "验证电机轴先上报限位结局再发空闲事件");
     WDF_RUN_TEST(test_fluid_path_reference_counts_shared_pump, "", "验证流体路径对共享水泵进行引用计数");
     WDF_RUN_TEST(test_fluid_path_rejects_invalid_topology_and_unknown_mask, "", "验证流体路径拒绝无效拓扑和未知掩码");
     WDF_RUN_TEST(test_fluid_path_respects_valve_and_pump_delays, "", "验证流体路径遵守阀门和水泵延时");

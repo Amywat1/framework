@@ -3,10 +3,10 @@
  * @brief   电机执行器出站端口。
  *
  * domain/device_control/patterns 与 projects 侧 domain/mechanism 下的机构模块只依赖
- * 本端口的不透明句柄与类型，不感知第三方电机控制 SDK（Motor Control Core, MCC）。
- * 真实执行器由项目 bindings 层静态分配
- * 并完成 motor_init，随后以 hal_motor_exec_t 指针形式注入各机构模块；MCC provider
- * 适配器位于 adapters/outbound/hal/providers/mcc/hal_motor_exec_adapter.c。
+ * 本端口的不透明句柄与类型，不感知执行器实现细节。
+ * 真实执行器由项目 bindings 层静态分配并完成 motor_init，随后以
+ * hal_motor_exec_t 指针形式注入各机构模块；默认实现位于
+ * adapters/outbound/hal/components/motor_exec/。
  */
 #ifndef DOMAIN_PORTS_OUTBOUND_HAL_MOTOR_HAL_MOTOR_EXEC_PORT_H
 #define DOMAIN_PORTS_OUTBOUND_HAL_MOTOR_HAL_MOTOR_EXEC_PORT_H
@@ -34,13 +34,25 @@ typedef enum {
     HAL_MOTOR_LIMIT_ORIGIN = 2  /**< 原点 */
 } hal_motor_limit_kind_t;
 
+/** @brief 硬限位监视掩码位（与 hal_motor_limit_kind_t 对齐）。 */
+#define HAL_MOTOR_LIMIT_MASK_POS    (1u << HAL_MOTOR_LIMIT_POS)
+#define HAL_MOTOR_LIMIT_MASK_NEG    (1u << HAL_MOTOR_LIMIT_NEG)
+#define HAL_MOTOR_LIMIT_MASK_ORIGIN (1u << HAL_MOTOR_LIMIT_ORIGIN)
+#define HAL_MOTOR_LIMIT_MASK_ALL \
+    (HAL_MOTOR_LIMIT_MASK_POS | HAL_MOTOR_LIMIT_MASK_NEG | HAL_MOTOR_LIMIT_MASK_ORIGIN)
+
+/** @brief 判断掩码是否包含指定硬限位。 */
+static inline bool hal_motor_limit_mask_has(uint8_t mask, hal_motor_limit_kind_t kind)
+{
+    return (mask & (uint8_t)(1u << (unsigned)kind)) != 0u;
+}
+
 /** @brief 电机状态。 */
 typedef enum {
     HAL_MOTOR_PHASE_STOPPED = 0,   /**< 停止（上电默认态、故障安全态） */
     HAL_MOTOR_PHASE_WAITING_START, /**< 等待启动（冷却/预备/互锁排队） */
     HAL_MOTOR_PHASE_REVERSAL_WAIT, /**< 换向等待 */
     HAL_MOTOR_PHASE_RUNNING,       /**< 运行中 */
-    HAL_MOTOR_PHASE_PAUSED,        /**< 暂停 */
     HAL_MOTOR_PHASE_DECELERATING,  /**< 减速停止中 */
     HAL_MOTOR_PHASE_FAULT,         /**< 故障 */
     HAL_MOTOR_PHASE_ESTOP          /**< 急停 */
@@ -73,6 +85,7 @@ typedef enum {
     HAL_MOTOR_END_LIMIT,      /**< 触发限位开关 */
     HAL_MOTOR_END_POSITION,   /**< 到达目标位置 */
     HAL_MOTOR_END_SOFT_LIMIT, /**< 触发软限位 */
+    HAL_MOTOR_END_CURRENT,    /**< 电流到位（正常到位，不报警） */
     HAL_MOTOR_END_TIME,       /**< 运行时长达到设定值 */
     HAL_MOTOR_END_TIMEOUT     /**< 超时兜底（错误结果） */
 } hal_motor_end_condition_t;
@@ -132,13 +145,25 @@ static inline hal_motor_speed_t hal_motor_speed_gear(int gear)
     return s;
 }
 
-/** @brief 运动到位的结束条件描述（可组合，超时兜底始终生效）。 */
+/**
+ * @brief 运动到位的结束条件描述（可组合，超时兜底始终生效）。
+ * @note  仅电流停、无位置/硬限位时，语义为持续运行至电流到位。
+ *        与驱动监测过流故障共存：电流停为正常到位，过流仍为故障。
+ */
 typedef struct {
-    bool                   use_limit;      /**< 启用限位到位 */
-    hal_motor_limit_kind_t limit;          /**< 限位种类 */
+    /**
+     * @brief 硬限位监视掩码（0=不启用）。
+     * @note  置位的 POS/NEG/ORIGIN 任一触发即到位；同拍多路优先 ORIGIN，其次 POS，再次 NEG。
+     */
+    uint8_t                limit_mask;
     bool                   use_position;   /**< 启用按位置到位（需编码器与可信基准） */
     int64_t                target_pos;     /**< 目标位置（脉冲） */
     bool                   use_soft_limit; /**< 启用软限位到位 */
+    bool                   use_current;    /**< 启用电流到位（正常切断，不报警） */
+    int                    current_limit;  /**< 电流阈值（与驱动电流同量纲） */
+    uint32_t               current_confirm_ms; /**< 持续超限确认时间（防抖，0=首拍即判） */
+    /** @brief 启动后电流到位判定消隐（ms）；只抑制电流停，不影响过流故障。 */
+    uint32_t               current_blank_ms;
     bool                   use_time;       /**< 启用按时间到位 */
     uint64_t               duration_ms;    /**< 运行时长（ms） */
     uint64_t               max_time_ms;    /**< 超时兜底（0=使用配置默认） */
@@ -165,6 +190,7 @@ static inline bool hal_motor_cmd_ok(hal_motor_cmd_result_t r)
 
 /** @brief 持续运行（异步）。
  * @note   FAULT / ESTOP 状态下必须拒绝；调用方须先 recover / 解除急停后再下发。
+ * @note   终止事件入共享队列：每台电机须有消费者按节拍排空，否则可能拖累其它电机。
  */
 hal_motor_cmd_result_t hal_motor_run_continuous(hal_motor_exec_t *exec,
                                                 int               motor,
@@ -173,6 +199,7 @@ hal_motor_cmd_result_t hal_motor_run_continuous(hal_motor_exec_t *exec,
 
 /** @brief 运动到位（异步）。spec 描述结束条件，可组合，超时兜底始终生效。
  * @note   FAULT / ESTOP 状态下必须拒绝；调用方须先 recover / 解除急停后再下发。
+ * @note   事件消费约束同 hal_motor_run_continuous。
  */
 hal_motor_cmd_result_t hal_motor_move_to(hal_motor_exec_t            *exec,
                                          int                          motor,
@@ -221,13 +248,33 @@ hal_motor_fault_code_t hal_motor_fault_code(const hal_motor_exec_t *exec, int mo
 bool hal_motor_encoder_healthy(const hal_motor_exec_t *exec, int motor);
 
 /**
+ * @brief  查询位置基准是否可信。
+ * @return true 已通过回原点或执行器 confirm_baseline 建立可信基准；
+ *         false 时禁止依赖按位置到位（执行器侧也会拒绝）。
+ * @note   无编码器的机构恒为 true。与 encoder_healthy 正交：上电后编码器可健康但基准未建。
+ */
+bool hal_motor_baseline_trusted(const hal_motor_exec_t *exec, int motor);
+
+/**
  * @brief  取出一条运动结束事件，用于记录状态变化原因。
  * @param  exec 电机执行器句柄。
  * @param  out  输出事件；仅在返回 true 时有效。
  * @return true 取出一条事件；false 队列已空。
- * @note   队列容量有限，调用方须按节拍持续排空，否则最旧事件会被覆盖丢弃。
+ * @note   队列容量有限；满时优先丢弃同电机最旧事件，否则丢全局最旧。
+ *         每台产生事件的电机都必须有人消费，否则仍可能挤掉其它电机结局。
+ * @note   经 motor_axis 管理的电机应由 axis poll 独占消费（见 pop_event_for）；
+ *         若注册了会排空队列的执行器事件回调，则与 pop 互斥。
  */
 bool hal_motor_pop_event(hal_motor_exec_t *exec, hal_motor_event_t *out);
+
+/**
+ * @brief  取出指定电机的下一条事件，保留其它电机事件。
+ * @param  exec  电机执行器句柄。
+ * @param  motor 电机号。
+ * @param  out   输出事件；仅在返回 true 时有效。
+ * @return true 取出；false 该电机无待取事件。
+ */
+bool hal_motor_pop_event_for(hal_motor_exec_t *exec, int motor, hal_motor_event_t *out);
 
 #ifdef __cplusplus
 }

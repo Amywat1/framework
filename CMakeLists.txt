@@ -15,22 +15,11 @@ include(${CMAKE_SOURCE_DIR}/cmake/wdf_targets.cmake)
 
 option(WDF_BUILD_DEMO "Build in-repo smoke demo" ON)
 option(WDF_BUILD_TESTS "Build unit tests" ON)
-option(WDF_ENABLE_MCC_PROVIDER "Build MCC motor executor HAL provider" OFF)
 option(WDF_ENABLE_SNACK_MODBUS_PROVIDER "Build Snack Modbus HAL providers" OFF)
 option(WDF_ENABLE_SNACK_IO_EXP_PROVIDER "Build Snack io_exp HAL provider" OFF)
 option(WDF_ENABLE_SNACK_CLOUD_PROVIDER "Build Snack cloud MQTT provider" OFF)
 set(WDF_IO_EXP_ROOT "" CACHE PATH "Path to io_exp SDK root")
 set(WDF_IO_EXP_LIBRARY "" CACHE FILEPATH "Path to io_exp SDK library")
-
-if(WDF_ENABLE_MCC_PROVIDER)
-    add_library(wdf_hal_motor_exec_mcc STATIC
-        adapters/outbound/hal/providers/mcc/hal_motor_exec_adapter.c
-        adapters/outbound/hal/providers/mcc/motor_executor.c
-    )
-    target_include_directories(wdf_hal_motor_exec_mcc PUBLIC
-        ${CMAKE_SOURCE_DIR}
-    )
-endif()
 
 if(WDF_ENABLE_SNACK_IO_EXP_PROVIDER)
     if(NOT WDF_IO_EXP_ROOT)
