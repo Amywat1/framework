@@ -12,8 +12,8 @@
 #include "common/sw_error.h"
 #include "domain/op_mode/op_mode_types.h"
 #include "domain/op_mode/operational_mode.h"
-#include "domain/safety/alarm_registry/alarm_registry.h"
 #include "domain/ports/outbound/safety/safety_port.h"
+#include "domain/safety/alarm_registry/alarm_registry.h"
 #include "runtime/event_bus/event_bus.h"
 
 static void on_wash_session_started(const event_t *evt)
@@ -25,7 +25,7 @@ static void on_wash_session_started(const event_t *evt)
 static void on_wash_done(const event_t *evt)
 {
     (void)evt;
-    /* WASHING → WASH_DONE；若洗后评估失败（仍有 MAJOR+）则已进 EXCEPTION */
+    /* WASHING → WASH_DONE；若洗后评估失败（仍有 MAJOR+）则已进 STOPPED */
     op_mode_on_wash_session_completed();
 }
 
@@ -33,7 +33,7 @@ static void on_wash_aborted(const event_t *evt)
 {
     wash_abort_cause_t cause = wash_abort_from_evt_param(evt->param);
 
-    /* 急停路径：on_estop(true) 已将模式切换至 EXCEPTION，
+    /* 急停 / STOP_ALL：模式已先切至 STOPPED，
      * on_wash_session_aborted 内部会检测到非 WASHING 态并提前返回 */
     op_mode_on_wash_session_aborted(cause);
 }
@@ -48,7 +48,7 @@ static void on_safety_lockout(const event_t *evt)
 {
     (void)evt;
     /* WASHING 时由 safety_session_coordinator 发起中止，不在此立即切换模式；
-     * 其余状态立即进入 EXCEPTION */
+     * 其余状态立即进入 STOPPED（故障由安全旗标表达）*/
     op_mode_on_critical_alarm();
 }
 
@@ -92,17 +92,11 @@ static void on_self_check_completed(const event_t *evt)
     op_mode_on_self_check_completed(evt->param != 0U);
 }
 
-static void on_home_completed(const event_t *evt)
-{
-    /* param=1 表示归位成功（HOMING → IDLE），param=0 表示失败（HOMING → EXCEPTION）*/
-    op_mode_on_home_done(evt->param != 0U);
-}
-
 static void on_abort_home_done(const event_t *evt)
 {
-    /* EVT_ABORT_HOME_DONE：中止归位完成（ABORT_HOMING → EXCEPTION）*/
+    /* EVT_ABORT_HOME_DONE：中止归位完成（ABORT_HOMING → STOPPED）*/
     (void)evt;
-    op_mode_on_home_done(true);
+    op_mode_on_home_done();
 }
 
 sw_err_t op_mode_bridge_init(void)
@@ -119,7 +113,6 @@ sw_err_t op_mode_bridge_init(void)
         {EVT_HW_ESTOP_OFF,                 on_hw_estop_off        },
         {EVT_OP_MODE_RECOVERY_COMPLETED,   on_recovery_completed  },
         {EVT_OP_MODE_SELF_CHECK_COMPLETED, on_self_check_completed},
-        {EVT_OP_MODE_HOME_COMPLETED,       on_home_completed      },
         {EVT_ABORT_HOME_DONE,              on_abort_home_done     },
     };
 

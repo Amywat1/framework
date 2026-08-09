@@ -44,7 +44,7 @@ static void test_major_level_grid(void)
     alarm_level_behaviour_t b = alarm_level_behaviour(ALARM_LEVEL_MAJOR);
 
     /* MAJOR 禁开洗但不 LOCKOUT：洗车中途出现 MAJOR 允许跑完当前流程，
-     * 洗完若仍活跃则由会话日志驱动进入 EXCEPTION。 */
+     * 洗完若仍活跃则由会话日志驱动进入 STOPPED。 */
     TEST_ASSERT_TRUE(b.blocks_wash_start);
     TEST_ASSERT_FALSE(b.forces_lockout);
     TEST_ASSERT_TRUE(b.records_in_journal);

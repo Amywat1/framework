@@ -78,7 +78,7 @@ typedef enum {
  * ------------------------------------------------------------------------- */
 typedef enum {
     ALARM_LEVEL_MINOR = 0, /**< 仅记录，不挡开洗 */
-    ALARM_LEVEL_MAJOR,     /**< 禁开洗；洗中不中断；洗完仍活跃则进 EXCEPTION */
+    ALARM_LEVEL_MAJOR,     /**< 禁开洗；洗中不中断；洗完仍活跃则进 STOPPED */
     ALARM_LEVEL_CRITICAL,  /**< LOCKOUT：立刻停机 */
 } alarm_level_t;
 

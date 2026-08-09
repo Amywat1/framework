@@ -62,8 +62,8 @@ void tearDown(void)
 {
 }
 
-/* 急停触发 → EXCEPTION */
-static void test_hw_estop_on_enters_exception(void)
+/* 急停触发 → STOPPED */
+static void test_hw_estop_on_enters_stopped(void)
 {
     pthread_t tid;
 
@@ -76,7 +76,7 @@ static void test_hw_estop_on_enters_exception(void)
 
     publish_and_wait(EVT_HW_ESTOP_ON, 0U);
     TEST_ASSERT_TRUE(op_mode_is_estop_active());
-    TEST_ASSERT_EQUAL_INT(OP_MODE_EXCEPTION, op_mode_get_current());
+    TEST_ASSERT_EQUAL_INT(OP_MODE_STOPPED, op_mode_get_current());
 
     stop_dispatch(tid);
 }
@@ -206,8 +206,8 @@ static void test_recovery_completed_success_enters_idle(void)
     stop_dispatch(tid);
 }
 
-/* EVT_ABORT_HOME_DONE → ABORT_HOMING → EXCEPTION */
-static void test_alarm_home_done_enters_exception(void)
+/* EVT_ABORT_HOME_DONE → ABORT_HOMING → STOPPED */
+static void test_alarm_home_done_enters_stopped(void)
 {
     pthread_t tid;
 
@@ -226,13 +226,13 @@ static void test_alarm_home_done_enters_exception(void)
     usleep(10000);
 
     publish_and_wait(EVT_ABORT_HOME_DONE, 0U);
-    TEST_ASSERT_EQUAL_INT(OP_MODE_EXCEPTION, op_mode_get_current());
+    TEST_ASSERT_EQUAL_INT(OP_MODE_STOPPED, op_mode_get_current());
 
     stop_dispatch(tid);
 }
 
-/* MAJOR 告警事件使静态 STOPPED 进入 EXCEPTION */
-static void test_blocking_alarm_event_enters_exception(void)
+/* MAJOR 告警事件：已在 STOPPED 时保持 STOPPED */
+static void test_blocking_alarm_event_keeps_stopped(void)
 {
     static const alarm_def_t catalog[] = {
         {
@@ -255,7 +255,7 @@ static void test_blocking_alarm_event_enters_exception(void)
 
     tid = start_dispatch();
     publish_and_wait(EVT_ALARM_TRIGGERED, 201101U);
-    TEST_ASSERT_EQUAL_INT(OP_MODE_EXCEPTION, op_mode_get_current());
+    TEST_ASSERT_EQUAL_INT(OP_MODE_STOPPED, op_mode_get_current());
     stop_dispatch(tid);
 }
 
@@ -263,15 +263,15 @@ int main(void)
 {
     UNITY_BEGIN();
 
-    WDF_RUN_TEST(test_hw_estop_on_enters_exception, "", "验证HW急停开启进入异常模式");
+    WDF_RUN_TEST(test_hw_estop_on_enters_stopped, "", "验证HW急停开启进入停止模式");
     WDF_RUN_TEST(test_wash_session_started_enters_washing, "", "验证洗车会话已启动进入洗车模式");
     WDF_RUN_TEST(test_wash_done_enters_wash_done, "", "验证洗车完成进入洗车完成");
     WDF_RUN_TEST(test_customer_gone_returns_idle, "", "验证客户离场返回空闲模式");
     WDF_RUN_TEST(test_wash_aborted_manual_enters_alarm_homing, "", "验证洗车已中止手动进入报警回零");
     WDF_RUN_TEST(test_self_check_from_stopped_lands_stopped, "", "验证自检检查从停止模式最终进入停止模式");
     WDF_RUN_TEST(test_recovery_completed_success_enters_idle, "", "验证恢复完成成功进入空闲模式");
-    WDF_RUN_TEST(test_alarm_home_done_enters_exception, "", "验证报警回零完成进入异常模式");
-    WDF_RUN_TEST(test_blocking_alarm_event_enters_exception, "", "验证阻断性报警事件进入异常模式");
+    WDF_RUN_TEST(test_alarm_home_done_enters_stopped, "", "验证中止归位完成进入停止模式");
+    WDF_RUN_TEST(test_blocking_alarm_event_keeps_stopped, "", "验证阻断报警在停止模式保持停止");
 
     return UNITY_END();
 }

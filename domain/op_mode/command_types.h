@@ -27,9 +27,9 @@ typedef enum {
     DEV_CMD_EFFECT_START_WASH,
     DEV_CMD_EFFECT_STOP_WASH,
     DEV_CMD_EFFECT_SELF_CHECK,
-    DEV_CMD_EFFECT_HOME_DEVICE,
     DEV_CMD_EFFECT_MANUAL_ACTUATOR,
-    DEV_CMD_EFFECT_STOP_ALL_OUTPUTS,
+    DEV_CMD_EFFECT_STOP_ALL_OUTPUTS,           /**< 仅切断输出 */
+    DEV_CMD_EFFECT_STOP_ALL_OUTPUTS_AND_ABORT, /**< 切断输出并 abort_wash(STOP_ALL) */
 } dev_cmd_effect_t;
 
 /** @brief  命令裁决结果（含待执行副作用） */

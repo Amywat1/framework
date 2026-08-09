@@ -18,6 +18,9 @@ extern "C" {
  * @brief  初始化恢复协调器并订阅相关事件
  * @retval SW_OK        订阅成功
  * @retval SW_ERR_*     event_subscribe_table 失败
+ *
+ * @note   离开 RECOVERING 时自行取消归位等待（订阅 EVT_OP_MODE_CHANGED）；
+ *         迟到的 HOME_COMPLETED 在模式已非 RECOVERING 时忽略。
  */
 sw_err_t recovery_service_init(void);
 

@@ -5,14 +5,14 @@
 
 #include "adapters/outbound/safety/sim/hw_estop_sim.h"
 #include "application/bridges/alarm_bridge.h"
+#include "application/ports/inbound/command/command_port.h"
+#include "application/ports/inbound/safety/alarm_binding_port.h"
 #include "common/event_types.h"
 #include "common/log.h"
 #include "domain/op_mode/command_types.h"
 #include "domain/op_mode/device_command.h"
 #include "domain/op_mode/operational_mode.h"
 #include "domain/safety/alarm_registry/alarm_registry.h"
-#include "application/ports/inbound/command/command_port.h"
-#include "application/ports/inbound/safety/alarm_binding_port.h"
 #include "runtime/bootstrap/bootstrap.h"
 #include "runtime/event_bus/event_bus.h"
 #include "sw_version.h"
@@ -93,8 +93,8 @@ static int submit_expect_accepted(dev_cmd_kind_t kind)
  *
  * RECOVER 在 STOPPED 下是 CONDITIONAL，只要求 service_enabled，而
  * operational_mode_init() 已将其置真，因此这条路走得通；顺带把归位链路
- * （side_effect_router → machine_ops.home_device → EVT_OP_MODE_HOME_COMPLETED
- * → op_mode_on_home_done）一并纳入 smoke，比原先只提交一条命令覆盖得更宽。
+ * （RECOVERY_REQUESTED → machine_ops.home_device → EVT_OP_MODE_HOME_COMPLETED
+ * → EVT_OP_MODE_RECOVERY_COMPLETED）一并纳入 smoke，比原先只提交一条命令覆盖得更宽。
  */
 static int check_recover_to_idle(void)
 {

@@ -19,36 +19,34 @@ extern "C" {
  * ------------------------------------------------------------------------- */
 
 /**
- * @brief  整机运行模式（10 态状态机）
+ * @brief  整机运行模式（8 态状态机）
  *
  * 状态迁移概览：
  *   INIT → STOPPED（初始化完成；上电默认运营总开关开启，可 RECOVER）
- *   STOPPED → HOMING（RECOVER 正常归位，需 service_enabled）→ IDLE / EXCEPTION
- *   IDLE → STOPPED（STOP_OPERATION：停运并关闭总开关）
+ *   STOPPED → RECOVERING（RECOVER：复位锁存告警 + 异步归位）→ IDLE / STOPPED
+ *   IDLE / WASH_DONE / STOPPED → STOPPED（STOP_OPERATION：停运并关闭总开关）
  *   STOPPED → STOPPED（RESUME_OPERATION：仅重新授权，仍须 RECOVER 进 IDLE）
  *   IDLE → WASHING（START_WASH）
- *   WASHING → ABORT_HOMING（非急停中止清障）→ EXCEPTION
+ *   WASHING → ABORT_HOMING（STOP_WASH 等非急停/非全停中止清障）→ STOPPED
  *   WASHING → WASH_DONE（正常完成且无 MAJOR+）→ IDLE（客户离场）
- *   WASHING → EXCEPTION（正常完成但仍有 MAJOR+，洗后评估）
- *   WASH_DONE → STOPPED（STOP_OPERATION）
- *   STOPPED/EXCEPTION → SELF_CHECK → STOPPED / EXCEPTION
- *   EXCEPTION → RECOVERING（RECOVER 故障恢复）→ IDLE / EXCEPTION
- *   任意 → EXCEPTION（急停触发；LOCKOUT 在非洗车态）
+ *   WASHING → STOPPED（正常完成但仍有 MAJOR+；或急停 / STOP_ALL，不清障）
+ *   WASH_DONE → STOPPED（STOP_ALL / 告警 / 急停）
+ *   STOPPED → SELF_CHECK → STOPPED（仅急停激活时拒绝启动自检；自检中不可 STOP_OPERATION）
+ *   急停解除不自动进 IDLE；故障条件由 estop / blocking / LOCKOUT 旗标表达，不占用独立模式
  *
  * @note   不变量：IDLE 蕴含 service_enabled==true；关总开关时不得停留在 IDLE。
- *         静态状态 STOPPED/IDLE/WASH_DONE 收敛后不得存在 MAJOR 及以上活动告警；
- *         MINOR 告警可与正常状态共存。
+ *         IDLE/WASH_DONE 不得长期残留 MAJOR+ / LOCKOUT / 急停；出现时收敛到 STOPPED。
+ *         MINOR 告警可与正常状态共存。故障态由安全快照表达，不设独立故障模式。
+ *         运营归位走 RECOVERING；中止清障走 ABORT_HOMING——不再保留独立 HOMING 态。
  */
 typedef enum {
     OP_MODE_INIT = 0,     /**< 系统初始化中（operational_mode_init 前）*/
-    OP_MODE_STOPPED,      /**< 停机（未运营或待归位；总开关关时禁止 HOME）*/
-    OP_MODE_HOMING,       /**< 枚举保留；当前 RECOVER 走 RECOVERING，不进入此态 */
+    OP_MODE_STOPPED,      /**< 停机（未运营或待归位；可带或不带故障旗标）*/
     OP_MODE_IDLE,         /**< 运营待机（总开关必开，可接单）*/
     OP_MODE_WASHING,      /**< 洗车会话执行中 */
-    OP_MODE_ABORT_HOMING, /**< 中止归位中（非急停洗车中止 → EXCEPTION）*/
+    OP_MODE_ABORT_HOMING, /**< 中止归位中（停洗清障 → STOPPED）*/
     OP_MODE_WASH_DONE,    /**< 洗车完成，等待客户离场 */
     OP_MODE_SELF_CHECK,   /**< 自检中 */
-    OP_MODE_EXCEPTION,    /**< 故障停机 */
     OP_MODE_RECOVERING,   /**< 恢复中（归位 + 阻塞告警验证）*/
 } operational_mode_t;
 
@@ -68,6 +66,7 @@ typedef enum {
     WASH_ABORT_STEP_TIMEOUT, /**< 洗车步骤超时 */
     WASH_ABORT_INTERNAL,     /**< 内部引擎错误 */
     WASH_ABORT_ESTOP,        /**< 硬件急停触发 */
+    WASH_ABORT_STOP_ALL,     /**< 手动 STOP_ALL_OUTPUTS：全切断且不清障 */
 } wash_abort_cause_t;
 
 /** @brief  命令仲裁结果 */
@@ -88,8 +87,8 @@ typedef enum {
 
 /** @brief  恢复流程结束结果 */
 typedef enum {
-    RECOVERY_RESULT_IDLE = 0,
-    RECOVERY_RESULT_EXCEPTION,
+    RECOVERY_RESULT_IDLE = 0, /**< 归位成功且无阻塞告警 → IDLE */
+    RECOVERY_RESULT_FAILED,   /**< 归位失败或仍有阻塞 → STOPPED */
 } recovery_result_t;
 
 /**
@@ -105,7 +104,7 @@ static inline uint32_t wash_abort_evt_param(wash_abort_cause_t cause)
  */
 static inline wash_abort_cause_t wash_abort_from_evt_param(uint32_t param)
 {
-    if (param <= (uint32_t)WASH_ABORT_ESTOP) {
+    if (param <= (uint32_t)WASH_ABORT_STOP_ALL) {
         return (wash_abort_cause_t)param;
     }
     return WASH_ABORT_INTERNAL;

@@ -22,6 +22,15 @@ extern "C" {
 #include <stdbool.h>
 
 /**
+ * @brief 命令许可矩阵格点（不含运行期条件）
+ */
+typedef enum {
+    OP_CMD_PERM_DENIED = 0, /**< 拒绝 */
+    OP_CMD_PERM_ALLOWED,    /**< 允许 */
+    OP_CMD_PERM_CONDITIONAL /**< 允许，但需通过急停/运营开关等运行期检查 */
+} op_cmd_perm_t;
+
+/**
  * @brief  初始化运行模式聚合（上电默认进入 STOPPED）
  */
 sw_err_t operational_mode_init(void);
@@ -39,13 +48,13 @@ dev_cmd_decision_t op_mode_handle_command(const dev_cmd_t *cmd);
 void op_mode_on_wash_session_started(void);
 
 /**
- * @brief  洗车会话正常完成（WASHING → WASH_DONE；若仍有 MAJOR+ 则 → EXCEPTION）
+ * @brief  洗车会话正常完成（WASHING → WASH_DONE；若仍有 MAJOR+ 则 → STOPPED）
  */
 void op_mode_on_wash_session_completed(void);
 
 /**
  * @brief  洗车会话中止
- * @param  cause  中止原因（ESTOP 时模式已由 on_estop 切换，此处无操作）
+ * @param  cause  中止原因（急停 / STOP_ALL 时模式已先切至 STOPPED，此处无操作）
  */
 void op_mode_on_wash_session_aborted(wash_abort_cause_t cause);
 
@@ -56,37 +65,46 @@ void op_mode_on_wash_customer_gone(void);
 
 /**
  * @brief  自检完成后的落点决策
- * @param  land_exception  true → EXCEPTION；false → 回到进入自检前的状态（STOPPED）
+ * @param  land_fault  true 表示自检判失败（仍落到 STOPPED，故障由旗标表达）；false 同样 → STOPPED
  */
-void op_mode_on_self_check_completed(bool land_exception);
+void op_mode_on_self_check_completed(bool land_fault);
 
 /**
- * @brief  阻塞告警触发运行模式收敛。
+ * @brief  阻塞告警触发运行模式收敛（离开接单/静态可运营态 → STOPPED）。
  */
 void op_mode_on_blocking_alarm(void);
 
 /**
  * @brief  CRITICAL 告警触发运行模式收敛。
- * @note   保留为安全事件桥接入口，行为与阻塞告警一致。
+ * @note   保留为安全事件桥接入口，行为与阻塞告警一致（洗中等流程态不立刻切）。
  */
 void op_mode_on_critical_alarm(void);
 
 /**
  * @brief  急停状态变更
- * @param  active  true → 急停触发（→ EXCEPTION）；false → 急停清除（清标志，发布 CONTEXT_SYNC）
+ * @param  active  true → 置急停并 → STOPPED；false → 清标志并发布 CONTEXT_SYNC（不自动进 IDLE）
  */
 void op_mode_on_estop(bool active);
 
 /**
- * @brief  恢复流程结束（RECOVERING → IDLE 或 EXCEPTION）
+ * @brief  恢复流程结束（RECOVERING → IDLE 或 STOPPED）
  */
 void op_mode_on_recovery_completed(recovery_result_t result);
 
 /**
- * @brief  归位完成（HOMING → IDLE/EXCEPTION；ABORT_HOMING → EXCEPTION）
- * @param  success  归位是否成功（ABORT_HOMING 路径忽略此参数，始终进入 EXCEPTION）
+ * @brief  中止归位完成（ABORT_HOMING → STOPPED）
+ * @note   仅消费 EVT_ABORT_HOME_DONE；运营归位由 recovery_service 经
+ *         EVT_OP_MODE_RECOVERY_COMPLETED 收口，不经本接口。
  */
-void op_mode_on_home_done(bool success);
+void op_mode_on_home_done(void);
+
+/**
+ * @brief  静态命令许可矩阵格点（不含急停/运营开关等运行期条件）
+ * @param  kind  命令种类
+ * @param  mode  运行模式
+ * @return 矩阵格点；非法 kind/mode 返回 DENIED
+ */
+op_cmd_perm_t op_mode_cmd_matrix_perm(dev_cmd_kind_t kind, operational_mode_t mode);
 
 /* -------------------------------------------------------------------------
  * 直读接口（线程约束）
@@ -120,7 +138,7 @@ bool op_mode_is_estop_active(void);
 bool op_mode_is_service_enabled(void);
 
 /**
- * @brief  是否处于非运营接单态（STOPPED/HOMING/故障处理等，或总开关已关）
+ * @brief  是否处于非运营接单态（STOPPED/恢复/中止清障等，或总开关已关）
  * @note   仅限 event_dispatch 线程调用；跨线程请用 device_snapshot_get()
  *         配合 operational_snapshot_is_stopping()。
  */

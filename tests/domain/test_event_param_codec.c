@@ -25,10 +25,10 @@ void tearDown(void)
 /* EVT_OP_MODE_CHANGED：from/to 往返一致，且互不串位 */
 static void test_mode_changed_roundtrip(void)
 {
-    uint32_t param = op_mode_changed_evt_param(OP_MODE_WASHING, OP_MODE_EXCEPTION);
+    uint32_t param = op_mode_changed_evt_param(OP_MODE_WASHING, OP_MODE_STOPPED);
 
     TEST_ASSERT_EQUAL_INT(OP_MODE_WASHING, op_mode_changed_from(param));
-    TEST_ASSERT_EQUAL_INT(OP_MODE_EXCEPTION, op_mode_changed_to(param));
+    TEST_ASSERT_EQUAL_INT(OP_MODE_STOPPED, op_mode_changed_to(param));
 
     /* 相邻模式值不应因移位错误而互相污染 */
     param = op_mode_changed_evt_param(OP_MODE_INIT, OP_MODE_RECOVERING);
@@ -75,6 +75,7 @@ static void test_wash_abort_roundtrip(void)
 {
     TEST_ASSERT_EQUAL_INT(WASH_ABORT_ESTOP, wash_abort_from_evt_param(wash_abort_evt_param(WASH_ABORT_ESTOP)));
     TEST_ASSERT_EQUAL_INT(WASH_ABORT_MANUAL, wash_abort_from_evt_param(wash_abort_evt_param(WASH_ABORT_MANUAL)));
+    TEST_ASSERT_EQUAL_INT(WASH_ABORT_STOP_ALL, wash_abort_from_evt_param(wash_abort_evt_param(WASH_ABORT_STOP_ALL)));
 
     /* 超出枚举范围的 param 落到 INTERNAL，而不是造出非法枚举值 */
     TEST_ASSERT_EQUAL_INT(WASH_ABORT_INTERNAL, wash_abort_from_evt_param(0xFFFFFFFFU));

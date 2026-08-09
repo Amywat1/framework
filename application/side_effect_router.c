@@ -9,37 +9,55 @@
 #include "common/log.h"
 #include "domain/op_mode/op_mode_types.h"
 #include "domain/op_mode/operational_mode.h"
+#include "domain/ports/outbound/machine/machine_ops_port.h"
 #include "domain/safety/alarm_registry/alarm_registry.h"
 #include "domain/safety/model/alarm_types.h"
-#include "domain/ports/outbound/machine/machine_ops_port.h"
 #include "runtime/event_bus/event_bus.h"
 
 #include <stddef.h>
 
 /**
  * @brief  执行自检判定并发布完成事件
- * @note   阶段一：仅根据急停 / LOCKOUT / 阻塞报警决定是否落入 EXCEPTION。
+ * @note   按急停 / LOCKOUT / 阻塞报警决定 land_fault；模式一律回到 STOPPED。
  */
 static void run_self_check(void)
 {
-    bool land_exception = false;
+    bool land_fault = false;
 
     if (op_mode_is_estop_active()) {
-        land_exception = true;
+        land_fault = true;
     } else if (alarm_registry_safety_posture() == SAFETY_POSTURE_LOCKOUT) {
-        land_exception = true;
+        land_fault = true;
     } else if (alarm_registry_has_blocking_active()) {
-        land_exception = true;
+        land_fault = true;
     }
 
-    (void)event_publish(EVT_OP_MODE_SELF_CHECK_COMPLETED, land_exception ? 1U : 0U);
-    LOG_INFO("side_effect_router: self_check completed land_exception=%d", (int)land_exception);
+    (void)event_publish(EVT_OP_MODE_SELF_CHECK_COMPLETED, land_fault ? 1U : 0U);
+    LOG_INFO("side_effect_router: self_check completed land_fault=%d", (int)land_fault);
+}
+
+/**
+ * @brief  切断全部输出；可选中止洗车会话
+ */
+static sw_err_t run_stop_all_outputs(bool abort_wash_session)
+{
+    const machine_ops_t *ops = machine_ops_get();
+    sw_err_t             ret;
+
+    if ((ops == NULL) || (ops->stop_all_outputs == NULL)) {
+        return SW_ERR_NOT_INIT;
+    }
+
+    ret = ops->stop_all_outputs();
+    if (abort_wash_session && (ops->abort_wash != NULL)) {
+        ops->abort_wash(WASH_ABORT_STOP_ALL);
+    }
+    return ret;
 }
 
 sw_err_t side_effect_router_run(dev_cmd_effect_t effect, const dev_cmd_t *cmd)
 {
     const machine_ops_t *ops;
-    sw_err_t             ret;
 
     if (cmd == NULL) {
         return SW_ERR_PARAM;
@@ -68,19 +86,6 @@ sw_err_t side_effect_router_run(dev_cmd_effect_t effect, const dev_cmd_t *cmd)
         run_self_check();
         return SW_OK;
 
-    case DEV_CMD_EFFECT_HOME_DEVICE:
-        /* home_device 仅启动异步归位；完成后由项目编排器发 HOME_COMPLETED */
-        if ((ops != NULL) && (ops->home_device != NULL)) {
-            ret = ops->home_device();
-            if (ret != SW_OK) {
-                (void)event_publish(EVT_OP_MODE_HOME_COMPLETED, 0U);
-                LOG_ERROR("side_effect_router: home_device start failed ret=%d", (int)ret);
-            }
-            return ret;
-        }
-        (void)event_publish(EVT_OP_MODE_HOME_COMPLETED, 0U);
-        return SW_ERR_NOT_INIT;
-
     case DEV_CMD_EFFECT_MANUAL_ACTUATOR:
         if ((ops != NULL) && (ops->execute_manual_actuator != NULL)) {
             return ops->execute_manual_actuator(cmd->body.payload.manual_actuator.act_id,
@@ -89,10 +94,10 @@ sw_err_t side_effect_router_run(dev_cmd_effect_t effect, const dev_cmd_t *cmd)
         return SW_ERR_NOT_INIT;
 
     case DEV_CMD_EFFECT_STOP_ALL_OUTPUTS:
-        if ((ops != NULL) && (ops->stop_all_outputs != NULL)) {
-            return ops->stop_all_outputs();
-        }
-        return SW_ERR_NOT_INIT;
+        return run_stop_all_outputs(false);
+
+    case DEV_CMD_EFFECT_STOP_ALL_OUTPUTS_AND_ABORT:
+        return run_stop_all_outputs(true);
 
     default:
         return SW_ERR_PARAM;

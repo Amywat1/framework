@@ -217,7 +217,7 @@ typedef struct {
 | `abort_wash` | `DEV_CMD_STOP_WASH` 副作用，以及急停/LOCKOUT 切断路径 |
 | `home_device` | `recovery_service` 在 Recover 路径中启动的异步全机归位 |
 | `execute_manual_actuator` | `DEV_CMD_MANUAL_ACTUATOR` 副作用 |
-| `stop_all_outputs` | `DEV_CMD_STOP_ALL_OUTPUTS` 副作用 |
+| `stop_all_outputs` | `DEV_CMD_STOP_ALL_OUTPUTS` 副作用：切断输出；前态 WASHING 时 router 另调 `abort_wash(STOP_ALL)` |
 | `is_wash_entry_ready` | `START_WASH` 附加门禁；未注册（NULL）时框架不拦截 |
 
 `side_effect_router` 不做权限判断，只执行 `operational_mode` 已裁决允许的副作用。未注册或函数缺失时返回 `SW_ERR_NOT_INIT`。
@@ -226,7 +226,7 @@ typedef struct {
 
 - `project_bind_machine()` 中调用 `machine_ops_register()`。
 - `execute_manual_actuator` 的 `act_id` 和 `param` 由项目定义，并在云端/CLI 命令映射中保持一致。
-- `stop_all_outputs` 必须能落到安全输出态。
+- `stop_all_outputs` 必须能落到与 cutout 等价的安全输出态；无活跃洗车会话时 router 不会调用 `abort_wash(STOP_ALL)`。
 - `home_device` 和 `abort_home` 应处理执行中冲突和硬件故障，并返回明确错误码。
 
 ---
@@ -353,7 +353,7 @@ L4）。它依次验证：
 | 步骤 | 覆盖的链路 |
 |------|-----------|
 | `bootstrap_run()` | 7 阶段启动全过程 |
-| `RECOVER` → IDLE | 命令网关 → 裁决 → `side_effect_router` → `machine_ops.home_device` → `EVT_OP_MODE_HOME_COMPLETED` → `op_mode_on_home_done` |
+| `RECOVER` → IDLE | 命令网关 → 裁决 → `RECOVERY_REQUESTED` → `recovery_service` → `machine_ops.home_device` → `EVT_OP_MODE_HOME_COMPLETED` → `EVT_OP_MODE_RECOVERY_COMPLETED` → IDLE |
 | `STOP_OPERATION` | IDLE 下的停运裁决与运营开关 |
 | 急停边沿 | `hw_estop_sim` → `estop_poll_thread` → `safety_cutout_execute` → `EVT_HW_ESTOP_ON` → 姿态收敛 |
 | 报警触发 | `alarm_binding.trigger` → `alarm_bridge` → blocking 判定 |

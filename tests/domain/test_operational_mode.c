@@ -7,9 +7,9 @@
 #include "domain/op_mode/device_command.h"
 #include "domain/op_mode/op_mode_types.h"
 #include "domain/op_mode/operational_mode.h"
+#include "domain/ports/outbound/machine/machine_ops_port.h"
 #include "domain/safety/alarm_registry/alarm_registry.h"
 #include "domain/safety/model/alarm_types.h"
-#include "domain/ports/outbound/machine/machine_ops_port.h"
 #include "tests/stubs/test_wash_modes.h"
 #include "wdf_test_spec.h"
 
@@ -72,27 +72,36 @@ static void test_recover_from_stopped_enters_idle(void)
     TEST_ASSERT_TRUE(op_mode_is_standby());
 }
 
-/* 恢复失败 → EXCEPTION */
-static void test_recover_home_failure_enters_exception(void)
+/* 恢复失败 → STOPPED */
+static void test_recover_home_failure_enters_stopped(void)
 {
     dev_cmd_t          cmd = dev_cmd_make_simple(DEV_CMD_RECOVER);
     dev_cmd_decision_t d   = op_mode_handle_command(&cmd);
 
     TEST_ASSERT_EQUAL_INT(OP_CMD_ALLOWED, d.verdict);
-    op_mode_on_recovery_completed(RECOVERY_RESULT_EXCEPTION);
-    TEST_ASSERT_EQUAL_INT(OP_MODE_EXCEPTION, op_mode_get_current());
+    op_mode_on_recovery_completed(RECOVERY_RESULT_FAILED);
+    TEST_ASSERT_EQUAL_INT(OP_MODE_STOPPED, op_mode_get_current());
 }
 
-/* STOPPED 下阻塞告警立即进入 EXCEPTION */
-static void test_blocking_alarm_from_stopped_enters_exception(void)
+/* STOPPED 下阻塞告警保持 STOPPED（故障由旗标表达）*/
+static void test_blocking_alarm_from_stopped_stays_stopped(void)
 {
     TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_trigger(TEST_ALARM_BLOCKING));
     op_mode_on_blocking_alarm();
-    TEST_ASSERT_EQUAL_INT(OP_MODE_EXCEPTION, op_mode_get_current());
+    TEST_ASSERT_EQUAL_INT(OP_MODE_STOPPED, op_mode_get_current());
 }
 
-/* RECOVERING 不立即中断；完成时由 recovery 结果落入 EXCEPTION */
-static void test_blocking_alarm_during_home_lands_exception(void)
+/* IDLE 下阻塞告警 → STOPPED */
+static void test_blocking_alarm_from_idle_enters_stopped(void)
+{
+    enter_idle();
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_trigger(TEST_ALARM_BLOCKING));
+    op_mode_on_blocking_alarm();
+    TEST_ASSERT_EQUAL_INT(OP_MODE_STOPPED, op_mode_get_current());
+}
+
+/* RECOVERING 不立即中断；完成时由 recovery 结果落入 STOPPED */
+static void test_blocking_alarm_during_home_lands_stopped(void)
 {
     dev_cmd_t cmd = dev_cmd_make_simple(DEV_CMD_RECOVER);
 
@@ -102,8 +111,8 @@ static void test_blocking_alarm_during_home_lands_exception(void)
     op_mode_on_blocking_alarm();
     TEST_ASSERT_EQUAL_INT(OP_MODE_RECOVERING, op_mode_get_current());
 
-    op_mode_on_recovery_completed(RECOVERY_RESULT_EXCEPTION);
-    TEST_ASSERT_EQUAL_INT(OP_MODE_EXCEPTION, op_mode_get_current());
+    op_mode_on_recovery_completed(RECOVERY_RESULT_FAILED);
+    TEST_ASSERT_EQUAL_INT(OP_MODE_STOPPED, op_mode_get_current());
 }
 
 /* 停运后（STOPPED + 总开关关）RECOVER 被拒绝 */
@@ -170,6 +179,41 @@ static void test_stop_operation_disables_service(void)
     TEST_ASSERT_TRUE(op_mode_is_stopping());
 }
 
+/* STOPPED 下也可停运（关总开关；无需先 RECOVER 进 IDLE）*/
+static void test_stop_operation_allowed_from_stopped(void)
+{
+    dev_cmd_t cmd = dev_cmd_make_simple(DEV_CMD_STOP_OPERATION);
+
+    TEST_ASSERT_EQUAL_INT(OP_MODE_STOPPED, op_mode_get_current());
+    TEST_ASSERT_TRUE(op_mode_is_service_enabled());
+    TEST_ASSERT_EQUAL_INT(OP_CMD_ALLOWED, op_mode_handle_command(&cmd).verdict);
+    TEST_ASSERT_EQUAL_INT(OP_MODE_STOPPED, op_mode_get_current());
+    TEST_ASSERT_FALSE(op_mode_is_service_enabled());
+}
+
+/* 洗车中拒绝停运 */
+static void test_stop_operation_denied_while_washing(void)
+{
+    dev_cmd_t cmd = dev_cmd_make_simple(DEV_CMD_STOP_OPERATION);
+
+    enter_idle();
+    op_mode_on_wash_session_started();
+    TEST_ASSERT_EQUAL_INT(OP_MODE_WASHING, op_mode_get_current());
+    TEST_ASSERT_EQUAL_INT(OP_REJECT_WRONG_MODE, op_mode_handle_command(&cmd).reason);
+    TEST_ASSERT_TRUE(op_mode_is_service_enabled());
+}
+
+/* 自检中拒绝停运 */
+static void test_stop_operation_denied_while_self_check(void)
+{
+    dev_cmd_t self_cmd = dev_cmd_make_simple(DEV_CMD_START_SELF_CHECK);
+    dev_cmd_t stop_cmd = dev_cmd_make_simple(DEV_CMD_STOP_OPERATION);
+
+    TEST_ASSERT_EQUAL_INT(OP_CMD_ALLOWED, op_mode_handle_command(&self_cmd).verdict);
+    TEST_ASSERT_EQUAL_INT(OP_MODE_SELF_CHECK, op_mode_get_current());
+    TEST_ASSERT_EQUAL_INT(OP_REJECT_WRONG_MODE, op_mode_handle_command(&stop_cmd).reason);
+}
+
 /* RESUME_OPERATION：仅 STOPPED 且总开关关时可重新授权，模式仍为 STOPPED */
 static void test_resume_operation_only_when_service_stopped(void)
 {
@@ -227,19 +271,28 @@ static void test_start_wash_denied_when_vehicle_not_ready(void)
     TEST_ASSERT_EQUAL_INT(OP_REJECT_VEHICLE_NOT_READY, op_mode_handle_command(&cmd).reason);
 }
 
-/* 急停激活时 RECOVER 被拒绝 */
+/* 急停激活时 → STOPPED，RECOVER 被拒绝 */
 static void test_estop_blocks_recover(void)
 {
     dev_cmd_t cmd = dev_cmd_make_simple(DEV_CMD_RECOVER);
 
     op_mode_on_estop(true);
     TEST_ASSERT_TRUE(op_mode_is_estop_active());
-    TEST_ASSERT_EQUAL_INT(OP_MODE_EXCEPTION, op_mode_get_current());
+    TEST_ASSERT_EQUAL_INT(OP_MODE_STOPPED, op_mode_get_current());
     TEST_ASSERT_EQUAL_INT(OP_REJECT_ESTOP_ACTIVE, op_mode_handle_command(&cmd).reason);
 }
 
-/* EXCEPTION 下 RECOVER 进入故障恢复流程 */
-static void test_recover_from_exception_enters_recovering(void)
+/* 急停解除不自动进 IDLE，模式保持 STOPPED */
+static void test_estop_release_stays_stopped(void)
+{
+    op_mode_on_estop(true);
+    op_mode_on_estop(false);
+    TEST_ASSERT_FALSE(op_mode_is_estop_active());
+    TEST_ASSERT_EQUAL_INT(OP_MODE_STOPPED, op_mode_get_current());
+}
+
+/* STOPPED 下 RECOVER 进入恢复流程（含故障旗标场景）*/
+static void test_recover_from_stopped_enters_recovering(void)
 {
     dev_cmd_t          cmd = dev_cmd_make_simple(DEV_CMD_RECOVER);
     dev_cmd_decision_t d;
@@ -251,8 +304,8 @@ static void test_recover_from_exception_enters_recovering(void)
     TEST_ASSERT_EQUAL_INT(OP_MODE_RECOVERING, op_mode_get_current());
 }
 
-/* EXCEPTION 下运营总开关关闭时 RECOVER 仍被拒绝 */
-static void test_recover_from_exception_denied_when_service_disabled(void)
+/* 总开关关闭时 RECOVER 被拒绝 */
+static void test_recover_denied_when_service_disabled_after_critical(void)
 {
     dev_cmd_t recover_cmd = dev_cmd_make_simple(DEV_CMD_RECOVER);
     dev_cmd_t stop_cmd    = dev_cmd_make_simple(DEV_CMD_STOP_OPERATION);
@@ -260,7 +313,7 @@ static void test_recover_from_exception_denied_when_service_disabled(void)
     enter_idle();
     (void)op_mode_handle_command(&stop_cmd);
     op_mode_on_critical_alarm();
-    TEST_ASSERT_EQUAL_INT(OP_MODE_EXCEPTION, op_mode_get_current());
+    TEST_ASSERT_EQUAL_INT(OP_MODE_STOPPED, op_mode_get_current());
     TEST_ASSERT_EQUAL_INT(OP_REJECT_SERVICE_DISABLED, op_mode_handle_command(&recover_cmd).reason);
 }
 
@@ -269,7 +322,6 @@ static void test_wash_session_lifecycle(void)
 {
     enter_idle();
 
-    /* 正常流程 */
     op_mode_on_wash_session_started();
     TEST_ASSERT_EQUAL_INT(OP_MODE_WASHING, op_mode_get_current());
 
@@ -279,17 +331,16 @@ static void test_wash_session_lifecycle(void)
     op_mode_on_wash_customer_gone();
     TEST_ASSERT_EQUAL_INT(OP_MODE_IDLE, op_mode_get_current());
 
-    /* 异常中止流程 */
     op_mode_on_wash_session_started();
     op_mode_on_wash_session_aborted(WASH_ABORT_CRITICAL);
     TEST_ASSERT_EQUAL_INT(OP_MODE_ABORT_HOMING, op_mode_get_current());
 
-    op_mode_on_home_done(true);
-    TEST_ASSERT_EQUAL_INT(OP_MODE_EXCEPTION, op_mode_get_current());
+    op_mode_on_home_done();
+    TEST_ASSERT_EQUAL_INT(OP_MODE_STOPPED, op_mode_get_current());
 }
 
-/* 洗车正常结束时仍有 MAJOR+ → EXCEPTION（洗后评估）*/
-static void test_wash_done_with_blocking_enters_exception(void)
+/* 洗车正常结束时仍有 MAJOR+ → STOPPED（洗后评估）*/
+static void test_wash_done_with_blocking_enters_stopped(void)
 {
     load_alarm_catalog();
     enter_idle();
@@ -299,7 +350,7 @@ static void test_wash_done_with_blocking_enters_exception(void)
 
     TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_trigger(TEST_ALARM_BLOCKING));
     op_mode_on_wash_session_completed();
-    TEST_ASSERT_EQUAL_INT(OP_MODE_EXCEPTION, op_mode_get_current());
+    TEST_ASSERT_EQUAL_INT(OP_MODE_STOPPED, op_mode_get_current());
 }
 
 /* STOPPED 允许手动点动 */
@@ -312,25 +363,13 @@ static void test_manual_actuator_allowed_in_stopped(void)
     TEST_ASSERT_EQUAL_INT(DEV_CMD_EFFECT_MANUAL_ACTUATOR, d.pending_effect);
 }
 
-/* EXCEPTION 无急停时允许手动点动 */
-static void test_manual_actuator_allowed_in_exception_without_estop(void)
-{
-    dev_cmd_t cmd;
-
-    op_mode_on_critical_alarm();
-    TEST_ASSERT_EQUAL_INT(OP_MODE_EXCEPTION, op_mode_get_current());
-
-    cmd = dev_cmd_make_manual(3U, 0);
-    TEST_ASSERT_EQUAL_INT(OP_CMD_ALLOWED, op_mode_handle_command(&cmd).verdict);
-}
-
-/* EXCEPTION + 急停时手动点动被拒绝 */
-static void test_manual_actuator_denied_in_exception_with_estop(void)
+/* 急停时手动点动被拒绝 */
+static void test_manual_actuator_denied_with_estop(void)
 {
     dev_cmd_t cmd;
 
     op_mode_on_estop(true);
-    TEST_ASSERT_EQUAL_INT(OP_MODE_EXCEPTION, op_mode_get_current());
+    TEST_ASSERT_EQUAL_INT(OP_MODE_STOPPED, op_mode_get_current());
 
     cmd = dev_cmd_make_manual(3U, 0);
     TEST_ASSERT_EQUAL_INT(OP_REJECT_ESTOP_ACTIVE, op_mode_handle_command(&cmd).reason);
@@ -348,40 +387,120 @@ static void test_self_check_from_stopped_success_returns_stopped(void)
     TEST_ASSERT_EQUAL_INT(OP_MODE_STOPPED, op_mode_get_current());
 }
 
-/* 自检：STOPPED 失败 → EXCEPTION */
-static void test_self_check_from_stopped_fail_enters_exception(void)
+/* 自检：失败仍 → STOPPED（故障由旗标表达）*/
+static void test_self_check_from_stopped_fail_returns_stopped(void)
 {
     dev_cmd_t cmd = dev_cmd_make_simple(DEV_CMD_START_SELF_CHECK);
 
     (void)op_mode_handle_command(&cmd);
     op_mode_on_self_check_completed(true);
-    TEST_ASSERT_EQUAL_INT(OP_MODE_EXCEPTION, op_mode_get_current());
-}
-
-/* 自检：从 EXCEPTION 出发，成功 → STOPPED，失败 → EXCEPTION */
-static void test_self_check_from_exception_success_returns_stopped(void)
-{
-    dev_cmd_t cmd = dev_cmd_make_simple(DEV_CMD_START_SELF_CHECK);
-
-    op_mode_on_critical_alarm();
-    TEST_ASSERT_EQUAL_INT(OP_MODE_EXCEPTION, op_mode_get_current());
-
-    (void)op_mode_handle_command(&cmd);
-    op_mode_on_self_check_completed(false); /* 成功 → STOPPED */
     TEST_ASSERT_EQUAL_INT(OP_MODE_STOPPED, op_mode_get_current());
 }
 
-/* 自检：从 EXCEPTION 出发，失败 → EXCEPTION */
-static void test_self_check_from_exception_fail_returns_exception(void)
+/* 自检：急停激活时拒绝启动 */
+static void test_self_check_denied_when_estop(void)
 {
     dev_cmd_t cmd = dev_cmd_make_simple(DEV_CMD_START_SELF_CHECK);
 
-    op_mode_on_critical_alarm();
-    TEST_ASSERT_EQUAL_INT(OP_MODE_EXCEPTION, op_mode_get_current());
+    op_mode_on_estop(true);
+    TEST_ASSERT_EQUAL_INT(OP_REJECT_ESTOP_ACTIVE, op_mode_handle_command(&cmd).reason);
+}
 
-    (void)op_mode_handle_command(&cmd);
-    op_mode_on_self_check_completed(true); /* 失败 → EXCEPTION */
-    TEST_ASSERT_EQUAL_INT(OP_MODE_EXCEPTION, op_mode_get_current());
+/* STOP_ALL：IDLE → STOPPED，保留总开关 */
+static void test_stop_all_from_idle_enters_stopped(void)
+{
+    dev_cmd_t          cmd = dev_cmd_make_simple(DEV_CMD_STOP_ALL_OUTPUTS);
+    dev_cmd_decision_t d;
+
+    enter_idle();
+    d = op_mode_handle_command(&cmd);
+    TEST_ASSERT_EQUAL_INT(OP_CMD_ALLOWED, d.verdict);
+    TEST_ASSERT_EQUAL_INT(DEV_CMD_EFFECT_STOP_ALL_OUTPUTS, d.pending_effect);
+    TEST_ASSERT_EQUAL_INT(OP_MODE_STOPPED, op_mode_get_current());
+    TEST_ASSERT_TRUE(op_mode_is_service_enabled());
+}
+
+/* STOP_ALL：WASHING 先切 STOPPED，副作用含 abort；随后 abort 钩子不进清障 */
+static void test_stop_all_from_washing_skips_abort_homing(void)
+{
+    dev_cmd_t          cmd = dev_cmd_make_simple(DEV_CMD_STOP_ALL_OUTPUTS);
+    dev_cmd_decision_t d;
+
+    enter_idle();
+    op_mode_on_wash_session_started();
+    TEST_ASSERT_EQUAL_INT(OP_MODE_WASHING, op_mode_get_current());
+
+    d = op_mode_handle_command(&cmd);
+    TEST_ASSERT_EQUAL_INT(OP_CMD_ALLOWED, d.verdict);
+    TEST_ASSERT_EQUAL_INT(DEV_CMD_EFFECT_STOP_ALL_OUTPUTS_AND_ABORT, d.pending_effect);
+    TEST_ASSERT_EQUAL_INT(OP_MODE_STOPPED, op_mode_get_current());
+
+    op_mode_on_wash_session_aborted(WASH_ABORT_STOP_ALL);
+    TEST_ASSERT_EQUAL_INT(OP_MODE_STOPPED, op_mode_get_current());
+}
+
+/* STOP_ALL：RECOVERING → STOPPED */
+static void test_stop_all_from_recovering_enters_stopped(void)
+{
+    dev_cmd_t recover  = dev_cmd_make_simple(DEV_CMD_RECOVER);
+    dev_cmd_t stop_all = dev_cmd_make_simple(DEV_CMD_STOP_ALL_OUTPUTS);
+
+    (void)op_mode_handle_command(&recover);
+    TEST_ASSERT_EQUAL_INT(OP_MODE_RECOVERING, op_mode_get_current());
+    TEST_ASSERT_EQUAL_INT(OP_CMD_ALLOWED, op_mode_handle_command(&stop_all).verdict);
+    TEST_ASSERT_EQUAL_INT(OP_MODE_STOPPED, op_mode_get_current());
+}
+
+/*
+ * MODE-01：8 命令 × 8 状态穷举矩阵（与设计文档转录表一致）
+ * D=DENIED A=ALLOWED C=CONDITIONAL；列序 INIT..RECOVERING
+ */
+static void test_cmd_matrix_exhaustive_64(void)
+{
+    /* clang-format off */
+    static const op_cmd_perm_t expect[DEV_CMD_MAX][OP_MODE_RECOVERING + 1] = {
+        [DEV_CMD_START_WASH] = {
+            OP_CMD_PERM_DENIED, OP_CMD_PERM_DENIED, OP_CMD_PERM_CONDITIONAL, OP_CMD_PERM_DENIED,
+            OP_CMD_PERM_DENIED, OP_CMD_PERM_DENIED, OP_CMD_PERM_DENIED, OP_CMD_PERM_DENIED,
+        },
+        [DEV_CMD_STOP_WASH] = {
+            OP_CMD_PERM_DENIED, OP_CMD_PERM_DENIED, OP_CMD_PERM_DENIED, OP_CMD_PERM_ALLOWED,
+            OP_CMD_PERM_DENIED, OP_CMD_PERM_DENIED, OP_CMD_PERM_DENIED, OP_CMD_PERM_DENIED,
+        },
+        [DEV_CMD_STOP_OPERATION] = {
+            OP_CMD_PERM_DENIED, OP_CMD_PERM_ALLOWED, OP_CMD_PERM_ALLOWED, OP_CMD_PERM_DENIED,
+            OP_CMD_PERM_DENIED, OP_CMD_PERM_ALLOWED, OP_CMD_PERM_DENIED, OP_CMD_PERM_DENIED,
+        },
+        [DEV_CMD_RESUME_OPERATION] = {
+            OP_CMD_PERM_DENIED, OP_CMD_PERM_CONDITIONAL, OP_CMD_PERM_DENIED, OP_CMD_PERM_DENIED,
+            OP_CMD_PERM_DENIED, OP_CMD_PERM_DENIED, OP_CMD_PERM_DENIED, OP_CMD_PERM_DENIED,
+        },
+        [DEV_CMD_MANUAL_ACTUATOR] = {
+            OP_CMD_PERM_DENIED, OP_CMD_PERM_CONDITIONAL, OP_CMD_PERM_DENIED, OP_CMD_PERM_DENIED,
+            OP_CMD_PERM_DENIED, OP_CMD_PERM_DENIED, OP_CMD_PERM_DENIED, OP_CMD_PERM_DENIED,
+        },
+        [DEV_CMD_START_SELF_CHECK] = {
+            OP_CMD_PERM_DENIED, OP_CMD_PERM_CONDITIONAL, OP_CMD_PERM_DENIED, OP_CMD_PERM_DENIED,
+            OP_CMD_PERM_DENIED, OP_CMD_PERM_DENIED, OP_CMD_PERM_DENIED, OP_CMD_PERM_DENIED,
+        },
+        [DEV_CMD_RECOVER] = {
+            OP_CMD_PERM_DENIED, OP_CMD_PERM_CONDITIONAL, OP_CMD_PERM_ALLOWED, OP_CMD_PERM_DENIED,
+            OP_CMD_PERM_DENIED, OP_CMD_PERM_DENIED, OP_CMD_PERM_DENIED, OP_CMD_PERM_DENIED,
+        },
+        [DEV_CMD_STOP_ALL_OUTPUTS] = {
+            OP_CMD_PERM_DENIED, OP_CMD_PERM_ALLOWED, OP_CMD_PERM_ALLOWED, OP_CMD_PERM_ALLOWED,
+            OP_CMD_PERM_ALLOWED, OP_CMD_PERM_ALLOWED, OP_CMD_PERM_ALLOWED, OP_CMD_PERM_ALLOWED,
+        },
+    };
+    /* clang-format on */
+    dev_cmd_kind_t     kind;
+    operational_mode_t mode;
+
+    for (kind = (dev_cmd_kind_t)(DEV_CMD_NONE + 1); kind < DEV_CMD_MAX; kind++) {
+        for (mode = OP_MODE_INIT; mode <= OP_MODE_RECOVERING; mode++) {
+            TEST_ASSERT_EQUAL_INT(expect[kind][mode], op_mode_cmd_matrix_perm(kind, mode));
+        }
+    }
 }
 
 int main(void)
@@ -390,30 +509,37 @@ int main(void)
 
     WDF_RUN_TEST(test_init_stopped_and_service_enabled, "", "验证初始化停止模式并服务启用");
     WDF_RUN_TEST(test_recover_from_stopped_enters_idle, "", "验证恢复从停止模式进入空闲模式");
-    WDF_RUN_TEST(test_recover_home_failure_enters_exception, "", "验证恢复回零失败进入异常模式");
-    WDF_RUN_TEST(test_blocking_alarm_from_stopped_enters_exception, "", "验证停止模式出现阻断报警时进入异常模式");
-    WDF_RUN_TEST(test_blocking_alarm_during_home_lands_exception, "", "验证回零期间出现阻断报警后进入异常模式");
+    WDF_RUN_TEST(test_recover_home_failure_enters_stopped, "", "验证恢复回零失败进入停止模式");
+    WDF_RUN_TEST(test_blocking_alarm_from_stopped_stays_stopped, "", "验证停止模式阻断报警仍为停止");
+    WDF_RUN_TEST(test_blocking_alarm_from_idle_enters_stopped, "", "验证空闲模式阻断报警进入停止");
+    WDF_RUN_TEST(test_blocking_alarm_during_home_lands_stopped, "", "验证回零期间阻断报警完成后进入停止");
     WDF_RUN_TEST(test_recover_denied_when_service_disabled, "", "验证恢复被拒绝时服务禁用");
     WDF_RUN_TEST(test_recover_in_idle_is_idempotent, "", "验证恢复在空闲模式为幂等");
     WDF_RUN_TEST(test_start_wash_allowed_in_idle, "", "验证启动洗车被允许在空闲模式");
     WDF_RUN_TEST(test_stop_wash_denied_in_idle, "", "验证停止洗车被拒绝在空闲模式");
     WDF_RUN_TEST(test_stop_operation_disables_service, "", "验证停止运行禁用服务");
+    WDF_RUN_TEST(test_stop_operation_allowed_from_stopped, "", "验证停止模式下允许停运关总开关");
+    WDF_RUN_TEST(test_stop_operation_denied_while_washing, "", "验证洗车中拒绝停运");
+    WDF_RUN_TEST(test_stop_operation_denied_while_self_check, "", "验证自检中拒绝停运");
     WDF_RUN_TEST(test_resume_operation_only_when_service_stopped, "", "验证仅服务停止时允许恢复运行");
     WDF_RUN_TEST(test_start_wash_denied_when_service_disabled, "", "验证启动洗车被拒绝时服务禁用");
     WDF_RUN_TEST(test_start_wash_denied_with_blocking_alarm, "", "验证存在阻断报警时拒绝启动洗车");
     WDF_RUN_TEST(test_start_wash_denied_when_vehicle_not_ready, "", "验证启动洗车被拒绝时车辆未就绪");
     WDF_RUN_TEST(test_estop_blocks_recover, "", "验证急停阻止恢复");
-    WDF_RUN_TEST(test_recover_from_exception_enters_recovering, "", "验证恢复从异常模式进入恢复中模式");
-    WDF_RUN_TEST(test_recover_from_exception_denied_when_service_disabled, "", "验证恢复从异常模式被拒绝时服务禁用");
+    WDF_RUN_TEST(test_estop_release_stays_stopped, "", "验证急停解除保持停止模式");
+    WDF_RUN_TEST(test_recover_from_stopped_enters_recovering, "", "验证停止模式恢复进入恢复中");
+    WDF_RUN_TEST(test_recover_denied_when_service_disabled_after_critical, "", "验证服务关闭后拒绝恢复");
     WDF_RUN_TEST(test_wash_session_lifecycle, "", "验证洗车会话生命周期");
-    WDF_RUN_TEST(test_wash_done_with_blocking_enters_exception, "", "验证洗车完成时存在阻断报警则进入异常模式");
+    WDF_RUN_TEST(test_wash_done_with_blocking_enters_stopped, "", "验证洗车完成时存在阻断报警则进入停止");
     WDF_RUN_TEST(test_manual_actuator_allowed_in_stopped, "", "验证手动执行器被允许在停止模式");
-    WDF_RUN_TEST(test_manual_actuator_allowed_in_exception_without_estop, "", "验证异常模式无急停时允许手动执行器");
-    WDF_RUN_TEST(test_manual_actuator_denied_in_exception_with_estop, "", "验证异常模式存在急停时拒绝手动执行器");
-    WDF_RUN_TEST(test_self_check_from_stopped_success_returns_stopped, "", "验证停止模式自检成功后返回停止模式");
-    WDF_RUN_TEST(test_self_check_from_stopped_fail_enters_exception, "", "验证停止模式自检失败后进入异常模式");
-    WDF_RUN_TEST(test_self_check_from_exception_success_returns_stopped, "", "验证异常模式自检成功后返回停止模式");
-    WDF_RUN_TEST(test_self_check_from_exception_fail_returns_exception, "", "验证异常模式自检失败后返回异常模式");
+    WDF_RUN_TEST(test_manual_actuator_denied_with_estop, "", "验证急停时拒绝手动执行器");
+    WDF_RUN_TEST(test_self_check_from_stopped_success_returns_stopped, "", "验证停止模式自检成功后返回停止");
+    WDF_RUN_TEST(test_self_check_from_stopped_fail_returns_stopped, "", "验证停止模式自检失败后仍为停止");
+    WDF_RUN_TEST(test_self_check_denied_when_estop, "", "验证急停时拒绝自检");
+    WDF_RUN_TEST(test_stop_all_from_idle_enters_stopped, "", "验证全停从空闲进入停止");
+    WDF_RUN_TEST(test_stop_all_from_washing_skips_abort_homing, "", "验证全停洗车中不清障");
+    WDF_RUN_TEST(test_stop_all_from_recovering_enters_stopped, "", "验证全停打断恢复进入停止");
+    WDF_RUN_TEST(test_cmd_matrix_exhaustive_64, "", "验证命令许可矩阵 8x8 穷举");
 
     return UNITY_END();
 }

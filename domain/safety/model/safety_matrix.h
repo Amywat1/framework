@@ -40,7 +40,7 @@ extern "C" {
  * 三列的语义边界：
  *   blocks_wash_start  该等级活跃时禁止开洗（命令网关裁决 START_WASH 时读取）
  *   forces_lockout     该等级活跃时安全姿态进入 LOCKOUT（立刻停机路径）
- *   records_in_journal 触发时记入本次洗车会话日志，供洗完后评估是否转 EXCEPTION
+ *   records_in_journal 触发时记入本次洗车会话日志，供洗完后评估是否转 STOPPED
  * ------------------------------------------------------------------------- */
 
 /** @brief 单个等级的行为属性 */

@@ -1,6 +1,6 @@
 /**
  * @file    operational_mode.c
- * @brief   OperationalMode 聚合根实现（10 态状态机，表驱动）
+ * @brief   OperationalMode 聚合根实现（8 态状态机，表驱动）
  * @author  HUWANGWEI
  * @date    2026-07-09
  */
@@ -9,8 +9,8 @@
 
 #include "common/event_types.h"
 #include "common/log.h"
-#include "domain/safety/alarm_registry/alarm_registry.h"
 #include "domain/ports/outbound/machine/machine_ops_port.h"
+#include "domain/safety/alarm_registry/alarm_registry.h"
 #include "runtime/event_bus/event_bus.h"
 
 typedef enum {
@@ -32,8 +32,6 @@ static const char *op_mode_name(operational_mode_t mode)
         return "INIT";
     case OP_MODE_STOPPED:
         return "STOPPED";
-    case OP_MODE_HOMING:
-        return "HOMING";
     case OP_MODE_IDLE:
         return "IDLE";
     case OP_MODE_WASHING:
@@ -44,8 +42,6 @@ static const char *op_mode_name(operational_mode_t mode)
         return "WASH_DONE";
     case OP_MODE_SELF_CHECK:
         return "SELF_CHECK";
-    case OP_MODE_EXCEPTION:
-        return "EXCEPTION";
     case OP_MODE_RECOVERING:
         return "RECOVERING";
     default:
@@ -66,6 +62,8 @@ static const char *wash_abort_name(wash_abort_cause_t cause)
         return "internal";
     case WASH_ABORT_ESTOP:
         return "estop";
+    case WASH_ABORT_STOP_ALL:
+        return "stop_all";
     default:
         return "unknown";
     }
@@ -91,7 +89,7 @@ static void set_mode(operational_mode_t next, const char *cause)
     }
 
     from   = s_mode;
-    level  = ((next == OP_MODE_EXCEPTION) || (next == OP_MODE_ABORT_HOMING)) ? SW_LOG_WARN : SW_LOG_INFO;
+    level  = (next == OP_MODE_ABORT_HOMING) ? SW_LOG_WARN : SW_LOG_INFO;
     s_mode = next;
 
     if (cause != NULL) {
@@ -107,7 +105,7 @@ static void set_mode(operational_mode_t next, const char *cause)
  * 命令权限矩阵
  *
  * 列顺序与 operational_mode_t 枚举一致：
- *   INIT, STOPPED, HOMING, IDLE, WASHING, ABORT_HOMING, WASH_DONE, SELF_CHECK, EXCEPTION, RECOVERING
+ *   INIT, STOPPED, IDLE, WASHING, ABORT_HOMING, WASH_DONE, SELF_CHECK, RECOVERING
  *
  * CONDITIONAL：允许但需后续运行时检查（急停、服务开关等）
  */
@@ -117,104 +115,88 @@ static const op_perm_t k_cmd_matrix[DEV_CMD_MAX][OP_MODE_RECOVERING + 1] =
     [DEV_CMD_START_WASH] = {
         OP_PERM_DENIED,      /* INIT        */
         OP_PERM_DENIED,      /* STOPPED     */
-        OP_PERM_DENIED,      /* HOMING      */
         OP_PERM_CONDITIONAL, /* IDLE        */
         OP_PERM_DENIED,      /* WASHING     */
         OP_PERM_DENIED,      /* ABORT_HOMING*/
         OP_PERM_DENIED,      /* WASH_DONE   */
         OP_PERM_DENIED,      /* SELF_CHECK  */
-        OP_PERM_DENIED,      /* EXCEPTION   */
         OP_PERM_DENIED,      /* RECOVERING  */
     },
     /* DEV_CMD_STOP_WASH：仅 WASHING */
     [DEV_CMD_STOP_WASH] = {
         OP_PERM_DENIED,      /* INIT        */
         OP_PERM_DENIED,      /* STOPPED     */
-        OP_PERM_DENIED,      /* HOMING      */
         OP_PERM_DENIED,      /* IDLE        */
         OP_PERM_ALLOWED,     /* WASHING     */
         OP_PERM_DENIED,      /* ABORT_HOMING*/
         OP_PERM_DENIED,      /* WASH_DONE   */
         OP_PERM_DENIED,      /* SELF_CHECK  */
-        OP_PERM_DENIED,      /* EXCEPTION   */
         OP_PERM_DENIED,      /* RECOVERING  */
     },
-    /* DEV_CMD_STOP_OPERATION：停运 → STOPPED 且关闭运营总开关（IDLE / WASH_DONE）*/
+    /* DEV_CMD_STOP_OPERATION：非自动化态关总开关并落到 STOPPED；洗车/自检/恢复/清障中拒绝 */
     [DEV_CMD_STOP_OPERATION] = {
         OP_PERM_DENIED,      /* INIT        */
-        OP_PERM_DENIED,      /* STOPPED     */
-        OP_PERM_DENIED,      /* HOMING      */
+        OP_PERM_ALLOWED,     /* STOPPED     */
         OP_PERM_ALLOWED,     /* IDLE        */
         OP_PERM_DENIED,      /* WASHING     */
         OP_PERM_DENIED,      /* ABORT_HOMING*/
         OP_PERM_ALLOWED,     /* WASH_DONE   */
         OP_PERM_DENIED,      /* SELF_CHECK  */
-        OP_PERM_DENIED,      /* EXCEPTION   */
         OP_PERM_DENIED,      /* RECOVERING  */
     },
     /* DEV_CMD_RESUME_OPERATION：仅 STOPPED 下重新授权运营（仍须 HOME 进 IDLE）*/
     [DEV_CMD_RESUME_OPERATION] = {
         OP_PERM_DENIED,      /* INIT        */
         OP_PERM_CONDITIONAL, /* STOPPED     */
-        OP_PERM_DENIED,      /* HOMING      */
         OP_PERM_DENIED,      /* IDLE        */
         OP_PERM_DENIED,      /* WASHING     */
         OP_PERM_DENIED,      /* ABORT_HOMING*/
         OP_PERM_DENIED,      /* WASH_DONE   */
         OP_PERM_DENIED,      /* SELF_CHECK  */
-        OP_PERM_DENIED,      /* EXCEPTION   */
         OP_PERM_DENIED,      /* RECOVERING  */
     },
-    /* DEV_CMD_MANUAL_ACTUATOR：STOPPED 直接允许；EXCEPTION 需无急停 */
+    /* DEV_CMD_MANUAL_ACTUATOR：仅 STOPPED；急停激活时拒绝 */
     [DEV_CMD_MANUAL_ACTUATOR] = {
         OP_PERM_DENIED,      /* INIT        */
-        OP_PERM_ALLOWED,     /* STOPPED     */
-        OP_PERM_DENIED,      /* HOMING      */
+        OP_PERM_CONDITIONAL, /* STOPPED     */
         OP_PERM_DENIED,      /* IDLE        */
         OP_PERM_DENIED,      /* WASHING     */
         OP_PERM_DENIED,      /* ABORT_HOMING*/
         OP_PERM_DENIED,      /* WASH_DONE   */
         OP_PERM_DENIED,      /* SELF_CHECK  */
-        OP_PERM_CONDITIONAL, /* EXCEPTION   */
         OP_PERM_DENIED,      /* RECOVERING  */
     },
-    /* DEV_CMD_START_SELF_CHECK：STOPPED / EXCEPTION 均允许 */
+    /* DEV_CMD_START_SELF_CHECK：仅 STOPPED；急停激活时拒绝（LOCKOUT/blocking 允许）*/
     [DEV_CMD_START_SELF_CHECK] = {
         OP_PERM_DENIED,      /* INIT        */
-        OP_PERM_ALLOWED,     /* STOPPED     */
-        OP_PERM_DENIED,      /* HOMING      */
+        OP_PERM_CONDITIONAL, /* STOPPED     */
         OP_PERM_DENIED,      /* IDLE        */
         OP_PERM_DENIED,      /* WASHING     */
         OP_PERM_DENIED,      /* ABORT_HOMING*/
         OP_PERM_DENIED,      /* WASH_DONE   */
         OP_PERM_DENIED,      /* SELF_CHECK  */
-        OP_PERM_ALLOWED,     /* EXCEPTION   */
         OP_PERM_DENIED,      /* RECOVERING  */
     },
-    /* DEV_CMD_RECOVER：STOPPED 正常归位，EXCEPTION 故障恢复，IDLE 幂等成功 */
+    /* DEV_CMD_RECOVER：STOPPED 走恢复；IDLE 幂等成功 */
     [DEV_CMD_RECOVER] = {
         OP_PERM_DENIED,      /* INIT        */
         OP_PERM_CONDITIONAL, /* STOPPED     */
-        OP_PERM_DENIED,      /* HOMING      */
         OP_PERM_ALLOWED,     /* IDLE        */
         OP_PERM_DENIED,      /* WASHING     */
         OP_PERM_DENIED,      /* ABORT_HOMING*/
         OP_PERM_DENIED,      /* WASH_DONE   */
         OP_PERM_DENIED,      /* SELF_CHECK  */
-        OP_PERM_CONDITIONAL, /* EXCEPTION   */
         OP_PERM_DENIED,      /* RECOVERING  */
     },
-    /* DEV_CMD_STOP_ALL_OUTPUTS：紧急停止所有输出，多数状态均允许 */
+    /* DEV_CMD_STOP_ALL_OUTPUTS：除 INIT 外全面收敛到 STOPPED */
     [DEV_CMD_STOP_ALL_OUTPUTS] = {
         OP_PERM_DENIED,      /* INIT        */
         OP_PERM_ALLOWED,     /* STOPPED     */
-        OP_PERM_DENIED,      /* HOMING      */
         OP_PERM_ALLOWED,     /* IDLE        */
         OP_PERM_ALLOWED,     /* WASHING     */
         OP_PERM_ALLOWED,     /* ABORT_HOMING*/
         OP_PERM_ALLOWED,     /* WASH_DONE   */
-        OP_PERM_DENIED,      /* SELF_CHECK  */
-        OP_PERM_ALLOWED,     /* EXCEPTION   */
+        OP_PERM_ALLOWED,     /* SELF_CHECK  */
         OP_PERM_ALLOWED,     /* RECOVERING  */
     },
 };
@@ -234,7 +216,7 @@ static const dev_cmd_effect_t k_cmd_effects[DEV_CMD_MAX] = {
     [DEV_CMD_STOP_WASH]        = DEV_CMD_EFFECT_STOP_WASH,
     [DEV_CMD_START_SELF_CHECK] = DEV_CMD_EFFECT_SELF_CHECK,
     [DEV_CMD_MANUAL_ACTUATOR]  = DEV_CMD_EFFECT_MANUAL_ACTUATOR,
-    [DEV_CMD_STOP_ALL_OUTPUTS] = DEV_CMD_EFFECT_STOP_ALL_OUTPUTS,
+    /* STOP_ALL：按切模式前是否 WASHING 在 handle_command 中选择 effect */
     /* 其余默认 DEV_CMD_EFFECT_NONE = 0 */
 };
 
@@ -336,8 +318,8 @@ dev_cmd_decision_t op_mode_handle_command(const dev_cmd_t *cmd)
         break;
 
     case DEV_CMD_RECOVER:
-        /* STOPPED 与 EXCEPTION 统一走 recovery_service（复位锁存告警 + 异步归位）*/
-        if ((s_mode == OP_MODE_STOPPED) || (s_mode == OP_MODE_EXCEPTION)) {
+        /* STOPPED 走 recovery_service（复位锁存告警 + 异步归位）；IDLE 幂等 */
+        if (s_mode == OP_MODE_STOPPED) {
             set_mode(OP_MODE_RECOVERING, NULL);
             d.pending_effect = DEV_CMD_EFFECT_NONE;
             (void)event_publish(EVT_OP_MODE_RECOVERY_REQUESTED, 0U);
@@ -355,10 +337,20 @@ dev_cmd_decision_t op_mode_handle_command(const dev_cmd_t *cmd)
         op_mode_set_service_enabled(true);
         break;
 
+    case DEV_CMD_STOP_ALL_OUTPUTS:
+        /*
+         * 先切 STOPPED 再跑副作用：abort 到达时已非 WASHING，避免误入 ABORT_HOMING。
+         * 代价是短暂观测窗口——快照已 STOPPED，输出尚未切断（急停 cutout 不受影响）。
+         * abort 仅在前态 WASHING 时挂出，避免无会话空调用产生假 EVT_WASH_ABORTED。
+         */
+        d.pending_effect
+            = (s_mode == OP_MODE_WASHING) ? DEV_CMD_EFFECT_STOP_ALL_OUTPUTS_AND_ABORT : DEV_CMD_EFFECT_STOP_ALL_OUTPUTS;
+        set_mode(OP_MODE_STOPPED, "stop all outputs");
+        break;
+
     case DEV_CMD_START_WASH:
     case DEV_CMD_STOP_WASH:
     case DEV_CMD_MANUAL_ACTUATOR:
-    case DEV_CMD_STOP_ALL_OUTPUTS:
     default:
         break;
     }
@@ -381,7 +373,7 @@ void op_mode_on_wash_session_completed(void)
 
     /* MAJOR+：洗中已允许跑完；结束时若仍活跃则停机，不再进 WASH_DONE */
     if (alarm_registry_has_blocking_active()) {
-        set_mode(OP_MODE_EXCEPTION, "post-wash major still active");
+        set_mode(OP_MODE_STOPPED, "post-wash major still active");
         return;
     }
 
@@ -391,11 +383,11 @@ void op_mode_on_wash_session_completed(void)
 void op_mode_on_wash_session_aborted(wash_abort_cause_t cause)
 {
     if (s_mode != OP_MODE_WASHING) {
-        /* 急停路径：on_estop_triggered 已切换至 EXCEPTION，此处忽略 */
+        /* 急停 / STOP_ALL：模式已先切至 STOPPED，此处忽略 */
         return;
     }
 
-    /* 所有非急停中止原因均进入中止归位，防止机构阻碍客户离开 */
+    /* 其余中止原因进入中止归位，防止机构阻碍客户离开 */
     set_mode(OP_MODE_ABORT_HOMING, wash_abort_name(cause));
     (void)event_publish(EVT_ABORT_HOME_REQUESTED, 0U);
 }
@@ -407,32 +399,27 @@ void op_mode_on_wash_customer_gone(void)
     }
 }
 
-void op_mode_on_self_check_completed(bool land_exception)
+void op_mode_on_self_check_completed(bool land_fault)
 {
     if (s_mode != OP_MODE_SELF_CHECK) {
         return;
     }
 
-    if (land_exception) {
-        set_mode(OP_MODE_EXCEPTION, "self-check failed");
-    } else {
-        set_mode(OP_MODE_STOPPED, NULL);
-    }
+    set_mode(OP_MODE_STOPPED, land_fault ? "self-check failed" : NULL);
 }
 
 void op_mode_on_critical_alarm(void)
 {
     if ((s_mode != OP_MODE_WASHING) && (s_mode != OP_MODE_ABORT_HOMING) && (s_mode != OP_MODE_RECOVERING)) {
-        set_mode(OP_MODE_EXCEPTION, "critical alarm");
+        set_mode(OP_MODE_STOPPED, "critical alarm");
     }
 }
 
 void op_mode_on_blocking_alarm(void)
 {
-    /* 运行中的动作先按既定流程安全结束，静态状态立即进入故障停机。 */
-    if ((s_mode != OP_MODE_WASHING) && (s_mode != OP_MODE_HOMING) && (s_mode != OP_MODE_ABORT_HOMING)
-        && (s_mode != OP_MODE_RECOVERING)) {
-        set_mode(OP_MODE_EXCEPTION, "blocking alarm");
+    /* 运行中的动作先按既定流程安全结束；接单/自检等态立即收到 STOPPED。 */
+    if ((s_mode != OP_MODE_WASHING) && (s_mode != OP_MODE_ABORT_HOMING) && (s_mode != OP_MODE_RECOVERING)) {
+        set_mode(OP_MODE_STOPPED, "blocking alarm");
     }
 }
 
@@ -440,7 +427,7 @@ void op_mode_on_estop(bool active)
 {
     s_estop_active = active;
     if (active) {
-        set_mode(OP_MODE_EXCEPTION, "estop");
+        set_mode(OP_MODE_STOPPED, "estop");
     } else {
         publish_context_sync();
     }
@@ -455,20 +442,31 @@ void op_mode_on_recovery_completed(recovery_result_t result)
     if (result == RECOVERY_RESULT_IDLE) {
         set_mode(OP_MODE_IDLE, NULL);
     } else {
-        set_mode(OP_MODE_EXCEPTION, "recovery failed");
+        set_mode(OP_MODE_STOPPED, "recovery failed");
     }
 }
 
-void op_mode_on_home_done(bool success)
+void op_mode_on_home_done(void)
 {
-    if (s_mode == OP_MODE_HOMING) {
-        if (!success || alarm_registry_has_blocking_active()) {
-            set_mode(OP_MODE_EXCEPTION, success ? "blocking alarm after home" : "home failed");
-        } else {
-            set_mode(OP_MODE_IDLE, NULL);
-        }
-    } else if (s_mode == OP_MODE_ABORT_HOMING) {
-        set_mode(OP_MODE_EXCEPTION, NULL);
+    if (s_mode == OP_MODE_ABORT_HOMING) {
+        set_mode(OP_MODE_STOPPED, NULL);
+    }
+}
+
+op_cmd_perm_t op_mode_cmd_matrix_perm(dev_cmd_kind_t kind, operational_mode_t mode)
+{
+    if ((kind <= DEV_CMD_NONE) || (kind >= DEV_CMD_MAX) || (mode < OP_MODE_INIT) || (mode > OP_MODE_RECOVERING)) {
+        return OP_CMD_PERM_DENIED;
+    }
+
+    switch (k_cmd_matrix[kind][mode]) {
+    case OP_PERM_ALLOWED:
+        return OP_CMD_PERM_ALLOWED;
+    case OP_PERM_CONDITIONAL:
+        return OP_CMD_PERM_CONDITIONAL;
+    case OP_PERM_DENIED:
+    default:
+        return OP_CMD_PERM_DENIED;
     }
 }
 
@@ -489,10 +487,9 @@ bool op_mode_is_service_enabled(void)
 
 bool op_mode_is_stopping(void)
 {
-    /* 非运营接单态：停机/归位中/故障处理/中止清障等 */
-    return (s_mode == OP_MODE_INIT) || (s_mode == OP_MODE_STOPPED) || (s_mode == OP_MODE_HOMING)
-           || (s_mode == OP_MODE_EXCEPTION) || (s_mode == OP_MODE_RECOVERING) || (s_mode == OP_MODE_ABORT_HOMING)
-           || (s_mode == OP_MODE_SELF_CHECK) || !s_service_enabled;
+    /* 非运营接单态：停机/恢复/中止清障等 */
+    return (s_mode == OP_MODE_INIT) || (s_mode == OP_MODE_STOPPED) || (s_mode == OP_MODE_RECOVERING)
+           || (s_mode == OP_MODE_ABORT_HOMING) || (s_mode == OP_MODE_SELF_CHECK) || !s_service_enabled;
 }
 
 bool op_mode_is_standby(void)

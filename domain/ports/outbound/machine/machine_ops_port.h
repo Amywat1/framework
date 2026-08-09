@@ -39,7 +39,10 @@ typedef struct {
     sw_err_t (*home_device)(void);
     /** @brief DEV_CMD_MANUAL_ACTUATOR 副作用（act_id/param 由项目定义） */
     sw_err_t (*execute_manual_actuator)(uint32_t act_id, int32_t param);
-    /** @brief DEV_CMD_STOP_ALL_OUTPUTS 副作用 */
+    /**
+     * @brief  DEV_CMD_STOP_ALL_OUTPUTS 副作用：落到与 cutout 等价的安全输出态
+     * @note   有活跃洗车会话时，router 另选 STOP_ALL_OUTPUTS_AND_ABORT 调 abort_wash。
+     */
     sw_err_t (*stop_all_outputs)(void);
     /**
      * @brief  洗车准入是否就绪（START_WASH 附加门禁）

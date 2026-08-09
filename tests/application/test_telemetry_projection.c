@@ -62,7 +62,7 @@ void setUp(void)
      * 一旦有用例断言某子域的绝对值就会依赖执行顺序。 */
     device_snapshot_reset_for_test();
 
-    /* 同理清空报警表：残留的活动报警会让 op_mode 推导出 EXCEPTION，
+    /* 同理清空报警表：残留的活动报警会阻塞开洗并使静态态收敛到 STOPPED，
      * 断言 IDLE 的用例便只在"报警用例之后不执行"的顺序下成立。 */
     TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_init());
 }

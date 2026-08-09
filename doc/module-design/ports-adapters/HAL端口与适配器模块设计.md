@@ -340,7 +340,7 @@ bootstrap_start()
 - panic 回调应只做安全输出落地，不做复杂业务决策。
 - `flush_outputs_now()` 用于 panic 或启动安全态，正常路径由后台线程/周期任务推进。
 - `register_event_cb` 回调只传递硬件事件，不直接改变运行模式。
-- 急停热路径应通过 `safety_cutout_execute()` 或 `machine_ops.stop_all_outputs()` 统一收敛。前者由项目经 `safety_port_register()` 注册 `safety_ops_t` 提供实现（不是弱符号覆盖），未注册时故障安全并告警。
+- 急停热路径走 `safety_cutout_execute()`；命令侧全停走 `machine_ops.stop_all_outputs()`。二者入口分离，项目实现应落到等价安全输出态。前者由项目经 `safety_port_register()` 注册，未注册时故障安全并告警。
 
 ---
 
