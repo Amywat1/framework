@@ -52,7 +52,16 @@ static const cloud_property_ops_t s_property_ops = {
     .on_property_set = stub_on_property_set,
 };
 
-static sw_err_t stub_submit(const dev_cmd_t *cmd, dev_cmd_receipt_t *receipt, uint32_t timeout_ms)
+static sw_err_t stub_submit_async(const dev_cmd_t *cmd, uint64_t *request_id)
+{
+    (void)cmd;
+    if (request_id != NULL) {
+        *request_id = 1U;
+    }
+    return SW_OK;
+}
+
+static sw_err_t stub_submit_sync(const dev_cmd_t *cmd, dev_cmd_receipt_t *receipt, uint32_t timeout_ms)
 {
     (void)cmd;
     (void)timeout_ms;
@@ -63,7 +72,8 @@ static sw_err_t stub_submit(const dev_cmd_t *cmd, dev_cmd_receipt_t *receipt, ui
 }
 
 static const device_command_port_ops_t s_command_ops = {
-    .submit = stub_submit,
+    .submit_async = stub_submit_async,
+    .submit_sync  = stub_submit_sync,
 };
 
 void setUp(void)
@@ -111,7 +121,7 @@ static void test_device_command_port_register_and_get(void)
     TEST_ASSERT_NULL(device_command_port_get_ops());
     device_command_port_register(&s_command_ops);
     TEST_ASSERT_EQUAL_PTR(&s_command_ops, device_command_port_get_ops());
-    TEST_ASSERT_EQUAL_INT(SW_OK, device_command_port_get_ops()->submit(&cmd, &receipt, 0U));
+    TEST_ASSERT_EQUAL_INT(SW_OK, device_command_port_get_ops()->submit_sync(&cmd, &receipt, 0U));
     TEST_ASSERT_EQUAL_INT(DEV_CMD_STATUS_ACCEPTED, receipt.status);
 }
 
@@ -168,7 +178,7 @@ static void test_register_null_unregisters(void)
 /* 缺必填字段被拒绝，且不覆盖既有注册 */
 static void test_register_rejects_missing_mandatory_field(void)
 {
-    static const device_command_port_ops_t s_empty_cmd = {.submit = NULL};
+    static const device_command_port_ops_t s_empty_cmd = {.submit_async = NULL, .submit_sync = NULL};
 
     TEST_ASSERT_EQUAL_INT(SW_OK, device_command_port_register(&s_command_ops));
     TEST_ASSERT_EQUAL_PTR(&s_command_ops, device_command_port_get_ops());

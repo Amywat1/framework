@@ -97,13 +97,11 @@ typedef uint16_t event_type_t;
 #define EVT_ALARM_CLEARED   EVT_MAKE(EVT_CAT_ALARM, EVT_ALARM_ID_CLEARED)
 
 /* -------------------------------------------------------------------------
- * CMD 类（ORDER 仅测试用；生产命令经 device_command_port.submit）
+ * CMD 类（ORDER 仅测试用；生产命令经 device_command_port.submit_async/sync）
  * ------------------------------------------------------------------------- */
-#define EVT_CMD_ID_ORDER        0U
-#define EVT_CMD_ID_GATEWAY_WAKE 1U
+#define EVT_CMD_ID_ORDER 0U
 
-#define EVT_CMD_ORDER        EVT_MAKE(EVT_CAT_CMD, EVT_CMD_ID_ORDER)
-#define EVT_CMD_GATEWAY_WAKE EVT_MAKE(EVT_CAT_CMD, EVT_CMD_ID_GATEWAY_WAKE)
+#define EVT_CMD_ORDER EVT_MAKE(EVT_CAT_CMD, EVT_CMD_ID_ORDER)
 
 /* -------------------------------------------------------------------------
  * CLOUD 类（snack_cloud_link_adapter 发布）

@@ -19,6 +19,9 @@
 /* 事件分发线程（SCHED_OTHER） */
 #define THD_EVENT_DISPATCH_STACK (16U * 1024U)
 
+/* 命令控制线程（SCHED_OTHER）：命令裁决与副作用，与 event_dispatch 隔离 */
+#define THD_CMD_CONTROL_STACK (16U * 1024U)
+
 /* 洗车工作线程（SCHED_OTHER）*/
 #define THD_WASH_WORKER_STACK (32U * 1024U)
 

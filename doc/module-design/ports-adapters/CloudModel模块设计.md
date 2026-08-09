@@ -49,7 +49,7 @@
               │              cloud_device_cmd_submit           base.set / service()
               │                        │                        │
               │                        ▼                        │
-              │           device_command_port.submit()          │
+              │        device_command_port.submit_async()       │
               │              （command_gateway 仲裁）            │
               ▼                        ▼                        ▼
         point_apply_result      dev_cmd_receipt            领域/适配器回调
@@ -279,8 +279,9 @@ cloud_point_set_device_cmd_submit(my_submit);
 
 my_submit(kind):
     dev_cmd_t cmd = dev_cmd_make_simple(kind);
+    uint64_t  request_id;
     cmd.meta.source = DEV_CMD_SOURCE_CLOUD;
-    return device_command_port_get_ops()->submit(&cmd, &receipt, timeout_ms);
+    return device_command_port_get_ops()->submit_async(&cmd, &request_id);
 ```
 
 这样云端脉冲命令与 CLI、仿真测试共用同一套 `command_gateway` → `operational_mode` → `side_effect_router` 流水线。详见 `doc/module-design/domain/命令网关模块设计.md`。
@@ -294,11 +295,11 @@ my_submit(kind):
 ```c
 static sw_err_t cloud_cmd_submit(dev_cmd_kind_t kind)
 {
-    dev_cmd_t         cmd = dev_cmd_make_simple(kind);
-    dev_cmd_receipt_t receipt;
+    dev_cmd_t cmd = dev_cmd_make_simple(kind);
+    uint64_t request_id;
 
     cmd.meta.source = DEV_CMD_SOURCE_CLOUD;
-    return device_command_port_get_ops()->submit(&cmd, &receipt, 5000U);
+    return device_command_port_get_ops()->submit_async(&cmd, &request_id);
 }
 
 void wiring_cloud(void)

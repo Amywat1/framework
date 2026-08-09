@@ -135,7 +135,7 @@ bootstrap_start()
 
 | 检查 | 验证内容 |
 |------|----------|
-| STOP_OPERATION | `device_command_port.submit()` → command gateway → operational mode |
+| STOP_OPERATION | `device_command_port.submit_sync/async` → command gateway → operational mode |
 | HW ESTOP | `hw_estop_sim_set_active(true)` → `EVT_HW_ESTOP_ON` → op mode estop flag |
 | Alarm trigger | `alarm_binding.trigger()` → `alarm_bridge_drain()` → registry blocking |
 
@@ -221,7 +221,7 @@ typedef struct {
 | `is_wash_entry_ready` | `START_WASH` 附加门禁；未注册（NULL）时框架不拦截 |
 
 `side_effect_router` 不做权限判断，只执行 `operational_mode` 已裁决允许的副作用。未注册或函数缺失时返回 `SW_ERR_NOT_INIT`。  
-上述回调均在 **event_dispatch** 线程经网关同步调用：任一实现内长时间阻塞，都会拖住后续命令（含软件停止）与其它事件处理。
+上述回调均在 **cmd_control** 线程经网关调用：任一实现内长时间阻塞，都会拖住后续命令（含软件停止）。硬急停 cutout 仍在 `estop_poll`，不受此影响。
 
 ### 5.2 项目实现要求
 

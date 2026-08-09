@@ -23,11 +23,13 @@ extern "C" {
 
 /**
  * @brief  命令裁决结果
- * @note   仅表达许可与拒绝原因；同步 HAL 由 application 按 kind + 裁决前模式执行。
+ * @note   同步 HAL 由 application 按 kind + mode_before 执行。
+ *         mode_before 与裁决在同一把模式锁内取得，避免钩子插入导致过期快照。
  */
 typedef struct {
     op_cmd_result_t    verdict;
     op_reject_reason_t reason;
+    operational_mode_t mode_before; /**< 裁决前模式（与 verdict 原子） */
 } dev_cmd_decision_t;
 
 /* -------------------------------------------------------------------------

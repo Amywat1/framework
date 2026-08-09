@@ -63,7 +63,7 @@ sw_err_t cloud_point_get_echo_idle(point_value_t *out);
 /** @brief  DEVICE_CMD 语义提交回调（由项目 wiring 注册） */
 typedef sw_err_t (*cloud_device_cmd_submit_fn_t)(dev_cmd_kind_t kind);
 
-/** @brief  注册 DEVICE_CMD 语义提交回调（项目层转调 device_command_port.submit） */
+/** @brief  注册 DEVICE_CMD 语义提交回调（项目层宜转调 device_command_port.submit_async） */
 void cloud_point_set_device_cmd_submit(cloud_device_cmd_submit_fn_t fn);
 
 sw_err_t cloud_point_validate(const cloud_point_entry_t *entries, size_t count);

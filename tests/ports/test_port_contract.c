@@ -39,7 +39,16 @@ static const hal_io_ops_t s_io_ops = {
     .di_read = fake_di_read,
 };
 
-static sw_err_t fake_submit(const dev_cmd_t *cmd, dev_cmd_receipt_t *receipt, uint32_t timeout_ms)
+static sw_err_t fake_submit_async(const dev_cmd_t *cmd, uint64_t *request_id)
+{
+    (void)cmd;
+    if (request_id != NULL) {
+        *request_id = 1U;
+    }
+    return SW_OK;
+}
+
+static sw_err_t fake_submit_sync(const dev_cmd_t *cmd, dev_cmd_receipt_t *receipt, uint32_t timeout_ms)
 {
     (void)cmd;
     (void)receipt;
@@ -47,7 +56,10 @@ static sw_err_t fake_submit(const dev_cmd_t *cmd, dev_cmd_receipt_t *receipt, ui
     return SW_OK;
 }
 
-static const device_command_port_ops_t s_cmd_ops = {.submit = fake_submit};
+static const device_command_port_ops_t s_cmd_ops = {
+    .submit_async = fake_submit_async,
+    .submit_sync  = fake_submit_sync,
+};
 
 static const machine_ops_t s_machine_ops = {0};
 

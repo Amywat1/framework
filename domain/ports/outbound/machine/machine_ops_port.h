@@ -43,7 +43,7 @@ typedef struct {
     /**
      * @brief  DEV_CMD_MANUAL_ACTUATOR 副作用（act_id/param 由项目定义）
      * @note   只下发动作或启动定时/运动后立即返回；禁止在本调用内等待点动时长或
-     *         阻塞等到机构到位（会占用 event_dispatch，拖住后续 STOP_ALL 等命令）。
+     *         阻塞等到机构到位（会占用 cmd_control，拖住后续 STOP_ALL 等命令）。
      *         运动完成/停止由项目自行观测，框架不为此发完成事件。
      */
     sw_err_t (*execute_manual_actuator)(uint32_t act_id, int32_t param);

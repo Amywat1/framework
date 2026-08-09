@@ -537,6 +537,7 @@ add_unit_test(test_command_gateway
     ${WDF_ROOT}/common/log.c
     ${WDF_ROOT}/common/sw_mutex.c
 )
+target_compile_definitions(test_command_gateway PRIVATE WDF_UNIT_TEST)
 
 add_unit_test(test_pulse_out
     ${CMAKE_CURRENT_SOURCE_DIR}/common/test_pulse_out.c

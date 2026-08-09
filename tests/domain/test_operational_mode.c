@@ -431,6 +431,7 @@ static void test_stop_all_from_washing_skips_abort_homing(void)
 
     d = op_mode_handle_command(&cmd);
     TEST_ASSERT_EQUAL_INT(OP_CMD_ALLOWED, d.verdict);
+    TEST_ASSERT_EQUAL_INT(OP_MODE_WASHING, d.mode_before); /* 与裁决同锁快照，供 router abort */
     TEST_ASSERT_EQUAL_INT(OP_MODE_STOPPED, op_mode_get_current());
 
     op_mode_on_wash_session_aborted(WASH_ABORT_STOP_ALL);

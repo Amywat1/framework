@@ -9,9 +9,12 @@
 
 #include "common/event_types.h"
 #include "common/log.h"
+#include "common/sw_mutex.h"
 #include "domain/ports/outbound/machine/machine_ops_port.h"
 #include "domain/safety/alarm_registry/alarm_registry.h"
 #include "runtime/event_bus/event_bus.h"
+
+#include <pthread.h>
 
 typedef enum {
     OP_PERM_DENIED = 0,
@@ -22,6 +25,24 @@ typedef enum {
 static operational_mode_t s_mode            = OP_MODE_INIT;
 static bool               s_estop_active    = false;
 static bool               s_service_enabled = true;
+static pthread_mutex_t    s_mu;
+static pthread_once_t     s_mu_once = PTHREAD_ONCE_INIT;
+
+static void op_mode_mu_init(void)
+{
+    (void)sw_mutex_init_prio_inherit(&s_mu);
+}
+
+static void op_mode_lock(void)
+{
+    (void)pthread_once(&s_mu_once, op_mode_mu_init);
+    (void)pthread_mutex_lock(&s_mu);
+}
+
+static void op_mode_unlock(void)
+{
+    (void)pthread_mutex_unlock(&s_mu);
+}
 
 static void op_mode_set_service_enabled(bool enabled);
 
@@ -277,9 +298,11 @@ static dev_cmd_decision_t check_command(const dev_cmd_t *cmd)
 
 sw_err_t operational_mode_init(void)
 {
+    op_mode_lock();
     s_mode            = OP_MODE_STOPPED;
     s_estop_active    = false;
     s_service_enabled = true;
+    op_mode_unlock();
     LOG_INFO("operational_mode: init ok (STOPPED)");
     return SW_OK;
 }
@@ -288,16 +311,20 @@ dev_cmd_decision_t op_mode_handle_command(const dev_cmd_t *cmd)
 {
     dev_cmd_decision_t d;
     dev_cmd_kind_t     kind;
+    operational_mode_t mode_before;
 
-    d = check_command(cmd);
+    op_mode_lock();
+    mode_before   = s_mode;
+    d             = check_command(cmd);
+    d.mode_before = mode_before;
     if (d.verdict != OP_CMD_ALLOWED) {
         if (cmd != NULL) {
             LOG_WARN("op_mode: cmd %d rejected (reason=%d, mode=%s)",
                      (int)cmd->body.kind,
                      (int)d.reason,
                      op_mode_name(s_mode));
-            /* 拒绝结果由 command_gateway 统一发 EVT_OP_MODE_CMD_HANDLED，此处不另发事件 */
         }
+        op_mode_unlock();
         return d;
     }
 
@@ -309,7 +336,7 @@ dev_cmd_decision_t op_mode_handle_command(const dev_cmd_t *cmd)
         break;
 
     case DEV_CMD_RECOVER:
-        /* STOPPED 走 recovery_service（复位锁存告警 + 异步归位）；IDLE 幂等 */
+        /* STOPPED 走 recovery_service；IDLE 幂等 */
         if (s_mode == OP_MODE_STOPPED) {
             set_mode(OP_MODE_RECOVERING, NULL);
             (void)event_publish(EVT_OP_MODE_RECOVERY_REQUESTED, 0U);
@@ -317,22 +344,18 @@ dev_cmd_decision_t op_mode_handle_command(const dev_cmd_t *cmd)
         break;
 
     case DEV_CMD_STOP_OPERATION:
-        /* 不运营 = 停机：关总开关并离开 IDLE/WASH_DONE */
+        /* 关总开关并离开 IDLE/WASH_DONE */
         op_mode_set_service_enabled(false);
         set_mode(OP_MODE_STOPPED, "stop operation");
         break;
 
     case DEV_CMD_RESUME_OPERATION:
-        /* 仅重新授权（已开则幂等）；不改模式（接单仍须 RECOVER → IDLE）*/
+        /* 仅重新授权（已开则幂等）；接单仍须 RECOVER → IDLE */
         op_mode_set_service_enabled(true);
         break;
 
     case DEV_CMD_STOP_ALL_OUTPUTS:
-        /*
-         * 先切 STOPPED 再跑 router：abort 到达时已非 WASHING，避免误入 ABORT_HOMING。
-         * 代价是短暂观测窗口——快照已 STOPPED，输出尚未切断（急停 cutout 不受影响）。
-         * 是否 abort 由 gateway 传入的 mode_before 决定（此处信息将丢失）。
-         */
+        /* 先切 STOPPED 再跑 router，避免误入 ABORT_HOMING；见命令网关设计 §5.2 观测窗口 */
         set_mode(OP_MODE_STOPPED, "stop all outputs");
         break;
 
@@ -343,87 +366,106 @@ dev_cmd_decision_t op_mode_handle_command(const dev_cmd_t *cmd)
         break;
     }
 
+    op_mode_unlock();
     return d;
 }
 
 void op_mode_on_wash_session_started(void)
 {
+    op_mode_lock();
     if (s_mode == OP_MODE_IDLE) {
         set_mode(OP_MODE_WASHING, NULL);
     }
+    op_mode_unlock();
 }
 
 void op_mode_on_wash_session_completed(void)
 {
+    op_mode_lock();
     if (s_mode != OP_MODE_WASHING) {
+        op_mode_unlock();
         return;
     }
 
-    /* MAJOR+：洗中已允许跑完；结束时若仍活跃则停机，不再进 WASH_DONE */
     if (alarm_registry_has_blocking_active()) {
         set_mode(OP_MODE_STOPPED, "post-wash major still active");
+        op_mode_unlock();
         return;
     }
 
     set_mode(OP_MODE_WASH_DONE, NULL);
+    op_mode_unlock();
 }
 
 void op_mode_on_wash_session_aborted(wash_abort_cause_t cause)
 {
+    op_mode_lock();
     if (s_mode != OP_MODE_WASHING) {
-        /* 急停 / STOP_ALL：模式已先切至 STOPPED，此处忽略 */
+        op_mode_unlock();
         return;
     }
 
-    /* 其余中止原因进入中止归位，防止机构阻碍客户离开 */
     set_mode(OP_MODE_ABORT_HOMING, wash_abort_name(cause));
     (void)event_publish(EVT_ABORT_HOME_REQUESTED, 0U);
+    op_mode_unlock();
 }
 
 void op_mode_on_wash_customer_gone(void)
 {
+    op_mode_lock();
     if (s_mode == OP_MODE_WASH_DONE) {
         set_mode(OP_MODE_IDLE, NULL);
     }
+    op_mode_unlock();
 }
 
 void op_mode_on_self_check_completed(bool land_fault)
 {
+    op_mode_lock();
     if (s_mode != OP_MODE_SELF_CHECK) {
+        op_mode_unlock();
         return;
     }
 
     set_mode(OP_MODE_STOPPED, land_fault ? "self-check failed" : NULL);
+    op_mode_unlock();
 }
 
 void op_mode_on_critical_alarm(void)
 {
+    op_mode_lock();
     if ((s_mode != OP_MODE_WASHING) && (s_mode != OP_MODE_ABORT_HOMING) && (s_mode != OP_MODE_RECOVERING)) {
         set_mode(OP_MODE_STOPPED, "critical alarm");
     }
+    op_mode_unlock();
 }
 
 void op_mode_on_blocking_alarm(void)
 {
-    /* 运行中的动作先按既定流程安全结束；接单/自检等态立即收到 STOPPED。 */
+    op_mode_lock();
     if ((s_mode != OP_MODE_WASHING) && (s_mode != OP_MODE_ABORT_HOMING) && (s_mode != OP_MODE_RECOVERING)) {
         set_mode(OP_MODE_STOPPED, "blocking alarm");
     }
+    op_mode_unlock();
 }
 
 void op_mode_on_estop(bool active)
 {
+    op_mode_lock();
     s_estop_active = active;
     if (active) {
         set_mode(OP_MODE_STOPPED, "estop");
     } else {
         publish_context_sync();
     }
+    op_mode_unlock();
 }
 
 void op_mode_on_recovery_completed(recovery_result_t result)
 {
+    op_mode_lock();
     if (s_mode != OP_MODE_RECOVERING) {
+        op_mode_unlock();
         return;
     }
 
@@ -432,13 +474,16 @@ void op_mode_on_recovery_completed(recovery_result_t result)
     } else {
         set_mode(OP_MODE_STOPPED, "recovery failed");
     }
+    op_mode_unlock();
 }
 
 void op_mode_on_home_done(void)
 {
+    op_mode_lock();
     if (s_mode == OP_MODE_ABORT_HOMING) {
         set_mode(OP_MODE_STOPPED, NULL);
     }
+    op_mode_unlock();
 }
 
 op_cmd_perm_t op_mode_cmd_matrix_perm(dev_cmd_kind_t kind, operational_mode_t mode)
@@ -460,30 +505,53 @@ op_cmd_perm_t op_mode_cmd_matrix_perm(dev_cmd_kind_t kind, operational_mode_t mo
 
 operational_mode_t op_mode_get_current(void)
 {
-    return s_mode;
+    operational_mode_t mode;
+
+    op_mode_lock();
+    mode = s_mode;
+    op_mode_unlock();
+    return mode;
 }
 
 bool op_mode_is_estop_active(void)
 {
-    return s_estop_active;
+    bool active;
+
+    op_mode_lock();
+    active = s_estop_active;
+    op_mode_unlock();
+    return active;
 }
 
 bool op_mode_is_service_enabled(void)
 {
-    return s_service_enabled;
+    bool enabled;
+
+    op_mode_lock();
+    enabled = s_service_enabled;
+    op_mode_unlock();
+    return enabled;
 }
 
 bool op_mode_is_stopping(void)
 {
-    /* 非运营接单态：停机/恢复/中止清障等 */
-    return (s_mode == OP_MODE_INIT) || (s_mode == OP_MODE_STOPPED) || (s_mode == OP_MODE_RECOVERING)
-           || (s_mode == OP_MODE_ABORT_HOMING) || (s_mode == OP_MODE_SELF_CHECK) || !s_service_enabled;
+    bool stopping;
+
+    op_mode_lock();
+    stopping = (s_mode == OP_MODE_INIT) || (s_mode == OP_MODE_STOPPED) || (s_mode == OP_MODE_RECOVERING)
+               || (s_mode == OP_MODE_ABORT_HOMING) || (s_mode == OP_MODE_SELF_CHECK) || !s_service_enabled;
+    op_mode_unlock();
+    return stopping;
 }
 
 bool op_mode_is_standby(void)
 {
-    /* IDLE 蕴含 service_enabled（STOP_OPERATION 会离开 IDLE）*/
-    return s_mode == OP_MODE_IDLE;
+    bool standby;
+
+    op_mode_lock();
+    standby = (s_mode == OP_MODE_IDLE);
+    op_mode_unlock();
+    return standby;
 }
 
 static void op_mode_set_service_enabled(bool enabled)

@@ -4,7 +4,9 @@
  * @author  HUWANGWEI
  * @date    2026-07-09
  *
- * @note    只在 event_dispatch 线程访问；不订阅 event_bus，模式变更时主动 event_publish。
+ * @note    不订阅 event_bus，模式变更时主动 event_publish。
+ *          写路径来自 cmd_control（命令裁决）与 event_dispatch（生命周期钩子），
+ *          内部以互斥量串行化；跨线程组合读仍建议用 device_snapshot_get()。
  */
 
 #ifndef DOMAIN_OP_MODE_OPERATIONAL_MODE_H
@@ -107,33 +109,24 @@ void op_mode_on_home_done(void);
 op_cmd_perm_t op_mode_cmd_matrix_perm(dev_cmd_kind_t kind, operational_mode_t mode);
 
 /* -------------------------------------------------------------------------
- * 直读接口（线程约束）
+ * 直读接口
  *
- * 以下读接口直接返回聚合根的内部状态，不加锁：本模块的状态只在 event_dispatch
- * 线程内被修改（命令裁决与各事件桥接都在该线程执行），因此同线程内读取总是
- * 一致的，无需同步开销。
- *
- * 其他线程（周期任务、项目工作线程、CLI）不得调用这些接口——那会构成无保护
- * 的跨线程读，可能读到撕裂或过期的组合状态。跨线程读一律改用
- * `domain/telemetry/device_snapshot.h` 的 device_snapshot_get()：它是加锁的
- * 原子快照，且能保证运行模式、安全状态、洗车模式来自同一时刻。
+ * 单字段读已由内部互斥保护，可从 cmd_control / event_dispatch / 测试线程调用。
+ * 需要「模式 + 安全 + 洗车」同一时刻组合视图时，仍用 device_snapshot_get()。
  * ------------------------------------------------------------------------- */
 
 /**
  * @brief  读取当前运行模式
- * @note   仅限 event_dispatch 线程调用；跨线程请用 device_snapshot_get()。
  */
 operational_mode_t op_mode_get_current(void);
 
 /**
  * @brief  急停是否激活
- * @note   仅限 event_dispatch 线程调用；跨线程请用 device_snapshot_get()。
  */
 bool op_mode_is_estop_active(void);
 
 /**
  * @brief  运营总开关是否开启（关则禁止 RECOVER；上电默认开启）
- * @note   仅限 event_dispatch 线程调用；跨线程请用 device_snapshot_get()。
  */
 bool op_mode_is_service_enabled(void);
 

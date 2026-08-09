@@ -17,8 +17,8 @@ static const device_command_port_ops_t *s_cmd_ops;
 
 sw_err_t device_command_port_register(const device_command_port_ops_t *ops)
 {
-    /* submit 是本端口唯一入口，缺失则整个命令链路不可用 */
-    if ((ops != NULL) && (ops->submit == NULL)) {
+    /* async/sync 均为必填；缺失则命令链路不可用 */
+    if ((ops != NULL) && ((ops->submit_async == NULL) || (ops->submit_sync == NULL))) {
         return SW_ERR_PARAM;
     }
     s_cmd_ops = ops;

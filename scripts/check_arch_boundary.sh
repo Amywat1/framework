@@ -501,6 +501,7 @@ RT_REACHABLE_FILES=(
 # 非 RT 可达：允许默认互斥量，须逐个说明依据
 NON_RT_FILES=(
     "application/command_gateway.c"                       # 命令提交，非急停路径
+    "domain/op_mode/operational_mode.c"                   # 模式串行锁；急停 cutout 不取此锁
     "domain/safety/alarm_registry/alarm_registry.c"        # 由报警采集线程驱动
     "domain/telemetry/device_snapshot.c"                   # 投影读写
     "domain/device_control/patterns/fluid_path.c"          # emergency_off 是无锁原子写
@@ -614,6 +615,7 @@ BOUNDED_WAIT_SITES=(
 UNBOUNDED_WAIT_SITES=(
     "runtime/event_bus/event_bus.c:sem_wait"               # dispatch 线程等下一个事件
     "application/engine_session/engine_session.c:sem_wait" # 工作线程等下一次启动请求
+    "application/command_gateway.c:sem_wait"               # cmd_control 等下一个入队唤醒
 )
 
 # 固定时长轮询：睡眠时长是编译期常量或配置值，本身即上限

@@ -74,7 +74,7 @@ static int submit_expect_accepted(dev_cmd_kind_t kind)
         return 1;
     }
 
-    if (ops->submit(&cmd, &receipt, 2000U) != SW_OK) {
+    if (ops->submit_sync(&cmd, &receipt, 2000U) != SW_OK) {
         fprintf(stderr, "[Demo] command %d submit failed\n", (int)kind);
         return 1;
     }

@@ -174,7 +174,7 @@ typedef struct
 | 组件完成 | `EVT_CAT_COMP` | 机构领域层 | `EVT_COMP_HOME_DONE`、`EVT_COMP_MOTION_COMPLETED` |
 | 安全姿态 | `EVT_CAT_SAFETY` | `alarm_bridge`（边沿）；`safety_session_coordinator` 发完成事件 | `EVT_SAFETY_LOCKOUT`、`EVT_SAFETY_NOMINAL`、`EVT_ABORT_HOME_DONE` |
 | 报警生命周期 | `EVT_CAT_ALARM` | `alarm_bridge` | `EVT_ALARM_TRIGGERED`、`EVT_ALARM_CLEARED` |
-| 外部命令 | `EVT_CAT_CMD` | 命令网关 | `EVT_CMD_GATEWAY_WAKE`（`EVT_CMD_ORDER` 仅测试保留） |
+| 外部命令 | `EVT_CAT_CMD` | （历史/测试） | `EVT_CMD_ORDER` 仅测试；网关唤醒已改 `cmd_control` 信号量 |
 | 云端 | `EVT_CAT_CLOUD` | 云链路适配器 | `EVT_CLOUD_CONNECTED`、`EVT_CLOUD_DISCONNECTED`、`EVT_CLOUD_POINT_DIRTY` |
 | 洗车流程 | `EVT_CAT_WASH` | 项目洗车编排器 | `EVT_WASH_DONE`、`EVT_WASH_ABORTED`、`EVT_WASH_SESSION_STARTED`、`EVT_WASH_CHECKPOINT_REACHED` |
 | 运行模式 | `EVT_CAT_OP_MODE` | `operational_mode` 聚合 | `EVT_OP_MODE_CHANGED`、`EVT_ABORT_HOME_REQUESTED`、`EVT_OP_MODE_RECOVERY_*` 等 |
@@ -289,13 +289,12 @@ typedef void (*event_handler_t)(const event_t *evt);
 |--------|--------------|----------|
 | `op_mode_bridge` | `EVT_WASH_*`、`EVT_HW_ESTOP_*`、`EVT_SAFETY_LOCKOUT`、`EVT_ALARM_*` 等 | ✅ |
 | `alarm_bridge` | （发布方）`EVT_ALARM_*`、`EVT_SAFETY_LOCKOUT/NOMINAL` | ✅ |
-| `command_gateway` | `EVT_CMD_GATEWAY_WAKE` | ✅ |
 | `estop_poll` / `op_mode_bridge` | 安全与报警相关事件 | ✅ |
 | `recovery_service` | 恢复流程事件 | ✅ |
 | `safety_session_coordinator` | 安全切断与中止归位 | ✅ |
 | `telemetry_projection` | `EVT_ALARM_*`、`EVT_WASH_*`、`EVT_OP_MODE_*` 等 | ✅ |
 
-**单线程模块**（如 `operational_mode`）声明只在 `event_dispatch` 线程访问，由 wiring 保证与命令网关、桥接器同线程串行。
+**`operational_mode`** 写路径来自 `cmd_control`（命令）与 `event_dispatch`（钩子），内部互斥串行；命令网关不再订阅总线唤醒。
 
 ### 6.2 典型发布链（概念级）
 
@@ -311,7 +310,7 @@ typedef void (*event_handler_t)(const event_t *evt);
 
 ### 6.3 命令网关与总线
 
-外部命令（CLI / 云端 RPC）经 `command_port` 注入后，由 `command_gateway` 在 **event_dispatch 线程**仲裁执行，而非在 RPC 线程直接操作领域状态。事件总线在此承担**唤醒与串行化**角色（如 `EVT_CMD_GATEWAY_WAKE`）。
+外部命令经 `command_port` 注入后，由 `command_gateway` 在独立 **`cmd_control` 线程**仲裁执行。总线仍承载模式变更、`CMD_HANDLED` 等广播，但不再负责命令唤醒。
 
 ### 6.4 急停双通道
 

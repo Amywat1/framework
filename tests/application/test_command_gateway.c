@@ -22,6 +22,7 @@
 static volatile uint64_t s_handled_command_id;
 static volatile uint64_t s_handled_correlation_id;
 static volatile int      s_stop_all_outputs_count;
+static volatile int      s_cmd_handled_busy_count;
 
 static sw_err_t stub_home_device(void)
 {
@@ -61,22 +62,37 @@ static void handled_handler(const event_t *evt)
 {
     s_handled_command_id     = evt->trace.command_id;
     s_handled_correlation_id = evt->trace.correlation_id;
+    if (cmd_handled_status(evt->param) == DEV_CMD_STATUS_BUSY) {
+        s_cmd_handled_busy_count++;
+    }
 }
 
 static sw_err_t submit_simple(dev_cmd_kind_t kind, dev_cmd_receipt_t *receipt)
 {
     dev_cmd_t cmd = dev_cmd_make_simple(kind);
 
-    return device_command_port_get_ops()->submit(&cmd, receipt, 1000U);
+    return device_command_port_get_ops()->submit_sync(&cmd, receipt, 1000U);
 }
 
-/* 辅助：把 op_mode 直接推进到 IDLE（绕过 event_bus）*/
 static void setup_idle(void)
 {
     dev_cmd_t cmd = dev_cmd_make_simple(DEV_CMD_RECOVER);
 
     (void)op_mode_handle_command(&cmd);
     op_mode_on_recovery_completed(RECOVERY_RESULT_IDLE);
+}
+
+static void start_runtime(pthread_t *dispatch_tid)
+{
+    TEST_ASSERT_EQUAL_INT(SW_OK, command_gateway_start_control_for_test());
+    *dispatch_tid = start_dispatch();
+    usleep(30000);
+}
+
+static void stop_runtime(pthread_t dispatch_tid)
+{
+    command_gateway_stop_control_for_test();
+    stop_dispatch(dispatch_tid);
 }
 
 void setUp(void)
@@ -90,13 +106,14 @@ void setUp(void)
     s_handled_command_id       = 0U;
     s_handled_correlation_id   = 0U;
     s_stop_all_outputs_count   = 0;
+    s_cmd_handled_busy_count   = 0;
 }
 
 void tearDown(void)
 {
+    command_gateway_stop_control_for_test();
 }
 
-/* IDLE 下 STOP_OPERATION 被接受 */
 static void test_submit_accepted_in_idle(void)
 {
     dev_cmd_receipt_t receipt = {0};
@@ -106,16 +123,14 @@ static void test_submit_accepted_in_idle(void)
     TEST_ASSERT_EQUAL_INT(SW_OK, operational_mode_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, command_gateway_init());
     setup_idle();
-    tid = start_dispatch();
-    usleep(30000);
+    start_runtime(&tid);
 
     TEST_ASSERT_EQUAL_INT(SW_OK, submit_simple(DEV_CMD_STOP_OPERATION, &receipt));
     TEST_ASSERT_EQUAL_INT(DEV_CMD_STATUS_ACCEPTED, receipt.status);
 
-    stop_dispatch(tid);
+    stop_runtime(tid);
 }
 
-/* 错误模式下命令被拒绝 */
 static void test_submit_rejected_wrong_mode(void)
 {
     dev_cmd_receipt_t receipt = {0};
@@ -124,16 +139,14 @@ static void test_submit_rejected_wrong_mode(void)
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, operational_mode_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, command_gateway_init());
-    tid = start_dispatch();
+    start_runtime(&tid);
 
-    /* STOPPED 状态下 STOP_WASH 被拒绝 */
     TEST_ASSERT_EQUAL_INT(SW_ERR_STATE, submit_simple(DEV_CMD_STOP_WASH, &receipt));
     TEST_ASSERT_EQUAL_INT(DEV_CMD_STATUS_REJECTED, receipt.status);
 
-    stop_dispatch(tid);
+    stop_runtime(tid);
 }
 
-/* START_WASH 触发洗车编排器 */
 static void test_start_wash_triggers_orchestrator(void)
 {
     dev_cmd_t         cmd     = dev_cmd_make_start_wash(TEST_WASH_MODE_A);
@@ -144,18 +157,16 @@ static void test_start_wash_triggers_orchestrator(void)
     TEST_ASSERT_EQUAL_INT(SW_OK, operational_mode_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, command_gateway_init());
     setup_idle();
-    tid = start_dispatch();
-    usleep(30000);
+    start_runtime(&tid);
 
-    TEST_ASSERT_EQUAL_INT(SW_OK, device_command_port_get_ops()->submit(&cmd, &receipt, 1000U));
+    TEST_ASSERT_EQUAL_INT(SW_OK, device_command_port_get_ops()->submit_sync(&cmd, &receipt, 1000U));
     TEST_ASSERT_EQUAL_INT(DEV_CMD_STATUS_ACCEPTED, receipt.status);
     TEST_ASSERT_EQUAL_INT(1, wash_ops_stub_start_count());
     TEST_ASSERT_EQUAL_INT(TEST_WASH_MODE_A, wash_ops_stub_last_mode());
 
-    stop_dispatch(tid);
+    stop_runtime(tid);
 }
 
-/* STOP_OPERATION → RESUME_OPERATION */
 static void test_stop_operation_then_resume(void)
 {
     dev_cmd_receipt_t receipt = {0};
@@ -165,8 +176,7 @@ static void test_stop_operation_then_resume(void)
     TEST_ASSERT_EQUAL_INT(SW_OK, operational_mode_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, command_gateway_init());
     setup_idle();
-    tid = start_dispatch();
-    usleep(30000);
+    start_runtime(&tid);
 
     TEST_ASSERT_EQUAL_INT(SW_OK, submit_simple(DEV_CMD_STOP_OPERATION, &receipt));
     TEST_ASSERT_EQUAL_INT(DEV_CMD_STATUS_ACCEPTED, receipt.status);
@@ -178,7 +188,7 @@ static void test_stop_operation_then_resume(void)
     TEST_ASSERT_TRUE(op_mode_is_service_enabled());
     TEST_ASSERT_EQUAL_INT(OP_MODE_STOPPED, op_mode_get_current());
 
-    stop_dispatch(tid);
+    stop_runtime(tid);
 }
 
 static void test_gateway_assigns_request_id_and_trace(void)
@@ -191,8 +201,7 @@ static void test_gateway_assigns_request_id_and_trace(void)
     TEST_ASSERT_EQUAL_INT(SW_OK, command_gateway_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, event_subscribe(EVT_OP_MODE_CMD_HANDLED, handled_handler));
     setup_idle();
-    tid = start_dispatch();
-    usleep(30000);
+    start_runtime(&tid);
 
     TEST_ASSERT_EQUAL_INT(SW_OK, submit_simple(DEV_CMD_STOP_OPERATION, &receipt));
     usleep(30000);
@@ -200,12 +209,9 @@ static void test_gateway_assigns_request_id_and_trace(void)
     TEST_ASSERT_EQUAL_UINT64(receipt.request_id, s_handled_command_id);
     TEST_ASSERT_EQUAL_UINT64(receipt.request_id, s_handled_correlation_id);
 
-    stop_dispatch(tid);
+    stop_runtime(tid);
 }
 
-/* 超时后槽位被复用，不得读到上一任槽主的占位 receipt。
- * 覆盖信号量残留计数缺陷：先制造一次超时（不启 dispatch），
- * 再启 dispatch 并重新提交，第二次必须拿到真实裁决结果。 */
 static void test_timeout_then_reuse_gets_real_verdict(void)
 {
     dev_cmd_receipt_t receipt = {0};
@@ -216,76 +222,65 @@ static void test_timeout_then_reuse_gets_real_verdict(void)
     TEST_ASSERT_EQUAL_INT(SW_OK, command_gateway_init());
     setup_idle();
 
-    /* dispatch 未启动 → wake 事件无人消费 → 必然超时 */
     {
         dev_cmd_t cmd = dev_cmd_make_simple(DEV_CMD_STOP_OPERATION);
 
-        TEST_ASSERT_EQUAL_INT(SW_ERR_TIMEOUT, device_command_port_get_ops()->submit(&cmd, &receipt, 50U));
+        TEST_ASSERT_EQUAL_INT(SW_ERR_TIMEOUT, device_command_port_get_ops()->submit_sync(&cmd, &receipt, 50U));
         TEST_ASSERT_EQUAL_INT(DEV_CMD_STATUS_TIMEOUT, receipt.status);
     }
 
-    /* 现在启动 dispatch：它会先消费掉那条积压的 wake 事件 */
-    tid = start_dispatch();
-    usleep(30000);
+    start_runtime(&tid);
 
-    /* 复用同一槽位重新提交，必须得到真实裁决而非残留占位值 */
     memset(&receipt, 0, sizeof(receipt));
     TEST_ASSERT_EQUAL_INT(SW_OK, submit_simple(DEV_CMD_STOP_OPERATION, &receipt));
     TEST_ASSERT_EQUAL_INT(DEV_CMD_STATUS_ACCEPTED, receipt.status);
     TEST_ASSERT_NOT_EQUAL(SW_ERR_BUSY, receipt.effect_error);
 
-    stop_dispatch(tid);
+    stop_runtime(tid);
 }
 
-/* 从 dispatch 线程内部调用 submit 必须被立即拦截，而不是白等到超时 */
+/* 从 cmd_control 线程内 submit_sync 必须立即拒绝 */
 static volatile sw_err_t s_reentrant_ret;
 static volatile int      s_reentrant_done;
 
-static void reentrant_submit_handler(const event_t *evt)
+static sw_err_t stub_stop_all_reentrant(void)
 {
     dev_cmd_t         cmd = dev_cmd_make_simple(DEV_CMD_STOP_OPERATION);
     dev_cmd_receipt_t receipt;
 
-    (void)evt;
+    s_stop_all_outputs_count++;
     memset(&receipt, 0, sizeof(receipt));
-    s_reentrant_ret  = device_command_port_get_ops()->submit(&cmd, &receipt, 1000U);
+    s_reentrant_ret  = device_command_port_get_ops()->submit_sync(&cmd, &receipt, 1000U);
     s_reentrant_done = 1;
+    return SW_OK;
 }
 
-static void test_submit_from_dispatch_thread_is_rejected(void)
+static void test_submit_sync_from_control_thread_is_rejected(void)
 {
-    dev_cmd_receipt_t receipt = {0};
+    dev_cmd_t         wash_cmd = dev_cmd_make_start_wash(TEST_WASH_MODE_A);
+    dev_cmd_receipt_t receipt  = {0};
     pthread_t         tid;
 
-    s_reentrant_ret  = SW_OK;
-    s_reentrant_done = 0;
+    s_reentrant_ret              = SW_OK;
+    s_reentrant_done             = 0;
+    s_ops.stop_all_outputs       = stub_stop_all_reentrant;
+    machine_ops_register(&s_ops);
 
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, operational_mode_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, command_gateway_init());
     setup_idle();
-    tid = start_dispatch();
-    usleep(30000);
+    start_runtime(&tid);
 
-    /* 先走一次正常提交，让网关记录下 drain 线程身份 */
-    TEST_ASSERT_EQUAL_INT(SW_OK, submit_simple(DEV_CMD_STOP_OPERATION, &receipt));
-
-    /* 订阅一个在 dispatch 线程上下文执行的 handler，在其中调 submit */
-    TEST_ASSERT_EQUAL_INT(SW_OK, event_subscribe(EVT_OP_MODE_CONTEXT_SYNC, reentrant_submit_handler));
-    TEST_ASSERT_EQUAL_INT(SW_OK, event_publish(EVT_OP_MODE_CONTEXT_SYNC, 0U));
-
-    /* 若无防护，此处要等满 1000ms 才返回；有防护则立即返回 */
-    usleep(200000);
+    TEST_ASSERT_EQUAL_INT(SW_OK, device_command_port_get_ops()->submit_sync(&wash_cmd, &receipt, 1000U));
+    op_mode_on_wash_session_started();
+    TEST_ASSERT_EQUAL_INT(SW_OK, submit_simple(DEV_CMD_STOP_ALL_OUTPUTS, &receipt));
     TEST_ASSERT_EQUAL_INT(1, s_reentrant_done);
     TEST_ASSERT_EQUAL_INT(SW_ERR_STATE, s_reentrant_ret);
 
-    stop_dispatch(tid);
+    stop_runtime(tid);
 }
 
-/*
- * 洗车会话进行中经网关 STOP_ALL：切断输出并 abort(STOP_ALL)，模式 STOPPED。
- * start_wash 已返回后会话仍可视为进行中——证明不必等洗完。
- */
 static void test_stop_all_during_washing_via_gateway(void)
 {
     dev_cmd_t         wash_cmd = dev_cmd_make_start_wash(TEST_WASH_MODE_A);
@@ -296,10 +291,9 @@ static void test_stop_all_during_washing_via_gateway(void)
     TEST_ASSERT_EQUAL_INT(SW_OK, operational_mode_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, command_gateway_init());
     setup_idle();
-    tid = start_dispatch();
-    usleep(30000);
+    start_runtime(&tid);
 
-    TEST_ASSERT_EQUAL_INT(SW_OK, device_command_port_get_ops()->submit(&wash_cmd, &receipt, 1000U));
+    TEST_ASSERT_EQUAL_INT(SW_OK, device_command_port_get_ops()->submit_sync(&wash_cmd, &receipt, 1000U));
     TEST_ASSERT_EQUAL_INT(DEV_CMD_STATUS_ACCEPTED, receipt.status);
     op_mode_on_wash_session_started();
     TEST_ASSERT_EQUAL_INT(OP_MODE_WASHING, op_mode_get_current());
@@ -311,7 +305,113 @@ static void test_stop_all_during_washing_via_gateway(void)
     TEST_ASSERT_EQUAL_INT(1, wash_ops_stub_abort_count());
     TEST_ASSERT_EQUAL_INT(WASH_ABORT_STOP_ALL, wash_ops_stub_last_abort_cause());
 
-    stop_dispatch(tid);
+    stop_runtime(tid);
+}
+
+static void test_submit_async_completes_via_event(void)
+{
+    dev_cmd_t cmd         = dev_cmd_make_simple(DEV_CMD_STOP_OPERATION);
+    uint64_t  request_id  = 0U;
+    pthread_t tid;
+    int       spins;
+
+    s_handled_command_id = 0U;
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, operational_mode_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, command_gateway_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_subscribe(EVT_OP_MODE_CMD_HANDLED, handled_handler));
+    setup_idle();
+    start_runtime(&tid);
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, device_command_port_get_ops()->submit_async(&cmd, &request_id));
+    TEST_ASSERT_NOT_EQUAL(0U, request_id);
+
+    for (spins = 0; (s_handled_command_id == 0U) && (spins < 100); spins++) {
+        usleep(1000);
+    }
+    TEST_ASSERT_EQUAL_UINT64(request_id, s_handled_command_id);
+    TEST_ASSERT_EQUAL_INT(OP_MODE_STOPPED, op_mode_get_current());
+    TEST_ASSERT_FALSE(op_mode_is_service_enabled());
+
+    stop_runtime(tid);
+}
+
+/*
+ * sync 挂接正在执行的 async STOP：副作用进行中 waiting 由 false→true，
+ * drain 结束须重读 waiting 并 sem_post，否则 sync 会误超时。
+ */
+static sw_err_t stub_stop_all_slow(void)
+{
+    usleep(200000U);
+    s_stop_all_outputs_count++;
+    return SW_OK;
+}
+
+static void test_sync_stop_attaches_to_in_flight_async(void)
+{
+    dev_cmd_t         async_cmd = dev_cmd_make_simple(DEV_CMD_STOP_ALL_OUTPUTS);
+    dev_cmd_t         sync_cmd  = dev_cmd_make_simple(DEV_CMD_STOP_ALL_OUTPUTS);
+    dev_cmd_receipt_t receipt   = {0};
+    uint64_t          rid       = 0U;
+    pthread_t         tid;
+
+    s_ops.stop_all_outputs = stub_stop_all_slow;
+    machine_ops_register(&s_ops);
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, operational_mode_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, command_gateway_init());
+    setup_idle();
+    start_runtime(&tid);
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, device_command_port_get_ops()->submit_async(&async_cmd, &rid));
+    usleep(20000U); /* 让 control 进入慢 stop_all，再挂接 sync */
+    TEST_ASSERT_EQUAL_INT(SW_OK, device_command_port_get_ops()->submit_sync(&sync_cmd, &receipt, 1000U));
+    TEST_ASSERT_EQUAL_INT(DEV_CMD_STATUS_ACCEPTED, receipt.status);
+    TEST_ASSERT_EQUAL_INT(1, s_stop_all_outputs_count);
+
+    stop_runtime(tid);
+}
+
+/*
+ * 队列被普通 async 命令占满时，STOP_ALL 抢占一槽并优先执行。
+ * 不启动 control 先塞满，再提交 STOP，再启动 control。
+ */
+static void test_stop_all_preempts_full_queue(void)
+{
+    uint64_t  rid;
+    pthread_t tid;
+    int       spins;
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, operational_mode_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, command_gateway_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_subscribe(EVT_OP_MODE_CMD_HANDLED, handled_handler));
+    setup_idle();
+
+    for (int i = 0; i < 4; i++) {
+        dev_cmd_t cmd = dev_cmd_make_simple(DEV_CMD_STOP_OPERATION);
+
+        TEST_ASSERT_EQUAL_INT(SW_OK, device_command_port_get_ops()->submit_async(&cmd, &rid));
+    }
+
+    {
+        dev_cmd_t stop = dev_cmd_make_simple(DEV_CMD_STOP_ALL_OUTPUTS);
+
+        TEST_ASSERT_EQUAL_INT(SW_OK, device_command_port_get_ops()->submit_async(&stop, &rid));
+    }
+
+    start_runtime(&tid);
+
+    for (spins = 0; (s_stop_all_outputs_count < 1) && (spins < 200); spins++) {
+        usleep(1000);
+    }
+    TEST_ASSERT_EQUAL_INT(1, s_stop_all_outputs_count);
+    TEST_ASSERT_TRUE(s_cmd_handled_busy_count >= 1);
+    TEST_ASSERT_EQUAL_INT(OP_MODE_STOPPED, op_mode_get_current());
+
+    stop_runtime(tid);
 }
 
 int main(void)
@@ -324,6 +424,9 @@ int main(void)
     WDF_RUN_TEST(test_stop_operation_then_resume, "", "验证停止运行随后恢复运行");
     WDF_RUN_TEST(test_gateway_assigns_request_id_and_trace, "", "验证网关分配请求ID并追踪上下文");
     WDF_RUN_TEST(test_timeout_then_reuse_gets_real_verdict, "", "验证超时随后复用获得真实判定结果");
-    WDF_RUN_TEST(test_submit_from_dispatch_thread_is_rejected, "", "验证从分发线程提交命令时被拒绝");
+    WDF_RUN_TEST(test_submit_sync_from_control_thread_is_rejected, "", "验证控制线程内同步提交被拒绝");
+    WDF_RUN_TEST(test_submit_async_completes_via_event, "", "验证异步提交经事件完成并带回请求ID");
+    WDF_RUN_TEST(test_sync_stop_attaches_to_in_flight_async, "", "验证同步全停挂接飞行中异步全停");
+    WDF_RUN_TEST(test_stop_all_preempts_full_queue, "", "验证队列满时全停抢占并优先执行");
     return UNITY_END();
 }
