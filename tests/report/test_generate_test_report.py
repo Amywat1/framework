@@ -72,11 +72,11 @@ class ReportGeneratorTest(unittest.TestCase):
     def test_gate_failure_is_rendered(self):
         gates = {
             "gates": [
-                {"name": "代码格式", "status": "failed", "duration_seconds": 0.2}
+                {"name": "架构依赖边界", "status": "failed", "duration_seconds": 0.2}
             ]
         }
         report = build_html(Path("."), gates, [], "")
-        self.assertIn("代码格式", report)
+        self.assertIn("架构依赖边界", report)
         self.assertIn("失败", report)
 
     def test_missing_purpose_is_reported(self):

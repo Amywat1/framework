@@ -1,4 +1,5 @@
 # Batch-format C/H sources using .clang-format in repo root.
+# 按需手动执行，不纳入 check_all 门禁。
 # Usage:
 #   .\scripts\format.ps1           # format all files in place
 #   .\scripts\format.ps1 -Check    # check only, do not modify
