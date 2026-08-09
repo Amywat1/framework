@@ -71,7 +71,7 @@ wiring、配置、绑定表和 provider 里。**框架不含任何具体项目�
 ## 提交前必跑
 
 ```bash
-./scripts/check_all.sh              # 五项门禁：架构边界 / 行为契约 / 文档引用 / 格式 / 测试
+./scripts/check_all.sh              # 四项门禁：架构边界 / 行为契约 / 文档引用 / 测试
 ./scripts/check_all.sh --skip-tests # 无 cmake 环境时只做静态检查
 ```
 
@@ -139,8 +139,8 @@ observability 是旁路设施，只依赖 common，不回调任何层。
 **命名**：文件名、函数名、变量名用 `snake_case`；宏全大写；类型名以 `_t` 结尾；
 全局变量用 `g_` 前缀；静态变量用 `s_` 前缀。头文件只放声明、不定义变量，必须有防重复包含保护。
 
-**格式**：4 空格缩进，禁用 Tab，控制语句一律带花括号。格式化用 `./scripts/format.sh`
-（配置在 `.clang-format`）。禁止魔法数字，改用具名常量、宏或有类型枚举。
+**格式**：4 空格缩进，禁用 Tab，控制语句一律带花括号。需要时手动执行 `./scripts/format.sh`
+（配置在 `.clang-format`）；格式检查不纳入 `check_all.sh` 门禁。禁止魔法数字，改用具名常量、宏或有类型枚举。
 
 **安全**：变量使用前初始化；关键返回值必须检查；指针解引用前判空；共享数据有显式并发保护；
 缓冲区每次读写前检查边界。
@@ -156,3 +156,4 @@ observability 是旁路设施，只依赖 common，不回调任何层。
 ## 其它
 
 注意行尾：部分文档是 CRLF，改动时须保留，否则会产生全文件 diff 掩盖真实改动。
+`*.sh` 由 `.gitattributes` 固定为 LF，避免 Windows `core.autocrlf` 制造空 diff。

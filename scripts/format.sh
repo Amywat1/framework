@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 使用项目根目录 .clang-format 批量格式化 C/H 源码
+# 使用项目根目录 .clang-format 批量格式化 C/H 源码（按需手动执行，不纳入 check_all 门禁）
 # 用法:
 #   ./scripts/format.sh           # 格式化全部
 #   ./scripts/format.sh --check   # 仅检查，不修改文件

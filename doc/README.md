@@ -29,7 +29,7 @@
 ## 构建与门禁
 
 ```bash
-./scripts/check_all.sh              # 五项门禁：架构边界 / 行为契约 / 文档引用 / 格式 / 测试
+./scripts/check_all.sh              # 四项门禁：架构边界 / 行为契约 / 文档引用 / 测试
 ./scripts/check_all.sh --skip-tests # 无 cmake 环境时只做静态检查
 ```
 
