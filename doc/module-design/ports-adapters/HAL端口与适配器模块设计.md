@@ -136,7 +136,7 @@ adapters/outbound/hal
 | 连续运行 | `hal_motor_run_continuous(exec, motor, speed, dir)` |
 | 到位运动 | `hal_motor_move_to(exec, motor, speed, dir, spec)` |
 | 停止/调速 | `hal_motor_stop()`、`hal_motor_set_speed()` |
-| 回原/恢复 | `hal_motor_home()`、`hal_motor_recover()` |
+| 回原/恢复 | `hal_motor_home()`（可选便利）、`hal_motor_recover()` |
 | 查询 | `hal_motor_phase()`、`hal_motor_position()`、`hal_motor_direction()`、`hal_motor_fault_code()` |
 
 命令返回 `hal_motor_cmd_result_t`，`ACCEPTED` / `QUEUED` 均视为非拒绝；领域模式通过 `hal_motor_cmd_ok()` 判断是否可继续。

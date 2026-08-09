@@ -163,13 +163,17 @@ static inline bool hal_motor_cmd_ok(hal_motor_cmd_result_t r)
     return r.status != HAL_MOTOR_CMD_REJECTED;
 }
 
-/** @brief 持续运行（异步）。 */
+/** @brief 持续运行（异步）。
+ * @note   FAULT / ESTOP 状态下必须拒绝；调用方须先 recover / 解除急停后再下发。
+ */
 hal_motor_cmd_result_t hal_motor_run_continuous(hal_motor_exec_t *exec,
                                                 int               motor,
                                                 hal_motor_speed_t spd,
                                                 hal_motor_dir_t   dir);
 
-/** @brief 运动到位（异步）。spec 描述结束条件，可组合，超时兜底始终生效。 */
+/** @brief 运动到位（异步）。spec 描述结束条件，可组合，超时兜底始终生效。
+ * @note   FAULT / ESTOP 状态下必须拒绝；调用方须先 recover / 解除急停后再下发。
+ */
 hal_motor_cmd_result_t hal_motor_move_to(hal_motor_exec_t            *exec,
                                          int                          motor,
                                          hal_motor_speed_t            spd,
@@ -185,7 +189,10 @@ hal_motor_cmd_result_t hal_motor_set_speed(hal_motor_exec_t *exec,
                                            hal_motor_speed_t spd,
                                            hal_motor_dir_t   dir);
 
-/** @brief 回原点：向原点运动并在触发原点后建立可信基准。 */
+/**
+ * @brief  回原点便利命令（provider 默认慢速/方向 + ORIGIN 限位）
+ * @note   触原点后的基准重建由执行器完成；也可用 move_to 显式指定方向与速度。
+ */
 hal_motor_cmd_result_t hal_motor_home(hal_motor_exec_t *exec, int motor);
 
 /** @brief 三步恢复：驱动器复位 → 模块停止（之后由调用方重新启动）。 */

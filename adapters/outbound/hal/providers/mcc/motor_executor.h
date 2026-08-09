@@ -406,7 +406,6 @@ typedef struct {
     int64_t position;
     int64_t last_raw;
     bool    baseline_trusted;
-    bool    homing;
     bool    origin_was_active; /**< 上一拍原点限位电平，用于上升沿清编码器 */
 
     uint64_t            cooldown_until;
@@ -509,7 +508,11 @@ motor_cmd_result_t motor_resume(motor_executor_t *exec, int motor);
 /** @brief 运行中调速/改向（改向自动走换向安全流程）。 */
 motor_cmd_result_t motor_set_speed(motor_executor_t *exec, int motor, motor_speed_t spd, motor_direction_t dir);
 
-/** @brief 回原点：向原点运动并在触发原点后建立可信基准。 */
+/**
+ * @brief  回原点便利命令（慢速 + 默认反向 + ORIGIN 限位）
+ * @note   触原点建基准由执行器在任意 ORIGIN 限位运动结束路径完成；
+ *         也可用 motor_move_to 显式指定方向/速度达到同等效果。
+ */
 motor_cmd_result_t motor_home(motor_executor_t *exec, int motor);
 
 /** @brief 手动清零编码器（同步硬件计数器，失败自动重试）。 */

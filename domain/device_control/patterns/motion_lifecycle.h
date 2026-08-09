@@ -34,6 +34,7 @@ typedef struct {
 /**
  * @brief  发布运动完成事件（actuator_id 为 0 时忽略）
  * @param[in] opts  lifecycle 选项，可为 NULL
+ * @note   由 motor_axis_poll() 在轴进入 IDLE 时调用，表示轴已空闲
  */
 static inline void motion_lifecycle_publish_completed(const motion_lifecycle_opts_t *opts)
 {

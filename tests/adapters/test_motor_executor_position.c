@@ -290,6 +290,34 @@ static void test_origin_move_clears_hardware_and_software_once(void)
 }
 
 /**
+ * @brief  ORIGIN 限位运动在压原点时被外部停止，仍重建基准（不依赖 motor_home）
+ */
+static void test_origin_external_stop_while_pressed_rebuilds_baseline(void)
+{
+    motor_move_spec_t  spec = {0};
+    motor_cmd_result_t result;
+
+    init_executor(40, MOTOR_ENC_INCREMENTAL);
+    spec.use_limit = true;
+    spec.limit     = MOTOR_LIMIT_ORIGIN;
+    result         = motor_move_to(&s_executor, 0, motor_speed_gear(1), MOTOR_DIR_REVERSE, &spec);
+    TEST_ASSERT_TRUE(motor_cmd_ok(result));
+
+    tick_at(45);
+    TEST_ASSERT_EQUAL_INT(MOTOR_PHASE_RUNNING, motor_phase(&s_executor, 0));
+
+    s_fixture.origin_active = true;
+    TEST_ASSERT_TRUE(motor_cmd_ok(motor_stop(&s_executor, 0)));
+    TEST_ASSERT_EQUAL_INT(MOTOR_PHASE_DECELERATING, motor_phase(&s_executor, 0));
+    tick_at(50);
+
+    TEST_ASSERT_EQUAL_INT(MOTOR_PHASE_STOPPED, motor_phase(&s_executor, 0));
+    TEST_ASSERT_EQUAL_INT(1, s_fixture.zero_count);
+    TEST_ASSERT_EQUAL_INT64(0, motor_position(&s_executor, 0));
+    TEST_ASSERT_TRUE(motor_baseline_trusted(&s_executor, 0));
+}
+
+/**
  * @brief  编码器停滞后位置运动被拒，限位运动与归位仍放行
  * @note   降级的目的是不再依据不可信的位置动作，同时保留设备自行走回原点的能力：
  *         若一并拒绝限位运动与归位，机器就只能等人现场处理。
@@ -410,6 +438,9 @@ int main(void)
                  "",
                  "验证活动状态位置目标更新保持启动时间并输出");
     WDF_RUN_TEST(test_origin_move_clears_hardware_and_software_once, "", "验证原点移动仅清除一次软硬件位置");
+    WDF_RUN_TEST(test_origin_external_stop_while_pressed_rebuilds_baseline,
+                 "",
+                 "验证压原点时外部停止仍重建基准");
     WDF_RUN_TEST(
         test_origin_clear_failure_keeps_baseline_untrusted_and_faults, "", "验证原点清除失败保持基线不可信并进入故障");
     WDF_RUN_TEST(

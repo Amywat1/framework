@@ -466,10 +466,10 @@ static void finish_halt(motor_executor_t *e, int i)
     }
     /* 置 STOPPED 前先结算耗时，否则随后的停止事件只能读到未累加的 0。 */
     settle_elapsed(e, i);
-    /* 寻原点运动被外部停止时，只要机构确实压在原点就必须重建基准：清零依据是
-     * 机构位置，与运动因何结束无关。上层可能与本执行器同拍看到原点限位并先下发
-     * 停止，此时运动走 finish_halt 而非 complete_move，漏掉这里基准就不会清零。 */
-    if (s->homing && s->spec.use_limit && (s->spec.limit == MOTOR_LIMIT_ORIGIN)
+    /* ORIGIN 限位运动被外部停止时，只要机构确实压在原点就必须重建基准：清零依据是
+     * 机构位置，与运动因何结束、是否经 motor_home 无关。上层可能与本执行器同拍
+     * 看到原点限位并先下发停止，此时走 finish_halt 而非 complete_move。 */
+    if (s->spec.use_limit && (s->spec.limit == MOTOR_LIMIT_ORIGIN)
         && sensor_limit(e, i, MOTOR_LIMIT_ORIGIN)) {
         if (zero_encoder_baseline(e, i)) {
             s->origin_was_active = true;
@@ -534,15 +534,13 @@ static void complete_move(motor_executor_t *e, int i, motor_event_type_t type, m
 {
     motor_mstate_t     *s   = &e->m[i];
     motor_fault_level_t lvl = (type == MOTOR_EVENT_ARRIVED) ? MOTOR_LEVEL_WARNING : MOTOR_LEVEL_FAULT;
-    /* 清零依据是"寻原点运动结束时机构确实压在原点"，与运动因何结束无关：
-     * 上层可能在同一拍看到原点限位并先下发停止，运动因此以 END_NONE 结束，
-     * 但机构已到原点，基准仍必须重建。只认 END_LIMIT 会漏掉这条路径。 */
+    /* 清零依据是"ORIGIN 限位运动结束时机构确实压在原点"，与是否 motor_home、
+     * 运动因何结束无关。上层可能同拍先下发停止（END_NONE），仍须重建基准。 */
     bool origin_reached
         = s->spec.use_limit && (s->spec.limit == MOTOR_LIMIT_ORIGIN) && sensor_limit(e, i, MOTOR_LIMIT_ORIGIN);
 
     /* 先结算耗时，保留到位瞬间的时长供随后的事件读取。 */
     settle_elapsed(e, i);
-    s->homing            = false;
     s->moveActive        = false;
     s->emit_stop_on_halt = false;
     if (origin_reached) {
@@ -550,7 +548,8 @@ static void complete_move(motor_executor_t *e, int i, motor_event_type_t type, m
         if (s->phase == MOTOR_PHASE_FAULT) {
             return;
         }
-        if (!zero_encoder_baseline(e, i)) {
+        /* finish_halt 已尝试建基准；失败则进入故障（与旧 complete_move 路径一致）。 */
+        if (!s->baseline_trusted) {
             enter_fault(e, i, MOTOR_FAULT_ENCODER_SIGNAL);
             return;
         }
@@ -1234,11 +1233,9 @@ motor_cmd_result_t motor_home(motor_executor_t *e, int i)
         s->pending = pc;
         s->queued  = true;
         s->phase   = MOTOR_PHASE_WAITING_START;
-        s->homing  = true;
         return cmd_make(MOTOR_CMD_QUEUED, "cooldown");
     }
     begin_start(e, i, &pc);
-    s->homing = true;
     return cmd_make(MOTOR_CMD_ACCEPTED, "homing");
 }
 
