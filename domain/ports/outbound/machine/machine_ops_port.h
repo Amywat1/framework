@@ -31,17 +31,25 @@ typedef struct {
      * @note   延后完备停机统一走 safety_ops.deferred_stop，不在此重复暴露。
      */
     void (*abort_home)(void);
-    /** @brief 启动洗车会话（项目选择方案并驱动引擎） */
+    /**
+     * @brief  启动洗车会话（项目选择方案并驱动引擎）
+     * @note   仅启动异步会话后返回；禁止在本调用内跑完整段洗车（会阻塞 dispatch/网关）。
+     */
     sw_err_t (*start_wash)(wash_mode_t mode);
     /** @brief 中止洗车会话 */
     void (*abort_wash)(wash_abort_cause_t cause);
     /** @brief 启动异步全机归位（完成后发 EVT_OP_MODE_HOME_COMPLETED） */
     sw_err_t (*home_device)(void);
-    /** @brief DEV_CMD_MANUAL_ACTUATOR 副作用（act_id/param 由项目定义） */
+    /**
+     * @brief  DEV_CMD_MANUAL_ACTUATOR 副作用（act_id/param 由项目定义）
+     * @note   只下发动作或启动定时/运动后立即返回；禁止在本调用内等待点动时长或
+     *         阻塞等到机构到位（会占用 event_dispatch，拖住后续 STOP_ALL 等命令）。
+     *         运动完成/停止由项目自行观测，框架不为此发完成事件。
+     */
     sw_err_t (*execute_manual_actuator)(uint32_t act_id, int32_t param);
     /**
      * @brief  DEV_CMD_STOP_ALL_OUTPUTS 副作用：落到与 cutout 等价的安全输出态
-     * @note   有活跃洗车会话时，router 另选 STOP_ALL_OUTPUTS_AND_ABORT 调 abort_wash。
+     * @note   裁决前为 WASHING 时，router 另调 abort_wash(STOP_ALL)。
      */
     sw_err_t (*stop_all_outputs)(void);
     /**

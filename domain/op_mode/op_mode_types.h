@@ -25,7 +25,7 @@ extern "C" {
  *   INIT → STOPPED（初始化完成；上电默认运营总开关开启，可 RECOVER）
  *   STOPPED → RECOVERING（RECOVER：复位锁存告警 + 异步归位）→ IDLE / STOPPED
  *   IDLE / WASH_DONE / STOPPED → STOPPED（STOP_OPERATION：停运并关闭总开关）
- *   STOPPED → STOPPED（RESUME_OPERATION：任意非 INIT 态均可；仅重新授权，仍须 RECOVER 进 IDLE）
+ *   任意非 INIT → 同态（RESUME_OPERATION：仅 service_enabled=true，仍须 RECOVER 进 IDLE）
  *   IDLE → WASHING（START_WASH）
  *   WASHING → ABORT_HOMING（STOP_WASH 等非急停/非全停中止清障）→ STOPPED
  *   WASHING → WASH_DONE（正常完成且无 MAJOR+）→ IDLE（客户离场）
@@ -34,7 +34,8 @@ extern "C" {
  *   STOPPED → SELF_CHECK → STOPPED（仅急停激活时拒绝启动自检；自检中不可 STOP_OPERATION）
  *   急停解除不自动进 IDLE；故障条件由 estop / blocking / LOCKOUT 旗标表达，不占用独立模式
  *
- * @note   不变量：IDLE 蕴含 service_enabled==true；关总开关时不得停留在 IDLE。
+ * @note   不变量：IDLE 蕴含 service_enabled==true 且无急停；关总开关或急停时不得停留在 IDLE。
+ *         进 IDLE 由 set_mode 强制检查，破坏则降级 STOPPED。
  *         IDLE/WASH_DONE 不得长期残留 MAJOR+ / LOCKOUT / 急停；出现时收敛到 STOPPED。
  *         MINOR 告警可与正常状态共存。故障态由安全快照表达，不设独立故障模式。
  *         运营归位走 RECOVERING；中止清障走 ABORT_HOMING——不再保留独立 HOMING 态。
@@ -42,7 +43,7 @@ extern "C" {
 typedef enum {
     OP_MODE_INIT = 0,     /**< 系统初始化中（operational_mode_init 前）*/
     OP_MODE_STOPPED,      /**< 停机（未运营或待归位；可带或不带故障旗标）*/
-    OP_MODE_IDLE,         /**< 运营待机（总开关必开，可接单）*/
+    OP_MODE_IDLE,         /**< 运营待机（总开关开且无急停，可接单）*/
     OP_MODE_WASHING,      /**< 洗车会话执行中 */
     OP_MODE_ABORT_HOMING, /**< 中止归位中（停洗清障 → STOPPED）*/
     OP_MODE_WASH_DONE,    /**< 洗车完成，等待客户离场 */

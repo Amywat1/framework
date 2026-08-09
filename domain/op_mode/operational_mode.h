@@ -27,7 +27,7 @@ extern "C" {
 typedef enum {
     OP_CMD_PERM_DENIED = 0, /**< 拒绝 */
     OP_CMD_PERM_ALLOWED,    /**< 允许 */
-    OP_CMD_PERM_CONDITIONAL /**< 允许，但需通过急停/运营开关等运行期检查 */
+    OP_CMD_PERM_CONDITIONAL /**< 允许，但需通过急停运行期检查 */
 } op_cmd_perm_t;
 
 /**
@@ -36,9 +36,9 @@ typedef enum {
 sw_err_t operational_mode_init(void);
 
 /**
- * @brief  处理外部命令（命令矩阵 + 模式转移 + 副作用枚举）
+ * @brief  处理外部命令（命令矩阵 + 模式转移）
  * @param  cmd  入站命令
- * @return 裁决结果（含 pending_effect）
+ * @return 裁决结果（许可与拒绝原因；同步 HAL 由 application 按 kind 执行）
  */
 dev_cmd_decision_t op_mode_handle_command(const dev_cmd_t *cmd);
 
@@ -99,7 +99,7 @@ void op_mode_on_recovery_completed(recovery_result_t result);
 void op_mode_on_home_done(void);
 
 /**
- * @brief  静态命令许可矩阵格点（不含急停/运营开关等运行期条件）
+ * @brief  静态命令许可矩阵格点（不含急停、运营开关、blocking 等运行期附加条件）
  * @param  kind  命令种类
  * @param  mode  运行模式
  * @return 矩阵格点；非法 kind/mode 返回 DENIED

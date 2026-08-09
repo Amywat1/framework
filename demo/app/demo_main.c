@@ -88,13 +88,12 @@ static int submit_expect_accepted(dev_cmd_kind_t kind)
 }
 
 /*
- * 启动后为 OP_MODE_STOPPED，而命令矩阵中 STOP_OPERATION 仅在 IDLE / WASH_DONE 允许
- * ——"停运"本就该从"在运营"发起。故先经 RECOVER 归位进 IDLE，再验证停运。
+ * 启动后为 OP_MODE_STOPPED。STOP_OPERATION 在 STOPPED/IDLE/WASH_DONE 均允许，
+ * smoke 仍先经 RECOVER 进 IDLE 再停运，以覆盖完整归位链路。
  *
- * RECOVER 在 STOPPED 下是 CONDITIONAL，只要求 service_enabled，而
- * operational_mode_init() 已将其置真，因此这条路走得通；顺带把归位链路
- * （RECOVERY_REQUESTED → machine_ops.home_device → EVT_OP_MODE_HOME_COMPLETED
- * → EVT_OP_MODE_RECOVERY_COMPLETED）一并纳入 smoke，比原先只提交一条命令覆盖得更宽。
+ * RECOVER@STOPPED 为 CONDITIONAL：先拒急停，再要求 service_enabled；
+ * init 已开总开关且无急停，可走通。链路为 RECOVERY_REQUESTED → home_device →
+ * HOME_COMPLETED → RECOVERY_COMPLETED。
  */
 static int check_recover_to_idle(void)
 {

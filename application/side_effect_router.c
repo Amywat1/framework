@@ -55,7 +55,7 @@ static sw_err_t run_stop_all_outputs(bool abort_wash_session)
     return ret;
 }
 
-sw_err_t side_effect_router_run(dev_cmd_effect_t effect, const dev_cmd_t *cmd)
+sw_err_t side_effect_router_run(const dev_cmd_t *cmd, operational_mode_t mode_before)
 {
     const machine_ops_t *ops;
 
@@ -65,41 +65,45 @@ sw_err_t side_effect_router_run(dev_cmd_effect_t effect, const dev_cmd_t *cmd)
 
     ops = machine_ops_get();
 
-    switch (effect) {
-    case DEV_CMD_EFFECT_NONE:
-        return SW_OK;
-
-    case DEV_CMD_EFFECT_START_WASH:
+    switch (cmd->body.kind) {
+    case DEV_CMD_START_WASH:
         if ((ops == NULL) || (ops->start_wash == NULL)) {
             return SW_ERR_NOT_INIT;
         }
         return ops->start_wash(cmd->body.payload.start_wash.mode);
 
-    case DEV_CMD_EFFECT_STOP_WASH:
+    case DEV_CMD_STOP_WASH:
         if ((ops == NULL) || (ops->abort_wash == NULL)) {
             return SW_ERR_NOT_INIT;
         }
         ops->abort_wash(WASH_ABORT_MANUAL);
         return SW_OK;
 
-    case DEV_CMD_EFFECT_SELF_CHECK:
+    case DEV_CMD_START_SELF_CHECK:
         run_self_check();
         return SW_OK;
 
-    case DEV_CMD_EFFECT_MANUAL_ACTUATOR:
+    case DEV_CMD_MANUAL_ACTUATOR:
         if ((ops != NULL) && (ops->execute_manual_actuator != NULL)) {
             return ops->execute_manual_actuator(cmd->body.payload.manual_actuator.act_id,
                                                 cmd->body.payload.manual_actuator.param);
         }
         return SW_ERR_NOT_INIT;
 
-    case DEV_CMD_EFFECT_STOP_ALL_OUTPUTS:
-        return run_stop_all_outputs(false);
+    case DEV_CMD_STOP_ALL_OUTPUTS:
+        /* domain 已先切 STOPPED；仅当裁决前为 WASHING 时 abort，避免假 EVT_WASH_ABORTED */
+        return run_stop_all_outputs(mode_before == OP_MODE_WASHING);
 
-    case DEV_CMD_EFFECT_STOP_ALL_OUTPUTS_AND_ABORT:
-        return run_stop_all_outputs(true);
+    case DEV_CMD_STOP_OPERATION:
+    case DEV_CMD_RESUME_OPERATION:
+    case DEV_CMD_RECOVER:
+        /* 模式/旗标已在 domain 处理；RECOVER 异步编排由 RECOVERY_REQUESTED 触发 */
+        return SW_OK;
 
-    default:
-        return SW_ERR_PARAM;
+    case DEV_CMD_NONE:
+    case DEV_CMD_MAX:
+        break;
     }
+
+    return SW_ERR_PARAM;
 }

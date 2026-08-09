@@ -21,22 +21,13 @@ extern "C" {
  * 裁决结果（command_decision）
  * ------------------------------------------------------------------------- */
 
-/** @brief  待执行副作用种类 */
-typedef enum {
-    DEV_CMD_EFFECT_NONE = 0,
-    DEV_CMD_EFFECT_START_WASH,
-    DEV_CMD_EFFECT_STOP_WASH,
-    DEV_CMD_EFFECT_SELF_CHECK,
-    DEV_CMD_EFFECT_MANUAL_ACTUATOR,
-    DEV_CMD_EFFECT_STOP_ALL_OUTPUTS,           /**< 仅切断输出 */
-    DEV_CMD_EFFECT_STOP_ALL_OUTPUTS_AND_ABORT, /**< 切断输出并 abort_wash(STOP_ALL) */
-} dev_cmd_effect_t;
-
-/** @brief  命令裁决结果（含待执行副作用） */
+/**
+ * @brief  命令裁决结果
+ * @note   仅表达许可与拒绝原因；同步 HAL 由 application 按 kind + 裁决前模式执行。
+ */
 typedef struct {
     op_cmd_result_t    verdict;
     op_reject_reason_t reason;
-    dev_cmd_effect_t   pending_effect;
 } dev_cmd_decision_t;
 
 /* -------------------------------------------------------------------------

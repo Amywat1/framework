@@ -37,6 +37,7 @@ static sw_err_t demo_home_device(void)
 
 static sw_err_t demo_manual_actuator(uint32_t act_id, int32_t param)
 {
+    /* 契约：只下发/启定时后立即返回；Demo 无机构，直接成功 */
     (void)act_id;
     (void)param;
     return SW_OK;

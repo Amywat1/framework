@@ -16,7 +16,7 @@
 typedef enum {
     OP_PERM_DENIED = 0,
     OP_PERM_ALLOWED,
-    OP_PERM_CONDITIONAL, /**< 允许，但需通过运行时条件检查（急停、服务开关等）*/
+    OP_PERM_CONDITIONAL, /**< 允许，但需通过运行时急停检查 */
 } op_perm_t;
 
 static operational_mode_t s_mode            = OP_MODE_INIT;
@@ -84,6 +84,19 @@ static void set_mode(operational_mode_t next, const char *cause)
     operational_mode_t from;
     sw_log_level_t     level;
 
+    /*
+     * IDLE 不变量：总开关开且无急停；破坏时降级 STOPPED，避免静默接单。
+     * 当前公开路径不可达（进 IDLE 前急停/关总开关已离可进态）；纯防御——
+     * 新增进 IDLE 转移时由此兜住，勿当死代码删除。
+     */
+    if ((next == OP_MODE_IDLE) && (!s_service_enabled || s_estop_active)) {
+        LOG_ERROR("op_mode: refuse IDLE (service_enabled=%d estop=%d) -> STOPPED",
+                  (int)s_service_enabled,
+                  (int)s_estop_active);
+        next  = OP_MODE_STOPPED;
+        cause = "idle invariant";
+    }
+
     if (s_mode == next) {
         return;
     }
@@ -107,11 +120,11 @@ static void set_mode(operational_mode_t next, const char *cause)
  * 列顺序与 operational_mode_t 枚举一致：
  *   INIT, STOPPED, IDLE, WASHING, ABORT_HOMING, WASH_DONE, SELF_CHECK, RECOVERING
  *
- * CONDITIONAL：允许但需后续运行时检查（急停、服务开关等）
+ * CONDITIONAL：允许但需后续检查急停（运营开关等专属条件见 check_command）
  */
 static const op_perm_t k_cmd_matrix[DEV_CMD_MAX][OP_MODE_RECOVERING + 1] =
 {
-    /* DEV_CMD_START_WASH：仅 IDLE 允许，受 service_enabled + 无阻塞告警约束 */
+    /* DEV_CMD_START_WASH：仅 IDLE；标 C 以防不变量被未来进 IDLE 路径破坏 */
     [DEV_CMD_START_WASH] = {
         OP_PERM_DENIED,      /* INIT        */
         OP_PERM_DENIED,      /* STOPPED     */
@@ -144,7 +157,7 @@ static const op_perm_t k_cmd_matrix[DEV_CMD_MAX][OP_MODE_RECOVERING + 1] =
         OP_PERM_DENIED,      /* SELF_CHECK  */
         OP_PERM_DENIED,      /* RECOVERING  */
     },
-    /* DEV_CMD_RESUME_OPERATION：仅翻总开关，与模式无关；运行期要求当前为关 */
+    /* DEV_CMD_RESUME_OPERATION：仅翻总开关，与模式无关；已开则幂等 */
     [DEV_CMD_RESUME_OPERATION] = {
         OP_PERM_DENIED,  /* INIT        */
         OP_PERM_ALLOWED, /* STOPPED     */
@@ -203,22 +216,11 @@ static const op_perm_t k_cmd_matrix[DEV_CMD_MAX][OP_MODE_RECOVERING + 1] =
 
 static dev_cmd_decision_t make_denied(op_reject_reason_t reason)
 {
-    dev_cmd_decision_t d;
-
-    d.verdict        = OP_CMD_DENIED;
-    d.reason         = reason;
-    d.pending_effect = DEV_CMD_EFFECT_NONE;
-    return d;
+    return (dev_cmd_decision_t){
+        .verdict = OP_CMD_DENIED,
+        .reason  = reason,
+    };
 }
-
-static const dev_cmd_effect_t k_cmd_effects[DEV_CMD_MAX] = {
-    [DEV_CMD_START_WASH]       = DEV_CMD_EFFECT_START_WASH,
-    [DEV_CMD_STOP_WASH]        = DEV_CMD_EFFECT_STOP_WASH,
-    [DEV_CMD_START_SELF_CHECK] = DEV_CMD_EFFECT_SELF_CHECK,
-    [DEV_CMD_MANUAL_ACTUATOR]  = DEV_CMD_EFFECT_MANUAL_ACTUATOR,
-    /* STOP_ALL：按切模式前是否 WASHING 在 handle_command 中选择 effect */
-    /* 其余默认 DEV_CMD_EFFECT_NONE = 0 */
-};
 
 static dev_cmd_decision_t check_command(const dev_cmd_t *cmd)
 {
@@ -251,9 +253,6 @@ static dev_cmd_decision_t check_command(const dev_cmd_t *cmd)
     if (kind == DEV_CMD_START_WASH) {
         const machine_ops_t *ops;
 
-        if (!s_service_enabled) {
-            return make_denied(OP_REJECT_SERVICE_DISABLED);
-        }
         if (alarm_registry_has_blocking_active()) {
             return make_denied(OP_REJECT_WRONG_MODE);
         }
@@ -271,9 +270,8 @@ static dev_cmd_decision_t check_command(const dev_cmd_t *cmd)
     }
 
     return (dev_cmd_decision_t){
-        .verdict        = OP_CMD_ALLOWED,
-        .reason         = OP_REJECT_NONE,
-        .pending_effect = k_cmd_effects[kind],
+        .verdict = OP_CMD_ALLOWED,
+        .reason  = OP_REJECT_NONE,
     };
 }
 
@@ -314,7 +312,6 @@ dev_cmd_decision_t op_mode_handle_command(const dev_cmd_t *cmd)
         /* STOPPED 走 recovery_service（复位锁存告警 + 异步归位）；IDLE 幂等 */
         if (s_mode == OP_MODE_STOPPED) {
             set_mode(OP_MODE_RECOVERING, NULL);
-            d.pending_effect = DEV_CMD_EFFECT_NONE;
             (void)event_publish(EVT_OP_MODE_RECOVERY_REQUESTED, 0U);
         }
         break;
@@ -332,12 +329,10 @@ dev_cmd_decision_t op_mode_handle_command(const dev_cmd_t *cmd)
 
     case DEV_CMD_STOP_ALL_OUTPUTS:
         /*
-         * 先切 STOPPED 再跑副作用：abort 到达时已非 WASHING，避免误入 ABORT_HOMING。
+         * 先切 STOPPED 再跑 router：abort 到达时已非 WASHING，避免误入 ABORT_HOMING。
          * 代价是短暂观测窗口——快照已 STOPPED，输出尚未切断（急停 cutout 不受影响）。
-         * abort 仅在前态 WASHING 时挂出，避免无会话空调用产生假 EVT_WASH_ABORTED。
+         * 是否 abort 由 gateway 传入的 mode_before 决定（此处信息将丢失）。
          */
-        d.pending_effect
-            = (s_mode == OP_MODE_WASHING) ? DEV_CMD_EFFECT_STOP_ALL_OUTPUTS_AND_ABORT : DEV_CMD_EFFECT_STOP_ALL_OUTPUTS;
         set_mode(OP_MODE_STOPPED, "stop all outputs");
         break;
 

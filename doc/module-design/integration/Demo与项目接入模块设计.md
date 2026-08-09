@@ -213,19 +213,21 @@ typedef struct {
 |------------|------------|
 | （停机） | 延后完备停机走 `safety_ops.deferred_stop` |
 | `abort_home` | 启动中止归位清障（异步）；完成后须发 `EVT_ABORT_HOME_DONE` |
-| `start_wash` | `DEV_CMD_START_WASH` 副作用：项目选方案并启动会话 |
+| `start_wash` | `DEV_CMD_START_WASH`：选方案并**启动**会话后返回；禁止在调用内跑完整洗车 |
 | `abort_wash` | `DEV_CMD_STOP_WASH` 副作用，以及急停/LOCKOUT 切断路径 |
 | `home_device` | `recovery_service` 在 Recover 路径中启动的异步全机归位 |
-| `execute_manual_actuator` | `DEV_CMD_MANUAL_ACTUATOR` 副作用 |
+| `execute_manual_actuator` | `DEV_CMD_MANUAL_ACTUATOR`：只下发/启定时后立即返回；禁止等待点动时长 |
 | `stop_all_outputs` | `DEV_CMD_STOP_ALL_OUTPUTS` 副作用：切断输出；前态 WASHING 时 router 另调 `abort_wash(STOP_ALL)` |
 | `is_wash_entry_ready` | `START_WASH` 附加门禁；未注册（NULL）时框架不拦截 |
 
-`side_effect_router` 不做权限判断，只执行 `operational_mode` 已裁决允许的副作用。未注册或函数缺失时返回 `SW_ERR_NOT_INIT`。
+`side_effect_router` 不做权限判断，只执行 `operational_mode` 已裁决允许的副作用。未注册或函数缺失时返回 `SW_ERR_NOT_INIT`。  
+上述回调均在 **event_dispatch** 线程经网关同步调用：任一实现内长时间阻塞，都会拖住后续命令（含软件停止）与其它事件处理。
 
 ### 5.2 项目实现要求
 
 - `project_bind_machine()` 中调用 `machine_ops_register()`。
-- `execute_manual_actuator` 的 `act_id` 和 `param` 由项目定义，并在云端/CLI 命令映射中保持一致。
+- `execute_manual_actuator` 的 `act_id` / `param` 由项目定义，并在云端/CLI 映射中保持一致；**须非阻塞**——下发动作或启动定时/运动后立即返回，点动时长与到位由项目侧自行管理，勿在回调内 `sleep`/轮询等待。
+- `start_wash` / `home_device` / `abort_home` 同样只启动异步流程；完成后分别靠洗车事件、`EVT_OP_MODE_HOME_COMPLETED`、`EVT_ABORT_HOME_DONE` 收口。
 - `stop_all_outputs` 必须能落到与 cutout 等价的安全输出态；无活跃洗车会话时 router 不会调用 `abort_wash(STOP_ALL)`。
 - `home_device` 和 `abort_home` 应处理执行中冲突和硬件故障，并返回明确错误码。
 

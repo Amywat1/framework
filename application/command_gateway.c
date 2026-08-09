@@ -241,9 +241,14 @@ void command_gateway_drain(void)
         current.causation_id    = cmd.meta.causation_id;
         trace_context_set(&current);
 
-        decision = op_mode_handle_command(&cmd);
-        if (decision.verdict == OP_CMD_ALLOWED) {
-            effect_err = side_effect_router_run(decision.pending_effect, &cmd);
+        /* STOP_ALL 会先切 STOPPED，须在裁决前快照以便 router 决定是否 abort */
+        {
+            operational_mode_t mode_before = op_mode_get_current();
+
+            decision = op_mode_handle_command(&cmd);
+            if (decision.verdict == OP_CMD_ALLOWED) {
+                effect_err = side_effect_router_run(&cmd, mode_before);
+            }
         }
 
         receipt.request_id    = cmd.meta.request_id;

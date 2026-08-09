@@ -13,16 +13,17 @@ extern "C" {
 #endif
 
 #include "common/sw_error.h"
-#include "domain/op_mode/command_types.h"
 #include "domain/op_mode/device_command.h"
+#include "domain/op_mode/op_mode_types.h"
 
 /**
- * @brief  执行命令副作用
- * @param  effect  待执行副作用种类（来自 OperationalMode 裁决）
- * @param  cmd     完整入站命令
- * @retval SW_OK   副作用成功或无副作用
+ * @brief  按命令种类执行同步副作用
+ * @param  cmd          完整入站命令（已裁决 ALLOWED）
+ * @param  mode_before  裁决前的运行模式（STOP_ALL 据此决定是否 abort 会话）
+ * @retval SW_OK        成功或该命令无同步副作用
+ * @note   STOP/RESUME/RECOVER 为空操作；RECOVER 的异步编排由 domain 进态事件触发。
  */
-sw_err_t side_effect_router_run(dev_cmd_effect_t effect, const dev_cmd_t *cmd);
+sw_err_t side_effect_router_run(const dev_cmd_t *cmd, operational_mode_t mode_before);
 
 #ifdef __cplusplus
 }
