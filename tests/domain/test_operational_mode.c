@@ -214,8 +214,8 @@ static void test_stop_operation_denied_while_self_check(void)
     TEST_ASSERT_EQUAL_INT(OP_REJECT_WRONG_MODE, op_mode_handle_command(&stop_cmd).reason);
 }
 
-/* RESUME_OPERATION：仅 STOPPED 且总开关关时可重新授权，模式仍为 STOPPED */
-static void test_resume_operation_only_when_service_stopped(void)
+/* RESUME_OPERATION：总开关关时允许（与模式无关）；已开则拒绝；不改模式 */
+static void test_resume_operation_when_service_disabled(void)
 {
     dev_cmd_t stop_cmd   = dev_cmd_make_simple(DEV_CMD_STOP_OPERATION);
     dev_cmd_t resume_cmd = dev_cmd_make_simple(DEV_CMD_RESUME_OPERATION);
@@ -228,6 +228,7 @@ static void test_resume_operation_only_when_service_stopped(void)
     TEST_ASSERT_EQUAL_INT(OP_CMD_ALLOWED, op_mode_handle_command(&resume_cmd).verdict);
     TEST_ASSERT_TRUE(op_mode_is_service_enabled());
     TEST_ASSERT_EQUAL_INT(OP_MODE_STOPPED, op_mode_get_current());
+    TEST_ASSERT_EQUAL_INT(OP_CMD_DENIED, op_mode_handle_command(&resume_cmd).verdict);
 }
 
 /* 停运后离开 IDLE，START_WASH 因模式拒绝 */
@@ -472,8 +473,8 @@ static void test_cmd_matrix_exhaustive_64(void)
             OP_CMD_PERM_DENIED, OP_CMD_PERM_ALLOWED, OP_CMD_PERM_DENIED, OP_CMD_PERM_DENIED,
         },
         [DEV_CMD_RESUME_OPERATION] = {
-            OP_CMD_PERM_DENIED, OP_CMD_PERM_CONDITIONAL, OP_CMD_PERM_DENIED, OP_CMD_PERM_DENIED,
-            OP_CMD_PERM_DENIED, OP_CMD_PERM_DENIED, OP_CMD_PERM_DENIED, OP_CMD_PERM_DENIED,
+            OP_CMD_PERM_DENIED, OP_CMD_PERM_ALLOWED, OP_CMD_PERM_ALLOWED, OP_CMD_PERM_ALLOWED,
+            OP_CMD_PERM_ALLOWED, OP_CMD_PERM_ALLOWED, OP_CMD_PERM_ALLOWED, OP_CMD_PERM_ALLOWED,
         },
         [DEV_CMD_MANUAL_ACTUATOR] = {
             OP_CMD_PERM_DENIED, OP_CMD_PERM_CONDITIONAL, OP_CMD_PERM_DENIED, OP_CMD_PERM_DENIED,
@@ -521,7 +522,7 @@ int main(void)
     WDF_RUN_TEST(test_stop_operation_allowed_from_stopped, "", "验证停止模式下允许停运关总开关");
     WDF_RUN_TEST(test_stop_operation_denied_while_washing, "", "验证洗车中拒绝停运");
     WDF_RUN_TEST(test_stop_operation_denied_while_self_check, "", "验证自检中拒绝停运");
-    WDF_RUN_TEST(test_resume_operation_only_when_service_stopped, "", "验证仅服务停止时允许恢复运行");
+    WDF_RUN_TEST(test_resume_operation_when_service_disabled, "", "验证总开关关闭时允许恢复运行");
     WDF_RUN_TEST(test_start_wash_denied_when_service_disabled, "", "验证启动洗车被拒绝时服务禁用");
     WDF_RUN_TEST(test_start_wash_denied_with_blocking_alarm, "", "验证存在阻断报警时拒绝启动洗车");
     WDF_RUN_TEST(test_start_wash_denied_when_vehicle_not_ready, "", "验证启动洗车被拒绝时车辆未就绪");

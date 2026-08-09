@@ -144,16 +144,16 @@ static const op_perm_t k_cmd_matrix[DEV_CMD_MAX][OP_MODE_RECOVERING + 1] =
         OP_PERM_DENIED,      /* SELF_CHECK  */
         OP_PERM_DENIED,      /* RECOVERING  */
     },
-    /* DEV_CMD_RESUME_OPERATION：仅 STOPPED 下重新授权运营（仍须 HOME 进 IDLE）*/
+    /* DEV_CMD_RESUME_OPERATION：仅翻总开关，与模式无关；运行期要求当前为关 */
     [DEV_CMD_RESUME_OPERATION] = {
-        OP_PERM_DENIED,      /* INIT        */
-        OP_PERM_CONDITIONAL, /* STOPPED     */
-        OP_PERM_DENIED,      /* IDLE        */
-        OP_PERM_DENIED,      /* WASHING     */
-        OP_PERM_DENIED,      /* ABORT_HOMING*/
-        OP_PERM_DENIED,      /* WASH_DONE   */
-        OP_PERM_DENIED,      /* SELF_CHECK  */
-        OP_PERM_DENIED,      /* RECOVERING  */
+        OP_PERM_DENIED,  /* INIT        */
+        OP_PERM_ALLOWED, /* STOPPED     */
+        OP_PERM_ALLOWED, /* IDLE        */
+        OP_PERM_ALLOWED, /* WASHING     */
+        OP_PERM_ALLOWED, /* ABORT_HOMING*/
+        OP_PERM_ALLOWED, /* WASH_DONE   */
+        OP_PERM_ALLOWED, /* SELF_CHECK  */
+        OP_PERM_ALLOWED, /* RECOVERING  */
     },
     /* DEV_CMD_MANUAL_ACTUATOR：仅 STOPPED；急停激活时拒绝 */
     [DEV_CMD_MANUAL_ACTUATOR] = {
@@ -271,7 +271,7 @@ static dev_cmd_decision_t check_command(const dev_cmd_t *cmd)
     }
 
     if (kind == DEV_CMD_RESUME_OPERATION) {
-        /* 只在 service 已停止时才允许 RESUME */
+        /* 已开则拒绝；与当前模式无关 */
         if (s_service_enabled) {
             return make_denied(OP_REJECT_WRONG_MODE);
         }
@@ -333,7 +333,7 @@ dev_cmd_decision_t op_mode_handle_command(const dev_cmd_t *cmd)
         break;
 
     case DEV_CMD_RESUME_OPERATION:
-        /* 仅重新授权；模式保持 STOPPED，须 HOME 后才进 IDLE */
+        /* 仅重新授权；不改模式（接单仍须 RECOVER → IDLE）*/
         op_mode_set_service_enabled(true);
         break;
 
