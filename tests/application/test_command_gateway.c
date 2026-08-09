@@ -21,9 +21,16 @@
 
 static volatile uint64_t s_handled_command_id;
 static volatile uint64_t s_handled_correlation_id;
+static volatile int      s_stop_all_outputs_count;
 
 static sw_err_t stub_home_device(void)
 {
+    return SW_OK;
+}
+
+static sw_err_t stub_stop_all_outputs(void)
+{
+    s_stop_all_outputs_count++;
     return SW_OK;
 }
 
@@ -76,11 +83,13 @@ void setUp(void)
 {
     wash_ops_stub_reset();
     memset(&s_ops, 0, sizeof(s_ops));
-    s_ops.home_device = stub_home_device;
+    s_ops.home_device          = stub_home_device;
+    s_ops.stop_all_outputs     = stub_stop_all_outputs;
     wash_ops_stub_bind(&s_ops);
     machine_ops_register(&s_ops);
-    s_handled_command_id     = 0U;
-    s_handled_correlation_id = 0U;
+    s_handled_command_id       = 0U;
+    s_handled_correlation_id   = 0U;
+    s_stop_all_outputs_count   = 0;
 }
 
 void tearDown(void)
@@ -273,12 +282,45 @@ static void test_submit_from_dispatch_thread_is_rejected(void)
     stop_dispatch(tid);
 }
 
+/*
+ * 洗车会话进行中经网关 STOP_ALL：切断输出并 abort(STOP_ALL)，模式 STOPPED。
+ * start_wash 已返回后会话仍可视为进行中——证明不必等洗完。
+ */
+static void test_stop_all_during_washing_via_gateway(void)
+{
+    dev_cmd_t         wash_cmd = dev_cmd_make_start_wash(TEST_WASH_MODE_A);
+    dev_cmd_receipt_t receipt  = {0};
+    pthread_t         tid;
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, operational_mode_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, command_gateway_init());
+    setup_idle();
+    tid = start_dispatch();
+    usleep(30000);
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, device_command_port_get_ops()->submit(&wash_cmd, &receipt, 1000U));
+    TEST_ASSERT_EQUAL_INT(DEV_CMD_STATUS_ACCEPTED, receipt.status);
+    op_mode_on_wash_session_started();
+    TEST_ASSERT_EQUAL_INT(OP_MODE_WASHING, op_mode_get_current());
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, submit_simple(DEV_CMD_STOP_ALL_OUTPUTS, &receipt));
+    TEST_ASSERT_EQUAL_INT(DEV_CMD_STATUS_ACCEPTED, receipt.status);
+    TEST_ASSERT_EQUAL_INT(OP_MODE_STOPPED, op_mode_get_current());
+    TEST_ASSERT_EQUAL_INT(1, s_stop_all_outputs_count);
+    TEST_ASSERT_EQUAL_INT(1, wash_ops_stub_abort_count());
+    TEST_ASSERT_EQUAL_INT(WASH_ABORT_STOP_ALL, wash_ops_stub_last_abort_cause());
+
+    stop_dispatch(tid);
+}
+
 int main(void)
 {
     UNITY_BEGIN();
     WDF_RUN_TEST(test_submit_accepted_in_idle, "", "验证空闲模式接受命令提交");
     WDF_RUN_TEST(test_submit_rejected_wrong_mode, "", "验证模式不匹配时拒绝命令提交");
     WDF_RUN_TEST(test_start_wash_triggers_orchestrator, "", "验证启动洗车触发流程编排器");
+    WDF_RUN_TEST(test_stop_all_during_washing_via_gateway, "", "验证洗车中经网关全停切断并中止");
     WDF_RUN_TEST(test_stop_operation_then_resume, "", "验证停止运行随后恢复运行");
     WDF_RUN_TEST(test_gateway_assigns_request_id_and_trace, "", "验证网关分配请求ID并追踪上下文");
     WDF_RUN_TEST(test_timeout_then_reuse_gets_real_verdict, "", "验证超时随后复用获得真实判定结果");

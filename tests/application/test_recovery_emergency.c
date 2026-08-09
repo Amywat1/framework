@@ -4,8 +4,10 @@
  */
 
 #include "adapters/outbound/safety/sim/hw_estop_sim.h"
+#include "application/bridges/op_mode_bridge.h"
 #include "application/orchestrators/recovery_service.h"
 #include "application/orchestrators/safety_session_coordinator.h"
+#include "application/side_effect_router.h"
 #include "common/event_types.h"
 #include "common/sw_error.h"
 #include "common/time_util.h"
@@ -13,6 +15,7 @@
 #include "domain/op_mode/op_mode_types.h"
 #include "domain/op_mode/operational_mode.h"
 #include "domain/ports/outbound/machine/machine_ops_port.h"
+#include "domain/ports/outbound/safety/safety_port.h"
 #include "domain/safety/alarm_registry/alarm_registry.h"
 #include "domain/safety/model/alarm_types.h"
 #include "runtime/event_bus/event_bus.h"
@@ -29,16 +32,40 @@ static volatile int                s_home_device_count;
 static volatile int                s_abort_count;
 static volatile wash_abort_cause_t s_abort_cause;
 static volatile int                s_deferred_stop_count;
+static volatile int                s_stop_all_outputs_count;
 static uint32_t                    s_clear_on_home_code;
 static volatile int                s_home_auto_complete;
 
 #define TEST_BLOCKING_ALARM_CODE 201101U
 #define TEST_LOCKOUT_ALARM_CODE  201102U
 
-void safety_deferred_stop(void)
+static sw_err_t fake_cutout(void)
+{
+    return SW_OK;
+}
+
+static bool fake_estop_is_active(void)
+{
+    return false;
+}
+
+static bool fake_alarm_is_estop(uint32_t code)
+{
+    (void)code;
+    return false;
+}
+
+static void fake_deferred_stop(void)
 {
     s_deferred_stop_count++;
 }
+
+static const safety_ops_t s_safety_ops = {
+    .cutout          = fake_cutout,
+    .estop_is_active = fake_estop_is_active,
+    .alarm_is_estop  = fake_alarm_is_estop,
+    .deferred_stop   = fake_deferred_stop,
+};
 
 static void stub_abort_wash(wash_abort_cause_t cause)
 {
@@ -61,6 +88,12 @@ static sw_err_t stub_home_device(void)
     if (s_home_auto_complete != 0) {
         (void)event_publish(EVT_OP_MODE_HOME_COMPLETED, 1U);
     }
+    return SW_OK;
+}
+
+static sw_err_t stub_stop_all_outputs(void)
+{
+    s_stop_all_outputs_count++;
     return SW_OK;
 }
 
@@ -122,15 +155,18 @@ void setUp(void)
     s_abort_count              = 0;
     s_abort_cause              = WASH_ABORT_MANUAL;
     s_deferred_stop_count      = 0;
+    s_stop_all_outputs_count   = 0;
     s_clear_on_home_code       = 0U;
     s_home_auto_complete       = 1;
 
     memset(&s_machine_ops, 0, sizeof(s_machine_ops));
-    s_machine_ops.abort_home  = stub_abort_home;
-    s_machine_ops.home_device = stub_home_device;
-    s_machine_ops.abort_wash  = stub_abort_wash;
+    s_machine_ops.abort_home       = stub_abort_home;
+    s_machine_ops.home_device      = stub_home_device;
+    s_machine_ops.abort_wash       = stub_abort_wash;
+    s_machine_ops.stop_all_outputs = stub_stop_all_outputs;
 
     time_util_init();
+    TEST_ASSERT_EQUAL_INT(SW_OK, safety_port_register(&s_safety_ops));
 }
 
 void tearDown(void)
@@ -348,6 +384,88 @@ static void test_leave_recovering_ignores_late_home_completed(void)
     stop_dispatch(tid);
 }
 
+/**
+ * 归位等待中急停：立即 deferred_stop + abort，模式进 STOPPED；迟到 HOME 不复活恢复。
+ */
+static void test_estop_during_pending_home_preempts_recovery(void)
+{
+    pthread_t tid;
+    dev_cmd_t recover = dev_cmd_make_simple(DEV_CMD_RECOVER);
+
+    s_home_auto_complete = 0;
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, operational_mode_init());
+    machine_ops_register(&s_machine_ops);
+    TEST_ASSERT_EQUAL_INT(SW_OK, recovery_service_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, safety_session_coordinator_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, op_mode_bridge_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_subscribe(EVT_OP_MODE_RECOVERY_COMPLETED, on_recovery_completed));
+
+    tid = start_dispatch();
+    TEST_ASSERT_EQUAL_INT(OP_CMD_ALLOWED, op_mode_handle_command(&recover).verdict);
+    usleep(50000U);
+    TEST_ASSERT_EQUAL_INT(OP_MODE_RECOVERING, op_mode_get_current());
+    TEST_ASSERT_EQUAL_INT(1, s_home_device_count);
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_publish(EVT_HW_ESTOP_ON, 0U));
+    usleep(50000U);
+
+    TEST_ASSERT_EQUAL_INT(1, s_deferred_stop_count);
+    TEST_ASSERT_EQUAL_INT(1, s_abort_count);
+    TEST_ASSERT_EQUAL_INT(WASH_ABORT_ESTOP, s_abort_cause);
+    TEST_ASSERT_TRUE(op_mode_is_estop_active());
+    TEST_ASSERT_EQUAL_INT(OP_MODE_STOPPED, op_mode_get_current());
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_publish(EVT_OP_MODE_HOME_COMPLETED, 1U));
+    usleep(50000U);
+    TEST_ASSERT_EQUAL_INT(0, s_recovery_completed_count);
+    TEST_ASSERT_EQUAL_INT(OP_MODE_STOPPED, op_mode_get_current());
+
+    stop_dispatch(tid);
+}
+
+/**
+ * 归位等待中 STOP_ALL：切 STOPPED 并切断输出，不等 HOME 完成；迟到 HOME 忽略。
+ */
+static void test_stop_all_during_pending_home_cuts_outputs(void)
+{
+    pthread_t          tid;
+    operational_mode_t mode_before;
+    dev_cmd_t          recover  = dev_cmd_make_simple(DEV_CMD_RECOVER);
+    dev_cmd_t          stop_all = dev_cmd_make_simple(DEV_CMD_STOP_ALL_OUTPUTS);
+
+    s_home_auto_complete = 0;
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, operational_mode_init());
+    machine_ops_register(&s_machine_ops);
+    TEST_ASSERT_EQUAL_INT(SW_OK, recovery_service_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_subscribe(EVT_OP_MODE_RECOVERY_COMPLETED, on_recovery_completed));
+
+    tid = start_dispatch();
+    TEST_ASSERT_EQUAL_INT(OP_CMD_ALLOWED, op_mode_handle_command(&recover).verdict);
+    usleep(50000U);
+    TEST_ASSERT_EQUAL_INT(OP_MODE_RECOVERING, op_mode_get_current());
+    TEST_ASSERT_EQUAL_INT(1, s_home_device_count);
+
+    mode_before = op_mode_get_current();
+    TEST_ASSERT_EQUAL_INT(OP_CMD_ALLOWED, op_mode_handle_command(&stop_all).verdict);
+    TEST_ASSERT_EQUAL_INT(OP_MODE_STOPPED, op_mode_get_current());
+    TEST_ASSERT_EQUAL_INT(SW_OK, side_effect_router_run(&stop_all, mode_before));
+    TEST_ASSERT_EQUAL_INT(1, s_stop_all_outputs_count);
+    TEST_ASSERT_EQUAL_INT(0, s_abort_count); /* 前态非 WASHING，不 abort 会话 */
+
+    usleep(50000U);
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_publish(EVT_OP_MODE_HOME_COMPLETED, 1U));
+    usleep(50000U);
+    TEST_ASSERT_EQUAL_INT(0, s_recovery_completed_count);
+
+    stop_dispatch(tid);
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -361,5 +479,7 @@ int main(void)
     WDF_RUN_TEST(test_abort_home_requested_runs_abort_home, "", "验证请求中止回零时执行中止回零操作");
     WDF_RUN_TEST(test_cutout_estop_on_aborts_wash_and_defers_stop, "", "验证安全切断急停开启中止洗车并延后停止");
     WDF_RUN_TEST(test_leave_recovering_ignores_late_home_completed, "", "验证离开恢复后忽略迟到归位完成");
+    WDF_RUN_TEST(test_estop_during_pending_home_preempts_recovery, "", "验证归位等待中急停抢占恢复并切断");
+    WDF_RUN_TEST(test_stop_all_during_pending_home_cuts_outputs, "", "验证归位等待中全停切断输出");
     return UNITY_END();
 }

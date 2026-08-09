@@ -497,10 +497,13 @@ add_unit_test(test_recovery_emergency
     ${CMAKE_CURRENT_SOURCE_DIR}/application/test_recovery_emergency.c
     ${WDF_ROOT}/application/orchestrators/recovery_service.c
     ${WDF_ROOT}/application/orchestrators/safety_session_coordinator.c
+    ${WDF_ROOT}/application/bridges/op_mode_bridge.c
+    ${WDF_ROOT}/application/side_effect_router.c
     ${WDF_ROOT}/adapters/outbound/safety/sim/hw_estop_sim.c
     ${WDF_ROOT}/domain/op_mode/operational_mode.c
     ${WDF_ROOT}/domain/safety/alarm_registry/alarm_registry.c
     ${WDF_ROOT}/runtime/ports/port_registry_infra.c
+    ${WDF_ROOT}/runtime/ports/port_registry_safety.c
     ${WDF_ROOT}/runtime/event_bus/event_bus.c
     ${WDF_ROOT}/common/log.c
     ${WDF_ROOT}/common/sw_mutex.c

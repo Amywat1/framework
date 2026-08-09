@@ -181,6 +181,29 @@ static void test_self_check_from_stopped_lands_stopped(void)
     stop_dispatch(tid);
 }
 
+/* 自检进行中急停 → 立即 STOPPED（不等自检完成事件） */
+static void test_estop_during_self_check_enters_stopped(void)
+{
+    dev_cmd_t cmd = dev_cmd_make_simple(DEV_CMD_START_SELF_CHECK);
+    pthread_t tid;
+
+    time_util_init();
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, operational_mode_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, op_mode_bridge_init());
+    TEST_ASSERT_EQUAL_INT(OP_CMD_ALLOWED, op_mode_handle_command(&cmd).verdict);
+    TEST_ASSERT_EQUAL_INT(OP_MODE_SELF_CHECK, op_mode_get_current());
+
+    tid = start_dispatch();
+    usleep(10000);
+    publish_and_wait(EVT_HW_ESTOP_ON, 0U);
+
+    TEST_ASSERT_TRUE(op_mode_is_estop_active());
+    TEST_ASSERT_EQUAL_INT(OP_MODE_STOPPED, op_mode_get_current());
+
+    stop_dispatch(tid);
+}
+
 /* EVT_OP_MODE_RECOVERY_COMPLETED → RECOVERING → IDLE */
 static void test_recovery_completed_success_enters_idle(void)
 {
@@ -269,6 +292,7 @@ int main(void)
     WDF_RUN_TEST(test_customer_gone_returns_idle, "", "验证客户离场返回空闲模式");
     WDF_RUN_TEST(test_wash_aborted_manual_enters_alarm_homing, "", "验证洗车已中止手动进入报警回零");
     WDF_RUN_TEST(test_self_check_from_stopped_lands_stopped, "", "验证自检检查从停止模式最终进入停止模式");
+    WDF_RUN_TEST(test_estop_during_self_check_enters_stopped, "", "验证自检中急停立即进入停止");
     WDF_RUN_TEST(test_recovery_completed_success_enters_idle, "", "验证恢复完成成功进入空闲模式");
     WDF_RUN_TEST(test_alarm_home_done_enters_stopped, "", "验证中止归位完成进入停止模式");
     WDF_RUN_TEST(test_blocking_alarm_event_keeps_stopped, "", "验证阻断报警在停止模式保持停止");

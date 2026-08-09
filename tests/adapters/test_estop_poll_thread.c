@@ -23,6 +23,8 @@
 static volatile int s_estop_on_count;
 static volatile int s_estop_off_count;
 static volatile int s_cutout_count;
+static volatile int s_slow_handler_started;
+static volatile int s_slow_handler_finished;
 
 static void on_estop_on(const event_t *evt)
 {
@@ -34,6 +36,15 @@ static void on_estop_off(const event_t *evt)
 {
     (void)evt;
     s_estop_off_count++;
+}
+
+/* 占用 dispatch 的慢 handler：验证 cutout 仍在 estop_poll 线程立即执行 */
+static void on_slow_dispatch_work(const event_t *evt)
+{
+    (void)evt;
+    s_slow_handler_started = 1;
+    usleep(200000U);
+    s_slow_handler_finished = 1;
 }
 
 static void *event_dispatch_thread_fn(void *arg)
@@ -161,11 +172,52 @@ static void test_cutout_failure_still_publishes_event(void)
     usleep(30000U);
 }
 
+/*
+ * cutout 在 estop_poll 线程执行，不得被 dispatch 上的慢 handler 拖住。
+ * 复用已启动的 estop_poll / event_dispatch 线程。
+ */
+static void test_cutout_runs_while_dispatch_handler_blocked(void)
+{
+    int cutout_before;
+    int spins;
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_subscribe(EVT_OP_MODE_CONTEXT_SYNC, on_slow_dispatch_work));
+
+    s_slow_handler_started  = 0;
+    s_slow_handler_finished = 0;
+    cutout_before           = s_cutout_count;
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_publish(EVT_OP_MODE_CONTEXT_SYNC, 0U));
+
+    for (spins = 0; (s_slow_handler_started == 0) && (spins < 100); spins++) {
+        usleep(1000U);
+    }
+    TEST_ASSERT_EQUAL_INT(1, s_slow_handler_started);
+    TEST_ASSERT_EQUAL_INT(0, s_slow_handler_finished);
+
+    hw_estop_sim_set_active(true);
+    for (spins = 0; ((s_cutout_count - cutout_before) < 1) && (spins < 40); spins++) {
+        usleep(1000U);
+    }
+
+    TEST_ASSERT_TRUE((s_cutout_count - cutout_before) >= 1);
+    TEST_ASSERT_EQUAL_INT(0, s_slow_handler_finished);
+
+    for (spins = 0; (s_slow_handler_finished == 0) && (spins < 300); spins++) {
+        usleep(1000U);
+    }
+    TEST_ASSERT_EQUAL_INT(1, s_slow_handler_finished);
+
+    hw_estop_sim_set_active(false);
+    usleep(30000U);
+}
+
 int main(void)
 {
     UNITY_BEGIN();
     WDF_RUN_TEST(test_init_registers_estop_poll_thread, "", "验证初始化注册急停轮询线程");
     WDF_RUN_TEST(test_estop_edges_publish_events, "", "验证急停边沿发布事件");
     WDF_RUN_TEST(test_cutout_failure_still_publishes_event, "", "验证安全切断失败仍然发布事件");
+    WDF_RUN_TEST(test_cutout_runs_while_dispatch_handler_blocked, "", "验证dispatch阻塞时急停仍立即切断");
     return UNITY_END();
 }
