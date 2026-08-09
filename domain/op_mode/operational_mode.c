@@ -452,12 +452,17 @@ void op_mode_on_blocking_alarm(void)
 void op_mode_on_estop(bool active)
 {
     op_mode_lock();
+    if (s_estop_active == active) {
+        op_mode_unlock();
+        return;
+    }
+
     s_estop_active = active;
     if (active) {
         set_mode(OP_MODE_STOPPED, "estop");
-    } else {
-        publish_context_sync();
     }
+    /* 旗标变化一律刷上下文：已 STOPPED 时 set_mode 不发 CHANGED，须靠本事件刷新快照 */
+    publish_context_sync();
     op_mode_unlock();
 }
 

@@ -153,6 +153,38 @@ static void test_operational_projection_syncs_current_context(void)
     stop_dispatch(tid);
 }
 
+/* STOPPED 下置急停：无 MODE_CHANGED，须靠 CONTEXT_SYNC 刷新快照 estop_active */
+static void test_estop_while_stopped_syncs_snapshot_flag(void)
+{
+    pthread_t              tid;
+    operational_snapshot_t snap;
+
+    time_util_init();
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, operational_mode_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, telemetry_projection_init());
+    tid = start_dispatch();
+    usleep(10000);
+
+    snap = operational_snapshot_get();
+    TEST_ASSERT_EQUAL_INT(OP_MODE_STOPPED, snap.mode);
+    TEST_ASSERT_FALSE(snap.estop_active);
+
+    op_mode_on_estop(true);
+    usleep(50000);
+    snap = operational_snapshot_get();
+    TEST_ASSERT_EQUAL_INT(OP_MODE_STOPPED, snap.mode);
+    TEST_ASSERT_TRUE(snap.estop_active);
+    TEST_ASSERT_TRUE(op_mode_is_estop_active());
+
+    op_mode_on_estop(false);
+    usleep(50000);
+    snap = operational_snapshot_get();
+    TEST_ASSERT_FALSE(snap.estop_active);
+
+    stop_dispatch(tid);
+}
+
 static void test_safety_projection_refreshes_alarm_snapshot(void)
 {
     pthread_t         tid;
@@ -185,6 +217,7 @@ int main(void)
     WDF_RUN_TEST(test_snapshot_direct_updates_are_read_back, "", "验证直接更新快照后可以读取新值");
     WDF_RUN_TEST(test_wash_projection_tracks_session_started_event, "", "验证洗车投影跟踪会话已启动事件");
     WDF_RUN_TEST(test_operational_projection_syncs_current_context, "", "验证运行状态投影同步当前上下文");
+    WDF_RUN_TEST(test_estop_while_stopped_syncs_snapshot_flag, "", "验证已停止时急停仍刷新快照旗标");
     WDF_RUN_TEST(test_safety_projection_refreshes_alarm_snapshot, "", "验证安全投影刷新报警快照");
 
     return UNITY_END();

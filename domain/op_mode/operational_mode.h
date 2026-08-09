@@ -84,7 +84,8 @@ void op_mode_on_critical_alarm(void);
 
 /**
  * @brief  急停状态变更
- * @param  active  true → 置急停并 → STOPPED；false → 清标志并发布 CONTEXT_SYNC（不自动进 IDLE）
+ * @param  active  true → 置急停并收敛 STOPPED；false → 清标志（不自动进 IDLE）
+ * @note   旗标实际变化时发布 CONTEXT_SYNC，保证已 STOPPED 时快照仍能跟上 estop_active。
  */
 void op_mode_on_estop(bool active);
 
