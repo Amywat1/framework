@@ -8,8 +8,8 @@
  * hal_motor_exec_t 指针形式注入各机构模块；默认实现位于
  * adapters/outbound/hal/components/motor_exec/。
  */
-#ifndef DOMAIN_PORTS_OUTBOUND_HAL_MOTOR_HAL_MOTOR_EXEC_PORT_H
-#define DOMAIN_PORTS_OUTBOUND_HAL_MOTOR_HAL_MOTOR_EXEC_PORT_H
+#ifndef DOMAIN_PORTS_OUTBOUND_MOTOR_HAL_MOTOR_EXEC_PORT_H
+#define DOMAIN_PORTS_OUTBOUND_MOTOR_HAL_MOTOR_EXEC_PORT_H
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -280,4 +280,4 @@ bool hal_motor_pop_event_for(hal_motor_exec_t *exec, int motor, hal_motor_event_
 }
 #endif
 
-#endif /* DOMAIN_PORTS_OUTBOUND_HAL_MOTOR_HAL_MOTOR_EXEC_PORT_H */
+#endif /* DOMAIN_PORTS_OUTBOUND_MOTOR_HAL_MOTOR_EXEC_PORT_H */

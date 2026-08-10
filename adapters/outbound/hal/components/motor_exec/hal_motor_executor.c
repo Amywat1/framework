@@ -8,7 +8,7 @@
  * 本文件同时实现出站端口 hal_motor_*，供 domain patterns 直接调用。
  */
 #include "adapters/outbound/hal/components/motor_exec/hal_motor_executor.h"
-#include "domain/ports/outbound/hal/motor/hal_motor_exec_port.h"
+#include "domain/ports/outbound/motor/hal_motor_exec_port.h"
 
 #include <limits.h>
 

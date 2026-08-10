@@ -13,7 +13,7 @@ extern "C" {
 #endif
 
 #include "domain/device_control/model/actuator_events.h"
-#include "domain/ports/outbound/hal/motor/hal_motor_exec_port.h"
+#include "domain/ports/outbound/motor/hal_motor_exec_port.h"
 
 #include <stdbool.h>
 #include <stddef.h>
