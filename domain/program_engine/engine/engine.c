@@ -33,10 +33,12 @@ typedef enum { RT_IDLE = 0, RT_WAIT_AFTER, RT_ARMED, RT_RUNNING, RT_WAIT_DONE, R
 typedef struct {
     rt_step_state_t state;
     unsigned        action_idx;
-    bool            waiting;        /* 正在 wait_time 倒计时 */
-    uint32_t        wait_remaining; /* wait_time 剩余 ms */
-    uint32_t        done_elapsed;   /* done 计时 ms */
-    int             trig_prev;      /* signal 触发器上一拍电平 */
+    bool            waiting;          /* 正在 wait_time 倒计时 */
+    uint32_t        wait_remaining;   /* wait_time 剩余 ms */
+    uint32_t        done_elapsed;     /* done 未命中累计 ms */
+    uint32_t        confirm_elapsed;  /* done:signal 连续命中累计 ms */
+    uint32_t        retry_used;       /* 已重试次数 */
+    int             trig_prev;        /* signal 触发器上一拍电平 */
 } rt_step_t;
 
 typedef struct {
@@ -491,12 +493,14 @@ static bool enter_phase(engine_t *e, int idx)
                 continue;
             }
 
-            rt->state          = (sd->after_count > 0U) ? RT_WAIT_AFTER : RT_ARMED;
-            rt->action_idx     = 0U;
-            rt->waiting        = false;
-            rt->wait_remaining = 0U;
-            rt->done_elapsed   = 0U;
-            rt->trig_prev      = (sd->trigger.type == ENGINE_TRIG_SIGNAL) ? sig_read(sd->trigger.signal) : 0;
+            rt->state            = (sd->after_count > 0U) ? RT_WAIT_AFTER : RT_ARMED;
+            rt->action_idx       = 0U;
+            rt->waiting          = false;
+            rt->wait_remaining   = 0U;
+            rt->done_elapsed     = 0U;
+            rt->confirm_elapsed  = 0U;
+            rt->retry_used       = 0U;
+            rt->trig_prev        = (sd->trigger.type == ENGINE_TRIG_SIGNAL) ? sig_read(sd->trigger.signal) : 0;
         }
     }
     return true;
@@ -528,6 +532,38 @@ static bool after_deps_met(engine_t *e, const engine_step_t *sd)
         }
     }
     return true;
+}
+
+/**
+ * @brief 重发本步全部 intent（用于 done 超时重试）
+ */
+static void reapply_step_intents(engine_t *e, const engine_step_t *sd)
+{
+    unsigned i;
+
+    if ((e == NULL) || (sd == NULL)) {
+        return;
+    }
+    for (i = 0U; i < sd->action_count; ++i) {
+        if (sd->actions[i].type == ENGINE_ACT_INTENT) {
+            intent_apply(e, &sd->actions[i].intent, true);
+        }
+    }
+}
+
+/**
+ * @brief done:signal 超时：未超 retry_max 则重发 intent，否则走 on_error
+ */
+static void handle_done_signal_timeout(engine_t *e, const engine_step_t *sd, rt_step_t *rt)
+{
+    if (rt->retry_used < sd->retry_max) {
+        rt->retry_used++;
+        rt->done_elapsed    = 0U;
+        rt->confirm_elapsed = 0U;
+        reapply_step_intents(e, sd);
+        return;
+    }
+    apply_on_error(e, sd->on_error, rt);
 }
 
 /* -------------------------------------------------------------------------
@@ -626,12 +662,17 @@ static void step_tick(engine_t *e, const engine_step_t *sd, rt_step_t *rt, uint3
 
             case ENGINE_DONE_SIGNAL: {
                 int v = sig_read(sd->done.signal);
+
                 if (v == sd->done.state) {
-                    rt->state = RT_DONE;
+                    rt->confirm_elapsed += dt;
+                    if ((sd->done.confirm_ms == 0U) || (rt->confirm_elapsed >= sd->done.confirm_ms)) {
+                        rt->state = RT_DONE;
+                    }
                 } else {
+                    rt->confirm_elapsed = 0U;
                     rt->done_elapsed += dt;
                     if ((sd->done.timeout_ms > 0U) && (rt->done_elapsed >= sd->done.timeout_ms)) {
-                        apply_on_error(e, sd->on_error, rt);
+                        handle_done_signal_timeout(e, sd, rt);
                     }
                 }
                 break;
@@ -976,11 +1017,13 @@ sw_err_t engine_recover(engine_t *e)
         for (unsigned j = 0U; j < e->lanes[i].count; ++j) {
             rt_step_t *rt = &e->lanes[i].steps[j];
             if ((rt->state == RT_RUNNING) || (rt->state == RT_WAIT_DONE)) {
-                rt->state          = RT_ARMED;
-                rt->action_idx     = 0U;
-                rt->waiting        = false;
-                rt->wait_remaining = 0U;
-                rt->done_elapsed   = 0U;
+                rt->state           = RT_ARMED;
+                rt->action_idx      = 0U;
+                rt->waiting         = false;
+                rt->wait_remaining  = 0U;
+                rt->done_elapsed    = 0U;
+                rt->confirm_elapsed = 0U;
+                /* retry_used 保留：recover 不扩大重试预算 */
             }
         }
     }

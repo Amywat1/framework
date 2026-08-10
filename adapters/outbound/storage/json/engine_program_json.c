@@ -324,6 +324,9 @@ static bool build_event_step(engine_step_t *st, const cJSON *node, char *err, un
     if ((st->done.type == ENGINE_DONE_SIGNAL) || (st->done.type == ENGINE_DONE_TIMEOUT)) {
         (void)juint(done, "timeout_ms", &st->done.timeout_ms);
     }
+    if (st->done.type == ENGINE_DONE_SIGNAL) {
+        (void)juint(done, "confirm_ms", &st->done.confirm_ms);
+    }
 
     /* on_error（默认 halt_phase） */
     st->on_error = ENGINE_ERR_HALT_PHASE;
@@ -333,6 +336,8 @@ static bool build_event_step(engine_step_t *st, const cJSON *node, char *err, un
             return false;
         }
     }
+
+    (void)juint(node, "retry_max", &st->retry_max);
 
     /* after */
     const cJSON *after = cJSON_GetObjectItemCaseSensitive(node, "after");

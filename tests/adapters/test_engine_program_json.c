@@ -278,6 +278,37 @@ static void test_condition_marker_latches_on_rising(void)
     engine_destroy(engine);
 }
 
+static void test_json_loader_parses_confirm_ms_and_retry_max(void)
+{
+    static const char *json
+        = "{"
+          "\"program\":{"
+          "\"schema_version\":\"1.0\",\"id\":\"confirm_retry\",\"name\":\"t\","
+          "\"interlocks\":[{\"id\":\"estop\",\"condition\":\"ESTOP == 1\",\"action\":\"halt_all\","
+          "\"priority\":0,\"reset_condition\":\"ESTOP == 0\",\"auto_reset\":false}],"
+          "\"phases\":[{\"id\":\"p0\",\"name\":\"p\",\"direction\":\"none\","
+          "\"entry_guard\":\"true\",\"exit_guard\":\"EXIT == 1\",\"timeout_ms\":1000,"
+          "\"lanes\":[{\"id\":\"lane\",\"steps\":[{"
+          "\"id\":\"move\",\"type\":\"event\","
+          "\"trigger\":{\"type\":\"condition\",\"expr\":\"EXIT == 0\"},"
+          "\"actions\":[{\"act\":{\"resource\":\"aout\",\"cmd\":\"run\",\"gear\":1}}],"
+          "\"done\":{\"type\":\"signal\",\"signal\":\"EXIT\",\"state\":1,"
+          "\"timeout_ms\":5000,\"confirm_ms\":100},"
+          "\"retry_max\":2,\"on_error\":\"halt_phase\""
+          "}]}]}]}"
+          "}";
+    char              err[200];
+    engine_program_t *program = engine_program_load_json_string(json, err, sizeof(err));
+    engine_step_t    *step;
+
+    TEST_ASSERT_NOT_NULL_MESSAGE(program, err);
+    step = &program->phases[0].lanes[0].steps[0];
+    TEST_ASSERT_EQUAL_UINT(100U, step->done.confirm_ms);
+    TEST_ASSERT_EQUAL_UINT(5000U, step->done.timeout_ms);
+    TEST_ASSERT_EQUAL_UINT(2U, step->retry_max);
+    engine_program_free(program);
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -288,6 +319,7 @@ int main(void)
     WDF_RUN_TEST(test_json_loader_expands_step_templates, "", "验证JSON加载器展开步骤模板");
     WDF_RUN_TEST(test_json_loader_port_registers_and_loads_file, "", "验证JSON加载器端口注册并加载文件");
     WDF_RUN_TEST(test_condition_marker_latches_on_rising, "", "验证条件标记在上升沿锁存");
+    WDF_RUN_TEST(test_json_loader_parses_confirm_ms_and_retry_max, "", "验证解析 confirm_ms 与 retry_max");
 
     return UNITY_END();
 }

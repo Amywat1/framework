@@ -94,6 +94,7 @@ typedef struct {
     char               signal[ENGINE_NAME_MAX]; /* signal：等待的信号名 */
     int                state;                   /* signal：目标状态 */
     uint32_t           timeout_ms;              /* signal/timeout：超时（0=无） */
+    uint32_t           confirm_ms;              /* signal：连续为真确认窗（0=首拍即完成） */
 } engine_done_t;
 
 /* 步骤（event / control） */
@@ -101,6 +102,7 @@ typedef struct {
     char                    id[ENGINE_NAME_MAX];
     engine_step_type_t      type;
     engine_error_strategy_t on_error;
+    uint32_t                retry_max; /**< done 超时后重发 intent 次数；0=不重试 */
 
     /* event 型字段 */
     engine_trigger_t trigger;

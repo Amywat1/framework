@@ -153,8 +153,9 @@ static bool clone_step(engine_step_t *dst, const engine_step_t *src)
 {
     (void)memset(dst, 0, sizeof(engine_step_t));
     (void)memcpy(dst->id, src->id, sizeof(dst->id));
-    dst->type     = src->type;
-    dst->on_error = src->on_error;
+    dst->type      = src->type;
+    dst->on_error  = src->on_error;
+    dst->retry_max = src->retry_max;
 
     if (src->type == ENGINE_STEP_CONTROL) {
         dst->active_while = engine_expr_clone(src->active_while);
