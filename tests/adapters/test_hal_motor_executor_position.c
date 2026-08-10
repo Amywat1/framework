@@ -313,7 +313,8 @@ static void test_origin_move_clears_hardware_and_software_once(void)
 }
 
 /**
- * @brief  ORIGIN éä½è¿å¨å¨ååç¹æ¶è¢«å¤é¨åæ­¢ï¼ä»éå»ºåºåï¼ä¸ä¾èµ motor_homeï¼
+ * @brief  ORIGIN 限位运动在压原点时被外部停止，仍重建基准（不依赖 motor_home）
+ * @note   已压监视限位时 stop 按 ARRIVED(LIMIT) 收尾，与触限同拍语义一致。
  */
 static void test_origin_external_stop_while_pressed_rebuilds_baseline(void)
 {
@@ -329,14 +330,43 @@ static void test_origin_external_stop_while_pressed_rebuilds_baseline(void)
     TEST_ASSERT_EQUAL_INT(MOTOR_PHASE_RUNNING, motor_phase(&s_executor, 0));
 
     s_fixture.origin_active = true;
-    TEST_ASSERT_TRUE(motor_cmd_ok(motor_stop(&s_executor, 0)));
-    TEST_ASSERT_EQUAL_INT(MOTOR_PHASE_DECELERATING, motor_phase(&s_executor, 0));
-    tick_at(50);
-
+    result                  = motor_stop(&s_executor, 0);
+    TEST_ASSERT_TRUE(motor_cmd_ok(result));
+    TEST_ASSERT_EQUAL_STRING("arrived-on-limit", result.reason);
     TEST_ASSERT_EQUAL_INT(MOTOR_PHASE_STOPPED, motor_phase(&s_executor, 0));
+    TEST_ASSERT_EQUAL_INT(1, s_fixture.arrived_count);
+    TEST_ASSERT_EQUAL_INT(MOTOR_END_LIMIT, s_fixture.last_arrived_trigger);
+    TEST_ASSERT_EQUAL_INT(MOTOR_LIMIT_ORIGIN, s_fixture.last_arrived_limit);
     TEST_ASSERT_EQUAL_INT(1, s_fixture.zero_count);
     TEST_ASSERT_EQUAL_INT64(0, motor_position(&s_executor, 0));
     TEST_ASSERT_TRUE(motor_baseline_trusted(&s_executor, 0));
+}
+
+/**
+ * @brief  已压 POS 限位时外部 stop 记为 ARRIVED，而非 STOPPED。
+ */
+static void test_stop_while_watched_pos_limit_arrives(void)
+{
+    motor_move_spec_t  spec = {0};
+    motor_cmd_result_t result;
+
+    init_executor(0, MOTOR_ENC_ABSOLUTE);
+    spec.limit_mask  = MOTOR_LIMIT_MASK_POS;
+    spec.max_time_ms = 5000;
+    result           = motor_move_to(&s_executor, 0, motor_speed_gear(1), MOTOR_DIR_FORWARD, &spec);
+    TEST_ASSERT_TRUE(motor_cmd_ok(result));
+
+    tick_at(0);
+    TEST_ASSERT_EQUAL_INT(MOTOR_PHASE_RUNNING, motor_phase(&s_executor, 0));
+
+    s_fixture.pos_limit_active = true;
+    result                     = motor_stop(&s_executor, 0);
+    TEST_ASSERT_TRUE(motor_cmd_ok(result));
+    TEST_ASSERT_EQUAL_STRING("arrived-on-limit", result.reason);
+    TEST_ASSERT_EQUAL_INT(MOTOR_PHASE_STOPPED, motor_phase(&s_executor, 0));
+    TEST_ASSERT_EQUAL_INT(1, s_fixture.arrived_count);
+    TEST_ASSERT_EQUAL_INT(MOTOR_END_LIMIT, s_fixture.last_arrived_trigger);
+    TEST_ASSERT_EQUAL_INT(MOTOR_LIMIT_POS, s_fixture.last_arrived_limit);
 }
 
 /**
@@ -701,7 +731,8 @@ int main(void)
     WDF_RUN_TEST(test_origin_move_clears_hardware_and_software_once, "", "验证原点移动仅清除一次软硬件位置");
     WDF_RUN_TEST(test_origin_external_stop_while_pressed_rebuilds_baseline,
                  "",
-                 "验证压原点时外部停止仍重建基准");
+                 "验证压原点时外部停止按到位收尾并重建基准");
+    WDF_RUN_TEST(test_stop_while_watched_pos_limit_arrives, "", "验证已压监视正限位时 stop 记为到位");
     WDF_RUN_TEST(test_no_encoder_baseline_trusted_at_init, "", "验证无编码器轴上电基准恒可信");
     WDF_RUN_TEST(
         test_origin_clear_failure_keeps_baseline_untrusted_and_faults, "", "验证原点清除失败保持基线不可信并进入故障");

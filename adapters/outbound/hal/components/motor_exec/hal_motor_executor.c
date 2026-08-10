@@ -1155,13 +1155,34 @@ motor_cmd_result_t motor_stop(motor_executor_t *e, int i)
         s->cooldown_until = e->now + e->cfg.motors[i].cooldown_ms;
         return cmd_make(MOTOR_CMD_ACCEPTED, "reversal-cancel");
     case MOTOR_PHASE_RUNNING:
-    case MOTOR_PHASE_DECELERATING:
+    case MOTOR_PHASE_DECELERATING: {
+        /* 上位 stop 与触限同拍：本运动已压在监视硬限位上，按到位收尾，
+         * 避免清 move_active 后丢掉 ARRIVED，只剩 STOPPED/END_NONE。 */
+        static const motor_limit_kind_t k_order[] = {
+            MOTOR_LIMIT_ORIGIN,
+            MOTOR_LIMIT_POS,
+            MOTOR_LIMIT_NEG,
+        };
+        unsigned n;
+
+        for (n = 0U; n < (sizeof(k_order) / sizeof(k_order[0])); ++n) {
+            motor_limit_kind_t kind = k_order[n];
+
+            if (motor_limit_mask_has(s->spec.limit_mask, kind) && sensor_limit(e, i, kind)) {
+                s->end_limit = kind;
+                complete_move(e, i, MOTOR_EVENT_ARRIVED, MOTOR_END_LIMIT);
+                /* 命令路径不经 tick，立即派发到位事件。 */
+                dispatch(e);
+                return cmd_make(MOTOR_CMD_ACCEPTED, "arrived-on-limit");
+            }
+        }
         /* 先结算已运行时长，转入减速后计时起点失效，随后的停止事件才有耗时。 */
         settle_elapsed(e, i);
         s->emit_stop_on_halt = true;
-        s->move_active        = false;
+        s->move_active       = false;
         s->phase             = MOTOR_PHASE_DECELERATING;
         return cmd_make(MOTOR_CMD_ACCEPTED, "stopping");
+    }
     default:
         return cmd_make(MOTOR_CMD_ACCEPTED, "already-stopped");
     }
