@@ -113,6 +113,14 @@ static void test_reevaluate_by_group(void)
 {
     (void)alarm_registry_trigger(200205U);
     TEST_ASSERT_TRUE(alarm_registry_is_active(200205U));
+
+    /* 条件仍成立：运动结束重评估不得清警 */
+    (void)alarm_registry_reevaluate_group((motion_reeval_group_id_t)1U);
+    TEST_ASSERT_TRUE(alarm_registry_is_active(200205U));
+
+    /* 动作中判定正常后，再重评估才落地清除 */
+    (void)alarm_registry_clear(200205U);
+    TEST_ASSERT_TRUE(alarm_registry_is_active(200205U));
     (void)alarm_registry_reevaluate_group((motion_reeval_group_id_t)1U);
     TEST_ASSERT_FALSE(alarm_registry_is_active(200205U));
 }

@@ -207,11 +207,12 @@ sw_err_t alarm_registry_reevaluate_group(motion_reeval_group_id_t group)
             }
         }
     }
+    /* 只落地“动作中已判定条件消失”的条目；条件仍成立则保持报警。
+     * 运动结束本身不是清除理由，避免停机误清后被监测源立刻再拉起。 */
     for (i = 0; i < n; ++i) {
         int active_idx = find_active_index(codes[i]);
 
-        if (active_idx >= 0) {
-            s_active[(unsigned)active_idx].condition_active = false;
+        if ((active_idx >= 0) && !s_active[(unsigned)active_idx].condition_active) {
             force_clear_locked(codes[i]);
         }
     }

@@ -46,6 +46,13 @@ unsigned alarm_registry_catalog_count(void);
 
 sw_err_t alarm_registry_trigger(uint32_t code);
 sw_err_t alarm_registry_clear(uint32_t code);
+/**
+ * @brief  对指定分组的 ON_MOTION 报警做运动结束重评估
+ * @param  group 重评估分组
+ * @return SW_OK
+ * @note   仅删除 `condition_active==false`（动作中已判定正常）的条目；
+ *         条件仍成立时保持活动，运动结束本身不会清警。
+ */
 sw_err_t alarm_registry_reevaluate_group(motion_reeval_group_id_t group);
 
 void alarm_registry_on_wash_session_started(void);

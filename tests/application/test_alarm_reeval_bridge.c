@@ -106,6 +106,9 @@ static void test_actuator_event_reevaluates_bound_group_only(void)
     TEST_ASSERT_TRUE(alarm_registry_is_active(201105U));
     TEST_ASSERT_TRUE(alarm_registry_is_active(201205U));
 
+    /* 仅龙门侧在动作中判为正常；条件仍成立的分组不得被运动结束误清 */
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_clear(201105U));
+
     tid = start_dispatch();
     actuator_publish_motion_completed(TEST_ACTUATOR_GANTRY);
     usleep(50000);
@@ -121,12 +124,28 @@ static void test_checkpoint_event_reevaluates_bound_group(void)
 
     TEST_ASSERT_EQUAL_INT(SW_OK, alarm_bridge_reeval_init(s_bindings, 2U));
     TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_trigger(201205U));
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_clear(201205U));
 
     tid = start_dispatch();
     wash_publish_checkpoint_reached(TEST_CHECKPOINT_EXIT);
     usleep(50000);
 
     TEST_ASSERT_FALSE(alarm_registry_is_active(201205U));
+    stop_dispatch(tid);
+}
+
+static void test_motion_complete_keeps_active_condition(void)
+{
+    pthread_t tid;
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_bridge_reeval_init(s_bindings, 2U));
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_trigger(201105U));
+
+    tid = start_dispatch();
+    actuator_publish_motion_completed(TEST_ACTUATOR_GANTRY);
+    usleep(50000);
+
+    TEST_ASSERT_TRUE(alarm_registry_is_active(201105U));
     stop_dispatch(tid);
 }
 
@@ -146,6 +165,7 @@ int main(void)
     WDF_RUN_TEST(test_init_rejects_invalid_binding_table, "", "验证初始化拒绝无效绑定表");
     WDF_RUN_TEST(test_actuator_event_reevaluates_bound_group_only, "", "验证执行器事件仅重新评估绑定的报警组");
     WDF_RUN_TEST(test_checkpoint_event_reevaluates_bound_group, "", "验证检查点事件重新评估已绑定分组");
+    WDF_RUN_TEST(test_motion_complete_keeps_active_condition, "", "验证条件仍成立时运动结束不清除报警");
     WDF_RUN_TEST(test_unbound_trigger_is_noop, "", "验证未绑定触发源为无操作");
 
     return UNITY_END();
