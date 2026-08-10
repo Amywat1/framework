@@ -14,10 +14,25 @@ extern "C" {
 #include "common/sw_error.h"
 
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
+
+/** @brief 仿真 IO 名称表条目（与机型 DO_/DI_ 规范名表布局一致）。 */
+typedef struct {
+    const char *name; /**< 标准名称，如 "DO_GANTRY_FWD" */
+    uint16_t    raw;  /**< 句柄底层编码 */
+} hal_io_sim_name_entry_t;
 
 /** @brief  注册 hal_io_sim 操作集到 hal_io_port；不隐式初始化仿真状态。 */
 void hal_io_sim_register(void);
+
+/**
+ * @brief  注册仿真 DO 名称表，供 do_name / try_parse_do 与变更日志使用。
+ * @param  table  名称表；可为 NULL 表示清除。
+ * @param  count  条目数；table 为 NULL 时忽略。
+ * @note   表须在进程生命周期内保持有效（通常为静态表）。
+ */
+void hal_io_sim_set_do_names(const hal_io_sim_name_entry_t *table, size_t count);
 
 /**
  * @brief  校验本次仿真生命周期中是否发生过初始化前 HAL 访问。

@@ -14,6 +14,7 @@
 #include "domain/ports/outbound/hal/hal_io_port.h"
 
 #include <pthread.h>
+#include <stddef.h>
 #include <string.h>
 
 #define SIM_IO_BOARD_MAX    8U
@@ -33,6 +34,8 @@ static uint32_t            s_di_sequence[SIM_IO_BOARD_MAX];
 static bool                s_inited                    = false;
 static bool                s_started                   = false;
 static uint32_t            s_lifecycle_violation_count = 0U;
+static const hal_io_sim_name_entry_t *s_do_names       = NULL;
+static size_t                         s_do_name_count = 0U;
 /* DO 写位于急停切断热路径：safety_cutout_execute -> 项目 cutout 实现 ->
  * hal_io do_set。该路径由 estop_poll 线程以 SCHED_FIFO 高优先级执行，而同
  * 两把锁又被 SCHED_OTHER 周期任务（IO 刷新、传感器采样）竞争，故启用优先级
@@ -41,6 +44,8 @@ static uint32_t            s_lifecycle_violation_count = 0U;
 static pthread_mutex_t s_do_mutex;
 static pthread_mutex_t s_di_mutex;
 static pthread_once_t  s_mutex_once = PTHREAD_ONCE_INIT;
+
+static const char *sim_do_name(io_do_t pin);
 
 static void sim_mutex_init_once(void)
 {
@@ -134,7 +139,16 @@ static sw_err_t sim_do_set(io_do_t pin, bool val)
     s_do_state[board][io] = val;
     pthread_mutex_unlock(&s_do_mutex);
     if (changed) {
-        LOG_INFO("sim_io: DO(board=%u,pin=%u) = %d", (unsigned)board, (unsigned)io, (int)val);
+        const char *name = sim_do_name(pin);
+
+        if ((name != NULL) && (strncmp(name, "DO_", 3) == 0)) {
+            /* 日志用去掉 DO_ 的短信号名，便于对照机构动作。 */
+            LOG_INFO("sim_io: %s=%d", name + 3, (int)val);
+        } else if (name != NULL) {
+            LOG_INFO("sim_io: %s=%d", name, (int)val);
+        } else {
+            LOG_INFO("sim_io: DO(board=%u,pin=%u)=%d", (unsigned)board, (unsigned)io, (int)val);
+        }
     }
     return SW_OK;
 }
@@ -311,10 +325,36 @@ static bool sim_try_parse_di(const char *name, io_di_t *out)
     return false;
 }
 
+static bool sim_name_matches(const char *input, const char *canonical)
+{
+    if ((input == NULL) || (canonical == NULL)) {
+        return false;
+    }
+    if (strcmp(input, canonical) == 0) {
+        return true;
+    }
+    /* 允许省略 DO_ 前缀：GANTRY_FWD 匹配 DO_GANTRY_FWD。 */
+    if ((strncmp(canonical, "DO_", 3) == 0) && (strcmp(input, canonical + 3) == 0)) {
+        return true;
+    }
+    return false;
+}
+
 static bool sim_try_parse_do(const char *name, io_do_t *out)
 {
-    (void)name;
-    (void)out;
+    size_t i;
+
+    if ((name == NULL) || (s_do_names == NULL)) {
+        return false;
+    }
+    for (i = 0; i < s_do_name_count; ++i) {
+        if (sim_name_matches(name, s_do_names[i].name)) {
+            if (out != NULL) {
+                out->raw = s_do_names[i].raw;
+            }
+            return true;
+        }
+    }
     return false;
 }
 
@@ -326,8 +366,24 @@ static const char *sim_di_name(io_di_t pin)
 
 static const char *sim_do_name(io_do_t pin)
 {
-    (void)pin;
+    uint16_t raw = io_do_raw(pin);
+    size_t   i;
+
+    if (s_do_names == NULL) {
+        return NULL;
+    }
+    for (i = 0; i < s_do_name_count; ++i) {
+        if (s_do_names[i].raw == raw) {
+            return s_do_names[i].name;
+        }
+    }
     return NULL;
+}
+
+void hal_io_sim_set_do_names(const hal_io_sim_name_entry_t *table, size_t count)
+{
+    s_do_names      = table;
+    s_do_name_count = (table != NULL) ? count : 0U;
 }
 
 static int sim_board_count(void)
@@ -518,5 +574,7 @@ void hal_io_sim_test_reset(void)
     s_inited                    = false;
     s_started                   = false;
     s_lifecycle_violation_count = 0U;
+    s_do_names                  = NULL;
+    s_do_name_count             = 0U;
 }
 #endif
