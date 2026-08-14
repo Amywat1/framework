@@ -257,8 +257,7 @@ typedef struct {
 
     int cooldown_ms;                        /**< 停机冷却期 */
     int reversal_stop_ms;                   /**< 方向切换停止时间 */
-    int accel_ms;                           /**< 加速时间 */
-    int decel_ms;                           /**< 减速时间 */
+    int accel_ms;                           /**< 电流监测加速段时长（ms） */
 
     int pos_tolerance;                      /**< 到位容差（脉冲） */
     int decel_point;                        /**< 定位降速点（距目标脉冲数，0=不启用） */
