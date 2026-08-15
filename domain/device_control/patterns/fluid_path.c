@@ -1,6 +1,6 @@
 /**
  * @file    fluid_path.c
- * @brief   流体路径控制实现
+ * @brief   流体路径控制实现（按执行器对账，延时不阻塞其它指令）
  * @author  HUWANGWEI
  * @date    2026-04-10
  */
@@ -11,42 +11,28 @@
 #include "common/time_util.h"
 
 #include <pthread.h>
-#include <sched.h>
 #include <stdatomic.h>
 #include <string.h>
 
-#define FLUID_PATH_ACTUATOR_LIST_MAX 16U
-
-typedef enum {
-    FLUID_PATH_SEQ_IDLE = 0,
-    FLUID_PATH_SEQ_WAIT_CLOSE_PUMP,
-    FLUID_PATH_SEQ_WAIT_OPEN_VALVE,
-} fluid_path_seq_state_t;
+typedef bool (*fluid_path_gate_fn)(fluid_path_channel_idx_t ch, fluid_path_slot_t slot, uint64_t now_ms);
 
 static pthread_mutex_t s_mutex         = PTHREAD_MUTEX_INITIALIZER;
 static atomic_bool     s_emergency_off = false;
 
 static fluid_path_cfg_t          s_cfg;
 static fluid_path_actuator_ops_t s_actuator;
-static bool                      s_ready         = false;
-static uint8_t                   s_channel_count = 0U;
+static bool                      s_ready = false;
 
 static const fluid_path_def_t *s_paths      = NULL;
 static size_t                  s_path_count = 0U;
 static fluid_path_mask_t       s_valid_mask = 0U;
 
-static uint8_t           s_ref[FLUID_PATH_CHANNEL_MAX][FLUID_PATH_SLOT_COUNT];
+static bool              s_desired[FLUID_PATH_CHANNEL_MAX][FLUID_PATH_SLOT_COUNT];
 static bool              s_actual[FLUID_PATH_CHANNEL_MAX][FLUID_PATH_SLOT_COUNT];
+static uint64_t          s_since_ms[FLUID_PATH_CHANNEL_MAX][FLUID_PATH_SLOT_COUNT];
+static bool              s_since_valid[FLUID_PATH_CHANNEL_MAX][FLUID_PATH_SLOT_COUNT];
 static fluid_path_mask_t s_pending_target = 0U;
-static fluid_path_mask_t s_stable_paths   = 0U;
-
-static fluid_path_seq_state_t    s_seq_state    = FLUID_PATH_SEQ_IDLE;
-static uint64_t                  s_deadline_ms  = 0U;
-static fluid_path_mask_t         s_closing_mask = 0U;
-static fluid_path_mask_t         s_opening_mask = 0U;
-static fluid_path_actuator_key_t s_work_list[FLUID_PATH_ACTUATOR_LIST_MAX];
-static uint8_t                   s_work_count = 0U;
-static bool                      s_force_off  = false;
+static bool              s_force_off      = false;
 
 static bool path_bit_set(fluid_path_mask_t mask, uint8_t path_idx)
 {
@@ -62,11 +48,6 @@ static bool key_valid_for_channel_count(const fluid_path_actuator_key_t *key, ui
 {
     return (key != NULL) && (channel_count > 0U) && (key->ch < channel_count)
            && ((unsigned)key->slot < FLUID_PATH_SLOT_COUNT);
-}
-
-static bool key_valid(const fluid_path_actuator_key_t *key)
-{
-    return key_valid_for_channel_count(key, s_channel_count);
 }
 
 static bool paths_valid(const fluid_path_cfg_t *cfg,
@@ -105,163 +86,152 @@ static bool paths_valid(const fluid_path_cfg_t *cfg,
     return true;
 }
 
-static bool list_has(const fluid_path_actuator_key_t *key)
+static bool delay_elapsed(fluid_path_channel_idx_t ch, fluid_path_slot_t slot, uint64_t now_ms, uint32_t delay_ms)
 {
-    uint8_t i;
-
-    for (i = 0U; i < s_work_count; i++) {
-        if ((s_work_list[i].ch == key->ch) && (s_work_list[i].slot == key->slot)) {
-            return true;
-        }
+    if (!s_since_valid[ch][slot]) {
+        return true;
     }
-    return false;
+    return time_elapsed_ms(s_since_ms[ch][slot], now_ms) >= delay_ms;
 }
 
-static void list_add(const fluid_path_actuator_key_t *key)
-{
-    if ((s_work_count >= FLUID_PATH_ACTUATOR_LIST_MAX) || !key_valid(key) || list_has(key)) {
-        return;
-    }
-    s_work_list[s_work_count] = *key;
-    s_work_count++;
-}
-
-static bool work_has_pump(void)
-{
-    uint8_t i;
-
-    for (i = 0U; i < s_work_count; i++) {
-        if (is_pump_slot(s_work_list[i].slot)) {
-            return true;
-        }
-    }
-    return false;
-}
-
-static bool work_has_valve(void)
-{
-    uint8_t i;
-
-    for (i = 0U; i < s_work_count; i++) {
-        if (!is_pump_slot(s_work_list[i].slot)) {
-            return true;
-        }
-    }
-    return false;
-}
-
-static sw_err_t output_slot(fluid_path_channel_idx_t ch, fluid_path_slot_t slot, bool on)
+static void set_actual(fluid_path_channel_idx_t ch, fluid_path_slot_t slot, bool on, uint64_t now_ms)
 {
     sw_err_t ret;
 
-    if (s_actuator.slot_set == NULL) {
-        return SW_ERR_NOT_INIT;
+    if (s_actual[ch][slot] == on) {
+        return;
     }
     ret = s_actuator.slot_set(ch, slot, on);
     if (ret != SW_OK) {
         LOG_ERROR("fluid_path: ch %d slot %d %s failed ret=%d", (int)ch, (int)slot, on ? "ON" : "OFF", (int)ret);
+        return;
     }
-    return ret;
+    s_actual[ch][slot]      = on;
+    s_since_ms[ch][slot]    = now_ms;
+    s_since_valid[ch][slot] = true;
 }
 
-static sw_err_t apply_group(bool pump_group, bool on)
-{
-    sw_err_t ret;
-    sw_err_t first_err = SW_OK;
-    uint8_t  i;
-
-    for (i = 0U; i < s_work_count; i++) {
-        if (is_pump_slot(s_work_list[i].slot) != pump_group) {
-            continue;
-        }
-        ret = output_slot(s_work_list[i].ch, s_work_list[i].slot, on);
-        if (ret == SW_OK) {
-            s_actual[s_work_list[i].ch][s_work_list[i].slot] = on;
-        } else if (first_err == SW_OK) {
-            first_err = ret;
-        }
-    }
-    return first_err;
-}
-
-static void collect_deps(fluid_path_mask_t mask, bool opening)
+static void recompute_desired(void)
 {
     size_t i;
 
-    s_work_count = 0U;
+    memset(s_desired, 0, sizeof(s_desired));
     for (i = 0U; i < s_path_count; i++) {
         const fluid_path_def_t *path = &s_paths[i];
         uint8_t                 j;
 
-        if (!path_bit_set(mask, path->path_idx)) {
+        if (!path_bit_set(s_pending_target, path->path_idx)) {
             continue;
         }
+        for (j = 0U; j < path->dep_count; j++) {
+            s_desired[path->deps[j].ch][path->deps[j].slot] = true;
+        }
+    }
+}
+
+/**
+ * @brief  泵可开：目标路径上的阀已到位且满足开阀延时；非目标路径上同泵阀已关
+ */
+static bool pump_may_turn_on(fluid_path_channel_idx_t ch, fluid_path_slot_t slot, uint64_t now_ms)
+{
+    size_t i;
+
+    for (i = 0U; i < s_path_count; i++) {
+        const fluid_path_def_t *path    = &s_paths[i];
+        bool                    uses    = false;
+        bool                    blocked = false;
+        bool                    wanted  = path_bit_set(s_pending_target, path->path_idx);
+        uint8_t                 j;
+
         for (j = 0U; j < path->dep_count; j++) {
             const fluid_path_actuator_key_t *dep = &path->deps[j];
 
-            if (!key_valid(dep)) {
+            if ((dep->ch == ch) && (dep->slot == slot)) {
+                uses = true;
+            }
+            if (is_pump_slot(dep->slot)) {
                 continue;
             }
-            if (opening) {
-                if (s_ref[dep->ch][dep->slot] == 0U) {
-                    list_add(dep);
+            if (wanted) {
+                if (!s_actual[dep->ch][dep->slot]
+                    || !delay_elapsed(dep->ch, dep->slot, now_ms, s_cfg.valve_open_delay_ms)) {
+                    blocked = true;
                 }
-            } else if (s_ref[dep->ch][dep->slot] == 1U) {
-                list_add(dep);
+            } else if (s_actual[dep->ch][dep->slot]) {
+                blocked = true;
             }
         }
+        if (uses && blocked) {
+            return false;
+        }
     }
+    return true;
 }
 
-static void add_refs(fluid_path_mask_t mask)
+/**
+ * @brief  阀可关：同路径泵仍在转则可立刻关；泵已停则须满足泄压延时
+ */
+static bool valve_may_turn_off(fluid_path_channel_idx_t ch, fluid_path_slot_t slot, uint64_t now_ms)
 {
     size_t i;
 
     for (i = 0U; i < s_path_count; i++) {
-        const fluid_path_def_t *path = &s_paths[i];
+        const fluid_path_def_t *path    = &s_paths[i];
+        bool                    uses    = false;
+        bool                    blocked = false;
         uint8_t                 j;
 
-        if (!path_bit_set(mask, path->path_idx)) {
-            continue;
-        }
         for (j = 0U; j < path->dep_count; j++) {
-            if (key_valid(&path->deps[j])) {
-                s_ref[path->deps[j].ch][path->deps[j].slot]++;
+            const fluid_path_actuator_key_t *dep = &path->deps[j];
+
+            if ((dep->ch == ch) && (dep->slot == slot)) {
+                uses = true;
             }
+            if (!is_pump_slot(dep->slot)) {
+                continue;
+            }
+            if (s_actual[dep->ch][dep->slot]) {
+                continue;
+            }
+            if (!delay_elapsed(dep->ch, dep->slot, now_ms, s_cfg.pump_stop_delay_ms)) {
+                blocked = true;
+            }
+        }
+        if (uses && blocked) {
+            return false;
         }
     }
+    return true;
 }
 
-static void sub_refs(fluid_path_mask_t mask)
+static void apply_changes(bool pumps, bool on, fluid_path_gate_fn gate, uint64_t now_ms)
 {
-    size_t i;
+    fluid_path_channel_idx_t ch;
+    unsigned                 slot;
 
-    for (i = 0U; i < s_path_count; i++) {
-        const fluid_path_def_t *path = &s_paths[i];
-        uint8_t                 j;
-
-        if (!path_bit_set(mask, path->path_idx)) {
-            continue;
-        }
-        for (j = 0U; j < path->dep_count; j++) {
-            if (key_valid(&path->deps[j]) && (s_ref[path->deps[j].ch][path->deps[j].slot] > 0U)) {
-                s_ref[path->deps[j].ch][path->deps[j].slot]--;
+    for (ch = 0U; ch < s_cfg.channel_count; ch++) {
+        for (slot = 0U; slot < (unsigned)FLUID_PATH_SLOT_COUNT; slot++) {
+            if (is_pump_slot((fluid_path_slot_t)slot) != pumps) {
+                continue;
             }
+            if ((s_actual[ch][slot] == on) || (s_desired[ch][slot] != on)) {
+                continue;
+            }
+            if ((gate != NULL) && !gate(ch, (fluid_path_slot_t)slot, now_ms)) {
+                continue;
+            }
+            set_actual(ch, (fluid_path_slot_t)slot, on, now_ms);
         }
     }
 }
 
 static void reset_state(void)
 {
-    memset(s_ref, 0, sizeof(s_ref));
+    memset(s_desired, 0, sizeof(s_desired));
     memset(s_actual, 0, sizeof(s_actual));
+    memset(s_since_ms, 0, sizeof(s_since_ms));
+    memset(s_since_valid, 0, sizeof(s_since_valid));
     s_pending_target = 0U;
-    s_stable_paths   = 0U;
-    s_seq_state      = FLUID_PATH_SEQ_IDLE;
-    s_deadline_ms    = 0U;
-    s_closing_mask   = 0U;
-    s_opening_mask   = 0U;
-    s_work_count     = 0U;
     s_force_off      = false;
 }
 
@@ -273,135 +243,24 @@ static void force_off_locked(void)
     reset_state();
 }
 
-static sw_err_t close_pumps_locked(uint64_t now_ms)
+static bool outputs_match_desired(void)
 {
-    sw_err_t ret;
+    fluid_path_channel_idx_t ch;
+    unsigned                 slot;
 
-    if (!work_has_pump()) {
-        return SW_OK;
-    }
-    ret = apply_group(true, false);
-    if ((ret != SW_OK) || (s_cfg.pump_stop_delay_ms == 0U)) {
-        return ret;
-    }
-    s_seq_state   = FLUID_PATH_SEQ_WAIT_CLOSE_PUMP;
-    s_deadline_ms = now_ms;
-    return SW_OK;
-}
-
-static sw_err_t close_valves_locked(void)
-{
-    sw_err_t ret = SW_OK;
-
-    if (work_has_valve()) {
-        ret = apply_group(false, false);
-    }
-    s_stable_paths &= ~s_closing_mask;
-    s_closing_mask = 0U;
-    s_work_count   = 0U;
-    s_seq_state    = FLUID_PATH_SEQ_IDLE;
-    return ret;
-}
-
-static sw_err_t begin_close_locked(fluid_path_mask_t to_close, uint64_t now_ms)
-{
-    sw_err_t ret;
-
-    collect_deps(to_close, false);
-    sub_refs(to_close);
-    s_closing_mask = to_close;
-
-    if (s_work_count == 0U) {
-        s_stable_paths &= ~to_close;
-        return SW_OK;
-    }
-
-    ret = close_pumps_locked(now_ms);
-    if (ret != SW_OK) {
-        return ret;
-    }
-    if (s_seq_state == FLUID_PATH_SEQ_IDLE) {
-        return close_valves_locked();
-    }
-    return SW_OK;
-}
-
-static sw_err_t open_valves_locked(uint64_t now_ms)
-{
-    sw_err_t ret;
-
-    if (!work_has_valve()) {
-        return SW_OK;
-    }
-    ret = apply_group(false, true);
-    if ((ret != SW_OK) || (s_cfg.valve_open_delay_ms == 0U)) {
-        return ret;
-    }
-    s_seq_state   = FLUID_PATH_SEQ_WAIT_OPEN_VALVE;
-    s_deadline_ms = now_ms;
-    return SW_OK;
-}
-
-static sw_err_t open_pumps_locked(fluid_path_mask_t opened_mask)
-{
-    sw_err_t ret = SW_OK;
-
-    if (work_has_pump()) {
-        ret = apply_group(true, true);
-    }
-    if (ret == SW_OK) {
-        s_stable_paths |= opened_mask;
-        s_work_count = 0U;
-        s_seq_state  = FLUID_PATH_SEQ_IDLE;
-    }
-    return ret;
-}
-
-static sw_err_t begin_open_locked(fluid_path_mask_t to_open, uint64_t now_ms)
-{
-    collect_deps(to_open, true);
-    add_refs(to_open);
-
-    if (s_work_count == 0U) {
-        s_stable_paths |= to_open;
-        return SW_OK;
-    }
-
-    if (open_valves_locked(now_ms) != SW_OK) {
-        sub_refs(to_open);
-        return SW_ERR_HW;
-    }
-
-    s_opening_mask = to_open;
-    if (s_seq_state == FLUID_PATH_SEQ_IDLE) {
-        return open_pumps_locked(to_open);
-    }
-    return SW_OK;
-}
-
-static void process_idle_locked(uint64_t now_ms)
-{
-    fluid_path_mask_t to_close = s_stable_paths & ~s_pending_target;
-    fluid_path_mask_t to_open  = s_pending_target & ~s_stable_paths;
-
-    if (to_close != 0U) {
-        if (begin_close_locked(to_close, now_ms) != SW_OK) {
-            return;
+    for (ch = 0U; ch < s_cfg.channel_count; ch++) {
+        for (slot = 0U; slot < (unsigned)FLUID_PATH_SLOT_COUNT; slot++) {
+            if (s_actual[ch][slot] != s_desired[ch][slot]) {
+                return false;
+            }
         }
-        if (s_seq_state != FLUID_PATH_SEQ_IDLE) {
-            return;
-        }
-        to_open = s_pending_target & ~s_stable_paths;
     }
-    if (to_open != 0U) {
-        (void)begin_open_locked(to_open, now_ms);
-    }
+    return true;
 }
 
 static void tick_locked(uint64_t now_ms)
 {
     if (atomic_exchange_explicit(&s_emergency_off, false, memory_order_acq_rel)) {
-        s_force_off = false;
         force_off_locked();
         return;
     }
@@ -411,27 +270,11 @@ static void tick_locked(uint64_t now_ms)
         return;
     }
 
-    switch (s_seq_state) {
-    case FLUID_PATH_SEQ_WAIT_CLOSE_PUMP:
-        if (time_elapsed_ms(s_deadline_ms, now_ms) >= s_cfg.pump_stop_delay_ms) {
-            (void)close_valves_locked();
-        }
-        break;
-
-    case FLUID_PATH_SEQ_WAIT_OPEN_VALVE:
-        if (time_elapsed_ms(s_deadline_ms, now_ms) >= s_cfg.valve_open_delay_ms) {
-            (void)open_pumps_locked(s_opening_mask);
-            s_opening_mask = 0U;
-        }
-        break;
-
-    case FLUID_PATH_SEQ_IDLE:
-    default:
-        if (s_pending_target != s_stable_paths) {
-            process_idle_locked(now_ms);
-        }
-        break;
-    }
+    recompute_desired();
+    apply_changes(true, false, NULL, now_ms);                /* 关泵 */
+    apply_changes(false, true, NULL, now_ms);                /* 开阀 */
+    apply_changes(false, false, valve_may_turn_off, now_ms); /* 关阀 */
+    apply_changes(true, true, pump_may_turn_on, now_ms);     /* 开泵 */
 }
 
 sw_err_t fluid_path_init(const fluid_path_cfg_t          *cfg,
@@ -450,14 +293,12 @@ sw_err_t fluid_path_init(const fluid_path_cfg_t          *cfg,
     }
 
     pthread_mutex_lock(&s_mutex);
-    s_cfg           = *cfg;
-    s_channel_count = cfg->channel_count;
-    s_actuator      = *ops;
-    s_paths         = paths;
-    s_path_count    = path_count;
-    s_valid_mask    = valid_mask;
-    s_ready         = true;
-    reset_state();
+    s_cfg        = *cfg;
+    s_actuator   = *ops;
+    s_paths      = paths;
+    s_path_count = path_count;
+    s_valid_mask = valid_mask;
+    s_ready      = true;
     force_off_locked();
     pthread_mutex_unlock(&s_mutex);
 
@@ -545,7 +386,12 @@ bool fluid_path_is_settled(void)
     bool settled;
 
     pthread_mutex_lock(&s_mutex);
-    settled = (!s_force_off) && (s_seq_state == FLUID_PATH_SEQ_IDLE) && (s_pending_target == s_stable_paths);
+    if (!s_ready || s_force_off) {
+        settled = false;
+    } else {
+        recompute_desired();
+        settled = outputs_match_desired();
+    }
     pthread_mutex_unlock(&s_mutex);
     return settled;
 }

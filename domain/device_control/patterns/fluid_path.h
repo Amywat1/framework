@@ -1,6 +1,6 @@
 /**
  * @file    fluid_path.h
- * @brief   流体路径控制（路径掩码 + 引用计数 + 周期 tick）
+ * @brief   流体路径控制（路径掩码 + 执行器对账 + 周期 tick）
  * @author  HUWANGWEI
  * @date    2026-04-10
  *
@@ -21,7 +21,7 @@ extern "C" {
 #include <stddef.h>
 #include <stdint.h>
 
-/** 执行器通道数上限（ref 表静态分配） */
+/** 执行器通道数上限（状态表静态分配） */
 #define FLUID_PATH_CHANNEL_MAX 16U
 /** 逻辑路径数上限（受 fluid_path_mask_t 位宽限制） */
 #define FLUID_PATH_PATH_MAX    32U
@@ -82,17 +82,21 @@ sw_err_t fluid_path_all_off(void);
 void fluid_path_emergency_off(void);
 
 /**
- * @brief  推进一次水路时序状态机
+ * @brief  按当前目标对账一次阀泵输出
  * @param  now_ms  当前单调时钟毫秒数
  *
  * @note   领域层不自建线程：调用方须把本函数登记为周期任务驱动，
  *         推荐周期见 THD_FLUID_PATH_POLL_PERIOD_MS。不周期调用时
  *         fluid_path_set / enable / disable 请求会停留在 pending 而不生效。
+ *         每拍按最新目标计算各执行器期望开关：先关泵、再开阀、再关阀、
+ *         最后开泵。开阀/关泵延时只约束对应执行器，不阻塞其它路径的新指令。
  */
 void fluid_path_poll(uint64_t now_ms);
 
 /**
- * @brief  判断水路是否已收敛到目标状态（无强制关断、时序空闲、目标已达成）
+ * @brief  判断水路是否已收敛到目标状态
+ * @retval true   已初始化、无强制关断，且各执行器实际输出等于期望
+ * @retval false  未初始化、强制关断未消费，或输出尚未对齐目标
  */
 bool fluid_path_is_settled(void);
 
