@@ -66,7 +66,7 @@ typedef enum {
     HAL_MOTOR_FAULT_DRIVER_FEEDBACK,   /**< 驱动器运行反馈异常 */
     HAL_MOTOR_FAULT_OVERTEMP,          /**< 过温 */
     HAL_MOTOR_FAULT_UNDERVOLTAGE,      /**< 欠压 */
-    HAL_MOTOR_FAULT_PREPARE_FAILED,    /**< 预备动作失败 */
+    HAL_MOTOR_FAULT_PREPARE_FAILED,    /**< 预备或运行中路径维持失败 */
     HAL_MOTOR_FAULT_ENCODER_SIGNAL,    /**< 编码器信号质量 */
     HAL_MOTOR_FAULT_WATCHDOG,          /**< 看门狗（tick 缺拍） */
     HAL_MOTOR_FAULT_DRIVER_PORT_FATAL, /**< 端口层致命错误 */

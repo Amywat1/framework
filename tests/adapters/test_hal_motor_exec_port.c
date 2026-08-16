@@ -15,6 +15,9 @@ typedef struct {
     int64_t  position;
     int      output_count;
     int      cutoff_count;
+    int      poll_count;
+    int      poll_motor;
+    motor_prepare_result_t poll_result;
 } port_fixture_t;
 
 static port_fixture_t   s_fx;
@@ -63,6 +66,15 @@ static int driver_current(void *ctx)
 {
     (void)ctx;
     return 0;
+}
+
+static motor_prepare_result_t driver_poll(void *ctx, int motor)
+{
+    port_fixture_t *fx = (port_fixture_t *)ctx;
+
+    fx->poll_count++;
+    fx->poll_motor = motor;
+    return fx->poll_result;
 }
 
 static int64_t encoder_raw(void *ctx)
@@ -134,7 +146,6 @@ static void init_executor(void)
     cfg.motors[0].driver_index = 0;
     cfg.motors[0].has_encoder  = true;
     cfg.motors[0].encoder_kind = MOTOR_ENC_INCREMENTAL;
-    cfg.motors[0].cap_position_move = true;
     cfg.motors[0].default_max_move_ms = 5000;
     cfg.motors[0].gear_count   = 5;
     cfg.motors[0].pos_tolerance = 10;
@@ -380,6 +391,35 @@ static void test_event_queue_prefers_drop_same_motor(void)
     TEST_ASSERT_EQUAL_INT(MOTOR_EVENT_QUEUE_CAP - 1, motor1_left);
 }
 
+static void test_running_poll_busy_then_failed_enters_prepare_failed(void)
+{
+    hal_motor_cmd_result_t r;
+    hal_motor_exec_t      *hal = (hal_motor_exec_t *)&s_exec;
+
+    s_driver.poll        = driver_poll;
+    s_fx.poll_result     = MOTOR_PREPARE_READY;
+
+    r = hal_motor_run(hal, 0, hal_motor_speed_gear(1), HAL_MOTOR_DIR_FORWARD, NULL);
+    TEST_ASSERT_TRUE(hal_motor_cmd_ok(r));
+    motor_tick(&s_exec);
+    TEST_ASSERT_EQUAL_INT(HAL_MOTOR_PHASE_RUNNING, hal_motor_phase(hal, 0));
+    TEST_ASSERT_EQUAL_INT(1, s_fx.poll_count);
+    TEST_ASSERT_EQUAL_INT(0, s_fx.poll_motor);
+    TEST_ASSERT_TRUE(s_fx.output_count > 0);
+
+    s_fx.poll_result = MOTOR_PREPARE_BUSY;
+    motor_tick(&s_exec);
+    TEST_ASSERT_EQUAL_INT(HAL_MOTOR_PHASE_RUNNING, hal_motor_phase(hal, 0));
+    TEST_ASSERT_EQUAL_INT(2, s_fx.poll_count);
+
+    s_fx.poll_result = MOTOR_PREPARE_FAILED;
+    motor_tick(&s_exec);
+    TEST_ASSERT_EQUAL_INT(HAL_MOTOR_PHASE_FAULT, hal_motor_phase(hal, 0));
+    TEST_ASSERT_EQUAL_INT(HAL_MOTOR_FAULT_PREPARE_FAILED, hal_motor_fault_code(hal, 0));
+    TEST_ASSERT_EQUAL_INT(3, s_fx.poll_count);
+    TEST_ASSERT_TRUE(s_fx.cutoff_count > 0);
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -393,6 +433,8 @@ int main(void)
     WDF_RUN_TEST(test_pop_event_via_port, "", "验证经端口取出运动事件");
     WDF_RUN_TEST(test_pop_event_for_keeps_other_motors, "", "验证按电机取事件保留其它电机");
     WDF_RUN_TEST(test_event_queue_prefers_drop_same_motor, "", "验证队列满时优先丢同电机事件");
+    WDF_RUN_TEST(test_running_poll_busy_then_failed_enters_prepare_failed, "",
+                 "验证运行中 poll BUSY 忽略、FAILED 进入 PREPARE_FAILED");
 
     return UNITY_END();
 }

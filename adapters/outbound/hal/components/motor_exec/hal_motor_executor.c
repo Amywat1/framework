@@ -65,6 +65,11 @@ static motor_prepare_result_t drv_prepare(motor_driver_t *d, int motor)
     return d->prepare ? d->prepare(d->ctx, motor) : MOTOR_PREPARE_READY;
 }
 
+static motor_prepare_result_t drv_poll(motor_driver_t *d, int motor)
+{
+    return d->poll ? d->poll(d->ctx, motor) : MOTOR_PREPARE_READY;
+}
+
 static bool drv_is_running(motor_driver_t *d)
 {
     return d->is_running(d->ctx);
@@ -931,6 +936,10 @@ void motor_tick(motor_executor_t *e)
             }
             break;
         case MOTOR_PHASE_RUNNING:
+            if (drv_poll(motor_drv(e, i), i) == MOTOR_PREPARE_FAILED) {
+                enter_fault(e, i, MOTOR_FAULT_PREPARE_FAILED);
+                break;
+            }
             update_encoder(e, i, true);
             check_end(e, i);
             if (s->phase == MOTOR_PHASE_RUNNING) {
@@ -1012,9 +1021,6 @@ static motor_init_result_t do_init(motor_executor_t *e)
         }
         if (mc->has_soft_limit && (mc->soft_min > mc->soft_max)) {
             return init_err("soft limit range invalid");
-        }
-        if (mc->cap_position_move && !mc->has_encoder) {
-            return init_err("position-move capability requires encoder");
         }
         if (mc->has_encoder && !e->ports.encoders[i]) {
             return init_err("encoder port missing");

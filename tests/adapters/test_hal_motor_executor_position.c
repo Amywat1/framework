@@ -188,7 +188,6 @@ static void init_executor(int64_t initial_position, motor_encoder_kind_t encoder
     config.motors[0].driver_index        = 0;
     config.motors[0].has_encoder         = true;
     config.motors[0].encoder_kind        = encoder_kind;
-    config.motors[0].cap_position_move   = true;
     config.motors[0].pos_tolerance       = 5;
     config.motors[0].decel_point         = 20;
     config.motors[0].position_slow_gear  = 1;
@@ -655,7 +654,6 @@ static void test_no_encoder_baseline_trusted_at_init(void)
     config.watchdog_ms                   = 100;
     config.motors[0].driver_index        = 0;
     config.motors[0].has_encoder         = false;
-    config.motors[0].cap_position_move   = false;
     config.motors[0].default_max_move_ms = 1000;
     config.motors[0].gear_count          = 2;
 

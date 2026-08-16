@@ -126,7 +126,7 @@ typedef enum {
     MOTOR_FAULT_DRIVER_FEEDBACK,   /**< 驱动器运行反馈异常 */
     MOTOR_FAULT_OVERTEMP,          /**< 过温 */
     MOTOR_FAULT_UNDERVOLTAGE,      /**< 欠压 */
-    MOTOR_FAULT_PREPARE_FAILED,    /**< 预备动作失败 */
+    MOTOR_FAULT_PREPARE_FAILED,    /**< 预备或运行中路径维持失败 */
     MOTOR_FAULT_ENCODER_SIGNAL,    /**< 编码器信号质量 */
     MOTOR_FAULT_WATCHDOG,          /**< 看门狗（tick 缺拍） */
     MOTOR_FAULT_DRIVER_PORT_FATAL, /**< 端口层致命错误 */
@@ -137,10 +137,10 @@ typedef enum {
 typedef enum { MOTOR_PORT_OK = 0, MOTOR_PORT_FATAL = 1 } motor_port_status_t;
 
 /**
- * @brief 驱动器预备动作结果（异步三态）。
+ * @brief 驱动器预备/运行巡检结果（异步三态）。
  *
- * READY：可进入运行并允许非零输出；BUSY：切换/等待中，应留在 WAITING_START 继续轮询；
- * FAILED：终态失败，进入 PREPARE_FAILED 故障。
+ * prepare：READY 可进入运行；BUSY 留在 WAITING_START；FAILED 进入 PREPARE_FAILED。
+ * poll：READY 继续跑；BUSY 确认中本拍忽略；FAILED 进入 PREPARE_FAILED。
  */
 typedef enum { MOTOR_PREPARE_READY = 0, MOTOR_PREPARE_BUSY, MOTOR_PREPARE_FAILED } motor_prepare_result_t;
 
@@ -159,17 +159,20 @@ typedef struct {
  * @brief 物理驱动器端口（可被多台电机共享）。
  *
  * 必填：set_output/cutoff/reset/is_running/current。
- * 选填（可置 NULL，采用默认行为）：prepare(默认 READY)、temperature(默认不支持)、
- * voltage(默认不支持)、status(默认 OK)。
+ * 选填（可置 NULL，采用默认行为）：prepare(默认 READY)、poll(默认 READY)、
+ * temperature(默认不支持)、voltage(默认不支持)、status(默认 OK)。
  *
- * @note prepare 的 motor 为请求预备的逻辑电机索引，便于共享驱动区分路径。
+ * @note prepare/poll 的 motor 为逻辑电机索引，便于共享驱动区分路径。
+ *       poll 只维持驱动器侧不变量（如接触器路径），不得改写速度给定；
+ *       is_running 只回答功率级是否在转；status 只回答端口是否致命。
  */
 typedef struct {
     sw_err_t (*set_output)(void *ctx, motor_speed_t speed, motor_direction_t dir); /**< 速度给定+方向 */
     sw_err_t (*cutoff)(void *ctx);                                                 /**< 立即切断输出 */
     bool (*reset)(void *ctx);                                                      /**< 驱动器侧故障复位，false=失败 */
-    motor_prepare_result_t (*prepare)(void *ctx, int motor);                       /**< 预备动作；可为 NULL */
-    bool (*is_running)(void *ctx);                                                 /**< 运行反馈 */
+    motor_prepare_result_t (*prepare)(void *ctx, int motor);                       /**< 启动前预备；可为 NULL */
+    motor_prepare_result_t (*poll)(void *ctx, int motor);                          /**< RUNNING 每拍巡检；可为 NULL */
+    bool (*is_running)(void *ctx);                                                 /**< 功率级运行反馈 */
     int (*current)(void *ctx);                                                     /**< 负载电流（与阈值同量纲） */
     bool (*temperature)(void *ctx, int *out);                                      /**< 可选温度；可为 NULL */
     bool (*voltage)(void *ctx, int *out);                                          /**< 可选母线电压；可为 NULL */
@@ -253,7 +256,6 @@ typedef struct {
     int                  driver_index;      /**< 指向哪个物理驱动器 */
     bool                 has_encoder;       /**< 是否配置编码器 */
     motor_encoder_kind_t encoder_kind;      /**< 编码器语义；无编码器时忽略 */
-    bool                 cap_position_move; /**< 声明具备“按位置移动”能力（需编码器） */
 
     int cooldown_ms;                        /**< 停机冷却期 */
     int reversal_stop_ms;                   /**< 方向切换停止时间 */
