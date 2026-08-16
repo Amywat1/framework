@@ -157,7 +157,7 @@ static void test_run_continuous_and_phase_via_port(void)
     hal_motor_cmd_result_t r;
     hal_motor_exec_t      *hal = (hal_motor_exec_t *)&s_exec;
 
-    r = hal_motor_run_continuous(hal, 0, hal_motor_speed_gear(2), HAL_MOTOR_DIR_REVERSE);
+    r = hal_motor_run(hal, 0, hal_motor_speed_gear(2), HAL_MOTOR_DIR_REVERSE, NULL);
     TEST_ASSERT_TRUE(hal_motor_cmd_ok(r));
     motor_tick(&s_exec);
     TEST_ASSERT_EQUAL_INT(HAL_MOTOR_PHASE_RUNNING, hal_motor_phase(hal, 0));
@@ -176,7 +176,7 @@ static void test_move_to_time_and_stop_via_port(void)
     spec.duration_ms = 30;
     spec.max_time_ms = 1000;
 
-    r = hal_motor_move_to(hal, 0, hal_motor_speed_freq(1000), HAL_MOTOR_DIR_FORWARD, &spec);
+    r = hal_motor_run(hal, 0, hal_motor_speed_freq(1000), HAL_MOTOR_DIR_FORWARD, &spec);
     TEST_ASSERT_TRUE(hal_motor_cmd_ok(r));
     motor_tick(&s_exec);
     TEST_ASSERT_EQUAL_INT(HAL_MOTOR_PHASE_RUNNING, hal_motor_phase(hal, 0));
@@ -187,21 +187,56 @@ static void test_move_to_time_and_stop_via_port(void)
     TEST_ASSERT_EQUAL_INT(HAL_MOTOR_PHASE_STOPPED, hal_motor_phase(hal, 0));
 }
 
-static void test_set_speed_and_recover_via_port(void)
+static void test_run_updates_speed_without_restart(void)
+{
+    hal_motor_cmd_result_t r;
+    hal_motor_exec_t      *hal = (hal_motor_exec_t *)&s_exec;
+    uint64_t               start_ms;
+
+    r = hal_motor_run(hal, 0, hal_motor_speed_gear(1), HAL_MOTOR_DIR_FORWARD, NULL);
+    TEST_ASSERT_TRUE(hal_motor_cmd_ok(r));
+    motor_tick(&s_exec);
+    TEST_ASSERT_EQUAL_INT(HAL_MOTOR_PHASE_RUNNING, hal_motor_phase(hal, 0));
+    start_ms = s_exec.m[0].start_ms;
+
+    r = hal_motor_run(hal, 0, hal_motor_speed_gear(3), HAL_MOTOR_DIR_FORWARD, NULL);
+    TEST_ASSERT_TRUE(hal_motor_cmd_ok(r));
+    TEST_ASSERT_EQUAL_STRING("goal-updated", r.reason);
+    TEST_ASSERT_EQUAL_INT(HAL_MOTOR_PHASE_RUNNING, hal_motor_phase(hal, 0));
+    TEST_ASSERT_EQUAL_UINT64(start_ms, s_exec.m[0].start_ms);
+    TEST_ASSERT_EQUAL_INT(3, s_exec.m[0].speed.value);
+}
+
+static void test_run_updates_pending_while_waiting_start(void)
 {
     hal_motor_cmd_result_t r;
     hal_motor_exec_t      *hal = (hal_motor_exec_t *)&s_exec;
 
-    r = hal_motor_run_continuous(hal, 0, hal_motor_speed_gear(1), HAL_MOTOR_DIR_FORWARD);
+    s_exec.cfg.motors[0].cooldown_ms = 100;
+    r = hal_motor_run(hal, 0, hal_motor_speed_gear(1), HAL_MOTOR_DIR_FORWARD, NULL);
     TEST_ASSERT_TRUE(hal_motor_cmd_ok(r));
     motor_tick(&s_exec);
-
-    r = hal_motor_set_speed(hal, 0, hal_motor_speed_gear(3), HAL_MOTOR_DIR_FORWARD);
-    TEST_ASSERT_TRUE(hal_motor_cmd_ok(r));
-
     r = hal_motor_stop(hal, 0);
     TEST_ASSERT_TRUE(hal_motor_cmd_ok(r));
     motor_tick(&s_exec);
+    TEST_ASSERT_EQUAL_INT(HAL_MOTOR_PHASE_STOPPED, hal_motor_phase(hal, 0));
+
+    r = hal_motor_run(hal, 0, hal_motor_speed_gear(1), HAL_MOTOR_DIR_FORWARD, NULL);
+    TEST_ASSERT_TRUE(hal_motor_cmd_ok(r));
+    TEST_ASSERT_EQUAL_INT(HAL_MOTOR_CMD_QUEUED, r.status);
+    TEST_ASSERT_EQUAL_INT(HAL_MOTOR_PHASE_WAITING_START, hal_motor_phase(hal, 0));
+
+    r = hal_motor_run(hal, 0, hal_motor_speed_gear(4), HAL_MOTOR_DIR_FORWARD, NULL);
+    TEST_ASSERT_TRUE(hal_motor_cmd_ok(r));
+    TEST_ASSERT_EQUAL_STRING("pending-updated", r.reason);
+    TEST_ASSERT_EQUAL_INT(4, s_exec.m[0].pending.speed.value);
+    TEST_ASSERT_EQUAL_INT(HAL_MOTOR_PHASE_WAITING_START, hal_motor_phase(hal, 0));
+}
+
+static void test_recover_via_port(void)
+{
+    hal_motor_cmd_result_t r;
+    hal_motor_exec_t      *hal = (hal_motor_exec_t *)&s_exec;
 
     s_exec.m[0].phase      = MOTOR_PHASE_FAULT;
     s_exec.m[0].fault_code = MOTOR_FAULT_OVERCURRENT;
@@ -351,7 +386,9 @@ int main(void)
 
     WDF_RUN_TEST(test_run_continuous_and_phase_via_port, "", "验证经端口连续运行与相位查询");
     WDF_RUN_TEST(test_move_to_time_and_stop_via_port, "", "验证经端口按时到位与停止");
-    WDF_RUN_TEST(test_set_speed_and_recover_via_port, "", "验证经端口调速与故障恢复");
+    WDF_RUN_TEST(test_run_updates_speed_without_restart, "", "验证运行中再次 run 只更新目标不重启");
+    WDF_RUN_TEST(test_run_updates_pending_while_waiting_start, "", "验证冷却排队中再次 run 更新挂起目标");
+    WDF_RUN_TEST(test_recover_via_port, "", "验证经端口故障恢复");
     WDF_RUN_TEST(test_query_helpers_via_port, "", "验证经端口位置与基准/编码器查询");
     WDF_RUN_TEST(test_pop_event_via_port, "", "验证经端口取出运动事件");
     WDF_RUN_TEST(test_pop_event_for_keeps_other_motors, "", "验证按电机取事件保留其它电机");

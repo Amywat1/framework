@@ -135,7 +135,7 @@ static inline hal_motor_speed_t hal_motor_speed_freq(int centi_hz)
 
 /**
  * @brief  构造挡位速度
- * @param  gear  1 基挡位号（1..N）；0 表示停止，run/move 会拒绝
+ * @param  gear  1 基挡位号（1..N）；0 表示停止，run 会拒绝
  */
 static inline hal_motor_speed_t hal_motor_speed_gear(int gear)
 {
@@ -188,37 +188,23 @@ static inline bool hal_motor_cmd_ok(hal_motor_cmd_result_t r)
     return r.status != HAL_MOTOR_CMD_REJECTED;
 }
 
-/** @brief 持续运行（异步）。
+/** @brief 锁存运动目标（异步）。spec 为 NULL 表示连续运行，否则按到位条件结束。
+ * @note   再调用即更新目标，调用方不必按相位选择命令。
  * @note   FAULT / ESTOP 状态下必须拒绝；调用方须先 recover / 解除急停后再下发。
  * @note   终止事件入共享队列：每台电机须有消费者按节拍排空，否则可能拖累其它电机。
  */
-hal_motor_cmd_result_t hal_motor_run_continuous(hal_motor_exec_t *exec,
-                                                int               motor,
-                                                hal_motor_speed_t spd,
-                                                hal_motor_dir_t   dir);
-
-/** @brief 运动到位（异步）。spec 描述结束条件，可组合，超时兜底始终生效。
- * @note   FAULT / ESTOP 状态下必须拒绝；调用方须先 recover / 解除急停后再下发。
- * @note   事件消费约束同 hal_motor_run_continuous。
- */
-hal_motor_cmd_result_t hal_motor_move_to(hal_motor_exec_t            *exec,
-                                         int                          motor,
-                                         hal_motor_speed_t            spd,
-                                         hal_motor_dir_t              dir,
-                                         const hal_motor_move_spec_t *spec);
+hal_motor_cmd_result_t hal_motor_run(hal_motor_exec_t            *exec,
+                                     int                          motor,
+                                     hal_motor_speed_t            spd,
+                                     hal_motor_dir_t              dir,
+                                     const hal_motor_move_spec_t *spec);
 
 /** @brief 减速停止（异步）。 */
 hal_motor_cmd_result_t hal_motor_stop(hal_motor_exec_t *exec, int motor);
 
-/** @brief 运行中调速/改向（改向自动走换向安全流程）。 */
-hal_motor_cmd_result_t hal_motor_set_speed(hal_motor_exec_t *exec,
-                                           int               motor,
-                                           hal_motor_speed_t spd,
-                                           hal_motor_dir_t   dir);
-
 /**
  * @brief  回原点便利命令（provider 默认慢速/方向 + ORIGIN 限位）
- * @note   触原点后的基准重建由执行器完成；也可用 move_to 显式指定方向与速度。
+ * @note   触原点后的基准重建由执行器完成；也可用 run 显式指定方向与速度。
  */
 hal_motor_cmd_result_t hal_motor_home(hal_motor_exec_t *exec, int motor);
 

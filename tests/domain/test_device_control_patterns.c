@@ -32,7 +32,6 @@ static hal_motor_cmd_result_t s_next_result;
 static int                    s_run_count;
 static int                    s_move_count;
 static int                    s_stop_count;
-static int                    s_speed_count;
 static int                    s_recover_count;
 static bool                   s_end_cb_valid;
 static actuator_id_t          s_end_cb_id;
@@ -63,7 +62,6 @@ static void mock_motor_reset(void)
     s_run_count     = 0;
     s_move_count    = 0;
     s_stop_count    = 0;
-    s_speed_count   = 0;
     s_recover_count = 0;
     s_end_cb_valid  = false;
     s_end_cb_id     = 0;
@@ -78,13 +76,18 @@ static bool motor_index_valid(int motor)
     return (motor >= 0) && (motor < MOCK_MOTOR_MAX);
 }
 
-hal_motor_cmd_result_t hal_motor_run_continuous(hal_motor_exec_t *exec,
-                                                int               motor,
-                                                hal_motor_speed_t spd,
-                                                hal_motor_dir_t   dir)
+hal_motor_cmd_result_t hal_motor_run(hal_motor_exec_t            *exec,
+                                     int                          motor,
+                                     hal_motor_speed_t            spd,
+                                     hal_motor_dir_t              dir,
+                                     const hal_motor_move_spec_t *spec)
 {
     (void)exec;
-    s_run_count++;
+    if (spec != NULL) {
+        s_move_count++;
+    } else {
+        s_run_count++;
+    }
     if (!motor_index_valid(motor) || !hal_motor_cmd_ok(s_next_result)) {
         return s_next_result;
     }
@@ -98,17 +101,6 @@ hal_motor_cmd_result_t hal_motor_run_continuous(hal_motor_exec_t *exec,
     return s_next_result;
 }
 
-hal_motor_cmd_result_t hal_motor_move_to(hal_motor_exec_t            *exec,
-                                         int                          motor,
-                                         hal_motor_speed_t            spd,
-                                         hal_motor_dir_t              dir,
-                                         const hal_motor_move_spec_t *spec)
-{
-    (void)spec;
-    s_move_count++;
-    return hal_motor_run_continuous(exec, motor, spd, dir);
-}
-
 hal_motor_cmd_result_t hal_motor_stop(hal_motor_exec_t *exec, int motor)
 {
     (void)exec;
@@ -117,25 +109,6 @@ hal_motor_cmd_result_t hal_motor_stop(hal_motor_exec_t *exec, int motor)
         return s_next_result;
     }
     s_motor[motor].phase = HAL_MOTOR_PHASE_STOPPED;
-    return s_next_result;
-}
-
-hal_motor_cmd_result_t hal_motor_set_speed(hal_motor_exec_t *exec,
-                                           int               motor,
-                                           hal_motor_speed_t spd,
-                                           hal_motor_dir_t   dir)
-{
-    (void)exec;
-    s_speed_count++;
-    if (!motor_index_valid(motor) || !hal_motor_cmd_ok(s_next_result)) {
-        return s_next_result;
-    }
-    if (s_motor[motor].phase != HAL_MOTOR_PHASE_RUNNING) {
-        return cmd_rejected();
-    }
-    s_motor[motor].dir        = dir;
-    s_motor[motor].speed_gear = spd.value;
-    s_motor[motor].speed_kind = spd.kind;
     return s_next_result;
 }
 
@@ -353,8 +326,7 @@ static void test_motor_axis_run_and_query_state(void)
     TEST_ASSERT_EQUAL_INT(1, s_run_count);
 
     TEST_ASSERT_EQUAL_INT(SW_OK, motor_axis_run(&axis, HAL_MOTOR_DIR_REVERSE, hal_motor_speed_gear(3), NULL));
-    TEST_ASSERT_EQUAL_INT(1, s_run_count);
-    TEST_ASSERT_EQUAL_INT(1, s_speed_count);
+    TEST_ASSERT_EQUAL_INT(2, s_run_count);
 
     s_motor[1].phase = HAL_MOTOR_PHASE_DECELERATING;
     TEST_ASSERT_EQUAL_INT(MOTOR_AXIS_STATE_MOVING, motor_axis_state(&axis));

@@ -217,7 +217,7 @@ static void test_forward_position_move_slows_once_and_stops_after_overshoot(void
     init_executor(0, MOTOR_ENC_ABSOLUTE);
     spec.use_position = true;
     spec.target_pos   = 100;
-    result            = motor_move_to(&s_executor, 0, motor_speed_gear(2), MOTOR_DIR_FORWARD, &spec);
+    result            = motor_run(&s_executor, 0, motor_speed_gear(2), MOTOR_DIR_FORWARD, &spec);
     TEST_ASSERT_TRUE(motor_cmd_ok(result));
 
     tick_at(0);
@@ -245,7 +245,7 @@ static void test_reverse_position_move_stops_after_overshoot(void)
     init_executor(200, MOTOR_ENC_ABSOLUTE);
     spec.use_position = true;
     spec.target_pos   = 100;
-    result            = motor_move_to(&s_executor, 0, motor_speed_gear(2), MOTOR_DIR_REVERSE, &spec);
+    result            = motor_run(&s_executor, 0, motor_speed_gear(2), MOTOR_DIR_REVERSE, &spec);
     TEST_ASSERT_TRUE(motor_cmd_ok(result));
 
     tick_at(200);
@@ -267,7 +267,7 @@ static void test_active_position_target_update_keeps_start_time_and_output(void)
     init_executor(0, MOTOR_ENC_ABSOLUTE);
     spec.use_position = true;
     spec.target_pos   = 100;
-    result            = motor_move_to(&s_executor, 0, motor_speed_gear(1), MOTOR_DIR_FORWARD, &spec);
+    result            = motor_run(&s_executor, 0, motor_speed_gear(1), MOTOR_DIR_FORWARD, &spec);
     TEST_ASSERT_TRUE(motor_cmd_ok(result));
     tick_at(0);
     TEST_ASSERT_EQUAL_INT(1, s_fixture.output_count);
@@ -275,7 +275,7 @@ static void test_active_position_target_update_keeps_start_time_and_output(void)
     s_executor.cfg.watchdog_ms = 2000;
     s_fixture.now_ms           = 989U;
     spec.target_pos            = 150;
-    result                     = motor_move_to(&s_executor, 0, motor_speed_gear(1), MOTOR_DIR_FORWARD, &spec);
+    result                     = motor_run(&s_executor, 0, motor_speed_gear(1), MOTOR_DIR_FORWARD, &spec);
     TEST_ASSERT_TRUE(motor_cmd_ok(result));
     tick_at(20);
 
@@ -294,7 +294,7 @@ static void test_origin_move_clears_hardware_and_software_once(void)
 
     init_executor(40, MOTOR_ENC_INCREMENTAL);
     spec.limit_mask = MOTOR_LIMIT_MASK_ORIGIN;
-    result         = motor_move_to(&s_executor, 0, motor_speed_gear(1), MOTOR_DIR_REVERSE, &spec);
+    result         = motor_run(&s_executor, 0, motor_speed_gear(1), MOTOR_DIR_REVERSE, &spec);
     TEST_ASSERT_TRUE(motor_cmd_ok(result));
 
     tick_at(45);
@@ -323,7 +323,7 @@ static void test_origin_external_stop_while_pressed_rebuilds_baseline(void)
 
     init_executor(40, MOTOR_ENC_INCREMENTAL);
     spec.limit_mask = MOTOR_LIMIT_MASK_ORIGIN;
-    result         = motor_move_to(&s_executor, 0, motor_speed_gear(1), MOTOR_DIR_REVERSE, &spec);
+    result         = motor_run(&s_executor, 0, motor_speed_gear(1), MOTOR_DIR_REVERSE, &spec);
     TEST_ASSERT_TRUE(motor_cmd_ok(result));
 
     tick_at(45);
@@ -353,7 +353,7 @@ static void test_stop_while_watched_pos_limit_arrives(void)
     init_executor(0, MOTOR_ENC_ABSOLUTE);
     spec.limit_mask  = MOTOR_LIMIT_MASK_POS;
     spec.max_time_ms = 5000;
-    result           = motor_move_to(&s_executor, 0, motor_speed_gear(1), MOTOR_DIR_FORWARD, &spec);
+    result           = motor_run(&s_executor, 0, motor_speed_gear(1), MOTOR_DIR_FORWARD, &spec);
     TEST_ASSERT_TRUE(motor_cmd_ok(result));
 
     tick_at(0);
@@ -398,7 +398,7 @@ static void test_unhealthy_encoder_rejects_position_move_but_allows_homing(void)
     s_fixture.origin_active = false;
     spec.use_position       = true;
     spec.target_pos         = 500;
-    result                  = motor_move_to(&s_executor, 0, motor_speed_gear(1), MOTOR_DIR_FORWARD, &spec);
+    result                  = motor_run(&s_executor, 0, motor_speed_gear(1), MOTOR_DIR_FORWARD, &spec);
     TEST_ASSERT_TRUE(motor_cmd_ok(result));
     for (i = 0; i < 5; ++i) {
         tick_at(50);
@@ -406,7 +406,7 @@ static void test_unhealthy_encoder_rejects_position_move_but_allows_homing(void)
     TEST_ASSERT_FALSE(motor_encoder_healthy(&s_executor, 0));
 
     /* ä½ç½®è¿å¨è¢«æï¼çç±æ¯ç¼ç å¨ä¸å¥åº·èéåºåæªå»ºç«ã */
-    result = motor_move_to(&s_executor, 0, motor_speed_gear(1), MOTOR_DIR_FORWARD, &spec);
+    result = motor_run(&s_executor, 0, motor_speed_gear(1), MOTOR_DIR_FORWARD, &spec);
     TEST_ASSERT_FALSE(motor_cmd_ok(result));
 
     /* å½ä½ä»å¯ä¸åï¼æºå¨æ®æ­¤èªè¡æ¢å¤ãå½ä½è¦æ±çµæºå·²åï¼ååå½åè¿å¨ã */
@@ -437,7 +437,7 @@ static void test_homing_restores_encoder_health(void)
 
     /* å»ç»èå²ä½¿ç¼ç å¨å¤å®ä¸ºä¸å¥åº·ã */
     s_fixture.origin_active = false;
-    TEST_ASSERT_TRUE(motor_cmd_ok(motor_move_to(&s_executor, 0, motor_speed_gear(1), MOTOR_DIR_FORWARD, &spec)));
+    TEST_ASSERT_TRUE(motor_cmd_ok(motor_run(&s_executor, 0, motor_speed_gear(1), MOTOR_DIR_FORWARD, &spec)));
     for (i = 0; i < 5; ++i) {
         tick_at(50);
     }
@@ -462,7 +462,7 @@ static void test_origin_clear_failure_keeps_baseline_untrusted_and_faults(void)
     init_executor(40, MOTOR_ENC_INCREMENTAL);
     s_fixture.zero_succeeds = false;
     spec.limit_mask         = MOTOR_LIMIT_MASK_ORIGIN;
-    result                  = motor_move_to(&s_executor, 0, motor_speed_gear(1), MOTOR_DIR_REVERSE, &spec);
+    result                  = motor_run(&s_executor, 0, motor_speed_gear(1), MOTOR_DIR_REVERSE, &spec);
     TEST_ASSERT_TRUE(motor_cmd_ok(result));
 
     tick_at(45);
@@ -490,7 +490,7 @@ static void test_current_stop_arrives_after_confirm(void)
     spec.current_confirm_ms  = 30; /* 3 拍 */
     spec.current_blank_ms    = 0;
     spec.max_time_ms         = 5000;
-    result = motor_move_to(&s_executor, 0, motor_speed_gear(1), MOTOR_DIR_FORWARD, &spec);
+    result = motor_run(&s_executor, 0, motor_speed_gear(1), MOTOR_DIR_FORWARD, &spec);
     TEST_ASSERT_TRUE(motor_cmd_ok(result));
 
     s_fixture.current = 50;
@@ -524,7 +524,7 @@ static void test_current_stop_respects_blank_ms(void)
     spec.current_confirm_ms  = 20;
     spec.current_blank_ms    = 30;
     spec.max_time_ms         = 5000;
-    result = motor_move_to(&s_executor, 0, motor_speed_gear(1), MOTOR_DIR_FORWARD, &spec);
+    result = motor_run(&s_executor, 0, motor_speed_gear(1), MOTOR_DIR_FORWARD, &spec);
     TEST_ASSERT_TRUE(motor_cmd_ok(result));
 
     s_fixture.current = 200;
@@ -564,7 +564,7 @@ static void test_current_stop_coexists_with_overcurrent_fault(void)
     spec.current_confirm_ms  = 20;
     spec.current_blank_ms    = 0;
     spec.max_time_ms         = 5000;
-    result = motor_move_to(&s_executor, 0, motor_speed_gear(1), MOTOR_DIR_FORWARD, &spec);
+    result = motor_run(&s_executor, 0, motor_speed_gear(1), MOTOR_DIR_FORWARD, &spec);
     TEST_ASSERT_TRUE(motor_cmd_ok(result));
 
     /* 介于电流停与故障阈值之间 → 正常电流停 */
@@ -584,7 +584,7 @@ static void test_current_stop_coexists_with_overcurrent_fault(void)
     spec.max_time_ms         = 5000;
     s_fixture.arrived_count  = 0;
     s_fixture.fault_count    = 0;
-    result = motor_move_to(&s_executor, 0, motor_speed_gear(1), MOTOR_DIR_FORWARD, &spec);
+    result = motor_run(&s_executor, 0, motor_speed_gear(1), MOTOR_DIR_FORWARD, &spec);
     TEST_ASSERT_TRUE(motor_cmd_ok(result));
     s_fixture.current = 600;
     tick_at(0);
@@ -601,7 +601,7 @@ static void test_current_stop_coexists_with_overcurrent_fault(void)
     spec.max_time_ms  = 5000;
     s_fixture.arrived_count = 0;
     s_fixture.fault_count   = 0;
-    result = motor_move_to(&s_executor, 0, motor_speed_gear(1), MOTOR_DIR_FORWARD, &spec);
+    result = motor_run(&s_executor, 0, motor_speed_gear(1), MOTOR_DIR_FORWARD, &spec);
     TEST_ASSERT_TRUE(motor_cmd_ok(result));
     s_fixture.current = 600;
     tick_at(0);
@@ -674,7 +674,7 @@ static void test_limit_mask_pos_or_neg_stops(void)
     init_executor(0, MOTOR_ENC_ABSOLUTE);
     spec.limit_mask  = (uint8_t)(MOTOR_LIMIT_MASK_POS | MOTOR_LIMIT_MASK_NEG);
     spec.max_time_ms = 5000;
-    result           = motor_move_to(&s_executor, 0, motor_speed_gear(1), MOTOR_DIR_FORWARD, &spec);
+    result           = motor_run(&s_executor, 0, motor_speed_gear(1), MOTOR_DIR_FORWARD, &spec);
     TEST_ASSERT_TRUE(motor_cmd_ok(result));
 
     tick_at(0);
@@ -697,7 +697,7 @@ static void test_limit_mask_prefers_origin_when_multiple(void)
     init_executor(0, MOTOR_ENC_ABSOLUTE);
     spec.limit_mask  = MOTOR_LIMIT_MASK_ALL;
     spec.max_time_ms = 5000;
-    result           = motor_move_to(&s_executor, 0, motor_speed_gear(1), MOTOR_DIR_FORWARD, &spec);
+    result           = motor_run(&s_executor, 0, motor_speed_gear(1), MOTOR_DIR_FORWARD, &spec);
     TEST_ASSERT_TRUE(motor_cmd_ok(result));
 
     s_fixture.origin_active    = true;

@@ -66,7 +66,7 @@ sw_err_t motor_axis_init(motor_axis_t *self, hal_motor_exec_t *exec, int motor, 
  * @param[in]     spec        到位条件，NULL 表示连续运转
  * @return SW_OK 命令已受理；SW_ERR_PARAM / SW_ERR_NOT_INIT / SW_ERR_STATE 失败
  * @note   完成须 poll state == IDLE，或依赖 motor_axis_poll() 发空闲事件
- * @note   连续运行期间重复调用会更新速度或方向，不会重新启动运动生命周期
+ * @note   再次调用会更新目标速度、方向或到位条件，由执行器收敛，不必先查相位
  * @note   FAULT 时由执行器拒绝；调用方须先 motor_axis_recover()
  */
 sw_err_t motor_axis_run(motor_axis_t                *self,

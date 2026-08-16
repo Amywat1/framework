@@ -163,13 +163,7 @@ sw_err_t motor_axis_run(motor_axis_t                *self,
         return SW_ERR_PARAM;
     }
 
-    if ((spec == NULL) && (hal_motor_phase(self->exec, self->motor) == HAL_MOTOR_PHASE_RUNNING)) {
-        r = hal_motor_set_speed(self->exec, self->motor, speed, dir);
-    } else if (spec == NULL) {
-        r = hal_motor_run_continuous(self->exec, self->motor, speed, dir);
-    } else {
-        r = hal_motor_move_to(self->exec, self->motor, speed, dir, spec);
-    }
+    r = hal_motor_run(self->exec, self->motor, speed, dir, spec);
 
     ret = hal_motor_cmd_ok(r) ? SW_OK : SW_ERR_STATE;
     if (ret == SW_OK) {

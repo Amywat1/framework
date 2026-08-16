@@ -391,26 +391,75 @@ static bool in_cooldown(motor_executor_t *e, int i)
     return e->now < e->m[i].cooldown_until;
 }
 
-static motor_cmd_result_t start_or_reverse(motor_executor_t *e, int i, const motor_pending_cmd_t *pc)
+/**
+ * @brief  输出已建立且方向/速度种类不变：只更新目标，不重开输出会话
+ */
+static void apply_goal_in_place(motor_mstate_t *s, const motor_pending_cmd_t *pc)
+{
+    if (!speed_equal(s->speed, pc->speed)) {
+        s->output_applied = false;
+    }
+    s->dir               = pc->dir;
+    s->speed             = pc->speed;
+    s->move_active       = pc->is_move;
+    s->spec              = pc->spec;
+    s->emit_stop_on_halt = false;
+}
+
+static motor_cmd_result_t after_begin_start(motor_executor_t *e, int i, const char *started_reason)
+{
+    motor_phase_t phase = e->m[i].phase;
+
+    if (phase == MOTOR_PHASE_WAITING_START) {
+        return cmd_make(MOTOR_CMD_QUEUED, "prepare");
+    }
+    if (phase == MOTOR_PHASE_FAULT) {
+        return cmd_make(MOTOR_CMD_ACCEPTED, "prepare-failed");
+    }
+    return cmd_make(MOTOR_CMD_ACCEPTED, started_reason);
+}
+
+static motor_cmd_result_t enter_reversal(motor_executor_t *e, int i, const motor_pending_cmd_t *pc,
+                                         const char *reason)
+{
+    if (!reversal(e, i, pc)) {
+        return cmd_make(MOTOR_CMD_ACCEPTED, "cutoff-failed");
+    }
+    return cmd_make(MOTOR_CMD_ACCEPTED, reason);
+}
+
+/**
+ * @brief  锁存运动目标并由内部状态机收敛；调用方不必按相位选命令
+ */
+static motor_cmd_result_t apply_goal(motor_executor_t *e, int i, const motor_pending_cmd_t *pc)
 {
     motor_mstate_t *s = &e->m[i];
-    if (s->phase == MOTOR_PHASE_RUNNING || s->phase == MOTOR_PHASE_DECELERATING) {
+
+    switch (s->phase) {
+    case MOTOR_PHASE_RUNNING:
         if ((pc->dir != s->dir) || (pc->speed.kind != s->speed.kind)) {
-            if (!reversal(e, i, pc)) {
-                return cmd_make(MOTOR_CMD_ACCEPTED, "cutoff-failed");
-            }
-            return cmd_make(MOTOR_CMD_ACCEPTED, "output-mode-change");
+            return enter_reversal(e, i, pc, "reversal");
+        }
+        apply_goal_in_place(s, pc);
+        return cmd_make(MOTOR_CMD_ACCEPTED, "goal-updated");
+
+    case MOTOR_PHASE_DECELERATING:
+        if ((pc->dir != s->dir) || (pc->speed.kind != s->speed.kind)) {
+            return enter_reversal(e, i, pc, "output-mode-change");
         }
         begin_start(e, i, pc);
-        if (s->phase == MOTOR_PHASE_WAITING_START) {
-            return cmd_make(MOTOR_CMD_QUEUED, "prepare");
-        }
-        if (s->phase == MOTOR_PHASE_FAULT) {
-            return cmd_make(MOTOR_CMD_ACCEPTED, "prepare-failed");
-        }
-        return cmd_make(MOTOR_CMD_ACCEPTED, "restart");
-    }
-    if (s->phase == MOTOR_PHASE_STOPPED) {
+        return after_begin_start(e, i, "restart");
+
+    case MOTOR_PHASE_WAITING_START:
+        s->pending = *pc;
+        s->queued  = true;
+        return cmd_make(MOTOR_CMD_QUEUED, "pending-updated");
+
+    case MOTOR_PHASE_REVERSAL_WAIT:
+        s->after_reversal = *pc;
+        return cmd_make(MOTOR_CMD_QUEUED, "reversal-goal-updated");
+
+    case MOTOR_PHASE_STOPPED:
         if (!interlock_ok(e, i)) {
             return cmd_reject("interlock");
         }
@@ -421,15 +470,11 @@ static motor_cmd_result_t start_or_reverse(motor_executor_t *e, int i, const mot
             return cmd_make(MOTOR_CMD_QUEUED, "cooldown");
         }
         begin_start(e, i, pc);
-        if (s->phase == MOTOR_PHASE_WAITING_START) {
-            return cmd_make(MOTOR_CMD_QUEUED, "prepare");
-        }
-        if (s->phase == MOTOR_PHASE_FAULT) {
-            return cmd_make(MOTOR_CMD_ACCEPTED, "prepare-failed");
-        }
-        return cmd_make(MOTOR_CMD_ACCEPTED, "start");
+        return after_begin_start(e, i, "start");
+
+    default:
+        return cmd_reject("bad-phase");
     }
-    return cmd_reject("bad-phase");
 }
 
 /* ------------------------- 故障 ------------------------- */
@@ -1077,9 +1122,14 @@ static motor_cmd_result_t cmd_guard(motor_executor_t *e, int i, unsigned flags)
     return cmd_make(MOTOR_CMD_ACCEPTED, "");
 }
 
-motor_cmd_result_t motor_run_continuous(motor_executor_t *e, int i, motor_speed_t spd, motor_direction_t dir)
+motor_cmd_result_t motor_run(motor_executor_t        *e,
+                             int                      i,
+                             motor_speed_t            spd,
+                             motor_direction_t        dir,
+                             const motor_move_spec_t *spec)
 {
-    motor_cmd_result_t g = cmd_guard(e, i, MOTOR_CMD_NEED_NOW | MOTOR_CMD_REJECT_SAFETY | MOTOR_CMD_REJECT_FAULT);
+    motor_cmd_result_t  g = cmd_guard(e, i, MOTOR_CMD_NEED_NOW | MOTOR_CMD_REJECT_SAFETY | MOTOR_CMD_REJECT_FAULT);
+    motor_pending_cmd_t pc = {0};
 
     if (!motor_cmd_ok(g)) {
         return g;
@@ -1087,26 +1137,7 @@ motor_cmd_result_t motor_run_continuous(motor_executor_t *e, int i, motor_speed_
     if (!speed_valid(e, i, spd)) {
         return cmd_reject("bad-speed");
     }
-    motor_pending_cmd_t pc = {0};
-    pc.is_move             = false;
-    pc.speed               = spd;
-    pc.dir                 = dir;
-    return start_or_reverse(e, i, &pc);
-}
-
-motor_cmd_result_t motor_move_to(motor_executor_t        *e,
-                                 int                      i,
-                                 motor_speed_t            spd,
-                                 motor_direction_t        dir,
-                                 const motor_move_spec_t *spec)
-{
-    motor_mstate_t    *s;
-    motor_cmd_result_t g = cmd_guard(e, i, MOTOR_CMD_NEED_NOW | MOTOR_CMD_REJECT_SAFETY | MOTOR_CMD_REJECT_FAULT);
-
-    if (!motor_cmd_ok(g)) {
-        return g;
-    }
-    if (spec->use_position) {
+    if ((spec != NULL) && spec->use_position) {
         if (!e->cfg.motors[i].has_encoder) {
             return cmd_reject("no-encoder");
         }
@@ -1119,22 +1150,13 @@ motor_cmd_result_t motor_move_to(motor_executor_t        *e,
             return cmd_reject("encoder-unhealthy");
         }
     }
-    if (!speed_valid(e, i, spd)) {
-        return cmd_reject("bad-speed");
+    pc.speed   = spd;
+    pc.dir     = dir;
+    pc.is_move = (spec != NULL);
+    if (spec != NULL) {
+        pc.spec = *spec;
     }
-    s = &e->m[i];
-    if ((s->phase == MOTOR_PHASE_RUNNING) && s->move_active && s->spec.use_position && spec->use_position
-        && (s->dir == dir) && (s->speed.kind == spd.kind)) {
-        s->speed = spd;
-        s->spec  = *spec;
-        return cmd_make(MOTOR_CMD_ACCEPTED, "position-target-updated");
-    }
-    motor_pending_cmd_t pc = {0};
-    pc.is_move             = true;
-    pc.speed               = spd;
-    pc.dir                 = dir;
-    pc.spec                = *spec;
-    return start_or_reverse(e, i, &pc);
+    return apply_goal(e, i, &pc);
 }
 
 motor_cmd_result_t motor_stop(motor_executor_t *e, int i)
@@ -1188,37 +1210,6 @@ motor_cmd_result_t motor_stop(motor_executor_t *e, int i)
     }
 }
 
-motor_cmd_result_t motor_set_speed(motor_executor_t *e, int i, motor_speed_t spd, motor_direction_t dir)
-{
-    motor_cmd_result_t g = cmd_guard(e, i, MOTOR_CMD_NEED_NOW);
-    motor_mstate_t    *s;
-
-    if (!motor_cmd_ok(g)) {
-        return g;
-    }
-    s = &e->m[i];
-    if (s->phase != MOTOR_PHASE_RUNNING) {
-        return cmd_reject("not-running");
-    }
-    if (!speed_valid(e, i, spd)) {
-        return cmd_reject("bad-speed");
-    }
-    if ((dir == s->dir) && (spd.kind == s->speed.kind)) {
-        s->speed          = spd;
-        s->output_applied = false;
-        return cmd_make(MOTOR_CMD_ACCEPTED, "speed-changed");
-    }
-    motor_pending_cmd_t pc = {0};
-    pc.is_move             = s->move_active;
-    pc.spec                = s->spec;
-    pc.speed               = spd;
-    pc.dir                 = dir;
-    if (!reversal(e, i, &pc)) {
-        return cmd_make(MOTOR_CMD_ACCEPTED, "cutoff-failed");
-    }
-    return cmd_make(MOTOR_CMD_ACCEPTED, "reversal");
-}
-
 motor_cmd_result_t motor_home(motor_executor_t *e, int i)
 {
     motor_cmd_result_t g = cmd_guard(e, i, MOTOR_CMD_NEED_NOW | MOTOR_CMD_REJECT_SAFETY | MOTOR_CMD_REJECT_FAULT);
@@ -1231,12 +1222,9 @@ motor_cmd_result_t motor_home(motor_executor_t *e, int i)
     if (!e->cfg.motors[i].has_encoder) {
         return cmd_reject("no-encoder");
     }
-    if (e->m[i].phase != MOTOR_PHASE_STOPPED) {
-        return cmd_reject("not-stopped");
-    }
     freq = e->cfg.motors[i].slow_freq > 0 ? e->cfg.motors[i].slow_freq : MOTOR_HOME_DEFAULT_FREQ_CENTI_HZ;
     spec.limit_mask = MOTOR_LIMIT_MASK_ORIGIN;
-    return motor_move_to(e, i, motor_speed_freq(freq), MOTOR_DIR_REVERSE, &spec);
+    return motor_run(e, i, motor_speed_freq(freq), MOTOR_DIR_REVERSE, &spec);
 }
 
 motor_cmd_result_t motor_zero_encoder(motor_executor_t *e, int i)
@@ -1611,19 +1599,11 @@ static hal_motor_cmd_result_t from_exec_result(motor_cmd_result_t r)
     return out;
 }
 
-hal_motor_cmd_result_t hal_motor_run_continuous(hal_motor_exec_t *exec,
-                                                int               motor,
-                                                hal_motor_speed_t spd,
-                                                hal_motor_dir_t   dir)
-{
-    return from_exec_result(motor_run_continuous((motor_executor_t *)exec, motor, to_exec_speed(spd), to_exec_dir(dir)));
-}
-
-hal_motor_cmd_result_t hal_motor_move_to(hal_motor_exec_t            *exec,
-                                         int                          motor,
-                                         hal_motor_speed_t            spd,
-                                         hal_motor_dir_t              dir,
-                                         const hal_motor_move_spec_t *spec)
+hal_motor_cmd_result_t hal_motor_run(hal_motor_exec_t            *exec,
+                                     int                          motor,
+                                     hal_motor_speed_t            spd,
+                                     hal_motor_dir_t              dir,
+                                     const hal_motor_move_spec_t *spec)
 {
     motor_move_spec_t        exec_spec;
     const motor_move_spec_t *exec_spec_p = NULL;
@@ -1634,20 +1614,12 @@ hal_motor_cmd_result_t hal_motor_move_to(hal_motor_exec_t            *exec,
     }
 
     return from_exec_result(
-        motor_move_to((motor_executor_t *)exec, motor, to_exec_speed(spd), to_exec_dir(dir), exec_spec_p));
+        motor_run((motor_executor_t *)exec, motor, to_exec_speed(spd), to_exec_dir(dir), exec_spec_p));
 }
 
 hal_motor_cmd_result_t hal_motor_stop(hal_motor_exec_t *exec, int motor)
 {
     return from_exec_result(motor_stop((motor_executor_t *)exec, motor));
-}
-
-hal_motor_cmd_result_t hal_motor_set_speed(hal_motor_exec_t *exec,
-                                           int               motor,
-                                           hal_motor_speed_t spd,
-                                           hal_motor_dir_t   dir)
-{
-    return from_exec_result(motor_set_speed((motor_executor_t *)exec, motor, to_exec_speed(spd), to_exec_dir(dir)));
 }
 
 hal_motor_cmd_result_t hal_motor_home(hal_motor_exec_t *exec, int motor)

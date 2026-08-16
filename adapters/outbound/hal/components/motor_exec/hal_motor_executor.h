@@ -320,7 +320,7 @@ static inline motor_speed_t motor_speed_freq(int centi_hz)
 
 /**
  * @brief  构造挡位速度
- * @param  gear  1 基挡位号（1..N）；0 表示停止，run/move 会拒绝
+ * @param  gear  1 基挡位号（1..N）；0 表示停止，run 会拒绝
  */
 static inline motor_speed_t motor_speed_gear(int gear)
 {
@@ -413,7 +413,7 @@ typedef void (*motor_event_cb_t)(const motor_event_t *ev, void *ctx);
  * 除通过下方公共 API 外，请勿直接访问其字段。
  */
 
-/** @brief 内部命令描述（暂存排队/换向后的启动请求）。 */
+/** @brief 内部命令描述（锁存的运动目标：排队/换向后/当前运行）。 */
 typedef struct {
     bool              is_move;
     motor_speed_t     speed;
@@ -520,33 +520,26 @@ motor_init_result_t motor_reinit(motor_executor_t *exec);
 void motor_tick(motor_executor_t *exec);
 
 /**
- * @brief 持续运行（异步）。
+ * @brief 锁存运动目标（异步）。spec 为 NULL 表示连续运行，否则按到位条件结束。
+ * @note  再调用即更新目标：已在跑且同向则就地改速度/结束条件，换向走换向安全流程；
+ *        冷却/预备/换向等待中更新挂起目标。FAULT / ESTOP 必须拒绝。
  * @note  每台运动会向共享事件队列投递终止事件；该电机须有人按节拍消费
  *        （motor_axis_poll / pop_event_for / 事件回调），否则满队列时虽优先丢本电机
  *        旧事件，仍可能在无本电机旧事件时挤掉其它电机事件。
  */
-motor_cmd_result_t motor_run_continuous(motor_executor_t *exec, int motor, motor_speed_t spd, motor_direction_t dir);
-
-/**
- * @brief 运动到位（异步）。spec 描述结束条件，可组合，超时兜底始终生效。
- * @note  事件消费约束同 motor_run_continuous。
- */
-motor_cmd_result_t motor_move_to(motor_executor_t        *exec,
-                                 int                      motor,
-                                 motor_speed_t            spd,
-                                 motor_direction_t        dir,
-                                 const motor_move_spec_t *spec);
+motor_cmd_result_t motor_run(motor_executor_t        *exec,
+                             int                      motor,
+                             motor_speed_t            spd,
+                             motor_direction_t        dir,
+                             const motor_move_spec_t *spec);
 
 /** @brief 减速停止（异步）。 */
 motor_cmd_result_t motor_stop(motor_executor_t *exec, int motor);
 
-/** @brief 运行中调速/改向（改向自动走换向安全流程）。 */
-motor_cmd_result_t motor_set_speed(motor_executor_t *exec, int motor, motor_speed_t spd, motor_direction_t dir);
-
 /**
  * @brief  回原点便利命令（慢速 + 默认反向 + ORIGIN 限位）
  * @note   触原点建基准由执行器在任意 ORIGIN 限位运动结束路径完成；
- *         也可用 motor_move_to 显式指定方向/速度达到同等效果。
+ *         也可用 motor_run 显式指定方向/速度达到同等效果。
  */
 motor_cmd_result_t motor_home(motor_executor_t *exec, int motor);
 

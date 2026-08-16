@@ -143,9 +143,8 @@ adapters/outbound/hal
 
 | 能力    | API                                                                                                                                                      |
 | ----- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 连续运行  | `hal_motor_run_continuous(exec, motor, speed, dir)`                                                                                                      |
-| 到位运动  | `hal_motor_move_to(exec, motor, speed, dir, spec)`                                                                                                       |
-| 停止/调速 | `hal_motor_stop()`、`hal_motor_set_speed()`                                                                                                               |
+| 运动目标  | `hal_motor_run(exec, motor, speed, dir, spec)`（`spec` 为空=连续运行，非空=到位；再调用即更新目标）                                                          |
+| 停止      | `hal_motor_stop()`                                                                                                                                       |
 | 回原/恢复 | `hal_motor_home()`（可选便利）、`hal_motor_recover()`                                                                                                           |
 | 查询    | `hal_motor_phase()`、`hal_motor_position()`、`hal_motor_direction()`、`hal_motor_fault_code()`、`hal_motor_encoder_healthy()`、`hal_motor_baseline_trusted()` |
 
