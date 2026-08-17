@@ -20,22 +20,13 @@ extern "C" {
 #include <stdint.h>
 
 /**
- * @brief  本次运动结局类别（与空闲边沿正交）
- */
-typedef enum {
-    MOTOR_AXIS_OUTCOME_ARRIVED = 0, /**< 正常到位 */
-    MOTOR_AXIS_OUTCOME_TIMEOUT,     /**< 超时兜底 */
-    MOTOR_AXIS_OUTCOME_STOPPED,     /**< 显式停止 */
-    MOTOR_AXIS_OUTCOME_FAULT,       /**< 故障 */
-    MOTOR_AXIS_OUTCOME_ESTOP        /**< 急停 */
-} motor_axis_outcome_t;
-
-/**
- * @brief  运动结局详情（供项目分支与报警映射）
+ * @brief  本次运动结局详情（供项目分支与报警映射）
+ * @note   outcome 直接使用端口事件类型；WARNING 不会进入本结构
+ *         （motor_axis 在消费事件时丢弃）。
  */
 typedef struct {
     bool                      valid;      /**< 是否曾记录过结局 */
-    motor_axis_outcome_t      outcome;    /**< 结局类别 */
+    hal_motor_event_type_t    outcome;    /**< 结局类别，取值同 hal_motor_event_type_t（无 WARNING） */
     hal_motor_end_condition_t trigger;    /**< 结束条件（到位原因） */
     bool                      has_limit;  /**< limit 是否有效 */
     hal_motor_limit_kind_t    limit;      /**< 硬限位种类 */

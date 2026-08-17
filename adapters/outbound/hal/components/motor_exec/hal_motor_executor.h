@@ -13,6 +13,7 @@
 #define ADAPTERS_OUTBOUND_HAL_COMPONENTS_MOTOR_EXEC_HAL_MOTOR_EXECUTOR_H
 
 #include "common/sw_error.h"
+#include "domain/ports/outbound/motor/hal_motor_exec_port.h"
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -38,100 +39,6 @@ extern "C" {
 #define MOTOR_HOME_DEFAULT_FREQ_CENTI_HZ 100
 /* 编码器同步清零最大重试次数 */
 #define MOTOR_ZERO_MAX_TRIES             3
-
-/* ------------------------- 基础类型 / 枚举 ------------------------- */
-
-/** @brief 运动方向。 */
-typedef enum {
-    MOTOR_DIR_FORWARD = 0, /**< 正向 */
-    MOTOR_DIR_REVERSE = 1  /**< 反向 */
-} motor_direction_t;
-
-/** @brief 速度指定方式。 */
-typedef enum {
-    MOTOR_SPEED_FREQ = 0, /**< 直接频率（厘赫） */
-    MOTOR_SPEED_GEAR = 1  /**< 挡位号（1 基） */
-} motor_speed_kind_t;
-
-/** @brief 速度指定。 */
-typedef struct {
-    motor_speed_kind_t kind;
-    int                value; /**< Freq: 厘赫；Gear: 1..N（0=停止，不可用于 run） */
-} motor_speed_t;
-
-/** @brief 限位/原点采集种类。 */
-typedef enum {
-    MOTOR_LIMIT_POS    = 0, /**< 正向端限位 */
-    MOTOR_LIMIT_NEG    = 1, /**< 反向端限位 */
-    MOTOR_LIMIT_ORIGIN = 2  /**< 原点 */
-} motor_limit_kind_t;
-
-/** @brief 硬限位监视掩码位（与 motor_limit_kind_t 对齐）。 */
-#define MOTOR_LIMIT_MASK_POS    (1u << MOTOR_LIMIT_POS)
-#define MOTOR_LIMIT_MASK_NEG    (1u << MOTOR_LIMIT_NEG)
-#define MOTOR_LIMIT_MASK_ORIGIN (1u << MOTOR_LIMIT_ORIGIN)
-#define MOTOR_LIMIT_MASK_ALL \
-    (MOTOR_LIMIT_MASK_POS | MOTOR_LIMIT_MASK_NEG | MOTOR_LIMIT_MASK_ORIGIN)
-
-/** @brief 判断掩码是否包含指定硬限位。 */
-static inline bool motor_limit_mask_has(uint8_t mask, motor_limit_kind_t kind)
-{
-    return (mask & (uint8_t)(1u << (unsigned)kind)) != 0u;
-}
-
-/** @brief 电机状态（对应功能说明 二、电机状态与状态转移）。 */
-typedef enum {
-    MOTOR_PHASE_STOPPED = 0,   /**< 停止（上电默认态、故障安全态） */
-    MOTOR_PHASE_WAITING_START, /**< 等待启动（冷却/预备/互锁排队） */
-    MOTOR_PHASE_REVERSAL_WAIT, /**< 换向等待 */
-    MOTOR_PHASE_RUNNING,       /**< 运行中 */
-    MOTOR_PHASE_DECELERATING,  /**< 减速停止中 */
-    MOTOR_PHASE_FAULT,         /**< 故障 */
-    MOTOR_PHASE_ESTOP          /**< 急停 */
-} motor_phase_t;
-
-/** @brief 运动结束/触发条件（写入事件载荷）。 */
-typedef enum {
-    MOTOR_END_NONE = 0,
-    MOTOR_END_LIMIT,      /**< 限位 */
-    MOTOR_END_POSITION,   /**< 按位置 */
-    MOTOR_END_SOFT_LIMIT, /**< 软限位 */
-    MOTOR_END_CURRENT,    /**< 电流到位（正常到位，不报警） */
-    MOTOR_END_TIME,       /**< 按时间 */
-    MOTOR_END_TIMEOUT     /**< 超时兜底（错误结果） */
-} motor_end_condition_t;
-
-/** @brief 事件类型。 */
-typedef enum {
-    MOTOR_EVENT_ARRIVED = 0, /**< 正常到位 */
-    MOTOR_EVENT_TIMEOUT,     /**< 超时（错误结果） */
-    MOTOR_EVENT_STOPPED,     /**< 被显式停止 */
-    MOTOR_EVENT_FAULT,       /**< 故障 */
-    MOTOR_EVENT_ESTOP,       /**< 急停 */
-    MOTOR_EVENT_WARNING      /**< 告警（不切断） */
-} motor_event_type_t;
-
-/** @brief 故障分级。 */
-typedef enum {
-    MOTOR_LEVEL_WARNING = 0, /**< 告警：不切断 */
-    MOTOR_LEVEL_FAULT,       /**< 故障：切断锁定，三步可恢复 */
-    MOTOR_LEVEL_FATAL        /**< 致命：须重新初始化 */
-} motor_fault_level_t;
-
-/** @brief 故障码。 */
-typedef enum {
-    MOTOR_FAULT_NONE = 0,
-    MOTOR_FAULT_OVERCURRENT,       /**< 过载 */
-    MOTOR_FAULT_UNDERCURRENT,      /**< 空转/断带 */
-    MOTOR_FAULT_DRIVER_FEEDBACK,   /**< 驱动器运行反馈异常 */
-    MOTOR_FAULT_OVERTEMP,          /**< 过温 */
-    MOTOR_FAULT_UNDERVOLTAGE,      /**< 欠压 */
-    MOTOR_FAULT_PREPARE_FAILED,    /**< 预备或运行中路径维持失败 */
-    MOTOR_FAULT_ENCODER_SIGNAL,    /**< 编码器信号质量 */
-    MOTOR_FAULT_WATCHDOG,          /**< 看门狗（tick 缺拍） */
-    MOTOR_FAULT_DRIVER_PORT_FATAL, /**< 端口层致命错误 */
-    MOTOR_FAULT_SHARED_DRIVER      /**< 共享驱动器联动 */
-} motor_fault_code_t;
 
 /** @brief 端口层健康状态。 */
 typedef enum { MOTOR_PORT_OK = 0, MOTOR_PORT_FATAL = 1 } motor_port_status_t;
@@ -167,7 +74,7 @@ typedef struct {
  *       is_running 只回答功率级是否在转；status 只回答端口是否致命。
  */
 typedef struct {
-    sw_err_t (*set_output)(void *ctx, motor_speed_t speed, motor_direction_t dir); /**< 速度给定+方向 */
+    sw_err_t (*set_output)(void *ctx, hal_motor_speed_t speed, hal_motor_dir_t dir); /**< 速度给定+方向 */
     sw_err_t (*cutoff)(void *ctx);                                                 /**< 立即切断输出 */
     bool (*reset)(void *ctx);                                                      /**< 驱动器侧故障复位，false=失败 */
     motor_prepare_result_t (*prepare)(void *ctx, int motor);                       /**< 启动前预备；可为 NULL */
@@ -204,7 +111,7 @@ typedef struct {
 
 /** @brief 限位/原点采集端口。 */
 typedef struct {
-    bool (*limit)(void *ctx, int motor, motor_limit_kind_t kind); /**< 返回开关状态 */
+    bool (*limit)(void *ctx, int motor, hal_motor_limit_kind_t kind); /**< 返回开关状态 */
     void *ctx;
 } motor_sensors_t;
 
@@ -309,105 +216,16 @@ typedef struct {
     int               tick_ms;                          /**< 标称 tick 周期（>0） */
 } motor_config_t;
 
-/* ------------------------- 命令 / 结果 ------------------------- */
-
-/** @brief 构造频率速度。 */
-static inline motor_speed_t motor_speed_freq(int centi_hz)
-{
-    motor_speed_t s;
-    s.kind  = MOTOR_SPEED_FREQ;
-    s.value = centi_hz;
-    return s;
-}
-
-/**
- * @brief  构造挡位速度
- * @param  gear  1 基挡位号（1..N）；0 表示停止，run 会拒绝
- */
-static inline motor_speed_t motor_speed_gear(int gear)
-{
-    motor_speed_t s;
-    s.kind  = MOTOR_SPEED_GEAR;
-    s.value = gear;
-    return s;
-}
-
-/**
- * @brief 运动到位的结束条件描述（可组合，超时兜底始终生效）。
- * @note  仅电流停、无位置/硬限位时，语义为持续运行至电流到位（覆盖「连续跑」场景）。
- *        与 mon.monitor_current 过流故障共存：电流停走 ARRIVED，过流仍走 FAULT。
- */
-typedef struct {
-    /**
-     * @brief 硬限位监视掩码（0=不启用）。
-     * @note  置位的 POS/NEG/ORIGIN 任一触发即到位；同拍多路时优先回报 ORIGIN，其次 POS，再次 NEG。
-     */
-    uint8_t            limit_mask;
-    bool               use_position;   /**< 启用按位置到位（需编码器与可信基准） */
-    int64_t            target_pos;     /**< 目标位置（脉冲） */
-    bool               use_soft_limit; /**< 启用软限位到位 */
-    bool               use_current;    /**< 启用电流到位（正常切断，不报警） */
-    int                current_limit;  /**< 电流阈值（与驱动 current() 同量纲）；超过则累计确认 */
-    uint32_t           current_confirm_ms; /**< 持续超限确认时间（防抖，0=首拍即判） */
-    /**
-     * @brief 启动后电流到位判定消隐时间（ms）。
-     * @note  只抑制电流停，不影响过流故障监测。建议取启动冲击可衰减的短窗口
-     *        （典型几十～一两百 ms），不要按整段 accel_ms 忽略——否则消隐期内无保护。
-     */
-    uint32_t           current_blank_ms;
-    bool               use_time;       /**< 启用按时间到位 */
-    uint64_t           duration_ms;    /**< 运行时长（ms） */
-    uint64_t           max_time_ms;    /**< 超时兜底（0=使用 default_max_time_ms） */
-} motor_move_spec_t;
-
-/** @brief 命令受理状态。 */
-typedef enum {
-    MOTOR_CMD_ACCEPTED = 0, /**< 已受理 */
-    MOTOR_CMD_QUEUED,       /**< 已排队（冷却等） */
-    MOTOR_CMD_REJECTED      /**< 被拒绝 */
-} motor_cmd_status_t;
-
-/** @brief 命令结果。 */
-typedef struct {
-    motor_cmd_status_t status;
-    const char        *reason; /**< 说明（静态字符串，可用于日志） */
-} motor_cmd_result_t;
-
-/** @brief 判定命令是否非拒绝。 */
-static inline bool motor_cmd_ok(motor_cmd_result_t r)
-{
-    return r.status != MOTOR_CMD_REJECTED;
-}
-
 /** @brief 初始化结果。 */
 typedef struct {
     bool        ok;
     const char *error; /**< 失败原因（静态字符串），ok 时为空串 */
 } motor_init_result_t;
 
-/** @brief 三步恢复流程步骤。 */
-typedef enum {
-    MOTOR_RECOVERY_DRIVER_RESET = 0, /**< 第一步：驱动器复位 */
-    MOTOR_RECOVERY_MODULE_STOP       /**< 第二步：模块停止（之后可重新启动） */
-} motor_recovery_step_t;
-
 /* ------------------------- 事件 ------------------------- */
 
-/** @brief 事件载荷。 */
-typedef struct {
-    int                   motor;      /**< 电机号 */
-    motor_event_type_t    type;       /**< 事件类型 */
-    motor_end_condition_t trigger;    /**< 触发条件 */
-    bool                  has_limit;  /**< trigger 为 MOTOR_END_LIMIT 时 limit 才有效 */
-    motor_limit_kind_t    limit;      /**< 触发的限位种类 */
-    int64_t               final_pos;  /**< 最终位置（脉冲） */
-    uint64_t              elapsed_ms; /**< 运动耗时（ms） */
-    motor_fault_code_t    fault;      /**< 故障码 */
-    motor_fault_level_t   level;      /**< 故障分级 */
-} motor_event_t;
-
-/** @brief 事件回调；ctx 为 motor_set_event_callback 注册时透传的上下文。 */
-typedef void (*motor_event_cb_t)(const motor_event_t *ev, void *ctx);
+/** @brief 事件回调；载荷即端口 `hal_motor_event_t`。ctx 为注册时透传的上下文。 */
+typedef void (*motor_event_cb_t)(const hal_motor_event_t *ev, void *ctx);
 
 /* ------------------------- 执行器内部（由调用方静态分配） ------------------------- */
 /*
@@ -417,24 +235,24 @@ typedef void (*motor_event_cb_t)(const motor_event_t *ev, void *ctx);
 
 /** @brief 内部命令描述（锁存的运动目标：排队/换向后/当前运行）。 */
 typedef struct {
-    bool              is_move;
-    motor_speed_t     speed;
-    motor_direction_t dir;
-    motor_move_spec_t spec;
+    bool                  is_move;
+    hal_motor_speed_t     speed;
+    hal_motor_dir_t       dir;
+    hal_motor_move_spec_t spec;
 } motor_pending_cmd_t;
 
 /** @brief 单电机运行时状态（内部）。 */
 typedef struct {
-    motor_phase_t     phase;
-    motor_direction_t dir;
+    hal_motor_phase_t     phase;
+    hal_motor_dir_t dir;
 
-    motor_speed_t speed;
-    motor_speed_t applied_speed;
+    hal_motor_speed_t speed;
+    hal_motor_speed_t applied_speed;
     bool          output_applied;
 
     bool               move_active;
-    motor_move_spec_t  spec;
-    motor_limit_kind_t end_limit;    /**< 本次硬限位到位实际触发种类（仅 END_LIMIT 有效） */
+    hal_motor_move_spec_t  spec;
+    hal_motor_limit_kind_t end_limit;    /**< 本次硬限位到位实际触发种类（仅 END_LIMIT 有效） */
     uint64_t           move_start_ms; /**< 当前运行段起点（ms） */
     uint64_t           elapsed_ms;    /**< 已结算的运动耗时（离开 RUNNING 时冻结） */
     bool               emit_stop_on_halt;
@@ -451,7 +269,7 @@ typedef struct {
     motor_pending_cmd_t after_reversal;
 
     bool               fatal;
-    motor_fault_code_t fault_code;
+    hal_motor_fault_code_t fault_code;
     bool               driver_reset_done;
 
     uint64_t start_ms;
@@ -487,7 +305,7 @@ typedef struct {
     bool     estop_latched;
     bool     safe_latched;
 
-    motor_event_t events[MOTOR_EVENT_QUEUE_CAP];
+    hal_motor_event_t events[MOTOR_EVENT_QUEUE_CAP];
     int           ev_head;
     int           ev_count;
 
@@ -529,27 +347,27 @@ void motor_tick(motor_executor_t *exec);
  *        （motor_axis_poll / pop_event_for / 事件回调），否则满队列时虽优先丢本电机
  *        旧事件，仍可能在无本电机旧事件时挤掉其它电机事件。
  */
-motor_cmd_result_t motor_run(motor_executor_t        *exec,
-                             int                      motor,
-                             motor_speed_t            spd,
-                             motor_direction_t        dir,
-                             const motor_move_spec_t *spec);
+hal_motor_cmd_result_t motor_run(motor_executor_t            *exec,
+                                 int                          motor,
+                                 hal_motor_speed_t            spd,
+                                 hal_motor_dir_t              dir,
+                                 const hal_motor_move_spec_t *spec);
 
 /** @brief 减速停止（异步）。 */
-motor_cmd_result_t motor_stop(motor_executor_t *exec, int motor);
+hal_motor_cmd_result_t motor_stop(motor_executor_t *exec, int motor);
 
 /**
  * @brief  回原点便利命令（慢速 + 默认反向 + ORIGIN 限位）
  * @note   触原点建基准由执行器在任意 ORIGIN 限位运动结束路径完成；
  *         也可用 motor_run 显式指定方向/速度达到同等效果。
  */
-motor_cmd_result_t motor_home(motor_executor_t *exec, int motor);
+hal_motor_cmd_result_t motor_home(motor_executor_t *exec, int motor);
 
 /** @brief 手动清零编码器（同步硬件计数器，失败自动重试）。 */
-motor_cmd_result_t motor_zero_encoder(motor_executor_t *exec, int motor);
+hal_motor_cmd_result_t motor_zero_encoder(motor_executor_t *exec, int motor);
 
 /** @brief 上层显式确认位置基准可信。 */
-motor_cmd_result_t motor_confirm_baseline(motor_executor_t *exec, int motor);
+hal_motor_cmd_result_t motor_confirm_baseline(motor_executor_t *exec, int motor);
 
 /** @brief 急停解除后显式复位。 */
 void motor_reset_estop(motor_executor_t *exec);
@@ -558,7 +376,7 @@ void motor_reset_estop(motor_executor_t *exec);
 void motor_reset_watchdog(motor_executor_t *exec);
 
 /** @brief 三步恢复：驱动器复位 → 模块停止 → （之后由调用方重新启动）。 */
-motor_cmd_result_t motor_recover(motor_executor_t *exec, int motor, motor_recovery_step_t step);
+hal_motor_cmd_result_t motor_recover(motor_executor_t *exec, int motor, hal_motor_recovery_step_t step);
 
 /* 查询 —— 所有带 motor 参数的函数均要求 motor 在 [0, motor_count) 范围内 */
 
@@ -566,9 +384,9 @@ motor_cmd_result_t motor_recover(motor_executor_t *exec, int motor, motor_recove
  * @brief 查询电机当前状态。
  * @param exec  已完成初始化的执行器。
  * @param motor 电机编号，须在 [0, motor_count) 范围内。
- * @return 当前 motor_phase_t 枚举值。
+ * @return 当前 hal_motor_phase_t 枚举值。
  */
-motor_phase_t motor_phase(const motor_executor_t *exec, int motor);
+hal_motor_phase_t motor_phase(const motor_executor_t *exec, int motor);
 
 /**
  * @brief 查询电机累计位置。
@@ -590,18 +408,18 @@ int motor_current_freq(const motor_executor_t *exec, int motor);
  * @brief 查询电机当前运动方向。
  * @param exec  已完成初始化的执行器。
  * @param motor 电机编号，须在 [0, motor_count) 范围内。
- * @return 最近一次生效的方向；上电默认为 MOTOR_DIR_FORWARD。
+ * @return 最近一次生效的方向；上电默认为 HAL_MOTOR_DIR_FORWARD。
  */
-motor_direction_t motor_direction(const motor_executor_t *exec, int motor);
+hal_motor_dir_t motor_direction(const motor_executor_t *exec, int motor);
 
 /**
  * @brief 查询电机当前故障码。
  * @param exec  已完成初始化的执行器。
  * @param motor 电机编号，须在 [0, motor_count) 范围内。
- * @return 当前 motor_fault_code_t；无故障时为 MOTOR_FAULT_NONE。
- *         仅在 phase 为 MOTOR_PHASE_FAULT 时有实质含义。
+ * @return 当前 hal_motor_fault_code_t；无故障时为 HAL_MOTOR_FAULT_NONE。
+ *         仅在 phase 为 HAL_MOTOR_PHASE_FAULT 时有实质含义。
  */
-motor_fault_code_t motor_fault_code(const motor_executor_t *exec, int motor);
+hal_motor_fault_code_t motor_fault_code(const motor_executor_t *exec, int motor);
 
 /**
  * @brief 查询电机位置基准是否可信。
@@ -631,13 +449,13 @@ bool motor_in_safe_state(const motor_executor_t *exec);
 void motor_set_event_callback(motor_executor_t *exec, motor_event_cb_t cb, void *ctx);
 
 /** @brief 队列方式取事件。返回 false 表示队列为空。 */
-bool motor_pop_event(motor_executor_t *exec, motor_event_t *out);
+bool motor_pop_event(motor_executor_t *exec, hal_motor_event_t *out);
 
 /**
  * @brief  取出指定电机的下一条事件，保留其它电机事件。
  * @return true 取出；false 该电机无待取事件。
  */
-bool motor_pop_event_for(motor_executor_t *exec, int motor, motor_event_t *out);
+bool motor_pop_event_for(motor_executor_t *exec, int motor, hal_motor_event_t *out);
 
 #ifdef __cplusplus
 }

@@ -358,11 +358,11 @@ static void test_motor_axis_spec_uses_move_to_and_end_callback(void)
     TEST_ASSERT_EQUAL_INT(SW_ERR_STATE, motor_axis_run(&axis, HAL_MOTOR_DIR_FORWARD, hal_motor_speed_gear(2), NULL));
     TEST_ASSERT_EQUAL_INT(1, s_end_cb_count);
     TEST_ASSERT_TRUE(s_end_cb_valid);
-    TEST_ASSERT_EQUAL_INT(MOTOR_AXIS_OUTCOME_FAULT, s_end_cb_result.outcome);
+    TEST_ASSERT_EQUAL_INT(HAL_MOTOR_EVENT_FAULT, s_end_cb_result.outcome);
     TEST_ASSERT_EQUAL_INT(HAL_MOTOR_FAULT_OVERCURRENT, s_end_cb_result.fault);
     last = motor_axis_last_result(&axis);
     TEST_ASSERT_TRUE(last.valid);
-    TEST_ASSERT_EQUAL_INT(MOTOR_AXIS_OUTCOME_FAULT, last.outcome);
+    TEST_ASSERT_EQUAL_INT(HAL_MOTOR_EVENT_FAULT, last.outcome);
 }
 
 /** @brief 纯命令拒绝（无故障码）不上报故障结局。 */
@@ -392,7 +392,7 @@ static void test_motor_axis_fault_end_dedupes_event_and_reject(void)
 
     motor_axis_poll(&axis);
     TEST_ASSERT_EQUAL_INT(1, s_end_cb_count);
-    TEST_ASSERT_EQUAL_INT(MOTOR_AXIS_OUTCOME_FAULT, s_end_cb_result.outcome);
+    TEST_ASSERT_EQUAL_INT(HAL_MOTOR_EVENT_FAULT, s_end_cb_result.outcome);
 
     s_next_result = cmd_rejected();
     TEST_ASSERT_EQUAL_INT(SW_ERR_STATE, motor_axis_run(&axis, HAL_MOTOR_DIR_FORWARD, hal_motor_speed_gear(1), NULL));
@@ -566,7 +566,7 @@ static void test_motor_axis_poll_reports_limit_end_then_idle(void)
 
     TEST_ASSERT_EQUAL_INT(1, s_end_cb_count);
     TEST_ASSERT_EQUAL_INT(21, (int)s_end_cb_id);
-    TEST_ASSERT_EQUAL_INT(MOTOR_AXIS_OUTCOME_ARRIVED, s_end_cb_result.outcome);
+    TEST_ASSERT_EQUAL_INT(HAL_MOTOR_EVENT_ARRIVED, s_end_cb_result.outcome);
     TEST_ASSERT_EQUAL_INT(HAL_MOTOR_END_LIMIT, s_end_cb_result.trigger);
     TEST_ASSERT_TRUE(s_end_cb_result.has_limit);
     TEST_ASSERT_EQUAL_INT(HAL_MOTOR_LIMIT_ORIGIN, s_end_cb_result.limit);

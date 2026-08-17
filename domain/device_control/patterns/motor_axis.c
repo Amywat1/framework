@@ -40,23 +40,12 @@ static motor_axis_state_t axis_phase_to_state(const motor_axis_t *self)
 
 static bool map_event_to_result(const hal_motor_event_t *ev, motor_axis_end_result_t *out)
 {
-    motor_axis_outcome_t outcome;
-
     switch (ev->type) {
     case HAL_MOTOR_EVENT_ARRIVED:
-        outcome = MOTOR_AXIS_OUTCOME_ARRIVED;
-        break;
     case HAL_MOTOR_EVENT_TIMEOUT:
-        outcome = MOTOR_AXIS_OUTCOME_TIMEOUT;
-        break;
     case HAL_MOTOR_EVENT_STOPPED:
-        outcome = MOTOR_AXIS_OUTCOME_STOPPED;
-        break;
     case HAL_MOTOR_EVENT_FAULT:
-        outcome = MOTOR_AXIS_OUTCOME_FAULT;
-        break;
     case HAL_MOTOR_EVENT_ESTOP:
-        outcome = MOTOR_AXIS_OUTCOME_ESTOP;
         break;
     case HAL_MOTOR_EVENT_WARNING:
     default:
@@ -65,7 +54,7 @@ static bool map_event_to_result(const hal_motor_event_t *ev, motor_axis_end_resu
 
     memset(out, 0, sizeof(*out));
     out->valid      = true;
-    out->outcome    = outcome;
+    out->outcome    = ev->type;
     out->trigger    = ev->trigger;
     out->has_limit  = ev->has_limit;
     out->limit      = ev->limit;
@@ -79,8 +68,8 @@ static void report_end(motor_axis_t *self, const motor_axis_end_result_t *result
 {
     /* 同一故障闩锁下，事件路径与拒令合成可能先后到达；FAULT/ESTOP 按码去重。 */
     if (result->valid && self->last_result.valid
-        && ((result->outcome == MOTOR_AXIS_OUTCOME_FAULT)
-            || (result->outcome == MOTOR_AXIS_OUTCOME_ESTOP))
+        && ((result->outcome == HAL_MOTOR_EVENT_FAULT)
+            || (result->outcome == HAL_MOTOR_EVENT_ESTOP))
         && (self->last_result.outcome == result->outcome)
         && (self->last_result.fault == result->fault)) {
         return;
@@ -110,8 +99,8 @@ static void report_cmd_fault(motor_axis_t *self)
 
     memset(&result, 0, sizeof(result));
     result.valid   = true;
-    result.outcome = (phase == HAL_MOTOR_PHASE_ESTOP) ? MOTOR_AXIS_OUTCOME_ESTOP
-                                                     : MOTOR_AXIS_OUTCOME_FAULT;
+    result.outcome = (phase == HAL_MOTOR_PHASE_ESTOP) ? HAL_MOTOR_EVENT_ESTOP
+                                                     : HAL_MOTOR_EVENT_FAULT;
     result.trigger = HAL_MOTOR_END_NONE;
     result.fault   = fault;
     report_end(self, &result);

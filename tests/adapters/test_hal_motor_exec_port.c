@@ -35,7 +35,7 @@ static uint64_t clock_now(void *ctx)
     return ((port_fixture_t *)ctx)->now_ms;
 }
 
-static sw_err_t driver_set_output(void *ctx, motor_speed_t speed, motor_direction_t dir)
+static sw_err_t driver_set_output(void *ctx, hal_motor_speed_t speed, hal_motor_dir_t dir)
 {
     port_fixture_t *fx = (port_fixture_t *)ctx;
     (void)speed;
@@ -88,7 +88,7 @@ static bool encoder_zero(void *ctx)
     return true;
 }
 
-static bool sensor_limit(void *ctx, int motor, motor_limit_kind_t kind)
+static bool sensor_limit(void *ctx, int motor, hal_motor_limit_kind_t kind)
 {
     (void)ctx;
     (void)motor;
@@ -249,8 +249,8 @@ static void test_recover_via_port(void)
     hal_motor_cmd_result_t r;
     hal_motor_exec_t      *hal = (hal_motor_exec_t *)&s_exec;
 
-    s_exec.m[0].phase      = MOTOR_PHASE_FAULT;
-    s_exec.m[0].fault_code = MOTOR_FAULT_OVERCURRENT;
+    s_exec.m[0].phase      = HAL_MOTOR_PHASE_FAULT;
+    s_exec.m[0].fault_code = HAL_MOTOR_FAULT_OVERCURRENT;
     TEST_ASSERT_EQUAL_INT(HAL_MOTOR_FAULT_OVERCURRENT, hal_motor_fault_code(hal, 0));
 
     r = hal_motor_recover(hal, 0, HAL_MOTOR_RECOVERY_DRIVER_RESET);
@@ -287,17 +287,17 @@ static void test_query_helpers_via_port(void)
 
 static void test_pop_event_via_port(void)
 {
-    motor_event_t     ev;
+    hal_motor_event_t ev;
     hal_motor_event_t out;
     hal_motor_exec_t *hal = (hal_motor_exec_t *)&s_exec;
 
     memset(&ev, 0, sizeof(ev));
     ev.motor      = 0;
-    ev.type       = MOTOR_EVENT_ARRIVED;
-    ev.trigger    = MOTOR_END_TIME;
+    ev.type       = HAL_MOTOR_EVENT_ARRIVED;
+    ev.trigger    = HAL_MOTOR_END_TIME;
     ev.final_pos  = 10;
     ev.elapsed_ms = 20;
-    ev.fault      = MOTOR_FAULT_NONE;
+    ev.fault      = HAL_MOTOR_FAULT_NONE;
     /* 直接压入执行器队列 */
     s_exec.events[0] = ev;
     s_exec.ev_head   = 0;
@@ -314,22 +314,22 @@ static void test_pop_event_via_port(void)
 
 static void test_pop_event_for_keeps_other_motors(void)
 {
-    motor_event_t     ev0;
-    motor_event_t     ev1;
+    hal_motor_event_t ev0;
+    hal_motor_event_t ev1;
     hal_motor_event_t out;
     hal_motor_exec_t *hal = (hal_motor_exec_t *)&s_exec;
 
     memset(&ev0, 0, sizeof(ev0));
     ev0.motor   = 0;
-    ev0.type    = MOTOR_EVENT_ARRIVED;
-    ev0.trigger = MOTOR_END_LIMIT;
+    ev0.type    = HAL_MOTOR_EVENT_ARRIVED;
+    ev0.trigger = HAL_MOTOR_END_LIMIT;
     ev0.has_limit = true;
-    ev0.limit   = MOTOR_LIMIT_ORIGIN;
+    ev0.limit   = HAL_MOTOR_LIMIT_ORIGIN;
 
     memset(&ev1, 0, sizeof(ev1));
     ev1.motor   = 1;
-    ev1.type    = MOTOR_EVENT_TIMEOUT;
-    ev1.trigger = MOTOR_END_TIMEOUT;
+    ev1.type    = HAL_MOTOR_EVENT_TIMEOUT;
+    ev1.trigger = HAL_MOTOR_END_TIMEOUT;
 
     s_exec.events[0] = ev1;
     s_exec.events[1] = ev0;
@@ -353,7 +353,7 @@ static void test_pop_event_for_keeps_other_motors(void)
  */
 static void test_event_queue_prefers_drop_same_motor(void)
 {
-    motor_event_t     ev;
+    hal_motor_event_t ev;
     hal_motor_event_t out;
     hal_motor_exec_t *hal = (hal_motor_exec_t *)&s_exec;
     int               i;
@@ -363,14 +363,14 @@ static void test_event_queue_prefers_drop_same_motor(void)
     for (i = 0; i < MOTOR_EVENT_QUEUE_CAP; ++i) {
         memset(&ev, 0, sizeof(ev));
         ev.motor      = (i == MOTOR_EVENT_QUEUE_CAP - 1) ? 0 : 1;
-        ev.type       = MOTOR_EVENT_WARNING;
+        ev.type       = HAL_MOTOR_EVENT_WARNING;
         ev.elapsed_ms = (uint64_t)i;
         s_exec.events[i] = ev;
     }
     s_exec.ev_head  = 0;
     s_exec.ev_count = MOTOR_EVENT_QUEUE_CAP;
 
-    s_exec.m[0].phase        = MOTOR_PHASE_RUNNING;
+    s_exec.m[0].phase        = HAL_MOTOR_PHASE_RUNNING;
     s_exec.m[0].move_active  = true;
     s_exec.m[0].move_start_ms = 0;
     s_exec.m[0].elapsed_ms   = 0;
