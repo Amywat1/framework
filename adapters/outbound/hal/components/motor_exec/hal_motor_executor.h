@@ -272,7 +272,7 @@ typedef struct {
     int64_t soft_min;                       /**< 软限位下限（脉冲） */
     int64_t soft_max;                       /**< 软限位上限（脉冲） */
 
-    int default_max_move_ms;                /**< 运动到位默认超时兜底（必须 > 0） */
+    int default_max_time_ms;                /**< 运行默认超时兜底（必须 > 0） */
 
     int  enc_stall_ticks;                   /**< 连续多拍无变化→告警（0=不检测） */
     int  enc_jump_max;                      /**< 单拍跳变上限→告警（0=不检测） */
@@ -357,7 +357,7 @@ typedef struct {
     uint32_t           current_blank_ms;
     bool               use_time;       /**< 启用按时间到位 */
     uint64_t           duration_ms;    /**< 运行时长（ms） */
-    uint64_t           max_time_ms;    /**< 超时兜底（0=使用配置默认） */
+    uint64_t           max_time_ms;    /**< 超时兜底（0=使用 default_max_time_ms） */
 } motor_move_spec_t;
 
 /** @brief 命令受理状态。 */

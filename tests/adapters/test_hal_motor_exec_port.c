@@ -146,7 +146,7 @@ static void init_executor(void)
     cfg.motors[0].driver_index = 0;
     cfg.motors[0].has_encoder  = true;
     cfg.motors[0].encoder_kind = MOTOR_ENC_INCREMENTAL;
-    cfg.motors[0].default_max_move_ms = 5000;
+    cfg.motors[0].default_max_time_ms = 5000;
     cfg.motors[0].gear_count   = 5;
     cfg.motors[0].pos_tolerance = 10;
 
