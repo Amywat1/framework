@@ -9,11 +9,9 @@
 
 #include "adapters/outbound/storage/json/engine_program_manifest.h"
 #include "common/asset_version.h"
-#include "domain/program_engine/engine/engine_actuator.h"
-#include "domain/program_engine/engine/engine_expr.h"
-#include "domain/program_engine/engine/engine_io.h"
-#include "domain/program_engine/model/engine_program_validate.h"
 #include "domain/ports/outbound/storage/engine_program_loader_port.h"
+#include "domain/program_engine/engine/engine_expr.h"
+#include "domain/program_engine/model/engine_program_validate.h"
 #include "third_party/cJSON/cJSON.h"
 
 #include <stdio.h>
@@ -872,7 +870,7 @@ engine_program_t *engine_program_load_json_string(const char *json, char *err, u
         return NULL;
     }
 
-    if (engine_program_validate(prog, engine_io_get_catalog(), engine_actuator_get_catalog(), werr, wsz) != SW_OK) {
+    if (engine_program_validate(prog, NULL, NULL, NULL, werr, wsz) != SW_OK) {
         engine_program_free(prog);
         return NULL;
     }

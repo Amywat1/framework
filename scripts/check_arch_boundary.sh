@@ -702,15 +702,11 @@ fi
 #
 # 为何用依赖白名单而不是运行期断言：断言只能证明"这次没有副作用"，白名单证明
 # "无法有副作用"。求值器不 include IO/报警/事件总线的头，就调不到它们。
-# 已核对 engine_expr.o 的未定义符号，框架侧只有 engine_profile_height_at 与
-# engine_profile_in_zone 两个，均为读形接口（结果经 out 参数返回、返回值仅表示
-# 成功与否），无写入通路。
-#
-# engine_profile 是允许的例外：轮廓查询是条件判断的合法输入。它自身也只持有一个
-# provider 指针，转发给项目实现的读接口。
+# 轮廓查询通过 engine_expr_env_t 的只读回调注入；求值器无需 include profile
+# provider 或其他领域端口，因此白名单只保留自身公共头与 common/。
 # -----------------------------------------------------------------------------
 EXPR_PURE_FILE="domain/program_engine/engine/engine_expr.c"
-EXPR_ALLOWED_INCLUDES='^(domain/program_engine/engine/engine_expr\.h|domain/program_engine/engine/engine_profile\.h|common/)'
+EXPR_ALLOWED_INCLUDES='^(domain/program_engine/engine/engine_expr\.h|common/)'
 
 expr_violations=""
 if [ -f "${FW_ROOT}/${EXPR_PURE_FILE}" ]; then
@@ -729,7 +725,7 @@ fi
 
 TOTAL_RULES=$((TOTAL_RULES + 1))
 if [ -z "$expr_violations" ]; then
-    echo "[PASS] R17: 表达式求值器依赖白名单（仅 common/ 与 engine_profile）"
+    echo "[PASS] R17: 表达式求值器依赖白名单（仅自身公共头与 common/）"
 else
     echo ""
     echo "[FAIL] R17: 表达式求值器引入了白名单外的依赖"

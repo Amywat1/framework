@@ -5,11 +5,9 @@
 
 #include "adapters/outbound/hal/sim/engine_actuator_sim.h"
 #include "common/sw_error.h"
+#include "domain/ports/outbound/program_engine/engine_environment_provider.h"
 #include "domain/program_engine/engine/engine.h"
-#include "domain/program_engine/engine/engine_actuator.h"
 #include "domain/program_engine/engine/engine_expr.h"
-#include "domain/program_engine/engine/engine_io.h"
-#include "domain/program_engine/engine/engine_profile.h"
 #include "domain/program_engine/model/engine_model.h"
 #include "domain/program_engine/model/engine_program_validate.h"
 #include "wdf_test_spec.h"
@@ -61,12 +59,19 @@ static bool profile_in_zone(void *ctx, const char *zone, double pos, bool defaul
     return true;
 }
 
+static bool s_profile_enabled;
+
 static int eval_int(const char *text, const expr_var_t *vars)
 {
     bool              ok   = false;
     engine_expr_t    *expr = engine_expr_compile(text);
-    engine_expr_env_t env  = {expr_resolve, (void *)vars};
-    double            value;
+    engine_expr_env_t env  = {
+         .resolve           = expr_resolve,
+         .profile_height_at = s_profile_enabled ? profile_height_at : NULL,
+         .profile_in_zone   = s_profile_enabled ? profile_in_zone : NULL,
+         .ctx               = (void *)vars,
+    };
+    double value;
 
     TEST_ASSERT_NOT_NULL(expr);
     value = engine_expr_eval(expr, &env, &ok);
@@ -79,8 +84,13 @@ static bool eval_bool_value(const char *text, const expr_var_t *vars)
 {
     bool              ok   = false;
     engine_expr_t    *expr = engine_expr_compile(text);
-    engine_expr_env_t env  = {expr_resolve, (void *)vars};
-    bool              value;
+    engine_expr_env_t env  = {
+         .resolve           = expr_resolve,
+         .profile_height_at = s_profile_enabled ? profile_height_at : NULL,
+         .profile_in_zone   = s_profile_enabled ? profile_in_zone : NULL,
+         .ctx               = (void *)vars,
+    };
+    bool value;
 
     TEST_ASSERT_NOT_NULL(expr);
     value = engine_expr_eval_bool(expr, &env, &ok);
@@ -103,8 +113,10 @@ typedef struct {
     bool        valid;
 } named_axis_t;
 
-static named_signal_t s_signals[IO_MAX];
-static named_axis_t   s_axes[IO_MAX];
+static named_signal_t       s_signals[IO_MAX];
+static named_axis_t         s_axes[IO_MAX];
+static engine_io_t          s_io;
+static engine_environment_t s_environment;
 
 static int find_signal(const char *name)
 {
@@ -126,28 +138,39 @@ static int find_axis(const char *name)
     return -1;
 }
 
-static int io_read_signal(const char *name)
+static sw_err_t io_read_signal(void *ctx, unsigned signal_id, int *out_value)
 {
-    int idx = find_signal(name);
-    return (idx >= 0) ? s_signals[idx].value : 0;
+    const engine_io_catalog_t *catalog = (const engine_io_catalog_t *)ctx;
+    int                        index;
+
+    if ((out_value == NULL) || (signal_id >= catalog->signal_count)) {
+        return SW_ERR_PARAM;
+    }
+    index = find_signal(catalog->signals[signal_id]);
+    if (index < 0) {
+        return SW_ERR_NOT_FOUND;
+    }
+    *out_value = s_signals[index].value;
+    return SW_OK;
 }
 
-static sw_err_t io_read_axis(const char *name, double *out_pos, double *out_speed, bool *out_valid)
+static sw_err_t io_read_axis(void *ctx, unsigned axis_id, engine_axis_sample_t *out_sample)
 {
-    int idx;
+    const engine_io_catalog_t *catalog = (const engine_io_catalog_t *)ctx;
+    int                        idx;
 
-    if ((name == NULL) || (out_pos == NULL) || (out_speed == NULL) || (out_valid == NULL)) {
+    if ((out_sample == NULL) || (axis_id >= catalog->axis_count)) {
         return SW_ERR_PARAM;
     }
 
-    idx = find_axis(name);
+    idx = find_axis(catalog->axes[axis_id]);
     if (idx < 0) {
         return SW_ERR_PARAM;
     }
 
-    *out_pos   = s_axes[idx].position;
-    *out_speed = s_axes[idx].speed;
-    *out_valid = s_axes[idx].valid;
+    out_sample->position = s_axes[idx].position;
+    out_sample->speed    = s_axes[idx].speed;
+    out_sample->valid    = s_axes[idx].valid;
     return SW_OK;
 }
 
@@ -180,13 +203,9 @@ static void io_reset(void)
     s_axes[0].speed    = 4.0;
     s_axes[0].valid    = true;
 
-    {
-        const engine_io_backend_t backend = {
-            .ops     = &s_io_ops,
-            .catalog = &s_io_catalog,
-        };
-        engine_io_register(&backend);
-    }
+    TEST_ASSERT_EQUAL_INT(SW_OK, engine_io_provider_bind(&s_io, &s_io_ops, (void *)&s_io_catalog, &s_io_catalog));
+    s_environment.io       = &s_io;
+    s_environment.actuator = engine_actuator_sim_instance();
 }
 
 static engine_expr_t *compile_ok(const char *text)
@@ -283,9 +302,8 @@ static engine_program_t *make_program(void)
 void setUp(void)
 {
     engine_actuator_sim_reset();
-    engine_actuator_sim_register();
     io_reset();
-    engine_profile_register(NULL);
+    s_profile_enabled = false;
 }
 
 void tearDown(void)
@@ -309,11 +327,6 @@ static void test_engine_expr_evaluates_arithmetic_logic_and_vars(void)
 
 static void test_engine_expr_evaluates_profile_functions(void)
 {
-    static const engine_profile_provider_t provider = {
-        .height_at = profile_height_at,
-        .in_zone   = profile_in_zone,
-        .ctx       = NULL,
-    };
     const expr_var_t vars[] = {
         {"axes.gantry.position", 150.0},
         {NULL,                   0.0  },
@@ -322,12 +335,12 @@ static void test_engine_expr_evaluates_profile_functions(void)
     TEST_ASSERT_TRUE(eval_bool_value("body_contains(150, 100, 200)", vars));
     TEST_ASSERT_TRUE(eval_bool_value("body_covers(150, 200, 100)", vars));
 
-    engine_profile_register(&provider);
+    s_profile_enabled = true;
     TEST_ASSERT_EQUAL_INT(160, eval_int("profile.height_at(axes.gantry.position, 0)", vars));
     TEST_ASSERT_TRUE(eval_bool_value("profile.in_zone(\"mirror\", axes.gantry.position, false)", vars));
     TEST_ASSERT_FALSE(eval_bool_value("profile.in_zone('roof', axes.gantry.position, false)", vars));
 
-    engine_profile_register(NULL);
+    s_profile_enabled = false;
     TEST_ASSERT_EQUAL_INT(77, eval_int("profile.height_at(axes.gantry.position, 77)", vars));
     TEST_ASSERT_TRUE(eval_bool_value("profile.in_zone(\"missing\", axes.gantry.position, true)", vars));
 }
@@ -393,7 +406,7 @@ static void test_engine_expr_whitelist_all_evaluable(void)
     TEST_ASSERT_TRUE(eval_bool_value("body_covers(150, 200, 100)", vars));
 
     /* provider 未注册时走默认值分支，同样要求 ok 为真 */
-    engine_profile_register(NULL);
+    s_profile_enabled = false;
     TEST_ASSERT_EQUAL_INT(42, eval_int("profile.height_at(1, 42)", vars));
     TEST_ASSERT_TRUE(eval_bool_value("profile.in_zone(\"z\", 1, 1)", vars));
 }
@@ -413,7 +426,9 @@ static void test_engine_model_parse_clone_and_validate(void)
     TEST_ASSERT_FALSE(engine_direction_from_str("sideways", &dir));
 
     TEST_ASSERT_EQUAL_INT(
-        SW_OK, engine_program_validate(prog, &s_io_catalog, engine_actuator_get_catalog(), err, sizeof(err)));
+        SW_OK,
+        engine_program_validate(
+            prog, &s_io_catalog, engine_actuator_catalog(s_environment.actuator), NULL, err, sizeof(err)));
 
     copy = engine_program_clone(prog);
     TEST_ASSERT_NOT_NULL(copy);
@@ -436,7 +451,9 @@ static void test_engine_validate_rejects_unknown_after(void)
                    "missing");
 
     TEST_ASSERT_EQUAL_INT(
-        SW_ERR_PARAM, engine_program_validate(prog, &s_io_catalog, engine_actuator_get_catalog(), err, sizeof(err)));
+        SW_ERR_PARAM,
+        engine_program_validate(
+            prog, &s_io_catalog, engine_actuator_catalog(s_environment.actuator), NULL, err, sizeof(err)));
     TEST_ASSERT_GREATER_THAN_INT(0, (int)strlen(err));
 
     engine_program_free(prog);
@@ -444,7 +461,7 @@ static void test_engine_validate_rejects_unknown_after(void)
 
 static void test_engine_runtime_runs_steps_and_finishes_phase(void)
 {
-    engine_t         *engine = engine_create();
+    engine_t         *engine = engine_create(&s_environment);
     engine_program_t *prog   = make_program();
 
     TEST_ASSERT_NOT_NULL(engine);
@@ -489,6 +506,14 @@ static void test_engine_runtime_auto_releases_held_except_keep(void)
     (void)snprintf(prog->schema_version, sizeof(prog->schema_version), "%s", "1.0");
     (void)snprintf(prog->id, sizeof(prog->id), "%s", "keep_ut");
     (void)snprintf(prog->name, sizeof(prog->name), "%s", "keep_ut");
+
+    prog->interlock_count = 1U;
+    prog->interlocks      = (engine_interlock_t *)calloc(1U, sizeof(engine_interlock_t));
+    TEST_ASSERT_NOT_NULL(prog->interlocks);
+    (void)snprintf(prog->interlocks[0].id, sizeof(prog->interlocks[0].id), "%s", "estop");
+    prog->interlocks[0].condition       = compile_ok("ESTOP == 1");
+    prog->interlocks[0].reset_condition = compile_ok("ESTOP == 0");
+    prog->interlocks[0].action          = ENGINE_ILK_HALT_ALL;
 
     prog->phase_count = 2U;
     prog->phases      = (engine_phase_t *)calloc(2U, sizeof(engine_phase_t));
@@ -551,7 +576,7 @@ static void test_engine_runtime_auto_releases_held_except_keep(void)
     step->trigger.cond = compile_ok("false");
     step->done.type    = ENGINE_DONE_ACTIONS_COMPLETE;
 
-    engine = engine_create();
+    engine = engine_create(&s_environment);
     TEST_ASSERT_NOT_NULL(engine);
     TEST_ASSERT_EQUAL_INT(SW_OK, engine_load_program(engine, prog));
     TEST_ASSERT_EQUAL_INT(SW_OK, engine_start(engine));
@@ -576,7 +601,7 @@ static void test_engine_runtime_auto_releases_held_except_keep(void)
 
 static void test_engine_runtime_halt_all_interlock_clears_outputs(void)
 {
-    engine_t         *engine = engine_create();
+    engine_t         *engine = engine_create(&s_environment);
     engine_program_t *prog   = make_program();
 
     TEST_ASSERT_NOT_NULL(engine);

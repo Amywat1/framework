@@ -15,8 +15,7 @@ extern "C" {
 #endif
 
 #include "common/sw_error.h"
-#include "domain/program_engine/engine/engine_actuator.h"
-#include "domain/program_engine/engine/engine_io.h"
+#include "domain/ports/outbound/program_engine/engine_environment_port.h"
 #include "domain/program_engine/model/engine_model.h"
 
 /**
@@ -24,6 +23,7 @@ extern "C" {
  * @param  prog         已解析的方案，不可为空
  * @param  io_catalog   DI/轴目录，可为空
  * @param  act_catalog  执行机构资源/水路路径目录，可为空
+ * @param  var_catalog  项目变量目录，可为空
  * @param  err          错误描述输出缓冲，可为空
  * @param  errsz        缓冲大小
  * @retval SW_OK        校验通过
@@ -32,6 +32,7 @@ extern "C" {
 sw_err_t engine_program_validate(const engine_program_t          *prog,
                                  const engine_io_catalog_t       *io_catalog,
                                  const engine_actuator_catalog_t *act_catalog,
+                                 const engine_variable_catalog_t *var_catalog,
                                  char                            *err,
                                  unsigned                         errsz);
 

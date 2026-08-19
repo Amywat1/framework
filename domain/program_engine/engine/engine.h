@@ -6,7 +6,7 @@
  *
  * @note    引擎加载方案后，由外部以固定周期调用 engine_tick(dt_ms) 推进：
  *          联锁监控（最高优先级）→ 标记锁存 → 阶段串行 → 通道并行步骤。
- *          所有 IO 经 engine_io 后端按名读写，引擎不感知具体硬件。
+ *          所有 IO、执行机构和项目变量能力均经每实例运行环境句柄访问；引擎不感知具体硬件。
  */
 
 #ifndef DOMAIN_PROGRAM_ENGINE_ENGINE_ENGINE_H
@@ -17,6 +17,7 @@ extern "C" {
 #endif
 
 #include "common/sw_error.h"
+#include "domain/ports/outbound/program_engine/engine_environment_port.h"
 #include "domain/program_engine/model/engine_model.h"
 
 #include <stdbool.h>
@@ -28,17 +29,19 @@ typedef enum {
     ENGINE_STATE_RUNNING,      /* 正在执行阶段 */
     ENGINE_STATE_PHASE_HALTED, /* halt_phase：等待恢复 */
     ENGINE_STATE_HALTED,       /* halt_all：程序终止 */
-    ENGINE_STATE_DONE          /* 全部阶段完成 */
+    ENGINE_STATE_DONE,         /* 全部阶段完成 */
+    ENGINE_STATE_FAULT         /* 运行环境端口失败，已执行安全全停 */
 } engine_run_state_t;
 
 /** 引擎实例（不透明） */
 typedef struct engine engine_t;
 
 /**
- * @brief  创建引擎实例
+ * @brief  创建引擎实例并锁存运行环境
+ * @param  environment  完整运行环境；其中句柄及 provider 状态须覆盖引擎生命周期
  * @return 实例指针；失败返回 NULL
  */
-engine_t *engine_create(void);
+engine_t *engine_create(const engine_environment_t *environment);
 
 /**
  * @brief  销毁引擎实例（同时释放其持有的方案）
@@ -61,14 +64,10 @@ sw_err_t engine_start(engine_t *e);
  * @brief  推进一个时间片
  * @param  dt_ms  本次时间片长度（毫秒）
  */
-void engine_tick(engine_t *e, uint32_t dt_ms);
+sw_err_t engine_tick(engine_t *e, uint32_t dt_ms);
 
-/**
- * @brief  注册每拍预处理钩子（在 markers_tick 之前调用）
- * @param  fn   回调；传 NULL 清除
- * @param  ctx  回调上下文
- */
-void engine_set_pre_tick(void (*fn)(void *ctx), void *ctx);
+/** @brief 查询最近一次运行期端口错误；无错误返回 SW_OK。 */
+sw_err_t engine_last_error(const engine_t *e);
 
 /**
  * @brief  从 halt_phase 恢复，重新进入当前阶段

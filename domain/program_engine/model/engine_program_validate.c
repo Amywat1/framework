@@ -8,7 +8,6 @@
 #include "domain/program_engine/model/engine_program_validate.h"
 
 #include "domain/program_engine/engine/engine_expr.h"
-#include "domain/program_engine/engine/engine_var.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -82,6 +81,7 @@ typedef struct {
     const engine_program_t          *prog;
     const engine_io_catalog_t       *io_catalog;
     const engine_actuator_catalog_t *act_catalog;
+    const engine_variable_catalog_t *var_catalog;
     char                            *err;
     unsigned                         errsz;
     bool                             ok;
@@ -165,7 +165,7 @@ static bool resolve_var_name(const char *name, var_ctx_t *ctx)
         return true;
     }
 
-    if (engine_var_name_known(name)) {
+    if ((ctx->var_catalog != NULL) && name_in_list(name, ctx->var_catalog->names, ctx->var_catalog->name_count)) {
         return true;
     }
 
@@ -278,6 +278,7 @@ static bool has_estop_interlock(const engine_program_t *prog)
 sw_err_t engine_program_validate(const engine_program_t          *prog,
                                  const engine_io_catalog_t       *io_catalog,
                                  const engine_actuator_catalog_t *act_catalog,
+                                 const engine_variable_catalog_t *var_catalog,
                                  char                            *err,
                                  unsigned                         errsz)
 {
@@ -303,6 +304,13 @@ sw_err_t engine_program_validate(const engine_program_t          *prog,
     if (!has_estop_interlock(prog)) {
         vfail(werr, wsz, "%s", "缺少 estop 联锁");
         return SW_ERR_PARAM;
+    }
+
+    for (unsigned a = 0U; a < prog->axis_count; ++a) {
+        if ((io_catalog != NULL) && !name_in_list(prog->axes[a].id, io_catalog->axes, io_catalog->axis_count)) {
+            vfail(werr, wsz, "方案引用未知物理轴: %s", prog->axes[a].id);
+            return SW_ERR_PARAM;
+        }
     }
 
     for (unsigned m = 0U; m < prog->marker_count; ++m) {
@@ -331,6 +339,7 @@ sw_err_t engine_program_validate(const engine_program_t          *prog,
         .prog        = prog,
         .io_catalog  = io_catalog,
         .act_catalog = act_catalog,
+        .var_catalog = var_catalog,
         .err         = werr,
         .errsz       = wsz,
         .ok          = true,

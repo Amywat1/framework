@@ -229,7 +229,7 @@ add_unit_test(test_asset_contract
     ${WDF_ROOT}/domain/cloud/cloud_point_dispatch.c
     ${WDF_ROOT}/domain/cloud/cloud_point_validate.c
     ${WDF_ROOT}/domain/cloud/cloud_point_watcher.c
-    ${WDF_ROOT}/domain/program_engine/engine/engine_io.c
+    ${WDF_ROOT}/domain/ports/outbound/program_engine/engine_environment_port.c
     ${WDF_ROOT}/domain/safety/alarm_registry/alarm_registry.c
     ${WDF_ROOT}/common/point_table/point_table.c
     ${WDF_ROOT}/adapters/outbound/serialization/json/point_table_from_json.c
@@ -443,11 +443,8 @@ add_unit_test(test_program_engine
     ${CMAKE_CURRENT_SOURCE_DIR}/domain/test_program_engine.c
     ${WDF_ROOT}/domain/program_engine/engine/engine.c
     ${WDF_ROOT}/domain/program_engine/engine/engine_expr.c
-    ${WDF_ROOT}/domain/program_engine/engine/engine_io.c
-    ${WDF_ROOT}/domain/program_engine/engine/engine_var.c
-    ${WDF_ROOT}/domain/program_engine/engine/engine_actuator.c
+    ${WDF_ROOT}/domain/ports/outbound/program_engine/engine_environment_port.c
     ${WDF_ROOT}/adapters/outbound/hal/sim/engine_actuator_sim.c
-    ${WDF_ROOT}/domain/program_engine/engine/engine_profile.c
     ${WDF_ROOT}/domain/program_engine/model/engine_model.c
     ${WDF_ROOT}/domain/program_engine/model/engine_program_validate.c
     ${WDF_ROOT}/adapters/outbound/storage/json/engine_program_manifest.c
@@ -473,17 +470,14 @@ add_unit_test(test_engine_session
     ${WDF_ROOT}/adapters/outbound/storage/json/engine_program_json.c
     ${WDF_ROOT}/common/asset_version.c
     ${WDF_ROOT}/adapters/outbound/hal/sim/engine_io_sim.c
-    ${WDF_ROOT}/domain/program_engine/engine/engine_actuator.c
     ${WDF_ROOT}/adapters/outbound/hal/sim/engine_actuator_sim.c
+    ${WDF_ROOT}/domain/ports/outbound/program_engine/engine_environment_port.c
     ${WDF_ROOT}/domain/ports/outbound/storage/engine_program_loader_port.c
     ${WDF_ROOT}/runtime/scheduler/thread_registry.c
     ${WDF_ROOT}/runtime/scheduler/scheduler.c
     ${WDF_ROOT}/runtime/event_bus/event_bus.c
     ${WDF_ROOT}/domain/program_engine/engine/engine.c
     ${WDF_ROOT}/domain/program_engine/engine/engine_expr.c
-    ${WDF_ROOT}/domain/program_engine/engine/engine_io.c
-    ${WDF_ROOT}/domain/program_engine/engine/engine_var.c
-    ${WDF_ROOT}/domain/program_engine/engine/engine_profile.c
     ${WDF_ROOT}/domain/program_engine/model/engine_model.c
     ${WDF_ROOT}/domain/program_engine/model/engine_program_validate.c
     ${WDF_ROOT}/adapters/outbound/storage/json/engine_program_manifest.c
@@ -606,14 +600,11 @@ add_unit_test(test_engine_program_json
     ${WDF_ROOT}/common/asset_version.c
     ${WDF_ROOT}/adapters/outbound/storage/json/engine_program_json.c
     ${WDF_ROOT}/adapters/outbound/hal/sim/engine_io_sim.c
-    ${WDF_ROOT}/domain/program_engine/engine/engine_actuator.c
     ${WDF_ROOT}/adapters/outbound/hal/sim/engine_actuator_sim.c
+    ${WDF_ROOT}/domain/ports/outbound/program_engine/engine_environment_port.c
     ${WDF_ROOT}/domain/ports/outbound/storage/engine_program_loader_port.c
     ${WDF_ROOT}/domain/program_engine/engine/engine.c
     ${WDF_ROOT}/domain/program_engine/engine/engine_expr.c
-    ${WDF_ROOT}/domain/program_engine/engine/engine_io.c
-    ${WDF_ROOT}/domain/program_engine/engine/engine_var.c
-    ${WDF_ROOT}/domain/program_engine/engine/engine_profile.c
     ${WDF_ROOT}/domain/program_engine/model/engine_model.c
     ${WDF_ROOT}/domain/program_engine/model/engine_program_validate.c
     ${WDF_ROOT}/adapters/outbound/storage/json/engine_program_manifest.c

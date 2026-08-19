@@ -116,21 +116,21 @@ static void test_engine_session_runs_to_done(void)
 
     time_util_init();
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
-    engine_io_sim_register();
     engine_io_sim_reset();
     engine_actuator_sim_reset();
-    engine_actuator_sim_register();
     engine_program_json_register_loader();
     write_program_file();
 
     TEST_ASSERT_TRUE(engine_session_size() <= sizeof(s_session_buf));
 
     memset(&cfg, 0, sizeof(cfg));
-    cfg.thread_name     = "test_engine_session";
-    cfg.stack_size      = THD_WASH_WORKER_STACK;
-    cfg.tick_ms         = 50U;
-    cfg.startup_wait_ms = 4500U;
-    cfg.integrity_check = false;
+    cfg.thread_name          = "test_engine_session";
+    cfg.stack_size           = THD_WASH_WORKER_STACK;
+    cfg.tick_ms              = 50U;
+    cfg.startup_wait_ms      = 4500U;
+    cfg.integrity_check      = false;
+    cfg.environment.io       = engine_io_sim_instance();
+    cfg.environment.actuator = engine_actuator_sim_instance();
 
     TEST_ASSERT_EQUAL_INT(SW_OK, engine_session_init(s_session_buf, &cfg));
     TEST_ASSERT_EQUAL_INT(SW_OK, scheduler_start_all());

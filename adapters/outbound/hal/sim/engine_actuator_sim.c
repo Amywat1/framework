@@ -6,7 +6,7 @@
 #include "adapters/outbound/hal/sim/engine_actuator_sim.h"
 
 #include "common/sw_error.h"
-#include "domain/program_engine/engine/engine_actuator.h"
+#include "domain/ports/outbound/program_engine/engine_environment_provider.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -20,8 +20,10 @@ typedef struct {
     int  gear;
 } sim_res_t;
 
-static sim_res_t s_res[SIM_RES_MAX];
-static unsigned  s_res_count;
+static sim_res_t         s_res[SIM_RES_MAX];
+static unsigned          s_res_count;
+static engine_actuator_t s_handle;
+static bool              s_bound;
 
 static const char *const s_resources[]
     = {"aout", "bout", "ctrl", "gantry", "lift", "rear_lock", "brush_top", "brush_side", "fan", "water", "roof_follow"};
@@ -51,14 +53,15 @@ static sim_res_t *find_or_add(const char *name)
     return &s_res[s_res_count++];
 }
 
-static sw_err_t sim_apply(const engine_intent_t *intent)
+static sw_err_t sim_apply(void *ctx, unsigned resource_id, const engine_intent_t *intent)
 {
-    sim_res_t *r;
+    sim_res_t                       *r;
+    const engine_actuator_catalog_t *catalog = (const engine_actuator_catalog_t *)ctx;
 
-    if ((intent == NULL) || (intent->resource[0] == '\0')) {
+    if ((intent == NULL) || (resource_id >= catalog->resource_count)) {
         return SW_ERR_PARAM;
     }
-    r = find_or_add(intent->resource);
+    r = find_or_add(catalog->resources[resource_id]);
     if (r == NULL) {
         return SW_ERR_OVERFLOW;
     }
@@ -74,18 +77,24 @@ static sw_err_t sim_apply(const engine_intent_t *intent)
     return SW_OK;
 }
 
-static sw_err_t sim_release(const char *resource)
+static sw_err_t sim_release(void *ctx, unsigned resource_id)
 {
-    engine_intent_t stop;
+    engine_intent_t                  stop;
+    const engine_actuator_catalog_t *catalog = (const engine_actuator_catalog_t *)ctx;
+
+    if (resource_id >= catalog->resource_count) {
+        return SW_ERR_PARAM;
+    }
 
     (void)memset(&stop, 0, sizeof(stop));
-    (void)snprintf(stop.resource, sizeof(stop.resource), "%s", resource);
+    (void)snprintf(stop.resource, sizeof(stop.resource), "%s", catalog->resources[resource_id]);
     (void)snprintf(stop.cmd, sizeof(stop.cmd), "%s", "stop");
-    return sim_apply(&stop);
+    return sim_apply(ctx, resource_id, &stop);
 }
 
-static sw_err_t sim_halt_all(void)
+static sw_err_t sim_halt_all(void *ctx)
 {
+    (void)ctx;
     for (unsigned i = 0U; i < s_res_count; ++i) {
         s_res[i].active = 0;
         s_res[i].gear   = 0;
@@ -100,13 +109,12 @@ static const engine_actuator_ops_t s_ops = {
     .halt_all = sim_halt_all,
 };
 
-void engine_actuator_sim_register(void)
+engine_actuator_t *engine_actuator_sim_instance(void)
 {
-    static const engine_actuator_backend_t s_backend = {
-        .ops     = &s_ops,
-        .catalog = &s_catalog,
-    };
-    engine_actuator_register(&s_backend);
+    if (!s_bound) {
+        s_bound = engine_actuator_provider_bind(&s_handle, &s_ops, (void *)&s_catalog, &s_catalog) == SW_OK;
+    }
+    return s_bound ? &s_handle : NULL;
 }
 
 void engine_actuator_sim_reset(void)

@@ -71,6 +71,8 @@ typedef struct {
     int  gear;                 /**< 1 基挡位；0 常表示停 */
     char (*paths)[ENGINE_NAME_MAX];
     unsigned path_count;
+    unsigned resource_id;    /**< 加载到引擎时绑定的 provider 资源 ID */
+    bool     resource_bound; /**< resource_id 是否有效 */
 } engine_intent_t;
 
 /* 动作原语 */
@@ -86,6 +88,8 @@ typedef struct {
     engine_expr_t        *cond;                    /* condition：编译后的表达式 */
     char                  signal[ENGINE_NAME_MAX]; /* signal：信号名 */
     engine_edge_t         edge;                    /* signal：边沿/电平 */
+    unsigned              signal_id;               /**< 加载到引擎时绑定的 provider 信号 ID */
+    bool                  signal_bound;            /**< signal_id 是否有效 */
 } engine_trigger_t;
 
 /* 完成条件 */
@@ -95,6 +99,8 @@ typedef struct {
     int                state;                   /* signal：目标状态 */
     uint32_t           timeout_ms;              /* signal/timeout：超时（0=无） */
     uint32_t           confirm_ms;              /* signal：连续为真确认窗（0=首拍即完成） */
+    unsigned           signal_id;               /**< 加载到引擎时绑定的 provider 信号 ID */
+    bool               signal_bound;            /**< signal_id 是否有效 */
 } engine_done_t;
 
 /* 步骤（event / control） */

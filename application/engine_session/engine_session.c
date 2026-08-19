@@ -10,8 +10,8 @@
 #include "common/log.h"
 #include "common/time_util.h"
 #include "common/trace_context.h"
-#include "domain/program_engine/model/engine_model.h"
 #include "domain/ports/outbound/storage/engine_program_loader_port.h"
+#include "domain/program_engine/model/engine_model.h"
 #include "runtime/scheduler/thread_registry.h"
 
 #include <pthread.h>
@@ -158,7 +158,7 @@ static sw_err_t worker_prepare_engine(engine_session_t *s, engine_t **out_engine
         }
     }
 
-    e = engine_create();
+    e = engine_create(&s->cfg.environment);
     if (e == NULL) {
         LOG_ERROR("engine_session: engine_create OOM");
         engine_program_free(prog);
@@ -260,7 +260,10 @@ static void *engine_session_worker_fn(void *arg)
                     break;
                 }
 
-                engine_tick(e, s->cfg.tick_ms);
+                if (engine_tick(e, s->cfg.tick_ms) != SW_OK) {
+                    LOG_ERROR("engine_session: tick failed ret=%d", (int)engine_last_error(e));
+                    break;
+                }
                 atomic_store(&s->s_current_direction, (int)engine_current_direction(e));
 
                 {
@@ -325,7 +328,8 @@ sw_err_t engine_session_init(void *storage, const engine_session_config_t *cfg)
     engine_session_t *s = as_session(storage);
 
     if ((storage == NULL) || (cfg == NULL) || (cfg->thread_name == NULL) || (cfg->stack_size == 0U)
-        || (cfg->tick_ms == 0U) || (cfg->startup_wait_ms == 0U)) {
+        || (cfg->tick_ms == 0U) || (cfg->startup_wait_ms == 0U)
+        || (engine_environment_validate(&cfg->environment) != SW_OK)) {
         return SW_ERR_PARAM;
     }
 

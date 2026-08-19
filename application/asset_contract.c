@@ -9,7 +9,7 @@
 
 #include "common/log.h"
 #include "domain/cloud/cloud_model.h"
-#include "domain/program_engine/engine/engine_io.h"
+#include "domain/ports/outbound/program_engine/engine_environment_port.h"
 #include "domain/safety/alarm_registry/alarm_registry.h"
 
 #include <stdbool.h>
@@ -36,13 +36,14 @@ static bool cloud_point_table_present(void)
 
 /* 目录本身可注册但两个数组皆空——那与未注册等价：方案加载期无法校验任何
  * signal/axis 名称，非法名称会一路通过直到求值期。故要求至少一项非空。 */
-static bool engine_io_catalog_present(void)
+static bool engine_io_catalog_present(const engine_environment_t *environment)
 {
-    const engine_io_catalog_t *cat = engine_io_get_catalog();
+    const engine_io_catalog_t *cat;
 
-    if (cat == NULL) {
+    if ((environment == NULL) || (engine_environment_validate(environment) != SW_OK)) {
         return false;
     }
+    cat = engine_io_catalog(environment->io);
     return (cat->signal_count > 0U) || (cat->axis_count > 0U);
 }
 
@@ -50,7 +51,6 @@ static bool engine_io_catalog_present(void)
 static const asset_contract_entry_t k_entries[] = {
     {ASSET_REQ_ALARM_CATALOG,     "alarm_catalog",     alarm_catalog_present    },
     {ASSET_REQ_CLOUD_POINT_TABLE, "cloud_point_table", cloud_point_table_present},
-    {ASSET_REQ_ENGINE_IO_CATALOG, "engine_io_catalog", engine_io_catalog_present},
 };
 
 #define ASSET_CONTRACT_ENTRY_COUNT (sizeof(k_entries) / sizeof(k_entries[0]))
@@ -64,10 +64,13 @@ const char *asset_contract_name(asset_requirement_t requirement)
             return k_entries[i].name;
         }
     }
+    if (requirement == ASSET_REQ_ENGINE_IO_CATALOG) {
+        return "engine_io_catalog";
+    }
     return "unknown";
 }
 
-sw_err_t asset_contract_validate(uint32_t required)
+sw_err_t asset_contract_validate(uint32_t required, const engine_environment_t *engine_environment)
 {
     unsigned missing_count = 0U;
     unsigned checked_count = 0U;
@@ -93,6 +96,15 @@ sw_err_t asset_contract_validate(uint32_t required)
         checked_count++;
         if (!e->present()) {
             LOG_ERROR("asset_contract: 必需资产缺失或为空 [%s]", e->name);
+            missing_count++;
+        }
+    }
+
+    known_mask |= (uint32_t)ASSET_REQ_ENGINE_IO_CATALOG;
+    if ((required & (uint32_t)ASSET_REQ_ENGINE_IO_CATALOG) != 0U) {
+        checked_count++;
+        if (!engine_io_catalog_present(engine_environment)) {
+            LOG_ERROR("asset_contract: 必需资产缺失或为空 [engine_io_catalog]");
             missing_count++;
         }
     }

@@ -34,11 +34,12 @@ typedef struct {
  * @brief  会话静态配置（init 时拷贝；指针须在会话生命周期内有效）
  */
 typedef struct {
-    const char *thread_name;     /**< worker 线程名 */
-    size_t      stack_size;      /**< worker 栈大小 */
-    uint32_t    tick_ms;         /**< tick 周期 */
-    uint32_t    startup_wait_ms; /**< start() 等待 engine_start 超时 */
-    bool        integrity_check; /**< 是否校验 manifest */
+    const char          *thread_name;     /**< worker 线程名 */
+    size_t               stack_size;      /**< worker 栈大小 */
+    uint32_t             tick_ms;         /**< tick 周期 */
+    uint32_t             startup_wait_ms; /**< start() 等待 engine_start 超时 */
+    bool                 integrity_check; /**< 是否校验 manifest */
+    engine_environment_t environment;     /**< 每个引擎实例锁存的完整运行环境 */
 } engine_session_config_t;
 
 /**
