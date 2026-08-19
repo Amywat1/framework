@@ -138,7 +138,7 @@ adapters/outbound/hal
 
 ### 3.5 电机执行器：`hal_motor_exec_port`
 
-电机执行器采用不透明句柄 `hal_motor_exec_t`，不是 register/get ops 单例。项目 bindings 静态持有真实执行器对象，并把 `hal_motor_exec_t `* 注入设备控制模式。
+电机执行器采用类型安全的不透明句柄 `hal_motor_exec_t`，不是 register/get ops 单例。端口内部按每实例 `ops + ctx` 分派，可同时承载真实执行器、sim 或 fake。项目 bindings 只持有 `hal_motor_exec_t *` 并注入设备控制模式，不知道句柄布局和执行器状态。
 
 
 | 能力    | API                                                                                                                                                      |
@@ -242,9 +242,9 @@ Sim 后端用于 demo 与单元测试，不表达真实设备时序保证。
 
 ### 5.2 电机执行器组合件
 
-`adapters/outbound/hal/components/motor_exec/` 提供与 vendor 无关的电机运动状态机，并由 `hal_motor_executor.c` 实现 `hal_motor_exec_port`（`hal_motor_*` 符号）。源文件纳入 `wdf_hal_components`。
+`adapters/outbound/hal/components/motor_exec/` 提供与 vendor 无关的电机运动状态机。`hal_motor_exec_port.c` 实现通用 `ops + ctx` 分派，`hal_motor_executor.c` 实现真实 provider 并纳入 `wdf_hal_components`。
 
-项目 bindings 静态分配 `motor_executor_t`、注入驱动/编码器/限位/急停端口并 `motor_init`，再以 `hal_motor_exec_t *` 注入 `domain/device_control/patterns`。
+真实执行器的配置、单电机状态和事件队列全部位于适配器私有的编译期槽池，槽位数由 `WDF_MOTOR_EXECUTOR_INSTANCE_COUNT` 确定。项目 bindings 作为 composition root，只向 `motor_executor_bind(slot_id, cfg, ports, &exec)` 提交稳定 slot ID 与驱动/编码器/限位/急停端口，再把返回的 `hal_motor_exec_t *` 注入 `domain/device_control/patterns`。槽位只在启动装配阶段绑定一次，运行期不释放；致命错误通过 `motor_executor_reinit()` 恢复，因而无堆内存、无悬空句柄。
 
 ### 5.3 Snack io_exp provider
 
@@ -423,4 +423,3 @@ bootstrap_start()
 - `doc/module-design/domain/方案引擎模块设计.md` — engine IO 与 HAL/sim 的边界
 - `doc/module-design/runtime/EventBus模块设计.md` — HAL 边沿事件与异步分发
 - `doc/module-design/domain/报警系统模块设计.md` — HAL 事件到报警 registry 的项目侧映射边界
-

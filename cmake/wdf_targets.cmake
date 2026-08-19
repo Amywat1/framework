@@ -124,6 +124,7 @@ _wdf_add_interface_lib(wdf_ports
         runtime/ports/port_registry_safety.c
         runtime/ports/port_registry_cloud.c
         runtime/ports/port_registry_infra.c
+        domain/ports/outbound/motor/hal_motor_exec_port.c
         domain/ports/outbound/storage/engine_program_loader_port.c
     DEPENDS
         wdf_common

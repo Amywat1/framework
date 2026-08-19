@@ -250,7 +250,7 @@ typedef struct {
 - 在 `project_configure_hal()` 下发 IO 名称表、串口、地址、点位等配置。
 - 在 `project_bind_hal()` 绑定传感器通道、VFD 实例、backend 与事件回调。
 - 在 `project_init_hal()` 执行传感器预热等依赖 HAL init 后的项目初始化。
-- 创建并注入 `hal_motor_exec_t` 给设备控制模式。
+- 通过 `motor_executor_bind()` 绑定项目选定的静态槽位，并把返回的 `hal_motor_exec_t *` 注入设备控制模式。
 - 经 `safety_port_register()` 注册 `safety_ops_t`，提供急停输入与安全切断实现。
 
 ### 6.3 Domain / Application
