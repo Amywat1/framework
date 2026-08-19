@@ -497,6 +497,32 @@ static void test_motor_axis_poll_publishes_completed_on_idle(void)
     event_bus_shutdown();
 }
 
+static void test_motor_axis_is_settled_after_idle_poll(void)
+{
+    motor_axis_t            axis;
+    motion_lifecycle_opts_t opts;
+    hal_motor_exec_t       *exec = (hal_motor_exec_t *)s_motor;
+
+    memset(&axis, 0, sizeof(axis));
+    time_util_init();
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
+
+    TEST_ASSERT_TRUE(motor_axis_is_settled(&axis));
+    opts.motion_actuator_id = 13U;
+    opts.on_motion_end      = NULL;
+    TEST_ASSERT_EQUAL_INT(SW_OK, motor_axis_init(&axis, exec, 0, &opts));
+    TEST_ASSERT_TRUE(motor_axis_is_settled(&axis));
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, motor_axis_run(&axis, HAL_MOTOR_DIR_FORWARD, hal_motor_speed_gear(1), NULL));
+    TEST_ASSERT_FALSE(motor_axis_is_settled(&axis));
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, motor_axis_stop(&axis));
+    TEST_ASSERT_FALSE(motor_axis_is_settled(&axis));
+    motor_axis_poll(&axis);
+    TEST_ASSERT_TRUE(motor_axis_is_settled(&axis));
+    event_bus_shutdown();
+}
+
 static void test_motor_axis_poll_skips_waiting_start(void)
 {
     motor_axis_t            axis;
@@ -826,6 +852,7 @@ int main(void)
     WDF_RUN_TEST(test_motor_axis_continuous_stop_and_recover, "", "验证电机轴连续运行停止并恢复");
     WDF_RUN_TEST(test_motor_axis_preserves_frequency_speed, "", "验证电机轴保留频率速度");
     WDF_RUN_TEST(test_motor_axis_poll_publishes_completed_on_idle, "", "验证电机轴在空闲边沿发布完成事件");
+    WDF_RUN_TEST(test_motor_axis_is_settled_after_idle_poll, "", "验证电机轴运行后未结算、空闲消费后已结算");
     WDF_RUN_TEST(test_motor_axis_poll_skips_waiting_start, "", "验证排队启动态不发布完成事件");
     WDF_RUN_TEST(test_motor_axis_poll_reports_limit_end_then_idle, "", "验证电机轴先上报限位结局再发空闲事件");
     WDF_RUN_TEST(test_fluid_path_reference_counts_shared_pump, "", "验证流体路径对共享水泵进行引用计数");

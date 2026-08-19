@@ -52,7 +52,8 @@ typedef enum {
     ENGINE_DONE_ACTIONS_COMPLETE = 0,
     ENGINE_DONE_TRIGGER_EXIT,
     ENGINE_DONE_SIGNAL,
-    ENGINE_DONE_TIMEOUT
+    ENGINE_DONE_TIMEOUT,
+    ENGINE_DONE_MOTION /**< 轴结算；可选叠加光电 */
 } engine_done_type_t;
 
 /* 步骤类型 */
@@ -91,10 +92,11 @@ typedef struct {
 /* 完成条件 */
 typedef struct {
     engine_done_type_t type;
-    char               signal[ENGINE_NAME_MAX]; /* signal：等待的信号名 */
-    int                state;                   /* signal：目标状态 */
-    uint32_t           timeout_ms;              /* signal/timeout：超时（0=无） */
-    uint32_t           confirm_ms;              /* signal：连续为真确认窗（0=首拍即完成） */
+    char               signal[ENGINE_NAME_MAX];   /* signal/motion：等待的信号名；motion 可空 */
+    int                state;                     /* signal/motion：目标状态 */
+    uint32_t           timeout_ms;                /* signal/timeout/motion：超时（0=无） */
+    uint32_t           confirm_ms;                /* signal/motion：连续为真确认窗（0=首拍即完成） */
+    char               resource[ENGINE_NAME_MAX]; /* motion：等待结算的资源名 */
 } engine_done_t;
 
 /* 步骤（event / control） */

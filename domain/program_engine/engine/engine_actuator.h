@@ -51,6 +51,14 @@ typedef struct {
      * @retval SW_OK 成功；其它为错误
      */
     sw_err_t (*halt_all)(void);
+
+    /**
+     * @brief  资源是否已结算（轴 IDLE 且运动结局已消费）
+     * @param  resource  资源名，不可为空
+     * @return true 已结算或该资源无需结算；false 仍有未完成运动
+     * @note   可为 NULL：done.type=motion 时视为已结算，避免无轴后端的测试卡住。
+     */
+    bool (*is_settled)(const char *resource);
 } engine_actuator_ops_t;
 
 typedef struct {

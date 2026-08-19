@@ -521,6 +521,10 @@ bool engine_done_type_from_str(const char *s, engine_done_type_t *out)
         *out = ENGINE_DONE_TIMEOUT;
         return true;
     }
+    if (strcmp(s, "motion") == 0) {
+        *out = ENGINE_DONE_MOTION;
+        return true;
+    }
     return false;
 }
 

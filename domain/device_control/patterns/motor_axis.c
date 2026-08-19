@@ -240,3 +240,11 @@ void motor_axis_poll(motor_axis_t *self)
     self->awaiting_idle = false;
     motion_lifecycle_publish_completed(&self->opts);
 }
+
+bool motor_axis_is_settled(const motor_axis_t *self)
+{
+    if ((self == NULL) || !self->inited) {
+        return true;
+    }
+    return !self->awaiting_idle && (motor_axis_state(self) != MOTOR_AXIS_STATE_MOVING);
+}

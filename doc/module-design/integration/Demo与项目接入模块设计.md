@@ -228,6 +228,7 @@ typedef struct {
 - `project_bind_machine()` 中调用 `machine_ops_register()`。
 - `execute_manual_actuator` 的 `act_id` / `param` 由项目定义，并在云端/CLI 映射中保持一致；**须非阻塞**——下发动作或启动定时/运动后立即返回，点动时长与到位由项目侧自行管理，勿在回调内 `sleep`/轮询等待。
 - `start_wash` / `home_device` / `abort_home` 同样只启动异步流程；完成后分别靠洗车事件、`EVT_OP_MODE_HOME_COMPLETED`、`EVT_ABORT_HOME_DONE` 收口。
+- 发布 `EVT_OP_MODE_HOME_COMPLETED(成功)` 前须按目标姿态证明 ON_MOTION（只 `clear` 条件；过流等 MANUAL_RESET 不得在此清除）。
 - `stop_all_outputs` 必须能落到与 cutout 等价的安全输出态；无活跃洗车会话时 router 不会调用 `abort_wash(STOP_ALL)`。
 - `home_device` 和 `abort_home` 应处理执行中冲突和硬件故障，并返回明确错误码。
 

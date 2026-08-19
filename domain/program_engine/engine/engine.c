@@ -566,6 +566,42 @@ static void handle_done_signal_timeout(engine_t *e, const engine_step_t *sd, rt_
     apply_on_error(e, sd->on_error, rt);
 }
 
+/**
+ * @brief  步骤完成门闩：轴结算（及可选光电）满足后才过确认窗
+ */
+static bool done_gate_ready(const engine_done_t *done)
+{
+    const engine_actuator_ops_t *ops;
+
+    if (done->resource[0] != '\0') {
+        ops = engine_actuator_get_ops();
+        if ((ops != NULL) && (ops->is_settled != NULL) && !ops->is_settled(done->resource)) {
+            return false;
+        }
+    }
+    if (done->signal[0] != '\0') {
+        return sig_read(done->signal) == done->state;
+    }
+    return true;
+}
+
+static void tick_wait_done_gate(engine_t *e, const engine_step_t *sd, rt_step_t *rt, uint32_t dt)
+{
+    if (done_gate_ready(&sd->done)) {
+        rt->confirm_elapsed += dt;
+        if ((sd->done.confirm_ms == 0U) || (rt->confirm_elapsed >= sd->done.confirm_ms)) {
+            rt->state = RT_DONE;
+        }
+        return;
+    }
+
+    rt->confirm_elapsed = 0U;
+    rt->done_elapsed += dt;
+    if ((sd->done.timeout_ms > 0U) && (rt->done_elapsed >= sd->done.timeout_ms)) {
+        handle_done_signal_timeout(e, sd, rt);
+    }
+}
+
 /* -------------------------------------------------------------------------
  * control 型步骤：每拍按 active_while 应用/释放意图
  * ------------------------------------------------------------------------- */
@@ -660,23 +696,10 @@ static void step_tick(engine_t *e, const engine_step_t *sd, rt_step_t *rt, uint3
                 }
                 break;
 
-            case ENGINE_DONE_SIGNAL: {
-                int v = sig_read(sd->done.signal);
-
-                if (v == sd->done.state) {
-                    rt->confirm_elapsed += dt;
-                    if ((sd->done.confirm_ms == 0U) || (rt->confirm_elapsed >= sd->done.confirm_ms)) {
-                        rt->state = RT_DONE;
-                    }
-                } else {
-                    rt->confirm_elapsed = 0U;
-                    rt->done_elapsed += dt;
-                    if ((sd->done.timeout_ms > 0U) && (rt->done_elapsed >= sd->done.timeout_ms)) {
-                        handle_done_signal_timeout(e, sd, rt);
-                    }
-                }
+            case ENGINE_DONE_SIGNAL:
+            case ENGINE_DONE_MOTION:
+                tick_wait_done_gate(e, sd, rt, dt);
                 break;
-            }
 
             case ENGINE_DONE_TIMEOUT:
                 rt->done_elapsed += dt;

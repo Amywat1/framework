@@ -321,10 +321,30 @@ static bool build_event_step(engine_step_t *st, const cJSON *node, char *err, un
         copy_name(st->done.signal, ENGINE_NAME_MAX, sig);
         st->done.state = state;
     }
-    if ((st->done.type == ENGINE_DONE_SIGNAL) || (st->done.type == ENGINE_DONE_TIMEOUT)) {
+    if (st->done.type == ENGINE_DONE_MOTION) {
+        const char *resource = jstr(done, "resource");
+        const char *sig      = jstr(done, "signal");
+        int         state    = 0;
+
+        if ((resource == NULL) || (resource[0] == '\0')) {
+            jfail(err, errsz, "%s", "done motion 缺少 resource");
+            return false;
+        }
+        copy_name(st->done.resource, ENGINE_NAME_MAX, resource);
+        if (sig != NULL) {
+            if (!jint(done, "state", &state)) {
+                jfail(err, errsz, "%s", "done motion 指定 signal 时缺少 state");
+                return false;
+            }
+            copy_name(st->done.signal, ENGINE_NAME_MAX, sig);
+            st->done.state = state;
+        }
+    }
+    if ((st->done.type == ENGINE_DONE_SIGNAL) || (st->done.type == ENGINE_DONE_TIMEOUT)
+        || (st->done.type == ENGINE_DONE_MOTION)) {
         (void)juint(done, "timeout_ms", &st->done.timeout_ms);
     }
-    if (st->done.type == ENGINE_DONE_SIGNAL) {
+    if ((st->done.type == ENGINE_DONE_SIGNAL) || (st->done.type == ENGINE_DONE_MOTION)) {
         (void)juint(done, "confirm_ms", &st->done.confirm_ms);
     }
 

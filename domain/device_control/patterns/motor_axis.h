@@ -111,6 +111,14 @@ sw_err_t motor_axis_recover(motor_axis_t *self);
  */
 void motor_axis_poll(motor_axis_t *self);
 
+/**
+ * @brief  轴是否已结算
+ * @param[in] self 模式实例
+ * @return true 未初始化、或已 IDLE 且无待消费结局；false 运动中或结局尚未消费
+ * @note   方案步骤与恢复收口用此判定，而不是只看 HAL 相位或光电。
+ */
+bool motor_axis_is_settled(const motor_axis_t *self);
+
 #ifdef __cplusplus
 }
 #endif

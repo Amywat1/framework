@@ -250,6 +250,22 @@ static void validate_step_signals(const engine_step_t *st, var_ctx_t *ctx)
             ctx->ok = false;
         }
     }
+
+    if ((st->done.type == ENGINE_DONE_MOTION) && ctx->ok) {
+        if (st->done.resource[0] == '\0') {
+            vfail(ctx->err, ctx->errsz, "%s", "done motion 缺少 resource");
+            ctx->ok = false;
+        } else if ((ctx->act_catalog != NULL)
+                   && !name_in_list(st->done.resource, ctx->act_catalog->resources, ctx->act_catalog->resource_count)) {
+            vfail(ctx->err, ctx->errsz, "未知 done 资源: %s", st->done.resource);
+            ctx->ok = false;
+        }
+        if (ctx->ok && (st->done.signal[0] != '\0') && (ctx->io_catalog != NULL)
+            && !name_in_list(st->done.signal, ctx->io_catalog->signals, ctx->io_catalog->signal_count)) {
+            vfail(ctx->err, ctx->errsz, "未知 done 信号: %s", st->done.signal);
+            ctx->ok = false;
+        }
+    }
 }
 
 static bool phase_id_unique(const engine_program_t *prog, char *err, unsigned errsz)

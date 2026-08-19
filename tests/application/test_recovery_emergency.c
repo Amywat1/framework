@@ -38,6 +38,7 @@ static volatile int                s_home_auto_complete;
 
 #define TEST_BLOCKING_ALARM_CODE 201101U
 #define TEST_LOCKOUT_ALARM_CODE  201102U
+#define TEST_ON_MOTION_ALARM_CODE 201103U
 
 static sw_err_t fake_cutout(void)
 {
@@ -106,6 +107,16 @@ static const alarm_def_t s_blocking_catalog[] = {
      .clear        = ALARM_CLEAR_MANUAL_RESET,
      .reeval_group = ALARM_REEVAL_GROUP_NONE,
      .desc         = "test blocking",
+     },
+};
+
+static const alarm_def_t s_on_motion_catalog[] = {
+    {
+     .code         = TEST_ON_MOTION_ALARM_CODE,
+     .level        = ALARM_LEVEL_MAJOR,
+     .clear        = ALARM_CLEAR_ON_MOTION,
+     .reeval_group = ALARM_REEVAL_GROUP_NONE,
+     .desc         = "test on motion",
      },
 };
 
@@ -466,6 +477,33 @@ static void test_stop_all_during_pending_home_cuts_outputs(void)
     stop_dispatch(tid);
 }
 
+/**
+ * 归位完成前已 clear 的 ON_MOTION，reset_all 后进 IDLE（项目在 HOME_COMPLETED 前证明姿态）
+ */
+static void test_recovery_resets_on_motion_cleared_during_home(void)
+{
+    pthread_t tid;
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_load_catalog(s_on_motion_catalog, 1U));
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_trigger(TEST_ON_MOTION_ALARM_CODE));
+    TEST_ASSERT_TRUE(alarm_registry_is_active(TEST_ON_MOTION_ALARM_CODE));
+    s_clear_on_home_code = TEST_ON_MOTION_ALARM_CODE;
+    machine_ops_register(&s_machine_ops);
+    TEST_ASSERT_EQUAL_INT(SW_OK, recovery_service_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_subscribe(EVT_OP_MODE_RECOVERY_COMPLETED, on_recovery_completed));
+
+    tid = start_dispatch();
+    start_recover_via_command();
+    usleep(50000U);
+
+    TEST_ASSERT_EQUAL_INT(1, s_recovery_completed_count);
+    TEST_ASSERT_EQUAL_UINT32((uint32_t)RECOVERY_RESULT_IDLE, s_recovery_result_param);
+    TEST_ASSERT_FALSE(alarm_registry_is_active(TEST_ON_MOTION_ALARM_CODE));
+    stop_dispatch(tid);
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -481,5 +519,6 @@ int main(void)
     WDF_RUN_TEST(test_leave_recovering_ignores_late_home_completed, "", "验证离开恢复后忽略迟到归位完成");
     WDF_RUN_TEST(test_estop_during_pending_home_preempts_recovery, "", "验证归位等待中急停抢占恢复并切断");
     WDF_RUN_TEST(test_stop_all_during_pending_home_cuts_outputs, "", "验证归位等待中全停切断输出");
+    WDF_RUN_TEST(test_recovery_resets_on_motion_cleared_during_home, "", "验证归位期间已证明的 ON_MOTION 报警被复位");
     return UNITY_END();
 }

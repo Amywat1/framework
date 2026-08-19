@@ -309,6 +309,38 @@ static void test_json_loader_parses_confirm_ms_and_retry_max(void)
     engine_program_free(program);
 }
 
+static void test_json_loader_parses_done_motion(void)
+{
+    static const char *json
+        = "{"
+          "\"program\":{"
+          "\"schema_version\":\"1.0\",\"id\":\"motion_done\",\"name\":\"t\","
+          "\"interlocks\":[{\"id\":\"estop\",\"condition\":\"ESTOP == 1\",\"action\":\"halt_all\","
+          "\"priority\":0,\"reset_condition\":\"ESTOP == 0\",\"auto_reset\":false}],"
+          "\"phases\":[{\"id\":\"p0\",\"name\":\"p\",\"direction\":\"none\","
+          "\"entry_guard\":\"true\",\"exit_guard\":\"EXIT == 1\",\"timeout_ms\":1000,"
+          "\"lanes\":[{\"id\":\"lane\",\"steps\":[{"
+          "\"id\":\"move\",\"type\":\"event\","
+          "\"trigger\":{\"type\":\"condition\",\"expr\":\"EXIT == 0\"},"
+          "\"actions\":[{\"act\":{\"resource\":\"gantry\",\"cmd\":\"run\",\"gear\":1}}],"
+          "\"done\":{\"type\":\"motion\",\"resource\":\"gantry\",\"timeout_ms\":5000},"
+          "\"retry_max\":0,\"on_error\":\"stop\""
+          "}]}]}]}"
+          "}";
+    char              err[200];
+    engine_program_t *program = engine_program_load_json_string(json, err, sizeof(err));
+    engine_step_t    *step;
+
+    TEST_ASSERT_NOT_NULL_MESSAGE(program, err);
+    step = &program->phases[0].lanes[0].steps[0];
+    TEST_ASSERT_EQUAL_INT(ENGINE_DONE_MOTION, step->done.type);
+    TEST_ASSERT_EQUAL_STRING("gantry", step->done.resource);
+    TEST_ASSERT_EQUAL_STRING("", step->done.signal);
+    TEST_ASSERT_EQUAL_UINT(5000U, step->done.timeout_ms);
+    TEST_ASSERT_EQUAL_UINT(0U, step->done.confirm_ms);
+    engine_program_free(program);
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -320,6 +352,7 @@ int main(void)
     WDF_RUN_TEST(test_json_loader_port_registers_and_loads_file, "", "验证JSON加载器端口注册并加载文件");
     WDF_RUN_TEST(test_condition_marker_latches_on_rising, "", "验证条件标记在上升沿锁存");
     WDF_RUN_TEST(test_json_loader_parses_confirm_ms_and_retry_max, "", "验证解析 confirm_ms 与 retry_max");
+    WDF_RUN_TEST(test_json_loader_parses_done_motion, "", "验证解析 done.type=motion");
 
     return UNITY_END();
 }

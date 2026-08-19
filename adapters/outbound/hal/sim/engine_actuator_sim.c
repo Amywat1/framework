@@ -94,10 +94,26 @@ static sw_err_t sim_halt_all(void)
     return SW_OK;
 }
 
+static bool sim_is_settled(const char *resource)
+{
+    unsigned i;
+
+    if ((resource == NULL) || (resource[0] == '\0')) {
+        return true;
+    }
+    for (i = 0U; i < s_res_count; ++i) {
+        if (strcmp(s_res[i].name, resource) == 0) {
+            return s_res[i].active == 0;
+        }
+    }
+    return true;
+}
+
 static const engine_actuator_ops_t s_ops = {
-    .apply    = sim_apply,
-    .release  = sim_release,
-    .halt_all = sim_halt_all,
+    .apply      = sim_apply,
+    .release    = sim_release,
+    .halt_all   = sim_halt_all,
+    .is_settled = sim_is_settled,
 };
 
 void engine_actuator_sim_register(void)

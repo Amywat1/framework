@@ -1,6 +1,6 @@
 /**
  * @file    recovery_service.c
- * @brief   Recover 用例协调实现（复位锁存告警 + 异步全归位 + 阻塞告警验证）
+ * @brief   Recover 用例协调实现（复位锁存告警 + 异步全归位 + 完成后验证）
  * @author  HUWANGWEI
  * @date    2026-07-09
  */
@@ -14,7 +14,6 @@
 #include "domain/op_mode/operational_mode.h"
 #include "domain/ports/outbound/machine/machine_ops_port.h"
 #include "domain/safety/alarm_registry/alarm_registry.h"
-#include "domain/safety/model/alarm_types.h"
 #include "runtime/event_bus/event_bus.h"
 
 #include <stdatomic.h>
@@ -27,7 +26,7 @@ static atomic_bool s_waiting_home = false;
 static void cancel_pending(void)
 {
     if (atomic_exchange(&s_waiting_home, false)) {
-        LOG_WARN("recovery_service: pending home wait cancelled");
+        LOG_WARN("recovery_service: pending wait cancelled");
     }
 }
 
@@ -42,12 +41,11 @@ static void on_mode_changed(const event_t *evt)
 }
 
 /**
- * @brief  归位完成：仅处理仍处于 RECOVERING 且等待中的结果
+ * @brief  归位完成后复位可清告警并结束恢复
  */
 static void on_home_completed(const event_t *evt)
 {
     recovery_result_t result;
-    bool              home_success;
     bool              blocking_active;
 
     /* 模式可能已先被 STOP_ALL/急停切走；事件异步，须再守一层 */
@@ -60,13 +58,17 @@ static void on_home_completed(const event_t *evt)
         return;
     }
 
-    home_success = evt->param != 0U;
+    if (evt->param == 0U) {
+        LOG_ERROR("recovery_service: home failed during recover");
+        (void)event_publish(EVT_OP_MODE_RECOVERY_COMPLETED, (uint32_t)RECOVERY_RESULT_FAILED);
+        LOG_INFO("recovery_service: completed result=%d", (int)RECOVERY_RESULT_FAILED);
+        return;
+    }
+
     alarm_registry_reset_all();
     blocking_active = alarm_registry_has_blocking_active();
-    result          = (home_success && !blocking_active) ? RECOVERY_RESULT_IDLE : RECOVERY_RESULT_FAILED;
-    if (!home_success) {
-        LOG_ERROR("recovery_service: home failed during recover");
-    } else if (blocking_active) {
+    result          = blocking_active ? RECOVERY_RESULT_FAILED : RECOVERY_RESULT_IDLE;
+    if (blocking_active) {
         LOG_WARN("recovery_service: blocking alarm remains after home");
     }
 
@@ -89,7 +91,6 @@ static void on_recovery_requested(const event_t *evt)
         goto done;
     }
 
-    /* 启动异步全归位；完成时统一验证阻塞告警。 */
     ops = machine_ops_get();
     if ((ops == NULL) || (ops->home_device == NULL)) {
         LOG_ERROR("recovery_service: home_device not available");
