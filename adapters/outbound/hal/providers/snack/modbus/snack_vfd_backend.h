@@ -16,6 +16,7 @@ extern "C" {
 #endif
 
 #include "adapters/outbound/hal/components/vfd_manager/hal_vfd_manager_bind.h"
+#include "adapters/outbound/hal/providers/snack/modbus/drv_vfd.h"
 #include "common/io_handle.h"
 #include "common/sw_error.h"
 #include "domain/ports/outbound/hal/hal_vfd_port.h"
@@ -31,6 +32,8 @@ typedef struct {
     const char *serial_port;
     int         baud;
     int         modbus_addr;
+    /** @brief 实例使用的厂商 Modbus profile，生命周期须覆盖实例。 */
+    const drv_vfd_modbus_profile_t *profile;
 
     io_do_t pin_fwd;
     io_do_t pin_rev;

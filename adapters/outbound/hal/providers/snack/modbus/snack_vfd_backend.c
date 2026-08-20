@@ -38,7 +38,8 @@ static bool instance_cfg_valid(const snack_vfd_backend_instance_cfg_t *cfg)
 {
     unsigned i;
 
-    if ((cfg == NULL) || (cfg->serial_port == NULL) || (cfg->modbus_addr <= 0) || (cfg->modbus_addr > 247)) {
+    if ((cfg == NULL) || (cfg->serial_port == NULL) || (cfg->modbus_addr <= 0) || (cfg->modbus_addr > 247)
+        || !drv_vfd_profile_is_valid(cfg->profile)) {
         return false;
     }
     if ((cfg->gear_count == 0U) || (cfg->gear_count > SNACK_VFD_BACKEND_SPEED_GEAR_COUNT)) {
@@ -78,6 +79,7 @@ static sw_err_t backend_init(void *ctx)
                        slot->cfg.serial_port,
                        slot->cfg.baud,
                        slot->cfg.modbus_addr,
+                       slot->cfg.profile,
                        slot->cfg.pin_fwd,
                        slot->cfg.pin_rev,
                        slot->cfg.pin_rst,
@@ -148,14 +150,19 @@ static sw_err_t backend_read(void *ctx, hal_vfd_reg_t reg, uint16_t *p_val)
     return drv_vfd_read(drv, reg, p_val);
 }
 
-static sw_err_t backend_write(void *ctx, hal_vfd_reg_t reg, uint16_t val)
+static sw_err_t backend_clear_fault(void *ctx)
 {
     drv_vfd_t *drv = drv_from_ctx(ctx);
 
     if (drv == NULL) {
         return SW_ERR_NOT_INIT;
     }
-    return drv_vfd_write(drv, reg, val);
+    return drv_vfd_clear_fault(drv);
+}
+
+static bool backend_has_clear_fault(void *ctx)
+{
+    return drv_vfd_has_clear_fault(drv_from_ctx(ctx));
 }
 
 static hal_vfd_state_t backend_get_state(void *ctx)
@@ -181,7 +188,8 @@ static const hal_vfd_backend_ops_t s_snack_vfd_backend_ops = {
     .stop_outputs    = backend_stop_outputs,
     .set_rst         = backend_set_rst,
     .read            = backend_read,
-    .write           = backend_write,
+    .clear_fault     = backend_clear_fault,
+    .has_clear_fault = backend_has_clear_fault,
     .get_state       = backend_get_state,
     .has_rst_pin     = backend_has_rst_pin,
 };

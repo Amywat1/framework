@@ -26,7 +26,7 @@ typedef struct {
     unsigned        apply_count;
     unsigned        frequency_count;
     unsigned        stop_count;
-    unsigned        write_count;
+    unsigned        clear_fault_count;
     unsigned        read_count;
 } mock_vfd_t;
 
@@ -102,21 +102,13 @@ static sw_err_t mock_read(void *ctx, hal_vfd_reg_t reg, uint16_t *p_val)
     }
 }
 
-static sw_err_t mock_write(void *ctx, hal_vfd_reg_t reg, uint16_t val)
+static sw_err_t mock_clear_fault(void *ctx)
 {
     mock_vfd_t *vfd = (mock_vfd_t *)ctx;
 
-    vfd->write_count++;
-    switch (reg) {
-    case HAL_VFD_REG_FREQ:
-        vfd->freq = val;
-        return SW_OK;
-    case HAL_VFD_REG_CLEAR_FAULT:
-        vfd->fault_code = 0U;
-        return SW_OK;
-    default:
-        return SW_ERR_PARAM;
-    }
+    vfd->clear_fault_count++;
+    vfd->fault_code = 0U;
+    return SW_OK;
 }
 
 static hal_vfd_state_t mock_get_state(void *ctx)
@@ -133,13 +125,19 @@ static bool mock_has_rst_pin(void *ctx)
     return vfd->has_rst_pin;
 }
 
+static bool mock_has_clear_fault(void *ctx)
+{
+    return ctx != NULL;
+}
+
 static const hal_vfd_backend_ops_t s_backend_ops = {
     .apply_gear      = mock_apply_gear,
     .apply_frequency = mock_apply_frequency,
     .stop_outputs    = mock_stop_outputs,
     .set_rst         = mock_set_rst,
     .read            = mock_read,
-    .write           = mock_write,
+    .clear_fault     = mock_clear_fault,
+    .has_clear_fault = mock_has_clear_fault,
     .get_state       = mock_get_state,
     .has_rst_pin     = mock_has_rst_pin,
 };
@@ -203,12 +201,19 @@ void tearDown(void)
 static void test_bind_rejects_invalid_config(void)
 {
     hal_vfd_manager_bind_cfg_t cfg = make_cfg();
+    hal_vfd_backend_ops_t      invalid_ops;
 
     TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, hal_vfd_manager_bind(-1, &cfg));
     TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, hal_vfd_manager_bind(HAL_VFD_MANAGER_SLOT_MAX, &cfg));
     TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, hal_vfd_manager_bind(TEST_VFD_ID, NULL));
 
     cfg.ops = NULL;
+    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, hal_vfd_manager_bind(TEST_VFD_ID, &cfg));
+
+    invalid_ops                 = s_backend_ops;
+    invalid_ops.has_clear_fault = NULL;
+    cfg                         = make_cfg();
+    cfg.ops                     = &invalid_ops;
     TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, hal_vfd_manager_bind(TEST_VFD_ID, &cfg));
 
     cfg              = make_cfg();
@@ -270,7 +275,7 @@ static void test_fault_reset_uses_modbus_clear_when_no_rst_pin(void)
 
     TEST_ASSERT_EQUAL_INT(SW_OK, hal_vfd_get_ops()->fault_reset(TEST_VFD_ID));
     TEST_ASSERT_EQUAL_UINT(1U, s_vfd.stop_count);
-    TEST_ASSERT_EQUAL_UINT(1U, s_vfd.write_count);
+    TEST_ASSERT_EQUAL_UINT(1U, s_vfd.clear_fault_count);
     TEST_ASSERT_EQUAL_UINT16(0U, s_vfd.fault_code);
     TEST_ASSERT_FALSE(s_vfd.rst_level);
 }
@@ -283,7 +288,7 @@ static void test_fault_reset_uses_rst_pulse_when_pin_exists(void)
     TEST_ASSERT_EQUAL_INT(SW_OK, hal_vfd_get_ops()->fault_reset(TEST_VFD_ID));
     TEST_ASSERT_TRUE(s_vfd.rst_level);
     TEST_ASSERT_EQUAL_UINT(1U, s_vfd.stop_count);
-    TEST_ASSERT_EQUAL_UINT(0U, s_vfd.write_count);
+    TEST_ASSERT_EQUAL_UINT(0U, s_vfd.clear_fault_count);
 
     usleep(10000);
     hal_vfd_manager_test_tick();

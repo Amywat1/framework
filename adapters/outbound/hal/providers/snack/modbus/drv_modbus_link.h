@@ -29,6 +29,12 @@ extern "C" {
 /** @brief Modbus RTU 链路不透明句柄，真实存储仅由 Snack provider 内部持有。 */
 typedef struct drv_modbus_link drv_modbus_link_t;
 
+/** @brief Modbus 寄存器读取类型。 */
+typedef enum {
+    DRV_MODBUS_REG_HOLDING = 0, /**< 保持寄存器，功能码 0x03。 */
+    DRV_MODBUS_REG_INPUT,       /**< 输入寄存器，功能码 0x04。 */
+} drv_modbus_reg_type_t;
+
 /**
  * @brief  初始化 Modbus RTU 链路：绑定/创建总线锁，建立连接
  * @param[in]  link                 provider 内部持有的链路句柄，不可为 NULL
@@ -58,11 +64,12 @@ bool drv_modbus_link_is_ready(const drv_modbus_link_t *link);
 /**
  * @brief  同步读寄存器（发起 Modbus IO），内部处理总线锁与失败重连
  * @param[in]  link   已初始化的链路句柄
+ * @param[in]  type   寄存器读取类型
  * @param[in]  addr   寄存器地址
  * @param[out] p_val  输出值，不可为 NULL
  * @retval  SW_OK / SW_ERR_PARAM / SW_ERR_NOT_INIT / SW_ERR_COMM
  */
-sw_err_t drv_modbus_link_read_reg(drv_modbus_link_t *link, uint16_t addr, uint16_t *p_val);
+sw_err_t drv_modbus_link_read_reg(drv_modbus_link_t *link, drv_modbus_reg_type_t type, uint16_t addr, uint16_t *p_val);
 
 /**
  * @brief  同步写寄存器（发起 Modbus IO），内部处理总线锁与失败重连

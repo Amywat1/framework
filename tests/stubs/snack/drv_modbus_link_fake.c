@@ -3,21 +3,22 @@
 #include <string.h>
 
 typedef struct {
-    bool        init_called;
-    bool        ready;
-    const char *serial_port;
-    int         baud;
-    int         modbus_addr;
-    uint16_t    last_write_addr;
-    uint16_t    last_write_val;
-    uint16_t    last_read_addr;
-    uint16_t    read_addr[16];
-    uint16_t    read_value[16];
-    unsigned    read_value_count;
-    unsigned    write_count;
-    sw_err_t    init_result;
-    sw_err_t    write_results[16];
-    unsigned    write_result_count;
+    bool                  init_called;
+    bool                  ready;
+    const char           *serial_port;
+    int                   baud;
+    int                   modbus_addr;
+    uint16_t              last_write_addr;
+    uint16_t              last_write_val;
+    uint16_t              last_read_addr;
+    drv_modbus_reg_type_t last_read_type;
+    uint16_t              read_addr[16];
+    uint16_t              read_value[16];
+    unsigned              read_value_count;
+    unsigned              write_count;
+    sw_err_t              init_result;
+    sw_err_t              write_results[16];
+    unsigned              write_result_count;
 } snack_modbus_fake_t;
 
 static snack_modbus_fake_t s_fake;
@@ -89,6 +90,11 @@ uint16_t snack_modbus_fake_last_read_addr(void)
     return s_fake.last_read_addr;
 }
 
+drv_modbus_reg_type_t snack_modbus_fake_last_read_type(void)
+{
+    return s_fake.last_read_type;
+}
+
 sw_err_t drv_modbus_link_init(drv_modbus_link_t *link,
                               const char        *serial_port,
                               int                baud,
@@ -118,7 +124,7 @@ bool drv_modbus_link_is_ready(const drv_modbus_link_t *link)
     return s_fake.ready && (link != NULL) && (link->serial_port != NULL);
 }
 
-sw_err_t drv_modbus_link_read_reg(drv_modbus_link_t *link, uint16_t addr, uint16_t *p_val)
+sw_err_t drv_modbus_link_read_reg(drv_modbus_link_t *link, drv_modbus_reg_type_t type, uint16_t addr, uint16_t *p_val)
 {
     unsigned i;
 
@@ -128,6 +134,10 @@ sw_err_t drv_modbus_link_read_reg(drv_modbus_link_t *link, uint16_t addr, uint16
     if (p_val == NULL) {
         return SW_ERR_PARAM;
     }
+    if ((type != DRV_MODBUS_REG_HOLDING) && (type != DRV_MODBUS_REG_INPUT)) {
+        return SW_ERR_PARAM;
+    }
+    s_fake.last_read_type = type;
     s_fake.last_read_addr = addr;
     for (i = 0; i < s_fake.read_value_count; i++) {
         if (s_fake.read_addr[i] == addr) {

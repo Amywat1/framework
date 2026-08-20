@@ -217,10 +217,11 @@ static void link_on_failure_locked(drv_modbus_link_t *link, bool *need_reconnect
  * 读写统一执行路径
  * ------------------------------------------------------------------------- */
 typedef struct {
-    bool     is_write;
-    uint16_t addr;
-    uint16_t wval;
-    uint16_t rval;
+    bool                  is_write;
+    drv_modbus_reg_type_t read_type;
+    uint16_t              addr;
+    uint16_t              wval;
+    uint16_t              rval;
 } link_op_t;
 
 static sw_err_t link_execute(drv_modbus_link_t *link, link_op_t *op)
@@ -244,9 +245,15 @@ static sw_err_t link_execute(drv_modbus_link_t *link, link_op_t *op)
 
     if (op->is_write) {
         rc = modbus_write_register(link->mb, (int)op->addr, (int)op->wval);
-    } else {
+    } else if (op->read_type == DRV_MODBUS_REG_HOLDING) {
         uint16_t buf = 0U;
         rc           = modbus_read_registers(link->mb, (int)op->addr, 1, &buf);
+        if (rc >= 0) {
+            op->rval = buf;
+        }
+    } else {
+        uint16_t buf = 0U;
+        rc           = modbus_read_input_registers(link->mb, (int)op->addr, 1, &buf);
         if (rc >= 0) {
             op->rval = buf;
         }
@@ -322,12 +329,12 @@ bool drv_modbus_link_is_ready(const drv_modbus_link_t *link)
     return (link != NULL) && (link->serial_port != NULL) && (link->baud > 0) && (link->modbus_addr > 0);
 }
 
-sw_err_t drv_modbus_link_read_reg(drv_modbus_link_t *link, uint16_t addr, uint16_t *p_val)
+sw_err_t drv_modbus_link_read_reg(drv_modbus_link_t *link, drv_modbus_reg_type_t type, uint16_t addr, uint16_t *p_val)
 {
     sw_err_t  ret;
-    link_op_t op = {false, addr, 0U, 0U};
+    link_op_t op = {false, type, addr, 0U, 0U};
 
-    if (p_val == NULL) {
+    if ((p_val == NULL) || ((type != DRV_MODBUS_REG_HOLDING) && (type != DRV_MODBUS_REG_INPUT))) {
         return SW_ERR_PARAM;
     }
     ret = link_execute(link, &op);
@@ -339,6 +346,6 @@ sw_err_t drv_modbus_link_read_reg(drv_modbus_link_t *link, uint16_t addr, uint16
 
 sw_err_t drv_modbus_link_write_reg(drv_modbus_link_t *link, uint16_t addr, uint16_t val)
 {
-    link_op_t op = {true, addr, val, 0U};
+    link_op_t op = {true, DRV_MODBUS_REG_HOLDING, addr, val, 0U};
     return link_execute(link, &op);
 }

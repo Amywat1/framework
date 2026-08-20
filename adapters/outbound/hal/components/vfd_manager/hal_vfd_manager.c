@@ -104,8 +104,10 @@ static bool bind_cfg_valid(const hal_vfd_manager_bind_cfg_t *cfg)
         return false;
     }
     if ((cfg->ops->apply_gear == NULL) || (cfg->ops->apply_frequency == NULL) || (cfg->ops->stop_outputs == NULL)
-        || (cfg->ops->set_rst == NULL) || (cfg->ops->read == NULL) || (cfg->ops->write == NULL)
-        || (cfg->ops->get_state == NULL)) {
+        || (cfg->ops->set_rst == NULL) || (cfg->ops->read == NULL) || (cfg->ops->get_state == NULL)) {
+        return false;
+    }
+    if ((cfg->ops->clear_fault == NULL) != (cfg->ops->has_clear_fault == NULL)) {
         return false;
     }
     if ((cfg->rst_pulse_ms == 0U) || (cfg->fault_period_ms == 0U) || (cfg->current_period_ms == 0U)) {
@@ -538,11 +540,11 @@ static sw_err_t vfd_fault_reset(hal_vfd_id_t id)
         return ret;
     }
 
-    ret = slot->cfg.ops->write(slot->cfg.drv_ctx, HAL_VFD_REG_CLEAR_FAULT, 0U);
-    if (ret == SW_ERR_PARAM) {
+    if ((slot->cfg.ops->clear_fault == NULL) || !slot->cfg.ops->has_clear_fault(slot->cfg.drv_ctx)) {
         LOG_ERROR("hal_vfd: fault_reset id=%d no rst pin and no modbus clear", id);
+        return SW_ERR_PARAM;
     }
-    return ret;
+    return slot->cfg.ops->clear_fault(slot->cfg.drv_ctx);
 }
 
 static hal_vfd_state_t vfd_get_state(hal_vfd_id_t id)

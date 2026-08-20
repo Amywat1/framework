@@ -140,11 +140,9 @@ static sw_err_t mock_read(void *ctx, hal_vfd_reg_t reg, uint16_t *p_val)
     return SW_OK;
 }
 
-static sw_err_t mock_write(void *ctx, hal_vfd_reg_t reg, uint16_t val)
+static sw_err_t mock_clear_fault(void *ctx)
 {
     (void)ctx;
-    (void)reg;
-    (void)val;
     return SW_OK;
 }
 
@@ -160,13 +158,19 @@ static bool mock_has_rst_pin(void *ctx)
     return true;
 }
 
+static bool mock_has_clear_fault(void *ctx)
+{
+    return ctx != NULL;
+}
+
 static const hal_vfd_backend_ops_t s_backend_ops = {
     .apply_gear      = mock_apply_gear,
     .apply_frequency = mock_apply_frequency,
     .stop_outputs    = mock_stop_outputs,
     .set_rst         = mock_set_rst,
     .read            = mock_read,
-    .write           = mock_write,
+    .clear_fault     = mock_clear_fault,
+    .has_clear_fault = mock_has_clear_fault,
     .get_state       = mock_get_state,
     .has_rst_pin     = mock_has_rst_pin,
 };

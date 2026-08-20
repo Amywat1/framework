@@ -13,43 +13,6 @@
 #include <stdint.h>
 #include <string.h>
 
-/* -------------------------------------------------------------------------
- * 厂商寄存器地址（编译时选择，取消注释当前厂商块并注释其余）
- * VFD_REG_FREQ_SET    ：未定义时 drv_vfd_write(REG_FREQ) 返回 SW_ERR_PARAM
- * VFD_REG_CLEAR_FAULT ：未定义时 drv_vfd_write(REG_CLEAR_FAULT) 返回 SW_ERR_PARAM；
- *                       IO 复位须上层调用 drv_vfd_set_rst
- * ------------------------------------------------------------------------- */
-
-/* //伟创 VFD
-#define VFD_REG_STATE        0x1001U
-#define VFD_REG_FAULT_CODE   0x1007U
-#define VFD_REG_CURRENT      0x1004U
-#define VFD_REG_CLEAR_FAULT  0x1101U
-#define VFD_DATA_CLEAR_FAULT 0xA5A5U
-*/
-
-/* //台达 VFD
-#define VFD_REG_STATE        0x2226U
-#define VFD_REG_FAULT_CODE   0x2100U
-#define VFD_REG_CURRENT      0x2104U
-#define VFD_REG_FREQ_SET     0x2103U
-#define VFD_REG_CLEAR_FAULT  0x2002U
-#define VFD_DATA_CLEAR_FAULT 0x0002U
-*/
-
-/* //士林 VFD（清故障数据 0x1101 写入控制寄存器 0x1000）*/
-#define VFD_REG_STATE        0x1001U
-#define VFD_REG_FAULT_CODE   0x1007U
-#define VFD_REG_CURRENT      0x1004U
-#define VFD_REG_CLEAR_FAULT  0x1000U
-#define VFD_DATA_CLEAR_FAULT 0x1101U
-
-/* 翌腾 VFD（当前使用；无 Modbus 清故障寄存器，复位须上层通过 pin_rst 脉冲）
-#define VFD_REG_STATE      0x1304U
-#define VFD_REG_FAULT_CODE 0x1300U
-#define VFD_REG_CURRENT    0x1206U
-*/
-
 #define VFD_MODBUS_TIMEOUT_US   100000U /* Modbus 响应超时 100ms */
 #define VFD_COMM_FAIL_RECONNECT 50U     /* 连续失败 N 次后重建 Modbus 连接 */
 
@@ -58,7 +21,71 @@
  * ------------------------------------------------------------------------- */
 static bool vfd_is_initialized(const drv_vfd_t *vfd)
 {
-    return (vfd != NULL) && drv_modbus_link_is_ready(&vfd->link) && (vfd->do_set != NULL);
+    return (vfd != NULL) && drv_modbus_link_is_ready(&vfd->link) && (vfd->profile != NULL) && (vfd->do_set != NULL);
+}
+
+static bool vfd_read_point_valid(const drv_vfd_modbus_point_t *point)
+{
+    return (point != NULL)
+           && ((point->access == DRV_VFD_MODBUS_READ_HOLDING) || (point->access == DRV_VFD_MODBUS_READ_INPUT))
+           && (point->scale_num > 0U) && (point->scale_den > 0U);
+}
+
+static bool vfd_optional_write_point_valid(const drv_vfd_modbus_point_t *point, bool needs_scale)
+{
+    if (point == NULL) {
+        return false;
+    }
+    if (point->access == DRV_VFD_MODBUS_NONE) {
+        return true;
+    }
+    if (point->access != DRV_VFD_MODBUS_WRITE_SINGLE) {
+        return false;
+    }
+    return !needs_scale || ((point->scale_num > 0U) && (point->scale_den > 0U));
+}
+
+bool drv_vfd_profile_is_valid(const drv_vfd_modbus_profile_t *profile)
+{
+    return (profile != NULL) && (profile->name != NULL) && (profile->name[0] != '\0')
+           && vfd_read_point_valid(&profile->state) && vfd_read_point_valid(&profile->fault_code)
+           && vfd_read_point_valid(&profile->current) && vfd_optional_write_point_valid(&profile->frequency, true)
+           && vfd_optional_write_point_valid(&profile->clear_fault, false);
+}
+
+static drv_modbus_reg_type_t vfd_read_type(const drv_vfd_modbus_point_t *point)
+{
+    return (point->access == DRV_VFD_MODBUS_READ_INPUT) ? DRV_MODBUS_REG_INPUT : DRV_MODBUS_REG_HOLDING;
+}
+
+static sw_err_t vfd_scale_read(const drv_vfd_modbus_point_t *point, uint16_t raw_value, uint16_t *logical_value)
+{
+    uint64_t scaled;
+
+    if ((point == NULL) || (logical_value == NULL) || (point->scale_den == 0U)) {
+        return SW_ERR_PARAM;
+    }
+    scaled = ((uint64_t)raw_value * point->scale_num) / point->scale_den;
+    if (scaled > UINT16_MAX) {
+        return SW_ERR_OVERFLOW;
+    }
+    *logical_value = (uint16_t)scaled;
+    return SW_OK;
+}
+
+static sw_err_t vfd_scale_write(const drv_vfd_modbus_point_t *point, uint32_t logical_value, uint16_t *raw_value)
+{
+    uint64_t scaled;
+
+    if ((point == NULL) || (raw_value == NULL) || (point->scale_num == 0U)) {
+        return SW_ERR_PARAM;
+    }
+    scaled = ((uint64_t)logical_value * point->scale_den) / point->scale_num;
+    if (scaled > UINT16_MAX) {
+        return SW_ERR_OVERFLOW;
+    }
+    *raw_value = (uint16_t)scaled;
+    return SW_OK;
 }
 
 static bool vfd_has_rev(const drv_vfd_t *vfd)
@@ -156,18 +183,19 @@ static sw_err_t vfd_apply_gear_impl(drv_vfd_t *vfd, hal_vfd_gear_t gear)
 /* -------------------------------------------------------------------------
  * 接口实现
  * ------------------------------------------------------------------------- */
-sw_err_t drv_vfd_init(drv_vfd_t        *vfd,
-                      const char       *serial_port,
-                      int               baud,
-                      int               modbus_addr,
-                      io_do_t           pin_fwd,
-                      io_do_t           pin_rev,
-                      io_do_t           pin_rst,
-                      drv_vfd_do_set_fn do_set)
+sw_err_t drv_vfd_init(drv_vfd_t                      *vfd,
+                      const char                     *serial_port,
+                      int                             baud,
+                      int                             modbus_addr,
+                      const drv_vfd_modbus_profile_t *profile,
+                      io_do_t                         pin_fwd,
+                      io_do_t                         pin_rev,
+                      io_do_t                         pin_rst,
+                      drv_vfd_do_set_fn               do_set)
 {
     sw_err_t ret;
 
-    if ((vfd == NULL) || (serial_port == NULL) || (do_set == NULL)) {
+    if ((vfd == NULL) || (serial_port == NULL) || !drv_vfd_profile_is_valid(profile) || (do_set == NULL)) {
         return SW_ERR_PARAM;
     }
 
@@ -193,6 +221,7 @@ sw_err_t drv_vfd_init(drv_vfd_t        *vfd,
     vfd->pin_fwd = pin_fwd;
     vfd->pin_rev = pin_rev;
     vfd->pin_rst = pin_rst;
+    vfd->profile = profile;
     vfd->gear    = 0;
     vfd->do_set  = do_set;
 
@@ -204,7 +233,7 @@ sw_err_t drv_vfd_init(drv_vfd_t        *vfd,
         return ret;
     }
 
-    LOG_INFO("drv_vfd_init[addr=%d] ok", modbus_addr);
+    LOG_INFO("drv_vfd_init[addr=%d profile=%s] ok", modbus_addr, profile->name);
     return SW_OK;
 }
 
@@ -289,6 +318,7 @@ sw_err_t drv_vfd_apply_gear(drv_vfd_t *vfd, hal_vfd_gear_t gear)
 sw_err_t drv_vfd_apply_frequency(drv_vfd_t *vfd, hal_vfd_frequency_t frequency_centi_hz)
 {
     uint32_t abs_frequency;
+    uint16_t raw_frequency;
     sw_err_t ret;
 
     if (!vfd_is_initialized(vfd)) {
@@ -300,11 +330,15 @@ sw_err_t drv_vfd_apply_frequency(drv_vfd_t *vfd, hal_vfd_frequency_t frequency_c
     if ((frequency_centi_hz < 0) && !vfd_has_rev(vfd)) {
         return SW_ERR_PARAM;
     }
-    abs_frequency = (frequency_centi_hz < 0) ? (uint32_t)(-(int64_t)frequency_centi_hz) : (uint32_t)frequency_centi_hz;
-    if (abs_frequency > UINT16_MAX) {
+    if (vfd->profile->frequency.access != DRV_VFD_MODBUS_WRITE_SINGLE) {
         return SW_ERR_PARAM;
     }
-    ret = drv_vfd_write(vfd, HAL_VFD_REG_FREQ, (uint16_t)abs_frequency);
+    abs_frequency = (frequency_centi_hz < 0) ? (uint32_t)(-(int64_t)frequency_centi_hz) : (uint32_t)frequency_centi_hz;
+    ret           = vfd_scale_write(&vfd->profile->frequency, abs_frequency, &raw_frequency);
+    if (ret != SW_OK) {
+        return ret;
+    }
+    ret = drv_modbus_link_write_reg(&vfd->link, vfd->profile->frequency.address, raw_frequency);
     if (ret != SW_OK) {
         return ret;
     }
@@ -337,6 +371,11 @@ bool drv_vfd_has_rst_pin(const drv_vfd_t *vfd)
     return vfd_is_initialized(vfd) && (vfd->pin_rst.raw != IO_HANDLE_NULL);
 }
 
+bool drv_vfd_has_clear_fault(const drv_vfd_t *vfd)
+{
+    return vfd_is_initialized(vfd) && (vfd->profile->clear_fault.access == DRV_VFD_MODBUS_WRITE_SINGLE);
+}
+
 hal_vfd_state_t drv_vfd_get_state(drv_vfd_t *vfd)
 {
     hal_vfd_state_t state;
@@ -352,9 +391,9 @@ hal_vfd_state_t drv_vfd_get_state(drv_vfd_t *vfd)
 
 sw_err_t drv_vfd_read(drv_vfd_t *vfd, hal_vfd_reg_t reg, uint16_t *p_val)
 {
-    sw_err_t ret;
-    uint16_t addr;
-    uint16_t val = 0U;
+    const drv_vfd_modbus_point_t *point;
+    sw_err_t                      ret;
+    uint16_t                      raw_value = 0U;
 
     if ((vfd == NULL) || (p_val == NULL)) {
         return SW_ERR_PARAM;
@@ -365,43 +404,33 @@ sw_err_t drv_vfd_read(drv_vfd_t *vfd, hal_vfd_reg_t reg, uint16_t *p_val)
 
     switch (reg) {
     case HAL_VFD_REG_STATE:
-        addr = VFD_REG_STATE;
+        point = &vfd->profile->state;
         break;
     case HAL_VFD_REG_FAULT_CODE:
-        addr = VFD_REG_FAULT_CODE;
+        point = &vfd->profile->fault_code;
         break;
     case HAL_VFD_REG_CURRENT:
-        addr = VFD_REG_CURRENT;
+        point = &vfd->profile->current;
         break;
     default:
         return SW_ERR_PARAM;
     }
 
-    ret = drv_modbus_link_read_reg(&vfd->link, addr, &val);
-    if (ret == SW_OK) {
-        *p_val = val;
+    ret = drv_modbus_link_read_reg(&vfd->link, vfd_read_type(point), point->address, &raw_value);
+    if (ret != SW_OK) {
+        return ret;
     }
-    return ret;
+    return vfd_scale_read(point, raw_value, p_val);
 }
 
-sw_err_t drv_vfd_write(drv_vfd_t *vfd, hal_vfd_reg_t reg, uint16_t val)
+sw_err_t drv_vfd_clear_fault(drv_vfd_t *vfd)
 {
     if (!vfd_is_initialized(vfd)) {
         return SW_ERR_NOT_INIT;
     }
-
-    switch (reg) {
-#ifdef VFD_REG_FREQ_SET
-    case HAL_VFD_REG_FREQ:
-        return drv_modbus_link_write_reg(&vfd->link, VFD_REG_FREQ_SET, val);
-#endif
-#ifdef VFD_REG_CLEAR_FAULT
-    case HAL_VFD_REG_CLEAR_FAULT:
-        (void)val;
-        return drv_modbus_link_write_reg(&vfd->link, VFD_REG_CLEAR_FAULT, VFD_DATA_CLEAR_FAULT);
-#endif
-    default:
-        (void)val;
+    if (vfd->profile->clear_fault.access != DRV_VFD_MODBUS_WRITE_SINGLE) {
         return SW_ERR_PARAM;
     }
+    return drv_modbus_link_write_reg(
+        &vfd->link, vfd->profile->clear_fault.address, vfd->profile->clear_fault.fixed_value);
 }

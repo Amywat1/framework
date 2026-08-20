@@ -46,9 +46,10 @@ typedef sw_err_t (*hal_vfd_backend_init_fn)(void *ctx);
 typedef sw_err_t (*hal_vfd_backend_stop_outputs_fn)(void *ctx);
 typedef sw_err_t (*hal_vfd_backend_set_rst_fn)(void *ctx, bool level);
 typedef sw_err_t (*hal_vfd_backend_read_fn)(void *ctx, hal_vfd_reg_t reg, uint16_t *p_val);
-typedef sw_err_t (*hal_vfd_backend_write_fn)(void *ctx, hal_vfd_reg_t reg, uint16_t val);
+typedef sw_err_t (*hal_vfd_backend_clear_fault_fn)(void *ctx);
 typedef hal_vfd_state_t (*hal_vfd_backend_get_state_fn)(void *ctx);
 typedef bool (*hal_vfd_backend_has_rst_pin_fn)(void *ctx);
+typedef bool (*hal_vfd_backend_has_clear_fault_fn)(void *ctx);
 
 /**
  * @brief  VFD backend 原语契约；同一 provider 的所有实例共用一份 static const 单例
@@ -62,7 +63,10 @@ typedef struct {
     hal_vfd_backend_stop_outputs_fn    stop_outputs;
     hal_vfd_backend_set_rst_fn         set_rst;
     hal_vfd_backend_read_fn            read;
-    hal_vfd_backend_write_fn           write;
+    /** @brief Modbus 清故障原语；可为 NULL，表示设备不支持。 */
+    hal_vfd_backend_clear_fault_fn clear_fault;
+    /** @brief 查询当前实例 profile 是否支持 Modbus 清故障；与 clear_fault 同时提供。 */
+    hal_vfd_backend_has_clear_fault_fn has_clear_fault;
     hal_vfd_backend_get_state_fn       get_state;
     hal_vfd_backend_has_rst_pin_fn     has_rst_pin;
 } hal_vfd_backend_ops_t;
