@@ -14,6 +14,7 @@
 #include "runtime/event_bus/event_bus.h"
 
 #include <stddef.h>
+#include <string.h>
 
 /* -------------------------------------------------------------------------
  * 记录表
@@ -96,8 +97,12 @@ static void on_observed_event(const event_t *evt)
      * 桥接不解释它——解释需要各域的编码知识，那属于消费侧（导出/分析）的事。 */
     param = evt->param;
 
+    memset(&spec, 0, sizeof(spec));
     spec.kind           = def->kind;
     spec.severity       = def->severity;
+    spec.delivery       = (def->severity >= OBSERVATION_SEVERITY_WARN)
+                              ? OBSERVATION_DELIVERY_RELIABLE
+                              : OBSERVATION_DELIVERY_BEST_EFFORT;
     spec.payload_format = OBSERVATION_PAYLOAD_BINARY;
     spec.event_code     = (uint32_t)evt->type;
     spec.source         = def->source;

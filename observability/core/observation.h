@@ -22,6 +22,7 @@ extern "C" {
 #define OBSERVATION_PAYLOAD_MAX             256U
 #define OBSERVATION_NORMAL_QUEUE_CAPACITY   256U
 #define OBSERVATION_CRITICAL_QUEUE_CAPACITY 32U
+#define OBSERVATION_LOG_RATE_LIMIT_PER_SEC  20U
 
 /** @brief  观测记录种类。 */
 typedef enum {
@@ -50,6 +51,13 @@ typedef enum {
     OBSERVATION_PAYLOAD_BINARY,
 } observation_payload_format_t;
 
+/** @brief  记录交付语义。 */
+typedef enum {
+    OBSERVATION_DELIVERY_BEST_EFFORT = 0, /**< 仅在线导出，拥塞或离线时允许丢弃。 */
+    OBSERVATION_DELIVERY_RELIABLE,        /**< 使用保留队列，并等待消费端持久化确认。 */
+    OBSERVATION_DELIVERY_LATEST,          /**< 只保留最新值，新值覆盖尚未导出的旧值。 */
+} observation_delivery_t;
+
 /**
  * @brief  当前业务关联上下文。
  * @note   与 common/trace_context.h 的 trace_context_t 是同一模型（同名同序四字段），
@@ -64,6 +72,7 @@ typedef struct {
     observation_record_kind_t    kind;
     observation_severity_t       severity;
     observation_payload_format_t payload_format;
+    observation_delivery_t       delivery;
     uint32_t                     event_code;
     const char                  *source;
     const void                  *payload;
@@ -77,6 +86,7 @@ typedef struct {
     observation_record_kind_t    kind;
     observation_severity_t       severity;
     observation_payload_format_t payload_format;
+    observation_delivery_t       delivery;
     uint32_t                     event_code;
     uint64_t                     boot_id;
     uint64_t                     sequence;
@@ -85,6 +95,7 @@ typedef struct {
     observation_context_t        context;
     char                         source[OBSERVATION_SOURCE_MAX];
     uint16_t                     payload_size;
+    uint16_t                     repeat_count;
     uint8_t                      payload[OBSERVATION_PAYLOAD_MAX];
 } observation_record_t;
 
@@ -95,10 +106,16 @@ typedef struct {
     uint64_t dropped_busy_count;
     uint64_t dropped_normal_full_count;
     uint64_t dropped_critical_full_count;
+    uint64_t dropped_offline_count;
+    uint64_t dropped_rate_limited_count;
+    uint64_t discarded_on_disconnect_count;
+    uint64_t latest_replaced_count;
+    uint64_t reliable_coalesced_count;
     uint32_t normal_queue_depth;
     uint32_t normal_queue_peak;
     uint32_t critical_queue_depth;
     uint32_t critical_queue_peak;
+    bool     latest_pending;
 } observation_stats_t;
 
 /**
@@ -139,6 +156,13 @@ observation_context_t observation_context_get(void);
  * @note   本接口不执行动态内存、文件、网络或数据库操作。
  */
 sw_err_t observation_publish(const observation_record_spec_t *spec);
+
+/**
+ * @brief  设置观测导出链路是否已完成握手。
+ * @param  available true 表示允许普通记录入队；false 表示进入断线降级并清空普通积压。
+ * @note   最新值和可靠记录不受该开关影响。
+ */
+void observation_set_export_available(bool available);
 
 /**
  * @brief  非阻塞获取下一条记录，关键队列优先。
