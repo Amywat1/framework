@@ -16,11 +16,8 @@
 extern "C" {
 #endif
 
-#include "adapters/outbound/hal/providers/snack/modbus/drv_modbus_link.h"
 #include "common/sw_error.h"
 
-#include <pthread.h>
-#include <stdbool.h>
 #include <stdint.h>
 
 /* -------------------------------------------------------------------------
@@ -29,21 +26,12 @@ extern "C" {
 #define DRV_VOICE_EVT_COMM_LOST     1 /**< 连续通信失败，判定为通信丢失 */
 #define DRV_VOICE_EVT_COMM_RESTORED 2 /**< 通信恢复正常 */
 
-/**
- * 语音模块实例句柄，由调用方分配静态或全局存储，通过指针传入各接口。
- * 以下字段标注"内部"者，外部代码只读，禁止直接修改。
- */
-typedef struct {
-    drv_modbus_link_t link;              /**< Modbus RTU 链路（连接/总线锁/失败重连） */
-    bool              comm_ok;           /**< 内部：当前通信是否正常 */
-    uint16_t          notify_fail_count; /**< 内部：连续失败计数，仅用于通信丢失/恢复通知判定 */
-    pthread_mutex_t   notify_mutex;      /**< 内部：保护 comm_ok/notify_fail_count/event_cb */
-    void (*event_cb)(int event_code);    /**< 事件回调，NULL 表示未注册 */
-} drv_voice_t;
+/** @brief 语音驱动不透明句柄，真实存储仅由 Snack provider 内部持有。 */
+typedef struct drv_voice drv_voice_t;
 
 /**
  * @brief  初始化语音模块实例，建立 Modbus 上下文
- * @param[in]  v            语音实例指针，由调用方提供存储，不可为 NULL
+ * @param[in]  v            provider 内部持有的语音句柄，不可为 NULL
  * @param[in]  serial_port  Modbus RTU 串口路径（如 "/dev/ttyS1"），不可为 NULL
  * @param[in]  baud         串口波特率
  * @param[in]  modbus_addr  Modbus 从站地址（1~247）

@@ -32,7 +32,6 @@ struct engine_session {
     pthread_mutex_t startup_mutex;
 
     atomic_bool s_busy;
-    atomic_bool s_terminate;
     atomic_bool s_abort_requested;
     atomic_int  s_current_direction;
 
@@ -43,22 +42,12 @@ struct engine_session {
     bool inited;
 };
 
-typedef struct engine_session engine_session_t;
+typedef struct {
+    bool             bound;
+    engine_session_t session;
+} engine_session_slot_t;
 
-size_t engine_session_size(void)
-{
-    return sizeof(struct engine_session);
-}
-
-static engine_session_t *as_session(void *storage)
-{
-    return (engine_session_t *)storage;
-}
-
-static const engine_session_t *as_session_c(const void *storage)
-{
-    return (const engine_session_t *)storage;
-}
+static engine_session_slot_t s_slots[WDF_ENGINE_SESSION_INSTANCE_COUNT];
 
 static void signal_startup(engine_session_t *s, uint32_t gen, sw_err_t result)
 {
@@ -195,10 +184,6 @@ static void *engine_session_worker_fn(void *arg)
 
         sem_wait(&s->start_sem);
 
-        if (atomic_load(&s->s_terminate)) {
-            break;
-        }
-
         pthread_mutex_lock(&s->startup_mutex);
         startup_gen = s->s_active_startup_gen;
         pthread_mutex_unlock(&s->startup_mutex);
@@ -323,56 +308,74 @@ static void *engine_session_worker_fn(void *arg)
     return NULL;
 }
 
-sw_err_t engine_session_init(void *storage, const engine_session_config_t *cfg)
+sw_err_t engine_session_bind(unsigned slot_id, const engine_session_config_t *cfg, engine_session_t **out_session)
 {
-    engine_session_t *s = as_session(storage);
+    engine_session_slot_t *slot;
+    engine_session_t      *s;
+    sw_err_t               ret;
 
-    if ((storage == NULL) || (cfg == NULL) || (cfg->thread_name == NULL) || (cfg->stack_size == 0U)
-        || (cfg->tick_ms == 0U) || (cfg->startup_wait_ms == 0U)
+    if (out_session == NULL) {
+        return SW_ERR_PARAM;
+    }
+    *out_session = NULL;
+
+    if ((slot_id >= WDF_ENGINE_SESSION_INSTANCE_COUNT) || (cfg == NULL) || (cfg->thread_name == NULL)
+        || (cfg->stack_size == 0U) || (cfg->tick_ms == 0U) || (cfg->startup_wait_ms == 0U)
         || (engine_environment_validate(&cfg->environment) != SW_OK)) {
         return SW_ERR_PARAM;
     }
 
+    slot = &s_slots[slot_id];
+    if (slot->bound) {
+        return SW_ERR_BUSY;
+    }
+    s = &slot->session;
     memset(s, 0, sizeof(*s));
     s->cfg = *cfg;
-    pthread_mutex_init(&s->startup_mutex, NULL);
+    if (pthread_mutex_init(&s->startup_mutex, NULL) != 0) {
+        LOG_ERROR("engine_session_bind: mutex init failed");
+        return SW_ERR_HW;
+    }
 
     atomic_store(&s->s_busy, false);
-    atomic_store(&s->s_terminate, false);
     atomic_store(&s->s_abort_requested, false);
     atomic_store(&s->s_current_direction, (int)ENGINE_DIR_NONE);
 
     if (sem_init(&s->start_sem, 0, 0) != 0) {
-        LOG_ERROR("engine_session_init: sem_init start_sem failed");
+        LOG_ERROR("engine_session_bind: sem_init start_sem failed");
+        (void)pthread_mutex_destroy(&s->startup_mutex);
         return SW_ERR_HW;
     }
 
     if (sem_init(&s->startup_done, 0, 0) != 0) {
-        LOG_ERROR("engine_session_init: sem_init startup_done failed");
+        LOG_ERROR("engine_session_bind: sem_init startup_done failed");
+        (void)sem_destroy(&s->start_sem);
+        (void)pthread_mutex_destroy(&s->startup_mutex);
         return SW_ERR_HW;
     }
 
-    {
-        sw_err_t ret
-            = thread_register_arg(cfg->thread_name, engine_session_worker_fn, s, SCHED_OTHER, 0, cfg->stack_size);
-
-        if (ret != SW_OK) {
-            return ret;
-        }
+    ret = thread_register_arg(cfg->thread_name, engine_session_worker_fn, s, SCHED_OTHER, 0, cfg->stack_size);
+    if (ret != SW_OK) {
+        (void)sem_destroy(&s->startup_done);
+        (void)sem_destroy(&s->start_sem);
+        (void)pthread_mutex_destroy(&s->startup_mutex);
+        memset(s, 0, sizeof(*s));
+        return ret;
     }
 
-    s->inited = true;
-    LOG_INFO("engine_session: init ok name=%s", cfg->thread_name);
+    s->inited    = true;
+    slot->bound  = true;
+    *out_session = s;
+    LOG_INFO("engine_session: bind ok slot=%u name=%s", slot_id, cfg->thread_name);
     return SW_OK;
 }
 
-sw_err_t engine_session_start(void *storage, const engine_session_run_t *run)
+sw_err_t engine_session_start(engine_session_t *s, const engine_session_run_t *run)
 {
-    engine_session_t *s = as_session(storage);
-    uint32_t          my_gen;
-    struct timespec   ts;
-    int               sem_ret;
-    sw_err_t          ret;
+    uint32_t        my_gen;
+    struct timespec ts;
+    int             sem_ret;
+    sw_err_t        ret;
 
     if ((s == NULL) || !s->inited || (run == NULL) || (run->program_path == NULL) || (run->program_path[0] == '\0')) {
         return SW_ERR_PARAM;
@@ -428,10 +431,8 @@ sw_err_t engine_session_start(void *storage, const engine_session_run_t *run)
     return ret;
 }
 
-bool engine_session_abort(void *storage)
+bool engine_session_abort(engine_session_t *s)
 {
-    engine_session_t *s = as_session(storage);
-
     if ((s == NULL) || !s->inited || !atomic_load(&s->s_busy)) {
         return false;
     }
@@ -444,20 +445,16 @@ bool engine_session_abort(void *storage)
     return true;
 }
 
-bool engine_session_is_busy(const void *storage)
+bool engine_session_is_busy(const engine_session_t *s)
 {
-    const engine_session_t *s = as_session_c(storage);
-
     if ((s == NULL) || !s->inited) {
         return false;
     }
     return (bool)atomic_load(&s->s_busy);
 }
 
-engine_direction_t engine_session_direction(const void *storage)
+engine_direction_t engine_session_direction(const engine_session_t *s)
 {
-    const engine_session_t *s = as_session_c(storage);
-
     if ((s == NULL) || !s->inited) {
         return ENGINE_DIR_NONE;
     }

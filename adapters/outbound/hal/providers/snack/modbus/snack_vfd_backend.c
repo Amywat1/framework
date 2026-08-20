@@ -9,7 +9,7 @@
 
 #include "adapters/outbound/hal/components/vfd_manager/hal_vfd_manager.h"
 #include "adapters/outbound/hal/providers/snack/io_exp/io_exp_driver.h"
-#include "adapters/outbound/hal/providers/snack/modbus/drv_vfd.h"
+#include "adapters/outbound/hal/providers/snack/modbus/drv_vfd_internal.h"
 
 #include <string.h>
 
@@ -170,7 +170,7 @@ static bool backend_has_rst_pin(void *ctx)
     if (vfd == NULL) {
         return false;
     }
-    return vfd->pin_rst.raw != IO_HANDLE_NULL;
+    return drv_vfd_has_rst_pin(vfd);
 }
 
 /** @brief 本 provider 的 backend 契约单例，所有 snack VFD 实例共用 */

@@ -23,12 +23,10 @@
 extern "C" {
 #endif
 
-#include "adapters/outbound/hal/providers/snack/modbus/drv_modbus_link.h"
 #include "common/io_handle.h"
 #include "common/sw_error.h"
 #include "domain/ports/outbound/hal/hal_vfd_port.h"
 
-#include <pthread.h>
 #include <stdbool.h>
 #include <stdint.h>
 
@@ -43,28 +41,12 @@ extern "C" {
 /** DO 写回调类型，由上层注入，用于驱动操作底层引脚 */
 typedef sw_err_t (*drv_vfd_do_set_fn)(io_do_t pin, bool val);
 
-/**
- * VFD 实例句柄，由调用方分配静态或全局存储，通过指针传入各接口。
- * gear 字段标注"内部"者，外部代码只读，禁止直接修改。
- */
-typedef struct {
-    drv_modbus_link_t link;                  /* Modbus RTU 链路（连接/总线锁/失败重连） */
-    io_do_t           pin_fwd;
-    io_do_t           pin_rev;               /* IO_HANDLE_NULL 表示不支持反转 */
-    io_do_t           pin_rst;
-    io_do_t           pin_spd1;              /* 速度 IO1；IO_HANDLE_NULL 表示未配置 */
-    io_do_t           pin_spd2;              /* 速度 IO2；IO_HANDLE_NULL 表示未配置 */
-    uint8_t           spd_cfg[VFD_GEAR_MAX]; /* 挡位 1~3 对应 IO 状态，由 drv_vfd_config_speed_io 写入 */
-    uint8_t           gear_count;            /* 内部：有效挡位数 */
-    hal_vfd_gear_t    gear;                  /* 内部：当前已应用到硬件的挡位，0=停止 */
-    hal_vfd_state_t   state;                 /* 内部：当前方向状态 */
-    drv_vfd_do_set_fn do_set;
-    pthread_mutex_t   io_mutex;              /* 内部：保护 gear 与 IO 写操作 */
-} drv_vfd_t;
+/** @brief VFD 驱动不透明句柄，真实存储仅由 Snack provider 内部持有。 */
+typedef struct drv_vfd drv_vfd_t;
 
 /**
  * @brief  初始化 VFD 实例，建立 Modbus 上下文并将所有控制 DO 置为安全低态
- * @param[in]  vfd          VFD 实例指针，由调用方提供存储，不可为 NULL
+ * @param[in]  vfd          provider 内部持有的 VFD 句柄，不可为 NULL
  * @param[in]  serial_port  Modbus RTU 串口路径（如 "/dev/ttyS0"），不可为 NULL
  * @param[in]  baud         串口波特率
  * @param[in]  modbus_addr  Modbus 从站地址（1~247）
@@ -144,6 +126,14 @@ sw_err_t drv_vfd_stop_outputs(drv_vfd_t *vfd);
  * @retval     SW_ERR_PARAM    pin_rst 未配置（IO_HANDLE_NULL）
  */
 sw_err_t drv_vfd_set_rst(drv_vfd_t *vfd, bool level);
+
+/**
+ * @brief 查询实例是否配置了故障复位引脚。
+ * @param[in] vfd VFD 句柄，可为 NULL。
+ * @retval true  已初始化且配置了 RST 引脚。
+ * @retval false 句柄无效、未初始化或未配置 RST 引脚。
+ */
+bool drv_vfd_has_rst_pin(const drv_vfd_t *vfd);
 
 /**
  * @brief  获取当前运行状态，从 gear 字段派生

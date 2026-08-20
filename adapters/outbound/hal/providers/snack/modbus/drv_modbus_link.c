@@ -5,10 +5,9 @@
  * @date    2026-07-07
  */
 
-#include "drv_modbus_link.h"
-
 #include "common/log.h"
 #include "common/sw_mutex.h"
+#include "drv_modbus_link_internal.h"
 #include "modbus/modbus-rtu.h"
 
 #include <pthread.h>

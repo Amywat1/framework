@@ -26,27 +26,12 @@ extern "C" {
 #include <stdbool.h>
 #include <stdint.h>
 
-typedef struct _modbus modbus_t;
-
-/**
- * Modbus RTU 链路句柄，由调用方分配静态或全局存储，通过指针传入各接口。
- * 以下字段标注"内部"者，外部代码只读，禁止直接修改。
- */
-typedef struct {
-    modbus_t   *mb;                  /* 内部：Modbus 上下文 */
-    const char *serial_port;         /* 内部：串口路径，初始化后不可变 */
-    int         baud;                /* 内部：波特率 */
-    int         modbus_addr;         /* 内部：Modbus 从站地址 */
-    void       *bus_lock;            /* 内部：同 serial_port 实例共享的总线互斥锁 */
-    bool        mb_connected;        /* 内部：当前连接是否已建立 */
-    uint16_t    comm_fail_count;     /* 内部：连续失败计数，仅用于触发自动重连 */
-    uint16_t    reconnect_threshold; /* 内部：连续失败达到该次数后自动重建连接 */
-    uint32_t    timeout_us;          /* 内部：单次 Modbus 响应超时（us） */
-} drv_modbus_link_t;
+/** @brief Modbus RTU 链路不透明句柄，真实存储仅由 Snack provider 内部持有。 */
+typedef struct drv_modbus_link drv_modbus_link_t;
 
 /**
  * @brief  初始化 Modbus RTU 链路：绑定/创建总线锁，建立连接
- * @param[in]  link                 链路句柄，由调用方提供存储，不可为 NULL
+ * @param[in]  link                 provider 内部持有的链路句柄，不可为 NULL
  * @param[in]  serial_port          Modbus RTU 串口路径（如 "/dev/ttyS0"），不可为 NULL
  * @param[in]  baud                 串口波特率
  * @param[in]  modbus_addr          Modbus 从站地址

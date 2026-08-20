@@ -5,11 +5,9 @@
  * @date    2026-04-08
  */
 
-#include "drv_vfd.h"
-
 #include "common/log.h"
 #include "common/sw_mutex.h"
-#include "drv_modbus_link.h"
+#include "drv_vfd_internal.h"
 
 #include <pthread.h>
 #include <stdint.h>
@@ -332,6 +330,11 @@ sw_err_t drv_vfd_set_rst(drv_vfd_t *vfd, bool level)
         return SW_ERR_PARAM;
     }
     return vfd_do_set(vfd, vfd->pin_rst, level);
+}
+
+bool drv_vfd_has_rst_pin(const drv_vfd_t *vfd)
+{
+    return vfd_is_initialized(vfd) && (vfd->pin_rst.raw != IO_HANDLE_NULL);
 }
 
 hal_vfd_state_t drv_vfd_get_state(drv_vfd_t *vfd)

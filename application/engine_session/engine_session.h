@@ -4,7 +4,7 @@
  * @author  HUWANGWEI
  * @date    2026-07-17
  *
- * @note    一次 init 对应一个 worker；每次 start 传入本次运行参数（路径/超时/回调）。
+ * @note    每个已绑定槽位对应一个 worker；每次 start 传入本次运行参数（路径/超时/回调）。
  *          本模块不包含任何机型方案或固定程序。
  */
 
@@ -22,6 +22,18 @@ extern "C" {
 #include <stddef.h>
 #include <stdint.h>
 
+/** 项目可通过编译定义设置会话实例数；每个实例静态占用一个完整会话槽位。 */
+#ifndef WDF_ENGINE_SESSION_INSTANCE_COUNT
+#define WDF_ENGINE_SESSION_INSTANCE_COUNT 1
+#endif
+
+#if WDF_ENGINE_SESSION_INSTANCE_COUNT < 1
+#error "WDF_ENGINE_SESSION_INSTANCE_COUNT must be at least 1"
+#endif
+
+/** @brief 方案引擎会话不透明句柄，真实存储由本模块静态槽池持有。 */
+typedef struct engine_session engine_session_t;
+
 /** 会话结束结果 */
 typedef struct {
     engine_run_state_t final_state; /**< 引擎终态 */
@@ -31,7 +43,7 @@ typedef struct {
 } engine_session_result_t;
 
 /**
- * @brief  会话静态配置（init 时拷贝；指针须在会话生命周期内有效）
+ * @brief  会话静态配置（bind 时拷贝；指针须在会话生命周期内有效）
  */
 typedef struct {
     const char          *thread_name;     /**< worker 线程名 */
@@ -58,40 +70,44 @@ typedef struct {
     void *user;
 } engine_session_run_t;
 
-/** @brief 会话对象字节大小（供静态存储）*/
-size_t engine_session_size(void);
-
 /**
- * @brief  初始化会话并注册 worker 线程
- * @param  storage  至少 engine_session_size() 字节的存储
- * @param  cfg      静态配置
+ * @brief  绑定静态会话槽位并注册 worker 线程。
+ * @param  slot_id      项目选择的稳定槽位 ID，范围 [0, WDF_ENGINE_SESSION_INSTANCE_COUNT)。
+ * @param  cfg          静态配置，成功后按值锁存。
+ * @param  out_session  返回可供应用层持有的不透明会话句柄。
+ * @retval SW_OK        绑定成功。
+ * @retval SW_ERR_PARAM 参数非法或槽位越界。
+ * @retval SW_ERR_BUSY  槽位已绑定。
+ * @retval SW_ERR_HW    同步原语初始化失败。
+ * @retval SW_ERR_OVERFLOW 线程登记表已满。
+ * @note   每个槽位只允许在启动装配阶段绑定一次，运行期不释放。
  */
-sw_err_t engine_session_init(void *storage, const engine_session_config_t *cfg);
+sw_err_t engine_session_bind(unsigned slot_id, const engine_session_config_t *cfg, engine_session_t **out_session);
 
 /**
  * @brief  启动一次方案运行（阻塞至 engine_start 成功/失败或超时）
- * @param  storage  init 时传入的存储
+ * @param  session  engine_session_bind 返回的会话句柄
  * @param  run      本次运行参数
  */
-sw_err_t engine_session_start(void *storage, const engine_session_run_t *run);
+sw_err_t engine_session_start(engine_session_t *session, const engine_session_run_t *run);
 
 /**
  * @brief  请求中止当前运行
- * @param  storage  init 时传入的存储
+ * @param  session  engine_session_bind 返回的会话句柄
  * @retval true  本次请求首次中止了正在运行的会话
  * @retval false 会话未运行、尚未初始化或已经请求中止
  */
-bool engine_session_abort(void *storage);
+bool engine_session_abort(engine_session_t *session);
 
 /**
  * @brief  查询是否正在运行
  */
-bool engine_session_is_busy(const void *storage);
+bool engine_session_is_busy(const engine_session_t *session);
 
 /**
  * @brief  查询当前阶段行进方向（空闲时为 ENGINE_DIR_NONE）
  */
-engine_direction_t engine_session_direction(const void *storage);
+engine_direction_t engine_session_direction(const engine_session_t *session);
 
 #ifdef __cplusplus
 }

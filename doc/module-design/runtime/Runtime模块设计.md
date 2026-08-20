@@ -297,7 +297,7 @@ periodic_task_thread_fn(slot)
 |------|--------|------|------|
 | `event_dispatch` | `bootstrap_register()` | 线程 | 调用 `event_bus_dispatch_loop()` |
 | `alarm_bridge` | `alarm_bridge_init()` | 周期任务（50ms） | drain alarm registry pending 事件并算姿态边沿 |
-| 会话 worker | `engine_session_init()`，名称与栈由调用方配置传入 | 线程 | 驱动方案引擎 tick |
+| 会话 worker | `engine_session_bind()`，名称与栈由调用方配置传入 | 线程 | 驱动方案引擎 tick |
 | `cloud_report_<period>ms` | `report_scheduler_register()` | 周期任务 | 云端链路 poll、watcher poll、周期/重同步上报；每种周期一个任务 |
 | `hal_sensor_poll` | `hal_sensor_poll_register_task()` | 周期任务 | DI 滤波推进 |
 | `vfd_manager_poll` | `hal_vfd_manager_poll_register_task()` | 周期任务 | VFD fault/current/RST 监测 |

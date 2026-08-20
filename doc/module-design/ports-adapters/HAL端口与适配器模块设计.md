@@ -400,6 +400,8 @@ bootstrap_start()
 - 通用组件：DI 滤波、VFD manager、ADC 门控。
 - 仿真后端：IO、voice、engine IO、engine actuator、安全端口与急停。
 - 框架电机执行器组合件；可选真机 provider：Snack io_exp、Snack Modbus voice/VFD。
+- Snack Modbus 的 `drv_modbus_link_t`、`drv_vfd_t`、`drv_voice_t` 对 provider 外部均为
+  不透明类型；对象布局只存在于同目录 `*_internal.h`，实际存储由 VFD/voice 组合层持有。
 
 ### 9.2 项目侧负责
 
@@ -414,6 +416,8 @@ bootstrap_start()
 2. 若能表达，新增 `adapters/outbound/hal/providers/<vendor>/...` 并注册既有 port。
 3. 若能力不足，先扩展 port 契约和测试，再实现 provider。
 4. provider 只做协议/SDK 适配，不写项目报警码和业务流程。
+5. provider 的公共驱动头只暴露操作与不透明句柄；组合层若需内嵌对象，只能在 provider
+   私有头中读取布局，不把字段或 vendor SDK 类型泄漏给项目 wiring。
 
 ---
 
