@@ -38,8 +38,8 @@ sw_err_t bootstrap_register_hooks(const project_hooks_t *hooks)
 {
     if ((hooks == NULL) || (hooks->configure_storage == NULL) || (hooks->configure_hal == NULL)
         || (hooks->bind_hal == NULL) || (hooks->init_hal == NULL) || (hooks->configure_safety == NULL)
-        || (hooks->init_safety == NULL) || (hooks->configure_adapters == NULL) || (hooks->bind_machine == NULL)
-        || (hooks->init_machine == NULL) || (hooks->bind_alarm_catalog == NULL) || (hooks->validate == NULL)
+        || (hooks->init_safety == NULL) || (hooks->configure_adapters == NULL) || (hooks->bind_device == NULL)
+        || (hooks->init_device == NULL) || (hooks->bind_alarm_catalog == NULL) || (hooks->validate == NULL)
         || (hooks->init_adapters == NULL) || (hooks->register_runtime_tasks == NULL) || (hooks->start_runtime == NULL)
         || (hooks->assert_safe_outputs == NULL)) {
         return SW_ERR_PARAM;
@@ -179,7 +179,7 @@ static sw_err_t bootstrap_configure(void)
 static sw_err_t bootstrap_bind(void)
 {
     BOOT_CHECK(s_hooks->bind_hal(), "project_bind_hal");
-    BOOT_CHECK(s_hooks->bind_machine(), "project_bind_machine");
+    BOOT_CHECK(s_hooks->bind_device(), "project_bind_device");
     BOOT_CHECK(alarm_registry_init(), "alarm_registry_init");
     BOOT_CHECK(alarm_binding_bridge_bind(), "alarm_binding_bridge_bind");
     BOOT_CHECK(s_hooks->bind_alarm_catalog(), "project_bind_alarm_catalog");
@@ -196,7 +196,7 @@ static sw_err_t bootstrap_init_hal(void)
     BOOT_CHECK(s_hooks->init_hal(), "project_init_hal");
     BOOT_CHECK(hal_io_bootstrap_start(), "hal_io_bootstrap_start");
     BOOT_CHECK(s_hooks->init_safety(), "project_init_safety");
-    BOOT_CHECK(s_hooks->init_machine(), "project_init_machine");
+    BOOT_CHECK(s_hooks->init_device(), "project_init_device");
     return SW_OK;
 }
 

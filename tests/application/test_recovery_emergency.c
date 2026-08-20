@@ -14,7 +14,7 @@
 #include "domain/op_mode/device_command.h"
 #include "domain/op_mode/op_mode_types.h"
 #include "domain/op_mode/operational_mode.h"
-#include "domain/ports/outbound/machine/machine_ops_port.h"
+#include "domain/ports/outbound/device/device_ops_port.h"
 #include "domain/ports/outbound/safety/safety_port.h"
 #include "domain/safety/alarm_registry/alarm_registry.h"
 #include "domain/safety/model/alarm_types.h"
@@ -98,7 +98,7 @@ static sw_err_t stub_stop_all_outputs(void)
     return SW_OK;
 }
 
-static machine_ops_t s_machine_ops;
+static device_ops_t s_device_ops;
 
 static const alarm_def_t s_blocking_catalog[] = {
     {
@@ -170,11 +170,11 @@ void setUp(void)
     s_clear_on_home_code       = 0U;
     s_home_auto_complete       = 1;
 
-    memset(&s_machine_ops, 0, sizeof(s_machine_ops));
-    s_machine_ops.abort_home       = stub_abort_home;
-    s_machine_ops.home_device      = stub_home_device;
-    s_machine_ops.abort_wash       = stub_abort_wash;
-    s_machine_ops.stop_all_outputs = stub_stop_all_outputs;
+    memset(&s_device_ops, 0, sizeof(s_device_ops));
+    s_device_ops.abort_home       = stub_abort_home;
+    s_device_ops.home_device      = stub_home_device;
+    s_device_ops.abort_wash       = stub_abort_wash;
+    s_device_ops.stop_all_outputs = stub_stop_all_outputs;
 
     time_util_init();
     TEST_ASSERT_EQUAL_INT(SW_OK, safety_port_register(&s_safety_ops));
@@ -202,7 +202,7 @@ static void test_recovery_service_publishes_completed_idle(void)
 
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_init());
-    machine_ops_register(&s_machine_ops);
+    device_ops_register(&s_device_ops);
     TEST_ASSERT_EQUAL_INT(SW_OK, recovery_service_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, event_subscribe(EVT_OP_MODE_RECOVERY_COMPLETED, on_recovery_completed));
 
@@ -224,7 +224,7 @@ static void test_recovery_service_keeps_exception_when_blocking_remains(void)
     TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_load_catalog(s_blocking_catalog, 1U));
     TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_trigger(TEST_BLOCKING_ALARM_CODE));
-    machine_ops_register(&s_machine_ops);
+    device_ops_register(&s_device_ops);
     TEST_ASSERT_EQUAL_INT(SW_OK, recovery_service_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, event_subscribe(EVT_OP_MODE_RECOVERY_COMPLETED, on_recovery_completed));
 
@@ -247,7 +247,7 @@ static void test_recovery_resets_blocking_alarm_cleared_during_home(void)
     TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_load_catalog(s_blocking_catalog, 1U));
     TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_trigger(TEST_BLOCKING_ALARM_CODE));
     s_clear_on_home_code = TEST_BLOCKING_ALARM_CODE;
-    machine_ops_register(&s_machine_ops);
+    device_ops_register(&s_device_ops);
     TEST_ASSERT_EQUAL_INT(SW_OK, recovery_service_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, event_subscribe(EVT_OP_MODE_RECOVERY_COMPLETED, on_recovery_completed));
 
@@ -272,7 +272,7 @@ static void test_recovery_resets_inactive_lockout_before_home(void)
     TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_trigger(TEST_LOCKOUT_ALARM_CODE));
     TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_clear(TEST_LOCKOUT_ALARM_CODE));
     TEST_ASSERT_EQUAL_INT(SAFETY_POSTURE_LOCKOUT, alarm_registry_safety_posture());
-    machine_ops_register(&s_machine_ops);
+    device_ops_register(&s_device_ops);
     TEST_ASSERT_EQUAL_INT(SW_OK, recovery_service_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, event_subscribe(EVT_OP_MODE_RECOVERY_COMPLETED, on_recovery_completed));
 
@@ -292,7 +292,7 @@ static void test_cutout_estop_release_does_not_run_abort_home(void)
     pthread_t tid;
 
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
-    machine_ops_register(&s_machine_ops);
+    device_ops_register(&s_device_ops);
     TEST_ASSERT_EQUAL_INT(SW_OK, safety_session_coordinator_init());
 
     tid = start_dispatch();
@@ -308,7 +308,7 @@ static void test_cutout_lockout_aborts_wash(void)
     pthread_t tid;
 
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
-    machine_ops_register(&s_machine_ops);
+    device_ops_register(&s_device_ops);
     TEST_ASSERT_EQUAL_INT(SW_OK, safety_session_coordinator_init());
 
     tid = start_dispatch();
@@ -326,7 +326,7 @@ static void test_abort_home_requested_runs_abort_home(void)
     pthread_t tid;
 
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
-    machine_ops_register(&s_machine_ops);
+    device_ops_register(&s_device_ops);
     TEST_ASSERT_EQUAL_INT(SW_OK, safety_session_coordinator_init());
 
     tid = start_dispatch();
@@ -342,7 +342,7 @@ static void test_cutout_estop_on_aborts_wash_and_defers_stop(void)
     pthread_t tid;
 
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
-    machine_ops_register(&s_machine_ops);
+    device_ops_register(&s_device_ops);
     TEST_ASSERT_EQUAL_INT(SW_OK, safety_session_coordinator_init());
 
     tid = start_dispatch();
@@ -370,7 +370,7 @@ static void test_leave_recovering_ignores_late_home_completed(void)
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, operational_mode_init());
-    machine_ops_register(&s_machine_ops);
+    device_ops_register(&s_device_ops);
     TEST_ASSERT_EQUAL_INT(SW_OK, recovery_service_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, event_subscribe(EVT_OP_MODE_RECOVERY_COMPLETED, on_recovery_completed));
 
@@ -408,7 +408,7 @@ static void test_estop_during_pending_home_preempts_recovery(void)
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, operational_mode_init());
-    machine_ops_register(&s_machine_ops);
+    device_ops_register(&s_device_ops);
     TEST_ASSERT_EQUAL_INT(SW_OK, recovery_service_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, safety_session_coordinator_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, op_mode_bridge_init());
@@ -452,7 +452,7 @@ static void test_stop_all_during_pending_home_cuts_outputs(void)
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, operational_mode_init());
-    machine_ops_register(&s_machine_ops);
+    device_ops_register(&s_device_ops);
     TEST_ASSERT_EQUAL_INT(SW_OK, recovery_service_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, event_subscribe(EVT_OP_MODE_RECOVERY_COMPLETED, on_recovery_completed));
 
@@ -490,7 +490,7 @@ static void test_recovery_resets_on_motion_cleared_during_home(void)
     TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_trigger(TEST_ON_MOTION_ALARM_CODE));
     TEST_ASSERT_TRUE(alarm_registry_is_active(TEST_ON_MOTION_ALARM_CODE));
     s_clear_on_home_code = TEST_ON_MOTION_ALARM_CODE;
-    machine_ops_register(&s_machine_ops);
+    device_ops_register(&s_device_ops);
     TEST_ASSERT_EQUAL_INT(SW_OK, recovery_service_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, event_subscribe(EVT_OP_MODE_RECOVERY_COMPLETED, on_recovery_completed));
 

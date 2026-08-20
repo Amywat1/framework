@@ -9,7 +9,7 @@ file(GLOB _demo_app CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/app/*.c)
 set(_demo_wiring
     ${CMAKE_CURRENT_SOURCE_DIR}/wiring/wiring_sim.c
     ${CMAKE_CURRENT_SOURCE_DIR}/wiring/project_hooks_sim.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/wiring/demo_machine_ops.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/wiring/demo_device_ops.c
     ${CMAKE_CURRENT_SOURCE_DIR}/wiring/demo_alarm_catalog.c
 )
 

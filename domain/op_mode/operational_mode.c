@@ -10,7 +10,7 @@
 #include "common/event_types.h"
 #include "common/log.h"
 #include "common/sw_mutex.h"
-#include "domain/ports/outbound/machine/machine_ops_port.h"
+#include "domain/ports/outbound/device/device_ops_port.h"
 #include "domain/ports/outbound/safety/safety_port.h"
 #include "domain/safety/alarm_registry/alarm_registry.h"
 #include "runtime/event_bus/event_bus.h"
@@ -281,12 +281,12 @@ static dev_cmd_decision_t check_command(const dev_cmd_t *cmd)
 
     /* 各命令专属运行时条件 */
     if (kind == DEV_CMD_START_WASH) {
-        const machine_ops_t *ops;
+        const device_ops_t *ops;
 
         if (alarm_registry_has_blocking_active()) {
             return make_denied(OP_REJECT_WRONG_MODE);
         }
-        ops = machine_ops_get();
+        ops = device_ops_get();
         if ((ops != NULL) && (ops->is_wash_entry_ready != NULL) && !ops->is_wash_entry_ready()) {
             return make_denied(OP_REJECT_VEHICLE_NOT_READY);
         }

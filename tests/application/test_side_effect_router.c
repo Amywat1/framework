@@ -9,11 +9,11 @@
 #include "domain/op_mode/device_command.h"
 #include "domain/op_mode/op_mode_types.h"
 #include "domain/op_mode/operational_mode.h"
-#include "domain/ports/outbound/machine/machine_ops_port.h"
+#include "domain/ports/outbound/device/device_ops_port.h"
 #include "domain/safety/alarm_registry/alarm_registry.h"
 #include "domain/safety/model/alarm_types.h"
 #include "runtime/event_bus/event_bus.h"
-#include "tests/stubs/wash_ops_stub.h"
+#include "tests/stubs/device_ops_stub.h"
 #include "wdf_test_spec.h"
 
 #include <stdint.h>
@@ -38,7 +38,7 @@ static sw_err_t stub_stop_all_outputs(void)
     return SW_OK;
 }
 
-static machine_ops_t s_ops;
+static device_ops_t s_ops;
 
 static void reset_counters(void)
 {
@@ -46,7 +46,7 @@ static void reset_counters(void)
     s_stop_outputs_count = 0;
     s_last_act_id        = 0U;
     s_last_act_param     = 0;
-    wash_ops_stub_reset();
+    device_ops_stub_reset();
 }
 
 void setUp(void)
@@ -59,8 +59,8 @@ void setUp(void)
     memset(&s_ops, 0, sizeof(s_ops));
     s_ops.execute_manual_actuator = stub_manual_actuator;
     s_ops.stop_all_outputs        = stub_stop_all_outputs;
-    wash_ops_stub_bind(&s_ops);
-    machine_ops_register(&s_ops);
+    device_ops_stub_bind(&s_ops);
+    device_ops_register(&s_ops);
 }
 
 void tearDown(void)
@@ -80,8 +80,8 @@ static void test_start_wash_calls_orchestrator(void)
     dev_cmd_t cmd = dev_cmd_make_start_wash(TEST_WASH_MODE_B);
 
     TEST_ASSERT_EQUAL_INT(SW_OK, side_effect_router_run(&cmd, OP_MODE_IDLE));
-    TEST_ASSERT_EQUAL_INT(1, wash_ops_stub_start_count());
-    TEST_ASSERT_EQUAL_INT(TEST_WASH_MODE_B, wash_ops_stub_last_mode());
+    TEST_ASSERT_EQUAL_INT(1, device_ops_stub_start_count());
+    TEST_ASSERT_EQUAL_INT(TEST_WASH_MODE_B, device_ops_stub_last_mode());
 }
 
 static void test_stop_wash_aborts_orchestrator(void)
@@ -89,8 +89,8 @@ static void test_stop_wash_aborts_orchestrator(void)
     dev_cmd_t cmd = dev_cmd_make_simple(DEV_CMD_STOP_WASH);
 
     TEST_ASSERT_EQUAL_INT(SW_OK, side_effect_router_run(&cmd, OP_MODE_WASHING));
-    TEST_ASSERT_EQUAL_INT(1, wash_ops_stub_abort_count());
-    TEST_ASSERT_EQUAL_INT(WASH_ABORT_MANUAL, wash_ops_stub_last_abort_cause());
+    TEST_ASSERT_EQUAL_INT(1, device_ops_stub_abort_count());
+    TEST_ASSERT_EQUAL_INT(WASH_ABORT_MANUAL, device_ops_stub_last_abort_cause());
 }
 
 static void test_manual_actuator_forwards_params(void)
@@ -109,7 +109,7 @@ static void test_stop_all_outputs_only_cuts(void)
 
     TEST_ASSERT_EQUAL_INT(SW_OK, side_effect_router_run(&cmd, OP_MODE_IDLE));
     TEST_ASSERT_EQUAL_INT(1, s_stop_outputs_count);
-    TEST_ASSERT_EQUAL_INT(0, wash_ops_stub_abort_count());
+    TEST_ASSERT_EQUAL_INT(0, device_ops_stub_abort_count());
 }
 
 static void test_stop_all_outputs_and_abort(void)
@@ -118,15 +118,15 @@ static void test_stop_all_outputs_and_abort(void)
 
     TEST_ASSERT_EQUAL_INT(SW_OK, side_effect_router_run(&cmd, OP_MODE_WASHING));
     TEST_ASSERT_EQUAL_INT(1, s_stop_outputs_count);
-    TEST_ASSERT_EQUAL_INT(1, wash_ops_stub_abort_count());
-    TEST_ASSERT_EQUAL_INT(WASH_ABORT_STOP_ALL, wash_ops_stub_last_abort_cause());
+    TEST_ASSERT_EQUAL_INT(1, device_ops_stub_abort_count());
+    TEST_ASSERT_EQUAL_INT(WASH_ABORT_STOP_ALL, device_ops_stub_last_abort_cause());
 }
 
-static void test_machine_ops_not_init_returns_error(void)
+static void test_device_ops_not_init_returns_error(void)
 {
     dev_cmd_t cmd = dev_cmd_make_simple(DEV_CMD_STOP_ALL_OUTPUTS);
 
-    machine_ops_register(NULL);
+    device_ops_register(NULL);
     TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_INIT, side_effect_router_run(&cmd, OP_MODE_IDLE));
 }
 
@@ -148,7 +148,7 @@ int main(void)
     WDF_RUN_TEST(test_manual_actuator_forwards_params, "", "验证手动执行器转发参数");
     WDF_RUN_TEST(test_stop_all_outputs_only_cuts, "", "验证全停仅切断输出");
     WDF_RUN_TEST(test_stop_all_outputs_and_abort, "", "验证全停切断并中止洗车会话");
-    WDF_RUN_TEST(test_machine_ops_not_init_returns_error, "", "验证设备操作接口未初始化时返回错误");
+    WDF_RUN_TEST(test_device_ops_not_init_returns_error, "", "验证设备操作接口未初始化时返回错误");
     WDF_RUN_TEST(test_invalid_kind_returns_param, "", "验证非法命令种类返回参数错误");
 
     return UNITY_END();

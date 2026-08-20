@@ -17,7 +17,7 @@
 | `domain/ports/outbound/hal/`、`adapters/outbound/hal/` | `ports-adapters/HAL端口与适配器模块设计.md` |
 | `domain/ports/outbound/storage/`、`adapters/outbound/storage/json/` | `ports-adapters/Storage端口与方案资产模块设计.md` |
 | `domain/cloud/`、`application/ports/**/cloud/` / `domain` 无云入站、`adapters/**/cloud/`、`application/orchestrators/report_scheduler.*` | `ports-adapters/CloudModel模块设计.md` |
-| `demo/`、`runtime/bootstrap/project_hooks.*`、`domain/ports/outbound/machine/`、项目 wiring | `integration/Demo与项目接入模块设计.md` |
+| `demo/`、`runtime/bootstrap/project_hooks.*`、`domain/ports/outbound/device/`、项目 wiring | `integration/Demo与项目接入模块设计.md` |
 | `observability/core/`、`observability/recorder/`、`application/bridges/observation_event_bridge.*` | `observability/可观测性模块设计.md` |
 | `runtime/ports/port_contract.*`、`application/asset_contract.*` | `runtime/启动契约校验模块设计.md` |
 | `common/trace_context.*`、`common/asset_version.*` | `common/横切基础设施模块设计.md` |

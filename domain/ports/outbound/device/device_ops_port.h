@@ -1,15 +1,15 @@
 /**
- * @file    machine_ops_port.h
- * @brief   机型运行时操作端口（framework 应用层 → 项目 binding）
+ * @file    device_ops_port.h
+ * @brief   整机运行时操作端口（framework 应用层 → 项目 binding）
  * @author  HUWANGWEI
  * @date    2026-07-11
  *
  * @note    framework/application 不得直接调用项目命名机构 API；
- *          项目在 project_machine_setup() 阶段注册实现。
+ *          项目在 project_bind_device() 阶段注册实现。
  */
 
-#ifndef DOMAIN_PORTS_OUTBOUND_MACHINE_MACHINE_OPS_PORT_H
-#define DOMAIN_PORTS_OUTBOUND_MACHINE_MACHINE_OPS_PORT_H
+#ifndef DOMAIN_PORTS_OUTBOUND_DEVICE_DEVICE_OPS_PORT_H
+#define DOMAIN_PORTS_OUTBOUND_DEVICE_DEVICE_OPS_PORT_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -22,7 +22,7 @@ extern "C" {
 #include <stdint.h>
 
 /**
- * @brief 机型运行时操作集合
+ * @brief 整机运行时操作集合
  */
 typedef struct {
     /**
@@ -58,22 +58,22 @@ typedef struct {
      *         未注册（NULL）时框架不拦截。
      */
     bool (*is_wash_entry_ready)(void);
-} machine_ops_t;
+} device_ops_t;
 
 /**
- * @brief  注册机型运行时操作
+ * @brief  注册整机运行时操作
  * @param  ops  操作表；须非 NULL
  */
-sw_err_t machine_ops_register(const machine_ops_t *ops);
+sw_err_t device_ops_register(const device_ops_t *ops);
 
 /**
- * @brief  获取已注册的机型操作表
+ * @brief  获取已注册的整机操作表
  * @return 操作表指针；未注册时返回 NULL
  */
-const machine_ops_t *machine_ops_get(void);
+const device_ops_t *device_ops_get(void);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* DOMAIN_PORTS_OUTBOUND_MACHINE_MACHINE_OPS_PORT_H */
+#endif /* DOMAIN_PORTS_OUTBOUND_DEVICE_DEVICE_OPS_PORT_H */

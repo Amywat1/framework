@@ -9,7 +9,7 @@
 #include "runtime/ports/port_contract.h"
 #include "runtime/bootstrap/project_hooks.h"
 
-extern sw_err_t demo_machine_ops_register(void);
+extern sw_err_t demo_device_ops_register(void);
 extern sw_err_t demo_alarm_catalog_load(void);
 
 static sw_err_t configure_storage(void)
@@ -53,12 +53,12 @@ static sw_err_t configure_adapters(void)
     return SW_OK;
 }
 
-static sw_err_t bind_machine(void)
+static sw_err_t bind_device(void)
 {
-    return demo_machine_ops_register();
+    return demo_device_ops_register();
 }
 
-static sw_err_t init_machine(void)
+static sw_err_t init_device(void)
 {
     return SW_OK;
 }
@@ -71,7 +71,7 @@ static sw_err_t bind_alarm_catalog(void)
 static sw_err_t validate(void)
 {
     return port_contract_validate(PORT_REQ_HAL_IO | PORT_REQ_HAL_VOICE | PORT_REQ_PARAM_STORE | PORT_REQ_DEPLOY_STORE
-                                  | PORT_REQ_MACHINE_OPS | PORT_REQ_ALARM_BINDING | PORT_REQ_SAFETY);
+                                  | PORT_REQ_DEVICE_OPS | PORT_REQ_ALARM_BINDING | PORT_REQ_SAFETY);
 }
 
 /*
@@ -107,8 +107,8 @@ sw_err_t project_hooks_register(void)
         .configure_safety       = configure_safety,
         .init_safety            = init_safety,
         .configure_adapters     = configure_adapters,
-        .bind_machine           = bind_machine,
-        .init_machine           = init_machine,
+        .bind_device           = bind_device,
+        .init_device           = init_device,
         .bind_alarm_catalog     = bind_alarm_catalog,
         .validate               = validate,
         .init_adapters          = init_adapters,

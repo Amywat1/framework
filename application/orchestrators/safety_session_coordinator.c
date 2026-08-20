@@ -5,15 +5,15 @@
  * @note    职责：
  *   EVT_HW_ESTOP_ON
  *     → safety_deferred_stop()
- *     → machine_ops.abort_wash(WASH_ABORT_ESTOP)
+ *     → device_ops.abort_wash(WASH_ABORT_ESTOP)
  *     → 模式由 op_mode_bridge 切至 STOPPED（不跑 abort_home）
  *     → 离开 RECOVERING 时归位等待由 recovery_service 自行取消
  *
  *   EVT_SAFETY_LOCKOUT
- *     → machine_ops.abort_wash(WASH_ABORT_CRITICAL)
+ *     → device_ops.abort_wash(WASH_ABORT_CRITICAL)
  *
  *   EVT_ABORT_HOME_REQUESTED
- *     → machine_ops.abort_home()（仅启动；完成由项目发 EVT_ABORT_HOME_DONE）
+ *     → device_ops.abort_home()（仅启动；完成由项目发 EVT_ABORT_HOME_DONE）
  *
  *   不订阅 EVT_HW_ESTOP_OFF：清急停标志由 op_mode_bridge 独占。
  */
@@ -24,13 +24,13 @@
 #include "common/log.h"
 #include "common/sw_error.h"
 #include "domain/op_mode/op_mode_types.h"
-#include "domain/ports/outbound/machine/machine_ops_port.h"
+#include "domain/ports/outbound/device/device_ops_port.h"
 #include "domain/ports/outbound/safety/safety_port.h"
 #include "runtime/event_bus/event_bus.h"
 
 static void abort_wash(wash_abort_cause_t cause)
 {
-    const machine_ops_t *ops = machine_ops_get();
+    const device_ops_t *ops = device_ops_get();
 
     if ((ops != NULL) && (ops->abort_wash != NULL)) {
         ops->abort_wash(cause);
@@ -54,7 +54,7 @@ static void on_safety_lockout(const event_t *evt)
 
 static void on_abort_home_requested(const event_t *evt)
 {
-    const machine_ops_t *ops = machine_ops_get();
+    const device_ops_t *ops = device_ops_get();
 
     (void)evt;
     LOG_INFO("safety_session: abort_home requested");

@@ -11,13 +11,13 @@
 
 ## 1. 设计目标与核心理念
 
-Runtime 层负责把框架基础设施、项目 wiring、应用模块、适配器和后台线程按固定顺序启动。`bootstrap_run()` 对外是 7 个 phase：`register → load_storage → configure → bind → init_hal → init_services → start`。项目 hooks 仍按更细的 configure/bind/init 语义调用（例如 validate 并入 bind 末尾，init_machine/init_safety 并入 init_hal）。模块在注册、绑定和各 init 阶段只注册端口、订阅事件或登记线程，真正创建线程统一延后到 `scheduler_start_all()`。
+Runtime 层负责把框架基础设施、项目 wiring、应用模块、适配器和后台线程按固定顺序启动。`bootstrap_run()` 对外是 7 个 phase：`register → load_storage → configure → bind → init_hal → init_services → start`。项目 hooks 仍按更细的 configure/bind/init 语义调用（例如 validate 并入 bind 末尾，init_device/init_safety 并入 init_hal）。模块在注册、绑定和各 init 阶段只注册端口、订阅事件或登记线程，真正创建线程统一延后到 `scheduler_start_all()`。
 
 真机入口层不参与设备 HAL 初始化编排。入口只负责进程级运行时配置，并在完成后调用 `bootstrap_run()`；具体 HAL 或外部 SDK 初始化由 provider 的 `init` 实现承接。
 
 ### 1.1 设计目标
 
-- **启动顺序确定**：`bootstrap_run()` 固定上述 7 个 phase；hooks 调用顺序仍保证 configure → bind → validate → init_hal → init_machine → init_safety → start。
+- **启动顺序确定**：`bootstrap_run()` 固定上述 7 个 phase；hooks 调用顺序仍保证 configure → bind → validate → init_hal → init_device → init_safety → start。
 - **项目扩展受控**：项目只能通过 `wiring()` 与 `project_hooks` 填充装配点，不改框架主流程。
 - **线程统一创建**：框架线程通过 `thread_register()` 登记，最后由 scheduler 创建并 detach。
 - **周期任务统一模型**：周期任务用 `periodic_task_register()` 转成线程注册表条目。
@@ -30,8 +30,8 @@ Runtime 层负责把框架基础设施、项目 wiring、应用模块、适配�
 | 注册期 | `wiring()` 只注册 port/provider/loader，不注入项目参数、不绑定实例、不初始化硬件 |
 | 加载期 | `configure_storage` 后 `svc_param_init()` 与 `deploy_store.load()`，`SW_ERR_STORAGE` 允许继续 |
 | 配置期 | 项目 hooks 注入 HAL 参数、安全默认态和适配器参数 |
-| 绑定期 | 绑定 HAL/`machine_ops`/报警目录，末尾执行 `project_validate()` |
-| HAL 初始化期 | HAL port `init`，再依次 `init_hal` / `init_machine` / `init_safety` |
+| 绑定期 | 绑定 HAL/`device_ops`/报警目录，末尾执行 `project_validate()` |
+| HAL 初始化期 | HAL port `init`，再依次 `init_hal` / `init_device` / `init_safety` |
 | 服务初始化期 | 应用协调器/桥接 init、适配器 init、项目运行期任务注册 |
 | 启动期 | `hal_io.start()`、`project_start_runtime()`、`scheduler_start_all()` |
 | 运行期 | 线程 detach，当前不提供 join/stop/restart 语义 |
@@ -85,7 +85,7 @@ bootstrap_run()
     │
     ├─ bootstrap_bind()
     │    ├─ project_bind_hal()
-    │    ├─ project_bind_machine()
+    │    ├─ project_bind_device()
     │    ├─ alarm_registry_init()
     │    ├─ project_bind_alarm_catalog()
     │    └─ project_validate()
@@ -95,7 +95,7 @@ bootstrap_run()
     │    ├─ hal_vfd_bootstrap_init()
     │    ├─ hal_voice_bootstrap_init()
     │    ├─ project_init_hal()
-    │    ├─ project_init_machine()
+    │    ├─ project_init_device()
     │    └─ project_init_safety()
     │
     ├─ bootstrap_init_services()
@@ -140,7 +140,7 @@ bootstrap_run()
 - `project_configure_hal()` 只下发 HAL 参数，例如 IO 子板配置、VFD/voice 串口参数。
 - `project_configure_adapters()` 可读取已加载的 deploy/param 配置，但不启动连接或线程。
 - `project_bind_hal()` 绑定传感器通道、VFD 实例、backend、事件回调等。
-- `project_bind_machine()` 注册 `machine_ops_t`。
+- `project_bind_device()` 注册 `device_ops_t`。
 - `project_bind_alarm_catalog()` 在 `alarm_registry_init()` 后加载项目报警目录。
 - `project_validate()` 在 bind phase 末尾执行启动前一致性校验，禁止初始化 watcher、读取实时 getter、发布事件或注册任务。
 
@@ -151,7 +151,7 @@ bootstrap_run()
 | 顺序 | 内容 | 为什么在这个位置 |
 |------|------|------------------|
 | 1 | `hal_io/vfd/voice` port init，然后 `project_init_hal()` | port ops 就绪后才能做项目级传感器预热和组合层初始化 |
-| 2 | `project_init_machine()` | 机构与执行器初始化要读写 HAL，必须晚于 HAL init |
+| 2 | `project_init_device()` | 机构与执行器初始化要读写 HAL，必须晚于 HAL init |
 | 3 | `project_init_safety()` | 建立故障安全输出态要求 HAL 与机构都已就绪 |
 
 `hal_io_bootstrap_init()` 在 IO port init 成功后，若 provider 提供 `register_panic_cb()`，会把项目的 `assert_safe_outputs` 注册为 IO panic 回调。三个 HAL port 的 `init` 均为可选：ops 未注册或未提供 `init` 时跳过并继续。
@@ -188,12 +188,12 @@ Start 阶段先调用 `hal_io.start()`，再调用 `project_start_runtime()` 启
 | `configure_safety` | configure 阶段 | 注入项目安全策略参数，禁止访问硬件 |
 | `configure_adapters` | storage load 后 | 配置云端、CLI 等适配器，禁止启动连接 |
 | `bind_hal` | HAL init 前 | 绑定传感器通道、VFD 实例、backend、事件回调 |
-| `bind_machine` | bind 阶段 | 注册 `machine_ops` 等设备装配接口 |
+| `bind_device` | bind 阶段 | 注册 `device_ops` 等设备装配接口 |
 | `bind_alarm_catalog` | `alarm_registry_init()` 后 | 加载项目报警目录 |
 | `validate` | bind phase 末尾、各 init 之前 | 启动前一致性校验 |
 | `init_hal` | init_hal 阶段，HAL port init 后 | 初始化项目 HAL 组合层、预热传感器 |
-| `init_machine` | init_hal phase 内、`init_hal` 之后 | 初始化项目机构与执行器 |
-| `init_safety` | init_hal phase 内、`init_machine` 之后 | 建立项目故障安全状态 |
+| `init_device` | init_hal phase 内、`init_hal` 之后 | 初始化项目机构与执行器 |
+| `init_safety` | init_hal phase 内、`init_device` 之后 | 建立项目故障安全状态 |
 | `init_adapters` | init_services 阶段 | 初始化云端、CLI 等入站适配器；可选启用观测桥接、急停轮询 |
 | `register_runtime_tasks` | init_services 阶段末 | 注册项目周期任务和运行期线程 |
 | `start_runtime` | scheduler 启动前 | 启动无法纳入 scheduler 的项目线程 |
@@ -201,7 +201,7 @@ Start 阶段先调用 `hal_io.start()`，再调用 `project_start_runtime()` 启
 
 `bootstrap_register_hooks()` 对全部 15 个指针做非空断言，缺一即返回 `SW_ERR_PARAM`。项目必须实现 `project_hooks_register()`，在其中填充结构体并调用注册函数；bootstrap 在 register 阶段调用它。
 
-Demo 实现位于 `demo/wiring/project_hooks_sim.c`：只有 `configure_storage`（注入 JSON 路径）、`bind_machine`（`demo_machine_ops_register()`）、`bind_alarm_catalog`（`demo_alarm_catalog_load()`）和 `validate`（端口契约校验）有实质内容，其余为空实现。
+Demo 实现位于 `demo/wiring/project_hooks_sim.c`：只有 `configure_storage`（注入 JSON 路径）、`bind_device`（`demo_device_ops_register()`）、`bind_alarm_catalog`（`demo_alarm_catalog_load()`）和 `validate`（端口契约校验）有实质内容，其余为空实现。
 
 ### 4.1 何时使用 project hook
 

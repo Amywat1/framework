@@ -17,7 +17,7 @@
 #include "domain/ports/outbound/hal/hal_sensor_port.h"
 #include "domain/ports/outbound/hal/hal_vfd_port.h"
 #include "domain/ports/outbound/hal/hal_voice_port.h"
-#include "domain/ports/outbound/machine/machine_ops_port.h"
+#include "domain/ports/outbound/device/device_ops_port.h"
 #include "domain/ports/outbound/safety/safety_port.h"
 #include "domain/ports/outbound/storage/deploy_store.h"
 #include "domain/ports/outbound/storage/engine_program_loader_port.h"
@@ -59,9 +59,9 @@ static bool alarm_binding_present(void)
 {
     return alarm_binding_get_ops() != NULL;
 }
-static bool machine_present(void)
+static bool device_ops_present(void)
 {
-    return machine_ops_get() != NULL;
+    return device_ops_get() != NULL;
 }
 static bool cloud_link_present(void)
 {
@@ -100,7 +100,7 @@ static const port_contract_entry_t k_entries[] = {
     {PORT_REQ_HAL_VOICE,      "hal_voice",             voice_present         },
     {PORT_REQ_DEVICE_COMMAND, "device_command",        command_present       },
     {PORT_REQ_ALARM_BINDING,  "alarm_binding",         alarm_binding_present },
-    {PORT_REQ_MACHINE_OPS,    "machine_ops",           machine_present       },
+    {PORT_REQ_DEVICE_OPS,     "device_ops",            device_ops_present    },
     {PORT_REQ_CLOUD_LINK,     "cloud_link",            cloud_link_present    },
     {PORT_REQ_CLOUD_REPORT,   "cloud_report",          cloud_report_present  },
     {PORT_REQ_CLOUD_PROPERTY, "cloud_property",        cloud_property_present},

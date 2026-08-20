@@ -138,8 +138,8 @@ static project_hooks_t make_full_hooks(void)
         .configure_safety       = ok_fn,
         .init_safety            = ok_fn,
         .configure_adapters     = ok_fn,
-        .bind_machine           = ok_fn,
-        .init_machine           = ok_fn,
+        .bind_device           = ok_fn,
+        .init_device           = ok_fn,
         .bind_alarm_catalog     = ok_fn,
         .validate               = ok_fn,
         .init_adapters          = ok_fn,
@@ -187,8 +187,8 @@ static void test_each_hook_is_required(void)
     ASSERT_FIELD_REQUIRED(configure_safety);
     ASSERT_FIELD_REQUIRED(init_safety);
     ASSERT_FIELD_REQUIRED(configure_adapters);
-    ASSERT_FIELD_REQUIRED(bind_machine);
-    ASSERT_FIELD_REQUIRED(init_machine);
+    ASSERT_FIELD_REQUIRED(bind_device);
+    ASSERT_FIELD_REQUIRED(init_device);
     ASSERT_FIELD_REQUIRED(bind_alarm_catalog);
     ASSERT_FIELD_REQUIRED(validate);
     ASSERT_FIELD_REQUIRED(init_adapters);

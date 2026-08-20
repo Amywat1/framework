@@ -2,10 +2,10 @@
 
 **版本**：v1.0  
 **状态**：已落地（Demo smoke + wiring/project hooks 接入骨架）  
-**最后同步代码**：2026-07-14（`demo/`、`runtime/bootstrap/wiring.h`、`runtime/bootstrap/project_hooks.h`、`machine_ops_port`）  
-**适用范围**：`demo/`、`runtime/bootstrap/`、`domain/ports/outbound/machine/`、项目 wiring/bindings  
+**最后同步代码**：2026-07-14（`demo/`、`runtime/bootstrap/wiring.h`、`runtime/bootstrap/project_hooks.h`、`device_ops_port`）  
+**适用范围**：`demo/`、`runtime/bootstrap/`、`domain/ports/outbound/device/`、项目 wiring/bindings  
 **架构基线**：通用 bootstrap + 项目依赖注入 + 项目 hooks  
-**关键词**：demo、wiring、project_hooks、machine_ops、bootstrap_run、smoke、project bring-up
+**关键词**：demo、wiring、project_hooks、device_ops、bootstrap_run、smoke、project bring-up
 
 ---
 
@@ -31,9 +31,9 @@ Demo 与项目接入层展示如何把通用框架装配成一个可启动设备
 | HAL | `hal_io_sim`、`hal_voice_sim` |
 | 安全端口 | `safety_sim` 注册 `safety_ops_t`，急停状态由 `hw_estop_sim` 维护 |
 | 存储 | `json_param_store`、`json_deploy_store` |
-| machine ops | 空操作/成功返回的 `demo_machine_ops` |
+| device ops | 空操作/成功返回的 `demo_device_ops` |
 | 报警目录 | 两个 demo alarm code |
-| 洗车编排 | 无（`machine_ops` 空实现返回成功） |
+| 洗车编排 | 无（`device_ops` 空实现返回成功） |
 | 周期任务 | 无项目任务；`alarm_bridge` 由框架 `alarm_bridge_init()` 自行登记 |
 | 验证链路 | STOP_OPERATION、硬件急停事件、报警触发链 |
 
@@ -48,13 +48,13 @@ Demo 是框架自带的最小接入实例，可直接作为新项目 wiring 的�
 | `runtime/bootstrap/bootstrap.h` | `bootstrap_run()` 与启动失败后的进程约束 |
 | `runtime/bootstrap/project_hooks.h` | `project_hooks_t` 15 个必填钩子 |
 | `runtime/bootstrap/wiring.h` | `wiring()` 声明 |
-| `domain/ports/outbound/machine/machine_ops_port.h` | 命令副作用对应的项目动作契约 |
+| `domain/ports/outbound/device/device_ops_port.h` | 命令副作用对应的项目动作契约 |
 | `runtime/ports/port_contract.h` | 必需端口的启动期集中校验（`PORT_REQ_*`） |
 | `application/asset_contract.h` | 必需资产的启动期集中校验（`ASSET_REQ_*`） |
 | `demo/app/demo_main.c` | 最小 main：调 `bootstrap_run()` 后驱动 smoke 场景 |
 | `demo/wiring/wiring_sim.c` | 最小 provider 注册（sim HAL、storage、safety） |
 | `demo/wiring/project_hooks_sim.c` | 15 个钩子的最小实现 |
-| `demo/wiring/demo_machine_ops.c` | 最小 `machine_ops_t` |
+| `demo/wiring/demo_device_ops.c` | 最小 `device_ops_t` |
 | `demo/wiring/demo_alarm_catalog.c` | 最小报警目录 |
 | `demo/config/demo_config.h` | Demo 资产路径与常量 |
 
@@ -72,7 +72,7 @@ Demo 是框架自带的最小接入实例，可直接作为新项目 wiring 的�
 | 运行时 glue | 对外部平台 SDK 做项目内封装 |
 | `wiring.c` | 注册 HAL、storage、cloud、engine loader 等 provider |
 | `project_hooks.c` | 实现 `project_*` 生命周期钩子 |
-| `machine_ops.c` | 注册 `machine_ops_t`，承接命令副作用 |
+| `device_ops.c` | 注册 `device_ops_t`，承接命令副作用 |
 | `alarm_catalog.c` | 加载项目报警目录 |
 | `safety_ports.c` | 经 `safety_port_register()` 注册急停输入、安全切断与急停码判定 |
 | `hal_bindings.c` | 绑定电机、VFD、sensor、IO、fluid path 等实例 |
@@ -106,13 +106,13 @@ bootstrap_configure()
 
 bootstrap_bind()
     ├─ project_bind_hal()
-    ├─ project_bind_machine()
+    ├─ project_bind_device()
     ├─ project_bind_alarm_catalog()
     └─ project_validate()
 
 bootstrap_init_hal()
     ├─ project_init_hal()
-    ├─ project_init_machine()
+    ├─ project_init_device()
     └─ project_init_safety()
 
 bootstrap_init_services()
@@ -166,8 +166,8 @@ wiring()
 | `project_configure_safety()` | 空实现 |
 | `project_init_safety()` | 空实现 |
 | `project_configure_adapters()` | 空实现 |
-| `project_bind_machine()` | `demo_machine_ops_register()` |
-| `project_init_machine()` | 空实现 |
+| `project_bind_device()` | `demo_device_ops_register()` |
+| `project_init_device()` | 空实现 |
 | `project_bind_alarm_catalog()` | `demo_alarm_catalog_load()` |
 | `project_validate()` | `port_contract_validate()` 校验必需端口 |
 | `project_init_adapters()` | 接入急停轮询适配器；不接观测桥（观测设施由项目显式启用） |
@@ -175,9 +175,9 @@ wiring()
 | `project_start_runtime()` | 空实现 |
 | `assert_safe_outputs`（hook 字段） | 空实现（仿真无真实输出可切断） |
 
-### 4.4 `demo_machine_ops`
+### 4.4 `demo_device_ops`
 
-Demo 注册 `machine_ops_t`，所有动作为空或返回 `SW_OK`。这只验证 `side_effect_router` 能调用到项目端口，不验证真实机构动作。
+Demo 注册 `device_ops_t`，所有动作为空或返回 `SW_OK`。这只验证 `side_effect_router` 能调用到项目端口，不验证真实机构动作。
 
 ### 4.5 `demo_alarm_catalog`
 
@@ -192,11 +192,11 @@ Demo 加载两个报警：
 
 ## 5. Machine Ops 接入
 
-`machine_ops_port` 是 framework application 到项目机构能力的出站端口。
+`device_ops_port` 是 framework application 到项目机构能力的出站端口。
 
 ```c
 typedef struct {
-    /* deferred_stop 在 safety_ops，不在 machine_ops */
+    /* deferred_stop 在 safety_ops，不在 device_ops */
     void (*abort_home)(void);
     sw_err_t (*start_wash)(wash_mode_t mode);
     void (*abort_wash)(wash_abort_cause_t cause);
@@ -204,7 +204,7 @@ typedef struct {
     sw_err_t (*execute_manual_actuator)(uint32_t act_id, int32_t param);
     sw_err_t (*stop_all_outputs)(void);
     bool (*is_wash_entry_ready)(void);
-} machine_ops_t;
+} device_ops_t;
 ```
 
 ### 5.1 调用方
@@ -225,7 +225,7 @@ typedef struct {
 
 ### 5.2 项目实现要求
 
-- `project_bind_machine()` 中调用 `machine_ops_register()`。
+- `project_bind_device()` 中调用 `device_ops_register()`。
 - `execute_manual_actuator` 的 `act_id` / `param` 由项目定义，并在云端/CLI 映射中保持一致；**须非阻塞**——下发动作或启动定时/运动后立即返回，点动时长与到位由项目侧自行管理，勿在回调内 `sleep`/轮询等待。
 - `start_wash` / `home_device` / `abort_home` 同样只启动异步流程；完成后分别靠洗车事件、`EVT_OP_MODE_HOME_COMPLETED`、`EVT_ABORT_HOME_DONE` 收口。
 - 发布 `EVT_OP_MODE_HOME_COMPLETED(成功)` 前须按目标姿态证明 ON_MOTION（只 `clear` 条件；过流等 MANUAL_RESET 不得在此清除）。
@@ -256,7 +256,7 @@ typedef struct {
 
 ### 6.3 Domain / Application
 
-- 在 `project_bind_machine()` 注册 `machine_ops_t`。
+- 在 `project_bind_device()` 注册 `device_ops_t`。
 - 在 `project_bind_alarm_catalog()` 加载项目报警目录。
 - 初始化洗车 orchestrator 所需的 engine IO 后端和方案 loader。
 - 遥测投影由 `bootstrap_init_services()` 自动接入，项目无需初始化；读侧用 `device_snapshot_get()`。
@@ -334,7 +334,7 @@ Snack 等 vendor provider 仍由根 CMake 开关以 STATIC 库提供，它们有
 | `test_bootstrap_hooks` | 15 个钩子的 NULL 校验、启动阶段顺序、失败即返回 |
 | `test_port_contract` | `PORT_REQ_*` 位掩码校验、缺失端口一次报全 |
 | `test_asset_contract` | `ASSET_REQ_*` 校验：报警目录为空、点位表缺失、IO 目录空 |
-| `test_machine_ops_port` | `machine_ops_t` 注册与命令副作用转发 |
+| `test_device_ops_port` | `device_ops_t` 注册与命令副作用转发 |
 
 `test_port_contract` 与 `test_asset_contract` 是接入契约的核心防线：两者都注入过
 「探测函数恒返回 true」验证检查确有约束力。
@@ -355,7 +355,7 @@ L4）。它依次验证：
 | 步骤 | 覆盖的链路 |
 |------|-----------|
 | `bootstrap_run()` | 7 阶段启动全过程 |
-| `RECOVER` → IDLE | 命令网关 → 裁决 → `RECOVERY_REQUESTED` → `recovery_service` → `machine_ops.home_device` → `EVT_OP_MODE_HOME_COMPLETED` → `EVT_OP_MODE_RECOVERY_COMPLETED` → IDLE |
+| `RECOVER` → IDLE | 命令网关 → 裁决 → `RECOVERY_REQUESTED` → `recovery_service` → `device_ops.home_device` → `EVT_OP_MODE_HOME_COMPLETED` → `EVT_OP_MODE_RECOVERY_COMPLETED` → IDLE |
 | `STOP_OPERATION` | IDLE 下的停运裁决与运营开关 |
 | 急停边沿 | `hw_estop_sim` → `estop_poll_thread` → `safety_cutout_execute` → `EVT_HW_ESTOP_ON` → 姿态收敛 |
 | 报警触发 | `alarm_binding.trigger` → `alarm_bridge` → blocking 判定 |
@@ -385,7 +385,7 @@ smoke 的偶发失败比不跑更糟——它会让真实回归被当成抖动�
 建议按以下顺序逐步验证：
 
 1. 只启 storage + sim HAL，确认 bootstrap。
-2. 接入 machine ops 空实现，确认 command gateway。
+2. 接入 device ops 空实现，确认 command gateway。
 3. 接入报警目录和 detector，确认 alarm bridge。
 4. 接入真实 IO/sensor，确认安全输入。
 5. 接入 VFD/motor/voice，确认 HAL 诊断。
@@ -399,7 +399,7 @@ smoke 的偶发失败比不跑更糟——它会让真实回归被当成抖动�
 | 问题 | 结果 |
 |------|------|
 | 在 `wiring()` 中只注册 provider，不在 configure/bind/init hook 中注入参数和绑定实例 | port 已存在但运行期返回 `SW_ERR_NOT_INIT` |
-| 忘记注册 `machine_ops` | HOME/MANUAL/STOP_ALL_OUTPUTS 命令副作用失败 |
+| 忘记注册 `device_ops` | HOME/MANUAL/STOP_ALL_OUTPUTS 命令副作用失败 |
 | 报警目录晚于 detector 启动 | detector 触发未知报警码 |
 | `project_start_runtime()` 后再注册周期任务 | 任务不会被当前 `scheduler_start_all()` 启动 |
 | event handler 中执行阻塞 IO | 阻塞全局 event dispatch |

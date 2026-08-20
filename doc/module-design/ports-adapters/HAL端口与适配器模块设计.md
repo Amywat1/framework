@@ -19,7 +19,7 @@ HAL 层为 domain/application 提供稳定的硬件能力边界。框架内的�
 - **项目配置外置**：电机实例、IO 名称表、VFD 实例、串口地址、音频曲目语义均由项目侧定义。
 - **组件复用**：DI 滤波和 VFD 管理是通用组合层，依赖更底层 provider 的原语能力。
 - **真机 provider 可选**：需要外部 SDK 或库的 provider 默认不构建，通过 CMake 开关启用。
-- **安全态可插入**：IO panic、VFD stop、voice stop、motor stop 等安全输出策略由项目 hooks 和 machine ops 组合。
+- **安全态可插入**：IO panic、VFD stop、voice stop、motor stop 等安全输出策略由项目 hooks 和 device ops 组合。
 
 ### 1.2 分层模型
 
@@ -317,7 +317,7 @@ wiring()
     ├─ 注册 hal_sensor_filter
     ├─ 注册 hal_vfd_manager 或 snack_vfd_backend
     ├─ 注册 hal_voice provider
-    ├─ 注册 machine_ops / engine_io / 其他端口
+    ├─ 注册 device_ops / engine_io / 其他端口
     └─ 返回 bootstrap
 
 project_configure_hal()
@@ -368,7 +368,7 @@ bootstrap_start()
 - panic 回调应只做安全输出落地，不做复杂业务决策。
 - `flush_outputs_now()` 用于 panic 或启动安全态，正常路径由后台线程/周期任务推进。
 - `register_event_cb` 回调只传递硬件事件，不直接改变运行模式。
-- 急停热路径走 `safety_cutout_execute()`；命令侧全停走 `machine_ops.stop_all_outputs()`。二者入口分离，项目实现应落到等价安全输出态。前者由项目经 `safety_port_register()` 注册，未注册时故障安全并告警。
+- 急停热路径走 `safety_cutout_execute()`；命令侧全停走 `device_ops.stop_all_outputs()`。二者入口分离，项目实现应落到等价安全输出态。前者由项目经 `safety_port_register()` 注册，未注册时故障安全并告警。
 
 ---
 
@@ -408,7 +408,7 @@ bootstrap_start()
 - 选择并启用 provider，提供外部 SDK 路径、库路径、串口和总线配置。
 - 定义 IO 名称表、VFD 实例 ID、电机索引、语音曲目编号语义。
 - 在 `wiring()` 注册 provider，在 project hooks 中完成配置、绑定、初始化和周期任务注册。
-- 将硬件事件映射到报警、运行模式或 machine ops。
+- 将硬件事件映射到报警、运行模式或 device ops。
 
 ### 9.3 新增 provider
 

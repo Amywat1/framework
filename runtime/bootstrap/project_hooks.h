@@ -34,10 +34,10 @@ typedef struct {
     sw_err_t (*init_safety)(void);
     /** 配置阶段：配置项目入站/出站适配器。禁止初始化连接或启动线程。*/
     sw_err_t (*configure_adapters)(void);
-    /** 绑定阶段：注册项目设备装配接口，例如 machine_ops。*/
-    sw_err_t (*bind_machine)(void);
+    /** 绑定阶段：注册项目设备装配接口，例如 device_ops。*/
+    sw_err_t (*bind_device)(void);
     /** 机器初始化阶段：项目故障安全状态建立后初始化机构与执行器。*/
-    sw_err_t (*init_machine)(void);
+    sw_err_t (*init_device)(void);
     /** 绑定阶段：注入项目报警目录并建立报警适配绑定。*/
     sw_err_t (*bind_alarm_catalog)(void);
     /** 校验阶段：执行项目启动前一致性校验。*/

@@ -38,7 +38,7 @@ typedef enum {
     PORT_REQ_HAL_VOICE      = (1U << 3),  /**< 语音播报 */
     PORT_REQ_DEVICE_COMMAND = (1U << 4),  /**< 设备命令入站（由 command_gateway 注册）*/
     PORT_REQ_ALARM_BINDING  = (1U << 5),  /**< 报警触发绑定（由 alarm_registry 注册）*/
-    PORT_REQ_MACHINE_OPS    = (1U << 6),  /**< 机型运行时操作 */
+    PORT_REQ_DEVICE_OPS     = (1U << 6),  /**< 整机运行时操作 */
     PORT_REQ_CLOUD_LINK     = (1U << 7),  /**< 云连接 */
     PORT_REQ_CLOUD_REPORT   = (1U << 8),  /**< 云上报 */
     PORT_REQ_CLOUD_PROPERTY = (1U << 9),  /**< 云属性下行 */

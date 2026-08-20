@@ -7,7 +7,7 @@
 #include "domain/op_mode/device_command.h"
 #include "domain/op_mode/op_mode_types.h"
 #include "domain/op_mode/operational_mode.h"
-#include "domain/ports/outbound/machine/machine_ops_port.h"
+#include "domain/ports/outbound/device/device_ops_port.h"
 #include "domain/ports/outbound/safety/safety_port.h"
 #include "domain/safety/alarm_registry/alarm_registry.h"
 #include "domain/safety/model/alarm_types.h"
@@ -74,7 +74,7 @@ static void enter_idle(void)
 void setUp(void)
 {
     port_registry_safety_reset();
-    machine_ops_register(NULL);
+    device_ops_register(NULL);
     TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_init());
     load_alarm_catalog();
     TEST_ASSERT_EQUAL_INT(SW_OK, operational_mode_init());
@@ -82,7 +82,7 @@ void setUp(void)
 
 void tearDown(void)
 {
-    machine_ops_register(NULL);
+    device_ops_register(NULL);
 }
 
 /* 上电后应处于 STOPPED，service_enabled=true，非待机 */
@@ -308,12 +308,12 @@ static bool stub_wash_entry_not_ready(void)
 /* 机型准入门未就绪时拒绝 START_WASH */
 static void test_start_wash_denied_when_vehicle_not_ready(void)
 {
-    static const machine_ops_t s_ops = {
+    static const device_ops_t s_ops = {
         .is_wash_entry_ready = stub_wash_entry_not_ready,
     };
     dev_cmd_t cmd = dev_cmd_make_start_wash(TEST_WASH_MODE_A);
 
-    machine_ops_register(&s_ops);
+    device_ops_register(&s_ops);
     enter_idle();
     TEST_ASSERT_EQUAL_INT(OP_REJECT_VEHICLE_NOT_READY, op_mode_handle_command(&cmd).reason);
 }

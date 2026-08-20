@@ -8,7 +8,7 @@
 #include "application/ports/inbound/command/command_port.h"
 #include "domain/ports/outbound/hal/hal_io_port.h"
 #include "domain/ports/outbound/hal/hal_voice_port.h"
-#include "domain/ports/outbound/machine/machine_ops_port.h"
+#include "domain/ports/outbound/device/device_ops_port.h"
 #include "runtime/ports/port_contract.h"
 #include "runtime/ports/port_registry.h"
 #include "wdf_test_spec.h"
@@ -61,7 +61,7 @@ static const device_command_port_ops_t s_cmd_ops = {
     .submit_sync  = fake_submit_sync,
 };
 
-static const machine_ops_t s_machine_ops = {0};
+static const device_ops_t s_device_ops = {0};
 
 void setUp(void)
 {
@@ -102,13 +102,13 @@ static void test_partial_registration_fails(void)
     TEST_ASSERT_EQUAL_INT(SW_OK, hal_io_register(&s_io_ops));
     TEST_ASSERT_EQUAL_INT(SW_OK, device_command_port_register(&s_cmd_ops));
 
-    /* machine_ops 未注册 */
+    /* device_ops 未注册 */
     TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_INIT,
-                          port_contract_validate(PORT_REQ_HAL_IO | PORT_REQ_DEVICE_COMMAND | PORT_REQ_MACHINE_OPS));
+                          port_contract_validate(PORT_REQ_HAL_IO | PORT_REQ_DEVICE_COMMAND | PORT_REQ_DEVICE_OPS));
 
-    TEST_ASSERT_EQUAL_INT(SW_OK, machine_ops_register(&s_machine_ops));
+    TEST_ASSERT_EQUAL_INT(SW_OK, device_ops_register(&s_device_ops));
     TEST_ASSERT_EQUAL_INT(SW_OK,
-                          port_contract_validate(PORT_REQ_HAL_IO | PORT_REQ_DEVICE_COMMAND | PORT_REQ_MACHINE_OPS));
+                          port_contract_validate(PORT_REQ_HAL_IO | PORT_REQ_DEVICE_COMMAND | PORT_REQ_DEVICE_OPS));
 }
 
 /* 未声明的端口不参与校验：无云项目不应被要求注册 cloud 端口 */
@@ -141,7 +141,7 @@ static void test_unknown_bits_ignored(void)
 static void test_name_lookup(void)
 {
     TEST_ASSERT_EQUAL_STRING("hal_io", port_contract_name(PORT_REQ_HAL_IO));
-    TEST_ASSERT_EQUAL_STRING("machine_ops", port_contract_name(PORT_REQ_MACHINE_OPS));
+    TEST_ASSERT_EQUAL_STRING("device_ops", port_contract_name(PORT_REQ_DEVICE_OPS));
     TEST_ASSERT_EQUAL_STRING("unknown", port_contract_name((port_requirement_t)(1U << 30)));
 }
 

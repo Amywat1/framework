@@ -209,8 +209,8 @@ add_unit_test(test_snack_cloud_adapters
     ${WDF_ROOT}/third_party/cJSON/cJSON.c
 )
 
-add_unit_test(test_machine_ops_port
-    ${CMAKE_CURRENT_SOURCE_DIR}/ports/test_machine_ops_port.c
+add_unit_test(test_device_ops_port
+    ${CMAKE_CURRENT_SOURCE_DIR}/ports/test_device_ops_port.c
     ${WDF_ROOT}/runtime/ports/port_registry_infra.c
     ${WDF_ROOT}/common/log.c
     ${WDF_ROOT}/common/sw_mutex.c
@@ -488,7 +488,7 @@ add_unit_test(test_side_effect_router
     ${WDF_ROOT}/domain/safety/alarm_registry/alarm_registry.c
     ${WDF_ROOT}/runtime/ports/port_registry_infra.c
     ${WDF_ROOT}/runtime/ports/port_registry_safety.c
-    ${WDF_ROOT}/tests/stubs/wash_ops_stub.c
+    ${WDF_ROOT}/tests/stubs/device_ops_stub.c
     ${WDF_ROOT}/runtime/event_bus/event_bus.c
     ${WDF_ROOT}/common/time_util.c
     ${WDF_ROOT}/common/log.c
@@ -563,7 +563,7 @@ add_unit_test(test_command_gateway
     ${WDF_ROOT}/domain/safety/alarm_registry/alarm_registry.c
     ${WDF_ROOT}/runtime/ports/port_registry_infra.c
     ${WDF_ROOT}/runtime/ports/port_registry_safety.c
-    ${WDF_ROOT}/tests/stubs/wash_ops_stub.c
+    ${WDF_ROOT}/tests/stubs/device_ops_stub.c
     ${WDF_ROOT}/runtime/event_bus/event_bus.c
     ${WDF_ROOT}/common/time_util.c
     ${WDF_ROOT}/common/log.c

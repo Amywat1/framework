@@ -9,7 +9,7 @@
 #include "common/log.h"
 #include "domain/op_mode/op_mode_types.h"
 #include "domain/op_mode/operational_mode.h"
-#include "domain/ports/outbound/machine/machine_ops_port.h"
+#include "domain/ports/outbound/device/device_ops_port.h"
 #include "domain/safety/alarm_registry/alarm_registry.h"
 #include "domain/safety/model/alarm_types.h"
 #include "runtime/event_bus/event_bus.h"
@@ -43,7 +43,7 @@ static sw_err_t run_self_check(void)
  */
 static sw_err_t run_stop_all_outputs(bool abort_wash_session)
 {
-    const machine_ops_t *ops = machine_ops_get();
+    const device_ops_t *ops = device_ops_get();
     sw_err_t             ret;
 
     if ((ops == NULL) || (ops->stop_all_outputs == NULL)) {
@@ -59,13 +59,13 @@ static sw_err_t run_stop_all_outputs(bool abort_wash_session)
 
 sw_err_t side_effect_router_run(const dev_cmd_t *cmd, operational_mode_t mode_before)
 {
-    const machine_ops_t *ops;
+    const device_ops_t *ops;
 
     if (cmd == NULL) {
         return SW_ERR_PARAM;
     }
 
-    ops = machine_ops_get();
+    ops = device_ops_get();
 
     switch (cmd->body.kind) {
     case DEV_CMD_START_WASH:

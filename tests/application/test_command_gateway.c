@@ -10,9 +10,9 @@
 #include "domain/op_mode/device_command.h"
 #include "domain/op_mode/operational_mode.h"
 #include "application/ports/inbound/command/command_port.h"
-#include "domain/ports/outbound/machine/machine_ops_port.h"
+#include "domain/ports/outbound/device/device_ops_port.h"
 #include "runtime/event_bus/event_bus.h"
-#include "tests/stubs/wash_ops_stub.h"
+#include "tests/stubs/device_ops_stub.h"
 #include "wdf_test_spec.h"
 
 #include <pthread.h>
@@ -35,7 +35,7 @@ static sw_err_t stub_stop_all_outputs(void)
     return SW_OK;
 }
 
-static machine_ops_t s_ops;
+static device_ops_t s_ops;
 
 static void *dispatch_fn(void *arg)
 {
@@ -97,12 +97,12 @@ static void stop_runtime(pthread_t dispatch_tid)
 
 void setUp(void)
 {
-    wash_ops_stub_reset();
+    device_ops_stub_reset();
     memset(&s_ops, 0, sizeof(s_ops));
     s_ops.home_device          = stub_home_device;
     s_ops.stop_all_outputs     = stub_stop_all_outputs;
-    wash_ops_stub_bind(&s_ops);
-    machine_ops_register(&s_ops);
+    device_ops_stub_bind(&s_ops);
+    device_ops_register(&s_ops);
     s_handled_command_id       = 0U;
     s_handled_correlation_id   = 0U;
     s_stop_all_outputs_count   = 0;
@@ -161,8 +161,8 @@ static void test_start_wash_triggers_orchestrator(void)
 
     TEST_ASSERT_EQUAL_INT(SW_OK, device_command_port_get_ops()->submit_sync(&cmd, &receipt, 1000U));
     TEST_ASSERT_EQUAL_INT(DEV_CMD_STATUS_ACCEPTED, receipt.status);
-    TEST_ASSERT_EQUAL_INT(1, wash_ops_stub_start_count());
-    TEST_ASSERT_EQUAL_INT(TEST_WASH_MODE_A, wash_ops_stub_last_mode());
+    TEST_ASSERT_EQUAL_INT(1, device_ops_stub_start_count());
+    TEST_ASSERT_EQUAL_INT(TEST_WASH_MODE_A, device_ops_stub_last_mode());
 
     stop_runtime(tid);
 }
@@ -264,7 +264,7 @@ static void test_submit_sync_from_control_thread_is_rejected(void)
     s_reentrant_ret              = SW_OK;
     s_reentrant_done             = 0;
     s_ops.stop_all_outputs       = stub_stop_all_reentrant;
-    machine_ops_register(&s_ops);
+    device_ops_register(&s_ops);
 
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, operational_mode_init());
@@ -302,8 +302,8 @@ static void test_stop_all_during_washing_via_gateway(void)
     TEST_ASSERT_EQUAL_INT(DEV_CMD_STATUS_ACCEPTED, receipt.status);
     TEST_ASSERT_EQUAL_INT(OP_MODE_STOPPED, op_mode_get_current());
     TEST_ASSERT_EQUAL_INT(1, s_stop_all_outputs_count);
-    TEST_ASSERT_EQUAL_INT(1, wash_ops_stub_abort_count());
-    TEST_ASSERT_EQUAL_INT(WASH_ABORT_STOP_ALL, wash_ops_stub_last_abort_cause());
+    TEST_ASSERT_EQUAL_INT(1, device_ops_stub_abort_count());
+    TEST_ASSERT_EQUAL_INT(WASH_ABORT_STOP_ALL, device_ops_stub_last_abort_cause());
 
     stop_runtime(tid);
 }
@@ -357,7 +357,7 @@ static void test_sync_stop_attaches_to_in_flight_async(void)
     pthread_t         tid;
 
     s_ops.stop_all_outputs = stub_stop_all_slow;
-    machine_ops_register(&s_ops);
+    device_ops_register(&s_ops);
 
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, operational_mode_init());

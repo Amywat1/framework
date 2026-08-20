@@ -7,7 +7,7 @@
 
 #include "application/ports/inbound/command/command_port.h"
 #include "application/ports/inbound/safety/alarm_binding_port.h"
-#include "domain/ports/outbound/machine/machine_ops_port.h"
+#include "domain/ports/outbound/device/device_ops_port.h"
 #include "runtime/ports/port_registry.h"
 
 #include <stddef.h>
@@ -49,23 +49,23 @@ const alarm_binding_ops_t *alarm_binding_get_ops(void)
 }
 
 /* ---- 机型运行时操作 ---- */
-static const machine_ops_t *s_machine_ops;
+static const device_ops_t *s_device_ops;
 
-sw_err_t machine_ops_register(const machine_ops_t *ops)
+sw_err_t device_ops_register(const device_ops_t *ops)
 {
     /* 各字段由 side_effect_router 逐个判空，机型可只实现子集，故无必填项 */
-    s_machine_ops = ops;
+    s_device_ops = ops;
     return SW_OK;
 }
 
-const machine_ops_t *machine_ops_get(void)
+const device_ops_t *device_ops_get(void)
 {
-    return s_machine_ops;
+    return s_device_ops;
 }
 
 void port_registry_infra_reset(void)
 {
     s_cmd_ops           = NULL;
     s_alarm_binding_ops = NULL;
-    s_machine_ops       = NULL;
+    s_device_ops       = NULL;
 }

@@ -1,10 +1,10 @@
 /**
- * @file    test_machine_ops_port.c
- * @brief   machine_ops_port 机型操作端口单元测试
+ * @file    test_device_ops_port.c
+ * @brief   device_ops_port 机型操作端口单元测试
  */
 
 #include "common/sw_error.h"
-#include "domain/ports/outbound/machine/machine_ops_port.h"
+#include "domain/ports/outbound/device/device_ops_port.h"
 #include "wdf_test_spec.h"
 
 #include <stdint.h>
@@ -23,7 +23,7 @@ static sw_err_t stub_home_device(void)
     return SW_OK;
 }
 
-static const machine_ops_t s_stub_ops = {
+static const device_ops_t s_stub_ops = {
     .abort_home  = stub_abort_home,
     .home_device = stub_home_device,
 };
@@ -40,21 +40,21 @@ void tearDown(void)
 
 static void test_get_before_register_returns_null(void)
 {
-    TEST_ASSERT_NULL(machine_ops_get());
+    TEST_ASSERT_NULL(device_ops_get());
 }
 
 static void test_register_and_get(void)
 {
-    machine_ops_register(&s_stub_ops);
-    TEST_ASSERT_EQUAL_PTR(&s_stub_ops, machine_ops_get());
+    device_ops_register(&s_stub_ops);
+    TEST_ASSERT_EQUAL_PTR(&s_stub_ops, device_ops_get());
 }
 
 static void test_invoke_callbacks(void)
 {
-    const machine_ops_t *ops;
+    const device_ops_t *ops;
 
-    machine_ops_register(&s_stub_ops);
-    ops = machine_ops_get();
+    device_ops_register(&s_stub_ops);
+    ops = device_ops_get();
     TEST_ASSERT_NOT_NULL(ops);
 
     ops->abort_home();

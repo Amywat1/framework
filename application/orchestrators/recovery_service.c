@@ -12,7 +12,7 @@
 #include "common/sw_error.h"
 #include "domain/op_mode/op_mode_types.h"
 #include "domain/op_mode/operational_mode.h"
-#include "domain/ports/outbound/machine/machine_ops_port.h"
+#include "domain/ports/outbound/device/device_ops_port.h"
 #include "domain/safety/alarm_registry/alarm_registry.h"
 #include "runtime/event_bus/event_bus.h"
 
@@ -79,7 +79,7 @@ static void on_home_completed(const event_t *evt)
 static void on_recovery_requested(const event_t *evt)
 {
     recovery_result_t    result = RECOVERY_RESULT_FAILED;
-    const machine_ops_t *ops;
+    const device_ops_t *ops;
 
     (void)evt;
     atomic_store(&s_waiting_home, false);
@@ -91,7 +91,7 @@ static void on_recovery_requested(const event_t *evt)
         goto done;
     }
 
-    ops = machine_ops_get();
+    ops = device_ops_get();
     if ((ops == NULL) || (ops->home_device == NULL)) {
         LOG_ERROR("recovery_service: home_device not available");
         goto done;

@@ -1,12 +1,12 @@
 /**
- * @file    demo_machine_ops.c
- * @brief   Demo 仿真 machine_ops 实现
+ * @file    demo_device_ops.c
+ * @brief   Demo 仿真 device_ops 实现
  */
 
 #include "common/event_types.h"
 #include "common/sw_error.h"
 #include "domain/op_mode/op_mode_types.h"
-#include "domain/ports/outbound/machine/machine_ops_port.h"
+#include "domain/ports/outbound/device/device_ops_port.h"
 #include "runtime/event_bus/event_bus.h"
 
 static void demo_abort_home(void)
@@ -48,7 +48,7 @@ static sw_err_t demo_stop_all_outputs(void)
     return SW_OK;
 }
 
-static const machine_ops_t s_demo_machine_ops = {
+static const device_ops_t s_demo_device_ops = {
     .abort_home              = demo_abort_home,
     .start_wash              = demo_start_wash,
     .abort_wash              = demo_abort_wash,
@@ -58,10 +58,10 @@ static const machine_ops_t s_demo_machine_ops = {
 };
 
 /**
- * @brief  注册 Demo machine_ops
+ * @brief  注册 Demo device_ops
  */
-sw_err_t demo_machine_ops_register(void)
+sw_err_t demo_device_ops_register(void)
 {
-    machine_ops_register(&s_demo_machine_ops);
+    device_ops_register(&s_demo_device_ops);
     return SW_OK;
 }
