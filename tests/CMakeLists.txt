@@ -58,6 +58,14 @@ add_unit_test(test_event_bus
     ${WDF_ROOT}/common/time_util.c
 )
 
+add_unit_test(test_event_bus_required
+    ${CMAKE_CURRENT_SOURCE_DIR}/runtime/test_event_bus_required.c
+    ${WDF_ROOT}/runtime/event_bus/event_bus.c
+    ${WDF_ROOT}/common/log.c
+    ${WDF_ROOT}/common/sw_mutex.c
+    ${WDF_ROOT}/common/time_util.c
+)
+
 add_unit_test(test_hal_io_sim
     ${CMAKE_CURRENT_SOURCE_DIR}/adapters/test_hal_io_sim.c
     ${WDF_ROOT}/adapters/outbound/hal/sim/hal_io_sim.c
@@ -202,6 +210,16 @@ add_unit_test(test_op_mode_alarm_port
     ${WDF_ROOT}/runtime/ports/port_registry_safety.c
     ${WDF_ROOT}/common/log.c
     ${WDF_ROOT}/common/sw_mutex.c
+)
+
+add_unit_test(test_safety_cutout_contract
+    ${CMAKE_CURRENT_SOURCE_DIR}/ports/test_safety_cutout_contract.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/support/safety_cutout_contract.c
+)
+
+add_unit_test(test_adapter_error_contract
+    ${CMAKE_CURRENT_SOURCE_DIR}/ports/test_adapter_error_contract.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/support/adapter_error_contract.c
 )
 
 add_unit_test(test_cloud_ports
@@ -421,6 +439,7 @@ add_unit_test(test_operational_mode
     ${WDF_ROOT}/domain/op_mode/operational_mode.c
     ${WDF_ROOT}/domain/safety/alarm_registry/alarm_registry.c
     ${WDF_ROOT}/runtime/ports/port_registry_infra.c
+    ${WDF_ROOT}/runtime/ports/port_registry_safety.c
     ${WDF_ROOT}/runtime/event_bus/event_bus.c
     ${WDF_ROOT}/common/time_util.c
     ${WDF_ROOT}/common/log.c
@@ -457,6 +476,7 @@ add_unit_test(test_side_effect_router
     ${WDF_ROOT}/domain/op_mode/operational_mode.c
     ${WDF_ROOT}/domain/safety/alarm_registry/alarm_registry.c
     ${WDF_ROOT}/runtime/ports/port_registry_infra.c
+    ${WDF_ROOT}/runtime/ports/port_registry_safety.c
     ${WDF_ROOT}/tests/stubs/wash_ops_stub.c
     ${WDF_ROOT}/runtime/event_bus/event_bus.c
     ${WDF_ROOT}/common/time_util.c
@@ -515,7 +535,10 @@ add_unit_test(test_telemetry_projection
     ${WDF_ROOT}/domain/safety/alarm_registry/alarm_registry.c
     ${WDF_ROOT}/runtime/ports/port_registry_cloud.c
     ${WDF_ROOT}/runtime/ports/port_registry_infra.c
+    ${WDF_ROOT}/runtime/ports/port_registry_safety.c
     ${WDF_ROOT}/runtime/event_bus/event_bus.c
+    ${WDF_ROOT}/runtime/scheduler/periodic_task.c
+    ${WDF_ROOT}/runtime/scheduler/thread_registry.c
     ${WDF_ROOT}/common/log.c
     ${WDF_ROOT}/common/sw_mutex.c
     ${WDF_ROOT}/common/time_util.c
@@ -528,6 +551,7 @@ add_unit_test(test_command_gateway
     ${WDF_ROOT}/domain/op_mode/operational_mode.c
     ${WDF_ROOT}/domain/safety/alarm_registry/alarm_registry.c
     ${WDF_ROOT}/runtime/ports/port_registry_infra.c
+    ${WDF_ROOT}/runtime/ports/port_registry_safety.c
     ${WDF_ROOT}/tests/stubs/wash_ops_stub.c
     ${WDF_ROOT}/runtime/event_bus/event_bus.c
     ${WDF_ROOT}/common/time_util.c

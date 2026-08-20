@@ -62,7 +62,7 @@ static void on_abort_home_requested(const event_t *evt)
         ops->abort_home();
     } else {
         LOG_ERROR("safety_session: ops.abort_home missing, publish DONE fail");
-        (void)event_publish(EVT_ABORT_HOME_DONE, (uint32_t)SW_ERR_NOT_INIT);
+        (void)event_publish_required(EVT_ABORT_HOME_DONE, (uint32_t)SW_ERR_NOT_INIT);
     }
 }
 

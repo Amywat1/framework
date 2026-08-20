@@ -8,8 +8,10 @@
 #include "domain/op_mode/op_mode_types.h"
 #include "domain/op_mode/operational_mode.h"
 #include "domain/ports/outbound/machine/machine_ops_port.h"
+#include "domain/ports/outbound/safety/safety_port.h"
 #include "domain/safety/alarm_registry/alarm_registry.h"
 #include "domain/safety/model/alarm_types.h"
+#include "runtime/ports/port_registry.h"
 #include "tests/stubs/test_wash_modes.h"
 #include "wdf_test_spec.h"
 
@@ -23,6 +25,33 @@ static const alarm_def_t s_catalog[] = {
      .reeval_group = ALARM_REEVAL_GROUP_NONE,
      .desc         = "test blocking",
      },
+};
+
+static sw_err_t failed_cutout(void)
+{
+    return SW_ERR_HW;
+}
+
+static bool inactive_estop(void)
+{
+    return false;
+}
+
+static bool non_estop_alarm(uint32_t code)
+{
+    (void)code;
+    return false;
+}
+
+static void no_deferred_stop(void)
+{
+}
+
+static const safety_ops_t s_failed_cutout_ops = {
+    .cutout          = failed_cutout,
+    .estop_is_active = inactive_estop,
+    .alarm_is_estop  = non_estop_alarm,
+    .deferred_stop   = no_deferred_stop,
 };
 
 static void load_alarm_catalog(void)
@@ -44,6 +73,7 @@ static void enter_idle(void)
 
 void setUp(void)
 {
+    port_registry_safety_reset();
     machine_ops_register(NULL);
     TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_init());
     load_alarm_catalog();
@@ -79,6 +109,21 @@ static void test_recover_home_failure_enters_stopped(void)
 
     TEST_ASSERT_EQUAL_INT(OP_CMD_ALLOWED, d.verdict);
     op_mode_on_recovery_completed(RECOVERY_RESULT_FAILED);
+    TEST_ASSERT_EQUAL_INT(OP_MODE_STOPPED, op_mode_get_current());
+}
+
+static void test_cutout_unconfirmed_blocks_recovery(void)
+{
+    dev_cmd_t          cmd = dev_cmd_make_simple(DEV_CMD_RECOVER);
+    dev_cmd_decision_t decision;
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, safety_port_register(&s_failed_cutout_ops));
+    TEST_ASSERT_EQUAL_INT(SW_ERR_HW, safety_cutout_execute());
+    TEST_ASSERT_TRUE(safety_cutout_is_unconfirmed());
+
+    decision = op_mode_handle_command(&cmd);
+    TEST_ASSERT_EQUAL_INT(OP_CMD_DENIED, decision.verdict);
+    TEST_ASSERT_EQUAL_INT(OP_REJECT_CUTOUT_UNCONFIRMED, decision.reason);
     TEST_ASSERT_EQUAL_INT(OP_MODE_STOPPED, op_mode_get_current());
 }
 
@@ -509,6 +554,7 @@ int main(void)
     WDF_RUN_TEST(test_init_stopped_and_service_enabled, "", "验证初始化停止模式并服务启用");
     WDF_RUN_TEST(test_recover_from_stopped_enters_idle, "", "验证恢复从停止模式进入空闲模式");
     WDF_RUN_TEST(test_recover_home_failure_enters_stopped, "", "验证恢复回零失败进入停止模式");
+    WDF_RUN_TEST(test_cutout_unconfirmed_blocks_recovery, "SAFE-11", "验证切断未确认时拒绝恢复");
     WDF_RUN_TEST(test_blocking_alarm_from_stopped_stays_stopped, "", "验证停止模式阻断报警仍为停止");
     WDF_RUN_TEST(test_blocking_alarm_from_idle_enters_stopped, "", "验证空闲模式阻断报警进入停止");
     WDF_RUN_TEST(test_blocking_alarm_during_home_lands_stopped, "", "验证回零期间阻断报警完成后进入停止");

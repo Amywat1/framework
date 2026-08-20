@@ -37,10 +37,15 @@ static void publish_posture_edge(void)
     s_posture = next;
     if (next == SAFETY_POSTURE_LOCKOUT) {
         LOG_WARN("alarm_bridge: posture -> LOCKOUT");
-        (void)event_publish(EVT_SAFETY_LOCKOUT, 0U);
+        (void)event_publish_required(EVT_SAFETY_LOCKOUT, 0U);
     } else {
+        sw_err_t ret;
+
         LOG_INFO("alarm_bridge: posture -> NOMINAL");
-        (void)event_publish(EVT_SAFETY_NOMINAL, 0U);
+        ret = event_publish(EVT_SAFETY_NOMINAL, 0U);
+        if (ret != SW_OK) {
+            LOG_WARN("alarm_bridge: nominal projection event dropped ret=%d", (int)ret);
+        }
     }
 }
 
@@ -57,10 +62,10 @@ void alarm_bridge_drain(void)
             any = true;
             switch (batch[i].kind) {
             case ALARM_DOMAIN_EVT_TRIGGERED:
-                (void)event_publish(EVT_ALARM_TRIGGERED, batch[i].code);
+                (void)event_publish_required(EVT_ALARM_TRIGGERED, batch[i].code);
                 break;
             case ALARM_DOMAIN_EVT_CLEARED:
-                (void)event_publish(EVT_ALARM_CLEARED, batch[i].code);
+                (void)event_publish_required(EVT_ALARM_CLEARED, batch[i].code);
                 break;
             default:
                 break;

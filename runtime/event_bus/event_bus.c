@@ -313,6 +313,21 @@ sw_err_t event_publish(event_type_t type, uint32_t param)
     return SW_OK;
 }
 
+sw_err_t event_publish_required(event_type_t type, uint32_t param)
+{
+    sw_err_t ret = event_publish(type, param);
+
+    if (ret == SW_OK) {
+        return SW_OK;
+    }
+
+    EVT_LOG_ERROR("required event publish failed type=%d param=%u ret=%d", (int)type, param, (int)ret);
+    if (s_fatal_cb != NULL) {
+        s_fatal_cb(EVENT_BUS_FATAL_REQUIRED_PUBLISH, (int)ret);
+    }
+    return ret;
+}
+
 /* -------------------------------------------------------------------------
  * event_subscribe
  * ------------------------------------------------------------------------- */

@@ -20,6 +20,13 @@ extern "C" {
  */
 sw_err_t telemetry_projection_init(void);
 
+/**
+ * @brief  从当前事实源重建可拉取的遥测子域
+ * @note   运行模式、安全和云连接可重建；洗车模式目前只有启动事件作为事实来源，
+ *         因而仍保持事件驱动，不在此伪造重建结果。
+ */
+void telemetry_projection_sync_all(void);
+
 #ifdef __cplusplus
 }
 #endif

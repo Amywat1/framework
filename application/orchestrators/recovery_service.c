@@ -70,7 +70,7 @@ static void on_home_completed(const event_t *evt)
         LOG_WARN("recovery_service: blocking alarm remains after home");
     }
 
-    (void)event_publish(EVT_OP_MODE_RECOVERY_COMPLETED, (uint32_t)result);
+    (void)event_publish_required(EVT_OP_MODE_RECOVERY_COMPLETED, (uint32_t)result);
     LOG_INFO("recovery_service: completed result=%d", (int)result);
 }
 
@@ -107,7 +107,7 @@ static void on_recovery_requested(const event_t *evt)
     return;
 
 done:
-    (void)event_publish(EVT_OP_MODE_RECOVERY_COMPLETED, (uint32_t)result);
+    (void)event_publish_required(EVT_OP_MODE_RECOVERY_COMPLETED, (uint32_t)result);
     LOG_INFO("recovery_service: completed result=%d", (int)result);
 }
 

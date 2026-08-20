@@ -9,10 +9,14 @@
 #include "common/time_util.h"
 #include "domain/op_mode/device_command.h"
 #include "domain/op_mode/operational_mode.h"
+#include "domain/ports/outbound/safety/safety_port.h"
 #include "domain/safety/alarm_registry/alarm_registry.h"
 #include "domain/telemetry/device_snapshot.h"
 #include "domain/telemetry/device_snapshot_internal.h"
 #include "runtime/event_bus/event_bus.h"
+#include "runtime/event_bus/event_bus_config.h"
+#include "runtime/ports/port_registry.h"
+#include "runtime/scheduler/thread_registry.h"
 #include "tests/stubs/test_wash_modes.h"
 #include "wdf_test_spec.h"
 
@@ -27,6 +31,33 @@ static const alarm_def_t s_catalog[] = {
      .reeval_group = ALARM_REEVAL_GROUP_NONE,
      .desc         = "blocking alarm",
      },
+};
+
+static sw_err_t failed_cutout(void)
+{
+    return SW_ERR_HW;
+}
+
+static bool inactive_estop(void)
+{
+    return false;
+}
+
+static bool non_estop_alarm(uint32_t code)
+{
+    (void)code;
+    return false;
+}
+
+static void no_deferred_stop(void)
+{
+}
+
+static const safety_ops_t s_failed_cutout_ops = {
+    .cutout          = failed_cutout,
+    .estop_is_active = inactive_estop,
+    .alarm_is_estop  = non_estop_alarm,
+    .deferred_stop   = no_deferred_stop,
 };
 
 static void *dispatch_fn(void *arg)
@@ -58,6 +89,7 @@ static void publish_and_wait(event_type_t type, uint32_t param)
 
 void setUp(void)
 {
+    port_registry_safety_reset();
     /* 快照是进程级全局态，不复位则用例只在"先写后读"的写法下偶然成立，
      * 一旦有用例断言某子域的绝对值就会依赖执行顺序。 */
     device_snapshot_reset_for_test();
@@ -210,6 +242,47 @@ static void test_safety_projection_refreshes_alarm_snapshot(void)
     stop_dispatch(tid);
 }
 
+static void test_explicit_rebuild_repairs_dropped_projection_event(void)
+{
+    operational_snapshot_t snap;
+    dev_cmd_t              stop_cmd = dev_cmd_make_simple(DEV_CMD_STOP_OPERATION);
+
+    time_util_init();
+    thread_registry_reset_for_test();
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, operational_mode_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, telemetry_projection_init());
+
+    snap = operational_snapshot_get();
+    TEST_ASSERT_TRUE(snap.service_enabled);
+
+    for (unsigned i = 0U; i < EVENT_BUS_QUEUE_SIZE; ++i) {
+        TEST_ASSERT_EQUAL_INT(SW_OK, event_publish(EVT_CMD_ORDER, i));
+    }
+    TEST_ASSERT_EQUAL_INT(OP_CMD_ALLOWED, op_mode_handle_command(&stop_cmd).verdict);
+
+    snap = operational_snapshot_get();
+    TEST_ASSERT_TRUE(snap.service_enabled);
+    telemetry_projection_sync_all();
+    snap = operational_snapshot_get();
+    TEST_ASSERT_FALSE(snap.service_enabled);
+    TEST_ASSERT_EQUAL_INT(OP_MODE_STOPPED, snap.mode);
+}
+
+static void test_cutout_unconfirmed_forces_lockout_projection(void)
+{
+    safety_snapshot_t snap;
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, safety_port_register(&s_failed_cutout_ops));
+    TEST_ASSERT_EQUAL_INT(SW_ERR_HW, safety_cutout_execute());
+    telemetry_projection_sync_all();
+
+    snap = safety_snapshot_get();
+    TEST_ASSERT_EQUAL_INT(SAFETY_POSTURE_LOCKOUT, snap.posture);
+    TEST_ASSERT_TRUE(snap.blocking_active);
+    TEST_ASSERT_TRUE(snap.cutout_unconfirmed);
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -219,6 +292,8 @@ int main(void)
     WDF_RUN_TEST(test_operational_projection_syncs_current_context, "", "验证运行状态投影同步当前上下文");
     WDF_RUN_TEST(test_estop_while_stopped_syncs_snapshot_flag, "", "验证已停止时急停仍刷新快照旗标");
     WDF_RUN_TEST(test_safety_projection_refreshes_alarm_snapshot, "", "验证安全投影刷新报警快照");
+    WDF_RUN_TEST(test_explicit_rebuild_repairs_dropped_projection_event, "", "验证事件丢失后显式重建修复投影");
+    WDF_RUN_TEST(test_cutout_unconfirmed_forces_lockout_projection, "SAFE-11", "验证切断未确认强制安全投影锁定");
 
     return UNITY_END();
 }

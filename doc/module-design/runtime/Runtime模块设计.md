@@ -340,7 +340,7 @@ loop:
 - **切断失败不重试**，只记录 ERROR。重试会延长动力输出未确认切断的窗口，而失败原因通常在硬件链路本身（总线离线、板卡无响应），重试无从改变。
 - **切断失败不阻断事件发布**。`EVT_HW_ESTOP_ON` 必须照常送出，否则领域层不会进入急停态，一次故障会同时丢掉切断与状态收敛两条路径。
 
-`safety_cutout_execute()` 与 `hw_estop_port_is_active()` 均由项目通过 `safety_port_register()` 注册 `safety_ops_t` 提供实现，未注册时故障安全并首次告警，可由 `port_contract_validate(PORT_REQ_SAFETY)` 在启动期拦住。该线程注册后不可停止，与周期任务一致。
+`safety_cutout_execute()` 与 `hw_estop_port_is_active()` 均由项目通过 `safety_port_register()` 注册 `safety_ops_t` 提供实现，未注册时故障安全并首次告警，可由 `port_contract_validate(PORT_REQ_SAFETY)` 在启动期拦住。切断失败会锁存为“未确认”，安全投影进入 `LOCKOUT`，恢复前必须由项目提供独立 `cutout_confirmed()` 反馈并调用 `safety_cutout_reconcile()`；框架不在急停热路径自动重试。该线程注册后不可停止，与周期任务一致。
 
 ### 7.2 Event Bus Fatal
 

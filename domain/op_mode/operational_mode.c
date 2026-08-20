@@ -11,6 +11,7 @@
 #include "common/log.h"
 #include "common/sw_mutex.h"
 #include "domain/ports/outbound/machine/machine_ops_port.h"
+#include "domain/ports/outbound/safety/safety_port.h"
 #include "domain/safety/alarm_registry/alarm_registry.h"
 #include "runtime/event_bus/event_bus.h"
 
@@ -92,12 +93,20 @@ static const char *wash_abort_name(wash_abort_cause_t cause)
 
 static void publish_mode_changed(operational_mode_t from, operational_mode_t to)
 {
-    (void)event_publish(EVT_OP_MODE_CHANGED, op_mode_changed_evt_param(from, to));
+    sw_err_t ret = event_publish(EVT_OP_MODE_CHANGED, op_mode_changed_evt_param(from, to));
+
+    if (ret != SW_OK) {
+        LOG_WARN("op_mode: mode projection event dropped ret=%d", (int)ret);
+    }
 }
 
 static void publish_context_sync(void)
 {
-    (void)event_publish(EVT_OP_MODE_CONTEXT_SYNC, 0U);
+    sw_err_t ret = event_publish(EVT_OP_MODE_CONTEXT_SYNC, 0U);
+
+    if (ret != SW_OK) {
+        LOG_WARN("op_mode: context projection event dropped ret=%d", (int)ret);
+    }
 }
 
 static void set_mode(operational_mode_t next, const char *cause)
@@ -290,6 +299,13 @@ static dev_cmd_decision_t check_command(const dev_cmd_t *cmd)
         }
     }
 
+    if ((kind == DEV_CMD_START_WASH) || (kind == DEV_CMD_MANUAL_ACTUATOR) || (kind == DEV_CMD_START_SELF_CHECK)
+        || (kind == DEV_CMD_RECOVER)) {
+        if (safety_cutout_is_unconfirmed()) {
+            return make_denied(OP_REJECT_CUTOUT_UNCONFIRMED);
+        }
+    }
+
     return (dev_cmd_decision_t){
         .verdict = OP_CMD_ALLOWED,
         .reason  = OP_REJECT_NONE,
@@ -339,7 +355,7 @@ dev_cmd_decision_t op_mode_handle_command(const dev_cmd_t *cmd)
         /* STOPPED 走 recovery_service；IDLE 幂等 */
         if (s_mode == OP_MODE_STOPPED) {
             set_mode(OP_MODE_RECOVERING, NULL);
-            (void)event_publish(EVT_OP_MODE_RECOVERY_REQUESTED, 0U);
+            (void)event_publish_required(EVT_OP_MODE_RECOVERY_REQUESTED, 0U);
         }
         break;
 
@@ -406,7 +422,7 @@ void op_mode_on_wash_session_aborted(wash_abort_cause_t cause)
     }
 
     set_mode(OP_MODE_ABORT_HOMING, wash_abort_name(cause));
-    (void)event_publish(EVT_ABORT_HOME_REQUESTED, 0U);
+    (void)event_publish_required(EVT_ABORT_HOME_REQUESTED, 0U);
     op_mode_unlock();
 }
 

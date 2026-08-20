@@ -14,6 +14,7 @@
 #include "runtime/scheduler/scheduler.h"
 #include "wdf_test_spec.h"
 
+#include <pthread.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
@@ -28,6 +29,13 @@ static int  s_started_count;
 static int  s_finished_count;
 static bool s_last_success;
 static bool s_last_aborted;
+
+typedef struct {
+    engine_session_t    *session;
+    engine_session_run_t run;
+    pthread_barrier_t   *barrier;
+    sw_err_t             result;
+} concurrent_start_arg_t;
 
 static void on_stop(void *user)
 {
@@ -61,6 +69,15 @@ static engine_session_run_t make_run(void)
     run.on_finished          = on_finished;
     run.on_stop_outputs      = on_stop;
     return run;
+}
+
+static void *concurrent_start(void *arg)
+{
+    concurrent_start_arg_t *start_arg = (concurrent_start_arg_t *)arg;
+
+    (void)pthread_barrier_wait(start_arg->barrier);
+    start_arg->result = engine_session_start(start_arg->session, &start_arg->run);
+    return NULL;
 }
 
 static const char *const s_program_json
@@ -141,6 +158,43 @@ static void test_engine_session_runs_to_done(void)
         TEST_ASSERT_NULL(duplicate);
     }
     TEST_ASSERT_EQUAL_INT(SW_OK, scheduler_start_all());
+
+    {
+        pthread_barrier_t      barrier;
+        pthread_t              threads[2];
+        concurrent_start_arg_t args[2];
+        int                    ok_count   = 0;
+        int                    busy_count = 0;
+
+        TEST_ASSERT_EQUAL_INT(0, pthread_barrier_init(&barrier, NULL, 3U));
+        for (int i = 0; i < 2; ++i) {
+            memset(&args[i], 0, sizeof(args[i]));
+            args[i].session             = session;
+            args[i].run                 = make_run();
+            args[i].run.on_started      = NULL;
+            args[i].run.on_finished     = NULL;
+            args[i].run.on_stop_outputs = NULL;
+            args[i].barrier             = &barrier;
+            args[i].result              = SW_ERR_STATE;
+            TEST_ASSERT_EQUAL_INT(0, pthread_create(&threads[i], NULL, concurrent_start, &args[i]));
+        }
+
+        (void)pthread_barrier_wait(&barrier);
+        for (int i = 0; i < 2; ++i) {
+            TEST_ASSERT_EQUAL_INT(0, pthread_join(threads[i], NULL));
+            if (args[i].result == SW_OK) {
+                ++ok_count;
+            } else if (args[i].result == SW_ERR_BUSY) {
+                ++busy_count;
+            }
+        }
+        TEST_ASSERT_EQUAL_INT(1, ok_count);
+        TEST_ASSERT_EQUAL_INT(1, busy_count);
+        TEST_ASSERT_EQUAL_INT(0, pthread_barrier_destroy(&barrier));
+
+        usleep(250000U);
+        TEST_ASSERT_FALSE(engine_session_is_busy(session));
+    }
 
     {
         engine_session_run_t run = make_run();

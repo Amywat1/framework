@@ -14,6 +14,7 @@
 #include "domain/program_engine/model/engine_model.h"
 #include "runtime/scheduler/thread_registry.h"
 
+#include <errno.h>
 #include <pthread.h>
 #include <sched.h>
 #include <semaphore.h>
@@ -51,18 +52,12 @@ static engine_session_slot_t s_slots[WDF_ENGINE_SESSION_INSTANCE_COUNT];
 
 static void signal_startup(engine_session_t *s, uint32_t gen, sw_err_t result)
 {
-    bool should_post = false;
-
     pthread_mutex_lock(&s->startup_mutex);
     if (s->s_active_startup_gen == gen) {
         s->s_startup_result = result;
-        should_post         = true;
-    }
-    pthread_mutex_unlock(&s->startup_mutex);
-
-    if (should_post) {
         (void)sem_post(&s->startup_done);
     }
+    pthread_mutex_unlock(&s->startup_mutex);
 }
 
 static void invalidate_startup_gen(engine_session_t *s, uint32_t gen)
@@ -70,6 +65,9 @@ static void invalidate_startup_gen(engine_session_t *s, uint32_t gen)
     pthread_mutex_lock(&s->startup_mutex);
     if (s->s_active_startup_gen == gen) {
         s->s_active_startup_gen = 0U;
+        /* signal_startup 与本函数共用互斥锁。超时边界若结果已发布但
+         * sem_timedwait 仍返回超时，在此排空旧代际令牌，避免污染下次启动。 */
+        while (sem_trywait(&s->startup_done) == 0) {}
     }
     pthread_mutex_unlock(&s->startup_mutex);
 }
@@ -381,34 +379,38 @@ sw_err_t engine_session_start(engine_session_t *s, const engine_session_run_t *r
         return SW_ERR_PARAM;
     }
 
-    if (atomic_load(&s->s_busy)) {
-        LOG_WARN("engine_session_start: busy name=%s", s->cfg.thread_name);
-        return SW_ERR_BUSY;
-    }
-
     if (strlen(run->program_path) >= sizeof(s->program_path)) {
         LOG_ERROR("engine_session_start: path too long");
         return SW_ERR_PARAM;
+    }
+
+    pthread_mutex_lock(&s->startup_mutex);
+
+    /* 启动结果由对应调用方消费前保留代际，避免后续调用覆盖结果。 */
+    if (atomic_load(&s->s_busy) || (s->s_active_startup_gen != 0U)) {
+        pthread_mutex_unlock(&s->startup_mutex);
+        LOG_WARN("engine_session_start: busy name=%s", s->cfg.thread_name);
+        return SW_ERR_BUSY;
     }
 
     s->run = *run;
     (void)strncpy(s->program_path, run->program_path, sizeof(s->program_path) - 1U);
     s->program_path[sizeof(s->program_path) - 1U] = '\0';
     s->run.program_path                           = s->program_path;
+    s->run_trace                                  = trace_context_get();
 
-    s->run_trace = trace_context_get();
-    pthread_mutex_lock(&s->startup_mutex);
     my_gen                  = ++s->s_startup_gen;
     s->s_active_startup_gen = my_gen;
     s->s_startup_result     = SW_ERR_BUSY;
-    pthread_mutex_unlock(&s->startup_mutex);
-
     atomic_store(&s->s_abort_requested, false);
     atomic_store(&s->s_busy, true);
     (void)sem_post(&s->start_sem);
+    pthread_mutex_unlock(&s->startup_mutex);
 
     time_util_fill_deadline(s->cfg.startup_wait_ms, &ts);
-    sem_ret = sem_timedwait(&s->startup_done, &ts);
+    do {
+        sem_ret = sem_timedwait(&s->startup_done, &ts);
+    } while ((sem_ret != 0) && (errno == EINTR));
     if (sem_ret != 0) {
         invalidate_startup_gen(s, my_gen);
         LOG_ERROR("engine_session_start: startup wait timeout name=%s", s->cfg.thread_name);
@@ -421,7 +423,8 @@ sw_err_t engine_session_start(engine_session_t *s, const engine_session_run_t *r
         return SW_ERR_TIMEOUT;
     }
 
-    ret = s->s_startup_result;
+    ret                     = s->s_startup_result;
+    s->s_active_startup_gen = 0U;
     pthread_mutex_unlock(&s->startup_mutex);
 
     if (ret != SW_OK) {

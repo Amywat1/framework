@@ -82,8 +82,9 @@ typedef enum {
     OP_REJECT_WRONG_MODE,
     OP_REJECT_ESTOP_ACTIVE,
     OP_REJECT_SERVICE_DISABLED,
-    OP_REJECT_VEHICLE_NOT_READY, /**< 机型准入未就绪（抽象；具体条件由项目定义）*/
+    OP_REJECT_VEHICLE_NOT_READY,  /**< 机型准入未就绪（抽象；具体条件由项目定义）*/
     OP_REJECT_UNKNOWN_CMD,
+    OP_REJECT_CUTOUT_UNCONFIRMED, /**< 安全切断失败且尚无独立反馈确认 */
 } op_reject_reason_t;
 
 /** @brief  恢复流程结束结果 */

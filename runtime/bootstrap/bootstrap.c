@@ -15,11 +15,11 @@
 #include "common/log.h"
 #include "common/time_util.h"
 #include "domain/op_mode/operational_mode.h"
-#include "domain/safety/alarm_registry/alarm_registry.h"
 #include "domain/ports/outbound/hal/hal_io_port.h"
 #include "domain/ports/outbound/hal/hal_vfd_port.h"
 #include "domain/ports/outbound/hal/hal_voice_port.h"
 #include "domain/ports/outbound/storage/deploy_store.h"
+#include "domain/safety/alarm_registry/alarm_registry.h"
 #include "runtime/bootstrap/project_hooks.h"
 #include "runtime/bootstrap/wiring.h"
 #include "runtime/config/thread_config.h"
@@ -57,9 +57,9 @@ sw_err_t bootstrap_register_hooks(const project_hooks_t *hooks)
         }                                                                                                              \
     } while (0)
 
-static void system_panic_safe_stop(event_bus_fatal_reason_t reason, int sys_errno)
+static void system_panic_safe_stop(event_bus_fatal_reason_t reason, int detail_code)
 {
-    LOG_ERROR("bootstrap: event_bus fatal reason=%d errno=%d", (int)reason, sys_errno);
+    LOG_ERROR("bootstrap: event_bus fatal reason=%d detail=%d", (int)reason, detail_code);
     if ((s_hooks != NULL) && (s_hooks->assert_safe_outputs != NULL)) {
         s_hooks->assert_safe_outputs();
     }

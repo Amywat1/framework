@@ -15,6 +15,7 @@ static bool     s_estop_state;
 static uint32_t s_last_alarm_code;
 
 static sw_err_t s_cutout_ret = SW_OK;
+static bool     s_cutout_confirmed;
 
 static sw_err_t fake_cutout(void)
 {
@@ -38,21 +39,28 @@ static void fake_deferred_stop(void)
     s_deferred_calls++;
 }
 
+static bool fake_cutout_confirmed(void)
+{
+    return s_cutout_confirmed;
+}
+
 static const safety_ops_t s_fake_ops = {
-    .cutout          = fake_cutout,
-    .estop_is_active = fake_estop_is_active,
-    .alarm_is_estop  = fake_alarm_is_estop,
-    .deferred_stop   = fake_deferred_stop,
+    .cutout           = fake_cutout,
+    .cutout_confirmed = fake_cutout_confirmed,
+    .estop_is_active  = fake_estop_is_active,
+    .alarm_is_estop   = fake_alarm_is_estop,
+    .deferred_stop    = fake_deferred_stop,
 };
 
 void setUp(void)
 {
     port_registry_safety_reset();
-    s_cutout_calls    = 0U;
-    s_deferred_calls  = 0U;
-    s_estop_state     = false;
-    s_last_alarm_code = 0U;
-    s_cutout_ret      = SW_OK;
+    s_cutout_calls     = 0U;
+    s_deferred_calls   = 0U;
+    s_estop_state      = false;
+    s_last_alarm_code  = 0U;
+    s_cutout_ret       = SW_OK;
+    s_cutout_confirmed = false;
 }
 
 void tearDown(void)
@@ -161,11 +169,17 @@ static void test_cutout_failure_reported_and_counted(void)
     /* 连续失败逐次累加，不做首次节流：每一条都是现场判因证据 */
     TEST_ASSERT_EQUAL_INT(SW_ERR_HW, safety_cutout_execute());
     TEST_ASSERT_EQUAL_UINT(2U, safety_cutout_failure_count());
+    TEST_ASSERT_TRUE(safety_cutout_is_unconfirmed());
 
     /* 恢复成功后不再累加，计数只反映失败 */
     s_cutout_ret = SW_OK;
     TEST_ASSERT_EQUAL_INT(SW_OK, safety_cutout_execute());
     TEST_ASSERT_EQUAL_UINT(2U, safety_cutout_failure_count());
+
+    TEST_ASSERT_EQUAL_INT(SW_ERR_STATE, safety_cutout_reconcile());
+    s_cutout_confirmed = true;
+    TEST_ASSERT_EQUAL_INT(SW_OK, safety_cutout_reconcile());
+    TEST_ASSERT_FALSE(safety_cutout_is_unconfirmed());
 }
 
 /* 未注册导致的"未执行"不计入切断失败计数，两者语义不同 */
@@ -173,6 +187,18 @@ static void test_unregistered_not_counted_as_failure(void)
 {
     TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_INIT, safety_cutout_execute());
     TEST_ASSERT_EQUAL_UINT(0U, safety_cutout_failure_count());
+}
+
+static void test_unconfirmed_remains_latched_without_feedback(void)
+{
+    safety_ops_t ops = s_fake_ops;
+
+    ops.cutout_confirmed = NULL;
+    s_cutout_ret         = SW_ERR_HW;
+    TEST_ASSERT_EQUAL_INT(SW_OK, safety_port_register(&ops));
+    TEST_ASSERT_EQUAL_INT(SW_ERR_HW, safety_cutout_execute());
+    TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_INIT, safety_cutout_reconcile());
+    TEST_ASSERT_TRUE(safety_cutout_is_unconfirmed());
 }
 
 int main(void)
@@ -185,5 +211,6 @@ int main(void)
     WDF_RUN_TEST(test_null_unregisters, "", "验证空指针注销");
     WDF_RUN_TEST(test_cutout_failure_reported_and_counted, "", "验证安全切断失败被上报并计数");
     WDF_RUN_TEST(test_unregistered_not_counted_as_failure, "", "验证端口未注册不计为安全切断失败");
+    WDF_RUN_TEST(test_unconfirmed_remains_latched_without_feedback, "SAFE-11", "验证缺少独立反馈时保持切断未确认锁存");
     return UNITY_END();
 }

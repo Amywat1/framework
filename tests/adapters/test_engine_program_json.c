@@ -319,6 +319,43 @@ static void test_json_loader_parses_confirm_ms_and_retry_max(void)
     engine_program_free(program);
 }
 
+static void test_json_loader_rejects_unknown_nested_field_with_path(void)
+{
+    static const char *json     = "{"
+                                  "\"program\":{"
+                                  "\"schema_version\":\"1.0\",\"id\":\"unknown_field\","
+                                  "\"interlocks\":[],"
+                                  "\"phases\":[{\"id\":\"p0\",\"entry_guard\":\"true\","
+                                  "\"exit_guard\":\"true\",\"timeout_ms\":1000,"
+                                  "\"lanes\":[{\"id\":\"lane\",\"steps\":[{"
+                                  "\"id\":\"a\",\"type\":\"event\","
+                                  "\"trigger\":{\"type\":\"condition\",\"expr\":\"true\"},"
+                                  "\"done\":{\"type\":\"actions_complete\"},\"unexpected\":1"
+                                  "}]}]}]}"
+                                  "}";
+    char               err[320] = {0};
+    engine_program_t  *program  = engine_program_load_json_string(json, err, sizeof(err));
+
+    TEST_ASSERT_NULL(program);
+    TEST_ASSERT_NOT_NULL(strstr(err, "program.phases[0].lanes[0].steps[0].unexpected"));
+}
+
+static void test_json_loader_rejects_unknown_template_field(void)
+{
+    static const char *json     = "{"
+                                  "\"program\":{"
+                                  "\"schema_version\":\"1.0\",\"id\":\"unknown_template_field\","
+                                  "\"templates\":{\"base\":{\"type\":\"control\",\"bogus\":true}},"
+                                  "\"phases\":[]"
+                                  "}"
+                                  "}";
+    char               err[320] = {0};
+    engine_program_t  *program  = engine_program_load_json_string(json, err, sizeof(err));
+
+    TEST_ASSERT_NULL(program);
+    TEST_ASSERT_NOT_NULL(strstr(err, "program.templates.base.bogus"));
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -330,6 +367,8 @@ int main(void)
     WDF_RUN_TEST(test_json_loader_port_registers_and_loads_file, "", "验证JSON加载器端口注册并加载文件");
     WDF_RUN_TEST(test_condition_marker_latches_on_rising, "", "验证条件标记在上升沿锁存");
     WDF_RUN_TEST(test_json_loader_parses_confirm_ms_and_retry_max, "", "验证解析 confirm_ms 与 retry_max");
+    WDF_RUN_TEST(test_json_loader_rejects_unknown_nested_field_with_path, "", "验证拒绝嵌套未知字段并返回完整路径");
+    WDF_RUN_TEST(test_json_loader_rejects_unknown_template_field, "", "验证拒绝模板中的未知字段");
 
     return UNITY_END();
 }
