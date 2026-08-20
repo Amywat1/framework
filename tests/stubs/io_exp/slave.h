@@ -8,8 +8,8 @@
 #ifndef IO_EXP_SLAVE_STUB_H
 #define IO_EXP_SLAVE_STUB_H
 
-int  io_online_get(int id);
-int  io_read_input_s(int id);
-void io_write_all_s(int id, int val);
+int io_online_get(int id);
+int io_read_input_s(int id);
+int io_write_all_s(int id, int val);
 
 #endif /* IO_EXP_SLAVE_STUB_H */

@@ -48,7 +48,7 @@ typedef struct {
     /** @brief  初始化 IO 模块内部状态（不启动后台线程） */
     sw_err_t (*init)(void);
 
-    /** @brief  启动 IO 读写后台线程（真机 drv_io 自管，仿真可为空操作） */
+    /** @brief  启动 IO 后端 worker（真机串行执行全部 SDK 访问，仿真可为空操作） */
     sw_err_t (*start)(void);
 
     /** @brief  注册全板离线 panic 回调（panic 前尽力落安全输出） */
@@ -61,10 +61,11 @@ typedef struct {
     bool (*board_is_online)(int board_id);
 
     /**
-     * @brief  同步轮询等待所有 IO 子板就绪（启动阶段使用，后台线程启动前可调用）
+     * @brief  等待 IO 后端确认所有子板就绪（须在 start 成功后调用）
      * @param  timeout_ms  最长等待时间（ms）
      * @retval SW_OK           所有子板在超时内就绪
      * @retval SW_ERR_TIMEOUT  超时仍有子板离线
+     * @retval SW_ERR_NOT_INIT IO 后端 worker 尚未启动
      */
     sw_err_t (*wait_boards_online)(uint32_t timeout_ms);
 

@@ -8,12 +8,14 @@
  *          - IO 子板在线检测
  *          - 输入缓存刷新
  *          - 输出缓冲写出
+ *          - 通过通用 io_manager 串行执行所有 Snack SDK 调用
  *          - 输入变化调试通知
  *          - 全板离线时的安全停机联动
  */
 
 #include "adapters/outbound/hal/providers/snack/io_exp/io_exp_driver.h"
 
+#include "adapters/outbound/hal/components/io_manager/hal_io_manager.h"
 #include "common/log.h"
 #include "common/sw_mutex.h"
 #include "common/time_util.h"
@@ -59,7 +61,6 @@ sw_err_t io_exp_driver_sdk_init(const char *can_bus, int can_baud, int self_node
  * ------------------------------------------------------------------------- */
 #define IO_BOARD_MAX                  7U                /* 最大子板数，含 0 号占位 */
 #define IO_PIN_COUNT_MAX              32U               /* 每块子板 IO 点数上限，仅用于静态数组维度 */
-#define IO_RW_STACK_BYTES             (16U * 1024U)     /* io_rw 线程栈 */
 #define IO_UPDATE_FREQ_MS             30U               /* 输入/输出缓冲刷新周期（ms） */
 #define IO_CHECK_PROBING_MS           IO_UPDATE_FREQ_MS /* 启动和恢复确认期间快速探测 */
 #define IO_CHECK_OFFLINE_MS           300U              /* 全部在线时的在线检测间隔（ms） */
@@ -67,6 +68,27 @@ sw_err_t io_exp_driver_sdk_init(const char *can_bus, int can_baud, int self_node
 #define IO_OFFLINE_CNT                3U                /* 连续无响应次数达到该值后判定掉线 */
 #define IO_ONLINE_CNT                 IO_OFFLINE_CNT    /* 连续响应次数达到该值后确认上线（对称防抖）*/
 #define IO_STARTUP_SAFE_STOP_DELAY_MS 3000U             /* 上电无板时执行安全停机的等待时间 */
+#define IO_PDO_BOARD_MAX              4                 /* Snack SDK：最多 4 块子板统一使用 PDO */
+#define IO_TRANSACTION_TIMEOUT_MS     300U              /* 单次同步事务等待上限 */
+
+typedef enum {
+    DRV_IO_TRANSACTION_FLUSH_OUTPUTS = 0,
+    DRV_IO_TRANSACTION_PULSE_READ,
+    DRV_IO_TRANSACTION_PULSE_CLEAR,
+    DRV_IO_TRANSACTION_ADC_RAW,
+    DRV_IO_TRANSACTION_ADC_MV,
+    DRV_IO_TRANSACTION_ADC_MA
+} drv_io_transaction_type_t;
+
+typedef struct {
+    drv_io_transaction_type_t type;
+    int                       board_id;
+    int                       channel;
+} drv_io_transaction_t;
+
+typedef struct {
+    int value;
+} drv_io_transaction_result_t;
 
 sw_err_t drv_io_cfg_validate(const drv_io_cfg_t *cfg)
 {
@@ -127,7 +149,17 @@ static bool s_test_value[IO_BOARD_MAX][IO_PIN_COUNT_MAX + 1U]  = {{false}};
 static drv_io_debug_input_cb_t s_debug_input_cb             = NULL;
 static void (*s_board_error_cb)(int board_id, bool offline) = NULL;
 static void (*s_panic_cb)(void)                             = NULL;
-static bool s_io_rw_started                                 = false;
+static bool                    s_io_rw_started              = false;
+static drv_io_transport_mode_t s_transport_mode             = DRV_IO_TRANSPORT_SDO;
+
+/* io_manager worker 独占的轮询状态。 */
+static uint16_t s_poll_loop_count;
+static uint8_t  s_poll_offline_count[IO_BOARD_MAX];
+static uint8_t  s_poll_online_count[IO_BOARD_MAX];
+static bool     s_poll_offline_confirmed[IO_BOARD_MAX];
+static int      s_poll_check_interval_ms;
+static uint64_t s_poll_startup_ms;
+static bool     s_poll_all_offline_action_done;
 
 /* -------------------------------------------------------------------------
  * 内部辅助
@@ -344,6 +376,26 @@ static void poll_check_board(int id, uint8_t online_cnt[], uint8_t offline_cnt[]
     }
 }
 
+static unsigned int snack_read_input(int board_id)
+{
+    if (s_transport_mode == DRV_IO_TRANSPORT_PDO) {
+        return io_read_input(board_id);
+    }
+    return io_read_input_s(board_id);
+}
+
+static sw_err_t snack_write_output(int board_id, unsigned int value)
+{
+    int ret;
+
+    if (s_transport_mode == DRV_IO_TRANSPORT_PDO) {
+        ret = io_write_all(board_id, (int)value);
+    } else {
+        ret = io_write_all_s(board_id, (int)value);
+    }
+    return (ret >= 0) ? SW_OK : SW_ERR_COMM;
+}
+
 /* 单块在线子板的输入刷新 + 输出落地 */
 static void poll_rw_board(int id)
 {
@@ -353,8 +405,7 @@ static void poll_rw_board(int id)
     uint64_t     now_ms;
     bool         dirty = false;
 
-    /* SDO 读写一次约 1~2ms；读失败时 SDK 会保留上次值 */
-    input  = (unsigned int)io_read_input_s(id);
+    input  = snack_read_input(id);
     now_ms = time_util_get_ms();
     drv_io_mutexes_ready();
     pthread_mutex_lock(&s_input_mutex);
@@ -379,12 +430,20 @@ static void poll_rw_board(int id)
     pthread_mutex_unlock(&s_output_mutex);
 
     if (dirty) {
-        io_write_all_s(id, (int)out_val);
-        now_ms = time_util_get_ms();
-        s_stats[id].output_flush_count++;
-        s_stats[id].last_output_flush_ms = now_ms;
-        s_stats[id].last_output_snapshot = out_val;
-        s_stats[id].dirty_pending        = false;
+        sw_err_t write_ret = snack_write_output(id, out_val);
+
+        drv_io_mutexes_ready();
+        pthread_mutex_lock(&s_output_mutex);
+        if (write_ret == SW_OK) {
+            now_ms = time_util_get_ms();
+            s_stats[id].output_flush_count++;
+            s_stats[id].last_output_flush_ms = now_ms;
+            s_stats[id].last_output_snapshot = out_val;
+        } else {
+            s_output_dirty[id] = true;
+        }
+        s_stats[id].dirty_pending = s_output_dirty[id];
+        pthread_mutex_unlock(&s_output_mutex);
     }
 
     /* 输入变化调试通知，仅用于观察，不参与正式业务判断 */
@@ -423,79 +482,164 @@ static void poll_all_offline_safe_stop_and_abort(void)
         }
         pthread_mutex_unlock(&s_output_mutex);
         for (int i = 1; i <= s_board_count; ++i) {
-            io_write_all_s(i, (int)snapshot[i]);
+            (void)snack_write_output(i, snapshot[i]);
         }
     }
     abort();
 }
 
 /* -------------------------------------------------------------------------
- * IO 读写后台线程（主循环）
+ * io_manager worker 周期入口
  * ------------------------------------------------------------------------- */
-static void *drv_io_poll_loop(void *arg)
+static void drv_io_poll_tick(void *arg)
 {
-    uint16_t loop_cnt                        = 0U;
-    uint8_t  offline_cnt[IO_BOARD_MAX]       = {0U};
-    uint8_t  online_cnt[IO_BOARD_MAX]        = {0U};
-    bool     offline_confirmed[IO_BOARD_MAX] = {false};
-    int      check_interval_ms               = IO_CHECK_PROBING_MS;
-    uint64_t startup_ms                      = time_util_get_ms();
-    bool     all_offline_action_done         = false;
+    int  online_count            = 0;
+    int  offline_confirmed_count = 0;
+    bool fast_probe_needed       = false;
+    int  check_loops             = s_poll_check_interval_ms / IO_UPDATE_FREQ_MS;
 
     (void)arg;
 
-    while (1) {
-        int  online_count            = 0;
-        int  offline_confirmed_count = 0;
-        bool fast_probe_needed       = false;
-        int  check_loops             = check_interval_ms / IO_UPDATE_FREQ_MS;
+    if (check_loops < 1) {
+        check_loops = 1;
+    }
 
-        if (check_loops < 1) {
-            check_loops = 1;
+    ++s_poll_loop_count;
+    for (int i = 1; i <= s_board_count; ++i) {
+        if ((s_poll_loop_count % (uint16_t)check_loops) == 0U) {
+            poll_check_board(i, s_poll_online_count, s_poll_offline_count, s_poll_offline_confirmed);
         }
 
-        ++loop_cnt;
-
-        for (int i = 1; i <= s_board_count; ++i) {
-            if ((loop_cnt % (uint16_t)check_loops) == 0U) {
-                poll_check_board(i, online_cnt, offline_cnt, offline_confirmed);
-            }
-
-            if (drv_io_board_is_online(i)) {
-                poll_rw_board(i);
-                ++online_count;
-            } else if (offline_confirmed[i]) {
-                ++offline_confirmed_count;
-                if (online_cnt[i] > 0U) {
-                    fast_probe_needed = true;
-                }
-            } else {
+        if (drv_io_board_is_online(i)) {
+            poll_rw_board(i);
+            ++online_count;
+        } else if (s_poll_offline_confirmed[i]) {
+            ++offline_confirmed_count;
+            if (s_poll_online_count[i] > 0U) {
                 fast_probe_needed = true;
             }
-
-            usleep((unsigned int)(IO_UPDATE_FREQ_MS * 1000) / (unsigned int)s_board_count);
-        }
-
-        if (offline_confirmed_count == s_board_count) {
-            if (!all_offline_action_done
-                && (time_elapsed_ms(startup_ms, time_util_get_ms()) >= IO_STARTUP_SAFE_STOP_DELAY_MS)) {
-                all_offline_action_done = true;
-                poll_all_offline_safe_stop_and_abort();
-            }
         } else {
-            all_offline_action_done = false;
-        }
-
-        if (online_count == s_board_count) {
-            check_interval_ms = IO_CHECK_OFFLINE_MS;
-        } else if (fast_probe_needed) {
-            check_interval_ms = IO_CHECK_PROBING_MS;
-        } else {
-            check_interval_ms = IO_CHECK_ONLINE_MS;
+            fast_probe_needed = true;
         }
     }
 
-    return NULL; /* 不可达：while(1) 永不退出，满足编译器对非 void 函数的返回要求 */
+    if (offline_confirmed_count == s_board_count) {
+        if (!s_poll_all_offline_action_done
+            && (time_elapsed_ms(s_poll_startup_ms, time_util_get_ms()) >= IO_STARTUP_SAFE_STOP_DELAY_MS)) {
+            s_poll_all_offline_action_done = true;
+            poll_all_offline_safe_stop_and_abort();
+        }
+    } else {
+        s_poll_all_offline_action_done = false;
+    }
+
+    if (online_count == s_board_count) {
+        s_poll_check_interval_ms = IO_CHECK_OFFLINE_MS;
+    } else if (fast_probe_needed) {
+        s_poll_check_interval_ms = IO_CHECK_PROBING_MS;
+    } else {
+        s_poll_check_interval_ms = IO_CHECK_ONLINE_MS;
+    }
+}
+
+static sw_err_t drv_io_flush_outputs_backend(void)
+{
+    unsigned int snapshot[IO_BOARD_MAX] = {0U};
+    sw_err_t     first_error            = SW_OK;
+
+    drv_io_mutexes_ready();
+    pthread_mutex_lock(&s_output_mutex);
+    for (int i = 1; i <= s_board_count; ++i) {
+        snapshot[i] = s_output_buf[i];
+    }
+    pthread_mutex_unlock(&s_output_mutex);
+
+    for (int i = 1; i <= s_board_count; ++i) {
+        sw_err_t ret = snack_write_output(i, snapshot[i]);
+
+        drv_io_mutexes_ready();
+        pthread_mutex_lock(&s_output_mutex);
+        if (ret == SW_OK) {
+            uint64_t now_ms = time_util_get_ms();
+
+            /* 写出期间业务线程可能提交了新目标态，只能清除本次快照对应的 dirty。 */
+            if (s_output_buf[i] == snapshot[i]) {
+                s_output_dirty[i] = false;
+            }
+            s_stats[i].output_flush_count++;
+            s_stats[i].last_output_flush_ms = now_ms;
+            s_stats[i].last_output_snapshot = snapshot[i];
+        } else {
+            s_output_dirty[i] = true;
+            if (first_error == SW_OK) {
+                first_error = ret;
+            }
+        }
+        s_stats[i].dirty_pending = s_output_dirty[i];
+        pthread_mutex_unlock(&s_output_mutex);
+    }
+    return first_error;
+}
+
+static sw_err_t drv_io_execute_transaction(void       *ctx,
+                                           const void *request,
+                                           size_t      request_size,
+                                           void       *response,
+                                           size_t      response_size)
+{
+    const drv_io_transaction_t  *transaction = (const drv_io_transaction_t *)request;
+    drv_io_transaction_result_t *result      = (drv_io_transaction_result_t *)response;
+
+    (void)ctx;
+    if ((transaction == NULL) || (request_size != sizeof(*transaction))) {
+        return SW_ERR_PARAM;
+    }
+
+    switch (transaction->type) {
+    case DRV_IO_TRANSACTION_FLUSH_OUTPUTS:
+        return drv_io_flush_outputs_backend();
+    case DRV_IO_TRANSACTION_PULSE_READ:
+        if ((result == NULL) || (response_size != sizeof(*result))) {
+            return SW_ERR_PARAM;
+        }
+        result->value = io_pluse_read(transaction->board_id, transaction->channel);
+        return SW_OK;
+    case DRV_IO_TRANSACTION_PULSE_CLEAR: {
+        int data = 0;
+
+        return (io_SDO_write(transaction->board_id, 0x2005, transaction->channel, &data) >= 0) ? SW_OK : SW_ERR_COMM;
+    }
+    case DRV_IO_TRANSACTION_ADC_RAW:
+    case DRV_IO_TRANSACTION_ADC_MV:
+    case DRV_IO_TRANSACTION_ADC_MA:
+        if ((result == NULL) || (response_size != sizeof(*result))) {
+            return SW_ERR_PARAM;
+        }
+        if (transaction->type == DRV_IO_TRANSACTION_ADC_RAW) {
+            result->value = io_adc_read(transaction->board_id, transaction->channel);
+        } else if (transaction->type == DRV_IO_TRANSACTION_ADC_MV) {
+            result->value = io_adc_mV(transaction->board_id, transaction->channel);
+        } else {
+            result->value = io_adc_mA(transaction->board_id, transaction->channel);
+        }
+        return SW_OK;
+    default:
+        return SW_ERR_PARAM;
+    }
+}
+
+static sw_err_t drv_io_call_transaction(const drv_io_transaction_t  *transaction,
+                                        hal_io_manager_priority_t    priority,
+                                        uint32_t                     timeout_ms,
+                                        drv_io_transaction_result_t *result)
+{
+    size_t response_size = (result != NULL) ? sizeof(*result) : 0U;
+
+    if (!s_io_rw_started) {
+        return SW_ERR_NOT_INIT;
+    }
+
+    return hal_io_manager_call(priority, timeout_ms, transaction, sizeof(*transaction), result, response_size);
 }
 
 /* -------------------------------------------------------------------------
@@ -503,18 +647,20 @@ static void *drv_io_poll_loop(void *arg)
  * ------------------------------------------------------------------------- */
 sw_err_t drv_io_init(const drv_io_cfg_t *cfg)
 {
-    sw_err_t ret = drv_io_cfg_validate(cfg);
+    hal_io_manager_cfg_t manager_cfg;
+    sw_err_t             ret = drv_io_cfg_validate(cfg);
 
     if (ret != SW_OK) {
         return ret;
     }
 
-    s_board_count = cfg->board_count;
-    s_pin_count   = cfg->pin_count;
-    s_di_table    = cfg->di_table;
-    s_di_count    = cfg->di_count;
-    s_do_table    = cfg->do_table;
-    s_do_count    = cfg->do_count;
+    s_board_count    = cfg->board_count;
+    s_pin_count      = cfg->pin_count;
+    s_di_table       = cfg->di_table;
+    s_di_count       = cfg->di_count;
+    s_do_table       = cfg->do_table;
+    s_do_count       = cfg->do_count;
+    s_transport_mode = (cfg->board_count <= IO_PDO_BOARD_MAX) ? DRV_IO_TRANSPORT_PDO : DRV_IO_TRANSPORT_SDO;
 
     memset((void *)s_input_buf, 0, sizeof(s_input_buf));
     memset((void *)s_output_buf, 0, sizeof(s_output_buf));
@@ -536,32 +682,50 @@ sw_err_t drv_io_init(const drv_io_cfg_t *cfg)
     s_panic_cb       = NULL;
     s_io_rw_started  = false;
 
-    LOG_INFO("drv_io init ok, board_count=%d pin_count=%d", s_board_count, s_pin_count);
+    s_poll_loop_count              = 0U;
+    s_poll_check_interval_ms       = IO_CHECK_PROBING_MS;
+    s_poll_startup_ms              = time_util_get_ms();
+    s_poll_all_offline_action_done = false;
+    memset(s_poll_offline_count, 0, sizeof(s_poll_offline_count));
+    memset(s_poll_online_count, 0, sizeof(s_poll_online_count));
+    memset(s_poll_offline_confirmed, 0, sizeof(s_poll_offline_confirmed));
+
+    manager_cfg = (hal_io_manager_cfg_t){
+        .name           = "io_exp",
+        .tick_period_ms = IO_UPDATE_FREQ_MS,
+        .tick           = drv_io_poll_tick,
+        .tick_ctx       = NULL,
+        .execute        = drv_io_execute_transaction,
+        .execute_ctx    = NULL,
+    };
+    ret = hal_io_manager_init(&manager_cfg);
+    if (ret != SW_OK) {
+        LOG_ERROR("drv_io: io_manager init failed ret=%d", (int)ret);
+        return ret;
+    }
+
+    LOG_INFO("drv_io init ok, board_count=%d pin_count=%d transport=%s",
+             s_board_count,
+             s_pin_count,
+             (s_transport_mode == DRV_IO_TRANSPORT_PDO) ? "PDO" : "SDO");
     return SW_OK;
 }
 
 sw_err_t drv_io_start(void)
 {
-    pthread_attr_t attr;
-    pthread_t      tid;
+    sw_err_t ret;
 
     if (s_io_rw_started) {
         return SW_ERR_STATE;
     }
 
-    pthread_attr_init(&attr);
-    (void)pthread_attr_setstacksize(&attr, (size_t)IO_RW_STACK_BYTES);
-
-    if (pthread_create(&tid, &attr, drv_io_poll_loop, NULL) != 0) {
-        pthread_attr_destroy(&attr);
-        LOG_ERROR("drv_io_start: pthread_create failed");
-        return SW_ERR_HW;
+    ret = hal_io_manager_start();
+    if (ret != SW_OK) {
+        LOG_ERROR("drv_io_start: io_manager start failed ret=%d", (int)ret);
+        return ret;
     }
-
-    pthread_detach(tid);
-    pthread_attr_destroy(&attr);
     s_io_rw_started = true;
-    LOG_INFO("drv_io: io_rw thread started");
+    LOG_INFO("drv_io: io_manager started transport=%s", (s_transport_mode == DRV_IO_TRANSPORT_PDO) ? "PDO" : "SDO");
     return SW_OK;
 }
 
@@ -604,34 +768,14 @@ sw_err_t drv_io_do_set(io_do_t pin, bool val)
 
 sw_err_t drv_io_flush_outputs_now(void)
 {
-    unsigned int snapshot[IO_BOARD_MAX] = {0U};
-    bool         online[IO_BOARD_MAX]   = {false};
+    drv_io_transaction_t transaction = {
+        .type     = DRV_IO_TRANSACTION_FLUSH_OUTPUTS,
+        .board_id = 0,
+        .channel  = 0,
+    };
+    uint32_t timeout_ms = IO_TRANSACTION_TIMEOUT_MS + (uint32_t)s_board_count * IO_TRANSACTION_TIMEOUT_MS;
 
-    /* 快照输出缓冲和在线状态，缩短持锁时间 */
-    drv_io_mutexes_ready();
-    pthread_mutex_lock(&s_output_mutex);
-    for (int i = 1; i <= s_board_count; ++i) {
-        snapshot[i] = s_output_buf[i];
-        online[i]   = s_board_online[i];
-        if (online[i]) {
-            s_output_dirty[i]        = false;
-            s_stats[i].dirty_pending = false;
-        }
-    }
-    pthread_mutex_unlock(&s_output_mutex);
-
-    /* 只对在线子板执行写操作，避免 CAN 超时阻塞 */
-    for (int i = 1; i <= s_board_count; ++i) {
-        if (online[i]) {
-            uint64_t now_ms = time_util_get_ms();
-            io_write_all_s(i, (int)snapshot[i]);
-            s_stats[i].output_flush_count++;
-            s_stats[i].last_output_flush_ms = now_ms;
-            s_stats[i].last_output_snapshot = snapshot[i];
-        }
-    }
-
-    return SW_OK;
+    return drv_io_call_transaction(&transaction, HAL_IO_MANAGER_PRIORITY_CRITICAL, timeout_ms, NULL);
 }
 
 sw_err_t drv_io_di_read(io_di_t pin, io_di_sample_t *sample)
@@ -699,11 +843,15 @@ sw_err_t drv_io_wait_boards_online(uint32_t timeout_ms)
 {
     uint64_t start_ms = time_util_get_ms();
 
+    if (!s_io_rw_started) {
+        return SW_ERR_NOT_INIT;
+    }
+
     while (time_elapsed_ms(start_ms, time_util_get_ms()) < timeout_ms) {
         bool all_online = true;
 
         for (int i = 1; i <= s_board_count; i++) {
-            if (io_online_get(i) <= 0) {
+            if (!drv_io_board_is_online(i)) {
                 all_online = false;
                 break;
             }
@@ -777,7 +925,15 @@ sw_err_t drv_io_get_stats(int board_id, drv_io_stats_t *out)
 
     drv_io_mutexes_ready();
     pthread_mutex_lock(&s_input_mutex);
-    *out = s_stats[board_id];
+    *out                       = (drv_io_stats_t){0};
+    out->online                = s_stats[board_id].online;
+    out->offline_count         = s_stats[board_id].offline_count;
+    out->online_recover_count  = s_stats[board_id].online_recover_count;
+    out->input_refresh_count   = s_stats[board_id].input_refresh_count;
+    out->last_online_ms        = s_stats[board_id].last_online_ms;
+    out->last_offline_ms       = s_stats[board_id].last_offline_ms;
+    out->last_input_refresh_ms = s_stats[board_id].last_input_refresh_ms;
+    out->last_input_snapshot   = s_stats[board_id].last_input_snapshot;
     pthread_mutex_unlock(&s_input_mutex);
     drv_io_mutexes_ready();
     pthread_mutex_lock(&s_output_mutex);
@@ -796,31 +952,52 @@ int drv_io_board_count(void)
     return s_board_count;
 }
 
+drv_io_transport_mode_t drv_io_transport_mode(void)
+{
+    return s_transport_mode;
+}
+
 int drv_io_pulse_read(io_di_t pin)
 {
-    uint16_t raw      = io_di_raw(pin);
-    int      board_id = (int)io_handle_board(raw);
-    int      pin_id   = (int)io_handle_pin(raw);
+    uint16_t                    raw      = io_di_raw(pin);
+    int                         board_id = (int)io_handle_board(raw);
+    int                         pin_id   = (int)io_handle_pin(raw);
+    drv_io_transaction_t        transaction;
+    drv_io_transaction_result_t result;
 
     if (!drv_io_is_valid_di_raw(raw)) {
         return -1;
     }
 
-    return io_pluse_read(board_id, pin_id);
+    transaction = (drv_io_transaction_t){
+        .type     = DRV_IO_TRANSACTION_PULSE_READ,
+        .board_id = board_id,
+        .channel  = pin_id,
+    };
+    if (drv_io_call_transaction(&transaction, HAL_IO_MANAGER_PRIORITY_HIGH, IO_TRANSACTION_TIMEOUT_MS, &result)
+        != SW_OK) {
+        return -1;
+    }
+    return result.value;
 }
 
 sw_err_t drv_io_pulse_clear(io_di_t pin)
 {
-    uint16_t raw      = io_di_raw(pin);
-    int      board_id = (int)io_handle_board(raw);
-    int      pin_id   = (int)io_handle_pin(raw);
-    int      data     = 0;
+    uint16_t             raw      = io_di_raw(pin);
+    int                  board_id = (int)io_handle_board(raw);
+    int                  pin_id   = (int)io_handle_pin(raw);
+    drv_io_transaction_t transaction;
 
     if (!drv_io_is_valid_di_raw(raw)) {
         return SW_ERR_PARAM;
     }
 
-    return (io_SDO_write(board_id, 0x2005, pin_id, &data) >= 0) ? SW_OK : SW_ERR_COMM;
+    transaction = (drv_io_transaction_t){
+        .type     = DRV_IO_TRANSACTION_PULSE_CLEAR,
+        .board_id = board_id,
+        .channel  = pin_id,
+    };
+    return drv_io_call_transaction(&transaction, HAL_IO_MANAGER_PRIORITY_HIGH, IO_TRANSACTION_TIMEOUT_MS, NULL);
 }
 
 static bool drv_io_is_valid_adc(int board_id, int port)
@@ -831,27 +1008,63 @@ static bool drv_io_is_valid_adc(int board_id, int port)
 
 int drv_io_adc_read(int board_id, int port)
 {
+    drv_io_transaction_t        transaction;
+    drv_io_transaction_result_t result;
+
     if (!drv_io_is_valid_adc(board_id, port)) {
         return -1;
     }
 
-    return io_adc_read(board_id, port);
+    transaction = (drv_io_transaction_t){
+        .type     = DRV_IO_TRANSACTION_ADC_RAW,
+        .board_id = board_id,
+        .channel  = port,
+    };
+    if (drv_io_call_transaction(&transaction, HAL_IO_MANAGER_PRIORITY_HIGH, IO_TRANSACTION_TIMEOUT_MS, &result)
+        != SW_OK) {
+        return -1;
+    }
+    return result.value;
 }
 
 int drv_io_adc_mv(int board_id, int port)
 {
+    drv_io_transaction_t        transaction;
+    drv_io_transaction_result_t result;
+
     if (!drv_io_is_valid_adc(board_id, port)) {
         return -1;
     }
 
-    return io_adc_mV(board_id, port);
+    transaction = (drv_io_transaction_t){
+        .type     = DRV_IO_TRANSACTION_ADC_MV,
+        .board_id = board_id,
+        .channel  = port,
+    };
+    if (drv_io_call_transaction(&transaction, HAL_IO_MANAGER_PRIORITY_HIGH, IO_TRANSACTION_TIMEOUT_MS, &result)
+        != SW_OK) {
+        return -1;
+    }
+    return result.value;
 }
 
 int drv_io_adc_ma(int board_id, int port)
 {
+    drv_io_transaction_t        transaction;
+    drv_io_transaction_result_t result;
+
     if (!drv_io_is_valid_adc(board_id, port)) {
         return -1;
     }
 
-    return io_adc_mA(board_id, port);
+    transaction = (drv_io_transaction_t){
+        .type     = DRV_IO_TRANSACTION_ADC_MA,
+        .board_id = board_id,
+        .channel  = port,
+    };
+    if (drv_io_call_transaction(&transaction, HAL_IO_MANAGER_PRIORITY_HIGH, IO_TRANSACTION_TIMEOUT_MS, &result)
+        != SW_OK) {
+        return -1;
+    }
+    return result.value;
 }

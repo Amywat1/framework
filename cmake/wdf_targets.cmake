@@ -30,6 +30,7 @@
 #   wdf_storage_json     JSON 参数/部署/方案存储适配器
 #   wdf_hal_sim          IO / 语音仿真后端
 #   wdf_hal_engine_sim   方案引擎 IO / 执行器仿真后端
+#   wdf_hal_io_manager   通用单所有者 I/O 事务管理器
 #   wdf_hal_components   ADC 门控、传感器滤波、VFD 管理器、电机执行器
 #   wdf_point_table_json 点位表的 JSON 编解码
 #   wdf_cloud_json       物模型属性 JSON 与 property_port 安装
@@ -392,6 +393,13 @@ _wdf_add_interface_lib(wdf_hal_engine_sim
 # ---------------------------------------------------------------------------
 # wdf_hal_components — 与具体 vendor 无关的 HAL 组合件
 # ---------------------------------------------------------------------------
+_wdf_add_interface_lib(wdf_hal_io_manager
+    SOURCES
+        adapters/outbound/hal/components/io_manager/hal_io_manager.c
+    DEPENDS
+        wdf_common
+)
+
 _wdf_add_interface_lib(wdf_hal_components
     SOURCES
         adapters/outbound/hal/components/adc_gate/hal_adc_gate.c
@@ -399,6 +407,7 @@ _wdf_add_interface_lib(wdf_hal_components
         adapters/outbound/hal/components/vfd_manager/hal_vfd_manager.c
         adapters/outbound/hal/components/motor_exec/hal_motor_executor.c
     DEPENDS
+        wdf_hal_io_manager
         wdf_common
         wdf_ports
 )

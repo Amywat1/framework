@@ -44,6 +44,7 @@ if(WDF_ENABLE_SNACK_IO_EXP_PROVIDER)
         ${WDF_IO_EXP_ROOT}/include
     )
     target_link_libraries(wdf_hal_io_exp_snack PUBLIC
+        wdf_hal_io_manager
         ${WDF_IO_EXP_LIBRARY}
         pthread
     )

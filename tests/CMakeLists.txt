@@ -83,6 +83,15 @@ add_unit_test(test_hal_sensor_filter
 )
 target_compile_definitions(test_hal_sensor_filter PRIVATE HAL_SENSOR_FILTER_UNIT_TEST HAL_IO_SIM_UNIT_TEST)
 
+add_unit_test(test_hal_io_manager
+    ${CMAKE_CURRENT_SOURCE_DIR}/adapters/test_hal_io_manager.c
+    ${WDF_ROOT}/adapters/outbound/hal/components/io_manager/hal_io_manager.c
+    ${WDF_ROOT}/common/log.c
+    ${WDF_ROOT}/common/sw_mutex.c
+    ${WDF_ROOT}/common/time_util.c
+)
+target_compile_definitions(test_hal_io_manager PRIVATE HAL_IO_MANAGER_UNIT_TEST)
+
 add_unit_test(test_hal_vfd_manager
     ${CMAKE_CURRENT_SOURCE_DIR}/adapters/test_hal_vfd_manager.c
     ${WDF_ROOT}/adapters/outbound/hal/components/vfd_manager/hal_vfd_manager.c
@@ -131,6 +140,7 @@ target_compile_definitions(test_snack_voice_adapter PRIVATE SNACK_VOICE_ADAPTER_
 
 add_unit_test(test_snack_io_exp_adapter
     ${CMAKE_CURRENT_SOURCE_DIR}/adapters/test_snack_io_exp_adapter.c
+    ${WDF_ROOT}/adapters/outbound/hal/components/io_manager/hal_io_manager.c
     ${WDF_ROOT}/adapters/outbound/hal/providers/snack/io_exp/io_exp_driver.c
     ${WDF_ROOT}/adapters/outbound/hal/providers/snack/io_exp/snack_io_adapter.c
     ${WDF_ROOT}/tests/stubs/io_exp/io_exp_fake.c
@@ -143,10 +153,11 @@ add_unit_test(test_snack_io_exp_adapter
 target_include_directories(test_snack_io_exp_adapter PRIVATE
     ${WDF_ROOT}/tests/stubs
 )
-target_compile_definitions(test_snack_io_exp_adapter PRIVATE SNACK_IO_ADAPTER_UNIT_TEST)
+target_compile_definitions(test_snack_io_exp_adapter PRIVATE SNACK_IO_ADAPTER_UNIT_TEST HAL_IO_MANAGER_UNIT_TEST)
 
 add_unit_test(test_snack_vfd_backend
     ${CMAKE_CURRENT_SOURCE_DIR}/adapters/test_snack_vfd_backend.c
+    ${WDF_ROOT}/adapters/outbound/hal/components/io_manager/hal_io_manager.c
     ${WDF_ROOT}/adapters/outbound/hal/providers/snack/modbus/drv_vfd.c
     ${WDF_ROOT}/adapters/outbound/hal/providers/snack/modbus/snack_vfd_backend.c
     ${WDF_ROOT}/adapters/outbound/hal/providers/snack/io_exp/io_exp_driver.c

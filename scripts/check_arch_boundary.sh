@@ -492,6 +492,7 @@ RT_REACHABLE_FILES=(
     "common/log.c"                                                  # 急停边沿每次都写日志
     "runtime/event_bus/event_bus.c"                                 # 急停事件发布
     "adapters/outbound/hal/sim/hal_io_sim.c"                        # 仿真 DO 写
+    "adapters/outbound/hal/components/io_manager/hal_io_manager.c"  # 安全 flush 可达
     "adapters/outbound/hal/providers/snack/io_exp/io_exp_driver.c"  # 真机 DO 写
     "adapters/outbound/hal/components/vfd_manager/hal_vfd_manager.c" # 电机停机
     "adapters/outbound/hal/providers/snack/modbus/drv_vfd.c"        # stop_outputs
@@ -609,6 +610,7 @@ BOUNDED_WAIT_SITES=(
     "application/command_gateway.c:sem_timedwait"          # 等 handler 回执
     "application/engine_session/engine_session.c:sem_timedwait" # 等启动完成
     "runtime/scheduler/periodic_task.c:clock_nanosleep"    # 绝对下一拍唤醒
+    "adapters/outbound/hal/components/io_manager/hal_io_manager.c:pthread_cond_timedwait" # worker 周期等待、事务等待、测试停止均有截止时间
 )
 
 # 无界等待：等新工作到来，不设超时须逐个说明依据

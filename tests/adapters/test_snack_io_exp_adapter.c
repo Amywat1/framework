@@ -3,6 +3,7 @@
  * @brief   Snack io_exp IO HAL provider 单元测试。
  */
 
+#include "adapters/outbound/hal/components/io_manager/hal_io_manager.h"
 #include "adapters/outbound/hal/providers/snack/io_exp/io_exp_driver.h"
 #include "adapters/outbound/hal/providers/snack/io_exp/snack_io_adapter.h"
 #include "common/io_handle.h"
@@ -22,6 +23,14 @@ static const drv_io_name_entry_t s_do_names[] = {
     {"DO_LAMP",  IO_HANDLE_MAKE(IO_KIND_DO, 2U, 3U)},
 };
 
+static const hal_io_ops_t *io_ops(void)
+{
+    const hal_io_ops_t *ops = hal_io_get_ops();
+
+    TEST_ASSERT_NOT_NULL(ops);
+    return ops;
+}
+
 static drv_io_cfg_t make_cfg(void)
 {
     drv_io_cfg_t cfg = {
@@ -39,12 +48,27 @@ static drv_io_cfg_t make_cfg(void)
     return cfg;
 }
 
-static const hal_io_ops_t *io_ops(void)
+static void configure_adapter(int board_count)
 {
-    const hal_io_ops_t *ops = hal_io_get_ops();
+    drv_io_cfg_t cfg = make_cfg();
 
-    TEST_ASSERT_NOT_NULL(ops);
-    return ops;
+    cfg.board_count = board_count;
+    io_exp_fake_reset();
+    snack_io_adapter_test_reset();
+    snack_io_adapter_register();
+    TEST_ASSERT_EQUAL_INT(SW_OK, snack_io_adapter_configure(&cfg));
+    TEST_ASSERT_EQUAL_INT(SW_OK, io_ops()->init());
+}
+
+static void start_online_boards(int board_count)
+{
+    int i;
+
+    for (i = 1; i <= board_count; ++i) {
+        io_exp_fake_set_online(i, 1);
+    }
+    TEST_ASSERT_EQUAL_INT(SW_OK, io_ops()->start());
+    TEST_ASSERT_EQUAL_INT(SW_OK, io_ops()->wait_boards_online(500U));
 }
 
 static io_di_sample_t read_di(io_di_t pin)
@@ -57,17 +81,13 @@ static io_di_sample_t read_di(io_di_t pin)
 
 void setUp(void)
 {
-    drv_io_cfg_t cfg = make_cfg();
-
-    io_exp_fake_reset();
-    snack_io_adapter_test_reset();
-    snack_io_adapter_register();
-    TEST_ASSERT_EQUAL_INT(SW_OK, snack_io_adapter_configure(&cfg));
-    TEST_ASSERT_EQUAL_INT(SW_OK, io_ops()->init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, hal_io_manager_reset_for_test());
+    configure_adapter(2);
 }
 
 void tearDown(void)
 {
+    TEST_ASSERT_EQUAL_INT(SW_OK, hal_io_manager_reset_for_test());
 }
 
 static void test_sdk_init_registers_internal_log_and_delegates_to_io_exp_sdk(void)
@@ -184,18 +204,21 @@ static void test_di_test_override_controls_read_value(void)
     TEST_ASSERT_EQUAL_INT(IO_SAMPLE_QUALITY_PROBING, read_di(pin).quality);
 }
 
-static void test_wait_boards_online_uses_sdk_probe(void)
+static void test_wait_boards_online_uses_worker_cache(void)
 {
+    TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_INIT, io_ops()->wait_boards_online(10U));
     io_exp_fake_set_online(1, 1);
-    io_exp_fake_set_online(2, 1);
-    TEST_ASSERT_EQUAL_INT(SW_OK, io_ops()->wait_boards_online(10U));
-
     io_exp_fake_set_online(2, 0);
-    TEST_ASSERT_EQUAL_INT(SW_ERR_TIMEOUT, io_ops()->wait_boards_online(1U));
+    TEST_ASSERT_EQUAL_INT(SW_OK, io_ops()->start());
+    TEST_ASSERT_EQUAL_INT(SW_ERR_TIMEOUT, io_ops()->wait_boards_online(10U));
+
+    io_exp_fake_set_online(2, 1);
+    TEST_ASSERT_EQUAL_INT(SW_OK, io_ops()->wait_boards_online(500U));
 }
 
 static void test_pulse_read_and_clear_delegate_to_sdk(void)
 {
+    start_online_boards(2);
     io_exp_fake_set_pulse(1, 1, 77);
     TEST_ASSERT_EQUAL_INT(77, io_ops()->pulse_read(IO_DI(1U, 1U)));
     TEST_ASSERT_EQUAL_INT(-1, io_ops()->pulse_read(IO_DI(9U, 1U)));
@@ -214,6 +237,7 @@ static void test_pulse_read_and_clear_delegate_to_sdk(void)
 
 static void test_adc_read_delegates_to_sdk(void)
 {
+    start_online_boards(2);
     TEST_ASSERT_EQUAL_INT(DRV_IO_ADC_ERR_NOT_INIT, io_ops()->adc_read(1, 1));
     TEST_ASSERT_EQUAL_INT(DRV_IO_ADC_ERR_NOT_INIT, io_ops()->adc_mv(1, 2));
     TEST_ASSERT_EQUAL_INT(DRV_IO_ADC_ERR_NOT_INIT, io_ops()->adc_ma(1, 3));
@@ -244,6 +268,68 @@ static void test_start_confirms_healthy_boards_within_watchdog_window(void)
     TEST_ASSERT_GREATER_THAN_UINT32(0U, stats.input_refresh_count);
 }
 
+static void test_four_boards_use_pdo_only(void)
+{
+    hal_io_stats_t stats;
+
+    configure_adapter(4);
+    TEST_ASSERT_EQUAL_INT(DRV_IO_TRANSPORT_PDO, drv_io_transport_mode());
+    start_online_boards(4);
+    TEST_ASSERT_EQUAL_INT(DRV_IO_TRANSPORT_PDO, drv_io_transport_mode());
+    TEST_ASSERT_EQUAL_INT(SW_OK, io_ops()->do_set(IO_DO(1U, 2U), true));
+    TEST_ASSERT_EQUAL_INT(SW_OK, io_ops()->flush_outputs_now());
+
+    TEST_ASSERT_GREATER_THAN_UINT32(0U, io_exp_fake_pdo_read_count());
+    TEST_ASSERT_GREATER_THAN_UINT32(0U, io_exp_fake_pdo_write_count());
+    TEST_ASSERT_EQUAL_UINT32(0U, io_exp_fake_sdo_read_count());
+    TEST_ASSERT_EQUAL_UINT32(0U, io_exp_fake_sdo_write_count());
+    TEST_ASSERT_EQUAL_INT(SW_OK, io_ops()->get_stats(1, &stats));
+    TEST_ASSERT_FALSE(stats.dirty_pending);
+}
+
+static void test_five_boards_use_sdo_only(void)
+{
+    configure_adapter(5);
+    TEST_ASSERT_EQUAL_INT(DRV_IO_TRANSPORT_SDO, drv_io_transport_mode());
+    start_online_boards(5);
+    TEST_ASSERT_EQUAL_INT(DRV_IO_TRANSPORT_SDO, drv_io_transport_mode());
+    TEST_ASSERT_EQUAL_INT(SW_OK, io_ops()->do_set(IO_DO(1U, 2U), true));
+    TEST_ASSERT_EQUAL_INT(SW_OK, io_ops()->flush_outputs_now());
+
+    TEST_ASSERT_GREATER_THAN_UINT32(0U, io_exp_fake_sdo_read_count());
+    TEST_ASSERT_GREATER_THAN_UINT32(0U, io_exp_fake_sdo_write_count());
+    TEST_ASSERT_EQUAL_UINT32(0U, io_exp_fake_pdo_read_count());
+    TEST_ASSERT_EQUAL_UINT32(0U, io_exp_fake_pdo_write_count());
+}
+
+static void test_failed_flush_keeps_output_dirty(void)
+{
+    hal_io_stats_t stats;
+
+    start_online_boards(2);
+    TEST_ASSERT_EQUAL_INT(SW_OK, io_ops()->do_set(IO_DO(1U, 2U), true));
+    io_exp_fake_set_pdo_write_result(-1);
+    TEST_ASSERT_EQUAL_INT(SW_ERR_COMM, io_ops()->flush_outputs_now());
+    TEST_ASSERT_EQUAL_INT(SW_OK, io_ops()->get_stats(1, &stats));
+    TEST_ASSERT_TRUE(stats.dirty_pending);
+
+    io_exp_fake_set_pdo_write_result(0);
+    TEST_ASSERT_EQUAL_INT(SW_OK, io_ops()->flush_outputs_now());
+    TEST_ASSERT_EQUAL_INT(SW_OK, io_ops()->get_stats(1, &stats));
+    TEST_ASSERT_FALSE(stats.dirty_pending);
+}
+
+static void test_runtime_sdk_calls_share_one_worker(void)
+{
+    start_online_boards(2);
+    io_exp_fake_set_pulse(1, 1, 12);
+    io_exp_fake_set_adc(1, 1, 100, 2500, 12);
+    TEST_ASSERT_EQUAL_INT(12, io_ops()->pulse_read(IO_DI(1U, 1U)));
+    TEST_ASSERT_EQUAL_INT(100, io_ops()->adc_read(1, 1));
+    TEST_ASSERT_TRUE(io_exp_fake_sdk_thread_seen());
+    TEST_ASSERT_TRUE(io_exp_fake_sdk_thread_consistent());
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -259,10 +345,14 @@ int main(void)
     WDF_RUN_TEST(test_hal_adapter_exposes_name_resolution_and_board_count, "", "验证 HAL 适配器提供名称解析和板卡数量");
     WDF_RUN_TEST(test_do_set_updates_stats_and_rejects_invalid_pin, "", "验证DO设置更新统计并拒绝无效引脚");
     WDF_RUN_TEST(test_di_test_override_controls_read_value, "", "验证DI测试覆盖值控制读取值");
-    WDF_RUN_TEST(test_wait_boards_online_uses_sdk_probe, "", "验证等待板卡在线使用SDK探测");
+    WDF_RUN_TEST(test_wait_boards_online_uses_worker_cache, "", "验证等待板卡在线仅使用worker缓存");
     WDF_RUN_TEST(test_pulse_read_and_clear_delegate_to_sdk, "", "验证脉冲读取并清除委托到SDK");
     WDF_RUN_TEST(test_adc_read_delegates_to_sdk, "", "验证ADC读取委托到SDK");
     WDF_RUN_TEST(test_start_confirms_healthy_boards_within_watchdog_window, "", "验证启动在看门狗窗口内确认健康板卡");
+    WDF_RUN_TEST(test_four_boards_use_pdo_only, "", "验证四块子板统一使用PDO");
+    WDF_RUN_TEST(test_five_boards_use_sdo_only, "", "验证五块子板统一使用SDO");
+    WDF_RUN_TEST(test_failed_flush_keeps_output_dirty, "", "验证输出写失败保留待落地状态");
+    WDF_RUN_TEST(test_runtime_sdk_calls_share_one_worker, "", "验证运行期SDK调用共享唯一worker");
 
     return UNITY_END();
 }

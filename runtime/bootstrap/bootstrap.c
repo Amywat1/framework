@@ -187,15 +187,16 @@ static sw_err_t bootstrap_bind(void)
     return SW_OK;
 }
 
-/** HAL 框架 init + 项目 init_hal/init_machine/init_safety */
+/** HAL 初始化后先启动 I/O 所有者，再建立安全态和初始化机器 */
 static sw_err_t bootstrap_init_hal(void)
 {
     BOOT_CHECK(hal_io_bootstrap_init(), "hal_io_bootstrap");
     BOOT_CHECK(hal_vfd_bootstrap_init(), "hal_vfd_bootstrap");
     BOOT_CHECK(hal_voice_bootstrap_init(), "hal_voice_bootstrap");
     BOOT_CHECK(s_hooks->init_hal(), "project_init_hal");
-    BOOT_CHECK(s_hooks->init_machine(), "project_init_machine");
+    BOOT_CHECK(hal_io_bootstrap_start(), "hal_io_bootstrap_start");
     BOOT_CHECK(s_hooks->init_safety(), "project_init_safety");
+    BOOT_CHECK(s_hooks->init_machine(), "project_init_machine");
     return SW_OK;
 }
 
@@ -216,7 +217,6 @@ static sw_err_t bootstrap_init_services(void)
 
 static sw_err_t bootstrap_start(void)
 {
-    BOOT_CHECK(hal_io_bootstrap_start(), "hal_io_bootstrap_start");
     BOOT_CHECK(s_hooks->start_runtime(), "project_start_runtime");
     BOOT_CHECK(scheduler_start_all(), "scheduler_start_all");
     return SW_OK;

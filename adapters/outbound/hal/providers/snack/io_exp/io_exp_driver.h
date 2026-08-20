@@ -60,6 +60,9 @@ typedef struct {
     uint32_t last_output_snapshot;  /**< 最近一次输出快照 */
 } drv_io_stats_t;
 
+/** Snack io_exp 过程数据传输模式。 */
+typedef enum { DRV_IO_TRANSPORT_PDO = 0, DRV_IO_TRANSPORT_SDO } drv_io_transport_mode_t;
+
 /* -------------------------------------------------------------------------
  * 名称解析 / 可读名称
  * ------------------------------------------------------------------------- */
@@ -121,7 +124,7 @@ sw_err_t drv_io_cfg_validate(const drv_io_cfg_t *cfg);
 /**
  * @brief  初始化 IO 子板驱动内部状态
  * @param  cfg  驱动配置，不可为 NULL
- * @note   仅做状态初始化，不启动后台线程；线程由 drv_io_start() 启动。
+ * @note   仅做状态初始化，不启动通用 I/O worker；worker 由 drv_io_start() 启动。
  *         本接口仅用于系统启动阶段，不用于运行期复位。
  *         若测试场景需要重复调用本接口重置内部缓冲，调用方应在其后重新注册
  *         调试输入回调、子板状态回调和 panic 回调，并再次调用 drv_io_start()。
@@ -130,8 +133,8 @@ sw_err_t drv_io_cfg_validate(const drv_io_cfg_t *cfg);
 sw_err_t drv_io_init(const drv_io_cfg_t *cfg);
 
 /**
- * @brief  启动 IO 读写后台线程（输入刷新 / 输出落地 / 在线检测）
- * @note   由 IO 驱动模块自行创建 pthread，不经过 core/scheduler。
+ * @brief  启动唯一 I/O worker（输入刷新 / 输出落地 / 在线检测 / 同步事务）
+ * @note   worker 由通用 io_manager 创建，运行期所有 Snack SDK 调用均由该 worker 执行。
  *         须在 drv_io_register_panic_cb() 等回调注册完成后调用。
  * @retval SW_OK / SW_ERR_HW / SW_ERR_STATE（已启动）
  */
@@ -139,8 +142,7 @@ sw_err_t drv_io_start(void);
 
 /**
  * @brief  立即将当前输出缓冲同步刷到硬件
- * @note   正常路径由后台轮询线程异步写出。
- *          本接口主要用于 panic handler、启动安全态等需要“立即落地”的场景。
+ * @note   正常路径由 I/O worker 周期写出；本接口向同一 worker 提交高优先级事务并有界等待。
  */
 sw_err_t drv_io_flush_outputs_now(void);
 
@@ -177,10 +179,11 @@ void drv_io_register_debug_input_cb(drv_io_debug_input_cb_t cb);
 bool drv_io_board_is_online(int board_id);
 
 /**
- * @brief  同步轮询等待所有 IO 子板就绪（启动阶段，后台线程启动前可调用）
+ * @brief  等待 I/O worker 确认所有子板就绪
  * @param  timeout_ms  最长等待时间（ms）
  * @retval SW_OK           所有子板在超时内就绪
  * @retval SW_ERR_TIMEOUT  超时仍有子板离线
+ * @retval SW_ERR_NOT_INIT I/O worker 尚未启动
  */
 sw_err_t drv_io_wait_boards_online(uint32_t timeout_ms);
 
@@ -227,6 +230,12 @@ sw_err_t drv_io_get_stats(int board_id, drv_io_stats_t *out);
  * @retval 子板数量，不包含 0 号占位
  */
 int drv_io_board_count(void);
+
+/**
+ * @brief  获取启动时固定的过程数据传输模式。
+ * @return 当前模式；未初始化时返回 DRV_IO_TRANSPORT_SDO。
+ */
+drv_io_transport_mode_t drv_io_transport_mode(void);
 
 /* -------------------------------------------------------------------------
  * 脉冲计数器接口（编码器，底层调用 io_exp provider 内部 SDK 接口）
