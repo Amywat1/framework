@@ -1,15 +1,102 @@
 /**
  * @file hal_motor_executor.c
- * @brief 电机执行器组合件实现（状态机 + hal_motor_exec_port 符号）。
+ * @brief 电机执行器组合件实现（状态机 + 静态槽池 provider）。
  *
  * 采用显式状态机驱动，逐 tick 推进。除急停外命令均为异步语义。
  * 关键控制逻辑（启动/换向/停止/故障/急停/看门狗）均以状态迁移表达，
  * 上电默认态与故障安全态均为“停止且输出关断”。
- * 本文件同时实现出站端口 hal_motor_*，供 domain patterns 直接调用。
+ * 出站端口符号由 hal_motor_exec_port.c 统一分派，本文件只提供每实例 ops。
  */
 #include "adapters/outbound/hal/components/motor_exec/hal_motor_executor.h"
 
+#include "domain/ports/outbound/motor/hal_motor_exec_provider.h"
+
 #include <limits.h>
+#include <string.h>
+
+/** 事件队列容量（环形缓冲）；满时优先丢同电机最旧事件。 */
+#define MOTOR_EVENT_QUEUE_CAP 64
+
+typedef struct {
+    bool                  is_move;
+    hal_motor_speed_t     speed;
+    hal_motor_dir_t       dir;
+    hal_motor_move_spec_t spec;
+} motor_pending_cmd_t;
+
+typedef struct {
+    hal_motor_phase_t phase;
+    hal_motor_dir_t   dir;
+
+    hal_motor_speed_t speed;
+    hal_motor_speed_t applied_speed;
+    bool              output_applied;
+
+    bool                   move_active;
+    hal_motor_move_spec_t  spec;
+    hal_motor_limit_kind_t end_limit;
+    uint64_t               move_start_ms;
+    uint64_t               elapsed_ms;
+    bool                   emit_stop_on_halt;
+
+    int64_t position;
+    int64_t last_raw;
+    bool    baseline_trusted;
+
+    uint64_t            cooldown_until;
+    bool                queued;
+    motor_pending_cmd_t pending;
+
+    uint64_t            reversal_until;
+    motor_pending_cmd_t after_reversal;
+
+    bool                   fatal;
+    hal_motor_fault_code_t fault_code;
+    bool                   driver_reset_done;
+
+    uint64_t start_ms;
+    int      cur_over_ms;
+    int      cur_under_ms;
+    uint32_t cur_stop_ms;
+    int      fb_bad_ms;
+    int      fb_strikes;
+    int      temp_bad_ms;
+    int      volt_bad_ms;
+
+    int  enc_stall;
+    bool enc_warned;
+    bool enc_healthy;
+} motor_mstate_t;
+
+typedef struct {
+    motor_config_t cfg;
+    motor_ports_t  ports;
+    motor_mstate_t m[MOTOR_MAX_MOTORS];
+    int            motor_count;
+
+    uint64_t now;
+    uint64_t last_tick_ms;
+    bool     last_tick_valid;
+    bool     estop_latched;
+    bool     safe_latched;
+
+    hal_motor_event_t events[MOTOR_EVENT_QUEUE_CAP];
+    int               ev_head;
+    int               ev_count;
+
+    motor_event_cb_t cb;
+    void            *cb_ctx;
+    bool             in_dispatch;
+
+} motor_executor_t;
+
+typedef struct {
+    bool             bound;
+    motor_executor_t executor;
+    hal_motor_exec_t handle;
+} motor_executor_slot_t;
+
+static motor_executor_slot_t s_slots[WDF_MOTOR_EXECUTOR_INSTANCE_COUNT];
 
 /* ------------------------- 小工具 ------------------------- */
 
@@ -207,22 +294,22 @@ static void settle_elapsed(motor_executor_t *e, int i)
 {
     motor_mstate_t *s = &e->m[i];
     if (s->phase == HAL_MOTOR_PHASE_RUNNING) {
-        s->elapsed_ms   += e->now - s->move_start_ms;
+        s->elapsed_ms += e->now - s->move_start_ms;
         s->move_start_ms = e->now;
     }
 }
 
-static void push_event(motor_executor_t          *e,
-                       int                        i,
-                       hal_motor_event_type_t     t,
-                       hal_motor_end_condition_t  trig,
-                       hal_motor_fault_code_t     fc)
+static void push_event(motor_executor_t         *e,
+                       int                       i,
+                       hal_motor_event_type_t    t,
+                       hal_motor_end_condition_t trig,
+                       hal_motor_fault_code_t    fc)
 {
     hal_motor_event_t ev;
 
-    ev.motor      = i;
-    ev.type       = t;
-    ev.trigger    = trig;
+    ev.motor   = i;
+    ev.type    = t;
+    ev.trigger = trig;
     /* 限位种类取本次实际触发的硬限位，仅在确实由限位终止时有效。 */
     ev.has_limit  = (trig == HAL_MOTOR_END_LIMIT);
     ev.limit      = e->m[i].end_limit;
@@ -259,7 +346,7 @@ static hal_motor_speed_t desired_output_speed(motor_executor_t *e, int i)
 {
     motor_mstate_t          *state = &e->m[i];
     const motor_motor_cfg_t *cfg   = &e->cfg.motors[i];
-    hal_motor_speed_t            speed = state->speed;
+    hal_motor_speed_t        speed = state->speed;
 
     if (state->move_active && state->spec.use_position && (speed.kind == HAL_MOTOR_SPEED_GEAR) && (cfg->decel_point > 0)
         && (cfg->position_slow_gear > 0) && within_distance(state->spec.target_pos, state->position, cfg->decel_point)
@@ -271,8 +358,8 @@ static hal_motor_speed_t desired_output_speed(motor_executor_t *e, int i)
 
 static bool apply_output(motor_executor_t *e, int i)
 {
-    motor_mstate_t *s       = &e->m[i];
-    hal_motor_speed_t   desired = desired_output_speed(e, i);
+    motor_mstate_t   *s       = &e->m[i];
+    hal_motor_speed_t desired = desired_output_speed(e, i);
 
     if (s->output_applied && speed_equal(s->applied_speed, desired)) {
         return true;
@@ -308,8 +395,8 @@ static bool interlock_ok(motor_executor_t *e, int i)
         }
         if (il->kind == MOTOR_INTERLOCK_MUTEX) {
             hal_motor_phase_t bp = e->m[il->b].phase;
-            if (bp == HAL_MOTOR_PHASE_RUNNING || bp == HAL_MOTOR_PHASE_DECELERATING || bp == HAL_MOTOR_PHASE_WAITING_START
-                || bp == HAL_MOTOR_PHASE_REVERSAL_WAIT) {
+            if (bp == HAL_MOTOR_PHASE_RUNNING || bp == HAL_MOTOR_PHASE_DECELERATING
+                || bp == HAL_MOTOR_PHASE_WAITING_START || bp == HAL_MOTOR_PHASE_REVERSAL_WAIT) {
                 return false;
             }
         } else {
@@ -355,7 +442,7 @@ static void begin_start(motor_executor_t *e, int i, const motor_pending_cmd_t *p
     s->dir               = pc->dir;
     s->speed             = pc->speed;
     s->output_applied    = false;
-    s->move_active        = pc->is_move;
+    s->move_active       = pc->is_move;
     s->spec              = pc->spec;
     s->end_limit         = HAL_MOTOR_LIMIT_POS;
     s->move_start_ms     = e->now;
@@ -422,8 +509,10 @@ static hal_motor_cmd_result_t after_begin_start(motor_executor_t *e, int i, cons
     return cmd_make(HAL_MOTOR_CMD_ACCEPTED, started_reason);
 }
 
-static hal_motor_cmd_result_t enter_reversal(motor_executor_t *e, int i, const motor_pending_cmd_t *pc,
-                                         const char *reason)
+static hal_motor_cmd_result_t enter_reversal(motor_executor_t          *e,
+                                             int                        i,
+                                             const motor_pending_cmd_t *pc,
+                                             const char                *reason)
 {
     if (!reversal(e, i, pc)) {
         return cmd_make(HAL_MOTOR_CMD_ACCEPTED, "cutoff-failed");
@@ -491,7 +580,7 @@ static void fault_one(motor_executor_t *e, int i, hal_motor_fault_code_t code, b
     s->phase             = HAL_MOTOR_PHASE_FAULT;
     s->fatal             = fatal;
     s->fault_code        = code;
-    s->move_active        = false;
+    s->move_active       = false;
     s->queued            = false;
     s->driver_reset_done = false;
 }
@@ -557,7 +646,7 @@ static void finish_halt(motor_executor_t *e, int i)
         (void)zero_encoder_baseline(e, i);
     }
     s->phase          = HAL_MOTOR_PHASE_STOPPED;
-    s->move_active     = false;
+    s->move_active    = false;
     s->cooldown_until = e->now + e->cfg.motors[i].cooldown_ms;
     if (s->emit_stop_on_halt) {
         s->emit_stop_on_halt = false;
@@ -604,7 +693,6 @@ static bool zero_encoder_baseline(motor_executor_t *e, int i)
     return false;
 }
 
-
 static void complete_move(motor_executor_t *e, int i, hal_motor_event_type_t type, hal_motor_end_condition_t trig)
 {
     motor_mstate_t *s = &e->m[i];
@@ -615,7 +703,7 @@ static void complete_move(motor_executor_t *e, int i, hal_motor_event_type_t typ
 
     /* 先结算耗时，保留到位瞬间的时长供随后的事件读取。 */
     settle_elapsed(e, i);
-    s->move_active        = false;
+    s->move_active       = false;
     s->emit_stop_on_halt = false;
     if (origin_reached) {
         finish_halt(e, i);
@@ -666,7 +754,7 @@ static void check_end(motor_executor_t *e, int i)
         int64_t target    = s->spec.target_pos;
         int     tolerance = mc->pos_tolerance;
         bool    reached   = (s->dir == HAL_MOTOR_DIR_FORWARD) ? (s->position >= lower_bound(target, tolerance))
-                                                          : (s->position <= upper_bound(target, tolerance));
+                                                              : (s->position <= upper_bound(target, tolerance));
 
         if (reached) {
             complete_move(e, i, HAL_MOTOR_EVENT_ARRIVED, HAL_MOTOR_END_POSITION);
@@ -837,9 +925,9 @@ static void trigger_estop(motor_executor_t *e)
         (void)immediate_cut(e, i);
         /* 结算耗时后再转入急停态，急停事件才能带上被切断时的已运行时长。 */
         settle_elapsed(e, i);
-        s->queued     = false;
+        s->queued      = false;
         s->move_active = false;
-        s->phase      = HAL_MOTOR_PHASE_ESTOP;
+        s->phase       = HAL_MOTOR_PHASE_ESTOP;
         if (was_active) {
             push_event(e, i, HAL_MOTOR_EVENT_ESTOP, HAL_MOTOR_END_NONE, HAL_MOTOR_FAULT_NONE);
         }
@@ -853,7 +941,7 @@ static void trigger_safe(motor_executor_t *e)
         bool was_active = (e->m[i].phase != HAL_MOTOR_PHASE_STOPPED && e->m[i].phase != HAL_MOTOR_PHASE_FAULT
                            && e->m[i].phase != HAL_MOTOR_PHASE_ESTOP);
         (void)immediate_cut(e, i);
-        e->m[i].queued     = false;
+        e->m[i].queued      = false;
         e->m[i].move_active = false;
         fault_one(e, i, HAL_MOTOR_FAULT_WATCHDOG, false);
         if (was_active) {
@@ -883,7 +971,7 @@ static void dispatch(motor_executor_t *e)
 
 /* ------------------------- tick ------------------------- */
 
-void motor_tick(motor_executor_t *e)
+static void motor_tick(motor_executor_t *e)
 {
     e->now = clock_now(e);
 
@@ -1009,8 +1097,8 @@ static motor_init_result_t do_init(motor_executor_t *e)
         if (mc->default_max_time_ms <= 0) {
             return init_err("defaultMaxTimeMs must be > 0");
         }
-        if (mc->cooldown_ms < 0 || mc->reversal_stop_ms < 0 || mc->accel_ms < 0
-            || mc->pos_tolerance < 0 || mc->decel_point < 0) {
+        if (mc->cooldown_ms < 0 || mc->reversal_stop_ms < 0 || mc->accel_ms < 0 || mc->pos_tolerance < 0
+            || mc->decel_point < 0) {
             return init_err("time params must be >= 0");
         }
         if ((mc->position_slow_gear < 0) || (mc->position_slow_gear > mc->gear_count)) {
@@ -1070,11 +1158,10 @@ static motor_init_result_t do_init(motor_executor_t *e)
             return init_err("driver cutoff failed");
         }
     }
-    e->initialized = true;
     return init_ok();
 }
 
-motor_init_result_t motor_init(motor_executor_t *e, const motor_config_t *cfg, const motor_ports_t *ports)
+static motor_init_result_t motor_init(motor_executor_t *e, const motor_config_t *cfg, const motor_ports_t *ports)
 {
     e->cfg    = *cfg;
     e->ports  = *ports;
@@ -1083,7 +1170,7 @@ motor_init_result_t motor_init(motor_executor_t *e, const motor_config_t *cfg, c
     return do_init(e);
 }
 
-motor_init_result_t motor_reinit(motor_executor_t *e)
+static motor_init_result_t motor_reinit(motor_executor_t *e)
 {
     return do_init(e);
 }
@@ -1091,12 +1178,12 @@ motor_init_result_t motor_reinit(motor_executor_t *e)
 /* ------------------------- 命令 ------------------------- */
 
 enum {
-    MOTOR_CMD_NEED_NOW = 1u << 0,       /**< 刷新 e->now */
-    MOTOR_CMD_REJECT_SAFETY = 1u << 1,  /**< 急停/看门狗锁定时拒绝 */
-    MOTOR_CMD_REJECT_FAULT = 1u << 2    /**< FAULT 相位时拒绝 */
+    MOTOR_CMD_NEED_NOW      = 1u << 0, /**< 刷新 e->now */
+    MOTOR_CMD_REJECT_SAFETY = 1u << 1, /**< 急停/看门狗锁定时拒绝 */
+    MOTOR_CMD_REJECT_FAULT  = 1u << 2  /**< FAULT 相位时拒绝 */
 };
 
-static bool bad_motor(motor_executor_t *e, int i)
+static bool bad_motor(const motor_executor_t *e, int i)
 {
     return i < 0 || i >= e->motor_count;
 }
@@ -1125,14 +1212,14 @@ static hal_motor_cmd_result_t cmd_guard(motor_executor_t *e, int i, unsigned fla
     return cmd_make(HAL_MOTOR_CMD_ACCEPTED, "");
 }
 
-hal_motor_cmd_result_t motor_run(motor_executor_t        *e,
-                             int                      i,
-                             hal_motor_speed_t            spd,
-                             hal_motor_dir_t        dir,
-                             const hal_motor_move_spec_t *spec)
+static hal_motor_cmd_result_t motor_run(motor_executor_t            *e,
+                                        int                          i,
+                                        hal_motor_speed_t            spd,
+                                        hal_motor_dir_t              dir,
+                                        const hal_motor_move_spec_t *spec)
 {
-    hal_motor_cmd_result_t  g = cmd_guard(e, i, MOTOR_CMD_NEED_NOW | MOTOR_CMD_REJECT_SAFETY | MOTOR_CMD_REJECT_FAULT);
-    motor_pending_cmd_t pc = {0};
+    hal_motor_cmd_result_t g  = cmd_guard(e, i, MOTOR_CMD_NEED_NOW | MOTOR_CMD_REJECT_SAFETY | MOTOR_CMD_REJECT_FAULT);
+    motor_pending_cmd_t    pc = {0};
 
     if (!hal_motor_cmd_ok(g)) {
         return g;
@@ -1162,7 +1249,7 @@ hal_motor_cmd_result_t motor_run(motor_executor_t        *e,
     return apply_goal(e, i, &pc);
 }
 
-hal_motor_cmd_result_t motor_stop(motor_executor_t *e, int i)
+static hal_motor_cmd_result_t motor_stop(motor_executor_t *e, int i)
 {
     hal_motor_cmd_result_t g = cmd_guard(e, i, MOTOR_CMD_NEED_NOW);
 
@@ -1213,11 +1300,11 @@ hal_motor_cmd_result_t motor_stop(motor_executor_t *e, int i)
     }
 }
 
-hal_motor_cmd_result_t motor_home(motor_executor_t *e, int i)
+static hal_motor_cmd_result_t motor_home(motor_executor_t *e, int i)
 {
     hal_motor_cmd_result_t g = cmd_guard(e, i, MOTOR_CMD_NEED_NOW | MOTOR_CMD_REJECT_SAFETY | MOTOR_CMD_REJECT_FAULT);
     hal_motor_move_spec_t  spec = {0};
-    int                freq;
+    int                    freq;
 
     if (!hal_motor_cmd_ok(g)) {
         return g;
@@ -1225,12 +1312,12 @@ hal_motor_cmd_result_t motor_home(motor_executor_t *e, int i)
     if (!e->cfg.motors[i].has_encoder) {
         return cmd_reject("no-encoder");
     }
-    freq = e->cfg.motors[i].slow_freq > 0 ? e->cfg.motors[i].slow_freq : MOTOR_HOME_DEFAULT_FREQ_CENTI_HZ;
+    freq            = e->cfg.motors[i].slow_freq > 0 ? e->cfg.motors[i].slow_freq : MOTOR_HOME_DEFAULT_FREQ_CENTI_HZ;
     spec.limit_mask = HAL_MOTOR_LIMIT_MASK_ORIGIN;
     return motor_run(e, i, hal_motor_speed_freq(freq), HAL_MOTOR_DIR_REVERSE, &spec);
 }
 
-hal_motor_cmd_result_t motor_zero_encoder(motor_executor_t *e, int i)
+static hal_motor_cmd_result_t motor_zero_encoder(motor_executor_t *e, int i)
 {
     hal_motor_cmd_result_t g = cmd_guard(e, i, 0);
 
@@ -1259,7 +1346,7 @@ hal_motor_cmd_result_t motor_zero_encoder(motor_executor_t *e, int i)
     return cmd_reject("zero-failed");
 }
 
-hal_motor_cmd_result_t motor_confirm_baseline(motor_executor_t *e, int i)
+static hal_motor_cmd_result_t motor_confirm_baseline(motor_executor_t *e, int i)
 {
     if (bad_motor(e, i)) {
         return cmd_reject("bad-motor");
@@ -1268,7 +1355,7 @@ hal_motor_cmd_result_t motor_confirm_baseline(motor_executor_t *e, int i)
     return cmd_make(HAL_MOTOR_CMD_ACCEPTED, "baseline-confirmed");
 }
 
-void motor_reset_estop(motor_executor_t *e)
+static void motor_reset_estop(motor_executor_t *e)
 {
     if (e->in_dispatch) {
         return;
@@ -1291,7 +1378,7 @@ void motor_reset_estop(motor_executor_t *e)
     }
 }
 
-void motor_reset_watchdog(motor_executor_t *e)
+static void motor_reset_watchdog(motor_executor_t *e)
 {
     if (e->in_dispatch) {
         return;
@@ -1311,7 +1398,7 @@ void motor_reset_watchdog(motor_executor_t *e)
     }
 }
 
-hal_motor_cmd_result_t motor_recover(motor_executor_t *e, int i, hal_motor_recovery_step_t step)
+static hal_motor_cmd_result_t motor_recover(motor_executor_t *e, int i, hal_motor_recovery_step_t step)
 {
     hal_motor_cmd_result_t g = cmd_guard(e, i, 0);
 
@@ -1347,19 +1434,30 @@ hal_motor_cmd_result_t motor_recover(motor_executor_t *e, int i, hal_motor_recov
 
 /* ------------------------- 查询 ------------------------- */
 
-hal_motor_phase_t motor_phase(const motor_executor_t *e, int i)
+static hal_motor_phase_t motor_phase(const motor_executor_t *e, int i)
 {
+    if (bad_motor(e, i)) {
+        return HAL_MOTOR_PHASE_STOPPED;
+    }
     return e->m[i].phase;
 }
 
-int64_t motor_position(const motor_executor_t *e, int i)
+static int64_t motor_position(const motor_executor_t *e, int i)
 {
+    if (bad_motor(e, i)) {
+        return 0;
+    }
     return e->m[i].position;
 }
 
-int motor_current_freq(const motor_executor_t *e, int i)
+static int motor_current_freq(const motor_executor_t *e, int i)
 {
-    const motor_mstate_t *state = &e->m[i];
+    const motor_mstate_t *state;
+
+    if (bad_motor(e, i)) {
+        return 0;
+    }
+    state = &e->m[i];
 
     if ((state->phase != HAL_MOTOR_PHASE_RUNNING) || (state->speed.kind != HAL_MOTOR_SPEED_FREQ)) {
         return 0;
@@ -1367,18 +1465,27 @@ int motor_current_freq(const motor_executor_t *e, int i)
     return state->speed.value;
 }
 
-hal_motor_dir_t motor_direction(const motor_executor_t *e, int i)
+static hal_motor_dir_t motor_direction(const motor_executor_t *e, int i)
 {
+    if (bad_motor(e, i)) {
+        return HAL_MOTOR_DIR_FORWARD;
+    }
     return e->m[i].dir;
 }
 
-hal_motor_fault_code_t motor_fault_code(const motor_executor_t *e, int i)
+static hal_motor_fault_code_t motor_fault_code(const motor_executor_t *e, int i)
 {
+    if (bad_motor(e, i)) {
+        return HAL_MOTOR_FAULT_NONE;
+    }
     return e->m[i].fault_code;
 }
 
-bool motor_baseline_trusted(const motor_executor_t *e, int i)
+static bool motor_baseline_trusted(const motor_executor_t *e, int i)
 {
+    if (bad_motor(e, i)) {
+        return false;
+    }
     /* 无编码器机构恒可信，与端口契约及 encoder_healthy 对称。 */
     if (!e->cfg.motors[i].has_encoder) {
         return true;
@@ -1386,8 +1493,11 @@ bool motor_baseline_trusted(const motor_executor_t *e, int i)
     return e->m[i].baseline_trusted;
 }
 
-bool motor_encoder_healthy(const motor_executor_t *e, int i)
+static bool motor_encoder_healthy(const motor_executor_t *e, int i)
 {
+    if (bad_motor(e, i)) {
+        return false;
+    }
     /* 无编码器的机构没有编码器可言，恒报健康，避免上层为它们维护无意义的条件。 */
     if (!e->cfg.motors[i].has_encoder) {
         return true;
@@ -1395,14 +1505,14 @@ bool motor_encoder_healthy(const motor_executor_t *e, int i)
     return e->m[i].enc_healthy;
 }
 
-bool motor_in_safe_state(const motor_executor_t *e)
+static bool motor_in_safe_state(const motor_executor_t *e)
 {
     return e->safe_latched;
 }
 
 /* ------------------------- 事件 ------------------------- */
 
-void motor_set_event_callback(motor_executor_t *e, motor_event_cb_t cb, void *ctx)
+static void motor_set_event_callback(motor_executor_t *e, motor_event_cb_t cb, void *ctx)
 {
     if (e->in_dispatch) {
         return;
@@ -1411,7 +1521,7 @@ void motor_set_event_callback(motor_executor_t *e, motor_event_cb_t cb, void *ct
     e->cb_ctx = ctx;
 }
 
-bool motor_pop_event(motor_executor_t *e, hal_motor_event_t *out)
+static bool motor_pop_event(motor_executor_t *e, hal_motor_event_t *out)
 {
     if (e->ev_count <= 0) {
         return false;
@@ -1422,7 +1532,7 @@ bool motor_pop_event(motor_executor_t *e, hal_motor_event_t *out)
     return true;
 }
 
-bool motor_pop_event_for(motor_executor_t *e, int motor, hal_motor_event_t *out)
+static bool motor_pop_event_for(motor_executor_t *e, int motor, hal_motor_event_t *out)
 {
     int n;
 
@@ -1442,74 +1552,272 @@ bool motor_pop_event_for(motor_executor_t *e, int motor, hal_motor_event_t *out)
     return false;
 }
 
-/* ------------------------- hal_motor_exec_port ------------------------- */
+/* ------------------------- provider 分派 ------------------------- */
 
-hal_motor_cmd_result_t hal_motor_run(hal_motor_exec_t            *exec,
-                                     int                          motor,
-                                     hal_motor_speed_t            spd,
-                                     hal_motor_dir_t              dir,
-                                     const hal_motor_move_spec_t *spec)
+static hal_motor_cmd_result_t provider_run(void                        *ctx,
+                                           int                          motor,
+                                           hal_motor_speed_t            speed,
+                                           hal_motor_dir_t              dir,
+                                           const hal_motor_move_spec_t *spec)
 {
-    return motor_run((motor_executor_t *)exec, motor, spd, dir, spec);
+    return motor_run((motor_executor_t *)ctx, motor, speed, dir, spec);
 }
 
-hal_motor_cmd_result_t hal_motor_stop(hal_motor_exec_t *exec, int motor)
+static hal_motor_cmd_result_t provider_stop(void *ctx, int motor)
 {
-    return motor_stop((motor_executor_t *)exec, motor);
+    return motor_stop((motor_executor_t *)ctx, motor);
 }
 
-hal_motor_cmd_result_t hal_motor_home(hal_motor_exec_t *exec, int motor)
+static hal_motor_cmd_result_t provider_home(void *ctx, int motor)
 {
-    return motor_home((motor_executor_t *)exec, motor);
+    return motor_home((motor_executor_t *)ctx, motor);
 }
 
-hal_motor_cmd_result_t hal_motor_recover(hal_motor_exec_t *exec, int motor, hal_motor_recovery_step_t step)
+static hal_motor_cmd_result_t provider_recover(void *ctx, int motor, hal_motor_recovery_step_t step)
 {
-    return motor_recover((motor_executor_t *)exec, motor, step);
+    return motor_recover((motor_executor_t *)ctx, motor, step);
 }
 
-hal_motor_phase_t hal_motor_phase(const hal_motor_exec_t *exec, int motor)
+static hal_motor_phase_t provider_phase(const void *ctx, int motor)
 {
-    return motor_phase((const motor_executor_t *)exec, motor);
+    return motor_phase((const motor_executor_t *)ctx, motor);
 }
 
-int64_t hal_motor_position(const hal_motor_exec_t *exec, int motor)
+static int64_t provider_position(const void *ctx, int motor)
 {
-    return motor_position((const motor_executor_t *)exec, motor);
+    return motor_position((const motor_executor_t *)ctx, motor);
 }
 
-hal_motor_dir_t hal_motor_direction(const hal_motor_exec_t *exec, int motor)
+static hal_motor_dir_t provider_direction(const void *ctx, int motor)
 {
-    return motor_direction((const motor_executor_t *)exec, motor);
+    return motor_direction((const motor_executor_t *)ctx, motor);
 }
 
-hal_motor_fault_code_t hal_motor_fault_code(const hal_motor_exec_t *exec, int motor)
+static hal_motor_fault_code_t provider_fault_code(const void *ctx, int motor)
 {
-    return motor_fault_code((const motor_executor_t *)exec, motor);
+    return motor_fault_code((const motor_executor_t *)ctx, motor);
 }
 
-bool hal_motor_encoder_healthy(const hal_motor_exec_t *exec, int motor)
+static bool provider_encoder_healthy(const void *ctx, int motor)
 {
-    return motor_encoder_healthy((const motor_executor_t *)exec, motor);
+    return motor_encoder_healthy((const motor_executor_t *)ctx, motor);
 }
 
-bool hal_motor_baseline_trusted(const hal_motor_exec_t *exec, int motor)
+static bool provider_baseline_trusted(const void *ctx, int motor)
 {
-    return motor_baseline_trusted((const motor_executor_t *)exec, motor);
+    return motor_baseline_trusted((const motor_executor_t *)ctx, motor);
 }
 
-bool hal_motor_pop_event(hal_motor_exec_t *exec, hal_motor_event_t *out)
+static bool provider_pop_event(void *ctx, hal_motor_event_t *out)
 {
-    if (out == NULL) {
-        return false;
+    return motor_pop_event((motor_executor_t *)ctx, out);
+}
+
+static bool provider_pop_event_for(void *ctx, int motor, hal_motor_event_t *out)
+{
+    return motor_pop_event_for((motor_executor_t *)ctx, motor, out);
+}
+
+static const hal_motor_exec_ops_t s_provider_ops = {
+    .run              = provider_run,
+    .stop             = provider_stop,
+    .home             = provider_home,
+    .recover          = provider_recover,
+    .phase            = provider_phase,
+    .position         = provider_position,
+    .direction        = provider_direction,
+    .fault_code       = provider_fault_code,
+    .encoder_healthy  = provider_encoder_healthy,
+    .baseline_trusted = provider_baseline_trusted,
+    .pop_event        = provider_pop_event,
+    .pop_event_for    = provider_pop_event_for,
+};
+
+/* ------------------------- 槽池生命周期 ------------------------- */
+
+static motor_executor_t *executor_from_handle(hal_motor_exec_t *exec)
+{
+    unsigned slot_id;
+
+    for (slot_id = 0U; slot_id < WDF_MOTOR_EXECUTOR_INSTANCE_COUNT; ++slot_id) {
+        if (s_slots[slot_id].bound && (&s_slots[slot_id].handle == exec)) {
+            return &s_slots[slot_id].executor;
+        }
     }
-    return motor_pop_event((motor_executor_t *)exec, out);
+    return NULL;
 }
 
-bool hal_motor_pop_event_for(hal_motor_exec_t *exec, int motor, hal_motor_event_t *out)
+static const motor_executor_t *const_executor_from_handle(const hal_motor_exec_t *exec)
 {
-    if (out == NULL) {
-        return false;
+    unsigned slot_id;
+
+    for (slot_id = 0U; slot_id < WDF_MOTOR_EXECUTOR_INSTANCE_COUNT; ++slot_id) {
+        if (s_slots[slot_id].bound && (&s_slots[slot_id].handle == exec)) {
+            return &s_slots[slot_id].executor;
+        }
     }
-    return motor_pop_event_for((motor_executor_t *)exec, motor, out);
+    return NULL;
 }
+
+static const char *ports_error(const motor_config_t *cfg, const motor_ports_t *ports)
+{
+    int driver;
+    int motor;
+
+    if ((cfg == NULL) || (ports == NULL)) {
+        return "config or ports missing";
+    }
+    if ((ports->clock == NULL) || (ports->clock->now_ms == NULL)) {
+        return "clock port missing";
+    }
+    if ((ports->drivers == NULL) || (ports->encoders == NULL)) {
+        return "motor port arrays missing";
+    }
+    if ((ports->sensors == NULL) || (ports->sensors->limit == NULL)) {
+        return "sensor port missing";
+    }
+    if ((ports->estop == NULL) || (ports->estop->active == NULL)) {
+        return "estop port missing";
+    }
+    if ((cfg->driver_count <= 0) || (cfg->driver_count > MOTOR_MAX_DRIVERS)) {
+        return NULL;
+    }
+    for (driver = 0; driver < cfg->driver_count; ++driver) {
+        const motor_driver_t *port = ports->drivers[driver];
+
+        if ((port == NULL) || (port->set_output == NULL) || (port->cutoff == NULL) || (port->reset == NULL)
+            || (port->is_running == NULL) || (port->current == NULL)) {
+            return "driver port incomplete";
+        }
+    }
+    if ((cfg->motor_count <= 0) || (cfg->motor_count > MOTOR_MAX_MOTORS)) {
+        return NULL;
+    }
+    for (motor = 0; motor < cfg->motor_count; ++motor) {
+        const motor_encoder_t *encoder = ports->encoders[motor];
+
+        if (cfg->motors[motor].has_encoder
+            && ((encoder == NULL) || (encoder->raw == NULL) || (encoder->zero == NULL))) {
+            return "encoder port incomplete";
+        }
+    }
+    return NULL;
+}
+
+motor_init_result_t motor_executor_bind(unsigned              slot_id,
+                                        const motor_config_t *cfg,
+                                        const motor_ports_t  *ports,
+                                        hal_motor_exec_t    **out_exec)
+{
+    motor_executor_slot_t *slot;
+    motor_init_result_t    result;
+    const char            *error;
+
+    if (out_exec == NULL) {
+        return init_err("out executor missing");
+    }
+    *out_exec = NULL;
+    if (slot_id >= WDF_MOTOR_EXECUTOR_INSTANCE_COUNT) {
+        return init_err("slot id out of range");
+    }
+    slot = &s_slots[slot_id];
+    if (slot->bound) {
+        return init_err("slot already bound");
+    }
+    error = ports_error(cfg, ports);
+    if (error != NULL) {
+        return init_err(error);
+    }
+
+    memset(slot, 0, sizeof(*slot));
+    result = motor_init(&slot->executor, cfg, ports);
+    if (!result.ok) {
+        memset(slot, 0, sizeof(*slot));
+        return result;
+    }
+    if (!hal_motor_exec_provider_bind(&slot->handle, &s_provider_ops, &slot->executor)) {
+        memset(slot, 0, sizeof(*slot));
+        return init_err("provider binding failed");
+    }
+    slot->bound = true;
+    *out_exec   = &slot->handle;
+    return result;
+}
+
+motor_init_result_t motor_executor_reinit(hal_motor_exec_t *exec)
+{
+    motor_executor_t *executor = executor_from_handle(exec);
+
+    return (executor != NULL) ? motor_reinit(executor) : init_err("executor unavailable");
+}
+
+void motor_executor_tick(hal_motor_exec_t *exec)
+{
+    motor_executor_t *executor = executor_from_handle(exec);
+
+    if (executor != NULL) {
+        motor_tick(executor);
+    }
+}
+
+hal_motor_cmd_result_t motor_executor_zero_encoder(hal_motor_exec_t *exec, int motor)
+{
+    motor_executor_t *executor = executor_from_handle(exec);
+
+    return (executor != NULL) ? motor_zero_encoder(executor, motor) : cmd_reject("executor-unavailable");
+}
+
+hal_motor_cmd_result_t motor_executor_confirm_baseline(hal_motor_exec_t *exec, int motor)
+{
+    motor_executor_t *executor = executor_from_handle(exec);
+
+    return (executor != NULL) ? motor_confirm_baseline(executor, motor) : cmd_reject("executor-unavailable");
+}
+
+void motor_executor_reset_estop(hal_motor_exec_t *exec)
+{
+    motor_executor_t *executor = executor_from_handle(exec);
+
+    if (executor != NULL) {
+        motor_reset_estop(executor);
+    }
+}
+
+void motor_executor_reset_watchdog(hal_motor_exec_t *exec)
+{
+    motor_executor_t *executor = executor_from_handle(exec);
+
+    if (executor != NULL) {
+        motor_reset_watchdog(executor);
+    }
+}
+
+int motor_executor_current_freq(const hal_motor_exec_t *exec, int motor)
+{
+    const motor_executor_t *executor = const_executor_from_handle(exec);
+
+    return (executor != NULL) ? motor_current_freq(executor, motor) : 0;
+}
+
+bool motor_executor_in_safe_state(const hal_motor_exec_t *exec)
+{
+    const motor_executor_t *executor = const_executor_from_handle(exec);
+
+    return (executor != NULL) && motor_in_safe_state(executor);
+}
+
+void motor_executor_set_event_callback(hal_motor_exec_t *exec, motor_event_cb_t cb, void *ctx)
+{
+    motor_executor_t *executor = executor_from_handle(exec);
+
+    if (executor != NULL) {
+        motor_set_event_callback(executor, cb, ctx);
+    }
+}
+
+#ifdef HAL_MOTOR_EXECUTOR_UNIT_TEST
+void motor_executor_test_reset(void)
+{
+    memset(s_slots, 0, sizeof(s_slots));
+}
+#endif

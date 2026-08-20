@@ -58,6 +58,14 @@ add_unit_test(test_event_bus
     ${WDF_ROOT}/common/time_util.c
 )
 
+add_unit_test(test_event_bus_required
+    ${CMAKE_CURRENT_SOURCE_DIR}/runtime/test_event_bus_required.c
+    ${WDF_ROOT}/runtime/event_bus/event_bus.c
+    ${WDF_ROOT}/common/log.c
+    ${WDF_ROOT}/common/sw_mutex.c
+    ${WDF_ROOT}/common/time_util.c
+)
+
 add_unit_test(test_hal_io_sim
     ${CMAKE_CURRENT_SOURCE_DIR}/adapters/test_hal_io_sim.c
     ${WDF_ROOT}/adapters/outbound/hal/sim/hal_io_sim.c
@@ -109,12 +117,16 @@ target_compile_definitions(test_hal_vfd_manager PRIVATE HAL_VFD_MANAGER_UNIT_TES
 add_unit_test(test_hal_motor_exec_port
     ${CMAKE_CURRENT_SOURCE_DIR}/adapters/test_hal_motor_exec_port.c
     ${WDF_ROOT}/adapters/outbound/hal/components/motor_exec/hal_motor_executor.c
+    ${WDF_ROOT}/domain/ports/outbound/motor/hal_motor_exec_port.c
 )
+target_compile_definitions(test_hal_motor_exec_port PRIVATE HAL_MOTOR_EXECUTOR_UNIT_TEST)
 
 add_unit_test(test_hal_motor_executor_position
     ${CMAKE_CURRENT_SOURCE_DIR}/adapters/test_hal_motor_executor_position.c
     ${WDF_ROOT}/adapters/outbound/hal/components/motor_exec/hal_motor_executor.c
+    ${WDF_ROOT}/domain/ports/outbound/motor/hal_motor_exec_port.c
 )
+target_compile_definitions(test_hal_motor_executor_position PRIVATE HAL_MOTOR_EXECUTOR_UNIT_TEST)
 
 add_unit_test(test_hal_voice_sim
     ${CMAKE_CURRENT_SOURCE_DIR}/adapters/test_hal_voice_sim.c
@@ -211,6 +223,16 @@ add_unit_test(test_op_mode_alarm_port
     ${WDF_ROOT}/common/sw_mutex.c
 )
 
+add_unit_test(test_safety_cutout_contract
+    ${CMAKE_CURRENT_SOURCE_DIR}/ports/test_safety_cutout_contract.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/support/safety_cutout_contract.c
+)
+
+add_unit_test(test_adapter_error_contract
+    ${CMAKE_CURRENT_SOURCE_DIR}/ports/test_adapter_error_contract.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/support/adapter_error_contract.c
+)
+
 add_unit_test(test_cloud_ports
     ${CMAKE_CURRENT_SOURCE_DIR}/ports/test_cloud_ports.c
     ${WDF_ROOT}/runtime/ports/port_registry_cloud.c
@@ -236,7 +258,7 @@ add_unit_test(test_asset_contract
     ${WDF_ROOT}/domain/cloud/cloud_point_dispatch.c
     ${WDF_ROOT}/domain/cloud/cloud_point_validate.c
     ${WDF_ROOT}/domain/cloud/cloud_point_watcher.c
-    ${WDF_ROOT}/domain/program_engine/engine/engine_io.c
+    ${WDF_ROOT}/domain/ports/outbound/program_engine/engine_environment_port.c
     ${WDF_ROOT}/domain/safety/alarm_registry/alarm_registry.c
     ${WDF_ROOT}/common/point_table/point_table.c
     ${WDF_ROOT}/adapters/outbound/serialization/json/point_table_from_json.c
@@ -428,6 +450,7 @@ add_unit_test(test_operational_mode
     ${WDF_ROOT}/domain/op_mode/operational_mode.c
     ${WDF_ROOT}/domain/safety/alarm_registry/alarm_registry.c
     ${WDF_ROOT}/runtime/ports/port_registry_infra.c
+    ${WDF_ROOT}/runtime/ports/port_registry_safety.c
     ${WDF_ROOT}/runtime/event_bus/event_bus.c
     ${WDF_ROOT}/common/time_util.c
     ${WDF_ROOT}/common/log.c
@@ -450,11 +473,8 @@ add_unit_test(test_program_engine
     ${CMAKE_CURRENT_SOURCE_DIR}/domain/test_program_engine.c
     ${WDF_ROOT}/domain/program_engine/engine/engine.c
     ${WDF_ROOT}/domain/program_engine/engine/engine_expr.c
-    ${WDF_ROOT}/domain/program_engine/engine/engine_io.c
-    ${WDF_ROOT}/domain/program_engine/engine/engine_var.c
-    ${WDF_ROOT}/domain/program_engine/engine/engine_actuator.c
+    ${WDF_ROOT}/domain/ports/outbound/program_engine/engine_environment_port.c
     ${WDF_ROOT}/adapters/outbound/hal/sim/engine_actuator_sim.c
-    ${WDF_ROOT}/domain/program_engine/engine/engine_profile.c
     ${WDF_ROOT}/domain/program_engine/model/engine_model.c
     ${WDF_ROOT}/domain/program_engine/model/engine_program_validate.c
     ${WDF_ROOT}/adapters/outbound/storage/json/engine_program_manifest.c
@@ -467,6 +487,7 @@ add_unit_test(test_side_effect_router
     ${WDF_ROOT}/domain/op_mode/operational_mode.c
     ${WDF_ROOT}/domain/safety/alarm_registry/alarm_registry.c
     ${WDF_ROOT}/runtime/ports/port_registry_infra.c
+    ${WDF_ROOT}/runtime/ports/port_registry_safety.c
     ${WDF_ROOT}/tests/stubs/wash_ops_stub.c
     ${WDF_ROOT}/runtime/event_bus/event_bus.c
     ${WDF_ROOT}/common/time_util.c
@@ -480,17 +501,14 @@ add_unit_test(test_engine_session
     ${WDF_ROOT}/adapters/outbound/storage/json/engine_program_json.c
     ${WDF_ROOT}/common/asset_version.c
     ${WDF_ROOT}/adapters/outbound/hal/sim/engine_io_sim.c
-    ${WDF_ROOT}/domain/program_engine/engine/engine_actuator.c
     ${WDF_ROOT}/adapters/outbound/hal/sim/engine_actuator_sim.c
+    ${WDF_ROOT}/domain/ports/outbound/program_engine/engine_environment_port.c
     ${WDF_ROOT}/domain/ports/outbound/storage/engine_program_loader_port.c
     ${WDF_ROOT}/runtime/scheduler/thread_registry.c
     ${WDF_ROOT}/runtime/scheduler/scheduler.c
     ${WDF_ROOT}/runtime/event_bus/event_bus.c
     ${WDF_ROOT}/domain/program_engine/engine/engine.c
     ${WDF_ROOT}/domain/program_engine/engine/engine_expr.c
-    ${WDF_ROOT}/domain/program_engine/engine/engine_io.c
-    ${WDF_ROOT}/domain/program_engine/engine/engine_var.c
-    ${WDF_ROOT}/domain/program_engine/engine/engine_profile.c
     ${WDF_ROOT}/domain/program_engine/model/engine_model.c
     ${WDF_ROOT}/domain/program_engine/model/engine_program_validate.c
     ${WDF_ROOT}/adapters/outbound/storage/json/engine_program_manifest.c
@@ -528,7 +546,10 @@ add_unit_test(test_telemetry_projection
     ${WDF_ROOT}/domain/safety/alarm_registry/alarm_registry.c
     ${WDF_ROOT}/runtime/ports/port_registry_cloud.c
     ${WDF_ROOT}/runtime/ports/port_registry_infra.c
+    ${WDF_ROOT}/runtime/ports/port_registry_safety.c
     ${WDF_ROOT}/runtime/event_bus/event_bus.c
+    ${WDF_ROOT}/runtime/scheduler/periodic_task.c
+    ${WDF_ROOT}/runtime/scheduler/thread_registry.c
     ${WDF_ROOT}/common/log.c
     ${WDF_ROOT}/common/sw_mutex.c
     ${WDF_ROOT}/common/time_util.c
@@ -541,6 +562,7 @@ add_unit_test(test_command_gateway
     ${WDF_ROOT}/domain/op_mode/operational_mode.c
     ${WDF_ROOT}/domain/safety/alarm_registry/alarm_registry.c
     ${WDF_ROOT}/runtime/ports/port_registry_infra.c
+    ${WDF_ROOT}/runtime/ports/port_registry_safety.c
     ${WDF_ROOT}/tests/stubs/wash_ops_stub.c
     ${WDF_ROOT}/runtime/event_bus/event_bus.c
     ${WDF_ROOT}/common/time_util.c
@@ -613,14 +635,11 @@ add_unit_test(test_engine_program_json
     ${WDF_ROOT}/common/asset_version.c
     ${WDF_ROOT}/adapters/outbound/storage/json/engine_program_json.c
     ${WDF_ROOT}/adapters/outbound/hal/sim/engine_io_sim.c
-    ${WDF_ROOT}/domain/program_engine/engine/engine_actuator.c
     ${WDF_ROOT}/adapters/outbound/hal/sim/engine_actuator_sim.c
+    ${WDF_ROOT}/domain/ports/outbound/program_engine/engine_environment_port.c
     ${WDF_ROOT}/domain/ports/outbound/storage/engine_program_loader_port.c
     ${WDF_ROOT}/domain/program_engine/engine/engine.c
     ${WDF_ROOT}/domain/program_engine/engine/engine_expr.c
-    ${WDF_ROOT}/domain/program_engine/engine/engine_io.c
-    ${WDF_ROOT}/domain/program_engine/engine/engine_var.c
-    ${WDF_ROOT}/domain/program_engine/engine/engine_profile.c
     ${WDF_ROOT}/domain/program_engine/model/engine_model.c
     ${WDF_ROOT}/domain/program_engine/model/engine_program_validate.c
     ${WDF_ROOT}/adapters/outbound/storage/json/engine_program_manifest.c

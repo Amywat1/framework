@@ -20,7 +20,7 @@
  * @brief  执行自检判定并发布完成事件
  * @note   按急停 / LOCKOUT / 阻塞报警决定 land_fault；模式一律回到 STOPPED。
  */
-static void run_self_check(void)
+static sw_err_t run_self_check(void)
 {
     bool land_fault = false;
 
@@ -32,8 +32,10 @@ static void run_self_check(void)
         land_fault = true;
     }
 
-    (void)event_publish(EVT_OP_MODE_SELF_CHECK_COMPLETED, land_fault ? 1U : 0U);
+    sw_err_t ret = event_publish_required(EVT_OP_MODE_SELF_CHECK_COMPLETED, land_fault ? 1U : 0U);
+
     LOG_INFO("side_effect_router: self_check completed land_fault=%d", (int)land_fault);
+    return ret;
 }
 
 /**
@@ -80,8 +82,7 @@ sw_err_t side_effect_router_run(const dev_cmd_t *cmd, operational_mode_t mode_be
         return SW_OK;
 
     case DEV_CMD_START_SELF_CHECK:
-        run_self_check();
-        return SW_OK;
+        return run_self_check();
 
     case DEV_CMD_MANUAL_ACTUATOR:
         if ((ops != NULL) && (ops->execute_manual_actuator != NULL)) {

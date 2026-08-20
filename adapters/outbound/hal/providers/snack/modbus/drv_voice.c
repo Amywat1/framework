@@ -5,10 +5,8 @@
  * @date    2026-06-29
  */
 
-#include "drv_voice.h"
-
 #include "common/log.h"
-#include "drv_modbus_link.h"
+#include "drv_voice_internal.h"
 
 #include <string.h>
 

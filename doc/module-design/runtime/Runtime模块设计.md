@@ -297,7 +297,7 @@ periodic_task_thread_fn(slot)
 |------|--------|------|------|
 | `event_dispatch` | `bootstrap_register()` | 线程 | 调用 `event_bus_dispatch_loop()` |
 | `alarm_bridge` | `alarm_bridge_init()` | 周期任务（50ms） | drain alarm registry pending 事件并算姿态边沿 |
-| 会话 worker | `engine_session_init()`，名称与栈由调用方配置传入 | 线程 | 驱动方案引擎 tick |
+| 会话 worker | `engine_session_bind()`，名称与栈由调用方配置传入 | 线程 | 驱动方案引擎 tick |
 | `cloud_report_<period>ms` | `report_scheduler_register()` | 周期任务 | 云端链路 poll、watcher poll、周期/重同步上报；每种周期一个任务 |
 | `hal_sensor_poll` | `hal_sensor_poll_register_task()` | 周期任务 | DI 滤波推进 |
 | `vfd_manager_poll` | `hal_vfd_manager_poll_register_task()` | 周期任务 | VFD fault/current/RST 监测 |
@@ -340,7 +340,7 @@ loop:
 - **切断失败不重试**，只记录 ERROR。重试会延长动力输出未确认切断的窗口，而失败原因通常在硬件链路本身（总线离线、板卡无响应），重试无从改变。
 - **切断失败不阻断事件发布**。`EVT_HW_ESTOP_ON` 必须照常送出，否则领域层不会进入急停态，一次故障会同时丢掉切断与状态收敛两条路径。
 
-`safety_cutout_execute()` 与 `hw_estop_port_is_active()` 均由项目通过 `safety_port_register()` 注册 `safety_ops_t` 提供实现，未注册时故障安全并首次告警，可由 `port_contract_validate(PORT_REQ_SAFETY)` 在启动期拦住。该线程注册后不可停止，与周期任务一致。
+`safety_cutout_execute()` 与 `hw_estop_port_is_active()` 均由项目通过 `safety_port_register()` 注册 `safety_ops_t` 提供实现，未注册时故障安全并首次告警，可由 `port_contract_validate(PORT_REQ_SAFETY)` 在启动期拦住。切断失败会锁存为“未确认”，安全投影进入 `LOCKOUT`，恢复前必须由项目提供独立 `cutout_confirmed()` 反馈并调用 `safety_cutout_reconcile()`；框架不在急停热路径自动重试。该线程注册后不可停止，与周期任务一致。
 
 ### 7.2 Event Bus Fatal
 

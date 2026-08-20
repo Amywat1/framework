@@ -4,8 +4,8 @@
  *
  * domain/device_control/patterns 与 projects 侧 domain/mechanism 下的机构模块只依赖
  * 本端口的不透明句柄与类型，不感知执行器实现细节。
- * 真实执行器由项目 bindings 层静态分配并完成 motor_init，随后以
- * hal_motor_exec_t 指针形式注入各机构模块；默认实现位于
+ * 真实执行器由适配器内部持有，项目 bindings 层只保存
+ * hal_motor_exec_t 指针并注入各机构模块；默认实现位于
  * adapters/outbound/hal/components/motor_exec/。
  */
 #ifndef DOMAIN_PORTS_OUTBOUND_MOTOR_HAL_MOTOR_EXEC_PORT_H
@@ -18,8 +18,8 @@
 extern "C" {
 #endif
 
-/** @brief 电机执行器不透明句柄，真实存储由项目 bindings 层持有。 */
-typedef void hal_motor_exec_t;
+/** @brief 电机执行器类型安全的不透明句柄，真实存储由 provider 持有。 */
+typedef struct hal_motor_exec hal_motor_exec_t;
 
 /** @brief 运动方向。 */
 typedef enum {
@@ -38,8 +38,7 @@ typedef enum {
 #define HAL_MOTOR_LIMIT_MASK_POS    (1u << HAL_MOTOR_LIMIT_POS)
 #define HAL_MOTOR_LIMIT_MASK_NEG    (1u << HAL_MOTOR_LIMIT_NEG)
 #define HAL_MOTOR_LIMIT_MASK_ORIGIN (1u << HAL_MOTOR_LIMIT_ORIGIN)
-#define HAL_MOTOR_LIMIT_MASK_ALL \
-    (HAL_MOTOR_LIMIT_MASK_POS | HAL_MOTOR_LIMIT_MASK_NEG | HAL_MOTOR_LIMIT_MASK_ORIGIN)
+#define HAL_MOTOR_LIMIT_MASK_ALL    (HAL_MOTOR_LIMIT_MASK_POS | HAL_MOTOR_LIMIT_MASK_NEG | HAL_MOTOR_LIMIT_MASK_ORIGIN)
 
 /** @brief 判断掩码是否包含指定硬限位。 */
 static inline bool hal_motor_limit_mask_has(uint8_t mask, hal_motor_limit_kind_t kind)
@@ -155,18 +154,18 @@ typedef struct {
      * @brief 硬限位监视掩码（0=不启用）。
      * @note  置位的 POS/NEG/ORIGIN 任一触发即到位；同拍多路优先 ORIGIN，其次 POS，再次 NEG。
      */
-    uint8_t                limit_mask;
-    bool                   use_position;   /**< 启用按位置到位（需编码器与可信基准） */
-    int64_t                target_pos;     /**< 目标位置（脉冲） */
-    bool                   use_soft_limit; /**< 启用软限位到位 */
-    bool                   use_current;    /**< 启用电流到位（正常切断，不报警） */
-    int                    current_limit;  /**< 电流阈值（与驱动电流同量纲） */
-    uint32_t               current_confirm_ms; /**< 持续超限确认时间（防抖，0=首拍即判） */
+    uint8_t  limit_mask;
+    bool     use_position;       /**< 启用按位置到位（需编码器与可信基准） */
+    int64_t  target_pos;         /**< 目标位置（脉冲） */
+    bool     use_soft_limit;     /**< 启用软限位到位 */
+    bool     use_current;        /**< 启用电流到位（正常切断，不报警） */
+    int      current_limit;      /**< 电流阈值（与驱动电流同量纲） */
+    uint32_t current_confirm_ms; /**< 持续超限确认时间（防抖，0=首拍即判） */
     /** @brief 启动后电流到位判定消隐（ms）；只抑制电流停，不影响过流故障。 */
-    uint32_t               current_blank_ms;
-    bool                   use_time;       /**< 启用按时间到位 */
-    uint64_t               duration_ms;    /**< 运行时长（ms） */
-    uint64_t               max_time_ms;    /**< 超时兜底（0=使用配置默认） */
+    uint32_t current_blank_ms;
+    bool     use_time;    /**< 启用按时间到位 */
+    uint64_t duration_ms; /**< 运行时长（ms） */
+    uint64_t max_time_ms; /**< 超时兜底（0=使用配置默认） */
 } hal_motor_move_spec_t;
 
 /** @brief 命令受理状态。 */
@@ -211,24 +210,24 @@ hal_motor_cmd_result_t hal_motor_home(hal_motor_exec_t *exec, int motor);
 /** @brief 三步恢复：驱动器复位 → 模块停止（之后由调用方重新启动）。 */
 hal_motor_cmd_result_t hal_motor_recover(hal_motor_exec_t *exec, int motor, hal_motor_recovery_step_t step);
 
-/* 查询 —— 所有带 motor 参数的函数均要求 motor 在 [0, motor_count) 范围内 */
+/* 查询 —— motor 应在 [0, motor_count) 范围内；越界时返回各函数注释中的安全默认值。 */
 
-/** @brief 查询电机当前状态。 */
+/** @brief 查询电机当前状态；电机号越界返回 STOPPED。 */
 hal_motor_phase_t hal_motor_phase(const hal_motor_exec_t *exec, int motor);
 
-/** @brief 查询电机累计位置（脉冲）。 */
+/** @brief 查询电机累计位置（脉冲）；电机号越界返回 0。 */
 int64_t hal_motor_position(const hal_motor_exec_t *exec, int motor);
 
-/** @brief 查询电机当前运动方向。 */
+/** @brief 查询电机当前运动方向；电机号越界返回 FORWARD。 */
 hal_motor_dir_t hal_motor_direction(const hal_motor_exec_t *exec, int motor);
 
-/** @brief 查询电机当前故障码；无故障时为 HAL_MOTOR_FAULT_NONE。 */
+/** @brief 查询电机当前故障码；无故障或电机号越界时为 HAL_MOTOR_FAULT_NONE。 */
 hal_motor_fault_code_t hal_motor_fault_code(const hal_motor_exec_t *exec, int motor);
 
 /**
  * @brief  查询编码器健康状态。
  * @return true 编码器读数可信；false 已检测到停滞或跳变，尚未经归位恢复。
- * @note   无编码器的机构恒为 true。这是跨运动的持续状态，供上层作为报警条件；
+ * @note   电机号越界时返回 false。无编码器的机构恒为 true。这是跨运动的持续状态，供上层作为报警条件；
  *         与"位置基准是否已建立"不同，增量编码器上电时基准未建立但编码器健康。
  */
 bool hal_motor_encoder_healthy(const hal_motor_exec_t *exec, int motor);
@@ -237,7 +236,7 @@ bool hal_motor_encoder_healthy(const hal_motor_exec_t *exec, int motor);
  * @brief  查询位置基准是否可信。
  * @return true 已通过回原点或执行器 confirm_baseline 建立可信基准；
  *         false 时禁止依赖按位置到位（执行器侧也会拒绝）。
- * @note   无编码器的机构恒为 true。与 encoder_healthy 正交：上电后编码器可健康但基准未建。
+ * @note   电机号越界时返回 false。无编码器的机构恒为 true。与 encoder_healthy 正交：上电后编码器可健康但基准未建。
  */
 bool hal_motor_baseline_trusted(const hal_motor_exec_t *exec, int motor);
 

@@ -25,6 +25,7 @@ extern "C" {
 #endif
 
 #include "common/sw_error.h"
+#include "domain/ports/outbound/program_engine/engine_environment_port.h"
 
 #include <stdint.h>
 
@@ -37,7 +38,7 @@ extern "C" {
 typedef enum {
     ASSET_REQ_ALARM_CATALOG     = (1U << 0), /**< 报警定义目录（经 alarm_binding.load_catalog 加载）*/
     ASSET_REQ_CLOUD_POINT_TABLE = (1U << 1), /**< 云端物模型点位表（经 cloud_model_register 注册）*/
-    ASSET_REQ_ENGINE_IO_CATALOG = (1U << 2), /**< 方案引擎 IO 目录（经 engine_io_register 注册）*/
+    ASSET_REQ_ENGINE_IO_CATALOG = (1U << 2), /**< 方案引擎 IO 目录（经运行环境显式注入）*/
 } asset_requirement_t;
 
 /**
@@ -54,7 +55,7 @@ typedef enum {
  *         级校验由 cloud_point_validate 负责，两者互补：前者答"有没有"，
  *         后者答"对不对"。
  */
-sw_err_t asset_contract_validate(uint32_t required);
+sw_err_t asset_contract_validate(uint32_t required, const engine_environment_t *engine_environment);
 
 /**
  * @brief  返回资产位标志对应的可读名称

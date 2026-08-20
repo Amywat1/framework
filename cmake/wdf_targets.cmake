@@ -125,6 +125,8 @@ _wdf_add_interface_lib(wdf_ports
         runtime/ports/port_registry_safety.c
         runtime/ports/port_registry_cloud.c
         runtime/ports/port_registry_infra.c
+        domain/ports/outbound/motor/hal_motor_exec_port.c
+        domain/ports/outbound/program_engine/engine_environment_port.c
         domain/ports/outbound/storage/engine_program_loader_port.c
     DEPENDS
         wdf_common
@@ -193,10 +195,6 @@ _wdf_add_interface_lib(wdf_program_engine
     SOURCES
         domain/program_engine/engine/engine.c
         domain/program_engine/engine/engine_expr.c
-        domain/program_engine/engine/engine_actuator.c
-        domain/program_engine/engine/engine_io.c
-        domain/program_engine/engine/engine_var.c
-        domain/program_engine/engine/engine_profile.c
         domain/program_engine/model/engine_model.c
         domain/program_engine/model/engine_program_validate.c
     DEPENDS

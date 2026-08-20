@@ -12,13 +12,16 @@
 extern "C" {
 #endif
 
+#include "domain/ports/outbound/program_engine/engine_environment_port.h"
+
 #include <stdbool.h>
 
-void   engine_io_sim_register(void);
-void   engine_io_sim_reset(void);
-void   engine_io_sim_set_signal(const char *name, int value);
-void   engine_io_sim_set_axis(const char *name, double pos, double speed, bool valid);
-double engine_io_sim_get_axis_pos(const char *name);
+/** @brief 返回仿真 IO 独立实例；当前仿真 adapter 提供一个进程级测试实例。 */
+engine_io_t *engine_io_sim_instance(void);
+void         engine_io_sim_reset(void);
+void         engine_io_sim_set_signal(const char *name, int value);
+void         engine_io_sim_set_axis(const char *name, double pos, double speed, bool valid);
+double       engine_io_sim_get_axis_pos(const char *name);
 
 #ifdef __cplusplus
 }

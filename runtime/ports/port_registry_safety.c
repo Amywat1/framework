@@ -13,6 +13,7 @@
 #include "domain/ports/outbound/safety/safety_port.h"
 
 #include <limits.h>
+#include <stdatomic.h>
 #include <stddef.h>
 
 static const safety_ops_t *s_ops;
@@ -47,7 +48,9 @@ static bool s_warned_alarm;
 static bool s_warned_deferred;
 
 /** 累计切断失败次数；未注册导致的未执行不计入此处，由 warn_once 单独反映 */
-static unsigned s_cutout_failure_count;
+static atomic_uint s_cutout_failure_count;
+static atomic_uint s_cutout_failure_generation;
+static atomic_uint s_cutout_confirmed_generation;
 
 static void warn_once(bool *flag, const char *what)
 {
@@ -73,21 +76,49 @@ sw_err_t safety_cutout_execute(void)
 
     ret = ops->cutout();
     if (ret != SW_OK) {
+        (void)atomic_fetch_add(&s_cutout_failure_generation, 1U);
         /* 切断未能确认完成，是安全链路最严重的失败之一，因此不做首次节流，
          * 每次都记录：急停期间这里的每一条都是现场判因的关键证据。
          * 计数用于诊断上报与测试断言。 */
-        if (s_cutout_failure_count < UINT_MAX) {
-            s_cutout_failure_count++;
-        }
-        LOG_ERROR(
-            "safety_port: 切断动力输出失败 ret=%d（累计 %u 次），无法确认已完全切断", (int)ret, s_cutout_failure_count);
+        unsigned failure_count = atomic_load(&s_cutout_failure_count);
+
+        while ((failure_count < UINT_MAX)
+               && !atomic_compare_exchange_weak(&s_cutout_failure_count, &failure_count, failure_count + 1U)) {}
+        LOG_ERROR("safety_port: 切断动力输出失败 ret=%d（累计 %u 次），无法确认已完全切断",
+                  (int)ret,
+                  atomic_load(&s_cutout_failure_count));
     }
     return ret;
 }
 
+bool safety_cutout_is_unconfirmed(void)
+{
+    return atomic_load(&s_cutout_failure_generation) != atomic_load(&s_cutout_confirmed_generation);
+}
+
+sw_err_t safety_cutout_reconcile(void)
+{
+    const safety_ops_t *ops = s_ops;
+    unsigned            failure_generation;
+
+    failure_generation = atomic_load(&s_cutout_failure_generation);
+    if (failure_generation == atomic_load(&s_cutout_confirmed_generation)) {
+        return SW_OK;
+    }
+    if ((ops == NULL) || (ops->cutout_confirmed == NULL)) {
+        return SW_ERR_NOT_INIT;
+    }
+    if (!ops->cutout_confirmed()) {
+        return SW_ERR_STATE;
+    }
+    atomic_store(&s_cutout_confirmed_generation, failure_generation);
+    LOG_INFO("safety_port: 动力切断已由独立反馈确认");
+    return SW_OK;
+}
+
 unsigned safety_cutout_failure_count(void)
 {
-    return s_cutout_failure_count;
+    return atomic_load(&s_cutout_failure_count);
 }
 
 bool hw_estop_port_is_active(void)
@@ -127,10 +158,12 @@ void safety_deferred_stop(void)
 
 void port_registry_safety_reset(void)
 {
-    s_ops                  = NULL;
-    s_warned_cutout        = false;
-    s_warned_estop         = false;
-    s_warned_alarm         = false;
-    s_warned_deferred      = false;
-    s_cutout_failure_count = 0U;
+    s_ops             = NULL;
+    s_warned_cutout   = false;
+    s_warned_estop    = false;
+    s_warned_alarm    = false;
+    s_warned_deferred = false;
+    atomic_store(&s_cutout_failure_count, 0U);
+    atomic_store(&s_cutout_failure_generation, 0U);
+    atomic_store(&s_cutout_confirmed_generation, 0U);
 }

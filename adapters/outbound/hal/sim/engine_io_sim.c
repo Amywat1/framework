@@ -7,7 +7,7 @@
 
 #include "adapters/outbound/hal/sim/engine_io_sim.h"
 
-#include "domain/program_engine/engine/engine_io.h"
+#include "domain/ports/outbound/program_engine/engine_environment_provider.h"
 
 #include <string.h>
 
@@ -31,6 +31,8 @@ static sim_int_entry_t  s_signals[ENGINE_IO_SIM_SIGNAL_CAP];
 static unsigned         s_signal_count;
 static sim_axis_entry_t s_axes[ENGINE_IO_SIM_AXIS_CAP];
 static unsigned         s_axis_count;
+static engine_io_t      s_handle;
+static bool             s_bound;
 
 static sim_int_entry_t *int_find(sim_int_entry_t *table, unsigned *count, unsigned cap, const char *name, bool create)
 {
@@ -76,27 +78,37 @@ static sim_axis_entry_t *axis_find(const char *name, bool create)
     return e;
 }
 
-static int sim_read_signal(const char *name)
+static sw_err_t sim_read_signal(void *ctx, unsigned signal_id, int *out_value)
 {
-    const sim_int_entry_t *e = int_find(s_signals, &s_signal_count, ENGINE_IO_SIM_SIGNAL_CAP, name, false);
-    return (e != NULL) ? e->value : 0;
-}
+    const engine_io_catalog_t *catalog = (const engine_io_catalog_t *)ctx;
+    const sim_int_entry_t     *entry;
 
-static sw_err_t sim_read_axis(const char *name, double *out_pos, double *out_speed, bool *out_valid)
-{
-    if ((out_pos == NULL) || (out_speed == NULL) || (out_valid == NULL)) {
+    if ((out_value == NULL) || (signal_id >= catalog->signal_count)) {
         return SW_ERR_PARAM;
     }
-    const sim_axis_entry_t *e = axis_find(name, false);
-    if (e == NULL) {
-        *out_pos   = 0.0;
-        *out_speed = 0.0;
-        *out_valid = false;
+    entry      = int_find(s_signals, &s_signal_count, ENGINE_IO_SIM_SIGNAL_CAP, catalog->signals[signal_id], false);
+    *out_value = (entry != NULL) ? entry->value : 0;
+    return SW_OK;
+}
+
+static sw_err_t sim_read_axis(void *ctx, unsigned axis_id, engine_axis_sample_t *out_sample)
+{
+    const engine_io_catalog_t *catalog = (const engine_io_catalog_t *)ctx;
+    const sim_axis_entry_t    *entry;
+
+    if ((out_sample == NULL) || (axis_id >= catalog->axis_count)) {
+        return SW_ERR_PARAM;
+    }
+    entry = axis_find(catalog->axes[axis_id], false);
+    if (entry == NULL) {
+        out_sample->position = 0.0;
+        out_sample->speed    = 0.0;
+        out_sample->valid    = false;
         return SW_OK;
     }
-    *out_pos   = e->pos;
-    *out_speed = e->speed;
-    *out_valid = e->valid;
+    out_sample->position = entry->pos;
+    out_sample->speed    = entry->speed;
+    out_sample->valid    = entry->valid;
     return SW_OK;
 }
 
@@ -138,13 +150,12 @@ static const engine_io_catalog_t s_sim_catalog = {
     .axis_count   = (unsigned)(sizeof(s_sim_axes) / sizeof(s_sim_axes[0])),
 };
 
-void engine_io_sim_register(void)
+engine_io_t *engine_io_sim_instance(void)
 {
-    static const engine_io_backend_t s_backend = {
-        .ops     = &s_sim_ops,
-        .catalog = &s_sim_catalog,
-    };
-    engine_io_register(&s_backend);
+    if (!s_bound) {
+        s_bound = engine_io_provider_bind(&s_handle, &s_sim_ops, (void *)&s_sim_catalog, &s_sim_catalog) == SW_OK;
+    }
+    return s_bound ? &s_handle : NULL;
 }
 
 void engine_io_sim_reset(void)

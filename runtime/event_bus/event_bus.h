@@ -41,7 +41,8 @@ typedef struct {
 
 /** 故障原因枚举（可按需扩展）*/
 typedef enum {
-    EVENT_BUS_FATAL_SEM_WAIT = 1, /**< sem_wait 返回非 EINTR 错误（信号量损坏）*/
+    EVENT_BUS_FATAL_SEM_WAIT         = 1, /**< sem_wait 返回非 EINTR 错误（信号量损坏）*/
+    EVENT_BUS_FATAL_REQUIRED_PUBLISH = 2, /**< 必达控制事件无法入队 */
 } event_bus_fatal_reason_t;
 
 /**
@@ -61,9 +62,9 @@ typedef enum {
  *   systemd 不会重启，系统进入"事件总线已死但进程仍在"的危险状态。
  *
  * @param reason    故障原因
- * @param sys_errno 触发时的 errno 值
+ * @param detail_code 详情码；SEM_WAIT 为 errno，REQUIRED_PUBLISH 为 sw_err_t
  */
-typedef void (*event_bus_fatal_cb_t)(event_bus_fatal_reason_t reason, int sys_errno);
+typedef void (*event_bus_fatal_cb_t)(event_bus_fatal_reason_t reason, int detail_code);
 
 /* -------------------------------------------------------------------------
  * 运行统计
@@ -142,6 +143,17 @@ sw_err_t event_bus_shutdown(void);
  * @retval SW_ERR_OVERFLOW  队列已满，事件被丢弃
  */
 sw_err_t event_publish(event_type_t type, uint32_t param);
+
+/**
+ * @brief  发布不可丢失的控制事件
+ * @param  type   事件类型
+ * @param  param  简单载荷
+ * @return 与 event_publish 相同；失败时返回前会调用 fatal 回调
+ * @note   仅用于状态机推进、安全收敛等无法通过事实源重建的控制事件。
+ *         fatal 回调应先确保输出安全，再终止进程；未注册回调时仍返回错误，
+ *         便于单元测试和启动期诊断。
+ */
+sw_err_t event_publish_required(event_type_t type, uint32_t param);
 
 /**
  * @brief  订阅事件

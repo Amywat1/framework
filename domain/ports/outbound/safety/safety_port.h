@@ -33,8 +33,9 @@ extern "C" {
 /**
  * @brief 安全端口操作集合
  *
- * 四个字段均为必填：本端口的存在意义就是这四条安全路径都有实处可去，
+ * 四个核心字段均为必填：本端口的存在意义就是这四条安全路径都有实处可去，
  * 缺任意一个都会让某条安全链路静默失效，因此注册时一律拒绝部分填充。
+ * cutout_confirmed 是失败锁存的独立确认能力，项目若无法提供则保持未确认锁存。
  */
 typedef struct {
     /**
@@ -49,6 +50,13 @@ typedef struct {
      *         不确定窗口，且失败通常源于硬件链路本身。
      */
     sw_err_t (*cutout)(void);
+
+    /**
+     * @brief  独立确认动力回路已切断（可选，非急停热路径）
+     * @retval true  通过独立反馈确认已切断
+     * @note   用于清除切断未确认锁存；不得复用急停输入，也不得在热路径调用。
+     */
+    bool (*cutout_confirmed)(void);
 
     /**
      * @brief  读取硬件急停输入当前状态
@@ -75,7 +83,7 @@ typedef struct {
  * @brief  注册安全端口实现
  * @param  ops  操作表；传 NULL 解除注册
  * @retval SW_OK        注册或解除成功
- * @retval SW_ERR_PARAM ops 非空但存在空字段，保持原注册不变
+ * @retval SW_ERR_PARAM ops 非空但核心字段存在空字段，保持原注册不变
  * @note   注册语义与其他端口一致，详见 runtime/ports/port_registry.h。
  */
 sw_err_t safety_port_register(const safety_ops_t *ops);
@@ -113,6 +121,21 @@ sw_err_t safety_cutout_execute(void);
  * @note   未注册导致的「未执行」不计入此处，由未注册告警单独反映，两者语义分开。
  */
 unsigned safety_cutout_failure_count(void);
+
+/**
+ * @brief  切断失败后是否仍处于未确认锁存
+ * @retval true  至少一次切断失败尚未被独立反馈确认
+ * @retval false 当前无未确认失败
+ */
+bool safety_cutout_is_unconfirmed(void);
+
+/**
+ * @brief  通过项目独立反馈确认切断结果并清除未确认锁存
+ * @retval SW_OK 已确认或当前无未确认锁存
+ * @retval SW_ERR_STATE 独立反馈仍未确认
+ * @retval SW_ERR_NOT_INIT 未提供独立确认回调
+ */
+sw_err_t safety_cutout_reconcile(void);
 
 /**
  * @brief  读取硬件急停是否处于激活（按下/断电）状态

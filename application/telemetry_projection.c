@@ -7,13 +7,23 @@
 
 #include "application/telemetry_projection.h"
 
+#include "application/ports/outbound/cloud/link/cloud_link_port.h"
 #include "common/event_types.h"
 #include "common/log.h"
 #include "domain/op_mode/operational_mode.h"
+#include "domain/ports/outbound/safety/safety_port.h"
 #include "domain/safety/alarm_registry/alarm_registry.h"
 #include "domain/telemetry/device_snapshot_internal.h"
-#include "application/ports/outbound/cloud/link/cloud_link_port.h"
+#include "runtime/config/thread_config.h"
 #include "runtime/event_bus/event_bus.h"
+#include "runtime/scheduler/periodic_task.h"
+
+#include <sched.h>
+
+#define TELEMETRY_PROJECTION_RECONCILE_PERIOD_MS 1000U
+
+static bool     s_reconcile_registered;
+static uint32_t s_last_dropped_count;
 
 static void sync_op_snapshot(void)
 {
@@ -45,6 +55,11 @@ static void refresh_safety_snapshot(const event_t *evt)
     /* 一次持锁读出四项，避免活动表与安全姿态来自不同时刻造成快照自相矛盾 */
     snap.active_alarm_count = alarm_registry_copy_safety_view(
         snap.active_list, ALARM_ACTIVE_MAX, &snap.blocking_active, &snap.top_alarm_code, &snap.posture);
+    snap.cutout_unconfirmed = safety_cutout_is_unconfirmed();
+    if (snap.cutout_unconfirmed) {
+        snap.posture         = SAFETY_POSTURE_LOCKOUT;
+        snap.blocking_active = true;
+    }
     device_snapshot_update_safety(&snap);
 }
 
@@ -76,6 +91,34 @@ static void on_cloud_link_changed(const event_t *evt)
     sync_cloud_connected();
 }
 
+void telemetry_projection_sync_all(void)
+{
+    sync_op_snapshot();
+    refresh_safety_snapshot(NULL);
+    sync_cloud_connected();
+}
+
+static void reconcile_tick(void *ctx)
+{
+    event_bus_stats_t stats;
+
+    (void)ctx;
+    if (event_bus_get_stats(&stats) != SW_OK) {
+        LOG_WARN("telemetry_projection: unable to read event bus stats");
+        return;
+    }
+
+    /* 周期重建同时提供固定滞后上限；统计变化只用于诊断，不能替代周期重建，
+     * 因为事件可能在订阅前、初始化间隙或非投影订阅者路径中丢失。 */
+    if (stats.dropped_count != s_last_dropped_count) {
+        LOG_WARN("telemetry_projection: event loss detected dropped=%u last=%u, rebuilding",
+                 (unsigned)stats.dropped_count,
+                 (unsigned)s_last_dropped_count);
+        s_last_dropped_count = stats.dropped_count;
+    }
+    telemetry_projection_sync_all();
+}
+
 sw_err_t telemetry_projection_init(void)
 {
     static const event_subscription_t s_subs[] = {
@@ -88,6 +131,7 @@ sw_err_t telemetry_projection_init(void)
          * LOCKOUT/NOMINAL 切换后快照里的 posture 滞后。 */
         {EVT_SAFETY_LOCKOUT,       refresh_safety_snapshot},
         {EVT_SAFETY_NOMINAL,       refresh_safety_snapshot},
+        {EVT_HW_ESTOP_ON,          refresh_safety_snapshot},
         {EVT_WASH_SESSION_STARTED, on_session_started     },
         /* 云连接状态并入同一快照，使读侧（CLI / 诊断 / 状态上报）看到的
          * 连接状态与运行模式、安全状态来自同一时刻。 */
@@ -100,9 +144,28 @@ sw_err_t telemetry_projection_init(void)
         return ret;
     }
 
-    sync_op_snapshot();
-    refresh_safety_snapshot(NULL);
-    sync_cloud_connected();
+    telemetry_projection_sync_all();
+    if (!s_reconcile_registered) {
+        sw_err_t task_ret = periodic_task_register("telemetry_projection",
+                                                   TELEMETRY_PROJECTION_RECONCILE_PERIOD_MS,
+                                                   reconcile_tick,
+                                                   NULL,
+                                                   SCHED_OTHER,
+                                                   0,
+                                                   THD_TELEMETRY_STACK);
+        if (task_ret != SW_OK) {
+            return task_ret;
+        }
+        s_reconcile_registered = true;
+    }
+    {
+        event_bus_stats_t stats;
+
+        s_last_dropped_count = 0U;
+        if (event_bus_get_stats(&stats) == SW_OK) {
+            s_last_dropped_count = stats.dropped_count;
+        }
+    }
     LOG_INFO("telemetry_projection: init ok");
     return SW_OK;
 }

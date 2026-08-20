@@ -57,6 +57,7 @@ static inline bool operational_snapshot_is_standby(operational_snapshot_t s)
 typedef struct {
     safety_posture_t posture;
     bool             blocking_active;
+    bool             cutout_unconfirmed; /**< 动力切断失败且尚无独立反馈确认 */
     uint32_t         top_alarm_code;
     unsigned         active_alarm_count;
     alarm_instance_t active_list[ALARM_ACTIVE_MAX];

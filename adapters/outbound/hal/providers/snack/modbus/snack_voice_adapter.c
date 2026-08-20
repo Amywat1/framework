@@ -7,7 +7,7 @@
 
 #include "adapters/outbound/hal/providers/snack/modbus/snack_voice_adapter.h"
 
-#include "adapters/outbound/hal/providers/snack/modbus/drv_voice.h"
+#include "adapters/outbound/hal/providers/snack/modbus/drv_voice_internal.h"
 #include "domain/ports/outbound/hal/hal_voice_port.h"
 
 #include <string.h>

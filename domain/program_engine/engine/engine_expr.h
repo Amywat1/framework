@@ -36,8 +36,27 @@ typedef struct {
      * @return true=解析成功；false=未知变量（求值将判定为失败）
      */
     bool (*resolve)(void *ctx, const char *name, double *out_value);
+    /** @brief 解析加载期已绑定的变量 token；绑定后的引擎表达式优先使用本入口。 */
+    bool (*resolve_bound)(void *ctx, unsigned token, double *out_value);
+    /** @brief 查询车辆轮廓高度；为空时使用调用表达式给出的默认值。 */
+    bool (*profile_height_at)(void *ctx, double position, double default_value, double *out_height);
+    /** @brief 查询车辆轮廓区域；为空时使用调用表达式给出的默认值。 */
+    bool (*profile_in_zone)(void *ctx, const char *zone, double position, bool default_value, bool *out_in_zone);
     void *ctx;
 } engine_expr_env_t;
+
+/**
+ * @brief 表达式变量加载期绑定回调。
+ * @return true 名称已绑定并写出稳定 token；false 名称未知。
+ */
+typedef bool (*engine_expr_bind_fn)(void *ctx, const char *name, unsigned *out_token);
+
+/**
+ * @brief 将表达式中的全部变量名绑定为运行期稳定 token。
+ * @retval true  全部变量绑定成功。
+ * @retval false 参数非法或存在未知变量；表达式保持不可用于引擎运行。
+ */
+bool engine_expr_bind(engine_expr_t *expr, engine_expr_bind_fn fn, void *ctx);
 
 /**
  * @brief  编译表达式文本为可重复求值的 AST

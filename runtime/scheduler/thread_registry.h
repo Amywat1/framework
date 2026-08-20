@@ -26,8 +26,8 @@ extern "C" {
  * 槽位构成（按已接入项目实测，其他项目按同样口径核算）：
  *   框架固定占用      2  event_dispatch + cmd_control（急停轮询适配器如接入再加 1）
  *   引擎会话 worker   1~2 每个 engine_session 配置一个
- *   周期任务          9  见 periodic_task.c，与本上限共用同一容量
- * 合计约 14，留出余量以便项目新增周期任务时不必同步改框架常量。
+ *   周期任务         10  含框架遥测重建任务，见 periodic_task.c，与本上限共用容量
+ * 合计约 15，留出余量以便项目新增周期任务时不必同步改框架常量。
  *
  * 提升此值会等量提升 PERIODIC_TASK_MAX（periodic_task.c 以此为准），
  * 每个槽位仅占用一个 thread_entry_t，不预留栈空间。

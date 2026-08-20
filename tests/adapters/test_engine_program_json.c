@@ -7,11 +7,10 @@
 #include "adapters/outbound/hal/sim/engine_io_sim.h"
 #include "adapters/outbound/storage/json/engine_program_json.h"
 #include "common/sw_error.h"
-#include "domain/program_engine/engine/engine.h"
-#include "domain/program_engine/engine/engine_io.h"
-#include "domain/program_engine/engine/engine_var.h"
-#include "domain/program_engine/model/engine_model.h"
+#include "domain/ports/outbound/program_engine/engine_environment_provider.h"
 #include "domain/ports/outbound/storage/engine_program_loader_port.h"
+#include "domain/program_engine/engine/engine.h"
+#include "domain/program_engine/model/engine_model.h"
 #include "wdf_test_spec.h"
 
 #include <stdio.h>
@@ -19,21 +18,27 @@
 
 static bool s_tail_active;
 
-static bool test_var_resolve(const char *name, double *out)
+static sw_err_t test_var_read(void *ctx, unsigned variable_id, double *out)
 {
-    if ((name == NULL) || (out == NULL) || (strcmp(name, "car_tail.active") != 0)) {
-        return false;
+    const bool *tail_active = (const bool *)ctx;
+
+    if ((out == NULL) || (variable_id != 0U)) {
+        return SW_ERR_PARAM;
     }
-    *out = s_tail_active ? 1.0 : 0.0;
-    return true;
+    *out = *tail_active ? 1.0 : 0.0;
+    return SW_OK;
 }
 
-static const char *const           s_test_var_names[] = {"car_tail.active"};
-static const engine_var_provider_t s_test_vars        = {
-           .resolve    = test_var_resolve,
-           .names      = s_test_var_names,
-           .name_count = 1U,
+static const char *const               s_test_var_names[] = {"car_tail.active"};
+static const engine_variable_catalog_t s_test_var_catalog = {
+    .names      = s_test_var_names,
+    .name_count = 1U,
 };
+static const engine_variable_ops_t s_test_var_ops = {
+    .read = test_var_read,
+};
+static engine_variable_t    s_test_variable;
+static engine_environment_t s_environment;
 
 static const char *const s_program_json
     = "{"
@@ -71,19 +76,20 @@ static const char *const s_program_json
 
 void setUp(void)
 {
-    engine_io_sim_register();
     engine_io_sim_reset();
     engine_actuator_sim_reset();
-    engine_actuator_sim_register();
-    engine_var_register(&s_test_vars);
-    engine_set_pre_tick(NULL, NULL);
     s_tail_active = false;
+    TEST_ASSERT_EQUAL_INT(
+        SW_OK, engine_variable_provider_bind(&s_test_variable, &s_test_var_ops, &s_tail_active, &s_test_var_catalog));
+    s_environment = (engine_environment_t){
+        .io       = engine_io_sim_instance(),
+        .actuator = engine_actuator_sim_instance(),
+        .variable = &s_test_variable,
+    };
 }
 
 void tearDown(void)
 {
-    engine_var_register(NULL);
-    engine_set_pre_tick(NULL, NULL);
 }
 
 static void tick_n(engine_t *engine, unsigned count, uint32_t dt_ms)
@@ -131,10 +137,15 @@ static void test_json_loader_rejects_unknown_resource(void)
           "\"done\":{\"type\":\"actions_complete\"}}]}]}]"
           "}"
           "}";
-    char err[200];
+    char              err[200];
+    engine_program_t *program = engine_program_load_json_string(bad_json, err, sizeof(err));
+    engine_t         *engine;
 
-    TEST_ASSERT_NULL(engine_program_load_json_string(bad_json, err, sizeof(err)));
-    TEST_ASSERT_GREATER_THAN_INT(0, (int)strlen(err));
+    TEST_ASSERT_NOT_NULL_MESSAGE(program, err);
+    engine = engine_create(&s_environment);
+    TEST_ASSERT_NOT_NULL(engine);
+    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, engine_load_program(engine, program));
+    engine_destroy(engine);
 }
 
 static void test_engine_runs_loaded_json_with_sim_io(void)
@@ -144,7 +155,7 @@ static void test_engine_runs_loaded_json_with_sim_io(void)
     engine_program_t *program = engine_program_load_json_string(s_program_json, err, sizeof(err));
 
     TEST_ASSERT_NOT_NULL_MESSAGE(program, err);
-    engine = engine_create();
+    engine = engine_create(&s_environment);
     TEST_ASSERT_NOT_NULL(engine);
     TEST_ASSERT_EQUAL_INT(SW_OK, engine_load_program(engine, program));
     TEST_ASSERT_EQUAL_INT(SW_OK, engine_start(engine));
@@ -201,7 +212,7 @@ static void test_json_loader_expands_step_templates(void)
     TEST_ASSERT_EQUAL_STRING("bout", program->phases[0].lanes[0].steps[1].intent.resource);
     TEST_ASSERT_EQUAL_INT(2, program->phases[0].lanes[0].steps[1].intent.gear);
 
-    engine = engine_create();
+    engine = engine_create(&s_environment);
     TEST_ASSERT_NOT_NULL(engine);
     TEST_ASSERT_EQUAL_INT(SW_OK, engine_load_program(engine, program));
     TEST_ASSERT_EQUAL_INT(SW_OK, engine_start(engine));
@@ -261,7 +272,7 @@ static void test_condition_marker_latches_on_rising(void)
     TEST_ASSERT_EQUAL_INT(ENGINE_MARKER_ON_CONDITION, program->markers[0].on_kind);
     TEST_ASSERT_NOT_NULL(program->markers[0].cond);
 
-    engine = engine_create();
+    engine = engine_create(&s_environment);
     TEST_ASSERT_NOT_NULL(engine);
     TEST_ASSERT_EQUAL_INT(SW_OK, engine_load_program(engine, program));
     engine_io_sim_set_axis("gantry", 123.0, 0.0, true);
@@ -280,26 +291,25 @@ static void test_condition_marker_latches_on_rising(void)
 
 static void test_json_loader_parses_confirm_ms_and_retry_max(void)
 {
-    static const char *json
-        = "{"
-          "\"program\":{"
-          "\"schema_version\":\"1.0\",\"id\":\"confirm_retry\",\"name\":\"t\","
-          "\"interlocks\":[{\"id\":\"estop\",\"condition\":\"ESTOP == 1\",\"action\":\"halt_all\","
-          "\"priority\":0,\"reset_condition\":\"ESTOP == 0\",\"auto_reset\":false}],"
-          "\"phases\":[{\"id\":\"p0\",\"name\":\"p\",\"direction\":\"none\","
-          "\"entry_guard\":\"true\",\"exit_guard\":\"EXIT == 1\",\"timeout_ms\":1000,"
-          "\"lanes\":[{\"id\":\"lane\",\"steps\":[{"
-          "\"id\":\"move\",\"type\":\"event\","
-          "\"trigger\":{\"type\":\"condition\",\"expr\":\"EXIT == 0\"},"
-          "\"actions\":[{\"act\":{\"resource\":\"aout\",\"cmd\":\"run\",\"gear\":1}}],"
-          "\"done\":{\"type\":\"signal\",\"signal\":\"EXIT\",\"state\":1,"
-          "\"timeout_ms\":5000,\"confirm_ms\":100},"
-          "\"retry_max\":2,\"on_error\":\"halt_phase\""
-          "}]}]}]}"
-          "}";
-    char              err[200];
-    engine_program_t *program = engine_program_load_json_string(json, err, sizeof(err));
-    engine_step_t    *step;
+    static const char *json = "{"
+                              "\"program\":{"
+                              "\"schema_version\":\"1.0\",\"id\":\"confirm_retry\",\"name\":\"t\","
+                              "\"interlocks\":[{\"id\":\"estop\",\"condition\":\"ESTOP == 1\",\"action\":\"halt_all\","
+                              "\"priority\":0,\"reset_condition\":\"ESTOP == 0\",\"auto_reset\":false}],"
+                              "\"phases\":[{\"id\":\"p0\",\"name\":\"p\",\"direction\":\"none\","
+                              "\"entry_guard\":\"true\",\"exit_guard\":\"EXIT == 1\",\"timeout_ms\":1000,"
+                              "\"lanes\":[{\"id\":\"lane\",\"steps\":[{"
+                              "\"id\":\"move\",\"type\":\"event\","
+                              "\"trigger\":{\"type\":\"condition\",\"expr\":\"EXIT == 0\"},"
+                              "\"actions\":[{\"act\":{\"resource\":\"aout\",\"cmd\":\"run\",\"gear\":1}}],"
+                              "\"done\":{\"type\":\"signal\",\"signal\":\"EXIT\",\"state\":1,"
+                              "\"timeout_ms\":5000,\"confirm_ms\":100},"
+                              "\"retry_max\":2,\"on_error\":\"halt_phase\""
+                              "}]}]}]}"
+                              "}";
+    char               err[200];
+    engine_program_t  *program = engine_program_load_json_string(json, err, sizeof(err));
+    engine_step_t     *step;
 
     TEST_ASSERT_NOT_NULL_MESSAGE(program, err);
     step = &program->phases[0].lanes[0].steps[0];
@@ -341,6 +351,43 @@ static void test_json_loader_parses_done_motion(void)
     engine_program_free(program);
 }
 
+static void test_json_loader_rejects_unknown_nested_field_with_path(void)
+{
+    static const char *json     = "{"
+                                  "\"program\":{"
+                                  "\"schema_version\":\"1.0\",\"id\":\"unknown_field\","
+                                  "\"interlocks\":[],"
+                                  "\"phases\":[{\"id\":\"p0\",\"entry_guard\":\"true\","
+                                  "\"exit_guard\":\"true\",\"timeout_ms\":1000,"
+                                  "\"lanes\":[{\"id\":\"lane\",\"steps\":[{"
+                                  "\"id\":\"a\",\"type\":\"event\","
+                                  "\"trigger\":{\"type\":\"condition\",\"expr\":\"true\"},"
+                                  "\"done\":{\"type\":\"actions_complete\"},\"unexpected\":1"
+                                  "}]}]}]}"
+                                  "}";
+    char               err[320] = {0};
+    engine_program_t  *program  = engine_program_load_json_string(json, err, sizeof(err));
+
+    TEST_ASSERT_NULL(program);
+    TEST_ASSERT_NOT_NULL(strstr(err, "program.phases[0].lanes[0].steps[0].unexpected"));
+}
+
+static void test_json_loader_rejects_unknown_template_field(void)
+{
+    static const char *json     = "{"
+                                  "\"program\":{"
+                                  "\"schema_version\":\"1.0\",\"id\":\"unknown_template_field\","
+                                  "\"templates\":{\"base\":{\"type\":\"control\",\"bogus\":true}},"
+                                  "\"phases\":[]"
+                                  "}"
+                                  "}";
+    char               err[320] = {0};
+    engine_program_t  *program  = engine_program_load_json_string(json, err, sizeof(err));
+
+    TEST_ASSERT_NULL(program);
+    TEST_ASSERT_NOT_NULL(strstr(err, "program.templates.base.bogus"));
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -353,6 +400,8 @@ int main(void)
     WDF_RUN_TEST(test_condition_marker_latches_on_rising, "", "验证条件标记在上升沿锁存");
     WDF_RUN_TEST(test_json_loader_parses_confirm_ms_and_retry_max, "", "验证解析 confirm_ms 与 retry_max");
     WDF_RUN_TEST(test_json_loader_parses_done_motion, "", "验证解析 done.type=motion");
+    WDF_RUN_TEST(test_json_loader_rejects_unknown_nested_field_with_path, "", "验证拒绝嵌套未知字段并返回完整路径");
+    WDF_RUN_TEST(test_json_loader_rejects_unknown_template_field, "", "验证拒绝模板中的未知字段");
 
     return UNITY_END();
 }

@@ -1,4 +1,4 @@
-#include "adapters/outbound/hal/providers/snack/modbus/drv_modbus_link.h"
+#include "adapters/outbound/hal/providers/snack/modbus/drv_modbus_link_internal.h"
 
 #include <string.h>
 

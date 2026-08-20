@@ -7,9 +7,7 @@
 
 #include "domain/program_engine/engine/engine.h"
 
-#include "domain/program_engine/engine/engine_actuator.h"
-#include "domain/program_engine/engine/engine_io.h"
-#include "domain/program_engine/engine/engine_var.h"
+#include "domain/program_engine/model/engine_program_validate.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -18,13 +16,35 @@
 /* 具名常量 */
 #define ENGINE_HELD_CAP 64U /* 本阶段持有资源上限 */
 
-static void (*s_pre_tick_fn)(void *ctx) = NULL;
-static void *s_pre_tick_ctx             = NULL;
+#define ENGINE_TOKEN_KIND_SHIFT 28U
+#define ENGINE_TOKEN_INDEX_MASK 0x0FFFFFFFU
 
-void engine_set_pre_tick(void (*fn)(void *ctx), void *ctx)
+typedef enum {
+    ENGINE_TOKEN_PARAM = 0U,
+    ENGINE_TOKEN_AXIS_POSITION,
+    ENGINE_TOKEN_AXIS_SPEED,
+    ENGINE_TOKEN_AXIS_VALID,
+    ENGINE_TOKEN_MARKER_POSITION,
+    ENGINE_TOKEN_MARKER_VALID,
+    ENGINE_TOKEN_PHASE_ELAPSED,
+    ENGINE_TOKEN_PHASE_DIRECTION,
+    ENGINE_TOKEN_VARIABLE,
+    ENGINE_TOKEN_SIGNAL
+} engine_token_kind_t;
+
+static unsigned make_token(engine_token_kind_t kind, unsigned index)
 {
-    s_pre_tick_fn  = fn;
-    s_pre_tick_ctx = ctx;
+    return ((unsigned)kind << ENGINE_TOKEN_KIND_SHIFT) | (index & ENGINE_TOKEN_INDEX_MASK);
+}
+
+static engine_token_kind_t token_kind(unsigned token)
+{
+    return (engine_token_kind_t)(token >> ENGINE_TOKEN_KIND_SHIFT);
+}
+
+static unsigned token_index(unsigned token)
+{
+    return token & ENGINE_TOKEN_INDEX_MASK;
 }
 
 /* 步骤运行态 */
@@ -33,12 +53,12 @@ typedef enum { RT_IDLE = 0, RT_WAIT_AFTER, RT_ARMED, RT_RUNNING, RT_WAIT_DONE, R
 typedef struct {
     rt_step_state_t state;
     unsigned        action_idx;
-    bool            waiting;          /* 正在 wait_time 倒计时 */
-    uint32_t        wait_remaining;   /* wait_time 剩余 ms */
-    uint32_t        done_elapsed;     /* done 未命中累计 ms */
-    uint32_t        confirm_elapsed;  /* done:signal 连续命中累计 ms */
-    uint32_t        retry_used;       /* 已重试次数 */
-    int             trig_prev;        /* signal 触发器上一拍电平 */
+    bool            waiting;         /* 正在 wait_time 倒计时 */
+    uint32_t        wait_remaining;  /* wait_time 剩余 ms */
+    uint32_t        done_elapsed;    /* done 未命中累计 ms */
+    uint32_t        confirm_elapsed; /* done:signal 连续命中累计 ms */
+    uint32_t        retry_used;      /* 已重试次数 */
+    int             trig_prev;       /* signal 触发器上一拍电平 */
 } rt_step_t;
 
 typedef struct {
@@ -47,15 +67,18 @@ typedef struct {
 } rt_lane_t;
 
 typedef struct {
-    double position;
-    bool   valid;
-    int    sig_prev;
+    double   position;
+    bool     valid;
+    int      sig_prev;
+    unsigned signal_id;
+    unsigned axis_id;
 } marker_rt_t;
 
 struct engine {
-    engine_program_t  *prog;
-    bool               owns_prog;
-    engine_run_state_t state;
+    engine_environment_t environment;
+    engine_program_t    *prog;
+    bool                 owns_prog;
+    engine_run_state_t   state;
 
     int                   cur_phase;
     const engine_phase_t *cur_def;
@@ -77,17 +100,41 @@ struct engine {
     int  *ilk_order;           /* 按 priority 升序的下标 */
 
     /** 本阶段持有的资源名（退出时 release，keep 除外） */
-    char     held_resources[ENGINE_HELD_CAP][ENGINE_NAME_MAX];
+    unsigned held_resource_ids[ENGINE_HELD_CAP];
     unsigned held_count;
+    sw_err_t last_error;
+
+    bool frame_io_started;
+    bool frame_profile_started;
+    bool frame_variable_started;
 };
 
 /* -------------------------------------------------------------------------
  * IO / 执行机构访问
  * ------------------------------------------------------------------------- */
-static int sig_read(const char *name)
+static void held_clear(engine_t *e);
+
+static void engine_fail(engine_t *e, sw_err_t error)
 {
-    const engine_io_ops_t *io = engine_io_get_ops();
-    return (io != NULL) ? io->read_signal(name) : 0;
+    if ((e == NULL) || (error == SW_OK) || (e->state == ENGINE_STATE_FAULT)) {
+        return;
+    }
+    e->last_error = error;
+    e->state      = ENGINE_STATE_FAULT;
+    (void)engine_actuator_halt_all(e->environment.actuator);
+    held_clear(e);
+}
+
+static int sig_read(engine_t *e, unsigned signal_id)
+{
+    int      value = 0;
+    sw_err_t error = engine_io_read_signal(e->environment.io, signal_id, &value);
+
+    if (error != SW_OK) {
+        engine_fail(e, error);
+        return 0;
+    }
+    return value;
 }
 
 static void held_clear(engine_t *e)
@@ -95,21 +142,20 @@ static void held_clear(engine_t *e)
     e->held_count = 0U;
 }
 
-static void held_mark(engine_t *e, const char *resource)
+static void held_mark(engine_t *e, unsigned resource_id)
 {
-    if ((e == NULL) || (resource == NULL) || (resource[0] == '\0')) {
+    if (e == NULL) {
         return;
     }
     for (unsigned i = 0U; i < e->held_count; ++i) {
-        if (strcmp(e->held_resources[i], resource) == 0) {
+        if (e->held_resource_ids[i] == resource_id) {
             return;
         }
     }
     if (e->held_count >= ENGINE_HELD_CAP) {
         return;
     }
-    (void)snprintf(e->held_resources[e->held_count], ENGINE_NAME_MAX, "%s", resource);
-    e->held_count++;
+    e->held_resource_ids[e->held_count++] = resource_id;
 }
 
 static bool resource_in_keep(const engine_phase_t *ph, const char *resource)
@@ -135,131 +181,123 @@ static bool intent_is_stop(const engine_intent_t *intent)
  */
 static void intent_apply(engine_t *e, const engine_intent_t *intent, bool track)
 {
-    const engine_actuator_ops_t *ops = engine_actuator_get_ops();
+    sw_err_t error;
 
-    if ((intent == NULL) || (intent->resource[0] == '\0')) {
+    if ((intent == NULL) || !intent->resource_bound || (e->state == ENGINE_STATE_FAULT)) {
         return;
     }
-    if (ops != NULL) {
-        (void)ops->apply(intent);
+    error = engine_actuator_apply(e->environment.actuator, intent->resource_id, intent);
+    if (error != SW_OK) {
+        engine_fail(e, error);
+        return;
     }
     if (track && !intent_is_stop(intent)) {
-        held_mark(e, intent->resource);
+        held_mark(e, intent->resource_id);
     }
 }
 
-static void resource_release(engine_t *e, const char *resource)
+static void resource_release(engine_t *e, unsigned resource_id)
 {
-    const engine_actuator_ops_t *ops = engine_actuator_get_ops();
+    sw_err_t error;
 
-    (void)e;
-    if ((ops != NULL) && (resource != NULL) && (resource[0] != '\0')) {
-        (void)ops->release(resource);
+    if ((e == NULL) || (e->state == ENGINE_STATE_FAULT)) {
+        return;
+    }
+    error = engine_actuator_release(e->environment.actuator, resource_id);
+    if (error != SW_OK) {
+        engine_fail(e, error);
     }
 }
 
 /* -------------------------------------------------------------------------
  * 表达式求值环境
  * ------------------------------------------------------------------------- */
-static bool engine_resolve(void *ctx, const char *name, double *out)
+static bool engine_resolve_bound(void *ctx, unsigned token, double *out)
 {
-    engine_t *e = (engine_t *)ctx;
+    engine_t            *e     = (engine_t *)ctx;
+    unsigned             index = token_index(token);
+    engine_axis_sample_t sample;
+    sw_err_t             error;
 
-    if (name[0] == '$') {
-        for (unsigned i = 0U; i < e->prog->param_count; ++i) {
-            if (strcmp(e->prog->params[i].name, name + 1) == 0) {
-                *out = e->prog->params[i].value;
-                return true;
-            }
-        }
-        return false; /* 未知参数 */
-    }
-
-    if (strncmp(name, "axes.", 5) == 0) {
-        const char *rest = name + 5;
-        const char *dot  = strchr(rest, '.');
-        if (dot == NULL) {
-            return false;
-        }
-
-        char   id[ENGINE_NAME_MAX];
-        size_t idlen = (size_t)(dot - rest);
-        if (idlen >= sizeof(id)) {
-            return false;
-        }
-        memcpy(id, rest, idlen);
-        id[idlen] = '\0';
-
-        const engine_io_ops_t *io  = engine_io_get_ops();
-        double                 pos = 0.0, speed = 0.0;
-        bool                   valid = false;
-        if ((io == NULL) || (io->read_axis(id, &pos, &speed, &valid) != SW_OK)) {
-            return false;
-        }
-        const char *field = dot + 1;
-        if (strcmp(field, "position") == 0) {
-            *out = pos;
-            return true;
-        }
-        if (strcmp(field, "speed") == 0) {
-            *out = speed;
-            return true;
-        }
-        if (strcmp(field, "valid") == 0) {
-            *out = valid ? 1.0 : 0.0;
-            return true;
-        }
+    if ((e == NULL) || (out == NULL)) {
         return false;
     }
-
-    if (strncmp(name, "markers.", 8) == 0) {
-        const char *rest = name + 8;
-        const char *dot  = strchr(rest, '.');
-        if (dot == NULL) {
+    switch (token_kind(token)) {
+    case ENGINE_TOKEN_PARAM:
+        if (index >= e->prog->param_count) {
             return false;
         }
-
-        size_t idlen = (size_t)(dot - rest);
-        for (unsigned i = 0U; i < e->prog->marker_count; ++i) {
-            if ((strncmp(e->prog->markers[i].id, rest, idlen) == 0) && (e->prog->markers[i].id[idlen] == '\0')) {
-                const char *field = dot + 1;
-                if (strcmp(field, "position") == 0) {
-                    *out = e->markers[i].position;
-                    return true;
-                }
-                if (strcmp(field, "valid") == 0) {
-                    *out = e->markers[i].valid ? 1.0 : 0.0;
-                    return true;
-                }
-                return false;
-            }
+        *out = e->prog->params[index].value;
+        return true;
+    case ENGINE_TOKEN_AXIS_POSITION:
+    case ENGINE_TOKEN_AXIS_SPEED:
+    case ENGINE_TOKEN_AXIS_VALID:
+        error = engine_io_read_axis(e->environment.io, index, &sample);
+        if (error != SW_OK) {
+            engine_fail(e, error);
+            return false;
         }
+        if (token_kind(token) == ENGINE_TOKEN_AXIS_POSITION) {
+            *out = sample.position;
+        } else if (token_kind(token) == ENGINE_TOKEN_AXIS_SPEED) {
+            *out = sample.speed;
+        } else {
+            *out = sample.valid ? 1.0 : 0.0;
+        }
+        return true;
+    case ENGINE_TOKEN_MARKER_POSITION:
+    case ENGINE_TOKEN_MARKER_VALID:
+        if (index >= e->prog->marker_count) {
+            return false;
+        }
+        *out = (token_kind(token) == ENGINE_TOKEN_MARKER_POSITION) ? e->markers[index].position
+                                                                   : (e->markers[index].valid ? 1.0 : 0.0);
+        return true;
+    case ENGINE_TOKEN_PHASE_ELAPSED:
+        *out = (double)e->phase_elapsed;
+        return true;
+    case ENGINE_TOKEN_PHASE_DIRECTION: {
+        engine_direction_t direction = (e->cur_def != NULL) ? e->cur_def->direction : ENGINE_DIR_NONE;
+
+        *out = (direction == ENGINE_DIR_FORWARD) ? 1.0 : ((direction == ENGINE_DIR_BACKWARD) ? -1.0 : 0.0);
+        return true;
+    }
+    case ENGINE_TOKEN_VARIABLE:
+        error = engine_variable_read(e->environment.variable, index, out);
+        if (error != SW_OK) {
+            engine_fail(e, error);
+            return false;
+        }
+        return true;
+    case ENGINE_TOKEN_SIGNAL:
+        *out = (double)sig_read(e, index);
+        return e->state != ENGINE_STATE_FAULT;
+    default:
         return false;
     }
+}
 
-    if (strncmp(name, "phase.", 6) == 0) {
-        const char *field = name + 6;
-        if (strcmp(field, "elapsed_ms") == 0) {
-            *out = (double)e->phase_elapsed;
-            return true;
-        }
-        if (strcmp(field, "direction") == 0) {
-            engine_direction_t d = (e->cur_def != NULL) ? e->cur_def->direction : ENGINE_DIR_NONE;
-            *out                 = (d == ENGINE_DIR_FORWARD) ? 1.0 : ((d == ENGINE_DIR_BACKWARD) ? -1.0 : 0.0);
-            return true;
-        }
+static bool engine_profile_height(void *ctx, double position, double default_value, double *out_height)
+{
+    engine_t *e     = (engine_t *)ctx;
+    sw_err_t  error = engine_profile_height_at(e->environment.profile, position, default_value, out_height);
+
+    if (error != SW_OK) {
+        engine_fail(e, error);
         return false;
     }
+    return true;
+}
 
-    {
-        const engine_var_provider_t *vars = engine_var_get();
-        if ((vars != NULL) && (vars->resolve != NULL) && vars->resolve(name, out)) {
-            return true;
-        }
+static bool engine_profile_zone(void *ctx, const char *zone, double position, bool default_value, bool *out_in_zone)
+{
+    engine_t *e     = (engine_t *)ctx;
+    sw_err_t  error = engine_profile_in_zone(e->environment.profile, zone, position, default_value, out_in_zone);
+
+    if (error != SW_OK) {
+        engine_fail(e, error);
+        return false;
     }
-
-    /* 其余按 DI 信号名（未注册按 0 处理） */
-    *out = (double)sig_read(name);
     return true;
 }
 
@@ -268,9 +306,15 @@ static bool eval_bool(engine_t *e, const engine_expr_t *x, bool def)
     if (x == NULL) {
         return def;
     }
-    engine_expr_env_t env = {engine_resolve, e};
-    bool              ok  = false;
-    bool              v   = engine_expr_eval_bool(x, &env, &ok);
+    engine_expr_env_t env = {
+        .resolve           = NULL,
+        .resolve_bound     = engine_resolve_bound,
+        .profile_height_at = engine_profile_height,
+        .profile_in_zone   = engine_profile_zone,
+        .ctx               = e,
+    };
+    bool ok = false;
+    bool v  = engine_expr_eval_bool(x, &env, &ok);
     return ok ? v : def;
 }
 
@@ -299,7 +343,7 @@ static bool trigger_level_active(engine_t *e, const engine_trigger_t *trig)
     if (trig->type == ENGINE_TRIG_CONDITION) {
         return eval_bool(e, trig->cond, false);
     }
-    int cur = sig_read(trig->signal);
+    int cur = sig_read(e, trig->signal_id);
     switch (trig->edge) {
     case ENGINE_EDGE_FALLING:
     case ENGINE_EDGE_LOW:
@@ -327,10 +371,11 @@ static void run_actions_now(engine_t *e, const engine_action_t *acts, unsigned c
  * ------------------------------------------------------------------------- */
 static void do_halt_all(engine_t *e)
 {
-    const engine_actuator_ops_t *ops = engine_actuator_get_ops();
+    sw_err_t error = engine_actuator_halt_all(e->environment.actuator);
 
-    if (ops != NULL) {
-        (void)ops->halt_all();
+    if (error != SW_OK) {
+        engine_fail(e, error);
+        return;
     }
     held_clear(e);
     e->state = ENGINE_STATE_HALTED;
@@ -341,9 +386,10 @@ static void release_held_except_keep(engine_t *e)
     const engine_phase_t *ph = e->cur_def;
 
     for (unsigned i = 0U; i < e->held_count; ++i) {
-        const char *res = e->held_resources[i];
+        unsigned    resource_id = e->held_resource_ids[i];
+        const char *res         = engine_actuator_catalog(e->environment.actuator)->resources[resource_id];
         if (!resource_in_keep(ph, res)) {
-            resource_release(e, res);
+            resource_release(e, resource_id);
         }
     }
     held_clear(e);
@@ -493,14 +539,14 @@ static bool enter_phase(engine_t *e, int idx)
                 continue;
             }
 
-            rt->state            = (sd->after_count > 0U) ? RT_WAIT_AFTER : RT_ARMED;
-            rt->action_idx       = 0U;
-            rt->waiting          = false;
-            rt->wait_remaining   = 0U;
-            rt->done_elapsed     = 0U;
-            rt->confirm_elapsed  = 0U;
-            rt->retry_used       = 0U;
-            rt->trig_prev        = (sd->trigger.type == ENGINE_TRIG_SIGNAL) ? sig_read(sd->trigger.signal) : 0;
+            rt->state           = (sd->after_count > 0U) ? RT_WAIT_AFTER : RT_ARMED;
+            rt->action_idx      = 0U;
+            rt->waiting         = false;
+            rt->wait_remaining  = 0U;
+            rt->done_elapsed    = 0U;
+            rt->confirm_elapsed = 0U;
+            rt->retry_used      = 0U;
+            rt->trig_prev       = (sd->trigger.type == ENGINE_TRIG_SIGNAL) ? sig_read(e, sd->trigger.signal_id) : 0;
         }
     }
     return true;
@@ -552,7 +598,7 @@ static void reapply_step_intents(engine_t *e, const engine_step_t *sd)
 }
 
 /**
- * @brief done:signal 超时：未超 retry_max 则重发 intent，否则走 on_error
+ * @brief done 完成门闩超时：未超 retry_max 则重发 intent，否则走 on_error
  */
 static void handle_done_signal_timeout(engine_t *e, const engine_step_t *sd, rt_step_t *rt)
 {
@@ -569,25 +615,41 @@ static void handle_done_signal_timeout(engine_t *e, const engine_step_t *sd, rt_
 /**
  * @brief  步骤完成门闩：轴结算（及可选光电）满足后才过确认窗
  */
-static bool done_gate_ready(const engine_done_t *done)
+static bool done_gate_ready(engine_t *e, const engine_done_t *done)
 {
-    const engine_actuator_ops_t *ops;
+    bool     settled = true;
+    sw_err_t error;
 
-    if (done->resource[0] != '\0') {
-        ops = engine_actuator_get_ops();
-        if ((ops != NULL) && (ops->is_settled != NULL) && !ops->is_settled(done->resource)) {
+    if (done->type == ENGINE_DONE_MOTION) {
+        if (!done->resource_bound) {
+            engine_fail(e, SW_ERR_NOT_INIT);
+            return false;
+        }
+        error = engine_actuator_is_settled(e->environment.actuator, done->resource_id, &settled);
+        if (error != SW_OK) {
+            engine_fail(e, error);
+            return false;
+        }
+        if (!settled) {
             return false;
         }
     }
     if (done->signal[0] != '\0') {
-        return sig_read(done->signal) == done->state;
+        int value;
+
+        if (!done->signal_bound) {
+            engine_fail(e, SW_ERR_NOT_INIT);
+            return false;
+        }
+        value = sig_read(e, done->signal_id);
+        return (e->state != ENGINE_STATE_FAULT) && (value == done->state);
     }
     return true;
 }
 
 static void tick_wait_done_gate(engine_t *e, const engine_step_t *sd, rt_step_t *rt, uint32_t dt)
 {
-    if (done_gate_ready(&sd->done)) {
+    if (done_gate_ready(e, &sd->done)) {
         rt->confirm_elapsed += dt;
         if ((sd->done.confirm_ms == 0U) || (rt->confirm_elapsed >= sd->done.confirm_ms)) {
             rt->state = RT_DONE;
@@ -610,7 +672,7 @@ static void control_step_tick(engine_t *e, const engine_step_t *sd)
     if (eval_bool(e, sd->active_while, false)) {
         intent_apply(e, &sd->intent, true);
     } else {
-        resource_release(e, sd->intent.resource);
+        resource_release(e, sd->intent.resource_id);
     }
 }
 
@@ -619,7 +681,7 @@ static void control_step_tick(engine_t *e, const engine_step_t *sd)
  * ------------------------------------------------------------------------- */
 static void step_tick(engine_t *e, const engine_step_t *sd, rt_step_t *rt, uint32_t dt)
 {
-    int cur_sig = (sd->trigger.type == ENGINE_TRIG_SIGNAL) ? sig_read(sd->trigger.signal) : 0;
+    int cur_sig = (sd->trigger.type == ENGINE_TRIG_SIGNAL) ? sig_read(e, sd->trigger.signal_id) : 0;
 
     /* 单拍内允许状态级联推进（WAIT_AFTER→ARMED→RUNNING→…），减少逐拍延迟 */
     bool progressed = true;
@@ -731,7 +793,6 @@ static void step_tick(engine_t *e, const engine_step_t *sd, rt_step_t *rt, uint3
  * ------------------------------------------------------------------------- */
 static void markers_tick(engine_t *e)
 {
-    const engine_io_ops_t *io = engine_io_get_ops();
     for (unsigned i = 0U; i < e->prog->marker_count; ++i) {
         const engine_marker_t *mk = &e->prog->markers[i];
         marker_rt_t           *rt = &e->markers[i];
@@ -740,14 +801,18 @@ static void markers_tick(engine_t *e)
         if (mk->on_kind == ENGINE_MARKER_ON_CONDITION) {
             cur = eval_bool(e, mk->cond, false) ? 1 : 0;
         } else {
-            cur = sig_read(mk->signal);
+            cur = sig_read(e, rt->signal_id);
         }
         if (!rt->valid && edge_hit(mk->edge, rt->sig_prev, cur)) {
-            double pos = 0.0, speed = 0.0;
-            bool   valid = false;
-            if ((io != NULL) && (io->read_axis(mk->axis, &pos, &speed, &valid) == SW_OK)) {
-                rt->position = pos;
+            engine_axis_sample_t sample;
+            sw_err_t             error = engine_io_read_axis(e->environment.io, rt->axis_id, &sample);
+
+            if (error == SW_OK) {
+                rt->position = sample.position;
                 rt->valid    = true;
+            } else {
+                engine_fail(e, error);
+                return;
             }
         }
         rt->sig_prev = cur;
@@ -864,14 +929,73 @@ static void phase_tick(engine_t *e, uint32_t dt)
 /* -------------------------------------------------------------------------
  * 公开接口
  * ------------------------------------------------------------------------- */
-engine_t *engine_create(void)
+engine_t *engine_create(const engine_environment_t *environment)
 {
+    if (engine_environment_validate(environment) != SW_OK) {
+        return NULL;
+    }
     engine_t *e = (engine_t *)calloc(1U, sizeof(engine_t));
     if (e != NULL) {
-        e->state     = ENGINE_STATE_IDLE;
-        e->cur_phase = -1;
+        e->environment = *environment;
+        e->state       = ENGINE_STATE_IDLE;
+        e->cur_phase   = -1;
+        e->last_error  = SW_OK;
     }
     return e;
+}
+
+static bool begin_frame(engine_t *e)
+{
+    sw_err_t error;
+
+    e->frame_io_started       = false;
+    e->frame_profile_started  = false;
+    e->frame_variable_started = false;
+
+    if (e->environment.pre_tick != NULL) {
+        error = e->environment.pre_tick(e->environment.pre_tick_ctx);
+        if (error != SW_OK) {
+            engine_fail(e, error);
+            return false;
+        }
+    }
+    error = engine_io_begin_tick(e->environment.io);
+    if (error == SW_OK) {
+        e->frame_io_started = true;
+    }
+    if (error == SW_OK) {
+        error = engine_profile_begin_tick(e->environment.profile);
+        if (error == SW_OK) {
+            e->frame_profile_started = (e->environment.profile != NULL);
+        }
+    }
+    if (error == SW_OK) {
+        error = engine_variable_begin_tick(e->environment.variable);
+        if (error == SW_OK) {
+            e->frame_variable_started = (e->environment.variable != NULL);
+        }
+    }
+    if (error != SW_OK) {
+        engine_fail(e, error);
+        return false;
+    }
+    return true;
+}
+
+static void end_frame(engine_t *e)
+{
+    if (e->frame_variable_started) {
+        engine_variable_end_tick(e->environment.variable);
+        e->frame_variable_started = false;
+    }
+    if (e->frame_profile_started) {
+        engine_profile_end_tick(e->environment.profile);
+        e->frame_profile_started = false;
+    }
+    if (e->frame_io_started) {
+        engine_io_end_tick(e->environment.io);
+        e->frame_io_started = false;
+    }
 }
 
 static sw_err_t build_runtime_tables(engine_t *e)
@@ -924,9 +1048,227 @@ static void free_runtime_tables(engine_t *e)
     e->ilk_order = NULL;
 }
 
+static bool copy_name_part(char *out, size_t out_size, const char *begin, const char *end)
+{
+    size_t length;
+
+    if ((out == NULL) || (out_size == 0U) || (begin == NULL) || (end == NULL) || (end <= begin)) {
+        return false;
+    }
+    length = (size_t)(end - begin);
+    if (length >= out_size) {
+        return false;
+    }
+    (void)memcpy(out, begin, length);
+    out[length] = '\0';
+    return true;
+}
+
+static bool bind_expression_name(void *ctx, const char *name, unsigned *out_token)
+{
+    engine_t *e = (engine_t *)ctx;
+
+    if ((e == NULL) || (name == NULL) || (out_token == NULL)) {
+        return false;
+    }
+    if (name[0] == '$') {
+        for (unsigned i = 0U; i < e->prog->param_count; ++i) {
+            if (strcmp(e->prog->params[i].name, name + 1) == 0) {
+                *out_token = make_token(ENGINE_TOKEN_PARAM, i);
+                return true;
+            }
+        }
+        return false;
+    }
+    if (strncmp(name, "axes.", 5U) == 0) {
+        const char *field = strrchr(name + 5, '.');
+        char        axis_name[ENGINE_NAME_MAX];
+        unsigned    axis_id;
+
+        if ((field == NULL) || !copy_name_part(axis_name, sizeof(axis_name), name + 5, field)
+            || (engine_io_find_axis(e->environment.io, axis_name, &axis_id) != SW_OK)) {
+            return false;
+        }
+        if (strcmp(field + 1, "position") == 0) {
+            *out_token = make_token(ENGINE_TOKEN_AXIS_POSITION, axis_id);
+        } else if (strcmp(field + 1, "speed") == 0) {
+            *out_token = make_token(ENGINE_TOKEN_AXIS_SPEED, axis_id);
+        } else if (strcmp(field + 1, "valid") == 0) {
+            *out_token = make_token(ENGINE_TOKEN_AXIS_VALID, axis_id);
+        } else {
+            return false;
+        }
+        return true;
+    }
+    if (strncmp(name, "markers.", 8U) == 0) {
+        const char *field = strrchr(name + 8, '.');
+        char        marker_name[ENGINE_NAME_MAX];
+
+        if ((field == NULL) || !copy_name_part(marker_name, sizeof(marker_name), name + 8, field)) {
+            return false;
+        }
+        for (unsigned i = 0U; i < e->prog->marker_count; ++i) {
+            if (strcmp(e->prog->markers[i].id, marker_name) != 0) {
+                continue;
+            }
+            if (strcmp(field + 1, "position") == 0) {
+                *out_token = make_token(ENGINE_TOKEN_MARKER_POSITION, i);
+            } else if (strcmp(field + 1, "valid") == 0) {
+                *out_token = make_token(ENGINE_TOKEN_MARKER_VALID, i);
+            } else {
+                return false;
+            }
+            return true;
+        }
+        return false;
+    }
+    if (strcmp(name, "phase.elapsed_ms") == 0) {
+        *out_token = make_token(ENGINE_TOKEN_PHASE_ELAPSED, 0U);
+        return true;
+    }
+    if (strcmp(name, "phase.direction") == 0) {
+        *out_token = make_token(ENGINE_TOKEN_PHASE_DIRECTION, 0U);
+        return true;
+    }
+    {
+        unsigned signal_id;
+
+        if (engine_io_find_signal(e->environment.io, name, &signal_id) == SW_OK) {
+            *out_token = make_token(ENGINE_TOKEN_SIGNAL, signal_id);
+            return true;
+        }
+    }
+    if (e->environment.variable != NULL) {
+        unsigned variable_id;
+
+        if (engine_variable_find(e->environment.variable, name, &variable_id) == SW_OK) {
+            *out_token = make_token(ENGINE_TOKEN_VARIABLE, variable_id);
+            return true;
+        }
+    }
+    return false;
+}
+
+static bool bind_expression(engine_t *e, engine_expr_t *expression)
+{
+    return (expression == NULL) || engine_expr_bind(expression, bind_expression_name, e);
+}
+
+static bool bind_intent(engine_t *e, engine_intent_t *intent)
+{
+    const engine_actuator_catalog_t *catalog = engine_actuator_catalog(e->environment.actuator);
+
+    if ((intent == NULL) || (catalog == NULL)) {
+        return false;
+    }
+    for (unsigned i = 0U; i < catalog->resource_count; ++i) {
+        if (strcmp(catalog->resources[i], intent->resource) == 0) {
+            intent->resource_id    = i;
+            intent->resource_bound = true;
+            return true;
+        }
+    }
+    return false;
+}
+
+static bool bind_actions(engine_t *e, engine_action_t *actions, unsigned count)
+{
+    for (unsigned i = 0U; i < count; ++i) {
+        if ((actions[i].type == ENGINE_ACT_INTENT) && !bind_intent(e, &actions[i].intent)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+static bool bind_program(engine_t *e)
+{
+    for (unsigned i = 0U; i < e->prog->marker_count; ++i) {
+        engine_marker_t *marker = &e->prog->markers[i];
+
+        if ((engine_io_find_axis(e->environment.io, marker->axis, &e->markers[i].axis_id) != SW_OK)
+            || ((marker->on_kind == ENGINE_MARKER_ON_SIGNAL)
+                && (engine_io_find_signal(e->environment.io, marker->signal, &e->markers[i].signal_id) != SW_OK))
+            || !bind_expression(e, marker->cond)) {
+            return false;
+        }
+    }
+    for (unsigned i = 0U; i < e->prog->interlock_count; ++i) {
+        engine_interlock_t *interlock = &e->prog->interlocks[i];
+
+        if (!bind_expression(e, interlock->condition) || !bind_expression(e, interlock->reset_condition)
+            || !bind_actions(e, interlock->actions, interlock->action_count)) {
+            return false;
+        }
+    }
+    for (unsigned i = 0U; i < e->prog->phase_count; ++i) {
+        engine_phase_t *phase = &e->prog->phases[i];
+
+        if (!bind_expression(e, phase->entry_guard) || !bind_expression(e, phase->exit_guard)
+            || !bind_actions(e, phase->on_enter, phase->on_enter_count)
+            || !bind_actions(e, phase->on_exit, phase->on_exit_count)) {
+            return false;
+        }
+        for (unsigned lane_index = 0U; lane_index < phase->lane_count; ++lane_index) {
+            engine_lane_t *lane = &phase->lanes[lane_index];
+
+            for (unsigned step_index = 0U; step_index < lane->step_count; ++step_index) {
+                engine_step_t *step = &lane->steps[step_index];
+
+                if (step->type == ENGINE_STEP_CONTROL) {
+                    if (!bind_expression(e, step->active_while) || !bind_intent(e, &step->intent)) {
+                        return false;
+                    }
+                    continue;
+                }
+                if (!bind_expression(e, step->trigger.cond) || !bind_expression(e, step->guard)
+                    || !bind_actions(e, step->actions, step->action_count)) {
+                    return false;
+                }
+                if (step->trigger.type == ENGINE_TRIG_SIGNAL) {
+                    if (engine_io_find_signal(e->environment.io, step->trigger.signal, &step->trigger.signal_id)
+                        != SW_OK) {
+                        return false;
+                    }
+                    step->trigger.signal_bound = true;
+                }
+                if ((step->done.type == ENGINE_DONE_SIGNAL)
+                    || ((step->done.type == ENGINE_DONE_MOTION) && (step->done.signal[0] != '\0'))) {
+                    if (engine_io_find_signal(e->environment.io, step->done.signal, &step->done.signal_id) != SW_OK) {
+                        return false;
+                    }
+                    step->done.signal_bound = true;
+                }
+                if (step->done.type == ENGINE_DONE_MOTION) {
+                    engine_intent_t resource = {0};
+
+                    (void)snprintf(resource.resource, sizeof(resource.resource), "%s", step->done.resource);
+                    if (!bind_intent(e, &resource)) {
+                        return false;
+                    }
+                    step->done.resource_id    = resource.resource_id;
+                    step->done.resource_bound = true;
+                }
+            }
+        }
+    }
+    return true;
+}
+
 sw_err_t engine_load_program(engine_t *e, engine_program_t *prog)
 {
     if ((e == NULL) || (prog == NULL)) {
+        return SW_ERR_PARAM;
+    }
+
+    if (engine_program_validate(prog,
+                                engine_io_catalog(e->environment.io),
+                                engine_actuator_catalog(e->environment.actuator),
+                                engine_variable_catalog(e->environment.variable),
+                                NULL,
+                                0U)
+        != SW_OK) {
+        engine_program_free(prog);
         return SW_ERR_PARAM;
     }
 
@@ -955,6 +1297,15 @@ sw_err_t engine_load_program(engine_t *e, engine_program_t *prog)
         e->state     = ENGINE_STATE_HALTED;
         return rc;
     }
+    if (!bind_program(e)) {
+        free_lanes(e);
+        free_runtime_tables(e);
+        engine_program_free(prog);
+        e->prog      = NULL;
+        e->owns_prog = false;
+        e->state     = ENGINE_STATE_HALTED;
+        return SW_ERR_PARAM;
+    }
     return SW_OK;
 }
 
@@ -967,6 +1318,11 @@ sw_err_t engine_start(engine_t *e)
         return SW_ERR_STATE;
     }
 
+    if (!begin_frame(e)) {
+        end_frame(e);
+        return e->last_error;
+    }
+
     /* 复位标记与联锁 */
     for (unsigned i = 0U; i < e->prog->marker_count; ++i) {
         const engine_marker_t *mk = &e->prog->markers[i];
@@ -975,7 +1331,7 @@ sw_err_t engine_start(engine_t *e)
         if (mk->on_kind == ENGINE_MARKER_ON_CONDITION) {
             e->markers[i].sig_prev = eval_bool(e, mk->cond, false) ? 1 : 0;
         } else {
-            e->markers[i].sig_prev = sig_read(mk->signal);
+            e->markers[i].sig_prev = sig_read(e, e->markers[i].signal_id);
         }
     }
     for (unsigned i = 0U; i < e->prog->interlock_count; ++i) {
@@ -984,20 +1340,31 @@ sw_err_t engine_start(engine_t *e)
 
     e->state = ENGINE_STATE_RUNNING;
     if (!enter_phase(e, 0)) {
-        e->state = ENGINE_STATE_HALTED;
-        return SW_ERR_NOMEM;
+        if (e->state != ENGINE_STATE_FAULT) {
+            e->state = ENGINE_STATE_HALTED;
+        }
+        end_frame(e);
+        return (e->state == ENGINE_STATE_FAULT) ? e->last_error : SW_ERR_NOMEM;
+    }
+    end_frame(e);
+    if (e->state == ENGINE_STATE_FAULT) {
+        return e->last_error;
     }
     return SW_OK;
 }
 
-void engine_tick(engine_t *e, uint32_t dt_ms)
+sw_err_t engine_tick(engine_t *e, uint32_t dt_ms)
 {
     if ((e == NULL) || (e->prog == NULL)) {
-        return;
+        return SW_ERR_PARAM;
     }
 
-    if (s_pre_tick_fn != NULL) {
-        s_pre_tick_fn(s_pre_tick_ctx);
+    if (e->state == ENGINE_STATE_FAULT) {
+        return e->last_error;
+    }
+    if (!begin_frame(e)) {
+        end_frame(e);
+        return e->last_error;
     }
 
     /* 标记锁存（即使非 RUNNING 也维持边沿快照，但仅 RUNNING 期间有意义） */
@@ -1011,10 +1378,13 @@ void engine_tick(engine_t *e, uint32_t dt_ms)
     }
 
     if (e->state != ENGINE_STATE_RUNNING) {
-        return;
+        end_frame(e);
+        return (e->state == ENGINE_STATE_FAULT) ? e->last_error : SW_OK;
     }
 
     phase_tick(e, dt_ms);
+    end_frame(e);
+    return (e->state == ENGINE_STATE_FAULT) ? e->last_error : SW_OK;
 }
 
 sw_err_t engine_recover(engine_t *e)
@@ -1100,4 +1470,9 @@ engine_direction_t engine_current_direction(const engine_t *e)
         return ENGINE_DIR_NONE;
     }
     return e->cur_def->direction;
+}
+
+sw_err_t engine_last_error(const engine_t *e)
+{
+    return (e != NULL) ? e->last_error : SW_ERR_PARAM;
 }

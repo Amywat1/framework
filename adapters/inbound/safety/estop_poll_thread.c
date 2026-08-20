@@ -29,14 +29,14 @@ static void handle_estop_edge(bool active)
          * 否则领域层不会进入急停态，故障会同时丢掉切断与状态收敛两条路径。 */
         sw_err_t cut_ret = safety_cutout_execute();
 
-        (void)event_publish(EVT_HW_ESTOP_ON, 0U);
+        (void)event_publish_required(EVT_HW_ESTOP_ON, 0U);
         if (cut_ret != SW_OK) {
             LOG_ERROR("estop_poll: HW ESTOP ON，但切断未确认完成 ret=%d", (int)cut_ret);
         } else {
             LOG_WARN("estop_poll: HW ESTOP ON");
         }
     } else {
-        (void)event_publish(EVT_HW_ESTOP_OFF, 0U);
+        (void)event_publish_required(EVT_HW_ESTOP_OFF, 0U);
         LOG_INFO("estop_poll: HW ESTOP OFF");
     }
 }

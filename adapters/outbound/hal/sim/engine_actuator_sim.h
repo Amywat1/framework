@@ -10,8 +10,11 @@
 extern "C" {
 #endif
 
-void engine_actuator_sim_register(void);
-void engine_actuator_sim_reset(void);
+#include "domain/ports/outbound/program_engine/engine_environment_port.h"
+
+/** @brief 返回仿真执行机构独立实例；当前仿真 adapter 提供一个进程级测试实例。 */
+engine_actuator_t *engine_actuator_sim_instance(void);
+void               engine_actuator_sim_reset(void);
 
 /** @brief 查询资源是否处于非 stop 状态（run/move/enable 后为真） */
 int engine_actuator_sim_active(const char *resource);

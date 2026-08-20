@@ -7,8 +7,6 @@
 
 #include "domain/program_engine/engine/engine_expr.h"
 
-#include "domain/program_engine/engine/engine_profile.h"
-
 #include <ctype.h>
 #include <math.h>
 #include <stdio.h>
@@ -73,6 +71,8 @@ typedef struct expr_node {
     tok_type_t        op;                  /* NODE_UNARY / NODE_BINARY 使用 */
     double            num;                 /* NODE_NUM */
     char              name[EXPR_NAME_MAX]; /* NODE_VAR */
+    unsigned          token;               /* NODE_VAR 加载期绑定结果 */
+    bool              bound;               /* token 是否有效 */
     unsigned          arg_count;           /* NODE_FUNC */
     struct expr_node *args[EXPR_FUNC_ARG_MAX];
     struct expr_node *a;                   /* 左/条件/操作数 */
@@ -797,9 +797,11 @@ static expr_node_t *node_clone(const expr_node_t *n)
         return NULL;
     }
 
-    c->kind = n->kind;
-    c->op   = n->op;
-    c->num  = n->num;
+    c->kind  = n->kind;
+    c->op    = n->op;
+    c->num   = n->num;
+    c->token = n->token;
+    c->bound = n->bound;
     (void)strncpy(c->name, n->name, EXPR_NAME_MAX - 1U);
     c->name[EXPR_NAME_MAX - 1U] = '\0';
     c->arg_count                = n->arg_count;
@@ -896,6 +898,35 @@ void engine_expr_foreach_var(const engine_expr_t *expr, engine_expr_var_fn fn, v
     foreach_node_vars(expr->root, fn, ctx, seen, &seen_count);
 }
 
+static bool bind_node(expr_node_t *node, engine_expr_bind_fn fn, void *ctx)
+{
+    if (node == NULL) {
+        return true;
+    }
+    if (node->kind == NODE_VAR) {
+        unsigned token;
+
+        if (!fn(ctx, node->name, &token)) {
+            node->bound = false;
+            return false;
+        }
+        node->token = token;
+        node->bound = true;
+        return true;
+    }
+    for (unsigned i = 0U; i < node->arg_count; ++i) {
+        if (!bind_node(node->args[i], fn, ctx)) {
+            return false;
+        }
+    }
+    return bind_node(node->a, fn, ctx) && bind_node(node->b, fn, ctx) && bind_node(node->c, fn, ctx);
+}
+
+bool engine_expr_bind(engine_expr_t *expr, engine_expr_bind_fn fn, void *ctx)
+{
+    return (expr != NULL) && (expr->root != NULL) && (fn != NULL) && bind_node(expr->root, fn, ctx);
+}
+
 /* -------------------------------------------------------------------------
  * 求值
  * ------------------------------------------------------------------------- */
@@ -915,7 +946,18 @@ static double eval_node(const expr_node_t *n, const engine_expr_env_t *env, bool
 
     case NODE_VAR: {
         double v = 0.0;
-        if ((env == NULL) || (env->resolve == NULL) || (!env->resolve(env->ctx, n->name, &v))) {
+        if (env == NULL) {
+            *ok = false;
+            return 0.0;
+        }
+        if (n->bound && (env->resolve_bound != NULL)) {
+            if (!env->resolve_bound(env->ctx, n->token, &v)) {
+                *ok = false;
+                return 0.0;
+            }
+            return v;
+        }
+        if ((env->resolve == NULL) || !env->resolve(env->ctx, n->name, &v)) {
             *ok = false;
             return 0.0;
         }
@@ -975,7 +1017,18 @@ static double eval_node(const expr_node_t *n, const engine_expr_env_t *env, bool
             if (!(*ok)) {
                 return 0.0;
             }
-            return engine_profile_height_at(pos, def);
+            if ((env == NULL) || (env->profile_height_at == NULL)) {
+                return def;
+            }
+            {
+                double out = def;
+
+                if (!env->profile_height_at(env->ctx, pos, def, &out)) {
+                    *ok = false;
+                    return 0.0;
+                }
+                return out;
+            }
         }
         if (strcmp(n->name, "profile.in_zone") == 0) {
             double pos;
@@ -989,7 +1042,18 @@ static double eval_node(const expr_node_t *n, const engine_expr_env_t *env, bool
             if (!(*ok)) {
                 return 0.0;
             }
-            return engine_profile_in_zone(n->args[0]->name, pos, def != 0.0) ? 1.0 : 0.0;
+            if ((env == NULL) || (env->profile_in_zone == NULL)) {
+                return (def != 0.0) ? 1.0 : 0.0;
+            }
+            {
+                bool out = (def != 0.0);
+
+                if (!env->profile_in_zone(env->ctx, n->args[0]->name, pos, def != 0.0, &out)) {
+                    *ok = false;
+                    return 0.0;
+                }
+                return out ? 1.0 : 0.0;
+            }
         }
 
         *ok = false;
