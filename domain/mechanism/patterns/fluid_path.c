@@ -5,7 +5,7 @@
  * @date    2026-04-10
  */
 
-#include "domain/device_control/patterns/fluid_path.h"
+#include "domain/mechanism/patterns/fluid_path.h"
 
 #include "common/log.h"
 #include "common/time_util.h"

@@ -1,12 +1,12 @@
 /**
- * @file    test_device_control_patterns.c
- * @brief   device_control patterns 单元测试
+ * @file    test_mechanism_patterns.c
+ * @brief   mechanism patterns 单元测试
  */
 
 #include "common/sw_error.h"
 #include "common/time_util.h"
-#include "domain/device_control/patterns/fluid_path.h"
-#include "domain/device_control/patterns/motor_axis.h"
+#include "domain/mechanism/patterns/fluid_path.h"
+#include "domain/mechanism/patterns/motor_axis.h"
 #include "domain/ports/outbound/motor/hal_motor_exec_port.h"
 #include "runtime/event_bus/event_bus.h"
 #include "wdf_test_spec.h"

@@ -2,7 +2,7 @@
  * @file    hal_motor_exec_port.h
  * @brief   电机执行器出站端口。
  *
- * domain/device_control/patterns 与 projects 侧 domain/mechanism 下的机构模块只依赖
+ * domain/mechanism/patterns 与 projects 侧 domain/mechanism 下的机构模块只依赖
  * 本端口的不透明句柄与类型，不感知执行器实现细节。
  * 真实执行器由适配器内部持有，项目 bindings 层只保存
  * hal_motor_exec_t 指针并注入各机构模块；默认实现位于

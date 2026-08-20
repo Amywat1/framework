@@ -154,7 +154,7 @@ _wdf_add_interface_lib(wdf_runtime
 # wdf_domain — 领域核心规则
 #
 # 只含命令裁决、报警与遥测读模型这类每个设备项目都要用的部分，不含设备控制
-# 模式和方案引擎——那两者分别拆为 wdf_device_control 与 wdf_program_engine，
+# 模式和方案引擎——那两者分别拆为 wdf_mechanism 与 wdf_program_engine，
 # 因为它们各自要求项目提供 motor provider / 方案资产，最小接入（例如框架
 # 自带 demo）并不需要，捆绑进核心会造成链接期缺符号。
 # ---------------------------------------------------------------------------
@@ -169,16 +169,16 @@ _wdf_add_interface_lib(wdf_domain
 )
 
 # ---------------------------------------------------------------------------
-# wdf_device_control — 设备控制通用模式（运动、旋转、互锁、流体路径）
+# wdf_mechanism — 机构控制通用模式（运动、旋转、互锁、流体路径）
 #
 # motor_axis 会调用 hal_motor_exec_port 声明的函数，这些符号由
 # wdf_hal_components 中的电机执行器实现提供，项目须一并链接。
 # ---------------------------------------------------------------------------
-_wdf_add_interface_lib(wdf_device_control
+_wdf_add_interface_lib(wdf_mechanism
     SOURCES
-        domain/device_control/model/actuator_events.c
-        domain/device_control/patterns/motor_axis.c
-        domain/device_control/patterns/fluid_path.c
+        domain/mechanism/model/actuator_events.c
+        domain/mechanism/patterns/motor_axis.c
+        domain/mechanism/patterns/fluid_path.c
     DEPENDS
         wdf_common
         wdf_ports

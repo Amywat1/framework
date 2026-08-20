@@ -509,7 +509,7 @@ NON_RT_FILES=(
     "domain/op_mode/operational_mode.c"                   # 模式串行锁；急停 cutout 不取此锁
     "domain/safety/alarm_registry/alarm_registry.c"        # 由报警采集线程驱动
     "domain/telemetry/device_snapshot.c"                   # 投影读写
-    "domain/device_control/patterns/fluid_path.c"          # emergency_off 是无锁原子写
+    "domain/mechanism/patterns/fluid_path.c"          # emergency_off 是无锁原子写
     "adapters/outbound/storage/json/json_deploy_store.c"   # 启动期加载
     "adapters/outbound/storage/json/json_param_store.c"    # 参数存取
     "adapters/outbound/hal/components/adc_gate/hal_adc_gate.c"       # 模拟量采样

@@ -5,7 +5,7 @@
  * @date    2026-07-10
  */
 
-#include "domain/device_control/model/actuator_events.h"
+#include "domain/mechanism/model/actuator_events.h"
 
 #include "common/event_types.h"
 #include "runtime/event_bus/event_bus.h"

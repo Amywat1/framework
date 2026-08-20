@@ -65,7 +65,7 @@ typedef uint16_t event_type_t;
 #define EVT_HW_IO_ONLINE  EVT_MAKE(EVT_CAT_HW, EVT_HW_ID_IO_ONLINE)
 
 /* -------------------------------------------------------------------------
- * COMP 类（framework/domain/device_control 发布）
+ * COMP 类（framework/domain/mechanism 发布）
  * 电机单次动作完成（MOTOR_DONE）和刷子启动（BRUSH_STARTED）属于域内完成通知，
  * 改由 motor_set_done_cb 回调传递，不经过事件总线。
  * ------------------------------------------------------------------------- */

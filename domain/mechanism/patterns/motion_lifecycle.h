@@ -5,14 +5,14 @@
  * @date    2026-07-11
  */
 
-#ifndef DOMAIN_DEVICE_CONTROL_PATTERNS_MOTION_LIFECYCLE_H
-#define DOMAIN_DEVICE_CONTROL_PATTERNS_MOTION_LIFECYCLE_H
+#ifndef DOMAIN_MECHANISM_PATTERNS_MOTION_LIFECYCLE_H
+#define DOMAIN_MECHANISM_PATTERNS_MOTION_LIFECYCLE_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#include "domain/device_control/model/actuator_events.h"
+#include "domain/mechanism/model/actuator_events.h"
 #include "domain/ports/outbound/motor/hal_motor_exec_port.h"
 
 #include <stdbool.h>
@@ -81,4 +81,4 @@ static inline void motion_lifecycle_report_end(const motion_lifecycle_opts_t *op
 }
 #endif
 
-#endif /* DOMAIN_DEVICE_CONTROL_PATTERNS_MOTION_LIFECYCLE_H */
+#endif /* DOMAIN_MECHANISM_PATTERNS_MOTION_LIFECYCLE_H */

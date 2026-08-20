@@ -8,8 +8,8 @@
  *          通道与路径均为无名字索引，机型命名由 projects 配置层定义。
  */
 
-#ifndef DOMAIN_DEVICE_CONTROL_PATTERNS_FLUID_PATH_H
-#define DOMAIN_DEVICE_CONTROL_PATTERNS_FLUID_PATH_H
+#ifndef DOMAIN_MECHANISM_PATTERNS_FLUID_PATH_H
+#define DOMAIN_MECHANISM_PATTERNS_FLUID_PATH_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -104,4 +104,4 @@ bool fluid_path_is_settled(void);
 }
 #endif
 
-#endif /* DOMAIN_DEVICE_CONTROL_PATTERNS_FLUID_PATH_H */
+#endif /* DOMAIN_MECHANISM_PATTERNS_FLUID_PATH_H */

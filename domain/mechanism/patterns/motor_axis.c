@@ -5,7 +5,7 @@
  * @date    2026-07-17
  */
 
-#include "domain/device_control/patterns/motor_axis.h"
+#include "domain/mechanism/patterns/motor_axis.h"
 
 #include <stddef.h>
 #include <string.h>

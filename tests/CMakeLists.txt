@@ -383,7 +383,7 @@ add_unit_test(test_observation_event_bridge
 add_unit_test(test_alarm_reeval_bridge
     ${CMAKE_CURRENT_SOURCE_DIR}/application/test_alarm_reeval_bridge.c
     ${WDF_ROOT}/application/bridges/alarm_bridge.c
-    ${WDF_ROOT}/domain/device_control/model/actuator_events.c
+    ${WDF_ROOT}/domain/mechanism/model/actuator_events.c
     ${WDF_ROOT}/domain/safety/alarm_registry/alarm_registry.c
     ${WDF_ROOT}/runtime/ports/port_registry_infra.c
     ${WDF_ROOT}/runtime/event_bus/event_bus.c
@@ -457,17 +457,17 @@ add_unit_test(test_operational_mode
     ${WDF_ROOT}/common/sw_mutex.c
 )
 
-add_unit_test(test_device_control_patterns
-    ${CMAKE_CURRENT_SOURCE_DIR}/domain/test_device_control_patterns.c
-    ${WDF_ROOT}/domain/device_control/model/actuator_events.c
-    ${WDF_ROOT}/domain/device_control/patterns/motor_axis.c
-    ${WDF_ROOT}/domain/device_control/patterns/fluid_path.c
+add_unit_test(test_mechanism_patterns
+    ${CMAKE_CURRENT_SOURCE_DIR}/domain/test_mechanism_patterns.c
+    ${WDF_ROOT}/domain/mechanism/model/actuator_events.c
+    ${WDF_ROOT}/domain/mechanism/patterns/motor_axis.c
+    ${WDF_ROOT}/domain/mechanism/patterns/fluid_path.c
     ${WDF_ROOT}/runtime/event_bus/event_bus.c
     ${WDF_ROOT}/common/log.c
     ${WDF_ROOT}/common/sw_mutex.c
     ${WDF_ROOT}/common/time_util.c
 )
-target_compile_definitions(test_device_control_patterns PRIVATE FLUID_PATH_UNIT_TEST)
+target_compile_definitions(test_mechanism_patterns PRIVATE FLUID_PATH_UNIT_TEST)
 
 add_unit_test(test_program_engine
     ${CMAKE_CURRENT_SOURCE_DIR}/domain/test_program_engine.c

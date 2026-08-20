@@ -8,8 +8,8 @@
  *          由项目 wiring 层桥接到 alarm_registry_reevaluate_group()。
  */
 
-#ifndef DOMAIN_DEVICE_CONTROL_MODEL_ACTUATOR_EVENTS_H
-#define DOMAIN_DEVICE_CONTROL_MODEL_ACTUATOR_EVENTS_H
+#ifndef DOMAIN_MECHANISM_MODEL_ACTUATOR_EVENTS_H
+#define DOMAIN_MECHANISM_MODEL_ACTUATOR_EVENTS_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -59,4 +59,4 @@ static inline wash_checkpoint_id_t wash_checkpoint_reached_id(const event_t *evt
 }
 #endif
 
-#endif /* DOMAIN_DEVICE_CONTROL_MODEL_ACTUATOR_EVENTS_H */
+#endif /* DOMAIN_MECHANISM_MODEL_ACTUATOR_EVENTS_H */

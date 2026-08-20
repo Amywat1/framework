@@ -18,15 +18,15 @@
  * @note    位置/方向/故障码等实时查询仍直接使用 hal_motor_*；结局详情用 last_result。
  */
 
-#ifndef DOMAIN_DEVICE_CONTROL_PATTERNS_MOTOR_AXIS_H
-#define DOMAIN_DEVICE_CONTROL_PATTERNS_MOTOR_AXIS_H
+#ifndef DOMAIN_MECHANISM_PATTERNS_MOTOR_AXIS_H
+#define DOMAIN_MECHANISM_PATTERNS_MOTOR_AXIS_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 #include "common/sw_error.h"
-#include "domain/device_control/patterns/motion_lifecycle.h"
+#include "domain/mechanism/patterns/motion_lifecycle.h"
 #include "domain/ports/outbound/motor/hal_motor_exec_port.h"
 
 #include <stdbool.h>
@@ -123,4 +123,4 @@ bool motor_axis_is_settled(const motor_axis_t *self);
 }
 #endif
 
-#endif /* DOMAIN_DEVICE_CONTROL_PATTERNS_MOTOR_AXIS_H */
+#endif /* DOMAIN_MECHANISM_PATTERNS_MOTOR_AXIS_H */
