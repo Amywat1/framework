@@ -29,6 +29,8 @@
 #   R18 阻塞等待点      必须分类且等应答有界
 #   R19 Snack Modbus    驱动布局只在 provider 私有头中可见
 #   R20 RT 可达文件      框架外（vendor）阻塞调用必须登记最坏阻塞时长
+#   R21 快照写接口      仅投影与定义处可写
+#   R22 错误分类判定    必须走 sw_err_is_* helper
 
 set -euo pipefail
 
@@ -873,6 +875,205 @@ else
     echo "        并在 contract/行为契约.md 的 SAFE-13 急停延迟预算中说明其影响。"
     echo "        判据: 该调用是否会等硬件应答；若会，它就计入急停切断的最坏延迟。"
     echo "        更优做法是把 vendor 调用移出锁区间（见 io_exp_driver.c 的写法）。"
+    TOTAL_VIOLATIONS=$((TOTAL_VIOLATIONS + 1))
+fi
+
+# -----------------------------------------------------------------------------
+# R21: 快照写接口只允许投影使用
+#
+# 对应行为契约 PROJ-03。写入口集中在 device_snapshot_internal.h。
+# 生产路径只允许：
+#   domain/telemetry/device_snapshot.c          — 定义
+#   application/telemetry_projection.c          — 唯一生产写侧
+# tests/ 可 include 该头并调用 device_snapshot_reset_for_test()。
+# 除 include 外同时扫描写函数调用，防止不 include 而 extern 声明后直接写。
+# -----------------------------------------------------------------------------
+
+SNAPSHOT_WRITE_FNS=(
+    device_snapshot_update_op
+    device_snapshot_update_safety
+    device_snapshot_set_wash_mode
+    device_snapshot_set_cloud_connected
+    device_snapshot_reset_for_test
+)
+
+snapshot_violations=""
+
+while IFS= read -r f; do
+    [ -z "$f" ] && continue
+    rel="${f#"${FW_ROOT}"/}"
+    case "$rel" in
+        tests/*|third_party/*) continue ;;
+        domain/telemetry/device_snapshot.c) continue ;;
+        application/telemetry_projection.c) continue ;;
+        domain/telemetry/device_snapshot_internal.h) continue ;;
+    esac
+    if grep -qE '#include[[:space:]]*[<"]([^">]*/)?device_snapshot_internal\.h[>"]' "$f" 2>/dev/null; then
+        snapshot_violations+="  ${rel}: include 了快照写接口头（生产路径仅投影可写）"$'\n'
+    fi
+done <<EOF
+$(find "${FW_ROOT}" \( -name '*.c' -o -name '*.h' \) 2>/dev/null \
+    | grep -v "${FW_ROOT}/third_party/" \
+    | grep -v "${FW_ROOT}/tests/" \
+    | grep -v "${FW_ROOT}/build" \
+    | grep -v "${FW_ROOT}/.git/" \
+    | sort)
+EOF
+
+for fn in "${SNAPSHOT_WRITE_FNS[@]}"; do
+    while IFS= read -r hit; do
+        [ -z "$hit" ] && continue
+        f="${hit%%:*}"
+        rel="${f#"${FW_ROOT}"/}"
+        case "$rel" in
+            tests/*) continue ;;
+            domain/telemetry/device_snapshot.c) continue ;;
+            domain/telemetry/device_snapshot_internal.h) continue ;;
+            application/telemetry_projection.c)
+                [ "$fn" = "device_snapshot_reset_for_test" ] || continue
+                ;;
+        esac
+        snapshot_violations+="  ${rel}: 生产路径调用了 ${fn}"$'\n'
+    done <<EOF
+$(grep -rnE "(^|[^_[:alnum:]])${fn}[[:space:]]*\(" --include='*.c' --include='*.h' "${FW_ROOT}" 2>/dev/null \
+    | grep -v "${FW_ROOT}/third_party/" \
+    | grep -v "${FW_ROOT}/tests/" \
+    | grep -v "${FW_ROOT}/build" \
+    | grep -vE '^[^:]+:[0-9]+:[[:space:]]*(//|/\*|\*)' || true)
+EOF
+done
+
+TOTAL_RULES=$((TOTAL_RULES + 1))
+if [ -z "$snapshot_violations" ]; then
+    echo "[PASS] R21: 快照写接口仅投影与定义处使用"
+else
+    echo ""
+    echo "[FAIL] R21: 快照写接口越过投影边界"
+    printf '%s' "$snapshot_violations"
+    echo "  修正: 生产路径只允许 application/telemetry_projection.c 调用写函数；"
+    echo "        定义在 domain/telemetry/device_snapshot.c。测试可调用"
+    echo "        device_snapshot_reset_for_test()，生产路径不行。"
+    echo "        不要 include device_snapshot_internal.h 后在领域模块或命令路径直接写。"
+    TOTAL_VIOLATIONS=$((TOTAL_VIOLATIONS + 1))
+fi
+
+# -----------------------------------------------------------------------------
+# R22: 错误分类判定必须走 helper，不得手写同一分类内的码组合
+#
+# 对应行为契约 ERRM-02。三类 helper 与错误码集合：
+#   sw_err_is_transient        BUSY / TIMEOUT / COMM
+#   sw_err_is_caller_fault     PARAM / STATE / NOT_FOUND
+#   sw_err_is_missing_binding  NOT_INIT
+# 只拦「同一集合里 ≥2 个码被 || / && 连起来」——那就是在调用点重新枚举分类。
+# 单码比较、return SW_ERR_*、!= SW_OK 都合法：错误码参与状态机时，helper 的
+# 「该不该重试」不能替代「具体哪种故障」。
+# common/sw_error.h 的 helper 定义本身与 tests/ 不在扫描范围。
+# -----------------------------------------------------------------------------
+
+r22_violations="$(python3 - "${FW_ROOT}" <<'PY'
+import os
+import re
+import sys
+
+root = sys.argv[1]
+sets = (
+    frozenset(('SW_ERR_BUSY', 'SW_ERR_TIMEOUT', 'SW_ERR_COMM')),
+    frozenset(('SW_ERR_PARAM', 'SW_ERR_STATE', 'SW_ERR_NOT_FOUND')),
+    frozenset(('SW_ERR_NOT_INIT',)),
+)
+set_of = {code: group for group in sets for code in group}
+code_re = re.compile(r'SW_ERR_(?:BUSY|TIMEOUT|COMM|PARAM|STATE|NOT_FOUND|NOT_INIT)')
+token_re = re.compile(
+    r'("(?:\\.|[^"\\])*")|(\'(?:\\.|[^\'\\])*\')|(//.*?$)|(/\*.*?\*/)',
+    re.M | re.S,
+)
+layers = (
+    'common', 'domain', 'application', 'adapters', 'runtime',
+    'services', 'observability', 'demo',
+)
+skip_dirs = {'.git', 'third_party', 'tests', 'build', 'build-check', 'build-host'}
+exclude_files = {'common/sw_error.h'}
+
+
+def neutralize(text):
+    def repl(match):
+        raw = match.group(0)
+        if match.group(1) or match.group(2):
+            return ' ' * len(raw)
+        return ''.join('\n' if ch == '\n' else ' ' for ch in raw)
+    return token_re.sub(repl, text)
+
+
+def relpath(path):
+    return os.path.relpath(path, root).replace('\\', '/')
+
+
+violations = []
+for layer in layers:
+    base = os.path.join(root, layer)
+    if not os.path.isdir(base):
+        continue
+    for dirpath, dirnames, filenames in os.walk(base):
+        dirnames[:] = [name for name in dirnames
+                       if name not in skip_dirs and not name.startswith('build')]
+        for filename in filenames:
+            if not filename.endswith(('.c', '.h')):
+                continue
+            path = os.path.join(dirpath, filename)
+            rel = relpath(path)
+            if rel in exclude_files:
+                continue
+            with open(path, encoding='utf-8', errors='replace') as fh:
+                text = neutralize(fh.read())
+            line = 1
+            stmt_start = 0
+            stmt_line = 1
+            length = len(text)
+            idx = 0
+            while idx <= length:
+                ch = text[idx] if idx < length else ';'
+                if idx < length and ch == '\n':
+                    line += 1
+                if idx == length or ch in '{};':
+                    frag = text[stmt_start:idx]
+                    if ('||' in frag or '&&' in frag):
+                        hits = [(m.group(), m.start()) for m in code_re.finditer(frag)]
+                        flagged = False
+                        for left_i, (left, left_pos) in enumerate(hits):
+                            group = set_of.get(left)
+                            if not group or len(group) < 2:
+                                continue
+                            for right, right_pos in hits[left_i + 1:]:
+                                if right not in group or right == left:
+                                    continue
+                                between = frag[left_pos + len(left):right_pos]
+                                if '||' in between or '&&' in between:
+                                    violations.append(
+                                        f'  {rel}:{stmt_line}: 手工枚举 {left} 与 {right}'
+                                        f'（应使用对应 sw_err_is_* helper）\n'
+                                    )
+                                    flagged = True
+                                    break
+                            if flagged:
+                                break
+                    stmt_start = idx + 1
+                    stmt_line = line
+                idx += 1
+
+sys.stdout.write(''.join(violations))
+PY
+)"
+
+TOTAL_RULES=$((TOTAL_RULES + 1))
+if [ -z "$r22_violations" ]; then
+    echo "[PASS] R22: 错误分类判定均走 helper，未手写同一分类码组合"
+else
+    echo ""
+    echo "[FAIL] R22: 调用点重新枚举了错误分类"
+    printf '%s\n' "$r22_violations"
+    echo "  修正: 瞬时可重试用 sw_err_is_transient，调用方缺陷用 sw_err_is_caller_fault，"
+    echo "        接入缺失用 sw_err_is_missing_binding。"
+    echo "        单码比较、return SW_ERR_*、!= SW_OK 仍合法。"
     TOTAL_VIOLATIONS=$((TOTAL_VIOLATIONS + 1))
 fi
 

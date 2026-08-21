@@ -21,8 +21,8 @@
 #         框架要求 只能是 L2（被测对象是项目适配器，端口是唯一契约边界）
 #         项目自负 不得有 L0~L4（框架不判），可为 "—" 或 L5
 #   C9  统计表与实际条目数一致
-#   C10 L0 结构条目与边界规则对账：每条 ARCH L0 条目须声明由哪条规则保证，
-#       且条目文字里的每个禁止路径都必须出现在该规则的实参中
+#   C10 L0 结构条目与边界规则对账：每条 ARCH L0 与 L0 结构条目须声明由哪条
+#       规则保证，且条目文字里的每个禁止路径都必须出现在该规则的实参中
 #
 # 为何需要本脚本：手工维护的统计与覆盖表必然失真。本仓 tests/reports/ 的
 # 手写覆盖表已发生过（声称 event_bus 8 例、实际 13 例）。契约是测试方案的
@@ -204,17 +204,18 @@ declared_rules = set(re.findall(r'\[(?:PASS|FAIL)\] (R\d+[a-z]?)', boundary_src)
 declared_rules |= set(re.findall(r'"(R\d+[a-z]?):', boundary_src))
 declared_rules |= set(rule_args)
 
-# 解析映射表: | `ARCH-01` | R1 |
-# 编号加反引号是为了与条目行区分——两者都是 | ARCH-NN | 开头的表格行。
+# 解析映射表: | `ARCH-01` | R1 |  或 | `PROJ-03` | R21 |
+# 编号加反引号是为了与条目行区分——两者都是 | PREFIX-NN | 开头的表格行。
 mapping = {}
 for line in lines:
-    m = re.match(r'^\|\s*`(ARCH-\d{2})`\s*\|\s*(R[R0-9a-z、\s]*?)\s*\|$', line)
+    m = re.match(r'^\|\s*`([A-Z]+-\d{2})`\s*\|\s*(R[R0-9a-z、\s]*?)\s*\|$', line)
     if m:
         mapping[m.group(1)] = [r.strip() for r in
                                re.split(r'[、,]', m.group(2)) if r.strip()]
 
+# ARCH L0（含并发类 ARCH-16）以及其余 L0 结构条目都必须声明保证规则。
 l0_struct = [e for e in entries
-             if e[1].startswith('ARCH-') and e[4] == 'L0']
+             if e[4] == 'L0' and (e[1].startswith('ARCH-') or e[2] == '结构')]
 
 for idx, ident, cat, owner, level, status, desc in l0_struct:
     if ident not in mapping:
