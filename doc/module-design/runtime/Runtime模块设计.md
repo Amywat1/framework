@@ -319,7 +319,7 @@ periodic_task_thread_fn(slot)
 
 ### 7.1 急停轮询适配器（可选）
 
-急停采集方式由项目决定，框架只提供一种可选实现：`adapters/inbound/safety/estop_poll_thread.c`。它属入站适配器而非运行时核心，bootstrap 不引用它；需要轮询采集的项目在 `project_init_adapters()` 中调用 `estop_poll_thread_init()` 登记线程。已有自采集通路的项目不接入。
+急停采集方式由项目决定，框架只提供一种可选实现：`adapters/inbound/safety/estop_poll_thread.c`。它属入站适配器而非运行时核心，bootstrap 不引用它；需要轮询采集的项目在 `project_init_adapters()` 中调用 `estop_poll_thread_init()` 登记线程，并由该采集器独占急停热路径。项目若另有通路发布同样事件，则不要再接入。
 
 调度配置来自 `thread_config.h`：
 
@@ -334,10 +334,11 @@ periodic_task_thread_fn(slot)
 
 ```text
 loop:
-    active = hw_estop_port_is_active()
-    首次采样：记录初值；若已 active 按上升沿处理
-    上升沿：safety_cutout_execute() → event_publish(EVT_HW_ESTOP_ON)
-    下降沿：event_publish(EVT_HW_ESTOP_OFF)
+    raw = hw_estop_port_is_active()
+    按确认时间窗滤波（按下/松开分开，默认可由项目配置；0/0 为立即确认）
+    首次确认若为无效，不发 OFF
+    确认按下：safety_cutout_execute() → event_publish(EVT_HW_ESTOP_ON)
+    确认松开：event_publish(EVT_HW_ESTOP_OFF)
     usleep(THD_SAFETY_THREAD_POLL_US)
 ```
 

@@ -10,9 +10,11 @@
 #include "domain/op_mode/device_command.h"
 #include "domain/op_mode/op_mode_types.h"
 #include "domain/op_mode/operational_mode.h"
+#include "domain/ports/outbound/safety/safety_port.h"
 #include "domain/safety/alarm_registry/alarm_registry.h"
 #include "domain/safety/model/alarm_types.h"
 #include "runtime/event_bus/event_bus.h"
+#include "runtime/ports/port_registry.h"
 #include "wdf_test_spec.h"
 
 
@@ -39,6 +41,32 @@ void setUp(void)
 void tearDown(void)
 {
 }
+
+static sw_err_t fake_cutout(void)
+{
+    return SW_OK;
+}
+
+static bool fake_estop_is_active(void)
+{
+    return false;
+}
+
+static bool fake_alarm_is_estop(uint32_t alarm_code)
+{
+    return alarm_code == 201709U;
+}
+
+static void fake_deferred_stop(void)
+{
+}
+
+static const safety_ops_t s_fake_safety_ops = {
+    .cutout          = fake_cutout,
+    .estop_is_active = fake_estop_is_active,
+    .alarm_is_estop  = fake_alarm_is_estop,
+    .deferred_stop   = fake_deferred_stop,
+};
 
 /* 急停触发 → STOPPED */
 static void test_hw_estop_on_enters_stopped(void)
@@ -203,6 +231,26 @@ static void test_blocking_alarm_event_keeps_stopped(void)
     TEST_ASSERT_EQUAL_INT(OP_MODE_STOPPED, op_mode_get_current());
 }
 
+/* 急停报警不再置 estop_active，只认 EVT_HW_ESTOP_* */
+static void test_estop_alarm_does_not_set_estop_flag(void)
+{
+    time_util_init();
+    port_registry_safety_reset();
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, operational_mode_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, safety_port_register(&s_fake_safety_ops));
+    TEST_ASSERT_EQUAL_INT(SW_OK, op_mode_bridge_init());
+
+    publish_and_wait(EVT_ALARM_TRIGGERED, 201709U);
+    TEST_ASSERT_FALSE(op_mode_is_estop_active());
+    TEST_ASSERT_EQUAL_INT(OP_MODE_STOPPED, op_mode_get_current());
+
+    publish_and_wait(EVT_HW_ESTOP_ON, 0U);
+    TEST_ASSERT_TRUE(op_mode_is_estop_active());
+    TEST_ASSERT_EQUAL_INT(OP_MODE_STOPPED, op_mode_get_current());
+    port_registry_safety_reset();
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -217,6 +265,7 @@ int main(void)
     WDF_RUN_TEST(test_recovery_completed_success_enters_idle, "", "验证恢复完成成功进入空闲模式");
     WDF_RUN_TEST(test_alarm_home_done_enters_stopped, "", "验证中止归位完成进入停止模式");
     WDF_RUN_TEST(test_blocking_alarm_event_keeps_stopped, "", "验证阻断报警在停止模式保持停止");
+    WDF_RUN_TEST(test_estop_alarm_does_not_set_estop_flag, "", "验证急停报警不再置急停旗标");
 
     return UNITY_END();
 }

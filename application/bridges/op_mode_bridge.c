@@ -54,19 +54,12 @@ static void on_safety_lockout(const event_t *evt)
 
 static void on_alarm_triggered(const event_t *evt)
 {
-    /* 急停类报警与 HW_ESTOP 事件是两种可选接入方式，均汇入 op_mode_on_estop（幂等）*/
+    /* 急停旗标只认 EVT_HW_ESTOP_*，避免报警采样绕过采集器确认滤波。 */
     if (op_mode_alarm_port_is_estop(evt->param)) {
-        op_mode_on_estop(true);
-    } else if (alarm_registry_has_blocking_active()) {
-        op_mode_on_blocking_alarm();
+        return;
     }
-}
-
-static void on_alarm_cleared(const event_t *evt)
-{
-    /* 硬件急停仍激活时，不以报警清除覆盖急停标志——HW 边沿为权威源 */
-    if (op_mode_alarm_port_is_estop(evt->param) && !hw_estop_port_is_active()) {
-        op_mode_on_estop(false);
+    if (alarm_registry_has_blocking_active()) {
+        op_mode_on_blocking_alarm();
     }
 }
 
@@ -108,7 +101,6 @@ sw_err_t op_mode_bridge_init(void)
         {EVT_WASH_CUSTOMER_GONE,           on_wash_customer_gone  },
         {EVT_SAFETY_LOCKOUT,               on_safety_lockout      },
         {EVT_ALARM_TRIGGERED,              on_alarm_triggered     },
-        {EVT_ALARM_CLEARED,                on_alarm_cleared       },
         {EVT_HW_ESTOP_ON,                  on_hw_estop_on         },
         {EVT_HW_ESTOP_OFF,                 on_hw_estop_off        },
         {EVT_OP_MODE_RECOVERY_COMPLETED,   on_recovery_completed  },

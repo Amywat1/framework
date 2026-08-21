@@ -107,7 +107,7 @@ static void test_init_registers_estop_poll_thread(void)
     const thread_entry_t *entry;
     sw_err_t              ret;
 
-    ret = estop_poll_thread_init();
+    ret = estop_poll_thread_init(NULL);
     TEST_ASSERT_EQUAL_INT(SW_OK, ret);
     TEST_ASSERT_EQUAL_INT(before + 1, thread_registry_count());
 
@@ -212,9 +212,71 @@ static void test_cutout_runs_while_dispatch_handler_blocked(void)
     usleep(30000U);
 }
 
+static void test_filter_immediate_on_zero_confirm(void)
+{
+    estop_filter_t   filter;
+    estop_poll_cfg_t cfg = {.confirm_on_ms = 0U, .confirm_off_ms = 0U};
+
+    estop_filter_reset(&filter, &cfg);
+    TEST_ASSERT_EQUAL_INT(ESTOP_FILTER_CONFIRMED_ON, estop_filter_feed(&filter, true, 0U));
+    TEST_ASSERT_EQUAL_INT(ESTOP_FILTER_HOLD, estop_filter_feed(&filter, true, 5U));
+    TEST_ASSERT_EQUAL_INT(ESTOP_FILTER_CONFIRMED_OFF, estop_filter_feed(&filter, false, 5U));
+}
+
+static void test_filter_startup_inactive_does_not_emit_off(void)
+{
+    estop_filter_t   filter;
+    estop_poll_cfg_t cfg = {.confirm_on_ms = 0U, .confirm_off_ms = 0U};
+
+    estop_filter_reset(&filter, &cfg);
+    TEST_ASSERT_EQUAL_INT(ESTOP_FILTER_HOLD, estop_filter_feed(&filter, false, 0U));
+    TEST_ASSERT_EQUAL_INT(ESTOP_FILTER_CONFIRMED_ON, estop_filter_feed(&filter, true, 0U));
+}
+
+static void test_filter_rejects_on_glitch(void)
+{
+    estop_filter_t   filter;
+    estop_poll_cfg_t cfg = {.confirm_on_ms = 60U, .confirm_off_ms = 90U};
+
+    estop_filter_reset(&filter, &cfg);
+    TEST_ASSERT_EQUAL_INT(ESTOP_FILTER_HOLD, estop_filter_feed(&filter, true, 0U));
+    TEST_ASSERT_EQUAL_INT(ESTOP_FILTER_HOLD, estop_filter_feed(&filter, true, 50U));
+    TEST_ASSERT_EQUAL_INT(ESTOP_FILTER_HOLD, estop_filter_feed(&filter, false, 51U));
+    TEST_ASSERT_EQUAL_INT(ESTOP_FILTER_HOLD, estop_filter_feed(&filter, false, 200U));
+}
+
+static void test_filter_confirms_stable_on_and_off(void)
+{
+    estop_filter_t   filter;
+    estop_poll_cfg_t cfg = {.confirm_on_ms = 60U, .confirm_off_ms = 90U};
+
+    estop_filter_reset(&filter, &cfg);
+    TEST_ASSERT_EQUAL_INT(ESTOP_FILTER_HOLD, estop_filter_feed(&filter, true, 0U));
+    TEST_ASSERT_EQUAL_INT(ESTOP_FILTER_CONFIRMED_ON, estop_filter_feed(&filter, true, 60U));
+    TEST_ASSERT_EQUAL_INT(ESTOP_FILTER_HOLD, estop_filter_feed(&filter, false, 70U));
+    TEST_ASSERT_EQUAL_INT(ESTOP_FILTER_HOLD, estop_filter_feed(&filter, false, 150U));
+    TEST_ASSERT_EQUAL_INT(ESTOP_FILTER_CONFIRMED_OFF, estop_filter_feed(&filter, false, 160U));
+}
+
+static void test_filter_startup_pressed_confirms_on(void)
+{
+    estop_filter_t   filter;
+    estop_poll_cfg_t cfg = {.confirm_on_ms = 60U, .confirm_off_ms = 90U};
+
+    estop_filter_reset(&filter, &cfg);
+    TEST_ASSERT_EQUAL_INT(ESTOP_FILTER_HOLD, estop_filter_feed(&filter, true, 10U));
+    TEST_ASSERT_EQUAL_INT(ESTOP_FILTER_HOLD, estop_filter_feed(&filter, true, 69U));
+    TEST_ASSERT_EQUAL_INT(ESTOP_FILTER_CONFIRMED_ON, estop_filter_feed(&filter, true, 70U));
+}
+
 int main(void)
 {
     UNITY_BEGIN();
+    WDF_RUN_TEST(test_filter_immediate_on_zero_confirm, "", "验证零确认时间立即输出边沿");
+    WDF_RUN_TEST(test_filter_startup_inactive_does_not_emit_off, "", "验证上电无效不发松开事件");
+    WDF_RUN_TEST(test_filter_rejects_on_glitch, "", "验证短于确认窗的毛刺不触发");
+    WDF_RUN_TEST(test_filter_confirms_stable_on_and_off, "", "验证稳定按下与松开完成确认");
+    WDF_RUN_TEST(test_filter_startup_pressed_confirms_on, "", "验证上电已按下经确认后触发");
     WDF_RUN_TEST(test_init_registers_estop_poll_thread, "", "验证初始化注册急停轮询线程");
     WDF_RUN_TEST(test_estop_edges_publish_events, "", "验证急停边沿发布事件");
     WDF_RUN_TEST(test_cutout_failure_still_publishes_event, "", "验证安全切断失败仍然发布事件");

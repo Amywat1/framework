@@ -36,6 +36,7 @@
 #   wdf_point_table_json 点位表的 JSON 编解码
 #   wdf_cloud_json       物模型属性 JSON 与 property_port 安装
 #   wdf_cjson            随框架分发的 cJSON
+#   wdf_estop_poll       急停边沿采集（可选入站适配器，须显式 init）
 #   wdf_conformance      「框架要求」条目的一致性套件（交付项目运行）
 #
 # 注意：vendor provider 仍由 framework/CMakeLists.txt 的
@@ -246,6 +247,21 @@ _wdf_add_interface_lib(wdf_observation_bridge
     DEPENDS
         wdf_application
         wdf_observability
+)
+
+# ---------------------------------------------------------------------------
+# wdf_estop_poll — 急停边沿采集（可选入站适配器）
+#
+# 不进入分层核心：bootstrap 不引用，项目在 init_adapters 中显式调用
+# estop_poll_thread_init() 才登记线程。已有自采集通路的项目不要链接，
+# 以免同一物理输入产生两条事件源。
+# ---------------------------------------------------------------------------
+_wdf_add_interface_lib(wdf_estop_poll
+    SOURCES
+        adapters/inbound/safety/estop_poll_thread.c
+    DEPENDS
+        wdf_runtime
+        wdf_ports
 )
 
 # ---------------------------------------------------------------------------

@@ -213,7 +213,7 @@ fi
 # 例外：仅由 demo/ 与 tests/ 按路径直接装配、刻意不导出为公共目标的源文件。
 # 逐项登记而非按目录豁免——每一项都是"为什么不导出"的显式决定。
 #
-# 为何这三个不导出（评估过导出为公共目标，结论是代价与收益不对称）：
+# 为何这两个不导出（评估过导出为公共目标，结论是代价与收益不对称）：
 #
 #   safety_sim.c / hw_estop_sim.c
 #     仿真安全实现。cutout 与 deferred_stop 只记日志——仿真环境没有真实动力输出
@@ -222,15 +222,12 @@ fi
 #     把安全端口从弱符号改为注册表要消除的那类静默失效。保持按路径装配反而是一道
 #     屏障：真机项目要用它必须手写路径，那一行会在评审里被看见。
 #
-#   estop_poll_thread.c
-#     可选适配器。项目若已有自己的 DI detector 采集通路，接入它会让同一物理输入
-#     产生两条并发事件源。是否接入应当是项目的显式选择，不宜做成 link 即生效。
+# estop_poll_thread.c 已导出为可选目标 wdf_estop_poll：链接仍不自动启动线程，
+# 必须在 init_adapters 中显式调用 estop_poll_thread_init()。
 #
-# 三者合计只有 demo 与两个测试目标在用，为此建导出目标属于"为单次使用准备的抽象"。
 # 新增豁免项须在此写明不导出的理由，而不只是加一行路径。
 # -----------------------------------------------------------------------------
 UNEXPORTED_SOURCES="
-adapters/inbound/safety/estop_poll_thread.c
 adapters/outbound/safety/sim/hw_estop_sim.c
 adapters/outbound/safety/sim/safety_sim.c
 "

@@ -45,7 +45,7 @@ static sw_err_t validate(void)
  */
 static sw_err_t init_adapters(void)
 {
-    return estop_poll_thread_init();
+    return estop_poll_thread_init(NULL);
 }
 
 sw_err_t project_hooks_register(void)

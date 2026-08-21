@@ -9,6 +9,7 @@
 
 #include "common/event_types.h"
 #include "common/log.h"
+#include "common/time_util.h"
 #include "domain/ports/outbound/safety/safety_port.h"
 #include "runtime/config/thread_config.h"
 #include "runtime/event_bus/event_bus.h"
@@ -17,8 +18,65 @@
 #include <sched.h>
 #include <unistd.h>
 
+static estop_filter_t s_filter;
+
+void estop_filter_reset(estop_filter_t *filter, const estop_poll_cfg_t *cfg)
+{
+    static const estop_poll_cfg_t s_immediate = {
+        .confirm_on_ms  = 0U,
+        .confirm_off_ms = 0U,
+    };
+
+    if (filter == NULL) {
+        return;
+    }
+
+    filter->cfg                = (cfg != NULL) ? *cfg : s_immediate;
+    filter->started            = false;
+    filter->candidate_active   = false;
+    filter->output_valid       = false;
+    filter->output_active      = false;
+    filter->candidate_since_ms = 0U;
+}
+
+estop_filter_event_t estop_filter_feed(estop_filter_t *filter, bool raw_active, uint64_t now_ms)
+{
+    uint32_t need_ms;
+
+    if (filter == NULL) {
+        return ESTOP_FILTER_HOLD;
+    }
+
+    if (!filter->started) {
+        filter->started            = true;
+        filter->candidate_active   = raw_active;
+        filter->candidate_since_ms = now_ms;
+    } else if (raw_active != filter->candidate_active) {
+        filter->candidate_active   = raw_active;
+        filter->candidate_since_ms = now_ms;
+    }
+
+    need_ms = filter->candidate_active ? filter->cfg.confirm_on_ms : filter->cfg.confirm_off_ms;
+    if (time_elapsed_ms(filter->candidate_since_ms, now_ms) < need_ms) {
+        return ESTOP_FILTER_HOLD;
+    }
+
+    if (!filter->output_valid) {
+        filter->output_valid  = true;
+        filter->output_active = filter->candidate_active;
+        return filter->output_active ? ESTOP_FILTER_CONFIRMED_ON : ESTOP_FILTER_HOLD;
+    }
+
+    if (filter->output_active == filter->candidate_active) {
+        return ESTOP_FILTER_HOLD;
+    }
+
+    filter->output_active = filter->candidate_active;
+    return filter->output_active ? ESTOP_FILTER_CONFIRMED_ON : ESTOP_FILTER_CONFIRMED_OFF;
+}
+
 /**
- * @brief  处理一次急停边沿（上升/下降沿）
+ * @brief  处理一次已确认的急停边沿（上升/下降沿）
  */
 static void handle_estop_edge(bool active)
 {
@@ -48,23 +106,16 @@ static void handle_estop_edge(bool active)
  */
 static void *estop_poll_thread_fn(void *arg)
 {
-    bool last_active = false;
-    bool initialized = false;
-
     (void)arg;
 
     for (;;) {
-        bool active = hw_estop_port_is_active();
+        estop_filter_event_t ev;
 
-        if (!initialized) {
-            last_active = active;
-            initialized = true;
-            if (active) {
-                handle_estop_edge(true);
-            }
-        } else if (active != last_active) {
-            last_active = active;
-            handle_estop_edge(active);
+        ev = estop_filter_feed(&s_filter, hw_estop_port_is_active(), time_util_get_ms());
+        if (ev == ESTOP_FILTER_CONFIRMED_ON) {
+            handle_estop_edge(true);
+        } else if (ev == ESTOP_FILTER_CONFIRMED_OFF) {
+            handle_estop_edge(false);
         }
 
         usleep((unsigned long)THD_SAFETY_THREAD_POLL_US);
@@ -74,8 +125,9 @@ static void *estop_poll_thread_fn(void *arg)
     return NULL;
 }
 
-sw_err_t estop_poll_thread_init(void)
+sw_err_t estop_poll_thread_init(const estop_poll_cfg_t *cfg)
 {
+    estop_filter_reset(&s_filter, cfg);
     return thread_register(
         "estop_poll", estop_poll_thread_fn, SCHED_FIFO, THD_SAFETY_THREAD_PRIO, THD_SAFETY_THREAD_STACK);
 }
