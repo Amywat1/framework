@@ -408,6 +408,9 @@ _wdf_add_interface_lib(wdf_hal_components
         adapters/outbound/hal/components/sensor_filter/hal_sensor_filter.c
         adapters/outbound/hal/components/vfd_manager/hal_vfd_manager.c
         adapters/outbound/hal/components/motor_exec/hal_motor_executor.c
+        adapters/outbound/hal/components/motor_exec/hal_motor_executor_port.c
+        adapters/outbound/hal/components/motor_exec/hal_motor_executor_tick.c
+        adapters/outbound/hal/components/motor_exec/hal_motor_executor_cmd.c
     DEPENDS
         wdf_hal_io_manager
         wdf_common

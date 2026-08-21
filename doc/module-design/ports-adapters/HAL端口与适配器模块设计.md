@@ -242,7 +242,7 @@ Sim 后端用于 demo 与单元测试，不表达真实设备时序保证。
 
 ### 5.2 电机执行器组合件
 
-`adapters/outbound/hal/components/motor_exec/` 提供与 vendor 无关的电机运动状态机。`hal_motor_exec_port.c` 实现通用 `ops + ctx` 分派，`hal_motor_executor.c` 实现真实 provider 并纳入 `wdf_hal_components`。
+`adapters/outbound/hal/components/motor_exec/` 提供与 vendor 无关的电机运动状态机。`hal_motor_exec_port.c` 实现通用 `ops + ctx` 分派；`hal_motor_executor.c` 提供事件队列与槽池，tick/相位、命令、端口封装分见 `hal_motor_executor_tick.c`、`hal_motor_executor_cmd.c`、`hal_motor_executor_port.c`，一并纳入 `wdf_hal_components`。
 
 真实执行器的配置、单电机状态和事件队列全部位于适配器私有的编译期槽池，槽位数由 `WDF_MOTOR_EXECUTOR_INSTANCE_COUNT` 确定。项目 bindings 作为 composition root，只向 `motor_executor_bind(slot_id, cfg, ports, &exec)` 提交稳定 slot ID 与驱动/编码器/限位/急停端口，再把返回的 `hal_motor_exec_t *` 注入 `domain/mechanism/patterns`。槽位只在启动装配阶段绑定一次，运行期不释放；致命错误通过 `motor_executor_reinit()` 恢复，因而无堆内存、无悬空句柄。
 

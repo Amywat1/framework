@@ -117,6 +117,9 @@ target_compile_definitions(test_hal_vfd_manager PRIVATE HAL_VFD_MANAGER_UNIT_TES
 add_unit_test(test_hal_motor_exec_port
     ${CMAKE_CURRENT_SOURCE_DIR}/adapters/test_hal_motor_exec_port.c
     ${WDF_ROOT}/adapters/outbound/hal/components/motor_exec/hal_motor_executor.c
+    ${WDF_ROOT}/adapters/outbound/hal/components/motor_exec/hal_motor_executor_port.c
+    ${WDF_ROOT}/adapters/outbound/hal/components/motor_exec/hal_motor_executor_tick.c
+    ${WDF_ROOT}/adapters/outbound/hal/components/motor_exec/hal_motor_executor_cmd.c
     ${WDF_ROOT}/domain/ports/outbound/motor/hal_motor_exec_port.c
 )
 target_compile_definitions(test_hal_motor_exec_port PRIVATE HAL_MOTOR_EXECUTOR_UNIT_TEST)
@@ -124,6 +127,9 @@ target_compile_definitions(test_hal_motor_exec_port PRIVATE HAL_MOTOR_EXECUTOR_U
 add_unit_test(test_hal_motor_executor_position
     ${CMAKE_CURRENT_SOURCE_DIR}/adapters/test_hal_motor_executor_position.c
     ${WDF_ROOT}/adapters/outbound/hal/components/motor_exec/hal_motor_executor.c
+    ${WDF_ROOT}/adapters/outbound/hal/components/motor_exec/hal_motor_executor_port.c
+    ${WDF_ROOT}/adapters/outbound/hal/components/motor_exec/hal_motor_executor_tick.c
+    ${WDF_ROOT}/adapters/outbound/hal/components/motor_exec/hal_motor_executor_cmd.c
     ${WDF_ROOT}/domain/ports/outbound/motor/hal_motor_exec_port.c
 )
 target_compile_definitions(test_hal_motor_executor_position PRIVATE HAL_MOTOR_EXECUTOR_UNIT_TEST)
