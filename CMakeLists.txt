@@ -15,6 +15,7 @@ include(${CMAKE_SOURCE_DIR}/cmake/wdf_targets.cmake)
 
 option(WDF_BUILD_DEMO "Build in-repo smoke demo" ON)
 option(WDF_BUILD_TESTS "Build unit tests" ON)
+option(WDF_TEST_VENDOR_PROVIDERS "Build in-tree vendor provider unit tests" OFF)
 option(WDF_ENABLE_SNACK_MODBUS_PROVIDER "Build Snack Modbus HAL providers" OFF)
 option(WDF_ENABLE_SNACK_IO_EXP_PROVIDER "Build Snack io_exp HAL provider" OFF)
 option(WDF_ENABLE_SNACK_CLOUD_PROVIDER "Build Snack cloud MQTT provider" OFF)

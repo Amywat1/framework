@@ -124,76 +124,81 @@ add_unit_test(test_hal_voice_sim
 )
 target_compile_definitions(test_hal_voice_sim PRIVATE HAL_VOICE_SIM_UNIT_TEST)
 
-add_unit_test(test_snack_voice_adapter
-    ${CMAKE_CURRENT_SOURCE_DIR}/adapters/test_snack_voice_adapter.c
-    ${WDF_ROOT}/adapters/outbound/hal/providers/snack/modbus/drv_voice.c
-    ${WDF_ROOT}/adapters/outbound/hal/providers/snack/modbus/snack_voice_adapter.c
-    ${WDF_ROOT}/tests/stubs/snack/drv_modbus_link_fake.c
-    ${WDF_ROOT}/runtime/ports/port_registry_hal.c
-    ${WDF_ROOT}/runtime/ports/port_registry_infra.c
-    ${WDF_ROOT}/common/log.c
-    ${WDF_ROOT}/common/sw_mutex.c
-)
-target_compile_definitions(test_snack_voice_adapter PRIVATE SNACK_VOICE_ADAPTER_UNIT_TEST)
+# 仓内 vendor provider 测试默认不编：覆盖的是具体厂商适配，不是框架契约。
+# 打开 -DWDF_TEST_VENDOR_PROVIDERS=ON 可编现有 test_snack_*（源文件保留，供 D6）。
+if(WDF_TEST_VENDOR_PROVIDERS)
+    add_unit_test(test_snack_voice_adapter
+        ${CMAKE_CURRENT_SOURCE_DIR}/adapters/test_snack_voice_adapter.c
+        ${WDF_ROOT}/adapters/outbound/hal/providers/snack/modbus/drv_voice.c
+        ${WDF_ROOT}/adapters/outbound/hal/providers/snack/modbus/snack_voice_adapter.c
+        ${WDF_ROOT}/tests/stubs/snack/drv_modbus_link_fake.c
+        ${WDF_ROOT}/runtime/ports/port_registry_hal.c
+        ${WDF_ROOT}/runtime/ports/port_registry_infra.c
+        ${WDF_ROOT}/common/log.c
+        ${WDF_ROOT}/common/sw_mutex.c
+    )
+    target_compile_definitions(test_snack_voice_adapter PRIVATE SNACK_VOICE_ADAPTER_UNIT_TEST)
 
-add_unit_test(test_snack_io_exp_adapter
-    ${CMAKE_CURRENT_SOURCE_DIR}/adapters/test_snack_io_exp_adapter.c
-    ${WDF_ROOT}/adapters/outbound/hal/components/io_manager/hal_io_manager.c
-    ${WDF_ROOT}/adapters/outbound/hal/providers/snack/io_exp/io_exp_driver.c
-    ${WDF_ROOT}/adapters/outbound/hal/providers/snack/io_exp/snack_io_adapter.c
-    ${WDF_ROOT}/tests/stubs/io_exp/io_exp_fake.c
-    ${WDF_ROOT}/runtime/ports/port_registry_hal.c
-    ${WDF_ROOT}/runtime/ports/port_registry_infra.c
-    ${WDF_ROOT}/common/log.c
-    ${WDF_ROOT}/common/sw_mutex.c
-    ${WDF_ROOT}/common/time_util.c
-)
-target_include_directories(test_snack_io_exp_adapter PRIVATE
-    ${WDF_ROOT}/tests/stubs
-)
-target_compile_definitions(test_snack_io_exp_adapter PRIVATE SNACK_IO_ADAPTER_UNIT_TEST HAL_IO_MANAGER_UNIT_TEST)
+    add_unit_test(test_snack_io_exp_adapter
+        ${CMAKE_CURRENT_SOURCE_DIR}/adapters/test_snack_io_exp_adapter.c
+        ${WDF_ROOT}/adapters/outbound/hal/components/io_manager/hal_io_manager.c
+        ${WDF_ROOT}/adapters/outbound/hal/providers/snack/io_exp/io_exp_driver.c
+        ${WDF_ROOT}/adapters/outbound/hal/providers/snack/io_exp/snack_io_adapter.c
+        ${WDF_ROOT}/tests/stubs/io_exp/io_exp_fake.c
+        ${WDF_ROOT}/runtime/ports/port_registry_hal.c
+        ${WDF_ROOT}/runtime/ports/port_registry_infra.c
+        ${WDF_ROOT}/common/log.c
+        ${WDF_ROOT}/common/sw_mutex.c
+        ${WDF_ROOT}/common/time_util.c
+    )
+    target_include_directories(test_snack_io_exp_adapter PRIVATE
+        ${WDF_ROOT}/tests/stubs
+    )
+    target_compile_definitions(test_snack_io_exp_adapter PRIVATE SNACK_IO_ADAPTER_UNIT_TEST HAL_IO_MANAGER_UNIT_TEST)
 
-add_unit_test(test_snack_vfd_backend
-    ${CMAKE_CURRENT_SOURCE_DIR}/adapters/test_snack_vfd_backend.c
-    ${WDF_ROOT}/adapters/outbound/hal/components/io_manager/hal_io_manager.c
-    ${WDF_ROOT}/adapters/outbound/hal/providers/snack/modbus/drv_vfd.c
-    ${WDF_ROOT}/adapters/outbound/hal/providers/snack/modbus/snack_vfd_backend.c
-    ${WDF_ROOT}/adapters/outbound/hal/providers/snack/io_exp/io_exp_driver.c
-    ${WDF_ROOT}/adapters/outbound/hal/components/vfd_manager/hal_vfd_manager.c
-    ${WDF_ROOT}/tests/stubs/snack/drv_modbus_link_fake.c
-    ${WDF_ROOT}/tests/stubs/io_exp/io_exp_fake.c
-    ${WDF_ROOT}/common/pulse_out.c
-    ${WDF_ROOT}/common/time_util.c
-    ${WDF_ROOT}/runtime/scheduler/periodic_task.c
-    ${WDF_ROOT}/runtime/scheduler/thread_registry.c
-    ${WDF_ROOT}/runtime/ports/port_registry_hal.c
-    ${WDF_ROOT}/runtime/ports/port_registry_infra.c
-    ${WDF_ROOT}/common/log.c
-    ${WDF_ROOT}/common/sw_mutex.c
-)
-target_include_directories(test_snack_vfd_backend PRIVATE
-    ${WDF_ROOT}/tests/stubs
-)
-target_compile_definitions(test_snack_vfd_backend PRIVATE HAL_VFD_MANAGER_UNIT_TEST)
-target_compile_definitions(test_snack_vfd_backend PRIVATE SNACK_VFD_BACKEND_UNIT_TEST)
+    add_unit_test(test_snack_vfd_backend
+        ${CMAKE_CURRENT_SOURCE_DIR}/adapters/test_snack_vfd_backend.c
+        ${WDF_ROOT}/adapters/outbound/hal/components/io_manager/hal_io_manager.c
+        ${WDF_ROOT}/adapters/outbound/hal/providers/snack/modbus/drv_vfd.c
+        ${WDF_ROOT}/adapters/outbound/hal/providers/snack/modbus/snack_vfd_backend.c
+        ${WDF_ROOT}/adapters/outbound/hal/providers/snack/io_exp/io_exp_driver.c
+        ${WDF_ROOT}/adapters/outbound/hal/components/vfd_manager/hal_vfd_manager.c
+        ${WDF_ROOT}/tests/stubs/snack/drv_modbus_link_fake.c
+        ${WDF_ROOT}/tests/stubs/io_exp/io_exp_fake.c
+        ${WDF_ROOT}/common/pulse_out.c
+        ${WDF_ROOT}/common/time_util.c
+        ${WDF_ROOT}/runtime/scheduler/periodic_task.c
+        ${WDF_ROOT}/runtime/scheduler/thread_registry.c
+        ${WDF_ROOT}/runtime/ports/port_registry_hal.c
+        ${WDF_ROOT}/runtime/ports/port_registry_infra.c
+        ${WDF_ROOT}/common/log.c
+        ${WDF_ROOT}/common/sw_mutex.c
+    )
+    target_include_directories(test_snack_vfd_backend PRIVATE
+        ${WDF_ROOT}/tests/stubs
+    )
+    target_compile_definitions(test_snack_vfd_backend PRIVATE HAL_VFD_MANAGER_UNIT_TEST)
+    target_compile_definitions(test_snack_vfd_backend PRIVATE SNACK_VFD_BACKEND_UNIT_TEST)
 
-add_unit_test(test_snack_cloud_adapters
-    ${CMAKE_CURRENT_SOURCE_DIR}/adapters/test_snack_cloud_adapters.c
-    ${WDF_ROOT}/adapters/outbound/cloud/providers/snack/snack_cloud_link_adapter.c
-    ${WDF_ROOT}/adapters/outbound/cloud/providers/snack/snack_cloud_report_adapter.c
-    ${WDF_ROOT}/adapters/inbound/cloud/providers/snack/snack_cloud_command_adapter.c
-    ${WDF_ROOT}/tests/stubs/snack_cloud/snack_mqtt_fake.c
-    ${WDF_ROOT}/tests/stubs/snack_cloud/cloud_model_fake.c
-    ${WDF_ROOT}/common/point_table/point_table.c
-    ${WDF_ROOT}/adapters/outbound/serialization/json/point_table_from_json.c
-    ${WDF_ROOT}/runtime/event_bus/event_bus.c
-    ${WDF_ROOT}/runtime/ports/port_registry_cloud.c
-    ${WDF_ROOT}/runtime/ports/port_registry_infra.c
-    ${WDF_ROOT}/common/log.c
-    ${WDF_ROOT}/common/sw_mutex.c
-    ${WDF_ROOT}/common/time_util.c
-    ${WDF_ROOT}/third_party/cJSON/cJSON.c
-)
+    add_unit_test(test_snack_cloud_adapters
+        ${CMAKE_CURRENT_SOURCE_DIR}/adapters/test_snack_cloud_adapters.c
+        ${WDF_ROOT}/adapters/outbound/cloud/providers/snack/snack_cloud_link_adapter.c
+        ${WDF_ROOT}/adapters/outbound/cloud/providers/snack/snack_cloud_report_adapter.c
+        ${WDF_ROOT}/adapters/inbound/cloud/providers/snack/snack_cloud_command_adapter.c
+        ${WDF_ROOT}/tests/stubs/snack_cloud/snack_mqtt_fake.c
+        ${WDF_ROOT}/tests/stubs/snack_cloud/cloud_model_fake.c
+        ${WDF_ROOT}/common/point_table/point_table.c
+        ${WDF_ROOT}/adapters/outbound/serialization/json/point_table_from_json.c
+        ${WDF_ROOT}/runtime/event_bus/event_bus.c
+        ${WDF_ROOT}/runtime/ports/port_registry_cloud.c
+        ${WDF_ROOT}/runtime/ports/port_registry_infra.c
+        ${WDF_ROOT}/common/log.c
+        ${WDF_ROOT}/common/sw_mutex.c
+        ${WDF_ROOT}/common/time_util.c
+        ${WDF_ROOT}/third_party/cJSON/cJSON.c
+    )
+
+endif()
 
 add_unit_test(test_device_ops_port
     ${CMAKE_CURRENT_SOURCE_DIR}/ports/test_device_ops_port.c

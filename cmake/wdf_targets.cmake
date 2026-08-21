@@ -38,7 +38,7 @@
 #   wdf_cjson            随框架分发的 cJSON
 #   wdf_conformance      「框架要求」条目的一致性套件（交付项目运行）
 #
-# 注意：vendor provider（snack）仍由 framework/CMakeLists.txt 的
+# 注意：vendor provider 仍由 framework/CMakeLists.txt 的
 #       WDF_ENABLE_* 选项以 STATIC 库形式提供，它们有外部 SDK 依赖，
 #       不适合作为无条件导出的 INTERFACE 源。
 

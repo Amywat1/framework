@@ -5,7 +5,7 @@
  * @date    2026-06-29
  *
  * @note    业务层与其它 HAL 适配器仅通过本接口访问语音模块；
- *          平台实现（snack_voice_adapter / hal_voice_sim）内部对接 drv_voice 或仿真状态。
+ *          平台实现（vendor provider / hal_voice_sim）内部对接具体驱动或仿真状态。
  *          语音模块为单实例设备，ops 接口不带 id 参数。
  */
 

@@ -86,7 +86,7 @@ wiring、配置、绑定表和 provider 里。**框架不含任何具体项目�
 |------|-----------|
 | 新增框架 `.c` | 登记到 `cmake/wdf_targets.cmake`（否则 R7 失败） |
 | 新增 `.h` | 保护宏 = 路径全大写下划线形式（否则 R15 失败） |
-| 新增 vendor provider | 根 `CMakeLists.txt` 加 `WDF_ENABLE_*` 选项 + `check_arch_boundary.sh` 的 include 白名单 |
+| 新增 vendor provider | 根 `CMakeLists.txt` 加 `WDF_ENABLE_*` 选项 + `check_arch_boundary.sh` 的 include 白名单 + 私有布局遵守 R19 |
 | 新增持锁文件 | 在 `check_arch_boundary.sh` 登记 RT 可达性分类（R16，未登记即报错） |
 | 新增阻塞等待 | 在 R18 的有界/无界/定时三张表之一登记 |
 | 调容量常量 | 同步改常量注释的实测依据 + 对应测试断言 + `history/整治记录.md` 第 3.3 节表格 |

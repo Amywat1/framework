@@ -27,7 +27,7 @@
 #   R16 实时可达互斥量  必须启用优先级继承
 #   R17 表达式求值器    只依赖纯计算白名单
 #   R18 阻塞等待点      必须分类且等应答有界
-#   R19 Snack Modbus    驱动布局只在 provider 私有头中可见
+#   R19 vendor provider  私有布局只在本 vendor 目录内可见
 #   R20 RT 可达文件      框架外（vendor）阻塞调用必须登记最坏阻塞时长
 #   R21 快照写接口      仅投影与定义处可写
 #   R22 错误分类判定    必须走 sw_err_is_* helper
@@ -756,51 +756,61 @@ else
 fi
 
 # -----------------------------------------------------------------------------
-# R19: Snack Modbus 驱动布局不得越过 provider 私有边界
+# R19: vendor provider 驱动布局不得越过本 vendor 目录
 #
-# drv_modbus_link / drv_vfd / drv_voice 的对象存储由 Snack provider 自己持有，
-# 对外只传不透明指针。若公共头重新暴露 struct 布局，调用方会再次获得静态分配和
-# 直接改字段的能力；若其他框架层 include *_internal.h，则只是换了文件名而没有形成
-# 边界。测试 fake 允许读取私有布局，用于替代真实 vendor SDK。
+# adapters/**/providers/<vendor>/ 下的 *_internal.h 是该 vendor 的私有布局。
+# 公共头只保留不透明类型；对象存储由该 vendor 的组合层持有。
+# 若公共头重新暴露 struct 布局，调用方会再次获得静态分配和直接改字段的能力；
+# 若其他框架层 include *_internal.h，则只是换了文件名而没有形成边界。
+# 测试 fake 允许读取私有布局，用于替代真实 vendor SDK（不扫 tests/）。
 # -----------------------------------------------------------------------------
-SNACK_MODBUS_DIR="adapters/outbound/hal/providers/snack/modbus"
-SNACK_MODBUS_INTERNAL_PATTERN='drv_(modbus_link|vfd|voice)_internal\.h'
-SNACK_MODBUS_PUBLIC_HEADERS=(
-    "${SNACK_MODBUS_DIR}/drv_modbus_link.h"
-    "${SNACK_MODBUS_DIR}/drv_vfd.h"
-    "${SNACK_MODBUS_DIR}/drv_voice.h"
-)
+provider_private_violations=""
 
-modbus_private_violations=""
-for layer in common domain application adapters runtime services observability demo; do
-    [ -d "${FW_ROOT}/${layer}" ] || continue
-    while IFS= read -r src; do
-        rel_src="${src#"${FW_ROOT}"/}"
-        case "${rel_src}" in
-            "${SNACK_MODBUS_DIR}"/*)
-                continue
-                ;;
-        esac
-        if grep -qE "#include[[:space:]]*\"([^\"]*/)?${SNACK_MODBUS_INTERNAL_PATTERN}\"" "${src}" 2>/dev/null; then
-            modbus_private_violations+="  ${rel_src}: include 了 Snack Modbus 私有布局头"$'\n'
-        fi
-    done < <(find "${FW_ROOT}/${layer}" \( -name '*.c' -o -name '*.h' \) -print | sort)
-done
+while IFS= read -r header; do
+    [ -z "$header" ] && continue
+    rel_header="${header#"${FW_ROOT}"/}"
+    header_name="$(basename "${rel_header}")"
+    stem="${header_name%_internal.h}"
+    header_pat="$(printf '%s' "${header_name}" | sed 's/\./\\./g')"
 
-for header in "${SNACK_MODBUS_PUBLIC_HEADERS[@]}"; do
-    if grep -qE 'struct[[:space:]]+drv_(modbus_link|vfd|voice)[[:space:]]*\{' "${FW_ROOT}/${header}" 2>/dev/null; then
-        modbus_private_violations+="  ${header}: 公共头暴露了驱动对象布局"$'\n'
+    if [[ "${rel_header}" =~ ^(adapters/.*/providers/[^/]+)/ ]]; then
+        vendor_root="${BASH_REMATCH[1]}"
+    else
+        provider_private_violations+="  ${rel_header}: *_internal.h 不在 adapters/**/providers/<vendor>/ 下"$'\n'
+        continue
     fi
-done
+
+    for layer in common domain application adapters runtime services observability demo; do
+        [ -d "${FW_ROOT}/${layer}" ] || continue
+        while IFS= read -r src; do
+            rel_src="${src#"${FW_ROOT}"/}"
+            case "${rel_src}" in
+                "${vendor_root}"/*)
+                    continue
+                    ;;
+            esac
+            if grep -qE "#include[[:space:]]*\"([^\"]*/)?${header_pat}\"" "${src}" 2>/dev/null; then
+                provider_private_violations+="  ${rel_src}: include 了 ${vendor_root} 的私有布局头 ${header_name}"$'\n'
+            fi
+        done < <(find "${FW_ROOT}/${layer}" \( -name '*.c' -o -name '*.h' \) -print | sort)
+    done
+
+    public_header="$(dirname "${rel_header}")/${stem}.h"
+    if [ -f "${FW_ROOT}/${public_header}" ] && \
+        grep -qE "struct[[:space:]]+${stem}[[:space:]]*\{" "${FW_ROOT}/${public_header}" 2>/dev/null; then
+        provider_private_violations+="  ${public_header}: 公共头暴露了驱动对象布局"$'\n'
+    fi
+done < <(find "${FW_ROOT}/adapters" -path '*/providers/*' -name '*_internal.h' -print | sort)
 
 TOTAL_RULES=$((TOTAL_RULES + 1))
-if [ -z "$modbus_private_violations" ]; then
-    echo "[PASS] R19: Snack Modbus 驱动布局仅在 provider 私有头中可见"
+if [ -z "$provider_private_violations" ]; then
+    echo "[PASS] R19: vendor provider 私有布局仅在本 vendor 目录内可见"
 else
     echo ""
-    echo "[FAIL] R19: Snack Modbus 驱动私有布局越过 provider 边界"
-    printf '%s' "$modbus_private_violations"
-    echo "  修正: 外部调用方只 include drv_*.h；对象存储由 Snack provider 组合层持有"
+    echo "[FAIL] R19: vendor provider 私有布局越过 vendor 目录边界"
+    printf '%s' "$provider_private_violations"
+    echo "  修正: 外部调用方只 include 公共头；对象存储由该 vendor provider 组合层持有"
+    echo "        测试 fake 可读取私有布局，但不形成生产依赖"
     TOTAL_VIOLATIONS=$((TOTAL_VIOLATIONS + 1))
 fi
 

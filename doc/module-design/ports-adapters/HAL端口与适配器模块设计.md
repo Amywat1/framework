@@ -371,6 +371,7 @@ bootstrap_start()
 | `test_snack_voice_adapter`         | Snack voice Modbus adapter            |
 | `test_hal_voice_sim`               | 语音 sim 注册和操作                          |
 
+`test_snack_*` 默认 CI 不编，需 `-DWDF_TEST_VENDOR_PROVIDERS=ON`。
 
 用例数与通过情况以 `scripts/check_all.sh` 生成的 `build-check/test-results/report.html` 为准，本文不记录动态结论（原则见 `tests/reports/README.md`）。
 
@@ -384,8 +385,8 @@ bootstrap_start()
 - 通用组件：DI 滤波、VFD manager、ADC 门控。
 - 仿真后端：IO、voice、engine IO、engine actuator、安全端口与急停。
 - 可选真机 provider：Snack io_exp、Snack Modbus voice/VFD。电机状态机在 domain，不在本层。
-- Snack Modbus 的 `drv_modbus_link_t`、`drv_vfd_t`、`drv_voice_t` 对 provider 外部均为
-  不透明类型；对象布局只存在于同目录 `*_internal.h`，实际存储由 VFD/voice 组合层持有。
+- vendor provider 的驱动对象对 provider 外部均为不透明类型；对象布局只存在于同目录
+  `*_internal.h`，实际存储由该 vendor 组合层持有（R19）。
 
 ### 9.2 项目侧负责
 

@@ -104,7 +104,7 @@ typedef uint16_t event_type_t;
 #define EVT_CMD_ORDER EVT_MAKE(EVT_CAT_CMD, EVT_CMD_ID_ORDER)
 
 /* -------------------------------------------------------------------------
- * CLOUD 类（snack_cloud_link_adapter 发布）
+ * CLOUD 类（云链路适配器发布）
  * ------------------------------------------------------------------------- */
 #define EVT_CLOUD_ID_CONNECTED    0U
 #define EVT_CLOUD_ID_DISCONNECTED 1U

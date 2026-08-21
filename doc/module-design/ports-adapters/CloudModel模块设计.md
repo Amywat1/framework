@@ -369,7 +369,7 @@ project_register_runtime_tasks()
 | `test_cloud_model_report_scheduler` | 周期/事件策略驱动的全量与增量上报 |
 | `test_cloud_ports` | 三端 cloud port 注册、NULL 解除、缺必填字段被拒、复位清空 |
 | `test_point_table` | 通用点位表模型查表与 apply 结果汇总 |
-| `test_snack_cloud_adapters` | vendor MQTT link 与属性下行适配器 |
+| `test_snack_cloud_adapters` | vendor MQTT link 与属性下行适配器（`WDF_TEST_VENDOR_PROVIDERS=ON` 才编，默认 CI 不跑） |
 
 用例数与通过情况以 `scripts/check_all.sh` 生成的 `build-check/test-results/report.html` 为准，本文不记录动态结论（原则见 `tests/reports/README.md`）。
 
