@@ -9,6 +9,7 @@
 #include "common/sw_mutex.h"
 #include "drv_modbus_link_internal.h"
 #include "modbus/modbus-rtu.h"
+#include "modbus/modbus.h"
 
 #include <pthread.h>
 #include <string.h>
@@ -159,6 +160,9 @@ static sw_err_t link_mb_ctx_create(drv_modbus_link_t *link)
         return SW_ERR_HW;
     }
     modbus_set_slave(link->mb, link->modbus_addr);
+    /* connect 前设置：官方 libmodbus 在 open 后按此标志下发 TIOCSRS485 */
+    (void)modbus_rtu_set_serial_mode(link->mb, MODBUS_RTU_RS485);
+    (void)modbus_set_error_recovery(link->mb, MODBUS_ERROR_RECOVERY_LINK | MODBUS_ERROR_RECOVERY_PROTOCOL);
     modbus_set_response_timeout(link->mb, 0, link->timeout_us);
     return SW_OK;
 }
@@ -183,6 +187,8 @@ static sw_err_t link_reconnect_locked(drv_modbus_link_t *link)
         return SW_ERR_COMM;
     }
 
+    /* connect 后再设一次：部分板级库只在已打开的 fd 上执行 ioctl */
+    (void)modbus_rtu_set_serial_mode(link->mb, MODBUS_RTU_RS485);
     link->mb_connected = true;
     LOG_INFO("drv_modbus_link[addr=%d]: Modbus linked", link->modbus_addr);
     return SW_OK;
@@ -195,14 +201,14 @@ static void link_on_success_locked(drv_modbus_link_t *link)
 
 static void link_on_failure_locked(drv_modbus_link_t *link, bool *need_reconnect)
 {
-    link->mb_connected = false;
-
     if (link->comm_fail_count < 0xFFFFU) {
         link->comm_fail_count++;
     }
 
+    /* 同口多从站已各自 open，单次超时不得立刻 close/reopen，否则会抢走 DE */
     if (link->comm_fail_count >= link->reconnect_threshold) {
         link->comm_fail_count = 0U;
+        link->mb_connected    = false;
         if (need_reconnect != NULL) {
             *need_reconnect = true;
         }
@@ -238,6 +244,8 @@ static sw_err_t link_execute(drv_modbus_link_t *link, link_op_t *op)
         (void)pthread_mutex_unlock(bus_mtx);
         return SW_ERR_COMM;
     }
+
+    (void)modbus_flush(link->mb);
 
     if (op->is_write) {
         rc = modbus_write_register(link->mb, (int)op->addr, (int)op->wval);
