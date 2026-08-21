@@ -47,5 +47,5 @@ openspec/
 | `openspec/specs/` | 各功能的完整行为规格 | 随 archive 更新 |
 | `openspec/changes/<name>/` | 单次功能开发的工作区 | 完成后归档 |
 
-规格归档后，其中的框架级不变量应提炼进 `行为契约.md`，
+规格归档后，其中的框架级不变量应提炼进 `doc/contract/行为契约.md`，
 模块内部约束进入对应 `module-design/` 文件。

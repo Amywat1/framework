@@ -74,13 +74,11 @@
 挡位和频率控制不能同时用
 ```
 
-AI 会自动生成：
-- `proposal.md`（为什么做、影响范围）
-- `specs/<capability>/spec.md`（行为场景 + 不变量 + 状态机 + 时序约束）
-- `design.md`（技术方案）
-- `tasks.md`（实现步骤）
-
-所有 artifact 位于 `openspec/changes/<name>/` 下。
+AI 会自动在 `openspec/changes/<name>/` 下生成：
+- proposal.md（为什么做、影响范围）
+- specs/\<capability\>/spec.md（行为场景 + 不变量 + 状态机 + 时序约束）
+- design.md（技术方案）
+- tasks.md（实现步骤）
 
 ### 方式二：复杂功能（先 explore 再 propose）
 
@@ -171,7 +169,7 @@ AI 会更新对应的 spec 文件。OpenSpec 的核心优势就在这里——
 /opsx:apply
 ```
 
-AI 会按 `tasks.md` 逐步实现，并在完成后自动：
+AI 会按 change 目录下的 tasks 逐步实现，并在完成后自动：
 1. 输出自证清单（每条 spec 映射到保证它的代码位置）
 2. 跑 `./scripts/check_all.sh --skip-tests` 验证架构边界
 3. 标注无法被现有测试覆盖的规格条目

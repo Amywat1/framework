@@ -219,6 +219,11 @@ while IFS= read -r line; do
 
     case "${target}" in
         http*) continue ;;
+        *'<'*'>'*) continue ;;
+    esac
+
+    case "${doc_file}" in
+        .claude/*) continue ;;
     esac
 
     [ -e "${doc_dir}/${target}" ] && continue
