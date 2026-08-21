@@ -498,6 +498,8 @@ add_unit_test(test_engine_session
     ${CMAKE_CURRENT_SOURCE_DIR}/application/test_engine_session.c
     ${WDF_ROOT}/application/engine_session/engine_session.c
     ${WDF_ROOT}/adapters/outbound/storage/json/engine_program_json.c
+    ${WDF_ROOT}/adapters/outbound/storage/json/engine_program_json_schema.c
+    ${WDF_ROOT}/adapters/outbound/storage/json/engine_program_json_template.c
     ${WDF_ROOT}/common/asset_version.c
     ${WDF_ROOT}/adapters/outbound/hal/sim/engine_io_sim.c
     ${WDF_ROOT}/adapters/outbound/hal/sim/engine_actuator_sim.c
@@ -633,6 +635,8 @@ add_unit_test(test_engine_program_json
     ${CMAKE_CURRENT_SOURCE_DIR}/adapters/test_engine_program_json.c
     ${WDF_ROOT}/common/asset_version.c
     ${WDF_ROOT}/adapters/outbound/storage/json/engine_program_json.c
+    ${WDF_ROOT}/adapters/outbound/storage/json/engine_program_json_schema.c
+    ${WDF_ROOT}/adapters/outbound/storage/json/engine_program_json_template.c
     ${WDF_ROOT}/adapters/outbound/hal/sim/engine_io_sim.c
     ${WDF_ROOT}/adapters/outbound/hal/sim/engine_actuator_sim.c
     ${WDF_ROOT}/domain/ports/outbound/program_engine/engine_environment_port.c

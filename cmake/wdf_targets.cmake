@@ -358,6 +358,8 @@ _wdf_add_interface_lib(wdf_storage_json
 _wdf_add_interface_lib(wdf_storage_program_json
     SOURCES
         adapters/outbound/storage/json/engine_program_json.c
+        adapters/outbound/storage/json/engine_program_json_schema.c
+        adapters/outbound/storage/json/engine_program_json_template.c
         adapters/outbound/storage/json/engine_program_manifest.c
     DEPENDS
         wdf_common

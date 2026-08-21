@@ -85,7 +85,10 @@ adapters/outbound/storage/json
 | `domain/ports/outbound/storage/engine_program_loader_port.h` | 方案加载端口契约，屏蔽存储格式 |
 | `adapters/outbound/storage/json/json_param_store.{h,c}` | 参数 JSON 适配器 |
 | `adapters/outbound/storage/json/json_deploy_store.{h,c}` | 部署配置 JSON 适配器，含 schemaVersion 校验 |
-| `adapters/outbound/storage/json/engine_program_json.{h,c}` | 方案 JSON 解析与模板展开 |
+| `adapters/outbound/storage/json/engine_program_json.h` | 方案 JSON loader API |
+| `adapters/outbound/storage/json/engine_program_json.c` | 模型构建与 loader 注册 |
+| `adapters/outbound/storage/json/engine_program_json_schema.c` | JSON 字段白名单校验 |
+| `adapters/outbound/storage/json/engine_program_json_template.c` | 步骤模板展开 |
 | `adapters/outbound/storage/json/engine_program_manifest.{h,c}` | manifest 完整性校验（SHA256） |
 | `services/param/svc_param.{h,c}` | 带语义的参数访问层 |
 | `common/asset_version.h` | 通用语义化版本解析与兼容判定 |
