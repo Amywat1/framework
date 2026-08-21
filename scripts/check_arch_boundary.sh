@@ -31,6 +31,7 @@
 #   R20 RT 可达文件      框架外（vendor）阻塞调用必须登记最坏阻塞时长
 #   R21 快照写接口      仅投影与定义处可写
 #   R22 错误分类判定    必须走 sw_err_is_* helper
+#   R23 HAL 超时覆盖    每个 HAL .c 必须登记超时保护分类
 
 set -euo pipefail
 
@@ -1075,6 +1076,110 @@ else
     echo "  修正: 瞬时可重试用 sw_err_is_transient，调用方缺陷用 sw_err_is_caller_fault，"
     echo "        接入缺失用 sw_err_is_missing_binding。"
     echo "        单码比较、return SW_ERR_*、!= SW_OK 仍合法。"
+    TOTAL_VIOLATIONS=$((TOTAL_VIOLATIONS + 1))
+fi
+
+# -----------------------------------------------------------------------------
+# R23: HAL 端口实现超时覆盖分类
+#
+# adapters/outbound/hal/ 下每个 .c 实现必须登记超时保护方式。
+# 确保 HAL 实现不会引入对硬件的无界等待。补充 R18（POSIX 等待原语）和
+# R20（vendor 阻塞）的覆盖盲区：新增 HAL 文件若未经 R18/R20 扫描的方式等待硬件。
+# 对应行为契约: SAFE-13 急停延迟预算。
+# -----------------------------------------------------------------------------
+
+# TIMEOUT: 函数使用 timeout_ms 参数且含 SW_ERR_TIMEOUT 返回路径
+TIMEOUT_HAL_FILES=(
+    "adapters/outbound/hal/components/io_manager/hal_io_manager.c"
+    "adapters/outbound/hal/providers/snack/io_exp/io_exp_driver.c"
+)
+
+# WATCHDOG: 由看门狗/缺拍检测保护
+WATCHDOG_HAL_FILES=(
+    "adapters/outbound/hal/components/motor_exec/hal_motor_executor.c"
+    "adapters/outbound/hal/components/motor_exec/hal_motor_executor_cmd.c"
+    "adapters/outbound/hal/components/motor_exec/hal_motor_executor_tick.c"
+)
+
+# NONBLOCKING: 仿真/纯内存操作/组合逻辑，不等硬件应答
+NONBLOCKING_HAL_FILES=(
+    "adapters/outbound/hal/sim/hal_io_sim.c"
+    "adapters/outbound/hal/sim/hal_voice_sim.c"
+    "adapters/outbound/hal/sim/engine_io_sim.c"
+    "adapters/outbound/hal/sim/engine_actuator_sim.c"
+    "adapters/outbound/hal/components/adc_gate/hal_adc_gate.c"
+    "adapters/outbound/hal/components/sensor_filter/hal_sensor_filter.c"
+    "adapters/outbound/hal/components/vfd_manager/hal_vfd_manager.c"
+    "adapters/outbound/hal/components/motor_exec/hal_motor_executor_port.c"
+)
+
+# VENDOR_TIMEOUT: 依赖 vendor SDK 内置超时机制（已在 R20 登记阻塞时长）
+VENDOR_TIMEOUT_HAL_FILES=(
+    "adapters/outbound/hal/providers/snack/modbus/drv_vfd.c"
+    "adapters/outbound/hal/providers/snack/modbus/drv_modbus_link.c"
+    "adapters/outbound/hal/providers/snack/modbus/drv_voice.c"
+    "adapters/outbound/hal/providers/snack/modbus/snack_vfd_backend.c"
+    "adapters/outbound/hal/providers/snack/modbus/snack_voice_adapter.c"
+    "adapters/outbound/hal/providers/snack/io_exp/snack_io_adapter.c"
+)
+
+hal_timeout_violations=""
+
+while IFS= read -r hal_file; do
+    [ -n "${hal_file}" ] || continue
+    rel="${hal_file#"${FW_ROOT}"/}"
+
+    found=0
+    for e in "${TIMEOUT_HAL_FILES[@]}"; do
+        [ "${e}" = "${rel}" ] && { found=1; break; }
+    done
+    if [ "${found}" -eq 0 ]; then
+        for e in "${WATCHDOG_HAL_FILES[@]}"; do
+            [ "${e}" = "${rel}" ] && { found=1; break; }
+        done
+    fi
+    if [ "${found}" -eq 0 ]; then
+        for e in "${NONBLOCKING_HAL_FILES[@]}"; do
+            [ "${e}" = "${rel}" ] && { found=1; break; }
+        done
+    fi
+    if [ "${found}" -eq 0 ]; then
+        for e in "${VENDOR_TIMEOUT_HAL_FILES[@]}"; do
+            [ "${e}" = "${rel}" ] && { found=1; break; }
+        done
+    fi
+
+    if [ "${found}" -eq 0 ]; then
+        hal_timeout_violations+="  ${rel}: 未登记超时保护分类"$'\n'
+    fi
+done < <(find "${FW_ROOT}/adapters/outbound/hal" -name '*.c' 2>/dev/null | sort)
+
+# 附加验证: TIMEOUT 文件须含 SW_ERR_TIMEOUT
+for tf in "${TIMEOUT_HAL_FILES[@]}"; do
+    if [ -f "${FW_ROOT}/${tf}" ] && ! grep -q "SW_ERR_TIMEOUT" "${FW_ROOT}/${tf}" 2>/dev/null; then
+        hal_timeout_violations+="  ${tf}: 声称超时保护但未见 SW_ERR_TIMEOUT"$'\n'
+    fi
+done
+
+# 附加验证: WATCHDOG 文件须含 watchdog/WATCHDOG
+for wf in "${WATCHDOG_HAL_FILES[@]}"; do
+    if [ -f "${FW_ROOT}/${wf}" ] && ! grep -qiE "watchdog" "${FW_ROOT}/${wf}" 2>/dev/null; then
+        hal_timeout_violations+="  ${wf}: 声称看门狗保护但未见 watchdog"$'\n'
+    fi
+done
+
+TOTAL_RULES=$((TOTAL_RULES + 1))
+if [ -z "${hal_timeout_violations}" ]; then
+    total_hal=$(find "${FW_ROOT}/adapters/outbound/hal" -name '*.c' 2>/dev/null | wc -l)
+    echo "[PASS] R23: HAL 端口超时覆盖分类完备（${total_hal} 文件均已登记）"
+else
+    echo ""
+    echo "[FAIL] R23: 以下 HAL 实现文件未登记超时保护分类"
+    printf '%s' "${hal_timeout_violations}"
+    echo "  修正: 在 check_arch_boundary.sh 的 TIMEOUT_HAL_FILES / WATCHDOG_HAL_FILES /"
+    echo "        NONBLOCKING_HAL_FILES / VENDOR_TIMEOUT_HAL_FILES 中登记。"
+    echo "        判据: 该 HAL 实现是否等待硬件应答；若是，其最坏等待时长如何受限。"
+    echo "        声称 TIMEOUT 的文件须含 SW_ERR_TIMEOUT；声称 WATCHDOG 须含看门狗逻辑。"
     TOTAL_VIOLATIONS=$((TOTAL_VIOLATIONS + 1))
 fi
 
