@@ -251,7 +251,7 @@ typedef struct {
 - 在 `project_configure_hal()` 下发 IO 名称表、串口、地址、点位等配置。
 - 在 `project_bind_hal()` 绑定传感器通道、VFD 实例、backend 与事件回调。
 - 在 `project_init_hal()` 执行传感器预热等依赖 HAL init 后的项目初始化。
-- 通过 `motor_executor_bind()` 绑定项目选定的静态槽位，并把返回的 `hal_motor_exec_t *` 注入机构控制模式。
+- 通过 `motor_executor_bind()` 绑定项目选定的静态槽位与硬件端口，并把返回的 `motor_exec_t *` 注入机构控制模式。
 - 经 `safety_port_register()` 注册 `safety_ops_t`，提供急停输入与安全切断实现。
 
 ### 6.3 Domain / Application
@@ -301,7 +301,7 @@ target_link_libraries(my_app PRIVATE wdf_application wdf_services wdf_storage_js
 | `wdf_runtime` | bootstrap、事件总线、调度器 |
 | `wdf_domain` | 运行模式、报警注册表、设备快照 |
 | `wdf_application` | 命令网关、副作用路由、自检、恢复、遥测投影、报警与模式桥接 |
-| `wdf_mechanism` | 单轴运动、流体路径（需项目提供 motor provider） |
+| `wdf_mechanism` | 电机状态机、单轴运动、流体路径（项目 bind 硬件端口） |
 | `wdf_program_engine` | 方案引擎模型、表达式、tick 运行时 |
 | `wdf_engine_session` | 方案会话 worker |
 | `wdf_cloud` / `wdf_cloud_json` | 云点位模型 / 属性 JSON 与 property_port 安装 |
@@ -313,11 +313,11 @@ target_link_libraries(my_app PRIVATE wdf_application wdf_services wdf_storage_js
 | `wdf_hal_sim` / `wdf_hal_engine_sim` / `wdf_hal_components` | 仿真后端 / 引擎仿真后端 / HAL 组合件 |
 | `wdf_point_table_json` / `wdf_cjson` | 点位表 JSON 编解码 / 随框架分发的 cJSON |
 
-`wdf_domain` 刻意不含机构控制与方案引擎：两者分别要求项目链接电机执行器实现与方案资产，最小接入（如框架自带 demo）并不需要，捆绑进核心会造成链接期缺符号。同理 `wdf_asset_contract`、`wdf_report_scheduler`、`wdf_observation_bridge` 各自独立，不接入的项目不必被迫链接 cloud、program_engine 或 observability。
+`wdf_domain` 刻意不含机构控制与方案引擎：两者分别要求项目绑定电机硬件端口与提供方案资产，最小接入（如框架自带 demo）并不需要，捆绑进核心会造成链接期缺符号。同理 `wdf_asset_contract`、`wdf_report_scheduler`、`wdf_observation_bridge` 各自独立，不接入的项目不必被迫链接 cloud、program_engine 或 observability。
 
 Demo 的 `demo/CMakeLists.txt` 即按此方式装配，只额外补 `safety_sim` 与 `hw_estop_sim` 两个 sim 装配选择。
 
-Snack 等 vendor provider 仍由根 CMake 开关以 STATIC 库提供，它们有外部 SDK 依赖，不适合无条件导出；电机执行器已纳入 `wdf_hal_components`：
+Snack 等 vendor provider 仍由根 CMake 开关以 STATIC 库提供，它们有外部 SDK 依赖，不适合无条件导出。电机执行器在 `wdf_mechanism`，不在 HAL 组合件：
 
 | 开关 | 用途 |
 |------|------|

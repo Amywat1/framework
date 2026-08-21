@@ -32,7 +32,7 @@
 #   wdf_hal_sim          IO / 语音仿真后端
 #   wdf_hal_engine_sim   方案引擎 IO / 执行器仿真后端
 #   wdf_hal_io_manager   通用单所有者 I/O 事务管理器
-#   wdf_hal_components   ADC 门控、传感器滤波、VFD 管理器、电机执行器
+#   wdf_hal_components   ADC 门控、传感器滤波、VFD 管理器
 #   wdf_point_table_json 点位表的 JSON 编解码
 #   wdf_cloud_json       物模型属性 JSON 与 property_port 安装
 #   wdf_cjson            随框架分发的 cJSON
@@ -127,7 +127,7 @@ _wdf_add_interface_lib(wdf_ports
         runtime/ports/port_registry_safety.c
         runtime/ports/port_registry_cloud.c
         runtime/ports/port_registry_infra.c
-        domain/ports/outbound/motor/hal_motor_exec_port.c
+        domain/ports/outbound/motor/motor_exec_port.c
         domain/ports/outbound/program_engine/engine_environment_port.c
         domain/ports/outbound/storage/engine_program_loader_port.c
     DEPENDS
@@ -157,7 +157,7 @@ _wdf_add_interface_lib(wdf_runtime
 #
 # 只含命令裁决、报警与遥测读模型这类每个设备项目都要用的部分，不含设备控制
 # 模式和方案引擎——那两者分别拆为 wdf_mechanism 与 wdf_program_engine，
-# 因为它们各自要求项目提供 motor provider / 方案资产，最小接入（例如框架
+# 因为它们各自要求项目绑定电机硬件端口 / 提供方案资产，最小接入（例如框架
 # 自带 demo）并不需要，捆绑进核心会造成链接期缺符号。
 # ---------------------------------------------------------------------------
 _wdf_add_interface_lib(wdf_domain
@@ -171,16 +171,20 @@ _wdf_add_interface_lib(wdf_domain
 )
 
 # ---------------------------------------------------------------------------
-# wdf_mechanism — 机构控制通用模式（运动、旋转、互锁、流体路径）
+# wdf_mechanism — 机构控制通用模式（运动状态机、单轴会话、流体路径）
 #
-# motor_axis 会调用 hal_motor_exec_port 声明的函数，这些符号由
-# wdf_hal_components 中的电机执行器实现提供，项目须一并链接。
+# 电机执行器与 motor_axis 同库：axis 只依赖 motor_exec_port，执行器是该端口的
+# 默认领域实现。项目仍须在 wiring 里 bind 硬件端口，但不必再链 wdf_hal_components。
 # ---------------------------------------------------------------------------
 _wdf_add_interface_lib(wdf_mechanism
     SOURCES
         domain/mechanism/model/actuator_events.c
         domain/mechanism/patterns/motor_axis.c
         domain/mechanism/patterns/fluid_path.c
+        domain/mechanism/motor/motor_executor.c
+        domain/mechanism/motor/motor_executor_port.c
+        domain/mechanism/motor/motor_executor_tick.c
+        domain/mechanism/motor/motor_executor_cmd.c
     DEPENDS
         wdf_common
         wdf_ports
@@ -407,10 +411,6 @@ _wdf_add_interface_lib(wdf_hal_components
         adapters/outbound/hal/components/adc_gate/hal_adc_gate.c
         adapters/outbound/hal/components/sensor_filter/hal_sensor_filter.c
         adapters/outbound/hal/components/vfd_manager/hal_vfd_manager.c
-        adapters/outbound/hal/components/motor_exec/hal_motor_executor.c
-        adapters/outbound/hal/components/motor_exec/hal_motor_executor_port.c
-        adapters/outbound/hal/components/motor_exec/hal_motor_executor_tick.c
-        adapters/outbound/hal/components/motor_exec/hal_motor_executor_cmd.c
     DEPENDS
         wdf_hal_io_manager
         wdf_common

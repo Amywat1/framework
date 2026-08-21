@@ -2,10 +2,10 @@
 
 **版本**：v1.0  
 **状态**：已落地（HAL 端口 + 通用组件 + sim 后端 + Snack 可选 provider）  
-**最后同步代码**：2026-08-09（`domain/ports/outbound/hal`、`components/sensor_filter`、`components/vfd_manager`、`components/motor_exec`、Snack io_exp/Modbus provider）  
+**最后同步代码**：2026-08-21（`domain/ports/outbound/hal`、`components/sensor_filter`、`components/vfd_manager`、Snack io_exp/Modbus provider）  
 **适用范围**：`domain/ports/outbound/hal/`、`adapters/outbound/hal/`、`CMakeLists.txt` 可选 provider  
 **架构基线**：Ports & Adapters + 通用组件组合层 + 项目 wiring 注入  
-**关键词**：HAL port、hal_io、hal_sensor、hal_vfd、hal_voice、hal_motor_exec、sensor_filter、vfd_manager、motor_exec、Snack
+**关键词**：HAL port、hal_io、hal_sensor、hal_vfd、hal_voice、sensor_filter、vfd_manager、Snack
 
 ---
 
@@ -25,7 +25,7 @@ HAL 层为 domain/application 提供稳定的硬件能力边界。框架内的�
 
 ```text
 domain / application / services
-        │ hal_*_get_ops() / hal_motor_*()
+        │ hal_*_get_ops()
         ▼
 domain/ports/outbound/hal
         ▲
@@ -35,7 +35,6 @@ adapters/outbound/hal
         ├─ components/sensor_filter     DI 滤波组合层，依赖 hal_io_port
         ├─ components/vfd_manager       VFD 组合层，依赖 backend ops
         ├─ components/adc_gate          ADC 采样按需门控，无向下依赖
-        ├─ components/motor_exec       电机执行器组合件（状态机 + 端口符号）
         └─ providers/
              └─ snack
                   ├─ io_exp             CAN IO 子板 provider
@@ -60,8 +59,7 @@ adapters/outbound/hal
 | `domain/ports/outbound/hal/hal_sensor_port.h`           | DI 滤波端口契约                                                  |
 | `domain/ports/outbound/hal/hal_vfd_port.h`              | 变频器端口契约                                                    |
 | `domain/ports/outbound/hal/hal_voice_port.h`            | 语音端口契约                                                     |
-| `domain/ports/outbound/motor/hal_motor_exec_port.h` | 电机执行器端口契约                                                  |
-| `adapters/outbound/hal/components/`                     | 通用组件：`sensor_filter`、`vfd_manager`、`adc_gate`、`motor_exec` |
+| `adapters/outbound/hal/components/`                     | 通用组件：`sensor_filter`、`vfd_manager`、`adc_gate` |
 | `adapters/outbound/hal/sim/`                            | IO / 语音 / 方案引擎 IO 与执行器仿真后端                                 |
 | `adapters/outbound/hal/providers/snack/io_exp/`         | CAN IO 子板 vendor provider                                  |
 | `adapters/outbound/hal/providers/snack/modbus/`         | Modbus 语音与变频器 vendor provider                              |
@@ -136,20 +134,10 @@ adapters/outbound/hal
 | 通信状态 | `register_event_cb(cb)`                         |
 
 
-### 3.5 电机执行器：`hal_motor_exec_port`
+### 3.5 电机执行器不在 HAL 寄存器端口里
 
-电机执行器采用类型安全的不透明句柄 `hal_motor_exec_t`，不是 register/get ops 单例。端口内部按每实例 `ops + ctx` 分派，可同时承载真实执行器、sim 或 fake。项目 bindings 只持有 `hal_motor_exec_t *` 并注入机构控制模式，不知道句柄布局和执行器状态。
-
-
-| 能力    | API                                                                                                                                                      |
-| ----- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 运动目标  | `hal_motor_run(exec, motor, speed, dir, spec)`（`spec` 为空=连续运行，非空=到位；再调用即更新目标）                                                          |
-| 停止      | `hal_motor_stop()`                                                                                                                                       |
-| 回原/恢复 | `hal_motor_home()`（可选便利）、`hal_motor_recover()`                                                                                                           |
-| 查询    | `hal_motor_phase()`、`hal_motor_position()`、`hal_motor_direction()`、`hal_motor_fault_code()`、`hal_motor_encoder_healthy()`、`hal_motor_baseline_trusted()` |
-
-
-命令返回 `hal_motor_cmd_result_t`，`ACCEPTED` / `QUEUED` 均视为非拒绝；领域模式通过 `hal_motor_cmd_ok()` 判断是否可继续。
+电机命令/查询契约在 `domain/ports/outbound/motor/`，默认状态机在 `domain/mechanism/motor/`。
+它不是 `hal_*_get_ops()` 单例，详见 `doc/module-design/domain/机构控制模式模块设计.md`。
 
 ---
 
@@ -240,11 +228,9 @@ acquire / release 必须成对调用。它只按板号与通道号区分，可�
 
 Sim 后端用于 demo 与单元测试，不表达真实设备时序保证。
 
-### 5.2 电机执行器组合件
+### 5.2 电机执行器
 
-`adapters/outbound/hal/components/motor_exec/` 提供与 vendor 无关的电机运动状态机。`hal_motor_exec_port.c` 实现通用 `ops + ctx` 分派；`hal_motor_executor.c` 提供事件队列与槽池，tick/相位、命令、端口封装分见 `hal_motor_executor_tick.c`、`hal_motor_executor_cmd.c`、`hal_motor_executor_port.c`，一并纳入 `wdf_hal_components`。
-
-真实执行器的配置、单电机状态和事件队列全部位于适配器私有的编译期槽池，槽位数由 `WDF_MOTOR_EXECUTOR_INSTANCE_COUNT` 确定。项目 bindings 作为 composition root，只向 `motor_executor_bind(slot_id, cfg, ports, &exec)` 提交稳定 slot ID 与驱动/编码器/限位/急停端口，再把返回的 `hal_motor_exec_t *` 注入 `domain/mechanism/patterns`。槽位只在启动装配阶段绑定一次，运行期不释放；致命错误通过 `motor_executor_reinit()` 恢复，因而无堆内存、无悬空句柄。
+电机执行器已从 HAL 组合件迁入 `domain/mechanism/motor/`，见机构控制模式模块设计。本层只保留把具体 VFD/IO/sim 填进 `motor_driver_t` 的 vendor 或项目适配。
 
 ### 5.3 Snack io_exp provider
 
@@ -360,7 +346,7 @@ bootstrap_start()
 | `hal_sensor_filter`   | 通过 `periodic_task` 周期推进                        |
 | `hal_vfd_manager`     | 通过 `periodic_task` 周期监测 fault/current 和 RST 脉冲 |
 | `io_exp_driver`       | provider 内部自建 IO 后台线程                          |
-| `hal_motor_exec_port` | 由底层电机执行器管理异步运动状态                               |
+| `motor_exec_port` | 由底层电机执行器管理异步运动状态                               |
 
 
 安全约束：
@@ -380,12 +366,10 @@ bootstrap_start()
 | `test_hal_io_sim`                  | IO sim 注册、DI/DO、脉冲计数                  |
 | `test_hal_sensor_filter`           | DI 滤波绑定、预热、周期采样                       |
 | `test_hal_vfd_manager`             | VFD manager 绑定、run/stop/reset、monitor |
-| `test_hal_motor_exec_port`         | 电机执行器到 `hal_motor_exec_port` 的映射      |
 | `test_snack_io_exp_adapter`        | Snack io_exp driver/adapter 行为        |
 | `test_snack_vfd_backend`           | Snack VFD backend 与 manager 联动        |
 | `test_snack_voice_adapter`         | Snack voice Modbus adapter            |
 | `test_hal_voice_sim`               | 语音 sim 注册和操作                          |
-| `test_hal_motor_executor_position` | 电机执行器位置推进                             |
 
 
 用例数与通过情况以 `scripts/check_all.sh` 生成的 `build-check/test-results/report.html` 为准，本文不记录动态结论（原则见 `tests/reports/README.md`）。
@@ -396,10 +380,10 @@ bootstrap_start()
 
 ### 9.1 框架已提供
 
-- HAL 端口契约：IO、sensor、VFD、voice、motor executor。
+- HAL 端口契约：IO、sensor、VFD、voice。
 - 通用组件：DI 滤波、VFD manager、ADC 门控。
 - 仿真后端：IO、voice、engine IO、engine actuator、安全端口与急停。
-- 框架电机执行器组合件；可选真机 provider：Snack io_exp、Snack Modbus voice/VFD。
+- 可选真机 provider：Snack io_exp、Snack Modbus voice/VFD。电机状态机在 domain，不在本层。
 - Snack Modbus 的 `drv_modbus_link_t`、`drv_vfd_t`、`drv_voice_t` 对 provider 外部均为
   不透明类型；对象布局只存在于同目录 `*_internal.h`，实际存储由 VFD/voice 组合层持有。
 

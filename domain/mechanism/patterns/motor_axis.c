@@ -12,25 +12,25 @@
 
 static motor_axis_state_t axis_phase_to_state(const motor_axis_t *self)
 {
-    hal_motor_phase_t ph;
+    motor_exec_phase_t ph;
 
     if ((self == NULL) || !self->inited) {
         return MOTOR_AXIS_STATE_IDLE;
     }
 
-    ph = hal_motor_phase(self->exec, self->motor);
+    ph = motor_exec_phase(self->exec, self->motor);
     switch (ph) {
-    case HAL_MOTOR_PHASE_STOPPED:
+    case MOTOR_PHASE_STOPPED:
         return MOTOR_AXIS_STATE_IDLE;
 
-    case HAL_MOTOR_PHASE_WAITING_START:
-    case HAL_MOTOR_PHASE_RUNNING:
-    case HAL_MOTOR_PHASE_DECELERATING:
-    case HAL_MOTOR_PHASE_REVERSAL_WAIT:
+    case MOTOR_PHASE_WAITING_START:
+    case MOTOR_PHASE_RUNNING:
+    case MOTOR_PHASE_DECELERATING:
+    case MOTOR_PHASE_REVERSAL_WAIT:
         return MOTOR_AXIS_STATE_MOVING;
 
-    case HAL_MOTOR_PHASE_FAULT:
-    case HAL_MOTOR_PHASE_ESTOP:
+    case MOTOR_PHASE_FAULT:
+    case MOTOR_PHASE_ESTOP:
         return MOTOR_AXIS_STATE_FAULT;
 
     default:
@@ -38,16 +38,16 @@ static motor_axis_state_t axis_phase_to_state(const motor_axis_t *self)
     }
 }
 
-static bool map_event_to_result(const hal_motor_event_t *ev, motor_axis_end_result_t *out)
+static bool map_event_to_result(const motor_event_t *ev, motor_axis_end_result_t *out)
 {
     switch (ev->type) {
-    case HAL_MOTOR_EVENT_ARRIVED:
-    case HAL_MOTOR_EVENT_TIMEOUT:
-    case HAL_MOTOR_EVENT_STOPPED:
-    case HAL_MOTOR_EVENT_FAULT:
-    case HAL_MOTOR_EVENT_ESTOP:
+    case MOTOR_EVENT_ARRIVED:
+    case MOTOR_EVENT_TIMEOUT:
+    case MOTOR_EVENT_STOPPED:
+    case MOTOR_EVENT_FAULT:
+    case MOTOR_EVENT_ESTOP:
         break;
-    case HAL_MOTOR_EVENT_WARNING:
+    case MOTOR_EVENT_WARNING:
     default:
         return false;
     }
@@ -68,8 +68,8 @@ static void report_end(motor_axis_t *self, const motor_axis_end_result_t *result
 {
     /* 同一故障闩锁下，事件路径与拒令合成可能先后到达；FAULT/ESTOP 按码去重。 */
     if (result->valid && self->last_result.valid
-        && ((result->outcome == HAL_MOTOR_EVENT_FAULT)
-            || (result->outcome == HAL_MOTOR_EVENT_ESTOP))
+        && ((result->outcome == MOTOR_EVENT_FAULT)
+            || (result->outcome == MOTOR_EVENT_ESTOP))
         && (self->last_result.outcome == result->outcome)
         && (self->last_result.fault == result->fault)) {
         return;
@@ -87,31 +87,31 @@ static void report_end(motor_axis_t *self, const motor_axis_end_result_t *result
 static void report_cmd_fault(motor_axis_t *self)
 {
     motor_axis_end_result_t result;
-    hal_motor_fault_code_t  fault;
-    hal_motor_phase_t       phase;
+    motor_exec_fault_code_t  fault;
+    motor_exec_phase_t       phase;
 
-    fault = hal_motor_fault_code(self->exec, self->motor);
-    phase = hal_motor_phase(self->exec, self->motor);
-    if ((fault == HAL_MOTOR_FAULT_NONE) && (phase != HAL_MOTOR_PHASE_FAULT)
-        && (phase != HAL_MOTOR_PHASE_ESTOP)) {
+    fault = motor_exec_fault_code(self->exec, self->motor);
+    phase = motor_exec_phase(self->exec, self->motor);
+    if ((fault == MOTOR_FAULT_NONE) && (phase != MOTOR_PHASE_FAULT)
+        && (phase != MOTOR_PHASE_ESTOP)) {
         return;
     }
 
     memset(&result, 0, sizeof(result));
     result.valid   = true;
-    result.outcome = (phase == HAL_MOTOR_PHASE_ESTOP) ? HAL_MOTOR_EVENT_ESTOP
-                                                     : HAL_MOTOR_EVENT_FAULT;
-    result.trigger = HAL_MOTOR_END_NONE;
+    result.outcome = (phase == MOTOR_PHASE_ESTOP) ? MOTOR_EVENT_ESTOP
+                                                     : MOTOR_EVENT_FAULT;
+    result.trigger = MOTOR_END_NONE;
     result.fault   = fault;
     report_end(self, &result);
 }
 
 static void drain_motor_events(motor_axis_t *self)
 {
-    hal_motor_event_t       ev;
+    motor_event_t       ev;
     motor_axis_end_result_t result;
 
-    while (hal_motor_pop_event_for(self->exec, self->motor, &ev)) {
+    while (motor_exec_pop_event_for(self->exec, self->motor, &ev)) {
         if (!map_event_to_result(&ev, &result)) {
             continue;
         }
@@ -119,7 +119,7 @@ static void drain_motor_events(motor_axis_t *self)
     }
 }
 
-sw_err_t motor_axis_init(motor_axis_t *self, hal_motor_exec_t *exec, int motor, const motion_lifecycle_opts_t *opts)
+sw_err_t motor_axis_init(motor_axis_t *self, motor_exec_t *exec, int motor, const motion_lifecycle_opts_t *opts)
 {
     if ((self == NULL) || (exec == NULL)) {
         return SW_ERR_PARAM;
@@ -135,26 +135,26 @@ sw_err_t motor_axis_init(motor_axis_t *self, hal_motor_exec_t *exec, int motor, 
 }
 
 sw_err_t motor_axis_run(motor_axis_t                *self,
-                        hal_motor_dir_t              dir,
-                        hal_motor_speed_t            speed,
-                        const hal_motor_move_spec_t *spec)
+                        motor_dir_t              dir,
+                        motor_speed_t            speed,
+                        const motor_move_spec_t *spec)
 {
-    hal_motor_cmd_result_t r;
+    motor_cmd_result_t r;
     sw_err_t               ret;
 
     if ((self == NULL) || !self->inited) {
         return SW_ERR_NOT_INIT;
     }
-    if ((speed.kind != HAL_MOTOR_SPEED_FREQ) && (speed.kind != HAL_MOTOR_SPEED_GEAR)) {
+    if ((speed.kind != MOTOR_SPEED_FREQ) && (speed.kind != MOTOR_SPEED_GEAR)) {
         return SW_ERR_PARAM;
     }
     if (speed.value <= 0) {
         return SW_ERR_PARAM;
     }
 
-    r = hal_motor_run(self->exec, self->motor, speed, dir, spec);
+    r = motor_exec_run(self->exec, self->motor, speed, dir, spec);
 
-    ret = hal_motor_cmd_ok(r) ? SW_OK : SW_ERR_STATE;
+    ret = motor_cmd_ok(r) ? SW_OK : SW_ERR_STATE;
     if (ret == SW_OK) {
         self->awaiting_idle = true;
     } else {
@@ -165,14 +165,14 @@ sw_err_t motor_axis_run(motor_axis_t                *self,
 
 sw_err_t motor_axis_stop(motor_axis_t *self)
 {
-    hal_motor_cmd_result_t r;
+    motor_cmd_result_t r;
 
     if ((self == NULL) || !self->inited) {
         return SW_ERR_NOT_INIT;
     }
 
-    r = hal_motor_stop(self->exec, self->motor);
-    if (hal_motor_cmd_ok(r)) {
+    r = motor_exec_stop(self->exec, self->motor);
+    if (motor_cmd_ok(r)) {
         self->awaiting_idle = true;
         return SW_OK;
     }
@@ -198,20 +198,20 @@ motor_axis_end_result_t motor_axis_last_result(const motor_axis_t *self)
 
 sw_err_t motor_axis_recover(motor_axis_t *self)
 {
-    hal_motor_cmd_result_t r;
+    motor_cmd_result_t r;
 
     if ((self == NULL) || !self->inited) {
         return SW_ERR_NOT_INIT;
     }
 
-    r = hal_motor_recover(self->exec, self->motor, HAL_MOTOR_RECOVERY_DRIVER_RESET);
-    if (!hal_motor_cmd_ok(r)) {
+    r = motor_exec_recover(self->exec, self->motor, MOTOR_RECOVERY_DRIVER_RESET);
+    if (!motor_cmd_ok(r)) {
         report_cmd_fault(self);
         return SW_ERR_STATE;
     }
 
-    r = hal_motor_recover(self->exec, self->motor, HAL_MOTOR_RECOVERY_MODULE_STOP);
-    if (!hal_motor_cmd_ok(r)) {
+    r = motor_exec_recover(self->exec, self->motor, MOTOR_RECOVERY_MODULE_STOP);
+    if (!motor_cmd_ok(r)) {
         report_cmd_fault(self);
         return SW_ERR_STATE;
     }

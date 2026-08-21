@@ -1,26 +1,26 @@
 /**
- * @file    hal_motor_executor_tick.c
+ * @file    motor_executor_tick.c
  * @brief   电机执行器 tick 与相位状态机
  * @author  huwangwei
  * @date    2026-08-21
  */
 
-#include "adapters/outbound/hal/components/motor_exec/hal_motor_executor_internal.h"
+#include "domain/mechanism/motor/motor_executor_internal.h"
 
 /* ------------------------- 输出 ------------------------- */
 
-static bool speed_equal(hal_motor_speed_t left, hal_motor_speed_t right)
+static bool speed_equal(motor_speed_t left, motor_speed_t right)
 {
     return (left.kind == right.kind) && (left.value == right.value);
 }
 
-static hal_motor_speed_t desired_output_speed(motor_executor_t *e, int i)
+static motor_speed_t desired_output_speed(motor_executor_t *e, int i)
 {
     motor_mstate_t          *state = &e->m[i];
     const motor_motor_cfg_t *cfg   = &e->cfg.motors[i];
-    hal_motor_speed_t        speed = state->speed;
+    motor_speed_t        speed = state->speed;
 
-    if (state->move_active && state->spec.use_position && (speed.kind == HAL_MOTOR_SPEED_GEAR) && (cfg->decel_point > 0)
+    if (state->move_active && state->spec.use_position && (speed.kind == MOTOR_SPEED_GEAR) && (cfg->decel_point > 0)
         && (cfg->position_slow_gear > 0) && within_distance(state->spec.target_pos, state->position, cfg->decel_point)
         && (speed.value > cfg->position_slow_gear)) {
         speed.value = cfg->position_slow_gear;
@@ -31,7 +31,7 @@ static hal_motor_speed_t desired_output_speed(motor_executor_t *e, int i)
 static bool apply_output(motor_executor_t *e, int i)
 {
     motor_mstate_t   *s       = &e->m[i];
-    hal_motor_speed_t desired = desired_output_speed(e, i);
+    motor_speed_t desired = desired_output_speed(e, i);
 
     if (s->output_applied && speed_equal(s->applied_speed, desired)) {
         return true;
@@ -51,9 +51,9 @@ static bool immediate_cut(motor_executor_t *e, int i)
 }
 
 /* ------------------------- 前向声明 ------------------------- */
-static void fault_one(motor_executor_t *e, int i, hal_motor_fault_code_t code, bool fatal);
+static void fault_one(motor_executor_t *e, int i, motor_exec_fault_code_t code, bool fatal);
 static void link_shared_driver(motor_executor_t *e, int i);
-static void enter_fault(motor_executor_t *e, int i, hal_motor_fault_code_t code);
+static void enter_fault(motor_executor_t *e, int i, motor_exec_fault_code_t code);
 static void begin_start(motor_executor_t *e, int i, const motor_pending_cmd_t *pc);
 
 /* ------------------------- 互锁 ------------------------- */
@@ -66,9 +66,9 @@ static bool interlock_ok(motor_executor_t *e, int i)
             continue;
         }
         if (il->kind == MOTOR_INTERLOCK_MUTEX) {
-            hal_motor_phase_t bp = e->m[il->b].phase;
-            if (bp == HAL_MOTOR_PHASE_RUNNING || bp == HAL_MOTOR_PHASE_DECELERATING
-                || bp == HAL_MOTOR_PHASE_WAITING_START || bp == HAL_MOTOR_PHASE_REVERSAL_WAIT) {
+            motor_exec_phase_t bp = e->m[il->b].phase;
+            if (bp == MOTOR_PHASE_RUNNING || bp == MOTOR_PHASE_DECELERATING
+                || bp == MOTOR_PHASE_WAITING_START || bp == MOTOR_PHASE_REVERSAL_WAIT) {
                 return false;
             }
         } else {
@@ -100,12 +100,12 @@ static void begin_start(motor_executor_t *e, int i, const motor_pending_cmd_t *p
         if (prep == MOTOR_PREPARE_BUSY) {
             s->pending = *pc;
             s->queued  = true;
-            s->phase   = HAL_MOTOR_PHASE_WAITING_START;
+            s->phase   = MOTOR_PHASE_WAITING_START;
             return;
         }
         if (prep == MOTOR_PREPARE_FAILED) {
-            fault_one(e, i, HAL_MOTOR_FAULT_PREPARE_FAILED, false);
-            push_event(e, i, HAL_MOTOR_EVENT_FAULT, HAL_MOTOR_END_NONE, HAL_MOTOR_FAULT_PREPARE_FAILED);
+            fault_one(e, i, MOTOR_FAULT_PREPARE_FAILED, false);
+            push_event(e, i, MOTOR_EVENT_FAULT, MOTOR_END_NONE, MOTOR_FAULT_PREPARE_FAILED);
             link_shared_driver(e, i);
             return;
         }
@@ -116,7 +116,7 @@ static void begin_start(motor_executor_t *e, int i, const motor_pending_cmd_t *p
     s->output_applied    = false;
     s->move_active       = pc->is_move;
     s->spec              = pc->spec;
-    s->end_limit         = HAL_MOTOR_LIMIT_POS;
+    s->end_limit         = MOTOR_LIMIT_POS;
     s->move_start_ms     = e->now;
     s->elapsed_ms        = 0;
     s->start_ms          = e->now;
@@ -131,7 +131,7 @@ static void begin_start(motor_executor_t *e, int i, const motor_pending_cmd_t *p
     s->enc_stall         = 0;
     s->enc_warned        = false;
     s->queued            = false;
-    s->phase             = HAL_MOTOR_PHASE_RUNNING;
+    s->phase             = MOTOR_PHASE_RUNNING;
 }
 
 static bool reversal(motor_executor_t *e, int i, const motor_pending_cmd_t *pc)
@@ -139,12 +139,12 @@ static bool reversal(motor_executor_t *e, int i, const motor_pending_cmd_t *pc)
     motor_mstate_t *s = &e->m[i];
 
     if (!immediate_cut(e, i)) {
-        enter_fault(e, i, HAL_MOTOR_FAULT_DRIVER_PORT_FATAL);
+        enter_fault(e, i, MOTOR_FAULT_DRIVER_PORT_FATAL);
         return false;
     }
     s->after_reversal = *pc;
     s->reversal_until = e->now + e->cfg.motors[i].reversal_stop_ms;
-    s->phase          = HAL_MOTOR_PHASE_REVERSAL_WAIT;
+    s->phase          = MOTOR_PHASE_REVERSAL_WAIT;
     return true;
 }
 
@@ -168,70 +168,70 @@ static void apply_goal_in_place(motor_mstate_t *s, const motor_pending_cmd_t *pc
     s->emit_stop_on_halt = false;
 }
 
-static hal_motor_cmd_result_t after_begin_start(motor_executor_t *e, int i, const char *started_reason)
+static motor_cmd_result_t after_begin_start(motor_executor_t *e, int i, const char *started_reason)
 {
-    hal_motor_phase_t phase = e->m[i].phase;
+    motor_exec_phase_t phase = e->m[i].phase;
 
-    if (phase == HAL_MOTOR_PHASE_WAITING_START) {
-        return cmd_make(HAL_MOTOR_CMD_QUEUED, "prepare");
+    if (phase == MOTOR_PHASE_WAITING_START) {
+        return cmd_make(MOTOR_CMD_QUEUED, "prepare");
     }
-    if (phase == HAL_MOTOR_PHASE_FAULT) {
-        return cmd_make(HAL_MOTOR_CMD_ACCEPTED, "prepare-failed");
+    if (phase == MOTOR_PHASE_FAULT) {
+        return cmd_make(MOTOR_CMD_ACCEPTED, "prepare-failed");
     }
-    return cmd_make(HAL_MOTOR_CMD_ACCEPTED, started_reason);
+    return cmd_make(MOTOR_CMD_ACCEPTED, started_reason);
 }
 
-static hal_motor_cmd_result_t enter_reversal(motor_executor_t          *e,
+static motor_cmd_result_t enter_reversal(motor_executor_t          *e,
                                              int                        i,
                                              const motor_pending_cmd_t *pc,
                                              const char                *reason)
 {
     if (!reversal(e, i, pc)) {
-        return cmd_make(HAL_MOTOR_CMD_ACCEPTED, "cutoff-failed");
+        return cmd_make(MOTOR_CMD_ACCEPTED, "cutoff-failed");
     }
-    return cmd_make(HAL_MOTOR_CMD_ACCEPTED, reason);
+    return cmd_make(MOTOR_CMD_ACCEPTED, reason);
 }
 
 /**
  * @brief  锁存运动目标并由内部状态机收敛；调用方不必按相位选命令
  */
-hal_motor_cmd_result_t apply_goal(motor_executor_t *e, int i, const motor_pending_cmd_t *pc)
+motor_cmd_result_t apply_goal(motor_executor_t *e, int i, const motor_pending_cmd_t *pc)
 {
     motor_mstate_t *s = &e->m[i];
 
     switch (s->phase) {
-    case HAL_MOTOR_PHASE_RUNNING:
+    case MOTOR_PHASE_RUNNING:
         if ((pc->dir != s->dir) || (pc->speed.kind != s->speed.kind)) {
             return enter_reversal(e, i, pc, "reversal");
         }
         apply_goal_in_place(s, pc);
-        return cmd_make(HAL_MOTOR_CMD_ACCEPTED, "goal-updated");
+        return cmd_make(MOTOR_CMD_ACCEPTED, "goal-updated");
 
-    case HAL_MOTOR_PHASE_DECELERATING:
+    case MOTOR_PHASE_DECELERATING:
         if ((pc->dir != s->dir) || (pc->speed.kind != s->speed.kind)) {
             return enter_reversal(e, i, pc, "output-mode-change");
         }
         begin_start(e, i, pc);
         return after_begin_start(e, i, "restart");
 
-    case HAL_MOTOR_PHASE_WAITING_START:
+    case MOTOR_PHASE_WAITING_START:
         s->pending = *pc;
         s->queued  = true;
-        return cmd_make(HAL_MOTOR_CMD_QUEUED, "pending-updated");
+        return cmd_make(MOTOR_CMD_QUEUED, "pending-updated");
 
-    case HAL_MOTOR_PHASE_REVERSAL_WAIT:
+    case MOTOR_PHASE_REVERSAL_WAIT:
         s->after_reversal = *pc;
-        return cmd_make(HAL_MOTOR_CMD_QUEUED, "reversal-goal-updated");
+        return cmd_make(MOTOR_CMD_QUEUED, "reversal-goal-updated");
 
-    case HAL_MOTOR_PHASE_STOPPED:
+    case MOTOR_PHASE_STOPPED:
         if (!interlock_ok(e, i)) {
             return cmd_reject("interlock");
         }
         if (in_cooldown(e, i)) {
             s->pending = *pc;
             s->queued  = true;
-            s->phase   = HAL_MOTOR_PHASE_WAITING_START;
-            return cmd_make(HAL_MOTOR_CMD_QUEUED, "cooldown");
+            s->phase   = MOTOR_PHASE_WAITING_START;
+            return cmd_make(MOTOR_CMD_QUEUED, "cooldown");
         }
         begin_start(e, i, pc);
         return after_begin_start(e, i, "start");
@@ -243,13 +243,13 @@ hal_motor_cmd_result_t apply_goal(motor_executor_t *e, int i, const motor_pendin
 
 /* ------------------------- 故障 ------------------------- */
 
-static void fault_one(motor_executor_t *e, int i, hal_motor_fault_code_t code, bool fatal)
+static void fault_one(motor_executor_t *e, int i, motor_exec_fault_code_t code, bool fatal)
 {
     motor_mstate_t *s = &e->m[i];
     (void)immediate_cut(e, i);
     /* 结算耗时后再转入故障态，故障事件才能带上已运行时长。 */
     settle_elapsed(e, i);
-    s->phase             = HAL_MOTOR_PHASE_FAULT;
+    s->phase             = MOTOR_PHASE_FAULT;
     s->fatal             = fatal;
     s->fault_code        = code;
     s->move_active       = false;
@@ -267,34 +267,34 @@ static void link_shared_driver(motor_executor_t *e, int i)
         if (e->cfg.motors[j].driver_index != di) {
             continue;
         }
-        if (e->m[j].phase == HAL_MOTOR_PHASE_FAULT || e->m[j].phase == HAL_MOTOR_PHASE_ESTOP) {
+        if (e->m[j].phase == MOTOR_PHASE_FAULT || e->m[j].phase == MOTOR_PHASE_ESTOP) {
             continue;
         }
-        fault_one(e, j, HAL_MOTOR_FAULT_SHARED_DRIVER, false);
-        push_event(e, j, HAL_MOTOR_EVENT_FAULT, HAL_MOTOR_END_NONE, HAL_MOTOR_FAULT_SHARED_DRIVER);
+        fault_one(e, j, MOTOR_FAULT_SHARED_DRIVER, false);
+        push_event(e, j, MOTOR_EVENT_FAULT, MOTOR_END_NONE, MOTOR_FAULT_SHARED_DRIVER);
     }
 }
 
-static void enter_fault(motor_executor_t *e, int i, hal_motor_fault_code_t code)
+static void enter_fault(motor_executor_t *e, int i, motor_exec_fault_code_t code)
 {
     fault_one(e, i, code, false);
-    push_event(e, i, HAL_MOTOR_EVENT_FAULT, HAL_MOTOR_END_NONE, code);
+    push_event(e, i, MOTOR_EVENT_FAULT, MOTOR_END_NONE, code);
     link_shared_driver(e, i);
 }
 
-static void enter_fatal(motor_executor_t *e, int i, hal_motor_fault_code_t code)
+static void enter_fatal(motor_executor_t *e, int i, motor_exec_fault_code_t code)
 {
     fault_one(e, i, code, true);
-    push_event(e, i, HAL_MOTOR_EVENT_FAULT, HAL_MOTOR_END_NONE, code);
+    push_event(e, i, MOTOR_EVENT_FAULT, MOTOR_END_NONE, code);
 }
 
-static void warn(motor_executor_t *e, int i, hal_motor_fault_code_t code)
+static void warn(motor_executor_t *e, int i, motor_exec_fault_code_t code)
 {
-    if (e->cfg.motors[i].enc_escalate && code == HAL_MOTOR_FAULT_ENCODER_SIGNAL) {
+    if (e->cfg.motors[i].enc_escalate && code == MOTOR_FAULT_ENCODER_SIGNAL) {
         enter_fault(e, i, code);
         return;
     }
-    push_event(e, i, HAL_MOTOR_EVENT_WARNING, HAL_MOTOR_END_NONE, code);
+    push_event(e, i, MOTOR_EVENT_WARNING, MOTOR_END_NONE, code);
 }
 
 /* ------------------------- 停止 / 到位 ------------------------- */
@@ -303,7 +303,7 @@ static void finish_halt(motor_executor_t *e, int i)
 {
     motor_mstate_t *s = &e->m[i];
     if (!immediate_cut(e, i)) {
-        enter_fault(e, i, HAL_MOTOR_FAULT_DRIVER_PORT_FATAL);
+        enter_fault(e, i, MOTOR_FAULT_DRIVER_PORT_FATAL);
         return;
     }
     /* 置 STOPPED 前先结算耗时，否则随后的停止事件只能读到未累加的 0。 */
@@ -311,16 +311,16 @@ static void finish_halt(motor_executor_t *e, int i)
     /* ORIGIN 限位运动被外部停止时，只要机构确实压在原点就必须重建基准：清零依据是
      * 机构位置，与运动因何结束、是否经 motor_home 无关。上层可能与本执行器同拍
      * 看到原点限位并先下发停止，此时走 finish_halt 而非 complete_move。 */
-    if (hal_motor_limit_mask_has(s->spec.limit_mask, HAL_MOTOR_LIMIT_ORIGIN)
-        && sensor_limit(e, i, HAL_MOTOR_LIMIT_ORIGIN)) {
+    if (motor_limit_mask_has(s->spec.limit_mask, MOTOR_LIMIT_ORIGIN)
+        && sensor_limit(e, i, MOTOR_LIMIT_ORIGIN)) {
         (void)zero_encoder_baseline(e, i);
     }
-    s->phase          = HAL_MOTOR_PHASE_STOPPED;
+    s->phase          = MOTOR_PHASE_STOPPED;
     s->move_active    = false;
     s->cooldown_until = e->now + e->cfg.motors[i].cooldown_ms;
     if (s->emit_stop_on_halt) {
         s->emit_stop_on_halt = false;
-        push_event(e, i, HAL_MOTOR_EVENT_STOPPED, HAL_MOTOR_END_NONE, HAL_MOTOR_FAULT_NONE);
+        push_event(e, i, MOTOR_EVENT_STOPPED, MOTOR_END_NONE, MOTOR_FAULT_NONE);
     }
 }
 
@@ -363,13 +363,13 @@ bool zero_encoder_baseline(motor_executor_t *e, int i)
     return false;
 }
 
-void complete_move(motor_executor_t *e, int i, hal_motor_event_type_t type, hal_motor_end_condition_t trig)
+void complete_move(motor_executor_t *e, int i, motor_event_type_t type, motor_end_condition_t trig)
 {
     motor_mstate_t *s = &e->m[i];
     /* 清零依据是「监视 ORIGIN 且结束时机构确实压在原点」，与是否 motor_home、
      * 运动因何结束无关。上层可能同拍先下发停止（END_NONE），仍须重建基准。 */
-    bool origin_reached = hal_motor_limit_mask_has(s->spec.limit_mask, HAL_MOTOR_LIMIT_ORIGIN)
-                          && sensor_limit(e, i, HAL_MOTOR_LIMIT_ORIGIN);
+    bool origin_reached = motor_limit_mask_has(s->spec.limit_mask, MOTOR_LIMIT_ORIGIN)
+                          && sensor_limit(e, i, MOTOR_LIMIT_ORIGIN);
 
     /* 先结算耗时，保留到位瞬间的时长供随后的事件读取。 */
     settle_elapsed(e, i);
@@ -377,20 +377,20 @@ void complete_move(motor_executor_t *e, int i, hal_motor_event_type_t type, hal_
     s->emit_stop_on_halt = false;
     if (origin_reached) {
         finish_halt(e, i);
-        if (s->phase == HAL_MOTOR_PHASE_FAULT) {
+        if (s->phase == MOTOR_PHASE_FAULT) {
             return;
         }
         /* finish_halt 已尝试建基准；失败则进入故障（与旧 complete_move 路径一致）。 */
         if (!s->baseline_trusted) {
-            enter_fault(e, i, HAL_MOTOR_FAULT_ENCODER_SIGNAL);
+            enter_fault(e, i, MOTOR_FAULT_ENCODER_SIGNAL);
             return;
         }
-        push_event(e, i, type, trig, HAL_MOTOR_FAULT_NONE);
+        push_event(e, i, type, trig, MOTOR_FAULT_NONE);
         return;
     }
 
     /* 非原点动作保留到位瞬间的位置和耗时。 */
-    push_event(e, i, type, trig, HAL_MOTOR_FAULT_NONE);
+    push_event(e, i, type, trig, MOTOR_FAULT_NONE);
     finish_halt(e, i);
 }
 
@@ -404,18 +404,18 @@ static void check_end(motor_executor_t *e, int i)
     /* 优先级：硬限位（mask OR）→ 位置 → 软限位 → 电流 → 时间 → 超时兜底
      * 硬限位同拍多路：ORIGIN → POS → NEG */
     if (s->spec.limit_mask != 0u) {
-        static const hal_motor_limit_kind_t k_order[] = {
-            HAL_MOTOR_LIMIT_ORIGIN,
-            HAL_MOTOR_LIMIT_POS,
-            HAL_MOTOR_LIMIT_NEG,
+        static const motor_limit_kind_t k_order[] = {
+            MOTOR_LIMIT_ORIGIN,
+            MOTOR_LIMIT_POS,
+            MOTOR_LIMIT_NEG,
         };
         unsigned n;
 
         for (n = 0; n < (sizeof(k_order) / sizeof(k_order[0])); ++n) {
-            hal_motor_limit_kind_t kind = k_order[n];
-            if (hal_motor_limit_mask_has(s->spec.limit_mask, kind) && sensor_limit(e, i, kind)) {
+            motor_limit_kind_t kind = k_order[n];
+            if (motor_limit_mask_has(s->spec.limit_mask, kind) && sensor_limit(e, i, kind)) {
                 s->end_limit = kind;
-                complete_move(e, i, HAL_MOTOR_EVENT_ARRIVED, HAL_MOTOR_END_LIMIT);
+                complete_move(e, i, MOTOR_EVENT_ARRIVED, MOTOR_END_LIMIT);
                 return;
             }
         }
@@ -423,21 +423,21 @@ static void check_end(motor_executor_t *e, int i)
     if (s->spec.use_position) {
         int64_t target    = s->spec.target_pos;
         int     tolerance = mc->pos_tolerance;
-        bool    reached   = (s->dir == HAL_MOTOR_DIR_FORWARD) ? (s->position >= lower_bound(target, tolerance))
+        bool    reached   = (s->dir == MOTOR_DIR_FORWARD) ? (s->position >= lower_bound(target, tolerance))
                                                               : (s->position <= upper_bound(target, tolerance));
 
         if (reached) {
-            complete_move(e, i, HAL_MOTOR_EVENT_ARRIVED, HAL_MOTOR_END_POSITION);
+            complete_move(e, i, MOTOR_EVENT_ARRIVED, MOTOR_END_POSITION);
             return;
         }
     }
     if (s->spec.use_soft_limit && mc->has_soft_limit) {
-        if (s->dir == HAL_MOTOR_DIR_FORWARD && s->position >= mc->soft_max) {
-            complete_move(e, i, HAL_MOTOR_EVENT_ARRIVED, HAL_MOTOR_END_SOFT_LIMIT);
+        if (s->dir == MOTOR_DIR_FORWARD && s->position >= mc->soft_max) {
+            complete_move(e, i, MOTOR_EVENT_ARRIVED, MOTOR_END_SOFT_LIMIT);
             return;
         }
-        if (s->dir == HAL_MOTOR_DIR_REVERSE && s->position <= mc->soft_min) {
-            complete_move(e, i, HAL_MOTOR_EVENT_ARRIVED, HAL_MOTOR_END_SOFT_LIMIT);
+        if (s->dir == MOTOR_DIR_REVERSE && s->position <= mc->soft_min) {
+            complete_move(e, i, MOTOR_EVENT_ARRIVED, MOTOR_END_SOFT_LIMIT);
             return;
         }
     }
@@ -450,7 +450,7 @@ static void check_end(motor_executor_t *e, int i)
             if (cur > s->spec.current_limit) {
                 s->cur_stop_ms += (uint32_t)e->cfg.tick_ms;
                 if (s->cur_stop_ms >= s->spec.current_confirm_ms) {
-                    complete_move(e, i, HAL_MOTOR_EVENT_ARRIVED, HAL_MOTOR_END_CURRENT);
+                    complete_move(e, i, MOTOR_EVENT_ARRIVED, MOTOR_END_CURRENT);
                     return;
                 }
             } else {
@@ -460,12 +460,12 @@ static void check_end(motor_executor_t *e, int i)
     }
     uint64_t el = s->elapsed_ms + (e->now - s->move_start_ms);
     if (s->spec.use_time && el >= s->spec.duration_ms) {
-        complete_move(e, i, HAL_MOTOR_EVENT_ARRIVED, HAL_MOTOR_END_TIME);
+        complete_move(e, i, MOTOR_EVENT_ARRIVED, MOTOR_END_TIME);
         return;
     }
     uint64_t max_t = s->spec.max_time_ms ? s->spec.max_time_ms : (uint64_t)mc->default_max_time_ms;
     if (el >= max_t) {
-        complete_move(e, i, HAL_MOTOR_EVENT_TIMEOUT, HAL_MOTOR_END_TIMEOUT);
+        complete_move(e, i, MOTOR_EVENT_TIMEOUT, MOTOR_END_TIMEOUT);
         return;
     }
 }
@@ -501,14 +501,14 @@ static void update_encoder(motor_executor_t *e, int i, bool moving)
     if (!moving) {
         return;
     }
-    s->position += (s->dir == HAL_MOTOR_DIR_FORWARD) ? d : -d;
+    s->position += (s->dir == MOTOR_DIR_FORWARD) ? d : -d;
     ad = motor_iabs64(d);
     if (mc->enc_stall_ticks > 0) {
         if (ad == 0) {
             if (++s->enc_stall >= mc->enc_stall_ticks && !s->enc_warned) {
                 s->enc_warned  = true;
                 s->enc_healthy = false;
-                warn(e, i, HAL_MOTOR_FAULT_ENCODER_SIGNAL);
+                warn(e, i, MOTOR_FAULT_ENCODER_SIGNAL);
             }
         } else {
             s->enc_stall = 0;
@@ -517,7 +517,7 @@ static void update_encoder(motor_executor_t *e, int i, bool moving)
     if (mc->enc_jump_max > 0 && ad > mc->enc_jump_max && !s->enc_warned) {
         s->enc_warned  = true;
         s->enc_healthy = false;
-        warn(e, i, HAL_MOTOR_FAULT_ENCODER_SIGNAL);
+        warn(e, i, MOTOR_FAULT_ENCODER_SIGNAL);
     }
 }
 
@@ -538,11 +538,11 @@ static void monitor(motor_executor_t *e, int i)
         s->cur_over_ms  = (cur > cmax) ? s->cur_over_ms + e->cfg.tick_ms : 0;
         s->cur_under_ms = (cur < cmin) ? s->cur_under_ms + e->cfg.tick_ms : 0;
         if (s->cur_over_ms >= mn->cur_confirm_ms && cur > cmax) {
-            enter_fault(e, i, HAL_MOTOR_FAULT_OVERCURRENT);
+            enter_fault(e, i, MOTOR_FAULT_OVERCURRENT);
             return;
         }
         if (s->cur_under_ms >= mn->cur_confirm_ms && cur < cmin) {
-            enter_fault(e, i, HAL_MOTOR_FAULT_UNDERCURRENT);
+            enter_fault(e, i, MOTOR_FAULT_UNDERCURRENT);
             return;
         }
     }
@@ -553,7 +553,7 @@ static void monitor(motor_executor_t *e, int i)
             if (s->fb_bad_ms >= mn->fb_confirm_ms) {
                 s->fb_bad_ms = 0;
                 if (++s->fb_strikes > mn->fb_retries) {
-                    enter_fault(e, i, HAL_MOTOR_FAULT_DRIVER_FEEDBACK);
+                    enter_fault(e, i, MOTOR_FAULT_DRIVER_FEEDBACK);
                     return;
                 }
             }
@@ -567,7 +567,7 @@ static void monitor(motor_executor_t *e, int i)
         if (drv_temperature(motor_drv(e, i), &t)) {
             s->temp_bad_ms = (t > mn->temp_max) ? s->temp_bad_ms + e->cfg.tick_ms : 0;
             if (s->temp_bad_ms >= mn->temp_confirm_ms && t > mn->temp_max) {
-                enter_fault(e, i, HAL_MOTOR_FAULT_OVERTEMP);
+                enter_fault(e, i, MOTOR_FAULT_OVERTEMP);
                 return;
             }
         }
@@ -578,7 +578,7 @@ static void monitor(motor_executor_t *e, int i)
         if (drv_voltage(motor_drv(e, i), &v)) {
             s->volt_bad_ms = (v < mn->volt_min) ? s->volt_bad_ms + e->cfg.tick_ms : 0;
             if (s->volt_bad_ms >= mn->volt_confirm_ms && v < mn->volt_min) {
-                enter_fault(e, i, HAL_MOTOR_FAULT_UNDERVOLTAGE);
+                enter_fault(e, i, MOTOR_FAULT_UNDERVOLTAGE);
                 return;
             }
         }
@@ -591,15 +591,15 @@ static void trigger_estop(motor_executor_t *e)
 {
     for (int i = 0; i < e->motor_count; ++i) {
         motor_mstate_t *s          = &e->m[i];
-        bool            was_active = (s->phase != HAL_MOTOR_PHASE_STOPPED && s->phase != HAL_MOTOR_PHASE_FAULT);
+        bool            was_active = (s->phase != MOTOR_PHASE_STOPPED && s->phase != MOTOR_PHASE_FAULT);
         (void)immediate_cut(e, i);
         /* 结算耗时后再转入急停态，急停事件才能带上被切断时的已运行时长。 */
         settle_elapsed(e, i);
         s->queued      = false;
         s->move_active = false;
-        s->phase       = HAL_MOTOR_PHASE_ESTOP;
+        s->phase       = MOTOR_PHASE_ESTOP;
         if (was_active) {
-            push_event(e, i, HAL_MOTOR_EVENT_ESTOP, HAL_MOTOR_END_NONE, HAL_MOTOR_FAULT_NONE);
+            push_event(e, i, MOTOR_EVENT_ESTOP, MOTOR_END_NONE, MOTOR_FAULT_NONE);
         }
     }
     e->estop_latched = true;
@@ -608,14 +608,14 @@ static void trigger_estop(motor_executor_t *e)
 static void trigger_safe(motor_executor_t *e)
 {
     for (int i = 0; i < e->motor_count; ++i) {
-        bool was_active = (e->m[i].phase != HAL_MOTOR_PHASE_STOPPED && e->m[i].phase != HAL_MOTOR_PHASE_FAULT
-                           && e->m[i].phase != HAL_MOTOR_PHASE_ESTOP);
+        bool was_active = (e->m[i].phase != MOTOR_PHASE_STOPPED && e->m[i].phase != MOTOR_PHASE_FAULT
+                           && e->m[i].phase != MOTOR_PHASE_ESTOP);
         (void)immediate_cut(e, i);
         e->m[i].queued      = false;
         e->m[i].move_active = false;
-        fault_one(e, i, HAL_MOTOR_FAULT_WATCHDOG, false);
+        fault_one(e, i, MOTOR_FAULT_WATCHDOG, false);
         if (was_active) {
-            push_event(e, i, HAL_MOTOR_EVENT_FAULT, HAL_MOTOR_END_NONE, HAL_MOTOR_FAULT_WATCHDOG);
+            push_event(e, i, MOTOR_EVENT_FAULT, MOTOR_END_NONE, MOTOR_FAULT_WATCHDOG);
         }
     }
     e->safe_latched = true;
@@ -654,40 +654,40 @@ void motor_tick(motor_executor_t *e)
 
         /* 端口层致命错误。 */
         if (!s->fatal && drv_status(motor_drv(e, i)) == MOTOR_PORT_FATAL) {
-            enter_fatal(e, i, HAL_MOTOR_FAULT_DRIVER_PORT_FATAL);
+            enter_fatal(e, i, MOTOR_FAULT_DRIVER_PORT_FATAL);
             continue;
         }
-        if (s->phase == HAL_MOTOR_PHASE_FAULT || s->phase == HAL_MOTOR_PHASE_ESTOP) {
+        if (s->phase == MOTOR_PHASE_FAULT || s->phase == MOTOR_PHASE_ESTOP) {
             continue;
         }
 
         switch (s->phase) {
-        case HAL_MOTOR_PHASE_WAITING_START:
+        case MOTOR_PHASE_WAITING_START:
             if (e->now >= s->cooldown_until && interlock_ok(e, i) && s->queued) {
                 begin_start(e, i, &s->pending);
             }
             break;
-        case HAL_MOTOR_PHASE_REVERSAL_WAIT:
+        case MOTOR_PHASE_REVERSAL_WAIT:
             if (e->now >= s->reversal_until) {
                 begin_start(e, i, &s->after_reversal);
             }
             break;
-        case HAL_MOTOR_PHASE_RUNNING:
+        case MOTOR_PHASE_RUNNING:
             if (drv_poll(motor_drv(e, i), i) == MOTOR_PREPARE_FAILED) {
-                enter_fault(e, i, HAL_MOTOR_FAULT_PREPARE_FAILED);
+                enter_fault(e, i, MOTOR_FAULT_PREPARE_FAILED);
                 break;
             }
             update_encoder(e, i, true);
             check_end(e, i);
-            if (s->phase == HAL_MOTOR_PHASE_RUNNING) {
+            if (s->phase == MOTOR_PHASE_RUNNING) {
                 if (!apply_output(e, i)) {
-                    enter_fault(e, i, HAL_MOTOR_FAULT_DRIVER_PORT_FATAL);
+                    enter_fault(e, i, MOTOR_FAULT_DRIVER_PORT_FATAL);
                     break;
                 }
                 monitor(e, i);
             }
             break;
-        case HAL_MOTOR_PHASE_DECELERATING:
+        case MOTOR_PHASE_DECELERATING:
             update_encoder(e, i, true);
             finish_halt(e, i);
             break;
@@ -782,9 +782,9 @@ static motor_init_result_t do_init(motor_executor_t *e)
     for (int i = 0; i < c->motor_count; ++i) {
         motor_mstate_t empty = {0};
         e->m[i]              = empty;
-        e->m[i].phase        = HAL_MOTOR_PHASE_STOPPED;
-        e->m[i].dir          = HAL_MOTOR_DIR_FORWARD;
-        e->m[i].fault_code   = HAL_MOTOR_FAULT_NONE;
+        e->m[i].phase        = MOTOR_PHASE_STOPPED;
+        e->m[i].dir          = MOTOR_DIR_FORWARD;
+        e->m[i].fault_code   = MOTOR_FAULT_NONE;
     }
     e->now             = clock_now(e);
     e->last_tick_ms    = e->now;

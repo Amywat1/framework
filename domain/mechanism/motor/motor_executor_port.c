@@ -1,11 +1,11 @@
 /**
- * @file    hal_motor_executor_port.c
+ * @file    motor_executor_port.c
  * @brief   电机执行器端口封装与小工具（可选方法 NULL 安全）
  * @author  huwangwei
  * @date    2026-08-21
  */
 
-#include "adapters/outbound/hal/components/motor_exec/hal_motor_executor_internal.h"
+#include "domain/mechanism/motor/motor_executor_internal.h"
 
 #include <limits.h>
 
@@ -42,7 +42,7 @@ motor_driver_t *motor_drv(motor_executor_t *e, int i)
     return e->ports.drivers[e->cfg.motors[i].driver_index];
 }
 
-sw_err_t drv_set_output(motor_driver_t *d, hal_motor_speed_t speed, hal_motor_dir_t dir)
+sw_err_t drv_set_output(motor_driver_t *d, motor_speed_t speed, motor_dir_t dir)
 {
     return d->set_output(d->ctx, speed, dir);
 }
@@ -107,7 +107,7 @@ motor_encoder_t *motor_enc(motor_executor_t *e, int i)
     return e->ports.encoders[i];
 }
 
-bool sensor_limit(motor_executor_t *e, int i, hal_motor_limit_kind_t k)
+bool sensor_limit(motor_executor_t *e, int i, motor_limit_kind_t k)
 {
     return e->ports.sensors->limit(e->ports.sensors->ctx, i, k);
 }
@@ -124,15 +124,15 @@ uint64_t clock_now(motor_executor_t *e)
 
 /* ------------------------- 结果构造 ------------------------- */
 
-hal_motor_cmd_result_t cmd_make(hal_motor_cmd_status_t st, const char *reason)
+motor_cmd_result_t cmd_make(motor_cmd_status_t st, const char *reason)
 {
-    hal_motor_cmd_result_t r;
+    motor_cmd_result_t r;
     r.status = st;
     r.reason = reason;
     return r;
 }
 
-hal_motor_cmd_result_t cmd_reject(const char *reason)
+motor_cmd_result_t cmd_reject(const char *reason)
 {
-    return cmd_make(HAL_MOTOR_CMD_REJECTED, reason);
+    return cmd_make(MOTOR_CMD_REJECTED, reason);
 }

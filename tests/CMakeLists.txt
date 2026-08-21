@@ -114,26 +114,6 @@ add_unit_test(test_hal_vfd_manager
 )
 target_compile_definitions(test_hal_vfd_manager PRIVATE HAL_VFD_MANAGER_UNIT_TEST)
 
-add_unit_test(test_hal_motor_exec_port
-    ${CMAKE_CURRENT_SOURCE_DIR}/adapters/test_hal_motor_exec_port.c
-    ${WDF_ROOT}/adapters/outbound/hal/components/motor_exec/hal_motor_executor.c
-    ${WDF_ROOT}/adapters/outbound/hal/components/motor_exec/hal_motor_executor_port.c
-    ${WDF_ROOT}/adapters/outbound/hal/components/motor_exec/hal_motor_executor_tick.c
-    ${WDF_ROOT}/adapters/outbound/hal/components/motor_exec/hal_motor_executor_cmd.c
-    ${WDF_ROOT}/domain/ports/outbound/motor/hal_motor_exec_port.c
-)
-target_compile_definitions(test_hal_motor_exec_port PRIVATE HAL_MOTOR_EXECUTOR_UNIT_TEST)
-
-add_unit_test(test_hal_motor_executor_position
-    ${CMAKE_CURRENT_SOURCE_DIR}/adapters/test_hal_motor_executor_position.c
-    ${WDF_ROOT}/adapters/outbound/hal/components/motor_exec/hal_motor_executor.c
-    ${WDF_ROOT}/adapters/outbound/hal/components/motor_exec/hal_motor_executor_port.c
-    ${WDF_ROOT}/adapters/outbound/hal/components/motor_exec/hal_motor_executor_tick.c
-    ${WDF_ROOT}/adapters/outbound/hal/components/motor_exec/hal_motor_executor_cmd.c
-    ${WDF_ROOT}/domain/ports/outbound/motor/hal_motor_exec_port.c
-)
-target_compile_definitions(test_hal_motor_executor_position PRIVATE HAL_MOTOR_EXECUTOR_UNIT_TEST)
-
 add_unit_test(test_hal_voice_sim
     ${CMAKE_CURRENT_SOURCE_DIR}/adapters/test_hal_voice_sim.c
     ${WDF_ROOT}/adapters/outbound/hal/sim/hal_voice_sim.c
@@ -462,6 +442,26 @@ add_unit_test(test_operational_mode
     ${WDF_ROOT}/common/log.c
     ${WDF_ROOT}/common/sw_mutex.c
 )
+
+add_unit_test(test_motor_exec_port
+    ${CMAKE_CURRENT_SOURCE_DIR}/domain/test_motor_exec_port.c
+    ${WDF_ROOT}/domain/mechanism/motor/motor_executor.c
+    ${WDF_ROOT}/domain/mechanism/motor/motor_executor_port.c
+    ${WDF_ROOT}/domain/mechanism/motor/motor_executor_tick.c
+    ${WDF_ROOT}/domain/mechanism/motor/motor_executor_cmd.c
+    ${WDF_ROOT}/domain/ports/outbound/motor/motor_exec_port.c
+)
+target_compile_definitions(test_motor_exec_port PRIVATE MOTOR_EXECUTOR_UNIT_TEST)
+
+add_unit_test(test_motor_executor_position
+    ${CMAKE_CURRENT_SOURCE_DIR}/domain/test_motor_executor_position.c
+    ${WDF_ROOT}/domain/mechanism/motor/motor_executor.c
+    ${WDF_ROOT}/domain/mechanism/motor/motor_executor_port.c
+    ${WDF_ROOT}/domain/mechanism/motor/motor_executor_tick.c
+    ${WDF_ROOT}/domain/mechanism/motor/motor_executor_cmd.c
+    ${WDF_ROOT}/domain/ports/outbound/motor/motor_exec_port.c
+)
+target_compile_definitions(test_motor_executor_position PRIVATE MOTOR_EXECUTOR_UNIT_TEST)
 
 add_unit_test(test_mechanism_patterns
     ${CMAKE_CURRENT_SOURCE_DIR}/domain/test_mechanism_patterns.c

@@ -12,7 +12,7 @@
 | `domain/program_engine/`、`domain/ports/outbound/storage/engine_program_loader_port.*`、`application/engine_session/`、`engine_io_sim` | `domain/方案引擎模块设计.md` |
 | `domain/op_mode/`、`application/command_gateway.*`、`application/side_effect_router.*`、`application/bridges/op_mode_bridge.*` | `domain/命令网关模块设计.md` |
 | `domain/safety/`、`application/bridges/alarm_*`、`application/ports/inbound/safety/`、`domain/ports/outbound/safety/` | `domain/报警系统模块设计.md` |
-| `domain/mechanism/`、`domain/ports/outbound/motor/hal_motor_exec_port.h` | `domain/机构控制模式模块设计.md` |
+| `domain/mechanism/`、`domain/ports/outbound/motor/` | `domain/机构控制模式模块设计.md` |
 | `domain/telemetry/`、`application/telemetry_projection.*` | `domain/状态投影与设备快照模块设计.md` |
 | `domain/ports/outbound/hal/`、`adapters/outbound/hal/` | `ports-adapters/HAL端口与适配器模块设计.md` |
 | `domain/ports/outbound/storage/`、`adapters/outbound/storage/json/` | `ports-adapters/Storage端口与方案资产模块设计.md` |

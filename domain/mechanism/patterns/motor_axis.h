@@ -11,11 +11,11 @@
  *          后者先消费本电机执行器事件并回调 on_motion_end，再在进入 IDLE 时
  *          发布 motion_completed（仅表示轴已空闲）。
  * @note    经本模式管理的电机应由 motor_axis_poll 独占消费其执行器事件，
- *          项目层不要再对该电机调用 hal_motor_pop_event / 注册会排空队列的回调。
+ *          项目层不要再对该电机调用 motor_exec_pop_event / 注册会排空队列的回调。
  * @note    on_motion_end 对同一故障闩锁（同 outcome + fault）去重；项目层仍宜按码幂等处理。
  * @note    回原不单独提供 API：对 ORIGIN 限位下发 run(..., spec)，
  *          触原点后的基准重建由电机执行器完成。
- * @note    位置/方向/故障码等实时查询仍直接使用 hal_motor_*；结局详情用 last_result。
+ * @note    位置/方向/故障码等实时查询仍直接使用 motor_exec_*；结局详情用 last_result。
  */
 
 #ifndef DOMAIN_MECHANISM_PATTERNS_MOTOR_AXIS_H
@@ -27,7 +27,7 @@ extern "C" {
 
 #include "common/sw_error.h"
 #include "domain/mechanism/patterns/motion_lifecycle.h"
-#include "domain/ports/outbound/motor/hal_motor_exec_port.h"
+#include "domain/ports/outbound/motor/motor_exec_port.h"
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -40,7 +40,7 @@ typedef enum {
 } motor_axis_state_t;
 
 typedef struct {
-    hal_motor_exec_t       *exec;
+    motor_exec_t       *exec;
     int                     motor;
     motion_lifecycle_opts_t opts;
     bool                    inited;
@@ -56,7 +56,7 @@ typedef struct {
  * @param[in]     opts   lifecycle 选项，可为 NULL
  * @return SW_OK 成功；SW_ERR_PARAM 参数非法
  */
-sw_err_t motor_axis_init(motor_axis_t *self, hal_motor_exec_t *exec, int motor, const motion_lifecycle_opts_t *opts);
+sw_err_t motor_axis_init(motor_axis_t *self, motor_exec_t *exec, int motor, const motion_lifecycle_opts_t *opts);
 
 /**
  * @brief  启动运动：spec 为 NULL 时连续运转，否则按 spec 到位
@@ -70,9 +70,9 @@ sw_err_t motor_axis_init(motor_axis_t *self, hal_motor_exec_t *exec, int motor, 
  * @note   FAULT 时由执行器拒绝；调用方须先 motor_axis_recover()
  */
 sw_err_t motor_axis_run(motor_axis_t                *self,
-                        hal_motor_dir_t              dir,
-                        hal_motor_speed_t            speed,
-                        const hal_motor_move_spec_t *spec);
+                        motor_dir_t              dir,
+                        motor_speed_t            speed,
+                        const motor_move_spec_t *spec);
 
 /**
  * @brief  减速停止

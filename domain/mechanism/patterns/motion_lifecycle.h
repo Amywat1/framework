@@ -13,7 +13,7 @@ extern "C" {
 #endif
 
 #include "domain/mechanism/model/actuator_events.h"
-#include "domain/ports/outbound/motor/hal_motor_exec_port.h"
+#include "domain/ports/outbound/motor/motor_exec_port.h"
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -26,13 +26,13 @@ extern "C" {
  */
 typedef struct {
     bool                      valid;      /**< 是否曾记录过结局 */
-    hal_motor_event_type_t    outcome;    /**< 结局类别，取值同 hal_motor_event_type_t（无 WARNING） */
-    hal_motor_end_condition_t trigger;    /**< 结束条件（到位原因） */
+    motor_event_type_t    outcome;    /**< 结局类别，取值同 motor_event_type_t（无 WARNING） */
+    motor_end_condition_t trigger;    /**< 结束条件（到位原因） */
     bool                      has_limit;  /**< limit 是否有效 */
-    hal_motor_limit_kind_t    limit;      /**< 硬限位种类 */
+    motor_limit_kind_t    limit;      /**< 硬限位种类 */
     int64_t                   final_pos;  /**< 结束位置（脉冲） */
     uint64_t                  elapsed_ms; /**< 运动耗时（ms） */
-    hal_motor_fault_code_t    fault;      /**< 故障码；无故障为 NONE */
+    motor_exec_fault_code_t    fault;      /**< 故障码；无故障为 NONE */
 } motor_axis_end_result_t;
 
 /**
