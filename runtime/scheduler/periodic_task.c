@@ -9,7 +9,9 @@
 #include "runtime/scheduler/thread_registry.h"
 
 #include <errno.h>
+#include <pthread.h>
 #include <stdbool.h>
+#include <stdint.h>
 #include <string.h>
 #include <time.h>
 
@@ -25,14 +27,16 @@ typedef char periodic_task_capacity_check_t[(PERIODIC_TASK_MAX <= THREAD_REGISTR
 #define PERIODIC_TASK_NS_PER_SEC 1000000000L
 
 typedef struct {
-    bool               used;
-    const char        *name;
-    uint32_t           period_ms;
-    periodic_task_fn_t fn;
-    void              *ctx;
+    bool                   used;
+    const char            *name;
+    uint32_t               period_ms;
+    periodic_task_fn_t     fn;
+    void                  *ctx;
+    periodic_task_stats_t  stats;
 } periodic_task_slot_t;
 
 static periodic_task_slot_t s_slots[PERIODIC_TASK_MAX];
+static pthread_mutex_t      s_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 /**
  * @brief  将绝对时间戳推进一个周期
@@ -79,10 +83,73 @@ uint32_t periodic_task_next_deadline(struct timespec *deadline, uint32_t period_
     return skipped;
 }
 
+#define PERIODIC_TASK_US_PER_SEC 1000000U
+#define PERIODIC_TASK_NS_PER_US  1000L
+
+/**
+ * @brief  later - earlier 的微秒差；later 早于 earlier 时返回 0，超出 uint32 则饱和
+ */
+static uint32_t timespec_delta_us(const struct timespec *later, const struct timespec *earlier)
+{
+    int64_t  sec;
+    int64_t  nsec;
+    uint64_t us;
+
+    if ((later == NULL) || (earlier == NULL)) {
+        return 0U;
+    }
+
+    sec  = (int64_t)later->tv_sec - (int64_t)earlier->tv_sec;
+    nsec = (int64_t)later->tv_nsec - (int64_t)earlier->tv_nsec;
+    if (nsec < 0) {
+        sec -= 1;
+        nsec += PERIODIC_TASK_NS_PER_SEC;
+    }
+    if (sec < 0) {
+        return 0U;
+    }
+    if (sec >= (int64_t)(UINT32_MAX / PERIODIC_TASK_US_PER_SEC)) {
+        return UINT32_MAX;
+    }
+
+    us = ((uint64_t)sec * (uint64_t)PERIODIC_TASK_US_PER_SEC)
+         + ((uint64_t)nsec / (uint64_t)PERIODIC_TASK_NS_PER_US);
+    if (us > (uint64_t)UINT32_MAX) {
+        return UINT32_MAX;
+    }
+    return (uint32_t)us;
+}
+
+void periodic_task_note_cycle(periodic_task_stats_t *stats,
+                              uint32_t               skipped,
+                              uint32_t               cb_us,
+                              uint32_t               wake_late_us)
+{
+    if (stats == NULL) {
+        return;
+    }
+
+    stats->run_count++;
+    stats->skip_count += skipped;
+    if (skipped > stats->skip_max) {
+        stats->skip_max = skipped;
+    }
+    stats->last_cb_us = cb_us;
+    if (cb_us > stats->max_cb_us) {
+        stats->max_cb_us = cb_us;
+    }
+    stats->last_wake_late_us = wake_late_us;
+    if (wake_late_us > stats->max_wake_late_us) {
+        stats->max_wake_late_us = wake_late_us;
+    }
+}
+
 static void *periodic_task_thread_fn(void *arg)
 {
     periodic_task_slot_t *slot = (periodic_task_slot_t *)arg;
     struct timespec       deadline;
+    uint32_t              wake_late_us = 0U;
+    bool                  slept        = false;
 
     if ((slot == NULL) || (slot->fn == NULL) || (slot->period_ms == 0U)) {
         return NULL;
@@ -93,12 +160,30 @@ static void *periodic_task_thread_fn(void *arg)
     (void)clock_gettime(CLOCK_MONOTONIC, &deadline);
 
     for (;;) {
+        struct timespec cb_start;
+        struct timespec cb_end;
         struct timespec now;
+        uint32_t        skipped;
+        uint32_t        cb_us;
 
+        (void)clock_gettime(CLOCK_MONOTONIC, &cb_start);
         slot->fn(slot->ctx);
+        (void)clock_gettime(CLOCK_MONOTONIC, &cb_end);
+        cb_us = timespec_delta_us(&cb_end, &cb_start);
 
-        (void)clock_gettime(CLOCK_MONOTONIC, &now);
-        (void)periodic_task_next_deadline(&deadline, slot->period_ms, &now);
+        now     = cb_end;
+        skipped = periodic_task_next_deadline(&deadline, slot->period_ms, &now);
+
+        pthread_mutex_lock(&s_mutex);
+        periodic_task_note_cycle(&slot->stats, skipped, cb_us, slept ? wake_late_us : 0U);
+        pthread_mutex_unlock(&s_mutex);
+
+        if (skipped > 0U) {
+            LOG_WARN("periodic_task: [%s] skipped %u tick(s) cb=%uus",
+                     (slot->name != NULL) ? slot->name : "?",
+                     (unsigned)skipped,
+                     (unsigned)cb_us);
+        }
 
         while (clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &deadline, NULL) != 0) {
             /* 仅 EINTR 需要重试；其余错误无法通过重试恢复，退出线程交由上层诊断 */
@@ -107,7 +192,58 @@ static void *periodic_task_thread_fn(void *arg)
                 return NULL;
             }
         }
+
+        (void)clock_gettime(CLOCK_MONOTONIC, &now);
+        wake_late_us = timespec_delta_us(&now, &deadline);
+        slept        = true;
     }
+}
+
+unsigned periodic_task_count(void)
+{
+    unsigned n = 0U;
+    unsigned i;
+
+    pthread_mutex_lock(&s_mutex);
+    for (i = 0U; i < PERIODIC_TASK_MAX; i++) {
+        if (s_slots[i].used) {
+            n++;
+        }
+    }
+    pthread_mutex_unlock(&s_mutex);
+    return n;
+}
+
+sw_err_t periodic_task_get_stats(unsigned index, periodic_task_stats_t *out)
+{
+    unsigned seen = 0U;
+    unsigned i;
+
+    if (out == NULL) {
+        return SW_ERR_PARAM;
+    }
+
+    pthread_mutex_lock(&s_mutex);
+    for (i = 0U; i < PERIODIC_TASK_MAX; i++) {
+        if (!s_slots[i].used) {
+            continue;
+        }
+        if (seen == index) {
+            *out = s_slots[i].stats;
+            pthread_mutex_unlock(&s_mutex);
+            return SW_OK;
+        }
+        seen++;
+    }
+    pthread_mutex_unlock(&s_mutex);
+    return SW_ERR_NOT_FOUND;
+}
+
+void periodic_task_reset_for_test(void)
+{
+    pthread_mutex_lock(&s_mutex);
+    (void)memset(s_slots, 0, sizeof(s_slots));
+    pthread_mutex_unlock(&s_mutex);
 }
 
 sw_err_t periodic_task_register(const char        *name,
@@ -124,25 +260,29 @@ sw_err_t periodic_task_register(const char        *name,
         return SW_ERR_PARAM;
     }
 
+    pthread_mutex_lock(&s_mutex);
     for (i = 0U; i < PERIODIC_TASK_MAX; i++) {
         periodic_task_slot_t *slot = &s_slots[i];
 
         if (!slot->used) {
+            sw_err_t ret;
+
             (void)memset(slot, 0, sizeof(*slot));
-            slot->used      = true;
-            slot->name      = name;
-            slot->period_ms = period_ms;
-            slot->fn        = fn;
-            slot->ctx       = ctx;
+            slot->used             = true;
+            slot->name             = name;
+            slot->period_ms        = period_ms;
+            slot->fn               = fn;
+            slot->ctx              = ctx;
+            slot->stats.name       = name;
+            slot->stats.period_ms  = period_ms;
 
-            {
-                sw_err_t ret;
-
-                ret = thread_register_arg(name, periodic_task_thread_fn, slot, sched_policy, prio, stack_size);
-                if (ret != SW_OK) {
-                    (void)memset(slot, 0, sizeof(*slot));
-                    return ret;
-                }
+            pthread_mutex_unlock(&s_mutex);
+            ret = thread_register_arg(name, periodic_task_thread_fn, slot, sched_policy, prio, stack_size);
+            if (ret != SW_OK) {
+                pthread_mutex_lock(&s_mutex);
+                (void)memset(slot, 0, sizeof(*slot));
+                pthread_mutex_unlock(&s_mutex);
+                return ret;
             }
 
             LOG_INFO("periodic_task: registered [%s] period=%ums", name, (unsigned)period_ms);
@@ -150,6 +290,7 @@ sw_err_t periodic_task_register(const char        *name,
         }
     }
 
+    pthread_mutex_unlock(&s_mutex);
     LOG_ERROR("periodic_task: table full (max=%u)", (unsigned)PERIODIC_TASK_MAX);
     return SW_ERR_OVERFLOW;
 }

@@ -23,6 +23,26 @@ extern "C" {
 typedef void (*periodic_task_fn_t)(void *ctx);
 
 /**
+ * @brief 单个周期任务的运行观测
+ *
+ * 由任务自己的线程更新，经 periodic_task_get_stats() 读取。
+ * 用于判断回调是否挤占周期、唤醒是否滞后，而不是作为调度正确性的依据。
+ * 回调耗时是 CLOCK_MONOTONIC 墙钟，不是线程 CPU 时间——要回答的是
+ * 「这一拍有没有耽误下一拍」。
+ */
+typedef struct {
+    const char *name;              /**< 注册名，只保存指针 */
+    uint32_t    period_ms;         /**< 注册周期 */
+    uint32_t    run_count;         /**< 已执行的回调次数 */
+    uint32_t    skip_count;        /**< 累计跳过的拍数 */
+    uint32_t    skip_max;          /**< 单次推进跳过的最大拍数 */
+    uint32_t    last_cb_us;        /**< 最近一次回调墙钟耗时（微秒） */
+    uint32_t    max_cb_us;         /**< 回调墙钟耗时最大值（微秒） */
+    uint32_t    last_wake_late_us; /**< 最近一次相对截止时间的唤醒滞后（微秒） */
+    uint32_t    max_wake_late_us;  /**< 唤醒滞后最大值（微秒） */
+} periodic_task_stats_t;
+
+/**
  * @brief  注册一个由调度器统一启动的周期任务
  * @param  name 任务名称，用于日志和线程登记。仅保存指针不做拷贝，
  *              必须是字符串字面量或生命周期覆盖整个运行期的静态存储，
@@ -62,6 +82,43 @@ sw_err_t periodic_task_register(const char        *name,
  * @note   参数非法（deadline 为空或 period_ms 为 0）时不做任何修改并返回 0。
  */
 uint32_t periodic_task_next_deadline(struct timespec *deadline, uint32_t period_ms, const struct timespec *now);
+
+/**
+ * @brief  将本拍观测写入统计
+ * @param  stats        待更新的统计结构；为空则忽略
+ * @param  skipped      本拍跳过的拍数，来自 periodic_task_next_deadline()
+ * @param  cb_us        本拍回调墙钟耗时（微秒）
+ * @param  wake_late_us 相对截止时间的唤醒滞后（微秒）；首拍尚未睡眠时传 0
+ * @note   周期任务线程体的计数逻辑本体，独立导出以便直接验证累加规则，
+ *         无需启动真实线程。run_count 每次加一；skip_count 累加 skipped；
+ *         skip_max / max_cb_us / max_wake_late_us 取历史最大。
+ */
+void periodic_task_note_cycle(periodic_task_stats_t *stats,
+                              uint32_t               skipped,
+                              uint32_t               cb_us,
+                              uint32_t               wake_late_us);
+
+/**
+ * @brief  已登记的周期任务数量
+ */
+unsigned periodic_task_count(void);
+
+/**
+ * @brief  读取指定周期任务的运行观测
+ * @param  index 已登记任务的下标，范围 [0, periodic_task_count())
+ * @param  out   输出统计，不能为空
+ * @retval SW_OK 读取成功
+ * @retval SW_ERR_PARAM out 为空
+ * @retval SW_ERR_NOT_FOUND index 超出已登记范围
+ */
+sw_err_t periodic_task_get_stats(unsigned index, periodic_task_stats_t *out);
+
+/**
+ * @brief  清空周期任务表（仅供单元测试消除用例间残留）
+ * @note   生产路径不得调用：已启动的周期线程无法回收，清空登记表
+ *         不会停止它们，只会造成登记与实际线程不一致。
+ */
+void periodic_task_reset_for_test(void);
 
 #ifdef __cplusplus
 }

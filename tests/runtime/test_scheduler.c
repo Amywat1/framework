@@ -80,8 +80,9 @@ static void periodic_tick_fn(void *ctx)
 
 void setUp(void)
 {
-    /* 复位线程登记表，使各用例不依赖执行顺序 */
+    /* 复位线程登记表与周期任务槽，使各用例不依赖执行顺序 */
     thread_registry_reset_for_test();
+    periodic_task_reset_for_test();
 }
 
 void tearDown(void)
@@ -151,6 +152,28 @@ static void test_periodic_task_register_rejects_invalid_args(void)
     TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, periodic_task_register("tick", 10U, NULL, NULL, SCHED_OTHER, 0, 4096U));
     /* 三次非法注册都不应占用登记槽 */
     TEST_ASSERT_EQUAL_INT(0, thread_registry_count());
+    TEST_ASSERT_EQUAL_UINT32(0U, periodic_task_count());
+}
+
+static void test_periodic_task_stats_before_start(void)
+{
+    periodic_task_stats_t stats;
+    sw_err_t              ret;
+
+    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, periodic_task_get_stats(0U, NULL));
+    TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_FOUND, periodic_task_get_stats(0U, &stats));
+
+    ret = periodic_task_register("tick", 10U, periodic_tick_fn, NULL, SCHED_OTHER, 0, 8192U);
+    TEST_ASSERT_EQUAL_INT(SW_OK, ret);
+    TEST_ASSERT_EQUAL_UINT32(1U, periodic_task_count());
+
+    memset(&stats, 0x5a, sizeof(stats));
+    TEST_ASSERT_EQUAL_INT(SW_OK, periodic_task_get_stats(0U, &stats));
+    TEST_ASSERT_EQUAL_STRING("tick", stats.name);
+    TEST_ASSERT_EQUAL_UINT32(10U, stats.period_ms);
+    TEST_ASSERT_EQUAL_UINT32(0U, stats.run_count);
+    TEST_ASSERT_EQUAL_UINT32(0U, stats.skip_count);
+    TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_FOUND, periodic_task_get_stats(1U, &stats));
 }
 
 static void test_periodic_task_register_and_scheduler_start(void)
@@ -175,6 +198,14 @@ static void test_periodic_task_register_and_scheduler_start(void)
 
     TEST_ASSERT_EQUAL_INT(1, s_one_shot_done);
     TEST_ASSERT_TRUE(s_periodic_tick_count >= 2);
+
+    {
+        periodic_task_stats_t stats;
+
+        TEST_ASSERT_EQUAL_INT(SW_OK, periodic_task_get_stats(0U, &stats));
+        TEST_ASSERT_EQUAL_STRING("tick", stats.name);
+        TEST_ASSERT_TRUE(stats.run_count >= 2U);
+    }
 }
 
 static void test_scheduler_sets_os_thread_name(void)
@@ -242,6 +273,7 @@ int main(void)
     WDF_RUN_TEST(test_register_arg_passes_context, "", "验证注册参数通过上下文");
     WDF_RUN_TEST(test_registry_get_out_of_range, "", "验证读取注册表范围外条目时返回错误");
     WDF_RUN_TEST(test_periodic_task_register_rejects_invalid_args, "", "验证周期任务注册拒绝无效参数");
+    WDF_RUN_TEST(test_periodic_task_stats_before_start, "", "验证未启动时统计可读且计数为零");
     WDF_RUN_TEST(test_periodic_task_register_and_scheduler_start, "", "验证周期任务注册后由调度器启动");
     WDF_RUN_TEST(test_scheduler_sets_os_thread_name, "", "验证调度器把注册名同步为 OS 线程名");
     WDF_RUN_TEST(test_scheduler_truncates_long_os_thread_name, "", "验证超长注册名截断到 15 字符后仍设置成功");

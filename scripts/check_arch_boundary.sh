@@ -528,6 +528,7 @@ NON_RT_FILES=(
     "adapters/outbound/hal/components/sensor_filter/hal_sensor_filter.c" # 传感器滤波
     "adapters/outbound/hal/providers/snack/modbus/drv_modbus_link.c" # cutout 禁止走 Modbus，只服务业务帧
     "adapters/outbound/hal/providers/snack/modbus/drv_voice.c"       # 语音播报
+    "runtime/scheduler/periodic_task.c"                    # 周期任务统计；急停切断不取此锁
     "application/engine_session/engine_session.c"          # 会话启动
     "observability/core/observation.c"                     # 旁路记录
     "observability/recorder/blackbox_recorder.c"           # 旁路记录

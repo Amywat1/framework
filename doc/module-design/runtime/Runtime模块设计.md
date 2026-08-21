@@ -245,7 +245,7 @@ Demo 实现位于 `demo/wiring/project_hooks_sim.c`：只有 `configure_storage`
 
 参数非法返回 `SW_ERR_PARAM`，表满返回 `SW_ERR_OVERFLOW`。注册阶段只写表，不创建线程。
 
-`thread_registry_reset_for_test()` 禁止在生产路径调用：线程一经 `scheduler_start_all()` 创建即 detach 且无法回收，清空登记表不会停止已启动的线程，只会让后续注册从 0 号槽开始，造成登记与实际线程不一致。
+`thread_registry_reset_for_test()` 禁止在生产路径调用：线程一经 `scheduler_start_all()` 创建即 detach 且无法回收，清空登记表不会停止已启动的线程，只会让后续注册从 0 号槽开始，造成登记与实际线程不一致。周期任务槽由 `periodic_task_reset_for_test()` 另行清空，同样不得在生产路径调用。
 
 ### 5.2 Scheduler Start
 
@@ -271,23 +271,29 @@ Demo 实现位于 `demo/wiring/project_hooks_sim.c`：只有 `configure_storage`
 periodic_task_thread_fn(slot)
     deadline = now(CLOCK_MONOTONIC)
     for (;;) {
+        t0 = now
         slot->fn(slot->ctx)
-        now = clock_gettime(CLOCK_MONOTONIC)
-        periodic_task_next_deadline(&deadline, slot->period_ms, &now)
+        t1 = now
+        skipped = periodic_task_next_deadline(&deadline, slot->period_ms, &t1)
+        periodic_task_note_cycle(stats, skipped, cb_us, wake_late_us)
         clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &deadline, NULL)
+        wake_late_us = now - deadline   # 首拍尚未睡眠，记 0
     }
 ```
 
 `periodic_task_next_deadline()` 独立导出，语义是：先推进一个周期；若推进后仍不晚于 `now`（说明回调耗时超过一个周期），继续推进直到严格晚于 `now`，返回本次跳过的拍数。因此回调耗时**不累加进下一拍**，超时的拍被**跳过而非追赶**。把这段时间推进逻辑做成纯函数，是为了不依赖真实 sleep 就能验证时序行为。
 
+线程体把跳拍数、回调墙钟耗时和唤醒滞后交给 `periodic_task_note_cycle()` 累加，经 `periodic_task_get_stats()` 读取。跳拍打 WARN。耗时是 `CLOCK_MONOTONIC` 墙钟，不是线程 CPU 时间。首拍尚未睡眠，唤醒滞后记 0。
+
 | 约束 | 说明 |
 |------|------|
 | `period_ms > 0` | 0 返回 `SW_ERR_PARAM` |
 | `name` 生命周期 | 只保存指针不拷贝，必须是字面量或覆盖整个运行期的静态存储，不得传栈上缓冲 |
-| 回调不应长阻塞 | 超过一个周期会导致跳拍 |
+| 回调不应长阻塞 | 超过一个周期会导致跳拍，并计入 `skip_count` |
 | 无停止语义 | 线程以 detach 创建且不可 join，进程退出即终止 |
 | 表满 | 返回 `SW_ERR_OVERFLOW` |
 | `clock_nanosleep` 失败 | `EINTR` 重试，其他错误打 ERROR 日志 |
+| 运行观测 | `run_count` / `skip_count` / `skip_max` / `last_cb_us` / `max_cb_us` / `last_wake_late_us` / `max_wake_late_us` |
 
 ---
 
@@ -405,7 +411,7 @@ IO 子板 provider 的后台线程由 `io_exp_driver` 自行管理，不走 core
 | 测试 | 覆盖 |
 |------|------|
 | `tests/runtime/test_scheduler.c` | thread registry、periodic task 注册、scheduler start、表满 |
-| `tests/runtime/test_periodic_deadline.c` | `periodic_task_next_deadline()` 纯函数时序：正常推进、超时跳拍、参数非法 |
+| `tests/runtime/test_periodic_deadline.c` | `periodic_task_next_deadline()` 纯函数时序；`periodic_task_note_cycle()` 跳拍与耗时累加 |
 | `tests/runtime/test_bootstrap_hooks.c` | hook 非空校验与阶段顺序 |
 | `tests/adapters/test_estop_poll_thread.c` | 急停轮询线程注册、急停边沿事件 |
 | `tests/runtime/test_event_bus.c` | event dispatch 线程手动启动与 shutdown |

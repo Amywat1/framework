@@ -9,6 +9,8 @@
 #include "runtime/scheduler/periodic_task.h"
 #include "wdf_test_spec.h"
 
+#include <string.h>
+
 #define NS_PER_MS  1000000L
 #define NS_PER_SEC 1000000000L
 
@@ -169,6 +171,44 @@ static void test_invalid_params_leave_deadline_untouched(void)
     TEST_ASSERT_EQUAL_UINT32(0U, periodic_task_next_deadline(NULL, 10U, &now));
 }
 
+/* --- SCHED-08：跳拍 / 回调耗时 / 唤醒滞后累加 --- */
+
+static void test_note_cycle_accumulates_skip_and_maxima(void)
+{
+    periodic_task_stats_t stats;
+
+    memset(&stats, 0, sizeof(stats));
+    periodic_task_note_cycle(&stats, 0U, 1000U, 50U);
+    TEST_ASSERT_EQUAL_UINT32(1U, stats.run_count);
+    TEST_ASSERT_EQUAL_UINT32(0U, stats.skip_count);
+    TEST_ASSERT_EQUAL_UINT32(0U, stats.skip_max);
+    TEST_ASSERT_EQUAL_UINT32(1000U, stats.last_cb_us);
+    TEST_ASSERT_EQUAL_UINT32(1000U, stats.max_cb_us);
+    TEST_ASSERT_EQUAL_UINT32(50U, stats.last_wake_late_us);
+    TEST_ASSERT_EQUAL_UINT32(50U, stats.max_wake_late_us);
+
+    periodic_task_note_cycle(&stats, 3U, 400U, 80U);
+    TEST_ASSERT_EQUAL_UINT32(2U, stats.run_count);
+    TEST_ASSERT_EQUAL_UINT32(3U, stats.skip_count);
+    TEST_ASSERT_EQUAL_UINT32(3U, stats.skip_max);
+    TEST_ASSERT_EQUAL_UINT32(400U, stats.last_cb_us);
+    TEST_ASSERT_EQUAL_UINT32(1000U, stats.max_cb_us);
+    TEST_ASSERT_EQUAL_UINT32(80U, stats.last_wake_late_us);
+    TEST_ASSERT_EQUAL_UINT32(80U, stats.max_wake_late_us);
+
+    periodic_task_note_cycle(&stats, 1U, 2000U, 10U);
+    TEST_ASSERT_EQUAL_UINT32(3U, stats.run_count);
+    TEST_ASSERT_EQUAL_UINT32(4U, stats.skip_count);
+    TEST_ASSERT_EQUAL_UINT32(3U, stats.skip_max);
+    TEST_ASSERT_EQUAL_UINT32(2000U, stats.max_cb_us);
+    TEST_ASSERT_EQUAL_UINT32(80U, stats.max_wake_late_us);
+}
+
+static void test_note_cycle_null_is_noop(void)
+{
+    periodic_task_note_cycle(NULL, 1U, 1U, 1U);
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -180,5 +220,7 @@ int main(void)
     WDF_RUN_TEST(test_nsec_carry_normalizes, "", "验证NSEC进位规范化");
     WDF_RUN_TEST(test_period_over_one_second, "", "验证周期超过一个一秒");
     WDF_RUN_TEST(test_invalid_params_leave_deadline_untouched, "", "验证无效参数保持截止时间不变");
+    WDF_RUN_TEST(test_note_cycle_accumulates_skip_and_maxima, "", "验证跳拍与耗时按规则累加");
+    WDF_RUN_TEST(test_note_cycle_null_is_noop, "", "验证空统计指针被忽略");
     return UNITY_END();
 }
