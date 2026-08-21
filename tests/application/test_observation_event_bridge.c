@@ -43,17 +43,9 @@ static void start_dispatch(void)
  * 避免慢机器上偶发失败。 */
 static bool publish_and_wait_record(event_type_t type, uint32_t param, observation_record_t *out)
 {
-    unsigned i;
-
     TEST_ASSERT_EQUAL_INT(SW_OK, event_publish(type, param));
-
-    for (i = 0U; i < 200U; i++) {
-        if (observation_try_pop(out) == SW_OK) {
-            return true;
-        }
-        usleep(1000);
-    }
-    return false;
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_drain());
+    return observation_try_pop(out) == SW_OK;
 }
 
 void setUp(void)
@@ -83,7 +75,6 @@ static void test_estop_event_becomes_critical_incident(void)
     observation_record_t rec;
 
     TEST_ASSERT_EQUAL_INT(SW_OK, observation_event_bridge_init());
-    start_dispatch();
 
     TEST_ASSERT_TRUE(publish_and_wait_record(EVT_HW_ESTOP_ON, 0U, &rec));
     TEST_ASSERT_EQUAL_INT(OBSERVATION_SEVERITY_CRITICAL, rec.severity);
@@ -101,7 +92,6 @@ static void test_event_param_is_carried_in_payload(void)
     uint32_t             got   = 0U;
 
     TEST_ASSERT_EQUAL_INT(SW_OK, observation_event_bridge_init());
-    start_dispatch();
 
     TEST_ASSERT_TRUE(publish_and_wait_record(EVT_ALARM_TRIGGERED, param, &rec));
     TEST_ASSERT_EQUAL_UINT(sizeof(param), rec.payload_size);
@@ -116,7 +106,6 @@ static void test_severity_differs_by_event(void)
     observation_record_t rec;
 
     TEST_ASSERT_EQUAL_INT(SW_OK, observation_event_bridge_init());
-    start_dispatch();
 
     TEST_ASSERT_TRUE(publish_and_wait_record(EVT_SAFETY_LOCKOUT, 0U, &rec));
     TEST_ASSERT_EQUAL_INT(OBSERVATION_SEVERITY_CRITICAL, rec.severity);
@@ -137,7 +126,6 @@ static void test_unlisted_event_produces_no_record(void)
     observation_stats_t  stats;
 
     TEST_ASSERT_EQUAL_INT(SW_OK, observation_event_bridge_init());
-    start_dispatch();
 
     TEST_ASSERT_EQUAL_INT(SW_OK, event_publish(EVT_CLOUD_POINT_DIRTY, 7U));
     TEST_ASSERT_EQUAL_INT(SW_OK, event_publish(EVT_OP_MODE_CONTEXT_SYNC, 0U));
@@ -154,7 +142,6 @@ static void test_records_preserve_publish_order(void)
     observation_record_t rec;
 
     TEST_ASSERT_EQUAL_INT(SW_OK, observation_event_bridge_init());
-    start_dispatch();
 
     /* IO 掉线 → 报警触发 → 报警清除 → IO 恢复，是一条完整的通信故障链 */
     TEST_ASSERT_TRUE(publish_and_wait_record(EVT_HW_IO_OFFLINE, 1U, &rec));

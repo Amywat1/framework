@@ -12,8 +12,6 @@
 #include "runtime/event_bus/event_bus.h"
 #include "wdf_test_spec.h"
 
-#include <pthread.h>
-#include <unistd.h>
 
 static volatile int g_nominal_count;
 static volatile int g_lockout_count;
@@ -47,31 +45,11 @@ static void on_lockout(const event_t *evt)
     g_lockout_count++;
 }
 
-static void *dispatch_fn(void *arg)
-{
-    (void)arg;
-    event_bus_dispatch_loop();
-    return NULL;
-}
-
-static pthread_t start_dispatch(void)
-{
-    pthread_t tid;
-
-    pthread_create(&tid, NULL, dispatch_fn, NULL);
-    return tid;
-}
-
-static void stop_dispatch(pthread_t tid)
-{
-    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_shutdown());
-    pthread_join(tid, NULL);
-}
 
 static void drain_registry(void)
 {
     alarm_bridge_drain();
-    usleep(50000);
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_drain());
 }
 
 void setUp(void)
@@ -86,8 +64,6 @@ void tearDown(void)
 
 static void test_major_no_lockout_event(void)
 {
-    pthread_t tid;
-
     time_util_init();
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
     alarm_registry_init();
@@ -95,21 +71,15 @@ static void test_major_no_lockout_event(void)
     TEST_ASSERT_EQUAL_INT(SW_OK, alarm_bridge_init());
     (void)event_subscribe(EVT_SAFETY_NOMINAL, on_nominal);
     (void)event_subscribe(EVT_SAFETY_LOCKOUT, on_lockout);
-
-    tid = start_dispatch();
-    usleep(10000);
 
     (void)alarm_registry_trigger(201101U);
     drain_registry();
 
     TEST_ASSERT_EQUAL_INT(0, g_lockout_count);
-    stop_dispatch(tid);
 }
 
 static void test_critical_publishes_lockout(void)
 {
-    pthread_t tid;
-
     time_util_init();
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
     alarm_registry_init();
@@ -118,15 +88,10 @@ static void test_critical_publishes_lockout(void)
     (void)event_subscribe(EVT_SAFETY_NOMINAL, on_nominal);
     (void)event_subscribe(EVT_SAFETY_LOCKOUT, on_lockout);
 
-    tid = start_dispatch();
-    usleep(10000);
-
     (void)alarm_registry_trigger(201709U);
     drain_registry();
-    usleep(50000);
 
     TEST_ASSERT_EQUAL_INT(1, g_lockout_count);
-    stop_dispatch(tid);
 }
 
 int main(void)

@@ -16,6 +16,11 @@
  *          deferred_stop 在 event_dispatch 线程调用，可做完备收敛。
  *          注册须在 scheduler 启动线程之前完成（wiring/bind 阶段），
  *          之后 ops 指针只读，故热路径无需加锁。
+ *
+ * @note    切断不得走串行总线事务：cutout 禁止调用 Modbus / UART 同步收发
+ *          （包括 drv_modbus_link_*）。停机必须用数字输出等无总线等待的路径。
+ *          RS-485 同时只能发一帧，把切断接到总线上等于把急停延迟绑死在
+ *          当前事务超时上；DO 切断不受这条约定。
  */
 
 #ifndef DOMAIN_PORTS_OUTBOUND_SAFETY_SAFETY_PORT_H

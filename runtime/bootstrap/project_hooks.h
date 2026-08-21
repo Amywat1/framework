@@ -67,6 +67,23 @@ sw_err_t bootstrap_register_hooks(const project_hooks_t *hooks);
  */
 sw_err_t project_hooks_register(void);
 
+/**
+ * @brief  无操作钩子，返回 SW_OK
+ * @note   项目未使用的阶段填此函数，不得把对应字段留空。缺失钩子会被
+ *         bootstrap_register_hooks() 拒绝，避免某启动阶段被静默跳过。
+ */
+static inline sw_err_t project_hook_noop(void)
+{
+    return SW_OK;
+}
+
+/**
+ * @brief  无操作致命兜底钩子
+ */
+static inline void project_hook_noop_void(void)
+{
+}
+
 #ifdef __cplusplus
 }
 #endif

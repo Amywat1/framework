@@ -510,8 +510,7 @@ RT_REACHABLE_FILES=(
     "adapters/outbound/hal/components/io_manager/hal_io_manager.c"  # 安全 flush 可达
     "adapters/outbound/hal/providers/snack/io_exp/io_exp_driver.c"  # 真机 DO 写
     "adapters/outbound/hal/components/vfd_manager/hal_vfd_manager.c" # 电机停机
-    "adapters/outbound/hal/providers/snack/modbus/drv_vfd.c"        # stop_outputs
-    "adapters/outbound/hal/providers/snack/modbus/drv_modbus_link.c" # 项目 cutout 可能直写寄存器
+    "adapters/outbound/hal/providers/snack/modbus/drv_vfd.c"        # stop_outputs（DO 切断）
 )
 
 # 非 RT 可达：允许默认互斥量，须逐个说明依据
@@ -525,6 +524,7 @@ NON_RT_FILES=(
     "adapters/outbound/storage/json/json_param_store.c"    # 参数存取
     "adapters/outbound/hal/components/adc_gate/hal_adc_gate.c"       # 模拟量采样
     "adapters/outbound/hal/components/sensor_filter/hal_sensor_filter.c" # 传感器滤波
+    "adapters/outbound/hal/providers/snack/modbus/drv_modbus_link.c" # cutout 禁止走 Modbus，只服务业务帧
     "adapters/outbound/hal/providers/snack/modbus/drv_voice.c"       # 语音播报
     "application/engine_session/engine_session.c"          # 会话启动
     "observability/core/observation.c"                     # 旁路记录
@@ -807,17 +807,14 @@ fi
 # 调用天然在那张清单之外——脚本注释已写明「新增阻塞原语时须同步扩充
 # WAIT_PRIMITIVES，否则这条规则对它是空过」，而 vendor 调用正是这种情形。
 #
-# 具体暴露：drv_modbus_link.c 在持 bus_lock 期间调 modbus_read_registers /
-# modbus_write_register，单次上限是 VFD_MODBUS_TIMEOUT_US（100ms）；失败后还会
-# 在同一锁内再做一次 link_reconnect_locked（modbus_connect）。该文件已登记为
-# RT 可达（理由：项目 cutout 可能直写变频器寄存器），于是急停切断可能需要一把
-# 正被 100ms+ 阻塞持有的锁。优先级继承对此无效——PI 界定的是「持锁者被抢占」
-# 导致的反转，不是「持锁者自身阻塞」的时长。
+# 起因：曾把 drv_modbus_link.c 按「项目 cutout 可能直写寄存器」登记为 RT 可达，
+# 于是持 bus_lock 的 100ms Modbus 超时进入了急停预算。RS-485 同时只能发一帧，
+# 把收发移出总线锁并不能让切断插队。正确修法是禁止 cutout 走 Modbus，该文件
+# 现已改为非 RT；R20 仍要抓住「RT 文件里新出现的未登记 vendor 阻塞」。
 #
-# 为何仍做成登记表而不做锁区间分析：与 R16 同因。link_execute 在分支内提前
-# unlock 再 return，朴素行扫描的深度计数会被归零，从而漏判其后的 vendor 调用；
-# 要正确归属锁区间需要真正的控制流分析，shell 里做不可靠。故改为对「RT 可达
-# 文件 × 框架外阻塞符号」逐项登记最坏时长，未登记即报错，强制作者表态。
+# 为何做成登记表而不做锁区间分析：与 R16 同因。朴素行扫描的锁深度会被提前
+# unlock 归零。故对「RT 可达文件 × 框架外阻塞符号」逐项登记最坏时长，未登记
+# 即报错，强制作者表态。
 #
 # 判据只查 RT_REACHABLE_FILES：非 RT 文件的 vendor 阻塞不影响急停延迟。
 # -----------------------------------------------------------------------------
@@ -828,12 +825,6 @@ fi
 # 登记不等于合规：注释须写明它是否在锁区间内。锁外的 vendor 阻塞只延迟本线程，
 # 锁内的会把延迟传导给任何等这把锁的线程——包括急停切断。
 VENDOR_BLOCKING_REGISTERED=(
-    # 锁内（计入急停延迟预算，见 SAFE-13）：持 bus_lock 期间等应答
-    "adapters/outbound/hal/providers/snack/modbus/drv_modbus_link.c:modbus_read_registers"        # 锁内 ≤100ms（VFD_MODBUS_TIMEOUT_US）
-    "adapters/outbound/hal/providers/snack/modbus/drv_modbus_link.c:modbus_read_input_registers"  # 锁内 ≤100ms
-    "adapters/outbound/hal/providers/snack/modbus/drv_modbus_link.c:modbus_write_register"        # 锁内 ≤100ms
-    "adapters/outbound/hal/providers/snack/modbus/drv_modbus_link.c:modbus_connect"               # 锁内重连，见 SAFE-13
-
     # 锁外（不传导给其它线程）：io_exp 刻意在锁外收发，锁只护内存缓冲。
     # 这是本仓的正确范式——poll_rw_board 先 read 再进锁、出锁后再 write。
     "adapters/outbound/hal/providers/snack/io_exp/io_exp_driver.c:io_read_input"    # 锁外，≤IO_TRANSACTION_TIMEOUT_MS(300ms)

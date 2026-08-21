@@ -120,6 +120,7 @@ static int   s_sem_initialized = 0;
  * ------------------------------------------------------------------------- */
 static volatile int s_initialized        = 0;
 static volatile int s_shutdown_requested = 0;
+static volatile int s_dispatch_running   = 0;
 
 /* -------------------------------------------------------------------------
  * 不可恢复故障回调
@@ -414,16 +415,113 @@ sw_err_t event_bus_get_stats(event_bus_stats_t *stats)
 }
 
 /* -------------------------------------------------------------------------
+ * 出队 + 回调（dispatch_loop 与 drain 共用）
+ * ------------------------------------------------------------------------- */
+static bool event_bus_take_queued_event(event_t *out_evt)
+{
+    pthread_mutex_lock(&s_q_mutex);
+    if ((s_q_hi_count == 0U) && (s_q_count == 0U)) {
+        pthread_mutex_unlock(&s_q_mutex);
+        return false;
+    }
+
+    if (s_q_hi_count > 0U) {
+        *out_evt    = s_queue_hi[s_q_hi_head];
+        s_q_hi_head = (s_q_hi_head + 1U) % EVENT_BUS_HI_QUEUE_SIZE;
+        s_q_hi_count--;
+        s_stats.hi_queue_depth = s_q_hi_count;
+    } else {
+        *out_evt = s_queue[s_q_head];
+        s_q_head = (s_q_head + 1U) % EVENT_BUS_QUEUE_SIZE;
+        s_q_count--;
+        s_stats.queue_depth = s_q_count;
+    }
+    s_stats.dispatched_count++;
+    s_stats.dispatched_by_cat[event_type_category(out_evt->type)]++;
+    pthread_mutex_unlock(&s_q_mutex);
+    return true;
+}
+
+static void event_bus_invoke_handlers(const event_t *dispatch_evt)
+{
+    event_handler_t handlers[EVENT_BUS_MAX_SUBS_PER_EVT];
+    uint32_t        dispatch_ms = 0U;
+    uint32_t        i;
+
+    pthread_mutex_lock(&s_sub_mutex);
+    if (event_type_is_valid(dispatch_evt->type)) {
+        memcpy(handlers, subs_slot(dispatch_evt->type), sizeof(handlers));
+    } else {
+        /* 防御：非法类型在 publish 侧已被拦截，理论不可达。
+         * 若不清零，数组会保留上一轮事件的 handler 并被重复调用。 */
+        memset(handlers, 0, sizeof(handlers));
+    }
+    pthread_mutex_unlock(&s_sub_mutex);
+
+    /* 逐一回调，并统计耗时。
+     * 单个慢 handler 会直接推高队列水位，因此需要能定位到具体事件类型。 */
+    for (i = 0; i < EVENT_BUS_MAX_SUBS_PER_EVT; i++) {
+        if (handlers[i] != NULL) {
+            trace_context_t previous = trace_context_get();
+            trace_context_t current  = dispatch_evt->trace;
+            uint64_t        began;
+            uint32_t        cost_ms;
+
+            current.causation_id = dispatch_evt->event_id;
+            trace_context_set(&current);
+            began = time_util_get_ms();
+            handlers[i](dispatch_evt);
+            cost_ms = time_elapsed_ms(began, time_util_get_ms());
+            trace_context_set(&previous);
+
+            dispatch_ms += cost_ms;
+
+            pthread_mutex_lock(&s_q_mutex);
+            if (s_stats.handler_max_ms < cost_ms) {
+                s_stats.handler_max_ms   = cost_ms;
+                s_stats.handler_max_type = dispatch_evt->type;
+            }
+            if (cost_ms >= EVENT_BUS_SLOW_HANDLER_MS) {
+                s_stats.slow_handler_count++;
+            }
+            pthread_mutex_unlock(&s_q_mutex);
+
+            if (cost_ms >= EVENT_BUS_SLOW_HANDLER_MS) {
+                EVT_LOG_WARN("slow handler: EVT type=%d slot=%u cost=%ums",
+                             (int)dispatch_evt->type,
+                             (unsigned)i,
+                             (unsigned)cost_ms);
+            }
+        }
+    }
+
+    if (dispatch_ms > 0U) {
+        pthread_mutex_lock(&s_q_mutex);
+        if (s_stats.dispatch_max_ms < dispatch_ms) {
+            s_stats.dispatch_max_ms = dispatch_ms;
+        }
+        pthread_mutex_unlock(&s_q_mutex);
+    }
+}
+
+static void event_bus_consume_sem_permits(void)
+{
+    while (sem_trywait(&s_sem) == 0) {
+    }
+}
+
+/* -------------------------------------------------------------------------
  * event_bus_dispatch_loop
  * ------------------------------------------------------------------------- */
 void event_bus_dispatch_loop(void)
 {
-    event_t         dispatch_evt;
-    event_handler_t handlers[EVENT_BUS_MAX_SUBS_PER_EVT];
+    event_t dispatch_evt;
+    int     stop = 0;
 
     event_bus_mutexes_ready();
+    s_dispatch_running = 1;
 
-    while (1) {
+    while (stop == 0) {
         while (sem_wait(&s_sem) != 0) {
             if (errno == EINTR) {
                 continue;
@@ -438,94 +536,44 @@ void event_bus_dispatch_loop(void)
                 s_fatal_cb(EVENT_BUS_FATAL_SEM_WAIT, errno);
                 /* fatal_cb 约定必须终止进程；若违反约定则兜底退出线程 */
             }
-            return;
+            stop = 1;
+            break;
+        }
+        if (stop != 0) {
+            break;
         }
 
-        /* 出队：优先排空高优先级队列 */
-        pthread_mutex_lock(&s_q_mutex);
-        if ((s_q_hi_count == 0U) && (s_q_count == 0U)) {
+        if (!event_bus_take_queued_event(&dispatch_evt)) {
             if (s_shutdown_requested) {
-                pthread_mutex_unlock(&s_q_mutex);
-                return;
+                break;
             }
-
             /* 并发 publish 后 sem 计数可能超过实际队列数量，正常跳过 */
-            pthread_mutex_unlock(&s_q_mutex);
             continue;
         }
-
-        if (s_q_hi_count > 0U) {
-            dispatch_evt = s_queue_hi[s_q_hi_head];
-            s_q_hi_head  = (s_q_hi_head + 1U) % EVENT_BUS_HI_QUEUE_SIZE;
-            s_q_hi_count--;
-            s_stats.hi_queue_depth = s_q_hi_count;
-        } else {
-            dispatch_evt = s_queue[s_q_head];
-            s_q_head     = (s_q_head + 1U) % EVENT_BUS_QUEUE_SIZE;
-            s_q_count--;
-            s_stats.queue_depth = s_q_count;
-        }
-        s_stats.dispatched_count++;
-        s_stats.dispatched_by_cat[event_type_category(dispatch_evt.type)]++;
-        pthread_mutex_unlock(&s_q_mutex);
-
-        /* 复制 handler 快照（最小化持锁时间，避免 handler 内部 subscribe 死锁）*/
-        pthread_mutex_lock(&s_sub_mutex);
-        if (event_type_is_valid(dispatch_evt.type)) {
-            memcpy(handlers, subs_slot(dispatch_evt.type), sizeof(handlers));
-        } else {
-            /* 防御：非法类型在 publish 侧已被拦截，理论不可达。
-             * 若不清零，数组会保留上一轮事件的 handler 并被重复调用。 */
-            memset(handlers, 0, sizeof(handlers));
-        }
-        pthread_mutex_unlock(&s_sub_mutex);
-
-        /* 逐一回调，并统计耗时。
-         * dispatch 线程串行执行全部 handler，单个慢 handler 会直接推高队列水位，
-         * 因此需要能定位到具体事件类型。 */
-        uint32_t dispatch_ms = 0U;
-
-        for (uint32_t i = 0; i < EVENT_BUS_MAX_SUBS_PER_EVT; i++) {
-            if (handlers[i] != NULL) {
-                trace_context_t previous = trace_context_get();
-                trace_context_t current  = dispatch_evt.trace;
-                uint64_t        began;
-                uint32_t        cost_ms;
-
-                current.causation_id = dispatch_evt.event_id;
-                trace_context_set(&current);
-                began = time_util_get_ms();
-                handlers[i](&dispatch_evt);
-                cost_ms = time_elapsed_ms(began, time_util_get_ms());
-                trace_context_set(&previous);
-
-                dispatch_ms += cost_ms;
-
-                pthread_mutex_lock(&s_q_mutex);
-                if (s_stats.handler_max_ms < cost_ms) {
-                    s_stats.handler_max_ms   = cost_ms;
-                    s_stats.handler_max_type = dispatch_evt.type;
-                }
-                if (cost_ms >= EVENT_BUS_SLOW_HANDLER_MS) {
-                    s_stats.slow_handler_count++;
-                }
-                pthread_mutex_unlock(&s_q_mutex);
-
-                if (cost_ms >= EVENT_BUS_SLOW_HANDLER_MS) {
-                    EVT_LOG_WARN("slow handler: EVT type=%d slot=%u cost=%ums",
-                                 (int)dispatch_evt.type,
-                                 (unsigned)i,
-                                 (unsigned)cost_ms);
-                }
-            }
-        }
-
-        if (dispatch_ms > 0U) {
-            pthread_mutex_lock(&s_q_mutex);
-            if (s_stats.dispatch_max_ms < dispatch_ms) {
-                s_stats.dispatch_max_ms = dispatch_ms;
-            }
-            pthread_mutex_unlock(&s_q_mutex);
-        }
+        event_bus_invoke_handlers(&dispatch_evt);
     }
+
+    s_dispatch_running = 0;
+}
+
+/* -------------------------------------------------------------------------
+ * event_bus_drain
+ * ------------------------------------------------------------------------- */
+sw_err_t event_bus_drain(void)
+{
+    event_t dispatch_evt;
+
+    if (!s_initialized) {
+        return SW_ERR_NOT_INIT;
+    }
+    if (s_dispatch_running != 0) {
+        return SW_ERR_STATE;
+    }
+
+    event_bus_mutexes_ready();
+    while (event_bus_take_queued_event(&dispatch_evt)) {
+        event_bus_invoke_handlers(&dispatch_evt);
+    }
+    event_bus_consume_sem_permits();
+    return SW_OK;
 }

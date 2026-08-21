@@ -158,7 +158,7 @@ sw_err_t event_publish_required(event_type_t type, uint32_t param);
 /**
  * @brief  订阅事件
  * @param  type     要订阅的事件类型
- * @param  handler  事件处理函数（在 dispatch 线程上下文中调用）
+ * @param  handler  事件处理函数（生产路径在 dispatch 线程调用；测试可通过 event_bus_drain 在调用线程调用）
  * @retval SW_OK
  * @retval SW_ERR_NOT_INIT  未调用 event_bus_init 或已进入 shutdown
  * @retval SW_ERR_PARAM     参数非法
@@ -187,6 +187,17 @@ sw_err_t event_bus_get_stats(event_bus_stats_t *stats);
  *         此函数仍是 POSIX 线程取消点（sem_wait），也可通过 pthread_cancel 退出。
  */
 void event_bus_dispatch_loop(void);
+
+/**
+ * @brief  同步排空已入队事件（在调用线程分发，不启动 dispatch 线程）
+ * @note   仅当 dispatch 线程未运行时合法。循环出队直到两队列皆空，
+ *         handler 在分发过程中再次发布的事件也会被继续排空。
+ *         生产路径由 dispatch 线程消费，不得调用本函数。
+ * @retval SW_OK
+ * @retval SW_ERR_NOT_INIT  未调用 event_bus_init 或已 shutdown
+ * @retval SW_ERR_STATE     dispatch 线程正在运行
+ */
+sw_err_t event_bus_drain(void);
 
 #ifdef __cplusplus
 }

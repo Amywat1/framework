@@ -17,7 +17,7 @@
 #include <unistd.h>
 
 /* -------------------------------------------------------------------------
- * 测试辅助：volatile 标志（C99 无 stdatomic，用 volatile + usleep 保证可见性）
+ * 测试辅助
  * ------------------------------------------------------------------------- */
 static volatile int      g_h1_called;
 static volatile int      g_h2_called;
@@ -120,17 +120,12 @@ static void test_publish_subscribe(void)
 {
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, event_subscribe(EVT_ALARM_TRIGGERED, handler1));
-
-    pthread_t tid = start_dispatch();
-
     TEST_ASSERT_EQUAL_INT(SW_OK, event_publish(EVT_ALARM_TRIGGERED, 8100U));
-    usleep(30000);
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_drain());
 
     TEST_ASSERT_EQUAL_INT(1, g_h1_called);
     TEST_ASSERT_EQUAL_UINT32(8100U, g_h1_param);
     TEST_ASSERT_TRUE(g_h1_timestamp > 0U);
-
-    stop_dispatch(tid);
 }
 
 static void test_queue_full(void)
@@ -155,16 +150,11 @@ static void test_multi_subscriber(void)
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, event_subscribe(EVT_SAFETY_LOCKOUT, handler1));
     TEST_ASSERT_EQUAL_INT(SW_OK, event_subscribe(EVT_SAFETY_LOCKOUT, handler2));
-
-    pthread_t tid = start_dispatch();
-
     TEST_ASSERT_EQUAL_INT(SW_OK, event_publish(EVT_SAFETY_LOCKOUT, 0U));
-    usleep(30000);
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_drain());
 
     TEST_ASSERT_EQUAL_INT(1, g_h1_called);
     TEST_ASSERT_EQUAL_INT(1, g_h2_called);
-
-    stop_dispatch(tid);
 }
 
 static void test_fifo_order(void)
@@ -172,19 +162,15 @@ static void test_fifo_order(void)
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, event_subscribe(EVT_CMD_ORDER, fifo_handler));
 
-    pthread_t tid = start_dispatch();
-
     event_publish(EVT_CMD_ORDER, 10U);
     event_publish(EVT_CMD_ORDER, 20U);
     event_publish(EVT_CMD_ORDER, 30U);
-    usleep(50000);
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_drain());
 
     TEST_ASSERT_EQUAL_INT(3, g_fifo_log_count);
     TEST_ASSERT_EQUAL_UINT32(10U, g_fifo_log[0]);
     TEST_ASSERT_EQUAL_UINT32(20U, g_fifo_log[1]);
     TEST_ASSERT_EQUAL_UINT32(30U, g_fifo_log[2]);
-
-    stop_dispatch(tid);
 }
 
 static void test_event_isolation(void)
@@ -193,21 +179,18 @@ static void test_event_isolation(void)
     TEST_ASSERT_EQUAL_INT(SW_OK, event_subscribe(EVT_ALARM_TRIGGERED, handler1));
     TEST_ASSERT_EQUAL_INT(SW_OK, event_subscribe(EVT_CLOUD_CONNECTED, handler2));
 
-    pthread_t tid = start_dispatch();
-
     event_publish(EVT_ALARM_TRIGGERED, 8010U);
-    usleep(20000);
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_drain());
 
     TEST_ASSERT_EQUAL_INT(1, g_h1_called);
     TEST_ASSERT_EQUAL_INT(0, g_h2_called);
-
-    stop_dispatch(tid);
 }
 
 static void test_not_init_guard(void)
 {
     TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_INIT, event_subscribe(EVT_ALARM_TRIGGERED, handler1));
     TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_INIT, event_publish(EVT_ALARM_TRIGGERED, 1U));
+    TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_INIT, event_bus_drain());
     TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_INIT, event_bus_shutdown());
 }
 
@@ -223,14 +206,11 @@ static void test_subscribe_idempotent_and_stats(void)
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_get_stats(&stats));
     TEST_ASSERT_EQUAL_UINT(2U, stats.subscribe_count);
 
-    pthread_t tid = start_dispatch();
     TEST_ASSERT_EQUAL_INT(SW_OK, event_publish(EVT_ALARM_TRIGGERED, 9001U));
-    usleep(30000);
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_drain());
     TEST_ASSERT_EQUAL_INT(1, g_h1_called);
     TEST_ASSERT_EQUAL_INT(1, g_h2_called);
     TEST_ASSERT_EQUAL_INT(1, g_h1_call_count);
-
-    stop_dispatch(tid);
 }
 
 static void test_shutdown_drains_queue(void)
@@ -262,16 +242,14 @@ static void test_shutdown_drains_queue(void)
 static void test_stats_count_by_category(void)
 {
     event_bus_stats_t stats;
-    pthread_t         tid;
 
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, event_subscribe(EVT_ALARM_TRIGGERED, handler1));
-    tid = start_dispatch();
 
     TEST_ASSERT_EQUAL_INT(SW_OK, event_publish(EVT_ALARM_TRIGGERED, 1U));
     TEST_ASSERT_EQUAL_INT(SW_OK, event_publish(EVT_ALARM_CLEARED, 2U));
     TEST_ASSERT_EQUAL_INT(SW_OK, event_publish(EVT_CMD_ORDER, 3U));
-    usleep(50000);
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_drain());
 
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_get_stats(&stats));
     TEST_ASSERT_EQUAL_UINT(2U, stats.published_by_cat[EVT_CAT_ALARM]);
@@ -282,8 +260,6 @@ static void test_stats_count_by_category(void)
     /* 分类别之和必须等于总计 */
     TEST_ASSERT_EQUAL_UINT(3U, stats.published_count);
     TEST_ASSERT_EQUAL_UINT(3U, stats.dispatched_count);
-
-    stop_dispatch(tid);
 }
 
 /* 队列满时丢弃计数同样按类别归集 */
@@ -314,47 +290,36 @@ static void slow_handler(const event_t *evt)
 static void test_stats_records_slow_handler(void)
 {
     event_bus_stats_t stats;
-    pthread_t         tid;
 
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, event_subscribe(EVT_WASH_DONE, slow_handler));
-    tid = start_dispatch();
-
     TEST_ASSERT_EQUAL_INT(SW_OK, event_publish(EVT_WASH_DONE, 0U));
-    usleep((EVENT_BUS_SLOW_HANDLER_MS + 80U) * 1000U);
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_drain());
 
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_get_stats(&stats));
     TEST_ASSERT_EQUAL_UINT(1U, stats.slow_handler_count);
     TEST_ASSERT_TRUE(stats.handler_max_ms >= EVENT_BUS_SLOW_HANDLER_MS);
     TEST_ASSERT_EQUAL_UINT16(EVT_WASH_DONE, stats.handler_max_type);
     TEST_ASSERT_TRUE(stats.dispatch_max_ms >= stats.handler_max_ms);
-
-    stop_dispatch(tid);
 }
 
 /* 快 handler 不应被误判为慢 handler */
 static void test_stats_fast_handler_not_flagged_slow(void)
 {
     event_bus_stats_t stats;
-    pthread_t         tid;
 
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, event_subscribe(EVT_ALARM_TRIGGERED, handler1));
-    tid = start_dispatch();
-
     TEST_ASSERT_EQUAL_INT(SW_OK, event_publish(EVT_ALARM_TRIGGERED, 1U));
-    usleep(50000);
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_drain());
 
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_get_stats(&stats));
     TEST_ASSERT_EQUAL_UINT(0U, stats.slow_handler_count);
-
-    stop_dispatch(tid);
 }
 
 static void test_trace_context_propagates_to_derived_event(void)
 {
     trace_context_t context = {0};
-    pthread_t       tid;
 
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, event_subscribe(EVT_CMD_ORDER, trace_root_handler));
@@ -363,18 +328,41 @@ static void test_trace_context_propagates_to_derived_event(void)
     context.correlation_id = 84U;
     context.causation_id   = 21U;
     trace_context_set(&context);
-    tid = start_dispatch();
 
     TEST_ASSERT_EQUAL_INT(SW_OK, event_publish(EVT_CMD_ORDER, 0U));
     trace_context_set(NULL);
-    usleep(30000);
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_drain());
 
     TEST_ASSERT_NOT_EQUAL(0U, g_root_event_id);
     TEST_ASSERT_EQUAL_UINT64(42U, g_root_command_id);
     TEST_ASSERT_EQUAL_UINT64(84U, g_root_correlation_id);
     TEST_ASSERT_EQUAL_UINT64(g_root_event_id, g_child_causation_id);
     TEST_ASSERT_EQUAL_UINT64(42U, g_child_command_id);
+}
 
+
+static void test_drain_empty_queue_ok(void)
+{
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_drain());
+}
+
+static void test_drain_rejects_when_dispatch_running(void)
+{
+    pthread_t tid;
+    unsigned  i;
+    sw_err_t  ret = SW_OK;
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
+    tid = start_dispatch();
+    for (i = 0U; i < 50U; i++) {
+        ret = event_bus_drain();
+        if (ret == SW_ERR_STATE) {
+            break;
+        }
+        usleep(1000);
+    }
+    TEST_ASSERT_EQUAL_INT(SW_ERR_STATE, ret);
     stop_dispatch(tid);
 }
 
@@ -395,5 +383,7 @@ int main(void)
     WDF_RUN_TEST(test_stats_records_slow_handler, "", "验证统计记录慢速处理器");
     WDF_RUN_TEST(test_stats_fast_handler_not_flagged_slow, "", "验证统计快速处理器未标记慢速");
     WDF_RUN_TEST(test_trace_context_propagates_to_derived_event, "", "验证追踪上下文传播到派生事件");
+    WDF_RUN_TEST(test_drain_empty_queue_ok, "EBUS-13", "验证空队列同步排空成功");
+    WDF_RUN_TEST(test_drain_rejects_when_dispatch_running, "EBUS-13", "验证分发线程运行时拒绝同步排空");
     return UNITY_END();
 }

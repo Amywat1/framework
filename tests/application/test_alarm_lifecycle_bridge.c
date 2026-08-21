@@ -19,8 +19,6 @@
 #include "runtime/event_bus/event_bus.h"
 #include "wdf_test_spec.h"
 
-#include <pthread.h>
-#include <unistd.h>
 
 /* 会话日志只记 MAJOR 及以上（见 safety_matrix 的 records_in_journal），
  * 因此目录里同时放 MINOR 与 MAJOR，用于验证筛选而非只验证"有记录"。 */
@@ -62,24 +60,13 @@ static const alarm_def_t s_catalog[] = {
      },
 };
 
-static pthread_t s_dispatch_tid;
-
-static void *dispatch_fn(void *arg)
-{
-    (void)arg;
-    event_bus_dispatch_loop();
-    return NULL;
-}
-
 /**
- * @brief  发布事件并等待 dispatch 线程处理完毕
- *
- * 桥接的 handler 在 dispatch 线程执行，发布后必须让出时间片才能观察结果。
+ * @brief  发布事件并同步排空，使桥接 handler 在本线程执行完毕
  */
 static void publish_and_wait(event_type_t type, uint32_t param)
 {
     TEST_ASSERT_EQUAL_INT(SW_OK, event_publish(type, param));
-    usleep(20000U);
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_drain());
 }
 
 static unsigned journal_count(void)
@@ -96,14 +83,10 @@ void setUp(void)
     TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_load_catalog(s_catalog, sizeof(s_catalog) / sizeof(s_catalog[0])));
     TEST_ASSERT_EQUAL_INT(SW_OK, alarm_bridge_init());
-    pthread_create(&s_dispatch_tid, NULL, dispatch_fn, NULL);
-    usleep(10000U);
 }
 
 void tearDown(void)
 {
-    (void)event_bus_shutdown();
-    pthread_join(s_dispatch_tid, NULL);
 }
 
 /* 会话未开始时触发的报警不进日志：否则上一轮遗留的报警会被算进本次洗车 */

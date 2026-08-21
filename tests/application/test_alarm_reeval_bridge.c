@@ -12,8 +12,6 @@
 #include "runtime/event_bus/event_bus.h"
 #include "wdf_test_spec.h"
 
-#include <pthread.h>
-#include <unistd.h>
 
 enum {
     TEST_ACTUATOR_GANTRY = 11,
@@ -43,27 +41,6 @@ static const alarm_reeval_binding_t s_bindings[] = {
     {ALARM_REEVAL_TRIGGER_ACTUATOR_COMPLETED, TEST_ACTUATOR_GANTRY, TEST_GROUP_GANTRY},
     {ALARM_REEVAL_TRIGGER_WASH_CHECKPOINT,    TEST_CHECKPOINT_EXIT, TEST_GROUP_EXIT  },
 };
-
-static void *dispatch_fn(void *arg)
-{
-    (void)arg;
-    event_bus_dispatch_loop();
-    return NULL;
-}
-
-static pthread_t start_dispatch(void)
-{
-    pthread_t tid;
-
-    pthread_create(&tid, NULL, dispatch_fn, NULL);
-    return tid;
-}
-
-static void stop_dispatch(pthread_t tid)
-{
-    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_shutdown());
-    pthread_join(tid, NULL);
-}
 
 void setUp(void)
 {
@@ -98,8 +75,6 @@ static void test_init_rejects_invalid_binding_table(void)
 
 static void test_actuator_event_reevaluates_bound_group_only(void)
 {
-    pthread_t tid;
-
     TEST_ASSERT_EQUAL_INT(SW_OK, alarm_bridge_reeval_init(s_bindings, 2U));
     TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_trigger(201105U));
     TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_trigger(201205U));
@@ -109,44 +84,34 @@ static void test_actuator_event_reevaluates_bound_group_only(void)
     /* 仅龙门侧在动作中判为正常；条件仍成立的分组不得被运动结束误清 */
     TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_clear(201105U));
 
-    tid = start_dispatch();
     actuator_publish_motion_completed(TEST_ACTUATOR_GANTRY);
-    usleep(50000);
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_drain());
 
     TEST_ASSERT_FALSE(alarm_registry_is_active(201105U));
     TEST_ASSERT_TRUE(alarm_registry_is_active(201205U));
-    stop_dispatch(tid);
 }
 
 static void test_checkpoint_event_reevaluates_bound_group(void)
 {
-    pthread_t tid;
-
     TEST_ASSERT_EQUAL_INT(SW_OK, alarm_bridge_reeval_init(s_bindings, 2U));
     TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_trigger(201205U));
     TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_clear(201205U));
 
-    tid = start_dispatch();
     wash_publish_checkpoint_reached(TEST_CHECKPOINT_EXIT);
-    usleep(50000);
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_drain());
 
     TEST_ASSERT_FALSE(alarm_registry_is_active(201205U));
-    stop_dispatch(tid);
 }
 
 static void test_motion_complete_keeps_active_condition(void)
 {
-    pthread_t tid;
-
     TEST_ASSERT_EQUAL_INT(SW_OK, alarm_bridge_reeval_init(s_bindings, 2U));
     TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_trigger(201105U));
 
-    tid = start_dispatch();
     actuator_publish_motion_completed(TEST_ACTUATOR_GANTRY);
-    usleep(50000);
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_drain());
 
     TEST_ASSERT_TRUE(alarm_registry_is_active(201105U));
-    stop_dispatch(tid);
 }
 
 static void test_unbound_trigger_is_noop(void)

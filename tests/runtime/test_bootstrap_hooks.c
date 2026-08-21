@@ -118,34 +118,25 @@ const void *hal_voice_get_ops(void)
     return NULL;
 }
 
-static sw_err_t ok_fn(void)
-{
-    return SW_OK;
-}
-
-static void void_fn(void)
-{
-}
-
 /** @brief 构造一份全部字段就位的合法钩子表 */
 static project_hooks_t make_full_hooks(void)
 {
     project_hooks_t h = {
-        .configure_storage      = ok_fn,
-        .configure_hal          = ok_fn,
-        .bind_hal               = ok_fn,
-        .init_hal               = ok_fn,
-        .configure_safety       = ok_fn,
-        .init_safety            = ok_fn,
-        .configure_adapters     = ok_fn,
-        .bind_device           = ok_fn,
-        .init_device           = ok_fn,
-        .bind_alarm_catalog     = ok_fn,
-        .validate               = ok_fn,
-        .init_adapters          = ok_fn,
-        .register_runtime_tasks = ok_fn,
-        .start_runtime          = ok_fn,
-        .assert_safe_outputs    = void_fn,
+        .configure_storage      = project_hook_noop,
+        .configure_hal          = project_hook_noop,
+        .bind_hal               = project_hook_noop,
+        .init_hal               = project_hook_noop,
+        .configure_safety       = project_hook_noop,
+        .init_safety            = project_hook_noop,
+        .configure_adapters     = project_hook_noop,
+        .bind_device           = project_hook_noop,
+        .init_device           = project_hook_noop,
+        .bind_alarm_catalog     = project_hook_noop,
+        .validate               = project_hook_noop,
+        .init_adapters          = project_hook_noop,
+        .register_runtime_tasks = project_hook_noop,
+        .start_runtime          = project_hook_noop,
+        .assert_safe_outputs    = project_hook_noop_void,
     };
 
     return h;
@@ -220,10 +211,10 @@ static void test_rejected_registration_keeps_previous(void)
 int main(void)
 {
     UNITY_BEGIN();
-    WDF_RUN_TEST(test_full_hooks_accepted, "", "验证完整启动钩子集合被接受");
-    WDF_RUN_TEST(test_null_hooks_rejected, "", "验证空指针钩子被拒绝");
-    WDF_RUN_TEST(test_each_hook_is_required, "", "验证每个钩子为必需");
-    WDF_RUN_TEST(test_hook_count_matches_coverage, "", "验证启动钩子数量与覆盖项一致");
-    WDF_RUN_TEST(test_rejected_registration_keeps_previous, "", "验证被拒绝注册保持原有");
+    WDF_RUN_TEST(test_full_hooks_accepted, "BOOT-08", "验证完整启动钩子集合被接受");
+    WDF_RUN_TEST(test_null_hooks_rejected, "BOOT-08", "验证空指针钩子被拒绝");
+    WDF_RUN_TEST(test_each_hook_is_required, "BOOT-08", "验证每个钩子为必需");
+    WDF_RUN_TEST(test_hook_count_matches_coverage, "BOOT-08", "验证启动钩子数量与覆盖项一致");
+    WDF_RUN_TEST(test_rejected_registration_keeps_previous, "BOOT-08", "验证被拒绝注册保持原有");
     return UNITY_END();
 }

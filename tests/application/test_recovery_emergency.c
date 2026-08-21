@@ -21,9 +21,7 @@
 #include "runtime/event_bus/event_bus.h"
 #include "wdf_test_spec.h"
 
-#include <pthread.h>
 #include <string.h>
-#include <unistd.h>
 
 static volatile int                s_recovery_completed_count;
 static volatile uint32_t           s_recovery_result_param;
@@ -136,26 +134,6 @@ static void on_recovery_completed(const event_t *evt)
     s_recovery_result_param = evt->param;
 }
 
-static void *dispatch_fn(void *arg)
-{
-    (void)arg;
-    event_bus_dispatch_loop();
-    return NULL;
-}
-
-static pthread_t start_dispatch(void)
-{
-    pthread_t tid;
-
-    pthread_create(&tid, NULL, dispatch_fn, NULL);
-    return tid;
-}
-
-static void stop_dispatch(pthread_t tid)
-{
-    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_shutdown());
-    pthread_join(tid, NULL);
-}
 
 void setUp(void)
 {
@@ -198,28 +176,22 @@ static void start_recover_via_command(void)
 
 static void test_recovery_service_publishes_completed_idle(void)
 {
-    pthread_t tid;
-
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_init());
     device_ops_register(&s_device_ops);
     TEST_ASSERT_EQUAL_INT(SW_OK, recovery_service_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, event_subscribe(EVT_OP_MODE_RECOVERY_COMPLETED, on_recovery_completed));
 
-    tid = start_dispatch();
     start_recover_via_command();
-    usleep(50000U);
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_drain());
 
     TEST_ASSERT_EQUAL_INT(1, s_recovery_completed_count);
     TEST_ASSERT_EQUAL_UINT32((uint32_t)RECOVERY_RESULT_IDLE, s_recovery_result_param);
     TEST_ASSERT_EQUAL_INT(1, s_home_device_count);
-    stop_dispatch(tid);
 }
 
 static void test_recovery_service_keeps_exception_when_blocking_remains(void)
 {
-    pthread_t tid;
-
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_load_catalog(s_blocking_catalog, 1U));
@@ -228,20 +200,16 @@ static void test_recovery_service_keeps_exception_when_blocking_remains(void)
     TEST_ASSERT_EQUAL_INT(SW_OK, recovery_service_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, event_subscribe(EVT_OP_MODE_RECOVERY_COMPLETED, on_recovery_completed));
 
-    tid = start_dispatch();
     start_recover_via_command();
-    usleep(50000U);
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_drain());
 
     TEST_ASSERT_EQUAL_INT(1, s_recovery_completed_count);
     TEST_ASSERT_EQUAL_UINT32((uint32_t)RECOVERY_RESULT_FAILED, s_recovery_result_param);
     TEST_ASSERT_EQUAL_INT(1, s_home_device_count);
-    stop_dispatch(tid);
 }
 
 static void test_recovery_resets_blocking_alarm_cleared_during_home(void)
 {
-    pthread_t tid;
-
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_load_catalog(s_blocking_catalog, 1U));
@@ -251,21 +219,17 @@ static void test_recovery_resets_blocking_alarm_cleared_during_home(void)
     TEST_ASSERT_EQUAL_INT(SW_OK, recovery_service_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, event_subscribe(EVT_OP_MODE_RECOVERY_COMPLETED, on_recovery_completed));
 
-    tid = start_dispatch();
     start_recover_via_command();
-    usleep(50000U);
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_drain());
 
     TEST_ASSERT_EQUAL_INT(1, s_recovery_completed_count);
     TEST_ASSERT_EQUAL_UINT32((uint32_t)RECOVERY_RESULT_IDLE, s_recovery_result_param);
     TEST_ASSERT_FALSE(alarm_registry_is_active(TEST_BLOCKING_ALARM_CODE));
     TEST_ASSERT_EQUAL_INT(1, s_home_device_count);
-    stop_dispatch(tid);
 }
 
 static void test_recovery_resets_inactive_lockout_before_home(void)
 {
-    pthread_t tid;
-
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_load_catalog(s_lockout_catalog, 1U));
@@ -276,84 +240,66 @@ static void test_recovery_resets_inactive_lockout_before_home(void)
     TEST_ASSERT_EQUAL_INT(SW_OK, recovery_service_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, event_subscribe(EVT_OP_MODE_RECOVERY_COMPLETED, on_recovery_completed));
 
-    tid = start_dispatch();
     start_recover_via_command();
-    usleep(50000U);
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_drain());
 
     TEST_ASSERT_EQUAL_INT(1, s_recovery_completed_count);
     TEST_ASSERT_EQUAL_UINT32((uint32_t)RECOVERY_RESULT_IDLE, s_recovery_result_param);
     TEST_ASSERT_FALSE(alarm_registry_is_active(TEST_LOCKOUT_ALARM_CODE));
     TEST_ASSERT_EQUAL_INT(1, s_home_device_count);
-    stop_dispatch(tid);
 }
 
 static void test_cutout_estop_release_does_not_run_abort_home(void)
 {
-    pthread_t tid;
-
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
     device_ops_register(&s_device_ops);
     TEST_ASSERT_EQUAL_INT(SW_OK, safety_session_coordinator_init());
 
-    tid = start_dispatch();
     TEST_ASSERT_EQUAL_INT(SW_OK, event_publish(EVT_HW_ESTOP_OFF, 0U));
-    usleep(50000U);
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_drain());
 
     TEST_ASSERT_EQUAL_INT(0, s_abort_home_count);
-    stop_dispatch(tid);
 }
 
 static void test_cutout_lockout_aborts_wash(void)
 {
-    pthread_t tid;
-
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
     device_ops_register(&s_device_ops);
     TEST_ASSERT_EQUAL_INT(SW_OK, safety_session_coordinator_init());
 
-    tid = start_dispatch();
     TEST_ASSERT_EQUAL_INT(SW_OK, event_publish(EVT_SAFETY_LOCKOUT, 0U));
-    usleep(50000U);
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_drain());
 
     TEST_ASSERT_EQUAL_INT(1, s_abort_count);
     TEST_ASSERT_EQUAL_INT(WASH_ABORT_CRITICAL, s_abort_cause);
     TEST_ASSERT_EQUAL_INT(0, s_deferred_stop_count);
-    stop_dispatch(tid);
 }
 
 static void test_abort_home_requested_runs_abort_home(void)
 {
-    pthread_t tid;
-
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
     device_ops_register(&s_device_ops);
     TEST_ASSERT_EQUAL_INT(SW_OK, safety_session_coordinator_init());
 
-    tid = start_dispatch();
     TEST_ASSERT_EQUAL_INT(SW_OK, event_publish(EVT_ABORT_HOME_REQUESTED, 0U));
-    usleep(50000U);
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_drain());
 
     TEST_ASSERT_EQUAL_INT(1, s_abort_home_count);
-    stop_dispatch(tid);
 }
 
 static void test_cutout_estop_on_aborts_wash_and_defers_stop(void)
 {
-    pthread_t tid;
-
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
     device_ops_register(&s_device_ops);
     TEST_ASSERT_EQUAL_INT(SW_OK, safety_session_coordinator_init());
 
-    tid = start_dispatch();
     TEST_ASSERT_EQUAL_INT(SW_OK, event_publish(EVT_HW_ESTOP_ON, 0U));
-    usleep(50000U);
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_drain());
 
     TEST_ASSERT_EQUAL_INT(1, s_deferred_stop_count);
     TEST_ASSERT_EQUAL_INT(1, s_abort_count);
     TEST_ASSERT_EQUAL_INT(WASH_ABORT_ESTOP, s_abort_cause);
     TEST_ASSERT_EQUAL_INT(0, s_abort_home_count);
-    stop_dispatch(tid);
 }
 
 /**
@@ -361,7 +307,6 @@ static void test_cutout_estop_on_aborts_wash_and_defers_stop(void)
  */
 static void test_leave_recovering_ignores_late_home_completed(void)
 {
-    pthread_t tid;
     dev_cmd_t recover  = dev_cmd_make_simple(DEV_CMD_RECOVER);
     dev_cmd_t stop_all = dev_cmd_make_simple(DEV_CMD_STOP_ALL_OUTPUTS);
 
@@ -374,25 +319,23 @@ static void test_leave_recovering_ignores_late_home_completed(void)
     TEST_ASSERT_EQUAL_INT(SW_OK, recovery_service_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, event_subscribe(EVT_OP_MODE_RECOVERY_COMPLETED, on_recovery_completed));
 
-    tid = start_dispatch();
 
     TEST_ASSERT_EQUAL_INT(OP_CMD_ALLOWED, op_mode_handle_command(&recover).verdict);
     TEST_ASSERT_EQUAL_INT(OP_MODE_RECOVERING, op_mode_get_current());
     /* drain RECOVERY_REQUESTED → home 启动但不自动完成 */
-    usleep(50000U);
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_drain());
     TEST_ASSERT_EQUAL_INT(1, s_home_device_count);
     TEST_ASSERT_EQUAL_INT(0, s_recovery_completed_count);
 
     TEST_ASSERT_EQUAL_INT(OP_CMD_ALLOWED, op_mode_handle_command(&stop_all).verdict);
     TEST_ASSERT_EQUAL_INT(OP_MODE_STOPPED, op_mode_get_current());
-    usleep(50000U); /* MODE_CHANGED → cancel_pending */
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_drain()); /* MODE_CHANGED → cancel_pending */
 
     TEST_ASSERT_EQUAL_INT(SW_OK, event_publish(EVT_OP_MODE_HOME_COMPLETED, 1U));
-    usleep(50000U);
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_drain());
 
     TEST_ASSERT_EQUAL_INT(0, s_recovery_completed_count);
     TEST_ASSERT_EQUAL_INT(OP_MODE_STOPPED, op_mode_get_current());
-    stop_dispatch(tid);
 }
 
 /**
@@ -400,7 +343,6 @@ static void test_leave_recovering_ignores_late_home_completed(void)
  */
 static void test_estop_during_pending_home_preempts_recovery(void)
 {
-    pthread_t tid;
     dev_cmd_t recover = dev_cmd_make_simple(DEV_CMD_RECOVER);
 
     s_home_auto_complete = 0;
@@ -414,14 +356,13 @@ static void test_estop_during_pending_home_preempts_recovery(void)
     TEST_ASSERT_EQUAL_INT(SW_OK, op_mode_bridge_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, event_subscribe(EVT_OP_MODE_RECOVERY_COMPLETED, on_recovery_completed));
 
-    tid = start_dispatch();
     TEST_ASSERT_EQUAL_INT(OP_CMD_ALLOWED, op_mode_handle_command(&recover).verdict);
-    usleep(50000U);
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_drain());
     TEST_ASSERT_EQUAL_INT(OP_MODE_RECOVERING, op_mode_get_current());
     TEST_ASSERT_EQUAL_INT(1, s_home_device_count);
 
     TEST_ASSERT_EQUAL_INT(SW_OK, event_publish(EVT_HW_ESTOP_ON, 0U));
-    usleep(50000U);
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_drain());
 
     TEST_ASSERT_EQUAL_INT(1, s_deferred_stop_count);
     TEST_ASSERT_EQUAL_INT(1, s_abort_count);
@@ -430,11 +371,10 @@ static void test_estop_during_pending_home_preempts_recovery(void)
     TEST_ASSERT_EQUAL_INT(OP_MODE_STOPPED, op_mode_get_current());
 
     TEST_ASSERT_EQUAL_INT(SW_OK, event_publish(EVT_OP_MODE_HOME_COMPLETED, 1U));
-    usleep(50000U);
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_drain());
     TEST_ASSERT_EQUAL_INT(0, s_recovery_completed_count);
     TEST_ASSERT_EQUAL_INT(OP_MODE_STOPPED, op_mode_get_current());
 
-    stop_dispatch(tid);
 }
 
 /**
@@ -442,7 +382,6 @@ static void test_estop_during_pending_home_preempts_recovery(void)
  */
 static void test_stop_all_during_pending_home_cuts_outputs(void)
 {
-    pthread_t          tid;
     operational_mode_t mode_before;
     dev_cmd_t          recover  = dev_cmd_make_simple(DEV_CMD_RECOVER);
     dev_cmd_t          stop_all = dev_cmd_make_simple(DEV_CMD_STOP_ALL_OUTPUTS);
@@ -456,9 +395,8 @@ static void test_stop_all_during_pending_home_cuts_outputs(void)
     TEST_ASSERT_EQUAL_INT(SW_OK, recovery_service_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, event_subscribe(EVT_OP_MODE_RECOVERY_COMPLETED, on_recovery_completed));
 
-    tid = start_dispatch();
     TEST_ASSERT_EQUAL_INT(OP_CMD_ALLOWED, op_mode_handle_command(&recover).verdict);
-    usleep(50000U);
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_drain());
     TEST_ASSERT_EQUAL_INT(OP_MODE_RECOVERING, op_mode_get_current());
     TEST_ASSERT_EQUAL_INT(1, s_home_device_count);
 
@@ -469,12 +407,11 @@ static void test_stop_all_during_pending_home_cuts_outputs(void)
     TEST_ASSERT_EQUAL_INT(1, s_stop_all_outputs_count);
     TEST_ASSERT_EQUAL_INT(0, s_abort_count); /* 前态非 WASHING，不 abort 会话 */
 
-    usleep(50000U);
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_drain());
     TEST_ASSERT_EQUAL_INT(SW_OK, event_publish(EVT_OP_MODE_HOME_COMPLETED, 1U));
-    usleep(50000U);
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_drain());
     TEST_ASSERT_EQUAL_INT(0, s_recovery_completed_count);
 
-    stop_dispatch(tid);
 }
 
 /**
@@ -482,8 +419,6 @@ static void test_stop_all_during_pending_home_cuts_outputs(void)
  */
 static void test_recovery_resets_on_motion_cleared_during_home(void)
 {
-    pthread_t tid;
-
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_load_catalog(s_on_motion_catalog, 1U));
@@ -494,14 +429,12 @@ static void test_recovery_resets_on_motion_cleared_during_home(void)
     TEST_ASSERT_EQUAL_INT(SW_OK, recovery_service_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, event_subscribe(EVT_OP_MODE_RECOVERY_COMPLETED, on_recovery_completed));
 
-    tid = start_dispatch();
     start_recover_via_command();
-    usleep(50000U);
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_drain());
 
     TEST_ASSERT_EQUAL_INT(1, s_recovery_completed_count);
     TEST_ASSERT_EQUAL_UINT32((uint32_t)RECOVERY_RESULT_IDLE, s_recovery_result_param);
     TEST_ASSERT_FALSE(alarm_registry_is_active(TEST_ON_MOTION_ALARM_CODE));
-    stop_dispatch(tid);
 }
 
 int main(void)

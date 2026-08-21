@@ -10,9 +10,7 @@
 #include "runtime/event_bus/event_bus.h"
 #include "wdf_test_spec.h"
 
-#include <pthread.h>
 #include <string.h>
-#include <unistd.h>
 
 static int32_t           s_value;
 static volatile int      g_dirty_count;
@@ -44,26 +42,6 @@ static cloud_point_entry_t make_on_change_entry(void)
     return entry;
 }
 
-static void *dispatch_fn(void *arg)
-{
-    (void)arg;
-    event_bus_dispatch_loop();
-    return NULL;
-}
-
-static pthread_t start_dispatch(void)
-{
-    pthread_t tid;
-
-    pthread_create(&tid, NULL, dispatch_fn, NULL);
-    return tid;
-}
-
-static void stop_dispatch(pthread_t tid)
-{
-    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_shutdown());
-    pthread_join(tid, NULL);
-}
 
 static void reset_flags(void)
 {
@@ -83,39 +61,31 @@ void tearDown(void)
 static void test_poll_without_change_no_event(void)
 {
     const cloud_point_entry_t entries[] = {make_on_change_entry()};
-    pthread_t                 tid;
-
     reset_flags();
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, event_subscribe(EVT_CLOUD_POINT_DIRTY, on_dirty));
-    tid = start_dispatch();
     TEST_ASSERT_EQUAL_INT(SW_OK, cloud_point_watcher_init(entries, 1U));
 
     cloud_point_watcher_poll();
-    usleep(30000);
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_drain());
 
     TEST_ASSERT_EQUAL_INT(0, g_dirty_count);
-    stop_dispatch(tid);
 }
 
 static void test_poll_after_change_publishes_dirty(void)
 {
     const cloud_point_entry_t entries[] = {make_on_change_entry()};
-    pthread_t                 tid;
-
     reset_flags();
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, event_subscribe(EVT_CLOUD_POINT_DIRTY, on_dirty));
-    tid = start_dispatch();
     TEST_ASSERT_EQUAL_INT(SW_OK, cloud_point_watcher_init(entries, 1U));
 
     s_value = 20;
     cloud_point_watcher_poll();
-    usleep(30000);
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_drain());
 
     TEST_ASSERT_EQUAL_INT(1, g_dirty_count);
     TEST_ASSERT_EQUAL_UINT32(0U, g_dirty_index);
-    stop_dispatch(tid);
 }
 
 static void test_init_rejects_invalid_args(void)

@@ -20,8 +20,6 @@
 #include "tests/stubs/test_wash_modes.h"
 #include "wdf_test_spec.h"
 
-#include <pthread.h>
-#include <unistd.h>
 
 static const alarm_def_t s_catalog[] = {
     {
@@ -60,31 +58,10 @@ static const safety_ops_t s_failed_cutout_ops = {
     .deferred_stop   = no_deferred_stop,
 };
 
-static void *dispatch_fn(void *arg)
-{
-    (void)arg;
-    event_bus_dispatch_loop();
-    return NULL;
-}
-
-static pthread_t start_dispatch(void)
-{
-    pthread_t tid;
-
-    pthread_create(&tid, NULL, dispatch_fn, NULL);
-    return tid;
-}
-
-static void stop_dispatch(pthread_t tid)
-{
-    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_shutdown());
-    pthread_join(tid, NULL);
-}
-
 static void publish_and_wait(event_type_t type, uint32_t param)
 {
     TEST_ASSERT_EQUAL_INT(SW_OK, event_publish(type, param));
-    usleep(50000);
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_drain());
 }
 
 void setUp(void)
@@ -130,23 +107,16 @@ static void test_snapshot_direct_updates_are_read_back(void)
 
 static void test_wash_projection_tracks_session_started_event(void)
 {
-    pthread_t tid;
-
     time_util_init();
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, telemetry_projection_init());
-    tid = start_dispatch();
-    usleep(10000);
-
     publish_and_wait(EVT_WASH_SESSION_STARTED, (uint32_t)TEST_WASH_MODE_B);
     TEST_ASSERT_EQUAL_INT(TEST_WASH_MODE_B, device_snapshot_get().wash.mode);
 
-    stop_dispatch(tid);
 }
 
 static void test_operational_projection_syncs_current_context(void)
 {
-    pthread_t              tid;
     operational_snapshot_t snap;
     dev_cmd_t              recover_cmd = dev_cmd_make_simple(DEV_CMD_RECOVER);
     dev_cmd_t              stop_cmd    = dev_cmd_make_simple(DEV_CMD_STOP_OPERATION);
@@ -155,9 +125,6 @@ static void test_operational_projection_syncs_current_context(void)
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, operational_mode_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, telemetry_projection_init());
-    tid = start_dispatch();
-    usleep(10000);
-
     /* 上电：STOPPED + 总开关开 */
     snap = device_snapshot_get().op;
     TEST_ASSERT_EQUAL_INT(OP_MODE_STOPPED, snap.mode);
@@ -175,51 +142,44 @@ static void test_operational_projection_syncs_current_context(void)
 
     /* 停运：STOPPED + 总开关关 */
     TEST_ASSERT_EQUAL_INT(OP_CMD_ALLOWED, op_mode_handle_command(&stop_cmd).verdict);
-    usleep(50000);
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_drain());
     snap = device_snapshot_get().op;
     TEST_ASSERT_EQUAL_INT(OP_MODE_STOPPED, snap.mode);
     TEST_ASSERT_FALSE(snap.service_enabled);
     TEST_ASSERT_TRUE(operational_snapshot_is_stopping(snap));
     TEST_ASSERT_FALSE(operational_snapshot_is_standby(snap));
 
-    stop_dispatch(tid);
 }
 
 /* STOPPED 下置急停：无 MODE_CHANGED，须靠 CONTEXT_SYNC 刷新快照 estop_active */
 static void test_estop_while_stopped_syncs_snapshot_flag(void)
 {
-    pthread_t              tid;
     operational_snapshot_t snap;
 
     time_util_init();
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, operational_mode_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, telemetry_projection_init());
-    tid = start_dispatch();
-    usleep(10000);
-
     snap = device_snapshot_get().op;
     TEST_ASSERT_EQUAL_INT(OP_MODE_STOPPED, snap.mode);
     TEST_ASSERT_FALSE(snap.estop_active);
 
     op_mode_on_estop(true);
-    usleep(50000);
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_drain());
     snap = device_snapshot_get().op;
     TEST_ASSERT_EQUAL_INT(OP_MODE_STOPPED, snap.mode);
     TEST_ASSERT_TRUE(snap.estop_active);
     TEST_ASSERT_TRUE(op_mode_is_estop_active());
 
     op_mode_on_estop(false);
-    usleep(50000);
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_drain());
     snap = device_snapshot_get().op;
     TEST_ASSERT_FALSE(snap.estop_active);
 
-    stop_dispatch(tid);
 }
 
 static void test_safety_projection_refreshes_alarm_snapshot(void)
 {
-    pthread_t         tid;
     safety_snapshot_t snap;
 
     time_util_init();
@@ -227,9 +187,6 @@ static void test_safety_projection_refreshes_alarm_snapshot(void)
     TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_load_catalog(s_catalog, 1U));
     TEST_ASSERT_EQUAL_INT(SW_OK, telemetry_projection_init());
-    tid = start_dispatch();
-    usleep(10000);
-
     TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_trigger(201101U));
     publish_and_wait(EVT_ALARM_TRIGGERED, 201101U);
 
@@ -239,7 +196,6 @@ static void test_safety_projection_refreshes_alarm_snapshot(void)
     TEST_ASSERT_EQUAL_UINT(201101U, snap.top_alarm_code);
     TEST_ASSERT_TRUE(device_snapshot_get().safety.blocking_active);
 
-    stop_dispatch(tid);
 }
 
 static void test_explicit_rebuild_repairs_dropped_projection_event(void)

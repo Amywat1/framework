@@ -23,44 +23,9 @@ static sw_err_t configure_storage(void)
     return json_deploy_store_configure(DEPLOY_STORE_JSON_FILE_PATH);
 }
 
-static sw_err_t configure_hal(void)
-{
-    return SW_OK;
-}
-
-static sw_err_t bind_hal(void)
-{
-    return SW_OK;
-}
-
-static sw_err_t init_hal(void)
-{
-    return SW_OK;
-}
-
-static sw_err_t configure_safety(void)
-{
-    return SW_OK;
-}
-
-static sw_err_t init_safety(void)
-{
-    return SW_OK;
-}
-
-static sw_err_t configure_adapters(void)
-{
-    return SW_OK;
-}
-
 static sw_err_t bind_device(void)
 {
     return demo_device_ops_register();
-}
-
-static sw_err_t init_device(void)
-{
-    return SW_OK;
 }
 
 static sw_err_t bind_alarm_catalog(void)
@@ -83,38 +48,24 @@ static sw_err_t init_adapters(void)
     return estop_poll_thread_init();
 }
 
-static sw_err_t register_runtime_tasks(void)
-{
-    return SW_OK;
-}
-
-static sw_err_t start_runtime(void)
-{
-    return SW_OK;
-}
-
-static void assert_safe_outputs(void)
-{
-}
-
 sw_err_t project_hooks_register(void)
 {
     static const project_hooks_t s_hooks = {
         .configure_storage      = configure_storage,
-        .configure_hal          = configure_hal,
-        .bind_hal               = bind_hal,
-        .init_hal               = init_hal,
-        .configure_safety       = configure_safety,
-        .init_safety            = init_safety,
-        .configure_adapters     = configure_adapters,
+        .configure_hal          = project_hook_noop,
+        .bind_hal               = project_hook_noop,
+        .init_hal               = project_hook_noop,
+        .configure_safety       = project_hook_noop,
+        .init_safety            = project_hook_noop,
+        .configure_adapters     = project_hook_noop,
         .bind_device           = bind_device,
-        .init_device           = init_device,
+        .init_device           = project_hook_noop,
         .bind_alarm_catalog     = bind_alarm_catalog,
         .validate               = validate,
         .init_adapters          = init_adapters,
-        .register_runtime_tasks = register_runtime_tasks,
-        .start_runtime          = start_runtime,
-        .assert_safe_outputs    = assert_safe_outputs,
+        .register_runtime_tasks = project_hook_noop,
+        .start_runtime          = project_hook_noop,
+        .assert_safe_outputs    = project_hook_noop_void,
     };
     return bootstrap_register_hooks(&s_hooks);
 }

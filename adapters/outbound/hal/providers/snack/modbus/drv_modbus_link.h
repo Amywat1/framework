@@ -12,6 +12,9 @@
  *          comm_fail_count 仅用于内部触发自动重连，不含"通信丢失/恢复"这类业务
  *          通知语义，调用方需要该语义时须在其上再做一层判定（如 drv_voice 的
  *          notify_fail_count）。
+ *          本链路禁止用于急停切断：cutout 必须走数字输出，不得调用本文件的
+ *          读写接口。RS-485 同时只能发一帧，切断接到总线上会把急停延迟绑在
+ *          当前事务超时上。
  */
 
 #ifndef ADAPTERS_OUTBOUND_HAL_PROVIDERS_SNACK_MODBUS_DRV_MODBUS_LINK_H

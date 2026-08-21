@@ -16,9 +16,7 @@
 #include "runtime/event_bus/event_bus.h"
 #include "wdf_test_spec.h"
 
-#include <pthread.h>
 #include <string.h>
-#include <unistd.h>
 
 static int32_t  s_counter;
 static bool     s_enabled;
@@ -126,31 +124,10 @@ static const report_policy_entry_t s_policies[] = {
 
 static cloud_point_entry_t s_entries[2];
 
-static void *dispatch_fn(void *arg)
-{
-    (void)arg;
-    event_bus_dispatch_loop();
-    return NULL;
-}
-
-static pthread_t start_dispatch(void)
-{
-    pthread_t tid;
-
-    pthread_create(&tid, NULL, dispatch_fn, NULL);
-    return tid;
-}
-
-static void stop_dispatch(pthread_t tid)
-{
-    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_shutdown());
-    pthread_join(tid, NULL);
-}
-
 static void publish_and_wait(event_type_t type, uint32_t param)
 {
     TEST_ASSERT_EQUAL_INT(SW_OK, event_publish(type, param));
-    usleep(50000);
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_drain());
 }
 
 static void register_model(void)
@@ -220,8 +197,6 @@ static void test_cloud_model_builds_and_applies_properties(void)
 
 static void test_report_scheduler_runs_event_policies(void)
 {
-    pthread_t tid;
-
     time_util_init();
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
     cloud_link_register(&s_link_ops);
@@ -230,9 +205,6 @@ static void test_report_scheduler_runs_event_policies(void)
     TEST_ASSERT_EQUAL_INT(SW_OK, cloud_model_validate());
     TEST_ASSERT_EQUAL_INT(SW_OK, cloud_model_init());
     register_report_scheduler();
-    tid = start_dispatch();
-    usleep(10000);
-
     publish_and_wait(EVT_CLOUD_CONNECTED, 0U);
     TEST_ASSERT_EQUAL_UINT(1U, s_full_reports);
 
@@ -248,7 +220,6 @@ static void test_report_scheduler_runs_event_policies(void)
     report_scheduler_request_resync();
     TEST_ASSERT_EQUAL_UINT(1U, s_full_reports);
 
-    stop_dispatch(tid);
 }
 
 int main(void)

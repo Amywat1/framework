@@ -2,7 +2,7 @@
 
 **版本**：v1.2  
 **状态**：已落地（核心实现 + scheduler + Demo bootstrap）  
-**最后同步代码**：2026-07-14（`bootstrap_run()`、`event_dispatch` 线程、业务订阅）  
+**最后同步代码**：2026-08-21（`event_bus_drain()` 同步排空、dispatch 共用出队路径）  
 **适用范围**：`common/event_types.h`、`runtime/event_bus/`、`runtime/scheduler/`、`runtime/bootstrap/`、`application/` 订阅方  
 **架构基线**：Ports & Adapters + 单 dispatch 线程 + 编译期固定容量  
 **关键词**：event_bus、发布订阅、双队列、复合事件编码、`event_dispatch` 线程
@@ -245,6 +245,7 @@ typedef struct
 | `event_subscribe_table(subs, count)` | 启动期 | 表内每项订阅成功 | 遇首个失败即返回 | 批量注册 |
 | `event_bus_get_stats(stats)` | 任意 | `stats != NULL` | `SW_ERR_PARAM` | 拷贝统计快照 |
 | `event_bus_dispatch_loop()` | **仅** dispatch 线程 | — | `sem_wait` 致命失败时调用 fatal_cb 后返回 | 出队 → 快照 handler → 逐一回调 |
+| `event_bus_drain()` | 测试 / 单线程推进；dispatch **未**运行 | 已初始化且 dispatch 未运行 | `SW_ERR_NOT_INIT` / `SW_ERR_STATE` | 循环出队直到两队列皆空；handler 再发布的事件一并排空 |
 | `event_bus_set_fatal_cb(cb)` | `init` 之后、dispatch 启动之前 | — | — | 注册不可恢复故障回调 |
 
 ### 5.4 handler 回调契约
@@ -255,7 +256,7 @@ typedef void (*event_handler_t)(const event_t *evt);
 
 | 约束 | 说明 |
 |------|------|
-| 执行线程 | 仅在 `event_dispatch` 线程调用 |
+| 执行线程 | 生产路径仅 `event_dispatch` 线程；测试可通过 `event_bus_drain()` 在调用线程分发 |
 | 参数生命周期 | `evt` 指向分发栈副本，回调返回后失效；不得保存指针 |
 | 耗时 | 不得长时间阻塞；重活应投递到工作线程或周期任务 |
 | 重入 | 不得调用 `event_publish` / `event_subscribe` |
@@ -283,7 +284,8 @@ typedef void (*event_handler_t)(const event_t *evt);
 
 ### 6.1 dispatch 线程与订阅方
 
-当前工程在 `bootstrap_run()` 中注册名为 `event_dispatch` 的线程，入口调用 `event_bus_dispatch_loop()`。单元测试由测试代码手动启动该线程。
+当前工程在 `bootstrap_run()` 中注册名为 `event_dispatch` 的线程，入口调用 `event_bus_dispatch_loop()`。
+单元测试优先 `event_bus_drain()` 在同一线程确定推进；需要验证异步 dispatch 的用例才启动该线程。
 
 | 订阅方 | 典型订阅事件 | wdf 落地 |
 |--------|--------------|----------|
