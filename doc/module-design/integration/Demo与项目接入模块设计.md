@@ -290,7 +290,7 @@ include(${FW_ROOT}/cmake/wdf_targets.cmake)
 target_link_libraries(my_app PRIVATE wdf_application wdf_services wdf_storage_json wdf_hal_sim pthread)
 ```
 
-选 INTERFACE 而非 STATIC，是因为同一份框架源在不同目标下需要不同编译定义（例如测试目标为 `fluid_path.c` 定义 `FLUID_PATH_UNIT_TEST`）。收益不是少编译一次，而是把源清单维护权收回框架内部：框架增删文件时项目只需重新配置。
+选 INTERFACE 而非 STATIC，是因为同一份框架源在不同目标下需要不同编译定义（例如测试目标为 `hal_io_sim.c` 定义 `HAL_IO_SIM_UNIT_TEST`）。收益不是少编译一次，而是把源清单维护权收回框架内部：框架增删文件时项目只需重新配置。
 
 可用分层目标（依赖逐层向下传递，link 上层自动带入下层）：
 

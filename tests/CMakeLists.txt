@@ -467,7 +467,6 @@ add_unit_test(test_mechanism_patterns
     ${WDF_ROOT}/common/sw_mutex.c
     ${WDF_ROOT}/common/time_util.c
 )
-target_compile_definitions(test_mechanism_patterns PRIVATE FLUID_PATH_UNIT_TEST)
 
 add_unit_test(test_program_engine
     ${CMAKE_CURRENT_SOURCE_DIR}/domain/test_program_engine.c
@@ -737,6 +736,20 @@ target_link_options(test_tick_no_alloc PRIVATE
 # ---------------------------------------------------------------------------
 add_unit_test(test_bootstrap_hooks
     ${CMAKE_CURRENT_SOURCE_DIR}/runtime/test_bootstrap_hooks.c
+    ${WDF_ROOT}/runtime/bootstrap/bootstrap.c
+    ${WDF_ROOT}/common/log.c
+    ${WDF_ROOT}/common/sw_mutex.c
+)
+
+# ---------------------------------------------------------------------------
+# bootstrap 阶段推进与失败即止（行为契约 BOOT-01、BOOT-02、BOOT-03）
+#
+# 与 test_bootstrap_hooks 同样只链 bootstrap.c：本测试把每个框架 init 都换成
+# 可编程桩以注入失败并记录调用序列，链入真实模块会让「后续步骤未执行」这条
+# 断言受被链模块自身状态影响。
+# ---------------------------------------------------------------------------
+add_unit_test(test_bootstrap_phases
+    ${CMAKE_CURRENT_SOURCE_DIR}/runtime/test_bootstrap_phases.c
     ${WDF_ROOT}/runtime/bootstrap/bootstrap.c
     ${WDF_ROOT}/common/log.c
     ${WDF_ROOT}/common/sw_mutex.c

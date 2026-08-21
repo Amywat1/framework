@@ -28,13 +28,8 @@ typedef struct {
 } operational_snapshot_t;
 
 /**
- * @brief  获取运行模式快照副本（内部加一次锁）
- */
-operational_snapshot_t operational_snapshot_get(void);
-
-/**
  * @brief  判断是否处于停机态
- * @note   调用方须先通过 operational_snapshot_get() 取一次快照再传入。
+ * @note   调用方须先通过 device_snapshot_get() 取一次快照，再传入其 op 子域。
  */
 static inline bool operational_snapshot_is_stopping(operational_snapshot_t s)
 {
@@ -44,7 +39,7 @@ static inline bool operational_snapshot_is_stopping(operational_snapshot_t s)
 
 /**
  * @brief  判断是否处于运营待机态
- * @note   调用方须先通过 operational_snapshot_get() 取一次快照再传入。
+ * @note   调用方须先通过 device_snapshot_get() 取一次快照，再传入其 op 子域。
  */
 static inline bool operational_snapshot_is_standby(operational_snapshot_t s)
 {
@@ -63,16 +58,6 @@ typedef struct {
     alarm_instance_t active_list[ALARM_ACTIVE_MAX];
 } safety_snapshot_t;
 
-/**
- * @brief  获取安全快照副本
- */
-safety_snapshot_t safety_snapshot_get(void);
-
-/**
- * @brief  是否存在告警态（blocking，读缓存）
- */
-bool safety_snapshot_is_warning_active(void);
-
 /* -------------------------------------------------------------------------
  * 洗车会话子域快照
  * ------------------------------------------------------------------------- */
@@ -90,11 +75,6 @@ typedef struct {
 typedef struct {
     bool cloud_connected;
 } connectivity_snapshot_t;
-
-/**
- * @brief  获取洗车快照副本
- */
-wash_snapshot_t wash_snapshot_get(void);
 
 /* -------------------------------------------------------------------------
  * 完整设备遥测快照

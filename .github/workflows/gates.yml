@@ -1,0 +1,46 @@
+# 提交门禁 CI
+#
+# 为何需要：check_all.sh 把架构边界、行为契约、文档引用和单元测试四项串成门禁，
+# 但此前没有任何机制保证它被执行——23 条静态规则与 126 条契约条目的约束力全都
+# 取决于提交者是否记得手动跑。这个落差已经造成过实际后果：SAFE-01 的验证载体
+# wdf_smoke 曾长期以退出码 1 运行且不在 ctest 内，那条「已验证」当时并不成立。
+#
+# 依赖说明：Unity 与 cJSON 已随仓分发（third_party/），CI 只需 cmake / gcc /
+# python3，不装任何额外依赖。vendor provider（WDF_ENABLE_SNACK_*）默认 OFF，
+# 需要外部 SDK，不在 CI 内构建。
+name: gates
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  gates:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 安装构建依赖
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake build-essential
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      # 四项门禁：架构边界 / 行为契约 / 文档引用 / 单元测试。
+      # check_all.sh 内部对每项分别记录状态，任一失败即整体非零退出。
+      - name: 运行统一门禁
+        run: ./scripts/check_all.sh
+
+      # 失败时报告与原始输出是唯一的排查依据，必须无条件上传。
+      - name: 上传测试报告
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: build-check/test-results/
+          if-no-files-found: warn

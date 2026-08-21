@@ -2,8 +2,9 @@
 #
 # 设计取向：
 #   框架核心以 INTERFACE 库导出，而不是 STATIC 库。原因是同一份框架源在不同
-#   目标下需要不同的编译定义——例如项目的 smoke 目标会为 fluid_path.c 定义
-#   FLUID_PATH_UNIT_TEST 以剥离周期任务线程，而 sim / 真机目标不定义。
+#   目标下需要不同的编译定义——例如 hal_io_sim.c 属于 wdf_hal_sim，而测试
+#   目标会为它定义 HAL_IO_SIM_UNIT_TEST 以暴露 hal_io_sim_test_reset()，
+#   sim / 真机目标不定义。
 #   STATIC 库只编译一次，无法同时满足这些差异；INTERFACE 库把源文件与包含
 #   目录传递给消费方，由消费方按自己的宏编译，行为与项目手写源列表完全一致。
 #
@@ -35,6 +36,7 @@
 #   wdf_point_table_json 点位表的 JSON 编解码
 #   wdf_cloud_json       物模型属性 JSON 与 property_port 安装
 #   wdf_cjson            随框架分发的 cJSON
+#   wdf_conformance      「框架要求」条目的一致性套件（交付项目运行）
 #
 # 注意：vendor provider（snack）仍由 framework/CMakeLists.txt 的
 #       WDF_ENABLE_* 选项以 STATIC 库形式提供，它们有外部 SDK 依赖，
@@ -408,4 +410,28 @@ _wdf_add_interface_lib(wdf_hal_components
         wdf_hal_io_manager
         wdf_common
         wdf_ports
+)
+
+# ---------------------------------------------------------------------------
+# wdf_conformance — 「框架要求」条目的一致性套件（交付给项目运行）
+#
+# 契约里 `框架要求` 归属的条目（SAFE-09/10、ERRM-04）被测对象是**项目适配器**，
+# 框架无法代验，只能交付可复用套件由项目运行。此前套件只存在于 tests/support/
+# 而没有导出目标，项目要跑它必须硬编码路径 reach 进框架的 tests/ 目录——
+# 「框架提供套件、项目运行」这个分工缺了交付通道那一半。
+#
+# 套件只依赖 common/sw_error.h，不拉入 Unity：断言由项目自己的测试框架做，
+# 套件只回报错误串。这样项目用什么测试框架都能接。
+#
+# 用法（项目侧）：
+#   target_link_libraries(my_adapter_test PRIVATE wdf_conformance)
+#   #include "tests/support/safety_cutout_contract.h"
+#   safety_cutout_contract_run(&fixture, err, sizeof(err));
+# ---------------------------------------------------------------------------
+_wdf_add_interface_lib(wdf_conformance
+    SOURCES
+        tests/support/safety_cutout_contract.c
+        tests/support/adapter_error_contract.c
+    DEPENDS
+        wdf_common
 )

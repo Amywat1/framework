@@ -87,6 +87,9 @@ SYMBOL_ALLOW="
 cloud_model_register_scheduler|architecture/08 第 22.2 节记录该函数已删除
 cloud_model_request_resync|architecture/08 第 22.2 节记录该函数已删除
 framework_reset_for_test|architecture/08 第 6 节记录该方案未被采用
+operational_snapshot_get|状态投影模块设计 4.6 节记录该单子域包装已删除
+safety_snapshot_get|状态投影模块设计 4.6 节记录该单子域包装已删除
+wash_snapshot_get|状态投影模块设计 4.6 节记录该单子域包装已删除
 defined|C 预处理器语法，非框架符号
 "
 

@@ -11,7 +11,7 @@
 #
 # 规则概览:
 #   R1  common/        不依赖上层目录（domain/application/adapters/runtime/services/）
-#   R2  domain/        不依赖 adapters/ 或 application/（含 application/ports）
+#   R2  domain/        不依赖 adapters/、application/（含 application/ports）或 services/
 #   R3  domain|application 下契约头  不依赖 adapters/
 #   R4  runtime/event_bus/   不依赖业务层
 #   R5  runtime/scheduler/   不依赖业务层
@@ -21,13 +21,14 @@
 #   R9  domain/         不使用文件 IO / JSON / 线程注册 / 动态内存
 #   R10 adapters/       不承载跨领域编排（bridge / projection / coordinator）
 #   R11 application/    不依赖 adapters/ 或 services/
-#   R13 services/       不依赖 adapters/ 或 application/
+#   R13 services/       不依赖 adapters/、application/ 或 domain/cloud/
 #   R14 observability/  只依赖 common/
 #   R15 全框架头文件    保护宏等于其路径的全大写下划线形式
 #   R16 实时可达互斥量  必须启用优先级继承
 #   R17 表达式求值器    只依赖纯计算白名单
 #   R18 阻塞等待点      必须分类且等应答有界
 #   R19 Snack Modbus    驱动布局只在 provider 私有头中可见
+#   R20 RT 可达文件      框架外（vendor）阻塞调用必须登记最坏阻塞时长
 
 set -euo pipefail
 
@@ -91,12 +92,16 @@ check_includes \
     "common" \
     "domain/" "application/" "adapters/" "runtime/" "services/"
 
-# R2: domain/ 不依赖 adapters/ 或 application/
+# R2: domain/ 不依赖 adapters/、application/ 或 services/
 # domain 可引用 common/、自身 domain/ports/outbound、runtime/event_bus
+# services/ 不在 domain 的允许出向清单内（见 architecture/01 第 2.4 节）：
+# domain 反向依赖共享服务会让领域规则被服务装配顺序绑住，且 services 自身依赖
+# domain，形成目录级双向依赖。这条同时是 ARCH-11「cloud/ 不依赖 services/」的
+# 实现——cloud 已迁入 domain/cloud，故由本规则一并覆盖。
 check_includes \
-    "R2: domain/ 不依赖 adapters/ 或 application/" \
+    "R2: domain/ 不依赖 adapters/、application/ 或 services/" \
     "domain" \
-    "adapters/" "application/"
+    "adapters/" "application/" "services/"
 
 # R3: 契约目录不依赖 adapters（runtime/ports 是装配器，允许依赖 domain/application）
 check_includes \
@@ -392,9 +397,15 @@ fi
 #
 # 各层允许的出向依赖按实际需要确定，不做超出现状的收紧：
 #   application  common / domain / ports / runtime / cloud
-#   cloud        common / domain / ports / runtime
-#   services     common / ports / domain
+#   cloud        common / domain / ports / runtime（cloud 已迁入 domain/cloud，
+#                其「不依赖 services/」由 R2 覆盖）
+#   services     common / ports / domain（domain/cloud 除外，见 R13）
 #   observability common（旁路设施，不参与主链路，故约束最严）
+#
+# 注意「规则参数」必须与 contract/行为契约.md 的 ARCH 条目文字逐项对齐：
+# ARCH-11 / ARCH-12 各列了三个禁止方向，而本文件一度只实现了两个，
+# cloud/ ↔ services/ 这一对长期无人约束。该对账现由 check_behaviour_contract.sh
+# 的 C10 自动执行，新增禁止方向时改一处即可被另一处发现。
 # -----------------------------------------------------------------------------
 check_includes \
     "R11: application/ 不依赖 adapters/ 或 services/" \
@@ -402,9 +413,9 @@ check_includes \
     "adapters/" "services/"
 
 check_includes \
-    "R13: services/ 不依赖 adapters/ 或 application/" \
+    "R13: services/ 不依赖 adapters/、application/ 或 domain/cloud/" \
     "services" \
-    "adapters/" "application/"
+    "adapters/" "application/" "domain/cloud/"
 
 # observability 是旁路设施：任何层都可向它发布记录，它不回调任何层，因此不构成
 # 环。这条性质只有在它除 common 之外什么都不依赖时才成立，故这里逐一排除其余层。
@@ -786,6 +797,91 @@ else
     echo "[FAIL] R19: Snack Modbus 驱动私有布局越过 provider 边界"
     printf '%s' "$modbus_private_violations"
     echo "  修正: 外部调用方只 include drv_*.h；对象存储由 Snack provider 组合层持有"
+    TOTAL_VIOLATIONS=$((TOTAL_VIOLATIONS + 1))
+fi
+
+# -----------------------------------------------------------------------------
+# R20: RT 可达文件中的框架外阻塞调用必须登记最坏阻塞时长
+#
+# 对应行为契约 ARCH-18 与 SAFE-13。R18 只扫 POSIX 阻塞原语，vendor 库的阻塞
+# 调用天然在那张清单之外——脚本注释已写明「新增阻塞原语时须同步扩充
+# WAIT_PRIMITIVES，否则这条规则对它是空过」，而 vendor 调用正是这种情形。
+#
+# 具体暴露：drv_modbus_link.c 在持 bus_lock 期间调 modbus_read_registers /
+# modbus_write_register，单次上限是 VFD_MODBUS_TIMEOUT_US（100ms）；失败后还会
+# 在同一锁内再做一次 link_reconnect_locked（modbus_connect）。该文件已登记为
+# RT 可达（理由：项目 cutout 可能直写变频器寄存器），于是急停切断可能需要一把
+# 正被 100ms+ 阻塞持有的锁。优先级继承对此无效——PI 界定的是「持锁者被抢占」
+# 导致的反转，不是「持锁者自身阻塞」的时长。
+#
+# 为何仍做成登记表而不做锁区间分析：与 R16 同因。link_execute 在分支内提前
+# unlock 再 return，朴素行扫描的深度计数会被归零，从而漏判其后的 vendor 调用；
+# 要正确归属锁区间需要真正的控制流分析，shell 里做不可靠。故改为对「RT 可达
+# 文件 × 框架外阻塞符号」逐项登记最坏时长，未登记即报错，强制作者表态。
+#
+# 判据只查 RT_REACHABLE_FILES：非 RT 文件的 vendor 阻塞不影响急停延迟。
+# -----------------------------------------------------------------------------
+
+# 已登记的框架外阻塞调用：<文件>:<符号> = <最坏阻塞说明>
+# 新增 vendor 阻塞调用须在此登记，并在 SAFE-13 的预算内说明其影响。
+#
+# 登记不等于合规：注释须写明它是否在锁区间内。锁外的 vendor 阻塞只延迟本线程，
+# 锁内的会把延迟传导给任何等这把锁的线程——包括急停切断。
+VENDOR_BLOCKING_REGISTERED=(
+    # 锁内（计入急停延迟预算，见 SAFE-13）：持 bus_lock 期间等应答
+    "adapters/outbound/hal/providers/snack/modbus/drv_modbus_link.c:modbus_read_registers"        # 锁内 ≤100ms（VFD_MODBUS_TIMEOUT_US）
+    "adapters/outbound/hal/providers/snack/modbus/drv_modbus_link.c:modbus_read_input_registers"  # 锁内 ≤100ms
+    "adapters/outbound/hal/providers/snack/modbus/drv_modbus_link.c:modbus_write_register"        # 锁内 ≤100ms
+    "adapters/outbound/hal/providers/snack/modbus/drv_modbus_link.c:modbus_connect"               # 锁内重连，见 SAFE-13
+
+    # 锁外（不传导给其它线程）：io_exp 刻意在锁外收发，锁只护内存缓冲。
+    # 这是本仓的正确范式——poll_rw_board 先 read 再进锁、出锁后再 write。
+    "adapters/outbound/hal/providers/snack/io_exp/io_exp_driver.c:io_read_input"    # 锁外，≤IO_TRANSACTION_TIMEOUT_MS(300ms)
+    "adapters/outbound/hal/providers/snack/io_exp/io_exp_driver.c:io_read_input_s"  # 锁外，同上
+    "adapters/outbound/hal/providers/snack/io_exp/io_exp_driver.c:io_write_all"     # 锁外，同上
+    "adapters/outbound/hal/providers/snack/io_exp/io_exp_driver.c:io_write_all_s"   # 锁外，同上
+)
+
+# 被视为「框架外阻塞」的符号前缀：vendor SDK 的同步收发入口。
+# 只列真正会等硬件应答的，纯本地设置（set_slave/set_response_timeout）不算。
+VENDOR_BLOCKING_SYMS=(
+    modbus_read_registers modbus_read_input_registers modbus_read_bits
+    modbus_write_register modbus_write_registers modbus_write_bit
+    modbus_connect
+    io_write_all io_write_all_s io_read_input io_read_input_s
+)
+
+vendor_unregistered=""
+for rt_file in "${RT_REACHABLE_FILES[@]}"; do
+    f="${FW_ROOT}/${rt_file}"
+    [ -f "$f" ] || continue
+    for sym in "${VENDOR_BLOCKING_SYMS[@]}"; do
+        # 只认真实调用点，排除注释行
+        if grep -nE "(^|[^_[:alnum:]])${sym}[[:space:]]*\(" "$f" 2>/dev/null \
+            | grep -vE '^[0-9]+:[[:space:]]*(//|/\*|\*)' >/dev/null; then
+            key="${rt_file}:${sym}"
+            is_known=0
+            for k in "${VENDOR_BLOCKING_REGISTERED[@]}"; do
+                if [ "$k" = "$key" ]; then is_known=1; break; fi
+            done
+            if [ "$is_known" -eq 0 ]; then
+                vendor_unregistered="${vendor_unregistered}  ${key}"$'\n'
+            fi
+        fi
+    done
+done
+
+TOTAL_RULES=$((TOTAL_RULES + 1))
+if [ -z "$vendor_unregistered" ]; then
+    echo "[PASS] R20: RT 可达文件的框架外阻塞调用均已登记（${#VENDOR_BLOCKING_REGISTERED[@]} 处）"
+else
+    echo ""
+    echo "[FAIL] R20: 以下 RT 可达文件的框架外阻塞调用未登记最坏阻塞时长"
+    printf '%s' "$vendor_unregistered"
+    echo "  修正: 在 check_arch_boundary.sh 的 VENDOR_BLOCKING_REGISTERED 中登记，"
+    echo "        并在 contract/行为契约.md 的 SAFE-13 急停延迟预算中说明其影响。"
+    echo "        判据: 该调用是否会等硬件应答；若会，它就计入急停切断的最坏延迟。"
+    echo "        更优做法是把 vendor 调用移出锁区间（见 io_exp_driver.c 的写法）。"
     TOTAL_VIOLATIONS=$((TOTAL_VIOLATIONS + 1))
 fi
 

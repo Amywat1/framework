@@ -61,27 +61,6 @@ device_snapshot_t device_snapshot_get(void)
     return out;
 }
 
-/* 向后兼容包装：保留旧 API 供已有调用方使用 */
-operational_snapshot_t operational_snapshot_get(void)
-{
-    return device_snapshot_get().op;
-}
-
-safety_snapshot_t safety_snapshot_get(void)
-{
-    return device_snapshot_get().safety;
-}
-
-bool safety_snapshot_is_warning_active(void)
-{
-    return safety_snapshot_get().blocking_active;
-}
-
-wash_snapshot_t wash_snapshot_get(void)
-{
-    return device_snapshot_get().wash;
-}
-
 void device_snapshot_reset_for_test(void)
 {
     pthread_mutex_lock(&s_mutex);
