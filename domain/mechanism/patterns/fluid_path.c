@@ -385,8 +385,11 @@ bool fluid_path_is_settled(void)
 {
     bool settled;
 
+    if (atomic_load_explicit(&s_emergency_off, memory_order_acquire)) {
+        return false;
+    }
     pthread_mutex_lock(&s_mutex);
-    if (!s_ready || s_force_off) {
+    if (!s_ready || s_force_off || atomic_load_explicit(&s_emergency_off, memory_order_acquire)) {
         settled = false;
     } else {
         recompute_desired();

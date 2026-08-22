@@ -95,8 +95,8 @@ void fluid_path_poll(uint64_t now_ms);
 
 /**
  * @brief  判断水路是否已收敛到目标状态
- * @retval true   已初始化、无强制关断，且各执行器实际输出等于期望
- * @retval false  未初始化、强制关断未消费，或输出尚未对齐目标
+ * @retval true   已初始化、无强制关断、急停旗标未置位，且各执行器实际输出等于期望
+ * @retval false  未初始化、强制关断、急停未消费，或输出尚未对齐目标
  */
 bool fluid_path_is_settled(void);
 

@@ -12,6 +12,7 @@ static motor_cmd_result_t unavailable(void)
     motor_cmd_result_t result;
 
     result.status = MOTOR_CMD_REJECTED;
+    result.reject = MOTOR_REJECT_UNAVAILABLE;
     result.reason = "executor-unavailable";
     return result;
 }
@@ -80,7 +81,7 @@ motor_dir_t motor_exec_direction(const motor_exec_t *exec, int motor)
 
 motor_exec_fault_code_t motor_exec_fault_code(const motor_exec_t *exec, int motor)
 {
-    return exec_valid(exec) ? exec->ops->fault_code(exec->ctx, motor) : MOTOR_FAULT_DRIVER_PORT_FATAL;
+    return exec_valid(exec) ? exec->ops->fault_code(exec->ctx, motor) : MOTOR_FAULT_NONE;
 }
 
 bool motor_exec_encoder_healthy(const motor_exec_t *exec, int motor)

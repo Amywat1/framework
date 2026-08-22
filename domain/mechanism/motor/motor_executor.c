@@ -22,56 +22,79 @@ typedef struct {
 
 static motor_executor_slot_t s_slots[WDF_MOTOR_EXECUTOR_INSTANCE_COUNT];
 
-/* ------------------------- 事件队列（环形缓冲） ------------------------- */
+/* 命令与 tick 串行化；急停切断路径不取此锁。 */
 
-/**
- * @brief  删除相对 head 偏移 drop 处的事件，后续项前移
- */
-static void ev_remove_at(motor_executor_t *e, int drop)
+void motor_lock_init(motor_executor_t *e)
+{
+    pthread_mutexattr_t attr;
+
+    if ((e == NULL) || e->lock_ready) {
+        return;
+    }
+    if (pthread_mutexattr_init(&attr) != 0) {
+        return;
+    }
+    if (pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE) == 0) {
+        if (pthread_mutex_init(&e->lock, &attr) == 0) {
+            e->lock_ready = true;
+        }
+    }
+    (void)pthread_mutexattr_destroy(&attr);
+}
+
+void motor_lock_destroy(motor_executor_t *e)
+{
+    if ((e != NULL) && e->lock_ready) {
+        (void)pthread_mutex_destroy(&e->lock);
+        e->lock_ready = false;
+    }
+}
+
+void motor_lock(motor_executor_t *e)
+{
+    if ((e != NULL) && e->lock_ready) {
+        (void)pthread_mutex_lock(&e->lock);
+    }
+}
+
+void motor_unlock(motor_executor_t *e)
+{
+    if ((e != NULL) && e->lock_ready) {
+        (void)pthread_mutex_unlock(&e->lock);
+    }
+}
+
+static void ev_remove_at_slot(motor_event_slot_t *slot, int drop)
 {
     int m;
 
-    for (m = drop; m < e->ev_count - 1; ++m) {
-        int from = (e->ev_head + m + 1) % MOTOR_EVENT_QUEUE_CAP;
-        int to   = (e->ev_head + m) % MOTOR_EVENT_QUEUE_CAP;
+    for (m = drop; m < slot->count - 1; ++m) {
+        int from = (slot->head + m + 1) % MOTOR_EVENT_SLOT_CAP;
+        int to   = (slot->head + m) % MOTOR_EVENT_SLOT_CAP;
 
-        e->events[to] = e->events[from];
+        slot->q[to] = slot->q[from];
     }
-    e->ev_count--;
+    slot->count--;
 }
 
-/**
- * @brief  压入事件；满时优先丢弃同电机最旧项，避免无人消费的轴挤掉其它轴结局
- * @note   若队列中尚无该电机事件，再退回丢弃全局最旧。
- */
 static void ev_push(motor_executor_t *e, const motor_event_t *ev)
 {
-    if (e->ev_count >= MOTOR_EVENT_QUEUE_CAP) {
-        int drop = 0;
-        int n;
+    motor_event_slot_t *slot;
 
-        for (n = 0; n < e->ev_count; ++n) {
-            int idx = (e->ev_head + n) % MOTOR_EVENT_QUEUE_CAP;
-
-            if (e->events[idx].motor == ev->motor) {
-                drop = n;
-                break;
-            }
-        }
-        ev_remove_at(e, drop);
+    if ((ev->motor < 0) || (ev->motor >= e->motor_count)) {
+        return;
+    }
+    slot = &e->ev[ev->motor];
+    if (slot->count >= MOTOR_EVENT_SLOT_CAP) {
+        ev_remove_at_slot(slot, 0);
     }
     {
-        int tail        = (e->ev_head + e->ev_count) % MOTOR_EVENT_QUEUE_CAP;
-        e->events[tail] = *ev;
-        e->ev_count++;
+        int tail      = (slot->head + slot->count) % MOTOR_EVENT_SLOT_CAP;
+        slot->q[tail] = *ev;
+        slot->count++;
     }
 }
 
-/**
- * @brief  本次运行的累计时长
- * @note   run 型（无结束条件）与 move 型同样在 begin_start 记录 move_start_ms，
- *         耗时对两者都有意义，故不以 move_active 为条件，否则 run 型恒为 0。
- */
 static uint64_t eff_elapsed(motor_executor_t *e, int i)
 {
     motor_mstate_t *s = &e->m[i];
@@ -119,18 +142,31 @@ void push_event(motor_executor_t         *e,
 
 void motor_dispatch(motor_executor_t *e)
 {
+    motor_event_t buf[MOTOR_MAX_MOTORS * MOTOR_EVENT_SLOT_CAP];
+    int           n = 0;
+    int           i;
+
     if (!e->cb) {
         return;
     }
+    motor_lock(e);
     e->in_dispatch = true;
-    motor_event_t ev;
-    while (e->ev_count > 0) {
-        ev         = e->events[e->ev_head];
-        e->ev_head = (e->ev_head + 1) % MOTOR_EVENT_QUEUE_CAP;
-        e->ev_count--;
-        e->cb(&ev, e->cb_ctx);
+    for (i = 0; i < e->motor_count; ++i) {
+        motor_event_slot_t *slot = &e->ev[i];
+
+        while ((slot->count > 0) && (n < (int)(sizeof(buf) / sizeof(buf[0])))) {
+            buf[n++]   = slot->q[slot->head];
+            slot->head = (slot->head + 1) % MOTOR_EVENT_SLOT_CAP;
+            slot->count--;
+        }
     }
+    motor_unlock(e);
+    for (i = 0; i < n; ++i) {
+        e->cb(&buf[i], e->cb_ctx);
+    }
+    motor_lock(e);
     e->in_dispatch = false;
+    motor_unlock(e);
 }
 
 /* ------------------------- 事件 ------------------------- */
@@ -146,33 +182,43 @@ static void motor_set_event_callback(motor_executor_t *e, motor_event_cb_t cb, v
 
 static bool motor_pop_event(motor_executor_t *e, motor_event_t *out)
 {
-    if (e->ev_count <= 0) {
-        return false;
+    int i;
+
+    motor_lock(e);
+    for (i = 0; i < e->motor_count; ++i) {
+        motor_event_slot_t *slot = &e->ev[i];
+
+        if (slot->count <= 0) {
+            continue;
+        }
+        *out       = slot->q[slot->head];
+        slot->head = (slot->head + 1) % MOTOR_EVENT_SLOT_CAP;
+        slot->count--;
+        motor_unlock(e);
+        return true;
     }
-    *out       = e->events[e->ev_head];
-    e->ev_head = (e->ev_head + 1) % MOTOR_EVENT_QUEUE_CAP;
-    e->ev_count--;
-    return true;
+    motor_unlock(e);
+    return false;
 }
 
 static bool motor_pop_event_for(motor_executor_t *e, int motor, motor_event_t *out)
 {
-    int n;
+    motor_event_slot_t *slot;
 
-    if (e->ev_count <= 0) {
+    if ((motor < 0) || (motor >= e->motor_count)) {
         return false;
     }
-    for (n = 0; n < e->ev_count; ++n) {
-        int idx = (e->ev_head + n) % MOTOR_EVENT_QUEUE_CAP;
-
-        if (e->events[idx].motor != motor) {
-            continue;
-        }
-        *out = e->events[idx];
-        ev_remove_at(e, n);
-        return true;
+    motor_lock(e);
+    slot = &e->ev[motor];
+    if (slot->count <= 0) {
+        motor_unlock(e);
+        return false;
     }
-    return false;
+    *out       = slot->q[slot->head];
+    slot->head = (slot->head + 1) % MOTOR_EVENT_SLOT_CAP;
+    slot->count--;
+    motor_unlock(e);
+    return true;
 }
 
 /* ------------------------- provider 分派 ------------------------- */
@@ -353,12 +399,19 @@ motor_init_result_t motor_executor_bind(unsigned              slot_id,
     }
 
     memset(slot, 0, sizeof(*slot));
+    motor_lock_init(&slot->executor);
+    if (!slot->executor.lock_ready) {
+        memset(slot, 0, sizeof(*slot));
+        return init_err("lock init failed");
+    }
     result = motor_init(&slot->executor, cfg, ports);
     if (!result.ok) {
+        motor_lock_destroy(&slot->executor);
         memset(slot, 0, sizeof(*slot));
         return result;
     }
     if (!motor_exec_provider_bind(&slot->handle, &s_provider_ops, &slot->executor)) {
+        motor_lock_destroy(&slot->executor);
         memset(slot, 0, sizeof(*slot));
         return init_err("provider binding failed");
     }
@@ -371,7 +424,15 @@ motor_init_result_t motor_executor_reinit(motor_exec_t *exec)
 {
     motor_executor_t *executor = executor_from_handle(exec);
 
-    return (executor != NULL) ? motor_reinit(executor) : init_err("executor unavailable");
+    motor_init_result_t result;
+
+    if (executor == NULL) {
+        return init_err("executor unavailable");
+    }
+    motor_lock(executor);
+    result = motor_reinit(executor);
+    motor_unlock(executor);
+    return result;
 }
 
 void motor_executor_tick(motor_exec_t *exec)
@@ -379,7 +440,10 @@ void motor_executor_tick(motor_exec_t *exec)
     motor_executor_t *executor = executor_from_handle(exec);
 
     if (executor != NULL) {
+        motor_lock(executor);
         motor_tick(executor);
+        motor_unlock(executor);
+        motor_dispatch(executor);
     }
 }
 
@@ -387,14 +451,14 @@ motor_cmd_result_t motor_executor_zero_encoder(motor_exec_t *exec, int motor)
 {
     motor_executor_t *executor = executor_from_handle(exec);
 
-    return (executor != NULL) ? motor_zero_encoder(executor, motor) : cmd_reject("executor-unavailable");
+    return (executor != NULL) ? motor_zero_encoder(executor, motor) : cmd_reject(MOTOR_REJECT_UNAVAILABLE, "executor-unavailable");
 }
 
 motor_cmd_result_t motor_executor_confirm_baseline(motor_exec_t *exec, int motor)
 {
     motor_executor_t *executor = executor_from_handle(exec);
 
-    return (executor != NULL) ? motor_confirm_baseline(executor, motor) : cmd_reject("executor-unavailable");
+    return (executor != NULL) ? motor_confirm_baseline(executor, motor) : cmd_reject(MOTOR_REJECT_UNAVAILABLE, "executor-unavailable");
 }
 
 void motor_executor_reset_estop(motor_exec_t *exec)
@@ -402,7 +466,9 @@ void motor_executor_reset_estop(motor_exec_t *exec)
     motor_executor_t *executor = executor_from_handle(exec);
 
     if (executor != NULL) {
+        motor_lock(executor);
         motor_reset_estop(executor);
+        motor_unlock(executor);
     }
 }
 
@@ -411,7 +477,9 @@ void motor_executor_reset_watchdog(motor_exec_t *exec)
     motor_executor_t *executor = executor_from_handle(exec);
 
     if (executor != NULL) {
+        motor_lock(executor);
         motor_reset_watchdog(executor);
+        motor_unlock(executor);
     }
 }
 
@@ -419,14 +487,28 @@ int motor_executor_current_freq(const motor_exec_t *exec, int motor)
 {
     const motor_executor_t *executor = const_executor_from_handle(exec);
 
-    return (executor != NULL) ? motor_current_freq(executor, motor) : 0;
+    int freq = 0;
+
+    if (executor != NULL) {
+        motor_lock((motor_executor_t *)executor);
+        freq = motor_current_freq(executor, motor);
+        motor_unlock((motor_executor_t *)executor);
+    }
+    return freq;
 }
 
 bool motor_executor_in_safe_state(const motor_exec_t *exec)
 {
     const motor_executor_t *executor = const_executor_from_handle(exec);
 
-    return (executor != NULL) && motor_in_safe_state(executor);
+    bool safe = false;
+
+    if (executor != NULL) {
+        motor_lock((motor_executor_t *)executor);
+        safe = motor_in_safe_state(executor);
+        motor_unlock((motor_executor_t *)executor);
+    }
+    return safe;
 }
 
 void motor_executor_set_event_callback(motor_exec_t *exec, motor_event_cb_t cb, void *ctx)
@@ -434,13 +516,20 @@ void motor_executor_set_event_callback(motor_exec_t *exec, motor_event_cb_t cb, 
     motor_executor_t *executor = executor_from_handle(exec);
 
     if (executor != NULL) {
+        motor_lock(executor);
         motor_set_event_callback(executor, cb, ctx);
+        motor_unlock(executor);
     }
 }
 
 #ifdef MOTOR_EXECUTOR_UNIT_TEST
 void motor_executor_test_reset(void)
 {
+    unsigned i;
+
+    for (i = 0U; i < (unsigned)WDF_MOTOR_EXECUTOR_INSTANCE_COUNT; ++i) {
+        motor_lock_destroy(&s_slots[i].executor);
+    }
     memset(s_slots, 0, sizeof(s_slots));
 }
 #endif

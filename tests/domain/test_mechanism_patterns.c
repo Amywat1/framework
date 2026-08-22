@@ -3,12 +3,15 @@
  * @brief   mechanism patterns 单元测试
  */
 
+#include "application/bridges/mechanism_bridge.h"
 #include "common/sw_error.h"
 #include "common/time_util.h"
+#include "domain/mechanism/motor/motor_executor.h"
 #include "domain/mechanism/patterns/fluid_path.h"
 #include "domain/mechanism/patterns/motor_axis.h"
 #include "domain/ports/outbound/motor/motor_exec_port.h"
 #include "runtime/event_bus/event_bus.h"
+#include "runtime/scheduler/periodic_task.h"
 #include "wdf_test_spec.h"
 
 #include <stdbool.h>
@@ -32,7 +35,11 @@ static motor_cmd_result_t s_next_result;
 static int                    s_run_count;
 static int                    s_move_count;
 static int                    s_stop_count;
+static int                    s_home_count;
 static int                    s_recover_count;
+static int                    s_periodic_register_count;
+static int                    s_periodic_fail_on;
+static int                    s_executor_tick_count;
 static bool                   s_end_cb_valid;
 static actuator_id_t          s_end_cb_id;
 static motor_axis_end_result_t s_end_cb_result;
@@ -45,13 +52,21 @@ static int               s_ev_count;
 
 static motor_cmd_result_t cmd_ok(void)
 {
-    motor_cmd_result_t r = {MOTOR_CMD_ACCEPTED, "ok"};
+    motor_cmd_result_t r = {
+        .status = MOTOR_CMD_ACCEPTED,
+        .reject = MOTOR_REJECT_NONE,
+        .reason = "ok",
+    };
     return r;
 }
 
 static motor_cmd_result_t cmd_rejected(void)
 {
-    motor_cmd_result_t r = {MOTOR_CMD_REJECTED, "reject"};
+    motor_cmd_result_t r = {
+        .status = MOTOR_CMD_REJECTED,
+        .reject = MOTOR_REJECT_FAULT,
+        .reason = "reject",
+    };
     return r;
 }
 
@@ -62,7 +77,12 @@ static void mock_motor_reset(void)
     s_run_count     = 0;
     s_move_count    = 0;
     s_stop_count    = 0;
+    s_home_count    = 0;
     s_recover_count = 0;
+    s_periodic_register_count = 0;
+    s_periodic_fail_on        = 0;
+    s_executor_tick_count     = 0;
+    mechanism_bridge_reset_for_test();
     s_end_cb_valid  = false;
     s_end_cb_id     = 0;
     memset(&s_end_cb_result, 0, sizeof(s_end_cb_result));
@@ -115,12 +135,41 @@ motor_cmd_result_t motor_exec_stop(motor_exec_t *exec, int motor)
 motor_cmd_result_t motor_exec_home(motor_exec_t *exec, int motor)
 {
     (void)exec;
+    s_home_count++;
     if (!motor_index_valid(motor) || !motor_cmd_ok(s_next_result)) {
         return s_next_result;
     }
     s_motor[motor].phase    = MOTOR_PHASE_STOPPED;
     s_motor[motor].position = 0;
     return s_next_result;
+}
+
+void motor_executor_tick(motor_exec_t *exec)
+{
+    (void)exec;
+    s_executor_tick_count++;
+}
+
+sw_err_t periodic_task_register(const char        *name,
+                                uint32_t           period_ms,
+                                periodic_task_fn_t fn,
+                                void              *ctx,
+                                int                sched_policy,
+                                int                prio,
+                                size_t             stack_size)
+{
+    (void)name;
+    (void)period_ms;
+    (void)fn;
+    (void)ctx;
+    (void)sched_policy;
+    (void)prio;
+    (void)stack_size;
+    s_periodic_register_count++;
+    if ((s_periodic_fail_on > 0) && (s_periodic_register_count == s_periodic_fail_on)) {
+        return SW_ERR_OVERFLOW;
+    }
+    return SW_OK;
 }
 
 motor_cmd_result_t motor_exec_recover(motor_exec_t *exec, int motor, motor_exec_recovery_step_t step)
@@ -158,6 +207,18 @@ motor_exec_fault_code_t motor_exec_fault_code(const motor_exec_t *exec, int moto
 {
     (void)exec;
     return motor_index_valid(motor) ? s_motor[motor].fault : MOTOR_FAULT_NONE;
+}
+
+bool motor_exec_encoder_healthy(const motor_exec_t *exec, int motor)
+{
+    (void)exec;
+    return motor_index_valid(motor);
+}
+
+bool motor_exec_baseline_trusted(const motor_exec_t *exec, int motor)
+{
+    (void)exec;
+    return motor_index_valid(motor);
 }
 
 bool motor_exec_pop_event(motor_exec_t *exec, motor_event_t *out)
@@ -328,7 +389,7 @@ static void test_motor_axis_run_and_query_state(void)
     TEST_ASSERT_EQUAL_INT(SW_OK, motor_axis_run(&axis, MOTOR_DIR_REVERSE, motor_speed_gear(3), NULL));
     TEST_ASSERT_EQUAL_INT(2, s_run_count);
 
-    s_motor[1].phase = MOTOR_PHASE_DECELERATING;
+    s_motor[1].phase = MOTOR_PHASE_STOPPING;
     TEST_ASSERT_EQUAL_INT(MOTOR_AXIS_STATE_MOVING, motor_axis_state(&axis));
     s_motor[1].phase = MOTOR_PHASE_WAITING_START;
     TEST_ASSERT_EQUAL_INT(MOTOR_AXIS_STATE_MOVING, motor_axis_state(&axis));
@@ -507,7 +568,7 @@ static void test_motor_axis_is_settled_after_idle_poll(void)
     time_util_init();
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
 
-    TEST_ASSERT_TRUE(motor_axis_is_settled(&axis));
+    TEST_ASSERT_FALSE(motor_axis_is_settled(&axis));
     opts.motion_actuator_id = 13U;
     opts.on_motion_end      = NULL;
     TEST_ASSERT_EQUAL_INT(SW_OK, motor_axis_init(&axis, exec, 0, &opts));
@@ -831,10 +892,55 @@ static void test_fluid_path_emergency_off_is_polled(void)
     TEST_ASSERT_TRUE(s_slot_state[TEST_CH_SHARED][FLUID_PATH_SLOT_PUMP]);
 
     fluid_path_emergency_off();
+    TEST_ASSERT_FALSE(fluid_path_is_settled());
     fluid_path_poll(now_ms);
     TEST_ASSERT_TRUE(fluid_path_is_settled());
     TEST_ASSERT_FALSE(s_slot_state[TEST_CH_SHARED][FLUID_PATH_SLOT_PUMP]);
     TEST_ASSERT_GREATER_THAN_INT(0, s_all_off_count);
+}
+
+
+static void test_motor_axis_home_marks_awaiting_idle(void)
+{
+    motor_axis_t      axis;
+    motor_exec_t *exec = (motor_exec_t *)s_motor;
+
+    memset(&axis, 0, sizeof(axis));
+    TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_INIT, motor_axis_home(&axis));
+    TEST_ASSERT_EQUAL_INT(SW_OK, motor_axis_init(&axis, exec, 0, NULL));
+    TEST_ASSERT_EQUAL_INT(SW_OK, motor_axis_home(&axis));
+    TEST_ASSERT_EQUAL_INT(1, s_home_count);
+    TEST_ASSERT_FALSE(motor_axis_is_settled(&axis));
+}
+
+static void test_mechanism_bridge_returns_same_axis_and_rejects_duplicate(void)
+{
+    motor_axis_t *axis = NULL;
+    motor_axis_t *again = NULL;
+    motor_exec_t *exec = (motor_exec_t *)s_motor;
+
+    TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_INIT, mechanism_bridge_add_axis(0, NULL, &axis));
+    TEST_ASSERT_EQUAL_INT(SW_OK, mechanism_bridge_bind_motor(exec));
+    TEST_ASSERT_EQUAL_INT(SW_ERR_STATE, mechanism_bridge_bind_motor(exec));
+    TEST_ASSERT_EQUAL_INT(SW_OK, mechanism_bridge_add_axis(1, NULL, &axis));
+    TEST_ASSERT_NOT_NULL(axis);
+    TEST_ASSERT_EQUAL_PTR(axis, mechanism_bridge_axis(1));
+    TEST_ASSERT_EQUAL_INT(SW_ERR_STATE, mechanism_bridge_add_axis(1, NULL, &again));
+    TEST_ASSERT_EQUAL_INT(SW_OK, motor_axis_home(axis));
+    TEST_ASSERT_EQUAL_INT(1, s_home_count);
+    mechanism_bridge_halt_all();
+    TEST_ASSERT_EQUAL_INT(1, s_stop_count);
+}
+
+static void test_mechanism_bridge_register_retries_only_failed_task(void)
+{
+    TEST_ASSERT_EQUAL_INT(SW_OK, mechanism_bridge_bind_motor((motor_exec_t *)s_motor));
+    s_periodic_fail_on = 2;
+    TEST_ASSERT_EQUAL_INT(SW_ERR_OVERFLOW, mechanism_bridge_register_tasks());
+    TEST_ASSERT_EQUAL_INT(2, s_periodic_register_count);
+    s_periodic_fail_on = 0;
+    TEST_ASSERT_EQUAL_INT(SW_OK, mechanism_bridge_register_tasks());
+    TEST_ASSERT_EQUAL_INT(3, s_periodic_register_count);
 }
 
 int main(void)
@@ -853,6 +959,9 @@ int main(void)
     WDF_RUN_TEST(test_motor_axis_preserves_frequency_speed, "", "验证电机轴保留频率速度");
     WDF_RUN_TEST(test_motor_axis_poll_publishes_completed_on_idle, "", "验证电机轴在空闲边沿发布完成事件");
     WDF_RUN_TEST(test_motor_axis_is_settled_after_idle_poll, "", "验证电机轴运行后未结算、空闲消费后已结算");
+    WDF_RUN_TEST(test_motor_axis_home_marks_awaiting_idle, "", "验证电机轴回原后等待空闲");
+    WDF_RUN_TEST(test_mechanism_bridge_returns_same_axis_and_rejects_duplicate, "", "验证机构桥接交回轴句柄并拒绝重复登记");
+    WDF_RUN_TEST(test_mechanism_bridge_register_retries_only_failed_task, "", "验证机构桥接任务半失败后只补登记失败项");
     WDF_RUN_TEST(test_motor_axis_poll_skips_waiting_start, "", "验证排队启动态不发布完成事件");
     WDF_RUN_TEST(test_motor_axis_poll_reports_limit_end_then_idle, "", "验证电机轴先上报限位结局再发空闲事件");
     WDF_RUN_TEST(test_fluid_path_reference_counts_shared_pump, "", "验证流体路径对共享水泵进行引用计数");

@@ -197,6 +197,7 @@ static void init_executor(int64_t initial_position, motor_encoder_kind_t encoder
     config.motors[0].position_slow_gear  = 1;
     config.motors[0].default_max_time_ms = 1000;
     config.motors[0].gear_count          = 2;
+    config.motors[0].home_dir            = MOTOR_DIR_REVERSE;
     config.motors[0].enc_stall_ticks     = s_enc_stall_ticks;
     if (s_monitor_current) {
         config.motors[0].mon.monitor_current  = true;
@@ -349,7 +350,8 @@ static void test_origin_external_stop_while_pressed_rebuilds_baseline(void)
     s_fixture.origin_active = true;
     result                  = motor_exec_stop(s_executor, 0);
     TEST_ASSERT_TRUE(motor_cmd_ok(result));
-    TEST_ASSERT_EQUAL_STRING("arrived-on-limit", result.reason);
+    TEST_ASSERT_EQUAL_STRING("stopping", result.reason);
+    tick_at(45);
     TEST_ASSERT_EQUAL_INT(MOTOR_PHASE_STOPPED, motor_exec_phase(s_executor, 0));
     TEST_ASSERT_EQUAL_INT(1, s_fixture.arrived_count);
     TEST_ASSERT_EQUAL_INT(MOTOR_END_LIMIT, s_fixture.last_arrived_trigger);
@@ -379,7 +381,8 @@ static void test_stop_while_watched_pos_limit_arrives(void)
     s_fixture.pos_limit_active = true;
     result                     = motor_exec_stop(s_executor, 0);
     TEST_ASSERT_TRUE(motor_cmd_ok(result));
-    TEST_ASSERT_EQUAL_STRING("arrived-on-limit", result.reason);
+    TEST_ASSERT_EQUAL_STRING("stopping", result.reason);
+    tick_at(0);
     TEST_ASSERT_EQUAL_INT(MOTOR_PHASE_STOPPED, motor_exec_phase(s_executor, 0));
     TEST_ASSERT_EQUAL_INT(1, s_fixture.arrived_count);
     TEST_ASSERT_EQUAL_INT(MOTOR_END_LIMIT, s_fixture.last_arrived_trigger);
@@ -719,11 +722,68 @@ static void test_limit_mask_prefers_origin_when_multiple(void)
     TEST_ASSERT_EQUAL_INT(MOTOR_LIMIT_ORIGIN, s_fixture.last_arrived_limit);
 }
 
+static void test_home_zero_dir_defaults_to_reverse(void)
+{
+    motor_config_t      config;
+    motor_init_result_t result;
+    static motor_driver_t   driver;
+    static motor_encoder_t  encoder;
+    static motor_driver_t  *drivers[1];
+    static motor_encoder_t *encoders[1];
+    static motor_clock_t    clock;
+    static motor_sensors_t  sensors;
+    static motor_estop_t    estop;
+    motor_ports_t           ports;
+
+    init_executor(0, MOTOR_ENC_INCREMENTAL);
+    TEST_ASSERT_TRUE(motor_cmd_ok(motor_exec_home(s_executor, 0)));
+    tick_at(10);
+    TEST_ASSERT_EQUAL_INT(MOTOR_DIR_REVERSE, s_fixture.last_direction);
+
+    memset(&config, 0, sizeof(config));
+    driver = (motor_driver_t){
+        .set_output = driver_set_output,
+        .cutoff     = driver_cutoff,
+        .reset      = driver_reset,
+        .is_running = driver_is_running,
+        .current    = driver_current,
+        .ctx        = &s_fixture,
+    };
+    encoder     = (motor_encoder_t){.raw = encoder_raw, .zero = encoder_zero, .ctx = &s_fixture};
+    clock       = (motor_clock_t){clock_now, &s_fixture};
+    sensors     = (motor_sensors_t){sensor_limit, &s_fixture};
+    estop       = (motor_estop_t){estop_active, &s_fixture};
+    drivers[0]  = &driver;
+    encoders[0] = &encoder;
+    ports       = (motor_ports_t){
+        .clock = &clock, .drivers = drivers, .encoders = encoders, .sensors = &sensors, .estop = &estop,
+    };
+    config.motor_count                   = 1;
+    config.driver_count                  = 1;
+    config.tick_ms                       = 10;
+    config.watchdog_ms                   = 1000;
+    config.motors[0].driver_index        = 0;
+    config.motors[0].has_encoder         = true;
+    config.motors[0].encoder_kind        = MOTOR_ENC_INCREMENTAL;
+    config.motors[0].default_max_time_ms = 1000;
+    config.motors[0].gear_count          = 2;
+    motor_executor_test_reset();
+    s_executor = NULL;
+    s_fixture.output_count = 0;
+    result = motor_executor_bind(0U, &config, &ports, &s_executor);
+    TEST_ASSERT_TRUE_MESSAGE(result.ok, result.error);
+    TEST_ASSERT_TRUE(motor_cmd_ok(motor_exec_home(s_executor, 0)));
+    s_fixture.now_ms += 10U;
+    motor_executor_tick(s_executor);
+    TEST_ASSERT_EQUAL_INT(MOTOR_DIR_REVERSE, s_fixture.last_direction);
+}
+
 static void test_motor_capacity_constants(void)
 {
     TEST_ASSERT_EQUAL_INT(16, MOTOR_MAX_MOTORS);
     TEST_ASSERT_EQUAL_INT(16, MOTOR_MAX_DRIVERS);
     TEST_ASSERT_EQUAL_INT(16, MOTOR_MAX_INTERLOCKS);
+    TEST_ASSERT_EQUAL_INT(4, MOTOR_EVENT_SLOT_CAP);
 }
 
 int main(void)
@@ -748,6 +808,7 @@ int main(void)
     WDF_RUN_TEST(
         test_unhealthy_encoder_rejects_position_move_but_allows_homing, "", "验证不健康编码器拒绝位置移动但允许回零");
     WDF_RUN_TEST(test_homing_restores_encoder_health, "", "验证回零恢复编码器健康状态");
+    WDF_RUN_TEST(test_home_zero_dir_defaults_to_reverse, "", "验证回原零值默认反向");
     WDF_RUN_TEST(test_current_stop_arrives_after_confirm, "", "验证电流停经确认后正常到位");
     WDF_RUN_TEST(test_current_stop_respects_blank_ms, "", "验证电流停尊重启动消隐");
     WDF_RUN_TEST(test_current_stop_coexists_with_overcurrent_fault, "", "验证电流停与过流故障共存");

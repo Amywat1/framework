@@ -5,6 +5,7 @@
 
 #include "domain/mechanism/motor/motor_executor.h"
 #include "domain/ports/outbound/motor/motor_exec_port.h"
+#include "common/sw_error.h"
 #include "wdf_test_spec.h"
 
 #include <stdbool.h>
@@ -20,6 +21,9 @@ typedef struct {
     int                    poll_motor;
     motor_speed_t      last_speed;
     motor_prepare_result_t poll_result;
+    bool                   running;
+    int                    request_stop_count;
+    sw_err_t               request_stop_rc;
 } port_fixture_t;
 
 static port_fixture_t    s_fx;
@@ -62,8 +66,15 @@ static bool driver_reset(void *ctx)
 
 static bool driver_is_running(void *ctx)
 {
-    (void)ctx;
-    return true;
+    return ((port_fixture_t *)ctx)->running;
+}
+
+static sw_err_t driver_request_stop(void *ctx)
+{
+    port_fixture_t *fx = (port_fixture_t *)ctx;
+
+    fx->request_stop_count++;
+    return fx->request_stop_rc;
 }
 
 static int driver_current(void *ctx)
@@ -110,6 +121,8 @@ static void init_executor(void)
     motor_init_result_t ir;
 
     memset(&s_fx, 0, sizeof(s_fx));
+    s_fx.running          = true;
+    s_fx.request_stop_rc  = SW_OK;
     memset(&s_cfg, 0, sizeof(s_cfg));
     memset(&s_driver, 0, sizeof(s_driver));
     memset(&s_encoder, 0, sizeof(s_encoder));
@@ -455,12 +468,12 @@ static void test_pop_event_for_keeps_other_motors(void)
  */
 static void test_event_queue_prefers_drop_same_motor(void)
 {
-    enum { EVENT_QUEUE_CAPACITY = 64 };
     motor_move_spec_t spec;
     motor_event_t     out;
     motor_exec_t     *hal;
-    int                   i;
-    int                   motor1_left;
+    int               i;
+    int               motor0_left;
+    int               motor1_left;
 
     configure_two_motors_without_encoders();
     hal = s_exec;
@@ -469,27 +482,148 @@ static void test_event_queue_prefers_drop_same_motor(void)
     spec.duration_ms = 0;
     spec.max_time_ms = 1000;
 
-    /* 先用真实运动生成 63 条电机 1 事件和 1 条电机 0 事件，填满队列。 */
-    for (i = 0; i < EVENT_QUEUE_CAPACITY - 1; ++i) {
+    for (i = 0; i < MOTOR_EVENT_SLOT_CAP; ++i) {
         TEST_ASSERT_TRUE(
             motor_cmd_ok(motor_exec_run(hal, 1, motor_speed_gear(1), MOTOR_DIR_FORWARD, &spec)));
         motor_executor_tick(s_exec);
     }
+    for (i = 0; i < MOTOR_EVENT_SLOT_CAP; ++i) {
+        TEST_ASSERT_TRUE(
+            motor_cmd_ok(motor_exec_run(hal, 0, motor_speed_gear(1), MOTOR_DIR_FORWARD, &spec)));
+        motor_executor_tick(s_exec);
+    }
+
     TEST_ASSERT_TRUE(motor_cmd_ok(motor_exec_run(hal, 0, motor_speed_gear(1), MOTOR_DIR_FORWARD, &spec)));
     motor_executor_tick(s_exec);
 
-    /* 再生成电机 0 事件，应淘汰队列中已有的电机 0 旧事件。 */
-    TEST_ASSERT_TRUE(motor_cmd_ok(motor_exec_run(hal, 0, motor_speed_gear(1), MOTOR_DIR_FORWARD, &spec)));
-    motor_executor_tick(s_exec);
-
+    motor0_left = 0;
     motor1_left = 0;
     while (motor_exec_pop_event(hal, &out)) {
-        if (out.motor == 1) {
+        if (out.motor == 0) {
+            motor0_left++;
+        } else if (out.motor == 1) {
             motor1_left++;
         }
     }
-    /* 旧策略会先丢队头电机 1；新策略只丢末尾电机 0，电机 1 仍满 63 条。 */
-    TEST_ASSERT_EQUAL_INT(EVENT_QUEUE_CAPACITY - 1, motor1_left);
+    TEST_ASSERT_EQUAL_INT(MOTOR_EVENT_SLOT_CAP, motor1_left);
+    TEST_ASSERT_EQUAL_INT(MOTOR_EVENT_SLOT_CAP, motor0_left);
+}
+
+
+static void tick_ms(uint64_t now_ms)
+{
+    s_fx.now_ms = now_ms;
+    motor_executor_tick(s_exec);
+}
+
+static void start_running_at(uint64_t now_ms)
+{
+    motor_cmd_result_t r;
+
+    r = motor_exec_run(s_exec, 0, motor_speed_gear(1), MOTOR_DIR_FORWARD, NULL);
+    TEST_ASSERT_TRUE(motor_cmd_ok(r));
+    tick_ms(now_ms);
+    TEST_ASSERT_EQUAL_INT(MOTOR_PHASE_RUNNING, motor_exec_phase(s_exec, 0));
+}
+
+static void bind_with_request_stop(int stop_timeout_ms)
+{
+    s_driver.request_stop           = driver_request_stop;
+    s_cfg.motors[0].stop_timeout_ms = stop_timeout_ms;
+    rebind_executor();
+    s_fx.running             = true;
+    s_fx.request_stop_rc     = SW_OK;
+    s_fx.request_stop_count  = 0;
+}
+
+static void test_request_stop_waits_until_driver_idle(void)
+{
+    motor_cmd_result_t r;
+    int                cutoff0;
+
+    bind_with_request_stop(100);
+    start_running_at(10);
+    cutoff0 = s_fx.cutoff_count;
+
+    r = motor_exec_stop(s_exec, 0);
+    TEST_ASSERT_TRUE(motor_cmd_ok(r));
+    TEST_ASSERT_EQUAL_STRING("stopping", r.reason);
+    tick_ms(20);
+    TEST_ASSERT_EQUAL_INT(MOTOR_PHASE_STOPPING, motor_exec_phase(s_exec, 0));
+    TEST_ASSERT_EQUAL_INT(1, s_fx.request_stop_count);
+    TEST_ASSERT_EQUAL_INT(cutoff0, s_fx.cutoff_count);
+
+    s_fx.running = false;
+    tick_ms(30);
+    TEST_ASSERT_EQUAL_INT(MOTOR_PHASE_STOPPED, motor_exec_phase(s_exec, 0));
+    TEST_ASSERT_EQUAL_INT(1, s_fx.request_stop_count);
+    TEST_ASSERT_TRUE(s_fx.cutoff_count > cutoff0);
+}
+
+static void test_request_stop_timeout_force_cutoff(void)
+{
+    bind_with_request_stop(30);
+    start_running_at(10);
+    TEST_ASSERT_TRUE(motor_cmd_ok(motor_exec_stop(s_exec, 0)));
+    tick_ms(20);
+    TEST_ASSERT_EQUAL_INT(MOTOR_PHASE_STOPPING, motor_exec_phase(s_exec, 0));
+    tick_ms(40);
+    TEST_ASSERT_EQUAL_INT(MOTOR_PHASE_STOPPING, motor_exec_phase(s_exec, 0));
+    tick_ms(50);
+    TEST_ASSERT_EQUAL_INT(MOTOR_PHASE_STOPPED, motor_exec_phase(s_exec, 0));
+}
+
+static void test_repeat_stop_does_not_restart_timeout(void)
+{
+    bind_with_request_stop(30);
+    start_running_at(10);
+    TEST_ASSERT_TRUE(motor_cmd_ok(motor_exec_stop(s_exec, 0)));
+    tick_ms(20);
+    TEST_ASSERT_EQUAL_INT(1, s_fx.request_stop_count);
+    s_fx.now_ms = 25;
+    TEST_ASSERT_TRUE(motor_cmd_ok(motor_exec_stop(s_exec, 0)));
+    TEST_ASSERT_EQUAL_INT(MOTOR_PHASE_STOPPING, motor_exec_phase(s_exec, 0));
+    tick_ms(50);
+    TEST_ASSERT_EQUAL_INT(MOTOR_PHASE_STOPPED, motor_exec_phase(s_exec, 0));
+    TEST_ASSERT_EQUAL_INT(1, s_fx.request_stop_count);
+}
+
+static void test_request_stop_failure_cuts_off(void)
+{
+    int cutoff0;
+
+    bind_with_request_stop(100);
+    start_running_at(10);
+    cutoff0              = s_fx.cutoff_count;
+    s_fx.request_stop_rc = SW_ERR_HW;
+    TEST_ASSERT_TRUE(motor_cmd_ok(motor_exec_stop(s_exec, 0)));
+    tick_ms(20);
+    TEST_ASSERT_EQUAL_INT(MOTOR_PHASE_STOPPED, motor_exec_phase(s_exec, 0));
+    TEST_ASSERT_EQUAL_INT(1, s_fx.request_stop_count);
+    TEST_ASSERT_TRUE(s_fx.cutoff_count > cutoff0);
+}
+
+static void test_run_during_stopping_starts_after_halt(void)
+{
+    motor_cmd_result_t r;
+
+    bind_with_request_stop(30);
+    start_running_at(10);
+    TEST_ASSERT_TRUE(motor_cmd_ok(motor_exec_stop(s_exec, 0)));
+    tick_ms(20);
+    TEST_ASSERT_EQUAL_INT(MOTOR_PHASE_STOPPING, motor_exec_phase(s_exec, 0));
+
+    r = motor_exec_run(s_exec, 0, motor_speed_gear(2), MOTOR_DIR_REVERSE, NULL);
+    TEST_ASSERT_TRUE(motor_cmd_ok(r));
+    TEST_ASSERT_EQUAL_STRING("stop-then-start", r.reason);
+    TEST_ASSERT_EQUAL_INT(MOTOR_PHASE_STOPPING, motor_exec_phase(s_exec, 0));
+
+    s_fx.running = false;
+    tick_ms(30);
+    TEST_ASSERT_EQUAL_INT(MOTOR_PHASE_WAITING_START, motor_exec_phase(s_exec, 0));
+    tick_ms(40);
+    TEST_ASSERT_EQUAL_INT(MOTOR_PHASE_RUNNING, motor_exec_phase(s_exec, 0));
+    TEST_ASSERT_EQUAL_INT(MOTOR_DIR_REVERSE, motor_exec_direction(s_exec, 0));
 }
 
 static void test_running_poll_busy_then_failed_enters_prepare_failed(void)
@@ -536,6 +670,11 @@ int main(void)
     WDF_RUN_TEST(test_pop_event_via_port, "", "验证经端口取出运动事件");
     WDF_RUN_TEST(test_pop_event_for_keeps_other_motors, "", "验证按电机取事件保留其它电机");
     WDF_RUN_TEST(test_event_queue_prefers_drop_same_motor, "", "验证队列满时优先丢同电机事件");
+    WDF_RUN_TEST(test_request_stop_waits_until_driver_idle, "", "验证受控停止等到功率级停下再切断");
+    WDF_RUN_TEST(test_request_stop_timeout_force_cutoff, "", "验证受控停止超时后强制切断");
+    WDF_RUN_TEST(test_repeat_stop_does_not_restart_timeout, "", "验证停止中重复 stop 不重置超时");
+    WDF_RUN_TEST(test_request_stop_failure_cuts_off, "", "验证 request_stop 失败则立即切断");
+    WDF_RUN_TEST(test_run_during_stopping_starts_after_halt, "", "验证停止中再次 run 等停稳后再启动");
     WDF_RUN_TEST(test_running_poll_busy_then_failed_enters_prepare_failed,
                  "",
                  "验证运行中 poll BUSY 忽略、FAILED 进入 PREPARE_FAILED");

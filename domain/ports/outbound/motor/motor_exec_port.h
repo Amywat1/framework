@@ -50,7 +50,7 @@ typedef enum {
     MOTOR_PHASE_WAITING_START, /**< 等待启动（冷却/预备/互锁排队） */
     MOTOR_PHASE_REVERSAL_WAIT, /**< 换向等待 */
     MOTOR_PHASE_RUNNING,       /**< 运行中 */
-    MOTOR_PHASE_DECELERATING,  /**< 减速停止中 */
+    MOTOR_PHASE_STOPPING,     /**< 受控停止中（等功率级停下或超时后切断） */
     MOTOR_PHASE_FAULT,         /**< 故障 */
     MOTOR_PHASE_ESTOP          /**< 急停 */
 } motor_exec_phase_t;
@@ -173,9 +173,32 @@ typedef enum {
     MOTOR_CMD_REJECTED      /**< 被拒绝 */
 } motor_cmd_status_t;
 
+/** @brief 命令拒绝原因（仅 status=REJECTED 时有效）。 */
+typedef enum {
+    MOTOR_REJECT_NONE = 0,
+    MOTOR_REJECT_BAD_MOTOR,     /**< 电机号非法 */
+    MOTOR_REJECT_BAD_SPEED,     /**< 速度非法 */
+    MOTOR_REJECT_SAFETY,        /**< 急停或看门狗锁定 */
+    MOTOR_REJECT_FAULT,         /**< 故障相位，须先恢复 */
+    MOTOR_REJECT_INTERLOCK,     /**< 互锁不满足 */
+    MOTOR_REJECT_NO_ENCODER,    /**< 需要编码器但未配置 */
+    MOTOR_REJECT_BASELINE,      /**< 位置基准不可信 */
+    MOTOR_REJECT_ENCODER,       /**< 编码器不健康 */
+    MOTOR_REJECT_REENTRANT,     /**< 回调重入 */
+    MOTOR_REJECT_BAD_PHASE,     /**< 当前相位不允许 */
+    MOTOR_REJECT_NOT_FAULT,     /**< 恢复要求处于故障相 */
+    MOTOR_REJECT_FATAL,         /**< 致命故障须 reinit */
+    MOTOR_REJECT_MUST_RESET,    /**< 恢复须先驱动器复位 */
+    MOTOR_REJECT_DRIVER,        /**< 驱动器动作失败 */
+    MOTOR_REJECT_ABSOLUTE,      /**< 绝对编码器不支持该操作 */
+    MOTOR_REJECT_ACTIVE,        /**< 运动中禁止该操作 */
+    MOTOR_REJECT_UNAVAILABLE    /**< 执行器句柄不可用 */
+} motor_cmd_reject_t;
+
 /** @brief 命令结果。 */
 typedef struct {
     motor_cmd_status_t status;
+    motor_cmd_reject_t reject; /**< 拒绝码；非拒绝时为 NONE */
     const char            *reason; /**< 说明（静态字符串，可用于日志） */
 } motor_cmd_result_t;
 
@@ -188,7 +211,7 @@ static inline bool motor_cmd_ok(motor_cmd_result_t r)
 /** @brief 锁存运动目标（异步）。spec 为 NULL 表示连续运行，否则按到位条件结束。
  * @note   再调用即更新目标，调用方不必按相位选择命令。
  * @note   FAULT / ESTOP 状态下必须拒绝；调用方须先 recover / 解除急停后再下发。
- * @note   终止事件入共享队列：每台电机须有消费者按节拍排空，否则可能拖累其它电机。
+ * @note   终止事件按电机分槽；满时只丢该电机最旧事件。
  */
 motor_cmd_result_t motor_exec_run(motor_exec_t            *exec,
                                      int                          motor,
@@ -219,7 +242,7 @@ int64_t motor_exec_position(const motor_exec_t *exec, int motor);
 /** @brief 查询电机当前运动方向；电机号越界返回 FORWARD。 */
 motor_dir_t motor_exec_direction(const motor_exec_t *exec, int motor);
 
-/** @brief 查询电机当前故障码；无故障或电机号越界时为 MOTOR_FAULT_NONE。 */
+/** @brief 查询电机当前故障码；无故障、句柄无效或电机号越界时为 MOTOR_FAULT_NONE。 */
 motor_exec_fault_code_t motor_exec_fault_code(const motor_exec_t *exec, int motor);
 
 /**
@@ -242,11 +265,10 @@ bool motor_exec_baseline_trusted(const motor_exec_t *exec, int motor);
  * @brief  取出一条运动结束事件，用于记录状态变化原因。
  * @param  exec 电机执行器句柄。
  * @param  out  输出事件；仅在返回 true 时有效。
- * @return true 取出一条事件；false 队列已空。
- * @note   队列容量有限；满时优先丢弃同电机最旧事件，否则丢全局最旧。
- *         每台产生事件的电机都必须有人消费，否则仍可能挤掉其它电机结局。
+ * @return true 取出一条事件；false 各电机槽均空。
+ * @note   事件按电机分槽；满时只丢该电机最旧事件，不影响其它电机。
  * @note   经 motor_axis 管理的电机应由 axis poll 独占消费（见 pop_event_for）；
- *         若注册了会排空队列的执行器事件回调，则与 pop 互斥。
+ *         若注册了会排空槽位的执行器事件回调，则与 pop 互斥。
  */
 bool motor_exec_pop_event(motor_exec_t *exec, motor_event_t *out);
 

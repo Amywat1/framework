@@ -13,9 +13,8 @@
  * @note    经本模式管理的电机应由 motor_axis_poll 独占消费其执行器事件，
  *          项目层不要再对该电机调用 motor_exec_pop_event / 注册会排空队列的回调。
  * @note    on_motion_end 对同一故障闩锁（同 outcome + fault）去重；项目层仍宜按码幂等处理。
- * @note    回原不单独提供 API：对 ORIGIN 限位下发 run(..., spec)，
- *          触原点后的基准重建由电机执行器完成。
- * @note    位置/方向/故障码等实时查询仍直接使用 motor_exec_*；结局详情用 last_result。
+ * @note    回原用 motor_axis_home()，方向取执行器配置 home_dir（零值默认 REVERSE）。
+ * @note    位置/方向/故障/基准/编码器查询经本门面封装；结局详情用 last_result。
  */
 
 #ifndef DOMAIN_MECHANISM_PATTERNS_MOTOR_AXIS_H
@@ -75,7 +74,7 @@ sw_err_t motor_axis_run(motor_axis_t                *self,
                         const motor_move_spec_t *spec);
 
 /**
- * @brief  减速停止
+ * @brief  受控停止
  * @param[in,out] self 模式实例
  * @return SW_OK 成功；SW_ERR_NOT_INIT / SW_ERR_STATE 失败
  */
@@ -87,6 +86,38 @@ sw_err_t motor_axis_stop(motor_axis_t *self);
  * @return 当前状态；未初始化时返回 IDLE
  */
 motor_axis_state_t motor_axis_state(const motor_axis_t *self);
+
+/**
+ * @brief  回原点（方向取执行器配置 home_dir，零值默认反向）
+ * @param[in,out] self 模式实例
+ * @return SW_OK 命令已受理；SW_ERR_NOT_INIT / SW_ERR_STATE 失败
+ */
+sw_err_t motor_axis_home(motor_axis_t *self);
+
+/**
+ * @brief  查询累计位置（脉冲）；未初始化返回 0
+ */
+int64_t motor_axis_position(const motor_axis_t *self);
+
+/**
+ * @brief  查询当前方向；未初始化返回 FORWARD
+ */
+motor_dir_t motor_axis_direction(const motor_axis_t *self);
+
+/**
+ * @brief  查询故障码；未初始化返回 MOTOR_FAULT_NONE
+ */
+motor_exec_fault_code_t motor_axis_fault(const motor_axis_t *self);
+
+/**
+ * @brief  查询位置基准是否可信；未初始化返回 false
+ */
+bool motor_axis_baseline_trusted(const motor_axis_t *self);
+
+/**
+ * @brief  查询编码器是否健康；未初始化返回 false
+ */
+bool motor_axis_encoder_healthy(const motor_axis_t *self);
 
 /**
  * @brief  查询最近一次终止结局
@@ -114,7 +145,7 @@ void motor_axis_poll(motor_axis_t *self);
 /**
  * @brief  轴是否已结算
  * @param[in] self 模式实例
- * @return true 未初始化、或已 IDLE 且无待消费结局；false 运动中或结局尚未消费
+ * @return true 已初始化、非 MOVING、且无待消费结局；未初始化为 false
  * @note   方案步骤与恢复收口用此判定，而不是只看 HAL 相位或光电。
  */
 bool motor_axis_is_settled(const motor_axis_t *self);

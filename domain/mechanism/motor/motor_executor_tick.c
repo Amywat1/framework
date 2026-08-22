@@ -67,7 +67,7 @@ static bool interlock_ok(motor_executor_t *e, int i)
         }
         if (il->kind == MOTOR_INTERLOCK_MUTEX) {
             motor_exec_phase_t bp = e->m[il->b].phase;
-            if (bp == MOTOR_PHASE_RUNNING || bp == MOTOR_PHASE_DECELERATING
+            if (bp == MOTOR_PHASE_RUNNING || bp == MOTOR_PHASE_STOPPING
                 || bp == MOTOR_PHASE_WAITING_START || bp == MOTOR_PHASE_REVERSAL_WAIT) {
                 return false;
             }
@@ -121,6 +121,7 @@ static void begin_start(motor_executor_t *e, int i, const motor_pending_cmd_t *p
     s->elapsed_ms        = 0;
     s->start_ms          = e->now;
     s->emit_stop_on_halt = false;
+    s->stop_issued       = false;
     s->cur_over_ms       = 0;
     s->cur_under_ms      = 0;
     s->cur_stop_ms       = 0;
@@ -142,9 +143,10 @@ static bool reversal(motor_executor_t *e, int i, const motor_pending_cmd_t *pc)
         enter_fault(e, i, MOTOR_FAULT_DRIVER_PORT_FATAL);
         return false;
     }
-    s->after_reversal = *pc;
-    s->reversal_until = e->now + e->cfg.motors[i].reversal_stop_ms;
-    s->phase          = MOTOR_PHASE_REVERSAL_WAIT;
+    s->after_reversal    = *pc;
+    s->reversal_until    = e->now + e->cfg.motors[i].reversal_stop_ms;
+    s->emit_stop_on_halt = false;
+    s->phase             = MOTOR_PHASE_REVERSAL_WAIT;
     return true;
 }
 
@@ -167,6 +169,7 @@ static void apply_goal_in_place(motor_mstate_t *s, const motor_pending_cmd_t *pc
     s->spec              = pc->spec;
     s->emit_stop_on_halt = false;
 }
+
 
 static motor_cmd_result_t after_begin_start(motor_executor_t *e, int i, const char *started_reason)
 {
@@ -207,12 +210,11 @@ motor_cmd_result_t apply_goal(motor_executor_t *e, int i, const motor_pending_cm
         apply_goal_in_place(s, pc);
         return cmd_make(MOTOR_CMD_ACCEPTED, "goal-updated");
 
-    case MOTOR_PHASE_DECELERATING:
-        if ((pc->dir != s->dir) || (pc->speed.kind != s->speed.kind)) {
-            return enter_reversal(e, i, pc, "output-mode-change");
-        }
-        begin_start(e, i, pc);
-        return after_begin_start(e, i, "restart");
+    case MOTOR_PHASE_STOPPING:
+        s->pending           = *pc;
+        s->queued            = true;
+        s->emit_stop_on_halt = false;
+        return cmd_make(MOTOR_CMD_QUEUED, "stop-then-start");
 
     case MOTOR_PHASE_WAITING_START:
         s->pending = *pc;
@@ -225,19 +227,22 @@ motor_cmd_result_t apply_goal(motor_executor_t *e, int i, const motor_pending_cm
 
     case MOTOR_PHASE_STOPPED:
         if (!interlock_ok(e, i)) {
-            return cmd_reject("interlock");
+            return cmd_reject(MOTOR_REJECT_INTERLOCK, "interlock");
         }
-        if (in_cooldown(e, i)) {
+        if (in_cooldown(e, i) || e->cfg.motors[i].prep_required) {
             s->pending = *pc;
             s->queued  = true;
             s->phase   = MOTOR_PHASE_WAITING_START;
-            return cmd_make(MOTOR_CMD_QUEUED, "cooldown");
+            if (in_cooldown(e, i)) {
+                return cmd_make(MOTOR_CMD_QUEUED, "cooldown");
+            }
+            return cmd_make(MOTOR_CMD_QUEUED, "queued");
         }
         begin_start(e, i, pc);
         return after_begin_start(e, i, "start");
 
     default:
-        return cmd_reject("bad-phase");
+        return cmd_reject(MOTOR_REJECT_BAD_PHASE, "bad-phase");
     }
 }
 
@@ -317,10 +322,14 @@ static void finish_halt(motor_executor_t *e, int i)
     }
     s->phase          = MOTOR_PHASE_STOPPED;
     s->move_active    = false;
+    s->stop_issued    = false;
     s->cooldown_until = e->now + e->cfg.motors[i].cooldown_ms;
     if (s->emit_stop_on_halt) {
         s->emit_stop_on_halt = false;
         push_event(e, i, MOTOR_EVENT_STOPPED, MOTOR_END_NONE, MOTOR_FAULT_NONE);
+    }
+    if (s->queued) {
+        s->phase = MOTOR_PHASE_WAITING_START;
     }
 }
 
@@ -623,11 +632,62 @@ static void trigger_safe(motor_executor_t *e)
 
 /* ------------------------- tick ------------------------- */
 
+static void tick_running(motor_executor_t *e, int i)
+{
+    motor_mstate_t *s = &e->m[i];
+
+    if (drv_poll(motor_drv(e, i), i) == MOTOR_PREPARE_FAILED) {
+        enter_fault(e, i, MOTOR_FAULT_PREPARE_FAILED);
+        return;
+    }
+    update_encoder(e, i, true);
+    check_end(e, i);
+    if (s->phase == MOTOR_PHASE_RUNNING) {
+        if (!apply_output(e, i)) {
+            enter_fault(e, i, MOTOR_FAULT_DRIVER_PORT_FATAL);
+            return;
+        }
+        monitor(e, i);
+    }
+}
+
+static void tick_stopping(motor_executor_t *e, int i)
+{
+    motor_mstate_t          *s  = &e->m[i];
+    const motor_motor_cfg_t *mc = &e->cfg.motors[i];
+    motor_driver_t          *d  = motor_drv(e, i);
+    uint64_t                 timeout_ms;
+
+    update_encoder(e, i, true);
+    if (s->move_active) {
+        check_end(e, i);
+        if (s->phase != MOTOR_PHASE_STOPPING) {
+            return;
+        }
+    }
+    if ((d != NULL) && (d->request_stop != NULL)) {
+        if (!s->stop_issued) {
+            if (drv_request_stop(d) != SW_OK) {
+                finish_halt(e, i);
+                return;
+            }
+            s->stop_issued       = true;
+            s->stopping_since_ms = e->now;
+        }
+        timeout_ms = (mc->stop_timeout_ms > 0) ? (uint64_t)mc->stop_timeout_ms
+                                               : (uint64_t)mc->default_max_time_ms;
+        if (!drv_is_running(d) || ((e->now - s->stopping_since_ms) >= timeout_ms)) {
+            finish_halt(e, i);
+        }
+        return;
+    }
+    finish_halt(e, i);
+}
+
 void motor_tick(motor_executor_t *e)
 {
     e->now = clock_now(e);
 
-    /* 看门狗：检测 tick 缺拍。 */
     if (!e->safe_latched && e->last_tick_valid && (e->now - e->last_tick_ms) > (uint64_t)e->cfg.watchdog_ms) {
         trigger_safe(e);
     }
@@ -635,68 +695,56 @@ void motor_tick(motor_executor_t *e)
     e->last_tick_valid = true;
 
     if (e->safe_latched) {
-        motor_dispatch(e);
         return;
     }
 
-    /* 急停通道（最高优先级）。 */
     bool es = estop_active(e);
     if (es && !e->estop_latched) {
         trigger_estop(e);
     }
     if (e->estop_latched) {
-        motor_dispatch(e);
         return;
     }
 
     for (int i = 0; i < e->motor_count; ++i) {
         motor_mstate_t *s = &e->m[i];
 
-        /* 端口层致命错误。 */
         if (!s->fatal && drv_status(motor_drv(e, i)) == MOTOR_PORT_FATAL) {
             enter_fatal(e, i, MOTOR_FAULT_DRIVER_PORT_FATAL);
             continue;
         }
-        if (s->phase == MOTOR_PHASE_FAULT || s->phase == MOTOR_PHASE_ESTOP) {
+        if ((s->phase == MOTOR_PHASE_FAULT) || (s->phase == MOTOR_PHASE_ESTOP)) {
             continue;
         }
 
         switch (s->phase) {
         case MOTOR_PHASE_WAITING_START:
-            if (e->now >= s->cooldown_until && interlock_ok(e, i) && s->queued) {
+            if ((e->now >= s->cooldown_until) && interlock_ok(e, i) && s->queued) {
                 begin_start(e, i, &s->pending);
+                if (s->phase == MOTOR_PHASE_RUNNING) {
+                    tick_running(e, i);
+                }
             }
             break;
         case MOTOR_PHASE_REVERSAL_WAIT:
             if (e->now >= s->reversal_until) {
                 begin_start(e, i, &s->after_reversal);
+                if (s->phase == MOTOR_PHASE_RUNNING) {
+                    tick_running(e, i);
+                }
             }
             break;
         case MOTOR_PHASE_RUNNING:
-            if (drv_poll(motor_drv(e, i), i) == MOTOR_PREPARE_FAILED) {
-                enter_fault(e, i, MOTOR_FAULT_PREPARE_FAILED);
-                break;
-            }
-            update_encoder(e, i, true);
-            check_end(e, i);
-            if (s->phase == MOTOR_PHASE_RUNNING) {
-                if (!apply_output(e, i)) {
-                    enter_fault(e, i, MOTOR_FAULT_DRIVER_PORT_FATAL);
-                    break;
-                }
-                monitor(e, i);
-            }
+            tick_running(e, i);
             break;
-        case MOTOR_PHASE_DECELERATING:
-            update_encoder(e, i, true);
-            finish_halt(e, i);
+        case MOTOR_PHASE_STOPPING:
+            tick_stopping(e, i);
             break;
         default:
             update_encoder(e, i, false);
             break;
         }
     }
-    motor_dispatch(e);
 }
 
 /* ------------------------- 初始化 ------------------------- */
@@ -749,6 +797,9 @@ static motor_init_result_t do_init(motor_executor_t *e)
         if (mc->default_max_time_ms <= 0) {
             return init_err("defaultMaxTimeMs must be > 0");
         }
+        if (mc->stop_timeout_ms < 0) {
+            return init_err("stopTimeoutMs must be >= 0");
+        }
         if (mc->cooldown_ms < 0 || mc->reversal_stop_ms < 0 || mc->accel_ms < 0 || mc->pos_tolerance < 0
             || mc->decel_point < 0) {
             return init_err("time params must be >= 0");
@@ -789,11 +840,13 @@ static motor_init_result_t do_init(motor_executor_t *e)
     e->now             = clock_now(e);
     e->last_tick_ms    = e->now;
     e->last_tick_valid = true;
-    e->estop_latched   = false;
-    e->safe_latched    = false;
-    e->ev_head         = 0;
-    e->ev_count        = 0;
-    e->in_dispatch     = false;
+    e->estop_latched = false;
+    e->safe_latched  = false;
+    e->in_dispatch   = false;
+    for (int ev_i = 0; ev_i < MOTOR_MAX_MOTORS; ++ev_i) {
+        e->ev[ev_i].head  = 0;
+        e->ev[ev_i].count = 0;
+    }
     for (int i = 0; i < c->motor_count; ++i) {
         motor_encoder_t *enc = motor_enc(e, i);
         e->m[i].last_raw     = enc ? enc_raw(enc) : 0;

@@ -25,6 +25,8 @@
 #define THD_TELEMETRY_STACK           (16U * 1024U) /**< 遥测投影重建栈 */
 #define THD_FLUID_PATH_POLL_STACK     (16U * 1024U) /**< 水路 worker 栈 */
 #define THD_FLUID_PATH_POLL_PERIOD_MS 10U           /**< 水路轮询周期（ms） */
+#define THD_MOTOR_TICK_STACK          (16U * 1024U) /**< 电机执行器 tick 栈 */
+#define THD_MOTOR_TICK_PERIOD_MS      10U           /**< 电机执行器 tick 周期（ms） */
 
 /* -------------------------------------------------------------------------
  * SCHED_FIFO 急停通道（§7.3 阶段二）

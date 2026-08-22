@@ -43,19 +43,19 @@ static bool bad_motor(const motor_executor_t *e, int i)
 static motor_cmd_result_t cmd_guard(motor_executor_t *e, int i, unsigned flags)
 {
     if (e->in_dispatch) {
-        return cmd_reject("reentrant");
+        return cmd_reject(MOTOR_REJECT_REENTRANT, "reentrant");
     }
     if (bad_motor(e, i)) {
-        return cmd_reject("bad-motor");
+        return cmd_reject(MOTOR_REJECT_BAD_MOTOR, "bad-motor");
     }
     if (flags & MOTOR_CMD_NEED_NOW) {
         e->now = clock_now(e);
     }
     if ((flags & MOTOR_CMD_REJECT_SAFETY) && (e->estop_latched || e->safe_latched)) {
-        return cmd_reject("safety-locked");
+        return cmd_reject(MOTOR_REJECT_SAFETY, "safety-locked");
     }
     if ((flags & MOTOR_CMD_REJECT_FAULT) && (e->m[i].phase == MOTOR_PHASE_FAULT)) {
-        return cmd_reject("fault");
+        return cmd_reject(MOTOR_REJECT_FAULT, "fault");
     }
     return cmd_make(MOTOR_CMD_ACCEPTED, "");
 }
@@ -66,26 +66,32 @@ motor_cmd_result_t motor_run(motor_executor_t            *e,
                                         motor_dir_t              dir,
                                         const motor_move_spec_t *spec)
 {
-    motor_cmd_result_t g  = cmd_guard(e, i, MOTOR_CMD_NEED_NOW | MOTOR_CMD_REJECT_SAFETY | MOTOR_CMD_REJECT_FAULT);
-    motor_pending_cmd_t    pc = {0};
+    motor_cmd_result_t  g;
+    motor_pending_cmd_t pc = {0};
+    motor_cmd_result_t  out;
 
+    motor_lock(e);
+    g = cmd_guard(e, i, MOTOR_CMD_NEED_NOW | MOTOR_CMD_REJECT_SAFETY | MOTOR_CMD_REJECT_FAULT);
     if (!motor_cmd_ok(g)) {
+        motor_unlock(e);
         return g;
     }
     if (!speed_valid(e, i, spd)) {
-        return cmd_reject("bad-speed");
+        motor_unlock(e);
+        return cmd_reject(MOTOR_REJECT_BAD_SPEED, "bad-speed");
     }
     if ((spec != NULL) && spec->use_position) {
         if (!e->cfg.motors[i].has_encoder) {
-            return cmd_reject("no-encoder");
+            motor_unlock(e);
+            return cmd_reject(MOTOR_REJECT_NO_ENCODER, "no-encoder");
         }
         if (!e->m[i].baseline_trusted) {
-            return cmd_reject("baseline-untrusted");
+            motor_unlock(e);
+            return cmd_reject(MOTOR_REJECT_BASELINE, "baseline-untrusted");
         }
-        /* 降级策略：编码器异常后位置读数不可信，拒绝按位置运动，避免依据错误位置
-         * 动作造成碰撞。限位运动与归位仍放行，机器据此可自行走回原点恢复。 */
         if (!e->m[i].enc_healthy) {
-            return cmd_reject("encoder-unhealthy");
+            motor_unlock(e);
+            return cmd_reject(MOTOR_REJECT_ENCODER, "encoder-unhealthy");
         }
     }
     pc.speed   = spd;
@@ -94,113 +100,149 @@ motor_cmd_result_t motor_run(motor_executor_t            *e,
     if (spec != NULL) {
         pc.spec = *spec;
     }
-    return apply_goal(e, i, &pc);
+    out = apply_goal(e, i, &pc);
+    motor_unlock(e);
+    return out;
 }
 
 motor_cmd_result_t motor_stop(motor_executor_t *e, int i)
 {
-    motor_cmd_result_t g = cmd_guard(e, i, MOTOR_CMD_NEED_NOW);
+    motor_cmd_result_t g;
+    motor_mstate_t    *s;
+    motor_cmd_result_t out;
 
+    motor_lock(e);
+    g = cmd_guard(e, i, MOTOR_CMD_NEED_NOW);
     if (!motor_cmd_ok(g)) {
+        motor_unlock(e);
         return g;
     }
-    motor_mstate_t *s = &e->m[i];
+    s = &e->m[i];
     switch (s->phase) {
     case MOTOR_PHASE_WAITING_START:
         s->queued = false;
-        s->phase  = MOTOR_PHASE_STOPPED;
-        return cmd_make(MOTOR_CMD_ACCEPTED, "queue-cancel");
+        if (s->output_applied) {
+            settle_elapsed(e, i);
+            s->emit_stop_on_halt = true;
+            s->stop_issued       = false;
+            s->phase             = MOTOR_PHASE_STOPPING;
+            out                  = cmd_make(MOTOR_CMD_ACCEPTED, "stopping");
+            break;
+        }
+        s->phase = MOTOR_PHASE_STOPPED;
+        out      = cmd_make(MOTOR_CMD_ACCEPTED, "queue-cancel");
+        break;
     case MOTOR_PHASE_REVERSAL_WAIT:
         s->phase          = MOTOR_PHASE_STOPPED;
         s->cooldown_until = e->now + e->cfg.motors[i].cooldown_ms;
-        return cmd_make(MOTOR_CMD_ACCEPTED, "reversal-cancel");
+        out               = cmd_make(MOTOR_CMD_ACCEPTED, "reversal-cancel");
+        break;
     case MOTOR_PHASE_RUNNING:
-    case MOTOR_PHASE_DECELERATING: {
-        /* 上位 stop 与触限同拍：本运动已压在监视硬限位上，按到位收尾，
-         * 避免清 move_active 后丢掉 ARRIVED，只剩 STOPPED/END_NONE。 */
-        static const motor_limit_kind_t k_order[] = {
-            MOTOR_LIMIT_ORIGIN,
-            MOTOR_LIMIT_POS,
-            MOTOR_LIMIT_NEG,
-        };
-        unsigned n;
-
-        for (n = 0U; n < (sizeof(k_order) / sizeof(k_order[0])); ++n) {
-            motor_limit_kind_t kind = k_order[n];
-
-            if (motor_limit_mask_has(s->spec.limit_mask, kind) && sensor_limit(e, i, kind)) {
-                s->end_limit = kind;
-                complete_move(e, i, MOTOR_EVENT_ARRIVED, MOTOR_END_LIMIT);
-                /* 命令路径不经 tick，立即派发到位事件。 */
-                motor_dispatch(e);
-                return cmd_make(MOTOR_CMD_ACCEPTED, "arrived-on-limit");
-            }
-        }
-        /* 先结算已运行时长，转入减速后计时起点失效，随后的停止事件才有耗时。 */
         settle_elapsed(e, i);
+        s->queued            = false;
         s->emit_stop_on_halt = true;
-        s->move_active       = false;
-        s->phase             = MOTOR_PHASE_DECELERATING;
-        return cmd_make(MOTOR_CMD_ACCEPTED, "stopping");
-    }
+        s->stop_issued       = false;
+        s->phase             = MOTOR_PHASE_STOPPING;
+        out                  = cmd_make(MOTOR_CMD_ACCEPTED, "stopping");
+        break;
+    case MOTOR_PHASE_STOPPING:
+        s->queued            = false;
+        s->emit_stop_on_halt = true;
+        out                  = cmd_make(MOTOR_CMD_ACCEPTED, "stopping");
+        break;
     default:
-        return cmd_make(MOTOR_CMD_ACCEPTED, "already-stopped");
+        out = cmd_make(MOTOR_CMD_ACCEPTED, "already-stopped");
+        break;
     }
+    motor_unlock(e);
+    return out;
 }
 
 motor_cmd_result_t motor_home(motor_executor_t *e, int i)
 {
-    motor_cmd_result_t g = cmd_guard(e, i, MOTOR_CMD_NEED_NOW | MOTOR_CMD_REJECT_SAFETY | MOTOR_CMD_REJECT_FAULT);
+    motor_cmd_result_t g;
     motor_move_spec_t  spec = {0};
-    int                    freq;
+    int         freq;
+    motor_dir_t dir;
 
+    motor_lock(e);
+    g = cmd_guard(e, i, MOTOR_CMD_NEED_NOW | MOTOR_CMD_REJECT_SAFETY | MOTOR_CMD_REJECT_FAULT);
     if (!motor_cmd_ok(g)) {
+        motor_unlock(e);
         return g;
     }
     if (!e->cfg.motors[i].has_encoder) {
-        return cmd_reject("no-encoder");
+        motor_unlock(e);
+        return cmd_reject(MOTOR_REJECT_NO_ENCODER, "no-encoder");
     }
     freq            = e->cfg.motors[i].slow_freq > 0 ? e->cfg.motors[i].slow_freq : MOTOR_HOME_DEFAULT_FREQ_CENTI_HZ;
+    dir             = e->cfg.motors[i].home_dir;
+    if (dir == MOTOR_DIR_FORWARD) {
+        dir = MOTOR_HOME_DEFAULT_DIR;
+    }
     spec.limit_mask = MOTOR_LIMIT_MASK_ORIGIN;
-    return motor_run(e, i, motor_speed_freq(freq), MOTOR_DIR_REVERSE, &spec);
+    motor_unlock(e);
+    return motor_run(e, i, motor_speed_freq(freq), dir, &spec);
 }
 
 motor_cmd_result_t motor_zero_encoder(motor_executor_t *e, int i)
 {
-    motor_cmd_result_t g = cmd_guard(e, i, 0);
+    motor_cmd_result_t g;
 
+    motor_lock(e);
+    g = cmd_guard(e, i, 0);
     if (!motor_cmd_ok(g)) {
+        motor_unlock(e);
         return g;
     }
-    motor_encoder_t *enc = motor_enc(e, i);
+    motor_encoder_t    *enc = motor_enc(e, i);
+    motor_cmd_result_t  out;
+
     if (!e->cfg.motors[i].has_encoder || !enc) {
-        return cmd_reject("no-encoder");
+        motor_unlock(e);
+        return cmd_reject(MOTOR_REJECT_NO_ENCODER, "no-encoder");
     }
     if (e->cfg.motors[i].encoder_kind == MOTOR_ENC_ABSOLUTE) {
-        return cmd_reject("absolute-encoder");
+        motor_unlock(e);
+        return cmd_reject(MOTOR_REJECT_ABSOLUTE, "absolute-encoder");
     }
     if (e->m[i].move_active && e->m[i].spec.use_position) {
-        return cmd_reject("position-move-active");
+        motor_unlock(e);
+        return cmd_reject(MOTOR_REJECT_ACTIVE, "position-move-active");
     }
     e->now = clock_now(e);
+    out    = cmd_reject(MOTOR_REJECT_ENCODER, "zero-failed");
     for (int t = 0; t < MOTOR_ZERO_MAX_TRIES; ++t) {
         if (enc_zero(enc)) {
             e->m[i].position = 0;
             e->m[i].last_raw = enc_raw(enc);
-            return cmd_make(MOTOR_CMD_ACCEPTED, "zeroed");
+            out              = cmd_make(MOTOR_CMD_ACCEPTED, "zeroed");
+            motor_unlock(e);
+            return out;
         }
     }
     push_event(e, i, MOTOR_EVENT_WARNING, MOTOR_END_NONE, MOTOR_FAULT_ENCODER_SIGNAL);
-    return cmd_reject("zero-failed");
+    motor_unlock(e);
+    return out;
 }
 
 motor_cmd_result_t motor_confirm_baseline(motor_executor_t *e, int i)
 {
+    motor_cmd_result_t out;
+
+    motor_lock(e);
+    if (e->in_dispatch) {
+        motor_unlock(e);
+        return cmd_reject(MOTOR_REJECT_REENTRANT, "reentrant");
+    }
     if (bad_motor(e, i)) {
-        return cmd_reject("bad-motor");
+        motor_unlock(e);
+        return cmd_reject(MOTOR_REJECT_BAD_MOTOR, "bad-motor");
     }
     e->m[i].baseline_trusted = true;
-    return cmd_make(MOTOR_CMD_ACCEPTED, "baseline-confirmed");
+    out = cmd_make(MOTOR_CMD_ACCEPTED, "baseline-confirmed");
+    motor_unlock(e);
+    return out;
 }
 
 void motor_reset_estop(motor_executor_t *e)
@@ -248,112 +290,169 @@ void motor_reset_watchdog(motor_executor_t *e)
 
 motor_cmd_result_t motor_recover(motor_executor_t *e, int i, motor_exec_recovery_step_t step)
 {
-    motor_cmd_result_t g = cmd_guard(e, i, 0);
+    motor_cmd_result_t g;
 
+    motor_lock(e);
+    g = cmd_guard(e, i, 0);
     if (!motor_cmd_ok(g)) {
+        motor_unlock(e);
         return g;
     }
-    motor_mstate_t *s = &e->m[i];
+    motor_mstate_t    *s = &e->m[i];
+    motor_cmd_result_t out;
+
     if (s->phase != MOTOR_PHASE_FAULT) {
-        return cmd_reject("not-fault");
+        motor_unlock(e);
+        return cmd_reject(MOTOR_REJECT_NOT_FAULT, "not-fault");
     }
     if (s->fatal) {
-        return cmd_reject("fatal-needs-reinit");
+        motor_unlock(e);
+        return cmd_reject(MOTOR_REJECT_FATAL, "fatal-needs-reinit");
     }
     if (step == MOTOR_RECOVERY_DRIVER_RESET) {
         if (!drv_reset(motor_drv(e, i))) {
             push_event(e, i, MOTOR_EVENT_FAULT, MOTOR_END_NONE, s->fault_code);
-            return cmd_reject("driver-reset-failed");
+            motor_unlock(e);
+            return cmd_reject(MOTOR_REJECT_DRIVER, "driver-reset-failed");
         }
         s->driver_reset_done = true;
+        motor_unlock(e);
         return cmd_make(MOTOR_CMD_ACCEPTED, "driver-reset");
     }
-    /* MODULE_STOP */
     if (!s->driver_reset_done) {
-        return cmd_reject("must-reset-first");
+        motor_unlock(e);
+        return cmd_reject(MOTOR_REJECT_MUST_RESET, "must-reset-first");
     }
     e->now               = clock_now(e);
     s->phase             = MOTOR_PHASE_STOPPED;
     s->fault_code        = MOTOR_FAULT_NONE;
     s->driver_reset_done = false;
     s->cooldown_until    = e->now;
-    return cmd_make(MOTOR_CMD_ACCEPTED, "recovered");
+    out                  = cmd_make(MOTOR_CMD_ACCEPTED, "recovered");
+    motor_unlock(e);
+    return out;
 }
 
 /* ------------------------- 查询 ------------------------- */
 
 motor_exec_phase_t motor_phase(const motor_executor_t *e, int i)
 {
+    motor_exec_phase_t phase;
+
+    motor_lock((motor_executor_t *)e);
     if (bad_motor(e, i)) {
+        motor_unlock((motor_executor_t *)e);
         return MOTOR_PHASE_STOPPED;
     }
-    return e->m[i].phase;
+    phase = e->m[i].phase;
+    motor_unlock((motor_executor_t *)e);
+    return phase;
 }
 
 int64_t motor_position(const motor_executor_t *e, int i)
 {
+    int64_t pos;
+
+    motor_lock((motor_executor_t *)e);
     if (bad_motor(e, i)) {
+        motor_unlock((motor_executor_t *)e);
         return 0;
     }
-    return e->m[i].position;
+    pos = e->m[i].position;
+    motor_unlock((motor_executor_t *)e);
+    return pos;
 }
 
 int motor_current_freq(const motor_executor_t *e, int i)
 {
     const motor_mstate_t *state;
+    int                   freq = 0;
 
+    motor_lock((motor_executor_t *)e);
     if (bad_motor(e, i)) {
+        motor_unlock((motor_executor_t *)e);
         return 0;
     }
     state = &e->m[i];
-
-    if ((state->phase != MOTOR_PHASE_RUNNING) || (state->speed.kind != MOTOR_SPEED_FREQ)) {
-        return 0;
+    if ((state->phase == MOTOR_PHASE_RUNNING) && (state->speed.kind == MOTOR_SPEED_FREQ)) {
+        freq = state->speed.value;
     }
-    return state->speed.value;
+    motor_unlock((motor_executor_t *)e);
+    return freq;
 }
 
 motor_dir_t motor_direction(const motor_executor_t *e, int i)
 {
+    motor_dir_t dir;
+
+    motor_lock((motor_executor_t *)e);
     if (bad_motor(e, i)) {
+        motor_unlock((motor_executor_t *)e);
         return MOTOR_DIR_FORWARD;
     }
-    return e->m[i].dir;
+    dir = e->m[i].dir;
+    motor_unlock((motor_executor_t *)e);
+    return dir;
 }
 
 motor_exec_fault_code_t motor_fault_code(const motor_executor_t *e, int i)
 {
+    motor_exec_fault_code_t code;
+
+    motor_lock((motor_executor_t *)e);
     if (bad_motor(e, i)) {
+        motor_unlock((motor_executor_t *)e);
         return MOTOR_FAULT_NONE;
     }
-    return e->m[i].fault_code;
+    code = e->m[i].fault_code;
+    motor_unlock((motor_executor_t *)e);
+    return code;
 }
 
 bool motor_baseline_trusted(const motor_executor_t *e, int i)
 {
+    bool trusted;
+
+    motor_lock((motor_executor_t *)e);
     if (bad_motor(e, i)) {
+        motor_unlock((motor_executor_t *)e);
         return false;
     }
     /* 无编码器机构恒可信，与端口契约及 encoder_healthy 对称。 */
     if (!e->cfg.motors[i].has_encoder) {
-        return true;
+        trusted = true;
+    } else {
+        trusted = e->m[i].baseline_trusted;
     }
-    return e->m[i].baseline_trusted;
+    motor_unlock((motor_executor_t *)e);
+    return trusted;
 }
 
 bool motor_encoder_healthy(const motor_executor_t *e, int i)
 {
+    bool healthy;
+
+    motor_lock((motor_executor_t *)e);
     if (bad_motor(e, i)) {
+        motor_unlock((motor_executor_t *)e);
         return false;
     }
     /* 无编码器的机构没有编码器可言，恒报健康，避免上层为它们维护无意义的条件。 */
     if (!e->cfg.motors[i].has_encoder) {
-        return true;
+        healthy = true;
+    } else {
+        healthy = e->m[i].enc_healthy;
     }
-    return e->m[i].enc_healthy;
+    motor_unlock((motor_executor_t *)e);
+    return healthy;
 }
 
 bool motor_in_safe_state(const motor_executor_t *e)
 {
-    return e->safe_latched;
+    bool safe;
+
+    motor_lock((motor_executor_t *)e);
+    safe = e->safe_latched;
+    motor_unlock((motor_executor_t *)e);
+    return safe;
 }

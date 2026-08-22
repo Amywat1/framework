@@ -303,6 +303,8 @@ periodic_task_thread_fn(slot)
 |------|--------|------|------|
 | `event_dispatch` | `bootstrap_register()` | 线程 | 调用 `event_bus_dispatch_loop()` |
 | `alarm_bridge` | `alarm_bridge_init()` | 周期任务（50ms） | drain alarm registry pending 事件并算姿态边沿 |
+| `motor_tick` | `mechanism_bridge_register_tasks()` | 周期任务（10ms） | `motor_executor_tick` + 已登记轴 `motor_axis_poll` |
+| `fluid_path_poll` | `mechanism_bridge_register_tasks()` | 周期任务（10ms） | `fluid_path_poll(now_ms)` |
 | 会话 worker | `engine_session_bind()`，名称与栈由调用方配置传入 | 线程 | 驱动方案引擎 tick |
 | `cloud_report_<period>ms` | `report_scheduler_register()` | 周期任务 | 云端链路 poll、watcher poll、周期/重同步上报；每种周期一个任务 |
 | `hal_sensor_poll` | `hal_sensor_poll_register_task()` | 周期任务 | DI 滤波推进 |
@@ -311,7 +313,7 @@ periodic_task_thread_fn(slot)
 
 只有 `event_dispatch` 与 `alarm_bridge` 是 bootstrap 无条件登记的；其余取决于对应模块是否初始化、项目是否注册该任务，以及真机 provider 是否启用。
 
-`fluid_path` 不自建周期任务：领域层不创建线程，`fluid_path_poll(now_ms)` 需由调用方登记为周期任务驱动（推荐周期见 `THD_FLUID_PATH_POLL_PERIOD_MS`）。未周期调用时 `fluid_path_set/enable/disable` 的请求会停留在 pending 而不生效。
+`fluid_path` 与 `motor_executor` 不自建周期任务：领域层不创建线程。接入机构控制的项目链接 `wdf_mechanism_bridge` 并调用 `mechanism_bridge_register_tasks()`，分别登记电机 tick（`THD_MOTOR_TICK_PERIOD_MS`）与水路 poll（`THD_FLUID_PATH_POLL_PERIOD_MS`）两拍任务。未周期调用时 `fluid_path_set/enable/disable` 的请求会停留在 pending 而不生效。
 
 ---
 
@@ -376,6 +378,8 @@ fatal 回调不尝试恢复 event bus，也不继续运行，因为 dispatch 线
 | `THD_SENSOR_POLL_STACK` | 16 KiB | sensor filter |
 | `THD_FLUID_PATH_POLL_STACK` | 16 KiB | fluid path |
 | `THD_FLUID_PATH_POLL_PERIOD_MS` | 10 ms | fluid path poll |
+| `THD_MOTOR_TICK_STACK` | 16 KiB | motor executor tick |
+| `THD_MOTOR_TICK_PERIOD_MS` | 10 ms | motor executor tick |
 | `THD_SAFETY_THREAD_STACK` | 8 KiB | safety thread |
 | `THD_SAFETY_THREAD_PRIO` | 90 | safety thread realtime priority |
 | `THD_SAFETY_THREAD_POLL_US` | 5000 us | estop poll interval |

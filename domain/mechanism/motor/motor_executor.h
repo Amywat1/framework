@@ -45,8 +45,14 @@ extern "C" {
 
 /* 回原点默认低速频率（配置未提供 slowFreq 时使用），单位厘赫 */
 #define MOTOR_HOME_DEFAULT_FREQ_CENTI_HZ 100
+#define MOTOR_HOME_DEFAULT_DIR           MOTOR_DIR_REVERSE
 /* 编码器同步清零最大重试次数 */
 #define MOTOR_ZERO_MAX_TRIES             3
+/*
+ * MOTOR_EVENT_SLOT_CAP = 4：每轴每拍通常至多 1 条终止事件，偶发 WARNING+FAULT。
+ * 深度 4 覆盖调用方漏消费数拍，满时只丢该轴最旧事件。
+ */
+#define MOTOR_EVENT_SLOT_CAP             4
 
 /* ------------------------- 配置 ------------------------- */
 
@@ -100,7 +106,10 @@ typedef struct {
     int  enc_jump_max;                 /**< 单拍跳变上限→告警（0=不检测） */
     bool enc_escalate;                 /**< 编码器告警升级为故障 */
 
-    int gear_count;                    /**< 可用挡位数；执行器仅校验范围，不转换频率 */
+    int          gear_count; /**< 可用挡位数；执行器仅校验范围，不转换频率 */
+    motor_dir_t  home_dir;   /**< 回原点方向。零值（与 FORWARD 同值）按历史默认反向 MOTOR_HOME_DEFAULT_DIR */
+
+    int stop_timeout_ms; /**< 受控停止等待功率级停下的超时（0=使用 default_max_time_ms；须 >= 0） */
 
     motor_monitor_cfg_t mon;           /**< 监测项配置 */
 } motor_motor_cfg_t;

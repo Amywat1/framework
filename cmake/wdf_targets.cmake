@@ -232,6 +232,21 @@ _wdf_add_interface_lib(wdf_application
 )
 
 # ---------------------------------------------------------------------------
+# wdf_mechanism_bridge — 机构周期任务登记
+#
+# 独立成目标而不并入 wdf_application：wdf_application 不依赖 wdf_mechanism，
+# 只有接入电机/水路的项目才链接本目标并在 composition root 调用
+# mechanism_bridge_register_tasks()。
+# ---------------------------------------------------------------------------
+_wdf_add_interface_lib(wdf_mechanism_bridge
+    SOURCES
+        application/bridges/mechanism_bridge.c
+    DEPENDS
+        wdf_mechanism
+        wdf_runtime
+)
+
+# ---------------------------------------------------------------------------
 # wdf_observation_bridge — 框架事件转观测记录
 #
 # 独立成目标而非并入 wdf_application：它是 observability 的唯一框架侧接入点，

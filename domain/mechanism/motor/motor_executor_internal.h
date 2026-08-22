@@ -10,29 +10,37 @@
 
 #include "domain/mechanism/motor/motor_executor.h"
 
-#define MOTOR_EVENT_QUEUE_CAP 64
+#include <pthread.h>
 
 typedef struct {
-    bool                  is_move;
+    bool              is_move;
     motor_speed_t     speed;
     motor_dir_t       dir;
     motor_move_spec_t spec;
 } motor_pending_cmd_t;
 
 typedef struct {
+    motor_event_t q[MOTOR_EVENT_SLOT_CAP];
+    int           head;
+    int           count;
+} motor_event_slot_t;
+
+typedef struct {
     motor_exec_phase_t phase;
-    motor_dir_t   dir;
+    motor_dir_t        dir;
 
     motor_speed_t speed;
     motor_speed_t applied_speed;
-    bool              output_applied;
+    bool          output_applied;
 
-    bool                   move_active;
+    bool               move_active;
     motor_move_spec_t  spec;
     motor_limit_kind_t end_limit;
-    uint64_t               move_start_ms;
-    uint64_t               elapsed_ms;
-    bool                   emit_stop_on_halt;
+    uint64_t           move_start_ms;
+    uint64_t           elapsed_ms;
+    bool               emit_stop_on_halt;
+    bool               stop_issued;
+    uint64_t           stopping_since_ms;
 
     int64_t position;
     int64_t last_raw;
@@ -45,9 +53,9 @@ typedef struct {
     uint64_t            reversal_until;
     motor_pending_cmd_t after_reversal;
 
-    bool                   fatal;
+    bool                    fatal;
     motor_exec_fault_code_t fault_code;
-    bool                   driver_reset_done;
+    bool                    driver_reset_done;
 
     uint64_t start_ms;
     int      cur_over_ms;
@@ -75,14 +83,14 @@ typedef struct {
     bool     estop_latched;
     bool     safe_latched;
 
-    motor_event_t events[MOTOR_EVENT_QUEUE_CAP];
-    int               ev_head;
-    int               ev_count;
+    motor_event_slot_t ev[MOTOR_MAX_MOTORS];
 
     motor_event_cb_t cb;
     void            *cb_ctx;
     bool             in_dispatch;
 
+    pthread_mutex_t lock;
+    bool            lock_ready;
 } motor_executor_t;
 
 int64_t motor_iabs64(int64_t v);
@@ -90,9 +98,15 @@ bool within_distance(int64_t left, int64_t right, int distance);
 int64_t lower_bound(int64_t value, int margin);
 int64_t upper_bound(int64_t value, int margin);
 
+void motor_lock(motor_executor_t *e);
+void motor_unlock(motor_executor_t *e);
+void motor_lock_init(motor_executor_t *e);
+void motor_lock_destroy(motor_executor_t *e);
+
 motor_driver_t *motor_drv(motor_executor_t *e, int i);
 sw_err_t drv_set_output(motor_driver_t *d, motor_speed_t speed, motor_dir_t dir);
 sw_err_t drv_cutoff(motor_driver_t *d);
+sw_err_t drv_request_stop(motor_driver_t *d);
 bool drv_reset(motor_driver_t *d);
 motor_prepare_result_t drv_prepare(motor_driver_t *d, int motor);
 motor_prepare_result_t drv_poll(motor_driver_t *d, int motor);
@@ -109,14 +123,11 @@ bool estop_active(motor_executor_t *e);
 uint64_t clock_now(motor_executor_t *e);
 
 motor_cmd_result_t cmd_make(motor_cmd_status_t st, const char *reason);
-motor_cmd_result_t cmd_reject(const char *reason);
+motor_cmd_result_t cmd_reject(motor_cmd_reject_t reject, const char *reason);
 
 void settle_elapsed(motor_executor_t *e, int i);
-void push_event(motor_executor_t         *e,
-                int                       i,
-                motor_event_type_t    t,
-                motor_end_condition_t trig,
-                motor_exec_fault_code_t    fc);
+void push_event(motor_executor_t *e, int i, motor_event_type_t t, motor_end_condition_t trig,
+                motor_exec_fault_code_t fc);
 void motor_dispatch(motor_executor_t *e);
 
 motor_cmd_result_t apply_goal(motor_executor_t *e, int i, const motor_pending_cmd_t *pc);
@@ -127,11 +138,8 @@ motor_init_result_t init_err(const char *msg);
 motor_init_result_t motor_init(motor_executor_t *e, const motor_config_t *cfg, const motor_ports_t *ports);
 motor_init_result_t motor_reinit(motor_executor_t *e);
 
-motor_cmd_result_t motor_run(motor_executor_t            *e,
-                                 int                          i,
-                                 motor_speed_t            spd,
-                                 motor_dir_t              dir,
-                                 const motor_move_spec_t *spec);
+motor_cmd_result_t motor_run(motor_executor_t *e, int i, motor_speed_t spd, motor_dir_t dir,
+                             const motor_move_spec_t *spec);
 motor_cmd_result_t motor_stop(motor_executor_t *e, int i);
 motor_cmd_result_t motor_home(motor_executor_t *e, int i);
 motor_cmd_result_t motor_zero_encoder(motor_executor_t *e, int i);

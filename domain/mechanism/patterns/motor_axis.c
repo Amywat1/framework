@@ -25,7 +25,7 @@ static motor_axis_state_t axis_phase_to_state(const motor_axis_t *self)
 
     case MOTOR_PHASE_WAITING_START:
     case MOTOR_PHASE_RUNNING:
-    case MOTOR_PHASE_DECELERATING:
+    case MOTOR_PHASE_STOPPING:
     case MOTOR_PHASE_REVERSAL_WAIT:
         return MOTOR_AXIS_STATE_MOVING;
 
@@ -163,6 +163,63 @@ sw_err_t motor_axis_run(motor_axis_t                *self,
     return ret;
 }
 
+sw_err_t motor_axis_home(motor_axis_t *self)
+{
+    motor_cmd_result_t r;
+
+    if ((self == NULL) || !self->inited) {
+        return SW_ERR_NOT_INIT;
+    }
+
+    r = motor_exec_home(self->exec, self->motor);
+    if (motor_cmd_ok(r)) {
+        self->awaiting_idle = true;
+        return SW_OK;
+    }
+    report_cmd_fault(self);
+    return SW_ERR_STATE;
+}
+
+int64_t motor_axis_position(const motor_axis_t *self)
+{
+    if ((self == NULL) || !self->inited) {
+        return 0;
+    }
+    return motor_exec_position(self->exec, self->motor);
+}
+
+motor_dir_t motor_axis_direction(const motor_axis_t *self)
+{
+    if ((self == NULL) || !self->inited) {
+        return MOTOR_DIR_FORWARD;
+    }
+    return motor_exec_direction(self->exec, self->motor);
+}
+
+motor_exec_fault_code_t motor_axis_fault(const motor_axis_t *self)
+{
+    if ((self == NULL) || !self->inited) {
+        return MOTOR_FAULT_NONE;
+    }
+    return motor_exec_fault_code(self->exec, self->motor);
+}
+
+bool motor_axis_baseline_trusted(const motor_axis_t *self)
+{
+    if ((self == NULL) || !self->inited) {
+        return false;
+    }
+    return motor_exec_baseline_trusted(self->exec, self->motor);
+}
+
+bool motor_axis_encoder_healthy(const motor_axis_t *self)
+{
+    if ((self == NULL) || !self->inited) {
+        return false;
+    }
+    return motor_exec_encoder_healthy(self->exec, self->motor);
+}
+
 sw_err_t motor_axis_stop(motor_axis_t *self)
 {
     motor_cmd_result_t r;
@@ -244,7 +301,7 @@ void motor_axis_poll(motor_axis_t *self)
 bool motor_axis_is_settled(const motor_axis_t *self)
 {
     if ((self == NULL) || !self->inited) {
-        return true;
+        return false;
     }
     return !self->awaiting_idle && (motor_axis_state(self) != MOTOR_AXIS_STATE_MOVING);
 }

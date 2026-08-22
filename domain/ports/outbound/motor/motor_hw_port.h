@@ -44,8 +44,8 @@ typedef struct {
  * @brief 物理驱动器端口（可被多台电机共享）。
  *
  * 必填：set_output/cutoff/reset/is_running/current。
- * 选填（可置 NULL，采用默认行为）：prepare(默认 READY)、poll(默认 READY)、
- * temperature(默认不支持)、voltage(默认不支持)、status(默认 OK)。
+ * 选填（可置 NULL，采用默认行为）：request_stop(默认 cutoff)、prepare(默认 READY)、
+ * poll(默认 READY)、temperature(默认不支持)、voltage(默认不支持)、status(默认 OK)。
  *
  * @note prepare/poll 的 motor 为逻辑电机索引，便于共享驱动区分路径。
  *       poll 只维持驱动器侧不变量（如接触器路径），不得改写速度给定；
@@ -54,6 +54,7 @@ typedef struct {
 typedef struct {
     sw_err_t (*set_output)(void *ctx, motor_speed_t speed, motor_dir_t dir); /**< 速度给定+方向 */
     sw_err_t (*cutoff)(void *ctx);                                                   /**< 立即切断输出 */
+    sw_err_t (*request_stop)(void *ctx); /**< 受控停止；可为 NULL，此时 Stop 退化为 cutoff */
     bool (*reset)(void *ctx);                                /**< 驱动器侧故障复位，false=失败 */
     motor_prepare_result_t (*prepare)(void *ctx, int motor); /**< 启动前预备；可为 NULL */
     motor_prepare_result_t (*poll)(void *ctx, int motor);    /**< RUNNING 每拍巡检；可为 NULL */

@@ -488,11 +488,13 @@ add_unit_test(test_mechanism_patterns
     ${WDF_ROOT}/domain/mechanism/model/actuator_events.c
     ${WDF_ROOT}/domain/mechanism/patterns/motor_axis.c
     ${WDF_ROOT}/domain/mechanism/patterns/fluid_path.c
+    ${WDF_ROOT}/application/bridges/mechanism_bridge.c
     ${WDF_ROOT}/runtime/event_bus/event_bus.c
     ${WDF_ROOT}/common/log.c
     ${WDF_ROOT}/common/sw_mutex.c
     ${WDF_ROOT}/common/time_util.c
 )
+target_compile_definitions(test_mechanism_patterns PRIVATE MECHANISM_BRIDGE_UNIT_TEST)
 
 add_unit_test(test_program_engine
     ${CMAKE_CURRENT_SOURCE_DIR}/domain/test_program_engine.c

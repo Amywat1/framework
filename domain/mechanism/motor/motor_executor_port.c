@@ -52,6 +52,14 @@ sw_err_t drv_cutoff(motor_driver_t *d)
     return d->cutoff(d->ctx);
 }
 
+sw_err_t drv_request_stop(motor_driver_t *d)
+{
+    if ((d == NULL) || (d->request_stop == NULL)) {
+        return SW_ERR_NOT_INIT;
+    }
+    return d->request_stop(d->ctx);
+}
+
 bool drv_reset(motor_driver_t *d)
 {
     return d->reset(d->ctx);
@@ -128,11 +136,14 @@ motor_cmd_result_t cmd_make(motor_cmd_status_t st, const char *reason)
 {
     motor_cmd_result_t r;
     r.status = st;
+    r.reject = MOTOR_REJECT_NONE;
     r.reason = reason;
     return r;
 }
 
-motor_cmd_result_t cmd_reject(const char *reason)
+motor_cmd_result_t cmd_reject(motor_cmd_reject_t reject, const char *reason)
 {
-    return cmd_make(MOTOR_CMD_REJECTED, reason);
+    motor_cmd_result_t r = cmd_make(MOTOR_CMD_REJECTED, reason);
+    r.reject = reject;
+    return r;
 }
