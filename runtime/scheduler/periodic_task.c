@@ -144,6 +144,42 @@ void periodic_task_note_cycle(periodic_task_stats_t *stats,
     }
 }
 
+/** @brief 一拍所需的槽位快照，避免 tick 循环中逐字段无锁读 */
+typedef struct {
+    periodic_task_fn_t fn;
+    void              *ctx;
+    const char        *name;
+    uint32_t           period_ms;
+} periodic_task_tick_view_t;
+
+/**
+ * @brief  在锁内取出本拍所需的槽位字段
+ * @return true 槽位有效；false 表示已被清空，调用方须退出线程
+ *
+ * @note   为何要在锁内取：周期线程以 pthread_detach 创建、不可 join，
+ *         `periodic_task_reset_for_test()` 清表并不会停下它们。此前 tick 循环
+ *         直接解引用 `slot->fn`，于是「上一个用例启动的 10ms 线程 + 下一个用例
+ *         setUp 里的清表」这一组合会让线程跳到空指针——ASan 报为 pc 0x0 的 SEGV，
+ *         在 tests/runtime/test_scheduler.c 上实测约三成复现。
+ *         `name` 与 `period_ms` 同样会被清表改写，故一并纳入同一次快照：
+ *         线程要么看到完整的旧值、要么看到已清空并干净退出，不会读到半清状态。
+ */
+static bool periodic_task_take_tick_view(const periodic_task_slot_t *slot, periodic_task_tick_view_t *out)
+{
+    bool valid;
+
+    pthread_mutex_lock(&s_mutex);
+    valid = slot->used && (slot->fn != NULL) && (slot->period_ms > 0U);
+    if (valid) {
+        out->fn        = slot->fn;
+        out->ctx       = slot->ctx;
+        out->name      = slot->name;
+        out->period_ms = slot->period_ms;
+    }
+    pthread_mutex_unlock(&s_mutex);
+    return valid;
+}
+
 static void *periodic_task_thread_fn(void *arg)
 {
     periodic_task_slot_t *slot = (periodic_task_slot_t *)arg;
@@ -151,7 +187,9 @@ static void *periodic_task_thread_fn(void *arg)
     uint32_t              wake_late_us = 0U;
     bool                  slept        = false;
 
-    if ((slot == NULL) || (slot->fn == NULL) || (slot->period_ms == 0U)) {
+    /* 入口只判空指针；槽位字段的有效性由循环内的加锁快照负责，
+     * 不在这里无锁读 fn / period_ms。 */
+    if (slot == NULL) {
         return NULL;
     }
 
@@ -160,19 +198,25 @@ static void *periodic_task_thread_fn(void *arg)
     (void)clock_gettime(CLOCK_MONOTONIC, &deadline);
 
     for (;;) {
-        struct timespec cb_start;
-        struct timespec cb_end;
-        struct timespec now;
-        uint32_t        skipped;
-        uint32_t        cb_us;
+        struct timespec           cb_start;
+        struct timespec           cb_end;
+        struct timespec           now;
+        uint32_t                  skipped;
+        uint32_t                  cb_us;
+        periodic_task_tick_view_t view;
+
+        if (!periodic_task_take_tick_view(slot, &view)) {
+            /* 槽位已被清空（仅测试路径会发生）：干净退出，不再触碰 slot */
+            return NULL;
+        }
 
         (void)clock_gettime(CLOCK_MONOTONIC, &cb_start);
-        slot->fn(slot->ctx);
+        view.fn(view.ctx);
         (void)clock_gettime(CLOCK_MONOTONIC, &cb_end);
         cb_us = timespec_delta_us(&cb_end, &cb_start);
 
         now     = cb_end;
-        skipped = periodic_task_next_deadline(&deadline, slot->period_ms, &now);
+        skipped = periodic_task_next_deadline(&deadline, view.period_ms, &now);
 
         pthread_mutex_lock(&s_mutex);
         periodic_task_note_cycle(&slot->stats, skipped, cb_us, slept ? wake_late_us : 0U);
@@ -180,7 +224,7 @@ static void *periodic_task_thread_fn(void *arg)
 
         if (skipped > 0U) {
             LOG_WARN("periodic_task: [%s] skipped %u tick(s) cb=%uus",
-                     (slot->name != NULL) ? slot->name : "?",
+                     (view.name != NULL) ? view.name : "?",
                      (unsigned)skipped,
                      (unsigned)cb_us);
         }
@@ -188,7 +232,9 @@ static void *periodic_task_thread_fn(void *arg)
         while (clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &deadline, NULL) != 0) {
             /* 仅 EINTR 需要重试；其余错误无法通过重试恢复，退出线程交由上层诊断 */
             if (errno != EINTR) {
-                LOG_ERROR("periodic_task: [%s] clock_nanosleep failed errno=%d", slot->name, errno);
+                LOG_ERROR("periodic_task: [%s] clock_nanosleep failed errno=%d",
+                          (view.name != NULL) ? view.name : "?",
+                          errno);
                 return NULL;
             }
         }

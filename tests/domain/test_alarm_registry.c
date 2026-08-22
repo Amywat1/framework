@@ -128,13 +128,114 @@ static void test_reevaluate_by_group(void)
 static void test_pull_events(void)
 {
     alarm_domain_event_t ev[4];
+    uint32_t             dropped = 1U;
     unsigned             n;
 
     (void)alarm_registry_trigger(201101U);
-    n = alarm_registry_pull_events(ev, 4U);
+    n = alarm_registry_pull_events(ev, 4U, &dropped);
     TEST_ASSERT_EQUAL_UINT(1U, n);
+    TEST_ASSERT_EQUAL_UINT32(0U, dropped);
     TEST_ASSERT_EQUAL_INT(ALARM_DOMAIN_EVT_TRIGGERED, (int)ev[0].kind);
     TEST_ASSERT_EQUAL_UINT(201101U, ev[0].code);
+}
+
+/* 待发队列溢出必须被计数交出，且计数取走一次即清零——静默丢事件会让
+ * 靠 EVT_ALARM_* 边沿维护派生状态的订阅者永远停在旧值 */
+static void test_pending_overflow_is_reported_then_cleared(void)
+{
+    alarm_domain_event_t ev[ALARM_PENDING_EVENT_MAX];
+    uint32_t             dropped  = 0U;
+    unsigned             cycles   = (ALARM_PENDING_EVENT_MAX / 2U) + 3U;
+    unsigned             expected = (2U * cycles) - ALARM_PENDING_EVENT_MAX;
+    unsigned             i;
+    unsigned             n;
+
+    /* 201709 是 AUTO_STATIC：一次 trigger + clear 产生两条域事件而活动表始终 ≤1，
+     * 因此能在不触碰活跃池上限的前提下把待发队列灌溢出。 */
+    for (i = 0U; i < cycles; ++i) {
+        TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_trigger(201709U));
+        TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_clear(201709U));
+    }
+
+    n = alarm_registry_pull_events(ev, ALARM_PENDING_EVENT_MAX, &dropped);
+    TEST_ASSERT_EQUAL_UINT(ALARM_PENDING_EVENT_MAX, n);
+    TEST_ASSERT_EQUAL_UINT32(expected, dropped);
+
+    /* 计数已随上一次取出清零，不会在下一拍被重复上报成新的丢弃 */
+    dropped = 0xFFFFFFFFU;
+    n       = alarm_registry_pull_events(ev, ALARM_PENDING_EVENT_MAX, &dropped);
+    TEST_ASSERT_EQUAL_UINT(0U, n);
+    TEST_ASSERT_EQUAL_UINT32(0U, dropped);
+}
+
+/* 目录内容非法时整表拒绝：这些错误在运行期不会报错，只会表现为
+ * 「报警行为和配置对不上」，必须挡在装载期 */
+static void test_load_catalog_rejects_invalid_defs(void)
+{
+    alarm_def_t bad[2];
+
+    /* 非法码：大类为 0，不符合 6 位编码约定 */
+    bad[0] = (alarm_def_t){
+        .code         = 1234U,
+        .level        = ALARM_LEVEL_MAJOR,
+        .clear        = ALARM_CLEAR_MANUAL_RESET,
+        .reeval_group = ALARM_REEVAL_GROUP_NONE,
+        .desc         = "bad code",
+    };
+    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, alarm_registry_load_catalog(bad, 1U));
+
+    /* 重复码：后一条的等级与清除策略会被 find_def_index 静默忽略 */
+    bad[0] = (alarm_def_t){
+        .code         = 201101U,
+        .level        = ALARM_LEVEL_MINOR,
+        .clear        = ALARM_CLEAR_MANUAL_RESET,
+        .reeval_group = ALARM_REEVAL_GROUP_NONE,
+        .desc         = "first",
+    };
+    bad[1]       = bad[0];
+    bad[1].level = ALARM_LEVEL_CRITICAL;
+    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, alarm_registry_load_catalog(bad, 2U));
+
+    /* 未定义等级：不得落进行为矩阵的最严格兜底分支 */
+    bad[0]       = bad[1];
+    bad[0].level = (alarm_level_t)7;
+    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, alarm_registry_load_catalog(bad, 1U));
+
+    /* ON_MOTION 缺分组：永远进不了任何重评估批次 */
+    bad[0] = (alarm_def_t){
+        .code         = 201101U,
+        .level        = ALARM_LEVEL_MAJOR,
+        .clear        = ALARM_CLEAR_ON_MOTION,
+        .reeval_group = ALARM_REEVAL_GROUP_NONE,
+        .desc         = "on motion without group",
+    };
+    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, alarm_registry_load_catalog(bad, 1U));
+
+    /* 非 ON_MOTION 却填了分组：该分组永远不会被重评估用到 */
+    bad[0].clear        = ALARM_CLEAR_MANUAL_RESET;
+    bad[0].reeval_group = (motion_reeval_group_id_t)3U;
+    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, alarm_registry_load_catalog(bad, 1U));
+
+    /* 整表拒绝，不做部分装载：setUp 装的目录必须原封不动 */
+    TEST_ASSERT_EQUAL_UINT(3U, alarm_registry_catalog_count());
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_trigger(201101U));
+}
+
+/* 换目录必须连会话日志一起清：旧日志里的码在新目录中可能已不存在 */
+static void test_load_catalog_resets_session_journal(void)
+{
+    uint32_t codes[4];
+
+    alarm_registry_on_wash_session_started();
+    (void)alarm_registry_trigger(201101U);
+    TEST_ASSERT_EQUAL_UINT(1U, alarm_registry_get_session_journal(codes, 4U));
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_load_catalog(s_catalog, 3U));
+    TEST_ASSERT_EQUAL_UINT(0U, alarm_registry_get_session_journal(codes, 4U));
+
+    /* 会话窗口同样关闭：重新开会话前触发不再记日志 */
+    (void)alarm_registry_trigger(201101U);
+    TEST_ASSERT_EQUAL_UINT(0U, alarm_registry_get_session_journal(codes, 4U));
 }
 
 static void test_session_journal_blocking_levels(void)
@@ -173,7 +274,7 @@ static void test_active_pool_full_rejects(void)
     TEST_ASSERT_EQUAL_INT(SW_ERR_OVERFLOW, alarm_registry_trigger(902100U + ALARM_ACTIVE_MAX));
 }
 
-/* 合并读接口一次返回四项，且与分别调用的旧接口结果一致 */
+/* 合并读接口一次返回四项，且与单项查询口径一致 */
 static void test_copy_safety_view_returns_consistent_snapshot(void)
 {
     alarm_instance_t list[ALARM_ACTIVE_MAX];
@@ -192,19 +293,9 @@ static void test_copy_safety_view_returns_consistent_snapshot(void)
     TEST_ASSERT_EQUAL_UINT(201709U, top); /* CRITICAL 级别最高 */
     TEST_ASSERT_EQUAL_INT(SAFETY_POSTURE_LOCKOUT, posture);
 
-    /* 与旧接口逐项对齐，确认重构未改变语义 */
-    {
-        alarm_instance_t old_list[ALARM_ACTIVE_MAX];
-        bool             old_blocking = false;
-        uint32_t         old_top      = ALARM_CODE_NONE;
-        unsigned         old_n;
-
-        old_n = alarm_registry_copy_active_projection(old_list, ALARM_ACTIVE_MAX, &old_blocking, &old_top);
-        TEST_ASSERT_EQUAL_UINT(old_n, n);
-        TEST_ASSERT_EQUAL_INT(old_blocking, blocking);
-        TEST_ASSERT_EQUAL_UINT(old_top, top);
-        TEST_ASSERT_EQUAL_INT(alarm_registry_safety_posture(), posture);
-    }
+    /* 单项查询走的是同一次扫描，口径必须一致 */
+    TEST_ASSERT_EQUAL_INT(blocking, alarm_registry_has_blocking_active());
+    TEST_ASSERT_EQUAL_INT(alarm_registry_safety_posture(), posture);
 }
 
 /* 空表与 NULL 出参均不得崩溃 */
@@ -262,6 +353,11 @@ int main(void)
     WDF_RUN_TEST(test_manual_condition_clear_waits_for_reset, "", "验证手动清除条件后等待复位");
     WDF_RUN_TEST(test_reevaluate_by_group, "", "验证重新评估按分组");
     WDF_RUN_TEST(test_pull_events, "", "验证拉取事件");
+    WDF_RUN_TEST(test_pending_overflow_is_reported_then_cleared,
+                 "ALRM-13",
+                 "验证待发事件溢出被计数上报且取走即清零");
+    WDF_RUN_TEST(test_load_catalog_rejects_invalid_defs, "ALRM-15", "验证非法报警目录整表拒绝");
+    WDF_RUN_TEST(test_load_catalog_resets_session_journal, "ALRM-16", "验证换目录同时清空会话日志");
     WDF_RUN_TEST(test_session_journal_blocking_levels, "", "验证会话日志仅记录阻断级别报警");
     WDF_RUN_TEST(test_active_pool_full_rejects, "", "验证活动报警池已满时拒绝新报警");
     WDF_RUN_TEST(test_copy_safety_view_returns_consistent_snapshot, "", "验证复制安全视图返回一致的快照");

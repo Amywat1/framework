@@ -126,6 +126,7 @@ sw_err_t telemetry_projection_init(void)
         {EVT_OP_MODE_CONTEXT_SYNC, on_context_sync        },
         {EVT_ALARM_TRIGGERED,      refresh_safety_snapshot},
         {EVT_ALARM_CLEARED,        refresh_safety_snapshot},
+        {EVT_ALARM_RESYNC,         refresh_safety_snapshot},
         /* 安全姿态边沿同样要刷快照：posture 由 CRITICAL 告警驱动，
          * 但姿态事件与告警事件是两条独立发布路径，缺订阅会导致
          * LOCKOUT/NOMINAL 切换后快照里的 posture 滞后。 */

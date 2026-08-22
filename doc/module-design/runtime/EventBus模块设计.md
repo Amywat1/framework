@@ -173,7 +173,7 @@ typedef struct
 | 硬件异步 | `EVT_CAT_HW` | HAL 适配器 | `EVT_HW_ESTOP_ON/OFF`、`EVT_HW_IO_OFFLINE`、`EVT_HW_IO_ONLINE` |
 | 组件完成 | `EVT_CAT_COMP` | 机构领域层 | `EVT_COMP_HOME_DONE`、`EVT_COMP_MOTION_COMPLETED` |
 | 安全姿态 | `EVT_CAT_SAFETY` | `alarm_bridge`（边沿）；`safety_session_coordinator` 发完成事件 | `EVT_SAFETY_LOCKOUT`、`EVT_SAFETY_NOMINAL`、`EVT_ABORT_HOME_DONE` |
-| 报警生命周期 | `EVT_CAT_ALARM` | `alarm_bridge` | `EVT_ALARM_TRIGGERED`、`EVT_ALARM_CLEARED` |
+| 报警生命周期 | `EVT_CAT_ALARM` | `alarm_bridge` | `EVT_ALARM_TRIGGERED`、`EVT_ALARM_CLEARED`、`EVT_ALARM_RESYNC` |
 | 外部命令 | `EVT_CAT_CMD` | （历史/测试） | `EVT_CMD_ORDER` 仅测试；网关唤醒已改 `cmd_control` 信号量 |
 | 云端 | `EVT_CAT_CLOUD` | 云链路适配器 | `EVT_CLOUD_CONNECTED`、`EVT_CLOUD_DISCONNECTED`、`EVT_CLOUD_POINT_DIRTY` |
 | 洗车流程 | `EVT_CAT_WASH` | 项目洗车编排器 | `EVT_WASH_DONE`、`EVT_WASH_ABORTED`、`EVT_WASH_SESSION_STARTED`、`EVT_WASH_CHECKPOINT_REACHED` |
@@ -303,6 +303,7 @@ typedef void (*event_handler_t)(const event_t *evt);
 | 来源 | 发布事件 | `param` 含义（示例） |
 |------|----------|----------------------|
 | `alarm_bridge` | `EVT_ALARM_TRIGGERED` | 报警码 |
+| `alarm_bridge` | `EVT_ALARM_RESYNC` | 丢弃的域事件条数（仅供诊断） |
 | `alarm_bridge` | `EVT_SAFETY_LOCKOUT` | 0 |
 | wash session | `EVT_WASH_DONE` | 结果码 |
 | `snack_cloud_link_adapter` | `EVT_CLOUD_CONNECTED` | 0 |

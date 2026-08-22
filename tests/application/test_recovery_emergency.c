@@ -36,7 +36,8 @@ static volatile int                s_home_auto_complete;
 
 #define TEST_BLOCKING_ALARM_CODE 201101U
 #define TEST_LOCKOUT_ALARM_CODE  201102U
-#define TEST_ON_MOTION_ALARM_CODE 201103U
+#define TEST_ON_MOTION_ALARM_CODE   201103U
+#define TEST_ON_MOTION_REEVAL_GROUP ((motion_reeval_group_id_t)1U)
 
 static sw_err_t fake_cutout(void)
 {
@@ -113,7 +114,9 @@ static const alarm_def_t s_on_motion_catalog[] = {
      .code         = TEST_ON_MOTION_ALARM_CODE,
      .level        = ALARM_LEVEL_MAJOR,
      .clear        = ALARM_CLEAR_ON_MOTION,
-     .reeval_group = ALARM_REEVAL_GROUP_NONE,
+     /* ON_MOTION 必须配非 NONE 分组。本用例验的是「运动一直没发生时手动复位
+      * 兜底」，分组填上不影响该路径。 */
+     .reeval_group = TEST_ON_MOTION_REEVAL_GROUP,
      .desc         = "test on motion",
      },
 };

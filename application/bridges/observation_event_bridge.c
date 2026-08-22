@@ -48,6 +48,7 @@ static const observed_event_t k_observed[] = {
     {EVT_SAFETY_NOMINAL,             OBSERVATION_SEVERITY_INFO,     OBSERVATION_RECORD_STATUS,   "safety"          },
     {EVT_ALARM_TRIGGERED,            OBSERVATION_SEVERITY_ERROR,    OBSERVATION_RECORD_EVENT,    "alarm"           },
     {EVT_ALARM_CLEARED,              OBSERVATION_SEVERITY_INFO,     OBSERVATION_RECORD_EVENT,    "alarm"           },
+    {EVT_ALARM_RESYNC,               OBSERVATION_SEVERITY_ERROR,    OBSERVATION_RECORD_INCIDENT, "alarm"           },
     {EVT_WASH_ABORTED,               OBSERVATION_SEVERITY_WARN,     OBSERVATION_RECORD_EVENT,    "wash"            },
     {EVT_OP_MODE_CMD_HANDLED,        OBSERVATION_SEVERITY_WARN,     OBSERVATION_RECORD_EVENT,    "op_mode.cmd"     },
     {EVT_OP_MODE_RECOVERY_REQUESTED, OBSERVATION_SEVERITY_WARN,     OBSERVATION_RECORD_EVENT,    "op_mode.recovery"},

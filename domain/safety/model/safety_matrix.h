@@ -92,6 +92,24 @@ static inline bool alarm_level_records_in_journal(alarm_level_t level)
     return alarm_level_behaviour(level).records_in_journal;
 }
 
+/**
+ * @brief  该等级是否为矩阵中已定义的取值
+ * @note   与 `alarm_level_behaviour` 的 default 分支配套但方向相反：这里用于
+ *         装载期拒绝未定义等级，让「取最严格值」始终是纵深防御而不是常态入口。
+ *         报警目录是项目手写资产，未定义等级只会在现场表现为莫名其妙的停机。
+ */
+static inline bool alarm_level_is_defined(alarm_level_t level)
+{
+    switch (level) {
+    case ALARM_LEVEL_MINOR:
+    case ALARM_LEVEL_MAJOR:
+    case ALARM_LEVEL_CRITICAL:
+        return true;
+    default:
+        return false;
+    }
+}
+
 /* -------------------------------------------------------------------------
  * 清除策略矩阵
  *
@@ -154,6 +172,22 @@ static inline bool alarm_clear_needs_motion_reeval(alarm_clear_t clear)
 static inline bool alarm_clear_allows_manual_reset(alarm_clear_t clear)
 {
     return alarm_clear_behaviour(clear).allows_manual_reset;
+}
+
+/**
+ * @brief  该清除策略是否为矩阵中已定义的取值
+ * @note   用途同 `alarm_level_is_defined`：装载期拒绝，运行期仍保留最严格兜底。
+ */
+static inline bool alarm_clear_is_defined(alarm_clear_t clear)
+{
+    switch (clear) {
+    case ALARM_CLEAR_AUTO_STATIC:
+    case ALARM_CLEAR_ON_MOTION:
+    case ALARM_CLEAR_MANUAL_RESET:
+        return true;
+    default:
+        return false;
+    }
 }
 
 /**

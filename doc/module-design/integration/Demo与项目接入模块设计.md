@@ -188,6 +188,11 @@ Demo 加载两个报警：
 | `201101` | MAJOR | blocking |
 | `201709` | CRITICAL | LOCKOUT（AUTO_STATIC，Recover 不会清除） |
 
+装载经 `alarm_binding_get_ops()->load_catalog()` 而非直接调 `alarm_registry`：
+项目接入一律只透过端口触碰报警域，demo 作为接入范本必须示范同一种姿势
+（`demo_main` 的 trigger 本来就走端口，装载曾是唯一的例外）。bind 阶段的顺序
+保证端口先于本函数注册，取不到 ops 时返回 `SW_ERR_NOT_INIT`。
+
 ---
 
 ## 5. Machine Ops 接入
@@ -257,7 +262,7 @@ typedef struct {
 ### 6.3 Domain / Application
 
 - 在 `project_bind_device()` 注册 `device_ops_t`。
-- 在 `project_bind_alarm_catalog()` 加载项目报警目录。
+- 在 `project_bind_alarm_catalog()` 经 `alarm_binding_port` 加载项目报警目录（不直接调 `alarm_registry`）。
 - 初始化洗车 orchestrator 所需的 engine IO 后端和方案 loader。
 - 遥测投影由 `bootstrap_init_services()` 自动接入，项目无需初始化；读侧用 `device_snapshot_get()`。
 - 在 `project_validate()` 校验 cloud model，在 `project_register_runtime_tasks()` 注册 `report_scheduler`。

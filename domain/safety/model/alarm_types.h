@@ -58,6 +58,10 @@ extern "C" {
  *
  * 活跃池满时 `alarm_registry_trigger` 返回 SW_ERR_OVERFLOW 并记 ERROR 日志，
  * 不静默丢弃——报警丢失比报警溢出更危险。
+ *
+ * 待发事件队列满时无法向上返回错误（清除路径没有可失败的调用方），改为累计
+ * 丢弃计数并由 `alarm_registry_pull_events` 一并交出，桥接层据此补发一次
+ * 重同步事件。同一条原则：可以丢事件，但不能让消费者不知道自己漏了。
  * ------------------------------------------------------------------------- */
 #define ALARM_DESC_MAX            48U
 #define ALARM_CATALOG_MAX         64U
@@ -105,9 +109,8 @@ typedef struct {
     motion_reeval_group_id_t    group;
 } alarm_reeval_binding_t;
 
-typedef enum {
-    ALARM_CODE_NONE = 0U,
-} alarm_code_t;
+/** @brief 空报警码；用于「当前无最高级别告警」等占位语义 */
+#define ALARM_CODE_NONE 0U
 
 static inline bool alarm_code_parts_valid(uint32_t category, uint32_t index, uint32_t nature)
 {
@@ -149,13 +152,21 @@ typedef struct {
     char                     desc[ALARM_DESC_MAX];
 } alarm_def_t;
 
-/** @brief 活动告警实例。 */
+/**
+ * @brief 活动告警实例。
+ *
+ * @note  `level` / `clear` / `reeval_group` 是插入时从目录定义拷入的快照。
+ *        目录在运行期不变（`load_catalog` 会同时清空活动表），因此活动表上的
+ *        任何判定都不需要回查目录——`reevaluate_group` / `reset_all` / `clear`
+ *        据此只扫活动表一趟。
+ */
 typedef struct {
-    uint32_t      code;             /**< 告警码。 */
-    alarm_level_t level;            /**< 告警等级。 */
-    alarm_clear_t clear;            /**< 清除策略。 */
-    uint64_t      triggered_at_ms;  /**< 首次触发时间。 */
-    bool          condition_active; /**< 故障源当前是否仍成立。 */
+    uint32_t                 code;             /**< 告警码。 */
+    alarm_level_t            level;            /**< 告警等级。 */
+    alarm_clear_t            clear;            /**< 清除策略。 */
+    motion_reeval_group_id_t reeval_group;     /**< ON_MOTION 重评估分组。 */
+    uint64_t                 triggered_at_ms;  /**< 首次触发时间。 */
+    bool                     condition_active; /**< 故障源当前是否仍成立。 */
 } alarm_instance_t;
 
 typedef enum {

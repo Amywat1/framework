@@ -18,10 +18,12 @@
  * ------------------------------------------------------------------------- */
 static const alarm_def_t s_defs[] = {
     {
-     .code         = 0x00010101U,
+     /* 6 位十进制码：大类 1 / 编号 001 / 性质 01。原先写的 0x00010101 不是合法
+      * 报警码（大类解析为 0），装载期校验会整表拒绝。 */
+     .code         = 100101U,
      .level        = ALARM_LEVEL_MAJOR,
      .clear        = ALARM_CLEAR_AUTO_STATIC,
-     .reeval_group = 0U,
+     .reeval_group = ALARM_REEVAL_GROUP_NONE,
      .desc         = "test alarm",
      },
 };

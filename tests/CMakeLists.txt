@@ -330,6 +330,15 @@ add_unit_test(test_alarm_registry
     ${WDF_ROOT}/common/sw_mutex.c
 )
 
+add_unit_test(test_alarm_registry_concurrent
+    ${CMAKE_CURRENT_SOURCE_DIR}/domain/test_alarm_registry_concurrent.c
+    ${WDF_ROOT}/domain/safety/alarm_registry/alarm_registry.c
+    ${WDF_ROOT}/runtime/ports/port_registry_infra.c
+    ${WDF_ROOT}/common/time_util.c
+    ${WDF_ROOT}/common/log.c
+    ${WDF_ROOT}/common/sw_mutex.c
+)
+
 add_unit_test(test_safety_posture
     ${CMAKE_CURRENT_SOURCE_DIR}/domain/test_safety_posture.c
     ${WDF_ROOT}/application/bridges/alarm_bridge.c

@@ -63,6 +63,24 @@ static void on_alarm_triggered(const event_t *evt)
     }
 }
 
+static void on_alarm_resync(const event_t *evt)
+{
+    /* 逐码事件有丢失，无从判断漏的是不是急停码，故不做急停码短路——宁可多判一次。
+     *
+     * 单向收敛，这是刻意的：本桥只在"存在 blocking"时推动模式收敛，不因"blocking
+     * 消失"反向解除。原因是解除路径本就不由报警事件驱动——离开 STOPPED 必须经
+     * DEV_CMD_RECOVER 走归位与 blocking 复验（见 recovery_service），报警清除自身
+     * 从不自动放行设备。所以丢掉 CLEARED 的后果是停在更安全的一侧，与既有
+     * on_alarm_triggered 只订 TRIGGERED 的取向一致。
+     *
+     * 若日后要让 resync 真正做双向对齐，改的不是这里，而是先给 op_mode 一个
+     * 「按当前活动表重判」的入口；在此之前不要在桥里自行拼状态机转移。 */
+    (void)evt;
+    if (alarm_registry_has_blocking_active()) {
+        op_mode_on_blocking_alarm();
+    }
+}
+
 static void on_hw_estop_on(const event_t *evt)
 {
     (void)evt;
@@ -101,6 +119,7 @@ sw_err_t op_mode_bridge_init(void)
         {EVT_WASH_CUSTOMER_GONE,           on_wash_customer_gone  },
         {EVT_SAFETY_LOCKOUT,               on_safety_lockout      },
         {EVT_ALARM_TRIGGERED,              on_alarm_triggered     },
+        {EVT_ALARM_RESYNC,                 on_alarm_resync        },
         {EVT_HW_ESTOP_ON,                  on_hw_estop_on         },
         {EVT_HW_ESTOP_OFF,                 on_hw_estop_off        },
         {EVT_OP_MODE_RECOVERY_COMPLETED,   on_recovery_completed  },
