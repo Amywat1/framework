@@ -129,7 +129,6 @@ _wdf_add_interface_lib(wdf_ports
         runtime/ports/port_registry_cloud.c
         runtime/ports/port_registry_infra.c
         domain/ports/outbound/safety/safety_output_hold.c
-        domain/ports/outbound/motor/motor_exec_port.c
         domain/ports/outbound/program_engine/engine_environment_port.c
         domain/ports/outbound/storage/engine_program_loader_port.c
     DEPENDS
@@ -176,8 +175,8 @@ _wdf_add_interface_lib(wdf_domain
 # ---------------------------------------------------------------------------
 # wdf_mechanism — 机构控制通用模式（运动状态机、单轴会话、流体路径）
 #
-# 电机执行器与 motor_axis 同库：axis 只依赖 motor_exec_port，执行器是该端口的
-# 默认领域实现。项目仍须在 wiring 里 bind 硬件端口，但不必再链 wdf_hal_components。
+# 电机执行器与 motor_axis 同库：axis 只依赖 motor_exec_port.h，执行器直接实现
+# 端口符号。项目仍须在 wiring 里 bind 硬件端口，但不必再链 wdf_hal_components。
 # ---------------------------------------------------------------------------
 _wdf_add_interface_lib(wdf_mechanism
     SOURCES

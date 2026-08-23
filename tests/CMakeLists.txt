@@ -481,7 +481,6 @@ add_unit_test(test_motor_exec_port
     ${WDF_ROOT}/domain/mechanism/motor/motor_executor_port.c
     ${WDF_ROOT}/domain/mechanism/motor/motor_executor_tick.c
     ${WDF_ROOT}/domain/mechanism/motor/motor_executor_cmd.c
-    ${WDF_ROOT}/domain/ports/outbound/motor/motor_exec_port.c
     ${WDF_SAFETY_HOLD_SRC}
 )
 target_compile_definitions(test_motor_exec_port PRIVATE MOTOR_EXECUTOR_UNIT_TEST)
@@ -492,7 +491,6 @@ add_unit_test(test_motor_executor_position
     ${WDF_ROOT}/domain/mechanism/motor/motor_executor_port.c
     ${WDF_ROOT}/domain/mechanism/motor/motor_executor_tick.c
     ${WDF_ROOT}/domain/mechanism/motor/motor_executor_cmd.c
-    ${WDF_ROOT}/domain/ports/outbound/motor/motor_exec_port.c
     ${WDF_SAFETY_HOLD_SRC}
 )
 target_compile_definitions(test_motor_executor_position PRIVATE MOTOR_EXECUTOR_UNIT_TEST)

@@ -1,22 +1,25 @@
 /**
  * @file    motor_executor.c
- * @brief   电机执行器组合件：事件队列、槽池与 provider 注册
+ * @brief   电机执行器组合件：事件队列、槽池与出站端口实现
  *
  * 采用显式状态机驱动，逐 tick 推进。除急停外命令均为异步语义。
  * 关键控制逻辑（启动/换向/停止/故障/急停/看门狗）均以状态迁移表达，
  * 上电默认态与故障安全态均为“停止且输出关断”。
- * 出站端口符号由 motor_exec_port.c 统一分派，本文件提供每实例 ops 与槽池。
+ * motor_exec_* 由本文件直接实现；句柄内嵌执行器，不经 ops 表分派。
  */
 #include "domain/mechanism/motor/motor_executor.h"
 
 #include "domain/mechanism/motor/motor_executor_internal.h"
-#include "domain/ports/outbound/motor/motor_exec_provider.h"
 
 #include <string.h>
 
+/** @brief 出站端口句柄的完整类型；对外仍是不完整类型。 */
+struct motor_exec {
+    motor_executor_t impl;
+};
+
 typedef struct {
-    bool             bound;
-    motor_executor_t executor;
+    bool         bound;
     motor_exec_t handle;
 } motor_executor_slot_t;
 
@@ -179,87 +182,6 @@ static bool motor_pop_event_for(motor_executor_t *e, int motor, motor_event_t *o
     return true;
 }
 
-/* ------------------------- provider 分派 ------------------------- */
-
-static motor_cmd_result_t provider_run(void                        *ctx,
-                                           int                          motor,
-                                           motor_speed_t            speed,
-                                           motor_dir_t              dir,
-                                           const motor_move_spec_t *spec)
-{
-    return motor_run((motor_executor_t *)ctx, motor, speed, dir, spec);
-}
-
-static motor_cmd_result_t provider_stop(void *ctx, int motor)
-{
-    return motor_stop((motor_executor_t *)ctx, motor);
-}
-
-static motor_cmd_result_t provider_home(void *ctx, int motor)
-{
-    return motor_home((motor_executor_t *)ctx, motor);
-}
-
-static motor_cmd_result_t provider_recover(void *ctx, int motor, motor_exec_recovery_step_t step)
-{
-    return motor_recover((motor_executor_t *)ctx, motor, step);
-}
-
-static motor_exec_phase_t provider_phase(const void *ctx, int motor)
-{
-    return motor_phase((const motor_executor_t *)ctx, motor);
-}
-
-static int64_t provider_position(const void *ctx, int motor)
-{
-    return motor_position((const motor_executor_t *)ctx, motor);
-}
-
-static motor_dir_t provider_direction(const void *ctx, int motor)
-{
-    return motor_direction((const motor_executor_t *)ctx, motor);
-}
-
-static motor_exec_fault_code_t provider_fault_code(const void *ctx, int motor)
-{
-    return motor_fault_code((const motor_executor_t *)ctx, motor);
-}
-
-static bool provider_encoder_healthy(const void *ctx, int motor)
-{
-    return motor_encoder_healthy((const motor_executor_t *)ctx, motor);
-}
-
-static bool provider_baseline_trusted(const void *ctx, int motor)
-{
-    return motor_baseline_trusted((const motor_executor_t *)ctx, motor);
-}
-
-static bool provider_pop_event(void *ctx, motor_event_t *out)
-{
-    return motor_pop_event((motor_executor_t *)ctx, out);
-}
-
-static bool provider_pop_event_for(void *ctx, int motor, motor_event_t *out)
-{
-    return motor_pop_event_for((motor_executor_t *)ctx, motor, out);
-}
-
-static const motor_exec_ops_t s_provider_ops = {
-    .run              = provider_run,
-    .stop             = provider_stop,
-    .home             = provider_home,
-    .recover          = provider_recover,
-    .phase            = provider_phase,
-    .position         = provider_position,
-    .direction        = provider_direction,
-    .fault_code       = provider_fault_code,
-    .encoder_healthy  = provider_encoder_healthy,
-    .baseline_trusted = provider_baseline_trusted,
-    .pop_event        = provider_pop_event,
-    .pop_event_for    = provider_pop_event_for,
-};
-
 /* ------------------------- 槽池生命周期 ------------------------- */
 
 static motor_executor_t *executor_from_handle(motor_exec_t *exec)
@@ -268,7 +190,7 @@ static motor_executor_t *executor_from_handle(motor_exec_t *exec)
 
     for (slot_id = 0U; slot_id < WDF_MOTOR_EXECUTOR_INSTANCE_COUNT; ++slot_id) {
         if (s_slots[slot_id].bound && (&s_slots[slot_id].handle == exec)) {
-            return &s_slots[slot_id].executor;
+            return &exec->impl;
         }
     }
     return NULL;
@@ -280,10 +202,104 @@ static const motor_executor_t *const_executor_from_handle(const motor_exec_t *ex
 
     for (slot_id = 0U; slot_id < WDF_MOTOR_EXECUTOR_INSTANCE_COUNT; ++slot_id) {
         if (s_slots[slot_id].bound && (&s_slots[slot_id].handle == exec)) {
-            return &s_slots[slot_id].executor;
+            return &exec->impl;
         }
     }
     return NULL;
+}
+
+/* ------------------------- 出站端口 ------------------------- */
+
+motor_cmd_result_t motor_exec_run(motor_exec_t            *exec,
+                                     int                      motor,
+                                     motor_speed_t            speed,
+                                     motor_dir_t              dir,
+                                     const motor_move_spec_t *spec)
+{
+    motor_executor_t *executor = executor_from_handle(exec);
+
+    return (executor != NULL) ? motor_run(executor, motor, speed, dir, spec)
+                              : cmd_reject(MOTOR_REJECT_UNAVAILABLE, "executor-unavailable");
+}
+
+motor_cmd_result_t motor_exec_stop(motor_exec_t *exec, int motor)
+{
+    motor_executor_t *executor = executor_from_handle(exec);
+
+    return (executor != NULL) ? motor_stop(executor, motor)
+                              : cmd_reject(MOTOR_REJECT_UNAVAILABLE, "executor-unavailable");
+}
+
+motor_cmd_result_t motor_exec_home(motor_exec_t *exec, int motor)
+{
+    motor_executor_t *executor = executor_from_handle(exec);
+
+    return (executor != NULL) ? motor_home(executor, motor)
+                              : cmd_reject(MOTOR_REJECT_UNAVAILABLE, "executor-unavailable");
+}
+
+motor_cmd_result_t motor_exec_recover(motor_exec_t *exec, int motor, motor_exec_recovery_step_t step)
+{
+    motor_executor_t *executor = executor_from_handle(exec);
+
+    return (executor != NULL) ? motor_recover(executor, motor, step)
+                              : cmd_reject(MOTOR_REJECT_UNAVAILABLE, "executor-unavailable");
+}
+
+motor_exec_phase_t motor_exec_phase(const motor_exec_t *exec, int motor)
+{
+    const motor_executor_t *executor = const_executor_from_handle(exec);
+
+    return (executor != NULL) ? motor_phase(executor, motor) : MOTOR_PHASE_STOPPED;
+}
+
+int64_t motor_exec_position(const motor_exec_t *exec, int motor)
+{
+    const motor_executor_t *executor = const_executor_from_handle(exec);
+
+    return (executor != NULL) ? motor_position(executor, motor) : 0;
+}
+
+motor_dir_t motor_exec_direction(const motor_exec_t *exec, int motor)
+{
+    const motor_executor_t *executor = const_executor_from_handle(exec);
+
+    return (executor != NULL) ? motor_direction(executor, motor) : MOTOR_DIR_FORWARD;
+}
+
+motor_exec_fault_code_t motor_exec_fault_code(const motor_exec_t *exec, int motor)
+{
+    const motor_executor_t *executor = const_executor_from_handle(exec);
+
+    return (executor != NULL) ? motor_fault_code(executor, motor) : MOTOR_FAULT_NONE;
+}
+
+bool motor_exec_encoder_healthy(const motor_exec_t *exec, int motor)
+{
+    const motor_executor_t *executor = const_executor_from_handle(exec);
+
+    return (executor != NULL) && motor_encoder_healthy(executor, motor);
+}
+
+bool motor_exec_baseline_trusted(const motor_exec_t *exec, int motor)
+{
+    const motor_executor_t *executor = const_executor_from_handle(exec);
+
+    return (executor != NULL) && motor_baseline_trusted(executor, motor);
+}
+
+bool motor_exec_pop_event(motor_exec_t *exec, motor_event_t *out)
+{
+    motor_executor_t *executor = executor_from_handle(exec);
+
+    return (executor != NULL) && (out != NULL) && motor_pop_event(executor, out);
+}
+
+bool motor_exec_pop_event_for(motor_exec_t *exec, int motor, motor_event_t *out)
+{
+    motor_executor_t *executor = executor_from_handle(exec);
+
+    return (executor != NULL) && (out != NULL) && motor_pop_event_for(executor, motor, out);
 }
 
 static const char *ports_error(const motor_config_t *cfg, const motor_ports_t *ports)
@@ -354,21 +370,16 @@ motor_init_result_t motor_executor_bind(unsigned              slot_id,
     }
 
     memset(slot, 0, sizeof(*slot));
-    motor_lock_init(&slot->executor);
-    if (!slot->executor.lock_ready) {
+    motor_lock_init(&slot->handle.impl);
+    if (!slot->handle.impl.lock_ready) {
         memset(slot, 0, sizeof(*slot));
         return init_err("lock init failed");
     }
-    result = motor_init(&slot->executor, cfg, ports);
+    result = motor_init(&slot->handle.impl, cfg, ports);
     if (!result.ok) {
-        motor_lock_destroy(&slot->executor);
+        motor_lock_destroy(&slot->handle.impl);
         memset(slot, 0, sizeof(*slot));
         return result;
-    }
-    if (!motor_exec_provider_bind(&slot->handle, &s_provider_ops, &slot->executor)) {
-        motor_lock_destroy(&slot->executor);
-        memset(slot, 0, sizeof(*slot));
-        return init_err("provider binding failed");
     }
     slot->bound = true;
     *out_exec   = &slot->handle;
@@ -460,7 +471,7 @@ void motor_executor_test_reset(void)
     unsigned i;
 
     for (i = 0U; i < (unsigned)WDF_MOTOR_EXECUTOR_INSTANCE_COUNT; ++i) {
-        motor_lock_destroy(&s_slots[i].executor);
+        motor_lock_destroy(&s_slots[i].handle.impl);
     }
     memset(s_slots, 0, sizeof(s_slots));
 }

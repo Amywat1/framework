@@ -4,7 +4,7 @@
  *
  * domain/mechanism/patterns 与项目侧机构模块只依赖本端口的不透明句柄与类型，
  * 不感知执行器实现细节。项目 bindings 只保存 motor_exec_t 指针并注入各机构模块；
- * 默认实现位于 domain/mechanism/motor/。
+ * 实现位于 domain/mechanism/motor/。
  */
 #ifndef DOMAIN_PORTS_OUTBOUND_MOTOR_MOTOR_EXEC_PORT_H
 #define DOMAIN_PORTS_OUTBOUND_MOTOR_MOTOR_EXEC_PORT_H
@@ -232,7 +232,7 @@ motor_cmd_result_t motor_exec_run(motor_exec_t            *exec,
 motor_cmd_result_t motor_exec_stop(motor_exec_t *exec, int motor);
 
 /**
- * @brief  回原点便利命令（provider 默认慢速/方向 + ORIGIN 限位）
+ * @brief  回原点便利命令（执行器默认慢速/方向 + ORIGIN 限位）
  * @note   触原点后的基准重建由执行器完成；也可用 run 显式指定方向与速度。
  */
 motor_cmd_result_t motor_exec_home(motor_exec_t *exec, int motor);
