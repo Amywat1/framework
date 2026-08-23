@@ -92,6 +92,7 @@ safety_snapshot_get|状态投影模块设计 4.6 节记录该单子域包装已�
 wash_snapshot_get|状态投影模块设计 4.6 节记录该单子域包装已删除
 motor_executor_reset_estop|整治记录第 24 节记录该按机构复位入口已删除
 fluid_path_emergency_off|整治记录第 24 节记录该水路急停包装已删除
+motor_executor_set_event_callback|整治记录第 25 节记录该 tick 内事件回调已删除
 defined|C 预处理器语法，非框架符号
 "
 

@@ -11,6 +11,7 @@
 #include "common/log.h"
 #include "common/sw_error.h"
 #include "domain/mechanism/model/actuator_events.h"
+#include "domain/wash/wash_events.h"
 #include "domain/safety/alarm_registry/alarm_registry.h"
 #include "domain/safety/model/alarm_types.h"
 #include "runtime/config/thread_config.h"

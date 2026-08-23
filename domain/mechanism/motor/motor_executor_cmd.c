@@ -44,9 +44,6 @@ static bool bad_motor(const motor_executor_t *e, int i)
  */
 static motor_cmd_result_t cmd_guard(motor_executor_t *e, int i, unsigned flags)
 {
-    if (e->in_dispatch) {
-        return cmd_reject(MOTOR_REJECT_REENTRANT, "reentrant");
-    }
     if (bad_motor(e, i)) {
         return cmd_reject(MOTOR_REJECT_BAD_MOTOR, "bad-motor");
     }
@@ -236,10 +233,6 @@ motor_cmd_result_t motor_confirm_baseline(motor_executor_t *e, int i)
     motor_cmd_result_t out;
 
     motor_lock(e);
-    if (e->in_dispatch) {
-        motor_unlock(e);
-        return cmd_reject(MOTOR_REJECT_REENTRANT, "reentrant");
-    }
     if (bad_motor(e, i)) {
         motor_unlock(e);
         return cmd_reject(MOTOR_REJECT_BAD_MOTOR, "bad-motor");
@@ -252,9 +245,6 @@ motor_cmd_result_t motor_confirm_baseline(motor_executor_t *e, int i)
 
 void motor_reset_watchdog(motor_executor_t *e)
 {
-    if (e->in_dispatch) {
-        return;
-    }
     if (!e->safe_latched) {
         return;
     }

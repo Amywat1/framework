@@ -167,6 +167,7 @@ _wdf_add_interface_lib(wdf_domain
         domain/op_mode/operational_mode.c
         domain/safety/alarm_registry/alarm_registry.c
         domain/telemetry/device_snapshot.c
+        domain/wash/wash_events.c
     DEPENDS
         wdf_common
         wdf_ports

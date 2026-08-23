@@ -146,11 +146,6 @@ typedef struct {
     const char *error; /**< 失败原因（静态字符串），ok 时为空串 */
 } motor_init_result_t;
 
-/* ------------------------- 事件 ------------------------- */
-
-/** @brief 事件回调；载荷即端口 `motor_event_t`。ctx 为注册时透传的上下文。 */
-typedef void (*motor_event_cb_t)(const motor_event_t *ev, void *ctx);
-
 /* ------------------------- 公共 API ------------------------- */
 
 /**
@@ -202,9 +197,6 @@ int motor_executor_current_freq(const motor_exec_t *exec, int motor);
  *         须调用 motor_executor_reset_watchdog 方可恢复。
  */
 bool motor_executor_in_safe_state(const motor_exec_t *exec);
-
-/** @brief 注册事件回调；ctx 在回调时透传。回调运行于 tick 上下文，回调内不得下发运动指令。 */
-void motor_executor_set_event_callback(motor_exec_t *exec, motor_event_cb_t cb, void *ctx);
 
 #ifdef MOTOR_EXECUTOR_UNIT_TEST
 /** @brief 单元测试隔离用：清空全部静态槽位。 */

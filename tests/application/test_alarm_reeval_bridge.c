@@ -7,6 +7,7 @@
 #include "common/sw_error.h"
 #include "common/time_util.h"
 #include "domain/mechanism/model/actuator_events.h"
+#include "domain/wash/wash_events.h"
 #include "domain/safety/alarm_registry/alarm_registry.h"
 #include "domain/safety/model/alarm_types.h"
 #include "runtime/event_bus/event_bus.h"

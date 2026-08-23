@@ -194,7 +194,6 @@ typedef enum {
     MOTOR_REJECT_NO_ENCODER,    /**< 需要编码器但未配置 */
     MOTOR_REJECT_BASELINE,      /**< 位置基准不可信 */
     MOTOR_REJECT_ENCODER,       /**< 编码器不健康 */
-    MOTOR_REJECT_REENTRANT,     /**< 回调重入 */
     MOTOR_REJECT_BAD_PHASE,     /**< 当前相位不允许 */
     MOTOR_REJECT_NOT_FAULT,     /**< 恢复要求处于故障相 */
     MOTOR_REJECT_FATAL,         /**< 致命故障须 reinit */
@@ -277,8 +276,7 @@ bool motor_exec_baseline_trusted(const motor_exec_t *exec, int motor);
  * @param  out  输出事件；仅在返回 true 时有效。
  * @return true 取出一条事件；false 各电机槽均空。
  * @note   事件按电机分槽；满时只丢该电机最旧事件，不影响其它电机。
- * @note   经 motor_axis 管理的电机应由 axis poll 独占消费（见 pop_event_for）；
- *         若注册了会排空槽位的执行器事件回调，则与 pop 互斥。
+ * @note   经 motor_axis 管理的电机应由 axis poll 独占消费（见 pop_event_for）。
  */
 bool motor_exec_pop_event(motor_exec_t *exec, motor_event_t *out);
 

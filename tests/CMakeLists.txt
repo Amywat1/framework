@@ -399,6 +399,7 @@ add_unit_test(test_alarm_reeval_bridge
     ${CMAKE_CURRENT_SOURCE_DIR}/application/test_alarm_reeval_bridge.c
     ${WDF_ROOT}/application/bridges/alarm_bridge.c
     ${WDF_ROOT}/domain/mechanism/model/actuator_events.c
+    ${WDF_ROOT}/domain/wash/wash_events.c
     ${WDF_ROOT}/domain/safety/alarm_registry/alarm_registry.c
     ${WDF_ROOT}/runtime/ports/port_registry_infra.c
     ${WDF_ROOT}/runtime/event_bus/event_bus.c

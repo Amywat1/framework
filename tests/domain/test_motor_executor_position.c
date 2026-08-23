@@ -112,13 +112,6 @@ static bool sensor_limit(void *ctx, int motor, motor_limit_kind_t kind)
     return false;
 }
 
-static void tick_at(int64_t position)
-{
-    s_fixture.position = position;
-    s_fixture.now_ms += 10U;
-    motor_executor_tick(s_executor);
-}
-
 static void capture_event(const motor_event_t *event, void *ctx)
 {
     position_fixture_t *fixture = (position_fixture_t *)ctx;
@@ -133,6 +126,18 @@ static void capture_event(const motor_event_t *event, void *ctx)
     } else if (event->type == MOTOR_EVENT_FAULT) {
         fixture->fault_count++;
         fixture->last_fault = event->fault;
+    }
+}
+
+static void tick_at(int64_t position)
+{
+    motor_event_t ev;
+
+    s_fixture.position = position;
+    s_fixture.now_ms += 10U;
+    motor_executor_tick(s_executor);
+    while (motor_exec_pop_event(s_executor, &ev)) {
+        capture_event(&ev, &s_fixture);
     }
 }
 
@@ -206,7 +211,6 @@ static void init_executor(int64_t initial_position, motor_encoder_kind_t encoder
 
     result = motor_executor_bind(0U, &config, &ports, &s_executor);
     TEST_ASSERT_TRUE_MESSAGE(result.ok, result.error);
-    motor_executor_set_event_callback(s_executor, capture_event, &s_fixture);
     s_fixture.cutoff_count = 0;
 }
 

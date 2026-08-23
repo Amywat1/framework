@@ -305,64 +305,61 @@ sw_err_t fluid_path_init(const fluid_path_cfg_t          *cfg,
     return SW_OK;
 }
 
-sw_err_t fluid_path_set(fluid_path_mask_t target)
+/**
+ * @brief  持锁校验就绪、拓扑掩码与输出抑制
+ * @note   调用方已持 s_mutex。失败时不解锁。
+ */
+static sw_err_t target_cmd_ok_locked(fluid_path_mask_t bits)
 {
-    pthread_mutex_lock(&s_mutex);
     if (!s_ready) {
-        pthread_mutex_unlock(&s_mutex);
         return SW_ERR_NOT_INIT;
     }
-    if ((target & ~s_valid_mask) != 0U) {
-        pthread_mutex_unlock(&s_mutex);
+    if ((bits & ~s_valid_mask) != 0U) {
         return SW_ERR_PARAM;
     }
     if (safety_output_hold_is_active()) {
-        pthread_mutex_unlock(&s_mutex);
         return SW_ERR_STATE;
     }
-    s_pending_target = target;
-    pthread_mutex_unlock(&s_mutex);
     return SW_OK;
+}
+
+sw_err_t fluid_path_set(fluid_path_mask_t target)
+{
+    sw_err_t err;
+
+    pthread_mutex_lock(&s_mutex);
+    err = target_cmd_ok_locked(target);
+    if (err == SW_OK) {
+        s_pending_target = target;
+    }
+    pthread_mutex_unlock(&s_mutex);
+    return err;
 }
 
 sw_err_t fluid_path_enable(fluid_path_mask_t mask)
 {
+    sw_err_t err;
+
     pthread_mutex_lock(&s_mutex);
-    if (!s_ready) {
-        pthread_mutex_unlock(&s_mutex);
-        return SW_ERR_NOT_INIT;
+    err = target_cmd_ok_locked(mask);
+    if (err == SW_OK) {
+        s_pending_target |= mask;
     }
-    if ((mask & ~s_valid_mask) != 0U) {
-        pthread_mutex_unlock(&s_mutex);
-        return SW_ERR_PARAM;
-    }
-    if (safety_output_hold_is_active()) {
-        pthread_mutex_unlock(&s_mutex);
-        return SW_ERR_STATE;
-    }
-    s_pending_target |= mask;
     pthread_mutex_unlock(&s_mutex);
-    return SW_OK;
+    return err;
 }
 
 sw_err_t fluid_path_disable(fluid_path_mask_t mask)
 {
+    sw_err_t err;
+
     pthread_mutex_lock(&s_mutex);
-    if (!s_ready) {
-        pthread_mutex_unlock(&s_mutex);
-        return SW_ERR_NOT_INIT;
+    err = target_cmd_ok_locked(mask);
+    if (err == SW_OK) {
+        s_pending_target &= ~mask;
     }
-    if ((mask & ~s_valid_mask) != 0U) {
-        pthread_mutex_unlock(&s_mutex);
-        return SW_ERR_PARAM;
-    }
-    if (safety_output_hold_is_active()) {
-        pthread_mutex_unlock(&s_mutex);
-        return SW_ERR_STATE;
-    }
-    s_pending_target &= ~mask;
     pthread_mutex_unlock(&s_mutex);
-    return SW_OK;
+    return err;
 }
 
 sw_err_t fluid_path_all_off(void)

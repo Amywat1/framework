@@ -138,48 +138,6 @@ void push_event(motor_executor_t         *e,
     ev_push(e, &ev);
 }
 
-/* ------------------------- 事件分发 ------------------------- */
-
-void motor_dispatch(motor_executor_t *e)
-{
-    motor_event_t buf[MOTOR_MAX_MOTORS * MOTOR_EVENT_SLOT_CAP];
-    int           n = 0;
-    int           i;
-
-    if (!e->cb) {
-        return;
-    }
-    motor_lock(e);
-    e->in_dispatch = true;
-    for (i = 0; i < e->motor_count; ++i) {
-        motor_event_slot_t *slot = &e->ev[i];
-
-        while ((slot->count > 0) && (n < (int)(sizeof(buf) / sizeof(buf[0])))) {
-            buf[n++]   = slot->q[slot->head];
-            slot->head = (slot->head + 1) % MOTOR_EVENT_SLOT_CAP;
-            slot->count--;
-        }
-    }
-    motor_unlock(e);
-    for (i = 0; i < n; ++i) {
-        e->cb(&buf[i], e->cb_ctx);
-    }
-    motor_lock(e);
-    e->in_dispatch = false;
-    motor_unlock(e);
-}
-
-/* ------------------------- 事件 ------------------------- */
-
-static void motor_set_event_callback(motor_executor_t *e, motor_event_cb_t cb, void *ctx)
-{
-    if (e->in_dispatch) {
-        return;
-    }
-    e->cb     = cb;
-    e->cb_ctx = ctx;
-}
-
 static bool motor_pop_event(motor_executor_t *e, motor_event_t *out)
 {
     int i;
@@ -440,7 +398,6 @@ void motor_executor_tick(motor_exec_t *exec)
         motor_lock(executor);
         motor_tick(executor);
         motor_unlock(executor);
-        motor_dispatch(executor);
     }
 }
 
@@ -495,17 +452,6 @@ bool motor_executor_in_safe_state(const motor_exec_t *exec)
         motor_unlock((motor_executor_t *)executor);
     }
     return safe;
-}
-
-void motor_executor_set_event_callback(motor_exec_t *exec, motor_event_cb_t cb, void *ctx)
-{
-    motor_executor_t *executor = executor_from_handle(exec);
-
-    if (executor != NULL) {
-        motor_lock(executor);
-        motor_set_event_callback(executor, cb, ctx);
-        motor_unlock(executor);
-    }
 }
 
 #ifdef MOTOR_EXECUTOR_UNIT_TEST

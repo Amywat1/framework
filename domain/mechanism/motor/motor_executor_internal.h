@@ -85,10 +85,6 @@ typedef struct {
 
     motor_event_slot_t ev[MOTOR_MAX_MOTORS];
 
-    motor_event_cb_t cb;
-    void            *cb_ctx;
-    bool             in_dispatch;
-
     pthread_mutex_t lock;
     bool            lock_ready;
 } motor_executor_t;
@@ -127,7 +123,6 @@ motor_cmd_result_t cmd_reject(motor_cmd_reject_t reject, const char *reason);
 void settle_elapsed(motor_executor_t *e, int i);
 void push_event(motor_executor_t *e, int i, motor_event_type_t t, motor_end_condition_t trig,
                 motor_exec_fault_code_t fc);
-void motor_dispatch(motor_executor_t *e);
 
 motor_cmd_result_t apply_goal(motor_executor_t *e, int i, const motor_pending_cmd_t *pc);
 void complete_move(motor_executor_t *e, int i, motor_event_type_t type, motor_end_condition_t trig);

@@ -43,7 +43,7 @@ static int                    s_periodic_fail_on;
 static int                    s_executor_tick_count;
 static bool                   s_end_cb_valid;
 static actuator_id_t          s_end_cb_id;
-static motor_axis_end_result_t s_end_cb_result;
+static motor_event_t          s_end_cb_result;
 static int                    s_end_cb_count;
 static bool                   s_fluid_di;
 
@@ -279,11 +279,11 @@ static void mock_push_event(const motor_event_t *ev)
     s_ev_count++;
 }
 
-static void on_motion_end(actuator_id_t id, const motor_axis_end_result_t *result)
+static void on_motion_end(actuator_id_t id, const motor_event_t *ev)
 {
     s_end_cb_id     = id;
-    s_end_cb_result = *result;
-    s_end_cb_valid  = result->valid;
+    s_end_cb_result = *ev;
+    s_end_cb_valid  = true;
     s_end_cb_count++;
 }
 
@@ -411,7 +411,7 @@ static void test_motor_axis_spec_uses_move_to_and_end_callback(void)
     motor_axis_t            axis;
     motor_move_spec_t   spec;
     motion_lifecycle_opts_t opts;
-    motor_axis_end_result_t last;
+    motor_event_t last;
     motor_exec_t       *exec = (motor_exec_t *)s_motor;
 
     memset(&axis, 0, sizeof(axis));
@@ -428,11 +428,10 @@ static void test_motor_axis_spec_uses_move_to_and_end_callback(void)
     TEST_ASSERT_EQUAL_INT(SW_ERR_STATE, motor_axis_run(&axis, MOTOR_DIR_FORWARD, motor_speed_gear(2), NULL));
     TEST_ASSERT_EQUAL_INT(1, s_end_cb_count);
     TEST_ASSERT_TRUE(s_end_cb_valid);
-    TEST_ASSERT_EQUAL_INT(MOTOR_EVENT_FAULT, s_end_cb_result.outcome);
+    TEST_ASSERT_EQUAL_INT(MOTOR_EVENT_FAULT, s_end_cb_result.type);
     TEST_ASSERT_EQUAL_INT(MOTOR_FAULT_OVERCURRENT, s_end_cb_result.fault);
-    last = motor_axis_last_result(&axis);
-    TEST_ASSERT_TRUE(last.valid);
-    TEST_ASSERT_EQUAL_INT(MOTOR_EVENT_FAULT, last.outcome);
+    TEST_ASSERT_TRUE(motor_axis_last_result(&axis, &last));
+    TEST_ASSERT_EQUAL_INT(MOTOR_EVENT_FAULT, last.type);
 }
 
 /** @brief 纯命令拒绝（无故障码）不上报故障结局。 */
@@ -462,7 +461,7 @@ static void test_motor_axis_fault_end_dedupes_event_and_reject(void)
 
     motor_axis_poll(&axis);
     TEST_ASSERT_EQUAL_INT(1, s_end_cb_count);
-    TEST_ASSERT_EQUAL_INT(MOTOR_EVENT_FAULT, s_end_cb_result.outcome);
+    TEST_ASSERT_EQUAL_INT(MOTOR_EVENT_FAULT, s_end_cb_result.type);
 
     s_next_result = cmd_rejected();
     TEST_ASSERT_EQUAL_INT(SW_ERR_STATE, motor_axis_run(&axis, MOTOR_DIR_FORWARD, motor_speed_gear(1), NULL));
@@ -473,7 +472,7 @@ static void test_motor_axis_reject_without_fault_skips_end_callback(void)
 {
     motor_axis_t            axis;
     motion_lifecycle_opts_t opts;
-    motor_axis_end_result_t last;
+    motor_event_t last;
     motor_exec_t       *exec = (motor_exec_t *)s_motor;
 
     memset(&axis, 0, sizeof(axis));
@@ -486,8 +485,7 @@ static void test_motor_axis_reject_without_fault_skips_end_callback(void)
     s_motor[0].phase = MOTOR_PHASE_STOPPED;
     TEST_ASSERT_EQUAL_INT(SW_ERR_STATE, motor_axis_run(&axis, MOTOR_DIR_FORWARD, motor_speed_gear(2), NULL));
     TEST_ASSERT_EQUAL_INT(0, s_end_cb_count);
-    last = motor_axis_last_result(&axis);
-    TEST_ASSERT_FALSE(last.valid);
+    TEST_ASSERT_FALSE(motor_axis_last_result(&axis, &last));
 }
 
 static void test_motor_axis_continuous_stop_and_recover(void)
@@ -628,7 +626,7 @@ static void test_motor_axis_poll_reports_limit_end_then_idle(void)
     motor_axis_t            axis;
     motion_lifecycle_opts_t opts;
     motor_event_t       ev;
-    motor_axis_end_result_t last;
+    motor_event_t last;
     motor_exec_t       *exec = (motor_exec_t *)s_motor;
     event_bus_stats_t       stats;
 
@@ -662,11 +660,11 @@ static void test_motor_axis_poll_reports_limit_end_then_idle(void)
 
     TEST_ASSERT_EQUAL_INT(1, s_end_cb_count);
     TEST_ASSERT_EQUAL_INT(21, (int)s_end_cb_id);
-    TEST_ASSERT_EQUAL_INT(MOTOR_EVENT_ARRIVED, s_end_cb_result.outcome);
+    TEST_ASSERT_EQUAL_INT(MOTOR_EVENT_ARRIVED, s_end_cb_result.type);
     TEST_ASSERT_EQUAL_INT(MOTOR_END_LIMIT, s_end_cb_result.trigger);
     TEST_ASSERT_TRUE(s_end_cb_result.has_limit);
     TEST_ASSERT_EQUAL_INT(MOTOR_LIMIT_ORIGIN, s_end_cb_result.limit);
-    last = motor_axis_last_result(&axis);
+    TEST_ASSERT_TRUE(motor_axis_last_result(&axis, &last));
     TEST_ASSERT_EQUAL_INT(MOTOR_LIMIT_ORIGIN, last.limit);
 
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_get_stats(&stats));

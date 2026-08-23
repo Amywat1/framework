@@ -622,7 +622,7 @@ static void trigger_estop(motor_executor_t *e)
  */
 void motor_leave_estop_if_unheld(motor_executor_t *e)
 {
-    if (e->in_dispatch || safety_output_hold_is_active() || !e->estop_latched) {
+    if (safety_output_hold_is_active() || !e->estop_latched) {
         return;
     }
     e->estop_latched = false;
@@ -866,7 +866,6 @@ static motor_init_result_t do_init(motor_executor_t *e)
     e->last_tick_valid = true;
     e->estop_latched = false;
     e->safe_latched  = false;
-    e->in_dispatch   = false;
     for (int ev_i = 0; ev_i < MOTOR_MAX_MOTORS; ++ev_i) {
         e->ev[ev_i].head  = 0;
         e->ev[ev_i].count = 0;
@@ -894,8 +893,6 @@ motor_init_result_t motor_init(motor_executor_t *e, const motor_config_t *cfg, c
 {
     e->cfg    = *cfg;
     e->ports  = *ports;
-    e->cb     = NULL;
-    e->cb_ctx = NULL;
     return do_init(e);
 }
 

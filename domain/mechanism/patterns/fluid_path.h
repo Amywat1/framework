@@ -71,7 +71,9 @@ sw_err_t fluid_path_init(const fluid_path_cfg_t          *cfg,
                          size_t                           path_count);
 
 sw_err_t fluid_path_set(fluid_path_mask_t target);
+/** @brief 按位并入目标路径，等价于 `set(当前 | mask)` */
 sw_err_t fluid_path_enable(fluid_path_mask_t mask);
+/** @brief 按位清掉目标路径，等价于 `set(当前 & ~mask)` */
 sw_err_t fluid_path_disable(fluid_path_mask_t mask);
 sw_err_t fluid_path_all_off(void);
 

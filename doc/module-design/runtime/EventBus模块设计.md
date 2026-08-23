@@ -183,7 +183,7 @@ typedef struct
 
 - 限位信号等高频 IO 状态：由持有该机构的模块直接轮询，不逐次广播。
 - 运动命令是否被接受：由 `motor_exec_run()` 等端口调用的同步返回值表达。
-- 运动过程结局（含故障）：由 `motion_lifecycle_opts_t.on_motion_end` 回调传递给项目层。
+- 运动过程结局（含故障）：由 `motion_lifecycle_opts_t.on_motion_end` 回调传递 `motor_event_t`。
 
 判据是「需不需要跨模块异步通知事实」。机构完成这类事实走总线（`EVT_COMP_MOTION_COMPLETED`），而每拍都在变的输入状态、以及需要立即拿到结果的调用不走。
 
