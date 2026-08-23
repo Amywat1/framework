@@ -118,7 +118,7 @@ static pthread_mutex_t s_input_mutex;
 static pthread_mutex_t s_output_mutex;
 static pthread_once_t  s_mutex_once = PTHREAD_ONCE_INIT;
 
-static drv_io_stats_t s_stats[IO_BOARD_MAX]       = {{0}};
+static hal_io_stats_t s_stats[IO_BOARD_MAX]       = {{0}};
 static bool           s_seen_online[IO_BOARD_MAX] = {false};
 
 static void drv_io_mutex_init_once(void)
@@ -917,7 +917,7 @@ void drv_io_clear_test_override(io_di_t pin)
     pthread_mutex_unlock(&s_input_mutex);
 }
 
-sw_err_t drv_io_get_stats(int board_id, drv_io_stats_t *out)
+sw_err_t drv_io_get_stats(int board_id, hal_io_stats_t *out)
 {
     if ((board_id <= 0) || (board_id > s_board_count) || (out == NULL)) {
         return SW_ERR_PARAM;
@@ -925,7 +925,7 @@ sw_err_t drv_io_get_stats(int board_id, drv_io_stats_t *out)
 
     drv_io_mutexes_ready();
     pthread_mutex_lock(&s_input_mutex);
-    *out                       = (drv_io_stats_t){0};
+    *out                       = (hal_io_stats_t){0};
     out->online                = s_stats[board_id].online;
     out->offline_count         = s_stats[board_id].offline_count;
     out->online_recover_count  = s_stats[board_id].online_recover_count;

@@ -20,6 +20,10 @@ extern "C" {
 
 #include <stdint.h>
 
+/** @brief  语音模块事件码（传递给 register_event_cb 回调） */
+#define HAL_VOICE_EVT_COMM_LOST     1 /**< 连续通信失败，判定为通信丢失 */
+#define HAL_VOICE_EVT_COMM_RESTORED 2 /**< 通信恢复正常 */
+
 /**
  * 语音模块 HAL 操作集。
  * 曲目编号（track）为透传原始值，项目侧负责定义业务语义到编号的映射。
@@ -54,7 +58,7 @@ typedef struct {
 
     /**
      * @brief  注册通信状态事件回调
-     * @param  cb  回调函数，传入事件码（DRV_VOICE_EVT_*）；传 NULL 可注销
+     * @param  cb  回调函数，传入事件码（HAL_VOICE_EVT_*）；传 NULL 可注销
      */
     void (*register_event_cb)(void (*cb)(int event_code));
 } hal_voice_ops_t;

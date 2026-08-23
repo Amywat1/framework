@@ -25,6 +25,7 @@ extern "C" {
 #include "common/io_sample.h"
 #include "common/sw_error.h"
 #include "common/sw_types.h"
+#include "domain/ports/outbound/hal/hal_io_port.h"
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -41,24 +42,6 @@ typedef struct {
     const char *name; /**< 标准名称，如 "DI_ESTOP" */
     uint16_t    raw;  /**< 句柄底层编码 */
 } drv_io_name_entry_t;
-
-/** IO 驱动运行时统计（按子板，近似快照） */
-typedef struct {
-    bool     online;                /**< 当前是否在线 */
-    bool     dirty_pending;         /**< 当前是否存在未落地输出 */
-    uint32_t offline_count;         /**< 确认离线次数 */
-    uint32_t online_recover_count;  /**< 离线后恢复在线次数 */
-    uint32_t input_refresh_count;   /**< 输入缓存刷新次数 */
-    uint32_t output_request_count;  /**< 输出状态变更请求次数 */
-    uint32_t output_flush_count;    /**< 输出实际写硬件次数 */
-    uint64_t last_online_ms;        /**< 最近一次恢复在线时间戳 */
-    uint64_t last_offline_ms;       /**< 最近一次确认离线时间戳 */
-    uint64_t last_input_refresh_ms; /**< 最近一次输入缓存刷新时间戳 */
-    uint64_t last_output_req_ms;    /**< 最近一次输出变更请求时间戳 */
-    uint64_t last_output_flush_ms;  /**< 最近一次输出落地时间戳 */
-    uint32_t last_input_snapshot;   /**< 最近一次输入快照 */
-    uint32_t last_output_snapshot;  /**< 最近一次输出快照 */
-} drv_io_stats_t;
 
 /** Snack io_exp 过程数据传输模式。 */
 typedef enum { DRV_IO_TRANSPORT_PDO = 0, DRV_IO_TRANSPORT_SDO } drv_io_transport_mode_t;
@@ -219,11 +202,12 @@ void drv_io_clear_test_override(io_di_t pin);
 /**
  * @brief  获取指定子板的 IO 运行时统计
  * @note   返回的是近似快照，仅用于诊断参考，不用于业务判断。
+ *         直接填充端口类型 `hal_io_stats_t`，驱动不再维护镜像结构。
  * @param  board_id  子板号，从 1 开始
- * @param  out       输出统计结构体
+ * @param  out       输出统计，不可为 NULL
  * @retval SW_OK / SW_ERR_PARAM
  */
-sw_err_t drv_io_get_stats(int board_id, drv_io_stats_t *out);
+sw_err_t drv_io_get_stats(int board_id, hal_io_stats_t *out);
 
 /**
  * @brief  获取当前配置的 IO 子板数量

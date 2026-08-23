@@ -10,12 +10,9 @@
 #include "common/log.h"
 #include "domain/ports/outbound/hal/hal_io_port.h"
 
+#ifdef SNACK_IO_ADAPTER_UNIT_TEST
 #include <string.h>
-
-/* hal_io_stats_t 与 drv_io_stats_t 字段完全镜像，get_stats 用 memcpy 复制。
- * 若两者大小不同，说明其中一方新增了字段但另一方未同步，编译时报错提醒维护。*/
-_Static_assert(sizeof(hal_io_stats_t) == sizeof(drv_io_stats_t),
-               "hal_io_stats_t and drv_io_stats_t must remain identical");
+#endif
 
 static drv_io_cfg_t s_cfg;
 static bool         s_configured = false;
@@ -126,18 +123,7 @@ static int board_count(void)
 
 static sw_err_t get_stats(int board_id, hal_io_stats_t *out)
 {
-    drv_io_stats_t raw;
-
-    if (out == NULL) {
-        return SW_ERR_PARAM;
-    }
-
-    if (drv_io_get_stats(board_id, &raw) != SW_OK) {
-        return SW_ERR_PARAM;
-    }
-
-    memcpy(out, &raw, sizeof(*out));
-    return SW_OK;
+    return drv_io_get_stats(board_id, out);
 }
 
 static int pulse_read(io_di_t pin)

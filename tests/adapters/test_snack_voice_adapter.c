@@ -3,7 +3,6 @@
  * @brief   Snack Modbus voice HAL provider 单元测试。
  */
 
-#include "adapters/outbound/hal/providers/snack/modbus/drv_voice.h"
 #include "adapters/outbound/hal/providers/snack/modbus/snack_voice_adapter.h"
 #include "domain/ports/outbound/hal/hal_voice_port.h"
 #include "tests/stubs/snack/drv_modbus_link_fake.h"
@@ -108,11 +107,11 @@ static void test_comm_lost_and_restored_events_are_reported(void)
     TEST_ASSERT_EQUAL_INT(SW_ERR_COMM, voice()->play(1));
     TEST_ASSERT_EQUAL_INT(SW_ERR_COMM, voice()->play(1));
     TEST_ASSERT_EQUAL_UINT(1U, s_event_count);
-    TEST_ASSERT_EQUAL_INT(DRV_VOICE_EVT_COMM_LOST, s_events[0]);
+    TEST_ASSERT_EQUAL_INT(HAL_VOICE_EVT_COMM_LOST, s_events[0]);
 
     TEST_ASSERT_EQUAL_INT(SW_OK, voice()->play(1));
     TEST_ASSERT_EQUAL_UINT(2U, s_event_count);
-    TEST_ASSERT_EQUAL_INT(DRV_VOICE_EVT_COMM_RESTORED, s_events[1]);
+    TEST_ASSERT_EQUAL_INT(HAL_VOICE_EVT_COMM_RESTORED, s_events[1]);
 }
 
 static void test_instance_init_failure_keeps_adapter_not_ready(void)

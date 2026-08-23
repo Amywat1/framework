@@ -17,14 +17,9 @@ extern "C" {
 #endif
 
 #include "common/sw_error.h"
+#include "domain/ports/outbound/hal/hal_voice_port.h"
 
 #include <stdint.h>
-
-/* -------------------------------------------------------------------------
- * 事件码：通过 event_cb 上报给上层
- * ------------------------------------------------------------------------- */
-#define DRV_VOICE_EVT_COMM_LOST     1 /**< 连续通信失败，判定为通信丢失 */
-#define DRV_VOICE_EVT_COMM_RESTORED 2 /**< 通信恢复正常 */
 
 /** @brief 语音驱动不透明句柄，真实存储仅由 Snack provider 内部持有。 */
 typedef struct drv_voice drv_voice_t;
@@ -91,7 +86,7 @@ sw_err_t drv_voice_volume_down(drv_voice_t *v);
 /**
  * @brief  注册事件回调，驱动在通信状态变化时调用
  * @param[in]  v   实例指针
- * @param[in]  cb  回调函数，传入事件码（DRV_VOICE_EVT_*）；传 NULL 可注销
+ * @param[in]  cb  回调函数，传入事件码（HAL_VOICE_EVT_*）；传 NULL 可注销
  * @note   回调在各操作函数的调用线程中触发，须保证线程安全；
  *         回调内禁止反向调用本驱动写接口（死锁风险）
  */

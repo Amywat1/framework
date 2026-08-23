@@ -76,10 +76,10 @@ static sw_err_t voice_mb_write(drv_voice_t *v, uint16_t addr, uint16_t val)
         LOG_ERROR("drv_voice[addr=%d]: write reg 0x%04X failed", v->link.modbus_addr, addr);
     }
     if (notify_restored && (cb != NULL)) {
-        cb(DRV_VOICE_EVT_COMM_RESTORED);
+        cb(HAL_VOICE_EVT_COMM_RESTORED);
     }
     if (notify_lost && (cb != NULL)) {
-        cb(DRV_VOICE_EVT_COMM_LOST);
+        cb(HAL_VOICE_EVT_COMM_LOST);
     }
     return ret;
 }
