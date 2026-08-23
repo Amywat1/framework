@@ -81,7 +81,7 @@ sw_err_t motor_axis_init(motor_axis_t *self, motor_exec_t *exec, int motor, cons
  * @param[in]     spec        到位条件，NULL 表示连续运转
  * @return SW_OK 命令已受理；SW_ERR_PARAM / SW_ERR_NOT_INIT / SW_ERR_STATE 失败
  * @note   完成须 poll state == IDLE，或依赖 motor_axis_poll() 发空闲事件
- * @note   再次调用会更新目标速度、方向或到位条件，由执行器收敛，不必先查相位
+ * @note   再次调用会更新目标速度、方向或到位条件，由执行器收敛，不必先查状态
  * @note   FAULT 时由执行器拒绝；调用方须先 motor_axis_recover()
  */
 sw_err_t motor_axis_run(motor_axis_t *self, motor_dir_t dir, motor_speed_t speed, const motor_move_spec_t *spec);
@@ -94,7 +94,7 @@ sw_err_t motor_axis_run(motor_axis_t *self, motor_dir_t dir, motor_speed_t speed
 sw_err_t motor_axis_stop(motor_axis_t *self);
 
 /**
- * @brief  查询运动状态（由执行器相位映射）
+ * @brief  查询运动状态（由执行器运行状态映射）
  * @param[in] self 模式实例
  * @return 当前状态；未初始化时返回 IDLE
  */

@@ -249,7 +249,7 @@ static void test_forward_position_move_slows_once_and_stops_after_overshoot(void
     TEST_ASSERT_EQUAL_INT(2, s_fixture.output_count);
 
     tick_at(110);
-    TEST_ASSERT_EQUAL_INT(MOTOR_PHASE_STOPPED, motor_exec_phase(s_executor, 0));
+    TEST_ASSERT_EQUAL_INT(MOTOR_STATE_STOPPED, motor_exec_state(s_executor, 0));
     TEST_ASSERT_EQUAL_INT(1, s_fixture.cutoff_count);
     TEST_ASSERT_EQUAL_INT(2, s_fixture.output_count);
 }
@@ -271,7 +271,7 @@ static void test_reverse_position_move_stops_after_overshoot(void)
     TEST_ASSERT_EQUAL_INT(1, s_fixture.last_speed.value);
     tick_at(80);
 
-    TEST_ASSERT_EQUAL_INT(MOTOR_PHASE_STOPPED, motor_exec_phase(s_executor, 0));
+    TEST_ASSERT_EQUAL_INT(MOTOR_STATE_STOPPED, motor_exec_state(s_executor, 0));
     TEST_ASSERT_EQUAL_INT(1, s_fixture.cutoff_count);
     TEST_ASSERT_EQUAL_INT(2, s_fixture.output_count);
 }
@@ -297,10 +297,10 @@ static void test_active_position_target_update_keeps_start_time_and_output(void)
     tick_at(20);
 
     TEST_ASSERT_EQUAL_INT(1, s_fixture.output_count);
-    TEST_ASSERT_EQUAL_INT(MOTOR_PHASE_RUNNING, motor_exec_phase(s_executor, 0));
+    TEST_ASSERT_EQUAL_INT(MOTOR_STATE_RUNNING, motor_exec_state(s_executor, 0));
 
     tick_at(20);
-    TEST_ASSERT_EQUAL_INT(MOTOR_PHASE_STOPPED, motor_exec_phase(s_executor, 0));
+    TEST_ASSERT_EQUAL_INT(MOTOR_STATE_STOPPED, motor_exec_state(s_executor, 0));
     TEST_ASSERT_EQUAL_INT(1, s_fixture.timeout_count);
 }
 
@@ -318,7 +318,7 @@ static void test_origin_move_clears_hardware_and_software_once(void)
     s_fixture.origin_active = true;
     tick_at(50);
 
-    TEST_ASSERT_EQUAL_INT(MOTOR_PHASE_STOPPED, motor_exec_phase(s_executor, 0));
+    TEST_ASSERT_EQUAL_INT(MOTOR_STATE_STOPPED, motor_exec_state(s_executor, 0));
     TEST_ASSERT_EQUAL_INT(1, s_fixture.zero_count);
     TEST_ASSERT_EQUAL_INT64(0, motor_exec_position(s_executor, 0));
     TEST_ASSERT_TRUE(motor_exec_baseline_trusted(s_executor, 0));
@@ -344,14 +344,14 @@ static void test_origin_external_stop_while_pressed_rebuilds_baseline(void)
     TEST_ASSERT_TRUE(motor_cmd_ok(result));
 
     tick_at(45);
-    TEST_ASSERT_EQUAL_INT(MOTOR_PHASE_RUNNING, motor_exec_phase(s_executor, 0));
+    TEST_ASSERT_EQUAL_INT(MOTOR_STATE_RUNNING, motor_exec_state(s_executor, 0));
 
     s_fixture.origin_active = true;
     result                  = motor_exec_stop(s_executor, 0);
     TEST_ASSERT_TRUE(motor_cmd_ok(result));
     TEST_ASSERT_EQUAL_STRING("stopping", result.reason);
     tick_at(45);
-    TEST_ASSERT_EQUAL_INT(MOTOR_PHASE_STOPPED, motor_exec_phase(s_executor, 0));
+    TEST_ASSERT_EQUAL_INT(MOTOR_STATE_STOPPED, motor_exec_state(s_executor, 0));
     TEST_ASSERT_EQUAL_INT(1, s_fixture.arrived_count);
     TEST_ASSERT_EQUAL_INT(MOTOR_END_LIMIT, s_fixture.last_arrived_trigger);
     TEST_ASSERT_EQUAL_INT(MOTOR_LIMIT_ORIGIN, s_fixture.last_arrived_limit);
@@ -375,14 +375,14 @@ static void test_stop_while_watched_pos_limit_arrives(void)
     TEST_ASSERT_TRUE(motor_cmd_ok(result));
 
     tick_at(0);
-    TEST_ASSERT_EQUAL_INT(MOTOR_PHASE_RUNNING, motor_exec_phase(s_executor, 0));
+    TEST_ASSERT_EQUAL_INT(MOTOR_STATE_RUNNING, motor_exec_state(s_executor, 0));
 
     s_fixture.pos_limit_active = true;
     result                     = motor_exec_stop(s_executor, 0);
     TEST_ASSERT_TRUE(motor_cmd_ok(result));
     TEST_ASSERT_EQUAL_STRING("stopping", result.reason);
     tick_at(0);
-    TEST_ASSERT_EQUAL_INT(MOTOR_PHASE_STOPPED, motor_exec_phase(s_executor, 0));
+    TEST_ASSERT_EQUAL_INT(MOTOR_STATE_STOPPED, motor_exec_state(s_executor, 0));
     TEST_ASSERT_EQUAL_INT(1, s_fixture.arrived_count);
     TEST_ASSERT_EQUAL_INT(MOTOR_END_LIMIT, s_fixture.last_arrived_trigger);
     TEST_ASSERT_EQUAL_INT(MOTOR_LIMIT_POS, s_fixture.last_arrived_limit);
@@ -489,7 +489,7 @@ static void test_origin_clear_failure_keeps_baseline_untrusted_and_faults(void)
     tick_at(50);
 
     TEST_ASSERT_EQUAL_INT(MOTOR_ZERO_MAX_TRIES, s_fixture.zero_count);
-    TEST_ASSERT_EQUAL_INT(MOTOR_PHASE_FAULT, motor_exec_phase(s_executor, 0));
+    TEST_ASSERT_EQUAL_INT(MOTOR_STATE_FAULT, motor_exec_state(s_executor, 0));
     TEST_ASSERT_EQUAL_INT(MOTOR_FAULT_ENCODER_SIGNAL, motor_exec_fault_code(s_executor, 0));
     TEST_ASSERT_FALSE(motor_exec_baseline_trusted(s_executor, 0));
     TEST_ASSERT_NOT_EQUAL(0, motor_exec_position(s_executor, 0));
@@ -515,17 +515,17 @@ static void test_current_stop_arrives_after_confirm(void)
     s_fixture.current = 50;
     tick_at(0);
     tick_at(0);
-    TEST_ASSERT_EQUAL_INT(MOTOR_PHASE_RUNNING, motor_exec_phase(s_executor, 0));
+    TEST_ASSERT_EQUAL_INT(MOTOR_STATE_RUNNING, motor_exec_state(s_executor, 0));
     TEST_ASSERT_EQUAL_INT(0, s_fixture.arrived_count);
 
     s_fixture.current = 150;
     tick_at(0); /* 10 */
-    TEST_ASSERT_EQUAL_INT(MOTOR_PHASE_RUNNING, motor_exec_phase(s_executor, 0));
+    TEST_ASSERT_EQUAL_INT(MOTOR_STATE_RUNNING, motor_exec_state(s_executor, 0));
     tick_at(0); /* 20 */
-    TEST_ASSERT_EQUAL_INT(MOTOR_PHASE_RUNNING, motor_exec_phase(s_executor, 0));
+    TEST_ASSERT_EQUAL_INT(MOTOR_STATE_RUNNING, motor_exec_state(s_executor, 0));
     tick_at(0); /* 30 → 到位 */
 
-    TEST_ASSERT_EQUAL_INT(MOTOR_PHASE_STOPPED, motor_exec_phase(s_executor, 0));
+    TEST_ASSERT_EQUAL_INT(MOTOR_STATE_STOPPED, motor_exec_state(s_executor, 0));
     TEST_ASSERT_EQUAL_INT(1, s_fixture.arrived_count);
     TEST_ASSERT_EQUAL_INT(MOTOR_END_CURRENT, s_fixture.last_arrived_trigger);
     TEST_ASSERT_EQUAL_INT(0, s_fixture.fault_count);
@@ -550,10 +550,10 @@ static void test_current_stop_respects_blank_ms(void)
     tick_at(0); /* 10 blank */
     tick_at(0); /* 20 blank */
     tick_at(0); /* 30 消隐结束，本拍累计=10 */
-    TEST_ASSERT_EQUAL_INT(MOTOR_PHASE_RUNNING, motor_exec_phase(s_executor, 0));
+    TEST_ASSERT_EQUAL_INT(MOTOR_STATE_RUNNING, motor_exec_state(s_executor, 0));
     tick_at(0); /* 40 累计=20 → 到位 */
 
-    TEST_ASSERT_EQUAL_INT(MOTOR_PHASE_STOPPED, motor_exec_phase(s_executor, 0));
+    TEST_ASSERT_EQUAL_INT(MOTOR_STATE_STOPPED, motor_exec_state(s_executor, 0));
     TEST_ASSERT_EQUAL_INT(1, s_fixture.arrived_count);
     TEST_ASSERT_EQUAL_INT(MOTOR_END_CURRENT, s_fixture.last_arrived_trigger);
     TEST_ASSERT_EQUAL_INT(0, s_fixture.fault_count);
@@ -583,7 +583,7 @@ static void test_current_stop_coexists_with_overcurrent_fault(void)
     s_fixture.current = 200;
     tick_at(0);
     tick_at(0);
-    TEST_ASSERT_EQUAL_INT(MOTOR_PHASE_STOPPED, motor_exec_phase(s_executor, 0));
+    TEST_ASSERT_EQUAL_INT(MOTOR_STATE_STOPPED, motor_exec_state(s_executor, 0));
     TEST_ASSERT_EQUAL_INT(1, s_fixture.arrived_count);
     TEST_ASSERT_EQUAL_INT(MOTOR_END_CURRENT, s_fixture.last_arrived_trigger);
     TEST_ASSERT_EQUAL_INT(0, s_fixture.fault_count);
@@ -601,7 +601,7 @@ static void test_current_stop_coexists_with_overcurrent_fault(void)
     s_fixture.current = 600;
     tick_at(0);
     tick_at(0);
-    TEST_ASSERT_EQUAL_INT(MOTOR_PHASE_STOPPED, motor_exec_phase(s_executor, 0));
+    TEST_ASSERT_EQUAL_INT(MOTOR_STATE_STOPPED, motor_exec_state(s_executor, 0));
     TEST_ASSERT_EQUAL_INT(1, s_fixture.arrived_count);
     TEST_ASSERT_EQUAL_INT(MOTOR_END_CURRENT, s_fixture.last_arrived_trigger);
     TEST_ASSERT_EQUAL_INT(0, s_fixture.fault_count);
@@ -618,7 +618,7 @@ static void test_current_stop_coexists_with_overcurrent_fault(void)
     s_fixture.current = 600;
     tick_at(0);
     tick_at(0);
-    TEST_ASSERT_EQUAL_INT(MOTOR_PHASE_FAULT, motor_exec_phase(s_executor, 0));
+    TEST_ASSERT_EQUAL_INT(MOTOR_STATE_FAULT, motor_exec_state(s_executor, 0));
     TEST_ASSERT_EQUAL_INT(MOTOR_FAULT_OVERCURRENT, s_fixture.last_fault);
     TEST_ASSERT_EQUAL_INT(1, s_fixture.fault_count);
 }
@@ -689,11 +689,11 @@ static void test_limit_mask_pos_or_neg_stops(void)
     TEST_ASSERT_TRUE(motor_cmd_ok(result));
 
     tick_at(0);
-    TEST_ASSERT_EQUAL_INT(MOTOR_PHASE_RUNNING, motor_exec_phase(s_executor, 0));
+    TEST_ASSERT_EQUAL_INT(MOTOR_STATE_RUNNING, motor_exec_state(s_executor, 0));
 
     s_fixture.neg_limit_active = true;
     tick_at(0);
-    TEST_ASSERT_EQUAL_INT(MOTOR_PHASE_STOPPED, motor_exec_phase(s_executor, 0));
+    TEST_ASSERT_EQUAL_INT(MOTOR_STATE_STOPPED, motor_exec_state(s_executor, 0));
     TEST_ASSERT_EQUAL_INT(1, s_fixture.arrived_count);
     TEST_ASSERT_EQUAL_INT(MOTOR_END_LIMIT, s_fixture.last_arrived_trigger);
     TEST_ASSERT_EQUAL_INT(MOTOR_LIMIT_NEG, s_fixture.last_arrived_limit);
@@ -714,7 +714,7 @@ static void test_limit_mask_prefers_origin_when_multiple(void)
     s_fixture.origin_active    = true;
     s_fixture.pos_limit_active = true;
     tick_at(0);
-    TEST_ASSERT_EQUAL_INT(MOTOR_PHASE_STOPPED, motor_exec_phase(s_executor, 0));
+    TEST_ASSERT_EQUAL_INT(MOTOR_STATE_STOPPED, motor_exec_state(s_executor, 0));
     TEST_ASSERT_EQUAL_INT(MOTOR_END_LIMIT, s_fixture.last_arrived_trigger);
     TEST_ASSERT_EQUAL_INT(MOTOR_LIMIT_ORIGIN, s_fixture.last_arrived_limit);
 }

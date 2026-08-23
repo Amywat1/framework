@@ -29,7 +29,7 @@ static bool speed_valid(motor_executor_t *e, int i, motor_speed_t speed)
 enum {
     MOTOR_CMD_NEED_NOW      = 1u << 0, /**< 刷新 e->now */
     MOTOR_CMD_REJECT_SAFETY = 1u << 1, /**< 急停/看门狗锁定时拒绝 */
-    MOTOR_CMD_REJECT_FAULT  = 1u << 2  /**< FAULT 相位时拒绝 */
+    MOTOR_CMD_REJECT_FAULT  = 1u << 2  /**< FAULT 状态时拒绝 */
 };
 
 static bool bad_motor(const motor_executor_t *e, int i)
@@ -53,7 +53,7 @@ static motor_cmd_result_t cmd_guard(motor_executor_t *e, int i, unsigned flags)
     if ((flags & MOTOR_CMD_REJECT_SAFETY) && (e->safe_latched || safety_output_hold_is_active())) {
         return cmd_reject(MOTOR_REJECT_SAFETY, "safety-locked");
     }
-    if ((flags & MOTOR_CMD_REJECT_FAULT) && (e->m[i].phase == MOTOR_PHASE_FAULT)) {
+    if ((flags & MOTOR_CMD_REJECT_FAULT) && (e->m[i].exec_state == MOTOR_STATE_FAULT)) {
         return cmd_reject(MOTOR_REJECT_FAULT, "fault");
     }
     return cmd_make(MOTOR_CMD_ACCEPTED, "");
@@ -121,34 +121,34 @@ motor_cmd_result_t motor_stop(motor_executor_t *e, int i)
         return g;
     }
     s = &e->m[i];
-    switch (s->phase) {
-    case MOTOR_PHASE_WAITING_START:
+    switch (s->exec_state) {
+    case MOTOR_STATE_WAITING_START:
         s->queued = false;
         if (s->output_applied) {
             settle_elapsed(e, i);
             s->emit_stop_on_halt = true;
             s->stop_issued       = false;
-            s->phase             = MOTOR_PHASE_STOPPING;
+            s->exec_state             = MOTOR_STATE_STOPPING;
             out                  = cmd_make(MOTOR_CMD_ACCEPTED, "stopping");
             break;
         }
-        s->phase = MOTOR_PHASE_STOPPED;
+        s->exec_state = MOTOR_STATE_STOPPED;
         out      = cmd_make(MOTOR_CMD_ACCEPTED, "queue-cancel");
         break;
-    case MOTOR_PHASE_REVERSAL_WAIT:
-        s->phase          = MOTOR_PHASE_STOPPED;
+    case MOTOR_STATE_REVERSAL_WAIT:
+        s->exec_state          = MOTOR_STATE_STOPPED;
         s->cooldown_until = e->now + e->cfg.motors[i].cooldown_ms;
         out               = cmd_make(MOTOR_CMD_ACCEPTED, "reversal-cancel");
         break;
-    case MOTOR_PHASE_RUNNING:
+    case MOTOR_STATE_RUNNING:
         settle_elapsed(e, i);
         s->queued            = false;
         s->emit_stop_on_halt = true;
         s->stop_issued       = false;
-        s->phase             = MOTOR_PHASE_STOPPING;
+        s->exec_state             = MOTOR_STATE_STOPPING;
         out                  = cmd_make(MOTOR_CMD_ACCEPTED, "stopping");
         break;
-    case MOTOR_PHASE_STOPPING:
+    case MOTOR_STATE_STOPPING:
         s->queued            = false;
         s->emit_stop_on_halt = true;
         out                  = cmd_make(MOTOR_CMD_ACCEPTED, "stopping");
@@ -252,7 +252,7 @@ void motor_reset_watchdog(motor_executor_t *e)
     e->last_tick_valid = true;
     for (int i = 0; i < e->motor_count; ++i) {
         if (e->m[i].fault_code == MOTOR_FAULT_WATCHDOG) {
-            e->m[i].phase      = MOTOR_PHASE_STOPPED;
+            e->m[i].exec_state      = MOTOR_STATE_STOPPED;
             e->m[i].fault_code = MOTOR_FAULT_NONE;
         }
     }
@@ -271,7 +271,7 @@ motor_cmd_result_t motor_recover(motor_executor_t *e, int i, motor_exec_recovery
     motor_mstate_t    *s = &e->m[i];
     motor_cmd_result_t out;
 
-    if (s->phase != MOTOR_PHASE_FAULT) {
+    if (s->exec_state != MOTOR_STATE_FAULT) {
         motor_unlock(e);
         return cmd_reject(MOTOR_REJECT_NOT_FAULT, "not-fault");
     }
@@ -294,7 +294,7 @@ motor_cmd_result_t motor_recover(motor_executor_t *e, int i, motor_exec_recovery
         return cmd_reject(MOTOR_REJECT_MUST_RESET, "must-reset-first");
     }
     e->now               = clock_now(e);
-    s->phase             = MOTOR_PHASE_STOPPED;
+    s->exec_state             = MOTOR_STATE_STOPPED;
     s->fault_code        = MOTOR_FAULT_NONE;
     s->driver_reset_done = false;
     s->cooldown_until    = e->now;
@@ -305,18 +305,18 @@ motor_cmd_result_t motor_recover(motor_executor_t *e, int i, motor_exec_recovery
 
 /* ------------------------- 查询 ------------------------- */
 
-motor_exec_phase_t motor_phase(const motor_executor_t *e, int i)
+motor_exec_state_t motor_state(const motor_executor_t *e, int i)
 {
-    motor_exec_phase_t phase;
+    motor_exec_state_t exec_state;
 
     motor_lock((motor_executor_t *)e);
     if (bad_motor(e, i)) {
         motor_unlock((motor_executor_t *)e);
-        return MOTOR_PHASE_STOPPED;
+        return MOTOR_STATE_STOPPED;
     }
-    phase = e->m[i].phase;
+    exec_state = e->m[i].exec_state;
     motor_unlock((motor_executor_t *)e);
-    return phase;
+    return exec_state;
 }
 
 int64_t motor_position(const motor_executor_t *e, int i)
@@ -344,7 +344,7 @@ int motor_current_freq(const motor_executor_t *e, int i)
         return 0;
     }
     state = &e->m[i];
-    if ((state->phase == MOTOR_PHASE_RUNNING) && (state->speed.kind == MOTOR_SPEED_FREQ)) {
+    if ((state->exec_state == MOTOR_STATE_RUNNING) && (state->speed.kind == MOTOR_SPEED_FREQ)) {
         freq = state->speed.value;
     }
     motor_unlock((motor_executor_t *)e);

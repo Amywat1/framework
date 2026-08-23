@@ -203,7 +203,7 @@ void tearDown(void)
 {
 }
 
-static void test_run_continuous_and_phase_via_port(void)
+static void test_run_continuous_and_state_via_port(void)
 {
     motor_cmd_result_t r;
     motor_exec_t      *hal = s_exec;
@@ -211,7 +211,7 @@ static void test_run_continuous_and_phase_via_port(void)
     r = motor_exec_run(hal, 0, motor_speed_gear(2), MOTOR_DIR_REVERSE, NULL);
     TEST_ASSERT_TRUE(motor_cmd_ok(r));
     motor_executor_tick(s_exec);
-    TEST_ASSERT_EQUAL_INT(MOTOR_PHASE_RUNNING, motor_exec_phase(hal, 0));
+    TEST_ASSERT_EQUAL_INT(MOTOR_STATE_RUNNING, motor_exec_state(hal, 0));
     TEST_ASSERT_EQUAL_INT(MOTOR_DIR_REVERSE, motor_exec_direction(hal, 0));
     TEST_ASSERT_TRUE(s_fx.output_count > 0);
 }
@@ -235,7 +235,7 @@ static void test_slot_binding_is_fixed_and_reinit_keeps_handle(void)
     result = motor_executor_reinit(original);
     TEST_ASSERT_TRUE_MESSAGE(result.ok, result.error);
     TEST_ASSERT_EQUAL_PTR(original, s_exec);
-    TEST_ASSERT_EQUAL_INT(MOTOR_PHASE_STOPPED, motor_exec_phase(s_exec, 0));
+    TEST_ASSERT_EQUAL_INT(MOTOR_STATE_STOPPED, motor_exec_state(s_exec, 0));
 }
 
 static void test_move_to_time_and_stop_via_port(void)
@@ -252,12 +252,12 @@ static void test_move_to_time_and_stop_via_port(void)
     r = motor_exec_run(hal, 0, motor_speed_freq(1000), MOTOR_DIR_FORWARD, &spec);
     TEST_ASSERT_TRUE(motor_cmd_ok(r));
     motor_executor_tick(s_exec);
-    TEST_ASSERT_EQUAL_INT(MOTOR_PHASE_RUNNING, motor_exec_phase(hal, 0));
+    TEST_ASSERT_EQUAL_INT(MOTOR_STATE_RUNNING, motor_exec_state(hal, 0));
 
     r = motor_exec_stop(hal, 0);
     TEST_ASSERT_TRUE(motor_cmd_ok(r));
     motor_executor_tick(s_exec);
-    TEST_ASSERT_EQUAL_INT(MOTOR_PHASE_STOPPED, motor_exec_phase(hal, 0));
+    TEST_ASSERT_EQUAL_INT(MOTOR_STATE_STOPPED, motor_exec_state(hal, 0));
 }
 
 static void test_run_updates_speed_without_restart(void)
@@ -274,20 +274,20 @@ static void test_run_updates_speed_without_restart(void)
     r = motor_exec_run(hal, 0, motor_speed_gear(1), MOTOR_DIR_FORWARD, &spec);
     TEST_ASSERT_TRUE(motor_cmd_ok(r));
     motor_executor_tick(s_exec);
-    TEST_ASSERT_EQUAL_INT(MOTOR_PHASE_RUNNING, motor_exec_phase(hal, 0));
+    TEST_ASSERT_EQUAL_INT(MOTOR_STATE_RUNNING, motor_exec_state(hal, 0));
 
     s_fx.now_ms = 20;
     r           = motor_exec_run(hal, 0, motor_speed_gear(3), MOTOR_DIR_FORWARD, &spec);
     TEST_ASSERT_TRUE(motor_cmd_ok(r));
     TEST_ASSERT_EQUAL_STRING("goal-updated", r.reason);
-    TEST_ASSERT_EQUAL_INT(MOTOR_PHASE_RUNNING, motor_exec_phase(hal, 0));
+    TEST_ASSERT_EQUAL_INT(MOTOR_STATE_RUNNING, motor_exec_state(hal, 0));
     motor_executor_tick(s_exec);
     TEST_ASSERT_EQUAL_INT(2, s_fx.output_count);
     TEST_ASSERT_EQUAL_INT(3, s_fx.last_speed.value);
 
     s_fx.now_ms = 30;
     motor_executor_tick(s_exec);
-    TEST_ASSERT_EQUAL_INT(MOTOR_PHASE_STOPPED, motor_exec_phase(hal, 0));
+    TEST_ASSERT_EQUAL_INT(MOTOR_STATE_STOPPED, motor_exec_state(hal, 0));
 }
 
 static void test_run_updates_pending_while_waiting_start(void)
@@ -304,23 +304,23 @@ static void test_run_updates_pending_while_waiting_start(void)
     r = motor_exec_stop(hal, 0);
     TEST_ASSERT_TRUE(motor_cmd_ok(r));
     motor_executor_tick(s_exec);
-    TEST_ASSERT_EQUAL_INT(MOTOR_PHASE_STOPPED, motor_exec_phase(hal, 0));
+    TEST_ASSERT_EQUAL_INT(MOTOR_STATE_STOPPED, motor_exec_state(hal, 0));
 
     r = motor_exec_run(hal, 0, motor_speed_gear(1), MOTOR_DIR_FORWARD, NULL);
     TEST_ASSERT_TRUE(motor_cmd_ok(r));
     TEST_ASSERT_EQUAL_INT(MOTOR_CMD_QUEUED, r.status);
-    TEST_ASSERT_EQUAL_INT(MOTOR_PHASE_WAITING_START, motor_exec_phase(hal, 0));
+    TEST_ASSERT_EQUAL_INT(MOTOR_STATE_WAITING_START, motor_exec_state(hal, 0));
 
     r = motor_exec_run(hal, 0, motor_speed_gear(4), MOTOR_DIR_FORWARD, NULL);
     TEST_ASSERT_TRUE(motor_cmd_ok(r));
     TEST_ASSERT_EQUAL_STRING("pending-updated", r.reason);
-    TEST_ASSERT_EQUAL_INT(MOTOR_PHASE_WAITING_START, motor_exec_phase(hal, 0));
+    TEST_ASSERT_EQUAL_INT(MOTOR_STATE_WAITING_START, motor_exec_state(hal, 0));
 
     s_fx.now_ms = 100;
     motor_executor_tick(s_exec);
     s_fx.now_ms = 110;
     motor_executor_tick(s_exec);
-    TEST_ASSERT_EQUAL_INT(MOTOR_PHASE_RUNNING, motor_exec_phase(hal, 0));
+    TEST_ASSERT_EQUAL_INT(MOTOR_STATE_RUNNING, motor_exec_state(hal, 0));
     TEST_ASSERT_EQUAL_INT(4, s_fx.last_speed.value);
 }
 
@@ -350,7 +350,7 @@ static void test_recover_via_port(void)
     TEST_ASSERT_TRUE(motor_cmd_ok(r));
     r = motor_exec_recover(hal, 0, MOTOR_RECOVERY_MODULE_STOP);
     TEST_ASSERT_TRUE(motor_cmd_ok(r));
-    TEST_ASSERT_EQUAL_INT(MOTOR_PHASE_STOPPED, motor_exec_phase(hal, 0));
+    TEST_ASSERT_EQUAL_INT(MOTOR_STATE_STOPPED, motor_exec_state(hal, 0));
 }
 
 static void test_query_helpers_via_port(void)
@@ -392,8 +392,8 @@ static void test_query_helpers_via_port(void)
 
 static void test_query_helpers_return_safe_defaults_for_bad_motor(void)
 {
-    TEST_ASSERT_EQUAL_INT(MOTOR_PHASE_STOPPED, motor_exec_phase(s_exec, -1));
-    TEST_ASSERT_EQUAL_INT(MOTOR_PHASE_STOPPED, motor_exec_phase(s_exec, 1));
+    TEST_ASSERT_EQUAL_INT(MOTOR_STATE_STOPPED, motor_exec_state(s_exec, -1));
+    TEST_ASSERT_EQUAL_INT(MOTOR_STATE_STOPPED, motor_exec_state(s_exec, 1));
     TEST_ASSERT_EQUAL_INT64(0, motor_exec_position(s_exec, -1));
     TEST_ASSERT_EQUAL_INT64(0, motor_exec_position(s_exec, 1));
     TEST_ASSERT_EQUAL_INT(MOTOR_DIR_FORWARD, motor_exec_direction(s_exec, -1));
@@ -415,7 +415,7 @@ static void test_run_rejects_unset_dir(void)
     r = motor_exec_run(s_exec, 0, motor_speed_gear(1), MOTOR_DIR_UNSET, NULL);
     TEST_ASSERT_FALSE(motor_cmd_ok(r));
     TEST_ASSERT_EQUAL_INT(MOTOR_REJECT_BAD_DIR, r.reject);
-    TEST_ASSERT_EQUAL_INT(MOTOR_PHASE_STOPPED, motor_exec_phase(s_exec, 0));
+    TEST_ASSERT_EQUAL_INT(MOTOR_STATE_STOPPED, motor_exec_state(s_exec, 0));
 }
 
 static void test_output_hold_cuts_and_rejects_until_release(void)
@@ -425,11 +425,11 @@ static void test_output_hold_cuts_and_rejects_until_release(void)
     r = motor_exec_run(s_exec, 0, motor_speed_gear(1), MOTOR_DIR_FORWARD, NULL);
     TEST_ASSERT_TRUE(motor_cmd_ok(r));
     motor_executor_tick(s_exec);
-    TEST_ASSERT_EQUAL_INT(MOTOR_PHASE_RUNNING, motor_exec_phase(s_exec, 0));
+    TEST_ASSERT_EQUAL_INT(MOTOR_STATE_RUNNING, motor_exec_state(s_exec, 0));
 
     safety_output_hold_request();
     motor_executor_tick(s_exec);
-    TEST_ASSERT_EQUAL_INT(MOTOR_PHASE_ESTOP, motor_exec_phase(s_exec, 0));
+    TEST_ASSERT_EQUAL_INT(MOTOR_STATE_ESTOP, motor_exec_state(s_exec, 0));
 
     r = motor_exec_run(s_exec, 0, motor_speed_gear(1), MOTOR_DIR_FORWARD, NULL);
     TEST_ASSERT_FALSE(motor_cmd_ok(r));
@@ -437,7 +437,7 @@ static void test_output_hold_cuts_and_rejects_until_release(void)
 
     TEST_ASSERT_EQUAL_INT(SW_OK, safety_output_hold_release());
     motor_executor_tick(s_exec);
-    TEST_ASSERT_EQUAL_INT(MOTOR_PHASE_STOPPED, motor_exec_phase(s_exec, 0));
+    TEST_ASSERT_EQUAL_INT(MOTOR_STATE_STOPPED, motor_exec_state(s_exec, 0));
     TEST_ASSERT_FALSE(safety_output_hold_is_active());
 
     r = motor_exec_run(s_exec, 0, motor_speed_gear(1), MOTOR_DIR_FORWARD, NULL);
@@ -449,16 +449,16 @@ static void test_output_hold_reset_rejected_while_di_active(void)
     s_hold_di = true;
     safety_output_hold_bind_di(hold_di_active);
     motor_executor_tick(s_exec);
-    TEST_ASSERT_EQUAL_INT(MOTOR_PHASE_ESTOP, motor_exec_phase(s_exec, 0));
+    TEST_ASSERT_EQUAL_INT(MOTOR_STATE_ESTOP, motor_exec_state(s_exec, 0));
 
     TEST_ASSERT_EQUAL_INT(SW_ERR_STATE, safety_output_hold_release());
     motor_executor_tick(s_exec);
-    TEST_ASSERT_EQUAL_INT(MOTOR_PHASE_ESTOP, motor_exec_phase(s_exec, 0));
+    TEST_ASSERT_EQUAL_INT(MOTOR_STATE_ESTOP, motor_exec_state(s_exec, 0));
 
     s_hold_di = false;
     TEST_ASSERT_EQUAL_INT(SW_OK, safety_output_hold_release());
     motor_executor_tick(s_exec);
-    TEST_ASSERT_EQUAL_INT(MOTOR_PHASE_STOPPED, motor_exec_phase(s_exec, 0));
+    TEST_ASSERT_EQUAL_INT(MOTOR_STATE_STOPPED, motor_exec_state(s_exec, 0));
 }
 
 static void test_pop_event_via_port(void)
@@ -574,7 +574,7 @@ static void start_running_at(uint64_t now_ms)
     r = motor_exec_run(s_exec, 0, motor_speed_gear(1), MOTOR_DIR_FORWARD, NULL);
     TEST_ASSERT_TRUE(motor_cmd_ok(r));
     tick_ms(now_ms);
-    TEST_ASSERT_EQUAL_INT(MOTOR_PHASE_RUNNING, motor_exec_phase(s_exec, 0));
+    TEST_ASSERT_EQUAL_INT(MOTOR_STATE_RUNNING, motor_exec_state(s_exec, 0));
 }
 
 static void bind_with_request_stop(int stop_timeout_ms)
@@ -600,13 +600,13 @@ static void test_request_stop_waits_until_driver_idle(void)
     TEST_ASSERT_TRUE(motor_cmd_ok(r));
     TEST_ASSERT_EQUAL_STRING("stopping", r.reason);
     tick_ms(20);
-    TEST_ASSERT_EQUAL_INT(MOTOR_PHASE_STOPPING, motor_exec_phase(s_exec, 0));
+    TEST_ASSERT_EQUAL_INT(MOTOR_STATE_STOPPING, motor_exec_state(s_exec, 0));
     TEST_ASSERT_EQUAL_INT(1, s_fx.request_stop_count);
     TEST_ASSERT_EQUAL_INT(cutoff0, s_fx.cutoff_count);
 
     s_fx.running = false;
     tick_ms(30);
-    TEST_ASSERT_EQUAL_INT(MOTOR_PHASE_STOPPED, motor_exec_phase(s_exec, 0));
+    TEST_ASSERT_EQUAL_INT(MOTOR_STATE_STOPPED, motor_exec_state(s_exec, 0));
     TEST_ASSERT_EQUAL_INT(1, s_fx.request_stop_count);
     TEST_ASSERT_TRUE(s_fx.cutoff_count > cutoff0);
 }
@@ -617,11 +617,11 @@ static void test_request_stop_timeout_force_cutoff(void)
     start_running_at(10);
     TEST_ASSERT_TRUE(motor_cmd_ok(motor_exec_stop(s_exec, 0)));
     tick_ms(20);
-    TEST_ASSERT_EQUAL_INT(MOTOR_PHASE_STOPPING, motor_exec_phase(s_exec, 0));
+    TEST_ASSERT_EQUAL_INT(MOTOR_STATE_STOPPING, motor_exec_state(s_exec, 0));
     tick_ms(40);
-    TEST_ASSERT_EQUAL_INT(MOTOR_PHASE_STOPPING, motor_exec_phase(s_exec, 0));
+    TEST_ASSERT_EQUAL_INT(MOTOR_STATE_STOPPING, motor_exec_state(s_exec, 0));
     tick_ms(50);
-    TEST_ASSERT_EQUAL_INT(MOTOR_PHASE_STOPPED, motor_exec_phase(s_exec, 0));
+    TEST_ASSERT_EQUAL_INT(MOTOR_STATE_STOPPED, motor_exec_state(s_exec, 0));
 }
 
 static void test_repeat_stop_does_not_restart_timeout(void)
@@ -633,9 +633,9 @@ static void test_repeat_stop_does_not_restart_timeout(void)
     TEST_ASSERT_EQUAL_INT(1, s_fx.request_stop_count);
     s_fx.now_ms = 25;
     TEST_ASSERT_TRUE(motor_cmd_ok(motor_exec_stop(s_exec, 0)));
-    TEST_ASSERT_EQUAL_INT(MOTOR_PHASE_STOPPING, motor_exec_phase(s_exec, 0));
+    TEST_ASSERT_EQUAL_INT(MOTOR_STATE_STOPPING, motor_exec_state(s_exec, 0));
     tick_ms(50);
-    TEST_ASSERT_EQUAL_INT(MOTOR_PHASE_STOPPED, motor_exec_phase(s_exec, 0));
+    TEST_ASSERT_EQUAL_INT(MOTOR_STATE_STOPPED, motor_exec_state(s_exec, 0));
     TEST_ASSERT_EQUAL_INT(1, s_fx.request_stop_count);
 }
 
@@ -649,7 +649,7 @@ static void test_request_stop_failure_cuts_off(void)
     s_fx.request_stop_rc = SW_ERR_HW;
     TEST_ASSERT_TRUE(motor_cmd_ok(motor_exec_stop(s_exec, 0)));
     tick_ms(20);
-    TEST_ASSERT_EQUAL_INT(MOTOR_PHASE_STOPPED, motor_exec_phase(s_exec, 0));
+    TEST_ASSERT_EQUAL_INT(MOTOR_STATE_STOPPED, motor_exec_state(s_exec, 0));
     TEST_ASSERT_EQUAL_INT(1, s_fx.request_stop_count);
     TEST_ASSERT_TRUE(s_fx.cutoff_count > cutoff0);
 }
@@ -662,18 +662,18 @@ static void test_run_during_stopping_starts_after_halt(void)
     start_running_at(10);
     TEST_ASSERT_TRUE(motor_cmd_ok(motor_exec_stop(s_exec, 0)));
     tick_ms(20);
-    TEST_ASSERT_EQUAL_INT(MOTOR_PHASE_STOPPING, motor_exec_phase(s_exec, 0));
+    TEST_ASSERT_EQUAL_INT(MOTOR_STATE_STOPPING, motor_exec_state(s_exec, 0));
 
     r = motor_exec_run(s_exec, 0, motor_speed_gear(2), MOTOR_DIR_REVERSE, NULL);
     TEST_ASSERT_TRUE(motor_cmd_ok(r));
     TEST_ASSERT_EQUAL_STRING("stop-then-start", r.reason);
-    TEST_ASSERT_EQUAL_INT(MOTOR_PHASE_STOPPING, motor_exec_phase(s_exec, 0));
+    TEST_ASSERT_EQUAL_INT(MOTOR_STATE_STOPPING, motor_exec_state(s_exec, 0));
 
     s_fx.running = false;
     tick_ms(30);
-    TEST_ASSERT_EQUAL_INT(MOTOR_PHASE_WAITING_START, motor_exec_phase(s_exec, 0));
+    TEST_ASSERT_EQUAL_INT(MOTOR_STATE_WAITING_START, motor_exec_state(s_exec, 0));
     tick_ms(40);
-    TEST_ASSERT_EQUAL_INT(MOTOR_PHASE_RUNNING, motor_exec_phase(s_exec, 0));
+    TEST_ASSERT_EQUAL_INT(MOTOR_STATE_RUNNING, motor_exec_state(s_exec, 0));
     TEST_ASSERT_EQUAL_INT(MOTOR_DIR_REVERSE, motor_exec_direction(s_exec, 0));
 }
 
@@ -688,19 +688,19 @@ static void test_running_poll_busy_then_failed_enters_prepare_failed(void)
     r = motor_exec_run(hal, 0, motor_speed_gear(1), MOTOR_DIR_FORWARD, NULL);
     TEST_ASSERT_TRUE(motor_cmd_ok(r));
     motor_executor_tick(s_exec);
-    TEST_ASSERT_EQUAL_INT(MOTOR_PHASE_RUNNING, motor_exec_phase(hal, 0));
+    TEST_ASSERT_EQUAL_INT(MOTOR_STATE_RUNNING, motor_exec_state(hal, 0));
     TEST_ASSERT_EQUAL_INT(1, s_fx.poll_count);
     TEST_ASSERT_EQUAL_INT(0, s_fx.poll_motor);
     TEST_ASSERT_TRUE(s_fx.output_count > 0);
 
     s_fx.poll_result = MOTOR_PREPARE_BUSY;
     motor_executor_tick(s_exec);
-    TEST_ASSERT_EQUAL_INT(MOTOR_PHASE_RUNNING, motor_exec_phase(hal, 0));
+    TEST_ASSERT_EQUAL_INT(MOTOR_STATE_RUNNING, motor_exec_state(hal, 0));
     TEST_ASSERT_EQUAL_INT(2, s_fx.poll_count);
 
     s_fx.poll_result = MOTOR_PREPARE_FAILED;
     motor_executor_tick(s_exec);
-    TEST_ASSERT_EQUAL_INT(MOTOR_PHASE_FAULT, motor_exec_phase(hal, 0));
+    TEST_ASSERT_EQUAL_INT(MOTOR_STATE_FAULT, motor_exec_state(hal, 0));
     TEST_ASSERT_EQUAL_INT(MOTOR_FAULT_PREPARE_FAILED, motor_exec_fault_code(hal, 0));
     TEST_ASSERT_EQUAL_INT(3, s_fx.poll_count);
     TEST_ASSERT_TRUE(s_fx.cutoff_count > 0);
@@ -710,7 +710,7 @@ int main(void)
 {
     UNITY_BEGIN();
 
-    WDF_RUN_TEST(test_run_continuous_and_phase_via_port, "", "验证经端口连续运行与相位查询");
+    WDF_RUN_TEST(test_run_continuous_and_state_via_port, "", "验证经端口连续运行与状态查询");
     WDF_RUN_TEST(test_slot_binding_is_fixed_and_reinit_keeps_handle, "", "验证槽位只绑定一次且重初始化保持句柄");
     WDF_RUN_TEST(test_move_to_time_and_stop_via_port, "", "验证经端口按时到位与停止");
     WDF_RUN_TEST(test_run_updates_speed_without_restart, "", "验证运行中再次 run 只更新目标不重启");

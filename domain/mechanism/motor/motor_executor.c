@@ -101,7 +101,7 @@ static void ev_push(motor_executor_t *e, const motor_event_t *ev)
 static uint64_t eff_elapsed(motor_executor_t *e, int i)
 {
     motor_mstate_t *s = &e->m[i];
-    if (s->phase == MOTOR_PHASE_RUNNING) {
+    if (s->exec_state == MOTOR_STATE_RUNNING) {
         return s->elapsed_ms + (e->now - s->move_start_ms);
     }
     return s->elapsed_ms;
@@ -115,7 +115,7 @@ static uint64_t eff_elapsed(motor_executor_t *e, int i)
 void settle_elapsed(motor_executor_t *e, int i)
 {
     motor_mstate_t *s = &e->m[i];
-    if (s->phase == MOTOR_PHASE_RUNNING) {
+    if (s->exec_state == MOTOR_STATE_RUNNING) {
         s->elapsed_ms += e->now - s->move_start_ms;
         s->move_start_ms = e->now;
     }
@@ -246,11 +246,11 @@ motor_cmd_result_t motor_exec_recover(motor_exec_t *exec, int motor, motor_exec_
                               : cmd_reject(MOTOR_REJECT_UNAVAILABLE, "executor-unavailable");
 }
 
-motor_exec_phase_t motor_exec_phase(const motor_exec_t *exec, int motor)
+motor_exec_state_t motor_exec_state(const motor_exec_t *exec, int motor)
 {
     const motor_executor_t *executor = const_executor_from_handle(exec);
 
-    return (executor != NULL) ? motor_phase(executor, motor) : MOTOR_PHASE_STOPPED;
+    return (executor != NULL) ? motor_state(executor, motor) : MOTOR_STATE_STOPPED;
 }
 
 int64_t motor_exec_position(const motor_exec_t *exec, int motor)

@@ -55,14 +55,14 @@ static inline bool motor_limit_mask_has(uint8_t mask, motor_limit_kind_t kind)
 
 /** @brief 电机状态。 */
 typedef enum {
-    MOTOR_PHASE_STOPPED = 0,   /**< 停止（上电默认态、故障安全态） */
-    MOTOR_PHASE_WAITING_START, /**< 等待启动（冷却/预备/互锁排队） */
-    MOTOR_PHASE_REVERSAL_WAIT, /**< 换向等待 */
-    MOTOR_PHASE_RUNNING,       /**< 运行中 */
-    MOTOR_PHASE_STOPPING,      /**< 受控停止中（等功率级停下或超时后切断） */
-    MOTOR_PHASE_FAULT,         /**< 故障 */
-    MOTOR_PHASE_ESTOP          /**< 急停 */
-} motor_exec_phase_t;
+    MOTOR_STATE_STOPPED = 0,   /**< 停止（上电默认态、故障安全态） */
+    MOTOR_STATE_WAITING_START, /**< 等待启动（冷却/预备/互锁排队） */
+    MOTOR_STATE_REVERSAL_WAIT, /**< 换向等待 */
+    MOTOR_STATE_RUNNING,       /**< 运行中 */
+    MOTOR_STATE_STOPPING,      /**< 受控停止中（等功率级停下或超时后切断） */
+    MOTOR_STATE_FAULT,         /**< 故障 */
+    MOTOR_STATE_ESTOP          /**< 急停 */
+} motor_exec_state_t;
 
 /** @brief 故障码。 */
 typedef enum {
@@ -189,13 +189,13 @@ typedef enum {
     MOTOR_REJECT_BAD_SPEED,  /**< 速度非法 */
     MOTOR_REJECT_BAD_DIR,    /**< 方向非法 */
     MOTOR_REJECT_SAFETY,     /**< 急停或看门狗锁定 */
-    MOTOR_REJECT_FAULT,      /**< 故障相位，须先恢复 */
+    MOTOR_REJECT_FAULT,      /**< 故障状态，须先恢复 */
     MOTOR_REJECT_INTERLOCK,  /**< 互锁不满足 */
     MOTOR_REJECT_NO_ENCODER, /**< 需要编码器但未配置 */
     MOTOR_REJECT_BASELINE,   /**< 位置基准不可信 */
     MOTOR_REJECT_ENCODER,    /**< 编码器不健康 */
-    MOTOR_REJECT_BAD_PHASE,  /**< 当前相位不允许 */
-    MOTOR_REJECT_NOT_FAULT,  /**< 恢复要求处于故障相 */
+    MOTOR_REJECT_BAD_STATE,  /**< 当前状态不允许 */
+    MOTOR_REJECT_NOT_FAULT,  /**< 恢复要求处于故障状态 */
     MOTOR_REJECT_FATAL,      /**< 致命故障须 reinit */
     MOTOR_REJECT_MUST_RESET, /**< 恢复须先驱动器复位 */
     MOTOR_REJECT_DRIVER,     /**< 驱动器动作失败 */
@@ -218,7 +218,7 @@ static inline bool motor_cmd_ok(motor_cmd_result_t r)
 }
 
 /** @brief 锁存运动目标（异步）。spec 为 NULL 表示连续运行，否则按到位条件结束。
- * @note   再调用即更新目标，调用方不必按相位选择命令。
+ * @note   再调用即更新目标，调用方不必按状态选择命令。
  * @note   FAULT / ESTOP 状态下必须拒绝；调用方须先 recover / 解除急停后再下发。
  * @note   终止事件按电机分槽；满时只丢该电机最旧事件。
  */
@@ -243,7 +243,7 @@ motor_cmd_result_t motor_exec_recover(motor_exec_t *exec, int motor, motor_exec_
 /* 查询 —— motor 应在 [0, motor_count) 范围内；越界时返回各函数注释中的安全默认值。 */
 
 /** @brief 查询电机当前状态；电机号越界返回 STOPPED。 */
-motor_exec_phase_t motor_exec_phase(const motor_exec_t *exec, int motor);
+motor_exec_state_t motor_exec_state(const motor_exec_t *exec, int motor);
 
 /** @brief 查询电机累计位置（脉冲）；电机号越界返回 0。 */
 int64_t motor_exec_position(const motor_exec_t *exec, int motor);

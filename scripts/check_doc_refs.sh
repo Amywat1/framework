@@ -218,6 +218,10 @@ fi
 # 文档互引用两种写法：Markdown 链接 [text](path.md) 与反引号裸路径 `path.md`。
 # 两种都按"相对本文件所在目录"与"相对 doc/"两种基准尝试解析，任一成立即通过——
 # 仓库里两种写法并存，统一成本高于收益。
+#
+# openspec/changes/archive/ 为已归档变更提案，Impact 段常用模块设计文件名简称
+# （如 `行为契约.md`），与 doc/ 下分层路径 intentionally 不一致；归档后不再维护
+# 为可解析链接，故整目录豁免 D3。
 # -----------------------------------------------------------------------------
 TOTAL_RULES=$((TOTAL_RULES + 1))
 broken_links=""
@@ -227,6 +231,10 @@ while IFS= read -r line; do
     doc_file="${line%%:*}"
     target="${line#*:}"
     doc_dir="$(dirname "${doc_file}")"
+
+    case "${doc_file}" in
+        openspec/changes/archive/*) continue ;;
+    esac
 
     case "${target}" in
         http*) continue ;;
@@ -240,6 +248,9 @@ while IFS= read -r line; do
     broken_links+="  ${doc_file}: 链接 \`${target}\` 无法解析"$'\n'
 done < <(
     for f in "${DOC_FILES[@]}"; do
+        case "${f}" in
+            openspec/changes/archive/*) continue ;;
+        esac
         {
             grep -oE '\]\([^)]+\.md\)' "${f}" 2>/dev/null | sed 's/^](\(.*\))$/\1/'
             grep -oE '`[^`]+\.md`' "${f}" 2>/dev/null | tr -d '`'

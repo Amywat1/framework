@@ -8,27 +8,27 @@
 #include <stddef.h>
 #include <string.h>
 
-static motor_axis_state_t axis_phase_to_state(const motor_axis_t *self)
+static motor_axis_state_t exec_state_to_axis_state(const motor_axis_t *self)
 {
-    motor_exec_phase_t ph;
+    motor_exec_state_t ph;
 
     if ((self == NULL) || !self->inited) {
         return MOTOR_AXIS_STATE_IDLE;
     }
 
-    ph = motor_exec_phase(self->exec, self->motor);
+    ph = motor_exec_state(self->exec, self->motor);
     switch (ph) {
-    case MOTOR_PHASE_STOPPED:
+    case MOTOR_STATE_STOPPED:
         return MOTOR_AXIS_STATE_IDLE;
 
-    case MOTOR_PHASE_WAITING_START:
-    case MOTOR_PHASE_RUNNING:
-    case MOTOR_PHASE_STOPPING:
-    case MOTOR_PHASE_REVERSAL_WAIT:
+    case MOTOR_STATE_WAITING_START:
+    case MOTOR_STATE_RUNNING:
+    case MOTOR_STATE_STOPPING:
+    case MOTOR_STATE_REVERSAL_WAIT:
         return MOTOR_AXIS_STATE_MOVING;
 
-    case MOTOR_PHASE_FAULT:
-    case MOTOR_PHASE_ESTOP:
+    case MOTOR_STATE_FAULT:
+    case MOTOR_STATE_ESTOP:
         return MOTOR_AXIS_STATE_FAULT;
 
     default:
@@ -74,17 +74,17 @@ static void report_cmd_fault(motor_axis_t *self)
 {
     motor_event_t           ev;
     motor_exec_fault_code_t fault;
-    motor_exec_phase_t      phase;
+    motor_exec_state_t      exec_state;
 
     fault = motor_exec_fault_code(self->exec, self->motor);
-    phase = motor_exec_phase(self->exec, self->motor);
-    if ((fault == MOTOR_FAULT_NONE) && (phase != MOTOR_PHASE_FAULT) && (phase != MOTOR_PHASE_ESTOP)) {
+    exec_state = motor_exec_state(self->exec, self->motor);
+    if ((fault == MOTOR_FAULT_NONE) && (exec_state != MOTOR_STATE_FAULT) && (exec_state != MOTOR_STATE_ESTOP)) {
         return;
     }
 
     memset(&ev, 0, sizeof(ev));
     ev.motor = self->motor;
-    ev.type  = (phase == MOTOR_PHASE_ESTOP) ? MOTOR_EVENT_ESTOP : MOTOR_EVENT_FAULT;
+    ev.type  = (exec_state == MOTOR_STATE_ESTOP) ? MOTOR_EVENT_ESTOP : MOTOR_EVENT_FAULT;
     ev.fault = fault;
     report_end(self, &ev);
 }
@@ -179,7 +179,7 @@ sw_err_t motor_axis_stop(motor_axis_t *self)
 
 motor_axis_state_t motor_axis_state(const motor_axis_t *self)
 {
-    return axis_phase_to_state(self);
+    return exec_state_to_axis_state(self);
 }
 
 bool motor_axis_last_result(const motor_axis_t *self, motor_event_t *out)
