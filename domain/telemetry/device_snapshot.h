@@ -56,6 +56,9 @@ typedef struct {
     uint32_t         top_alarm_code;
     unsigned         active_alarm_count;
     alarm_instance_t active_list[ALARM_ACTIVE_MAX];
+    uint32_t         session_journal[ALARM_SESSION_JOURNAL_MAX]; /**< 本会话 MAJOR+ 码，同码去重 */
+    unsigned         session_journal_count;                     /**< journal 有效条数 */
+    uint32_t         session_journal_dropped;                   /**< 满池未记入的累计条数，读不清零 */
 } safety_snapshot_t;
 
 /* -------------------------------------------------------------------------

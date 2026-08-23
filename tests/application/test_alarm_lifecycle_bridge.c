@@ -73,7 +73,15 @@ static unsigned journal_count(void)
 {
     uint32_t buf[ALARM_SESSION_JOURNAL_MAX];
 
-    return alarm_registry_get_session_journal(buf, ALARM_SESSION_JOURNAL_MAX);
+    return alarm_registry_get_session_journal(buf, ALARM_SESSION_JOURNAL_MAX, NULL);
+}
+
+static uint32_t journal_dropped(void)
+{
+    uint32_t dropped = 0U;
+
+    (void)alarm_registry_get_session_journal(NULL, 0U, &dropped);
+    return dropped;
 }
 
 void setUp(void)
@@ -188,6 +196,53 @@ static void test_journal_retains_cleared_alarm(void)
     TEST_ASSERT_EQUAL_UINT(1U, journal_count());
 }
 
+/* 满池丢弃可观测、读取不清零、MINOR 不增加丢弃、新会话清零 */
+static void test_journal_overflow_dropped_survives_read_until_new_session(void)
+{
+    alarm_def_t cat[ALARM_SESSION_JOURNAL_MAX + 2U];
+    unsigned    i;
+    uint32_t    extra;
+    uint32_t    minor_code = TEST_CODE_MINOR;
+
+    for (i = 0U; i < (ALARM_SESSION_JOURNAL_MAX + 1U); ++i) {
+        cat[i] = (alarm_def_t){
+            .code         = ALARM_CODE_MAKE(ALM_C_SENSE, i, ALM_N_OVERLOAD),
+            .level        = ALARM_LEVEL_MAJOR,
+            .clear        = ALARM_CLEAR_AUTO_STATIC,
+            .reeval_group = ALARM_REEVAL_GROUP_NONE,
+            .desc         = "journal fill",
+        };
+    }
+    extra                               = ALARM_CODE_MAKE(ALM_C_SENSE, ALARM_SESSION_JOURNAL_MAX, ALM_N_OVERLOAD);
+    cat[ALARM_SESSION_JOURNAL_MAX + 1U] = (alarm_def_t){
+        .code         = minor_code,
+        .level        = ALARM_LEVEL_MINOR,
+        .clear        = ALARM_CLEAR_AUTO_STATIC,
+        .reeval_group = ALARM_REEVAL_GROUP_NONE,
+        .desc         = "minor",
+    };
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_load_catalog(cat, ALARM_SESSION_JOURNAL_MAX + 2U));
+    publish_and_wait(EVT_WASH_SESSION_STARTED, 0U);
+
+    for (i = 0U; i < ALARM_SESSION_JOURNAL_MAX; ++i) {
+        TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_trigger(ALARM_CODE_MAKE(ALM_C_SENSE, i, ALM_N_OVERLOAD)));
+    }
+    TEST_ASSERT_EQUAL_UINT(ALARM_SESSION_JOURNAL_MAX, journal_count());
+    TEST_ASSERT_EQUAL_UINT32(0U, journal_dropped());
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_trigger(extra));
+    TEST_ASSERT_EQUAL_UINT32(1U, journal_dropped());
+    TEST_ASSERT_EQUAL_UINT32(1U, journal_dropped());
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_trigger(minor_code));
+    TEST_ASSERT_EQUAL_UINT32(1U, journal_dropped());
+
+    publish_and_wait(EVT_WASH_SESSION_STARTED, 0U);
+    TEST_ASSERT_EQUAL_UINT(0U, journal_count());
+    TEST_ASSERT_EQUAL_UINT32(0U, journal_dropped());
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -200,5 +255,8 @@ int main(void)
     WDF_RUN_TEST(test_critical_recorded, "", "验证严重级被记录");
     WDF_RUN_TEST(test_duplicate_trigger_recorded_once, "", "验证重复触发源被记录一次");
     WDF_RUN_TEST(test_journal_retains_cleared_alarm, "", "验证会话日志保留已清除报警");
+    WDF_RUN_TEST(test_journal_overflow_dropped_survives_read_until_new_session,
+                 "ALRM-21",
+                 "验证会话日志满池丢弃可观测且新会话清零");
     return UNITY_END();
 }

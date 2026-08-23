@@ -399,6 +399,31 @@ static void test_wash_done_with_blocking_enters_stopped(void)
     TEST_ASSERT_EQUAL_INT(OP_MODE_STOPPED, op_mode_get_current());
 }
 
+/* 洗车中 AUTO_STATIC MAJOR 已清除：journal 可能非空，但仍以当前 blocking 为准 → WASH_DONE */
+static void test_wash_done_after_cleared_auto_static_enters_wash_done(void)
+{
+    alarm_def_t cat = {
+        .code         = ALARM_CODE_MAKE(ALM_C_SENSE, 2U, ALM_N_SIG_ERR),
+        .level        = ALARM_LEVEL_MAJOR,
+        .clear        = ALARM_CLEAR_AUTO_STATIC,
+        .reeval_group = ALARM_REEVAL_GROUP_NONE,
+        .desc         = "auto major",
+    };
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_load_catalog(&cat, 1U));
+    enter_idle();
+
+    op_mode_on_wash_session_started();
+    TEST_ASSERT_EQUAL_INT(OP_MODE_WASHING, op_mode_get_current());
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_trigger(cat.code));
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_clear(cat.code));
+    TEST_ASSERT_FALSE(alarm_registry_has_blocking_active());
+
+    op_mode_on_wash_session_completed();
+    TEST_ASSERT_EQUAL_INT(OP_MODE_WASH_DONE, op_mode_get_current());
+}
+
 /* STOPPED 允许手动点动 */
 static void test_manual_actuator_allowed_in_stopped(void)
 {
@@ -576,6 +601,9 @@ int main(void)
     WDF_RUN_TEST(test_recover_denied_when_service_disabled_after_critical, "", "验证服务关闭后拒绝恢复");
     WDF_RUN_TEST(test_wash_session_lifecycle, "", "验证洗车会话生命周期");
     WDF_RUN_TEST(test_wash_done_with_blocking_enters_stopped, "", "验证洗车完成时存在阻断报警则进入停止");
+    WDF_RUN_TEST(test_wash_done_after_cleared_auto_static_enters_wash_done,
+                 "ALRM-21",
+                 "验证已清除 AUTO_STATIC 不因 journal 进入 STOPPED");
     WDF_RUN_TEST(test_manual_actuator_allowed_in_stopped, "", "验证手动执行器被允许在停止模式");
     WDF_RUN_TEST(test_manual_actuator_denied_with_estop, "", "验证急停时拒绝手动执行器");
     WDF_RUN_TEST(test_self_check_from_stopped_success_returns_stopped, "", "验证停止模式自检成功后返回停止");

@@ -19,6 +19,7 @@
 #include "runtime/scheduler/periodic_task.h"
 
 #include <sched.h>
+#include <string.h>
 
 #define TELEMETRY_PROJECTION_RECONCILE_PERIOD_MS 1000U
 
@@ -52,9 +53,12 @@ static void refresh_safety_snapshot(const event_t *evt)
     safety_snapshot_t snap;
 
     (void)evt;
+    memset(&snap, 0, sizeof(snap));
     /* 一次持锁读出四项，避免活动表与安全姿态来自不同时刻造成快照自相矛盾 */
     snap.active_alarm_count = alarm_registry_copy_safety_view(
         snap.active_list, ALARM_ACTIVE_MAX, &snap.blocking_active, &snap.top_alarm_code, &snap.posture);
+    snap.session_journal_count = alarm_registry_get_session_journal(
+        snap.session_journal, ALARM_SESSION_JOURNAL_MAX, &snap.session_journal_dropped);
     snap.cutout_unconfirmed = safety_cutout_is_unconfirmed();
     if (snap.cutout_unconfirmed) {
         snap.posture         = SAFETY_POSTURE_LOCKOUT;

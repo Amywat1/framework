@@ -79,9 +79,20 @@ void alarm_registry_on_wash_session_ended(void);
  */
 void alarm_registry_reset_all(void);
 
-bool             alarm_registry_is_active(uint32_t code);
-bool             alarm_registry_has_blocking_active(void);
-unsigned         alarm_registry_get_session_journal(uint32_t *buf, unsigned max);
+bool alarm_registry_is_active(uint32_t code);
+bool alarm_registry_has_blocking_active(void);
+/**
+ * @brief  拷贝本洗车会话的 journal 码表，并交出累计丢弃条数
+ * @param  buf         码表输出缓冲；可为 NULL（只要丢弃计数）
+ * @param  max         buf 容量；为 0 时不拷贝码表
+ * @param  dropped_out 输出本会话因满池未记入的条数；可为 NULL
+ * @return 实际写入 buf 的条数
+ *
+ * @note   丢弃计数随会话累积，读取不清零——journal 是多读者状态，
+ *         与 pending 的「取出即清」不同。新会话开始时码表与计数一并清零。
+ *         会话结束后仍可读取，直到下一会话开始。
+ */
+unsigned         alarm_registry_get_session_journal(uint32_t *buf, unsigned max, uint32_t *dropped_out);
 safety_posture_t alarm_registry_safety_posture(void);
 
 /**

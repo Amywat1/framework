@@ -4,12 +4,15 @@
  */
 
 #include "application/bridges/alarm_bridge.h"
+#include "application/bridges/alarm_binding_bridge.h"
+#include "application/ports/inbound/safety/alarm_binding_port.h"
 #include "common/event_types.h"
 #include "common/sw_error.h"
 #include "common/time_util.h"
 #include "domain/safety/alarm_registry/alarm_registry.h"
 #include "domain/safety/model/alarm_types.h"
 #include "runtime/event_bus/event_bus.h"
+#include "runtime/ports/port_registry.h"
 #include "wdf_test_spec.h"
 
 #include <pthread.h>
@@ -37,7 +40,14 @@ static const alarm_def_t s_catalog[] = {
      .level        = ALARM_LEVEL_CRITICAL,
      .clear        = ALARM_CLEAR_AUTO_STATIC,
      .reeval_group = ALARM_REEVAL_GROUP_NONE,
-     .desc         = "test critical",
+        .desc         = "test critical",
+     },
+    {
+     .code         = 201809U,
+     .level        = ALARM_LEVEL_CRITICAL,
+     .clear        = ALARM_CLEAR_AUTO_STATIC,
+     .reeval_group = ALARM_REEVAL_GROUP_NONE,
+     .desc         = "test critical 2",
      },
     {
      /* MINOR + AUTO_STATIC：trigger/clear 成对产生两条域事件，却不影响
@@ -277,6 +287,92 @@ static void test_concurrent_drain_single_lockout_edge(void)
     TEST_ASSERT_EQUAL_INT(0, g_nominal_count);
 }
 
+static const alarm_binding_ops_t *bind_ops(void)
+{
+    const alarm_binding_ops_t *ops;
+
+    port_registry_infra_reset();
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_binding_bridge_bind());
+    ops = alarm_binding_get_ops();
+    TEST_ASSERT_NOT_NULL(ops);
+    TEST_ASSERT_NOT_NULL(ops->trigger);
+    TEST_ASSERT_NOT_NULL(ops->load_catalog);
+    return ops;
+}
+
+static void test_binding_trigger_lockout_publishes_before_return(void)
+{
+    const alarm_binding_ops_t *ops;
+
+    g_lockout_count = 0;
+    g_trigger_count = 0;
+
+    time_util_init();
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_init());
+    ops = bind_ops();
+    TEST_ASSERT_EQUAL_INT(SW_OK, ops->load_catalog(s_catalog, (unsigned)CATALOG_COUNT));
+    alarm_bridge_reset_for_test();
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_subscribe(EVT_ALARM_TRIGGERED, on_triggered));
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_subscribe(EVT_SAFETY_LOCKOUT, on_lockout));
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, ops->trigger(201709U));
+    TEST_ASSERT_EQUAL_INT(SAFETY_POSTURE_LOCKOUT, alarm_registry_safety_posture());
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_drain());
+
+    TEST_ASSERT_EQUAL_INT(1, g_trigger_count);
+    TEST_ASSERT_EQUAL_INT(1, g_lockout_count);
+}
+
+static void test_binding_trigger_minor_does_not_immediate_drain(void)
+{
+    const alarm_binding_ops_t *ops;
+
+    g_trigger_count = 0;
+
+    time_util_init();
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_init());
+    ops = bind_ops();
+    TEST_ASSERT_EQUAL_INT(SW_OK, ops->load_catalog(s_catalog, (unsigned)CATALOG_COUNT));
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_subscribe(EVT_ALARM_TRIGGERED, on_triggered));
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, ops->trigger(901001U));
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_drain());
+    TEST_ASSERT_EQUAL_INT(0, g_trigger_count);
+    TEST_ASSERT_EQUAL_INT(SAFETY_POSTURE_NOMINAL, alarm_registry_safety_posture());
+
+    alarm_bridge_drain();
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_drain());
+    TEST_ASSERT_EQUAL_INT(1, g_trigger_count);
+}
+
+static void test_binding_second_critical_does_not_repeat_lockout(void)
+{
+    const alarm_binding_ops_t *ops;
+
+    g_lockout_count = 0;
+    g_trigger_count = 0;
+
+    time_util_init();
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_init());
+    ops = bind_ops();
+    TEST_ASSERT_EQUAL_INT(SW_OK, ops->load_catalog(s_catalog, (unsigned)CATALOG_COUNT));
+    alarm_bridge_reset_for_test();
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_subscribe(EVT_ALARM_TRIGGERED, on_triggered));
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_subscribe(EVT_SAFETY_LOCKOUT, on_lockout));
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, ops->trigger(201709U));
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_drain());
+    TEST_ASSERT_EQUAL_INT(1, g_lockout_count);
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, ops->trigger(201809U));
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_drain());
+    TEST_ASSERT_EQUAL_INT(2, g_trigger_count);
+    TEST_ASSERT_EQUAL_INT(1, g_lockout_count);
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -289,6 +385,11 @@ int main(void)
     WDF_RUN_TEST(test_drain_without_overflow_publishes_no_resync, "ALRM-13", "验证未溢出时不发布重同步事件");
     WDF_RUN_TEST(test_concurrent_drain_critical_section_does_not_overlap, "ALRM-19", "验证并发 drain 临界区不重叠");
     WDF_RUN_TEST(test_concurrent_drain_single_lockout_edge, "ALRM-19", "验证并发 drain 一次 CRITICAL 只发一条 LOCKOUT");
+    WDF_RUN_TEST(test_binding_trigger_lockout_publishes_before_return,
+                 "ALRM-22",
+                 "验证 binding trigger CRITICAL 返回前已入队 LOCKOUT");
+    WDF_RUN_TEST(test_binding_trigger_minor_does_not_immediate_drain, "ALRM-22", "验证 MINOR 不立即 drain");
+    WDF_RUN_TEST(test_binding_second_critical_does_not_repeat_lockout, "ALRM-22", "验证第二条 CRITICAL 不重复 LOCKOUT");
 
     return UNITY_END();
 }

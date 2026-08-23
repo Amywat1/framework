@@ -29,6 +29,20 @@ static const alarm_def_t s_catalog[] = {
      .reeval_group = ALARM_REEVAL_GROUP_NONE,
      .desc         = "blocking alarm",
      },
+    {
+     .code         = 201201U,
+     .level        = ALARM_LEVEL_MAJOR,
+     .clear        = ALARM_CLEAR_MANUAL_RESET,
+     .reeval_group = ALARM_REEVAL_GROUP_NONE,
+     .desc         = "blocking alarm 2",
+     },
+    {
+     .code         = 201301U,
+     .level        = ALARM_LEVEL_MAJOR,
+     .clear        = ALARM_CLEAR_AUTO_STATIC,
+     .reeval_group = ALARM_REEVAL_GROUP_NONE,
+     .desc         = "auto static major",
+     },
 };
 
 static sw_err_t failed_cutout(void)
@@ -239,6 +253,77 @@ static void test_cutout_unconfirmed_forces_lockout_projection(void)
     TEST_ASSERT_TRUE(snap.cutout_unconfirmed);
 }
 
+static void test_safety_projection_copies_session_journal(void)
+{
+    safety_snapshot_t snap;
+
+    time_util_init();
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_load_catalog(s_catalog, 3U));
+    alarm_registry_on_wash_session_started();
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_trigger(201101U));
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_trigger(201201U));
+    telemetry_projection_sync_all();
+
+    snap = device_snapshot_get().safety;
+    TEST_ASSERT_EQUAL_UINT(2U, snap.session_journal_count);
+    TEST_ASSERT_EQUAL_UINT(201101U, snap.session_journal[0]);
+    TEST_ASSERT_EQUAL_UINT(201201U, snap.session_journal[1]);
+    TEST_ASSERT_EQUAL_UINT32(0U, snap.session_journal_dropped);
+}
+
+static void test_safety_projection_journal_dropped_visible(void)
+{
+    alarm_def_t       cat[ALARM_SESSION_JOURNAL_MAX + 1U];
+    safety_snapshot_t snap;
+    unsigned          i;
+
+    for (i = 0U; i < (ALARM_SESSION_JOURNAL_MAX + 1U); ++i) {
+        cat[i] = (alarm_def_t){
+            .code         = ALARM_CODE_MAKE(ALM_C_SENSE, i, ALM_N_OVERLOAD),
+            .level        = ALARM_LEVEL_MAJOR,
+            .clear        = ALARM_CLEAR_AUTO_STATIC,
+            .reeval_group = ALARM_REEVAL_GROUP_NONE,
+            .desc         = "fill",
+        };
+    }
+
+    time_util_init();
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_load_catalog(cat, ALARM_SESSION_JOURNAL_MAX + 1U));
+    alarm_registry_on_wash_session_started();
+    for (i = 0U; i < (ALARM_SESSION_JOURNAL_MAX + 1U); ++i) {
+        TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_trigger(ALARM_CODE_MAKE(ALM_C_SENSE, i, ALM_N_OVERLOAD)));
+    }
+    telemetry_projection_sync_all();
+
+    snap = device_snapshot_get().safety;
+    TEST_ASSERT_EQUAL_UINT(ALARM_SESSION_JOURNAL_MAX, snap.session_journal_count);
+    TEST_ASSERT_TRUE(snap.session_journal_dropped >= 1U);
+}
+
+static void test_cleared_auto_static_keeps_journal_without_blocking(void)
+{
+    safety_snapshot_t snap;
+
+    time_util_init();
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_load_catalog(s_catalog, 3U));
+    alarm_registry_on_wash_session_started();
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_trigger(201301U));
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_clear(201301U));
+    telemetry_projection_sync_all();
+
+    snap = device_snapshot_get().safety;
+    TEST_ASSERT_FALSE(snap.blocking_active);
+    TEST_ASSERT_FALSE(alarm_registry_has_blocking_active());
+    TEST_ASSERT_EQUAL_UINT(1U, snap.session_journal_count);
+    TEST_ASSERT_EQUAL_UINT(201301U, snap.session_journal[0]);
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -250,6 +335,11 @@ int main(void)
     WDF_RUN_TEST(test_safety_projection_refreshes_alarm_snapshot, "", "验证安全投影刷新报警快照");
     WDF_RUN_TEST(test_explicit_rebuild_repairs_dropped_projection_event, "", "验证事件丢失后显式重建修复投影");
     WDF_RUN_TEST(test_cutout_unconfirmed_forces_lockout_projection, "SAFE-11", "验证切断未确认强制安全投影锁定");
+    WDF_RUN_TEST(test_safety_projection_copies_session_journal, "ALRM-21", "验证安全快照包含会话 journal");
+    WDF_RUN_TEST(test_safety_projection_journal_dropped_visible, "ALRM-21", "验证快照可见 journal 丢弃计数");
+    WDF_RUN_TEST(test_cleared_auto_static_keeps_journal_without_blocking,
+                 "ALRM-21",
+                 "验证已清除 AUTO_STATIC 仍在 journal 且不阻塞");
 
     return UNITY_END();
 }

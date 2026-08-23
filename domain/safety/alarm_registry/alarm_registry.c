@@ -13,6 +13,7 @@
 
 #include <pthread.h>
 #include <stdbool.h>
+#include <stdint.h>
 #include <string.h>
 
 static alarm_def_t          s_catalog[ALARM_CATALOG_MAX];
@@ -21,6 +22,7 @@ static alarm_instance_t     s_active[ALARM_ACTIVE_MAX];
 static unsigned             s_active_count;
 static uint32_t             s_session_journal[ALARM_SESSION_JOURNAL_MAX];
 static unsigned             s_session_journal_count;
+static uint32_t             s_session_journal_dropped;
 static bool                 s_session_active;
 static alarm_domain_event_t s_pending[ALARM_PENDING_EVENT_MAX];
 static unsigned             s_pending_count;
@@ -105,10 +107,51 @@ static bool append_session_journal_locked(uint32_t code)
         }
     }
     if (s_session_journal_count >= ALARM_SESSION_JOURNAL_MAX) {
+        if (s_session_journal_dropped == 0U) {
+            LOG_WARN("alarm_registry: session journal full, dropping codes");
+        }
+        if (s_session_journal_dropped < UINT32_MAX) {
+            s_session_journal_dropped++;
+        }
         return false;
     }
     s_session_journal[s_session_journal_count++] = code;
     return true;
+}
+
+/**
+ * @brief  为 lockout 新条目挑选可驱逐的非 lockout 下标
+ * @return 活动表下标；无可驱逐条目时为 -1
+ * @note   调用方必须已持锁。先取不阻塞开洗（MINOR）中 triggered_at_ms 最早者，
+ *         再取其余非 lockout（MAJOR）。时间戳相同则保留先扫到的（插入更早）。
+ */
+static int find_lockout_eviction_index_locked(void)
+{
+    int      minor_idx = -1;
+    int      major_idx = -1;
+    uint64_t minor_at  = UINT64_MAX;
+    uint64_t major_at  = UINT64_MAX;
+    unsigned i;
+
+    for (i = 0U; i < s_active_count; ++i) {
+        alarm_level_t level = s_active[i].level;
+        uint64_t      at    = s_active[i].triggered_at_ms;
+
+        if (alarm_level_forces_lockout(level)) {
+            continue;
+        }
+        if (!alarm_level_blocks_wash(level)) {
+            if ((minor_idx < 0) || (at < minor_at)) {
+                minor_idx = (int)i;
+                minor_at  = at;
+            }
+        } else if ((major_idx < 0) || (at < major_at)) {
+            major_idx = (int)i;
+            major_at  = at;
+        }
+    }
+
+    return (minor_idx >= 0) ? minor_idx : major_idx;
 }
 
 static void append_active_slot_locked(const alarm_def_t *def)
@@ -134,8 +177,26 @@ static void append_active_slot_locked(const alarm_def_t *def)
 static sw_err_t insert_active_locked(const alarm_def_t *def)
 {
     if (s_active_count >= ALARM_ACTIVE_MAX) {
-        LOG_ERROR("alarm_registry: active pool full, reject %06u level=%d", (unsigned)def->code, (int)def->level);
-        return SW_ERR_OVERFLOW;
+        if (alarm_level_forces_lockout(def->level)) {
+            int victim = find_lockout_eviction_index_locked();
+
+            if (victim >= 0) {
+                uint32_t victim_code = s_active[(unsigned)victim].code;
+
+                LOG_ERROR("alarm_registry: evict %06u to admit lockout %06u",
+                          (unsigned)victim_code,
+                          (unsigned)def->code);
+                clear_active_at_locked((unsigned)victim);
+            } else {
+                LOG_ERROR("alarm_registry: active pool full of lockout, reject %06u", (unsigned)def->code);
+                return SW_ERR_OVERFLOW;
+            }
+        } else {
+            LOG_ERROR("alarm_registry: active pool full, reject %06u level=%d",
+                      (unsigned)def->code,
+                      (int)def->level);
+            return SW_ERR_OVERFLOW;
+        }
     }
 
     append_active_slot_locked(def);
@@ -225,8 +286,9 @@ sw_err_t alarm_registry_reevaluate_group(motion_reeval_group_id_t group)
 void alarm_registry_on_wash_session_started(void)
 {
     pthread_mutex_lock(&s_mutex);
-    s_session_active        = true;
-    s_session_journal_count = 0U;
+    s_session_active          = true;
+    s_session_journal_count   = 0U;
+    s_session_journal_dropped = 0U;
     pthread_mutex_unlock(&s_mutex);
 }
 
@@ -263,20 +325,21 @@ bool alarm_registry_is_active(uint32_t code)
     return active;
 }
 
-unsigned alarm_registry_get_session_journal(uint32_t *buf, unsigned max)
+unsigned alarm_registry_get_session_journal(uint32_t *buf, unsigned max, uint32_t *dropped_out)
 {
     unsigned copied = 0U;
 
-    if ((buf == NULL) || (max == 0U)) {
-        return 0U;
-    }
-
     pthread_mutex_lock(&s_mutex);
-    copied = s_session_journal_count;
-    if (copied > max) {
-        copied = max;
+    if (dropped_out != NULL) {
+        *dropped_out = s_session_journal_dropped;
     }
-    memcpy(buf, s_session_journal, copied * sizeof(buf[0]));
+    if ((buf != NULL) && (max > 0U)) {
+        copied = s_session_journal_count;
+        if (copied > max) {
+            copied = max;
+        }
+        memcpy(buf, s_session_journal, copied * sizeof(buf[0]));
+    }
     pthread_mutex_unlock(&s_mutex);
     return copied;
 }
@@ -466,8 +529,9 @@ static void reset_runtime_state_locked(void)
     memset(s_active, 0, sizeof(s_active));
     s_active_count = 0U;
     memset(s_session_journal, 0, sizeof(s_session_journal));
-    s_session_journal_count = 0U;
-    s_session_active        = false;
+    s_session_journal_count   = 0U;
+    s_session_journal_dropped = 0U;
+    s_session_active          = false;
     memset(s_pending, 0, sizeof(s_pending));
     s_pending_count   = 0U;
     s_pending_dropped = 0U;
