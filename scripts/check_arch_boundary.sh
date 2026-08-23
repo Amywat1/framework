@@ -1103,12 +1103,8 @@ TIMEOUT_HAL_FILES=(
     "adapters/outbound/hal/providers/snack/io_exp/io_exp_driver.c"
 )
 
-# WATCHDOG: 由看门狗/缺拍检测保护
-WATCHDOG_HAL_FILES=(
-    "adapters/outbound/hal/components/motor_exec/hal_motor_executor.c"
-    "adapters/outbound/hal/components/motor_exec/hal_motor_executor_cmd.c"
-    "adapters/outbound/hal/components/motor_exec/hal_motor_executor_tick.c"
-)
+# 电机缺拍看门狗在 domain/mechanism/motor（R16 已登记持锁文件），不在 HAL。
+# 不设空的 WATCHDOG 分类：登记项必须是真实存在的 adapters/outbound/hal/*.c。
 
 # NONBLOCKING: 仿真/纯内存操作/组合逻辑，不等硬件应答
 NONBLOCKING_HAL_FILES=(
@@ -1119,7 +1115,6 @@ NONBLOCKING_HAL_FILES=(
     "adapters/outbound/hal/components/adc_gate/hal_adc_gate.c"
     "adapters/outbound/hal/components/sensor_filter/hal_sensor_filter.c"
     "adapters/outbound/hal/components/vfd_manager/hal_vfd_manager.c"
-    "adapters/outbound/hal/components/motor_exec/hal_motor_executor_port.c"
 )
 
 # VENDOR_TIMEOUT: 依赖 vendor SDK 内置超时机制（已在 R20 登记阻塞时长）
@@ -1143,11 +1138,6 @@ while IFS= read -r hal_file; do
         [ "${e}" = "${rel}" ] && { found=1; break; }
     done
     if [ "${found}" -eq 0 ]; then
-        for e in "${WATCHDOG_HAL_FILES[@]}"; do
-            [ "${e}" = "${rel}" ] && { found=1; break; }
-        done
-    fi
-    if [ "${found}" -eq 0 ]; then
         for e in "${NONBLOCKING_HAL_FILES[@]}"; do
             [ "${e}" = "${rel}" ] && { found=1; break; }
         done
@@ -1163,17 +1153,17 @@ while IFS= read -r hal_file; do
     fi
 done < <(find "${FW_ROOT}/adapters/outbound/hal" -name '*.c' 2>/dev/null | sort)
 
+# 附加验证: 登记项必须真实存在（避免迁走后分类表仍绿）
+for listed in "${TIMEOUT_HAL_FILES[@]}" "${NONBLOCKING_HAL_FILES[@]}" "${VENDOR_TIMEOUT_HAL_FILES[@]}"; do
+    if [ ! -f "${FW_ROOT}/${listed}" ]; then
+        hal_timeout_violations+="  ${listed}: 已登记但文件不存在"$'\n'
+    fi
+done
+
 # 附加验证: TIMEOUT 文件须含 SW_ERR_TIMEOUT
 for tf in "${TIMEOUT_HAL_FILES[@]}"; do
     if [ -f "${FW_ROOT}/${tf}" ] && ! grep -q "SW_ERR_TIMEOUT" "${FW_ROOT}/${tf}" 2>/dev/null; then
         hal_timeout_violations+="  ${tf}: 声称超时保护但未见 SW_ERR_TIMEOUT"$'\n'
-    fi
-done
-
-# 附加验证: WATCHDOG 文件须含 watchdog/WATCHDOG
-for wf in "${WATCHDOG_HAL_FILES[@]}"; do
-    if [ -f "${FW_ROOT}/${wf}" ] && ! grep -qiE "watchdog" "${FW_ROOT}/${wf}" 2>/dev/null; then
-        hal_timeout_violations+="  ${wf}: 声称看门狗保护但未见 watchdog"$'\n'
     fi
 done
 
@@ -1185,10 +1175,10 @@ else
     echo ""
     echo "[FAIL] R23: 以下 HAL 实现文件未登记超时保护分类"
     printf '%s' "${hal_timeout_violations}"
-    echo "  修正: 在 check_arch_boundary.sh 的 TIMEOUT_HAL_FILES / WATCHDOG_HAL_FILES /"
+    echo "  修正: 在 check_arch_boundary.sh 的 TIMEOUT_HAL_FILES /"
     echo "        NONBLOCKING_HAL_FILES / VENDOR_TIMEOUT_HAL_FILES 中登记。"
     echo "        判据: 该 HAL 实现是否等待硬件应答；若是，其最坏等待时长如何受限。"
-    echo "        声称 TIMEOUT 的文件须含 SW_ERR_TIMEOUT；声称 WATCHDOG 须含看门狗逻辑。"
+    echo "        声称 TIMEOUT 的文件须含 SW_ERR_TIMEOUT。"
     TOTAL_VIOLATIONS=$((TOTAL_VIOLATIONS + 1))
 fi
 

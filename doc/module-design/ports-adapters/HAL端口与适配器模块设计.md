@@ -136,7 +136,7 @@ adapters/outbound/hal
 
 ### 3.5 电机执行器不在 HAL 寄存器端口里
 
-电机命令/查询契约在 `domain/ports/outbound/motor/`，默认状态机在 `domain/mechanism/motor/`。
+电机命令/查询契约在 `domain/ports/outbound/motor/`，状态机在 `domain/mechanism/motor/`。
 它不是 `hal_*_get_ops()` 单例，详见 `doc/module-design/domain/机构控制模式模块设计.md`。
 
 ---
@@ -346,7 +346,6 @@ bootstrap_start()
 | `hal_sensor_filter`   | 通过 `periodic_task` 周期推进                        |
 | `hal_vfd_manager`     | 通过 `periodic_task` 周期监测 fault/current 和 RST 脉冲 |
 | `io_exp_driver`       | provider 内部自建 IO 后台线程                          |
-| `motor_exec_port` | 由底层电机执行器管理异步运动状态                               |
 
 
 安全约束：

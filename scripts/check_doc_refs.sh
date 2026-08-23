@@ -30,9 +30,8 @@
 # （见 doc/contract/行为契约.md 第 5 节）。因此判据不是"文档写得对不对"——那不可自动判定——
 # 而是"文档指到的东西还在不在"，这一条可判定，且恰好覆盖绝大多数实际失真。
 #
-# 扫描全仓 Markdown 而非只扫 doc/：把范围限在 doc/ 时，根 CLAUDE.md 与
-# tests/reports/*.md 都在盲区，而扩大范围后当即在后者查出两处失效路径、一处
-# 断链和三处失真的用例数。判据与文件位置无关，限定目录只是漏检。
+# 扫描 git 跟踪的 Markdown 而非只扫 doc/：把范围限在 doc/ 时，根 CLAUDE.md 与
+# tests/reports/*.md 都在盲区。`.cursor/` 与 `.claude/` 是工具命令稿，不纳入。
 #
 # 白名单的存在是必要的而非妥协：变更记录必须能引用已删除的符号与旧路径，否则
 # "为什么删掉它"就无处可写。故白名单逐项登记并附理由，新增一项即是一次显式决定。
@@ -52,16 +51,23 @@ TOTAL_VIOLATIONS=0
 TOTAL_RULES=0
 
 # -----------------------------------------------------------------------------
-# 扫描范围：全仓被 git 跟踪的 Markdown，不限于 doc/
+# 扫描范围：git 跟踪的 Markdown，不限于 doc/；排除编辑器/Agent 命令稿
 #
 # 原先只扫 doc/，于是根 CLAUDE.md 与 tests/reports/*.md 都在盲区里——而后者正是
 # 本仓最早那起文档失真的现场（event_bus.md 长期声称 8/8 通过，实际 13 例）。
 # 判据本身与文件位置无关，限定目录只是漏检。
+#
+# `.cursor/`、`.claude/` 是工具命令稿，会写 specs.md 这类占位链接，不是框架文档。
 # -----------------------------------------------------------------------------
-mapfile -t DOC_FILES < <(git -c core.quotepath=false ls-files '*.md' 2>/dev/null | sort)
+mapfile -t DOC_FILES < <(git -c core.quotepath=false ls-files '*.md' 2>/dev/null \
+    | grep -Ev '^(\.cursor|\.claude)/' | sort)
 if [ ${#DOC_FILES[@]} -eq 0 ]; then
-    mapfile -t DOC_FILES < <(find . -name '*.md' -not -path './third_party/*' \
-        -not -path './build*' | sed 's|^\./||' | sort)
+    mapfile -t DOC_FILES < <(find . -name '*.md' \
+        -not -path './third_party/*' \
+        -not -path './build*' \
+        -not -path './.cursor/*' \
+        -not -path './.claude/*' \
+        | sed 's|^\./||' | sort)
 fi
 
 # 框架顶层目录：路径引用须以其中之一开头才纳入检查
@@ -225,10 +231,6 @@ while IFS= read -r line; do
     case "${target}" in
         http*) continue ;;
         *'<'*'>'*) continue ;;
-    esac
-
-    case "${doc_file}" in
-        .claude/*) continue ;;
     esac
 
     [ -e "${doc_dir}/${target}" ] && continue
