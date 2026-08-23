@@ -98,7 +98,7 @@ typedef uint16_t event_type_t;
 #define EVT_ALARM_CLEARED   EVT_MAKE(EVT_CAT_ALARM, EVT_ALARM_ID_CLEARED)
 /* 逐码事件有丢失，凡按 EVT_ALARM_* 边沿维护派生状态的订阅者都必须重新读一次
  * registry 全量状态。param 只用于诊断，不承载哪一条被丢的信息。 */
-#define EVT_ALARM_RESYNC EVT_MAKE(EVT_CAT_ALARM, EVT_ALARM_ID_RESYNC)
+#define EVT_ALARM_RESYNC    EVT_MAKE(EVT_CAT_ALARM, EVT_ALARM_ID_RESYNC)
 
 /* -------------------------------------------------------------------------
  * CMD 类（ORDER 仅测试用；生产命令经 device_command_port.submit_async/sync）

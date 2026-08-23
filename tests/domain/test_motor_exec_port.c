@@ -3,10 +3,10 @@
  * @brief   电机执行器出站端口（motor_exec_*）单元测试。
  */
 
+#include "common/sw_error.h"
 #include "domain/mechanism/motor/motor_executor.h"
 #include "domain/ports/outbound/motor/motor_exec_port.h"
 #include "domain/ports/outbound/safety/safety_output_hold.h"
-#include "common/sw_error.h"
 #include "wdf_test_spec.h"
 
 #include <stdbool.h>
@@ -20,24 +20,24 @@ typedef struct {
     int                    current;
     int                    poll_count;
     int                    poll_motor;
-    motor_speed_t      last_speed;
+    motor_speed_t          last_speed;
     motor_prepare_result_t poll_result;
     bool                   running;
     int                    request_stop_count;
     sw_err_t               request_stop_rc;
 } port_fixture_t;
 
-static port_fixture_t    s_fx;
-static motor_exec_t *s_exec;
-static motor_driver_t    s_driver;
-static motor_encoder_t   s_encoder;
-static motor_sensors_t   s_sensors;
-static motor_clock_t     s_clock;
-static motor_driver_t   *s_drivers[2];
-static motor_encoder_t  *s_encoders[2];
-static motor_config_t    s_cfg;
-static motor_ports_t     s_ports;
-static bool              s_hold_di;
+static port_fixture_t   s_fx;
+static motor_exec_t    *s_exec;
+static motor_driver_t   s_driver;
+static motor_encoder_t  s_encoder;
+static motor_sensors_t  s_sensors;
+static motor_clock_t    s_clock;
+static motor_driver_t  *s_drivers[2];
+static motor_encoder_t *s_encoders[2];
+static motor_config_t   s_cfg;
+static motor_ports_t    s_ports;
+static bool             s_hold_di;
 
 static bool hold_di_active(void)
 {
@@ -121,8 +121,8 @@ static void init_executor(void)
     motor_init_result_t ir;
 
     memset(&s_fx, 0, sizeof(s_fx));
-    s_fx.running          = true;
-    s_fx.request_stop_rc  = SW_OK;
+    s_fx.running         = true;
+    s_fx.request_stop_rc = SW_OK;
     memset(&s_cfg, 0, sizeof(s_cfg));
     memset(&s_driver, 0, sizeof(s_driver));
     memset(&s_encoder, 0, sizeof(s_encoder));
@@ -218,8 +218,8 @@ static void test_run_continuous_and_phase_via_port(void)
 
 static void test_slot_binding_is_fixed_and_reinit_keeps_handle(void)
 {
-    motor_exec_t   *duplicate = s_exec;
-    motor_exec_t   *original  = s_exec;
+    motor_exec_t       *duplicate = s_exec;
+    motor_exec_t       *original  = s_exec;
     motor_init_result_t result;
 
     result = motor_executor_bind(0U, &s_cfg, &s_ports, &duplicate);
@@ -537,13 +537,11 @@ static void test_event_queue_prefers_drop_same_motor(void)
     spec.max_time_ms = 1000;
 
     for (i = 0; i < MOTOR_EVENT_SLOT_CAP; ++i) {
-        TEST_ASSERT_TRUE(
-            motor_cmd_ok(motor_exec_run(hal, 1, motor_speed_gear(1), MOTOR_DIR_FORWARD, &spec)));
+        TEST_ASSERT_TRUE(motor_cmd_ok(motor_exec_run(hal, 1, motor_speed_gear(1), MOTOR_DIR_FORWARD, &spec)));
         motor_executor_tick(s_exec);
     }
     for (i = 0; i < MOTOR_EVENT_SLOT_CAP; ++i) {
-        TEST_ASSERT_TRUE(
-            motor_cmd_ok(motor_exec_run(hal, 0, motor_speed_gear(1), MOTOR_DIR_FORWARD, &spec)));
+        TEST_ASSERT_TRUE(motor_cmd_ok(motor_exec_run(hal, 0, motor_speed_gear(1), MOTOR_DIR_FORWARD, &spec)));
         motor_executor_tick(s_exec);
     }
 
@@ -562,7 +560,6 @@ static void test_event_queue_prefers_drop_same_motor(void)
     TEST_ASSERT_EQUAL_INT(MOTOR_EVENT_SLOT_CAP, motor1_left);
     TEST_ASSERT_EQUAL_INT(MOTOR_EVENT_SLOT_CAP, motor0_left);
 }
-
 
 static void tick_ms(uint64_t now_ms)
 {
@@ -585,9 +582,9 @@ static void bind_with_request_stop(int stop_timeout_ms)
     s_driver.request_stop           = driver_request_stop;
     s_cfg.motors[0].stop_timeout_ms = stop_timeout_ms;
     rebind_executor();
-    s_fx.running             = true;
-    s_fx.request_stop_rc     = SW_OK;
-    s_fx.request_stop_count  = 0;
+    s_fx.running            = true;
+    s_fx.request_stop_rc    = SW_OK;
+    s_fx.request_stop_count = 0;
 }
 
 static void test_request_stop_waits_until_driver_idle(void)

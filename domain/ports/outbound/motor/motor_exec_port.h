@@ -59,7 +59,7 @@ typedef enum {
     MOTOR_PHASE_WAITING_START, /**< 等待启动（冷却/预备/互锁排队） */
     MOTOR_PHASE_REVERSAL_WAIT, /**< 换向等待 */
     MOTOR_PHASE_RUNNING,       /**< 运行中 */
-    MOTOR_PHASE_STOPPING,     /**< 受控停止中（等功率级停下或超时后切断） */
+    MOTOR_PHASE_STOPPING,      /**< 受控停止中（等功率级停下或超时后切断） */
     MOTOR_PHASE_FAULT,         /**< 故障 */
     MOTOR_PHASE_ESTOP          /**< 急停 */
 } motor_exec_phase_t;
@@ -108,14 +108,14 @@ typedef enum {
 
 /** @brief 运动结束事件载荷，供上层记录状态变化原因。 */
 typedef struct {
-    int                       motor;      /**< 电机号 */
-    motor_event_type_t    type;       /**< 事件类型 */
-    motor_end_condition_t trigger;    /**< 触发条件 */
-    bool                      has_limit;  /**< limit 是否有效（仅限位终止时为真） */
-    motor_limit_kind_t    limit;      /**< 触发的限位种类 */
-    int64_t                   final_pos;  /**< 结束时位置（脉冲） */
-    uint64_t                  elapsed_ms; /**< 本次运动耗时（ms） */
-    motor_exec_fault_code_t    fault;      /**< 故障码；无故障为 MOTOR_FAULT_NONE */
+    int                     motor;      /**< 电机号 */
+    motor_event_type_t      type;       /**< 事件类型 */
+    motor_end_condition_t   trigger;    /**< 触发条件 */
+    bool                    has_limit;  /**< limit 是否有效（仅限位终止时为真） */
+    motor_limit_kind_t      limit;      /**< 触发的限位种类 */
+    int64_t                 final_pos;  /**< 结束时位置（脉冲） */
+    uint64_t                elapsed_ms; /**< 本次运动耗时（ms） */
+    motor_exec_fault_code_t fault;      /**< 故障码；无故障为 MOTOR_FAULT_NONE */
 } motor_event_t;
 
 /** @brief 速度指定方式。 */
@@ -127,7 +127,7 @@ typedef enum {
 /** @brief 速度指定。 */
 typedef struct {
     motor_speed_kind_t kind;
-    int                    value; /**< Freq: 厘赫；Gear: 1..N（0=停止） */
+    int                value; /**< Freq: 厘赫；Gear: 1..N（0=停止） */
 } motor_speed_t;
 
 /** @brief 构造频率速度。 */
@@ -185,30 +185,30 @@ typedef enum {
 /** @brief 命令拒绝原因（仅 status=REJECTED 时有效）。 */
 typedef enum {
     MOTOR_REJECT_NONE = 0,
-    MOTOR_REJECT_BAD_MOTOR,     /**< 电机号非法 */
-    MOTOR_REJECT_BAD_SPEED,     /**< 速度非法 */
-    MOTOR_REJECT_BAD_DIR,       /**< 方向非法 */
-    MOTOR_REJECT_SAFETY,        /**< 急停或看门狗锁定 */
-    MOTOR_REJECT_FAULT,         /**< 故障相位，须先恢复 */
-    MOTOR_REJECT_INTERLOCK,     /**< 互锁不满足 */
-    MOTOR_REJECT_NO_ENCODER,    /**< 需要编码器但未配置 */
-    MOTOR_REJECT_BASELINE,      /**< 位置基准不可信 */
-    MOTOR_REJECT_ENCODER,       /**< 编码器不健康 */
-    MOTOR_REJECT_BAD_PHASE,     /**< 当前相位不允许 */
-    MOTOR_REJECT_NOT_FAULT,     /**< 恢复要求处于故障相 */
-    MOTOR_REJECT_FATAL,         /**< 致命故障须 reinit */
-    MOTOR_REJECT_MUST_RESET,    /**< 恢复须先驱动器复位 */
-    MOTOR_REJECT_DRIVER,        /**< 驱动器动作失败 */
-    MOTOR_REJECT_ABSOLUTE,      /**< 绝对编码器不支持该操作 */
-    MOTOR_REJECT_ACTIVE,        /**< 运动中禁止该操作 */
-    MOTOR_REJECT_UNAVAILABLE    /**< 执行器句柄不可用 */
+    MOTOR_REJECT_BAD_MOTOR,  /**< 电机号非法 */
+    MOTOR_REJECT_BAD_SPEED,  /**< 速度非法 */
+    MOTOR_REJECT_BAD_DIR,    /**< 方向非法 */
+    MOTOR_REJECT_SAFETY,     /**< 急停或看门狗锁定 */
+    MOTOR_REJECT_FAULT,      /**< 故障相位，须先恢复 */
+    MOTOR_REJECT_INTERLOCK,  /**< 互锁不满足 */
+    MOTOR_REJECT_NO_ENCODER, /**< 需要编码器但未配置 */
+    MOTOR_REJECT_BASELINE,   /**< 位置基准不可信 */
+    MOTOR_REJECT_ENCODER,    /**< 编码器不健康 */
+    MOTOR_REJECT_BAD_PHASE,  /**< 当前相位不允许 */
+    MOTOR_REJECT_NOT_FAULT,  /**< 恢复要求处于故障相 */
+    MOTOR_REJECT_FATAL,      /**< 致命故障须 reinit */
+    MOTOR_REJECT_MUST_RESET, /**< 恢复须先驱动器复位 */
+    MOTOR_REJECT_DRIVER,     /**< 驱动器动作失败 */
+    MOTOR_REJECT_ABSOLUTE,   /**< 绝对编码器不支持该操作 */
+    MOTOR_REJECT_ACTIVE,     /**< 运动中禁止该操作 */
+    MOTOR_REJECT_UNAVAILABLE /**< 执行器句柄不可用 */
 } motor_cmd_reject_t;
 
 /** @brief 命令结果。 */
 typedef struct {
     motor_cmd_status_t status;
     motor_cmd_reject_t reject; /**< 拒绝码；非拒绝时为 NONE */
-    const char            *reason; /**< 说明（静态字符串，可用于日志） */
+    const char        *reason; /**< 说明（静态字符串，可用于日志） */
 } motor_cmd_result_t;
 
 /** @brief 判定命令是否非拒绝。 */
@@ -223,10 +223,10 @@ static inline bool motor_cmd_ok(motor_cmd_result_t r)
  * @note   终止事件按电机分槽；满时只丢该电机最旧事件。
  */
 motor_cmd_result_t motor_exec_run(motor_exec_t            *exec,
-                                     int                          motor,
-                                     motor_speed_t            spd,
-                                     motor_dir_t              dir,
-                                     const motor_move_spec_t *spec);
+                                  int                      motor,
+                                  motor_speed_t            spd,
+                                  motor_dir_t              dir,
+                                  const motor_move_spec_t *spec);
 
 /** @brief 减速停止（异步）。 */
 motor_cmd_result_t motor_exec_stop(motor_exec_t *exec, int motor);

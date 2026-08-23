@@ -6,8 +6,8 @@
 #include "adapters/inbound/safety/estop_poll_thread.h"
 #include "adapters/outbound/storage/json/json_deploy_store.h"
 #include "adapters/outbound/storage/json/json_param_store.h"
-#include "runtime/ports/port_contract.h"
 #include "runtime/bootstrap/project_hooks.h"
+#include "runtime/ports/port_contract.h"
 
 extern sw_err_t demo_device_ops_register(void);
 extern sw_err_t demo_alarm_catalog_load(void);
@@ -58,8 +58,8 @@ sw_err_t project_hooks_register(void)
         .configure_safety       = project_hook_noop,
         .init_safety            = project_hook_noop,
         .configure_adapters     = project_hook_noop,
-        .bind_device           = bind_device,
-        .init_device           = project_hook_noop,
+        .bind_device            = bind_device,
+        .init_device            = project_hook_noop,
         .bind_alarm_catalog     = bind_alarm_catalog,
         .validate               = validate,
         .init_adapters          = init_adapters,

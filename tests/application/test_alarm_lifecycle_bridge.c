@@ -19,7 +19,6 @@
 #include "runtime/event_bus/event_bus.h"
 #include "wdf_test_spec.h"
 
-
 /* 会话日志只记 MAJOR 及以上（见 safety_matrix 的 records_in_journal），
  * 因此目录里同时放 MINOR 与 MAJOR，用于验证筛选而非只验证"有记录"。 */
 enum {

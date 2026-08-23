@@ -12,7 +12,6 @@
 #include "runtime/event_bus/event_bus.h"
 #include "wdf_test_spec.h"
 
-
 static volatile int g_nominal_count;
 static volatile int g_lockout_count;
 
@@ -44,7 +43,6 @@ static void on_lockout(const event_t *evt)
     (void)evt;
     g_lockout_count++;
 }
-
 
 static void drain_registry(void)
 {

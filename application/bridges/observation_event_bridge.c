@@ -101,9 +101,8 @@ static void on_observed_event(const event_t *evt)
     memset(&spec, 0, sizeof(spec));
     spec.kind           = def->kind;
     spec.severity       = def->severity;
-    spec.delivery       = (def->severity >= OBSERVATION_SEVERITY_WARN)
-                              ? OBSERVATION_DELIVERY_RELIABLE
-                              : OBSERVATION_DELIVERY_BEST_EFFORT;
+    spec.delivery       = (def->severity >= OBSERVATION_SEVERITY_WARN) ? OBSERVATION_DELIVERY_RELIABLE
+                                                                       : OBSERVATION_DELIVERY_BEST_EFFORT;
     spec.payload_format = OBSERVATION_PAYLOAD_BINARY;
     spec.event_code     = (uint32_t)evt->type;
     spec.source         = def->source;

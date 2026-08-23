@@ -7,12 +7,12 @@
 
 #include "application/orchestrators/report_scheduler.h"
 
+#include "application/ports/outbound/cloud/link/cloud_link_port.h"
+#include "application/ports/outbound/cloud/report/report_port.h"
 #include "common/event_types.h"
 #include "common/log.h"
 #include "common/sw_error.h"
 #include "domain/cloud/cloud_point_watcher.h"
-#include "application/ports/outbound/cloud/link/cloud_link_port.h"
-#include "application/ports/outbound/cloud/report/report_port.h"
 #include "runtime/config/thread_config.h"
 #include "runtime/event_bus/event_bus.h"
 #include "runtime/scheduler/periodic_task.h"

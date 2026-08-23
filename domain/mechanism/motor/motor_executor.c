@@ -121,11 +121,11 @@ void settle_elapsed(motor_executor_t *e, int i)
     }
 }
 
-void push_event(motor_executor_t         *e,
-                       int                       i,
-                       motor_event_type_t    t,
-                       motor_end_condition_t trig,
-                       motor_exec_fault_code_t    fc)
+void push_event(motor_executor_t       *e,
+                int                     i,
+                motor_event_type_t      t,
+                motor_end_condition_t   trig,
+                motor_exec_fault_code_t fc)
 {
     motor_event_t ev;
 
@@ -211,10 +211,10 @@ static const motor_executor_t *const_executor_from_handle(const motor_exec_t *ex
 /* ------------------------- 出站端口 ------------------------- */
 
 motor_cmd_result_t motor_exec_run(motor_exec_t            *exec,
-                                     int                      motor,
-                                     motor_speed_t            speed,
-                                     motor_dir_t              dir,
-                                     const motor_move_spec_t *spec)
+                                  int                      motor,
+                                  motor_speed_t            speed,
+                                  motor_dir_t              dir,
+                                  const motor_move_spec_t *spec)
 {
     motor_executor_t *executor = executor_from_handle(exec);
 
@@ -347,7 +347,7 @@ static const char *ports_error(const motor_config_t *cfg, const motor_ports_t *p
 motor_init_result_t motor_executor_bind(unsigned              slot_id,
                                         const motor_config_t *cfg,
                                         const motor_ports_t  *ports,
-                                        motor_exec_t    **out_exec)
+                                        motor_exec_t        **out_exec)
 {
     motor_executor_slot_t *slot;
     motor_init_result_t    result;
@@ -416,14 +416,16 @@ motor_cmd_result_t motor_executor_zero_encoder(motor_exec_t *exec, int motor)
 {
     motor_executor_t *executor = executor_from_handle(exec);
 
-    return (executor != NULL) ? motor_zero_encoder(executor, motor) : cmd_reject(MOTOR_REJECT_UNAVAILABLE, "executor-unavailable");
+    return (executor != NULL) ? motor_zero_encoder(executor, motor)
+                              : cmd_reject(MOTOR_REJECT_UNAVAILABLE, "executor-unavailable");
 }
 
 motor_cmd_result_t motor_executor_confirm_baseline(motor_exec_t *exec, int motor)
 {
     motor_executor_t *executor = executor_from_handle(exec);
 
-    return (executor != NULL) ? motor_confirm_baseline(executor, motor) : cmd_reject(MOTOR_REJECT_UNAVAILABLE, "executor-unavailable");
+    return (executor != NULL) ? motor_confirm_baseline(executor, motor)
+                              : cmd_reject(MOTOR_REJECT_UNAVAILABLE, "executor-unavailable");
 }
 
 void motor_executor_reset_watchdog(motor_exec_t *exec)

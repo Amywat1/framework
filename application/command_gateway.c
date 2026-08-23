@@ -7,13 +7,13 @@
 
 #include "application/command_gateway.h"
 
+#include "application/ports/inbound/command/command_port.h"
 #include "application/side_effect_router.h"
 #include "common/event_types.h"
 #include "common/log.h"
 #include "common/time_util.h"
 #include "common/trace_context.h"
 #include "domain/op_mode/operational_mode.h"
-#include "application/ports/inbound/command/command_port.h"
 #include "runtime/config/thread_config.h"
 #include "runtime/event_bus/event_bus.h"
 #include "runtime/scheduler/thread_registry.h"
@@ -37,7 +37,7 @@ typedef struct {
 } cmd_gateway_slot_t;
 
 static cmd_gateway_slot_t s_queue[CMD_GATEWAY_QUEUE_SIZE];
-static pthread_mutex_t    s_q_mutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t    s_q_mutex    = PTHREAD_MUTEX_INITIALIZER;
 static uint32_t           s_generation = 0U;
 static uint64_t           s_next_request_id;
 static sem_t              s_wake;
@@ -48,9 +48,9 @@ static pthread_t s_drain_thread;
 static bool      s_drain_thread_known;
 
 #ifdef WDF_UNIT_TEST
-static pthread_t       s_test_ctrl_tid;
-static volatile int    s_test_ctrl_stop;
-static bool            s_test_ctrl_started;
+static pthread_t    s_test_ctrl_tid;
+static volatile int s_test_ctrl_stop;
+static bool         s_test_ctrl_started;
 #endif
 
 static bool is_stop_priority(dev_cmd_kind_t kind)
@@ -116,9 +116,9 @@ static void release_slot_if_current(cmd_gateway_slot_t *slot, uint32_t generatio
 /** @brief 持锁：写入槽位 */
 static void fill_slot_locked(cmd_gateway_slot_t *slot,
                              const dev_cmd_t    *cmd,
-                             bool               waiting,
-                             uint64_t           request_id,
-                             uint32_t          *out_generation)
+                             bool                waiting,
+                             uint64_t            request_id,
+                             uint32_t           *out_generation)
 {
     slot->used                  = true;
     slot->waiting               = waiting;
@@ -139,20 +139,20 @@ static void fill_slot_locked(cmd_gateway_slot_t *slot,
  * @brief  入队；STOP_ALL 可合并 async 同类，并可抢占非优先槽
  * @note   抢占直接覆写槽位；旧 sync 等待者因 generation 不匹配而 TIMEOUT（不保证及时 BUSY）
  */
-static sw_err_t enqueue_command(const dev_cmd_t *cmd,
-                                bool            waiting,
-                                uint64_t       *out_request_id,
+static sw_err_t enqueue_command(const dev_cmd_t     *cmd,
+                                bool                 waiting,
+                                uint64_t            *out_request_id,
                                 cmd_gateway_slot_t **out_slot,
-                                uint32_t       *out_generation)
+                                uint32_t            *out_generation)
 {
-    cmd_gateway_slot_t *slot                 = NULL;
-    uint32_t            generation           = 0U;
+    cmd_gateway_slot_t *slot       = NULL;
+    uint32_t            generation = 0U;
     uint64_t            request_id;
     bool                priority;
-    dev_cmd_kind_t      preempted_kind            = DEV_CMD_NONE;
-    uint64_t            preempted_request_id      = 0U;
-    uint64_t            preempted_correlation_id  = 0U;
-    bool                preempted_publish         = false;
+    dev_cmd_kind_t      preempted_kind           = DEV_CMD_NONE;
+    uint64_t            preempted_request_id     = 0U;
+    uint64_t            preempted_correlation_id = 0U;
+    bool                preempted_publish        = false;
 
     if ((cmd == NULL) || (out_slot == NULL) || (out_generation == NULL)) {
         return SW_ERR_PARAM;
@@ -234,8 +234,7 @@ static sw_err_t enqueue_command(const dev_cmd_t *cmd,
         trace_context_t current  = previous;
 
         current.command_id     = preempted_request_id;
-        current.correlation_id =
-            (preempted_correlation_id != 0U) ? preempted_correlation_id : preempted_request_id;
+        current.correlation_id = (preempted_correlation_id != 0U) ? preempted_correlation_id : preempted_request_id;
         trace_context_set(&current);
         publish_cmd_handled(preempted_kind, DEV_CMD_STATUS_BUSY, OP_REJECT_NONE);
         trace_context_set(&previous);
@@ -498,8 +497,7 @@ sw_err_t command_gateway_init(void)
 
 #ifndef WDF_UNIT_TEST
     {
-        sw_err_t reg = thread_register(
-            "cmd_control", cmd_control_thread_fn, SCHED_OTHER, 0, THD_CMD_CONTROL_STACK);
+        sw_err_t reg = thread_register("cmd_control", cmd_control_thread_fn, SCHED_OTHER, 0, THD_CMD_CONTROL_STACK);
         if (reg != SW_OK) {
             LOG_ERROR("command_gateway: thread_register ret=%d", (int)reg);
             return reg;

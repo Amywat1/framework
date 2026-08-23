@@ -23,10 +23,10 @@
 #include <stddef.h>
 #include <time.h>
 
-#define CRIT_CODE 201709U
-#define CRIT2_CODE 201809U
+#define CRIT_CODE      201709U
+#define CRIT2_CODE     201809U
 #define MINOR_PAD_CODE 901001U
-#define UNKNOWN_CODE 999999U
+#define UNKNOWN_CODE   999999U
 
 static volatile int      g_lockout_count;
 static volatile int      g_nominal_count;
@@ -125,18 +125,18 @@ static void linger_in_drain_cs(void)
 
 void setUp(void)
 {
-    g_lockout_count          = 0;
-    g_nominal_count          = 0;
-    g_trigger_count          = 0;
-    g_cleared_count          = 0;
-    g_resync_count           = 0;
-    g_resync_param           = 0U;
-    g_ops                    = NULL;
-    g_reenter_code           = 0U;
-    g_stop                   = 0;
-    g_view_too_many          = 0;
-    g_lockout_without_crit   = 0;
-    g_view_max               = 0U;
+    g_lockout_count        = 0;
+    g_nominal_count        = 0;
+    g_trigger_count        = 0;
+    g_cleared_count        = 0;
+    g_resync_count         = 0;
+    g_resync_param         = 0U;
+    g_ops                  = NULL;
+    g_reenter_code         = 0U;
+    g_stop                 = 0;
+    g_view_too_many        = 0;
+    g_lockout_without_crit = 0;
+    g_view_max             = 0U;
 
     time_util_init();
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
@@ -157,7 +157,7 @@ void tearDown(void)
  * ------------------------------------------------------------------------- */
 static void test_clear_last_critical_delays_nominal_event(void)
 {
-    const alarm_binding_ops_t *p = ops();
+    const alarm_binding_ops_t *p     = ops();
     alarm_def_t                cat[] = {make_fill_def(CRIT_CODE, ALARM_LEVEL_CRITICAL)};
 
     TEST_ASSERT_EQUAL_INT(SW_OK, p->load_catalog(cat, 1U));
@@ -246,7 +246,7 @@ static void test_retrigger_evicted_minor_does_not_kick_lockout(void)
  * ------------------------------------------------------------------------- */
 static void test_lockout_enqueued_before_handlers_run(void)
 {
-    const alarm_binding_ops_t *p = ops();
+    const alarm_binding_ops_t *p     = ops();
     alarm_def_t                cat[] = {make_fill_def(CRIT_CODE, ALARM_LEVEL_CRITICAL)};
     event_bus_stats_t          st;
 
@@ -356,7 +356,7 @@ static void *drain_loop_thread(void *arg)
 
 static void test_binding_drain_and_periodic_drain_do_not_overlap(void)
 {
-    const alarm_binding_ops_t *p = ops();
+    const alarm_binding_ops_t *p     = ops();
     alarm_def_t                cat[] = {make_fill_def(CRIT_CODE, ALARM_LEVEL_CRITICAL)};
     pthread_t                  drainer;
     unsigned                   iters = 40U;
@@ -598,7 +598,7 @@ static void test_boundary_codes_and_journal_null_buffer(void)
  * ------------------------------------------------------------------------- */
 static void test_trigger_before_catalog_and_after_reinit(void)
 {
-    const alarm_binding_ops_t *p = ops();
+    const alarm_binding_ops_t *p     = ops();
     alarm_def_t                cat[] = {make_fill_def(CRIT_CODE, ALARM_LEVEL_CRITICAL)};
 
     TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, p->trigger(CRIT_CODE));
@@ -619,7 +619,7 @@ static void test_trigger_before_catalog_and_after_reinit(void)
  * ------------------------------------------------------------------------- */
 static void test_binding_lockout_without_alarm_bridge_init(void)
 {
-    const alarm_binding_ops_t *p = ops();
+    const alarm_binding_ops_t *p     = ops();
     alarm_def_t                cat[] = {make_fill_def(CRIT_CODE, ALARM_LEVEL_CRITICAL)};
 
     TEST_ASSERT_EQUAL_INT(SW_OK, p->load_catalog(cat, 1U));
@@ -637,48 +637,31 @@ int main(void)
 {
     UNITY_BEGIN();
 
-    WDF_RUN_TEST(test_clear_last_critical_delays_nominal_event,
-                 "ALRM-22",
-                 "对抗：清除末条 CRITICAL 后 NOMINAL 事件可延迟");
-    WDF_RUN_TEST(test_eviction_prefers_minor_over_older_major,
-                 "ALRM-20",
-                 "对抗：混排时驱逐最早 MINOR 而非更早 MAJOR");
-    WDF_RUN_TEST(test_retrigger_evicted_minor_does_not_kick_lockout,
-                 "ALRM-20",
-                 "对抗：被逐 MINOR 立刻重报不得挤掉 lockout");
-    WDF_RUN_TEST(test_lockout_enqueued_before_handlers_run,
-                 "ALRM-22",
-                 "对抗：立即 drain 只入队不在采集线程跑 handler");
-    WDF_RUN_TEST(test_copy_safety_view_stable_during_lockout_eviction,
-                 "ALRM-20",
-                 "对抗：驱逐同时拷贝安全视图不越界且姿态自洽");
+    WDF_RUN_TEST(
+        test_clear_last_critical_delays_nominal_event, "ALRM-22", "对抗：清除末条 CRITICAL 后 NOMINAL 事件可延迟");
+    WDF_RUN_TEST(test_eviction_prefers_minor_over_older_major, "ALRM-20", "对抗：混排时驱逐最早 MINOR 而非更早 MAJOR");
+    WDF_RUN_TEST(
+        test_retrigger_evicted_minor_does_not_kick_lockout, "ALRM-20", "对抗：被逐 MINOR 立刻重报不得挤掉 lockout");
+    WDF_RUN_TEST(test_lockout_enqueued_before_handlers_run, "ALRM-22", "对抗：立即 drain 只入队不在采集线程跑 handler");
+    WDF_RUN_TEST(
+        test_copy_safety_view_stable_during_lockout_eviction, "ALRM-20", "对抗：驱逐同时拷贝安全视图不越界且姿态自洽");
     WDF_RUN_TEST(test_binding_drain_and_periodic_drain_do_not_overlap,
                  "ALRM-19",
                  "对抗：binding drain 与周期 drain 临界区不重叠");
     WDF_RUN_TEST(test_eviction_when_pending_full_still_admits_lockout,
                  "ALRM-13",
                  "对抗：pending 满时驱逐仍准入 lockout 且 RESYNC 或 CLEARED");
-    WDF_RUN_TEST(test_journal_and_pool_full_then_critical,
-                 "ALRM-21",
-                 "对抗：journal 与活跃池同时满时 CRITICAL 仍准入");
-    WDF_RUN_TEST(test_lockout_handler_retrigger_second_critical,
-                 "ALRM-22",
-                 "对抗：LOCKOUT 回调内再 trigger 不双发 LOCKOUT");
+    WDF_RUN_TEST(test_journal_and_pool_full_then_critical, "ALRM-21", "对抗：journal 与活跃池同时满时 CRITICAL 仍准入");
+    WDF_RUN_TEST(
+        test_lockout_handler_retrigger_second_critical, "ALRM-22", "对抗：LOCKOUT 回调内再 trigger 不双发 LOCKOUT");
     WDF_RUN_TEST(test_unknown_trigger_does_not_drain_pending_minor,
                  "ALRM-22",
                  "对抗：未知码失败不得误 drain 已有 MINOR pending");
-    WDF_RUN_TEST(test_journal_frozen_after_session_end,
-                 "ALRM-21",
-                 "对抗：会话结束后 journal 冻结且丢弃计数不清零");
-    WDF_RUN_TEST(test_boundary_codes_and_journal_null_buffer,
-                 "",
-                 "对抗：非法码与 journal 空缓冲边界");
-    WDF_RUN_TEST(test_trigger_before_catalog_and_after_reinit,
-                 "",
-                 "对抗：未装目录或重复 init 后 trigger 失败");
-    WDF_RUN_TEST(test_binding_lockout_without_alarm_bridge_init,
-                 "ALRM-22",
-                 "对抗：未 alarm_bridge_init 仍能入队 LOCKOUT");
+    WDF_RUN_TEST(test_journal_frozen_after_session_end, "ALRM-21", "对抗：会话结束后 journal 冻结且丢弃计数不清零");
+    WDF_RUN_TEST(test_boundary_codes_and_journal_null_buffer, "", "对抗：非法码与 journal 空缓冲边界");
+    WDF_RUN_TEST(test_trigger_before_catalog_and_after_reinit, "", "对抗：未装目录或重复 init 后 trigger 失败");
+    WDF_RUN_TEST(
+        test_binding_lockout_without_alarm_bridge_init, "ALRM-22", "对抗：未 alarm_bridge_init 仍能入队 LOCKOUT");
 
     return UNITY_END();
 }

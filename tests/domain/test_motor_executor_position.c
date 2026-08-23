@@ -12,29 +12,29 @@
 #include <string.h>
 
 typedef struct {
-    uint64_t          now_ms;
-    int64_t           position;
-    int               current;
-    int               output_count;
-    int               cutoff_count;
-    int               zero_count;
-    bool              zero_succeeds;
-    bool              origin_active;
-    bool              pos_limit_active;
-    bool              neg_limit_active;
-    int               arrived_count;
-    int               timeout_count;
-    int               fault_count;
-    motor_end_condition_t last_arrived_trigger;
-    motor_limit_kind_t    last_arrived_limit;
-    uint64_t              last_arrived_elapsed_ms;
-    motor_exec_fault_code_t    last_fault;
-    motor_speed_t     last_speed;
-    motor_dir_t last_direction;
+    uint64_t                now_ms;
+    int64_t                 position;
+    int                     current;
+    int                     output_count;
+    int                     cutoff_count;
+    int                     zero_count;
+    bool                    zero_succeeds;
+    bool                    origin_active;
+    bool                    pos_limit_active;
+    bool                    neg_limit_active;
+    int                     arrived_count;
+    int                     timeout_count;
+    int                     fault_count;
+    motor_end_condition_t   last_arrived_trigger;
+    motor_limit_kind_t      last_arrived_limit;
+    uint64_t                last_arrived_elapsed_ms;
+    motor_exec_fault_code_t last_fault;
+    motor_speed_t           last_speed;
+    motor_dir_t             last_direction;
 } position_fixture_t;
 
 static position_fixture_t s_fixture;
-static motor_exec_t  *s_executor;
+static motor_exec_t      *s_executor;
 static int                s_watchdog_ms;
 static int                s_enc_stall_ticks;
 static bool               s_monitor_current;
@@ -290,8 +290,8 @@ static void test_active_position_target_update_keeps_start_time_and_output(void)
     tick_at(0);
     TEST_ASSERT_EQUAL_INT(1, s_fixture.output_count);
 
-    s_fixture.now_ms           = 989U;
-    spec.target_pos            = 150;
+    s_fixture.now_ms = 989U;
+    spec.target_pos  = 150;
     result           = motor_exec_run(s_executor, 0, motor_speed_gear(1), MOTOR_DIR_FORWARD, &spec);
     TEST_ASSERT_TRUE(motor_cmd_ok(result));
     tick_at(20);
@@ -456,8 +456,7 @@ static void test_homing_restores_encoder_health(void)
 
     /* 冻结脉冲使编码器判定为不健康。 */
     s_fixture.origin_active = false;
-    TEST_ASSERT_TRUE(
-        motor_cmd_ok(motor_exec_run(s_executor, 0, motor_speed_gear(1), MOTOR_DIR_FORWARD, &spec)));
+    TEST_ASSERT_TRUE(motor_cmd_ok(motor_exec_run(s_executor, 0, motor_speed_gear(1), MOTOR_DIR_FORWARD, &spec)));
     for (i = 0; i < 5; ++i) {
         tick_at(50);
     }
@@ -505,11 +504,11 @@ static void test_current_stop_arrives_after_confirm(void)
     motor_cmd_result_t result;
 
     init_executor(0, MOTOR_ENC_ABSOLUTE);
-    spec.use_current         = true;
-    spec.current_limit       = 100;
-    spec.current_confirm_ms  = 30; /* 3 拍 */
-    spec.current_blank_ms    = 0;
-    spec.max_time_ms         = 5000;
+    spec.use_current        = true;
+    spec.current_limit      = 100;
+    spec.current_confirm_ms = 30; /* 3 拍 */
+    spec.current_blank_ms   = 0;
+    spec.max_time_ms        = 5000;
     result                  = motor_exec_run(s_executor, 0, motor_speed_gear(1), MOTOR_DIR_FORWARD, &spec);
     TEST_ASSERT_TRUE(motor_cmd_ok(result));
 
@@ -539,11 +538,11 @@ static void test_current_stop_respects_blank_ms(void)
     motor_cmd_result_t result;
 
     init_executor(0, MOTOR_ENC_ABSOLUTE);
-    spec.use_current         = true;
-    spec.current_limit       = 100;
-    spec.current_confirm_ms  = 20;
-    spec.current_blank_ms    = 30;
-    spec.max_time_ms         = 5000;
+    spec.use_current        = true;
+    spec.current_limit      = 100;
+    spec.current_confirm_ms = 20;
+    spec.current_blank_ms   = 30;
+    spec.max_time_ms        = 5000;
     result                  = motor_exec_run(s_executor, 0, motor_speed_gear(1), MOTOR_DIR_FORWARD, &spec);
     TEST_ASSERT_TRUE(motor_cmd_ok(result));
 
@@ -572,11 +571,11 @@ static void test_current_stop_coexists_with_overcurrent_fault(void)
     s_monitor_current = true;
     init_executor(0, MOTOR_ENC_ABSOLUTE);
 
-    spec.use_current         = true;
-    spec.current_limit       = 100;
-    spec.current_confirm_ms  = 20;
-    spec.current_blank_ms    = 0;
-    spec.max_time_ms         = 5000;
+    spec.use_current        = true;
+    spec.current_limit      = 100;
+    spec.current_confirm_ms = 20;
+    spec.current_blank_ms   = 0;
+    spec.max_time_ms        = 5000;
     result                  = motor_exec_run(s_executor, 0, motor_speed_gear(1), MOTOR_DIR_FORWARD, &spec);
     TEST_ASSERT_TRUE(motor_cmd_ok(result));
 
@@ -591,12 +590,12 @@ static void test_current_stop_coexists_with_overcurrent_fault(void)
 
     /* 再启一次，电流超过故障阈值；同拍 check_end 先于 monitor，仍电流停 */
     memset(&spec, 0, sizeof(spec));
-    spec.use_current         = true;
-    spec.current_limit       = 100;
-    spec.current_confirm_ms  = 20;
-    spec.max_time_ms         = 5000;
-    s_fixture.arrived_count  = 0;
-    s_fixture.fault_count    = 0;
+    spec.use_current        = true;
+    spec.current_limit      = 100;
+    spec.current_confirm_ms = 20;
+    spec.max_time_ms        = 5000;
+    s_fixture.arrived_count = 0;
+    s_fixture.fault_count   = 0;
     result                  = motor_exec_run(s_executor, 0, motor_speed_gear(1), MOTOR_DIR_FORWARD, &spec);
     TEST_ASSERT_TRUE(motor_cmd_ok(result));
     s_fixture.current = 600;
@@ -609,9 +608,9 @@ static void test_current_stop_coexists_with_overcurrent_fault(void)
 
     /* 关闭电流停，仅过流监测 → 故障 */
     memset(&spec, 0, sizeof(spec));
-    spec.use_time     = true;
-    spec.duration_ms  = 5000;
-    spec.max_time_ms  = 5000;
+    spec.use_time           = true;
+    spec.duration_ms        = 5000;
+    spec.max_time_ms        = 5000;
     s_fixture.arrived_count = 0;
     s_fixture.fault_count   = 0;
     result                  = motor_exec_run(s_executor, 0, motor_speed_gear(1), MOTOR_DIR_FORWARD, &spec);
@@ -651,15 +650,15 @@ static void test_no_encoder_baseline_trusted_at_init(void)
         .current    = driver_current,
         .ctx        = &s_fixture,
     };
-    clock        = (motor_clock_t){clock_now, &s_fixture};
-    sensors      = (motor_sensors_t){sensor_limit, &s_fixture};
-    drivers[0]   = &driver;
-    encoders[0]  = NULL;
-    ports        = (motor_ports_t){
-               .clock    = &clock,
-               .drivers  = drivers,
-               .encoders = encoders,
-               .sensors  = &sensors,
+    clock       = (motor_clock_t){clock_now, &s_fixture};
+    sensors     = (motor_sensors_t){sensor_limit, &s_fixture};
+    drivers[0]  = &driver;
+    encoders[0] = NULL;
+    ports       = (motor_ports_t){
+              .clock    = &clock,
+              .drivers  = drivers,
+              .encoders = encoders,
+              .sensors  = &sensors,
     };
     config.motor_count                   = 1;
     config.driver_count                  = 1;
@@ -722,8 +721,8 @@ static void test_limit_mask_prefers_origin_when_multiple(void)
 
 static void test_home_unset_dir_rejected_at_bind(void)
 {
-    motor_config_t      config;
-    motor_init_result_t result;
+    motor_config_t          config;
+    motor_init_result_t     result;
     static motor_driver_t   driver;
     static motor_encoder_t  encoder;
     static motor_driver_t  *drivers[1];
@@ -748,7 +747,10 @@ static void test_home_unset_dir_rejected_at_bind(void)
     drivers[0]  = &driver;
     encoders[0] = &encoder;
     ports       = (motor_ports_t){
-        .clock = &clock, .drivers = drivers, .encoders = encoders, .sensors = &sensors,
+              .clock    = &clock,
+              .drivers  = drivers,
+              .encoders = encoders,
+              .sensors  = &sensors,
     };
     config.motor_count                   = 1;
     config.driver_count                  = 1;

@@ -5,14 +5,14 @@
 
 #include "adapters/outbound/cloud/cloud_model_json.h"
 #include "application/orchestrators/report_scheduler.h"
+#include "application/ports/inbound/cloud/property/property_port.h"
+#include "application/ports/outbound/cloud/link/cloud_link_port.h"
+#include "application/ports/outbound/cloud/report/report_port.h"
 #include "common/event_types.h"
 #include "common/sw_error.h"
 #include "common/time_util.h"
 #include "domain/cloud/cloud_model.h"
 #include "domain/cloud/cloud_point.h"
-#include "application/ports/inbound/cloud/property/property_port.h"
-#include "application/ports/outbound/cloud/link/cloud_link_port.h"
-#include "application/ports/outbound/cloud/report/report_port.h"
 #include "runtime/event_bus/event_bus.h"
 #include "wdf_test_spec.h"
 
@@ -219,7 +219,6 @@ static void test_report_scheduler_runs_event_policies(void)
     s_online = false;
     report_scheduler_request_resync();
     TEST_ASSERT_EQUAL_UINT(1U, s_full_reports);
-
 }
 
 int main(void)

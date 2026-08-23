@@ -66,8 +66,6 @@ static void test_bind_registers_ops_that_forward_to_registry(void)
 int main(void)
 {
     UNITY_BEGIN();
-    WDF_RUN_TEST(test_bind_registers_ops_that_forward_to_registry,
-                 "",
-                 "验证绑定桥注册入站 ops 并转调 alarm_registry");
+    WDF_RUN_TEST(test_bind_registers_ops_that_forward_to_registry, "", "验证绑定桥注册入站 ops 并转调 alarm_registry");
     return UNITY_END();
 }

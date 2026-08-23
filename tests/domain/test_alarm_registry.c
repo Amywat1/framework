@@ -425,8 +425,8 @@ static void test_session_journal_overflow_is_counted_and_not_cleared_on_read(voi
     for (i = 0U; i < (ALARM_SESSION_JOURNAL_MAX + 1U); ++i) {
         cat[i] = make_fill_def(fill_code(i), ALARM_LEVEL_MAJOR);
     }
-    extra              = fill_code(ALARM_SESSION_JOURNAL_MAX);
-    minor              = ALARM_CODE_MAKE(ALM_C_SW, 50U, ALM_N_OTHER);
+    extra                               = fill_code(ALARM_SESSION_JOURNAL_MAX);
+    minor                               = ALARM_CODE_MAKE(ALM_C_SW, 50U, ALM_N_OTHER);
     cat[ALARM_SESSION_JOURNAL_MAX + 1U] = make_fill_def(minor, ALARM_LEVEL_MINOR);
 
     TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_load_catalog(cat, ALARM_SESSION_JOURNAL_MAX + 2U));
@@ -542,9 +542,7 @@ int main(void)
     WDF_RUN_TEST(test_manual_condition_clear_waits_for_reset, "", "验证手动清除条件后等待复位");
     WDF_RUN_TEST(test_reevaluate_by_group, "", "验证重新评估按分组");
     WDF_RUN_TEST(test_pull_events, "", "验证拉取事件");
-    WDF_RUN_TEST(test_pending_overflow_is_reported_then_cleared,
-                 "ALRM-13",
-                 "验证待发事件溢出被计数上报且取走即清零");
+    WDF_RUN_TEST(test_pending_overflow_is_reported_then_cleared, "ALRM-13", "验证待发事件溢出被计数上报且取走即清零");
     WDF_RUN_TEST(test_load_catalog_rejects_invalid_defs, "ALRM-15", "验证非法报警目录整表拒绝");
     WDF_RUN_TEST(test_load_catalog_resets_session_journal, "ALRM-16", "验证换目录同时清空会话日志");
     WDF_RUN_TEST(test_session_journal_blocking_levels, "", "验证会话日志仅记录阻断级别报警");

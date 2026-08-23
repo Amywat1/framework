@@ -54,8 +54,8 @@ typedef struct {
  */
 typedef struct {
     sw_err_t (*set_output)(void *ctx, motor_speed_t speed, motor_dir_t dir); /**< 速度给定+方向 */
-    sw_err_t (*cutoff)(void *ctx);                                                   /**< 立即切断输出 */
-    sw_err_t (*request_stop)(void *ctx); /**< 受控停止；可为 NULL，此时 Stop 退化为 cutoff */
+    sw_err_t (*cutoff)(void *ctx);                                           /**< 立即切断输出 */
+    sw_err_t (*request_stop)(void *ctx);                     /**< 受控停止；可为 NULL，此时 Stop 退化为 cutoff */
     bool (*reset)(void *ctx);                                /**< 驱动器侧故障复位，false=失败 */
     motor_prepare_result_t (*prepare)(void *ctx, int motor); /**< 启动前预备；可为 NULL */
     motor_prepare_result_t (*poll)(void *ctx, int motor);    /**< RUNNING 每拍巡检；可为 NULL */

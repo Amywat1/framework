@@ -3,13 +3,13 @@
  * @brief   cloud 端口 register/get 单元测试
  */
 
-#include "common/sw_error.h"
-#include "domain/op_mode/command_types.h"
-#include "domain/op_mode/device_command.h"
 #include "application/ports/inbound/cloud/property/property_port.h"
 #include "application/ports/inbound/command/command_port.h"
 #include "application/ports/outbound/cloud/link/cloud_link_port.h"
 #include "application/ports/outbound/cloud/report/report_port.h"
+#include "common/sw_error.h"
+#include "domain/op_mode/command_types.h"
+#include "domain/op_mode/device_command.h"
 #include "domain/ports/outbound/storage/deploy_store.h"
 #include "domain/ports/outbound/storage/param_store.h"
 #include "runtime/ports/port_registry.h"

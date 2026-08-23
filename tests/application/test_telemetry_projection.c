@@ -20,7 +20,6 @@
 #include "tests/stubs/test_wash_modes.h"
 #include "wdf_test_spec.h"
 
-
 static const alarm_def_t s_catalog[] = {
     {
      .code         = 201101U,
@@ -126,7 +125,6 @@ static void test_wash_projection_tracks_session_started_event(void)
     TEST_ASSERT_EQUAL_INT(SW_OK, telemetry_projection_init());
     publish_and_wait(EVT_WASH_SESSION_STARTED, (uint32_t)TEST_WASH_MODE_B);
     TEST_ASSERT_EQUAL_INT(TEST_WASH_MODE_B, device_snapshot_get().wash.mode);
-
 }
 
 static void test_operational_projection_syncs_current_context(void)
@@ -162,7 +160,6 @@ static void test_operational_projection_syncs_current_context(void)
     TEST_ASSERT_FALSE(snap.service_enabled);
     TEST_ASSERT_TRUE(operational_snapshot_is_stopping(snap));
     TEST_ASSERT_FALSE(operational_snapshot_is_standby(snap));
-
 }
 
 /* STOPPED 下置急停：无 MODE_CHANGED，须靠 CONTEXT_SYNC 刷新快照 estop_active */
@@ -189,7 +186,6 @@ static void test_estop_while_stopped_syncs_snapshot_flag(void)
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_drain());
     snap = device_snapshot_get().op;
     TEST_ASSERT_FALSE(snap.estop_active);
-
 }
 
 static void test_safety_projection_refreshes_alarm_snapshot(void)
@@ -209,7 +205,6 @@ static void test_safety_projection_refreshes_alarm_snapshot(void)
     TEST_ASSERT_EQUAL_UINT(1U, snap.active_alarm_count);
     TEST_ASSERT_EQUAL_UINT(201101U, snap.top_alarm_code);
     TEST_ASSERT_TRUE(device_snapshot_get().safety.blocking_active);
-
 }
 
 static void test_explicit_rebuild_repairs_dropped_projection_event(void)

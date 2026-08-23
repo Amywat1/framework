@@ -9,19 +9,18 @@
 #define ADAPTERS_OUTBOUND_STORAGE_JSON_ENGINE_PROGRAM_JSON_INTERNAL_H
 
 #include "adapters/outbound/storage/json/engine_program_json.h"
-
 #include "third_party/cJSON/cJSON.h"
 
 typedef struct {
     const cJSON *templates;
 } json_build_ctx_t;
 
-void jfail(char *err, unsigned errsz, const char *fmt, const char *arg);
+void        jfail(char *err, unsigned errsz, const char *fmt, const char *arg);
 const char *jstr(const cJSON *o, const char *k);
-bool jint(const cJSON *o, const char *k, int *out);
-bool juint(const cJSON *o, const char *k, uint32_t *out);
-bool jdouble(const cJSON *o, const char *k, double *out);
-void copy_name(char *dst, unsigned cap, const char *src);
+bool        jint(const cJSON *o, const char *k, int *out);
+bool        juint(const cJSON *o, const char *k, uint32_t *out);
+bool        jdouble(const cJSON *o, const char *k, double *out);
+void        copy_name(char *dst, unsigned cap, const char *src);
 
 /**
  * @brief  按字段白名单校验方案 JSON

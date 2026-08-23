@@ -4,12 +4,12 @@
  */
 
 #include "application/command_gateway.h"
+#include "application/ports/inbound/command/command_port.h"
 #include "common/sw_error.h"
 #include "common/trace_context.h"
 #include "domain/op_mode/command_types.h"
 #include "domain/op_mode/device_command.h"
 #include "domain/op_mode/operational_mode.h"
-#include "application/ports/inbound/command/command_port.h"
 #include "domain/ports/outbound/device/device_ops_port.h"
 #include "runtime/event_bus/event_bus.h"
 #include "tests/stubs/device_ops_stub.h"
@@ -99,14 +99,14 @@ void setUp(void)
 {
     device_ops_stub_reset();
     memset(&s_ops, 0, sizeof(s_ops));
-    s_ops.home_device          = stub_home_device;
-    s_ops.stop_all_outputs     = stub_stop_all_outputs;
+    s_ops.home_device      = stub_home_device;
+    s_ops.stop_all_outputs = stub_stop_all_outputs;
     device_ops_stub_bind(&s_ops);
     device_ops_register(&s_ops);
-    s_handled_command_id       = 0U;
-    s_handled_correlation_id   = 0U;
-    s_stop_all_outputs_count   = 0;
-    s_cmd_handled_busy_count   = 0;
+    s_handled_command_id     = 0U;
+    s_handled_correlation_id = 0U;
+    s_stop_all_outputs_count = 0;
+    s_cmd_handled_busy_count = 0;
 }
 
 void tearDown(void)
@@ -261,9 +261,9 @@ static void test_submit_sync_from_control_thread_is_rejected(void)
     dev_cmd_receipt_t receipt  = {0};
     pthread_t         tid;
 
-    s_reentrant_ret              = SW_OK;
-    s_reentrant_done             = 0;
-    s_ops.stop_all_outputs       = stub_stop_all_reentrant;
+    s_reentrant_ret        = SW_OK;
+    s_reentrant_done       = 0;
+    s_ops.stop_all_outputs = stub_stop_all_reentrant;
     device_ops_register(&s_ops);
 
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
@@ -310,8 +310,8 @@ static void test_stop_all_during_washing_via_gateway(void)
 
 static void test_submit_async_completes_via_event(void)
 {
-    dev_cmd_t cmd         = dev_cmd_make_simple(DEV_CMD_STOP_OPERATION);
-    uint64_t  request_id  = 0U;
+    dev_cmd_t cmd        = dev_cmd_make_simple(DEV_CMD_STOP_OPERATION);
+    uint64_t  request_id = 0U;
     pthread_t tid;
     int       spins;
 

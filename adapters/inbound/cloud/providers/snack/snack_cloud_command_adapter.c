@@ -7,10 +7,10 @@
 
 #include "adapters/inbound/cloud/providers/snack/snack_cloud_command_adapter.h"
 
-#include "common/log.h"
-#include "common/point_table/point_table.h"
 #include "application/ports/inbound/cloud/property/property_port.h"
 #include "application/ports/outbound/cloud/link/cloud_link_port.h"
+#include "common/log.h"
+#include "common/point_table/point_table.h"
 
 #include <stdbool.h>
 #include <stdio.h>

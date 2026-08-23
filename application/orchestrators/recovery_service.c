@@ -78,7 +78,7 @@ static void on_home_completed(const event_t *evt)
 
 static void on_recovery_requested(const event_t *evt)
 {
-    recovery_result_t    result = RECOVERY_RESULT_FAILED;
+    recovery_result_t   result = RECOVERY_RESULT_FAILED;
     const device_ops_t *ops;
 
     (void)evt;

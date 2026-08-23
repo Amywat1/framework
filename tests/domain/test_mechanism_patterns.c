@@ -24,28 +24,28 @@
 
 typedef struct {
     motor_exec_phase_t      phase;
-    motor_dir_t        dir;
+    motor_dir_t             dir;
     motor_exec_fault_code_t fault;
-    int64_t                position;
-    int                    speed_gear;
-    motor_speed_kind_t speed_kind;
+    int64_t                 position;
+    int                     speed_gear;
+    motor_speed_kind_t      speed_kind;
 } mock_motor_t;
 
-static mock_motor_t           s_motor[MOCK_MOTOR_MAX];
+static mock_motor_t       s_motor[MOCK_MOTOR_MAX];
 static motor_cmd_result_t s_next_result;
-static int                    s_run_count;
-static int                    s_move_count;
-static int                    s_stop_count;
-static int                    s_home_count;
-static int                    s_recover_count;
-static int                    s_periodic_register_count;
-static int                    s_periodic_fail_on;
-static int                    s_executor_tick_count;
-static bool                   s_end_cb_valid;
-static actuator_id_t          s_end_cb_id;
-static motor_event_t          s_end_cb_result;
-static int                    s_end_cb_count;
-static bool                   s_fluid_di;
+static int                s_run_count;
+static int                s_move_count;
+static int                s_stop_count;
+static int                s_home_count;
+static int                s_recover_count;
+static int                s_periodic_register_count;
+static int                s_periodic_fail_on;
+static int                s_executor_tick_count;
+static bool               s_end_cb_valid;
+static actuator_id_t      s_end_cb_id;
+static motor_event_t      s_end_cb_result;
+static int                s_end_cb_count;
+static bool               s_fluid_di;
 
 static bool fluid_hold_di(void)
 {
@@ -54,8 +54,8 @@ static bool fluid_hold_di(void)
 
 #define MOCK_EVENT_CAP 8
 static motor_event_t s_events[MOCK_EVENT_CAP];
-static int               s_ev_head;
-static int               s_ev_count;
+static int           s_ev_head;
+static int           s_ev_count;
 
 static motor_cmd_result_t cmd_ok(void)
 {
@@ -80,18 +80,18 @@ static motor_cmd_result_t cmd_rejected(void)
 static void mock_motor_reset(void)
 {
     memset(s_motor, 0, sizeof(s_motor));
-    s_next_result   = cmd_ok();
-    s_run_count     = 0;
-    s_move_count    = 0;
-    s_stop_count    = 0;
-    s_home_count    = 0;
-    s_recover_count = 0;
+    s_next_result             = cmd_ok();
+    s_run_count               = 0;
+    s_move_count              = 0;
+    s_stop_count              = 0;
+    s_home_count              = 0;
+    s_recover_count           = 0;
     s_periodic_register_count = 0;
     s_periodic_fail_on        = 0;
     s_executor_tick_count     = 0;
     mechanism_bridge_reset_for_test();
-    s_end_cb_valid  = false;
-    s_end_cb_id     = 0;
+    s_end_cb_valid = false;
+    s_end_cb_id    = 0;
     memset(&s_end_cb_result, 0, sizeof(s_end_cb_result));
     s_end_cb_count = 0;
     s_ev_head      = 0;
@@ -104,10 +104,10 @@ static bool motor_index_valid(int motor)
 }
 
 motor_cmd_result_t motor_exec_run(motor_exec_t            *exec,
-                                     int                          motor,
-                                     motor_speed_t            spd,
-                                     motor_dir_t              dir,
-                                     const motor_move_spec_t *spec)
+                                  int                      motor,
+                                  motor_speed_t            spd,
+                                  motor_dir_t              dir,
+                                  const motor_move_spec_t *spec)
 {
     (void)exec;
     if (spec != NULL) {
@@ -234,8 +234,8 @@ bool motor_exec_pop_event(motor_exec_t *exec, motor_event_t *out)
     if ((out == NULL) || (s_ev_count <= 0)) {
         return false;
     }
-    *out       = s_events[s_ev_head];
-    s_ev_head  = (s_ev_head + 1) % MOCK_EVENT_CAP;
+    *out      = s_events[s_ev_head];
+    s_ev_head = (s_ev_head + 1) % MOCK_EVENT_CAP;
     s_ev_count--;
     return true;
 }
@@ -257,8 +257,8 @@ bool motor_exec_pop_event_for(motor_exec_t *exec, int motor, motor_event_t *out)
         }
         *out = s_events[idx];
         for (m = n; m < s_ev_count - 1; ++m) {
-            int from = (s_ev_head + m + 1) % MOCK_EVENT_CAP;
-            int to   = (s_ev_head + m) % MOCK_EVENT_CAP;
+            int from     = (s_ev_head + m + 1) % MOCK_EVENT_CAP;
+            int to       = (s_ev_head + m) % MOCK_EVENT_CAP;
             s_events[to] = s_events[from];
         }
         s_ev_count--;
@@ -382,7 +382,7 @@ void tearDown(void)
 
 static void test_motor_axis_run_and_query_state(void)
 {
-    motor_axis_t      axis;
+    motor_axis_t  axis;
     motor_exec_t *exec = (motor_exec_t *)s_motor;
 
     memset(&axis, 0, sizeof(axis));
@@ -409,10 +409,10 @@ static void test_motor_axis_run_and_query_state(void)
 static void test_motor_axis_spec_uses_move_to_and_end_callback(void)
 {
     motor_axis_t            axis;
-    motor_move_spec_t   spec;
+    motor_move_spec_t       spec;
     motion_lifecycle_opts_t opts;
-    motor_event_t last;
-    motor_exec_t       *exec = (motor_exec_t *)s_motor;
+    motor_event_t           last;
+    motor_exec_t           *exec = (motor_exec_t *)s_motor;
 
     memset(&axis, 0, sizeof(axis));
     memset(&spec, 0, sizeof(spec));
@@ -440,8 +440,8 @@ static void test_motor_axis_fault_end_dedupes_event_and_reject(void)
 {
     motor_axis_t            axis;
     motion_lifecycle_opts_t opts;
-    motor_event_t       ev;
-    motor_exec_t       *exec = (motor_exec_t *)s_motor;
+    motor_event_t           ev;
+    motor_exec_t           *exec = (motor_exec_t *)s_motor;
 
     memset(&axis, 0, sizeof(axis));
     opts.motion_actuator_id = 0U;
@@ -450,12 +450,12 @@ static void test_motor_axis_fault_end_dedupes_event_and_reject(void)
     TEST_ASSERT_EQUAL_INT(SW_OK, motor_axis_init(&axis, exec, 0, &opts));
 
     memset(&ev, 0, sizeof(ev));
-    ev.motor   = 0;
-    ev.type    = MOTOR_EVENT_FAULT;
-    ev.fault   = MOTOR_FAULT_OVERCURRENT;
-    s_events[0] = ev;
-    s_ev_head   = 0;
-    s_ev_count  = 1;
+    ev.motor         = 0;
+    ev.type          = MOTOR_EVENT_FAULT;
+    ev.fault         = MOTOR_FAULT_OVERCURRENT;
+    s_events[0]      = ev;
+    s_ev_head        = 0;
+    s_ev_count       = 1;
     s_motor[0].phase = MOTOR_PHASE_FAULT;
     s_motor[0].fault = MOTOR_FAULT_OVERCURRENT;
 
@@ -472,8 +472,8 @@ static void test_motor_axis_reject_without_fault_skips_end_callback(void)
 {
     motor_axis_t            axis;
     motion_lifecycle_opts_t opts;
-    motor_event_t last;
-    motor_exec_t       *exec = (motor_exec_t *)s_motor;
+    motor_event_t           last;
+    motor_exec_t           *exec = (motor_exec_t *)s_motor;
 
     memset(&axis, 0, sizeof(axis));
     opts.motion_actuator_id = 0U;
@@ -492,7 +492,7 @@ static void test_motor_axis_continuous_stop_and_recover(void)
 {
     motor_axis_t            axis;
     motion_lifecycle_opts_t opts;
-    motor_exec_t       *exec = (motor_exec_t *)s_motor;
+    motor_exec_t           *exec = (motor_exec_t *)s_motor;
 
     memset(&axis, 0, sizeof(axis));
     opts.motion_actuator_id = 0U;
@@ -521,7 +521,7 @@ static void test_motor_axis_continuous_stop_and_recover(void)
 
 static void test_motor_axis_preserves_frequency_speed(void)
 {
-    motor_axis_t      axis;
+    motor_axis_t  axis;
     motor_exec_t *exec = (motor_exec_t *)s_motor;
 
     memset(&axis, 0, sizeof(axis));
@@ -539,7 +539,7 @@ static void test_motor_axis_poll_publishes_completed_on_idle(void)
 {
     motor_axis_t            axis;
     motion_lifecycle_opts_t opts;
-    motor_exec_t       *exec = (motor_exec_t *)s_motor;
+    motor_exec_t           *exec = (motor_exec_t *)s_motor;
     event_bus_stats_t       stats;
 
     memset(&axis, 0, sizeof(axis));
@@ -569,7 +569,7 @@ static void test_motor_axis_is_settled_after_idle_poll(void)
 {
     motor_axis_t            axis;
     motion_lifecycle_opts_t opts;
-    motor_exec_t       *exec = (motor_exec_t *)s_motor;
+    motor_exec_t           *exec = (motor_exec_t *)s_motor;
 
     memset(&axis, 0, sizeof(axis));
     time_util_init();
@@ -595,7 +595,7 @@ static void test_motor_axis_poll_skips_waiting_start(void)
 {
     motor_axis_t            axis;
     motion_lifecycle_opts_t opts;
-    motor_exec_t       *exec = (motor_exec_t *)s_motor;
+    motor_exec_t           *exec = (motor_exec_t *)s_motor;
     event_bus_stats_t       stats;
 
     memset(&axis, 0, sizeof(axis));
@@ -625,9 +625,9 @@ static void test_motor_axis_poll_reports_limit_end_then_idle(void)
 {
     motor_axis_t            axis;
     motion_lifecycle_opts_t opts;
-    motor_event_t       ev;
-    motor_event_t last;
-    motor_exec_t       *exec = (motor_exec_t *)s_motor;
+    motor_event_t           ev;
+    motor_event_t           last;
+    motor_exec_t           *exec = (motor_exec_t *)s_motor;
     event_bus_stats_t       stats;
 
     memset(&axis, 0, sizeof(axis));
@@ -640,9 +640,9 @@ static void test_motor_axis_poll_reports_limit_end_then_idle(void)
     TEST_ASSERT_EQUAL_INT(SW_OK, motor_axis_run(&axis, MOTOR_DIR_FORWARD, motor_speed_gear(1), NULL));
 
     memset(&ev, 0, sizeof(ev));
-    ev.motor     = 1; /* 其它电机，应被保留 */
-    ev.type      = MOTOR_EVENT_ARRIVED;
-    ev.trigger   = MOTOR_END_TIME;
+    ev.motor   = 1; /* 其它电机，应被保留 */
+    ev.type    = MOTOR_EVENT_ARRIVED;
+    ev.trigger = MOTOR_END_TIME;
     mock_push_event(&ev);
 
     memset(&ev, 0, sizeof(ev));
@@ -924,10 +924,9 @@ static void test_fluid_path_di_hold_blocks_set(void)
     TEST_ASSERT_EQUAL_INT(SW_ERR_STATE, fluid_path_enable(FLUID_PATH_MASK(TEST_PATH_B)));
 }
 
-
 static void test_motor_axis_home_marks_awaiting_idle(void)
 {
-    motor_axis_t      axis;
+    motor_axis_t  axis;
     motor_exec_t *exec = (motor_exec_t *)s_motor;
 
     memset(&axis, 0, sizeof(axis));
@@ -940,9 +939,9 @@ static void test_motor_axis_home_marks_awaiting_idle(void)
 
 static void test_mechanism_bridge_returns_same_axis_and_rejects_duplicate(void)
 {
-    motor_axis_t *axis = NULL;
+    motor_axis_t *axis  = NULL;
     motor_axis_t *again = NULL;
-    motor_exec_t *exec = (motor_exec_t *)s_motor;
+    motor_exec_t *exec  = (motor_exec_t *)s_motor;
 
     TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_INIT, mechanism_bridge_add_axis(0, NULL, &axis));
     TEST_ASSERT_EQUAL_INT(SW_OK, mechanism_bridge_bind_motor(exec));
@@ -974,18 +973,15 @@ int main(void)
 
     WDF_RUN_TEST(test_motor_axis_run_and_query_state, "", "验证电机轴运行并查询状态");
     WDF_RUN_TEST(test_motor_axis_spec_uses_move_to_and_end_callback, "", "验证电机轴规格调用到位并上报结局回调");
-    WDF_RUN_TEST(test_motor_axis_fault_end_dedupes_event_and_reject,
-                 "",
-                 "验证故障事件与拒令合成结局去重");
-    WDF_RUN_TEST(test_motor_axis_reject_without_fault_skips_end_callback,
-                 "",
-                 "验证无故障码的命令拒绝不上报结局");
+    WDF_RUN_TEST(test_motor_axis_fault_end_dedupes_event_and_reject, "", "验证故障事件与拒令合成结局去重");
+    WDF_RUN_TEST(test_motor_axis_reject_without_fault_skips_end_callback, "", "验证无故障码的命令拒绝不上报结局");
     WDF_RUN_TEST(test_motor_axis_continuous_stop_and_recover, "", "验证电机轴连续运行停止并恢复");
     WDF_RUN_TEST(test_motor_axis_preserves_frequency_speed, "", "验证电机轴保留频率速度");
     WDF_RUN_TEST(test_motor_axis_poll_publishes_completed_on_idle, "", "验证电机轴在空闲边沿发布完成事件");
     WDF_RUN_TEST(test_motor_axis_is_settled_after_idle_poll, "", "验证电机轴运行后未结算、空闲消费后已结算");
     WDF_RUN_TEST(test_motor_axis_home_marks_awaiting_idle, "", "验证电机轴回原后等待空闲");
-    WDF_RUN_TEST(test_mechanism_bridge_returns_same_axis_and_rejects_duplicate, "", "验证机构桥接交回轴句柄并拒绝重复登记");
+    WDF_RUN_TEST(
+        test_mechanism_bridge_returns_same_axis_and_rejects_duplicate, "", "验证机构桥接交回轴句柄并拒绝重复登记");
     WDF_RUN_TEST(test_mechanism_bridge_register_retries_only_failed_task, "", "验证机构桥接任务半失败后只补登记失败项");
     WDF_RUN_TEST(test_motor_axis_poll_skips_waiting_start, "", "验证排队启动态不发布完成事件");
     WDF_RUN_TEST(test_motor_axis_poll_reports_limit_end_then_idle, "", "验证电机轴先上报限位结局再发空闲事件");

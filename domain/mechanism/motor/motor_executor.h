@@ -106,10 +106,10 @@ typedef struct {
     int  enc_jump_max;                 /**< 单拍跳变上限→告警（0=不检测） */
     bool enc_escalate;                 /**< 编码器告警升级为故障 */
 
-    int          gear_count; /**< 可用挡位数；执行器仅校验范围，不转换频率 */
-    motor_dir_t  home_dir;   /**< 回原点方向，须为 FORWARD 或 REVERSE；未填（UNSET）在装载期拒绝 */
+    int         gear_count;            /**< 可用挡位数；执行器仅校验范围，不转换频率 */
+    motor_dir_t home_dir;              /**< 回原点方向，须为 FORWARD 或 REVERSE；未填（UNSET）在装载期拒绝 */
 
-    int stop_timeout_ms; /**< 受控停止等待功率级停下的超时（0=使用 default_max_time_ms；须 >= 0） */
+    int stop_timeout_ms;               /**< 受控停止等待功率级停下的超时（0=使用 default_max_time_ms；须 >= 0） */
 
     motor_monitor_cfg_t mon;           /**< 监测项配置 */
 } motor_motor_cfg_t;
@@ -160,7 +160,7 @@ typedef struct {
 motor_init_result_t motor_executor_bind(unsigned              slot_id,
                                         const motor_config_t *cfg,
                                         const motor_ports_t  *ports,
-                                        motor_exec_t    **out_exec);
+                                        motor_exec_t        **out_exec);
 
 /**
  * @brief 重新初始化（致命错误后恢复），沿用首次 motor_executor_bind 的 cfg/ports。

@@ -23,19 +23,19 @@ enum {
 static int  s_saved_stderr = -1;
 static char s_capture_path[64];
 
-static int s_reenter_depth;
-static int s_outer_calls;
-static int s_inner_calls;
+static int          s_reenter_depth;
+static int          s_outer_calls;
+static int          s_inner_calls;
 static volatile int s_reenter_done;
 
 void setUp(void)
 {
-    s_saved_stderr   = -1;
+    s_saved_stderr    = -1;
     s_capture_path[0] = '\0';
-    s_reenter_depth  = 0;
-    s_outer_calls    = 0;
-    s_inner_calls    = 0;
-    s_reenter_done   = 0;
+    s_reenter_depth   = 0;
+    s_outer_calls     = 0;
+    s_inner_calls     = 0;
+    s_reenter_done    = 0;
     sw_log_register_sink(NULL);
     sw_log_set_level(SW_LOG_DEBUG);
 }

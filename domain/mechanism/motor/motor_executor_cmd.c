@@ -6,7 +6,6 @@
  */
 
 #include "domain/mechanism/motor/motor_executor_internal.h"
-
 #include "domain/ports/outbound/safety/safety_output_hold.h"
 
 /* ------------------------- 速度解析 ------------------------- */
@@ -51,8 +50,7 @@ static motor_cmd_result_t cmd_guard(motor_executor_t *e, int i, unsigned flags)
         e->now = clock_now(e);
     }
     motor_leave_estop_if_unheld(e);
-    if ((flags & MOTOR_CMD_REJECT_SAFETY)
-        && (e->safe_latched || safety_output_hold_is_active())) {
+    if ((flags & MOTOR_CMD_REJECT_SAFETY) && (e->safe_latched || safety_output_hold_is_active())) {
         return cmd_reject(MOTOR_REJECT_SAFETY, "safety-locked");
     }
     if ((flags & MOTOR_CMD_REJECT_FAULT) && (e->m[i].phase == MOTOR_PHASE_FAULT)) {
@@ -61,11 +59,11 @@ static motor_cmd_result_t cmd_guard(motor_executor_t *e, int i, unsigned flags)
     return cmd_make(MOTOR_CMD_ACCEPTED, "");
 }
 
-motor_cmd_result_t motor_run(motor_executor_t            *e,
-                                        int                          i,
-                                        motor_speed_t            spd,
-                                        motor_dir_t              dir,
-                                        const motor_move_spec_t *spec)
+motor_cmd_result_t motor_run(motor_executor_t        *e,
+                             int                      i,
+                             motor_speed_t            spd,
+                             motor_dir_t              dir,
+                             const motor_move_spec_t *spec)
 {
     motor_cmd_result_t  g;
     motor_pending_cmd_t pc = {0};
@@ -167,8 +165,8 @@ motor_cmd_result_t motor_home(motor_executor_t *e, int i)
 {
     motor_cmd_result_t g;
     motor_move_spec_t  spec = {0};
-    int         freq;
-    motor_dir_t dir;
+    int                freq;
+    motor_dir_t        dir;
 
     motor_lock(e);
     g = cmd_guard(e, i, MOTOR_CMD_NEED_NOW | MOTOR_CMD_REJECT_SAFETY | MOTOR_CMD_REJECT_FAULT);
@@ -197,8 +195,8 @@ motor_cmd_result_t motor_zero_encoder(motor_executor_t *e, int i)
         motor_unlock(e);
         return g;
     }
-    motor_encoder_t    *enc = motor_enc(e, i);
-    motor_cmd_result_t  out;
+    motor_encoder_t   *enc = motor_enc(e, i);
+    motor_cmd_result_t out;
 
     if (!e->cfg.motors[i].has_encoder || !enc) {
         motor_unlock(e);
@@ -238,7 +236,7 @@ motor_cmd_result_t motor_confirm_baseline(motor_executor_t *e, int i)
         return cmd_reject(MOTOR_REJECT_BAD_MOTOR, "bad-motor");
     }
     e->m[i].baseline_trusted = true;
-    out = cmd_make(MOTOR_CMD_ACCEPTED, "baseline-confirmed");
+    out                      = cmd_make(MOTOR_CMD_ACCEPTED, "baseline-confirmed");
     motor_unlock(e);
     return out;
 }

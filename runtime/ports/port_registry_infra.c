@@ -67,5 +67,5 @@ void port_registry_infra_reset(void)
 {
     s_cmd_ops           = NULL;
     s_alarm_binding_ops = NULL;
-    s_device_ops       = NULL;
+    s_device_ops        = NULL;
 }

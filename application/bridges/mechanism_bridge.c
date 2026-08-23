@@ -110,13 +110,8 @@ sw_err_t mechanism_bridge_register_tasks(void)
     sw_err_t ret;
 
     if (!s_motor_task_registered) {
-        ret = periodic_task_register("motor_tick",
-                                     THD_MOTOR_TICK_PERIOD_MS,
-                                     motor_tick_task,
-                                     NULL,
-                                     SCHED_OTHER,
-                                     0,
-                                     THD_MOTOR_TICK_STACK);
+        ret = periodic_task_register(
+            "motor_tick", THD_MOTOR_TICK_PERIOD_MS, motor_tick_task, NULL, SCHED_OTHER, 0, THD_MOTOR_TICK_STACK);
         if (ret != SW_OK) {
             return ret;
         }
@@ -153,10 +148,10 @@ void mechanism_bridge_halt_all(void)
 #ifdef MECHANISM_BRIDGE_UNIT_TEST
 void mechanism_bridge_reset_for_test(void)
 {
-    s_exec                   = NULL;
-    s_axis_count             = 0;
-    s_motor_task_registered  = false;
-    s_fluid_task_registered  = false;
+    s_exec                  = NULL;
+    s_axis_count            = 0;
+    s_motor_task_registered = false;
+    s_fluid_task_registered = false;
     (void)memset(s_axes, 0, sizeof(s_axes));
 }
 #endif

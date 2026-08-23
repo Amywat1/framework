@@ -34,8 +34,8 @@ static volatile int                s_stop_all_outputs_count;
 static uint32_t                    s_clear_on_home_code;
 static volatile int                s_home_auto_complete;
 
-#define TEST_BLOCKING_ALARM_CODE 201101U
-#define TEST_LOCKOUT_ALARM_CODE  201102U
+#define TEST_BLOCKING_ALARM_CODE    201101U
+#define TEST_LOCKOUT_ALARM_CODE     201102U
 #define TEST_ON_MOTION_ALARM_CODE   201103U
 #define TEST_ON_MOTION_REEVAL_GROUP ((motion_reeval_group_id_t)1U)
 
@@ -111,12 +111,12 @@ static const alarm_def_t s_blocking_catalog[] = {
 
 static const alarm_def_t s_on_motion_catalog[] = {
     {
-     .code         = TEST_ON_MOTION_ALARM_CODE,
-     .level        = ALARM_LEVEL_MAJOR,
-     .clear        = ALARM_CLEAR_ON_MOTION,
+     .code  = TEST_ON_MOTION_ALARM_CODE,
+     .level = ALARM_LEVEL_MAJOR,
+     .clear = ALARM_CLEAR_ON_MOTION,
      /* ON_MOTION 必须配非 NONE 分组。本用例验的是「运动一直没发生时手动复位
-      * 兜底」，分组填上不影响该路径。 */
-     .reeval_group = TEST_ON_MOTION_REEVAL_GROUP,
+     * 兜底」，分组填上不影响该路径。 */
+        .reeval_group = TEST_ON_MOTION_REEVAL_GROUP,
      .desc         = "test on motion",
      },
 };
@@ -136,7 +136,6 @@ static void on_recovery_completed(const event_t *evt)
     s_recovery_completed_count++;
     s_recovery_result_param = evt->param;
 }
-
 
 void setUp(void)
 {
@@ -322,7 +321,6 @@ static void test_leave_recovering_ignores_late_home_completed(void)
     TEST_ASSERT_EQUAL_INT(SW_OK, recovery_service_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, event_subscribe(EVT_OP_MODE_RECOVERY_COMPLETED, on_recovery_completed));
 
-
     TEST_ASSERT_EQUAL_INT(OP_CMD_ALLOWED, op_mode_handle_command(&recover).verdict);
     TEST_ASSERT_EQUAL_INT(OP_MODE_RECOVERING, op_mode_get_current());
     /* drain RECOVERY_REQUESTED → home 启动但不自动完成 */
@@ -377,7 +375,6 @@ static void test_estop_during_pending_home_preempts_recovery(void)
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_drain());
     TEST_ASSERT_EQUAL_INT(0, s_recovery_completed_count);
     TEST_ASSERT_EQUAL_INT(OP_MODE_STOPPED, op_mode_get_current());
-
 }
 
 /**
@@ -414,7 +411,6 @@ static void test_stop_all_during_pending_home_cuts_outputs(void)
     TEST_ASSERT_EQUAL_INT(SW_OK, event_publish(EVT_OP_MODE_HOME_COMPLETED, 1U));
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_drain());
     TEST_ASSERT_EQUAL_INT(0, s_recovery_completed_count);
-
 }
 
 /**

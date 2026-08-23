@@ -93,10 +93,7 @@ uint32_t periodic_task_next_deadline(struct timespec *deadline, uint32_t period_
  *         无需启动真实线程。run_count 每次加一；skip_count 累加 skipped；
  *         skip_max / max_cb_us / max_wake_late_us 取历史最大。
  */
-void periodic_task_note_cycle(periodic_task_stats_t *stats,
-                              uint32_t               skipped,
-                              uint32_t               cb_us,
-                              uint32_t               wake_late_us);
+void periodic_task_note_cycle(periodic_task_stats_t *stats, uint32_t skipped, uint32_t cb_us, uint32_t wake_late_us);
 
 /**
  * @brief  已登记的周期任务数量

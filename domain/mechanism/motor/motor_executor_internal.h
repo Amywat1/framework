@@ -90,7 +90,7 @@ typedef struct {
 } motor_executor_t;
 
 int64_t motor_iabs64(int64_t v);
-bool within_distance(int64_t left, int64_t right, int distance);
+bool    within_distance(int64_t left, int64_t right, int distance);
 int64_t lower_bound(int64_t value, int margin);
 int64_t upper_bound(int64_t value, int margin);
 
@@ -99,57 +99,63 @@ void motor_unlock(motor_executor_t *e);
 void motor_lock_init(motor_executor_t *e);
 void motor_lock_destroy(motor_executor_t *e);
 
-motor_driver_t *motor_drv(motor_executor_t *e, int i);
-sw_err_t drv_set_output(motor_driver_t *d, motor_speed_t speed, motor_dir_t dir);
-sw_err_t drv_cutoff(motor_driver_t *d);
-sw_err_t drv_request_stop(motor_driver_t *d);
-bool drv_reset(motor_driver_t *d);
+motor_driver_t        *motor_drv(motor_executor_t *e, int i);
+sw_err_t               drv_set_output(motor_driver_t *d, motor_speed_t speed, motor_dir_t dir);
+sw_err_t               drv_cutoff(motor_driver_t *d);
+sw_err_t               drv_request_stop(motor_driver_t *d);
+bool                   drv_reset(motor_driver_t *d);
 motor_prepare_result_t drv_prepare(motor_driver_t *d, int motor);
 motor_prepare_result_t drv_poll(motor_driver_t *d, int motor);
-bool drv_is_running(motor_driver_t *d);
-int drv_current(motor_driver_t *d);
-bool drv_temperature(motor_driver_t *d, int *out);
-bool drv_voltage(motor_driver_t *d, int *out);
-motor_port_status_t drv_status(motor_driver_t *d);
-int64_t enc_raw(motor_encoder_t *e);
-bool enc_zero(motor_encoder_t *e);
-motor_encoder_t *motor_enc(motor_executor_t *e, int i);
-bool sensor_limit(motor_executor_t *e, int i, motor_limit_kind_t k);
-uint64_t clock_now(motor_executor_t *e);
+bool                   drv_is_running(motor_driver_t *d);
+int                    drv_current(motor_driver_t *d);
+bool                   drv_temperature(motor_driver_t *d, int *out);
+bool                   drv_voltage(motor_driver_t *d, int *out);
+motor_port_status_t    drv_status(motor_driver_t *d);
+int64_t                enc_raw(motor_encoder_t *e);
+bool                   enc_zero(motor_encoder_t *e);
+motor_encoder_t       *motor_enc(motor_executor_t *e, int i);
+bool                   sensor_limit(motor_executor_t *e, int i, motor_limit_kind_t k);
+uint64_t               clock_now(motor_executor_t *e);
 
 motor_cmd_result_t cmd_make(motor_cmd_status_t st, const char *reason);
 motor_cmd_result_t cmd_reject(motor_cmd_reject_t reject, const char *reason);
 
 void settle_elapsed(motor_executor_t *e, int i);
-void push_event(motor_executor_t *e, int i, motor_event_type_t t, motor_end_condition_t trig,
+void push_event(motor_executor_t       *e,
+                int                     i,
+                motor_event_type_t      t,
+                motor_end_condition_t   trig,
                 motor_exec_fault_code_t fc);
 
-motor_cmd_result_t apply_goal(motor_executor_t *e, int i, const motor_pending_cmd_t *pc);
-void complete_move(motor_executor_t *e, int i, motor_event_type_t type, motor_end_condition_t trig);
-bool zero_encoder_baseline(motor_executor_t *e, int i);
-void motor_tick(motor_executor_t *e);
+motor_cmd_result_t  apply_goal(motor_executor_t *e, int i, const motor_pending_cmd_t *pc);
+void                complete_move(motor_executor_t *e, int i, motor_event_type_t type, motor_end_condition_t trig);
+bool                zero_encoder_baseline(motor_executor_t *e, int i);
+void                motor_tick(motor_executor_t *e);
 motor_init_result_t init_err(const char *msg);
 motor_init_result_t motor_init(motor_executor_t *e, const motor_config_t *cfg, const motor_ports_t *ports);
 motor_init_result_t motor_reinit(motor_executor_t *e);
 
-motor_cmd_result_t motor_run(motor_executor_t *e, int i, motor_speed_t spd, motor_dir_t dir,
+motor_cmd_result_t motor_run(motor_executor_t        *e,
+                             int                      i,
+                             motor_speed_t            spd,
+                             motor_dir_t              dir,
                              const motor_move_spec_t *spec);
 motor_cmd_result_t motor_stop(motor_executor_t *e, int i);
 motor_cmd_result_t motor_home(motor_executor_t *e, int i);
 motor_cmd_result_t motor_zero_encoder(motor_executor_t *e, int i);
 motor_cmd_result_t motor_confirm_baseline(motor_executor_t *e, int i);
 /** @brief 全局抑制已解除时退出本实例 ESTOP 相位。 */
-void motor_leave_estop_if_unheld(motor_executor_t *e);
-void motor_reset_watchdog(motor_executor_t *e);
+void               motor_leave_estop_if_unheld(motor_executor_t *e);
+void               motor_reset_watchdog(motor_executor_t *e);
 motor_cmd_result_t motor_recover(motor_executor_t *e, int i, motor_exec_recovery_step_t step);
 
-motor_exec_phase_t motor_phase(const motor_executor_t *e, int i);
-int64_t motor_position(const motor_executor_t *e, int i);
-int motor_current_freq(const motor_executor_t *e, int i);
-motor_dir_t motor_direction(const motor_executor_t *e, int i);
+motor_exec_phase_t      motor_phase(const motor_executor_t *e, int i);
+int64_t                 motor_position(const motor_executor_t *e, int i);
+int                     motor_current_freq(const motor_executor_t *e, int i);
+motor_dir_t             motor_direction(const motor_executor_t *e, int i);
 motor_exec_fault_code_t motor_fault_code(const motor_executor_t *e, int i);
-bool motor_baseline_trusted(const motor_executor_t *e, int i);
-bool motor_encoder_healthy(const motor_executor_t *e, int i);
-bool motor_in_safe_state(const motor_executor_t *e);
+bool                    motor_baseline_trusted(const motor_executor_t *e, int i);
+bool                    motor_encoder_healthy(const motor_executor_t *e, int i);
+bool                    motor_in_safe_state(const motor_executor_t *e);
 
 #endif /* DOMAIN_MECHANISM_MOTOR_MOTOR_EXECUTOR_INTERNAL_H */

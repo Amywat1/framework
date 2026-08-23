@@ -321,25 +321,24 @@ static void test_json_loader_parses_confirm_ms_and_retry_max(void)
 
 static void test_json_loader_parses_done_motion(void)
 {
-    static const char *json
-        = "{"
-          "\"program\":{"
-          "\"schema_version\":\"1.0\",\"id\":\"motion_done\",\"name\":\"t\","
-          "\"interlocks\":[{\"id\":\"estop\",\"condition\":\"ESTOP == 1\",\"action\":\"halt_all\","
-          "\"priority\":0,\"reset_condition\":\"ESTOP == 0\",\"auto_reset\":false}],"
-          "\"phases\":[{\"id\":\"p0\",\"name\":\"p\",\"direction\":\"none\","
-          "\"entry_guard\":\"true\",\"exit_guard\":\"EXIT == 1\",\"timeout_ms\":1000,"
-          "\"lanes\":[{\"id\":\"lane\",\"steps\":[{"
-          "\"id\":\"move\",\"type\":\"event\","
-          "\"trigger\":{\"type\":\"condition\",\"expr\":\"EXIT == 0\"},"
-          "\"actions\":[{\"act\":{\"resource\":\"gantry\",\"cmd\":\"run\",\"gear\":1}}],"
-          "\"done\":{\"type\":\"motion\",\"resource\":\"gantry\",\"timeout_ms\":5000},"
-          "\"retry_max\":0,\"on_error\":\"stop\""
-          "}]}]}]}"
-          "}";
-    char              err[200];
-    engine_program_t *program = engine_program_load_json_string(json, err, sizeof(err));
-    engine_step_t    *step;
+    static const char *json = "{"
+                              "\"program\":{"
+                              "\"schema_version\":\"1.0\",\"id\":\"motion_done\",\"name\":\"t\","
+                              "\"interlocks\":[{\"id\":\"estop\",\"condition\":\"ESTOP == 1\",\"action\":\"halt_all\","
+                              "\"priority\":0,\"reset_condition\":\"ESTOP == 0\",\"auto_reset\":false}],"
+                              "\"phases\":[{\"id\":\"p0\",\"name\":\"p\",\"direction\":\"none\","
+                              "\"entry_guard\":\"true\",\"exit_guard\":\"EXIT == 1\",\"timeout_ms\":1000,"
+                              "\"lanes\":[{\"id\":\"lane\",\"steps\":[{"
+                              "\"id\":\"move\",\"type\":\"event\","
+                              "\"trigger\":{\"type\":\"condition\",\"expr\":\"EXIT == 0\"},"
+                              "\"actions\":[{\"act\":{\"resource\":\"gantry\",\"cmd\":\"run\",\"gear\":1}}],"
+                              "\"done\":{\"type\":\"motion\",\"resource\":\"gantry\",\"timeout_ms\":5000},"
+                              "\"retry_max\":0,\"on_error\":\"stop\""
+                              "}]}]}]}"
+                              "}";
+    char               err[200];
+    engine_program_t  *program = engine_program_load_json_string(json, err, sizeof(err));
+    engine_step_t     *step;
 
     TEST_ASSERT_NOT_NULL_MESSAGE(program, err);
     step = &program->phases[0].lanes[0].steps[0];

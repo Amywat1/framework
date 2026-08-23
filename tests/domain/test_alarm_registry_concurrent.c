@@ -39,7 +39,7 @@ enum {
  * 必定各产生一条域事件，产生总数精确可算。MANUAL_RESET 的码做不到——clear 只翻
  * condition_active 而不发 CLEARED，下一次 trigger 又命中已活跃条目而不发
  * TRIGGERED，一对 trigger/clear 可能一条事件都不产生。 */
-#define CONC_CODE_AUTO 901002U
+#define CONC_CODE_AUTO     901002U
 
 static const alarm_def_t s_catalog[] = {
     {
@@ -171,8 +171,11 @@ static void *writer_thread(void *raw)
  * 四项来自同一次持锁，因此下列蕴含关系必须成立。若实现退化成多次取锁，
  * 聚合值与活动表分属不同时刻，这些关系就会被破坏。
  */
-static void check_view_consistent(const alarm_instance_t *list, unsigned n, bool blocking, uint32_t top,
-                                  safety_posture_t posture)
+static void check_view_consistent(const alarm_instance_t *list,
+                                  unsigned                n,
+                                  bool                    blocking,
+                                  uint32_t                top,
+                                  safety_posture_t        posture)
 {
     bool     saw_blocking = false;
     bool     saw_lockout  = false;

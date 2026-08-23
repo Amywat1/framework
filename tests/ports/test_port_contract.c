@@ -6,9 +6,9 @@
  */
 
 #include "application/ports/inbound/command/command_port.h"
+#include "domain/ports/outbound/device/device_ops_port.h"
 #include "domain/ports/outbound/hal/hal_io_port.h"
 #include "domain/ports/outbound/hal/hal_voice_port.h"
-#include "domain/ports/outbound/device/device_ops_port.h"
 #include "runtime/ports/port_contract.h"
 #include "runtime/ports/port_registry.h"
 #include "wdf_test_spec.h"

@@ -424,7 +424,7 @@ static void test_no_thread_start_on_any_failure(void)
 static void test_original_error_code_propagates(void)
 {
     static const sw_err_t codes[] = {SW_ERR_PARAM, SW_ERR_STATE, SW_ERR_HW, SW_ERR_NOT_INIT, SW_ERR_STORAGE};
-    unsigned               i;
+    unsigned              i;
 
     for (i = 0U; i < (unsigned)(sizeof(codes) / sizeof(codes[0])); i++) {
         arm("validate", codes[i]);

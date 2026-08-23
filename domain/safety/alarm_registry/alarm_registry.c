@@ -183,18 +183,15 @@ static sw_err_t insert_active_locked(const alarm_def_t *def)
             if (victim >= 0) {
                 uint32_t victim_code = s_active[(unsigned)victim].code;
 
-                LOG_ERROR("alarm_registry: evict %06u to admit lockout %06u",
-                          (unsigned)victim_code,
-                          (unsigned)def->code);
+                LOG_ERROR(
+                    "alarm_registry: evict %06u to admit lockout %06u", (unsigned)victim_code, (unsigned)def->code);
                 clear_active_at_locked((unsigned)victim);
             } else {
                 LOG_ERROR("alarm_registry: active pool full of lockout, reject %06u", (unsigned)def->code);
                 return SW_ERR_OVERFLOW;
             }
         } else {
-            LOG_ERROR("alarm_registry: active pool full, reject %06u level=%d",
-                      (unsigned)def->code,
-                      (int)def->level);
+            LOG_ERROR("alarm_registry: active pool full, reject %06u level=%d", (unsigned)def->code, (int)def->level);
             return SW_ERR_OVERFLOW;
         }
     }
@@ -274,8 +271,7 @@ sw_err_t alarm_registry_reevaluate_group(motion_reeval_group_id_t group)
     for (i = s_active_count; i-- > 0U;) {
         const alarm_instance_t *inst = &s_active[i];
 
-        if (alarm_clear_needs_motion_reeval(inst->clear) && (inst->reeval_group == group)
-            && !inst->condition_active) {
+        if (alarm_clear_needs_motion_reeval(inst->clear) && (inst->reeval_group == group) && !inst->condition_active) {
             clear_active_at_locked(i);
         }
     }

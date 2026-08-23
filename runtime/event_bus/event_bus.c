@@ -506,8 +506,7 @@ static void event_bus_invoke_handlers(const event_t *dispatch_evt)
 
 static void event_bus_consume_sem_permits(void)
 {
-    while (sem_trywait(&s_sem) == 0) {
-    }
+    while (sem_trywait(&s_sem) == 0) {}
 }
 
 /* -------------------------------------------------------------------------

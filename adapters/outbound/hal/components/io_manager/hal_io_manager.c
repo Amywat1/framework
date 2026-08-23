@@ -44,7 +44,7 @@ static hal_io_manager_cfg_t s_cfg;
 static io_manager_slot_t    s_slots[HAL_IO_MANAGER_QUEUE_CAPACITY];
 static pthread_mutex_t      s_mutex;
 static pthread_once_t       s_mutex_once = PTHREAD_ONCE_INIT;
-static pthread_cond_t       s_wake  = PTHREAD_COND_INITIALIZER;
+static pthread_cond_t       s_wake       = PTHREAD_COND_INITIALIZER;
 static pthread_t            s_worker;
 static bool                 s_initialized;
 static bool                 s_started;

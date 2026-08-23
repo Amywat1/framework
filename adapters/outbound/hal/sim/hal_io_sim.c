@@ -22,20 +22,20 @@
 #define SIM_IO_ADC_PORT_MAX 4
 #define SIM_IO_ADC_NOT_INIT (-99)
 
-static bool                s_do_state[SIM_IO_BOARD_MAX][SIM_IO_PIN_COUNT + 1U];
-static bool                s_di_state[SIM_IO_BOARD_MAX][SIM_IO_PIN_COUNT + 1U];
-static uint32_t            s_pulse_counter[SIM_IO_BOARD_MAX][SIM_IO_PIN_COUNT + 1U];
-static int                 s_adc_raw[SIM_IO_BOARD_MAX][SIM_IO_ADC_PORT_MAX + 1];
-static int                 s_adc_mv[SIM_IO_BOARD_MAX][SIM_IO_ADC_PORT_MAX + 1];
-static int                 s_adc_ma[SIM_IO_BOARD_MAX][SIM_IO_ADC_PORT_MAX + 1];
-static io_sample_quality_t s_di_quality[SIM_IO_BOARD_MAX];
-static uint64_t            s_di_timestamp_ms[SIM_IO_BOARD_MAX];
-static uint32_t            s_di_sequence[SIM_IO_BOARD_MAX];
-static bool                s_inited                    = false;
-static bool                s_started                   = false;
-static uint32_t            s_lifecycle_violation_count = 0U;
-static const hal_io_sim_name_entry_t *s_do_names       = NULL;
-static size_t                         s_do_name_count = 0U;
+static bool                           s_do_state[SIM_IO_BOARD_MAX][SIM_IO_PIN_COUNT + 1U];
+static bool                           s_di_state[SIM_IO_BOARD_MAX][SIM_IO_PIN_COUNT + 1U];
+static uint32_t                       s_pulse_counter[SIM_IO_BOARD_MAX][SIM_IO_PIN_COUNT + 1U];
+static int                            s_adc_raw[SIM_IO_BOARD_MAX][SIM_IO_ADC_PORT_MAX + 1];
+static int                            s_adc_mv[SIM_IO_BOARD_MAX][SIM_IO_ADC_PORT_MAX + 1];
+static int                            s_adc_ma[SIM_IO_BOARD_MAX][SIM_IO_ADC_PORT_MAX + 1];
+static io_sample_quality_t            s_di_quality[SIM_IO_BOARD_MAX];
+static uint64_t                       s_di_timestamp_ms[SIM_IO_BOARD_MAX];
+static uint32_t                       s_di_sequence[SIM_IO_BOARD_MAX];
+static bool                           s_inited                    = false;
+static bool                           s_started                   = false;
+static uint32_t                       s_lifecycle_violation_count = 0U;
+static const hal_io_sim_name_entry_t *s_do_names                  = NULL;
+static size_t                         s_do_name_count             = 0U;
 /* DO 写位于急停切断热路径：safety_cutout_execute -> 项目 cutout 实现 ->
  * hal_io do_set。该路径由 estop_poll 线程以 SCHED_FIFO 高优先级执行，而同
  * 两把锁又被 SCHED_OTHER 周期任务（IO 刷新、传感器采样）竞争，故启用优先级

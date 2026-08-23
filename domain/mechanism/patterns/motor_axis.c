@@ -54,8 +54,7 @@ static bool is_end_event(motor_event_type_t type)
 static void report_end(motor_axis_t *self, const motor_event_t *ev)
 {
     /* 同一故障闩锁下，事件路径与拒令合成可能先后到达；FAULT/ESTOP 按码去重。 */
-    if (self->last_valid
-        && ((ev->type == MOTOR_EVENT_FAULT) || (ev->type == MOTOR_EVENT_ESTOP))
+    if (self->last_valid && ((ev->type == MOTOR_EVENT_FAULT) || (ev->type == MOTOR_EVENT_ESTOP))
         && (self->last_event.type == ev->type) && (self->last_event.fault == ev->fault)) {
         return;
     }
@@ -79,8 +78,7 @@ static void report_cmd_fault(motor_axis_t *self)
 
     fault = motor_exec_fault_code(self->exec, self->motor);
     phase = motor_exec_phase(self->exec, self->motor);
-    if ((fault == MOTOR_FAULT_NONE) && (phase != MOTOR_PHASE_FAULT)
-        && (phase != MOTOR_PHASE_ESTOP)) {
+    if ((fault == MOTOR_FAULT_NONE) && (phase != MOTOR_PHASE_FAULT) && (phase != MOTOR_PHASE_ESTOP)) {
         return;
     }
 
@@ -119,10 +117,7 @@ sw_err_t motor_axis_init(motor_axis_t *self, motor_exec_t *exec, int motor, cons
     return SW_OK;
 }
 
-sw_err_t motor_axis_run(motor_axis_t            *self,
-                        motor_dir_t              dir,
-                        motor_speed_t            speed,
-                        const motor_move_spec_t *spec)
+sw_err_t motor_axis_run(motor_axis_t *self, motor_dir_t dir, motor_speed_t speed, const motor_move_spec_t *spec)
 {
     motor_cmd_result_t r;
     sw_err_t           ret;

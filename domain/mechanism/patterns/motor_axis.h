@@ -84,10 +84,7 @@ sw_err_t motor_axis_init(motor_axis_t *self, motor_exec_t *exec, int motor, cons
  * @note   再次调用会更新目标速度、方向或到位条件，由执行器收敛，不必先查相位
  * @note   FAULT 时由执行器拒绝；调用方须先 motor_axis_recover()
  */
-sw_err_t motor_axis_run(motor_axis_t             *self,
-                        motor_dir_t               dir,
-                        motor_speed_t             speed,
-                        const motor_move_spec_t  *spec);
+sw_err_t motor_axis_run(motor_axis_t *self, motor_dir_t dir, motor_speed_t speed, const motor_move_spec_t *spec);
 
 /**
  * @brief  受控停止

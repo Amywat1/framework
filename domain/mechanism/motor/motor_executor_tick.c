@@ -6,7 +6,6 @@
  */
 
 #include "domain/mechanism/motor/motor_executor_internal.h"
-
 #include "domain/ports/outbound/safety/safety_output_hold.h"
 
 /* ------------------------- 输出 ------------------------- */
@@ -20,7 +19,7 @@ static motor_speed_t desired_output_speed(motor_executor_t *e, int i)
 {
     motor_mstate_t          *state = &e->m[i];
     const motor_motor_cfg_t *cfg   = &e->cfg.motors[i];
-    motor_speed_t        speed = state->speed;
+    motor_speed_t            speed = state->speed;
 
     if (state->move_active && state->spec.use_position && (speed.kind == MOTOR_SPEED_GEAR) && (cfg->decel_point > 0)
         && (cfg->position_slow_gear > 0) && within_distance(state->spec.target_pos, state->position, cfg->decel_point)
@@ -32,8 +31,8 @@ static motor_speed_t desired_output_speed(motor_executor_t *e, int i)
 
 static bool apply_output(motor_executor_t *e, int i)
 {
-    motor_mstate_t   *s       = &e->m[i];
-    motor_speed_t desired = desired_output_speed(e, i);
+    motor_mstate_t *s       = &e->m[i];
+    motor_speed_t   desired = desired_output_speed(e, i);
 
     if (s->output_applied && speed_equal(s->applied_speed, desired)) {
         return true;
@@ -69,8 +68,8 @@ static bool interlock_ok(motor_executor_t *e, int i)
         }
         if (il->kind == MOTOR_INTERLOCK_MUTEX) {
             motor_exec_phase_t bp = e->m[il->b].phase;
-            if (bp == MOTOR_PHASE_RUNNING || bp == MOTOR_PHASE_STOPPING
-                || bp == MOTOR_PHASE_WAITING_START || bp == MOTOR_PHASE_REVERSAL_WAIT) {
+            if (bp == MOTOR_PHASE_RUNNING || bp == MOTOR_PHASE_STOPPING || bp == MOTOR_PHASE_WAITING_START
+                || bp == MOTOR_PHASE_REVERSAL_WAIT) {
                 return false;
             }
         } else {
@@ -172,7 +171,6 @@ static void apply_goal_in_place(motor_mstate_t *s, const motor_pending_cmd_t *pc
     s->emit_stop_on_halt = false;
 }
 
-
 static motor_cmd_result_t after_begin_start(motor_executor_t *e, int i, const char *started_reason)
 {
     motor_exec_phase_t phase = e->m[i].phase;
@@ -186,10 +184,7 @@ static motor_cmd_result_t after_begin_start(motor_executor_t *e, int i, const ch
     return cmd_make(MOTOR_CMD_ACCEPTED, started_reason);
 }
 
-static motor_cmd_result_t enter_reversal(motor_executor_t          *e,
-                                             int                        i,
-                                             const motor_pending_cmd_t *pc,
-                                             const char                *reason)
+static motor_cmd_result_t enter_reversal(motor_executor_t *e, int i, const motor_pending_cmd_t *pc, const char *reason)
 {
     if (!reversal(e, i, pc)) {
         return cmd_make(MOTOR_CMD_ACCEPTED, "cutoff-failed");
@@ -318,8 +313,7 @@ static void finish_halt(motor_executor_t *e, int i)
     /* ORIGIN 限位运动被外部停止时，只要机构确实压在原点就必须重建基准：清零依据是
      * 机构位置，与运动因何结束、是否经 motor_home 无关。上层可能与本执行器同拍
      * 看到原点限位并先下发停止，此时走 finish_halt 而非 complete_move。 */
-    if (motor_limit_mask_has(s->spec.limit_mask, MOTOR_LIMIT_ORIGIN)
-        && sensor_limit(e, i, MOTOR_LIMIT_ORIGIN)) {
+    if (motor_limit_mask_has(s->spec.limit_mask, MOTOR_LIMIT_ORIGIN) && sensor_limit(e, i, MOTOR_LIMIT_ORIGIN)) {
         (void)zero_encoder_baseline(e, i);
     }
     s->phase          = MOTOR_PHASE_STOPPED;
@@ -379,8 +373,8 @@ void complete_move(motor_executor_t *e, int i, motor_event_type_t type, motor_en
     motor_mstate_t *s = &e->m[i];
     /* 清零依据是「监视 ORIGIN 且结束时机构确实压在原点」，与是否 motor_home、
      * 运动因何结束无关。上层可能同拍先下发停止（END_NONE），仍须重建基准。 */
-    bool origin_reached = motor_limit_mask_has(s->spec.limit_mask, MOTOR_LIMIT_ORIGIN)
-                          && sensor_limit(e, i, MOTOR_LIMIT_ORIGIN);
+    bool origin_reached
+        = motor_limit_mask_has(s->spec.limit_mask, MOTOR_LIMIT_ORIGIN) && sensor_limit(e, i, MOTOR_LIMIT_ORIGIN);
 
     /* 先结算耗时，保留到位瞬间的时长供随后的事件读取。 */
     settle_elapsed(e, i);
@@ -435,7 +429,7 @@ static void check_end(motor_executor_t *e, int i)
         int64_t target    = s->spec.target_pos;
         int     tolerance = mc->pos_tolerance;
         bool    reached   = (s->dir == MOTOR_DIR_FORWARD) ? (s->position >= lower_bound(target, tolerance))
-                                                              : (s->position <= upper_bound(target, tolerance));
+                                                          : (s->position <= upper_bound(target, tolerance));
 
         if (reached) {
             complete_move(e, i, MOTOR_EVENT_ARRIVED, MOTOR_END_POSITION);
@@ -695,8 +689,7 @@ static void tick_stopping(motor_executor_t *e, int i)
             s->stop_issued       = true;
             s->stopping_since_ms = e->now;
         }
-        timeout_ms = (mc->stop_timeout_ms > 0) ? (uint64_t)mc->stop_timeout_ms
-                                               : (uint64_t)mc->default_max_time_ms;
+        timeout_ms = (mc->stop_timeout_ms > 0) ? (uint64_t)mc->stop_timeout_ms : (uint64_t)mc->default_max_time_ms;
         if (!drv_is_running(d) || ((e->now - s->stopping_since_ms) >= timeout_ms)) {
             finish_halt(e, i);
         }
@@ -864,8 +857,8 @@ static motor_init_result_t do_init(motor_executor_t *e)
     e->now             = clock_now(e);
     e->last_tick_ms    = e->now;
     e->last_tick_valid = true;
-    e->estop_latched = false;
-    e->safe_latched  = false;
+    e->estop_latched   = false;
+    e->safe_latched    = false;
     for (int ev_i = 0; ev_i < MOTOR_MAX_MOTORS; ++ev_i) {
         e->ev[ev_i].head  = 0;
         e->ev[ev_i].count = 0;
@@ -891,8 +884,8 @@ static motor_init_result_t do_init(motor_executor_t *e)
 
 motor_init_result_t motor_init(motor_executor_t *e, const motor_config_t *cfg, const motor_ports_t *ports)
 {
-    e->cfg    = *cfg;
-    e->ports  = *ports;
+    e->cfg   = *cfg;
+    e->ports = *ports;
     return do_init(e);
 }
 

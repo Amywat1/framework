@@ -27,12 +27,12 @@ typedef char periodic_task_capacity_check_t[(PERIODIC_TASK_MAX <= THREAD_REGISTR
 #define PERIODIC_TASK_NS_PER_SEC 1000000000L
 
 typedef struct {
-    bool                   used;
-    const char            *name;
-    uint32_t               period_ms;
-    periodic_task_fn_t     fn;
-    void                  *ctx;
-    periodic_task_stats_t  stats;
+    bool                  used;
+    const char           *name;
+    uint32_t              period_ms;
+    periodic_task_fn_t    fn;
+    void                 *ctx;
+    periodic_task_stats_t stats;
 } periodic_task_slot_t;
 
 static periodic_task_slot_t s_slots[PERIODIC_TASK_MAX];
@@ -112,18 +112,14 @@ static uint32_t timespec_delta_us(const struct timespec *later, const struct tim
         return UINT32_MAX;
     }
 
-    us = ((uint64_t)sec * (uint64_t)PERIODIC_TASK_US_PER_SEC)
-         + ((uint64_t)nsec / (uint64_t)PERIODIC_TASK_NS_PER_US);
+    us = ((uint64_t)sec * (uint64_t)PERIODIC_TASK_US_PER_SEC) + ((uint64_t)nsec / (uint64_t)PERIODIC_TASK_NS_PER_US);
     if (us > (uint64_t)UINT32_MAX) {
         return UINT32_MAX;
     }
     return (uint32_t)us;
 }
 
-void periodic_task_note_cycle(periodic_task_stats_t *stats,
-                              uint32_t               skipped,
-                              uint32_t               cb_us,
-                              uint32_t               wake_late_us)
+void periodic_task_note_cycle(periodic_task_stats_t *stats, uint32_t skipped, uint32_t cb_us, uint32_t wake_late_us)
 {
     if (stats == NULL) {
         return;
@@ -314,13 +310,13 @@ sw_err_t periodic_task_register(const char        *name,
             sw_err_t ret;
 
             (void)memset(slot, 0, sizeof(*slot));
-            slot->used             = true;
-            slot->name             = name;
-            slot->period_ms        = period_ms;
-            slot->fn               = fn;
-            slot->ctx              = ctx;
-            slot->stats.name       = name;
-            slot->stats.period_ms  = period_ms;
+            slot->used            = true;
+            slot->name            = name;
+            slot->period_ms       = period_ms;
+            slot->fn              = fn;
+            slot->ctx             = ctx;
+            slot->stats.name      = name;
+            slot->stats.period_ms = period_ms;
 
             pthread_mutex_unlock(&s_mutex);
             ret = thread_register_arg(name, periodic_task_thread_fn, slot, sched_policy, prio, stack_size);

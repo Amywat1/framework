@@ -340,7 +340,6 @@ static void test_trace_context_propagates_to_derived_event(void)
     TEST_ASSERT_EQUAL_UINT64(42U, g_child_command_id);
 }
 
-
 static void test_drain_empty_queue_ok(void)
 {
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());

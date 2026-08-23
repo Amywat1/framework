@@ -139,6 +139,6 @@ motor_cmd_result_t cmd_make(motor_cmd_status_t st, const char *reason)
 motor_cmd_result_t cmd_reject(motor_cmd_reject_t reject, const char *reason)
 {
     motor_cmd_result_t r = cmd_make(MOTOR_CMD_REJECTED, reason);
-    r.reject = reject;
+    r.reject             = reject;
     return r;
 }

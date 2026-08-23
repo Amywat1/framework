@@ -42,7 +42,6 @@ static cloud_point_entry_t make_on_change_entry(void)
     return entry;
 }
 
-
 static void reset_flags(void)
 {
     s_value       = 10;

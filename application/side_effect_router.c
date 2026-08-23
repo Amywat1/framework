@@ -44,7 +44,7 @@ static sw_err_t run_self_check(void)
 static sw_err_t run_stop_all_outputs(bool abort_wash_session)
 {
     const device_ops_t *ops = device_ops_get();
-    sw_err_t             ret;
+    sw_err_t            ret;
 
     if ((ops == NULL) || (ops->stop_all_outputs == NULL)) {
         return SW_ERR_NOT_INIT;

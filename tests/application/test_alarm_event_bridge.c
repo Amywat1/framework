@@ -3,8 +3,8 @@
  * @brief   alarm_event_bridge 鍗曞厓娴嬭瘯
  */
 
-#include "application/bridges/alarm_bridge.h"
 #include "application/bridges/alarm_binding_bridge.h"
+#include "application/bridges/alarm_bridge.h"
 #include "application/ports/inbound/safety/alarm_binding_port.h"
 #include "common/event_types.h"
 #include "common/sw_error.h"
@@ -40,7 +40,7 @@ static const alarm_def_t s_catalog[] = {
      .level        = ALARM_LEVEL_CRITICAL,
      .clear        = ALARM_CLEAR_AUTO_STATIC,
      .reeval_group = ALARM_REEVAL_GROUP_NONE,
-        .desc         = "test critical",
+     .desc         = "test critical",
      },
     {
      .code         = 201809U,

@@ -8,9 +8,9 @@
 #include "adapters/outbound/cloud/providers/snack/snack_cloud_link_adapter.h"
 
 #include "adapters/runtime/snack/snack_sdk.h"
+#include "application/ports/outbound/cloud/link/cloud_link_port.h"
 #include "common/event_types.h"
 #include "common/log.h"
-#include "application/ports/outbound/cloud/link/cloud_link_port.h"
 #include "runtime/event_bus/event_bus.h"
 
 #include <stdbool.h>

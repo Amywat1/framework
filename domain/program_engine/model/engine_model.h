@@ -101,10 +101,10 @@ typedef struct {
     uint32_t           timeout_ms;                /* signal/timeout/motion：超时（0=无） */
     uint32_t           confirm_ms;                /* signal/motion：连续为真确认窗（0=首拍即完成） */
     char               resource[ENGINE_NAME_MAX]; /* motion：等待结算的资源名 */
-    unsigned           signal_id;               /**< 加载到引擎时绑定的 provider 信号 ID */
-    bool               signal_bound;            /**< signal_id 是否有效 */
-    unsigned           resource_id;             /**< 加载到引擎时绑定的 provider 资源 ID */
-    bool               resource_bound;          /**< resource_id 是否有效 */
+    unsigned           signal_id;                 /**< 加载到引擎时绑定的 provider 信号 ID */
+    bool               signal_bound;              /**< signal_id 是否有效 */
+    unsigned           resource_id;               /**< 加载到引擎时绑定的 provider 资源 ID */
+    bool               resource_bound;            /**< resource_id 是否有效 */
 } engine_done_t;
 
 /* 步骤（event / control） */
