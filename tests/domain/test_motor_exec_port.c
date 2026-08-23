@@ -5,6 +5,7 @@
 
 #include "domain/mechanism/motor/motor_executor.h"
 #include "domain/ports/outbound/motor/motor_exec_port.h"
+#include "domain/ports/outbound/safety/safety_output_hold.h"
 #include "common/sw_error.h"
 #include "wdf_test_spec.h"
 
@@ -31,12 +32,17 @@ static motor_exec_t *s_exec;
 static motor_driver_t    s_driver;
 static motor_encoder_t   s_encoder;
 static motor_sensors_t   s_sensors;
-static motor_estop_t     s_estop;
 static motor_clock_t     s_clock;
 static motor_driver_t   *s_drivers[2];
 static motor_encoder_t  *s_encoders[2];
 static motor_config_t    s_cfg;
 static motor_ports_t     s_ports;
+static bool              s_hold_di;
+
+static bool hold_di_active(void)
+{
+    return s_hold_di;
+}
 
 static uint64_t clock_now(void *ctx)
 {
@@ -110,12 +116,6 @@ static bool sensor_limit(void *ctx, int motor, motor_limit_kind_t kind)
     return false;
 }
 
-static bool estop_active(void *ctx)
-{
-    (void)ctx;
-    return false;
-}
-
 static void init_executor(void)
 {
     motor_init_result_t ir;
@@ -129,7 +129,9 @@ static void init_executor(void)
     memset(s_drivers, 0, sizeof(s_drivers));
     memset(s_encoders, 0, sizeof(s_encoders));
     motor_executor_test_reset();
-    s_exec = NULL;
+    safety_output_hold_reset();
+    s_hold_di = false;
+    s_exec    = NULL;
 
     s_clock.now_ms = clock_now;
     s_clock.ctx    = &s_fx;
@@ -149,14 +151,11 @@ static void init_executor(void)
 
     s_sensors.limit = sensor_limit;
     s_sensors.ctx   = &s_fx;
-    s_estop.active  = estop_active;
-    s_estop.ctx     = &s_fx;
 
     s_ports.clock    = &s_clock;
     s_ports.drivers  = s_drivers;
     s_ports.encoders = s_encoders;
     s_ports.sensors  = &s_sensors;
-    s_ports.estop    = &s_estop;
 
     s_cfg.motor_count                   = 1;
     s_cfg.driver_count                  = 1;
@@ -179,6 +178,7 @@ static void rebind_executor(void)
     motor_init_result_t result;
 
     motor_executor_test_reset();
+    safety_output_hold_reset();
     s_exec = NULL;
     result = motor_executor_bind(0U, &s_cfg, &s_ports, &s_exec);
     TEST_ASSERT_TRUE_MESSAGE(result.ok, result.error);
@@ -415,6 +415,49 @@ static void test_run_rejects_unset_dir(void)
     r = motor_exec_run(s_exec, 0, motor_speed_gear(1), MOTOR_DIR_UNSET, NULL);
     TEST_ASSERT_FALSE(motor_cmd_ok(r));
     TEST_ASSERT_EQUAL_INT(MOTOR_REJECT_BAD_DIR, r.reject);
+    TEST_ASSERT_EQUAL_INT(MOTOR_PHASE_STOPPED, motor_exec_phase(s_exec, 0));
+}
+
+static void test_output_hold_cuts_and_rejects_until_release(void)
+{
+    motor_cmd_result_t r;
+
+    r = motor_exec_run(s_exec, 0, motor_speed_gear(1), MOTOR_DIR_FORWARD, NULL);
+    TEST_ASSERT_TRUE(motor_cmd_ok(r));
+    motor_executor_tick(s_exec);
+    TEST_ASSERT_EQUAL_INT(MOTOR_PHASE_RUNNING, motor_exec_phase(s_exec, 0));
+
+    safety_output_hold_request();
+    motor_executor_tick(s_exec);
+    TEST_ASSERT_EQUAL_INT(MOTOR_PHASE_ESTOP, motor_exec_phase(s_exec, 0));
+
+    r = motor_exec_run(s_exec, 0, motor_speed_gear(1), MOTOR_DIR_FORWARD, NULL);
+    TEST_ASSERT_FALSE(motor_cmd_ok(r));
+    TEST_ASSERT_EQUAL_INT(MOTOR_REJECT_SAFETY, r.reject);
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, safety_output_hold_release());
+    motor_executor_tick(s_exec);
+    TEST_ASSERT_EQUAL_INT(MOTOR_PHASE_STOPPED, motor_exec_phase(s_exec, 0));
+    TEST_ASSERT_FALSE(safety_output_hold_is_active());
+
+    r = motor_exec_run(s_exec, 0, motor_speed_gear(1), MOTOR_DIR_FORWARD, NULL);
+    TEST_ASSERT_TRUE(motor_cmd_ok(r));
+}
+
+static void test_output_hold_reset_rejected_while_di_active(void)
+{
+    s_hold_di = true;
+    safety_output_hold_bind_di(hold_di_active);
+    motor_executor_tick(s_exec);
+    TEST_ASSERT_EQUAL_INT(MOTOR_PHASE_ESTOP, motor_exec_phase(s_exec, 0));
+
+    TEST_ASSERT_EQUAL_INT(SW_ERR_STATE, safety_output_hold_release());
+    motor_executor_tick(s_exec);
+    TEST_ASSERT_EQUAL_INT(MOTOR_PHASE_ESTOP, motor_exec_phase(s_exec, 0));
+
+    s_hold_di = false;
+    TEST_ASSERT_EQUAL_INT(SW_OK, safety_output_hold_release());
+    motor_executor_tick(s_exec);
     TEST_ASSERT_EQUAL_INT(MOTOR_PHASE_STOPPED, motor_exec_phase(s_exec, 0));
 }
 
@@ -679,6 +722,8 @@ int main(void)
     WDF_RUN_TEST(test_query_helpers_via_port, "", "验证经端口位置与基准/编码器查询");
     WDF_RUN_TEST(test_query_helpers_return_safe_defaults_for_bad_motor, "", "验证越界电机查询返回安全默认值");
     WDF_RUN_TEST(test_run_rejects_unset_dir, "", "验证未指定方向的运动命令被拒绝");
+    WDF_RUN_TEST(test_output_hold_cuts_and_rejects_until_release, "SAFE-14", "验证输出抑制切断电机并拒绝运动直到释放");
+    WDF_RUN_TEST(test_output_hold_reset_rejected_while_di_active, "SAFE-15", "验证急停 DI 有效时拒绝释放输出抑制");
     WDF_RUN_TEST(test_pop_event_via_port, "", "验证经端口取出运动事件");
     WDF_RUN_TEST(test_pop_event_for_keeps_other_motors, "", "验证按电机取事件保留其它电机");
     WDF_RUN_TEST(test_event_queue_prefers_drop_same_motor, "", "验证队列满时优先丢同电机事件");

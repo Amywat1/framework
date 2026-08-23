@@ -4,6 +4,7 @@
  */
 
 #include "domain/mechanism/motor/motor_executor.h"
+#include "domain/ports/outbound/safety/safety_output_hold.h"
 #include "wdf_test_spec.h"
 
 #include <stdbool.h>
@@ -111,12 +112,6 @@ static bool sensor_limit(void *ctx, int motor, motor_limit_kind_t kind)
     return false;
 }
 
-static bool estop_active(void *ctx)
-{
-    (void)ctx;
-    return false;
-}
-
 static void tick_at(int64_t position)
 {
     s_fixture.position = position;
@@ -149,7 +144,6 @@ static void init_executor(int64_t initial_position, motor_encoder_kind_t encoder
     static motor_encoder_t *encoders[1];
     static motor_clock_t    clock;
     static motor_sensors_t  sensors;
-    static motor_estop_t    estop;
     motor_config_t          config;
     motor_ports_t           ports;
     motor_init_result_t     result;
@@ -157,6 +151,7 @@ static void init_executor(int64_t initial_position, motor_encoder_kind_t encoder
     memset(&s_fixture, 0, sizeof(s_fixture));
     memset(&config, 0, sizeof(config));
     motor_executor_test_reset();
+    safety_output_hold_reset();
     s_executor              = NULL;
     s_fixture.position      = initial_position;
     s_fixture.zero_succeeds = true;
@@ -176,7 +171,6 @@ static void init_executor(int64_t initial_position, motor_encoder_kind_t encoder
     };
     clock       = (motor_clock_t){clock_now, &s_fixture};
     sensors     = (motor_sensors_t){sensor_limit, &s_fixture};
-    estop       = (motor_estop_t){estop_active, &s_fixture};
     drivers[0]  = &driver;
     encoders[0] = &encoder;
     ports       = (motor_ports_t){
@@ -184,7 +178,6 @@ static void init_executor(int64_t initial_position, motor_encoder_kind_t encoder
               .drivers  = drivers,
               .encoders = encoders,
               .sensors  = &sensors,
-              .estop    = &estop,
     };
     config.motor_count                   = 1;
     config.driver_count                  = 1;
@@ -635,7 +628,6 @@ static void test_no_encoder_baseline_trusted_at_init(void)
     static motor_encoder_t *encoders[1];
     static motor_clock_t    clock;
     static motor_sensors_t  sensors;
-    static motor_estop_t    estop;
     motor_config_t          config;
     motor_ports_t           ports;
     motor_init_result_t     result;
@@ -643,6 +635,7 @@ static void test_no_encoder_baseline_trusted_at_init(void)
     memset(&s_fixture, 0, sizeof(s_fixture));
     memset(&config, 0, sizeof(config));
     motor_executor_test_reset();
+    safety_output_hold_reset();
     s_executor              = NULL;
     s_fixture.zero_succeeds = true;
 
@@ -656,7 +649,6 @@ static void test_no_encoder_baseline_trusted_at_init(void)
     };
     clock        = (motor_clock_t){clock_now, &s_fixture};
     sensors      = (motor_sensors_t){sensor_limit, &s_fixture};
-    estop        = (motor_estop_t){estop_active, &s_fixture};
     drivers[0]   = &driver;
     encoders[0]  = NULL;
     ports        = (motor_ports_t){
@@ -664,7 +656,6 @@ static void test_no_encoder_baseline_trusted_at_init(void)
                .drivers  = drivers,
                .encoders = encoders,
                .sensors  = &sensors,
-               .estop    = &estop,
     };
     config.motor_count                   = 1;
     config.driver_count                  = 1;
@@ -735,7 +726,6 @@ static void test_home_unset_dir_rejected_at_bind(void)
     static motor_encoder_t *encoders[1];
     static motor_clock_t    clock;
     static motor_sensors_t  sensors;
-    static motor_estop_t    estop;
     motor_ports_t           ports;
 
     init_executor(0, MOTOR_ENC_INCREMENTAL);
@@ -751,11 +741,10 @@ static void test_home_unset_dir_rejected_at_bind(void)
     encoder     = (motor_encoder_t){.raw = encoder_raw, .zero = encoder_zero, .ctx = &s_fixture};
     clock       = (motor_clock_t){clock_now, &s_fixture};
     sensors     = (motor_sensors_t){sensor_limit, &s_fixture};
-    estop       = (motor_estop_t){estop_active, &s_fixture};
     drivers[0]  = &driver;
     encoders[0] = &encoder;
     ports       = (motor_ports_t){
-        .clock = &clock, .drivers = drivers, .encoders = encoders, .sensors = &sensors, .estop = &estop,
+        .clock = &clock, .drivers = drivers, .encoders = encoders, .sensors = &sensors,
     };
     config.motor_count                   = 1;
     config.driver_count                  = 1;

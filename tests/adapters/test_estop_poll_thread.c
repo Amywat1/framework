@@ -10,6 +10,7 @@
 #include "common/event_types.h"
 #include "common/sw_error.h"
 #include "common/time_util.h"
+#include "domain/ports/outbound/safety/safety_output_hold.h"
 #include "domain/ports/outbound/safety/safety_port.h"
 #include "runtime/event_bus/event_bus.h"
 #include "runtime/scheduler/scheduler.h"
@@ -138,6 +139,7 @@ static void test_estop_edges_publish_events(void)
     usleep(30000U);
     TEST_ASSERT_TRUE(s_estop_on_count >= 1);
     TEST_ASSERT_TRUE(s_cutout_count >= 1);
+    TEST_ASSERT_TRUE(safety_output_hold_is_active());
 
     s_estop_off_count = 0;
     hw_estop_sim_set_active(false);

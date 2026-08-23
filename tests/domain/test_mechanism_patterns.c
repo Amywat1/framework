@@ -10,6 +10,7 @@
 #include "domain/mechanism/patterns/fluid_path.h"
 #include "domain/mechanism/patterns/motor_axis.h"
 #include "domain/ports/outbound/motor/motor_exec_port.h"
+#include "domain/ports/outbound/safety/safety_output_hold.h"
 #include "runtime/event_bus/event_bus.h"
 #include "runtime/scheduler/periodic_task.h"
 #include "wdf_test_spec.h"
@@ -44,6 +45,12 @@ static bool                   s_end_cb_valid;
 static actuator_id_t          s_end_cb_id;
 static motor_axis_end_result_t s_end_cb_result;
 static int                    s_end_cb_count;
+static bool                   s_fluid_di;
+
+static bool fluid_hold_di(void)
+{
+    return s_fluid_di;
+}
 
 #define MOCK_EVENT_CAP 8
 static motor_event_t s_events[MOCK_EVENT_CAP];
@@ -359,7 +366,9 @@ void setUp(void)
 {
     uint64_t now_ms = 0U;
 
+    safety_output_hold_reset();
     mock_motor_reset();
+    s_fluid_di = false;
     memset(s_slot_state, 0, sizeof(s_slot_state));
     s_all_off_count = 0;
 
@@ -882,7 +891,7 @@ static void test_fluid_path_opens_other_valve_during_pump_stop_wait(void)
     TEST_ASSERT_TRUE(fluid_path_is_settled());
 }
 
-static void test_fluid_path_emergency_off_is_polled(void)
+static void test_fluid_path_hold_request_is_polled(void)
 {
     uint64_t now_ms = 0U;
 
@@ -891,12 +900,30 @@ static void test_fluid_path_emergency_off_is_polled(void)
     fluid_drain(&now_ms);
     TEST_ASSERT_TRUE(s_slot_state[TEST_CH_SHARED][FLUID_PATH_SLOT_PUMP]);
 
-    fluid_path_emergency_off();
+    safety_output_hold_request();
     TEST_ASSERT_FALSE(fluid_path_is_settled());
+    TEST_ASSERT_EQUAL_INT(SW_ERR_STATE, fluid_path_set(FLUID_PATH_MASK(TEST_PATH_A)));
     fluid_path_poll(now_ms);
-    TEST_ASSERT_TRUE(fluid_path_is_settled());
+    TEST_ASSERT_FALSE(fluid_path_is_settled());
     TEST_ASSERT_FALSE(s_slot_state[TEST_CH_SHARED][FLUID_PATH_SLOT_PUMP]);
     TEST_ASSERT_GREATER_THAN_INT(0, s_all_off_count);
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, safety_output_hold_release());
+    TEST_ASSERT_TRUE(fluid_path_is_settled());
+}
+
+static void test_fluid_path_di_hold_blocks_set(void)
+{
+    fluid_init_ok();
+    TEST_ASSERT_EQUAL_INT(SW_OK, fluid_path_set(FLUID_PATH_MASK(TEST_PATH_A)));
+    fluid_path_poll(0U);
+    TEST_ASSERT_TRUE(s_slot_state[TEST_CH_SHARED][FLUID_PATH_SLOT_PUMP]);
+
+    s_fluid_di = true;
+    safety_output_hold_bind_di(fluid_hold_di);
+    fluid_path_poll(0U);
+    TEST_ASSERT_FALSE(s_slot_state[TEST_CH_SHARED][FLUID_PATH_SLOT_PUMP]);
+    TEST_ASSERT_EQUAL_INT(SW_ERR_STATE, fluid_path_enable(FLUID_PATH_MASK(TEST_PATH_B)));
 }
 
 
@@ -972,7 +999,8 @@ int main(void)
     WDF_RUN_TEST(test_fluid_path_open_wait_switch_starts_next_path, "", "验证等开阀期间改开其它路径同一拍切换");
     WDF_RUN_TEST(test_fluid_path_opens_second_valve_during_first_wait, "", "验证等开阀期间可立刻开启另一条路径的阀");
     WDF_RUN_TEST(test_fluid_path_opens_other_valve_during_pump_stop_wait, "", "验证等关泵期间可立刻开启另一条路径的阀");
-    WDF_RUN_TEST(test_fluid_path_emergency_off_is_polled, "", "验证轮询处理流体路径紧急关闭");
+    WDF_RUN_TEST(test_fluid_path_hold_request_is_polled, "SAFE-14", "验证输出抑制使水路 poll 全关并拒绝再开直到释放");
+    WDF_RUN_TEST(test_fluid_path_di_hold_blocks_set, "SAFE-14", "验证急停 DI 使水路 poll 全关并拒绝改目标");
 
     return UNITY_END();
 }

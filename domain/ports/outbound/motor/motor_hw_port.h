@@ -1,9 +1,10 @@
 /**
  * @file    motor_hw_port.h
- * @brief   电机硬件出站端口：驱动器、编码器、限位与急停。
+ * @brief   电机硬件出站端口：驱动器、编码器与限位。
  *
  * 领域执行器经这些函数指针表访问硬件；项目 wiring / vendor adapter
  * 只负责把具体驱动绑定进来。机构模式（motor_axis）不包含本头。
+ * 急停输入不在本表：电机与流体共用 `safety_output_hold`。
  */
 #ifndef DOMAIN_PORTS_OUTBOUND_MOTOR_MOTOR_HW_PORT_H
 #define DOMAIN_PORTS_OUTBOUND_MOTOR_MOTOR_HW_PORT_H
@@ -94,12 +95,6 @@ typedef struct {
     void *ctx;
 } motor_sensors_t;
 
-/** @brief 急停输入端口（全局）。 */
-typedef struct {
-    bool (*active)(void *ctx); /**< 急停信号是否有效 */
-    void *ctx;
-} motor_estop_t;
-
 /**
  * @brief 端口集合。drivers/encoders 为指针数组。
  * @note encoders 数组长度必须等于电机数，无编码器的电机对应项置 NULL。
@@ -109,7 +104,6 @@ typedef struct {
     motor_driver_t *const  *drivers;  /**< 驱动器指针数组，长度=cfg.driver_count */
     motor_encoder_t *const *encoders; /**< 编码器指针数组，长度=电机数，无则填 NULL */
     const motor_sensors_t  *sensors;  /**< 限位采集，必填 */
-    const motor_estop_t    *estop;    /**< 急停输入，必填 */
 } motor_ports_t;
 
 #ifdef __cplusplus

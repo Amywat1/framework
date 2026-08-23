@@ -10,6 +10,7 @@
 #include "common/event_types.h"
 #include "common/log.h"
 #include "common/time_util.h"
+#include "domain/ports/outbound/safety/safety_output_hold.h"
 #include "domain/ports/outbound/safety/safety_port.h"
 #include "runtime/config/thread_config.h"
 #include "runtime/event_bus/event_bus.h"
@@ -87,6 +88,7 @@ static void handle_estop_edge(bool active)
          * 否则领域层不会进入急停态，故障会同时丢掉切断与状态收敛两条路径。 */
         sw_err_t cut_ret = safety_cutout_execute();
 
+        safety_output_hold_request();
         (void)event_publish_required(EVT_HW_ESTOP_ON, 0U);
         if (cut_ret != SW_OK) {
             LOG_ERROR("estop_poll: HW ESTOP ON，但切断未确认完成 ret=%d", (int)cut_ret);

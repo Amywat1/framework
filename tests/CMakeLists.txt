@@ -1,4 +1,5 @@
 set(WDF_ROOT ${CMAKE_SOURCE_DIR})
+set(WDF_SAFETY_HOLD_SRC ${WDF_ROOT}/domain/ports/outbound/safety/safety_output_hold.c)
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
 
 # 辅助宏：添加单元测试（每个测试只链接自身逻辑所需的最小源集）
@@ -216,8 +217,14 @@ add_unit_test(test_device_ops_port
 add_unit_test(test_op_mode_alarm_port
     ${CMAKE_CURRENT_SOURCE_DIR}/ports/test_op_mode_alarm_port.c
     ${WDF_ROOT}/runtime/ports/port_registry_safety.c
+    ${WDF_SAFETY_HOLD_SRC}
     ${WDF_ROOT}/common/log.c
     ${WDF_ROOT}/common/sw_mutex.c
+)
+
+add_unit_test(test_safety_output_hold
+    ${CMAKE_CURRENT_SOURCE_DIR}/ports/test_safety_output_hold.c
+    ${WDF_SAFETY_HOLD_SRC}
 )
 
 add_unit_test(test_safety_cutout_contract
@@ -240,6 +247,7 @@ add_unit_test(test_port_contract
     ${CMAKE_CURRENT_SOURCE_DIR}/ports/test_port_contract.c
     ${WDF_ROOT}/runtime/ports/port_contract.c
     ${WDF_ROOT}/runtime/ports/port_registry_safety.c
+    ${WDF_SAFETY_HOLD_SRC}
     ${WDF_ROOT}/runtime/ports/port_registry_hal.c
     ${WDF_ROOT}/runtime/ports/port_registry_infra.c
     ${WDF_ROOT}/runtime/ports/port_registry_cloud.c
@@ -420,6 +428,7 @@ add_unit_test(test_op_mode_bridge
     ${WDF_ROOT}/domain/op_mode/operational_mode.c
     ${WDF_ROOT}/domain/safety/alarm_registry/alarm_registry.c
     ${WDF_ROOT}/runtime/ports/port_registry_safety.c
+    ${WDF_SAFETY_HOLD_SRC}
     ${WDF_ROOT}/runtime/ports/port_registry_infra.c
     ${WDF_ROOT}/runtime/event_bus/event_bus.c
     ${WDF_ROOT}/common/time_util.c
@@ -458,6 +467,7 @@ add_unit_test(test_operational_mode
     ${WDF_ROOT}/domain/safety/alarm_registry/alarm_registry.c
     ${WDF_ROOT}/runtime/ports/port_registry_infra.c
     ${WDF_ROOT}/runtime/ports/port_registry_safety.c
+    ${WDF_SAFETY_HOLD_SRC}
     ${WDF_ROOT}/runtime/event_bus/event_bus.c
     ${WDF_ROOT}/common/time_util.c
     ${WDF_ROOT}/common/log.c
@@ -471,6 +481,7 @@ add_unit_test(test_motor_exec_port
     ${WDF_ROOT}/domain/mechanism/motor/motor_executor_tick.c
     ${WDF_ROOT}/domain/mechanism/motor/motor_executor_cmd.c
     ${WDF_ROOT}/domain/ports/outbound/motor/motor_exec_port.c
+    ${WDF_SAFETY_HOLD_SRC}
 )
 target_compile_definitions(test_motor_exec_port PRIVATE MOTOR_EXECUTOR_UNIT_TEST)
 
@@ -481,6 +492,7 @@ add_unit_test(test_motor_executor_position
     ${WDF_ROOT}/domain/mechanism/motor/motor_executor_tick.c
     ${WDF_ROOT}/domain/mechanism/motor/motor_executor_cmd.c
     ${WDF_ROOT}/domain/ports/outbound/motor/motor_exec_port.c
+    ${WDF_SAFETY_HOLD_SRC}
 )
 target_compile_definitions(test_motor_executor_position PRIVATE MOTOR_EXECUTOR_UNIT_TEST)
 
@@ -489,6 +501,7 @@ add_unit_test(test_mechanism_patterns
     ${WDF_ROOT}/domain/mechanism/model/actuator_events.c
     ${WDF_ROOT}/domain/mechanism/patterns/motor_axis.c
     ${WDF_ROOT}/domain/mechanism/patterns/fluid_path.c
+    ${WDF_SAFETY_HOLD_SRC}
     ${WDF_ROOT}/application/bridges/mechanism_bridge.c
     ${WDF_ROOT}/runtime/event_bus/event_bus.c
     ${WDF_ROOT}/common/log.c
@@ -516,6 +529,7 @@ add_unit_test(test_side_effect_router
     ${WDF_ROOT}/domain/safety/alarm_registry/alarm_registry.c
     ${WDF_ROOT}/runtime/ports/port_registry_infra.c
     ${WDF_ROOT}/runtime/ports/port_registry_safety.c
+    ${WDF_SAFETY_HOLD_SRC}
     ${WDF_ROOT}/tests/stubs/device_ops_stub.c
     ${WDF_ROOT}/runtime/event_bus/event_bus.c
     ${WDF_ROOT}/common/time_util.c
@@ -562,6 +576,7 @@ add_unit_test(test_recovery_emergency
     ${WDF_ROOT}/domain/safety/alarm_registry/alarm_registry.c
     ${WDF_ROOT}/runtime/ports/port_registry_infra.c
     ${WDF_ROOT}/runtime/ports/port_registry_safety.c
+    ${WDF_SAFETY_HOLD_SRC}
     ${WDF_ROOT}/runtime/event_bus/event_bus.c
     ${WDF_ROOT}/common/log.c
     ${WDF_ROOT}/common/sw_mutex.c
@@ -577,6 +592,7 @@ add_unit_test(test_telemetry_projection
     ${WDF_ROOT}/runtime/ports/port_registry_cloud.c
     ${WDF_ROOT}/runtime/ports/port_registry_infra.c
     ${WDF_ROOT}/runtime/ports/port_registry_safety.c
+    ${WDF_SAFETY_HOLD_SRC}
     ${WDF_ROOT}/runtime/event_bus/event_bus.c
     ${WDF_ROOT}/runtime/scheduler/periodic_task.c
     ${WDF_ROOT}/runtime/scheduler/thread_registry.c
@@ -593,6 +609,7 @@ add_unit_test(test_command_gateway
     ${WDF_ROOT}/domain/safety/alarm_registry/alarm_registry.c
     ${WDF_ROOT}/runtime/ports/port_registry_infra.c
     ${WDF_ROOT}/runtime/ports/port_registry_safety.c
+    ${WDF_SAFETY_HOLD_SRC}
     ${WDF_ROOT}/tests/stubs/device_ops_stub.c
     ${WDF_ROOT}/runtime/event_bus/event_bus.c
     ${WDF_ROOT}/common/time_util.c
@@ -717,6 +734,7 @@ add_unit_test(test_estop_poll_thread
     ${WDF_ROOT}/runtime/event_bus/event_bus.c
     ${WDF_ROOT}/adapters/outbound/safety/sim/hw_estop_sim.c
     ${WDF_ROOT}/runtime/ports/port_registry_safety.c
+    ${WDF_SAFETY_HOLD_SRC}
     ${WDF_ROOT}/common/log.c
     ${WDF_ROOT}/common/sw_mutex.c
     ${WDF_ROOT}/common/time_util.c

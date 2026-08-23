@@ -339,7 +339,7 @@ loop:
     raw = hw_estop_port_is_active()
     按确认时间窗滤波（按下/松开分开，默认可由项目配置；0/0 为立即确认）
     首次确认若为无效，不发 OFF
-    确认按下：safety_cutout_execute() → event_publish(EVT_HW_ESTOP_ON)
+    确认按下：safety_cutout_execute() → safety_output_hold_request() → event_publish(EVT_HW_ESTOP_ON)
     确认松开：event_publish(EVT_HW_ESTOP_OFF)
     usleep(THD_SAFETY_THREAD_POLL_US)
 ```

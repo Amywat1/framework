@@ -10,6 +10,7 @@
  */
 
 #include "common/log.h"
+#include "domain/ports/outbound/safety/safety_output_hold.h"
 #include "domain/ports/outbound/safety/safety_port.h"
 
 #include <limits.h>
@@ -28,6 +29,7 @@ sw_err_t safety_port_register(const safety_ops_t *ops)
         }
     }
     s_ops = ops;
+    safety_output_hold_bind_di((ops != NULL) ? ops->estop_is_active : NULL);
     return SW_OK;
 }
 
@@ -166,4 +168,5 @@ void port_registry_safety_reset(void)
     atomic_store(&s_cutout_failure_count, 0U);
     atomic_store(&s_cutout_failure_generation, 0U);
     atomic_store(&s_cutout_confirmed_generation, 0U);
+    safety_output_hold_reset();
 }

@@ -184,9 +184,6 @@ motor_cmd_result_t motor_executor_zero_encoder(motor_exec_t *exec, int motor);
 /** @brief 上层显式确认位置基准可信。 */
 motor_cmd_result_t motor_executor_confirm_baseline(motor_exec_t *exec, int motor);
 
-/** @brief 急停解除后显式复位。 */
-void motor_executor_reset_estop(motor_exec_t *exec);
-
 /** @brief 看门狗恢复正常节拍后复位。 */
 void motor_executor_reset_watchdog(motor_exec_t *exec);
 

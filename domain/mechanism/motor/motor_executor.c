@@ -345,9 +345,6 @@ static const char *ports_error(const motor_config_t *cfg, const motor_ports_t *p
     if ((ports->sensors == NULL) || (ports->sensors->limit == NULL)) {
         return "sensor port missing";
     }
-    if ((ports->estop == NULL) || (ports->estop->active == NULL)) {
-        return "estop port missing";
-    }
     if ((cfg->driver_count <= 0) || (cfg->driver_count > MOTOR_MAX_DRIVERS)) {
         return NULL;
     }
@@ -459,17 +456,6 @@ motor_cmd_result_t motor_executor_confirm_baseline(motor_exec_t *exec, int motor
     motor_executor_t *executor = executor_from_handle(exec);
 
     return (executor != NULL) ? motor_confirm_baseline(executor, motor) : cmd_reject(MOTOR_REJECT_UNAVAILABLE, "executor-unavailable");
-}
-
-void motor_executor_reset_estop(motor_exec_t *exec)
-{
-    motor_executor_t *executor = executor_from_handle(exec);
-
-    if (executor != NULL) {
-        motor_lock(executor);
-        motor_reset_estop(executor);
-        motor_unlock(executor);
-    }
 }
 
 void motor_executor_reset_watchdog(motor_exec_t *exec)

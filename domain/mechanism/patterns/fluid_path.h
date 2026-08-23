@@ -76,12 +76,6 @@ sw_err_t fluid_path_disable(fluid_path_mask_t mask);
 sw_err_t fluid_path_all_off(void);
 
 /**
- * @brief  急停快速切断请求（无锁，由 fluid_path_poll 异步收敛）
- * @note   急停热路径专用，不持 s_mutex
- */
-void fluid_path_emergency_off(void);
-
-/**
  * @brief  按当前目标对账一次阀泵输出
  * @param  now_ms  当前单调时钟毫秒数
  *
@@ -95,8 +89,8 @@ void fluid_path_poll(uint64_t now_ms);
 
 /**
  * @brief  判断水路是否已收敛到目标状态
- * @retval true   已初始化、无强制关断、急停旗标未置位，且各执行器实际输出等于期望
- * @retval false  未初始化、强制关断、急停未消费，或输出尚未对齐目标
+ * @retval true   已初始化、无强制关断、输出抑制未置位，且各执行器实际输出等于期望
+ * @retval false  未初始化、强制关断、输出抑制有效，或输出尚未对齐目标
  */
 bool fluid_path_is_settled(void);
 

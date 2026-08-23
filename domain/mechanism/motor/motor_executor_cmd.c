@@ -7,6 +7,8 @@
 
 #include "domain/mechanism/motor/motor_executor_internal.h"
 
+#include "domain/ports/outbound/safety/safety_output_hold.h"
+
 /* ------------------------- 速度解析 ------------------------- */
 
 /**
@@ -51,7 +53,9 @@ static motor_cmd_result_t cmd_guard(motor_executor_t *e, int i, unsigned flags)
     if (flags & MOTOR_CMD_NEED_NOW) {
         e->now = clock_now(e);
     }
-    if ((flags & MOTOR_CMD_REJECT_SAFETY) && (e->estop_latched || e->safe_latched)) {
+    motor_leave_estop_if_unheld(e);
+    if ((flags & MOTOR_CMD_REJECT_SAFETY)
+        && (e->safe_latched || safety_output_hold_is_active())) {
         return cmd_reject(MOTOR_REJECT_SAFETY, "safety-locked");
     }
     if ((flags & MOTOR_CMD_REJECT_FAULT) && (e->m[i].phase == MOTOR_PHASE_FAULT)) {
@@ -244,29 +248,6 @@ motor_cmd_result_t motor_confirm_baseline(motor_executor_t *e, int i)
     out = cmd_make(MOTOR_CMD_ACCEPTED, "baseline-confirmed");
     motor_unlock(e);
     return out;
-}
-
-void motor_reset_estop(motor_executor_t *e)
-{
-    if (e->in_dispatch) {
-        return;
-    }
-    if (!e->estop_latched) {
-        return;
-    }
-    if (estop_active(e)) {
-        return; /* 未解除不可复位 */
-    }
-    e->estop_latched = false;
-    for (int i = 0; i < e->motor_count; ++i) {
-        if (e->m[i].phase == MOTOR_PHASE_ESTOP) {
-            e->m[i].phase = MOTOR_PHASE_STOPPED;
-        }
-    }
-    e->now = clock_now(e);
-    for (int i = 0; i < e->motor_count; ++i) {
-        e->m[i].cooldown_until = e->now;
-    }
 }
 
 void motor_reset_watchdog(motor_executor_t *e)

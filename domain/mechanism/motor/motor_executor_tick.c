@@ -7,6 +7,8 @@
 
 #include "domain/mechanism/motor/motor_executor_internal.h"
 
+#include "domain/ports/outbound/safety/safety_output_hold.h"
+
 /* ------------------------- 输出 ------------------------- */
 
 static bool speed_equal(motor_speed_t left, motor_speed_t right)
@@ -614,6 +616,25 @@ static void trigger_estop(motor_executor_t *e)
     e->estop_latched = true;
 }
 
+/**
+ * @brief  全局抑制已解除时，本实例退出 ESTOP
+ * @note   不调用 `hold_release`。复位急停只有 `safety_output_hold_release()`。
+ */
+void motor_leave_estop_if_unheld(motor_executor_t *e)
+{
+    if (e->in_dispatch || safety_output_hold_is_active() || !e->estop_latched) {
+        return;
+    }
+    e->estop_latched = false;
+    e->now           = clock_now(e);
+    for (int i = 0; i < e->motor_count; ++i) {
+        if (e->m[i].phase == MOTOR_PHASE_ESTOP) {
+            e->m[i].phase = MOTOR_PHASE_STOPPED;
+        }
+        e->m[i].cooldown_until = e->now;
+    }
+}
+
 static void trigger_safe(motor_executor_t *e)
 {
     for (int i = 0; i < e->motor_count; ++i) {
@@ -698,10 +719,10 @@ void motor_tick(motor_executor_t *e)
         return;
     }
 
-    bool es = estop_active(e);
-    if (es && !e->estop_latched) {
+    if (safety_output_hold_is_active() && !e->estop_latched) {
         trigger_estop(e);
     }
+    motor_leave_estop_if_unheld(e);
     if (e->estop_latched) {
         return;
     }

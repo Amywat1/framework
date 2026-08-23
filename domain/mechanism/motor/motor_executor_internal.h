@@ -119,7 +119,6 @@ int64_t enc_raw(motor_encoder_t *e);
 bool enc_zero(motor_encoder_t *e);
 motor_encoder_t *motor_enc(motor_executor_t *e, int i);
 bool sensor_limit(motor_executor_t *e, int i, motor_limit_kind_t k);
-bool estop_active(motor_executor_t *e);
 uint64_t clock_now(motor_executor_t *e);
 
 motor_cmd_result_t cmd_make(motor_cmd_status_t st, const char *reason);
@@ -144,7 +143,8 @@ motor_cmd_result_t motor_stop(motor_executor_t *e, int i);
 motor_cmd_result_t motor_home(motor_executor_t *e, int i);
 motor_cmd_result_t motor_zero_encoder(motor_executor_t *e, int i);
 motor_cmd_result_t motor_confirm_baseline(motor_executor_t *e, int i);
-void motor_reset_estop(motor_executor_t *e);
+/** @brief 全局抑制已解除时退出本实例 ESTOP 相位。 */
+void motor_leave_estop_if_unheld(motor_executor_t *e);
 void motor_reset_watchdog(motor_executor_t *e);
 motor_cmd_result_t motor_recover(motor_executor_t *e, int i, motor_exec_recovery_step_t step);
 

@@ -120,11 +120,6 @@ bool sensor_limit(motor_executor_t *e, int i, motor_limit_kind_t k)
     return e->ports.sensors->limit(e->ports.sensors->ctx, i, k);
 }
 
-bool estop_active(motor_executor_t *e)
-{
-    return e->ports.estop->active(e->ports.estop->ctx);
-}
-
 uint64_t clock_now(motor_executor_t *e)
 {
     return e->ports.clock->now_ms(e->ports.clock->ctx);

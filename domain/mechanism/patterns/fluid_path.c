@@ -9,15 +9,14 @@
 
 #include "common/log.h"
 #include "common/time_util.h"
+#include "domain/ports/outbound/safety/safety_output_hold.h"
 
 #include <pthread.h>
-#include <stdatomic.h>
 #include <string.h>
 
 typedef bool (*fluid_path_gate_fn)(fluid_path_channel_idx_t ch, fluid_path_slot_t slot, uint64_t now_ms);
 
-static pthread_mutex_t s_mutex         = PTHREAD_MUTEX_INITIALIZER;
-static atomic_bool     s_emergency_off = false;
+static pthread_mutex_t s_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 static fluid_path_cfg_t          s_cfg;
 static fluid_path_actuator_ops_t s_actuator;
@@ -260,7 +259,7 @@ static bool outputs_match_desired(void)
 
 static void tick_locked(uint64_t now_ms)
 {
-    if (atomic_exchange_explicit(&s_emergency_off, false, memory_order_acq_rel)) {
+    if (safety_output_hold_is_active()) {
         force_off_locked();
         return;
     }
@@ -317,14 +316,13 @@ sw_err_t fluid_path_set(fluid_path_mask_t target)
         pthread_mutex_unlock(&s_mutex);
         return SW_ERR_PARAM;
     }
+    if (safety_output_hold_is_active()) {
+        pthread_mutex_unlock(&s_mutex);
+        return SW_ERR_STATE;
+    }
     s_pending_target = target;
     pthread_mutex_unlock(&s_mutex);
     return SW_OK;
-}
-
-void fluid_path_emergency_off(void)
-{
-    atomic_store_explicit(&s_emergency_off, true, memory_order_release);
 }
 
 sw_err_t fluid_path_enable(fluid_path_mask_t mask)
@@ -337,6 +335,10 @@ sw_err_t fluid_path_enable(fluid_path_mask_t mask)
     if ((mask & ~s_valid_mask) != 0U) {
         pthread_mutex_unlock(&s_mutex);
         return SW_ERR_PARAM;
+    }
+    if (safety_output_hold_is_active()) {
+        pthread_mutex_unlock(&s_mutex);
+        return SW_ERR_STATE;
     }
     s_pending_target |= mask;
     pthread_mutex_unlock(&s_mutex);
@@ -353,6 +355,10 @@ sw_err_t fluid_path_disable(fluid_path_mask_t mask)
     if ((mask & ~s_valid_mask) != 0U) {
         pthread_mutex_unlock(&s_mutex);
         return SW_ERR_PARAM;
+    }
+    if (safety_output_hold_is_active()) {
+        pthread_mutex_unlock(&s_mutex);
+        return SW_ERR_STATE;
     }
     s_pending_target &= ~mask;
     pthread_mutex_unlock(&s_mutex);
@@ -385,11 +391,11 @@ bool fluid_path_is_settled(void)
 {
     bool settled;
 
-    if (atomic_load_explicit(&s_emergency_off, memory_order_acquire)) {
+    if (safety_output_hold_is_active()) {
         return false;
     }
     pthread_mutex_lock(&s_mutex);
-    if (!s_ready || s_force_off || atomic_load_explicit(&s_emergency_off, memory_order_acquire)) {
+    if (!s_ready || s_force_off || safety_output_hold_is_active()) {
         settled = false;
     } else {
         recompute_desired();
