@@ -3,7 +3,6 @@
  * @brief   Snack io_exp IO HAL provider 单元测试。
  */
 
-#include "adapters/outbound/hal/components/io_manager/hal_io_manager.h"
 #include "adapters/outbound/hal/providers/snack/io_exp/io_exp_driver.h"
 #include "adapters/outbound/hal/providers/snack/io_exp/snack_io_adapter.h"
 #include "common/io_handle.h"
@@ -81,13 +80,13 @@ static io_di_sample_t read_di(io_di_t pin)
 
 void setUp(void)
 {
-    TEST_ASSERT_EQUAL_INT(SW_OK, hal_io_manager_reset_for_test());
+    TEST_ASSERT_EQUAL_INT(SW_OK, drv_io_reset_for_test());
     configure_adapter(2);
 }
 
 void tearDown(void)
 {
-    TEST_ASSERT_EQUAL_INT(SW_OK, hal_io_manager_reset_for_test());
+    TEST_ASSERT_EQUAL_INT(SW_OK, drv_io_reset_for_test());
 }
 
 static void test_sdk_init_registers_internal_log_and_delegates_to_io_exp_sdk(void)
@@ -319,6 +318,62 @@ static void test_failed_flush_keeps_output_dirty(void)
     TEST_ASSERT_FALSE(stats.dirty_pending);
 }
 
+/** 等到指定 DI 达到目标质量，或 500ms 超时。 */
+/** 等到指定 DI 达到目标质量，或 500ms 超时。 */
+static io_di_sample_t wait_di_quality(io_di_t pin, io_sample_quality_t quality)
+{
+    io_di_sample_t sample = {0};
+    unsigned       i;
+
+    for (i = 0U; i < 50U; ++i) {
+        sample = read_di(pin);
+        if (sample.quality == quality) {
+            return sample;
+        }
+        usleep(10U * 1000U);
+    }
+    TEST_ASSERT_EQUAL_INT(quality, sample.quality);
+    return sample;
+}
+
+static void test_sdo_read_failure_keeps_last_level_and_marks_stale(void)
+{
+    io_di_t        pin_on  = IO_DI(1U, 1U);
+    io_di_t        pin_off = IO_DI(1U, 2U);
+    io_di_sample_t sample_on;
+    io_di_sample_t sample_off;
+
+    configure_adapter(5);
+    io_exp_fake_set_input(1, 0x1);
+    start_online_boards(5);
+    sample_on = wait_di_quality(pin_on, IO_SAMPLE_QUALITY_VALID);
+    TEST_ASSERT_TRUE(sample_on.level);
+    TEST_ASSERT_FALSE(read_di(pin_off).level);
+
+    io_exp_fake_set_sdo_read_error(-1);
+    sample_on  = wait_di_quality(pin_on, IO_SAMPLE_QUALITY_STALE);
+    sample_off = read_di(pin_off);
+    TEST_ASSERT_TRUE(sample_on.level);
+    TEST_ASSERT_FALSE(sample_off.level);
+    TEST_ASSERT_EQUAL_INT(IO_SAMPLE_QUALITY_STALE, sample_off.quality);
+}
+
+static void test_hal_adapter_rejects_duplicate_init(void)
+{
+    TEST_ASSERT_EQUAL_INT(SW_ERR_STATE, io_ops()->init());
+}
+
+static void test_init_after_start_preserves_online_state(void)
+{
+    drv_io_cfg_t cfg = make_cfg();
+
+    start_online_boards(2);
+    TEST_ASSERT_TRUE(io_ops()->board_is_online(1));
+    TEST_ASSERT_EQUAL_INT(SW_ERR_STATE, drv_io_init(&cfg));
+    TEST_ASSERT_TRUE(io_ops()->board_is_online(1));
+    TEST_ASSERT_TRUE(io_ops()->board_is_online(2));
+}
+
 static void test_runtime_sdk_calls_share_one_worker(void)
 {
     start_online_boards(2);
@@ -351,6 +406,9 @@ int main(void)
     WDF_RUN_TEST(test_start_confirms_healthy_boards_within_watchdog_window, "", "验证启动在看门狗窗口内确认健康板卡");
     WDF_RUN_TEST(test_four_boards_use_pdo_only, "", "验证四块子板统一使用PDO");
     WDF_RUN_TEST(test_five_boards_use_sdo_only, "", "验证五块子板统一使用SDO");
+    WDF_RUN_TEST(test_sdo_read_failure_keeps_last_level_and_marks_stale, "", "验证SDO读失败保留旧电平并标STALE");
+    WDF_RUN_TEST(test_hal_adapter_rejects_duplicate_init, "", "验证HAL适配器拒绝重复初始化");
+    WDF_RUN_TEST(test_init_after_start_preserves_online_state, "", "验证start后init失败且不清除在线状态");
     WDF_RUN_TEST(test_failed_flush_keeps_output_dirty, "", "验证输出写失败保留待落地状态");
     WDF_RUN_TEST(test_runtime_sdk_calls_share_one_worker, "", "验证运行期SDK调用共享唯一worker");
 

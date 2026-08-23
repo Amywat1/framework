@@ -25,6 +25,9 @@ static sw_err_t io_init(void)
     if (!s_configured) {
         return SW_ERR_NOT_INIT;
     }
+    if (s_inited) {
+        return SW_ERR_STATE;
+    }
 
     ret = drv_io_cfg_validate(&s_cfg);
     if (ret != SW_OK) {

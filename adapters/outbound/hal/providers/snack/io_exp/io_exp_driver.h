@@ -107,25 +107,33 @@ sw_err_t drv_io_cfg_validate(const drv_io_cfg_t *cfg);
 /**
  * @brief  初始化 IO 子板驱动内部状态
  * @param  cfg  驱动配置，不可为 NULL
- * @note   仅做状态初始化，不启动通用 I/O worker；worker 由 drv_io_start() 启动。
+ * @note   仅做状态初始化，不启动 I/O worker；worker 由 drv_io_start() 启动。
  *         本接口仅用于系统启动阶段，不用于运行期复位。
  *         若测试场景需要重复调用本接口重置内部缓冲，调用方应在其后重新注册
  *         调试输入回调、子板状态回调和 panic 回调，并再次调用 drv_io_start()。
  * @retval SW_OK / SW_ERR_PARAM（cfg 为 NULL 或参数越界）
+ * @retval SW_ERR_STATE worker 已启动，拒绝改写运行态
  */
 sw_err_t drv_io_init(const drv_io_cfg_t *cfg);
 
 /**
  * @brief  启动唯一 I/O worker（输入刷新 / 输出落地 / 在线检测 / 同步事务）
- * @note   worker 由通用 io_manager 创建，运行期所有 Snack SDK 调用均由该 worker 执行。
+ * @note   本驱动自建唯一 worker，运行期所有 Snack SDK 调用均由该线程执行。
  *         须在 drv_io_register_panic_cb() 等回调注册完成后调用。
  * @retval SW_OK / SW_ERR_HW / SW_ERR_STATE（已启动）
  */
 sw_err_t drv_io_start(void);
 
+#ifdef SNACK_IO_ADAPTER_UNIT_TEST
+/**
+ * @brief  单元测试停止 worker 并清空运行标志；生产代码不得调用。
+ */
+sw_err_t drv_io_reset_for_test(void);
+#endif
+
 /**
  * @brief  立即将当前输出缓冲同步刷到硬件
- * @note   正常路径由 I/O worker 周期写出；本接口向同一 worker 提交高优先级事务并有界等待。
+ * @note   正常路径由 I/O worker 周期写出；本接口向 worker 提交一次旁路任务并有界等待。
  */
 sw_err_t drv_io_flush_outputs_now(void);
 

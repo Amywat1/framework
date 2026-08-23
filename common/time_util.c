@@ -21,13 +21,23 @@ uint64_t time_util_get_ms(void)
     return (uint64_t)ts.tv_sec * 1000ULL + (uint64_t)ts.tv_nsec / 1000000ULL;
 }
 
-void time_util_fill_deadline(uint32_t timeout_ms, struct timespec *ts)
+static void time_util_fill_deadline_clock(clockid_t clock, uint32_t timeout_ms, struct timespec *ts)
 {
-    clock_gettime(CLOCK_REALTIME, ts);
+    clock_gettime(clock, ts);
     ts->tv_sec += (time_t)(timeout_ms / 1000U);
     ts->tv_nsec += (long)(timeout_ms % 1000U) * 1000000L;
     if (ts->tv_nsec >= 1000000000L) {
         ts->tv_sec += 1;
         ts->tv_nsec -= 1000000000L;
     }
+}
+
+void time_util_fill_deadline(uint32_t timeout_ms, struct timespec *ts)
+{
+    time_util_fill_deadline_clock(CLOCK_REALTIME, timeout_ms, ts);
+}
+
+void time_util_fill_monotonic_deadline(uint32_t timeout_ms, struct timespec *ts)
+{
+    time_util_fill_deadline_clock(CLOCK_MONOTONIC, timeout_ms, ts);
 }

@@ -23,6 +23,7 @@ typedef struct {
     int       output[IO_EXP_FAKE_BOARD_MAX];
     int       pdo_write_result;
     int       sdo_write_result;
+    int       sdo_read_error;
     unsigned  pdo_read_count;
     unsigned  sdo_read_count;
     unsigned  pdo_write_count;
@@ -129,6 +130,11 @@ void io_exp_fake_set_sdo_write_result(int result)
     s_fake.sdo_write_result = result;
 }
 
+void io_exp_fake_set_sdo_read_error(int result)
+{
+    s_fake.sdo_read_error = result;
+}
+
 unsigned io_exp_fake_pdo_read_count(void)
 {
     return s_fake.pdo_read_count;
@@ -221,6 +227,9 @@ int io_read_input_s(int id)
 {
     io_exp_fake_record_sdk_thread();
     s_fake.sdo_read_count++;
+    if (s_fake.sdo_read_error < 0) {
+        return s_fake.sdo_read_error;
+    }
     if ((id <= 0) || (id >= IO_EXP_FAKE_BOARD_MAX)) {
         return 0;
     }

@@ -15,6 +15,7 @@ void        io_exp_fake_set_input(int board_id, int input);
 int         io_exp_fake_output(int board_id);
 void        io_exp_fake_set_pdo_write_result(int result);
 void        io_exp_fake_set_sdo_write_result(int result);
+void        io_exp_fake_set_sdo_read_error(int result);
 unsigned    io_exp_fake_pdo_read_count(void);
 unsigned    io_exp_fake_sdo_read_count(void);
 unsigned    io_exp_fake_pdo_write_count(void);
