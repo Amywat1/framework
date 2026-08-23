@@ -21,9 +21,18 @@ typedef struct motor_exec motor_exec_t;
 
 /** @brief 运动方向。 */
 typedef enum {
-    MOTOR_DIR_FORWARD = 0, /**< 正向 */
-    MOTOR_DIR_REVERSE = 1  /**< 反向 */
+    MOTOR_DIR_UNSET   = 0, /**< 未指定；home_dir 不得为此值，运动命令拒绝 */
+    MOTOR_DIR_FORWARD = 1, /**< 正向 */
+    MOTOR_DIR_REVERSE = 2  /**< 反向 */
 } motor_dir_t;
+
+/**
+ * @brief  是否为可下发的运动方向
+ */
+static inline bool motor_dir_is_motion(motor_dir_t dir)
+{
+    return (dir == MOTOR_DIR_FORWARD) || (dir == MOTOR_DIR_REVERSE);
+}
 
 /** @brief 限位/原点采集种类。 */
 typedef enum {
@@ -178,6 +187,7 @@ typedef enum {
     MOTOR_REJECT_NONE = 0,
     MOTOR_REJECT_BAD_MOTOR,     /**< 电机号非法 */
     MOTOR_REJECT_BAD_SPEED,     /**< 速度非法 */
+    MOTOR_REJECT_BAD_DIR,       /**< 方向非法 */
     MOTOR_REJECT_SAFETY,        /**< 急停或看门狗锁定 */
     MOTOR_REJECT_FAULT,         /**< 故障相位，须先恢复 */
     MOTOR_REJECT_INTERLOCK,     /**< 互锁不满足 */

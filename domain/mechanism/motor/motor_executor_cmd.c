@@ -80,6 +80,10 @@ motor_cmd_result_t motor_run(motor_executor_t            *e,
         motor_unlock(e);
         return cmd_reject(MOTOR_REJECT_BAD_SPEED, "bad-speed");
     }
+    if (!motor_dir_is_motion(dir)) {
+        motor_unlock(e);
+        return cmd_reject(MOTOR_REJECT_BAD_DIR, "bad-dir");
+    }
     if ((spec != NULL) && spec->use_position) {
         if (!e->cfg.motors[i].has_encoder) {
             motor_unlock(e);
@@ -177,9 +181,6 @@ motor_cmd_result_t motor_home(motor_executor_t *e, int i)
     }
     freq            = e->cfg.motors[i].slow_freq > 0 ? e->cfg.motors[i].slow_freq : MOTOR_HOME_DEFAULT_FREQ_CENTI_HZ;
     dir             = e->cfg.motors[i].home_dir;
-    if (dir == MOTOR_DIR_FORWARD) {
-        dir = MOTOR_HOME_DEFAULT_DIR;
-    }
     spec.limit_mask = MOTOR_LIMIT_MASK_ORIGIN;
     motor_unlock(e);
     return motor_run(e, i, motor_speed_freq(freq), dir, &spec);

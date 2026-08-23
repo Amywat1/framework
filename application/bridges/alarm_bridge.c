@@ -43,6 +43,65 @@ static pthread_mutex_t s_drain_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 static safety_posture_t s_posture = SAFETY_POSTURE_NOMINAL;
 
+#ifdef ALARM_BRIDGE_UNIT_TEST
+/* 临界区重叠计数。与 drain 锁分开：有 drain 锁时深度恒为 1；去掉 drain 锁后
+ * 停留钩子把窗口拉到可观测，重叠计数非 0。这是 ALRM-19 能稳定失败的观测点。 */
+static int             s_cs_depth;
+static int             s_cs_overlap;
+static pthread_mutex_t s_cs_stat_mutex = PTHREAD_MUTEX_INITIALIZER;
+static void (*s_in_cs_hook)(void);
+
+static void cs_enter(void)
+{
+    pthread_mutex_lock(&s_cs_stat_mutex);
+    if (s_cs_depth != 0) {
+        s_cs_overlap++;
+    }
+    s_cs_depth++;
+    pthread_mutex_unlock(&s_cs_stat_mutex);
+    if (s_in_cs_hook != NULL) {
+        s_in_cs_hook();
+    }
+}
+
+static void cs_leave(void)
+{
+    pthread_mutex_lock(&s_cs_stat_mutex);
+    if (s_cs_depth > 0) {
+        s_cs_depth--;
+    }
+    pthread_mutex_unlock(&s_cs_stat_mutex);
+}
+
+void alarm_bridge_reset_for_test(void)
+{
+    pthread_mutex_lock(&s_drain_mutex);
+    s_posture = SAFETY_POSTURE_NOMINAL;
+    pthread_mutex_unlock(&s_drain_mutex);
+
+    pthread_mutex_lock(&s_cs_stat_mutex);
+    s_cs_depth   = 0;
+    s_cs_overlap = 0;
+    pthread_mutex_unlock(&s_cs_stat_mutex);
+    s_in_cs_hook = NULL;
+}
+
+void alarm_bridge_test_set_in_cs_hook(void (*fn)(void))
+{
+    s_in_cs_hook = fn;
+}
+
+int alarm_bridge_test_cs_overlap(void)
+{
+    int overlap;
+
+    pthread_mutex_lock(&s_cs_stat_mutex);
+    overlap = s_cs_overlap;
+    pthread_mutex_unlock(&s_cs_stat_mutex);
+    return overlap;
+}
+#endif
+
 /** @note 调用方必须已持 s_drain_mutex。 */
 static void publish_posture_edge_locked(void)
 {
@@ -83,6 +142,9 @@ void alarm_bridge_drain(void)
     bool                 any          = false;
 
     pthread_mutex_lock(&s_drain_mutex);
+#ifdef ALARM_BRIDGE_UNIT_TEST
+    cs_enter();
+#endif
 
     do {
         n = alarm_registry_pull_events(batch, ALARM_PENDING_EVENT_MAX, &dropped);
@@ -117,6 +179,9 @@ void alarm_bridge_drain(void)
         publish_posture_edge_locked();
     }
 
+#ifdef ALARM_BRIDGE_UNIT_TEST
+    cs_leave();
+#endif
     pthread_mutex_unlock(&s_drain_mutex);
 }
 

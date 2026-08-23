@@ -13,7 +13,7 @@
  * @note    经本模式管理的电机应由 motor_axis_poll 独占消费其执行器事件，
  *          项目层不要再对该电机调用 motor_exec_pop_event / 注册会排空队列的回调。
  * @note    on_motion_end 对同一故障闩锁（同 outcome + fault）去重；项目层仍宜按码幂等处理。
- * @note    回原用 motor_axis_home()，方向取执行器配置 home_dir（零值默认 REVERSE）。
+ * @note    回原用 motor_axis_home()，方向取执行器配置 home_dir（须显式 FORWARD 或 REVERSE）。
  * @note    位置/方向/故障/基准/编码器查询经本门面封装；结局详情用 last_result。
  */
 
@@ -88,7 +88,7 @@ sw_err_t motor_axis_stop(motor_axis_t *self);
 motor_axis_state_t motor_axis_state(const motor_axis_t *self);
 
 /**
- * @brief  回原点（方向取执行器配置 home_dir，零值默认反向）
+ * @brief  回原点（方向取执行器配置 home_dir，须为正向或反向）
  * @param[in,out] self 模式实例
  * @return SW_OK 命令已受理；SW_ERR_NOT_INIT / SW_ERR_STATE 失败
  */

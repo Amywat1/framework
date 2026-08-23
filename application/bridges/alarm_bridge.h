@@ -43,6 +43,24 @@ sw_err_t alarm_bridge_reeval_init(const alarm_reeval_binding_t *bindings, size_t
  */
 sw_err_t alarm_bridge_reeval_handle(alarm_reeval_trigger_kind_t kind, uint16_t trigger_id);
 
+#ifdef ALARM_BRIDGE_UNIT_TEST
+/**
+ * @brief  测试复位：姿态回到 NOMINAL，清空临界区统计与停留钩子
+ */
+void alarm_bridge_reset_for_test(void);
+
+/**
+ * @brief  在已持 drain 锁的临界区内调用的停留钩子；生产路径为 NULL
+ * @note   用于拉大互斥窗口。钩子不得再调 drain（会自锁）。
+ */
+void alarm_bridge_test_set_in_cs_hook(void (*fn)(void));
+
+/**
+ * @brief  并发 drain 进入临界区时发现已有线程在内的次数
+ */
+int alarm_bridge_test_cs_overlap(void);
+#endif
+
 #ifdef __cplusplus
 }
 #endif

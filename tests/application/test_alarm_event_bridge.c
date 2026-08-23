@@ -12,6 +12,8 @@
 #include "runtime/event_bus/event_bus.h"
 #include "wdf_test_spec.h"
 
+#include <pthread.h>
+#include <time.h>
 
 static volatile int      g_trigger_count;
 static volatile uint32_t g_last_code;
@@ -39,8 +41,8 @@ static const alarm_def_t s_catalog[] = {
      },
     {
      /* MINOR + AUTO_STATIC：trigger/clear 成对产生两条域事件，却不影响
-      * blocking 与姿态，用作并发用例里的填充事件。 */
-     .code         = 901001U,
+     * blocking 与姿态，用作并发用例里的填充事件。 */
+        .code         = 901001U,
      .level        = ALARM_LEVEL_MINOR,
      .clear        = ALARM_CLEAR_AUTO_STATIC,
      .reeval_group = ALARM_REEVAL_GROUP_NONE,
@@ -116,8 +118,8 @@ static void test_drain_empty_queue_no_event(void)
  * ——订阅者据此重读 registry，晚于逐码事件才能保证重读看到的是最终状态。 */
 static void test_drain_publishes_resync_after_pending_overflow(void)
 {
-    unsigned cycles   = ALARM_PENDING_EVENT_MAX;  /* 每轮 2 条事件，必然溢出 */
-    unsigned produced  = 2U * cycles;
+    unsigned cycles   = ALARM_PENDING_EVENT_MAX; /* 每轮 2 条事件，必然溢出 */
+    unsigned produced = 2U * cycles;
     unsigned expected_dropped;
     unsigned i;
 
@@ -170,6 +172,111 @@ static void test_drain_without_overflow_publishes_no_resync(void)
     TEST_ASSERT_EQUAL_INT(0, g_resync_count);
 }
 
+enum { DRAIN_CONC_ITERS = 80 };
+
+static pthread_barrier_t s_drain_barrier;
+static volatile int      g_lockout_count;
+static volatile int      g_nominal_count;
+
+static void linger_in_drain_cs(void)
+{
+    struct timespec ts;
+
+    ts.tv_sec  = 0;
+    ts.tv_nsec = 200000L; /* 200us，把互斥窗口拉到可被并发线程撞上 */
+    (void)nanosleep(&ts, NULL);
+}
+
+static void on_lockout(const event_t *evt)
+{
+    (void)evt;
+    g_lockout_count++;
+}
+
+static void on_nominal(const event_t *evt)
+{
+    (void)evt;
+    g_nominal_count++;
+}
+
+static void *drain_loop_thread(void *arg)
+{
+    unsigned n = *(unsigned *)arg;
+    unsigned i;
+
+    pthread_barrier_wait(&s_drain_barrier);
+    for (i = 0U; i < n; ++i) {
+        alarm_bridge_drain();
+    }
+    return NULL;
+}
+
+/**
+ * ALRM-19：黑盒边沿计数无法稳定失败——pull_events 的 registry 锁形成 happens-before，
+ * 且一条域事件只能被一个线程取走，另一线程通常跳过边沿判定。改为在临界区内停留，
+ * 断言重叠计数为 0。去掉 s_drain_mutex 后本断言应 10/10 失败。
+ */
+static void test_concurrent_drain_critical_section_does_not_overlap(void)
+{
+    pthread_t t0;
+    pthread_t t1;
+    unsigned  iters = DRAIN_CONC_ITERS;
+
+    time_util_init();
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_init());
+    (void)alarm_registry_load_catalog(s_catalog, (unsigned)CATALOG_COUNT);
+    alarm_bridge_reset_for_test();
+    alarm_bridge_test_set_in_cs_hook(linger_in_drain_cs);
+
+    TEST_ASSERT_EQUAL_INT(0, pthread_barrier_init(&s_drain_barrier, NULL, 2));
+    TEST_ASSERT_EQUAL_INT(0, pthread_create(&t0, NULL, drain_loop_thread, &iters));
+    TEST_ASSERT_EQUAL_INT(0, pthread_create(&t1, NULL, drain_loop_thread, &iters));
+    TEST_ASSERT_EQUAL_INT(0, pthread_join(t0, NULL));
+    TEST_ASSERT_EQUAL_INT(0, pthread_join(t1, NULL));
+    (void)pthread_barrier_destroy(&s_drain_barrier);
+
+    TEST_ASSERT_EQUAL_INT(0, alarm_bridge_test_cs_overlap());
+}
+
+static void *drain_once_thread(void *arg)
+{
+    (void)arg;
+    pthread_barrier_wait(&s_drain_barrier);
+    alarm_bridge_drain();
+    return NULL;
+}
+
+static void test_concurrent_drain_single_lockout_edge(void)
+{
+    pthread_t t0;
+    pthread_t t1;
+
+    g_lockout_count = 0;
+    g_nominal_count = 0;
+
+    time_util_init();
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_init());
+    (void)alarm_registry_load_catalog(s_catalog, (unsigned)CATALOG_COUNT);
+    alarm_bridge_reset_for_test();
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_subscribe(EVT_SAFETY_LOCKOUT, on_lockout));
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_subscribe(EVT_SAFETY_NOMINAL, on_nominal));
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_trigger(201709U));
+
+    TEST_ASSERT_EQUAL_INT(0, pthread_barrier_init(&s_drain_barrier, NULL, 2));
+    TEST_ASSERT_EQUAL_INT(0, pthread_create(&t0, NULL, drain_once_thread, NULL));
+    TEST_ASSERT_EQUAL_INT(0, pthread_create(&t1, NULL, drain_once_thread, NULL));
+    TEST_ASSERT_EQUAL_INT(0, pthread_join(t0, NULL));
+    TEST_ASSERT_EQUAL_INT(0, pthread_join(t1, NULL));
+    (void)pthread_barrier_destroy(&s_drain_barrier);
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_drain());
+    TEST_ASSERT_EQUAL_INT(1, g_lockout_count);
+    TEST_ASSERT_EQUAL_INT(0, g_nominal_count);
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -180,6 +287,8 @@ int main(void)
                  "ALRM-13",
                  "验证待发队列溢出后发布重同步事件且参数为丢弃条数");
     WDF_RUN_TEST(test_drain_without_overflow_publishes_no_resync, "ALRM-13", "验证未溢出时不发布重同步事件");
+    WDF_RUN_TEST(test_concurrent_drain_critical_section_does_not_overlap, "ALRM-19", "验证并发 drain 临界区不重叠");
+    WDF_RUN_TEST(test_concurrent_drain_single_lockout_edge, "ALRM-19", "验证并发 drain 一次 CRITICAL 只发一条 LOCKOUT");
 
     return UNITY_END();
 }

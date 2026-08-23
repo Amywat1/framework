@@ -800,6 +800,9 @@ static motor_init_result_t do_init(motor_executor_t *e)
         if (mc->stop_timeout_ms < 0) {
             return init_err("stopTimeoutMs must be >= 0");
         }
+        if (!motor_dir_is_motion(mc->home_dir)) {
+            return init_err("homeDir must be FORWARD or REVERSE");
+        }
         if (mc->cooldown_ms < 0 || mc->reversal_stop_ms < 0 || mc->accel_ms < 0 || mc->pos_tolerance < 0
             || mc->decel_point < 0) {
             return init_err("time params must be >= 0");

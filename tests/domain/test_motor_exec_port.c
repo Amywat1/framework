@@ -168,6 +168,7 @@ static void init_executor(void)
     s_cfg.motors[0].default_max_time_ms = 5000;
     s_cfg.motors[0].gear_count          = 5;
     s_cfg.motors[0].pos_tolerance       = 10;
+    s_cfg.motors[0].home_dir            = MOTOR_HOME_DEFAULT_DIR;
 
     ir = motor_executor_bind(0U, &s_cfg, &s_ports, &s_exec);
     TEST_ASSERT_TRUE(ir.ok);
@@ -405,6 +406,16 @@ static void test_query_helpers_return_safe_defaults_for_bad_motor(void)
     TEST_ASSERT_FALSE(motor_exec_encoder_healthy(s_exec, 1));
     TEST_ASSERT_EQUAL_INT(0, motor_executor_current_freq(s_exec, -1));
     TEST_ASSERT_EQUAL_INT(0, motor_executor_current_freq(s_exec, 1));
+}
+
+static void test_run_rejects_unset_dir(void)
+{
+    motor_cmd_result_t r;
+
+    r = motor_exec_run(s_exec, 0, motor_speed_gear(1), MOTOR_DIR_UNSET, NULL);
+    TEST_ASSERT_FALSE(motor_cmd_ok(r));
+    TEST_ASSERT_EQUAL_INT(MOTOR_REJECT_BAD_DIR, r.reject);
+    TEST_ASSERT_EQUAL_INT(MOTOR_PHASE_STOPPED, motor_exec_phase(s_exec, 0));
 }
 
 static void test_pop_event_via_port(void)
@@ -667,6 +678,7 @@ int main(void)
     WDF_RUN_TEST(test_recover_via_port, "", "验证经端口故障恢复");
     WDF_RUN_TEST(test_query_helpers_via_port, "", "验证经端口位置与基准/编码器查询");
     WDF_RUN_TEST(test_query_helpers_return_safe_defaults_for_bad_motor, "", "验证越界电机查询返回安全默认值");
+    WDF_RUN_TEST(test_run_rejects_unset_dir, "", "验证未指定方向的运动命令被拒绝");
     WDF_RUN_TEST(test_pop_event_via_port, "", "验证经端口取出运动事件");
     WDF_RUN_TEST(test_pop_event_for_keeps_other_motors, "", "验证按电机取事件保留其它电机");
     WDF_RUN_TEST(test_event_queue_prefers_drop_same_motor, "", "验证队列满时优先丢同电机事件");

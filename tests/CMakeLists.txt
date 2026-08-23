@@ -364,6 +364,7 @@ add_unit_test(test_alarm_event_bridge
     ${WDF_ROOT}/common/log.c
     ${WDF_ROOT}/common/sw_mutex.c
 )
+target_compile_definitions(test_alarm_event_bridge PRIVATE ALARM_BRIDGE_UNIT_TEST)
 
 add_unit_test(test_alarm_binding_bridge
     ${CMAKE_CURRENT_SOURCE_DIR}/application/test_alarm_binding_bridge.c

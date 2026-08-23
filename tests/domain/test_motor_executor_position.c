@@ -37,6 +37,7 @@ static motor_exec_t  *s_executor;
 static int                s_watchdog_ms;
 static int                s_enc_stall_ticks;
 static bool               s_monitor_current;
+static motor_dir_t        s_home_dir;
 
 static uint64_t clock_now(void *ctx)
 {
@@ -197,7 +198,7 @@ static void init_executor(int64_t initial_position, motor_encoder_kind_t encoder
     config.motors[0].position_slow_gear  = 1;
     config.motors[0].default_max_time_ms = 1000;
     config.motors[0].gear_count          = 2;
-    config.motors[0].home_dir            = MOTOR_DIR_REVERSE;
+    config.motors[0].home_dir            = s_home_dir;
     config.motors[0].enc_stall_ticks     = s_enc_stall_ticks;
     if (s_monitor_current) {
         config.motors[0].mon.monitor_current  = true;
@@ -221,6 +222,7 @@ void setUp(void)
     s_watchdog_ms     = 100;
     s_enc_stall_ticks = 0;
     s_monitor_current = false;
+    s_home_dir        = MOTOR_HOME_DEFAULT_DIR;
 }
 
 void tearDown(void)
@@ -672,6 +674,7 @@ static void test_no_encoder_baseline_trusted_at_init(void)
     config.motors[0].has_encoder         = false;
     config.motors[0].default_max_time_ms = 1000;
     config.motors[0].gear_count          = 2;
+    config.motors[0].home_dir            = MOTOR_HOME_DEFAULT_DIR;
 
     result = motor_executor_bind(0U, &config, &ports, &s_executor);
     TEST_ASSERT_TRUE_MESSAGE(result.ok, result.error);
@@ -722,7 +725,7 @@ static void test_limit_mask_prefers_origin_when_multiple(void)
     TEST_ASSERT_EQUAL_INT(MOTOR_LIMIT_ORIGIN, s_fixture.last_arrived_limit);
 }
 
-static void test_home_zero_dir_defaults_to_reverse(void)
+static void test_home_unset_dir_rejected_at_bind(void)
 {
     motor_config_t      config;
     motor_init_result_t result;
@@ -736,10 +739,6 @@ static void test_home_zero_dir_defaults_to_reverse(void)
     motor_ports_t           ports;
 
     init_executor(0, MOTOR_ENC_INCREMENTAL);
-    TEST_ASSERT_TRUE(motor_cmd_ok(motor_exec_home(s_executor, 0)));
-    tick_at(10);
-    TEST_ASSERT_EQUAL_INT(MOTOR_DIR_REVERSE, s_fixture.last_direction);
-
     memset(&config, 0, sizeof(config));
     driver = (motor_driver_t){
         .set_output = driver_set_output,
@@ -769,13 +768,17 @@ static void test_home_zero_dir_defaults_to_reverse(void)
     config.motors[0].gear_count          = 2;
     motor_executor_test_reset();
     s_executor = NULL;
-    s_fixture.output_count = 0;
-    result = motor_executor_bind(0U, &config, &ports, &s_executor);
-    TEST_ASSERT_TRUE_MESSAGE(result.ok, result.error);
+    result     = motor_executor_bind(0U, &config, &ports, &s_executor);
+    TEST_ASSERT_FALSE(result.ok);
+}
+
+static void test_home_forward_dir_runs_forward(void)
+{
+    s_home_dir = MOTOR_DIR_FORWARD;
+    init_executor(0, MOTOR_ENC_INCREMENTAL);
     TEST_ASSERT_TRUE(motor_cmd_ok(motor_exec_home(s_executor, 0)));
-    s_fixture.now_ms += 10U;
-    motor_executor_tick(s_executor);
-    TEST_ASSERT_EQUAL_INT(MOTOR_DIR_REVERSE, s_fixture.last_direction);
+    tick_at(10);
+    TEST_ASSERT_EQUAL_INT(MOTOR_DIR_FORWARD, s_fixture.last_direction);
 }
 
 static void test_motor_capacity_constants(void)
@@ -808,7 +811,8 @@ int main(void)
     WDF_RUN_TEST(
         test_unhealthy_encoder_rejects_position_move_but_allows_homing, "", "验证不健康编码器拒绝位置移动但允许回零");
     WDF_RUN_TEST(test_homing_restores_encoder_health, "", "验证回零恢复编码器健康状态");
-    WDF_RUN_TEST(test_home_zero_dir_defaults_to_reverse, "", "验证回原零值默认反向");
+    WDF_RUN_TEST(test_home_unset_dir_rejected_at_bind, "", "验证回原方向未填时装载拒绝");
+    WDF_RUN_TEST(test_home_forward_dir_runs_forward, "", "验证显式正向回原不被改写成反向");
     WDF_RUN_TEST(test_current_stop_arrives_after_confirm, "", "验证电流停经确认后正常到位");
     WDF_RUN_TEST(test_current_stop_respects_blank_ms, "", "验证电流停尊重启动消隐");
     WDF_RUN_TEST(test_current_stop_coexists_with_overcurrent_fault, "", "验证电流停与过流故障共存");

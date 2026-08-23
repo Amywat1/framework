@@ -107,7 +107,7 @@ typedef struct {
     bool enc_escalate;                 /**< 编码器告警升级为故障 */
 
     int          gear_count; /**< 可用挡位数；执行器仅校验范围，不转换频率 */
-    motor_dir_t  home_dir;   /**< 回原点方向。零值（与 FORWARD 同值）按历史默认反向 MOTOR_HOME_DEFAULT_DIR */
+    motor_dir_t  home_dir;   /**< 回原点方向，须为 FORWARD 或 REVERSE；未填（UNSET）在装载期拒绝 */
 
     int stop_timeout_ms; /**< 受控停止等待功率级停下的超时（0=使用 default_max_time_ms；须 >= 0） */
 
