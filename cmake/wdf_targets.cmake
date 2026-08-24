@@ -223,7 +223,6 @@ _wdf_add_interface_lib(wdf_application
         application/telemetry_projection.c
         application/orchestrators/recovery_service.c
         application/orchestrators/safety_session_coordinator.c
-        application/bridges/alarm_binding_bridge.c
         application/bridges/alarm_bridge.c
         application/bridges/op_mode_bridge.c
     DEPENDS

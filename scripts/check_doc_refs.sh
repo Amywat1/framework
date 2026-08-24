@@ -86,6 +86,9 @@ services/dev_ctx|architecture/08 第 18.4 节记录该层已删除并入 device_
 adapters/providers|architecture/08 第 12 节的泛指写法，指 adapters 下各 providers 目录
 adapters/outbound/cloud/cloud_model_json.c|整治记录第 7 节记录该文件已重命名为 cloud_json.c
 adapters/outbound/cloud/providers/snack/snack_cloud_link_adapter.c|整治记录记载该文件已重命名为 snack_cloud_adapter.c
+application/bridges/alarm_binding_bridge|整治记录与归档变更记载该文件已并入 alarm_bridge
+application/bridges/alarm_binding_bridge.c|归档变更记载该文件已并入 alarm_bridge.c
+application/bridges/alarm_binding_bridge.h|归档变更记载该文件已并入 alarm_bridge.h
 "
 
 # -----------------------------------------------------------------------------
@@ -107,6 +110,10 @@ fluid_path_emergency_off|整治记录第 24 节记录该水路急停包装已删
 motor_executor_set_event_callback|整治记录第 25 节记录该 tick 内事件回调已删除
 motor_exec_provider_bind|整治记录第 26 节记录该执行器 ops 绑定已删除
 motor_exec_ops_t|整治记录第 26 节记录该执行器 ops 表已删除
+alarm_binding_bridge_bind|整治记录第 30 节记录该绑定已并入 alarm_bridge_bind
+alarm_bridge_drain|整治记录第 30 节记录 pending drain 已删除
+alarm_registry_pull_events|整治记录第 30 节记录 pending 队列已删除
+op_mode_on_critical_alarm|整治记录第 30 节记录已并入 op_mode_on_blocking_alarm
 defined|C 预处理器语法，非框架符号
 "
 

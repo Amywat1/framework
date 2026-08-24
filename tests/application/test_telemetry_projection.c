@@ -198,7 +198,7 @@ static void test_safety_projection_refreshes_alarm_snapshot(void)
     TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_load_catalog(s_catalog, 1U));
     TEST_ASSERT_EQUAL_INT(SW_OK, telemetry_projection_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_trigger(201101U));
-    publish_and_wait(EVT_ALARM_TRIGGERED, 201101U);
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_drain());
 
     snap = device_snapshot_get().safety;
     TEST_ASSERT_TRUE(snap.blocking_active);

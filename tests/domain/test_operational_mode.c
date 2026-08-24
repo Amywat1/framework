@@ -4,6 +4,8 @@
  */
 
 #include "common/sw_error.h"
+#include "common/time_util.h"
+#include "runtime/event_bus/event_bus.h"
 #include "domain/op_mode/device_command.h"
 #include "domain/op_mode/op_mode_types.h"
 #include "domain/op_mode/operational_mode.h"
@@ -75,6 +77,8 @@ void setUp(void)
 {
     port_registry_safety_reset();
     device_ops_register(NULL);
+    time_util_init();
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_init());
     load_alarm_catalog();
     TEST_ASSERT_EQUAL_INT(SW_OK, operational_mode_init());
@@ -344,7 +348,7 @@ static void test_recover_from_stopped_enters_recovering(void)
     dev_cmd_t          cmd = dev_cmd_make_simple(DEV_CMD_RECOVER);
     dev_cmd_decision_t d;
 
-    op_mode_on_critical_alarm();
+    op_mode_on_blocking_alarm();
     d = op_mode_handle_command(&cmd);
     TEST_ASSERT_EQUAL_INT(OP_CMD_ALLOWED, d.verdict);
     TEST_ASSERT_EQUAL_INT(OP_MODE_RECOVERING, op_mode_get_current());
@@ -358,7 +362,7 @@ static void test_recover_denied_when_service_disabled_after_critical(void)
 
     enter_idle();
     (void)op_mode_handle_command(&stop_cmd);
-    op_mode_on_critical_alarm();
+    op_mode_on_blocking_alarm();
     TEST_ASSERT_EQUAL_INT(OP_MODE_STOPPED, op_mode_get_current());
     TEST_ASSERT_EQUAL_INT(OP_REJECT_SERVICE_DISABLED, op_mode_handle_command(&recover_cmd).reason);
 }

@@ -447,15 +447,6 @@ void op_mode_on_self_check_completed(bool land_fault)
     op_mode_unlock();
 }
 
-void op_mode_on_critical_alarm(void)
-{
-    op_mode_lock();
-    if ((s_mode != OP_MODE_WASHING) && (s_mode != OP_MODE_ABORT_HOMING) && (s_mode != OP_MODE_RECOVERING)) {
-        set_mode(OP_MODE_STOPPED, "critical alarm");
-    }
-    op_mode_unlock();
-}
-
 void op_mode_on_blocking_alarm(void)
 {
     op_mode_lock();

@@ -3,7 +3,6 @@
  * @brief   安全姿态边沿（经 alarm_event_bridge）单元测试
  */
 
-#include "application/bridges/alarm_bridge.h"
 #include "common/event_types.h"
 #include "common/sw_error.h"
 #include "common/time_util.h"
@@ -46,7 +45,6 @@ static void on_lockout(const event_t *evt)
 
 static void drain_registry(void)
 {
-    alarm_bridge_drain();
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_drain());
 }
 
@@ -66,7 +64,6 @@ static void test_major_no_lockout_event(void)
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
     alarm_registry_init();
     (void)alarm_registry_load_catalog(s_catalog, 2U);
-    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_bridge_init());
     (void)event_subscribe(EVT_SAFETY_NOMINAL, on_nominal);
     (void)event_subscribe(EVT_SAFETY_LOCKOUT, on_lockout);
 
@@ -82,7 +79,6 @@ static void test_critical_publishes_lockout(void)
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
     alarm_registry_init();
     (void)alarm_registry_load_catalog(s_catalog, 2U);
-    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_bridge_init());
     (void)event_subscribe(EVT_SAFETY_NOMINAL, on_nominal);
     (void)event_subscribe(EVT_SAFETY_LOCKOUT, on_lockout);
 

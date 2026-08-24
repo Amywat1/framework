@@ -1,6 +1,6 @@
 /**
  * @file    test_alarm_binding_bridge.c
- * @brief   alarm_binding_bridge_bind 单元测试
+ * @brief   alarm_bridge_bind 入站端口单元测试
  * @author  HUWANGWEI
  * @date    2026-08-08
  *
@@ -8,11 +8,13 @@
  *          注册成功后三个 ops 必须能转调 registry，否则 catalog 加载与触发会空转。
  */
 
-#include "application/bridges/alarm_binding_bridge.h"
+#include "application/bridges/alarm_bridge.h"
 #include "application/ports/inbound/safety/alarm_binding_port.h"
 #include "common/sw_error.h"
+#include "common/time_util.h"
 #include "domain/safety/alarm_registry/alarm_registry.h"
 #include "domain/safety/model/alarm_types.h"
+#include "runtime/event_bus/event_bus.h"
 #include "runtime/ports/port_registry.h"
 #include "wdf_test_spec.h"
 
@@ -31,6 +33,8 @@ static const alarm_def_t s_catalog[] = {
 void setUp(void)
 {
     port_registry_infra_reset();
+    time_util_init();
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
     (void)alarm_registry_init();
 }
 
@@ -46,7 +50,7 @@ static void test_bind_registers_ops_that_forward_to_registry(void)
 {
     const alarm_binding_ops_t *ops = NULL;
 
-    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_binding_bridge_bind());
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_bridge_bind());
 
     ops = alarm_binding_get_ops();
     TEST_ASSERT_NOT_NULL(ops);

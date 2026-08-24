@@ -38,7 +38,7 @@ static const alarm_def_t s_demo_catalog[] = {
  *
  * @note   经 alarm_binding_port 而非直接调 alarm_registry：项目接入一律只透过
  *         端口触碰报警域，demo 作为接入范本必须示范同一种姿势。bootstrap 的
- *         bind 阶段保证 alarm_binding_bridge_bind() 先于本函数执行。
+ *         bind 阶段保证 alarm_bridge_bind() 先于本函数执行。
  */
 sw_err_t demo_alarm_catalog_load(void)
 {

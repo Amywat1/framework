@@ -1,6 +1,6 @@
 /**
  * @file    alarm_bridge.h
- * @brief   报警域应用桥接（pending 排空、会话生命周期、ON_MOTION 重评估）
+ * @brief   报警应用桥接：入站端口绑定、会话 journal、可选 ON_MOTION 重评估
  * @author  HUWANGWEI
  * @date    2026-08-08
  */
@@ -21,15 +21,18 @@ extern "C" {
 #define ALARM_REEVAL_BINDING_MAX 64U
 
 /**
- * @brief  初始化报警桥接：注册 50ms drain 周期任务，并订阅洗车会话生命周期事件
+ * @brief  注册 alarm_binding 入站端口，转调 alarm_registry
+ * @retval SW_OK        注册成功
+ * @retval SW_ERR_PARAM 注册被拒绝
+ * @note   须在 alarm_registry_init() 之后、project_bind_alarm_catalog() 之前调用。
+ */
+sw_err_t alarm_bridge_bind(void);
+
+/**
+ * @brief  初始化报警桥接：订阅洗车会话生命周期事件
  * @retval SW_OK 成功
  */
 sw_err_t alarm_bridge_init(void);
-
-/**
- * @brief  立即排空 registry pending（测试与同步场景可用）
- */
-void alarm_bridge_drain(void);
 
 /**
  * @brief  注册项目 ON_MOTION 重评估 binding 表并订阅相关事件
@@ -42,24 +45,6 @@ sw_err_t alarm_bridge_reeval_init(const alarm_reeval_binding_t *bindings, size_t
  * @brief  直接处理一个重评估触发源，供项目 wiring 或单测复用
  */
 sw_err_t alarm_bridge_reeval_handle(alarm_reeval_trigger_kind_t kind, uint16_t trigger_id);
-
-#ifdef ALARM_BRIDGE_UNIT_TEST
-/**
- * @brief  测试复位：姿态回到 NOMINAL，清空临界区统计与停留钩子
- */
-void alarm_bridge_reset_for_test(void);
-
-/**
- * @brief  在已持 drain 锁的临界区内调用的停留钩子；生产路径为 NULL
- * @note   用于拉大互斥窗口。钩子不得再调 drain（会自锁）。
- */
-void alarm_bridge_test_set_in_cs_hook(void (*fn)(void));
-
-/**
- * @brief  并发 drain 进入临界区时发现已有线程在内的次数
- */
-int alarm_bridge_test_cs_overlap(void);
-#endif
 
 #ifdef __cplusplus
 }

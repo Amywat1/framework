@@ -12,14 +12,18 @@
  *          取锁，撕裂会表现为这些蕴含关系被破坏。
  */
 
+#include "common/event_types.h"
+#include "common/log.h"
 #include "common/sw_error.h"
 #include "common/time_util.h"
 #include "domain/safety/alarm_registry/alarm_registry.h"
 #include "domain/safety/model/alarm_types.h"
 #include "domain/safety/model/safety_matrix.h"
+#include "runtime/event_bus/event_bus.h"
 #include "wdf_test_spec.h"
 
 #include <pthread.h>
+#include <sched.h>
 #include <stdbool.h>
 #include <stdint.h>
 
@@ -113,10 +117,29 @@ static unsigned torn_read(const unsigned *counter)
 }
 
 static pthread_barrier_t s_barrier;
+static pthread_t         s_dispatch;
+
+static void *dispatch_fn(void *arg)
+{
+    (void)arg;
+    event_bus_dispatch_loop();
+    return NULL;
+}
+
+static void silent_log_sink(sw_log_level_t level, const char *component, const char *fmt, va_list ap)
+{
+    (void)level;
+    (void)component;
+    (void)fmt;
+    (void)ap;
+}
 
 void setUp(void)
 {
     time_util_init();
+    sw_log_register_sink(silent_log_sink);
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
+    TEST_ASSERT_EQUAL_INT(0, pthread_create(&s_dispatch, NULL, dispatch_fn, NULL));
     TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_load_catalog(s_catalog, (unsigned)CONC_CATALOG_COUNT));
     s_torn_blocking = 0U;
@@ -127,6 +150,8 @@ void setUp(void)
 
 void tearDown(void)
 {
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_shutdown());
+    (void)pthread_join(s_dispatch, NULL);
 }
 
 /* 持续翻动活动表：trigger 插入，reset_all 在 condition_active 为假时删除。
@@ -147,6 +172,9 @@ static void *writer_thread(void *raw)
             (void)alarm_registry_trigger(CONC_CODE_CRITICAL);
             (void)alarm_registry_clear(CONC_CODE_CRITICAL);
             alarm_registry_reset_all();
+            if ((i % 64U) == 0U) {
+                (void)sched_yield();
+            }
         }
         return NULL;
     }
@@ -160,6 +188,9 @@ static void *writer_thread(void *raw)
         }
         if (((i + id) % 7U) == 0U) {
             alarm_registry_reset_all();
+        }
+        if (((i + id) % 64U) == 0U) {
+            (void)sched_yield();
         }
     }
     return NULL;
@@ -217,26 +248,25 @@ static void check_view_consistent(const alarm_instance_t *list,
 
 static void *reader_thread(void *raw)
 {
-    alarm_instance_t list[ALARM_ACTIVE_MAX];
-    unsigned         i;
+    unsigned i;
 
     (void)raw;
     (void)pthread_barrier_wait(&s_barrier);
 
     for (i = 0U; i < (unsigned)CONC_ITERATIONS; ++i) {
-        bool             blocking = false;
-        uint32_t         top      = ALARM_CODE_NONE;
-        safety_posture_t posture  = SAFETY_POSTURE_NOMINAL;
-        unsigned         n;
+        alarm_safety_view_t view;
 
-        n = alarm_registry_copy_safety_view(list, ALARM_ACTIVE_MAX, &blocking, &top, &posture);
-        /* 写线程只碰 k_codes 里那几条，活动表不可能超过目录规模，
-         * 故这里一定没有截断，可以直接对比聚合值与表内容。 */
-        if (n > CONC_CATALOG_COUNT) {
+        if (alarm_registry_copy_safety_view(&view) != SW_OK) {
             torn_bump(&s_torn_count);
             continue;
         }
-        check_view_consistent(list, n, blocking, top, posture);
+        /* 写线程只碰 k_codes 里那几条，活动表不可能超过目录规模，
+         * 故这里一定没有截断，可以直接对比聚合值与表内容。 */
+        if (view.count > CONC_CATALOG_COUNT) {
+            torn_bump(&s_torn_count);
+            continue;
+        }
+        check_view_consistent(view.list, view.count, view.blocking, view.top_code, view.posture);
     }
     return NULL;
 }
@@ -271,94 +301,85 @@ static void test_safety_view_is_never_torn_under_concurrency(void)
 }
 
 /* -------------------------------------------------------------------------
- * ALRM-18：事件不得重复交出，也不得凭空丢失
+ * ALRM-18：变位入队不得重复、不得凭空丢失
  *
  * 用单生产者，期望值才是可精确判定的：901002 是 AUTO_STATIC，一次
- * trigger + clear 恰好产生 TRIGGERED + CLEARED 两条域事件，故总产生数就是
- * 2 * PULL_ITERATIONS。多个写线程并发写同一组码时，trigger 命中已活跃条目
- * 不产生事件，期望值随调度浮动、算不出来——那样的上界断言（本轮初版就是）
- * 宽到丢掉绝大多数事件也能通过，等于没有断言。
- *
- * 多个消费者并发 pull：每条事件必须恰好被一个消费者拿到一次。
- * 交出数 + 丢弃数 == 产生数，多一条即重复交出，少一条即丢账。
+ * trigger + clear 恰好产生 TRIGGERED + CLEARED 两条总线事件。
+ * dispatch 线程消费，handler 计数；队列只有 64，不能等 join 后再 drain。
  * ------------------------------------------------------------------------- */
 
 #define PULL_ITERATIONS 20000U
 #define PULL_EXPECTED   (2U * PULL_ITERATIONS)
 
-static unsigned        s_pulled_total;
+static unsigned        s_bus_total;
 static pthread_mutex_t s_tally_mutex = PTHREAD_MUTEX_INITIALIZER;
-static volatile int    s_produce_done;
 
 static void tally_add(unsigned v)
 {
     pthread_mutex_lock(&s_tally_mutex);
-    s_pulled_total += v;
+    s_bus_total += v;
     pthread_mutex_unlock(&s_tally_mutex);
 }
 
-/* 单生产者：成对 trigger/clear，产生数精确可知 */
+static unsigned tally_read(void)
+{
+    unsigned v;
+
+    pthread_mutex_lock(&s_tally_mutex);
+    v = s_bus_total;
+    pthread_mutex_unlock(&s_tally_mutex);
+    return v;
+}
+
+static void on_bus_alarm(const event_t *evt)
+{
+    (void)evt;
+    tally_add(1U);
+}
+
 static void *single_producer_fn(void *raw)
 {
     unsigned i;
 
     (void)raw;
-    (void)pthread_barrier_wait(&s_barrier);
 
     for (i = 0U; i < PULL_ITERATIONS; ++i) {
         (void)alarm_registry_trigger(CONC_CODE_AUTO);
         (void)alarm_registry_clear(CONC_CODE_AUTO);
+        if ((i % 16U) == 0U) {
+            (void)sched_yield();
+        }
     }
-    s_produce_done = 1;
     return NULL;
 }
 
-static void *puller_fn(void *raw)
+static void test_bus_accounts_every_event_exactly_once(void)
 {
-    alarm_domain_event_t batch[ALARM_PENDING_EVENT_MAX];
+    pthread_t         producer;
+    unsigned          spins = 0U;
+    event_bus_stats_t st;
 
-    (void)raw;
-    (void)pthread_barrier_wait(&s_barrier);
-
-    /* 生产者停了之后再空转一轮，确保尾部事件也被取走 */
-    for (;;) {
-        uint32_t dropped = 0U;
-        unsigned n;
-        int      done = s_produce_done;
-
-        n = alarm_registry_pull_events(batch, ALARM_PENDING_EVENT_MAX, &dropped);
-        if ((n > 0U) || (dropped > 0U)) {
-            tally_add(n + (unsigned)dropped);
-        }
-        if ((done != 0) && (n == 0U)) {
-            return NULL;
-        }
-    }
-}
-
-static void test_pull_events_accounts_every_event_exactly_once(void)
-{
-    pthread_t producer;
-    pthread_t pullers[CONC_READERS];
-    unsigned  i;
-
-    s_pulled_total = 0U;
-    s_produce_done = 0;
-    TEST_ASSERT_EQUAL_INT(0, pthread_barrier_init(&s_barrier, NULL, 1U + CONC_READERS));
+    s_bus_total = 0U;
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_subscribe(EVT_ALARM_TRIGGERED, on_bus_alarm));
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_subscribe(EVT_ALARM_CLEARED, on_bus_alarm));
 
     TEST_ASSERT_EQUAL_INT(0, pthread_create(&producer, NULL, single_producer_fn, NULL));
-    for (i = 0U; i < (unsigned)CONC_READERS; ++i) {
-        TEST_ASSERT_EQUAL_INT(0, pthread_create(&pullers[i], NULL, puller_fn, NULL));
-    }
-
     TEST_ASSERT_EQUAL_INT(0, pthread_join(producer, NULL));
-    for (i = 0U; i < (unsigned)CONC_READERS; ++i) {
-        TEST_ASSERT_EQUAL_INT(0, pthread_join(pullers[i], NULL));
-    }
-    (void)pthread_barrier_destroy(&s_barrier);
 
-    /* 精确记账：不多一条（重复交出）、不少一条（丢账） */
-    TEST_ASSERT_EQUAL_UINT_MESSAGE(PULL_EXPECTED, s_pulled_total, "交出数与丢弃数之和不等于产生数");
+    do {
+        TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_get_stats(&st));
+        if ((st.queue_depth == 0U) && (st.hi_queue_depth == 0U)) {
+            break;
+        }
+        (void)sched_yield();
+        spins++;
+    } while (spins < 100000U);
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_get_stats(&st));
+    TEST_ASSERT_EQUAL_UINT(0U, st.queue_depth);
+    TEST_ASSERT_EQUAL_UINT_MESSAGE(PULL_EXPECTED,
+                                   tally_read() + (unsigned)st.dropped_count,
+                                   "消费数与丢弃数之和不等于产生数");
 }
 
 int main(void)
@@ -366,7 +387,7 @@ int main(void)
     UNITY_BEGIN();
 
     WDF_RUN_TEST(test_safety_view_is_never_torn_under_concurrency, "ALRM-17", "验证并发下安全投影四项聚合值始终自洽");
-    WDF_RUN_TEST(test_pull_events_accounts_every_event_exactly_once, "ALRM-18", "验证并发拉取事件不重复不丢账");
+    WDF_RUN_TEST(test_bus_accounts_every_event_exactly_once, "ALRM-18", "验证并发入队由 dispatch 消费不重复不丢账");
 
     return UNITY_END();
 }

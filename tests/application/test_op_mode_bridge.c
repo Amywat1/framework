@@ -17,6 +17,14 @@
 #include "runtime/ports/port_registry.h"
 #include "wdf_test_spec.h"
 
+static volatile int s_mode_changed;
+
+static void on_mode_changed(const event_t *evt)
+{
+    (void)evt;
+    s_mode_changed++;
+}
+
 static void publish_and_wait(event_type_t type, uint32_t param)
 {
     TEST_ASSERT_EQUAL_INT(SW_OK, event_publish(type, param));
@@ -215,8 +223,7 @@ static void test_blocking_alarm_event_keeps_stopped(void)
     TEST_ASSERT_EQUAL_INT(SW_OK, operational_mode_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, op_mode_bridge_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_trigger(201101U));
-
-    publish_and_wait(EVT_ALARM_TRIGGERED, 201101U);
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_drain());
     TEST_ASSERT_EQUAL_INT(OP_MODE_STOPPED, op_mode_get_current());
 }
 
@@ -240,6 +247,38 @@ static void test_estop_alarm_does_not_set_estop_flag(void)
     port_registry_safety_reset();
 }
 
+/* CRITICAL 从 IDLE 进入 STOPPED 只经 blocking 收敛一次 */
+static void test_critical_from_idle_converges_once(void)
+{
+    static const alarm_def_t catalog[] = {
+        {
+         .code         = 201709U,
+         .level        = ALARM_LEVEL_CRITICAL,
+         .clear        = ALARM_CLEAR_AUTO_STATIC,
+         .reeval_group = ALARM_REEVAL_GROUP_NONE,
+         .desc         = "test critical",
+         },
+    };
+
+    time_util_init();
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_load_catalog(catalog, 1U));
+    TEST_ASSERT_EQUAL_INT(SW_OK, operational_mode_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, op_mode_bridge_init());
+    setup_idle();
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_drain());
+    TEST_ASSERT_EQUAL_INT(OP_MODE_IDLE, op_mode_get_current());
+
+    s_mode_changed = 0;
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_subscribe(EVT_OP_MODE_CHANGED, on_mode_changed));
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_trigger(201709U));
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_drain());
+
+    TEST_ASSERT_EQUAL_INT(OP_MODE_STOPPED, op_mode_get_current());
+    TEST_ASSERT_EQUAL_INT(1, s_mode_changed);
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -254,6 +293,7 @@ int main(void)
     WDF_RUN_TEST(test_recovery_completed_success_enters_idle, "", "验证恢复完成成功进入空闲模式");
     WDF_RUN_TEST(test_alarm_home_done_enters_stopped, "", "验证中止归位完成进入停止模式");
     WDF_RUN_TEST(test_blocking_alarm_event_keeps_stopped, "", "验证阻断报警在停止模式保持停止");
+    WDF_RUN_TEST(test_critical_from_idle_converges_once, "", "验证 CRITICAL 从空闲只收敛一次进入停止");
     WDF_RUN_TEST(test_estop_alarm_does_not_set_estop_flag, "", "验证急停报警不再置急停旗标");
 
     return UNITY_END();

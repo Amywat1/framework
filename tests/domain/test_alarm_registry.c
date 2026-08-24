@@ -3,9 +3,12 @@
  * @brief   alarm_registry 单元测试
  */
 
+#include "common/event_types.h"
 #include "common/sw_error.h"
+#include "common/time_util.h"
 #include "domain/safety/alarm_registry/alarm_registry.h"
 #include "domain/safety/model/alarm_types.h"
+#include "runtime/event_bus/event_bus.h"
 #include "wdf_test_spec.h"
 
 static const alarm_def_t s_catalog[] = {
@@ -30,7 +33,64 @@ static const alarm_def_t s_catalog[] = {
      .reeval_group = (motion_reeval_group_id_t)1U,
      .desc         = "龙门前限位超时",
      },
+    {
+     .code         = 901001U,
+     .level        = ALARM_LEVEL_MINOR,
+     .clear        = ALARM_CLEAR_AUTO_STATIC,
+     .reeval_group = ALARM_REEVAL_GROUP_NONE,
+     .desc         = "demo minor",
+     },
 };
+
+static uint32_t s_trig[ALARM_ACTIVE_MAX];
+static unsigned s_trig_n;
+static uint32_t s_clr[ALARM_ACTIVE_MAX];
+static unsigned s_clr_n;
+static int      s_lockout_n;
+static int      s_nominal_n;
+
+static void on_trig(const event_t *evt)
+{
+    if (s_trig_n < ALARM_ACTIVE_MAX) {
+        s_trig[s_trig_n++] = evt->param;
+    } else {
+        s_trig_n++;
+    }
+}
+
+static void on_clr(const event_t *evt)
+{
+    if (s_clr_n < ALARM_ACTIVE_MAX) {
+        s_clr[s_clr_n++] = evt->param;
+    } else {
+        s_clr_n++;
+    }
+}
+
+static void on_lockout(const event_t *evt)
+{
+    (void)evt;
+    s_lockout_n++;
+}
+
+static void on_nominal(const event_t *evt)
+{
+    (void)evt;
+    s_nominal_n++;
+}
+
+static void reset_bus_counts(void)
+{
+    s_trig_n     = 0U;
+    s_clr_n      = 0U;
+    s_lockout_n  = 0;
+    s_nominal_n  = 0;
+}
+
+static void drain_bus(void)
+{
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_drain());
+}
 
 static void test_alarm_code_helpers_make_decode_and_validate(void)
 {
@@ -54,8 +114,15 @@ static void test_alarm_code_helpers_make_decode_and_validate(void)
 
 void setUp(void)
 {
+    time_util_init();
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
     alarm_registry_init();
     (void)alarm_registry_load_catalog(s_catalog, 3U);
+    reset_bus_counts();
+    (void)event_subscribe(EVT_ALARM_TRIGGERED, on_trig);
+    (void)event_subscribe(EVT_ALARM_CLEARED, on_clr);
+    (void)event_subscribe(EVT_SAFETY_LOCKOUT, on_lockout);
+    (void)event_subscribe(EVT_SAFETY_NOMINAL, on_nominal);
 }
 
 void tearDown(void)
@@ -65,8 +132,13 @@ void tearDown(void)
 static void test_trigger_clear_idempotent(void)
 {
     TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_trigger(201101U));
+    drain_bus();
+    TEST_ASSERT_EQUAL_UINT(1U, s_trig_n);
+    TEST_ASSERT_EQUAL_UINT(201101U, s_trig[0]);
     TEST_ASSERT_TRUE(alarm_registry_is_active(201101U));
     TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_trigger(201101U));
+    drain_bus();
+    TEST_ASSERT_EQUAL_UINT(1U, s_trig_n); /* 重复 trigger 不重复 TRIGGERED */
     TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_clear(201101U));
     TEST_ASSERT_TRUE(alarm_registry_is_active(201101U));
 }
@@ -125,47 +197,40 @@ static void test_reevaluate_by_group(void)
     TEST_ASSERT_FALSE(alarm_registry_is_active(200205U));
 }
 
-static void test_pull_events(void)
+static void test_minor_published_before_return(void)
 {
-    alarm_domain_event_t ev[4];
-    uint32_t             dropped = 1U;
-    unsigned             n;
-
-    (void)alarm_registry_trigger(201101U);
-    n = alarm_registry_pull_events(ev, 4U, &dropped);
-    TEST_ASSERT_EQUAL_UINT(1U, n);
-    TEST_ASSERT_EQUAL_UINT32(0U, dropped);
-    TEST_ASSERT_EQUAL_INT(ALARM_DOMAIN_EVT_TRIGGERED, (int)ev[0].kind);
-    TEST_ASSERT_EQUAL_UINT(201101U, ev[0].code);
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_load_catalog(s_catalog, 4U));
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_trigger(901001U));
+    drain_bus();
+    TEST_ASSERT_EQUAL_UINT(1U, s_trig_n);
+    TEST_ASSERT_EQUAL_UINT(901001U, s_trig[0]);
+    TEST_ASSERT_EQUAL_INT(0, s_lockout_n);
 }
 
-/* 待发队列溢出必须被计数交出，且计数取走一次即清零——静默丢事件会让
- * 靠 EVT_ALARM_* 边沿维护派生状态的订阅者永远停在旧值 */
-static void test_pending_overflow_is_reported_then_cleared(void)
+static void test_last_critical_clear_publishes_nominal(void)
 {
-    alarm_domain_event_t ev[ALARM_PENDING_EVENT_MAX];
-    uint32_t             dropped  = 0U;
-    unsigned             cycles   = (ALARM_PENDING_EVENT_MAX / 2U) + 3U;
-    unsigned             expected = (2U * cycles) - ALARM_PENDING_EVENT_MAX;
-    unsigned             i;
-    unsigned             n;
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_trigger(201709U));
+    drain_bus();
+    TEST_ASSERT_EQUAL_INT(1, s_lockout_n);
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_clear(201709U));
+    drain_bus();
+    TEST_ASSERT_EQUAL_UINT(1U, s_clr_n);
+    TEST_ASSERT_EQUAL_UINT(201709U, s_clr[0]);
+    TEST_ASSERT_EQUAL_INT(1, s_nominal_n);
+    TEST_ASSERT_EQUAL_INT(SAFETY_POSTURE_NOMINAL, alarm_registry_safety_posture());
+}
 
-    /* 201709 是 AUTO_STATIC：一次 trigger + clear 产生两条域事件而活动表始终 ≤1，
-     * 因此能在不触碰活跃池上限的前提下把待发队列灌溢出。 */
-    for (i = 0U; i < cycles; ++i) {
-        TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_trigger(201709U));
-        TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_clear(201709U));
-    }
-
-    n = alarm_registry_pull_events(ev, ALARM_PENDING_EVENT_MAX, &dropped);
-    TEST_ASSERT_EQUAL_UINT(ALARM_PENDING_EVENT_MAX, n);
-    TEST_ASSERT_EQUAL_UINT32(expected, dropped);
-
-    /* 计数已随上一次取出清零，不会在下一拍被重复上报成新的丢弃 */
-    dropped = 0xFFFFFFFFU;
-    n       = alarm_registry_pull_events(ev, ALARM_PENDING_EVENT_MAX, &dropped);
-    TEST_ASSERT_EQUAL_UINT(0U, n);
-    TEST_ASSERT_EQUAL_UINT32(0U, dropped);
+static void test_reset_all_publishes_cleared(void)
+{
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_trigger(201101U));
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_clear(201101U));
+    drain_bus();
+    reset_bus_counts();
+    alarm_registry_reset_all();
+    drain_bus();
+    TEST_ASSERT_EQUAL_UINT(1U, s_clr_n);
+    TEST_ASSERT_EQUAL_UINT(201101U, s_clr[0]);
+    TEST_ASSERT_FALSE(alarm_registry_is_active(201101U));
 }
 
 /* 目录内容非法时整表拒绝：这些错误在运行期不会报错，只会表现为
@@ -276,10 +341,8 @@ static void test_active_pool_full_rejects(void)
 
 static void discard_pending(void)
 {
-    alarm_domain_event_t ev[ALARM_PENDING_EVENT_MAX];
-    uint32_t             dropped = 0U;
-
-    (void)alarm_registry_pull_events(ev, ALARM_PENDING_EVENT_MAX, &dropped);
+    drain_bus();
+    reset_bus_counts();
 }
 
 static alarm_def_t make_fill_def(uint32_t code, alarm_level_t level)
@@ -303,12 +366,9 @@ static uint32_t fill_code(unsigned i)
 
 static void test_lockout_evicts_oldest_minor_when_pool_full(void)
 {
-    alarm_def_t          cat[ALARM_ACTIVE_MAX + 1U];
-    alarm_domain_event_t ev[4];
-    uint32_t             dropped = 0U;
-    uint32_t             crit    = 201709U;
-    unsigned             i;
-    unsigned             n;
+    alarm_def_t cat[ALARM_ACTIVE_MAX + 1U];
+    uint32_t    crit = 201709U;
+    unsigned    i;
 
     for (i = 0U; i < ALARM_ACTIVE_MAX; ++i) {
         cat[i] = make_fill_def(fill_code(i), ALARM_LEVEL_MINOR);
@@ -327,13 +387,12 @@ static void test_lockout_evicts_oldest_minor_when_pool_full(void)
     TEST_ASSERT_TRUE(alarm_registry_is_active(fill_code(1U)));
     TEST_ASSERT_EQUAL_INT(SAFETY_POSTURE_LOCKOUT, alarm_registry_safety_posture());
 
-    n = alarm_registry_pull_events(ev, 4U, &dropped);
-    TEST_ASSERT_EQUAL_UINT(2U, n);
-    TEST_ASSERT_EQUAL_UINT32(0U, dropped);
-    TEST_ASSERT_EQUAL_INT(ALARM_DOMAIN_EVT_CLEARED, (int)ev[0].kind);
-    TEST_ASSERT_EQUAL_UINT(fill_code(0U), ev[0].code);
-    TEST_ASSERT_EQUAL_INT(ALARM_DOMAIN_EVT_TRIGGERED, (int)ev[1].kind);
-    TEST_ASSERT_EQUAL_UINT(crit, ev[1].code);
+    drain_bus();
+    TEST_ASSERT_EQUAL_UINT(1U, s_clr_n);
+    TEST_ASSERT_EQUAL_UINT(fill_code(0U), s_clr[0]);
+    TEST_ASSERT_EQUAL_UINT(1U, s_trig_n);
+    TEST_ASSERT_EQUAL_UINT(crit, s_trig[0]);
+    TEST_ASSERT_EQUAL_INT(1, s_lockout_n);
 }
 
 static void test_lockout_evicts_oldest_major_when_no_minor(void)
@@ -360,11 +419,8 @@ static void test_lockout_evicts_oldest_major_when_no_minor(void)
 
 static void test_lockout_rejected_when_pool_full_of_lockout(void)
 {
-    alarm_def_t          cat[ALARM_ACTIVE_MAX + 1U];
-    alarm_domain_event_t ev[4];
-    uint32_t             dropped = 0U;
-    unsigned             i;
-    unsigned             n;
+    alarm_def_t cat[ALARM_ACTIVE_MAX + 1U];
+    unsigned    i;
 
     for (i = 0U; i < (ALARM_ACTIVE_MAX + 1U); ++i) {
         cat[i] = make_fill_def(fill_code(i), ALARM_LEVEL_CRITICAL);
@@ -380,18 +436,16 @@ static void test_lockout_rejected_when_pool_full_of_lockout(void)
     TEST_ASSERT_FALSE(alarm_registry_is_active(fill_code(ALARM_ACTIVE_MAX)));
     TEST_ASSERT_TRUE(alarm_registry_is_active(fill_code(0U)));
 
-    n = alarm_registry_pull_events(ev, 4U, &dropped);
-    TEST_ASSERT_EQUAL_UINT(0U, n);
+    drain_bus();
+    TEST_ASSERT_EQUAL_UINT(0U, s_trig_n);
+    TEST_ASSERT_EQUAL_UINT(0U, s_clr_n);
 }
 
 static void test_retrigger_active_lockout_does_not_evict(void)
 {
-    alarm_def_t          cat[ALARM_ACTIVE_MAX];
-    alarm_domain_event_t ev[4];
-    uint32_t             dropped = 0U;
-    uint32_t             crit    = fill_code(ALARM_ACTIVE_MAX - 1U);
-    unsigned             i;
-    unsigned             n;
+    alarm_def_t cat[ALARM_ACTIVE_MAX];
+    uint32_t    crit = fill_code(ALARM_ACTIVE_MAX - 1U);
+    unsigned    i;
 
     for (i = 0U; i < (ALARM_ACTIVE_MAX - 1U); ++i) {
         cat[i] = make_fill_def(fill_code(i), ALARM_LEVEL_MINOR);
@@ -408,8 +462,9 @@ static void test_retrigger_active_lockout_does_not_evict(void)
     TEST_ASSERT_TRUE(alarm_registry_is_active(fill_code(0U)));
     TEST_ASSERT_TRUE(alarm_registry_is_active(crit));
 
-    n = alarm_registry_pull_events(ev, 4U, &dropped);
-    TEST_ASSERT_EQUAL_UINT(0U, n);
+    drain_bus();
+    TEST_ASSERT_EQUAL_UINT(0U, s_trig_n);
+    TEST_ASSERT_EQUAL_UINT(0U, s_clr_n);
 }
 
 static void test_session_journal_overflow_is_counted_and_not_cleared_on_read(void)
@@ -463,63 +518,65 @@ static void test_session_journal_overflow_is_counted_and_not_cleared_on_read(voi
     TEST_ASSERT_EQUAL_UINT32(0U, dropped);
 }
 
-/* 合并读接口一次返回四项，且与单项查询口径一致 */
+/* 合并读接口一次返回活动表、聚合值与 journal，且与单项查询口径一致 */
 static void test_copy_safety_view_returns_consistent_snapshot(void)
 {
-    alarm_instance_t list[ALARM_ACTIVE_MAX];
-    bool             blocking = false;
-    uint32_t         top      = ALARM_CODE_NONE;
-    safety_posture_t posture  = SAFETY_POSTURE_NOMINAL;
-    unsigned         n;
+    alarm_safety_view_t view;
 
+    alarm_registry_on_wash_session_started();
     (void)alarm_registry_trigger(201101U); /* MAJOR */
     (void)alarm_registry_trigger(201709U); /* CRITICAL */
 
-    n = alarm_registry_copy_safety_view(list, ALARM_ACTIVE_MAX, &blocking, &top, &posture);
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_copy_safety_view(&view));
 
-    TEST_ASSERT_EQUAL_UINT(2U, n);
-    TEST_ASSERT_TRUE(blocking);
-    TEST_ASSERT_EQUAL_UINT(201709U, top); /* CRITICAL 级别最高 */
-    TEST_ASSERT_EQUAL_INT(SAFETY_POSTURE_LOCKOUT, posture);
+    TEST_ASSERT_EQUAL_UINT(2U, view.count);
+    TEST_ASSERT_TRUE(view.blocking);
+    TEST_ASSERT_EQUAL_UINT(201709U, view.top_code); /* CRITICAL 级别最高 */
+    TEST_ASSERT_EQUAL_INT(SAFETY_POSTURE_LOCKOUT, view.posture);
+    TEST_ASSERT_EQUAL_UINT(2U, view.journal_count);
+    TEST_ASSERT_EQUAL_UINT32(0U, view.journal_dropped);
 
-    /* 单项查询走的是同一次扫描，口径必须一致 */
-    TEST_ASSERT_EQUAL_INT(blocking, alarm_registry_has_blocking_active());
-    TEST_ASSERT_EQUAL_INT(alarm_registry_safety_posture(), posture);
+    TEST_ASSERT_EQUAL_INT(view.blocking, alarm_registry_has_blocking_active());
+    TEST_ASSERT_EQUAL_INT(alarm_registry_safety_posture(), view.posture);
 }
 
-/* 空表与 NULL 出参均不得崩溃 */
+/* 空表合法；NULL 出参返回 PARAM */
 static void test_copy_safety_view_handles_empty_and_null(void)
 {
-    safety_posture_t posture = SAFETY_POSTURE_LOCKOUT;
-    unsigned         n;
+    alarm_safety_view_t view;
 
-    n = alarm_registry_copy_safety_view(NULL, 0U, NULL, NULL, &posture);
-    TEST_ASSERT_EQUAL_UINT(0U, n);
-    TEST_ASSERT_EQUAL_INT(SAFETY_POSTURE_NOMINAL, posture);
+    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, alarm_registry_copy_safety_view(NULL));
 
-    (void)alarm_registry_trigger(201101U);
-    n = alarm_registry_copy_safety_view(NULL, 0U, NULL, NULL, NULL);
-    TEST_ASSERT_EQUAL_UINT(1U, n);
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_copy_safety_view(&view));
+    TEST_ASSERT_EQUAL_UINT(0U, view.count);
+    TEST_ASSERT_EQUAL_INT(SAFETY_POSTURE_NOMINAL, view.posture);
+    TEST_ASSERT_FALSE(view.blocking);
+    TEST_ASSERT_EQUAL_UINT(ALARM_CODE_NONE, view.top_code);
 }
 
-/* list_max 小于活动数时按容量截断，但聚合值仍反映全部活动告警 */
-static void test_copy_safety_view_truncates_list_but_not_aggregates(void)
+/* journal 丢弃计数与活动表同锁读出，连续读取不清零 */
+static void test_copy_safety_view_journal_dropped_sticky(void)
 {
-    alarm_instance_t one[1];
-    bool             blocking = false;
-    uint32_t         top      = ALARM_CODE_NONE;
-    safety_posture_t posture  = SAFETY_POSTURE_NOMINAL;
-    unsigned         n;
+    alarm_def_t         cat[ALARM_SESSION_JOURNAL_MAX + 1U];
+    alarm_safety_view_t view;
+    unsigned            i;
 
-    (void)alarm_registry_trigger(201101U);
-    (void)alarm_registry_trigger(201709U);
+    for (i = 0U; i < (ALARM_SESSION_JOURNAL_MAX + 1U); ++i) {
+        cat[i] = make_fill_def(fill_code(i), ALARM_LEVEL_MAJOR);
+    }
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_load_catalog(cat, ALARM_SESSION_JOURNAL_MAX + 1U));
+    alarm_registry_on_wash_session_started();
+    for (i = 0U; i < (ALARM_SESSION_JOURNAL_MAX + 1U); ++i) {
+        TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_trigger(fill_code(i)));
+    }
 
-    n = alarm_registry_copy_safety_view(one, 1U, &blocking, &top, &posture);
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_copy_safety_view(&view));
+    TEST_ASSERT_EQUAL_UINT(ALARM_SESSION_JOURNAL_MAX, view.journal_count);
+    TEST_ASSERT_EQUAL_UINT32(1U, view.journal_dropped);
+    TEST_ASSERT_EQUAL_UINT(ALARM_SESSION_JOURNAL_MAX + 1U, view.count);
 
-    TEST_ASSERT_EQUAL_UINT(1U, n); /* 只装得下一条 */
-    TEST_ASSERT_TRUE(blocking);
-    TEST_ASSERT_EQUAL_UINT(201709U, top);
-    TEST_ASSERT_EQUAL_INT(SAFETY_POSTURE_LOCKOUT, posture);
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_copy_safety_view(&view));
+    TEST_ASSERT_EQUAL_UINT32(1U, view.journal_dropped);
 }
 
 /* 未知告警码在锁内查表后仍返回 PARAM，不改变活动表 */
@@ -541,8 +598,9 @@ int main(void)
     WDF_RUN_TEST(test_reset_requires_manual_condition_clear, "", "验证复位要求手动条件清除");
     WDF_RUN_TEST(test_manual_condition_clear_waits_for_reset, "", "验证手动清除条件后等待复位");
     WDF_RUN_TEST(test_reevaluate_by_group, "", "验证重新评估按分组");
-    WDF_RUN_TEST(test_pull_events, "", "验证拉取事件");
-    WDF_RUN_TEST(test_pending_overflow_is_reported_then_cleared, "ALRM-13", "验证待发事件溢出被计数上报且取走即清零");
+    WDF_RUN_TEST(test_minor_published_before_return, "", "验证 MINOR 触发返回前已入队");
+    WDF_RUN_TEST(test_last_critical_clear_publishes_nominal, "", "验证末条 CRITICAL 清除后立即发 NOMINAL");
+    WDF_RUN_TEST(test_reset_all_publishes_cleared, "", "验证 reset_all 批量 CLEARED 已入队");
     WDF_RUN_TEST(test_load_catalog_rejects_invalid_defs, "ALRM-15", "验证非法报警目录整表拒绝");
     WDF_RUN_TEST(test_load_catalog_resets_session_journal, "ALRM-16", "验证换目录同时清空会话日志");
     WDF_RUN_TEST(test_session_journal_blocking_levels, "", "验证会话日志仅记录阻断级别报警");
@@ -555,8 +613,8 @@ int main(void)
                  "ALRM-21",
                  "验证会话日志满池丢弃可观测且读取不清零");
     WDF_RUN_TEST(test_copy_safety_view_returns_consistent_snapshot, "", "验证复制安全视图返回一致的快照");
-    WDF_RUN_TEST(test_copy_safety_view_handles_empty_and_null, "", "验证复制安全视图处理空并空指针");
-    WDF_RUN_TEST(test_copy_safety_view_truncates_list_but_not_aggregates, "", "验证安全视图仅截断列表而不影响聚合值");
+    WDF_RUN_TEST(test_copy_safety_view_handles_empty_and_null, "", "验证复制安全视图处理空表与空指针");
+    WDF_RUN_TEST(test_copy_safety_view_journal_dropped_sticky, "ALRM-21", "验证视图 journal 丢弃计数读取不清零");
     WDF_RUN_TEST(test_unknown_code_rejected, "", "验证未知编码被拒绝");
 
     return UNITY_END();

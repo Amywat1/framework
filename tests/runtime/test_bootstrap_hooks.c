@@ -30,7 +30,7 @@ sw_err_t alarm_registry_init(void)
 {
     return SW_ERR_NOT_INIT;
 }
-sw_err_t alarm_binding_bridge_bind(void)
+sw_err_t alarm_bridge_bind(void)
 {
     return SW_ERR_NOT_INIT;
 }

@@ -128,9 +128,9 @@ sw_err_t alarm_registry_init(void)
 {
     return step("alarm_registry_init");
 }
-sw_err_t alarm_binding_bridge_bind(void)
+sw_err_t alarm_bridge_bind(void)
 {
-    return step("alarm_binding_bridge_bind");
+    return step("alarm_bridge_bind");
 }
 sw_err_t alarm_bridge_init(void)
 {
@@ -303,7 +303,7 @@ static const char *const k_order[] = {
     "bind_hal",
     "bind_device",
     "alarm_registry_init",
-    "alarm_binding_bridge_bind",
+    "alarm_bridge_bind",
     "bind_alarm_catalog",
     "validate",
     /* init_hal */

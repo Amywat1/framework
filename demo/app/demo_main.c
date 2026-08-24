@@ -4,7 +4,6 @@
  */
 
 #include "adapters/outbound/safety/sim/hw_estop_sim.h"
-#include "application/bridges/alarm_bridge.h"
 #include "application/ports/inbound/command/command_port.h"
 #include "application/ports/inbound/safety/alarm_binding_port.h"
 #include "common/event_types.h"
@@ -144,9 +143,6 @@ static int check_alarm_trigger_chain(void)
         fprintf(stderr, "[Demo] alarm trigger failed\n");
         return 1;
     }
-
-    alarm_bridge_drain();
-    usleep(50000U);
 
     if (!alarm_registry_has_blocking_active()) {
         fprintf(stderr, "[Demo] blocking alarm not active after trigger\n");

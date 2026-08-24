@@ -6,7 +6,7 @@
  *
  * @note    项目适配器检测到故障条件变化后，通过本端口上报「条件成立/条件消失」。
  *          clear 只表示条件消失，不保证手动锁存告警立即从活动列表删除。
- *          端口实现由 application/bridges/alarm_binding_bridge_bind() 注册。
+ *          端口实现由 application/bridges/alarm_bridge_bind() 注册。
  */
 
 #ifndef APPLICATION_PORTS_INBOUND_SAFETY_ALARM_BINDING_PORT_H

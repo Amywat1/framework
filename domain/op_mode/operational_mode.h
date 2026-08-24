@@ -73,14 +73,9 @@ void op_mode_on_self_check_completed(bool land_fault);
 
 /**
  * @brief  阻塞告警触发运行模式收敛（离开接单/静态可运营态 → STOPPED）。
+ * @note   CRITICAL 也走本入口（LOCKOUT ⊂ blocking）；`EVT_SAFETY_LOCKOUT` 只驱动 abort_wash。
  */
 void op_mode_on_blocking_alarm(void);
-
-/**
- * @brief  CRITICAL 告警触发运行模式收敛。
- * @note   保留为安全事件桥接入口，行为与阻塞告警一致（洗中等流程态不立刻切）。
- */
-void op_mode_on_critical_alarm(void);
 
 /**
  * @brief  急停状态变更

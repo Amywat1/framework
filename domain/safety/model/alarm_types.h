@@ -54,21 +54,18 @@ extern "C" {
  * | 报警目录条目     | 32（DI 12 + 通讯 4 + 软件 16） | 64 | 留一倍余量给新增机型报警 |
  * | 同时活跃报警     | 远小于目录规模 | 32 | 上限取目录一半；lockout 可驱逐非 lockout 腾槽 |
  * | 会话日志条目     | 单次洗车通常 0~2 | 16 | 只记 MAJOR 及以上且同码去重；满则累计丢弃计数 |
- * | 待发领域事件     | 批量拉取，取空即清 | 32 | 与活跃上限对齐：最坏情况全部报警同时变位 |
  *
  * 活跃池满时：非 lockout 返回 SW_ERR_OVERFLOW；lockout 等级驱逐一条非 lockout
  * （CLEARED + ERROR 日志）后再插入。32 条都是 lockout 时仍硬失败。
  * 不静默丢弃 lockout——漏报 CRITICAL 比丢掉 MINOR 危险。
  *
- * 待发事件队列满时无法向上返回错误（清除路径没有可失败的调用方），改为累计
- * 丢弃计数并由 `alarm_registry_pull_events` 一并交出，桥接层据此补发一次
- * 重同步事件。同一条原则：可以丢事件，但不能让消费者不知道自己漏了。
+ * 变位在放锁后直接 `event_publish_required`，不另设待发队列。本轮待发布条数
+ * 不超过活动表规模，走事件总线既有容量与丢件契约。
  * ------------------------------------------------------------------------- */
 #define ALARM_DESC_MAX            48U
 #define ALARM_CATALOG_MAX         64U
 #define ALARM_ACTIVE_MAX          32U
 #define ALARM_SESSION_JOURNAL_MAX 16U
-#define ALARM_PENDING_EVENT_MAX   32U
 
 /* -------------------------------------------------------------------------
  * 安全姿态
@@ -170,15 +167,21 @@ typedef struct {
     bool                     condition_active; /**< 故障源当前是否仍成立。 */
 } alarm_instance_t;
 
-typedef enum {
-    ALARM_DOMAIN_EVT_TRIGGERED = 0,
-    ALARM_DOMAIN_EVT_CLEARED,
-} alarm_domain_event_kind_t;
-
+/**
+ * @brief  一次持锁读出的安全投影
+ * @note   活动表、blocking、最高码、姿态与会话 journal 来自同一时刻。
+ *         journal 不参与开洗拒绝或洗后 STOPPED 判定。
+ */
 typedef struct {
-    alarm_domain_event_kind_t kind;
-    uint32_t                  code;
-} alarm_domain_event_t;
+    alarm_instance_t list[ALARM_ACTIVE_MAX];                         /**< 活动告警拷贝 */
+    unsigned         count;                                          /**< list 有效条数 */
+    bool             blocking;                                       /**< 存在阻塞开洗的等级 */
+    uint32_t         top_code;                                       /**< 当前最高等级告警码；无则 ALARM_CODE_NONE */
+    safety_posture_t posture;                                        /**< 由 CRITICAL 推导的安全姿态 */
+    uint32_t         session_journal[ALARM_SESSION_JOURNAL_MAX];     /**< 本会话 MAJOR+ 码 */
+    unsigned         journal_count;                                  /**< journal 有效条数 */
+    uint32_t         journal_dropped;                                /**< 满池未记入的累计条数，读不清零 */
+} alarm_safety_view_t;
 
 #ifdef __cplusplus
 }

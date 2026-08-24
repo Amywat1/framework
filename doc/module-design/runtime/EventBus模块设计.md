@@ -172,8 +172,8 @@ typedef struct
 |------|------|------------|-------------------|
 | 硬件异步 | `EVT_CAT_HW` | HAL 适配器 | `EVT_HW_ESTOP_ON/OFF`、`EVT_HW_IO_OFFLINE`、`EVT_HW_IO_ONLINE` |
 | 组件完成 | `EVT_CAT_COMP` | 机构领域层 | `EVT_COMP_HOME_DONE`、`EVT_COMP_MOTION_COMPLETED` |
-| 安全姿态 | `EVT_CAT_SAFETY` | `alarm_bridge`（边沿）；`safety_session_coordinator` 发完成事件 | `EVT_SAFETY_LOCKOUT`、`EVT_SAFETY_NOMINAL`、`EVT_ABORT_HOME_DONE` |
-| 报警生命周期 | `EVT_CAT_ALARM` | `alarm_bridge` | `EVT_ALARM_TRIGGERED`、`EVT_ALARM_CLEARED`、`EVT_ALARM_RESYNC` |
+| 安全姿态 | `EVT_CAT_SAFETY` | `alarm_registry`（边沿）；`safety_session_coordinator` 发完成事件 | `EVT_SAFETY_LOCKOUT`、`EVT_SAFETY_NOMINAL`、`EVT_ABORT_HOME_DONE` |
+| 报警生命周期 | `EVT_CAT_ALARM` | `alarm_registry` | `EVT_ALARM_TRIGGERED`、`EVT_ALARM_CLEARED` |
 | 外部命令 | `EVT_CAT_CMD` | （历史/测试） | `EVT_CMD_ORDER` 仅测试；网关唤醒已改 `cmd_control` 信号量 |
 | 云端 | `EVT_CAT_CLOUD` | 云链路适配器 | `EVT_CLOUD_CONNECTED`、`EVT_CLOUD_DISCONNECTED` |
 | 洗车流程 | `EVT_CAT_WASH` | 项目洗车编排器 | `EVT_WASH_DONE`、`EVT_WASH_ABORTED`、`EVT_WASH_SESSION_STARTED`、`EVT_WASH_CHECKPOINT_REACHED` |
@@ -289,8 +289,8 @@ typedef void (*event_handler_t)(const event_t *evt);
 
 | 订阅方 | 典型订阅事件 | wdf 落地 |
 |--------|--------------|----------|
-| `op_mode_bridge` | `EVT_WASH_*`、`EVT_HW_ESTOP_*`、`EVT_SAFETY_LOCKOUT`、`EVT_ALARM_*` 等 | ✅ |
-| `alarm_bridge` | （发布方）`EVT_ALARM_*`、`EVT_SAFETY_LOCKOUT/NOMINAL` | ✅ |
+| `op_mode_bridge` | `EVT_WASH_*`、`EVT_HW_ESTOP_*`、`EVT_ALARM_TRIGGERED` 等 | ✅ |
+| `alarm_registry` | （发布方）`EVT_ALARM_*`、`EVT_SAFETY_LOCKOUT/NOMINAL` | ✅ |
 | `estop_poll` / `op_mode_bridge` | 安全与报警相关事件 | ✅ |
 | `recovery_service` | 恢复流程事件 | ✅ |
 | `safety_session_coordinator` | 安全切断与中止归位 | ✅ |
@@ -302,9 +302,8 @@ typedef void (*event_handler_t)(const event_t *evt);
 
 | 来源 | 发布事件 | `param` 含义（示例） |
 |------|----------|----------------------|
-| `alarm_bridge` | `EVT_ALARM_TRIGGERED` | 报警码 |
-| `alarm_bridge` | `EVT_ALARM_RESYNC` | 丢弃的域事件条数（仅供诊断） |
-| `alarm_bridge` | `EVT_SAFETY_LOCKOUT` | 0 |
+| `alarm_registry` | `EVT_ALARM_TRIGGERED` | 报警码 |
+| `alarm_registry` | `EVT_SAFETY_LOCKOUT` | 0 |
 | wash session | `EVT_WASH_DONE` | 结果码 |
 | `snack_cloud_adapter` | `EVT_CLOUD_CONNECTED` | 0 |
 | HAL / 信号滤波 | `EVT_HW_IO_OFFLINE` | 子板号等标量 |

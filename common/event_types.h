@@ -77,7 +77,7 @@ typedef uint16_t event_type_t;
 #define EVT_COMP_MOTION_COMPLETED EVT_MAKE(EVT_CAT_COMP, EVT_COMP_ID_MOTION_COMPLETED)
 
 /* -------------------------------------------------------------------------
- * SAFETY 类（alarm_bridge 按姿态边沿发布）
+ * SAFETY 类（alarm_registry 按姿态边沿发布）
  * ------------------------------------------------------------------------- */
 #define EVT_SAFETY_ID_LOCKOUT         0U
 #define EVT_SAFETY_ID_NOMINAL         1U
@@ -88,17 +88,13 @@ typedef uint16_t event_type_t;
 #define EVT_ABORT_HOME_DONE EVT_MAKE(EVT_CAT_SAFETY, EVT_SAFETY_ID_ABORT_HOME_DONE)
 
 /* -------------------------------------------------------------------------
- * ALARM 类（alarm_bridge 发布）
+ * ALARM 类（alarm_registry 放锁后发布）
  * ------------------------------------------------------------------------- */
 #define EVT_ALARM_ID_TRIGGERED 0U
 #define EVT_ALARM_ID_CLEARED   1U
-#define EVT_ALARM_ID_RESYNC    2U /* 待发队列溢出丢过事件，param=丢弃条数 */
 
 #define EVT_ALARM_TRIGGERED EVT_MAKE(EVT_CAT_ALARM, EVT_ALARM_ID_TRIGGERED)
 #define EVT_ALARM_CLEARED   EVT_MAKE(EVT_CAT_ALARM, EVT_ALARM_ID_CLEARED)
-/* 逐码事件有丢失，凡按 EVT_ALARM_* 边沿维护派生状态的订阅者都必须重新读一次
- * registry 全量状态。param 只用于诊断，不承载哪一条被丢的信息。 */
-#define EVT_ALARM_RESYNC    EVT_MAKE(EVT_CAT_ALARM, EVT_ALARM_ID_RESYNC)
 
 /* -------------------------------------------------------------------------
  * CMD 类（ORDER 仅测试用；生产命令经 device_command_port.submit_async/sync）

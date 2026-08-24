@@ -5,7 +5,7 @@
 
 #include "runtime/bootstrap/bootstrap.h"
 
-#include "application/bridges/alarm_binding_bridge.h"
+#include "application/bridges/alarm_bridge.h"
 #include "application/bridges/alarm_bridge.h"
 #include "application/bridges/op_mode_bridge.h"
 #include "application/command_gateway.h"
@@ -181,7 +181,7 @@ static sw_err_t bootstrap_bind(void)
     BOOT_CHECK(s_hooks->bind_hal(), "project_bind_hal");
     BOOT_CHECK(s_hooks->bind_device(), "project_bind_device");
     BOOT_CHECK(alarm_registry_init(), "alarm_registry_init");
-    BOOT_CHECK(alarm_binding_bridge_bind(), "alarm_binding_bridge_bind");
+    BOOT_CHECK(alarm_bridge_bind(), "alarm_bridge_bind");
     BOOT_CHECK(s_hooks->bind_alarm_catalog(), "project_bind_alarm_catalog");
     BOOT_CHECK(s_hooks->validate(), "project_validate");
     return SW_OK;

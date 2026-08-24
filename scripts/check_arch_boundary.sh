@@ -515,7 +515,6 @@ RT_REACHABLE_FILES=(
 # 非 RT 可达：允许默认互斥量，须逐个说明依据
 NON_RT_FILES=(
     "application/command_gateway.c"                       # 命令提交，非急停路径
-    "application/bridges/alarm_bridge.c"                   # drain 串行化；急停切断不取此锁
     "domain/op_mode/operational_mode.c"                   # 模式串行锁；急停 cutout 不取此锁
     "domain/safety/alarm_registry/alarm_registry.c"        # 由报警采集线程驱动
     "domain/telemetry/device_snapshot.c"                   # 投影读写

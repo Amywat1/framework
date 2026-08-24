@@ -137,7 +137,7 @@ bootstrap_start()
 |------|----------|
 | STOP_OPERATION | `device_command_port.submit_sync/async` → command gateway → operational mode |
 | HW ESTOP | `hw_estop_sim_set_active(true)` → `EVT_HW_ESTOP_ON` → op mode estop flag |
-| Alarm trigger | `alarm_binding.trigger()` → `alarm_bridge_drain()` → registry blocking |
+| Alarm trigger | `alarm_binding.trigger()` → registry blocking（变位已入队） |
 
 Demo 直接订阅 `EVT_HW_ESTOP_ON`，用于确认 event dispatch 线程已工作。该事件需要有采集方发布，见 §9.1。
 

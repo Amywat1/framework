@@ -54,11 +54,22 @@ static void refresh_safety_snapshot(const event_t *evt)
 
     (void)evt;
     memset(&snap, 0, sizeof(snap));
-    /* 一次持锁读出四项，避免活动表与安全姿态来自不同时刻造成快照自相矛盾 */
-    snap.active_alarm_count = alarm_registry_copy_safety_view(
-        snap.active_list, ALARM_ACTIVE_MAX, &snap.blocking_active, &snap.top_alarm_code, &snap.posture);
-    snap.session_journal_count = alarm_registry_get_session_journal(
-        snap.session_journal, ALARM_SESSION_JOURNAL_MAX, &snap.session_journal_dropped);
+    alarm_safety_view_t view;
+
+    memset(&view, 0, sizeof(view));
+    (void)alarm_registry_copy_safety_view(&view);
+    snap.active_alarm_count = view.count;
+    if (view.count > 0U) {
+        memcpy(snap.active_list, view.list, view.count * sizeof(snap.active_list[0]));
+    }
+    snap.blocking_active         = view.blocking;
+    snap.top_alarm_code          = view.top_code;
+    snap.posture                 = view.posture;
+    snap.session_journal_count   = view.journal_count;
+    snap.session_journal_dropped = view.journal_dropped;
+    if (view.journal_count > 0U) {
+        memcpy(snap.session_journal, view.session_journal, view.journal_count * sizeof(snap.session_journal[0]));
+    }
     snap.cutout_unconfirmed = safety_cutout_is_unconfirmed();
     if (snap.cutout_unconfirmed) {
         snap.posture         = SAFETY_POSTURE_LOCKOUT;
@@ -130,7 +141,6 @@ sw_err_t telemetry_projection_init(void)
         {EVT_OP_MODE_CONTEXT_SYNC, on_context_sync        },
         {EVT_ALARM_TRIGGERED,      refresh_safety_snapshot},
         {EVT_ALARM_CLEARED,        refresh_safety_snapshot},
-        {EVT_ALARM_RESYNC,         refresh_safety_snapshot},
         /* 安全姿态边沿同样要刷快照：posture 由 CRITICAL 告警驱动，
          * 但姿态事件与告警事件是两条独立发布路径，缺订阅会导致
          * LOCKOUT/NOMINAL 切换后快照里的 posture 滞后。 */
