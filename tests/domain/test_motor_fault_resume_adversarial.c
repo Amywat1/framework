@@ -24,19 +24,19 @@ enum {
 };
 
 typedef struct {
-    uint64_t            now_ms;          /**< 模拟时钟 */
-    int64_t             position;        /**< 编码器 raw */
-    int                 output_count;    /**< set_output 次数 */
-    int                 cutoff_count;    /**< cutoff 次数 */
-    int                 current;         /**< 负载电流 */
-    int                 reset_count;     /**< 驱动复位次数 */
-    int                 temperature;     /**< 温度读数 */
-    bool                temperature_ok;  /**< 温度端口是否可读 */
-    bool                running;         /**< 功率级是否在转 */
-    bool                reset_ok;        /**< reset 返回值 */
-    sw_err_t            set_output_rc;   /**< set_output 返回码 */
-    motor_port_status_t port_status;     /**< 端口健康 */
-    motor_speed_t       last_speed;      /**< 最近一次速度给定 */
+    uint64_t            now_ms;         /**< 模拟时钟 */
+    int64_t             position;       /**< 编码器 raw */
+    int                 output_count;   /**< set_output 次数 */
+    int                 cutoff_count;   /**< cutoff 次数 */
+    int                 current;        /**< 负载电流 */
+    int                 reset_count;    /**< 驱动复位次数 */
+    int                 temperature;    /**< 温度读数 */
+    bool                temperature_ok; /**< 温度端口是否可读 */
+    bool                running;        /**< 功率级是否在转 */
+    bool                reset_ok;       /**< reset 返回值 */
+    sw_err_t            set_output_rc;  /**< set_output 返回码 */
+    motor_port_status_t port_status;    /**< 端口健康 */
+    motor_speed_t       last_speed;     /**< 最近一次速度给定 */
 } port_fixture_t;
 
 static port_fixture_t   s_fx;
@@ -50,11 +50,11 @@ static motor_encoder_t *s_encoders[2];
 static motor_config_t   s_cfg;
 static motor_ports_t    s_ports;
 
-static int                s_reset_reenter_depth;   /**< reset 回调重入深度 */
-static motor_cmd_result_t s_nested_run_result;     /**< 回调内嵌套 run 的结果 */
-static volatile int       s_conc_run_ok;           /**< 需确认 FAULT 下 run 被受理次数 */
-static volatile int       s_conc_running;          /**< 需确认 FAULT 下进入 RUNNING 次数 */
-static volatile int       s_conc_query_mismatch;   /**< 查询与配置不一致次数 */
+static int                s_reset_reenter_depth; /**< reset 回调重入深度 */
+static motor_cmd_result_t s_nested_run_result;   /**< 回调内嵌套 run 的结果 */
+static volatile int       s_conc_run_ok;         /**< 需确认 FAULT 下 run 被受理次数 */
+static volatile int       s_conc_running;        /**< 需确认 FAULT 下进入 RUNNING 次数 */
+static volatile int       s_conc_query_mismatch; /**< 查询与配置不一致次数 */
 
 static uint64_t clock_now(void *ctx)
 {
@@ -166,8 +166,8 @@ static void init_executor(void)
     memset(s_encoders, 0, sizeof(s_encoders));
     motor_executor_test_reset();
     safety_output_hold_reset();
-    s_exec                  = NULL;
-    s_reset_reenter_depth   = 0;
+    s_exec                     = NULL;
+    s_reset_reenter_depth      = 0;
     s_nested_run_result.status = MOTOR_CMD_REJECTED;
     s_nested_run_result.reject = MOTOR_REJECT_NONE;
     s_nested_run_result.reason = "";
@@ -479,8 +479,7 @@ void test_resumable_reset_fail_fills_event_slot(void)
     hal = s_exec;
     run_until_overcurrent(hal);
 
-    while (motor_exec_pop_event_for(hal, 0, &ev)) {
-    }
+    while (motor_exec_pop_event_for(hal, 0, &ev)) {}
 
     s_fx.reset_ok = false;
     for (i = 0; i < (MOTOR_EVENT_SLOT_CAP + ADV_HAMMER_N); ++i) {
@@ -534,9 +533,9 @@ void test_resumable_hammer_run_while_current_stays_high(void)
 /* 攻击目标: 重入；半清窗口被二次 run 打断后不得 FAULT+RUNNING 并存 */
 void test_reset_callback_nested_run_keeps_consistent_state(void)
 {
-    motor_cmd_result_t r;
-    motor_exec_t      *hal;
-    motor_exec_state_t st;
+    motor_cmd_result_t      r;
+    motor_exec_t           *hal;
+    motor_exec_state_t      st;
     motor_exec_fault_code_t code;
 
     enable_overcurrent_monitor();
@@ -544,8 +543,8 @@ void test_reset_callback_nested_run_keeps_consistent_state(void)
     hal = s_exec;
     run_until_overcurrent(hal);
 
-    s_fx.current      = 0;
-    s_driver.reset    = driver_reset_reenter_run;
+    s_fx.current               = 0;
+    s_driver.reset             = driver_reset_reenter_run;
     s_nested_run_result.status = MOTOR_CMD_REJECTED;
 
     r    = motor_exec_run(hal, 0, motor_speed_gear(1), MOTOR_DIR_FORWARD, NULL);
@@ -572,13 +571,13 @@ void test_shared_driver_confirm_isolated_from_peer_resume(void)
     int                resets;
 
     enable_overcurrent_monitor();
-    s_cfg.motor_count                      = 2;
-    s_cfg.driver_count                     = 1;
-    s_cfg.motors[1]                        = s_cfg.motors[0];
-    s_cfg.motors[1].mon.monitor_current    = false;
-    s_cfg.motors[1].confirm_faults         = motor_fault_confirm_bit(MOTOR_FAULT_SHARED_DRIVER);
-    s_cfg.motors[0].confirm_faults         = 0u;
-    s_encoders[1]                          = &s_encoder;
+    s_cfg.motor_count                   = 2;
+    s_cfg.driver_count                  = 1;
+    s_cfg.motors[1]                     = s_cfg.motors[0];
+    s_cfg.motors[1].mon.monitor_current = false;
+    s_cfg.motors[1].confirm_faults      = motor_fault_confirm_bit(MOTOR_FAULT_SHARED_DRIVER);
+    s_cfg.motors[0].confirm_faults      = 0u;
+    s_encoders[1]                       = &s_encoder;
     rebind_executor();
     hal = s_exec;
 
@@ -671,8 +670,8 @@ void test_watchdog_safe_not_resumable(void)
 /* 攻击目标: 未定义位 bind 拒绝；FATAL 位即使列入也不得按可续动查询 */
 void test_confirm_bitmap_edges_and_fatal_hard_override(void)
 {
-    motor_init_result_t ir;
-    motor_exec_t       *exec = NULL;
+    motor_init_result_t     ir;
+    motor_exec_t           *exec = NULL;
     motor_exec_fault_code_t code;
 
     s_cfg.motors[0].confirm_faults = 1u; /* NONE 位 */
@@ -843,45 +842,22 @@ int main(void)
 {
     UNITY_BEGIN();
 
-    WDF_RUN_TEST(test_confirm_fault_repeat_run_home_stay_fault,
-                 "",
-                 "TC-01 需确认 FAULT 重复 run/home 保持故障且不复位");
-    WDF_RUN_TEST(test_resumable_fault_home_clears_and_starts,
-                 "",
-                 "TC-02 可续动 FAULT 上 home 内清并离开故障");
-    WDF_RUN_TEST(test_confirm_partial_recover_then_run_rejected,
-                 "",
-                 "TC-03 恢复步骤颠倒或半步后 run 仍拒绝");
-    WDF_RUN_TEST(test_confirm_fault_concurrent_tick_run_query,
-                 "",
-                 "TC-04 需确认 FAULT 下并发 tick/run/查询不得放行");
-    WDF_RUN_TEST(test_resumable_reset_fail_fills_event_slot,
-                 "",
-                 "TC-05 连续内清失败打满事件槽仍保持该次 FAULT");
-    WDF_RUN_TEST(test_resumable_hammer_run_while_current_stays_high,
-                 "",
-                 "TC-06 电流仍超限时连打 run 每次内清后再故障");
-    WDF_RUN_TEST(test_reset_callback_nested_run_keeps_consistent_state,
-                 "",
-                 "TC-07 复位回调嵌套 run 不得 FAULT 与 RUNNING 撕裂");
-    WDF_RUN_TEST(test_shared_driver_confirm_isolated_from_peer_resume,
-                 "",
-                 "TC-08 共享驱动需确认轴不因对轴可续动而放行");
-    WDF_RUN_TEST(test_hold_overrides_resumable_fault,
-                 "",
-                 "TC-09 hold/ESTOP 覆盖可续动 FAULT 不得内清");
-    WDF_RUN_TEST(test_watchdog_safe_not_resumable,
-                 "",
-                 "TC-10 看门狗安全态位图为 0 也不得内清");
-    WDF_RUN_TEST(test_confirm_bitmap_edges_and_fatal_hard_override,
-                 "",
-                 "TC-11 位图边界 bind 拒绝且 FATAL 查询硬覆盖");
-    WDF_RUN_TEST(test_resumable_bad_params_do_not_inner_clear,
-                 "",
-                 "TC-12 非法速度方向电机号不得内清可续动 FAULT");
-    WDF_RUN_TEST(test_init_null_mutate_cfg_rebind_reinit,
-                 "",
-                 "TC-13 空句柄、改配置副本、重复 bind、reinit 保位图");
+    WDF_RUN_TEST(
+        test_confirm_fault_repeat_run_home_stay_fault, "", "TC-01 需确认 FAULT 重复 run/home 保持故障且不复位");
+    WDF_RUN_TEST(test_resumable_fault_home_clears_and_starts, "", "TC-02 可续动 FAULT 上 home 内清并离开故障");
+    WDF_RUN_TEST(test_confirm_partial_recover_then_run_rejected, "", "TC-03 恢复步骤颠倒或半步后 run 仍拒绝");
+    WDF_RUN_TEST(test_confirm_fault_concurrent_tick_run_query, "", "TC-04 需确认 FAULT 下并发 tick/run/查询不得放行");
+    WDF_RUN_TEST(test_resumable_reset_fail_fills_event_slot, "", "TC-05 连续内清失败打满事件槽仍保持该次 FAULT");
+    WDF_RUN_TEST(test_resumable_hammer_run_while_current_stays_high, "", "TC-06 电流仍超限时连打 run 每次内清后再故障");
+    WDF_RUN_TEST(
+        test_reset_callback_nested_run_keeps_consistent_state, "", "TC-07 复位回调嵌套 run 不得 FAULT 与 RUNNING 撕裂");
+    WDF_RUN_TEST(
+        test_shared_driver_confirm_isolated_from_peer_resume, "", "TC-08 共享驱动需确认轴不因对轴可续动而放行");
+    WDF_RUN_TEST(test_hold_overrides_resumable_fault, "", "TC-09 hold/ESTOP 覆盖可续动 FAULT 不得内清");
+    WDF_RUN_TEST(test_watchdog_safe_not_resumable, "", "TC-10 看门狗安全态位图为 0 也不得内清");
+    WDF_RUN_TEST(test_confirm_bitmap_edges_and_fatal_hard_override, "", "TC-11 位图边界 bind 拒绝且 FATAL 查询硬覆盖");
+    WDF_RUN_TEST(test_resumable_bad_params_do_not_inner_clear, "", "TC-12 非法速度方向电机号不得内清可续动 FAULT");
+    WDF_RUN_TEST(test_init_null_mutate_cfg_rebind_reinit, "", "TC-13 空句柄、改配置副本、重复 bind、reinit 保位图");
     WDF_RUN_TEST(test_driver_port_fatal_not_resumable_even_if_bitmap_zero,
                  "",
                  "TC-14 DRIVER_PORT_FATAL 位图为 0 也不得按可续动放行");

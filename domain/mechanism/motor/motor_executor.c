@@ -309,6 +309,36 @@ bool motor_exec_pop_event_for(motor_exec_t *exec, int motor, motor_event_t *out)
     return (executor != NULL) && (out != NULL) && motor_pop_event_for(executor, motor, out);
 }
 
+motor_cmd_result_t motor_exec_zero_encoder(motor_exec_t *exec, int motor)
+{
+    motor_executor_t *executor = executor_from_handle(exec);
+
+    return (executor != NULL) ? motor_zero_encoder(executor, motor)
+                              : cmd_reject(MOTOR_REJECT_UNAVAILABLE, "executor-unavailable");
+}
+
+motor_cmd_result_t motor_exec_confirm_baseline(motor_exec_t *exec, int motor)
+{
+    motor_executor_t *executor = executor_from_handle(exec);
+
+    return (executor != NULL) ? motor_confirm_baseline(executor, motor)
+                              : cmd_reject(MOTOR_REJECT_UNAVAILABLE, "executor-unavailable");
+}
+
+int motor_exec_current_freq(const motor_exec_t *exec, int motor)
+{
+    const motor_executor_t *executor = const_executor_from_handle(exec);
+
+    int freq = 0;
+
+    if (executor != NULL) {
+        motor_lock((motor_executor_t *)executor);
+        freq = motor_current_freq(executor, motor);
+        motor_unlock((motor_executor_t *)executor);
+    }
+    return freq;
+}
+
 static const char *ports_error(const motor_config_t *cfg, const motor_ports_t *ports)
 {
     int driver;
@@ -419,22 +449,6 @@ void motor_executor_tick(motor_exec_t *exec)
     }
 }
 
-motor_cmd_result_t motor_executor_zero_encoder(motor_exec_t *exec, int motor)
-{
-    motor_executor_t *executor = executor_from_handle(exec);
-
-    return (executor != NULL) ? motor_zero_encoder(executor, motor)
-                              : cmd_reject(MOTOR_REJECT_UNAVAILABLE, "executor-unavailable");
-}
-
-motor_cmd_result_t motor_executor_confirm_baseline(motor_exec_t *exec, int motor)
-{
-    motor_executor_t *executor = executor_from_handle(exec);
-
-    return (executor != NULL) ? motor_confirm_baseline(executor, motor)
-                              : cmd_reject(MOTOR_REJECT_UNAVAILABLE, "executor-unavailable");
-}
-
 void motor_executor_reset_watchdog(motor_exec_t *exec)
 {
     motor_executor_t *executor = executor_from_handle(exec);
@@ -444,20 +458,6 @@ void motor_executor_reset_watchdog(motor_exec_t *exec)
         motor_reset_watchdog(executor);
         motor_unlock(executor);
     }
-}
-
-int motor_executor_current_freq(const motor_exec_t *exec, int motor)
-{
-    const motor_executor_t *executor = const_executor_from_handle(exec);
-
-    int freq = 0;
-
-    if (executor != NULL) {
-        motor_lock((motor_executor_t *)executor);
-        freq = motor_current_freq(executor, motor);
-        motor_unlock((motor_executor_t *)executor);
-    }
-    return freq;
 }
 
 bool motor_executor_in_safe_state(const motor_exec_t *exec)

@@ -77,6 +77,17 @@ static motor_cmd_result_t cmd_rejected(void)
     return r;
 }
 
+static void assert_axis_ok(motor_cmd_result_t r)
+{
+    TEST_ASSERT_TRUE_MESSAGE(motor_cmd_ok(r), (r.reason != NULL) ? r.reason : "rejected");
+}
+
+static void assert_axis_reject(motor_cmd_result_t r, motor_cmd_reject_t reject)
+{
+    TEST_ASSERT_EQUAL_INT(MOTOR_CMD_REJECTED, r.status);
+    TEST_ASSERT_EQUAL_INT(reject, r.reject);
+}
+
 static bool s_allow_run_from_fault;
 
 static void mock_motor_reset(void)
@@ -127,7 +138,7 @@ motor_cmd_result_t motor_exec_run(motor_exec_t            *exec,
         }
         s_motor[motor].fault = MOTOR_FAULT_NONE;
     }
-    s_motor[motor].exec_state      = MOTOR_STATE_RUNNING;
+    s_motor[motor].exec_state = MOTOR_STATE_RUNNING;
     s_motor[motor].dir        = dir;
     s_motor[motor].speed_gear = spd.value;
     s_motor[motor].speed_kind = spd.kind;
@@ -152,8 +163,8 @@ motor_cmd_result_t motor_exec_home(motor_exec_t *exec, int motor)
     if (!motor_index_valid(motor) || !motor_cmd_ok(s_next_result)) {
         return s_next_result;
     }
-    s_motor[motor].exec_state    = MOTOR_STATE_STOPPED;
-    s_motor[motor].position = 0;
+    s_motor[motor].exec_state = MOTOR_STATE_STOPPED;
+    s_motor[motor].position   = 0;
     return s_next_result;
 }
 
@@ -194,7 +205,7 @@ motor_cmd_result_t motor_exec_recover(motor_exec_t *exec, int motor, motor_exec_
         return s_next_result;
     }
     s_motor[motor].exec_state = MOTOR_STATE_STOPPED;
-    s_motor[motor].fault = MOTOR_FAULT_NONE;
+    s_motor[motor].fault      = MOTOR_FAULT_NONE;
     return s_next_result;
 }
 
@@ -232,6 +243,80 @@ bool motor_exec_baseline_trusted(const motor_exec_t *exec, int motor)
 {
     (void)exec;
     return motor_index_valid(motor);
+}
+
+bool motor_exec_fault_requires_confirm(const motor_exec_t *exec, int motor, motor_exec_fault_code_t code)
+{
+    (void)exec;
+    (void)code;
+    return !motor_index_valid(motor);
+}
+
+int motor_exec_current_freq(const motor_exec_t *exec, int motor)
+{
+    (void)exec;
+    return motor_index_valid(motor) ? 1000 : 0;
+}
+
+motor_cmd_result_t motor_exec_zero_encoder(motor_exec_t *exec, int motor)
+{
+    (void)exec;
+    if (!motor_index_valid(motor) || !motor_cmd_ok(s_next_result)) {
+        return s_next_result;
+    }
+    s_motor[motor].position = 0;
+    return s_next_result;
+}
+
+motor_cmd_result_t motor_exec_confirm_baseline(motor_exec_t *exec, int motor)
+{
+    (void)exec;
+    if (!motor_index_valid(motor) || !motor_cmd_ok(s_next_result)) {
+        return s_next_result;
+    }
+    return s_next_result;
+}
+
+motor_init_result_t motor_executor_bind(unsigned              slot_id,
+                                        const motor_config_t *cfg,
+                                        const motor_ports_t  *ports,
+                                        motor_exec_t        **out_exec)
+{
+    motor_init_result_t r;
+
+    (void)slot_id;
+    (void)cfg;
+    (void)ports;
+    if (out_exec == NULL) {
+        r.ok    = false;
+        r.error = "out missing";
+        return r;
+    }
+    *out_exec = (motor_exec_t *)s_motor;
+    r.ok      = true;
+    r.error   = "";
+    return r;
+}
+
+motor_init_result_t motor_executor_reinit(motor_exec_t *exec)
+{
+    motor_init_result_t r;
+
+    (void)exec;
+    r.ok    = true;
+    r.error = "";
+    return r;
+}
+
+void motor_executor_reset_watchdog(motor_exec_t *exec)
+{
+    (void)exec;
+}
+
+bool motor_executor_in_safe_state(const motor_exec_t *exec)
+{
+    (void)exec;
+    return false;
 }
 
 bool motor_exec_pop_event(motor_exec_t *exec, motor_event_t *out)
@@ -392,16 +477,21 @@ static void test_motor_axis_run_and_query_state(void)
     motor_exec_t *exec = (motor_exec_t *)s_motor;
 
     memset(&axis, 0, sizeof(axis));
-    TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_INIT, motor_axis_run(&axis, MOTOR_DIR_FORWARD, motor_speed_gear(1), NULL));
+    assert_axis_reject(motor_axis_run(&axis, MOTOR_DIR_FORWARD, motor_speed_gear(1), NULL), MOTOR_REJECT_UNAVAILABLE);
     TEST_ASSERT_EQUAL_INT(SW_OK, motor_axis_init(&axis, exec, 1, NULL));
-    TEST_ASSERT_EQUAL_INT(SW_OK, motor_axis_run(&axis, MOTOR_DIR_REVERSE, motor_speed_gear(3), NULL));
+    assert_axis_ok(motor_axis_run(&axis, MOTOR_DIR_REVERSE, motor_speed_gear(3), NULL));
 
     TEST_ASSERT_EQUAL_INT(MOTOR_AXIS_STATE_MOVING, motor_axis_state(&axis));
-    TEST_ASSERT_EQUAL_INT(MOTOR_DIR_REVERSE, s_motor[1].dir);
+    TEST_ASSERT_EQUAL_INT(MOTOR_DIR_REVERSE, motor_axis_direction(&axis));
     TEST_ASSERT_EQUAL_INT(3, s_motor[1].speed_gear);
     TEST_ASSERT_EQUAL_INT(1, s_run_count);
+    TEST_ASSERT_EQUAL_INT64(0, motor_axis_position(&axis));
+    TEST_ASSERT_TRUE(motor_axis_encoder_healthy(&axis));
+    TEST_ASSERT_TRUE(motor_axis_baseline_trusted(&axis));
+    TEST_ASSERT_EQUAL_INT(1000, motor_axis_current_freq(&axis));
+    TEST_ASSERT_FALSE(motor_axis_fault_requires_confirm(&axis, MOTOR_FAULT_OVERCURRENT));
 
-    TEST_ASSERT_EQUAL_INT(SW_OK, motor_axis_run(&axis, MOTOR_DIR_REVERSE, motor_speed_gear(3), NULL));
+    assert_axis_ok(motor_axis_run(&axis, MOTOR_DIR_REVERSE, motor_speed_gear(3), NULL));
     TEST_ASSERT_EQUAL_INT(2, s_run_count);
 
     s_motor[1].exec_state = MOTOR_STATE_STOPPING;
@@ -410,6 +500,14 @@ static void test_motor_axis_run_and_query_state(void)
     TEST_ASSERT_EQUAL_INT(MOTOR_AXIS_STATE_MOVING, motor_axis_state(&axis));
     s_motor[1].exec_state = MOTOR_STATE_REVERSAL_WAIT;
     TEST_ASSERT_EQUAL_INT(MOTOR_AXIS_STATE_MOVING, motor_axis_state(&axis));
+    s_motor[1].position = 42;
+    TEST_ASSERT_EQUAL_INT64(42, motor_axis_position(&axis));
+    s_motor[1].position = 7;
+    TEST_ASSERT_EQUAL_INT64(7, motor_axis_position(&axis));
+    TEST_ASSERT_EQUAL_INT(MOTOR_FAULT_NONE, motor_axis_fault_code(&axis));
+    assert_axis_ok(motor_axis_zero_encoder(&axis));
+    TEST_ASSERT_EQUAL_INT64(0, motor_axis_position(&axis));
+    assert_axis_ok(motor_axis_confirm_baseline(&axis));
 }
 
 static void test_motor_axis_spec_uses_move_to_and_end_callback(void)
@@ -426,12 +524,12 @@ static void test_motor_axis_spec_uses_move_to_and_end_callback(void)
     opts.on_motion_end      = on_motion_end;
 
     TEST_ASSERT_EQUAL_INT(SW_OK, motor_axis_init(&axis, exec, 0, &opts));
-    TEST_ASSERT_EQUAL_INT(SW_OK, motor_axis_run(&axis, MOTOR_DIR_FORWARD, motor_speed_gear(2), &spec));
+    assert_axis_ok(motor_axis_run(&axis, MOTOR_DIR_FORWARD, motor_speed_gear(2), &spec));
     TEST_ASSERT_EQUAL_INT(1, s_move_count);
 
     s_next_result    = cmd_rejected();
     s_motor[0].fault = MOTOR_FAULT_OVERCURRENT;
-    TEST_ASSERT_EQUAL_INT(SW_ERR_STATE, motor_axis_run(&axis, MOTOR_DIR_FORWARD, motor_speed_gear(2), NULL));
+    assert_axis_reject(motor_axis_run(&axis, MOTOR_DIR_FORWARD, motor_speed_gear(2), NULL), MOTOR_REJECT_FAULT);
     TEST_ASSERT_EQUAL_INT(1, s_end_cb_count);
     TEST_ASSERT_TRUE(s_end_cb_valid);
     TEST_ASSERT_EQUAL_INT(MOTOR_EVENT_FAULT, s_end_cb_result.type);
@@ -456,21 +554,21 @@ static void test_motor_axis_fault_end_dedupes_event_and_reject(void)
     TEST_ASSERT_EQUAL_INT(SW_OK, motor_axis_init(&axis, exec, 0, &opts));
 
     memset(&ev, 0, sizeof(ev));
-    ev.motor         = 0;
-    ev.type          = MOTOR_EVENT_FAULT;
-    ev.fault         = MOTOR_FAULT_OVERCURRENT;
-    s_events[0]      = ev;
-    s_ev_head        = 0;
-    s_ev_count       = 1;
+    ev.motor              = 0;
+    ev.type               = MOTOR_EVENT_FAULT;
+    ev.fault              = MOTOR_FAULT_OVERCURRENT;
+    s_events[0]           = ev;
+    s_ev_head             = 0;
+    s_ev_count            = 1;
     s_motor[0].exec_state = MOTOR_STATE_FAULT;
-    s_motor[0].fault = MOTOR_FAULT_OVERCURRENT;
+    s_motor[0].fault      = MOTOR_FAULT_OVERCURRENT;
 
     motor_axis_poll(&axis);
     TEST_ASSERT_EQUAL_INT(1, s_end_cb_count);
     TEST_ASSERT_EQUAL_INT(MOTOR_EVENT_FAULT, s_end_cb_result.type);
 
     s_next_result = cmd_rejected();
-    TEST_ASSERT_EQUAL_INT(SW_ERR_STATE, motor_axis_run(&axis, MOTOR_DIR_FORWARD, motor_speed_gear(1), NULL));
+    assert_axis_reject(motor_axis_run(&axis, MOTOR_DIR_FORWARD, motor_speed_gear(1), NULL), MOTOR_REJECT_FAULT);
     TEST_ASSERT_EQUAL_INT(1, s_end_cb_count);
 }
 
@@ -501,7 +599,7 @@ static void test_motor_axis_resumable_run_reports_second_same_fault(void)
     TEST_ASSERT_EQUAL_INT(MOTOR_FAULT_OVERCURRENT, last.fault);
 
     s_allow_run_from_fault = true;
-    TEST_ASSERT_EQUAL_INT(SW_OK, motor_axis_run(&axis, MOTOR_DIR_FORWARD, motor_speed_gear(1), NULL));
+    assert_axis_ok(motor_axis_run(&axis, MOTOR_DIR_FORWARD, motor_speed_gear(1), NULL));
     TEST_ASSERT_FALSE(motor_axis_last_result(&axis, &last));
 
     s_motor[0].exec_state = MOTOR_STATE_FAULT;
@@ -512,7 +610,7 @@ static void test_motor_axis_resumable_run_reports_second_same_fault(void)
     TEST_ASSERT_EQUAL_INT(MOTOR_FAULT_OVERCURRENT, s_end_cb_result.fault);
     TEST_ASSERT_FALSE(motor_axis_is_settled(&axis));
 
-    TEST_ASSERT_EQUAL_INT(SW_OK, motor_axis_home(&axis));
+    assert_axis_ok(motor_axis_home(&axis));
     TEST_ASSERT_FALSE(motor_axis_last_result(&axis, &last));
     mock_push_event(&ev);
     motor_axis_poll(&axis);
@@ -531,10 +629,10 @@ static void test_motor_axis_reject_without_fault_skips_end_callback(void)
     opts.on_motion_end      = on_motion_end;
 
     TEST_ASSERT_EQUAL_INT(SW_OK, motor_axis_init(&axis, exec, 0, &opts));
-    s_next_result    = cmd_rejected();
-    s_motor[0].fault = MOTOR_FAULT_NONE;
+    s_next_result         = cmd_rejected();
+    s_motor[0].fault      = MOTOR_FAULT_NONE;
     s_motor[0].exec_state = MOTOR_STATE_STOPPED;
-    TEST_ASSERT_EQUAL_INT(SW_ERR_STATE, motor_axis_run(&axis, MOTOR_DIR_FORWARD, motor_speed_gear(2), NULL));
+    assert_axis_reject(motor_axis_run(&axis, MOTOR_DIR_FORWARD, motor_speed_gear(2), NULL), MOTOR_REJECT_FAULT);
     TEST_ASSERT_EQUAL_INT(0, s_end_cb_count);
     TEST_ASSERT_FALSE(motor_axis_last_result(&axis, &last));
 }
@@ -549,22 +647,22 @@ static void test_motor_axis_continuous_stop_and_recover(void)
     opts.motion_actuator_id = 0U;
     opts.on_motion_end      = on_motion_end;
 
-    TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_INIT, motor_axis_run(&axis, MOTOR_DIR_FORWARD, motor_speed_gear(1), NULL));
+    assert_axis_reject(motor_axis_run(&axis, MOTOR_DIR_FORWARD, motor_speed_gear(1), NULL), MOTOR_REJECT_UNAVAILABLE);
     TEST_ASSERT_EQUAL_INT(SW_OK, motor_axis_init(&axis, exec, 2, &opts));
-    TEST_ASSERT_EQUAL_INT(SW_OK, motor_axis_run(&axis, MOTOR_DIR_REVERSE, motor_speed_gear(4), NULL));
+    assert_axis_ok(motor_axis_run(&axis, MOTOR_DIR_REVERSE, motor_speed_gear(4), NULL));
     TEST_ASSERT_EQUAL_INT(MOTOR_AXIS_STATE_MOVING, motor_axis_state(&axis));
     TEST_ASSERT_EQUAL_INT(MOTOR_DIR_REVERSE, s_motor[2].dir);
 
-    TEST_ASSERT_EQUAL_INT(SW_OK, motor_axis_stop(&axis));
+    assert_axis_ok(motor_axis_stop(&axis));
     TEST_ASSERT_EQUAL_INT(MOTOR_AXIS_STATE_IDLE, motor_axis_state(&axis));
     motor_axis_poll(&axis);
 
     s_motor[2].exec_state = MOTOR_STATE_FAULT;
-    s_motor[2].fault = MOTOR_FAULT_DRIVER_FEEDBACK;
-    TEST_ASSERT_EQUAL_INT(SW_ERR_STATE, motor_axis_run(&axis, MOTOR_DIR_FORWARD, motor_speed_gear(1), NULL));
+    s_motor[2].fault      = MOTOR_FAULT_DRIVER_FEEDBACK;
+    assert_axis_reject(motor_axis_run(&axis, MOTOR_DIR_FORWARD, motor_speed_gear(1), NULL), MOTOR_REJECT_FAULT);
     TEST_ASSERT_EQUAL_INT(1, s_end_cb_count);
     TEST_ASSERT_EQUAL_INT(MOTOR_FAULT_DRIVER_FEEDBACK, s_end_cb_result.fault);
-    TEST_ASSERT_EQUAL_INT(SW_OK, motor_axis_recover(&axis));
+    assert_axis_ok(motor_axis_recover(&axis));
     TEST_ASSERT_EQUAL_INT(2, s_recover_count);
     TEST_ASSERT_EQUAL_INT(MOTOR_AXIS_STATE_IDLE, motor_axis_state(&axis));
     motor_axis_poll(&axis);
@@ -577,12 +675,12 @@ static void test_motor_axis_preserves_frequency_speed(void)
 
     memset(&axis, 0, sizeof(axis));
     TEST_ASSERT_EQUAL_INT(SW_OK, motor_axis_init(&axis, exec, 3, NULL));
-    TEST_ASSERT_EQUAL_INT(SW_OK, motor_axis_run(&axis, MOTOR_DIR_FORWARD, motor_speed_freq(2350), NULL));
+    assert_axis_ok(motor_axis_run(&axis, MOTOR_DIR_FORWARD, motor_speed_freq(2350), NULL));
     TEST_ASSERT_EQUAL_INT(MOTOR_SPEED_FREQ, s_motor[3].speed_kind);
     TEST_ASSERT_EQUAL_INT(2350, s_motor[3].speed_gear);
 
-    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, motor_axis_run(&axis, MOTOR_DIR_FORWARD, motor_speed_freq(-1), NULL));
-    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, motor_axis_run(&axis, MOTOR_DIR_FORWARD, motor_speed_freq(0), NULL));
+    assert_axis_reject(motor_axis_run(&axis, MOTOR_DIR_FORWARD, motor_speed_freq(-1), NULL), MOTOR_REJECT_BAD_SPEED);
+    assert_axis_reject(motor_axis_run(&axis, MOTOR_DIR_FORWARD, motor_speed_freq(0), NULL), MOTOR_REJECT_BAD_SPEED);
     TEST_ASSERT_EQUAL_INT(0, s_stop_count);
 }
 
@@ -600,12 +698,12 @@ static void test_motor_axis_poll_publishes_completed_on_idle(void)
     opts.motion_actuator_id = 9U;
     opts.on_motion_end      = NULL;
     TEST_ASSERT_EQUAL_INT(SW_OK, motor_axis_init(&axis, exec, 0, &opts));
-    TEST_ASSERT_EQUAL_INT(SW_OK, motor_axis_run(&axis, MOTOR_DIR_FORWARD, motor_speed_gear(1), NULL));
+    assert_axis_ok(motor_axis_run(&axis, MOTOR_DIR_FORWARD, motor_speed_gear(1), NULL));
     motor_axis_poll(&axis);
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_get_stats(&stats));
     TEST_ASSERT_EQUAL_UINT32(0U, stats.published_count);
 
-    TEST_ASSERT_EQUAL_INT(SW_OK, motor_axis_stop(&axis));
+    assert_axis_ok(motor_axis_stop(&axis));
     motor_axis_poll(&axis);
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_get_stats(&stats));
     TEST_ASSERT_EQUAL_UINT32(1U, stats.published_count);
@@ -632,10 +730,10 @@ static void test_motor_axis_is_settled_after_idle_poll(void)
     TEST_ASSERT_EQUAL_INT(SW_OK, motor_axis_init(&axis, exec, 0, &opts));
     TEST_ASSERT_TRUE(motor_axis_is_settled(&axis));
 
-    TEST_ASSERT_EQUAL_INT(SW_OK, motor_axis_run(&axis, MOTOR_DIR_FORWARD, motor_speed_gear(1), NULL));
+    assert_axis_ok(motor_axis_run(&axis, MOTOR_DIR_FORWARD, motor_speed_gear(1), NULL));
     TEST_ASSERT_FALSE(motor_axis_is_settled(&axis));
 
-    TEST_ASSERT_EQUAL_INT(SW_OK, motor_axis_stop(&axis));
+    assert_axis_ok(motor_axis_stop(&axis));
     TEST_ASSERT_FALSE(motor_axis_is_settled(&axis));
     motor_axis_poll(&axis);
     TEST_ASSERT_TRUE(motor_axis_is_settled(&axis));
@@ -656,7 +754,7 @@ static void test_motor_axis_poll_skips_waiting_start(void)
     opts.motion_actuator_id = 11U;
     opts.on_motion_end      = NULL;
     TEST_ASSERT_EQUAL_INT(SW_OK, motor_axis_init(&axis, exec, 0, &opts));
-    TEST_ASSERT_EQUAL_INT(SW_OK, motor_axis_run(&axis, MOTOR_DIR_FORWARD, motor_speed_gear(1), NULL));
+    assert_axis_ok(motor_axis_run(&axis, MOTOR_DIR_FORWARD, motor_speed_gear(1), NULL));
 
     s_motor[0].exec_state = MOTOR_STATE_WAITING_START;
     TEST_ASSERT_EQUAL_INT(MOTOR_AXIS_STATE_MOVING, motor_axis_state(&axis));
@@ -688,7 +786,7 @@ static void test_motor_axis_poll_reports_limit_end_then_idle(void)
     opts.motion_actuator_id = 21U;
     opts.on_motion_end      = on_motion_end;
     TEST_ASSERT_EQUAL_INT(SW_OK, motor_axis_init(&axis, exec, 0, &opts));
-    TEST_ASSERT_EQUAL_INT(SW_OK, motor_axis_run(&axis, MOTOR_DIR_FORWARD, motor_speed_gear(1), NULL));
+    assert_axis_ok(motor_axis_run(&axis, MOTOR_DIR_FORWARD, motor_speed_gear(1), NULL));
 
     memset(&ev, 0, sizeof(ev));
     ev.motor   = 1; /* 其它电机，应被保留 */
@@ -981,9 +1079,9 @@ static void test_motor_axis_home_marks_awaiting_idle(void)
     motor_exec_t *exec = (motor_exec_t *)s_motor;
 
     memset(&axis, 0, sizeof(axis));
-    TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_INIT, motor_axis_home(&axis));
+    assert_axis_reject(motor_axis_home(&axis), MOTOR_REJECT_UNAVAILABLE);
     TEST_ASSERT_EQUAL_INT(SW_OK, motor_axis_init(&axis, exec, 0, NULL));
-    TEST_ASSERT_EQUAL_INT(SW_OK, motor_axis_home(&axis));
+    assert_axis_ok(motor_axis_home(&axis));
     TEST_ASSERT_EQUAL_INT(1, s_home_count);
     TEST_ASSERT_FALSE(motor_axis_is_settled(&axis));
 }
@@ -1001,10 +1099,31 @@ static void test_mechanism_bridge_returns_same_axis_and_rejects_duplicate(void)
     TEST_ASSERT_NOT_NULL(axis);
     TEST_ASSERT_EQUAL_PTR(axis, mechanism_bridge_axis(1));
     TEST_ASSERT_EQUAL_INT(SW_ERR_STATE, mechanism_bridge_add_axis(1, NULL, &again));
-    TEST_ASSERT_EQUAL_INT(SW_OK, motor_axis_home(axis));
+    assert_axis_ok(motor_axis_home(axis));
     TEST_ASSERT_EQUAL_INT(1, s_home_count);
     mechanism_bridge_halt_all();
     TEST_ASSERT_EQUAL_INT(1, s_stop_count);
+}
+
+static void test_mechanism_bridge_bind_attaches_executor(void)
+{
+    motor_config_t      cfg;
+    motor_ports_t       ports;
+    motor_init_result_t ir;
+    motor_axis_t       *axis = NULL;
+
+    memset(&cfg, 0, sizeof(cfg));
+    memset(&ports, 0, sizeof(ports));
+    ir = mechanism_bridge_bind(0U, &cfg, &ports);
+    TEST_ASSERT_TRUE(ir.ok);
+    ir = mechanism_bridge_bind(0U, &cfg, &ports);
+    TEST_ASSERT_FALSE(ir.ok);
+    TEST_ASSERT_EQUAL_INT(SW_OK, mechanism_bridge_add_axis(0, NULL, &axis));
+    TEST_ASSERT_NOT_NULL(axis);
+    TEST_ASSERT_FALSE(mechanism_bridge_in_safe_state());
+    mechanism_bridge_reset_watchdog();
+    ir = mechanism_bridge_reinit();
+    TEST_ASSERT_TRUE(ir.ok);
 }
 
 static void test_mechanism_bridge_register_retries_only_failed_task(void)
@@ -1034,6 +1153,7 @@ int main(void)
     WDF_RUN_TEST(test_motor_axis_home_marks_awaiting_idle, "", "验证电机轴回原后等待空闲");
     WDF_RUN_TEST(
         test_mechanism_bridge_returns_same_axis_and_rejects_duplicate, "", "验证机构桥接交回轴句柄并拒绝重复登记");
+    WDF_RUN_TEST(test_mechanism_bridge_bind_attaches_executor, "", "验证机构桥接 bind 装配执行器后可出厂轴");
     WDF_RUN_TEST(test_mechanism_bridge_register_retries_only_failed_task, "", "验证机构桥接任务半失败后只补登记失败项");
     WDF_RUN_TEST(test_motor_axis_poll_skips_waiting_start, "", "验证排队启动态不发布完成事件");
     WDF_RUN_TEST(test_motor_axis_poll_reports_limit_end_then_idle, "", "验证电机轴先上报限位结局再发空闲事件");

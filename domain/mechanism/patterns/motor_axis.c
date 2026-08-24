@@ -1,18 +1,35 @@
 /**
  * @file    motor_axis.c
- * @brief   单轴运动模式实现
+ * @brief   单轴运动会话实现
  */
 
 #include "domain/mechanism/patterns/motor_axis.h"
 
+#include "domain/ports/outbound/motor/motor_exec_port.h"
+
 #include <stddef.h>
 #include <string.h>
+
+static motor_cmd_result_t axis_reject(motor_cmd_reject_t reject, const char *reason)
+{
+    motor_cmd_result_t r;
+
+    r.status = MOTOR_CMD_REJECTED;
+    r.reject = reject;
+    r.reason = reason;
+    return r;
+}
+
+static bool axis_ready(const motor_axis_t *self)
+{
+    return (self != NULL) && self->inited && (self->exec != NULL);
+}
 
 static motor_axis_state_t exec_state_to_axis_state(const motor_axis_t *self)
 {
     motor_exec_state_t ph;
 
-    if ((self == NULL) || !self->inited) {
+    if (!axis_ready(self)) {
         return MOTOR_AXIS_STATE_IDLE;
     }
 
@@ -68,7 +85,7 @@ static void report_end(motor_axis_t *self, const motor_event_t *ev)
 
 /**
  * @brief  命令被拒且轴已处于故障/急停（或已有故障码）时合成结局
- * @note   互锁等纯拒绝只返回 SW_ERR_STATE，不冒充运行故障结局。
+ * @note   互锁等纯拒绝只返回拒绝码，不冒充运行故障结局。
  */
 static void report_cmd_fault(motor_axis_t *self)
 {
@@ -76,7 +93,7 @@ static void report_cmd_fault(motor_axis_t *self)
     motor_exec_fault_code_t fault;
     motor_exec_state_t      exec_state;
 
-    fault = motor_exec_fault_code(self->exec, self->motor);
+    fault      = motor_exec_fault_code(self->exec, self->motor);
     exec_state = motor_exec_state(self->exec, self->motor);
     if ((fault == MOTOR_FAULT_NONE) && (exec_state != MOTOR_STATE_FAULT) && (exec_state != MOTOR_STATE_ESTOP)) {
         return;
@@ -112,6 +129,16 @@ static void on_motion_accepted(motor_axis_t *self)
     memset(&self->last_event, 0, sizeof(self->last_event));
 }
 
+static motor_cmd_result_t finish_motion_cmd(motor_axis_t *self, motor_cmd_result_t r)
+{
+    if (motor_cmd_ok(r)) {
+        on_motion_accepted(self);
+    } else {
+        report_cmd_fault(self);
+    }
+    return r;
+}
+
 sw_err_t motor_axis_init(motor_axis_t *self, motor_exec_t *exec, int motor, const motion_lifecycle_opts_t *opts)
 {
     if ((self == NULL) || (exec == NULL)) {
@@ -128,64 +155,54 @@ sw_err_t motor_axis_init(motor_axis_t *self, motor_exec_t *exec, int motor, cons
     return SW_OK;
 }
 
-sw_err_t motor_axis_run(motor_axis_t *self, motor_dir_t dir, motor_speed_t speed, const motor_move_spec_t *spec)
+motor_cmd_result_t motor_axis_run(motor_axis_t            *self,
+                                  motor_dir_t              dir,
+                                  motor_speed_t            speed,
+                                  const motor_move_spec_t *spec)
 {
     motor_cmd_result_t r;
-    sw_err_t           ret;
 
-    if ((self == NULL) || !self->inited) {
-        return SW_ERR_NOT_INIT;
+    if (!axis_ready(self)) {
+        return axis_reject(MOTOR_REJECT_UNAVAILABLE, "axis-not-init");
     }
     if ((speed.kind != MOTOR_SPEED_FREQ) && (speed.kind != MOTOR_SPEED_GEAR)) {
-        return SW_ERR_PARAM;
+        return axis_reject(MOTOR_REJECT_BAD_SPEED, "bad-speed");
     }
     if (speed.value <= 0) {
-        return SW_ERR_PARAM;
+        return axis_reject(MOTOR_REJECT_BAD_SPEED, "bad-speed");
     }
 
     r = motor_exec_run(self->exec, self->motor, speed, dir, spec);
-
-    ret = motor_cmd_ok(r) ? SW_OK : SW_ERR_STATE;
-    if (ret == SW_OK) {
-        on_motion_accepted(self);
-    } else {
-        report_cmd_fault(self);
-    }
-    return ret;
+    return finish_motion_cmd(self, r);
 }
 
-sw_err_t motor_axis_home(motor_axis_t *self)
+motor_cmd_result_t motor_axis_home(motor_axis_t *self)
 {
     motor_cmd_result_t r;
 
-    if ((self == NULL) || !self->inited) {
-        return SW_ERR_NOT_INIT;
+    if (!axis_ready(self)) {
+        return axis_reject(MOTOR_REJECT_UNAVAILABLE, "axis-not-init");
     }
 
     r = motor_exec_home(self->exec, self->motor);
-    if (motor_cmd_ok(r)) {
-        on_motion_accepted(self);
-        return SW_OK;
-    }
-    report_cmd_fault(self);
-    return SW_ERR_STATE;
+    return finish_motion_cmd(self, r);
 }
 
-sw_err_t motor_axis_stop(motor_axis_t *self)
+motor_cmd_result_t motor_axis_stop(motor_axis_t *self)
 {
     motor_cmd_result_t r;
 
-    if ((self == NULL) || !self->inited) {
-        return SW_ERR_NOT_INIT;
+    if (!axis_ready(self)) {
+        return axis_reject(MOTOR_REJECT_UNAVAILABLE, "axis-not-init");
     }
 
     r = motor_exec_stop(self->exec, self->motor);
     if (motor_cmd_ok(r)) {
         self->awaiting_idle = true;
-        return SW_OK;
+        return r;
     }
     report_cmd_fault(self);
-    return SW_ERR_STATE;
+    return r;
 }
 
 motor_axis_state_t motor_axis_state(const motor_axis_t *self)
@@ -202,33 +219,33 @@ bool motor_axis_last_result(const motor_axis_t *self, motor_event_t *out)
     return true;
 }
 
-sw_err_t motor_axis_recover(motor_axis_t *self)
+motor_cmd_result_t motor_axis_recover(motor_axis_t *self)
 {
     motor_cmd_result_t r;
 
-    if ((self == NULL) || !self->inited) {
-        return SW_ERR_NOT_INIT;
+    if (!axis_ready(self)) {
+        return axis_reject(MOTOR_REJECT_UNAVAILABLE, "axis-not-init");
     }
 
     r = motor_exec_recover(self->exec, self->motor, MOTOR_RECOVERY_DRIVER_RESET);
     if (!motor_cmd_ok(r)) {
         report_cmd_fault(self);
-        return SW_ERR_STATE;
+        return r;
     }
 
     r = motor_exec_recover(self->exec, self->motor, MOTOR_RECOVERY_MODULE_STOP);
     if (!motor_cmd_ok(r)) {
         report_cmd_fault(self);
-        return SW_ERR_STATE;
+        return r;
     }
 
     on_motion_accepted(self);
-    return SW_OK;
+    return r;
 }
 
 void motor_axis_poll(motor_axis_t *self)
 {
-    if ((self == NULL) || !self->inited) {
+    if (!axis_ready(self)) {
         return;
     }
 
@@ -249,8 +266,80 @@ void motor_axis_poll(motor_axis_t *self)
 
 bool motor_axis_is_settled(const motor_axis_t *self)
 {
-    if ((self == NULL) || !self->inited) {
+    if (!axis_ready(self)) {
         return false;
     }
     return !self->awaiting_idle && (motor_axis_state(self) != MOTOR_AXIS_STATE_MOVING);
+}
+
+int64_t motor_axis_position(const motor_axis_t *self)
+{
+    if (!axis_ready(self)) {
+        return 0;
+    }
+    return motor_exec_position(self->exec, self->motor);
+}
+
+motor_dir_t motor_axis_direction(const motor_axis_t *self)
+{
+    if (!axis_ready(self)) {
+        return MOTOR_DIR_FORWARD;
+    }
+    return motor_exec_direction(self->exec, self->motor);
+}
+
+motor_exec_fault_code_t motor_axis_fault_code(const motor_axis_t *self)
+{
+    if (!axis_ready(self)) {
+        return MOTOR_FAULT_NONE;
+    }
+    return motor_exec_fault_code(self->exec, self->motor);
+}
+
+bool motor_axis_fault_requires_confirm(const motor_axis_t *self, motor_exec_fault_code_t code)
+{
+    if (!axis_ready(self)) {
+        return true;
+    }
+    return motor_exec_fault_requires_confirm(self->exec, self->motor, code);
+}
+
+bool motor_axis_baseline_trusted(const motor_axis_t *self)
+{
+    if (!axis_ready(self)) {
+        return false;
+    }
+    return motor_exec_baseline_trusted(self->exec, self->motor);
+}
+
+bool motor_axis_encoder_healthy(const motor_axis_t *self)
+{
+    if (!axis_ready(self)) {
+        return false;
+    }
+    return motor_exec_encoder_healthy(self->exec, self->motor);
+}
+
+int motor_axis_current_freq(const motor_axis_t *self)
+{
+    if (!axis_ready(self)) {
+        return 0;
+    }
+    return motor_exec_current_freq(self->exec, self->motor);
+}
+
+motor_cmd_result_t motor_axis_zero_encoder(motor_axis_t *self)
+{
+    if (!axis_ready(self)) {
+        return axis_reject(MOTOR_REJECT_UNAVAILABLE, "axis-not-init");
+    }
+    return motor_exec_zero_encoder(self->exec, self->motor);
+}
+
+motor_cmd_result_t motor_axis_confirm_baseline(motor_axis_t *self)
+{
+    if (!axis_ready(self)) {
+        return axis_reject(MOTOR_REJECT_UNAVAILABLE, "axis-not-init");
+    }
+    return motor_exec_confirm_baseline(self->exec, self->motor);
 }

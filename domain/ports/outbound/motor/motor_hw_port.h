@@ -10,7 +10,7 @@
 #define DOMAIN_PORTS_OUTBOUND_MOTOR_MOTOR_HW_PORT_H
 
 #include "common/sw_error.h"
-#include "domain/ports/outbound/motor/motor_exec_port.h"
+#include "domain/ports/outbound/motor/motor_types.h"
 
 #include <stdbool.h>
 #include <stdint.h>

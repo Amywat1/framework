@@ -56,6 +56,33 @@ static int axis_index_of(int motor)
     return -1;
 }
 
+static motor_init_result_t bridge_init_err(const char *msg)
+{
+    motor_init_result_t r;
+
+    r.ok    = false;
+    r.error = msg;
+    return r;
+}
+
+motor_init_result_t mechanism_bridge_bind(unsigned slot_id, const motor_config_t *cfg, const motor_ports_t *ports)
+{
+    motor_exec_t       *exec = NULL;
+    motor_init_result_t result;
+
+    if (s_exec != NULL) {
+        return bridge_init_err("bridge already bound");
+    }
+    result = motor_executor_bind(slot_id, cfg, ports, &exec);
+    if (!result.ok) {
+        return result;
+    }
+    if (mechanism_bridge_bind_motor(exec) != SW_OK) {
+        return bridge_init_err("bridge attach failed");
+    }
+    return result;
+}
+
 sw_err_t mechanism_bridge_bind_motor(motor_exec_t *exec)
 {
     if (exec == NULL) {
@@ -66,6 +93,26 @@ sw_err_t mechanism_bridge_bind_motor(motor_exec_t *exec)
     }
     s_exec = exec;
     return SW_OK;
+}
+
+motor_init_result_t mechanism_bridge_reinit(void)
+{
+    if (s_exec == NULL) {
+        return bridge_init_err("bridge not bound");
+    }
+    return motor_executor_reinit(s_exec);
+}
+
+void mechanism_bridge_reset_watchdog(void)
+{
+    if (s_exec != NULL) {
+        motor_executor_reset_watchdog(s_exec);
+    }
+}
+
+bool mechanism_bridge_in_safe_state(void)
+{
+    return (s_exec != NULL) && motor_executor_in_safe_state(s_exec);
 }
 
 sw_err_t mechanism_bridge_add_axis(int motor, const motion_lifecycle_opts_t *opts, motor_axis_t **out_axis)

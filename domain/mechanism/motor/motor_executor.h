@@ -3,8 +3,8 @@
  * @brief 电机执行器组合件 —— 运动状态机与硬件端口注入接口。
  *
  * 与具体机型/厂商无关：所有硬件操作经端口函数指针表注入，计时经 motor_clock_t。
- * 领域层以编译期定长槽池持有全部运行时状态。项目 bindings 只提交
- * slot ID、配置与硬件端口，随后保存返回的 motor_exec_t * 并注入机构模式。
+ * 领域层以编译期定长槽池持有全部运行时状态。项目 wiring 提交 slot ID、
+ * 配置与硬件端口（可经 mechanism_bridge_bind）；业务命令走 motor_axis。
  *
  * 量纲约定：速度频率单位 0.01Hz(厘赫)；时间单位 ms；位置单位 脉冲；
  * 电流由硬件端口实现约定。执行器与配置采用编译期上限的定长存储，不做动态内存分配。
@@ -121,7 +121,7 @@ typedef struct {
      */
     uint32_t confirm_faults;
 
-    motor_monitor_cfg_t mon;           /**< 监测项配置 */
+    motor_monitor_cfg_t mon; /**< 监测项配置 */
 } motor_motor_cfg_t;
 
 /** @brief 互锁类型。 */
@@ -163,7 +163,7 @@ typedef struct {
  * @param slot_id 项目选择的稳定槽位 ID，范围 [0, WDF_MOTOR_EXECUTOR_INSTANCE_COUNT)。
  * @param cfg   配置（按值拷贝进 exec）。
  * @param ports 端口集合（按值拷贝，内部数组由调用方保证生命周期）。
- * @param out_exec 返回可注入机构模式的不透明句柄。
+ * @param out_exec 返回执行器句柄；生产路径随即交给 mechanism_bridge_bind_motor。
  * @return ok=true 表示可运行；否则 error 指向失败原因。
  * @note 每个槽位只允许在启动装配阶段绑定一次，运行期不释放。
  */
@@ -183,22 +183,8 @@ motor_init_result_t motor_executor_reinit(motor_exec_t *exec);
  */
 void motor_executor_tick(motor_exec_t *exec);
 
-/** @brief 手动清零编码器（同步硬件计数器，失败自动重试）。 */
-motor_cmd_result_t motor_executor_zero_encoder(motor_exec_t *exec, int motor);
-
-/** @brief 上层显式确认位置基准可信。 */
-motor_cmd_result_t motor_executor_confirm_baseline(motor_exec_t *exec, int motor);
-
 /** @brief 看门狗恢复正常节拍后复位。 */
 void motor_executor_reset_watchdog(motor_exec_t *exec);
-
-/**
- * @brief 查询电机当前输出频率。
- * @param exec  已完成初始化的执行器。
- * @param motor 电机编号，须在 [0, motor_count) 范围内。
- * @return 当前给定频率（厘赫）；输出关断或电机号越界时为 0。
- */
-int motor_executor_current_freq(const motor_exec_t *exec, int motor);
 
 /**
  * @brief 查询执行器是否处于看门狗安全态。

@@ -415,7 +415,7 @@ static void test_query_helpers_via_port(void)
     s_cfg.motors[0].enc_stall_ticks = 1;
     rebind_executor();
     hal    = s_exec;
-    result = motor_executor_confirm_baseline(hal, 0);
+    result = motor_exec_confirm_baseline(hal, 0);
     TEST_ASSERT_TRUE(motor_cmd_ok(result));
     result = motor_exec_run(hal, 0, motor_speed_gear(1), MOTOR_DIR_FORWARD, NULL);
     TEST_ASSERT_TRUE(motor_cmd_ok(result));
@@ -450,8 +450,8 @@ static void test_query_helpers_return_safe_defaults_for_bad_motor(void)
     TEST_ASSERT_FALSE(motor_exec_baseline_trusted(s_exec, 1));
     TEST_ASSERT_FALSE(motor_exec_encoder_healthy(s_exec, -1));
     TEST_ASSERT_FALSE(motor_exec_encoder_healthy(s_exec, 1));
-    TEST_ASSERT_EQUAL_INT(0, motor_executor_current_freq(s_exec, -1));
-    TEST_ASSERT_EQUAL_INT(0, motor_executor_current_freq(s_exec, 1));
+    TEST_ASSERT_EQUAL_INT(0, motor_exec_current_freq(s_exec, -1));
+    TEST_ASSERT_EQUAL_INT(0, motor_exec_current_freq(s_exec, 1));
 }
 
 static void test_run_rejects_unset_dir(void)
@@ -1011,7 +1011,8 @@ int main(void)
                  "",
                  "验证运行中 poll BUSY 忽略、FAILED 进入 PREPARE_FAILED");
     WDF_RUN_TEST(test_resumable_overcurrent_run_without_recover, "", "验证默认可续动过流后不经 recover 的 run 可受理");
-    WDF_RUN_TEST(test_overtemp_confirm_rejects_until_recover, "", "验证仅过温需确认：过流可续动、过温拒令、recover 后可再 run");
+    WDF_RUN_TEST(
+        test_overtemp_confirm_rejects_until_recover, "", "验证仅过温需确认：过流可续动、过温拒令、recover 后可再 run");
     WDF_RUN_TEST(test_resumable_reset_fail_keeps_fault, "", "验证可续动复位失败则 run 拒绝且 tick 不自复");
     WDF_RUN_TEST(test_resumable_reject_does_not_clear_fault, "", "验证方向或互锁拒绝时不得内清可续动 FAULT");
     WDF_RUN_TEST(test_fatal_and_hold_not_resumable, "", "验证 fatal 与 hold/ESTOP 在位图为 0 时仍拒令");
