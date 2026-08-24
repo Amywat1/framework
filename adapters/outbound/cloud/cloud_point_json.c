@@ -21,13 +21,7 @@
 #include "third_party/cJSON/cJSON.h"
 
 #include <stddef.h>
-
-static cloud_point_get_fail_policy_t s_get_fail_policy = CLOUD_POINT_GET_FAIL_OMIT;
-
-void cloud_point_set_get_fail_policy(cloud_point_get_fail_policy_t policy)
-{
-    s_get_fail_policy = policy;
-}
+#include <string.h>
 
 /* 上行只取可读点位的 base，交给通用点表序列化 */
 static sw_err_t collect_readable_bases(const cloud_point_entry_t *entries,
@@ -68,7 +62,7 @@ sw_err_t cloud_point_to_json(const cloud_point_entry_t *entries, size_t count, c
         return ret;
     }
 
-    return point_table_to_json_ex(table, n, buf, buf_size, s_get_fail_policy, NULL);
+    return point_table_to_json_ex(table, n, buf, buf_size, POINT_GET_FAIL_OMIT, NULL);
 }
 
 sw_err_t cloud_point_to_json_filtered(const cloud_point_entry_t *entries,
@@ -109,9 +103,22 @@ sw_err_t cloud_point_apply_json(const cloud_point_entry_t *entries,
         return SW_ERR_PARAM;
     }
 
+    if (strlen(json_str) > CLOUD_REPORT_JSON_MAX) {
+        LOG_WARN("cloud_point_json: payload too long");
+        point_apply_result_record_error(result_opt, "", SW_ERR_OVERFLOW);
+        return SW_ERR_OVERFLOW;
+    }
+
     root = cJSON_Parse(json_str);
     if (root == NULL) {
         LOG_WARN("cloud_point_json: invalid json: %.80s", json_str);
+        point_apply_result_record_error(result_opt, "", SW_ERR_PARAM);
+        return SW_ERR_PARAM;
+    }
+
+    if (!cJSON_IsObject(root)) {
+        LOG_WARN("cloud_point_json: root is not an object");
+        cJSON_Delete(root);
         point_apply_result_record_error(result_opt, "", SW_ERR_PARAM);
         return SW_ERR_PARAM;
     }

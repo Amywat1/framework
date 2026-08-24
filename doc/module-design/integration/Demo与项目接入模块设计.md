@@ -256,7 +256,7 @@ typedef struct {
 - 在 `project_configure_hal()` 下发 IO 名称表、串口、地址、点位等配置。
 - 在 `project_bind_hal()` 绑定传感器通道、VFD 实例、backend 与事件回调。
 - 在 `project_init_hal()` 执行传感器预热等依赖 HAL init 后的项目初始化。
-- 通过 `motor_executor_bind()` 绑定项目选定的静态槽位与硬件端口，并把返回的 `motor_exec_t *` 注入机构控制模式。
+- 通过 `mechanism_bridge_bind()` 绑定项目选定的静态槽位与硬件端口，用返回的 `motor_axis_t *` 做机构命令与查询。
 - 经 `safety_port_register()` 注册 `safety_ops_t`，提供急停输入与安全切断实现。
 
 ### 6.3 Domain / Application
@@ -269,9 +269,9 @@ typedef struct {
 
 ### 6.4 Cloud / Inbound
 
-- 注册 `cloud_link_port`、`cloud_report_port`、`cloud_property_port` provider。
-- 注册项目物模型 `cloud_model_bundle_t`。
-- 将 `DEVICE_CMD` 点位映射到 `device_command_port`。
+- 注册 `cloud_link_port` provider（属性全量/增量与下行 recv 同在此端口）。
+- 注册项目物模型表（`cloud_model_register`），并调用 `cloud_json_install()`。
+- 将 COMMAND 点位经 submit 回调映射到 `device_command_port`。
 - 在 `project_configure_adapters()` 配置云端或 CLI 入站适配器。
 - 在 `project_init_adapters()` 初始化云端或 CLI 入站适配器。
 
@@ -309,7 +309,7 @@ target_link_libraries(my_app PRIVATE wdf_application wdf_services wdf_storage_js
 | `wdf_mechanism` | 电机状态机、单轴运动、流体路径（项目 bind 硬件端口） |
 | `wdf_program_engine` | 方案引擎模型、表达式、tick 运行时 |
 | `wdf_engine_session` | 方案会话 worker |
-| `wdf_cloud` / `wdf_cloud_json` | 云点位模型 / 属性 JSON 与 property_port 安装 |
+| `wdf_cloud` / `wdf_cloud_json` | 云点位模型 / 属性 JSON 编解码与 `cloud_json_install` |
 | `wdf_report_scheduler` | 云端上报调度 |
 | `wdf_asset_contract` | 必需资产启动期校验 |
 | `wdf_observability` / `wdf_observation_bridge` | 观测记录与黑匣子 / 框架事件转观测记录 |

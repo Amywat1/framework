@@ -26,7 +26,7 @@ void snack_cloud_model_fake_set_delta_result(sw_err_t result)
     s_delta_result = result;
 }
 
-sw_err_t cloud_model_build_properties(char *buf, size_t buf_size)
+sw_err_t cloud_json_build_properties(char *buf, size_t buf_size)
 {
     if (s_full_result != SW_OK) {
         return s_full_result;
@@ -38,7 +38,7 @@ sw_err_t cloud_model_build_properties(char *buf, size_t buf_size)
     return SW_OK;
 }
 
-sw_err_t cloud_model_build_properties_delta(const char *const *ids, size_t count, char *buf, size_t buf_size)
+sw_err_t cloud_json_build_properties_delta(const char *const *ids, size_t count, char *buf, size_t buf_size)
 {
     (void)ids;
     (void)count;

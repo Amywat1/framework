@@ -1,11 +1,11 @@
 /**
  * @file    cloud_link_port.h
- * @brief   云端链路端口（传输 + 连接边沿）
+ * @brief   云端链路端口（传输 + 连接边沿 + 属性上报）
  * @author  HUWANGWEI
  * @date    2026-07-08
  *
- * @note    合并 MQTT init/online/send/recv 与连接边沿 poll；
- *          遥测投影 / report_scheduler 只依赖本 port。
+ * @note    遥测投影只依赖 is_online / 连接事件；上报调度器依赖
+ *          publish_properties[_delta]；JSON 安装依赖 set_recv_handler。
  */
 
 #ifndef APPLICATION_PORTS_OUTBOUND_CLOUD_LINK_CLOUD_LINK_PORT_H
@@ -14,6 +14,7 @@
 #include "common/sw_error.h"
 
 #include <stdbool.h>
+#include <stddef.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -45,6 +46,16 @@ typedef struct {
      * @brief  向指定 Topic 发布 payload
      */
     sw_err_t (*publish)(const char *topic, const char *payload);
+
+    /**
+     * @brief  发布一次全量属性上报
+     */
+    sw_err_t (*publish_properties)(void);
+
+    /**
+     * @brief  发布指定点位的增量属性上报
+     */
+    sw_err_t (*publish_properties_delta)(const char *const *ids, size_t count);
 
     /**
      * @brief  注册下行消息回调

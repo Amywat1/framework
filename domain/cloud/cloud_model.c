@@ -4,10 +4,7 @@
  * @author  HUWANGWEI
  * @date    2026-07-08
  *
- * @note    本文件只持有点位表并提供查询与校验，不涉及任何序列化格式。
- *          属性 JSON 的构建/解析与 property_port 的安装在
- *          `adapters/outbound/cloud/cloud_model_json.c`——该端口的契约本身
- *          就是 JSON 载荷，实现它必须解析 JSON，故归适配层。
+ * @note    本文件只持有点位表并提供查询，不涉及任何序列化格式。
  */
 
 #include "domain/cloud/cloud_model.h"
@@ -35,55 +32,21 @@ void cloud_model_reset_for_test(void)
 {
     s_entries     = NULL;
     s_entry_count = 0U;
+    cloud_point_watcher_reset_for_test();
 }
 
-const char *cloud_model_point_id_by_index(uint32_t index)
+sw_err_t cloud_model_register(const cloud_point_entry_t *entries, size_t count)
 {
-    if ((s_entries == NULL) || (index >= s_entry_count)) {
-        return NULL;
-    }
-    return s_entries[index].base.id;
-}
+    sw_err_t ret;
 
-sw_err_t cloud_model_register(const cloud_model_bundle_t *bundle)
-{
-    if ((bundle == NULL) || (bundle->entries == NULL) || (bundle->count == 0U)) {
-        return SW_ERR_PARAM;
+    ret = cloud_point_validate(entries, count);
+    if (ret != SW_OK) {
+        return ret;
     }
 
-    s_entries     = bundle->entries;
-    s_entry_count = bundle->count;
+    s_entries     = entries;
+    s_entry_count = count;
 
     LOG_INFO("cloud_model: registered entries=%u", (unsigned)s_entry_count);
     return SW_OK;
-}
-
-sw_err_t cloud_model_validate(void)
-{
-    sw_err_t ret;
-
-    if ((s_entries == NULL) || (s_entry_count == 0U)) {
-        return SW_ERR_NOT_INIT;
-    }
-
-    ret = cloud_point_validate(s_entries, s_entry_count);
-    if (ret != SW_OK) {
-        LOG_ERROR("cloud_model: validate failed");
-    }
-    return ret;
-}
-
-sw_err_t cloud_model_init(void)
-{
-    sw_err_t ret;
-
-    if ((s_entries == NULL) || (s_entry_count == 0U)) {
-        return SW_ERR_NOT_INIT;
-    }
-
-    ret = cloud_point_watcher_init(s_entries, s_entry_count);
-    if (ret != SW_OK) {
-        LOG_ERROR("cloud_model: watcher init failed");
-    }
-    return ret;
 }

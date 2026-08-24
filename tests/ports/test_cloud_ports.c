@@ -3,10 +3,8 @@
  * @brief   cloud 端口 register/get 单元测试
  */
 
-#include "application/ports/inbound/cloud/property/property_port.h"
 #include "application/ports/inbound/command/command_port.h"
 #include "application/ports/outbound/cloud/link/cloud_link_port.h"
-#include "application/ports/outbound/cloud/report/report_port.h"
 #include "common/sw_error.h"
 #include "domain/op_mode/command_types.h"
 #include "domain/op_mode/device_command.h"
@@ -32,24 +30,10 @@ static bool stub_is_online(void)
     return true;
 }
 
-static sw_err_t stub_on_property_set(const char *json_payload, point_apply_result_t *result)
-{
-    (void)json_payload;
-    (void)result;
-    return SW_OK;
-}
-
-static const cloud_report_ops_t s_report_ops = {
+static const cloud_link_ops_t s_link_ops = {
+    .is_online                = stub_is_online,
     .publish_properties       = stub_publish_properties,
     .publish_properties_delta = stub_publish_delta,
-};
-
-static const cloud_link_ops_t s_link_ops = {
-    .is_online = stub_is_online,
-};
-
-static const cloud_property_ops_t s_property_ops = {
-    .on_property_set = stub_on_property_set,
 };
 
 static sw_err_t stub_submit_async(const dev_cmd_t *cmd, uint64_t *request_id)
@@ -78,7 +62,6 @@ static const device_command_port_ops_t s_command_ops = {
 
 void setUp(void)
 {
-    /* 复位全局端口单例，消除用例间顺序耦合 */
     port_registry_cloud_reset();
     port_registry_infra_reset();
 }
@@ -89,28 +72,13 @@ void tearDown(void)
     port_registry_infra_reset();
 }
 
-static void test_cloud_report_register_and_get(void)
-{
-    TEST_ASSERT_NULL(cloud_report_get_ops());
-    cloud_report_register(&s_report_ops);
-    TEST_ASSERT_EQUAL_PTR(&s_report_ops, cloud_report_get_ops());
-    TEST_ASSERT_EQUAL_INT(SW_OK, cloud_report_get_ops()->publish_properties());
-}
-
 static void test_cloud_link_register_and_get(void)
 {
     TEST_ASSERT_NULL(cloud_link_get_ops());
     cloud_link_register(&s_link_ops);
     TEST_ASSERT_EQUAL_PTR(&s_link_ops, cloud_link_get_ops());
     TEST_ASSERT_TRUE(cloud_link_get_ops()->is_online());
-}
-
-static void test_cloud_property_register_and_get(void)
-{
-    TEST_ASSERT_NULL(cloud_property_get_ops());
-    cloud_property_register(&s_property_ops);
-    TEST_ASSERT_EQUAL_PTR(&s_property_ops, cloud_property_get_ops());
-    TEST_ASSERT_EQUAL_INT(SW_OK, cloud_property_get_ops()->on_property_set("{}", NULL));
+    TEST_ASSERT_EQUAL_INT(SW_OK, cloud_link_get_ops()->publish_properties());
 }
 
 static void test_device_command_port_register_and_get(void)
@@ -124,8 +92,6 @@ static void test_device_command_port_register_and_get(void)
     TEST_ASSERT_EQUAL_INT(SW_OK, device_command_port_get_ops()->submit_sync(&cmd, &receipt, 0U));
     TEST_ASSERT_EQUAL_INT(DEV_CMD_STATUS_ACCEPTED, receipt.status);
 }
-
-/* ---- 统一注册语义 ---- */
 
 static sw_err_t stub_store_load(void)
 {
@@ -152,16 +118,12 @@ static sw_err_t stub_store_set(const char *key, const char *val)
     return SW_OK;
 }
 
-/* 注册合法函数表返回 SW_OK */
 static void test_register_returns_ok_for_valid_ops(void)
 {
-    TEST_ASSERT_EQUAL_INT(SW_OK, cloud_report_register(&s_report_ops));
     TEST_ASSERT_EQUAL_INT(SW_OK, cloud_link_register(&s_link_ops));
-    TEST_ASSERT_EQUAL_INT(SW_OK, cloud_property_register(&s_property_ops));
     TEST_ASSERT_EQUAL_INT(SW_OK, device_command_port_register(&s_command_ops));
 }
 
-/* NULL 表示解除注册，是受支持的显式操作 */
 static void test_register_null_unregisters(void)
 {
     TEST_ASSERT_EQUAL_INT(SW_OK, cloud_link_register(&s_link_ops));
@@ -175,7 +137,6 @@ static void test_register_null_unregisters(void)
     TEST_ASSERT_NULL(device_command_port_get_ops());
 }
 
-/* 缺必填字段被拒绝，且不覆盖既有注册 */
 static void test_register_rejects_missing_mandatory_field(void)
 {
     static const device_command_port_ops_t s_empty_cmd = {.submit_async = NULL, .submit_sync = NULL};
@@ -183,12 +144,10 @@ static void test_register_rejects_missing_mandatory_field(void)
     TEST_ASSERT_EQUAL_INT(SW_OK, device_command_port_register(&s_command_ops));
     TEST_ASSERT_EQUAL_PTR(&s_command_ops, device_command_port_get_ops());
 
-    /* 拒绝后原注册必须保持不变，不能被半个 ops 覆盖 */
     TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, device_command_port_register(&s_empty_cmd));
     TEST_ASSERT_EQUAL_PTR(&s_command_ops, device_command_port_get_ops());
 }
 
-/* param_store 四个字段全必填，缺任一项都拒绝 */
 static void test_param_store_requires_all_four_fields(void)
 {
     static const param_store_ops_t s_full = {
@@ -211,7 +170,6 @@ static void test_param_store_requires_all_four_fields(void)
     TEST_ASSERT_EQUAL_PTR(&s_full, param_store_get_ops());
 }
 
-/* deploy_store 只有 load 必填 */
 static void test_deploy_store_requires_load(void)
 {
     static const deploy_store_ops_t s_ok      = {.load = stub_store_load, .get = stub_store_get};
@@ -222,33 +180,30 @@ static void test_deploy_store_requires_load(void)
     TEST_ASSERT_EQUAL_PTR(&s_ok, deploy_store_get_ops());
 }
 
-/* 重复注册以最后一次为准 */
 static void test_register_replaces_on_duplicate(void)
 {
-    static const cloud_report_ops_t s_other = {
+    static const cloud_link_ops_t s_other = {
+        .is_online                = stub_is_online,
         .publish_properties       = stub_publish_properties,
         .publish_properties_delta = stub_publish_delta,
     };
 
-    TEST_ASSERT_EQUAL_INT(SW_OK, cloud_report_register(&s_report_ops));
-    TEST_ASSERT_EQUAL_PTR(&s_report_ops, cloud_report_get_ops());
+    TEST_ASSERT_EQUAL_INT(SW_OK, cloud_link_register(&s_link_ops));
+    TEST_ASSERT_EQUAL_PTR(&s_link_ops, cloud_link_get_ops());
 
-    TEST_ASSERT_EQUAL_INT(SW_OK, cloud_report_register(&s_other));
-    TEST_ASSERT_EQUAL_PTR(&s_other, cloud_report_get_ops());
+    TEST_ASSERT_EQUAL_INT(SW_OK, cloud_link_register(&s_other));
+    TEST_ASSERT_EQUAL_PTR(&s_other, cloud_link_get_ops());
 }
 
-/* 复位清空全部端口 */
 static void test_reset_clears_all_ports(void)
 {
     TEST_ASSERT_EQUAL_INT(SW_OK, cloud_link_register(&s_link_ops));
-    TEST_ASSERT_EQUAL_INT(SW_OK, cloud_report_register(&s_report_ops));
     TEST_ASSERT_EQUAL_INT(SW_OK, device_command_port_register(&s_command_ops));
 
     port_registry_cloud_reset();
     port_registry_infra_reset();
 
     TEST_ASSERT_NULL(cloud_link_get_ops());
-    TEST_ASSERT_NULL(cloud_report_get_ops());
     TEST_ASSERT_NULL(device_command_port_get_ops());
 }
 
@@ -256,9 +211,7 @@ int main(void)
 {
     UNITY_BEGIN();
 
-    WDF_RUN_TEST(test_cloud_report_register_and_get, "", "验证云端上报注册并获取");
     WDF_RUN_TEST(test_cloud_link_register_and_get, "", "验证云端链路注册并获取");
-    WDF_RUN_TEST(test_cloud_property_register_and_get, "", "验证云端属性注册并获取");
     WDF_RUN_TEST(test_device_command_port_register_and_get, "", "验证设备命令端口注册并获取");
     WDF_RUN_TEST(test_register_returns_ok_for_valid_ops, "", "验证注册返回成功针对有效操作接口");
     WDF_RUN_TEST(test_register_null_unregisters, "", "验证注册空指针注销");

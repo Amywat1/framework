@@ -28,8 +28,9 @@ extern "C" {
 /**
  * @brief 可声明为必需的端口位标志
  *
- * 位宽 32，当前用 13 位；新增端口在末尾追加，不改动既有位值
- * （项目侧可能以常量表达式组合这些标志）。
+ * 位宽 32，当前用 12 位；位 8、9 曾是独立 report/property 端口，已并入
+ * CLOUD_LINK，不再暴露也不得复用，以免项目侧旧掩码静默改义。
+ * 新增端口在末尾追加，不改动既有位值。
  */
 typedef enum {
     PORT_REQ_HAL_IO         = (1U << 0),  /**< 数字 IO */
@@ -39,9 +40,7 @@ typedef enum {
     PORT_REQ_DEVICE_COMMAND = (1U << 4),  /**< 设备命令入站（由 command_gateway 注册）*/
     PORT_REQ_ALARM_BINDING  = (1U << 5),  /**< 报警触发绑定（由 alarm_registry 注册）*/
     PORT_REQ_DEVICE_OPS     = (1U << 6),  /**< 整机运行时操作 */
-    PORT_REQ_CLOUD_LINK     = (1U << 7),  /**< 云连接 */
-    PORT_REQ_CLOUD_REPORT   = (1U << 8),  /**< 云上报 */
-    PORT_REQ_CLOUD_PROPERTY = (1U << 9),  /**< 云属性下行 */
+    PORT_REQ_CLOUD_LINK     = (1U << 7),  /**< 云连接：is_online / publish_properties / set_recv_handler */
     PORT_REQ_DEPLOY_STORE   = (1U << 10), /**< 部署配置存储 */
     PORT_REQ_PARAM_STORE    = (1U << 11), /**< 运行参数存储 */
     PORT_REQ_PROGRAM_LOADER = (1U << 12), /**< 洗车方案加载 */
@@ -55,7 +54,8 @@ typedef enum {
  * @retval SW_ERR_NOT_INIT 存在未注册端口，缺失项已逐条记入 ERROR 日志
  *
  * @note   建议在 project_validate() 中调用，使缺失注册在启动期即失败。
- *         本函数只检查"是否注册"，不校验 ops 内部字段完备性——那由各
+ *         除 `PORT_REQ_CLOUD_LINK`（检查 is_online / publish_properties /
+ *         set_recv_handler）外，不校验 ops 内部字段完备性——那由各
  *         *_register() 在注册时按端口自身的必填约定拒绝。
  */
 sw_err_t port_contract_validate(uint32_t required);

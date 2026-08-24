@@ -39,7 +39,7 @@ void port_registry_hal_reset(void);
 /** @brief 清空基础设施层端口注册（设备命令 / 报警绑定 / 机型运行时操作）*/
 void port_registry_infra_reset(void);
 
-/** @brief 清空云与存储层端口注册（link / report / property / deploy / param）*/
+/** @brief 清空云与存储层端口注册（link / deploy / param）*/
 void port_registry_cloud_reset(void);
 
 /** @brief 清空安全端口注册（cutout / estop / alarm 判定 / deferred stop）*/

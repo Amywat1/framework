@@ -38,16 +38,14 @@ static cloud_point_entry_t make_speed_telemetry(void)
     cloud_point_entry_t entry;
 
     memset(&entry, 0, sizeof(entry));
-    entry.base.id       = "speed";
-    entry.base.type     = POINT_TYPE_INT;
-    entry.base.get      = get_speed;
-    entry.access        = CLOUD_POINT_ACCESS_RO;
-    entry.semantic      = CLOUD_POINT_SEM_TELEMETRY;
-    entry.report_policy = CLOUD_REPORT_PERIODIC;
+    entry.base.id   = "speed";
+    entry.base.type = POINT_TYPE_INT;
+    entry.base.get  = get_speed;
+    entry.kind      = CLOUD_KIND_TELEMETRY;
     return entry;
 }
 
-static cloud_point_entry_t make_manual_act(void)
+static cloud_point_entry_t make_write(void)
 {
     cloud_point_entry_t entry;
 
@@ -55,8 +53,7 @@ static cloud_point_entry_t make_manual_act(void)
     entry.base.id   = "manualBrush";
     entry.base.type = POINT_TYPE_BOOL;
     entry.base.set  = set_manual;
-    entry.access    = CLOUD_POINT_ACCESS_WO;
-    entry.semantic  = CLOUD_POINT_SEM_MANUAL_ACT;
+    entry.kind      = CLOUD_KIND_WRITE;
     return entry;
 }
 
@@ -68,8 +65,7 @@ static cloud_point_entry_t make_stop_cmd(void)
     entry.base.id   = "stopWash";
     entry.base.type = POINT_TYPE_BOOL;
     entry.base.get  = cloud_point_get_echo_idle;
-    entry.access    = CLOUD_POINT_ACCESS_WO;
-    entry.semantic  = CLOUD_POINT_SEM_DEVICE_CMD;
+    entry.kind      = CLOUD_KIND_COMMAND;
     entry.cmd_kind  = DEV_CMD_STOP_WASH;
     return entry;
 }
@@ -103,17 +99,17 @@ static void test_to_json_serializes_telemetry(void)
     TEST_ASSERT_NOT_NULL(strstr(buf, "\"speed\":120"));
 }
 
-static void test_apply_json_manual_act(void)
+static void test_apply_json_write(void)
 {
     point_apply_result_t      result;
-    const cloud_point_entry_t entries[] = {make_manual_act()};
+    const cloud_point_entry_t entries[] = {make_write()};
 
     TEST_ASSERT_EQUAL_INT(SW_OK, cloud_point_apply_json(entries, 1U, "{\"manualBrush\":true}", &result));
     TEST_ASSERT_EQUAL_UINT(1U, result.applied);
     TEST_ASSERT_TRUE(s_manual_on);
 }
 
-static void test_apply_json_device_cmd_triggers_submit(void)
+static void test_apply_json_command_triggers_submit(void)
 {
     point_apply_result_t      result;
     const cloud_point_entry_t entries[] = {make_stop_cmd()};
@@ -123,7 +119,7 @@ static void test_apply_json_device_cmd_triggers_submit(void)
     TEST_ASSERT_EQUAL_INT(DEV_CMD_STOP_WASH, s_last_cmd);
 }
 
-static void test_apply_json_rejects_readonly_telemetry(void)
+static void test_apply_json_rejects_telemetry(void)
 {
     point_apply_result_t      result;
     const cloud_point_entry_t entries[] = {make_speed_telemetry()};
@@ -133,7 +129,7 @@ static void test_apply_json_rejects_readonly_telemetry(void)
     TEST_ASSERT_EQUAL_INT(120, s_speed);
 }
 
-static void test_apply_json_device_cmd_false_is_noop(void)
+static void test_apply_json_command_false_is_noop(void)
 {
     point_apply_result_t      result;
     const cloud_point_entry_t entries[] = {make_stop_cmd()};
@@ -146,13 +142,21 @@ static void test_apply_json_device_cmd_false_is_noop(void)
 static void test_apply_json_unknown_key_partial_reject(void)
 {
     point_apply_result_t      result;
-    const cloud_point_entry_t entries[] = {make_manual_act()};
+    const cloud_point_entry_t entries[] = {make_write()};
 
     TEST_ASSERT_EQUAL_INT(SW_OK, cloud_point_apply_json(entries, 1U, "{\"unknown\":1,\"manualBrush\":true}", &result));
     TEST_ASSERT_EQUAL_UINT(2U, result.total_keys);
     TEST_ASSERT_EQUAL_UINT(1U, result.applied);
     TEST_ASSERT_EQUAL_UINT(1U, result.rejected);
     TEST_ASSERT_TRUE(s_manual_on);
+}
+
+static void test_apply_json_rejects_non_object(void)
+{
+    point_apply_result_t      result;
+    const cloud_point_entry_t entries[] = {make_write()};
+
+    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, cloud_point_apply_json(entries, 1U, "[1,2]", &result));
 }
 
 static void test_to_json_filtered_selects_id(void)
@@ -171,11 +175,12 @@ int main(void)
 
     WDF_RUN_TEST(test_get_echo_idle_returns_false, "", "验证获取回显空闲模式返回false");
     WDF_RUN_TEST(test_to_json_serializes_telemetry, "", "验证将遥测点位序列化为 JSON");
-    WDF_RUN_TEST(test_apply_json_manual_act, "", "验证应用JSON手动动作");
-    WDF_RUN_TEST(test_apply_json_device_cmd_triggers_submit, "", "验证应用JSON设备命令触发提交");
-    WDF_RUN_TEST(test_apply_json_rejects_readonly_telemetry, "", "验证应用JSON拒绝只读遥测");
-    WDF_RUN_TEST(test_apply_json_device_cmd_false_is_noop, "", "验证应用JSON设备命令false为无操作");
-    WDF_RUN_TEST(test_apply_json_unknown_key_partial_reject, "", "验证应用JSON未知键部分拒绝");
+    WDF_RUN_TEST(test_apply_json_write, "", "验证应用 JSON 写入点位");
+    WDF_RUN_TEST(test_apply_json_command_triggers_submit, "", "验证应用 JSON 命令触发提交");
+    WDF_RUN_TEST(test_apply_json_rejects_telemetry, "", "验证应用 JSON 拒绝遥测写入");
+    WDF_RUN_TEST(test_apply_json_command_false_is_noop, "", "验证应用 JSON 命令 false 为无操作");
+    WDF_RUN_TEST(test_apply_json_unknown_key_partial_reject, "", "验证应用 JSON 未知键部分拒绝");
+    WDF_RUN_TEST(test_apply_json_rejects_non_object, "", "验证应用 JSON 拒绝非对象根");
     WDF_RUN_TEST(test_to_json_filtered_selects_id, "", "验证过滤序列化时只输出指定点位 ID");
 
     return UNITY_END();

@@ -38,17 +38,13 @@ static cloud_point_entry_t s_points[1];
 
 static void register_cloud_model(void)
 {
-    cloud_model_bundle_t bundle;
-
     memset(&s_points[0], 0, sizeof(s_points[0]));
     s_points[0].base.id   = "counter";
     s_points[0].base.type = POINT_TYPE_INT;
     s_points[0].base.get  = fake_getter;
-    s_points[0].access    = CLOUD_POINT_ACCESS_RO;
-    s_points[0].semantic  = CLOUD_POINT_SEM_TELEMETRY;
+    s_points[0].kind      = CLOUD_KIND_TELEMETRY;
 
-    bundle = (cloud_model_bundle_t){.entries = s_points, .count = 1U};
-    TEST_ASSERT_EQUAL_INT(SW_OK, cloud_model_register(&bundle));
+    TEST_ASSERT_EQUAL_INT(SW_OK, cloud_model_register(s_points, 1U));
 }
 
 static const char *const s_signals[] = {"di_estop"};

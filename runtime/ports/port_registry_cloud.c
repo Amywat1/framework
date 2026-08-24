@@ -1,13 +1,11 @@
 /**
  * @file    port_registry_cloud.c
- * @brief   云端 & 存储端口注册表（链路 / 上报 / 属性 / 部署配置 / 参数）
+ * @brief   云端 & 存储端口注册表（链路 / 部署配置 / 参数）
  *
  * @note    注册语义见 runtime/ports/port_registry.h。
  */
 
-#include "application/ports/inbound/cloud/property/property_port.h"
 #include "application/ports/outbound/cloud/link/cloud_link_port.h"
-#include "application/ports/outbound/cloud/report/report_port.h"
 #include "domain/ports/outbound/storage/deploy_store.h"
 #include "domain/ports/outbound/storage/param_store.h"
 #include "runtime/ports/port_registry.h"
@@ -27,34 +25,6 @@ sw_err_t cloud_link_register(const cloud_link_ops_t *ops)
 const cloud_link_ops_t *cloud_link_get_ops(void)
 {
     return s_link_ops;
-}
-
-/* ---- 云端上报 ---- */
-static const cloud_report_ops_t *s_report_ops;
-
-sw_err_t cloud_report_register(const cloud_report_ops_t *ops)
-{
-    s_report_ops = ops;
-    return SW_OK;
-}
-
-const cloud_report_ops_t *cloud_report_get_ops(void)
-{
-    return s_report_ops;
-}
-
-/* ---- 云端属性下发 ---- */
-static const cloud_property_ops_t *s_property_ops;
-
-sw_err_t cloud_property_register(const cloud_property_ops_t *ops)
-{
-    s_property_ops = ops;
-    return SW_OK;
-}
-
-const cloud_property_ops_t *cloud_property_get_ops(void)
-{
-    return s_property_ops;
 }
 
 /* ---- 部署配置存储 ---- */
@@ -96,9 +66,7 @@ const param_store_ops_t *param_store_get_ops(void)
 
 void port_registry_cloud_reset(void)
 {
-    s_link_ops     = NULL;
-    s_report_ops   = NULL;
-    s_property_ops = NULL;
-    s_deploy_ops   = NULL;
-    s_param_ops    = NULL;
+    s_link_ops   = NULL;
+    s_deploy_ops = NULL;
+    s_param_ops  = NULL;
 }

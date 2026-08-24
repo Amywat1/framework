@@ -14,56 +14,30 @@ extern "C" {
 
 #include "common/sw_error.h"
 
-#include <stdbool.h>
-#include <stddef.h>
 #include <stdint.h>
 
-typedef enum {
-    REPORT_TRIGGER_PERIODIC = 0,
-    REPORT_TRIGGER_EVENT,
-} report_trigger_kind_t;
-
-typedef struct {
-    report_trigger_kind_t kind;
-    uint32_t              period_ms;
-    uint32_t              event_id;
-    bool                  full;
-    bool                  use_event_param_as_point_index;
-    const char *const    *delta_ids;
-    size_t                delta_id_count;
-} report_policy_entry_t;
-
 /**
- * @brief  点位表索引 -> 物模型 id（EVT_CLOUD_POINT_DIRTY 时使用）
- */
-typedef const char *(*report_point_id_resolver_fn_t)(uint32_t index);
-
-/**
- * @brief  注册点位索引解析器。
+ * @brief  启动云端上报：单一周期任务，同时 poll 链路、watcher 与上报。
  *
- * @param  resolver 点位索引到物模型 id 的解析函数，可传 NULL 清除。
- * @note   用于 EVT_CLOUD_POINT_DIRTY 事件按索引生成增量上报 id。
+ * @param  poll_ms        poll 周期，必须大于 0。
+ * @param  full_period_ms 全量上报周期；0 表示只在重连时全量。
+ * @retval SW_OK 启动成功；已启动时再次调用也返回 SW_OK。
+ * @retval SW_ERR_PARAM 周期非法，或 full_period_ms 非 0 且不是 poll_ms 的整数倍。
+ * @retval SW_ERR_NOT_INIT 物模型尚未注册。
+ * @note   后台线程由 scheduler 统一启动。本函数会初始化 watcher 并订阅
+ *         EVT_CLOUD_CONNECTED 做全量重同步。
  */
-void report_scheduler_register_point_resolver(report_point_id_resolver_fn_t resolver);
+sw_err_t report_scheduler_start(uint32_t poll_ms, uint32_t full_period_ms);
 
 /**
- * @brief  注册云端上报调度策略。
- *
- * @param  policies 上报策略数组。
- * @param  count 上报策略数量，不能超过内部容量。
- * @retval SW_OK 注册成功。
- * @retval SW_ERR_PARAM 策略为空、数量非法、period_ms 为 0 或超出最大周期数。
- * @retval 其他 周期任务或事件订阅注册失败。
- * @note   本函数只注册周期任务和事件订阅，后台线程由 scheduler 统一启动。
+ * @brief  执行一拍 poll / 脏点增量 / 到期全量（周期任务回调与单测共用）
  */
-sw_err_t report_scheduler_register(const report_policy_entry_t *policies, size_t count);
+void report_scheduler_poll(void);
 
 /**
- * @brief  请求立即执行一次全量重同步。
- *
- * @note   云端离线或 report port 未注册时静默跳过。
+ * @brief  清空调度器状态（仅供单元测试）
  */
-void report_scheduler_request_resync(void);
+void report_scheduler_reset_for_test(void);
 
 #ifdef __cplusplus
 }

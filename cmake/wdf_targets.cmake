@@ -33,7 +33,7 @@
 #   wdf_hal_engine_sim   方案引擎 IO / 执行器仿真后端
 #   wdf_hal_components   ADC 门控、传感器滤波、VFD 管理器
 #   wdf_point_table_json 点位表的 JSON 编解码
-#   wdf_cloud_json       物模型属性 JSON 与 property_port 安装
+#   wdf_cloud_json       物模型属性 JSON 编解码与下行安装
 #   wdf_cjson            随框架分发的 cJSON
 #   wdf_estop_poll       急停边沿采集（可选入站适配器，须显式 init）
 #   wdf_conformance      「框架要求」条目的一致性套件（交付项目运行）
@@ -174,8 +174,8 @@ _wdf_add_interface_lib(wdf_domain
 # ---------------------------------------------------------------------------
 # wdf_mechanism — 机构控制通用模式（运动状态机、单轴会话、流体路径）
 #
-# 电机执行器与 motor_axis 同库：axis 只依赖 motor_exec_port.h，执行器直接实现
-# 端口符号。项目仍须在 wiring 里 bind 硬件端口，但不必再链 wdf_hal_components。
+# 电机执行器与 motor_axis 同库：axis.c 只依赖 motor_exec_port.h；项目业务面对 motor_axis。
+# 项目仍须在 wiring 里 bind 硬件端口，但不必再链 wdf_hal_components。
 # ---------------------------------------------------------------------------
 _wdf_add_interface_lib(wdf_mechanism
     SOURCES
@@ -307,7 +307,7 @@ _wdf_add_interface_lib(wdf_engine_session
 )
 
 # ---------------------------------------------------------------------------
-# wdf_report_scheduler — 云端上报调度（周期 + 事件触发策略）
+# wdf_report_scheduler — 云端上报调度（单一周期任务：poll + 脏点批量 + 全量）
 # ---------------------------------------------------------------------------
 _wdf_add_interface_lib(wdf_report_scheduler
     SOURCES
@@ -333,15 +333,14 @@ _wdf_add_interface_lib(wdf_cloud
 )
 
 # ---------------------------------------------------------------------------
-# wdf_cloud_json — 物模型的属性 JSON 编解码与 property_port 安装（可选适配器）
+# wdf_cloud_json — 物模型的属性 JSON 编解码与下行安装（可选适配器）
 #
-# 与 wdf_cloud 分开：property_port 的契约参数是 JSON 载荷，实现它必须解析
-# JSON。留在 wdf_cloud 会让点位模型与语义分派绑定一种传输格式，也会使
-# cloud/ 依赖 adapters/（违反 R12）。换协议时并列新增实现即可。
+# 与 wdf_cloud 分开：解析 JSON 必须在 adapters。留在 wdf_cloud 会让点位模型
+# 绑定一种传输格式。换协议时并列新增实现即可。
 # ---------------------------------------------------------------------------
 _wdf_add_interface_lib(wdf_cloud_json
     SOURCES
-        adapters/outbound/cloud/cloud_model_json.c
+        adapters/outbound/cloud/cloud_json.c
         adapters/outbound/cloud/cloud_point_json.c
     DEPENDS
         wdf_cloud

@@ -1,20 +1,16 @@
 /**
  * @file    test_cloud_point_watcher.c
- * @brief   cloud_point_watcher ON_CHANGE 变更检测单元测试
+ * @brief   cloud_point_watcher on_change 变更检测单元测试
  */
 
-#include "common/event_types.h"
 #include "common/sw_error.h"
 #include "domain/cloud/cloud_point.h"
 #include "domain/cloud/cloud_point_watcher.h"
-#include "runtime/event_bus/event_bus.h"
 #include "wdf_test_spec.h"
 
 #include <string.h>
 
-static int32_t           s_value;
-static volatile int      g_dirty_count;
-static volatile uint32_t g_dirty_index;
+static int32_t s_value;
 
 static sw_err_t get_value(point_value_t *out)
 {
@@ -22,69 +18,70 @@ static sw_err_t get_value(point_value_t *out)
     return SW_OK;
 }
 
-static void on_dirty(const event_t *evt)
-{
-    g_dirty_count++;
-    g_dirty_index = evt->param;
-}
-
 static cloud_point_entry_t make_on_change_entry(void)
 {
     cloud_point_entry_t entry;
 
     memset(&entry, 0, sizeof(entry));
-    entry.base.id       = "speed";
-    entry.base.type     = POINT_TYPE_INT;
-    entry.base.get      = get_value;
-    entry.access        = CLOUD_POINT_ACCESS_RO;
-    entry.semantic      = CLOUD_POINT_SEM_TELEMETRY;
-    entry.report_policy = CLOUD_REPORT_ON_CHANGE;
+    entry.base.id   = "speed";
+    entry.base.type = POINT_TYPE_INT;
+    entry.base.get  = get_value;
+    entry.kind      = CLOUD_KIND_TELEMETRY;
+    entry.on_change = true;
     return entry;
-}
-
-static void reset_flags(void)
-{
-    s_value       = 10;
-    g_dirty_count = 0;
-    g_dirty_index = 999U;
 }
 
 void setUp(void)
 {
+    s_value = 10;
+    cloud_point_watcher_reset_for_test();
 }
 
 void tearDown(void)
 {
+    cloud_point_watcher_reset_for_test();
 }
 
-static void test_poll_without_change_no_event(void)
+static void test_poll_without_change_no_dirty(void)
 {
     const cloud_point_entry_t entries[] = {make_on_change_entry()};
-    reset_flags();
-    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
-    TEST_ASSERT_EQUAL_INT(SW_OK, event_subscribe(EVT_CLOUD_POINT_DIRTY, on_dirty));
+    const char               *ids[4];
+
     TEST_ASSERT_EQUAL_INT(SW_OK, cloud_point_watcher_init(entries, 1U));
 
     cloud_point_watcher_poll();
-    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_drain());
-
-    TEST_ASSERT_EQUAL_INT(0, g_dirty_count);
+    TEST_ASSERT_EQUAL_UINT(0U, cloud_point_watcher_take_dirty(ids, 4U));
 }
 
-static void test_poll_after_change_publishes_dirty(void)
+static void test_poll_after_change_marks_dirty(void)
 {
     const cloud_point_entry_t entries[] = {make_on_change_entry()};
-    reset_flags();
-    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
-    TEST_ASSERT_EQUAL_INT(SW_OK, event_subscribe(EVT_CLOUD_POINT_DIRTY, on_dirty));
+    const char               *ids[4];
+
     TEST_ASSERT_EQUAL_INT(SW_OK, cloud_point_watcher_init(entries, 1U));
 
     s_value = 20;
     cloud_point_watcher_poll();
-    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_drain());
+    TEST_ASSERT_EQUAL_UINT(1U, cloud_point_watcher_take_dirty(ids, 4U));
+    TEST_ASSERT_EQUAL_STRING("speed", ids[0]);
+    TEST_ASSERT_EQUAL_UINT(0U, cloud_point_watcher_take_dirty(ids, 4U));
+}
 
-    TEST_ASSERT_EQUAL_INT(1, g_dirty_count);
-    TEST_ASSERT_EQUAL_UINT32(0U, g_dirty_index);
+static void test_restore_dirty_keeps_id(void)
+{
+    const cloud_point_entry_t entries[] = {make_on_change_entry()};
+    const char               *ids[4];
+    const char               *restore[1];
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, cloud_point_watcher_init(entries, 1U));
+    s_value = 20;
+    cloud_point_watcher_poll();
+    TEST_ASSERT_EQUAL_UINT(1U, cloud_point_watcher_take_dirty(ids, 4U));
+
+    restore[0] = ids[0];
+    cloud_point_watcher_restore_dirty(restore, 1U);
+    TEST_ASSERT_EQUAL_UINT(1U, cloud_point_watcher_take_dirty(ids, 4U));
+    TEST_ASSERT_EQUAL_STRING("speed", ids[0]);
 }
 
 static void test_init_rejects_invalid_args(void)
@@ -99,8 +96,9 @@ int main(void)
 {
     UNITY_BEGIN();
 
-    WDF_RUN_TEST(test_poll_without_change_no_event, "", "验证点位无变化时轮询不发布事件");
-    WDF_RUN_TEST(test_poll_after_change_publishes_dirty, "", "验证点位变化后轮询发布脏标记事件");
+    WDF_RUN_TEST(test_poll_without_change_no_dirty, "", "验证点位无变化时轮询不置脏");
+    WDF_RUN_TEST(test_poll_after_change_marks_dirty, "", "验证点位变化后轮询置脏");
+    WDF_RUN_TEST(test_restore_dirty_keeps_id, "", "验证上报失败后可恢复脏标记");
     WDF_RUN_TEST(test_init_rejects_invalid_args, "", "验证初始化拒绝无效参数");
 
     return UNITY_END();

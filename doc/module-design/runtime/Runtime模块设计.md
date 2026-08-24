@@ -306,7 +306,7 @@ periodic_task_thread_fn(slot)
 | `motor_tick` | `mechanism_bridge_register_tasks()` | 周期任务（10ms） | `motor_executor_tick` + 已登记轴 `motor_axis_poll` |
 | `fluid_path_poll` | `mechanism_bridge_register_tasks()` | 周期任务（10ms） | `fluid_path_poll(now_ms)` |
 | 会话 worker | `engine_session_bind()`，名称与栈由调用方配置传入 | 线程 | 驱动方案引擎 tick |
-| `cloud_report_<period>ms` | `report_scheduler_register()` | 周期任务 | 云端链路 poll、watcher poll、周期/重同步上报；每种周期一个任务 |
+| `cloud_report` | `report_scheduler_start()` | 周期任务 | 云端链路 poll、watcher poll、脏点增量与重连/周期全量上报 |
 | `hal_sensor_poll` | `hal_sensor_poll_register_task()` | 周期任务 | DI 滤波推进 |
 | `vfd_manager_poll` | `hal_vfd_manager_poll_register_task()` | 周期任务 | VFD fault/current/RST 监测 |
 | `estop_poll` | `estop_poll_thread_init()`，由项目在 `init_adapters` 选择接入 | 线程 | 轮询硬件急停边沿 |

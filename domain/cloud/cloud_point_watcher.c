@@ -1,14 +1,11 @@
 /**
  * @file    cloud_point_watcher.c
- * @brief   云端物模型 ON_CHANGE 点位变更检测实现
+ * @brief   云端物模型 on_change 点位变更检测实现
  * @author  HUWANGWEI
  * @date    2026-07-08
  */
 
 #include "domain/cloud/cloud_point_watcher.h"
-
-#include "common/event_types.h"
-#include "runtime/event_bus/event_bus.h"
 
 #include <string.h>
 
@@ -21,10 +18,11 @@ typedef struct {
 static const cloud_point_entry_t *s_entries     = NULL;
 static size_t                     s_entry_count = 0U;
 static cloud_point_shadow_t       s_shadow[CLOUD_POINT_TABLE_MAX];
+static bool                       s_dirty[CLOUD_POINT_TABLE_MAX];
 
 static bool is_watched_entry(const cloud_point_entry_t *entry)
 {
-    return (entry->report_policy == CLOUD_REPORT_ON_CHANGE) && (entry->base.get != NULL);
+    return entry->on_change && (entry->base.get != NULL);
 }
 
 static bool value_equal(point_type_t type, const point_value_t *a, const point_value_t *b)
@@ -43,9 +41,12 @@ static bool value_equal(point_type_t type, const point_value_t *a, const point_v
     }
 }
 
-static void publish_dirty(size_t index)
+void cloud_point_watcher_reset_for_test(void)
 {
-    (void)event_publish(EVT_CLOUD_POINT_DIRTY, (uint32_t)index);
+    s_entries     = NULL;
+    s_entry_count = 0U;
+    memset(s_shadow, 0, sizeof(s_shadow));
+    memset(s_dirty, 0, sizeof(s_dirty));
 }
 
 sw_err_t cloud_point_watcher_init(const cloud_point_entry_t *entries, size_t count)
@@ -55,6 +56,7 @@ sw_err_t cloud_point_watcher_init(const cloud_point_entry_t *entries, size_t cou
     }
 
     memset(s_shadow, 0, sizeof(s_shadow));
+    memset(s_dirty, 0, sizeof(s_dirty));
     s_entries     = entries;
     s_entry_count = count;
 
@@ -101,13 +103,55 @@ void cloud_point_watcher_poll(void)
             s_shadow[i].valid = true;
             s_shadow[i].type  = entry->base.type;
             s_shadow[i].value = now;
-            publish_dirty(i);
+            s_dirty[i]        = true;
             continue;
         }
 
         if (!value_equal(entry->base.type, &s_shadow[i].value, &now)) {
             s_shadow[i].value = now;
-            publish_dirty(i);
+            s_dirty[i]        = true;
+        }
+    }
+}
+
+size_t cloud_point_watcher_take_dirty(const char **ids, size_t cap)
+{
+    size_t n = 0U;
+    size_t i;
+
+    if ((ids == NULL) || (cap == 0U) || (s_entries == NULL)) {
+        return 0U;
+    }
+
+    for (i = 0U; (i < s_entry_count) && (n < cap); i++) {
+        if (!s_dirty[i]) {
+            continue;
+        }
+        ids[n++]   = s_entries[i].base.id;
+        s_dirty[i] = false;
+    }
+
+    return n;
+}
+
+void cloud_point_watcher_restore_dirty(const char *const *ids, size_t count)
+{
+    size_t i;
+    size_t j;
+
+    if ((ids == NULL) || (s_entries == NULL)) {
+        return;
+    }
+
+    for (i = 0U; i < count; i++) {
+        if (ids[i] == NULL) {
+            continue;
+        }
+        for (j = 0U; j < s_entry_count; j++) {
+            if ((s_entries[j].base.id != NULL) && (strcmp(s_entries[j].base.id, ids[i]) == 0)) {
+                s_dirty[j] = true;
+                break;
+            }
         }
     }
 }

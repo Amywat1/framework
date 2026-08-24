@@ -10,10 +10,8 @@
 
 #include <string.h>
 
-static bool id_seen_before(const cloud_point_entry_t *entries, size_t count, size_t index)
+static bool id_seen_before(const cloud_point_entry_t *entries, size_t index)
 {
-    (void)count;
-
     for (size_t i = 0U; i < index; i++) {
         if ((entries[i].base.id != NULL) && (entries[index].base.id != NULL)
             && (strcmp(entries[i].base.id, entries[index].base.id) == 0)) {
@@ -30,55 +28,57 @@ static sw_err_t validate_one(const cloud_point_entry_t *entry)
         return SW_ERR_PARAM;
     }
 
-    if (entry->access == CLOUD_POINT_ACCESS_RO) {
+    if (entry->on_change) {
         if (entry->base.get == NULL) {
-            LOG_ERROR("cloud_point_validate: RO id=%s missing get", entry->base.id);
+            LOG_ERROR("cloud_point_validate: on_change id=%s missing get", entry->base.id);
             return SW_ERR_PARAM;
         }
-        if (entry->base.set != NULL) {
-            LOG_ERROR("cloud_point_validate: RO id=%s must not have set", entry->base.id);
-            return SW_ERR_PARAM;
-        }
-    }
-
-    if (entry->access == CLOUD_POINT_ACCESS_WO) {
-        if ((entry->semantic == CLOUD_POINT_SEM_TELEMETRY) && (entry->base.set == NULL)) {
-            LOG_ERROR("cloud_point_validate: WO telemetry id=%s invalid", entry->base.id);
+        if (entry->base.type == POINT_TYPE_FLOAT) {
+            LOG_ERROR("cloud_point_validate: on_change id=%s forbids FLOAT", entry->base.id);
             return SW_ERR_PARAM;
         }
     }
 
-    switch (entry->semantic) {
-    case CLOUD_POINT_SEM_TELEMETRY:
+    switch (entry->kind) {
+    case CLOUD_KIND_TELEMETRY:
         if (entry->base.get == NULL) {
             LOG_ERROR("cloud_point_validate: telemetry id=%s missing get", entry->base.id);
             return SW_ERR_PARAM;
         }
+        if (entry->base.set != NULL) {
+            LOG_ERROR("cloud_point_validate: telemetry id=%s must not have set", entry->base.id);
+            return SW_ERR_PARAM;
+        }
+        if (entry->cmd_kind != DEV_CMD_NONE) {
+            LOG_ERROR("cloud_point_validate: telemetry id=%s must not have cmd_kind", entry->base.id);
+            return SW_ERR_PARAM;
+        }
         break;
 
-    case CLOUD_POINT_SEM_DEVICE_CMD:
+    case CLOUD_KIND_COMMAND:
+        if (entry->base.type != POINT_TYPE_BOOL) {
+            LOG_ERROR("cloud_point_validate: command id=%s must be bool", entry->base.id);
+            return SW_ERR_PARAM;
+        }
         if (entry->cmd_kind == DEV_CMD_NONE) {
-            LOG_ERROR("cloud_point_validate: device_cmd id=%s missing cmd_kind", entry->base.id);
+            LOG_ERROR("cloud_point_validate: command id=%s missing cmd_kind", entry->base.id);
             return SW_ERR_PARAM;
         }
         break;
 
-    case CLOUD_POINT_SEM_CLOUD_SERVICE:
-        if (entry->service == NULL) {
-            LOG_ERROR("cloud_point_validate: cloud_service id=%s missing service", entry->base.id);
-            return SW_ERR_PARAM;
-        }
-        break;
-
-    case CLOUD_POINT_SEM_MANUAL_ACT:
+    case CLOUD_KIND_WRITE:
         if (entry->base.set == NULL) {
-            LOG_ERROR("cloud_point_validate: manual_act id=%s missing set", entry->base.id);
+            LOG_ERROR("cloud_point_validate: write id=%s missing set", entry->base.id);
+            return SW_ERR_PARAM;
+        }
+        if (entry->cmd_kind != DEV_CMD_NONE) {
+            LOG_ERROR("cloud_point_validate: write id=%s must not have cmd_kind", entry->base.id);
             return SW_ERR_PARAM;
         }
         break;
 
     default:
-        LOG_ERROR("cloud_point_validate: id=%s unknown semantic", entry->base.id);
+        LOG_ERROR("cloud_point_validate: id=%s unknown kind", entry->base.id);
         return SW_ERR_PARAM;
     }
 
@@ -87,13 +87,13 @@ static sw_err_t validate_one(const cloud_point_entry_t *entry)
 
 sw_err_t cloud_point_validate(const cloud_point_entry_t *entries, size_t count)
 {
-    if ((entries == NULL) || (count == 0U)) {
-        LOG_ERROR("cloud_point_validate: empty model");
+    if ((entries == NULL) || (count == 0U) || (count > CLOUD_POINT_TABLE_MAX)) {
+        LOG_ERROR("cloud_point_validate: empty or oversized model");
         return SW_ERR_PARAM;
     }
 
     for (size_t i = 0U; i < count; i++) {
-        if (id_seen_before(entries, count, i)) {
+        if (id_seen_before(entries, i)) {
             LOG_ERROR("cloud_point_validate: duplicate id=%s", entries[i].base.id);
             return SW_ERR_PARAM;
         }

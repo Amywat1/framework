@@ -118,8 +118,7 @@ static void test_severity_differs_by_event(void)
     TEST_ASSERT_EQUAL_INT(OBSERVATION_SEVERITY_INFO, rec.severity);
 }
 
-/* 未登记的事件不产生记录：EVT_CLOUD_POINT_DIRTY 每次点位变化都发，
- * 量级远高于其余事件，若被记录会淹没队列 */
+/* 未登记的事件不产生记录：周期同步与洗车进度不是复盘线索 */
 static void test_unlisted_event_produces_no_record(void)
 {
     observation_record_t rec;
@@ -127,8 +126,8 @@ static void test_unlisted_event_produces_no_record(void)
 
     TEST_ASSERT_EQUAL_INT(SW_OK, observation_event_bridge_init());
 
-    TEST_ASSERT_EQUAL_INT(SW_OK, event_publish(EVT_CLOUD_POINT_DIRTY, 7U));
     TEST_ASSERT_EQUAL_INT(SW_OK, event_publish(EVT_OP_MODE_CONTEXT_SYNC, 0U));
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_publish(EVT_WASH_CHECKPOINT_REACHED, 0U));
     usleep(50000);
 
     TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_FOUND, observation_try_pop(&rec));

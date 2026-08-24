@@ -84,6 +84,8 @@ ports|history/整治记录与 architecture 记录顶层 ports/ 目录已删除�
 ports/outbound/safety|history 记录四单函数头已并入 safety_port.h
 services/dev_ctx|architecture/08 第 18.4 节记录该层已删除并入 device_snapshot
 adapters/providers|architecture/08 第 12 节的泛指写法，指 adapters 下各 providers 目录
+adapters/outbound/cloud/cloud_model_json.c|整治记录第 7 节记录该文件已重命名为 cloud_json.c
+adapters/outbound/cloud/providers/snack/snack_cloud_link_adapter.c|整治记录记载该文件已重命名为 snack_cloud_adapter.c
 "
 
 # -----------------------------------------------------------------------------
@@ -92,6 +94,10 @@ adapters/providers|architecture/08 第 12 节的泛指写法，指 adapters 下�
 SYMBOL_ALLOW="
 cloud_model_register_scheduler|architecture/08 第 22.2 节记录该函数已删除
 cloud_model_request_resync|architecture/08 第 22.2 节记录该函数已删除
+cloud_model_json_install|整治记录第 7 节记录该函数已重命名为 cloud_json_install
+cloud_model_validate|architecture/08 与整治记录记载登记后再校验；现已并入 cloud_model_register
+cloud_model_point_id_by_index|整治记录记载该函数；现由 watcher take_dirty 直接交出 id
+report_scheduler_request_resync|已由 EVT_CLOUD_CONNECTED 全量上报替代
 framework_reset_for_test|architecture/08 第 6 节记录该方案未被采用
 operational_snapshot_get|状态投影模块设计 4.6 节记录该单子域包装已删除
 safety_snapshot_get|状态投影模块设计 4.6 节记录该单子域包装已删除

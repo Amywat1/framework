@@ -6,6 +6,7 @@
  */
 
 #include "application/ports/inbound/command/command_port.h"
+#include "application/ports/outbound/cloud/link/cloud_link_port.h"
 #include "domain/ports/outbound/device/device_ops_port.h"
 #include "domain/ports/outbound/hal/hal_io_port.h"
 #include "domain/ports/outbound/hal/hal_voice_port.h"
@@ -62,6 +63,27 @@ static const device_command_port_ops_t s_cmd_ops = {
 };
 
 static const device_ops_t s_device_ops = {0};
+
+static bool fake_cloud_online(void)
+{
+    return true;
+}
+
+static sw_err_t fake_publish_properties(void)
+{
+    return SW_OK;
+}
+
+static void fake_set_recv(cloud_link_recv_fn_t cb)
+{
+    (void)cb;
+}
+
+static const cloud_link_ops_t s_cloud_ops = {
+    .is_online          = fake_cloud_online,
+    .publish_properties = fake_publish_properties,
+    .set_recv_handler   = fake_set_recv,
+};
 
 void setUp(void)
 {
@@ -143,6 +165,20 @@ static void test_name_lookup(void)
     TEST_ASSERT_EQUAL_STRING("hal_io", port_contract_name(PORT_REQ_HAL_IO));
     TEST_ASSERT_EQUAL_STRING("device_ops", port_contract_name(PORT_REQ_DEVICE_OPS));
     TEST_ASSERT_EQUAL_STRING("unknown", port_contract_name((port_requirement_t)(1U << 30)));
+    TEST_ASSERT_EQUAL_STRING("cloud_link", port_contract_name(PORT_REQ_CLOUD_LINK));
+    TEST_ASSERT_EQUAL_STRING("unknown", port_contract_name((port_requirement_t)(1U << 8)));
+}
+
+/* CLOUD_LINK 已合并原 report/property：只登记空表不算就位 */
+static void test_cloud_link_requires_property_ops(void)
+{
+    static const cloud_link_ops_t s_online_only = {.is_online = fake_cloud_online};
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, cloud_link_register(&s_online_only));
+    TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_INIT, port_contract_validate(PORT_REQ_CLOUD_LINK));
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, cloud_link_register(&s_cloud_ops));
+    TEST_ASSERT_EQUAL_INT(SW_OK, port_contract_validate(PORT_REQ_CLOUD_LINK));
 }
 
 int main(void)
@@ -156,5 +192,6 @@ int main(void)
     WDF_RUN_TEST(test_unregister_makes_validation_fail, "", "验证注销导致校验失败");
     WDF_RUN_TEST(test_unknown_bits_ignored, "", "验证未知位被忽略");
     WDF_RUN_TEST(test_name_lookup, "", "验证名称查询");
+    WDF_RUN_TEST(test_cloud_link_requires_property_ops, "", "验证云链路要求属性上报与下行指针");
     return UNITY_END();
 }

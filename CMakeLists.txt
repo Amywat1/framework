@@ -97,9 +97,7 @@ endif()
 
 if(WDF_ENABLE_SNACK_CLOUD_PROVIDER)
     add_library(wdf_cloud_snack STATIC
-        adapters/outbound/cloud/providers/snack/snack_cloud_link_adapter.c
-        adapters/outbound/cloud/providers/snack/snack_cloud_report_adapter.c
-        adapters/inbound/cloud/providers/snack/snack_cloud_command_adapter.c
+        adapters/outbound/cloud/providers/snack/snack_cloud_adapter.c
     )
     target_include_directories(wdf_cloud_snack PUBLIC
         ${CMAKE_SOURCE_DIR}

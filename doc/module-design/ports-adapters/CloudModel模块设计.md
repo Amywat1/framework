@@ -1,113 +1,60 @@
 # CloudModel 模块设计
 
-**版本**：v1.0  
-**状态**：已落地（物模型核心 + 端口契约 + 上报调度器 + Snack MQTT 适配器）  
-**最后同步代码**：2026-07-14（`cloud_point_*`、`cloud_model`、`report_scheduler`、Snack cloud provider）  
-**适用范围**：`domain/cloud/`、`application/ports/**/cloud/` / `domain` 无云入站、`adapters/outbound/cloud/`、`application/orchestrators/report_scheduler.*`、`adapters/**/cloud/providers/snack/`  
-**架构基线**：Ports & Adapters（六边形）+ 物模型点位表（复用 `point_table` 引擎）  
-**关键词**：cloud_point、物模型、属性下发、变更上报、DEVICE_CMD、`EVT_CLOUD_*`
+**版本**：v2.0  
+**状态**：已落地（物模型核心 + 单一链路端口 + 上报调度器 + Snack MQTT 适配器）  
+**最后同步代码**：2026-08-24  
+**适用范围**：`domain/cloud/`、`application/ports/outbound/cloud/link/`、`adapters/outbound/cloud/`、`application/orchestrators/report_scheduler.*`、`adapters/outbound/cloud/providers/snack/`  
+**架构基线**：Ports & Adapters + 物模型点位表（复用 `point_table` 引擎）  
+**关键词**：cloud_point、kind、on_change、属性下发、变更上报、COMMAND、`EVT_CLOUD_*`
 
 ---
 
 ## 1. 设计目标与核心理念
 
-云端通信模块负责把**云平台物模型**与设备内部状态/命令解耦：上行序列化为 JSON 属性，下行 JSON 解析后按语义路由到读/写/服务/标准设备命令。
+云端通信把**云平台物模型**与设备内部状态/命令解耦：上行序列化为 JSON 属性，下行 JSON 解析后按 kind 路由到遥测拒写、脉冲命令或写入。
+
+公开概念只有：`kind`、`on_change`、`cloud_model`、`cloud_json`、`cloud_link`、`scheduler`。
 
 ### 1.1 设计目标
 
-- **物模型表驱动**：项目层登记 `cloud_point_entry_t[]`，框架负责校验、编解码与语义 dispatch。
-- **语义分流**：同一 JSON 键根据 `semantic` 走遥测只读、脉冲命令、云端服务或手动点动四条路径。
-- **命令不直连领域**：`DEVICE_CMD` 语义经 `cloud_point_set_device_cmd_submit` 回调转交 `device_command_port`，与 CLI 等来源共用命令网关。
-- **变更驱动上报**：`ON_CHANGE` 策略点位由 watcher 周期 poll，变更时发布 `EVT_CLOUD_POINT_DIRTY`，供上报调度器增量上报。
-- **传输与模型分离**：MQTT/连接边沿经 `cloud_link_port`；属性 JSON 应用经 `cloud_property_port`；上报触发经 `cloud_report_port`。
+- **物模型表驱动**：项目层登记 `cloud_point_entry_t[]`，框架负责校验、编解码与分派。
+- **命令不直连领域**：`CLOUD_KIND_COMMAND` 经提交回调转交 `device_command_port`。
+- **变更驱动上报**：`on_change` 点位由 watcher 记脏集合，调度器每拍批量增量上报。
+- **单一云端口**：MQTT/连接边沿、属性全量/增量、下行 recv 都在 `cloud_link_port`。
 
-### 1.2 核心理念
-
-| 原则 | 规定 |
-|------|------|
-| 复用 point_table | `cloud_point_entry_t.base` 即 `point_table_entry_t`；JSON 解析/序列化委托通用引擎 |
-| 分阶段生命周期 | `cloud_model_register()` 只登记 bundle，`cloud_model_validate()` 做静态校验，`cloud_model_init()` 初始化 watcher，`cloud_model_json_install()` 安装属性下行，`report_scheduler_register()` 注册上报任务 |
-| 脉冲命令模型 | `DEVICE_CMD` 通常为 `bool` WO 点位；`true` 触发，`false` 忽略；`get` 用 `cloud_point_get_echo_idle` 回显空闲 |
-| 与命令网关正交 | cloud 层只识别 `dev_cmd_kind_t`；裁决与副作用在 `command_gateway` / `operational_mode` |
-| 事件通知边沿 | 连接上下线、点位脏标记走 `event_bus`；poll 线程不直接调用 MQTT |
-
-### 1.3 端到端数据流（概念）
+### 1.2 端到端数据流
 
 ```text
-                    ┌─────────────────────────────────────────┐
-  云平台 MQTT 下行   │  adapters（可选 provider / 项目 wiring）  │
-        │           │  recv → cloud_property.on_property_set  │
-        ▼           └──────────────────┬──────────────────────┘
-  JSON payload                         │
-                                       ▼
-                          cloud_point_apply_json()
-                                       │
-              ┌────────────────────────┼────────────────────────┐
-              ▼                        ▼                        ▼
-        TELEMETRY(拒写)          DEVICE_CMD              MANUAL_ACT / CLOUD_SERVICE
-              │                        │                        │
-              │              cloud_device_cmd_submit           base.set / service()
-              │                        │                        │
-              │                        ▼                        │
-              │        device_command_port.submit_async()       │
-              │              （command_gateway 仲裁）            │
-              ▼                        ▼                        ▼
-        point_apply_result      dev_cmd_receipt            领域/适配器回调
+  云平台 MQTT 下行
+        │
+        ▼
+  cloud_json_install 绑定的 recv
+        │
+        ▼
+  cloud_point_apply_json() → cloud_point_apply_value()
+        │
+        ├── TELEMETRY 拒写
+        ├── COMMAND  → device_command_port.submit_async()
+        └── WRITE    → base.set()
 
   上行：
-  cloud_point_to_json() / cloud_point_to_json_filtered()
-        │
-        ▼
-  cloud_report_port.publish_properties[_delta]()  ← report_scheduler
-        │
-        ▼
-  cloud_link_port.publish(topic, payload)
+  watcher poll → 脏集合 → publish_properties_delta
+  重连 / 周期  → publish_properties
 ```
 
 ---
 
 ## 2. 分层归属与依赖方向
 
-### 2.1 模块落位
-
 | 层次 | 路径 | 职责 |
 |------|------|------|
-| **物模型核心** | `domain/cloud/cloud_point.h` | 点位元模型、`cloud_point_entry_t`、对外 API 声明 |
-| **登记期校验** | `domain/cloud/cloud_point_validate.c` | id 唯一性、access/semantic/get/set/cmd_kind 一致性 |
-| **下行语义分派** | `domain/cloud/cloud_point_dispatch.c` | 按 semantic 分派已解析的值、拒绝只读点位、`DEVICE_CMD` 提交回调 |
-| **变更检测** | `domain/cloud/cloud_point_watcher.{h,c}` | `ON_CHANGE` shadow 比对，发布 `EVT_CLOUD_POINT_DIRTY` |
-| **通用引擎** | `common/point_table/` | 点位表模型、id 查找、apply 结果汇总；无 cJSON |
-| **点位表 JSON** | `adapters/outbound/serialization/json/point_table_json.*` | 点位表的 JSON 编解码 |
-| **入站端口** | `application/ports/inbound/cloud/property/property_port.h` | 属性下发 / 应答 |
-| **出站端口** | `application/ports/outbound/cloud/link/cloud_link_port.h` | 传输 init/online/publish/recv/poll |
-| **出站端口** | `application/ports/outbound/cloud/report/report_port.h` | 全量/增量属性上报触发 |
-| **端口注册** | `runtime/ports/port_registry_cloud.c` | `cloud_*_register()` / `get_ops()` |
-| **物模型注册** | `domain/cloud/cloud_model.{h,c}` | 物模型 bundle 注册、watcher init、点位 id 查询 |
-| **属性 JSON** | `adapters/outbound/cloud/cloud_point_json.*` | 点位表的属性 JSON 编解码 |
-| **property_port 安装** | `adapters/outbound/cloud/cloud_model_json.*` | `cloud_model_json_install()`、`cloud_model_apply_property_set()` |
-| **上报调度** | `application/orchestrators/report_scheduler.{h,c}` | 周期/事件策略驱动全量或增量上报 |
-| **命令词汇** | `domain/op_mode/device_command.h` | `dev_cmd_kind_t`（DEVICE_CMD 映射目标） |
-| **事件契约** | `common/event_types.h` | `EVT_CLOUD_*` |
-| **项目 wiring/hooks** | `projects/*/wiring.c`、`project_hooks.c` | 物模型表注册、validate、watcher init、上报任务注册、port 适配器注册 |
+| 物模型核心 | `domain/cloud/` | kind、校验、分派、watcher 脏集合 |
+| JSON | `adapters/outbound/cloud/cloud_point_json.*`、`cloud_json.*` | 编解码、`cloud_json_install` |
+| 链路端口 | `application/ports/outbound/cloud/link/cloud_link_port.h` | 传输、属性上报、recv |
+| 调度 | `application/orchestrators/report_scheduler.*` | 单一周期任务 |
+| provider | `adapters/outbound/cloud/providers/snack/` | Snack MQTT |
 
-### 2.2 依赖方向
-
-```text
-adapters / report_scheduler / cloud_model
-        │ cloud_*_port
-        ▼
-   cloud/cloud_point_*
-        │ point_table、device_command（仅 kind 枚举）
-        ▼
-   common/point_table、common/event_types
-```
-
-**依赖禁令**：
-
-- `domain/cloud/` 不得依赖 MQTT SDK、云平台 SDK 或 `application/` 业务模块，**也不得解析 JSON**——它是 domain 子域，受「domain 不解析序列化格式」约束，编解码在 `adapters/outbound/cloud/`。
-- `cloud_point` 不得直接调用 `operational_mode` 或项目编排器；`DEVICE_CMD` 必须经注册的 submit 回调。
-- 端口头文件不得包含适配器实现；适配器在 `adapters/` 注册 ops。
-- 上报策略不经 `cloud_model` 转发：`report_policy_entry_t` 是 `report_scheduler` 的输入格式，由项目直接注册到调度器。曾经的转发路径使当时的顶层 `cloud/` 反向依赖 `application/`。
+**依赖禁令**：`domain/cloud/` 不得解析 JSON、不得依赖 MQTT SDK 或 `application/`。COMMAND 必须经提交回调。
 
 ---
 
@@ -115,176 +62,92 @@ adapters / report_scheduler / cloud_model
 
 | 文件 | 职责 |
 |------|------|
-| `domain/cloud/cloud_point.h` | 枚举、结构体、validate/to_json/apply_json API |
-| `domain/cloud/cloud_point_validate.c` | 登记期表项校验 |
-| `domain/cloud/cloud_point_dispatch.c` | 按 semantic 语义分派已解析的值、device_cmd 回调注册；无序列化 |
-| `domain/cloud/cloud_point_watcher.h` | watcher init/poll 接口 |
-| `domain/cloud/cloud_point_watcher.c` | shadow 状态、变更发布 |
-| `application/ports/inbound/cloud/property/property_port.h` | 属性下发 port |
-| `application/ports/outbound/cloud/link/cloud_link_port.h` | 链路 port |
-| `application/ports/outbound/cloud/report/report_port.h` | 上报 port |
-| `domain/cloud/cloud_model.{h,c}` | bundle 注册、watcher init、点位 id 查询 |
-| `adapters/outbound/cloud/cloud_point_json.*` | 属性 JSON 编解码 |
-| `adapters/outbound/cloud/cloud_model_json.*` | property_port 安装与下行应用入口 |
-| `runtime/ports/port_registry_cloud.c` | 三端 cloud port 注册器 |
-| `tests/cloud/test_cloud_point_validate.c` | 校验单元测试 |
-| `tests/cloud/test_cloud_point_dispatch.c` | dispatch / JSON 单元测试 |
-| `tests/cloud/test_cloud_point_watcher.c` | ON_CHANGE + event 单元测试 |
-| `tests/ports/test_cloud_ports.c` | port register/get 单元测试 |
+| `domain/cloud/cloud_point.h` | kind、条目、validate / apply_value |
+| `domain/cloud/cloud_point_validate.c` | 登记期校验 |
+| `domain/cloud/cloud_point_dispatch.c` | 按 kind 分派 |
+| `domain/cloud/cloud_point_watcher.*` | shadow 与脏集合 |
+| `domain/cloud/cloud_model.*` | 注册（含校验）、查询 |
+| `adapters/outbound/cloud/cloud_json.*` | 安装下行、构建属性 JSON |
+| `adapters/outbound/cloud/cloud_point_json.*` | 点位表 JSON 编解码 |
+| `runtime/ports/port_registry_cloud.c` | `cloud_link_register` |
+| `tests/cloud/test_cloud_point_validate.c` | 校验 |
+| `tests/cloud/test_cloud_point_dispatch.c` | 分派 / JSON |
+| `tests/cloud/test_cloud_point_watcher.c` | 脏集合 |
+| `tests/cloud/test_cloud_model_report_scheduler.c` | 模型 + 调度 |
 
 ---
 
 ## 4. 数据模型
 
-### 4.1 云端点位条目
-
 ```c
+typedef enum {
+    CLOUD_KIND_TELEMETRY = 0,
+    CLOUD_KIND_COMMAND,
+    CLOUD_KIND_WRITE,
+} cloud_point_kind_t;
+
 typedef struct {
-    point_table_entry_t    base;          /* id / type / get / set */
-    cloud_point_access_t   access;        /* RO / RW / WO */
-    cloud_point_semantic_t semantic;      /* 语义分流 */
-    cloud_report_policy_t  report_policy; /* 上报策略 */
-    dev_cmd_kind_t         cmd_kind;      /* DEVICE_CMD 专用 */
-    cloud_service_fn_t     service;       /* CLOUD_SERVICE 专用 */
+    point_table_entry_t base;
+    cloud_point_kind_t  kind;
+    bool                on_change;
+    dev_cmd_kind_t      cmd_kind;
 } cloud_point_entry_t;
 ```
 
-### 4.2 访问权限（access）
+| kind | 下行 | 约束 |
+|------|------|------|
+| TELEMETRY | 拒写 | 必须有 get，不得有 set |
+| COMMAND | `val.b == true` 时提交 `cmd_kind` | 必须是 bool，`cmd_kind ≠ NONE` |
+| WRITE | 调用 `base.set` | 必须有 set |
 
-| 枚举 | 含义 | get/set 约束 |
-|------|------|--------------|
-| `CLOUD_POINT_ACCESS_RO` | 只读遥测 | 必须有 `get`；不得有 `set` |
-| `CLOUD_POINT_ACCESS_RW` | 读写 | 按 semantic 决定 |
-| `CLOUD_POINT_ACCESS_WO` | 只写 | 通常无 `get`（脉冲命令除外，用 echo_idle） |
+`on_change`：必须有 get，禁止 `POINT_TYPE_FLOAT`。
 
-### 4.3 语义类型（semantic）
+容量：`CLOUD_POINT_TABLE_MAX` 96；`CLOUD_REPORT_JSON_MAX` 4096。
 
-| 枚举 | 下行行为 | 典型用途 |
-|------|----------|----------|
-| `CLOUD_POINT_SEM_TELEMETRY` | 拒绝 set（只读） | 速度、状态、计数 |
-| `CLOUD_POINT_SEM_DEVICE_CMD` | `val.b == true` 时提交 `cmd_kind` | 启动/停止洗车、复位等标准命令 |
-| `CLOUD_POINT_SEM_CLOUD_SERVICE` | 调用 `service(val)` | 云平台专有服务（参数下发、OTA 触发等） |
-| `CLOUD_POINT_SEM_MANUAL_ACT` | 调用 `base.set(val)` | 手动点动、调试写线圈 |
-
-### 4.4 上报策略（report_policy）
-
-| 枚举 | 含义 |
-|------|------|
-| `CLOUD_REPORT_PERIODIC` | 周期全量/批次上报（由 report_scheduler 驱动） |
-| `CLOUD_REPORT_ON_CHANGE` | watcher poll 检测变更 → `EVT_CLOUD_POINT_DIRTY` |
-| `CLOUD_REPORT_RESYNC_ONLY` | 仅重连后全量同步 |
-| `CLOUD_REPORT_NEVER` | 不上报（本地调试或内部点位） |
-
-### 4.5 容量常量
-
-两者定义在 `domain/cloud/cloud_point.h`：
-
-| 宏 | 值 | 说明 |
-|----|-----|------|
-| `CLOUD_POINT_TABLE_MAX` | 96 | 点位表条目上限；同时是 watcher shadow 表长度和 JSON 序列化栈缓冲上限 |
-| `CLOUD_REPORT_JSON_MAX` | 4096 | 上报 JSON 缓冲上限（provider 适配器使用） |
-
-`cloud_point_watcher_init()` 在 `count > CLOUD_POINT_TABLE_MAX` 时返回参数错误，JSON 序列化在超限时返回 `SW_ERR_OVERFLOW`。
-
-### 4.6 云端相关事件
-
-| 事件 | 发布方 | `param` 含义 |
-|------|--------|--------------|
-| `EVT_CLOUD_CONNECTED` | link 适配器 `poll()` 检测上升沿 | 0 |
-| `EVT_CLOUD_DISCONNECTED` | link 适配器 `poll()` 检测下降沿 | 0 |
-| `EVT_CLOUD_POINT_DIRTY` | `cloud_point_watcher_poll()` | 点位表索引 `i` |
+云事件：`EVT_CLOUD_CONNECTED` / `EVT_CLOUD_DISCONNECTED`（link 适配器 poll 边沿）。脏点不走事件。
 
 ---
 
 ## 5. 核心模块行为契约
 
-### 5.1 `cloud_point_validate`
+### 5.1 `cloud_point_validate` / `cloud_model_register`
 
-| 检查项 | 失败条件 |
-|--------|----------|
-| 表非空 | `entries == NULL` 或 `count == 0` |
-| id 唯一 | 重复 id |
-| id 非空 | 空字符串 |
-| RO | 缺 `get` 或存在 `set` |
-| TELEMETRY | 缺 `get` |
-| DEVICE_CMD | `cmd_kind == DEV_CMD_NONE` |
-| CLOUD_SERVICE | `service == NULL` |
-| MANUAL_ACT | `set == NULL` |
-
-校验失败返回 `SW_ERR_PARAM` 并打 `LOG_ERROR`；项目应在 `project_validate()` 中调用 `cloud_model_validate()`，失败则中止启动。
+`cloud_model_register()` 先校验再登记，失败不留下半份注册。空表、超 96、id 重复、kind 约束失败均返回 `SW_ERR_PARAM`。
 
 ### 5.2 `cloud_point_apply_json`（下行）
 
-1. 解析 JSON 对象为 key-value 迭代。
-2. 按 id 在表中查找（条目 stride 为 `sizeof(cloud_point_entry_t)`）。
-3. 未知 id → `rejected++`，记录错误，**继续**下一 key（部分成功模型）。
-4. RO 或 TELEMETRY → 拒写，`SW_ERR_STATE`。
-5. 类型解析失败 → `rejected++`。
-6. 调用 `cloud_point_apply_value()` 按 semantic 路由（domain 侧，不接触 JSON）。
-7. 函数总返回值恒为 `SW_OK`（除非入参非法或 JSON 解析失败）；逐 key 成败看 `point_apply_result_t`。
+根必须是 JSON 对象；载荷长于 `CLOUD_REPORT_JSON_MAX` 返回 `SW_ERR_OVERFLOW`。未知 id 继续下一 key（部分成功）。函数在解析成功时返回 `SW_OK`，逐 key 成败看 `point_apply_result_t`。
 
-**DEVICE_CMD dispatch 规则**：
+COMMAND：`false` 空操作；`true` 调提交回调，未注册返回 `SW_ERR_NOT_INIT`。
 
-- `val.b == false` → 直接 `SW_OK`（脉冲空闲，不提交命令）。
-- `val.b == true` → 调用 `s_device_cmd_submit(cmd_kind)`；未注册回调返回 `SW_ERR_NOT_INIT`。
+### 5.3 `cloud_point_watcher`
 
-### 5.3 `cloud_point_to_json` / `cloud_point_to_json_filtered`（上行）
+`poll` 比对 shadow 后置脏。`take_dirty` 交出点位 id 并清除标记；上报失败由调度器 `restore_dirty`。不发布事件、不发 MQTT。
 
-- 收集所有 `get != NULL` 的 base 条目，委托 `point_table_to_json_ex` / `point_table_to_json_filtered`。
-- `cloud_point_set_get_fail_policy()` 控制某个 get 失败时是 omit / abort / null。
+### 5.4 `cloud_link_ops_t`
 
-### 5.4 `cloud_point_watcher`
+`init` / `is_online` / `poll` / `publish` / `publish_properties` / `publish_properties_delta` / `set_recv_handler`。字段可选，调用方逐个判空。
 
-| API | 行为 |
-|-----|------|
-| `cloud_point_watcher_init(entries, count)` | 保存表指针；对 `ON_CHANGE` 且可读点位建立初始 shadow |
-| `cloud_point_watcher_poll()` | 周期调用；值变化或首次有效读 → `event_publish(EVT_CLOUD_POINT_DIRTY, index)` |
-
-watcher **不**直接上报 MQTT；消费方（report_scheduler）订阅 `EVT_CLOUD_POINT_DIRTY` 后调用 `cloud_report_get_ops()->publish_properties_delta()`。
-
-### 5.5 端口 API 摘要
-
-**cloud_property_ops_t**
-
-| 方法 | 职责 |
-|------|------|
-| `on_property_set(json, result)` | 适配器入口：通常转调 `cloud_point_apply_json` |
-| `reply_property_set(request_json, result)` | 可选：向云端回复 apply 结果 |
-
-**cloud_link_ops_t**
-
-| 方法 | 职责 |
-|------|------|
-| `init()` | 读取 deploy 凭证，建立 MQTT 等 |
-| `is_online()` | 当前链路是否可用 |
-| `poll()` | 检测连接边沿 → 发布 `EVT_CLOUD_*` |
-| `publish(topic, payload)` | 发送上行消息 |
-| `set_recv_handler(cb)` | 注册下行 JSON 回调 |
-
-**cloud_report_ops_t**
-
-| 方法 | 职责 |
-|------|------|
-| `publish_properties()` | 全量属性上报 |
-| `publish_properties_delta(ids, count)` | 指定 id 增量上报 |
+`PORT_REQ_CLOUD_LINK` 检查 `is_online`、`publish_properties`、`set_recv_handler` 均已填。属性上报与下行不再是独立端口位。
 
 ---
 
 ## 6. 与命令网关的衔接
 
-云端 `DEVICE_CMD` 语义**不**在 cloud 层构造完整 `dev_cmd_t`，只传递 `dev_cmd_kind_t`。项目 wiring 典型接法：
+COMMAND 不在 cloud 层构造完整 `dev_cmd_t`，只传 `dev_cmd_kind_t`。项目 wiring：
 
-```text
-cloud_point_set_device_cmd_submit(my_submit);
-
-my_submit(kind):
+```c
+static sw_err_t cloud_cmd_submit(dev_cmd_kind_t kind)
+{
     dev_cmd_t cmd = dev_cmd_make_simple(kind);
     uint64_t  request_id;
+
     cmd.meta.source = DEV_CMD_SOURCE_CLOUD;
     return device_command_port_get_ops()->submit_async(&cmd, &request_id);
+}
 ```
 
-这样云端脉冲命令与 CLI、仿真测试共用同一套 `command_gateway` → `operational_mode` → `side_effect_router` 流水线。详见 `doc/module-design/domain/命令网关模块设计.md`。
+`cloud_json_install(cloud_cmd_submit, snack_cloud_property_reply)` 同时登记该回调。
 
 ---
 
@@ -293,69 +156,28 @@ my_submit(kind):
 > **示例（完整框架 wiring，仅供参考）**
 
 ```c
-static sw_err_t cloud_cmd_submit(dev_cmd_kind_t kind)
-{
-    dev_cmd_t cmd = dev_cmd_make_simple(kind);
-    uint64_t request_id;
-
-    cmd.meta.source = DEV_CMD_SOURCE_CLOUD;
-    return device_command_port_get_ops()->submit_async(&cmd, &request_id);
-}
-
 void wiring_cloud(void)
 {
     static const cloud_point_entry_t s_model[] = { /* 项目物模型表 */ };
-    static const cloud_model_bundle_t s_bundle = {
-        .entries = s_model,
-        .count   = ARRAY_SIZE(s_model),
-    };
-
-    cloud_model_register(&s_bundle);
-    cloud_point_set_device_cmd_submit(cloud_cmd_submit);
-    /* cloud_link_register / cloud_property_register / cloud_report_register */
+    snack_cloud_adapter_register();
+    snack_cloud_adapter_configure(pk, sn, secret, topic_up, topic_reply);
+    cloud_model_register(s_model, ARRAY_SIZE(s_model));
+    cloud_json_install(cloud_cmd_submit, snack_cloud_property_reply);
 }
+
+/* project_register_runtime_tasks */
+report_scheduler_start(500U, 30000U);
 ```
 
-`cloud_model_bundle_t` 只有 `entries` 与 `count`。上报策略与属性回复回调都不在其中：前者是 `report_scheduler` 的输入格式，后者是 `property_port` 的 JSON 契约的一部分，各自由对应层接收。
-
-生命周期 hook：
-
-```text
-project_validate()
-    └─ cloud_model_validate()
-
-project_init_adapters()
-    ├─ cloud_model_init()                 // watcher shadow 初始化
-    └─ cloud_model_json_install(reply)    // 安装 property_port 下行
-
-project_register_runtime_tasks()
-    └─ report_scheduler_register(policies, count)
-```
-
-若物模型中的点位需要按 index 反查 id（增量上报用），还需 `report_scheduler_register_point_resolver(cloud_model_point_id_by_index)`。
+`full_period_ms == 0` 表示只在重连时全量。`report_scheduler_start` 初始化 watcher，并订阅 `EVT_CLOUD_CONNECTED` 做全量重同步。
 
 ---
 
 ## 8. 实现职责边界
 
-### 8.1 固化在 cloud 核心中
+固化在框架：kind 分派、JSON 编解码、登记期校验、on_change 脏集合、单一 poll 写者。
 
-| 职责 | 说明 |
-|------|------|
-| 语义 dispatch | TELEMETRY 拒写、DEVICE_CMD 脉冲、service/manual 分流 |
-| JSON 编解码 | 基于 point_table + cJSON |
-| 登记期 validate | 表项静态约束 |
-| ON_CHANGE shadow | 变更检测与 `EVT_CLOUD_POINT_DIRTY` |
-
-### 8.2 由项目 / 适配器决定
-
-| 职责 | 决定方 |
-|------|--------|
-| 物模型表内容 | 项目 wiring 传入 `cloud_model_bundle_t` |
-| MQTT Topic / 凭证 | deploy_store + link 适配器 |
-| 上报时机与节流 | 项目直接向 `report_scheduler_register()` 注册 `report_policy_entry_t[]` |
-| DEVICE_CMD → dev_cmd_t 填充 | wiring 中 submit 回调（载荷、request_id） |
-| 连接边沿检测细节 | link 适配器 `poll()` |
+由项目 / 适配器决定：物模型表、MQTT topic / 凭证、`poll_ms` / `full_period_ms`、COMMAND 到 `dev_cmd_t` 的填充。
 
 ---
 
@@ -363,82 +185,40 @@ project_register_runtime_tasks()
 
 | 测试 | 覆盖点 |
 |------|--------|
-| `test_cloud_point_validate` | id 唯一性、access/semantic/get/set/cmd_kind 一致性 |
-| `test_cloud_point_dispatch` | 按 semantic 分派、只读点位拒写、DEVICE_CMD 脉冲语义、部分成功模型 |
-| `test_cloud_point_watcher` | ON_CHANGE shadow 比对与 `EVT_CLOUD_POINT_DIRTY` 发布 |
-| `test_cloud_model_report_scheduler` | 周期/事件策略驱动的全量与增量上报 |
-| `test_cloud_ports` | 三端 cloud port 注册、NULL 解除、缺必填字段被拒、复位清空 |
-| `test_point_table` | 通用点位表模型查表与 apply 结果汇总 |
-| `test_snack_cloud_adapters` | vendor MQTT link 与属性下行适配器（`WDF_TEST_VENDOR_PROVIDERS=ON` 才编，默认 CI 不跑） |
-
-用例数与通过情况以 `scripts/check_all.sh` 生成的 `build-check/test-results/report.html` 为准，本文不记录动态结论（原则见 `tests/reports/README.md`）。
+| `test_cloud_point_validate` | id 唯一、kind 约束、on_change 禁止 FLOAT |
+| `test_cloud_point_dispatch` | 分派、遥测拒写、COMMAND 脉冲、非对象根、部分成功 |
+| `test_cloud_point_watcher` | 脏集合与 restore |
+| `test_cloud_model_report_scheduler` | 属性构建、重连全量、脏点增量 |
+| `test_cloud_ports` | link 注册 / NULL 解除 / 复位 |
+| `test_snack_cloud_adapters` | Snack MQTT（`WDF_TEST_VENDOR_PROVIDERS=ON`） |
 
 ---
 
 ## 10. 扩展指南
 
-### 10.1 新增物模型属性
+新增属性：在项目表追加条目，选 kind 与 `on_change`，保证 `cloud_model_register` 能通过。
 
-1. 在项目物模型表追加 `cloud_point_entry_t`。
-2. 选择 `access`、`semantic`、`report_policy`。
-3. 实现 `get`/`set`/`service`/`cmd_kind` 之一。
-4. 确保 `project_validate()` 调用 `cloud_model_validate()`。
-5. 若 `ON_CHANGE`，确保 `project_init_adapters()` 调用 `cloud_model_init()`，并在 `project_register_runtime_tasks()` 调用 `report_scheduler_register()`。
+新增 COMMAND 种类：先扩 `dev_cmd_kind_t` 与命令矩阵，再在物模型表加 bool 点位。
 
-### 10.2 新增 DEVICE_CMD 种类
-
-1. 在 `device_command.h` 扩展 `dev_cmd_kind_t`（domain 闭集）。
-2. 在 `operational_mode` 命令矩阵与 `side_effect_router` 中登记（见命令网关文档）。
-3. 物模型表新增 WO bool 点位，`semantic = DEVICE_CMD`，`cmd_kind` 指向新枚举。
-
-### 10.3 禁止的扩展方式
-
-- 在 `cloud_point_dispatch.c` 内硬编码机型分支或云平台字段名。
-- `DEVICE_CMD` 绕过 `device_command_port` 直接调 orchestrator。
-- 在 watcher 内同步发送 MQTT（阻塞 poll 线程）。
-- 在 `param` 未定义的 event 载荷中传递 JSON 指针。
+禁止：在 dispatch 里写机型分支；COMMAND 绕过 `device_command_port`；在 watcher 里发 MQTT。
 
 ---
 
-## 11. 当前落地状态（wash-device-framework）
+## 11. 当前落地状态
 
 | 能力 | 状态 |
 |------|------|
-| `cloud_point` 核心（validate/dispatch/watcher） | ✅ 已迁入 |
-| cloud 三端 port 契约 + port_registry | ✅ 已迁入 |
-| `cloud_model` | ✅ 已迁入 |
-| `report_scheduler` | ✅ 已迁入 |
-| 单元测试 | ✅ validate / dispatch / watcher / ports / model+scheduler；用例数见生成报告 |
-| Snack MQTT link 适配器 | ✅ 已迁入，`WDF_ENABLE_SNACK_CLOUD_PROVIDER` 可选启用 |
-| Snack cloud_property 适配器 | ✅ 已迁入，负责下行属性转 `cloud_model_apply_property_set()` |
-| Demo wiring / 完整物模型表 | 项目侧职责，当前 Demo 未接入完整云物模型 |
-| 与 command_gateway 联调 | 测试层分别覆盖；端到端 DEVICE_CMD 由项目 wiring 连接 |
+| 物模型 kind / validate / dispatch / watcher | ✅ |
+| 单一 `cloud_link_port` | ✅ |
+| `cloud_json_install` | ✅ |
+| `report_scheduler_start` | ✅ |
+| Snack MQTT 适配器 | ✅ 可选 `WDF_ENABLE_SNACK_CLOUD_PROVIDER` |
+| Demo 完整物模型表 | 项目侧职责 |
 
 ---
 
 ## 12. 相关文档
 
-- `doc/module-design/domain/命令网关模块设计.md` — `device_command_port` 与 `DEVICE_CMD` 衔接
-- `doc/module-design/domain/报警系统模块设计.md` — 与命令/安全域正交；报警态可通过 `safety_snapshot` 读取
-- `doc/module-design/runtime/EventBus模块设计.md` — `EVT_CLOUD_*` 分发语义
-- `doc/module-design/ports-adapters/Storage端口与方案资产模块设计.md` — deploy_store（MQTT 凭证等）
-- `common/point_table/point_table.h` — 通用点位引擎 API
-
----
-
-## 附录 A：结构自检对照
-
-对照 `../README.md`「单篇文档建议结构」逐项自检。
-
-| 检查项 | 状态 |
-|--------|------|
-| 分层图 + 依赖禁令 | §2 |
-| 文件清单 | §3 |
-| 数据模型 + API 行为 | §4、§5 |
-| 与命令网关衔接 | §6 |
-| 测试覆盖 | §9 |
-| 扩展指南 | §10 |
-| 落地状态 | §11 |
-| 无函数级 walkthrough | 已遵守 |
-| 无测试/构建命令 | 已遵守 |
-| 示例已标注「仅供参考」 | §7 |
+- `doc/module-design/domain/命令网关模块设计.md`
+- `doc/module-design/runtime/EventBus模块设计.md`
+- `common/point_table/point_table.h`

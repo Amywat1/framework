@@ -178,9 +178,7 @@ if(WDF_TEST_VENDOR_PROVIDERS)
 
     add_unit_test(test_snack_cloud_adapters
         ${CMAKE_CURRENT_SOURCE_DIR}/adapters/test_snack_cloud_adapters.c
-        ${WDF_ROOT}/adapters/outbound/cloud/providers/snack/snack_cloud_link_adapter.c
-        ${WDF_ROOT}/adapters/outbound/cloud/providers/snack/snack_cloud_report_adapter.c
-        ${WDF_ROOT}/adapters/inbound/cloud/providers/snack/snack_cloud_command_adapter.c
+        ${WDF_ROOT}/adapters/outbound/cloud/providers/snack/snack_cloud_adapter.c
         ${WDF_ROOT}/tests/stubs/snack_cloud/snack_mqtt_fake.c
         ${WDF_ROOT}/tests/stubs/snack_cloud/cloud_model_fake.c
         ${WDF_ROOT}/common/point_table/point_table.c
@@ -289,10 +287,8 @@ add_unit_test(test_cloud_point_dispatch
 add_unit_test(test_cloud_point_watcher
     ${CMAKE_CURRENT_SOURCE_DIR}/cloud/test_cloud_point_watcher.c
     ${WDF_ROOT}/domain/cloud/cloud_point_watcher.c
-    ${WDF_ROOT}/runtime/event_bus/event_bus.c
     ${WDF_ROOT}/common/log.c
     ${WDF_ROOT}/common/sw_mutex.c
-    ${WDF_ROOT}/common/time_util.c
 )
 
 add_unit_test(test_cloud_model_report_scheduler
@@ -301,7 +297,7 @@ add_unit_test(test_cloud_model_report_scheduler
     ${WDF_ROOT}/domain/cloud/cloud_point_dispatch.c
     ${WDF_ROOT}/domain/cloud/cloud_point_validate.c
     ${WDF_ROOT}/domain/cloud/cloud_point_watcher.c
-    ${WDF_ROOT}/adapters/outbound/cloud/cloud_model_json.c
+    ${WDF_ROOT}/adapters/outbound/cloud/cloud_json.c
     ${WDF_ROOT}/adapters/outbound/cloud/cloud_point_json.c
     ${WDF_ROOT}/application/orchestrators/report_scheduler.c
     ${WDF_ROOT}/common/point_table/point_table.c

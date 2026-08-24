@@ -21,12 +21,6 @@ extern "C" {
 #endif
 
 /**
- * @brief  设置上行 get 失败时的处理策略
- * @param  policy  跳过该 key / 整包失败 / 写入 null
- */
-void cloud_point_set_get_fail_policy(cloud_point_get_fail_policy_t policy);
-
-/**
  * @brief  将全部可读点位序列化为属性 JSON
  * @retval SW_OK           成功
  * @retval SW_ERR_PARAM    入参非法

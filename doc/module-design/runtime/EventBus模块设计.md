@@ -175,14 +175,14 @@ typedef struct
 | 安全姿态 | `EVT_CAT_SAFETY` | `alarm_bridge`（边沿）；`safety_session_coordinator` 发完成事件 | `EVT_SAFETY_LOCKOUT`、`EVT_SAFETY_NOMINAL`、`EVT_ABORT_HOME_DONE` |
 | 报警生命周期 | `EVT_CAT_ALARM` | `alarm_bridge` | `EVT_ALARM_TRIGGERED`、`EVT_ALARM_CLEARED`、`EVT_ALARM_RESYNC` |
 | 外部命令 | `EVT_CAT_CMD` | （历史/测试） | `EVT_CMD_ORDER` 仅测试；网关唤醒已改 `cmd_control` 信号量 |
-| 云端 | `EVT_CAT_CLOUD` | 云链路适配器 | `EVT_CLOUD_CONNECTED`、`EVT_CLOUD_DISCONNECTED`、`EVT_CLOUD_POINT_DIRTY` |
+| 云端 | `EVT_CAT_CLOUD` | 云链路适配器 | `EVT_CLOUD_CONNECTED`、`EVT_CLOUD_DISCONNECTED` |
 | 洗车流程 | `EVT_CAT_WASH` | 项目洗车编排器 | `EVT_WASH_DONE`、`EVT_WASH_ABORTED`、`EVT_WASH_SESSION_STARTED`、`EVT_WASH_CHECKPOINT_REACHED` |
 | 运行模式 | `EVT_CAT_OP_MODE` | `operational_mode` 聚合 | `EVT_OP_MODE_CHANGED`、`EVT_ABORT_HOME_REQUESTED`、`EVT_OP_MODE_RECOVERY_*` 等 |
 
 **明确不走总线的能力**（由注释固化，不得改为 event）：
 
 - 限位信号等高频 IO 状态：由持有该机构的模块直接轮询，不逐次广播。
-- 运动命令是否被接受：由 `motor_exec_run()` 等端口调用的同步返回值表达。
+- 运动命令是否被接受：由 `motor_axis_run()` 等会话调用的同步返回值（`motor_cmd_result_t`）表达。
 - 运动过程结局（含故障）：由 `motion_lifecycle_opts_t.on_motion_end` 回调传递 `motor_event_t`。
 
 判据是「需不需要跨模块异步通知事实」。机构完成这类事实走总线（`EVT_COMP_MOTION_COMPLETED`），而每拍都在变的输入状态、以及需要立即拿到结果的调用不走。
@@ -306,7 +306,7 @@ typedef void (*event_handler_t)(const event_t *evt);
 | `alarm_bridge` | `EVT_ALARM_RESYNC` | 丢弃的域事件条数（仅供诊断） |
 | `alarm_bridge` | `EVT_SAFETY_LOCKOUT` | 0 |
 | wash session | `EVT_WASH_DONE` | 结果码 |
-| `snack_cloud_link_adapter` | `EVT_CLOUD_CONNECTED` | 0 |
+| `snack_cloud_adapter` | `EVT_CLOUD_CONNECTED` | 0 |
 | HAL / 信号滤波 | `EVT_HW_IO_OFFLINE` | 子板号等标量 |
 
 以上为领域衔接示例；具体 `param` 编码由各领域模块文档规定，总线不解析。

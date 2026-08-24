@@ -7,11 +7,9 @@
 
 #include "runtime/ports/port_contract.h"
 
-#include "application/ports/inbound/cloud/property/property_port.h"
 #include "application/ports/inbound/command/command_port.h"
 #include "application/ports/inbound/safety/alarm_binding_port.h"
 #include "application/ports/outbound/cloud/link/cloud_link_port.h"
-#include "application/ports/outbound/cloud/report/report_port.h"
 #include "common/log.h"
 #include "domain/ports/outbound/device/device_ops_port.h"
 #include "domain/ports/outbound/hal/hal_io_port.h"
@@ -65,15 +63,10 @@ static bool device_ops_present(void)
 }
 static bool cloud_link_present(void)
 {
-    return cloud_link_get_ops() != NULL;
-}
-static bool cloud_report_present(void)
-{
-    return cloud_report_get_ops() != NULL;
-}
-static bool cloud_property_present(void)
-{
-    return cloud_property_get_ops() != NULL;
+    const cloud_link_ops_t *ops = cloud_link_get_ops();
+
+    return (ops != NULL) && (ops->is_online != NULL) && (ops->publish_properties != NULL)
+           && (ops->set_recv_handler != NULL);
 }
 static bool deploy_store_present(void)
 {
@@ -102,8 +95,6 @@ static const port_contract_entry_t k_entries[] = {
     {PORT_REQ_ALARM_BINDING,  "alarm_binding",         alarm_binding_present },
     {PORT_REQ_DEVICE_OPS,     "device_ops",            device_ops_present    },
     {PORT_REQ_CLOUD_LINK,     "cloud_link",            cloud_link_present    },
-    {PORT_REQ_CLOUD_REPORT,   "cloud_report",          cloud_report_present  },
-    {PORT_REQ_CLOUD_PROPERTY, "cloud_property",        cloud_property_present},
     {PORT_REQ_DEPLOY_STORE,   "deploy_store",          deploy_store_present  },
     {PORT_REQ_PARAM_STORE,    "param_store",           param_store_present   },
     {PORT_REQ_PROGRAM_LOADER, "engine_program_loader", program_loader_present},

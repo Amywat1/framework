@@ -1,12 +1,11 @@
 /**
  * @file    cloud_point_dispatch.c
- * @brief   云端物模型点位按语义分派写入
+ * @brief   云端物模型点位按 kind 分派写入
  * @author  HUWANGWEI
  * @date    2026-07-08
  *
- * @note    本文件只处理"已解析的值该交给谁"这一语义规则：遥测点位拒绝写入、
- *          设备命令经回调提交、云服务调 service、手动动作调 set。
- *          JSON 编解码在 `adapters/outbound/cloud/cloud_point_json.c`。
+ * @note    本文件只处理"已解析的值该交给谁"：遥测拒绝写入、命令经回调提交、
+ *          写入调 set。JSON 编解码在 `adapters/outbound/cloud/cloud_point_json.c`。
  */
 
 #include "common/log.h"
@@ -61,15 +60,13 @@ sw_err_t cloud_point_apply_value(const cloud_point_entry_t *entry,
         return SW_ERR_PARAM;
     }
 
-    /* 只读点位在此拒绝：access 与 semantic 两个维度都可能声明只读 */
-    if ((entry->access == CLOUD_POINT_ACCESS_RO) || (entry->semantic == CLOUD_POINT_SEM_TELEMETRY)) {
-        LOG_WARN("cloud_point: id=%s is read-only", entry->base.id);
+    switch (entry->kind) {
+    case CLOUD_KIND_TELEMETRY:
+        LOG_WARN("cloud_point: id=%s is telemetry (read-only)", entry->base.id);
         point_apply_result_record_error(result, entry->base.id, SW_ERR_STATE);
         return SW_ERR_STATE;
-    }
 
-    switch (entry->semantic) {
-    case CLOUD_POINT_SEM_DEVICE_CMD:
+    case CLOUD_KIND_COMMAND:
         /* 脉冲语义：只有置真才触发，置假是回落，不构成命令 */
         if (!val->b) {
             return SW_OK;
@@ -80,18 +77,7 @@ sw_err_t cloud_point_apply_value(const cloud_point_entry_t *entry,
         }
         return ret;
 
-    case CLOUD_POINT_SEM_CLOUD_SERVICE:
-        if (entry->service == NULL) {
-            point_apply_result_record_error(result, entry->base.id, SW_ERR_NOT_INIT);
-            return SW_ERR_NOT_INIT;
-        }
-        ret = entry->service(val);
-        if (ret != SW_OK) {
-            point_apply_result_record_error(result, entry->base.id, ret);
-        }
-        return ret;
-
-    case CLOUD_POINT_SEM_MANUAL_ACT:
+    case CLOUD_KIND_WRITE:
         if (entry->base.set == NULL) {
             point_apply_result_record_error(result, entry->base.id, SW_ERR_NOT_INIT);
             return SW_ERR_NOT_INIT;
@@ -102,10 +88,7 @@ sw_err_t cloud_point_apply_value(const cloud_point_entry_t *entry,
         }
         return ret;
 
-    case CLOUD_POINT_SEM_TELEMETRY:
     default:
-        /* TELEMETRY 已在上面的只读判定中拦下，此处不可达；保留分支使
-         * 新增语义未处理时编译器给出 -Wswitch 提示。 */
         point_apply_result_record_error(result, entry->base.id, SW_ERR_PARAM);
         return SW_ERR_PARAM;
     }
