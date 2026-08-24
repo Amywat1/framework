@@ -30,39 +30,45 @@ typedef struct {
     int           count;                   /**< 当前条数 */
 } motor_event_slot_t;
 
-/** @brief 单电机运行时状态（状态机、运动会话与监测累加器）。 */
+/**
+ * @brief 单电机运行时状态
+ * @note  下一目标只有一份 pending：WAITING_START / STOPPING 用 queued 标记有效，
+ *        REVERSAL_WAIT 由状态本身表示 pending 有效。两态不会同时持有目标。
+ */
 typedef struct {
+    /* —— 运动会话 —— */
     motor_exec_state_t exec_state; /**< 当前运行状态 */
     motor_dir_t        dir;        /**< 当前/待输出方向 */
+    motor_speed_t      speed;      /**< 目标速度 */
+    motor_speed_t      applied_speed;  /**< 上次成功写入驱动的速度 */
+    bool               output_applied; /**< 本拍是否已建立功率级输出 */
+    bool               move_active;    /**< 是否处于带到位条件的运动会话 */
+    motor_move_spec_t  spec;           /**< 当前运动到位条件 */
+    motor_limit_kind_t end_limit;      /**< 本次硬限位终止时触发的种类 */
+    uint64_t           move_start_ms;  /**< 本段 RUNNING 起点（用于累加 elapsed） */
+    uint64_t           elapsed_ms;     /**< 已冻结的运行时长（ms） */
+    bool               emit_stop_on_halt;  /**< 停机完成后是否推 STOPPED 事件 */
+    bool               stop_issued;        /**< 是否已下发受控停止 */
+    uint64_t           stopping_since_ms;  /**< 进入 STOPPING 后等待功率级停下的起点 */
+    uint64_t           cooldown_until;     /**< 冷却结束时刻 */
+    uint64_t           reversal_until;     /**< 换向切断后允许再启动的时刻 */
+    bool               queued;             /**< WAITING_START / STOPPING 是否有待启动目标 */
+    motor_pending_cmd_t pending;           /**< 下一运动目标 */
 
-    motor_speed_t speed;          /**< 目标速度 */
-    motor_speed_t applied_speed;  /**< 上次成功写入驱动的速度 */
-    bool          output_applied; /**< 本拍是否已建立功率级输出 */
-
-    bool               move_active;      /**< 是否处于带结束条件的运动会话 */
-    motor_move_spec_t  spec;             /**< 当前运动到位条件 */
-    motor_limit_kind_t end_limit;        /**< 本次硬限位终止时触发的种类 */
-    uint64_t           move_start_ms;    /**< 本段 RUNNING 起点（用于累加 elapsed） */
-    uint64_t           elapsed_ms;       /**< 已冻结的运行时长（ms） */
-    bool               emit_stop_on_halt;/**< 停机完成后是否推 STOPPED 事件 */
-    bool               stop_issued;      /**< 是否已下发受控停止 */
-    uint64_t           stopping_since_ms; /**< 进入 STOPPING 后等待功率级停下的起点 */
-
+    /* —— 位置基准 —— */
     int64_t position;         /**< 逻辑位置（脉冲） */
     int64_t last_raw;         /**< 上一拍编码器 raw */
     bool    baseline_trusted; /**< 位置基准是否可信 */
+    int     enc_stall;        /**< 编码器连续无变化拍数 */
+    bool    enc_warned;       /**< 本运动是否已发过编码器 WARNING */
+    bool    enc_healthy;      /**< 编码器读数是否可信 */
 
-    uint64_t            cooldown_until; /**< 冷却结束时刻 */
-    bool                queued;         /**< 是否有挂起命令待启动 */
-    motor_pending_cmd_t pending;        /**< 排队中的下一目标 */
-
-    uint64_t            reversal_until;  /**< 换向等待结束时刻 */
-    motor_pending_cmd_t after_reversal;  /**< 换向完成后要执行的目标 */
-
+    /* —— 故障 —— */
     bool                    fatal;             /**< 是否致命故障（须 reinit） */
-    motor_exec_fault_code_t fault_code;      /**< 当前故障码 */
+    motor_exec_fault_code_t fault_code;        /**< 当前故障码 */
     bool                    driver_reset_done; /**< 恢复流程中驱动器复位是否已完成 */
 
+    /* —— 监测累加 —— */
     uint64_t start_ms;     /**< 本次启动时刻（监测用） */
     int      cur_over_ms;  /**< 过流累计确认时间 */
     int      cur_under_ms; /**< 欠流累计确认时间 */
@@ -71,10 +77,6 @@ typedef struct {
     int      fb_strikes;   /**< 反馈异常发作次数 */
     int      temp_bad_ms;  /**< 过温累计确认时间 */
     int      volt_bad_ms;  /**< 欠压累计确认时间 */
-
-    int  enc_stall;   /**< 编码器连续无变化拍数 */
-    bool enc_warned;  /**< 本运动是否已发过编码器 WARNING */
-    bool enc_healthy; /**< 编码器读数是否可信 */
 } motor_mstate_t;
 
 /** @brief 执行器完整运行时对象（配置、端口、各轴状态与全局闩锁）。 */

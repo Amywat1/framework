@@ -144,7 +144,7 @@ static bool reversal(motor_executor_t *e, int i, const motor_pending_cmd_t *pc)
         enter_fault(e, i, MOTOR_FAULT_DRIVER_PORT_FATAL);
         return false;
     }
-    s->after_reversal    = *pc;
+    s->pending           = *pc;
     s->reversal_until    = e->now + e->cfg.motors[i].reversal_stop_ms;
     s->emit_stop_on_halt = false;
     s->exec_state             = MOTOR_STATE_REVERSAL_WAIT;
@@ -219,7 +219,7 @@ motor_cmd_result_t apply_goal(motor_executor_t *e, int i, const motor_pending_cm
         return cmd_make(MOTOR_CMD_QUEUED, "pending-updated");
 
     case MOTOR_STATE_REVERSAL_WAIT:
-        s->after_reversal = *pc;
+        s->pending = *pc;
         return cmd_make(MOTOR_CMD_QUEUED, "reversal-goal-updated");
 
     case MOTOR_STATE_STOPPED:
@@ -745,7 +745,7 @@ void motor_tick(motor_executor_t *e)
             break;
         case MOTOR_STATE_REVERSAL_WAIT:
             if (e->now >= s->reversal_until) {
-                begin_start(e, i, &s->after_reversal);
+                begin_start(e, i, &s->pending);
                 if (s->exec_state == MOTOR_STATE_RUNNING) {
                     tick_running(e, i);
                 }
