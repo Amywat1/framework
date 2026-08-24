@@ -59,7 +59,7 @@ static void begin_start(motor_executor_t *e, int i, const motor_pending_cmd_t *p
 
 /* ------------------------- 互锁 ------------------------- */
 
-static bool interlock_ok(motor_executor_t *e, int i)
+bool interlock_ok(motor_executor_t *e, int i)
 {
     for (int k = 0; k < e->cfg.interlock_count; ++k) {
         const motor_interlock_t *il = &e->cfg.interlocks[k];
@@ -610,7 +610,7 @@ static void trigger_estop(motor_executor_t *e)
     e->estop_latched = true;
 }
 
-/** @brief 全局抑制已解除时，将 ESTOP 状态恢复为 STOPPED。 */
+/** @brief 全局抑制已解除时，将 ESTOP 收成 STOPPED；残留故障码或 fatal 则回到 FAULT。 */
 void motor_leave_estop_if_unheld(motor_executor_t *e)
 {
     if (safety_output_hold_is_active() || !e->estop_latched) {
@@ -620,7 +620,13 @@ void motor_leave_estop_if_unheld(motor_executor_t *e)
     e->now           = clock_now(e);
     for (int i = 0; i < e->motor_count; ++i) {
         if (e->m[i].exec_state == MOTOR_STATE_ESTOP) {
-            e->m[i].exec_state = MOTOR_STATE_STOPPED;
+            /* hold 覆盖已 FAULT 的轴时未清 fault_code；解除后必须回到 FAULT，
+             * 否则 STOPPED+残留码会让后续 run 跳过内清/需确认门闩。 */
+            if ((e->m[i].fault_code != MOTOR_FAULT_NONE) || e->m[i].fatal) {
+                e->m[i].exec_state = MOTOR_STATE_FAULT;
+            } else {
+                e->m[i].exec_state = MOTOR_STATE_STOPPED;
+            }
         }
         e->m[i].cooldown_until = e->now;
     }
@@ -832,6 +838,9 @@ static motor_init_result_t do_init(motor_executor_t *e)
         }
         if (mc->mon.monitor_current && mc->mon.cur_max_accel <= mc->mon.cur_min_accel) {
             return init_err("accel current max must be > min");
+        }
+        if ((mc->confirm_faults & ~MOTOR_FAULT_CONFIRM_VALID_MASK) != 0u) {
+            return init_err("confirmFaults has undefined bits");
         }
     }
 

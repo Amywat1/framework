@@ -504,6 +504,16 @@ add_unit_test(test_motor_executor_position
 )
 target_compile_definitions(test_motor_executor_position PRIVATE MOTOR_EXECUTOR_UNIT_TEST)
 
+add_unit_test(test_motor_fault_resume_adversarial
+    ${CMAKE_CURRENT_SOURCE_DIR}/domain/test_motor_fault_resume_adversarial.c
+    ${WDF_ROOT}/domain/mechanism/motor/motor_executor.c
+    ${WDF_ROOT}/domain/mechanism/motor/motor_executor_port.c
+    ${WDF_ROOT}/domain/mechanism/motor/motor_executor_tick.c
+    ${WDF_ROOT}/domain/mechanism/motor/motor_executor_cmd.c
+    ${WDF_SAFETY_HOLD_SRC}
+)
+target_compile_definitions(test_motor_fault_resume_adversarial PRIVATE MOTOR_EXECUTOR_UNIT_TEST)
+
 add_unit_test(test_mechanism_patterns
     ${CMAKE_CURRENT_SOURCE_DIR}/domain/test_mechanism_patterns.c
     ${WDF_ROOT}/domain/mechanism/model/actuator_events.c

@@ -274,6 +274,13 @@ motor_exec_fault_code_t motor_exec_fault_code(const motor_exec_t *exec, int moto
     return (executor != NULL) ? motor_fault_code(executor, motor) : MOTOR_FAULT_NONE;
 }
 
+bool motor_exec_fault_requires_confirm(const motor_exec_t *exec, int motor, motor_exec_fault_code_t code)
+{
+    const motor_executor_t *executor = const_executor_from_handle(exec);
+
+    return (executor == NULL) || motor_fault_requires_confirm(executor, motor, code);
+}
+
 bool motor_exec_encoder_healthy(const motor_exec_t *exec, int motor)
 {
     const motor_executor_t *executor = const_executor_from_handle(exec);

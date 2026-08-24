@@ -77,6 +77,8 @@ static motor_cmd_result_t cmd_rejected(void)
     return r;
 }
 
+static bool s_allow_run_from_fault;
+
 static void mock_motor_reset(void)
 {
     memset(s_motor, 0, sizeof(s_motor));
@@ -89,6 +91,7 @@ static void mock_motor_reset(void)
     s_periodic_register_count = 0;
     s_periodic_fail_on        = 0;
     s_executor_tick_count     = 0;
+    s_allow_run_from_fault    = false;
     mechanism_bridge_reset_for_test();
     s_end_cb_valid = false;
     s_end_cb_id    = 0;
@@ -119,7 +122,10 @@ motor_cmd_result_t motor_exec_run(motor_exec_t            *exec,
         return s_next_result;
     }
     if (s_motor[motor].exec_state == MOTOR_STATE_FAULT) {
-        return cmd_rejected();
+        if (!s_allow_run_from_fault) {
+            return cmd_rejected();
+        }
+        s_motor[motor].fault = MOTOR_FAULT_NONE;
     }
     s_motor[motor].exec_state      = MOTOR_STATE_RUNNING;
     s_motor[motor].dir        = dir;
@@ -466,6 +472,51 @@ static void test_motor_axis_fault_end_dedupes_event_and_reject(void)
     s_next_result = cmd_rejected();
     TEST_ASSERT_EQUAL_INT(SW_ERR_STATE, motor_axis_run(&axis, MOTOR_DIR_FORWARD, motor_speed_gear(1), NULL));
     TEST_ASSERT_EQUAL_INT(1, s_end_cb_count);
+}
+
+/** @brief 可续动 run/home 受理后解除去重闩，同码二次故障必须再次回调。 */
+static void test_motor_axis_resumable_run_reports_second_same_fault(void)
+{
+    motor_axis_t            axis;
+    motion_lifecycle_opts_t opts;
+    motor_event_t           ev;
+    motor_event_t           last;
+    motor_exec_t           *exec = (motor_exec_t *)s_motor;
+
+    memset(&axis, 0, sizeof(axis));
+    opts.motion_actuator_id = 0U;
+    opts.on_motion_end      = on_motion_end;
+    TEST_ASSERT_EQUAL_INT(SW_OK, motor_axis_init(&axis, exec, 0, &opts));
+
+    memset(&ev, 0, sizeof(ev));
+    ev.motor = 0;
+    ev.type  = MOTOR_EVENT_FAULT;
+    ev.fault = MOTOR_FAULT_OVERCURRENT;
+    mock_push_event(&ev);
+    s_motor[0].exec_state = MOTOR_STATE_FAULT;
+    s_motor[0].fault      = MOTOR_FAULT_OVERCURRENT;
+    motor_axis_poll(&axis);
+    TEST_ASSERT_EQUAL_INT(1, s_end_cb_count);
+    TEST_ASSERT_TRUE(motor_axis_last_result(&axis, &last));
+    TEST_ASSERT_EQUAL_INT(MOTOR_FAULT_OVERCURRENT, last.fault);
+
+    s_allow_run_from_fault = true;
+    TEST_ASSERT_EQUAL_INT(SW_OK, motor_axis_run(&axis, MOTOR_DIR_FORWARD, motor_speed_gear(1), NULL));
+    TEST_ASSERT_FALSE(motor_axis_last_result(&axis, &last));
+
+    s_motor[0].exec_state = MOTOR_STATE_FAULT;
+    s_motor[0].fault      = MOTOR_FAULT_OVERCURRENT;
+    mock_push_event(&ev);
+    motor_axis_poll(&axis);
+    TEST_ASSERT_EQUAL_INT(2, s_end_cb_count);
+    TEST_ASSERT_EQUAL_INT(MOTOR_FAULT_OVERCURRENT, s_end_cb_result.fault);
+    TEST_ASSERT_FALSE(motor_axis_is_settled(&axis));
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, motor_axis_home(&axis));
+    TEST_ASSERT_FALSE(motor_axis_last_result(&axis, &last));
+    mock_push_event(&ev);
+    motor_axis_poll(&axis);
+    TEST_ASSERT_EQUAL_INT(3, s_end_cb_count);
 }
 
 static void test_motor_axis_reject_without_fault_skips_end_callback(void)
@@ -974,6 +1025,7 @@ int main(void)
     WDF_RUN_TEST(test_motor_axis_run_and_query_state, "", "验证电机轴运行并查询状态");
     WDF_RUN_TEST(test_motor_axis_spec_uses_move_to_and_end_callback, "", "验证电机轴规格调用到位并上报结局回调");
     WDF_RUN_TEST(test_motor_axis_fault_end_dedupes_event_and_reject, "", "验证故障事件与拒令合成结局去重");
+    WDF_RUN_TEST(test_motor_axis_resumable_run_reports_second_same_fault, "", "验证可续动后再同码故障必须第二次回调");
     WDF_RUN_TEST(test_motor_axis_reject_without_fault_skips_end_callback, "", "验证无故障码的命令拒绝不上报结局");
     WDF_RUN_TEST(test_motor_axis_continuous_stop_and_recover, "", "验证电机轴连续运行停止并恢复");
     WDF_RUN_TEST(test_motor_axis_preserves_frequency_speed, "", "验证电机轴保留频率速度");

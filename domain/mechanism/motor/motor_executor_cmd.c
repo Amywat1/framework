@@ -28,8 +28,7 @@ static bool speed_valid(motor_executor_t *e, int i, motor_speed_t speed)
 
 enum {
     MOTOR_CMD_NEED_NOW      = 1u << 0, /**< 刷新 e->now */
-    MOTOR_CMD_REJECT_SAFETY = 1u << 1, /**< 急停/看门狗锁定时拒绝 */
-    MOTOR_CMD_REJECT_FAULT  = 1u << 2  /**< FAULT 状态时拒绝 */
+    MOTOR_CMD_REJECT_SAFETY = 1u << 1  /**< 急停/看门狗锁定时拒绝 */
 };
 
 static bool bad_motor(const motor_executor_t *e, int i)
@@ -53,10 +52,79 @@ static motor_cmd_result_t cmd_guard(motor_executor_t *e, int i, unsigned flags)
     if ((flags & MOTOR_CMD_REJECT_SAFETY) && (e->safe_latched || safety_output_hold_is_active())) {
         return cmd_reject(MOTOR_REJECT_SAFETY, "safety-locked");
     }
-    if ((flags & MOTOR_CMD_REJECT_FAULT) && (e->m[i].exec_state == MOTOR_STATE_FAULT)) {
+    return cmd_make(MOTOR_CMD_ACCEPTED, "");
+}
+
+/**
+ * @brief  按配置判断该故障码是否需确认（调用方已保证电机号合法）
+ * @note   `DRIVER_PORT_FATAL` 恒为需确认，与位图无关。
+ */
+static bool fault_code_requires_confirm_cfg(const motor_executor_t *e, int i, motor_exec_fault_code_t code)
+{
+    if (code == MOTOR_FAULT_DRIVER_PORT_FATAL) {
+        return true;
+    }
+    if ((code <= MOTOR_FAULT_NONE) || ((unsigned)code > (unsigned)MOTOR_FAULT_SHARED_DRIVER)) {
+        return true;
+    }
+    return (e->cfg.motors[i].confirm_faults & motor_fault_confirm_bit(code)) != 0u;
+}
+
+/**
+ * @brief  单步故障恢复（调用方已持锁）
+ */
+static motor_cmd_result_t recover_one_step_locked(motor_executor_t *e, int i, motor_exec_recovery_step_t step)
+{
+    motor_mstate_t *s = &e->m[i];
+
+    if (s->exec_state != MOTOR_STATE_FAULT) {
+        return cmd_reject(MOTOR_REJECT_NOT_FAULT, "not-fault");
+    }
+    if (s->fatal) {
+        return cmd_reject(MOTOR_REJECT_FATAL, "fatal-needs-reinit");
+    }
+    if (step == MOTOR_RECOVERY_DRIVER_RESET) {
+        if (!drv_reset(motor_drv(e, i))) {
+            push_event(e, i, MOTOR_EVENT_FAULT, MOTOR_END_NONE, s->fault_code);
+            return cmd_reject(MOTOR_REJECT_DRIVER, "driver-reset-failed");
+        }
+        s->driver_reset_done = true;
+        return cmd_make(MOTOR_CMD_ACCEPTED, "driver-reset");
+    }
+    if (!s->driver_reset_done) {
+        return cmd_reject(MOTOR_REJECT_MUST_RESET, "must-reset-first");
+    }
+    e->now               = clock_now(e);
+    s->exec_state        = MOTOR_STATE_STOPPED;
+    s->fault_code        = MOTOR_FAULT_NONE;
+    s->driver_reset_done = false;
+    s->cooldown_until    = e->now;
+    return cmd_make(MOTOR_CMD_ACCEPTED, "recovered");
+}
+
+/**
+ * @brief  可续动非 fatal FAULT 在运动命令内完成两步 recover；否则按码拒令
+ * @return 非 FAULT 或内清成功时 ACCEPTED；需确认 / fatal / 内清失败时为拒绝结果
+ */
+static motor_cmd_result_t try_clear_resumable_fault_locked(motor_executor_t *e, int i)
+{
+    motor_mstate_t    *s = &e->m[i];
+    motor_cmd_result_t r;
+
+    if (s->exec_state != MOTOR_STATE_FAULT) {
+        return cmd_make(MOTOR_CMD_ACCEPTED, "");
+    }
+    if (s->fatal) {
+        return cmd_reject(MOTOR_REJECT_FATAL, "fatal-needs-reinit");
+    }
+    if (fault_code_requires_confirm_cfg(e, i, s->fault_code)) {
         return cmd_reject(MOTOR_REJECT_FAULT, "fault");
     }
-    return cmd_make(MOTOR_CMD_ACCEPTED, "");
+    r = recover_one_step_locked(e, i, MOTOR_RECOVERY_DRIVER_RESET);
+    if (!motor_cmd_ok(r)) {
+        return r;
+    }
+    return recover_one_step_locked(e, i, MOTOR_RECOVERY_MODULE_STOP);
 }
 
 motor_cmd_result_t motor_run(motor_executor_t        *e,
@@ -70,7 +138,7 @@ motor_cmd_result_t motor_run(motor_executor_t        *e,
     motor_cmd_result_t  out;
 
     motor_lock(e);
-    g = cmd_guard(e, i, MOTOR_CMD_NEED_NOW | MOTOR_CMD_REJECT_SAFETY | MOTOR_CMD_REJECT_FAULT);
+    g = cmd_guard(e, i, MOTOR_CMD_NEED_NOW | MOTOR_CMD_REJECT_SAFETY);
     if (!motor_cmd_ok(g)) {
         motor_unlock(e);
         return g;
@@ -96,6 +164,17 @@ motor_cmd_result_t motor_run(motor_executor_t        *e,
             motor_unlock(e);
             return cmd_reject(MOTOR_REJECT_ENCODER, "encoder-unhealthy");
         }
+    }
+    /* 将进入 STOPPED 启动路径时先查互锁，避免可续动内清后因互锁拒令。 */
+    if (((e->m[i].exec_state == MOTOR_STATE_STOPPED) || (e->m[i].exec_state == MOTOR_STATE_FAULT))
+        && !interlock_ok(e, i)) {
+        motor_unlock(e);
+        return cmd_reject(MOTOR_REJECT_INTERLOCK, "interlock");
+    }
+    g = try_clear_resumable_fault_locked(e, i);
+    if (!motor_cmd_ok(g)) {
+        motor_unlock(e);
+        return g;
     }
     pc.speed   = spd;
     pc.dir     = dir;
@@ -169,7 +248,7 @@ motor_cmd_result_t motor_home(motor_executor_t *e, int i)
     motor_dir_t        dir;
 
     motor_lock(e);
-    g = cmd_guard(e, i, MOTOR_CMD_NEED_NOW | MOTOR_CMD_REJECT_SAFETY | MOTOR_CMD_REJECT_FAULT);
+    g = cmd_guard(e, i, MOTOR_CMD_NEED_NOW | MOTOR_CMD_REJECT_SAFETY);
     if (!motor_cmd_ok(g)) {
         motor_unlock(e);
         return g;
@@ -261,6 +340,7 @@ void motor_reset_watchdog(motor_executor_t *e)
 motor_cmd_result_t motor_recover(motor_executor_t *e, int i, motor_exec_recovery_step_t step)
 {
     motor_cmd_result_t g;
+    motor_cmd_result_t out;
 
     motor_lock(e);
     g = cmd_guard(e, i, 0);
@@ -268,37 +348,8 @@ motor_cmd_result_t motor_recover(motor_executor_t *e, int i, motor_exec_recovery
         motor_unlock(e);
         return g;
     }
-    motor_mstate_t    *s = &e->m[i];
-    motor_cmd_result_t out;
 
-    if (s->exec_state != MOTOR_STATE_FAULT) {
-        motor_unlock(e);
-        return cmd_reject(MOTOR_REJECT_NOT_FAULT, "not-fault");
-    }
-    if (s->fatal) {
-        motor_unlock(e);
-        return cmd_reject(MOTOR_REJECT_FATAL, "fatal-needs-reinit");
-    }
-    if (step == MOTOR_RECOVERY_DRIVER_RESET) {
-        if (!drv_reset(motor_drv(e, i))) {
-            push_event(e, i, MOTOR_EVENT_FAULT, MOTOR_END_NONE, s->fault_code);
-            motor_unlock(e);
-            return cmd_reject(MOTOR_REJECT_DRIVER, "driver-reset-failed");
-        }
-        s->driver_reset_done = true;
-        motor_unlock(e);
-        return cmd_make(MOTOR_CMD_ACCEPTED, "driver-reset");
-    }
-    if (!s->driver_reset_done) {
-        motor_unlock(e);
-        return cmd_reject(MOTOR_REJECT_MUST_RESET, "must-reset-first");
-    }
-    e->now               = clock_now(e);
-    s->exec_state             = MOTOR_STATE_STOPPED;
-    s->fault_code        = MOTOR_FAULT_NONE;
-    s->driver_reset_done = false;
-    s->cooldown_until    = e->now;
-    out                  = cmd_make(MOTOR_CMD_ACCEPTED, "recovered");
+    out = recover_one_step_locked(e, i, step);
     motor_unlock(e);
     return out;
 }
@@ -377,6 +428,20 @@ motor_exec_fault_code_t motor_fault_code(const motor_executor_t *e, int i)
     code = e->m[i].fault_code;
     motor_unlock((motor_executor_t *)e);
     return code;
+}
+
+bool motor_fault_requires_confirm(const motor_executor_t *e, int i, motor_exec_fault_code_t code)
+{
+    bool need;
+
+    motor_lock((motor_executor_t *)e);
+    if (bad_motor(e, i)) {
+        motor_unlock((motor_executor_t *)e);
+        return true;
+    }
+    need = fault_code_requires_confirm_cfg(e, i, code);
+    motor_unlock((motor_executor_t *)e);
+    return need;
 }
 
 bool motor_baseline_trusted(const motor_executor_t *e, int i)

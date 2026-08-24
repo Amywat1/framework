@@ -111,6 +111,16 @@ typedef struct {
 
     int stop_timeout_ms;               /**< 受控停止等待功率级停下的超时（0=使用 default_max_time_ms；须 >= 0） */
 
+    /**
+     * @brief 需确认的故障码位图（`motor_fault_confirm_bit`）
+     * @note  位置 1 的码在 FAULT 后必须显式 recover 才能再 `run`/`home`。
+     *        未置位的码为可续动：下一次运动命令内部先做驱动复位与模块停止再启动。
+     *        默认 0 表示全部可续动。`MOTOR_FAULT_DRIVER_PORT_FATAL`、fatal 标志、
+     *        ESTOP/`output_hold`、看门狗安全态不可被本位置为可续动而放行。
+     *        含未定义位则 bind 失败。
+     */
+    uint32_t confirm_faults;
+
     motor_monitor_cfg_t mon;           /**< 监测项配置 */
 } motor_motor_cfg_t;
 

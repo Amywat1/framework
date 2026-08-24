@@ -79,7 +79,24 @@ typedef enum {
     MOTOR_FAULT_SHARED_DRIVER      /**< 共享驱动器联动 */
 } motor_exec_fault_code_t;
 
-/** @brief 三步恢复流程步骤。 */
+/**
+ * @brief  将故障码转为 `confirm_faults` 位
+ * @param  code  故障码；`NONE` 或未定义码返回 0
+ * @note   某位置 1 表示该码需确认；默认全 0 表示全部可续动。
+ */
+static inline uint32_t motor_fault_confirm_bit(motor_exec_fault_code_t code)
+{
+    if ((code <= MOTOR_FAULT_NONE) || ((unsigned)code > (unsigned)MOTOR_FAULT_SHARED_DRIVER)) {
+        return 0u;
+    }
+    return 1u << (unsigned)code;
+}
+
+/** @brief `confirm_faults` 允许的位：已定义故障码且不含 `NONE` */
+#define MOTOR_FAULT_CONFIRM_VALID_MASK \
+    (((1u << ((unsigned)MOTOR_FAULT_SHARED_DRIVER + 1u)) - 1u) ^ 1u)
+
+/** @brief 两步恢复流程步骤。 */
 typedef enum {
     MOTOR_RECOVERY_DRIVER_RESET = 0, /**< 第一步：驱动器复位 */
     MOTOR_RECOVERY_MODULE_STOP       /**< 第二步：模块停止（之后可重新启动） */
@@ -189,7 +206,7 @@ typedef enum {
     MOTOR_REJECT_BAD_SPEED,  /**< 速度非法 */
     MOTOR_REJECT_BAD_DIR,    /**< 方向非法 */
     MOTOR_REJECT_SAFETY,     /**< 急停或看门狗锁定 */
-    MOTOR_REJECT_FAULT,      /**< 故障状态，须先恢复 */
+    MOTOR_REJECT_FAULT,      /**< 需确认故障，须先显式 recover */
     MOTOR_REJECT_INTERLOCK,  /**< 互锁不满足 */
     MOTOR_REJECT_NO_ENCODER, /**< 需要编码器但未配置 */
     MOTOR_REJECT_BASELINE,   /**< 位置基准不可信 */
@@ -219,7 +236,9 @@ static inline bool motor_cmd_ok(motor_cmd_result_t r)
 
 /** @brief 锁存运动目标（异步）。spec 为 NULL 表示连续运行，否则按到位条件结束。
  * @note   再调用即更新目标，调用方不必按状态选择命令。
- * @note   FAULT / ESTOP 状态下必须拒绝；调用方须先 recover / 解除急停后再下发。
+ * @note   需确认 FAULT、ESTOP、fatal、急停 hold、看门狗安全态必须拒绝。
+ *         可续动非 fatal FAULT：参数与互锁校验通过后，在本调用内完成 recover 两步再启动；
+ *         校验失败不得内清。
  * @note   终止事件按电机分槽；满时只丢该电机最旧事件。
  */
 motor_cmd_result_t motor_exec_run(motor_exec_t            *exec,
@@ -234,10 +253,11 @@ motor_cmd_result_t motor_exec_stop(motor_exec_t *exec, int motor);
 /**
  * @brief  回原点便利命令（执行器默认慢速/方向 + ORIGIN 限位）
  * @note   触原点后的基准重建由执行器完成；也可用 run 显式指定方向与速度。
+ * @note   可续动非 fatal FAULT 与 `run` 相同：本调用内先完成 recover 两步再启动。
  */
 motor_cmd_result_t motor_exec_home(motor_exec_t *exec, int motor);
 
-/** @brief 三步恢复：驱动器复位 → 模块停止（之后由调用方重新启动）。 */
+/** @brief 两步恢复：驱动器复位 → 模块停止（之后由调用方重新启动）。 */
 motor_cmd_result_t motor_exec_recover(motor_exec_t *exec, int motor, motor_exec_recovery_step_t step);
 
 /* 查询 —— motor 应在 [0, motor_count) 范围内；越界时返回各函数注释中的安全默认值。 */
@@ -253,6 +273,16 @@ motor_dir_t motor_exec_direction(const motor_exec_t *exec, int motor);
 
 /** @brief 查询电机当前故障码；无故障、句柄无效或电机号越界时为 MOTOR_FAULT_NONE。 */
 motor_exec_fault_code_t motor_exec_fault_code(const motor_exec_t *exec, int motor);
+
+/**
+ * @brief  查询指定故障码在该电机上是否需确认后才能再运动
+ * @param  exec  执行器句柄
+ * @param  motor 电机号
+ * @param  code  故障码
+ * @return true 需显式 recover；false 可续动（下一次 run/home 内清）
+ * @note   `MOTOR_FAULT_DRIVER_PORT_FATAL` 恒为需确认。句柄无效或电机号越界时返回 true（偏保守）。
+ */
+bool motor_exec_fault_requires_confirm(const motor_exec_t *exec, int motor, motor_exec_fault_code_t code);
 
 /**
  * @brief  查询编码器健康状态。

@@ -258,6 +258,12 @@ void push_event(motor_executor_t       *e,
 motor_cmd_result_t apply_goal(motor_executor_t *e, int i, const motor_pending_cmd_t *pc);
 
 /**
+ * @brief  当前电机是否满足互锁（MUTEX / 前置位置）
+ * @note   仅启动路径使用；运行中调速不查互锁。
+ */
+bool interlock_ok(motor_executor_t *e, int i);
+
+/**
  * @brief  运动到位或超时后的统一收尾
  * @param  type  结局事件类型
  * @param  trig  触发条件
@@ -316,7 +322,7 @@ motor_cmd_result_t motor_zero_encoder(motor_executor_t *e, int i);
 /** @brief 显式确认位置基准可信。 */
 motor_cmd_result_t motor_confirm_baseline(motor_executor_t *e, int i);
 
-/** @brief 全局抑制已解除时，将 ESTOP 状态恢复为 STOPPED。 */
+/** @brief 全局抑制已解除时，将 ESTOP 收成 STOPPED；若仍有故障码或 fatal 则回到 FAULT。 */
 void motor_leave_estop_if_unheld(motor_executor_t *e);
 
 /** @brief 清除看门狗安全闩锁（须 tick 节拍已恢复正常）。 */
@@ -344,6 +350,12 @@ motor_dir_t motor_direction(const motor_executor_t *e, int i);
 
 /** @brief 查询故障码。 */
 motor_exec_fault_code_t motor_fault_code(const motor_executor_t *e, int i);
+
+/**
+ * @brief  查询指定故障码在该电机上是否需确认
+ * @note   `DRIVER_PORT_FATAL` 恒为需确认。电机号越界时返回 true。
+ */
+bool motor_fault_requires_confirm(const motor_executor_t *e, int i, motor_exec_fault_code_t code);
 
 /** @brief 查询位置基准是否可信。 */
 bool motor_baseline_trusted(const motor_executor_t *e, int i);

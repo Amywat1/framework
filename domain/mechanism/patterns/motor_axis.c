@@ -101,6 +101,17 @@ static void drain_motor_events(motor_axis_t *self)
     }
 }
 
+/**
+ * @brief  运动命令已受理：解除 FAULT/ESTOP 去重闩并标记待空闲
+ * @note   与显式 recover 成功相同，否则可续动后再同码故障会被当成闩内重复丢掉。
+ */
+static void on_motion_accepted(motor_axis_t *self)
+{
+    self->last_valid    = false;
+    self->awaiting_idle = true;
+    memset(&self->last_event, 0, sizeof(self->last_event));
+}
+
 sw_err_t motor_axis_init(motor_axis_t *self, motor_exec_t *exec, int motor, const motion_lifecycle_opts_t *opts)
 {
     if ((self == NULL) || (exec == NULL)) {
@@ -136,7 +147,7 @@ sw_err_t motor_axis_run(motor_axis_t *self, motor_dir_t dir, motor_speed_t speed
 
     ret = motor_cmd_ok(r) ? SW_OK : SW_ERR_STATE;
     if (ret == SW_OK) {
-        self->awaiting_idle = true;
+        on_motion_accepted(self);
     } else {
         report_cmd_fault(self);
     }
@@ -153,7 +164,7 @@ sw_err_t motor_axis_home(motor_axis_t *self)
 
     r = motor_exec_home(self->exec, self->motor);
     if (motor_cmd_ok(r)) {
-        self->awaiting_idle = true;
+        on_motion_accepted(self);
         return SW_OK;
     }
     report_cmd_fault(self);
@@ -211,10 +222,7 @@ sw_err_t motor_axis_recover(motor_axis_t *self)
         return SW_ERR_STATE;
     }
 
-    /* 闩锁解除后允许再次上报同码故障结局。 */
-    self->last_valid = false;
-    memset(&self->last_event, 0, sizeof(self->last_event));
-    self->awaiting_idle = true;
+    on_motion_accepted(self);
     return SW_OK;
 }
 

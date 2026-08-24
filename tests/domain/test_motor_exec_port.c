@@ -25,6 +25,11 @@ typedef struct {
     bool                   running;
     int                    request_stop_count;
     sw_err_t               request_stop_rc;
+    bool                   reset_ok;
+    int                    reset_count;
+    int                    temperature;
+    bool                   temperature_ok;
+    motor_port_status_t    port_status;
 } port_fixture_t;
 
 static port_fixture_t   s_fx;
@@ -66,8 +71,10 @@ static sw_err_t driver_cutoff(void *ctx)
 
 static bool driver_reset(void *ctx)
 {
-    (void)ctx;
-    return true;
+    port_fixture_t *fx = (port_fixture_t *)ctx;
+
+    fx->reset_count++;
+    return fx->reset_ok;
 }
 
 static bool driver_is_running(void *ctx)
@@ -86,6 +93,21 @@ static sw_err_t driver_request_stop(void *ctx)
 static int driver_current(void *ctx)
 {
     return ((port_fixture_t *)ctx)->current;
+}
+
+static bool driver_temperature(void *ctx, int *out)
+{
+    port_fixture_t *fx = (port_fixture_t *)ctx;
+
+    if (out != NULL) {
+        *out = fx->temperature;
+    }
+    return fx->temperature_ok;
+}
+
+static motor_port_status_t driver_status(void *ctx)
+{
+    return ((port_fixture_t *)ctx)->port_status;
 }
 
 static motor_prepare_result_t driver_poll(void *ctx, int motor)
@@ -123,6 +145,8 @@ static void init_executor(void)
     memset(&s_fx, 0, sizeof(s_fx));
     s_fx.running         = true;
     s_fx.request_stop_rc = SW_OK;
+    s_fx.reset_ok        = true;
+    s_fx.port_status     = MOTOR_PORT_OK;
     memset(&s_cfg, 0, sizeof(s_cfg));
     memset(&s_driver, 0, sizeof(s_driver));
     memset(&s_encoder, 0, sizeof(s_encoder));
@@ -192,6 +216,37 @@ static void configure_two_motors_without_encoders(void)
     s_encoders[0]               = NULL;
     s_encoders[1]               = NULL;
     rebind_executor();
+}
+
+/**
+ * @brief 启用过流监测（确认时间 20ms = 两拍）
+ */
+static void enable_overcurrent_monitor(void)
+{
+    s_cfg.motors[0].mon.monitor_current = true;
+    s_cfg.motors[0].mon.cur_max_accel   = 500;
+    s_cfg.motors[0].mon.cur_max_steady  = 500;
+    s_cfg.motors[0].mon.cur_min_accel   = 0;
+    s_cfg.motors[0].mon.cur_min_steady  = 0;
+    s_cfg.motors[0].mon.cur_confirm_ms  = 20;
+}
+
+/**
+ * @brief 运行至过流 FAULT
+ */
+static void run_until_overcurrent(motor_exec_t *hal)
+{
+    motor_cmd_result_t r;
+
+    s_fx.current = 600;
+    r            = motor_exec_run(hal, 0, motor_speed_gear(1), MOTOR_DIR_FORWARD, NULL);
+    TEST_ASSERT_TRUE(motor_cmd_ok(r));
+    s_fx.now_ms = 10;
+    motor_executor_tick(s_exec);
+    s_fx.now_ms = 20;
+    motor_executor_tick(s_exec);
+    TEST_ASSERT_EQUAL_INT(MOTOR_STATE_FAULT, motor_exec_state(hal, 0));
+    TEST_ASSERT_EQUAL_INT(MOTOR_FAULT_OVERCURRENT, motor_exec_fault_code(hal, 0));
 }
 
 void setUp(void)
@@ -329,22 +384,10 @@ static void test_recover_via_port(void)
     motor_cmd_result_t r;
     motor_exec_t      *hal;
 
-    s_cfg.motors[0].mon.monitor_current = true;
-    s_cfg.motors[0].mon.cur_max_accel   = 500;
-    s_cfg.motors[0].mon.cur_max_steady  = 500;
-    s_cfg.motors[0].mon.cur_min_accel   = 0;
-    s_cfg.motors[0].mon.cur_min_steady  = 0;
-    s_cfg.motors[0].mon.cur_confirm_ms  = 20;
+    enable_overcurrent_monitor();
     rebind_executor();
-    hal          = s_exec;
-    s_fx.current = 600;
-    r            = motor_exec_run(hal, 0, motor_speed_gear(1), MOTOR_DIR_FORWARD, NULL);
-    TEST_ASSERT_TRUE(motor_cmd_ok(r));
-    s_fx.now_ms = 10;
-    motor_executor_tick(s_exec);
-    s_fx.now_ms = 20;
-    motor_executor_tick(s_exec);
-    TEST_ASSERT_EQUAL_INT(MOTOR_FAULT_OVERCURRENT, motor_exec_fault_code(hal, 0));
+    hal = s_exec;
+    run_until_overcurrent(hal);
 
     r = motor_exec_recover(hal, 0, MOTOR_RECOVERY_DRIVER_RESET);
     TEST_ASSERT_TRUE(motor_cmd_ok(r));
@@ -400,6 +443,9 @@ static void test_query_helpers_return_safe_defaults_for_bad_motor(void)
     TEST_ASSERT_EQUAL_INT(MOTOR_DIR_FORWARD, motor_exec_direction(s_exec, 1));
     TEST_ASSERT_EQUAL_INT(MOTOR_FAULT_NONE, motor_exec_fault_code(s_exec, -1));
     TEST_ASSERT_EQUAL_INT(MOTOR_FAULT_NONE, motor_exec_fault_code(s_exec, 1));
+    TEST_ASSERT_TRUE(motor_exec_fault_requires_confirm(s_exec, -1, MOTOR_FAULT_OVERCURRENT));
+    TEST_ASSERT_TRUE(motor_exec_fault_requires_confirm(s_exec, 1, MOTOR_FAULT_OVERCURRENT));
+    TEST_ASSERT_TRUE(motor_exec_fault_requires_confirm(NULL, 0, MOTOR_FAULT_OVERCURRENT));
     TEST_ASSERT_FALSE(motor_exec_baseline_trusted(s_exec, -1));
     TEST_ASSERT_FALSE(motor_exec_baseline_trusted(s_exec, 1));
     TEST_ASSERT_FALSE(motor_exec_encoder_healthy(s_exec, -1));
@@ -706,6 +752,238 @@ static void test_running_poll_busy_then_failed_enters_prepare_failed(void)
     TEST_ASSERT_TRUE(s_fx.cutoff_count > 0);
 }
 
+/** @brief 默认 confirm_faults=0：过流 FAULT 后直接 run 可受理。 */
+static void test_resumable_overcurrent_run_without_recover(void)
+{
+    motor_cmd_result_t r;
+    motor_exec_t      *hal;
+
+    enable_overcurrent_monitor();
+    rebind_executor();
+    hal = s_exec;
+    TEST_ASSERT_FALSE(motor_exec_fault_requires_confirm(hal, 0, MOTOR_FAULT_OVERCURRENT));
+    TEST_ASSERT_TRUE(motor_exec_fault_requires_confirm(hal, 0, MOTOR_FAULT_DRIVER_PORT_FATAL));
+    run_until_overcurrent(hal);
+
+    s_fx.current = 0;
+    r            = motor_exec_run(hal, 0, motor_speed_gear(1), MOTOR_DIR_FORWARD, NULL);
+    TEST_ASSERT_TRUE(motor_cmd_ok(r));
+    TEST_ASSERT_NOT_EQUAL(MOTOR_STATE_FAULT, motor_exec_state(hal, 0));
+    TEST_ASSERT_EQUAL_INT(MOTOR_FAULT_NONE, motor_exec_fault_code(hal, 0));
+}
+
+/** @brief 仅过温列入确认表：过流可续动，过温须显式 recover。 */
+static void test_overtemp_confirm_rejects_until_recover(void)
+{
+    motor_cmd_result_t r;
+    motor_exec_t      *hal;
+
+    enable_overcurrent_monitor();
+    s_cfg.motors[0].confirm_faults      = motor_fault_confirm_bit(MOTOR_FAULT_OVERTEMP);
+    s_cfg.motors[0].mon.monitor_temp    = true;
+    s_cfg.motors[0].mon.temp_max        = 80;
+    s_cfg.motors[0].mon.temp_confirm_ms = 20;
+    s_driver.temperature                = driver_temperature;
+    s_fx.temperature_ok                 = true;
+    s_fx.temperature                    = 0;
+    rebind_executor();
+    hal = s_exec;
+    TEST_ASSERT_FALSE(motor_exec_fault_requires_confirm(hal, 0, MOTOR_FAULT_OVERCURRENT));
+    TEST_ASSERT_TRUE(motor_exec_fault_requires_confirm(hal, 0, MOTOR_FAULT_OVERTEMP));
+
+    run_until_overcurrent(hal);
+    s_fx.current = 0;
+    r            = motor_exec_run(hal, 0, motor_speed_gear(1), MOTOR_DIR_FORWARD, NULL);
+    TEST_ASSERT_TRUE(motor_cmd_ok(r));
+    TEST_ASSERT_EQUAL_INT(MOTOR_STATE_RUNNING, motor_exec_state(hal, 0));
+
+    s_fx.temperature = 100;
+    s_fx.now_ms      = 30;
+    motor_executor_tick(s_exec);
+    s_fx.now_ms = 40;
+    motor_executor_tick(s_exec);
+    TEST_ASSERT_EQUAL_INT(MOTOR_STATE_FAULT, motor_exec_state(hal, 0));
+    TEST_ASSERT_EQUAL_INT(MOTOR_FAULT_OVERTEMP, motor_exec_fault_code(hal, 0));
+
+    r = motor_exec_run(hal, 0, motor_speed_gear(1), MOTOR_DIR_FORWARD, NULL);
+    TEST_ASSERT_FALSE(motor_cmd_ok(r));
+    TEST_ASSERT_EQUAL_INT(MOTOR_REJECT_FAULT, r.reject);
+    TEST_ASSERT_EQUAL_INT(MOTOR_STATE_FAULT, motor_exec_state(hal, 0));
+
+    r = motor_exec_home(hal, 0);
+    TEST_ASSERT_FALSE(motor_cmd_ok(r));
+    TEST_ASSERT_EQUAL_INT(MOTOR_REJECT_FAULT, r.reject);
+    TEST_ASSERT_EQUAL_INT(MOTOR_STATE_FAULT, motor_exec_state(hal, 0));
+
+    r = motor_exec_recover(hal, 0, MOTOR_RECOVERY_DRIVER_RESET);
+    TEST_ASSERT_TRUE(motor_cmd_ok(r));
+    r = motor_exec_recover(hal, 0, MOTOR_RECOVERY_MODULE_STOP);
+    TEST_ASSERT_TRUE(motor_cmd_ok(r));
+    TEST_ASSERT_EQUAL_INT(MOTOR_STATE_STOPPED, motor_exec_state(hal, 0));
+
+    s_fx.temperature = 0;
+    r                = motor_exec_run(hal, 0, motor_speed_gear(1), MOTOR_DIR_FORWARD, NULL);
+    TEST_ASSERT_TRUE(motor_cmd_ok(r));
+}
+
+/** @brief 可续动内清复位失败则保持 FAULT；仅 tick 不自复。 */
+static void test_resumable_reset_fail_keeps_fault(void)
+{
+    motor_cmd_result_t r;
+    motor_exec_t      *hal;
+
+    enable_overcurrent_monitor();
+    rebind_executor();
+    hal = s_exec;
+    run_until_overcurrent(hal);
+
+    s_fx.reset_ok = false;
+    r             = motor_exec_run(hal, 0, motor_speed_gear(1), MOTOR_DIR_FORWARD, NULL);
+    TEST_ASSERT_FALSE(motor_cmd_ok(r));
+    TEST_ASSERT_EQUAL_INT(MOTOR_REJECT_DRIVER, r.reject);
+    TEST_ASSERT_EQUAL_INT(MOTOR_STATE_FAULT, motor_exec_state(hal, 0));
+    TEST_ASSERT_EQUAL_INT(MOTOR_FAULT_OVERCURRENT, motor_exec_fault_code(hal, 0));
+
+    s_fx.now_ms = 30;
+    motor_executor_tick(s_exec);
+    TEST_ASSERT_EQUAL_INT(MOTOR_STATE_FAULT, motor_exec_state(hal, 0));
+}
+
+/** @brief 可续动内清不得发生在方向/互锁校验失败之前。 */
+static void test_resumable_reject_does_not_clear_fault(void)
+{
+    motor_cmd_result_t r;
+    motor_exec_t      *hal;
+    int                resets_after_fault;
+
+    enable_overcurrent_monitor();
+    rebind_executor();
+    hal = s_exec;
+    run_until_overcurrent(hal);
+    resets_after_fault = s_fx.reset_count;
+
+    r = motor_exec_run(hal, 0, motor_speed_gear(1), MOTOR_DIR_UNSET, NULL);
+    TEST_ASSERT_FALSE(motor_cmd_ok(r));
+    TEST_ASSERT_EQUAL_INT(MOTOR_REJECT_BAD_DIR, r.reject);
+    TEST_ASSERT_EQUAL_INT(MOTOR_STATE_FAULT, motor_exec_state(hal, 0));
+    TEST_ASSERT_EQUAL_INT(MOTOR_FAULT_OVERCURRENT, motor_exec_fault_code(hal, 0));
+    TEST_ASSERT_EQUAL_INT(resets_after_fault, s_fx.reset_count);
+
+    s_cfg.motor_count                   = 2;
+    s_cfg.driver_count                  = 2;
+    s_drivers[1]                        = &s_driver;
+    s_cfg.motors[1]                     = s_cfg.motors[0];
+    s_cfg.motors[1].driver_index        = 1;
+    s_cfg.motors[1].mon.monitor_current = false;
+    s_encoders[1]                       = &s_encoder;
+    s_cfg.interlock_count               = 1;
+    s_cfg.interlocks[0].kind            = MOTOR_INTERLOCK_MUTEX;
+    s_cfg.interlocks[0].a               = 0;
+    s_cfg.interlocks[0].b               = 1;
+    s_fx.now_ms                         = 0;
+    rebind_executor();
+    hal = s_exec;
+    run_until_overcurrent(hal);
+    r = motor_exec_run(hal, 1, motor_speed_gear(1), MOTOR_DIR_FORWARD, NULL);
+    TEST_ASSERT_TRUE(motor_cmd_ok(r));
+    motor_executor_tick(s_exec);
+    TEST_ASSERT_EQUAL_INT(MOTOR_STATE_RUNNING, motor_exec_state(hal, 1));
+    TEST_ASSERT_EQUAL_INT(MOTOR_STATE_FAULT, motor_exec_state(hal, 0));
+    resets_after_fault = s_fx.reset_count;
+
+    r = motor_exec_run(hal, 0, motor_speed_gear(1), MOTOR_DIR_FORWARD, NULL);
+    TEST_ASSERT_FALSE(motor_cmd_ok(r));
+    TEST_ASSERT_EQUAL_INT(MOTOR_REJECT_INTERLOCK, r.reject);
+    TEST_ASSERT_EQUAL_INT(MOTOR_STATE_FAULT, motor_exec_state(hal, 0));
+    TEST_ASSERT_EQUAL_INT(MOTOR_FAULT_OVERCURRENT, motor_exec_fault_code(hal, 0));
+    TEST_ASSERT_EQUAL_INT(resets_after_fault, s_fx.reset_count);
+}
+
+/** @brief fatal 与 hold 有效时即使位图为 0 也不得按可续动放行。 */
+static void test_fatal_and_hold_not_resumable(void)
+{
+    motor_cmd_result_t r;
+    motor_exec_t      *hal = s_exec;
+
+    TEST_ASSERT_EQUAL_UINT32(0u, s_cfg.motors[0].confirm_faults);
+    s_driver.status  = driver_status;
+    s_fx.port_status = MOTOR_PORT_OK;
+    r                = motor_exec_run(hal, 0, motor_speed_gear(1), MOTOR_DIR_FORWARD, NULL);
+    TEST_ASSERT_TRUE(motor_cmd_ok(r));
+    motor_executor_tick(s_exec);
+    TEST_ASSERT_EQUAL_INT(MOTOR_STATE_RUNNING, motor_exec_state(hal, 0));
+
+    s_fx.port_status = MOTOR_PORT_FATAL;
+    motor_executor_tick(s_exec);
+    TEST_ASSERT_EQUAL_INT(MOTOR_STATE_FAULT, motor_exec_state(hal, 0));
+    TEST_ASSERT_EQUAL_INT(MOTOR_FAULT_DRIVER_PORT_FATAL, motor_exec_fault_code(hal, 0));
+
+    r = motor_exec_run(hal, 0, motor_speed_gear(1), MOTOR_DIR_FORWARD, NULL);
+    TEST_ASSERT_FALSE(motor_cmd_ok(r));
+    TEST_ASSERT_EQUAL_INT(MOTOR_REJECT_FATAL, r.reject);
+    TEST_ASSERT_EQUAL_INT(MOTOR_STATE_FAULT, motor_exec_state(hal, 0));
+
+    r = motor_exec_recover(hal, 0, MOTOR_RECOVERY_DRIVER_RESET);
+    TEST_ASSERT_FALSE(motor_cmd_ok(r));
+    TEST_ASSERT_EQUAL_INT(MOTOR_REJECT_FATAL, r.reject);
+
+    init_executor();
+    hal = s_exec;
+    safety_output_hold_request();
+    motor_executor_tick(s_exec);
+    TEST_ASSERT_EQUAL_INT(MOTOR_STATE_ESTOP, motor_exec_state(hal, 0));
+    r = motor_exec_run(hal, 0, motor_speed_gear(1), MOTOR_DIR_FORWARD, NULL);
+    TEST_ASSERT_FALSE(motor_cmd_ok(r));
+    TEST_ASSERT_EQUAL_INT(MOTOR_REJECT_SAFETY, r.reject);
+    TEST_ASSERT_EQUAL_INT(MOTOR_STATE_ESTOP, motor_exec_state(hal, 0));
+}
+
+/** @brief hold 覆盖可续动 FAULT 后解除，须回到 FAULT 再经内清才能启动。 */
+static void test_hold_over_fault_restores_fault_latch(void)
+{
+    motor_cmd_result_t r;
+    motor_exec_t      *hal;
+    int                resets;
+
+    enable_overcurrent_monitor();
+    rebind_executor();
+    hal = s_exec;
+    run_until_overcurrent(hal);
+    resets = s_fx.reset_count;
+
+    safety_output_hold_request();
+    motor_executor_tick(s_exec);
+    TEST_ASSERT_EQUAL_INT(MOTOR_STATE_ESTOP, motor_exec_state(hal, 0));
+    TEST_ASSERT_EQUAL_INT(MOTOR_FAULT_OVERCURRENT, motor_exec_fault_code(hal, 0));
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, safety_output_hold_release());
+    motor_executor_tick(s_exec);
+    TEST_ASSERT_EQUAL_INT(MOTOR_STATE_FAULT, motor_exec_state(hal, 0));
+    TEST_ASSERT_EQUAL_INT(MOTOR_FAULT_OVERCURRENT, motor_exec_fault_code(hal, 0));
+
+    s_fx.current = 0;
+    r            = motor_exec_run(hal, 0, motor_speed_gear(1), MOTOR_DIR_FORWARD, NULL);
+    TEST_ASSERT_TRUE(motor_cmd_ok(r));
+    TEST_ASSERT_TRUE(s_fx.reset_count > resets);
+    TEST_ASSERT_EQUAL_INT(MOTOR_FAULT_NONE, motor_exec_fault_code(hal, 0));
+    TEST_ASSERT_NOT_EQUAL(MOTOR_STATE_FAULT, motor_exec_state(hal, 0));
+}
+
+/** @brief 未定义故障码位导致 bind 失败，槽位不进入可 tick 状态。 */
+static void test_confirm_faults_undefined_bit_bind_fails(void)
+{
+    motor_init_result_t ir;
+    motor_exec_t       *exec = NULL;
+
+    s_cfg.motors[0].confirm_faults = 1u << 31;
+    motor_executor_test_reset();
+    safety_output_hold_reset();
+    ir = motor_executor_bind(0U, &s_cfg, &s_ports, &exec);
+    TEST_ASSERT_FALSE(ir.ok);
+    TEST_ASSERT_EQUAL_STRING("confirmFaults has undefined bits", ir.error);
+    TEST_ASSERT_NULL(exec);
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -732,6 +1010,13 @@ int main(void)
     WDF_RUN_TEST(test_running_poll_busy_then_failed_enters_prepare_failed,
                  "",
                  "验证运行中 poll BUSY 忽略、FAILED 进入 PREPARE_FAILED");
+    WDF_RUN_TEST(test_resumable_overcurrent_run_without_recover, "", "验证默认可续动过流后不经 recover 的 run 可受理");
+    WDF_RUN_TEST(test_overtemp_confirm_rejects_until_recover, "", "验证仅过温需确认：过流可续动、过温拒令、recover 后可再 run");
+    WDF_RUN_TEST(test_resumable_reset_fail_keeps_fault, "", "验证可续动复位失败则 run 拒绝且 tick 不自复");
+    WDF_RUN_TEST(test_resumable_reject_does_not_clear_fault, "", "验证方向或互锁拒绝时不得内清可续动 FAULT");
+    WDF_RUN_TEST(test_fatal_and_hold_not_resumable, "", "验证 fatal 与 hold/ESTOP 在位图为 0 时仍拒令");
+    WDF_RUN_TEST(test_hold_over_fault_restores_fault_latch, "", "验证 hold 覆盖 FAULT 解除后恢复故障门闩并内清");
+    WDF_RUN_TEST(test_confirm_faults_undefined_bit_bind_fails, "", "验证未定义故障码位导致 bind 失败");
 
     return UNITY_END();
 }

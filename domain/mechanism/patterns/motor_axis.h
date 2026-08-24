@@ -10,7 +10,8 @@
  *          发布 motion_completed（仅表示轴已空闲）。
  * @note    经本模式管理的电机应由 motor_axis_poll 独占消费其执行器事件，
  *          项目层不要再对该电机调用 motor_exec_pop_event。
- * @note    on_motion_end 对同一故障闩锁（同 type + fault）去重；项目层仍宜按码幂等处理。
+ * @note    on_motion_end 对同一故障闩锁（同 type + fault）去重；run/home/recover
+ *          受理后解除闩锁，否则可续动后再同码故障不会第二次回调。项目层仍宜按码幂等处理。
  * @note    回原用 motor_axis_home()，方向取执行器配置 home_dir（须显式 FORWARD 或 REVERSE）。
  * @note    位置/方向/故障/基准/编码器查询走 motor_exec_*（exec + motor）；
  *          结局详情用 last_result。
@@ -82,7 +83,8 @@ sw_err_t motor_axis_init(motor_axis_t *self, motor_exec_t *exec, int motor, cons
  * @return SW_OK 命令已受理；SW_ERR_PARAM / SW_ERR_NOT_INIT / SW_ERR_STATE 失败
  * @note   完成须 poll state == IDLE，或依赖 motor_axis_poll() 发空闲事件
  * @note   再次调用会更新目标速度、方向或到位条件，由执行器收敛，不必先查状态
- * @note   FAULT 时由执行器拒绝；调用方须先 motor_axis_recover()
+ * @note   需确认 FAULT 时由执行器拒绝，须先 motor_axis_recover()；
+ *         可续动非 fatal FAULT 由执行器在本次命令内清除后再启动
  */
 sw_err_t motor_axis_run(motor_axis_t *self, motor_dir_t dir, motor_speed_t speed, const motor_move_spec_t *spec);
 
