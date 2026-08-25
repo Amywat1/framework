@@ -303,7 +303,7 @@ periodic_task_thread_fn(slot)
 |------|--------|------|------|
 | `event_dispatch` | `bootstrap_register()` | 线程 | 调用 `event_bus_dispatch_loop()` |
 | `alarm_bridge` | `alarm_bridge_init()` | 周期任务（50ms） | drain alarm registry pending 事件并算姿态边沿 |
-| `motor_tick` | `mechanism_bridge_register_tasks()` | 周期任务（10ms） | `motor_executor_tick` + 已登记轴 `motor_axis_poll` |
+| `motor_tick` | `mechanism_bridge_register_tasks()` | 周期任务（10ms） | `motor_executor_tick` + 已登记轴 `motor_axis_poll` + post-tick |
 | `fluid_path_poll` | `mechanism_bridge_register_tasks()` | 周期任务（10ms） | `fluid_path_poll(now_ms)` |
 | 会话 worker | `engine_session_bind()`，名称与栈由调用方配置传入 | 线程 | 驱动方案引擎 tick |
 | `cloud_report` | `report_scheduler_start()` | 周期任务 | 云端链路 poll、watcher poll、脏点增量与重连/周期全量上报 |

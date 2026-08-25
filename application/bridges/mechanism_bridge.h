@@ -3,8 +3,13 @@
  * @brief   机构控制应用桥接：绑定执行器、出厂轴实例、登记周期任务
  *
  * 独立目标 wdf_mechanism_bridge，不并入 wdf_application。
- * 接线：bind（或 bind_motor）→ add_axis（保存返回的轴句柄）→ register_tasks。
+ * 接线：bind（或 bind_motor）→ add_axis（保存返回的轴句柄）
+ *       → add_post_tick（可选，多轴协调器）→ register_tasks。
  * 业务命令与查询只用 motor_axis_t，不要再持有 motor_exec_t。
+ * 电机拍顺序（稳定契约）：
+ *   motor_executor_tick → 已登记轴 motor_axis_poll → 可选 post-tick。
+ * post-tick 为通用多轴协调扩展点，非共享驱动专用；无协调需求可不登记。
+ * MUTEX 互锁语义为拒令，不自动让路；prepare 仅表示本电机启动前硬件预备。
  */
 #ifndef APPLICATION_BRIDGES_MECHANISM_BRIDGE_H
 #define APPLICATION_BRIDGES_MECHANISM_BRIDGE_H
@@ -50,9 +55,26 @@ sw_err_t mechanism_bridge_add_axis(int motor, const motion_lifecycle_opts_t *opt
 motor_axis_t *mechanism_bridge_axis(int motor);
 
 /**
+ * @brief  电机拍后钩子（在全部已登记轴 poll 之后调用）
+ * @param  ctx  登记时传入的上下文
+ */
+typedef void (*mechanism_post_tick_fn_t)(void *ctx);
+
+/**
+ * @brief  登记多轴协调器，挂在电机拍的轴 poll 之后
+ * @param  fn  回调；不可为空
+ * @param  ctx 透传上下文，可为 NULL
+ * @return SW_OK 成功；SW_ERR_PARAM / SW_ERR_STATE（同一 fn 已登记）/ SW_ERR_OVERFLOW 失败
+ * @note   用于仿形、到位联锁等多轴策略（须先看到本拍结局再决策），不要另开周期任务。
+ *         共享物理驱动的路径切换应在项目内按单电机槽建模，不必强依赖本钩子。
+ */
+sw_err_t mechanism_bridge_add_post_tick(mechanism_post_tick_fn_t fn, void *ctx);
+
+/**
  * @brief  登记电机 tick 与水路 poll 两拍周期任务
  * @note   可重复调用：已登记的任务跳过。电机未绑定时空转 tick；水路未 init 时 poll 为空操作。
  * @note   两拍分别登记；其中一拍失败时已成功的那拍保留，下次只补登记失败项。
+ * @note   电机拍内顺序：`motor_executor_tick` → 各轴 `motor_axis_poll` → post-tick。
  * @return SW_OK 成功；周期任务登记失败时返回其错误码
  */
 sw_err_t mechanism_bridge_register_tasks(void);
@@ -79,7 +101,7 @@ bool mechanism_bridge_in_safe_state(void);
 
 #ifdef MECHANISM_BRIDGE_UNIT_TEST
 /**
- * @brief  测试复位：清空绑定、轴表与任务登记旗标
+ * @brief  测试复位：清空绑定、轴表、post-tick 钩子与任务登记旗标
  */
 void mechanism_bridge_reset_for_test(void);
 #endif

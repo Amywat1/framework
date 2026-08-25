@@ -256,7 +256,7 @@ typedef struct {
 - 在 `project_configure_hal()` 下发 IO 名称表、串口、地址、点位等配置。
 - 在 `project_bind_hal()` 绑定传感器通道、VFD 实例、backend 与事件回调。
 - 在 `project_init_hal()` 执行传感器预热等依赖 HAL init 后的项目初始化。
-- 通过 `mechanism_bridge_bind()` 绑定项目选定的静态槽位与硬件端口，用返回的 `motor_axis_t *` 做机构命令与查询。
+- 通过 `mechanism_bridge_bind()` 绑定项目选定的静态槽位与硬件端口，用返回的 `motor_axis_t *` 做机构命令与查询。多轴协调器经 `mechanism_bridge_add_post_tick()` 挂在同一电机拍的轴 poll 之后。
 - 经 `safety_port_register()` 注册 `safety_ops_t`，提供急停输入与安全切断实现。
 
 ### 6.3 Domain / Application

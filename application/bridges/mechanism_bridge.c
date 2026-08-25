@@ -18,12 +18,24 @@
 #include <string.h>
 
 #define MECHANISM_BRIDGE_AXIS_MAX MOTOR_MAX_MOTORS
+/*
+ * POST_TICK_MAX = 4：覆盖仿形协调等少量多轴策略，控制静态占用。
+ * 无登记时本循环为空操作；项目可不使用。
+ */
+#define MECHANISM_BRIDGE_POST_TICK_MAX 4
 
-static motor_exec_t *s_exec;
-static motor_axis_t  s_axes[MECHANISM_BRIDGE_AXIS_MAX];
-static int           s_axis_count;
-static bool          s_motor_task_registered;
-static bool          s_fluid_task_registered;
+typedef struct {
+    mechanism_post_tick_fn_t fn;
+    void                    *ctx;
+} mechanism_post_tick_entry_t;
+
+static motor_exec_t                 *s_exec;
+static motor_axis_t                  s_axes[MECHANISM_BRIDGE_AXIS_MAX];
+static int                           s_axis_count;
+static mechanism_post_tick_entry_t   s_post_ticks[MECHANISM_BRIDGE_POST_TICK_MAX];
+static int                           s_post_tick_count;
+static bool                          s_motor_task_registered;
+static bool                          s_fluid_task_registered;
 
 static void motor_tick_task(void *ctx)
 {
@@ -35,6 +47,9 @@ static void motor_tick_task(void *ctx)
     }
     for (i = 0; i < s_axis_count; ++i) {
         motor_axis_poll(&s_axes[i]);
+    }
+    for (i = 0; i < s_post_tick_count; ++i) {
+        s_post_ticks[i].fn(s_post_ticks[i].ctx);
     }
 }
 
@@ -152,6 +167,27 @@ motor_axis_t *mechanism_bridge_axis(int motor)
     return &s_axes[idx];
 }
 
+sw_err_t mechanism_bridge_add_post_tick(mechanism_post_tick_fn_t fn, void *ctx)
+{
+    int i;
+
+    if (fn == NULL) {
+        return SW_ERR_PARAM;
+    }
+    for (i = 0; i < s_post_tick_count; ++i) {
+        if (s_post_ticks[i].fn == fn) {
+            return SW_ERR_STATE;
+        }
+    }
+    if (s_post_tick_count >= MECHANISM_BRIDGE_POST_TICK_MAX) {
+        return SW_ERR_OVERFLOW;
+    }
+    s_post_ticks[s_post_tick_count].fn  = fn;
+    s_post_ticks[s_post_tick_count].ctx = ctx;
+    s_post_tick_count++;
+    return SW_OK;
+}
+
 sw_err_t mechanism_bridge_register_tasks(void)
 {
     sw_err_t ret;
@@ -197,8 +233,10 @@ void mechanism_bridge_reset_for_test(void)
 {
     s_exec                  = NULL;
     s_axis_count            = 0;
+    s_post_tick_count       = 0;
     s_motor_task_registered = false;
     s_fluid_task_registered = false;
     (void)memset(s_axes, 0, sizeof(s_axes));
+    (void)memset(s_post_ticks, 0, sizeof(s_post_ticks));
 }
 #endif

@@ -41,6 +41,11 @@ static int                s_recover_count;
 static int                s_periodic_register_count;
 static int                s_periodic_fail_on;
 static int                s_executor_tick_count;
+static periodic_task_fn_t s_captured_motor_tick;
+static void              *s_captured_motor_tick_ctx;
+static int                s_post_tick_count;
+static int                s_tick_at_post;
+static int                s_settled_at_post;
 static bool               s_end_cb_valid;
 static actuator_id_t      s_end_cb_id;
 static motor_event_t      s_end_cb_result;
@@ -102,6 +107,11 @@ static void mock_motor_reset(void)
     s_periodic_register_count = 0;
     s_periodic_fail_on        = 0;
     s_executor_tick_count     = 0;
+    s_captured_motor_tick     = NULL;
+    s_captured_motor_tick_ctx = NULL;
+    s_post_tick_count         = 0;
+    s_tick_at_post            = 0;
+    s_settled_at_post         = 0;
     s_allow_run_from_fault    = false;
     mechanism_bridge_reset_for_test();
     s_end_cb_valid = false;
@@ -190,6 +200,10 @@ sw_err_t periodic_task_register(const char        *name,
     (void)prio;
     (void)stack_size;
     s_periodic_register_count++;
+    if ((name != NULL) && (strcmp(name, "motor_tick") == 0)) {
+        s_captured_motor_tick     = fn;
+        s_captured_motor_tick_ctx = ctx;
+    }
     if ((s_periodic_fail_on > 0) && (s_periodic_register_count == s_periodic_fail_on)) {
         return SW_ERR_OVERFLOW;
     }
@@ -1137,6 +1151,40 @@ static void test_mechanism_bridge_register_retries_only_failed_task(void)
     TEST_ASSERT_EQUAL_INT(3, s_periodic_register_count);
 }
 
+static void test_post_tick_on_bridge(void *ctx)
+{
+    motor_axis_t *axis = (motor_axis_t *)ctx;
+
+    s_post_tick_count++;
+    s_tick_at_post    = s_executor_tick_count;
+    s_settled_at_post = motor_axis_is_settled(axis) ? 1 : 0;
+}
+
+static void test_mechanism_bridge_post_tick_runs_after_axis_poll(void)
+{
+    motor_axis_t *axis = NULL;
+    motor_exec_t *exec = (motor_exec_t *)s_motor;
+
+    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, mechanism_bridge_add_post_tick(NULL, NULL));
+    TEST_ASSERT_EQUAL_INT(SW_OK, mechanism_bridge_bind_motor(exec));
+    TEST_ASSERT_EQUAL_INT(SW_OK, mechanism_bridge_add_axis(0, NULL, &axis));
+    TEST_ASSERT_EQUAL_INT(SW_OK, mechanism_bridge_add_post_tick(test_post_tick_on_bridge, axis));
+    TEST_ASSERT_EQUAL_INT(SW_ERR_STATE, mechanism_bridge_add_post_tick(test_post_tick_on_bridge, axis));
+    TEST_ASSERT_EQUAL_INT(SW_OK, mechanism_bridge_register_tasks());
+    TEST_ASSERT_NOT_NULL(s_captured_motor_tick);
+
+    assert_axis_ok(motor_axis_run(axis, MOTOR_DIR_FORWARD, motor_speed_gear(1), NULL));
+    TEST_ASSERT_FALSE(motor_axis_is_settled(axis));
+    s_motor[0].exec_state = MOTOR_STATE_STOPPED;
+    s_captured_motor_tick(s_captured_motor_tick_ctx);
+
+    TEST_ASSERT_EQUAL_INT(1, s_executor_tick_count);
+    TEST_ASSERT_EQUAL_INT(1, s_post_tick_count);
+    TEST_ASSERT_EQUAL_INT(1, s_tick_at_post);
+    TEST_ASSERT_EQUAL_INT(1, s_settled_at_post);
+    TEST_ASSERT_TRUE(motor_axis_is_settled(axis));
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -1155,6 +1203,7 @@ int main(void)
         test_mechanism_bridge_returns_same_axis_and_rejects_duplicate, "", "验证机构桥接交回轴句柄并拒绝重复登记");
     WDF_RUN_TEST(test_mechanism_bridge_bind_attaches_executor, "", "验证机构桥接 bind 装配执行器后可出厂轴");
     WDF_RUN_TEST(test_mechanism_bridge_register_retries_only_failed_task, "", "验证机构桥接任务半失败后只补登记失败项");
+    WDF_RUN_TEST(test_mechanism_bridge_post_tick_runs_after_axis_poll, "", "验证 post-tick 在 executor tick 与轴 poll 之后执行");
     WDF_RUN_TEST(test_motor_axis_poll_skips_waiting_start, "", "验证排队启动态不发布完成事件");
     WDF_RUN_TEST(test_motor_axis_poll_reports_limit_end_then_idle, "", "验证电机轴先上报限位结局再发空闲事件");
     WDF_RUN_TEST(test_fluid_path_reference_counts_shared_pump, "", "验证流体路径对共享水泵进行引用计数");
