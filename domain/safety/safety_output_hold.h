@@ -7,8 +7,8 @@
  *          采样到 DI 有效会锁存，按钮松开后仍保持抑制，直到
  *          `safety_output_hold_release()`。这是复位急停抑制的唯一入口。
  */
-#ifndef DOMAIN_PORTS_OUTBOUND_SAFETY_SAFETY_OUTPUT_HOLD_H
-#define DOMAIN_PORTS_OUTBOUND_SAFETY_SAFETY_OUTPUT_HOLD_H
+#ifndef DOMAIN_SAFETY_SAFETY_OUTPUT_HOLD_H
+#define DOMAIN_SAFETY_SAFETY_OUTPUT_HOLD_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -56,4 +56,4 @@ void safety_output_hold_reset(void);
 }
 #endif
 
-#endif /* DOMAIN_PORTS_OUTBOUND_SAFETY_SAFETY_OUTPUT_HOLD_H */
+#endif /* DOMAIN_SAFETY_SAFETY_OUTPUT_HOLD_H */

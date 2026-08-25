@@ -1,11 +1,11 @@
 /**
- * @file    test_svc_param.c
- * @brief   svc_param 参数服务单元测试
+ * @file    test_param_kv.c
+ * @brief   param_kv 整型/字符串便利层单元测试
  */
 
 #include "adapters/outbound/storage/json/json_param_store.h"
 #include "common/sw_error.h"
-#include "services/param/svc_param.h"
+#include "domain/ports/outbound/storage/param_kv.h"
 #include "wdf_test_spec.h"
 
 #include <stdio.h>
@@ -40,37 +40,37 @@ void tearDown(void)
 
 static void test_init_empty_file_returns_storage_err(void)
 {
-    TEST_ASSERT_EQUAL_INT(SW_ERR_STORAGE, svc_param_init());
+    TEST_ASSERT_EQUAL_INT(SW_ERR_STORAGE, param_kv_init());
 }
 
 static void test_get_int_default_when_key_missing(void)
 {
-    (void)svc_param_init();
-    TEST_ASSERT_EQUAL_INT(99, svc_param_get_int("missingKey", 99));
+    (void)param_kv_init();
+    TEST_ASSERT_EQUAL_INT(99, param_kv_get_int("missingKey", 99));
 }
 
 static void test_set_get_int_roundtrip(void)
 {
-    (void)svc_param_init();
+    (void)param_kv_init();
 
-    TEST_ASSERT_EQUAL_INT(SW_OK, svc_param_set_int(PARAM_KEY_WASH_MODE, 2));
-    TEST_ASSERT_EQUAL_INT(2, svc_param_get_int(PARAM_KEY_WASH_MODE, 0));
+    TEST_ASSERT_EQUAL_INT(SW_OK, param_kv_set_int(PARAM_KEY_WASH_MODE, 2));
+    TEST_ASSERT_EQUAL_INT(2, param_kv_get_int(PARAM_KEY_WASH_MODE, 0));
 }
 
 static void test_get_int_from_loaded_file(void)
 {
     write_json_file("{\"washMode\":5}");
-    TEST_ASSERT_EQUAL_INT(SW_OK, svc_param_init());
-    TEST_ASSERT_EQUAL_INT(5, svc_param_get_int(PARAM_KEY_WASH_MODE, 0));
+    TEST_ASSERT_EQUAL_INT(SW_OK, param_kv_init());
+    TEST_ASSERT_EQUAL_INT(5, param_kv_get_int(PARAM_KEY_WASH_MODE, 0));
 }
 
 static void test_set_str_and_get_str(void)
 {
     char buf[32] = {0};
 
-    (void)svc_param_init();
-    TEST_ASSERT_EQUAL_INT(SW_OK, svc_param_set_str("deviceName", "demo-unit"));
-    TEST_ASSERT_EQUAL_INT(SW_OK, svc_param_get_str("deviceName", buf, sizeof(buf), "none"));
+    (void)param_kv_init();
+    TEST_ASSERT_EQUAL_INT(SW_OK, param_kv_set_str("deviceName", "demo-unit"));
+    TEST_ASSERT_EQUAL_INT(SW_OK, param_kv_get_str("deviceName", buf, sizeof(buf), "none"));
     TEST_ASSERT_EQUAL_STRING("demo-unit", buf);
 }
 
@@ -78,31 +78,31 @@ static void test_get_str_uses_default_when_missing(void)
 {
     char buf[32] = {0};
 
-    (void)svc_param_init();
-    TEST_ASSERT_EQUAL_INT(SW_OK, svc_param_get_str("missing", buf, sizeof(buf), "fallback"));
+    (void)param_kv_init();
+    TEST_ASSERT_EQUAL_INT(SW_OK, param_kv_get_str("missing", buf, sizeof(buf), "fallback"));
     TEST_ASSERT_EQUAL_STRING("fallback", buf);
 }
 
 static void test_get_str_rejects_null_buf(void)
 {
-    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, svc_param_get_str("k", NULL, 32, "d"));
+    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, param_kv_get_str("k", NULL, 32, "d"));
 }
 
 static void test_set_int_rejects_null_key(void)
 {
-    (void)svc_param_init();
-    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, svc_param_set_int(NULL, 1));
+    (void)param_kv_init();
+    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, param_kv_set_int(NULL, 1));
 }
 
 static void test_save_persists_values(void)
 {
-    (void)svc_param_init();
-    TEST_ASSERT_EQUAL_INT(SW_OK, svc_param_set_int(PARAM_KEY_WASH_MODE, 7));
-    TEST_ASSERT_EQUAL_INT(SW_OK, svc_param_save());
+    (void)param_kv_init();
+    TEST_ASSERT_EQUAL_INT(SW_OK, param_kv_set_int(PARAM_KEY_WASH_MODE, 7));
+    TEST_ASSERT_EQUAL_INT(SW_OK, param_kv_save());
 
     json_param_store_register();
-    TEST_ASSERT_EQUAL_INT(SW_OK, svc_param_init());
-    TEST_ASSERT_EQUAL_INT(7, svc_param_get_int(PARAM_KEY_WASH_MODE, 0));
+    TEST_ASSERT_EQUAL_INT(SW_OK, param_kv_init());
+    TEST_ASSERT_EQUAL_INT(7, param_kv_get_int(PARAM_KEY_WASH_MODE, 0));
 }
 
 int main(void)

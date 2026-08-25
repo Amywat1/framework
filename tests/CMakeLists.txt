@@ -1,5 +1,5 @@
 set(WDF_ROOT ${CMAKE_SOURCE_DIR})
-set(WDF_SAFETY_HOLD_SRC ${WDF_ROOT}/domain/ports/outbound/safety/safety_output_hold.c)
+set(WDF_SAFETY_HOLD_SRC ${WDF_ROOT}/domain/safety/safety_output_hold.c)
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
 
 # 辅助宏：添加单元测试（每个测试只链接自身逻辑所需的最小源集）
@@ -210,7 +210,7 @@ add_unit_test(test_op_mode_alarm_port
 )
 
 add_unit_test(test_safety_output_hold
-    ${CMAKE_CURRENT_SOURCE_DIR}/ports/test_safety_output_hold.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/domain/test_safety_output_hold.c
     ${WDF_SAFETY_HOLD_SRC}
 )
 
@@ -720,9 +720,9 @@ add_unit_test(test_scheduler
     ${WDF_ROOT}/common/sw_mutex.c
 )
 
-add_unit_test(test_svc_param
-    ${CMAKE_CURRENT_SOURCE_DIR}/services/test_svc_param.c
-    ${WDF_ROOT}/services/param/svc_param.c
+add_unit_test(test_param_kv
+    ${CMAKE_CURRENT_SOURCE_DIR}/ports/test_param_kv.c
+    ${WDF_ROOT}/domain/ports/outbound/storage/param_kv.c
     ${WDF_ROOT}/adapters/outbound/storage/json/json_param_store.c
     ${WDF_ROOT}/runtime/ports/port_registry_cloud.c
     ${WDF_ROOT}/runtime/ports/port_registry_infra.c
@@ -730,8 +730,8 @@ add_unit_test(test_svc_param
     ${WDF_ROOT}/common/sw_mutex.c
     ${WDF_ROOT}/third_party/cJSON/cJSON.c
 )
-target_compile_definitions(test_svc_param PRIVATE
-    PARAM_STORE_JSON_FILE_PATH="${CMAKE_BINARY_DIR}/tests/svc_param_test.json"
+target_compile_definitions(test_param_kv PRIVATE
+    PARAM_STORE_JSON_FILE_PATH="${CMAKE_BINARY_DIR}/tests/param_kv_test.json"
 )
 
 add_unit_test(test_estop_poll_thread

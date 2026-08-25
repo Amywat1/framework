@@ -2,7 +2,7 @@
  * @file    test_safety_output_hold.c
  * @brief   机构输出抑制：DI 电平与软件锁存
  */
-#include "domain/ports/outbound/safety/safety_output_hold.h"
+#include "domain/safety/safety_output_hold.h"
 #include "wdf_test_spec.h"
 
 static bool s_di;

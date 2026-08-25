@@ -28,7 +28,7 @@ Runtime 层负责把框架基础设施、项目 wiring、应用模块、适配�
 | 阶段 | 规则 |
 |------|------|
 | 注册期 | `wiring()` 只注册 port/provider/loader，不注入项目参数、不绑定实例、不初始化硬件 |
-| 加载期 | `configure_storage` 后 `svc_param_init()` 与 `deploy_store.load()`，`SW_ERR_STORAGE` 允许继续 |
+| 加载期 | `configure_storage` 后 `param_kv_init()` 与 `deploy_store.load()`，`SW_ERR_STORAGE` 允许继续 |
 | 配置期 | 项目 hooks 注入 HAL 参数、安全默认态和适配器参数 |
 | 绑定期 | 绑定 HAL/`device_ops`/报警目录，末尾执行 `project_validate()` |
 | HAL 初始化期 | HAL port `init`，再依次 `init_hal` / `init_device` / `init_safety` |
@@ -75,7 +75,7 @@ bootstrap_run()
     │
     ├─ bootstrap_load_storage()
     │    ├─ project_configure_storage()
-    │    ├─ svc_param_init()
+    │    ├─ param_kv_init()
     │    └─ deploy_store.load()
     │
     ├─ bootstrap_configure()
@@ -393,7 +393,7 @@ IO 子板 provider 的后台线程由 `io_exp_driver` 自行管理，不走 core
 | 场景 | 行为 |
 |------|------|
 | 启动步骤返回非 `SW_OK` | `BOOT_CHECK` 记录日志并中止启动 |
-| `svc_param_init()` 返回 `SW_ERR_STORAGE` | 允许继续，由业务默认值兜底 |
+| `param_kv_init()` 返回 `SW_ERR_STORAGE` | 允许继续，由业务默认值兜底 |
 | `deploy_store.load()` 返回 `SW_ERR_STORAGE` | 允许继续，provider 可在后续初始化中处理缺省配置 |
 | 线程注册表满 | 返回 `SW_ERR_OVERFLOW`，启动中止 |
 | `SCHED_FIFO` 创建失败 | 降级 `SCHED_OTHER` 重试 |

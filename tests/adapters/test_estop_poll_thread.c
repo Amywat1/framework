@@ -10,7 +10,7 @@
 #include "common/event_types.h"
 #include "common/sw_error.h"
 #include "common/time_util.h"
-#include "domain/ports/outbound/safety/safety_output_hold.h"
+#include "domain/safety/safety_output_hold.h"
 #include "domain/ports/outbound/safety/safety_port.h"
 #include "runtime/event_bus/event_bus.h"
 #include "runtime/scheduler/scheduler.h"

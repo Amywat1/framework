@@ -120,9 +120,9 @@ sw_err_t thread_register(const char *name, void *(*fn)(void *), int sched_policy
     (void)stack_size;
     return step("thread_register");
 }
-sw_err_t svc_param_init(void)
+sw_err_t param_kv_init(void)
 {
-    return step("svc_param_init");
+    return step("param_kv_init");
 }
 sw_err_t alarm_registry_init(void)
 {
@@ -294,7 +294,7 @@ static const char *const k_order[] = {
     "thread_register",
     /* load_storage */
     "configure_storage",
-    "svc_param_init",
+    "param_kv_init",
     /* configure */
     "configure_hal",
     "configure_safety",

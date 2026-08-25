@@ -66,7 +66,7 @@ sw_err_t scheduler_start_all(void)
 {
     return SW_ERR_NOT_INIT;
 }
-sw_err_t svc_param_init(void)
+sw_err_t param_kv_init(void)
 {
     return SW_ERR_NOT_INIT;
 }

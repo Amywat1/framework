@@ -4,7 +4,7 @@
  */
 
 #include "domain/mechanism/motor/motor_executor.h"
-#include "domain/ports/outbound/safety/safety_output_hold.h"
+#include "domain/safety/safety_output_hold.h"
 #include "wdf_test_spec.h"
 
 #include <stdbool.h>

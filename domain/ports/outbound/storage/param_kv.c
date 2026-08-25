@@ -1,16 +1,16 @@
 /**
- * @file    svc_param.c
- * @brief   运行时参数管理实现（通过 param_store_ops 端口访问存储）
+ * @file    param_kv.c
+ * @brief   运行参数具名访问实现（经 param_store_ops 读写）
  * @author  HUWANGWEI
  * @date    2026-04-10
  *
- * @note    svc_param 是业务语义层，不直接操作存储介质。
- *          底层读写委托给 param_store_ops（由 wiring.c 注册 json_param_store 实现）。
+ * @note    不直接操作存储介质。底层读写委托给 param_store_ops
+ *          （由 wiring 注册 json_param_store 等实现）。
  *          整型参数以字符串形式存入 param_store，读取时做 strtol 转换。
  *          若 param_store 未注册，所有读取返回默认值，写入/保存静默失败。
  */
 
-#include "services/param/svc_param.h"
+#include "domain/ports/outbound/storage/param_kv.h"
 
 #include "common/log.h"
 #include "domain/ports/outbound/storage/param_store.h"
@@ -26,7 +26,7 @@ static const param_store_ops_t *get_ops(void)
 {
     const param_store_ops_t *ops = param_store_get_ops();
     if (ops == NULL) {
-        LOG_WARN("svc_param: param_store not registered");
+        LOG_WARN("param_kv: param_store not registered");
     }
     return ops;
 }
@@ -34,7 +34,7 @@ static const param_store_ops_t *get_ops(void)
 /* -------------------------------------------------------------------------
  * 接口实现
  * ------------------------------------------------------------------------- */
-sw_err_t svc_param_init(void)
+sw_err_t param_kv_init(void)
 {
     const param_store_ops_t *ops = get_ops();
     if (ops == NULL) {
@@ -43,7 +43,7 @@ sw_err_t svc_param_init(void)
     return ops->load();
 }
 
-int svc_param_get_int(const char *key, int default_val)
+int param_kv_get_int(const char *key, int default_val)
 {
     char                     buf[32];
     char                    *end;
@@ -66,7 +66,7 @@ int svc_param_get_int(const char *key, int default_val)
     return (int)val;
 }
 
-sw_err_t svc_param_get_str(const char *key, char *buf, int buf_size, const char *default_val)
+sw_err_t param_kv_get_str(const char *key, char *buf, int buf_size, const char *default_val)
 {
     const param_store_ops_t *ops = param_store_get_ops();
 
@@ -82,7 +82,7 @@ sw_err_t svc_param_get_str(const char *key, char *buf, int buf_size, const char 
     return SW_OK;
 }
 
-sw_err_t svc_param_set_int(const char *key, int val)
+sw_err_t param_kv_set_int(const char *key, int val)
 {
     char                     buf[32];
     const param_store_ops_t *ops = get_ops();
@@ -98,7 +98,7 @@ sw_err_t svc_param_set_int(const char *key, int val)
     return ops->set(key, buf);
 }
 
-sw_err_t svc_param_set_str(const char *key, const char *val)
+sw_err_t param_kv_set_str(const char *key, const char *val)
 {
     const param_store_ops_t *ops = get_ops();
 
@@ -112,7 +112,7 @@ sw_err_t svc_param_set_str(const char *key, const char *val)
     return ops->set(key, val);
 }
 
-sw_err_t svc_param_save(void)
+sw_err_t param_kv_save(void)
 {
     const param_store_ops_t *ops = get_ops();
 

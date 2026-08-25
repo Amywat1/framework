@@ -21,7 +21,7 @@
 #   R9  domain/         不使用文件 IO / JSON / 线程注册 / 动态内存
 #   R10 adapters/       不承载跨领域编排（bridge / projection / coordinator）
 #   R11 application/    不依赖 adapters/ 或 services/
-#   R13 services/       不依赖 adapters/、application/ 或 domain/cloud/
+#   R13 services/       不得包含生产源文件（该层已撤销）
 #   R14 observability/  只依赖 common/
 #   R15 全框架头文件    保护宏等于其路径的全大写下划线形式
 #   R16 实时可达互斥量  必须启用优先级继承
@@ -32,6 +32,9 @@
 #   R21 快照写接口      仅投影与定义处可写
 #   R22 错误分类判定    必须走 sw_err_is_* helper
 #   R23 HAL 超时覆盖    每个 HAL .c 必须登记超时保护分类
+#   R24 假 port         出站头普通函数不得在 domain 锥、端口树外定义
+#   R25 outbound .c     必须登记用途（register_stub / helper）
+#   R26 端口子目录      必须落在能力域白名单
 
 set -euo pipefail
 
@@ -96,11 +99,9 @@ check_includes \
     "domain/" "application/" "adapters/" "runtime/" "services/"
 
 # R2: domain/ 不依赖 adapters/、application/ 或 services/
-# domain 可引用 common/、自身 domain/ports/outbound、runtime/event_bus
-# services/ 不在 domain 的允许出向清单内（见 architecture/01 第 2.4 节）：
-# domain 反向依赖共享服务会让领域规则被服务装配顺序绑住，且 services 自身依赖
-# domain，形成目录级双向依赖。这条同时是 ARCH-11「cloud/ 不依赖 services/」的
-# 实现——cloud 已迁入 domain/cloud，故由本规则一并覆盖。
+# domain 可引用 common/、自身 domain/ports/outbound、runtime/event_bus。
+# `services/` 已撤销；仍列为禁止前缀，防止重建该层时 domain 去依赖它。
+# 这条同时覆盖 ARCH-11「cloud/ 不依赖 services/」（cloud 在 domain 锥内）。
 check_includes \
     "R2: domain/ 不依赖 adapters/、application/ 或 services/" \
     "domain" \
@@ -396,26 +397,36 @@ fi
 # 谁都无法单独提取，而全部 10 条规则都通过。
 #
 # 各层允许的出向依赖按实际需要确定，不做超出现状的收紧：
-#   application  common / domain / ports / runtime / cloud
-#   cloud        common / domain / ports / runtime（cloud 已迁入 domain/cloud，
-#                其「不依赖 services/」由 R2 覆盖）
-#   services     common / ports / domain（domain/cloud 除外，见 R13）
+#   application  common / domain / ports / runtime
 #   observability common（旁路设施，不参与主链路，故约束最严）
 #
-# 注意「规则参数」必须与 contract/行为契约.md 的 ARCH 条目文字逐项对齐：
-# ARCH-11 / ARCH-12 各列了三个禁止方向，而本文件一度只实现了两个，
-# cloud/ ↔ services/ 这一对长期无人约束。该对账现由 check_behaviour_contract.sh
-# 的 C10 自动执行，新增禁止方向时改一处即可被另一处发现。
+# `services/` 已撤销：参数具名访问并入 domain/ports/outbound/storage/param_kv。
+# R13 改为禁止该目录再出现生产源。R1/R2/R11/R14 仍把 `services/` 列为禁止
+# include 前缀，作为重建该层时的绊索。
+#
+# 注意「规则参数」必须与 contract/行为契约.md 的 ARCH 条目文字逐项对齐。
+# 该对账由 check_behaviour_contract.sh 的 C10 自动执行。
 # -----------------------------------------------------------------------------
 check_includes \
     "R11: application/ 不依赖 adapters/ 或 services/" \
     "application" \
     "adapters/" "services/"
 
-check_includes \
-    "R13: services/ 不依赖 adapters/、application/ 或 domain/cloud/" \
-    "services" \
-    "adapters/" "application/" "domain/cloud/"
+# R13: 不得再设立 services/ 层
+TOTAL_RULES=$((TOTAL_RULES + 1))
+services_src=""
+if [ -d "${FW_ROOT}/services" ]; then
+    services_src=$(find "${FW_ROOT}/services" \
+        \( -name '*.c' -o -name '*.h' \) -print 2>/dev/null | sort || true)
+fi
+if [ -z "${services_src}" ]; then
+    echo "[PASS] R13: services/ 不含生产源文件"
+else
+    echo ""
+    echo "[FAIL] R13: services/ 已撤销，不得再包含生产源文件"
+    printf '%s\n' "${services_src}" | sed "s|^${FW_ROOT}/|  |"
+    TOTAL_VIOLATIONS=$((TOTAL_VIOLATIONS + 1))
+fi
 
 # observability 是旁路设施：任何层都可向它发布记录，它不回调任何层，因此不构成
 # 环。这条性质只有在它除 common 之外什么都不依赖时才成立，故这里逐一排除其余层。
@@ -1177,6 +1188,51 @@ else
     echo "        判据: 该 HAL 实现是否等待硬件应答；若是，其最坏等待时长如何受限。"
     echo "        声称 TIMEOUT 的文件须含 SW_ERR_TIMEOUT。"
     TOTAL_VIOLATIONS=$((TOTAL_VIOLATIONS + 1))
+fi
+
+# -----------------------------------------------------------------------------
+# R24 / R25 / R26: 端口放置
+#
+# R1~R23 管 include 方向和层内禁令，管不住「领域内部 API 挂在 outbound 头里」。
+# motor_exec 曾以 port 之名住在 domain/ports/outbound，定义却在 mechanism——
+# 目录名撒谎，include 规则全绿。这三条把「真 driven port」收成可判定的形状：
+#
+#   R24 出站头里的普通函数（非 ops 函数指针）若在 domain 锥内、端口树外有定义，失败
+#   R25 domain/ports/outbound 下每个 .c 必须登记用途（register_stub / helper）
+#   R26 端口源文件必须落在已登记的能力域子目录
+#
+# 实现与注入自检见 scripts/check_port_placement.py。
+# C10 对账锚点（本段必须保留 [PASS]/[FAIL] 字面量）：
+# [PASS] R24: 出站头中的普通函数不得在 domain 锥内、端口树外定义
+# [FAIL] R24: 出站头中的普通函数不得在 domain 锥内、端口树外定义
+# [PASS] R25: domain/ports/outbound 下每个 .c 已登记用途
+# [FAIL] R25: domain/ports/outbound 下存在未登记或失效的 .c
+# [PASS] R26: 端口源文件均落在已登记的能力域子目录
+# [FAIL] R26: 端口源文件均落在已登记的能力域子目录
+# -----------------------------------------------------------------------------
+PORT_PLACEMENT_PY="${FW_ROOT}/scripts/check_port_placement.py"
+TOTAL_RULES=$((TOTAL_RULES + 3))
+if [ ! -f "${PORT_PLACEMENT_PY}" ]; then
+    echo ""
+    echo "[FAIL] R24: 缺少 scripts/check_port_placement.py"
+    echo "[FAIL] R25: 缺少 scripts/check_port_placement.py"
+    echo "[FAIL] R26: 缺少 scripts/check_port_placement.py"
+    TOTAL_VIOLATIONS=$((TOTAL_VIOLATIONS + 3))
+else
+    port_out=""
+    port_rc=0
+    port_out=$(python3 "${PORT_PLACEMENT_PY}" --root "${FW_ROOT}" 2>&1) || port_rc=$?
+    printf '%s\n' "${port_out}"
+    for rid in R24 R25 R26; do
+        if printf '%s\n' "${port_out}" | grep -q "^\[FAIL\] ${rid}:"; then
+            TOTAL_VIOLATIONS=$((TOTAL_VIOLATIONS + 1))
+        elif printf '%s\n' "${port_out}" | grep -q "^\[PASS\] ${rid}:"; then
+            continue
+        else
+            echo "[FAIL] ${rid}: check_port_placement.py 未输出该规则结果（exit ${port_rc}）"
+            TOTAL_VIOLATIONS=$((TOTAL_VIOLATIONS + 1))
+        fi
+    done
 fi
 
 # -----------------------------------------------------------------------------

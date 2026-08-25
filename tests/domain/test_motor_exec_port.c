@@ -5,8 +5,8 @@
 
 #include "common/sw_error.h"
 #include "domain/mechanism/motor/motor_executor.h"
-#include "domain/ports/outbound/motor/motor_exec_port.h"
-#include "domain/ports/outbound/safety/safety_output_hold.h"
+#include "domain/mechanism/motor/motor_exec.h"
+#include "domain/safety/safety_output_hold.h"
 #include "wdf_test_spec.h"
 
 #include <stdbool.h>

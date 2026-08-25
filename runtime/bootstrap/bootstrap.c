@@ -26,7 +26,7 @@
 #include "runtime/event_bus/event_bus.h"
 #include "runtime/scheduler/scheduler.h"
 #include "runtime/scheduler/thread_registry.h"
-#include "services/param/svc_param.h"
+#include "domain/ports/outbound/storage/param_kv.h"
 
 #include <pthread.h>
 #include <sched.h>
@@ -147,10 +147,10 @@ static sw_err_t bootstrap_load_storage(void)
     BOOT_CHECK(s_hooks->configure_storage(), "project_configure_storage");
 
     {
-        sw_err_t r = svc_param_init();
+        sw_err_t r = param_kv_init();
 
         if ((r != SW_OK) && (r != SW_ERR_STORAGE)) {
-            LOG_ERROR("bootstrap: svc_param_init ret=%d", (int)r);
+            LOG_ERROR("bootstrap: param_kv_init ret=%d", (int)r);
             return r;
         }
     }

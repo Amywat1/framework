@@ -3,7 +3,7 @@
 **版本**：v1.0  
 **状态**：已落地（param_store + deploy_store + engine_program_loader + JSON 适配器 + manifest 校验）  
 **最后同步代码**：2026-07-14（`domain/ports/outbound/storage`、`adapters/outbound/storage/json`、`engine_program_manifest`）  
-**适用范围**：`domain/ports/outbound/storage/`、`adapters/outbound/storage/json/`、`services/param/`、项目方案加载流程  
+**适用范围**：`domain/ports/outbound/storage/`、`adapters/outbound/storage/json/`、项目方案加载流程  
 **架构基线**：Ports & Adapters + 存储类型分离 + 方案资产完整性校验  
 **关键词**：param_store、deploy_store、engine_program_loader、engine_program_json、manifest、SHA256
 
@@ -45,13 +45,13 @@
 | **JSON 部署适配器** | `adapters/outbound/storage/json/json_deploy_store.c` | 基于 cJSON 的只读部署文件 |
 | **JSON 方案加载器** | `adapters/outbound/storage/json/engine_program_json.*` | JSON → `engine_program_t` |
 | **manifest 校验** | `adapters/outbound/storage/json/engine_program_manifest.*` | SHA256 + manifest 文件比对 |
-| **消费方** | `services/param/svc_param.*` | 运行期参数具名 API |
+| **消费方** | `domain/ports/outbound/storage/param_kv.*` | 运行期参数具名 API |
 | **消费方** | 项目洗车编排器 | 启动洗车前校验并加载方案，再交给 `engine_session` |
 
 ### 2.2 依赖方向
 
 ```text
-application / services
+application
         │ storage ports
         ▼
 domain/ports/outbound/storage
@@ -90,12 +90,12 @@ adapters/outbound/storage/json
 | `adapters/outbound/storage/json/engine_program_json_schema.c` | JSON 字段白名单校验 |
 | `adapters/outbound/storage/json/engine_program_json_template.c` | 步骤模板展开 |
 | `adapters/outbound/storage/json/engine_program_manifest.{h,c}` | manifest 完整性校验（SHA256） |
-| `services/param/svc_param.{h,c}` | 带语义的参数访问层 |
+| `domain/ports/outbound/storage/param_kv.{h,c}` | `param_store` 上的整型/字符串便利层 |
 | `common/asset_version.h` | 通用语义化版本解析与兼容判定 |
 | `tests/adapters/test_json_param_store.c` | 参数存储适配器 |
 | `tests/adapters/test_json_deploy_store.c` | 部署配置版本校验与拒绝后回退 |
 | `tests/adapters/test_engine_program_json.c` | 方案 JSON 加载与 loader port |
-| `tests/services/test_svc_param.c` | 参数访问层 |
+| `tests/ports/test_param_kv.c` | 参数访问层 |
 
 ---
 
@@ -121,7 +121,7 @@ typedef struct {
 | `get()` | 支持顶层 String / Number，统一以字符串返回 |
 | `set()` | 已存在 Number 则 `atof` 更新；否则写 String；不自动 save |
 
-文件不存在、空文件或 JSON 非法返回 `SW_ERR_STORAGE`。`bootstrap` 中 `svc_param_init()` 返回 `SW_ERR_STORAGE` 时允许继续，由业务默认值兜底。
+文件不存在、空文件或 JSON 非法返回 `SW_ERR_STORAGE`。`bootstrap` 中 `param_kv_init()` 返回 `SW_ERR_STORAGE` 时允许继续，由业务默认值兜底。
 
 ### 4.2 JSON 文件形态
 
@@ -172,9 +172,9 @@ project_configure_storage()
 
 若项目未显式调用 `json_param_store_configure()`，适配器才回退到编译期 `PARAM_STORE_JSON_FILE_PATH`。Demo 和真机项目应优先在 `project_configure_storage()` 注入路径，测试可继续使用编译宏作为默认值。
 
-### 4.5 `svc_param` 边界
+### 4.5 `param_kv` 边界
 
-`param_store` 是原始 KV 端口，`services/param/svc_param.*` 是带业务语义的具名访问层。业务优先依赖 `svc_param`，避免在多处散落参数键名。项目负责定义键名语义、默认值策略和参数变更后的保存时机。
+`param_store` 是原始 KV 端口，`param_kv` 是同目录下的整型/字符串便利层。具名键访问优先走 `param_kv`，避免在多处散落参数键名。项目负责定义键名语义、默认值策略和参数变更后的保存时机。
 
 ---
 
@@ -290,7 +290,7 @@ project_configure_storage()
     └─ json_deploy_store_configure(deploy_path)
 
 bootstrap_load_storage()
-    ├─ svc_param_init()
+    ├─ param_kv_init()
     │    └─ param_store.load()
     └─ deploy_store.load()
 
@@ -385,7 +385,7 @@ engine_program_t *program = engine_program_load(path, err, sizeof(err));
 | 测试 | 覆盖 |
 |------|------|
 | `tests/adapters/test_json_param_store.c` | 参数 JSON load/save/get/set |
-| `tests/services/test_svc_param.c` | `svc_param` 对 param_store 的封装 |
+| `tests/ports/test_param_kv.c` | `param_kv` 对 param_store 的封装 |
 | `tests/adapters/test_json_deploy_store.c` | 部署 JSON load/get |
 | `tests/adapters/test_engine_program_json.c` | JSON 方案加载器、loader port、sim IO 闭环 |
 | `tests/domain/test_program_engine.c` | engine 模型/表达式/运行时 |
@@ -407,7 +407,7 @@ engine_program_t *program = engine_program_load(path, err, sizeof(err));
 
 ### 13.2 新增业务参数
 
-1. 在 `svc_param` 或业务模块定义具名 getter/setter。
+1. 在 `param_kv` 或业务模块定义具名 getter/setter。
 2. 内部调用 `param_store_get_ops()->get/set`。
 3. 在参数变更流程末尾显式调用 `save()`。
 4. 不要在 `json_param_store.c` 增加业务键名常量。
@@ -437,7 +437,7 @@ engine_program_t *program = engine_program_load(path, err, sizeof(err));
 |------|------|
 | `param_store` 端口 | 已落地 |
 | `json_param_store` 适配器 | 已落地 |
-| `svc_param` 业务层 | 已落地 |
+| `param_kv` 便利层 | 已落地 |
 | `deploy_store` 端口 | 已落地 |
 | `json_deploy_store` 适配器 | 已落地 |
 | `engine_program_loader_port` | 已落地 |

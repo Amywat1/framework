@@ -45,7 +45,6 @@ target_compile_options(wdf_smoke PRIVATE -Wall -Wextra -Werror -g)
 target_link_libraries(wdf_smoke PRIVATE
     wdf_application
     wdf_estop_poll
-    wdf_services
     wdf_storage_json
     wdf_hal_sim
     pthread

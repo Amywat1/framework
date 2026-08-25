@@ -13,7 +13,7 @@
 #define DOMAIN_MECHANISM_MOTOR_MOTOR_EXECUTOR_H
 
 #include "common/sw_error.h"
-#include "domain/ports/outbound/motor/motor_exec_port.h"
+#include "domain/mechanism/motor/motor_exec.h"
 #include "domain/ports/outbound/motor/motor_hw_port.h"
 
 #include <stdbool.h>

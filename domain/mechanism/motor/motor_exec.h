@@ -1,13 +1,14 @@
 /**
- * @file    motor_exec_port.h
- * @brief   电机执行器出站命令与查询。
+ * @file    motor_exec.h
+ * @brief   电机执行器命令与查询（领域内部 API）。
  *
  * 仅供 domain/mechanism/motor 实现、motor_axis.c 与执行器单测使用。
+ * 不是六边形出站契约：实现就在同层 motor_executor，不在 adapters。
  * 项目业务模块应 include motor_axis.h，不要直接调用本头中的命令。
  * 接线期绑定硬件端口见 motor_hw_port.h 与 motor_executor_bind / mechanism_bridge_bind。
  */
-#ifndef DOMAIN_PORTS_OUTBOUND_MOTOR_MOTOR_EXEC_PORT_H
-#define DOMAIN_PORTS_OUTBOUND_MOTOR_MOTOR_EXEC_PORT_H
+#ifndef DOMAIN_MECHANISM_MOTOR_MOTOR_EXEC_H
+#define DOMAIN_MECHANISM_MOTOR_MOTOR_EXEC_H
 
 #include "domain/ports/outbound/motor/motor_types.h"
 
@@ -116,4 +117,4 @@ bool motor_exec_pop_event_for(motor_exec_t *exec, int motor, motor_event_t *out)
 }
 #endif
 
-#endif /* DOMAIN_PORTS_OUTBOUND_MOTOR_MOTOR_EXEC_PORT_H */
+#endif /* DOMAIN_MECHANISM_MOTOR_MOTOR_EXEC_H */

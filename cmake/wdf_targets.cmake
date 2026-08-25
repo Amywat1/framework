@@ -24,7 +24,6 @@
 #   wdf_asset_contract 必需资产启动期校验（依赖 cloud + program_engine）
 #   wdf_observation_bridge 框架事件转观测记录（依赖 observability）
 #   wdf_cloud       通用云点位模型与变化检测
-#   wdf_services    参数服务等共享服务
 #   wdf_observability 观测记录与黑匣子
 #
 # 可选适配器目标（按需 link，不进入上面的分层依赖）：
@@ -127,9 +126,10 @@ _wdf_add_interface_lib(wdf_ports
         runtime/ports/port_registry_safety.c
         runtime/ports/port_registry_cloud.c
         runtime/ports/port_registry_infra.c
-        domain/ports/outbound/safety/safety_output_hold.c
+        domain/safety/safety_output_hold.c
         domain/ports/outbound/program_engine/engine_environment_port.c
         domain/ports/outbound/storage/engine_program_loader_port.c
+        domain/ports/outbound/storage/param_kv.c
     DEPENDS
         wdf_common
 )
@@ -174,7 +174,7 @@ _wdf_add_interface_lib(wdf_domain
 # ---------------------------------------------------------------------------
 # wdf_mechanism — 机构控制通用模式（运动状态机、单轴会话、流体路径）
 #
-# 电机执行器与 motor_axis 同库：axis.c 只依赖 motor_exec_port.h；项目业务面对 motor_axis。
+# 电机执行器与 motor_axis 同库：axis.c 只依赖 motor_exec.h；项目业务面对 motor_axis。
 # 项目仍须在 wiring 里 bind 硬件端口，但不必再链 wdf_hal_components。
 # ---------------------------------------------------------------------------
 _wdf_add_interface_lib(wdf_mechanism
@@ -344,18 +344,6 @@ _wdf_add_interface_lib(wdf_cloud_json
     DEPENDS
         wdf_cloud
         wdf_point_table_json
-)
-
-# ---------------------------------------------------------------------------
-# wdf_services — 参数服务等共享服务
-# ---------------------------------------------------------------------------
-_wdf_add_interface_lib(wdf_services
-    SOURCES
-        services/param/svc_param.c
-    DEPENDS
-        wdf_common
-        wdf_ports
-        wdf_domain
 )
 
 # ---------------------------------------------------------------------------

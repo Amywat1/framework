@@ -2,7 +2,7 @@
  * @file    motor_types.h
  * @brief   电机运动词汇：方向、速度、到位条件、事件与命令结果。
  *
- * 项目业务经 motor_axis.h 间接包含本头。执行器命令入口在 motor_exec_port.h，
+ * 项目业务经 motor_axis.h 间接包含本头。执行器命令入口在 motor_exec.h，
  * 不在本头声明，避免机构模块误调 motor_exec_run。
  */
 #ifndef DOMAIN_PORTS_OUTBOUND_MOTOR_MOTOR_TYPES_H

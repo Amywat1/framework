@@ -10,7 +10,7 @@
  */
 
 #include "common/log.h"
-#include "domain/ports/outbound/safety/safety_output_hold.h"
+#include "domain/safety/safety_output_hold.h"
 #include "domain/ports/outbound/safety/safety_port.h"
 
 #include <limits.h>

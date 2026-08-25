@@ -2,7 +2,7 @@
  * @file    safety_output_hold.c
  * @brief   机构输出抑制实现（原子锁存 + 可选 DI 采样）
  */
-#include "domain/ports/outbound/safety/safety_output_hold.h"
+#include "domain/safety/safety_output_hold.h"
 
 #include <stdatomic.h>
 #include <stddef.h>

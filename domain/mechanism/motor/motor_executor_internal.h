@@ -3,7 +3,7 @@
  * @brief   电机执行器内部类型与跨编译单元接口
  *
  * @note    仅供 motor_executor*.c 互调，不对外包含。
- *          对外契约见 motor_executor.h 与 motor_exec_port.h。
+ *          对外契约见 motor_executor.h 与 motor_exec.h。
  */
 
 #ifndef DOMAIN_MECHANISM_MOTOR_MOTOR_EXECUTOR_INTERNAL_H

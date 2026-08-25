@@ -9,7 +9,7 @@
 
 #include "common/log.h"
 #include "common/time_util.h"
-#include "domain/ports/outbound/safety/safety_output_hold.h"
+#include "domain/safety/safety_output_hold.h"
 
 #include <pthread.h>
 #include <string.h>

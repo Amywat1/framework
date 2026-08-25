@@ -96,7 +96,7 @@ bootstrap_register()
 
 bootstrap_load_storage()
     ├─ project_configure_storage()
-    ├─ svc_param_init()
+    ├─ param_kv_init()
     └─ deploy_store.load()
 
 bootstrap_configure()
@@ -292,7 +292,7 @@ typedef struct {
 
 ```cmake
 include(${FW_ROOT}/cmake/wdf_targets.cmake)
-target_link_libraries(my_app PRIVATE wdf_application wdf_services wdf_storage_json wdf_hal_sim pthread)
+target_link_libraries(my_app PRIVATE wdf_application wdf_storage_json wdf_hal_sim pthread)
 ```
 
 选 INTERFACE 而非 STATIC，是因为同一份框架源在不同目标下需要不同编译定义（例如测试目标为 `hal_io_sim.c` 定义 `HAL_IO_SIM_UNIT_TEST`）。收益不是少编译一次，而是把源清单维护权收回框架内部：框架增删文件时项目只需重新配置。
@@ -313,7 +313,6 @@ target_link_libraries(my_app PRIVATE wdf_application wdf_services wdf_storage_js
 | `wdf_report_scheduler` | 云端上报调度 |
 | `wdf_asset_contract` | 必需资产启动期校验 |
 | `wdf_observability` / `wdf_observation_bridge` | 观测记录与黑匣子 / 框架事件转观测记录 |
-| `wdf_services` | `svc_param` |
 | `wdf_storage_json` / `wdf_storage_program_json` | 参数与部署存储 / 方案资产加载 |
 | `wdf_hal_sim` / `wdf_hal_engine_sim` / `wdf_hal_components` | 仿真后端 / 引擎仿真后端 / HAL 组合件 |
 | `wdf_point_table_json` / `wdf_cjson` | 点位表 JSON 编解码 / 随框架分发的 cJSON |

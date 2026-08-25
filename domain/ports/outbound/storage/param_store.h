@@ -4,13 +4,13 @@
  * @author  HUWANGWEI
  * @date    2026-04-10
  *
- * @note    services/param/svc_param 在内部调用此接口，屏蔽 JSON/SQLite 等存储细节。
- *          具体实现：framework/adapters/outbound/storage/json/json_param_store.c
+ * @note    `param_kv` 在内部调用此接口，屏蔽 JSON/SQLite 等存储细节。
+ *          具体实现：adapters/outbound/storage/json/json_param_store.c
  *
- *          两层设计：
+ *          两层同在 storage 出站旁：
  *            param_store  — 原始键值存取（本文件）
- *            svc_param    — 带业务语义的参数访问（framework/services/param/svc_param.h）
- *          业务层应优先依赖 svc_param，而非直接调用 param_store。
+ *            param_kv     — 整型/字符串便利访问（param_kv.h）
+ *          具名键访问优先走 param_kv，避免在多处散落键名。
  */
 
 #ifndef DOMAIN_PORTS_OUTBOUND_STORAGE_PARAM_STORE_H

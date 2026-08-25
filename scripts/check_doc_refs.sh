@@ -89,6 +89,18 @@ adapters/outbound/cloud/providers/snack/snack_cloud_link_adapter.c|整治记录�
 application/bridges/alarm_binding_bridge|整治记录与归档变更记载该文件已并入 alarm_bridge
 application/bridges/alarm_binding_bridge.c|归档变更记载该文件已并入 alarm_bridge.c
 application/bridges/alarm_binding_bridge.h|归档变更记载该文件已并入 alarm_bridge.h
+domain/ports/outbound/motor/motor_exec_port.h|整治记录第 31 节：已迁至 domain/mechanism/motor/motor_exec.h
+domain/ports/outbound/safety/safety_output_hold.h|整治记录第 31 节：已迁至 domain/safety/
+domain/ports/outbound/safety/safety_output_hold.c|整治记录第 31 节：已迁至 domain/safety/
+services|整治记录第 31 节：该层已撤销，svc_param 并入 storage 出站旁
+services/param|整治记录第 31 节：services 层已撤销
+services/param/svc_param.h|整治记录第 31 节：已迁至 domain/ports/outbound/storage/
+services/param/svc_param.c|整治记录第 31 节：已迁至 domain/ports/outbound/storage/
+tests/services/test_svc_param.c|整治记录第 31 节：已迁至 tests/ports/
+domain/ports/outbound/storage/svc_param.h|已更名为 param_kv.h
+domain/ports/outbound/storage/svc_param.c|已更名为 param_kv.c
+tests/ports/test_svc_param.c|已更名为 test_param_kv.c
+tests/ports/test_safety_output_hold.c|整治记录第 31 节：已迁至 tests/domain/
 "
 
 # -----------------------------------------------------------------------------

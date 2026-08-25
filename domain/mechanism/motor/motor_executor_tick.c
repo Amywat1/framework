@@ -6,7 +6,7 @@
  */
 
 #include "domain/mechanism/motor/motor_executor_internal.h"
-#include "domain/ports/outbound/safety/safety_output_hold.h"
+#include "domain/safety/safety_output_hold.h"
 
 /* ------------------------- 输出 ------------------------- */
 

@@ -5,7 +5,7 @@
 
 #include "domain/mechanism/patterns/motor_axis.h"
 
-#include "domain/ports/outbound/motor/motor_exec_port.h"
+#include "domain/mechanism/motor/motor_exec.h"
 
 #include <stddef.h>
 #include <string.h>
