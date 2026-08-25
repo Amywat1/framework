@@ -8,7 +8,7 @@
 #include "adapters/outbound/cloud/providers/snack/snack_cloud_adapter.h"
 
 #include "adapters/outbound/cloud/cloud_json.h"
-#include "adapters/runtime/snack/snack_sdk.h"
+#include "adapters/providers/snack/snack_sdk.h"
 #include "application/ports/outbound/cloud/link/cloud_link_port.h"
 #include "common/event_types.h"
 #include "common/log.h"

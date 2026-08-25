@@ -1,6 +1,6 @@
 /**
- * @file    motor_executor_port.c
- * @brief   电机执行器端口封装与小工具（可选方法 NULL 安全）
+ * @file    motor_executor_hw.c
+ * @brief   电机执行器对硬件端口的封装与小工具（可选方法 NULL 安全）
  * @author  huwangwei
  * @date    2026-08-21
  */
@@ -35,7 +35,7 @@ int64_t upper_bound(int64_t value, int margin)
     return (value > INT64_MAX - margin) ? INT64_MAX : value + margin;
 }
 
-/* ------------------------- 端口封装（可选方法 NULL 安全） ------------------------- */
+/* ------------------------- 硬件端口封装（可选方法 NULL 安全） ------------------------- */
 
 motor_driver_t *motor_drv(motor_executor_t *e, int i)
 {

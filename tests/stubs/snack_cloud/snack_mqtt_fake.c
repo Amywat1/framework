@@ -1,4 +1,4 @@
-#include "adapters/runtime/snack/snack_sdk.h"
+#include "adapters/providers/snack/snack_sdk.h"
 
 #include <stdbool.h>
 #include <stdio.h>

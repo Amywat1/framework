@@ -1,12 +1,12 @@
 /**
- * @file    recovery_service.h
+ * @file    recovery_coordinator.h
  * @brief   Recover 用例协调实现（复位锁存告警 + 异步全归位 + 完成后验证）
  * @author  HUWANGWEI
  * @date    2026-07-09
  */
 
-#ifndef APPLICATION_ORCHESTRATORS_RECOVERY_SERVICE_H
-#define APPLICATION_ORCHESTRATORS_RECOVERY_SERVICE_H
+#ifndef APPLICATION_ORCHESTRATORS_RECOVERY_COORDINATOR_H
+#define APPLICATION_ORCHESTRATORS_RECOVERY_COORDINATOR_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -23,10 +23,10 @@ extern "C" {
  *         迟到的 HOME_COMPLETED 在模式已非 RECOVERING 时忽略。
  *         归位成功后 reset_all；ON_MOTION 姿态证明由项目在发布 HOME_COMPLETED 前完成。
  */
-sw_err_t recovery_service_init(void);
+sw_err_t recovery_coordinator_init(void);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* APPLICATION_ORCHESTRATORS_RECOVERY_SERVICE_H */
+#endif /* APPLICATION_ORCHESTRATORS_RECOVERY_COORDINATOR_H */

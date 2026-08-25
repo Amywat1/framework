@@ -292,7 +292,7 @@ typedef void (*event_handler_t)(const event_t *evt);
 | `op_mode_bridge` | `EVT_WASH_*`、`EVT_HW_ESTOP_*`、`EVT_ALARM_TRIGGERED` 等 | ✅ |
 | `alarm_registry` | （发布方）`EVT_ALARM_*`、`EVT_SAFETY_LOCKOUT/NOMINAL` | ✅ |
 | `estop_poll` / `op_mode_bridge` | 安全与报警相关事件 | ✅ |
-| `recovery_service` | 恢复流程事件 | ✅ |
+| `recovery_coordinator` | 恢复流程事件 | ✅ |
 | `safety_session_coordinator` | 安全切断与中止归位 | ✅ |
 | `telemetry_projection` | `EVT_ALARM_*`、`EVT_WASH_*`、`EVT_OP_MODE_*` 等 | ✅ |
 

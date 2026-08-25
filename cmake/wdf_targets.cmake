@@ -183,7 +183,7 @@ _wdf_add_interface_lib(wdf_mechanism
         domain/mechanism/patterns/motor_axis.c
         domain/mechanism/patterns/fluid_path.c
         domain/mechanism/motor/motor_executor.c
-        domain/mechanism/motor/motor_executor_port.c
+        domain/mechanism/motor/motor_executor_hw.c
         domain/mechanism/motor/motor_executor_tick.c
         domain/mechanism/motor/motor_executor_cmd.c
     DEPENDS
@@ -221,7 +221,7 @@ _wdf_add_interface_lib(wdf_application
         application/command_gateway.c
         application/side_effect_router.c
         application/telemetry_projection.c
-        application/orchestrators/recovery_service.c
+        application/orchestrators/recovery_coordinator.c
         application/orchestrators/safety_session_coordinator.c
         application/bridges/alarm_bridge.c
         application/bridges/op_mode_bridge.c

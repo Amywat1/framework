@@ -5,7 +5,7 @@
  * @date    2026-04-08
  */
 
-#include "framework/adapters/runtime/snack/snack_sdk.h"
+#include "framework/adapters/providers/snack/snack_sdk.h"
 #include "framework/common/log.h"
 #include "log/mlog.h"
 #include "cli/cli.h"

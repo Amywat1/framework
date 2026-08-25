@@ -474,20 +474,20 @@ add_unit_test(test_operational_mode
     ${WDF_ROOT}/common/sw_mutex.c
 )
 
-add_unit_test(test_motor_exec_port
-    ${CMAKE_CURRENT_SOURCE_DIR}/domain/test_motor_exec_port.c
+add_unit_test(test_motor_exec
+    ${CMAKE_CURRENT_SOURCE_DIR}/domain/test_motor_exec.c
     ${WDF_ROOT}/domain/mechanism/motor/motor_executor.c
-    ${WDF_ROOT}/domain/mechanism/motor/motor_executor_port.c
+    ${WDF_ROOT}/domain/mechanism/motor/motor_executor_hw.c
     ${WDF_ROOT}/domain/mechanism/motor/motor_executor_tick.c
     ${WDF_ROOT}/domain/mechanism/motor/motor_executor_cmd.c
     ${WDF_SAFETY_HOLD_SRC}
 )
-target_compile_definitions(test_motor_exec_port PRIVATE MOTOR_EXECUTOR_UNIT_TEST)
+target_compile_definitions(test_motor_exec PRIVATE MOTOR_EXECUTOR_UNIT_TEST)
 
 add_unit_test(test_motor_executor_position
     ${CMAKE_CURRENT_SOURCE_DIR}/domain/test_motor_executor_position.c
     ${WDF_ROOT}/domain/mechanism/motor/motor_executor.c
-    ${WDF_ROOT}/domain/mechanism/motor/motor_executor_port.c
+    ${WDF_ROOT}/domain/mechanism/motor/motor_executor_hw.c
     ${WDF_ROOT}/domain/mechanism/motor/motor_executor_tick.c
     ${WDF_ROOT}/domain/mechanism/motor/motor_executor_cmd.c
     ${WDF_SAFETY_HOLD_SRC}
@@ -497,7 +497,7 @@ target_compile_definitions(test_motor_executor_position PRIVATE MOTOR_EXECUTOR_U
 add_unit_test(test_motor_fault_resume_adversarial
     ${CMAKE_CURRENT_SOURCE_DIR}/domain/test_motor_fault_resume_adversarial.c
     ${WDF_ROOT}/domain/mechanism/motor/motor_executor.c
-    ${WDF_ROOT}/domain/mechanism/motor/motor_executor_port.c
+    ${WDF_ROOT}/domain/mechanism/motor/motor_executor_hw.c
     ${WDF_ROOT}/domain/mechanism/motor/motor_executor_tick.c
     ${WDF_ROOT}/domain/mechanism/motor/motor_executor_cmd.c
     ${WDF_SAFETY_HOLD_SRC}
@@ -575,7 +575,7 @@ target_compile_definitions(test_engine_session PRIVATE
 
 add_unit_test(test_recovery_emergency
     ${CMAKE_CURRENT_SOURCE_DIR}/application/test_recovery_emergency.c
-    ${WDF_ROOT}/application/orchestrators/recovery_service.c
+    ${WDF_ROOT}/application/orchestrators/recovery_coordinator.c
     ${WDF_ROOT}/application/orchestrators/safety_session_coordinator.c
     ${WDF_ROOT}/application/bridges/op_mode_bridge.c
     ${WDF_ROOT}/application/side_effect_router.c

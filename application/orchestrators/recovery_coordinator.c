@@ -1,11 +1,11 @@
 /**
- * @file    recovery_service.c
+ * @file    recovery_coordinator.c
  * @brief   Recover 用例协调实现（复位锁存告警 + 异步全归位 + 完成后验证）
  * @author  HUWANGWEI
  * @date    2026-07-09
  */
 
-#include "application/orchestrators/recovery_service.h"
+#include "application/orchestrators/recovery_coordinator.h"
 
 #include "common/event_types.h"
 #include "common/log.h"
@@ -26,7 +26,7 @@ static atomic_bool s_waiting_home = false;
 static void cancel_pending(void)
 {
     if (atomic_exchange(&s_waiting_home, false)) {
-        LOG_WARN("recovery_service: pending wait cancelled");
+        LOG_WARN("recovery_coordinator: pending wait cancelled");
     }
 }
 
@@ -59,9 +59,9 @@ static void on_home_completed(const event_t *evt)
     }
 
     if (evt->param == 0U) {
-        LOG_ERROR("recovery_service: home failed during recover");
+        LOG_ERROR("recovery_coordinator: home failed during recover");
         (void)event_publish(EVT_OP_MODE_RECOVERY_COMPLETED, (uint32_t)RECOVERY_RESULT_FAILED);
-        LOG_INFO("recovery_service: completed result=%d", (int)RECOVERY_RESULT_FAILED);
+        LOG_INFO("recovery_coordinator: completed result=%d", (int)RECOVERY_RESULT_FAILED);
         return;
     }
 
@@ -69,11 +69,11 @@ static void on_home_completed(const event_t *evt)
     blocking_active = alarm_registry_has_blocking_active();
     result          = blocking_active ? RECOVERY_RESULT_FAILED : RECOVERY_RESULT_IDLE;
     if (blocking_active) {
-        LOG_WARN("recovery_service: blocking alarm remains after home");
+        LOG_WARN("recovery_coordinator: blocking alarm remains after home");
     }
 
     (void)event_publish_required(EVT_OP_MODE_RECOVERY_COMPLETED, (uint32_t)result);
-    LOG_INFO("recovery_service: completed result=%d", (int)result);
+    LOG_INFO("recovery_coordinator: completed result=%d", (int)result);
 }
 
 static void on_recovery_requested(const event_t *evt)
@@ -87,32 +87,32 @@ static void on_recovery_requested(const event_t *evt)
     /* 先复位故障条件已经消失的锁存告警，再检查是否仍处于 LOCKOUT。 */
     alarm_registry_reset_all();
     if (alarm_registry_safety_posture() == SAFETY_POSTURE_LOCKOUT) {
-        LOG_WARN("recovery_service: still LOCKOUT after reset, abort recovery");
+        LOG_WARN("recovery_coordinator: still LOCKOUT after reset, abort recovery");
         goto done;
     }
 
     ops = device_ops_get();
     if ((ops == NULL) || (ops->home_device == NULL)) {
-        LOG_ERROR("recovery_service: home_device not available");
+        LOG_ERROR("recovery_coordinator: home_device not available");
         goto done;
     }
 
     atomic_store(&s_waiting_home, true);
     if (ops->home_device() != SW_OK) {
         atomic_store(&s_waiting_home, false);
-        LOG_ERROR("recovery_service: home_device start failed");
+        LOG_ERROR("recovery_coordinator: home_device start failed");
         goto done;
     }
 
-    LOG_INFO("recovery_service: home started, waiting HOME_COMPLETED");
+    LOG_INFO("recovery_coordinator: home started, waiting HOME_COMPLETED");
     return;
 
 done:
     (void)event_publish_required(EVT_OP_MODE_RECOVERY_COMPLETED, (uint32_t)result);
-    LOG_INFO("recovery_service: completed result=%d", (int)result);
+    LOG_INFO("recovery_coordinator: completed result=%d", (int)result);
 }
 
-sw_err_t recovery_service_init(void)
+sw_err_t recovery_coordinator_init(void)
 {
     static const event_subscription_t s_subs[] = {
         {EVT_OP_MODE_RECOVERY_REQUESTED, on_recovery_requested},
@@ -125,6 +125,6 @@ sw_err_t recovery_service_init(void)
         return ret;
     }
 
-    LOG_INFO("recovery_service: init ok");
+    LOG_INFO("recovery_coordinator: init ok");
     return SW_OK;
 }

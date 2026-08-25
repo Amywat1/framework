@@ -1,11 +1,11 @@
 /**
  * @file    test_recovery_emergency.c
- * @brief   recovery_service / safety_session_coordinator 单元测试
+ * @brief   recovery_coordinator / safety_session_coordinator 单元测试
  */
 
 #include "adapters/outbound/safety/sim/hw_estop_sim.h"
 #include "application/bridges/op_mode_bridge.h"
-#include "application/orchestrators/recovery_service.h"
+#include "application/orchestrators/recovery_coordinator.h"
 #include "application/orchestrators/safety_session_coordinator.h"
 #include "application/side_effect_router.h"
 #include "common/event_types.h"
@@ -165,7 +165,7 @@ void tearDown(void)
 }
 
 /**
- * @brief  经 RECOVER 命令进入 RECOVERING 并触发 recovery_service（模式守卫要求当前为 RECOVERING）
+ * @brief  经 RECOVER 命令进入 RECOVERING 并触发 recovery_coordinator（模式守卫要求当前为 RECOVERING）
  */
 static void start_recover_via_command(void)
 {
@@ -176,12 +176,12 @@ static void start_recover_via_command(void)
     TEST_ASSERT_EQUAL_INT(OP_MODE_RECOVERING, op_mode_get_current());
 }
 
-static void test_recovery_service_publishes_completed_idle(void)
+static void test_recovery_coordinator_publishes_completed_idle(void)
 {
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_init());
     device_ops_register(&s_device_ops);
-    TEST_ASSERT_EQUAL_INT(SW_OK, recovery_service_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, recovery_coordinator_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, event_subscribe(EVT_OP_MODE_RECOVERY_COMPLETED, on_recovery_completed));
 
     start_recover_via_command();
@@ -192,14 +192,14 @@ static void test_recovery_service_publishes_completed_idle(void)
     TEST_ASSERT_EQUAL_INT(1, s_home_device_count);
 }
 
-static void test_recovery_service_keeps_exception_when_blocking_remains(void)
+static void test_recovery_coordinator_keeps_exception_when_blocking_remains(void)
 {
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_load_catalog(s_blocking_catalog, 1U));
     TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_trigger(TEST_BLOCKING_ALARM_CODE));
     device_ops_register(&s_device_ops);
-    TEST_ASSERT_EQUAL_INT(SW_OK, recovery_service_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, recovery_coordinator_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, event_subscribe(EVT_OP_MODE_RECOVERY_COMPLETED, on_recovery_completed));
 
     start_recover_via_command();
@@ -218,7 +218,7 @@ static void test_recovery_resets_blocking_alarm_cleared_during_home(void)
     TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_trigger(TEST_BLOCKING_ALARM_CODE));
     s_clear_on_home_code = TEST_BLOCKING_ALARM_CODE;
     device_ops_register(&s_device_ops);
-    TEST_ASSERT_EQUAL_INT(SW_OK, recovery_service_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, recovery_coordinator_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, event_subscribe(EVT_OP_MODE_RECOVERY_COMPLETED, on_recovery_completed));
 
     start_recover_via_command();
@@ -239,7 +239,7 @@ static void test_recovery_resets_inactive_lockout_before_home(void)
     TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_clear(TEST_LOCKOUT_ALARM_CODE));
     TEST_ASSERT_EQUAL_INT(SAFETY_POSTURE_LOCKOUT, alarm_registry_safety_posture());
     device_ops_register(&s_device_ops);
-    TEST_ASSERT_EQUAL_INT(SW_OK, recovery_service_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, recovery_coordinator_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, event_subscribe(EVT_OP_MODE_RECOVERY_COMPLETED, on_recovery_completed));
 
     start_recover_via_command();
@@ -318,7 +318,7 @@ static void test_leave_recovering_ignores_late_home_completed(void)
     TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, operational_mode_init());
     device_ops_register(&s_device_ops);
-    TEST_ASSERT_EQUAL_INT(SW_OK, recovery_service_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, recovery_coordinator_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, event_subscribe(EVT_OP_MODE_RECOVERY_COMPLETED, on_recovery_completed));
 
     TEST_ASSERT_EQUAL_INT(OP_CMD_ALLOWED, op_mode_handle_command(&recover).verdict);
@@ -352,7 +352,7 @@ static void test_estop_during_pending_home_preempts_recovery(void)
     TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, operational_mode_init());
     device_ops_register(&s_device_ops);
-    TEST_ASSERT_EQUAL_INT(SW_OK, recovery_service_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, recovery_coordinator_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, safety_session_coordinator_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, op_mode_bridge_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, event_subscribe(EVT_OP_MODE_RECOVERY_COMPLETED, on_recovery_completed));
@@ -392,7 +392,7 @@ static void test_stop_all_during_pending_home_cuts_outputs(void)
     TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, operational_mode_init());
     device_ops_register(&s_device_ops);
-    TEST_ASSERT_EQUAL_INT(SW_OK, recovery_service_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, recovery_coordinator_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, event_subscribe(EVT_OP_MODE_RECOVERY_COMPLETED, on_recovery_completed));
 
     TEST_ASSERT_EQUAL_INT(OP_CMD_ALLOWED, op_mode_handle_command(&recover).verdict);
@@ -425,7 +425,7 @@ static void test_recovery_resets_on_motion_cleared_during_home(void)
     TEST_ASSERT_TRUE(alarm_registry_is_active(TEST_ON_MOTION_ALARM_CODE));
     s_clear_on_home_code = TEST_ON_MOTION_ALARM_CODE;
     device_ops_register(&s_device_ops);
-    TEST_ASSERT_EQUAL_INT(SW_OK, recovery_service_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, recovery_coordinator_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, event_subscribe(EVT_OP_MODE_RECOVERY_COMPLETED, on_recovery_completed));
 
     start_recover_via_command();
@@ -439,9 +439,9 @@ static void test_recovery_resets_on_motion_cleared_during_home(void)
 int main(void)
 {
     UNITY_BEGIN();
-    WDF_RUN_TEST(test_recovery_service_publishes_completed_idle, "", "验证恢复完成后发布空闲状态事件");
+    WDF_RUN_TEST(test_recovery_coordinator_publishes_completed_idle, "", "验证恢复完成后发布空闲状态事件");
     WDF_RUN_TEST(
-        test_recovery_service_keeps_exception_when_blocking_remains, "", "验证恢复流程服务保持异常模式时阻断性仍存在");
+        test_recovery_coordinator_keeps_exception_when_blocking_remains, "", "验证恢复协调器在阻断告警仍在时保持异常模式");
     WDF_RUN_TEST(test_recovery_resets_blocking_alarm_cleared_during_home, "", "验证回零期间条件消失的阻断报警被复位");
     WDF_RUN_TEST(test_recovery_resets_inactive_lockout_before_home, "", "验证回零前复位已失活的锁定报警");
     WDF_RUN_TEST(test_cutout_estop_release_does_not_run_abort_home, "", "验证急停释放的安全切断不执行中止回零");

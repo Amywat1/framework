@@ -1,6 +1,6 @@
 /**
- * @file    test_motor_exec_port.c
- * @brief   电机执行器出站端口（motor_exec_*）单元测试。
+ * @file    test_motor_exec.c
+ * @brief   电机执行器命令与查询（motor_exec_*）单元测试。
  */
 
 #include "common/sw_error.h"

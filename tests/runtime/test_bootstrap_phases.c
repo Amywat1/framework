@@ -144,9 +144,9 @@ sw_err_t command_gateway_init(void)
 {
     return step("command_gateway_init");
 }
-sw_err_t recovery_service_init(void)
+sw_err_t recovery_coordinator_init(void)
 {
-    return step("recovery_service_init");
+    return step("recovery_coordinator_init");
 }
 sw_err_t safety_session_coordinator_init(void)
 {
@@ -314,7 +314,7 @@ static const char *const k_order[] = {
     "alarm_bridge_init",
     "operational_mode_init",
     "command_gateway_init",
-    "recovery_service_init",
+    "recovery_coordinator_init",
     "safety_session_coordinator_init",
     "op_mode_bridge_init",
     "telemetry_projection_init",

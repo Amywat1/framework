@@ -220,7 +220,7 @@ typedef struct {
 | `abort_home` | 启动中止归位清障（异步）；完成后须发 `EVT_ABORT_HOME_DONE` |
 | `start_wash` | `DEV_CMD_START_WASH`：选方案并**启动**会话后返回；禁止在调用内跑完整洗车 |
 | `abort_wash` | `DEV_CMD_STOP_WASH` 副作用，以及急停/LOCKOUT 切断路径 |
-| `home_device` | `recovery_service` 在 Recover 路径中启动的异步全机归位 |
+| `home_device` | `recovery_coordinator` 在 Recover 路径中启动的异步全机归位 |
 | `execute_manual_actuator` | `DEV_CMD_MANUAL_ACTUATOR`：只下发/启定时后立即返回；禁止等待点动时长 |
 | `stop_all_outputs` | `DEV_CMD_STOP_ALL_OUTPUTS` 副作用：切断输出；前态 WASHING 时 router 另调 `abort_wash(STOP_ALL)` |
 | `is_wash_entry_ready` | `START_WASH` 附加门禁；未注册（NULL）时框架不拦截 |
@@ -359,7 +359,7 @@ L4）。它依次验证：
 | 步骤 | 覆盖的链路 |
 |------|-----------|
 | `bootstrap_run()` | 7 阶段启动全过程 |
-| `RECOVER` → IDLE | 命令网关 → 裁决 → `RECOVERY_REQUESTED` → `recovery_service` → `device_ops.home_device` → `EVT_OP_MODE_HOME_COMPLETED` → `EVT_OP_MODE_RECOVERY_COMPLETED` → IDLE |
+| `RECOVER` → IDLE | 命令网关 → 裁决 → `RECOVERY_REQUESTED` → `recovery_coordinator` → `device_ops.home_device` → `EVT_OP_MODE_HOME_COMPLETED` → `EVT_OP_MODE_RECOVERY_COMPLETED` → IDLE |
 | `STOP_OPERATION` | IDLE 下的停运裁决与运营开关 |
 | 急停边沿 | `hw_estop_sim` → `estop_poll_thread` → `safety_cutout_execute` → `EVT_HW_ESTOP_ON` → 姿态收敛 |
 | 报警触发 | `alarm_binding.trigger` → `alarm_bridge` → blocking 判定 |

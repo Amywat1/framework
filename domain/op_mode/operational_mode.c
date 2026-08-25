@@ -352,7 +352,7 @@ dev_cmd_decision_t op_mode_handle_command(const dev_cmd_t *cmd)
         break;
 
     case DEV_CMD_RECOVER:
-        /* STOPPED 走 recovery_service；IDLE 幂等 */
+        /* STOPPED 走 recovery_coordinator；IDLE 幂等 */
         if (s_mode == OP_MODE_STOPPED) {
             set_mode(OP_MODE_RECOVERING, NULL);
             (void)event_publish_required(EVT_OP_MODE_RECOVERY_REQUESTED, 0U);

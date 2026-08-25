@@ -7,7 +7,7 @@
  *     → safety_deferred_stop()
  *     → device_ops.abort_wash(WASH_ABORT_ESTOP)
  *     → 模式由 op_mode_bridge 切至 STOPPED（不跑 abort_home）
- *     → 离开 RECOVERING 时归位等待由 recovery_service 自行取消
+ *     → 离开 RECOVERING 时归位等待由 recovery_coordinator 自行取消
  *
  *   EVT_SAFETY_LOCKOUT
  *     → device_ops.abort_wash(WASH_ABORT_CRITICAL)

@@ -91,7 +91,7 @@ void op_mode_on_recovery_completed(recovery_result_t result);
 
 /**
  * @brief  中止归位完成（ABORT_HOMING → STOPPED）
- * @note   仅消费 EVT_ABORT_HOME_DONE；运营归位由 recovery_service 经
+ * @note   仅消费 EVT_ABORT_HOME_DONE；运营归位由 recovery_coordinator 经
  *         EVT_OP_MODE_RECOVERY_COMPLETED 收口，不经本接口。
  */
 void op_mode_on_home_done(void);

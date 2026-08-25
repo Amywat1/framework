@@ -1,7 +1,7 @@
 #ifndef TESTS_STUBS_SNACK_CLOUD_SNACK_MQTT_FAKE_H
 #define TESTS_STUBS_SNACK_CLOUD_SNACK_MQTT_FAKE_H
 
-#include "adapters/runtime/snack/snack_sdk.h"
+#include "adapters/providers/snack/snack_sdk.h"
 
 void                snack_mqtt_fake_reset(void);
 void                snack_mqtt_fake_set_online(int online);
