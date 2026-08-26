@@ -123,9 +123,11 @@ static void begin_start(motor_executor_t *e, int i, const motor_pending_cmd_t *p
     s->start_ms          = e->now;
     s->emit_stop_on_halt = false;
     s->stop_issued       = false;
-    s->cur_over_ms       = 0;
-    s->cur_under_ms      = 0;
-    s->cur_stop_ms       = 0;
+    s->cur_over_ms         = 0;
+    s->cur_under_ms        = 0;
+    s->cur_stop_ms         = 0;
+    s->last_current        = 0;
+    s->current_trip_limit  = 0;
     s->fb_bad_ms         = 0;
     s->temp_bad_ms       = 0;
     s->volt_bad_ms       = 0;
@@ -540,13 +542,16 @@ static void monitor(motor_executor_t *e, int i)
         int  cmax       = accel_seg ? mn->cur_max_accel : mn->cur_max_steady;
         int  cmin       = accel_seg ? mn->cur_min_accel : mn->cur_min_steady;
         int  cur        = drv_current(motor_drv(e, i));
+        s->last_current = cur;
         s->cur_over_ms  = (cur > cmax) ? s->cur_over_ms + e->cfg.tick_ms : 0;
         s->cur_under_ms = (cur < cmin) ? s->cur_under_ms + e->cfg.tick_ms : 0;
         if (s->cur_over_ms >= mn->cur_confirm_ms && cur > cmax) {
+            s->current_trip_limit = cmax;
             enter_fault(e, i, MOTOR_FAULT_OVERCURRENT);
             return;
         }
         if (s->cur_under_ms >= mn->cur_confirm_ms && cur < cmin) {
+            s->current_trip_limit = cmin;
             enter_fault(e, i, MOTOR_FAULT_UNDERCURRENT);
             return;
         }

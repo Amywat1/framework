@@ -562,6 +562,26 @@ static void test_timeout_event_copies_move_spec(void)
     TEST_ASSERT_FALSE(out.use_time);
 }
 
+/**
+ * @brief 过流故障事件带上采样电流与触发阈值
+ */
+static void test_overcurrent_event_copies_current(void)
+{
+    motor_event_t out;
+    motor_exec_t *hal;
+
+    enable_overcurrent_monitor();
+    rebind_executor();
+    hal = s_exec;
+    run_until_overcurrent(hal);
+
+    TEST_ASSERT_TRUE(motor_exec_pop_event(hal, &out));
+    TEST_ASSERT_EQUAL_INT(MOTOR_EVENT_FAULT, out.type);
+    TEST_ASSERT_EQUAL_INT(MOTOR_FAULT_OVERCURRENT, out.fault);
+    TEST_ASSERT_EQUAL_INT(600, out.current);
+    TEST_ASSERT_EQUAL_INT(500, out.current_limit);
+}
+
 static void test_pop_event_for_keeps_other_motors(void)
 {
     motor_move_spec_t spec;
@@ -1030,6 +1050,7 @@ int main(void)
     WDF_RUN_TEST(test_output_hold_reset_rejected_while_di_active, "SAFE-15", "验证急停 DI 有效时拒绝释放输出抑制");
     WDF_RUN_TEST(test_pop_event_via_port, "", "验证经端口取出运动事件");
     WDF_RUN_TEST(test_timeout_event_copies_move_spec, "", "验证超时事件携带本次运动限位掩码与到位方式");
+    WDF_RUN_TEST(test_overcurrent_event_copies_current, "", "验证过流事件携带采样电流与阈值");
     WDF_RUN_TEST(test_pop_event_for_keeps_other_motors, "", "验证按电机取事件保留其它电机");
     WDF_RUN_TEST(test_event_queue_prefers_drop_same_motor, "", "验证队列满时优先丢同电机事件");
     WDF_RUN_TEST(test_request_stop_waits_until_driver_idle, "", "验证受控停止等到功率级停下再切断");

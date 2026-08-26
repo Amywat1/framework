@@ -137,10 +137,12 @@ void push_event(motor_executor_t       *e,
     ev.limit      = e->m[i].end_limit;
     ev.final_pos    = e->m[i].position;
     ev.elapsed_ms   = eff_elapsed(e, i);
-    ev.fault        = fc;
-    ev.limit_mask   = e->m[i].spec.limit_mask;
-    ev.use_position = e->m[i].spec.use_position;
-    ev.use_time     = e->m[i].spec.use_time;
+    ev.fault          = fc;
+    ev.limit_mask     = e->m[i].spec.limit_mask;
+    ev.use_position   = e->m[i].spec.use_position;
+    ev.use_time       = e->m[i].spec.use_time;
+    ev.current        = e->m[i].last_current;
+    ev.current_limit  = e->m[i].current_trip_limit;
     ev_push(e, &ev);
 }
 

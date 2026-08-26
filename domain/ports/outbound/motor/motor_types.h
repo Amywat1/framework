@@ -79,6 +79,41 @@ typedef enum {
 } motor_exec_fault_code_t;
 
 /**
+ * @brief  将故障码转为稳定名称
+ * @param  code 故障码
+ * @return 枚举名；未定义码返回 `UNKNOWN`
+ */
+static inline const char *motor_fault_code_name(motor_exec_fault_code_t code)
+{
+    switch (code) {
+    case MOTOR_FAULT_NONE:
+        return "NONE";
+    case MOTOR_FAULT_OVERCURRENT:
+        return "OVERCURRENT";
+    case MOTOR_FAULT_UNDERCURRENT:
+        return "UNDERCURRENT";
+    case MOTOR_FAULT_DRIVER_FEEDBACK:
+        return "DRIVER_FEEDBACK";
+    case MOTOR_FAULT_OVERTEMP:
+        return "OVERTEMP";
+    case MOTOR_FAULT_UNDERVOLTAGE:
+        return "UNDERVOLTAGE";
+    case MOTOR_FAULT_PREPARE_FAILED:
+        return "PREPARE_FAILED";
+    case MOTOR_FAULT_ENCODER_SIGNAL:
+        return "ENCODER_SIGNAL";
+    case MOTOR_FAULT_WATCHDOG:
+        return "WATCHDOG";
+    case MOTOR_FAULT_DRIVER_PORT_FATAL:
+        return "DRIVER_PORT_FATAL";
+    case MOTOR_FAULT_SHARED_DRIVER:
+        return "SHARED_DRIVER";
+    default:
+        return "UNKNOWN";
+    }
+}
+
+/**
  * @brief  将故障码转为 `confirm_faults` 位
  * @param  code  故障码；`NONE` 或未定义码返回 0
  * @note   某位置 1 表示该码需确认；默认全 0 表示全部可续动。
@@ -131,9 +166,11 @@ typedef struct {
     int64_t                 final_pos;  /**< 结束时位置（脉冲） */
     uint64_t                elapsed_ms; /**< 本次运动耗时（ms） */
     motor_exec_fault_code_t fault;      /**< 故障码；无故障为 MOTOR_FAULT_NONE */
-    uint8_t                 limit_mask;   /**< 本次运动监视的硬限位掩码；连续运行时为 0 */
-    bool                    use_position; /**< 本次是否按位置到位 */
-    bool                    use_time;     /**< 本次是否按时间到位 */
+    uint8_t                 limit_mask;     /**< 本次运动监视的硬限位掩码；连续运行时为 0 */
+    bool                    use_position;   /**< 本次是否按位置到位 */
+    bool                    use_time;       /**< 本次是否按时间到位 */
+    int                     current;        /**< 结束前最近一次采样电流（与阈值同量纲） */
+    int                     current_limit;  /**< 过流/欠流判定阈值；其它结局为 0 */
 } motor_event_t;
 
 /** @brief 速度指定方式。 */

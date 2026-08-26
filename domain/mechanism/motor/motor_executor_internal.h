@@ -70,9 +70,11 @@ typedef struct {
 
     /* —— 监测累加 —— */
     uint64_t start_ms;     /**< 本次启动时刻（监测用） */
-    int      cur_over_ms;  /**< 过流累计确认时间 */
-    int      cur_under_ms; /**< 欠流累计确认时间 */
-    uint32_t cur_stop_ms;  /**< 电流到位累计确认时间 */
+    int      cur_over_ms;         /**< 过流累计确认时间 */
+    int      cur_under_ms;        /**< 欠流累计确认时间 */
+    uint32_t cur_stop_ms;         /**< 电流到位累计确认时间 */
+    int      last_current;        /**< 最近一次监测采样电流 */
+    int      current_trip_limit;  /**< 过流/欠流触发时的阈值；未触发为 0 */
     int      fb_bad_ms;    /**< 运行反馈异常累计时间 */
     int      fb_strikes;   /**< 反馈异常发作次数 */
     int      temp_bad_ms;  /**< 过温累计确认时间 */
