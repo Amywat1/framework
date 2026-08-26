@@ -8,7 +8,7 @@ VFD 监测按通道服务等级调度：`OFF` / `BACKGROUND` / `FAST`。允许�
 
 ### Requirement: 通道服务等级 OFF、BACKGROUND、FAST
 
-每个已绑定实例 MUST 为故障码通道与电流通道各携带 `hal_vfd_channel_policy_t`。`OFF` 的 `period_ms` MUST 为 0；`BACKGROUND` 与 `FAST` 的 `period_ms` MUST 大于 0。默认快采周期常量 MUST 为 `HAL_VFD_DEFAULT_FAST_PERIOD_MS`（20ms），默认后台周期常量 MUST 为 `HAL_VFD_DEFAULT_BACKGROUND_PERIOD_MS`（2000ms）。绑定 MUST 允许任意多个实例的任意通道为 `FAST`。非法策略 MUST 使 bind 失败。监测调度 MUST 只使用 `fault` 与 `current` 策略字段。
+每个已绑定实例 MUST 为故障码通道与电流通道各携带 `hal_vfd_channel_policy_t`。`OFF` 的 `period_ms` MUST 为 0；`BACKGROUND` 与 `FAST` 的 `period_ms` MUST 大于 0。框架 MUST NOT 为未给出的周期填入默认值。绑定 MUST 允许任意多个实例的任意通道为 `FAST`。非法策略 MUST 使 bind 失败。监测调度 MUST 只使用 `fault` 与 `current` 策略字段。
 
 #### Scenario: 显式 FAST 与 BACKGROUND 绑定成功
 

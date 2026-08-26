@@ -24,12 +24,6 @@ extern "C" {
 /** @brief 默认 RST 脉冲宽度（ms） */
 #define HAL_VFD_DEFAULT_RST_PULSE_MS 200U
 
-/** @brief 后台通道默认周期（ms） */
-#define HAL_VFD_DEFAULT_BACKGROUND_PERIOD_MS 2000U
-
-/** @brief 快采通道默认目标周期（ms）；监测每拍最多一笔，多 FAST 轮询 */
-#define HAL_VFD_DEFAULT_FAST_PERIOD_MS 20U
-
 /** @brief RST 脉冲推进周期（ms） */
 #define HAL_VFD_PULSE_PERIOD_MS 20U
 
