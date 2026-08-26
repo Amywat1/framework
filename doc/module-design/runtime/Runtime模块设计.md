@@ -283,7 +283,7 @@ periodic_task_thread_fn(slot)
 
 `periodic_task_next_deadline()` 独立导出，语义是：先推进一个周期；若推进后仍不晚于 `now`（说明回调耗时超过一个周期），继续推进直到严格晚于 `now`，返回本次跳过的拍数。因此回调耗时**不累加进下一拍**，超时的拍被**跳过而非追赶**。把这段时间推进逻辑做成纯函数，是为了不依赖真实 sleep 就能验证时序行为。
 
-线程体把跳拍数、回调墙钟耗时和唤醒滞后交给 `periodic_task_note_cycle()` 累加，经 `periodic_task_get_stats()` 读取。跳拍打 WARN。耗时是 `CLOCK_MONOTONIC` 墙钟，不是线程 CPU 时间。首拍尚未睡眠，唤醒滞后记 0。
+线程体把跳拍数、回调墙钟耗时和唤醒滞后交给 `periodic_task_note_cycle()` 累加，经 `periodic_task_get_stats()` 读取。跳拍打 WARN，同一任务间隔至少 2000ms。耗时是 `CLOCK_MONOTONIC` 墙钟，不是线程 CPU 时间。首拍尚未睡眠，唤醒滞后记 0。
 
 | 约束 | 说明 |
 |------|------|
