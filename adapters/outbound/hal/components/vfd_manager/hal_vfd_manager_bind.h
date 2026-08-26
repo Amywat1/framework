@@ -33,9 +33,6 @@ extern "C" {
 /** @brief 连续快采达到该次数后穿插一笔到期后台通道 */
 #define HAL_VFD_FAST_KEEPALIVE_EVERY 8U
 
-/** @brief 快采间隔未达标告警的最小间隔（ms） */
-#define HAL_VFD_FAST_LAG_WARN_INTERVAL_MS 2000U
-
 /**
  * @brief  单通道采样服务等级
  */

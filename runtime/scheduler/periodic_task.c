@@ -144,31 +144,6 @@ void periodic_task_note_cycle(periodic_task_stats_t *stats, uint32_t skipped, ui
     }
 }
 
-/**
- * @brief  判断本拍跳拍 WARN 是否应输出，允许时更新上次告警时刻
- * @param  last_warn_ms 该任务上次输出跳拍 WARN 的单调毫秒时刻，0 表示尚未输出
- * @param  now_ms       本拍回调结束时刻（单调毫秒）
- * @retval true  应输出 WARN
- */
-static bool skip_warn_due(uint64_t *last_warn_ms, uint64_t now_ms)
-{
-    if ((*last_warn_ms != 0U)
-        && (time_elapsed_ms(*last_warn_ms, now_ms) < PERIODIC_TASK_SKIP_WARN_INTERVAL_MS)) {
-        return false;
-    }
-    *last_warn_ms = now_ms;
-    return true;
-}
-
-/** @brief 单调 timespec 转为毫秒，供跳拍告警节流使用 */
-static uint64_t timespec_to_ms(const struct timespec *ts)
-{
-    if (ts == NULL) {
-        return 0U;
-    }
-    return ((uint64_t)ts->tv_sec * 1000ULL) + ((uint64_t)ts->tv_nsec / (uint64_t)PERIODIC_TASK_NS_PER_MS);
-}
-
 /** @brief 一拍所需的槽位快照，避免 tick 循环中逐字段无锁读 */
 typedef struct {
     periodic_task_fn_t fn;
@@ -247,7 +222,14 @@ static void *periodic_task_thread_fn(void *arg)
         pthread_mutex_lock(&s_mutex);
         periodic_task_note_cycle(&slot->stats, skipped, cb_us, slept ? wake_late_us : 0U);
         if (skipped > 0U) {
-            warn_skip = skip_warn_due(&slot->skip_warn_ms, timespec_to_ms(&now));
+            uint64_t now_ms = ((uint64_t)now.tv_sec * 1000ULL)
+                              + ((uint64_t)now.tv_nsec / (uint64_t)PERIODIC_TASK_NS_PER_MS);
+
+            if ((slot->skip_warn_ms == 0U)
+                || (time_elapsed_ms(slot->skip_warn_ms, now_ms) >= PERIODIC_TASK_SKIP_WARN_INTERVAL_MS)) {
+                slot->skip_warn_ms = now_ms;
+                warn_skip          = true;
+            }
         }
         pthread_mutex_unlock(&s_mutex);
 

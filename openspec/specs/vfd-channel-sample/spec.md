@@ -2,7 +2,7 @@
 
 ## Purpose
 
-VFD 监测按通道服务等级调度：`OFF` / `BACKGROUND` / `FAST`。允许多个 FAST 并存，每拍最多读一个通道并让出 CPU。RST 脉冲与 Modbus 监测拆开。运行中 FAST 电流跳过同实例故障码，后台通道靠保活配额穿插。快采间隔达不到目标时告警并继续运行，同类告警节流。绑定只认显式 `fault` / `current` 策略，不再提供 mask 或周期字段回退。
+VFD 监测按通道服务等级调度：`OFF` / `BACKGROUND` / `FAST`。允许多个 FAST 并存，每拍最多读一个通道并让出 CPU。RST 脉冲与 Modbus 监测拆开。运行中 FAST 电流跳过同实例故障码，后台通道靠保活配额穿插。监测拍超时由周期任务 skip 告警表达，不另报 FAST 间隔。绑定只认显式 `fault` / `current` 策略，不再提供 mask 或周期字段回退。
 
 ## Requirements
 
@@ -64,6 +64,12 @@ VFD 监测按通道服务等级调度：`OFF` / `BACKGROUND` / `FAST`。允许�
 - **WHEN** 推进 1 次监测 tick
 - **THEN** 本拍 `read` MUST 恰好 1 次，MUST NOT 在同一拍重试第二笔
 
+#### Scenario: 通讯连续失败仍上报 COMM_LOST
+
+- **GIVEN** FAST 电流运行中，`read` 连续返回 `SW_ERR_COMM`
+- **WHEN** 失败次数达到 3
+- **THEN** MUST 发出 `HAL_VFD_EVT_COMM_LOST` 恰好一次
+
 ---
 
 ### Requirement: 运行中 FAST 电流跳过同实例故障码并穿插后台保活
@@ -96,24 +102,6 @@ VFD 监测按通道服务等级调度：`OFF` / `BACKGROUND` / `FAST`。允许�
 
 ---
 
-### Requirement: 快采间隔未达标时告警节流且继续采样
-
-若某 FAST 通道两次成功采样的间隔大于其 `period_ms`，监测 MUST 继续运行，MUST 用 `LOG_WARN` 报告一次。自该警告上次发出起不足 2000ms 时，即使再次未达标 MUST NOT 再发同类警告。通讯连续失败仍 MUST 按现有 3 次规则上报 `COMM_LOST`，不得因节流而抑制该事件。
-
-#### Scenario: 未达标告警后 2s 内不重复
-
-- **GIVEN** 单 FAST 通道，测试替身使单笔 `read` 耗时大于 20ms，使成功采样间隔 > period
-- **WHEN** 在 2000ms 内连续发生至少两次未达标
-- **THEN** 该类 WARN MUST 最多出现 1 次，随后的监测 tick MUST 仍发起 `read`
-
-#### Scenario: 通讯丢失不受告警节流影响
-
-- **GIVEN** FAST 电流运行中，`read` 连续返回 `SW_ERR_COMM`
-- **WHEN** 失败次数达到 3
-- **THEN** MUST 发出 `HAL_VFD_EVT_COMM_LOST` 恰好一次
-
----
-
 ## Invariants
 
 - **INV-01**: 监测回调单次进入 MUST NOT 发起超过 1 次 backend `read`。
@@ -121,7 +109,6 @@ VFD 监测按通道服务等级调度：`OFF` / `BACKGROUND` / `FAST`。允许�
 - **INV-03**: 监测实现 MUST NOT 在回调内循环等待下一笔总线事务（禁止忙等）。
 - **INV-04**: 急停切断路径 MUST NOT 因本监测调度而改为走 Modbus。
 - **INV-05**: 运行中电流为 FAST 的实例，其故障通道 MUST NOT 与该电流在同一调度选择中同时入选。
-- **INV-06**: 快采未达标 WARN 的全局间隔 MUST always ≥ 2000ms。
 
 ---
 
@@ -132,5 +119,4 @@ VFD 监测按通道服务等级调度：`OFF` / `BACKGROUND` / `FAST`。允许�
 | 实例槽位 | 8 | bind 拒绝非法 id | 现有 `HAL_VFD_MANAGER_SLOT_MAX` |
 | 每拍总线事务 | 1 | 其余到期项留到后续拍 | 单 RS-485 串行、让出 CPU |
 | FAST 保活比 | 每 8 笔 FAST 最多 1 笔后台 | 无到期后台则继续 FAST | 已拍板 |
-| 未达标告警 | 每 2000ms 至多 1 条 | 静默 | 减少刷屏 |
 | 连续通讯失败上报 | 3 次 | 发 `COMM_LOST` 一次 | 现有 `VFD_COMM_FAIL_NOTIFY` |

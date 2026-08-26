@@ -387,6 +387,25 @@ static void test_monitor_reports_comm_lost_and_restored(void)
     TEST_ASSERT_EQUAL_INT(HAL_VFD_EVT_COMM_RESTORED, s_events[1]);
 }
 
+static void test_fast_current_reports_comm_lost(void)
+{
+    bind_slot(TEST_VFD_ID,
+              &s_vfd,
+              (hal_vfd_channel_policy_t){HAL_VFD_SAMPLE_OFF, 0U},
+              (hal_vfd_channel_policy_t){HAL_VFD_SAMPLE_FAST, 1U});
+    TEST_ASSERT_EQUAL_INT(SW_OK, hal_vfd_get_ops()->init());
+    hal_vfd_get_ops()->register_event_cb(TEST_VFD_ID, event_cb);
+    s_vfd.state           = HAL_VFD_STATE_FWD;
+    s_vfd.force_comm_fail = true;
+
+    run_monitor_tick();
+    run_monitor_tick();
+    run_monitor_tick();
+
+    TEST_ASSERT_EQUAL_UINT(1U, s_event_count);
+    TEST_ASSERT_EQUAL_INT(HAL_VFD_EVT_COMM_LOST, s_events[0]);
+}
+
 static void test_fast_current_skips_same_instance_fault(void)
 {
     uint16_t val;
@@ -547,6 +566,7 @@ int main(void)
     WDF_RUN_TEST(test_monitor_updates_cached_fault_and_current_and_events, "", "验证监控分拍更新缓存的故障、电流和事件");
     WDF_RUN_TEST(test_monitor_one_read_per_tick, "", "验证监测每拍只读一个通道");
     WDF_RUN_TEST(test_monitor_reports_comm_lost_and_restored, "", "验证监控上报通信丢失并恢复");
+    WDF_RUN_TEST(test_fast_current_reports_comm_lost, "", "验证 FAST 电流连续通讯失败上报丢失");
     WDF_RUN_TEST(test_fast_current_skips_same_instance_fault, "", "验证 FAST 电流运行时跳过同实例故障码");
     WDF_RUN_TEST(test_two_fast_currents_round_robin, "", "验证两个 FAST 电流轮询");
     WDF_RUN_TEST(test_keepalive_inserts_background_after_eight_fast, "", "验证 8 笔快采后穿插后台通道");
