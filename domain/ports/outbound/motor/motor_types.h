@@ -131,6 +131,9 @@ typedef struct {
     int64_t                 final_pos;  /**< 结束时位置（脉冲） */
     uint64_t                elapsed_ms; /**< 本次运动耗时（ms） */
     motor_exec_fault_code_t fault;      /**< 故障码；无故障为 MOTOR_FAULT_NONE */
+    uint8_t                 limit_mask;   /**< 本次运动监视的硬限位掩码；连续运行时为 0 */
+    bool                    use_position; /**< 本次是否按位置到位 */
+    bool                    use_time;     /**< 本次是否按时间到位 */
 } motor_event_t;
 
 /** @brief 速度指定方式。 */

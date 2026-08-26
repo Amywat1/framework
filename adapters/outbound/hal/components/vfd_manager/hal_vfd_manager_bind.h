@@ -28,7 +28,7 @@ extern "C" {
 #define HAL_VFD_PULSE_PERIOD_MS 20U
 
 /** @brief 监测调度切片（ms），每拍最多一笔总线 */
-#define HAL_VFD_MONITOR_SLICE_MS 20U
+#define HAL_VFD_MONITOR_SLICE_MS 50U
 
 /** @brief 连续快采达到该次数后穿插一笔到期后台通道 */
 #define HAL_VFD_FAST_KEEPALIVE_EVERY 8U

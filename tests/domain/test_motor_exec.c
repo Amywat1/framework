@@ -529,8 +529,37 @@ static void test_pop_event_via_port(void)
     TEST_ASSERT_EQUAL_INT(MOTOR_END_TIME, out.trigger);
     TEST_ASSERT_EQUAL_INT64(10, out.final_pos);
     TEST_ASSERT_EQUAL_UINT64(20, out.elapsed_ms);
+    TEST_ASSERT_TRUE(out.use_time);
+    TEST_ASSERT_FALSE(out.use_position);
+    TEST_ASSERT_EQUAL_UINT8(0, out.limit_mask);
     TEST_ASSERT_FALSE(motor_exec_pop_event(hal, &out));
     TEST_ASSERT_FALSE(motor_exec_pop_event(hal, NULL));
+}
+
+/**
+ * @brief 超时结束事件带上本次监视限位与到位方式，供上层区分限位超时与动作超时
+ */
+static void test_timeout_event_copies_move_spec(void)
+{
+    motor_move_spec_t spec;
+    motor_event_t     out;
+    motor_exec_t     *hal = s_exec;
+
+    memset(&spec, 0, sizeof(spec));
+    spec.limit_mask  = MOTOR_LIMIT_MASK_POS;
+    spec.max_time_ms = 20;
+
+    TEST_ASSERT_TRUE(motor_cmd_ok(motor_exec_run(hal, 0, motor_speed_gear(1), MOTOR_DIR_FORWARD, &spec)));
+    s_fx.now_ms = 10;
+    motor_executor_tick(s_exec);
+    s_fx.now_ms = 20;
+    motor_executor_tick(s_exec);
+
+    TEST_ASSERT_TRUE(motor_exec_pop_event(hal, &out));
+    TEST_ASSERT_EQUAL_INT(MOTOR_EVENT_TIMEOUT, out.type);
+    TEST_ASSERT_EQUAL_UINT8(MOTOR_LIMIT_MASK_POS, out.limit_mask);
+    TEST_ASSERT_FALSE(out.use_position);
+    TEST_ASSERT_FALSE(out.use_time);
 }
 
 static void test_pop_event_for_keeps_other_motors(void)
@@ -1000,6 +1029,7 @@ int main(void)
     WDF_RUN_TEST(test_output_hold_cuts_and_rejects_until_release, "SAFE-14", "验证输出抑制切断电机并拒绝运动直到释放");
     WDF_RUN_TEST(test_output_hold_reset_rejected_while_di_active, "SAFE-15", "验证急停 DI 有效时拒绝释放输出抑制");
     WDF_RUN_TEST(test_pop_event_via_port, "", "验证经端口取出运动事件");
+    WDF_RUN_TEST(test_timeout_event_copies_move_spec, "", "验证超时事件携带本次运动限位掩码与到位方式");
     WDF_RUN_TEST(test_pop_event_for_keeps_other_motors, "", "验证按电机取事件保留其它电机");
     WDF_RUN_TEST(test_event_queue_prefers_drop_same_motor, "", "验证队列满时优先丢同电机事件");
     WDF_RUN_TEST(test_request_stop_waits_until_driver_idle, "", "验证受控停止等到功率级停下再切断");

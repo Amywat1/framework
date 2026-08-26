@@ -135,9 +135,12 @@ void push_event(motor_executor_t       *e,
     /* 限位种类取本次实际触发的硬限位，仅在确实由限位终止时有效。 */
     ev.has_limit  = (trig == MOTOR_END_LIMIT);
     ev.limit      = e->m[i].end_limit;
-    ev.final_pos  = e->m[i].position;
-    ev.elapsed_ms = eff_elapsed(e, i);
-    ev.fault      = fc;
+    ev.final_pos    = e->m[i].position;
+    ev.elapsed_ms   = eff_elapsed(e, i);
+    ev.fault        = fc;
+    ev.limit_mask   = e->m[i].spec.limit_mask;
+    ev.use_position = e->m[i].spec.use_position;
+    ev.use_time     = e->m[i].spec.use_time;
     ev_push(e, &ev);
 }
 
