@@ -123,7 +123,7 @@ sw_err_t port_contract_validate(uint32_t required)
     uint32_t known_mask = 0U;
 
     if (required == 0U) {
-        LOG_INFO("port_contract: 未声明必需端口，跳过校验");
+        LOG_INFO("port_contract: no required ports declared, skip");
         return SW_OK;
     }
 
@@ -140,7 +140,7 @@ sw_err_t port_contract_validate(uint32_t required)
 
         checked_count++;
         if (!e->present()) {
-            LOG_ERROR("port_contract: 必需端口未注册 [%s]", e->name);
+            LOG_ERROR("port_contract: required port not registered [%s]", e->name);
             missing_count++;
         }
     }
@@ -148,14 +148,14 @@ sw_err_t port_contract_validate(uint32_t required)
     /* 声明了本框架版本无法识别的位：多为项目与框架版本不一致，
      * 静默忽略会让"我声明了却没被检查"难以察觉。 */
     if ((required & ~known_mask) != 0U) {
-        LOG_WARN("port_contract: 声明中含未知端口位 0x%08X，已忽略", (unsigned)(required & ~known_mask));
+        LOG_WARN("port_contract: unknown port bit 0x%08X ignored", (unsigned)(required & ~known_mask));
     }
 
     if (missing_count > 0U) {
-        LOG_ERROR("port_contract: 校验失败，%u/%u 个必需端口缺失", missing_count, checked_count);
+        LOG_ERROR("port_contract: validate failed, %u/%u required ports missing", missing_count, checked_count);
         return SW_ERR_NOT_INIT;
     }
 
-    LOG_INFO("port_contract: 校验通过，%u 个必需端口均已注册", checked_count);
+    LOG_INFO("port_contract: ok, %u required ports registered", checked_count);
     return SW_OK;
 }

@@ -78,7 +78,7 @@ sw_err_t asset_contract_validate(uint32_t required, const engine_environment_t *
     uint32_t known_mask = 0U;
 
     if (required == 0U) {
-        LOG_INFO("asset_contract: 未声明必需资产，跳过校验");
+        LOG_INFO("asset_contract: no required assets declared, skip");
         return SW_OK;
     }
 
@@ -95,7 +95,7 @@ sw_err_t asset_contract_validate(uint32_t required, const engine_environment_t *
 
         checked_count++;
         if (!e->present()) {
-            LOG_ERROR("asset_contract: 必需资产缺失或为空 [%s]", e->name);
+            LOG_ERROR("asset_contract: required asset missing or empty [%s]", e->name);
             missing_count++;
         }
     }
@@ -104,7 +104,7 @@ sw_err_t asset_contract_validate(uint32_t required, const engine_environment_t *
     if ((required & (uint32_t)ASSET_REQ_ENGINE_IO_CATALOG) != 0U) {
         checked_count++;
         if (!engine_io_catalog_present(engine_environment)) {
-            LOG_ERROR("asset_contract: 必需资产缺失或为空 [engine_io_catalog]");
+            LOG_ERROR("asset_contract: required asset missing or empty [engine_io_catalog]");
             missing_count++;
         }
     }
@@ -112,14 +112,14 @@ sw_err_t asset_contract_validate(uint32_t required, const engine_environment_t *
     /* 声明了本框架版本无法识别的位：多为项目与框架版本不一致，
      * 静默忽略会让"我声明了却没被检查"难以察觉。 */
     if ((required & ~known_mask) != 0U) {
-        LOG_WARN("asset_contract: 声明中含未知资产位 0x%08X，已忽略", (unsigned)(required & ~known_mask));
+        LOG_WARN("asset_contract: unknown asset bit 0x%08X ignored", (unsigned)(required & ~known_mask));
     }
 
     if (missing_count > 0U) {
-        LOG_ERROR("asset_contract: 校验失败，%u/%u 个必需资产缺失", missing_count, checked_count);
+        LOG_ERROR("asset_contract: validate failed, %u/%u required assets missing", missing_count, checked_count);
         return SW_ERR_NOT_INIT;
     }
 
-    LOG_INFO("asset_contract: 校验通过，%u 个必需资产均已就位", checked_count);
+    LOG_INFO("asset_contract: ok, %u required assets present", checked_count);
     return SW_OK;
 }
