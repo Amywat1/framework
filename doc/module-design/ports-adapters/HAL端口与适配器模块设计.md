@@ -179,9 +179,9 @@ provider backend ops
         │ apply_gear / stop_outputs / read / write / set_rst / get_state
         ▼
 hal_vfd_manager
-        ├─ 实例槽位绑定
-        ├─ RST 脉冲编排
-        ├─ fault/current 慢速监测缓存
+        ├─ 实例槽位绑定（通道策略 OFF / BACKGROUND / FAST）
+        ├─ RST 脉冲编排（独立 vfd_pulse_poll，不发 Modbus）
+        ├─ 监测调度（vfd_monitor_poll，每拍最多一通道）
         └─ register_event_cb 事件通知
 ```
 
@@ -190,11 +190,10 @@ hal_vfd_manager
 | ------ | -------------------------------------------- |
 | 注册端口   | `hal_vfd_manager_register()`                 |
 | 绑定实例   | `hal_vfd_manager_bind(id, cfg)`              |
-| 注册周期任务 | `hal_vfd_manager_poll_register_task()`       |
-| 更新监测项  | `hal_vfd_manager_set_monitor_mask(id, mask)` |
+| 注册周期任务 | `hal_vfd_manager_poll_register_task()`（脉冲 + 监测） |
 
 
-默认容量 `HAL_VFD_MANAGER_SLOT_MAX = 8`（定义在 `hal_vfd_manager_bind.h`）。`monitor_mask` 可组合 `HAL_VFD_MON_FAULT` 与 `HAL_VFD_MON_CURRENT`。
+默认容量 `HAL_VFD_MANAGER_SLOT_MAX = 8`（定义在 `hal_vfd_manager_bind.h`）。绑定必须显式填写 `fault` / `current` 策略。监测每拍只读一个通道，多个 FAST 轮询；运行中 FAST 电流跳过同实例故障码。
 
 ### 4.3 `hal_adc_gate`
 
@@ -344,7 +343,7 @@ bootstrap_start()
 | --------------------- | ---------------------------------------------- |
 | `event_bus`           | 独立 `event_dispatch` 线程，HAL 不应在回调中长时间阻塞         |
 | `hal_sensor_filter`   | 通过 `periodic_task` 周期推进                        |
-| `hal_vfd_manager`     | 通过 `periodic_task` 周期监测 fault/current 和 RST 脉冲 |
+| `hal_vfd_manager`     | 通过两个 `periodic_task`：`vfd_pulse_poll` 推 RST，`vfd_monitor_poll` 每拍最多一笔监测读 |
 | `io_exp_driver`       | provider 内部自建 IO 后台线程                          |
 
 

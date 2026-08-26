@@ -308,7 +308,8 @@ periodic_task_thread_fn(slot)
 | 会话 worker | `engine_session_bind()`，名称与栈由调用方配置传入 | 线程 | 驱动方案引擎 tick |
 | `cloud_report` | `report_scheduler_start()` | 周期任务 | 云端链路 poll、watcher poll、脏点增量与重连/周期全量上报 |
 | `hal_sensor_poll` | `hal_sensor_poll_register_task()` | 周期任务 | DI 滤波推进 |
-| `vfd_manager_poll` | `hal_vfd_manager_poll_register_task()` | 周期任务 | VFD fault/current/RST 监测 |
+| `vfd_pulse_poll` | `hal_vfd_manager_poll_register_task()` | 周期任务（20ms） | VFD RST 脉冲推进，不发 Modbus |
+| `vfd_monitor_poll` | `hal_vfd_manager_poll_register_task()` | 周期任务（20ms） | VFD 通道监测，每拍最多一笔总线 |
 | `estop_poll` | `estop_poll_thread_init()`，由项目在 `init_adapters` 选择接入 | 线程 | 轮询硬件急停边沿 |
 
 只有 `event_dispatch` 与 `alarm_bridge` 是 bootstrap 无条件登记的；其余取决于对应模块是否初始化、项目是否注册该任务，以及真机 provider 是否启用。

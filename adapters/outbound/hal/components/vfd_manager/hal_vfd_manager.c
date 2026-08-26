@@ -20,8 +20,13 @@
 #include <string.h>
 
 /** @brief 连续 Modbus 失败 N 次后上报 COMM_LOST */
-#define VFD_COMM_FAIL_NOTIFY           3U
-#define HAL_VFD_MANAGER_POLL_PERIOD_MS 20U
+#define VFD_COMM_FAIL_NOTIFY 3U
+
+/** @brief 工作项：槽位 × 2 + 通道（0=故障码，1=电流） */
+#define VFD_CH_FAULT   0U
+#define VFD_CH_CURRENT 1U
+#define VFD_CH_COUNT   2U
+#define VFD_WORK_MAX   (HAL_VFD_MANAGER_SLOT_MAX * VFD_CH_COUNT)
 
 typedef struct {
     bool                       bound;
@@ -46,6 +51,11 @@ typedef struct {
 } hal_vfd_slot_t;
 
 static hal_vfd_slot_t s_slot[HAL_VFD_MANAGER_SLOT_MAX];
+
+static unsigned s_fast_rr;
+static unsigned s_bg_rr;
+static uint8_t  s_fast_since_keepalive;
+static uint64_t s_fast_lag_warn_ms;
 
 /* 两把锁均位于急停切断热路径：safety_cutout_execute -> 项目 cutout 实现 ->
  * 项目电机紧急切断 -> 驱动 cutoff -> 本模块停机。该路径由 estop_poll
@@ -98,6 +108,22 @@ static hal_vfd_slot_t *ready_slot_by_id(hal_vfd_id_t id)
     return slot;
 }
 
+static bool channel_policy_valid(const hal_vfd_channel_policy_t *policy)
+{
+    if (policy == NULL) {
+        return false;
+    }
+    switch (policy->class) {
+    case HAL_VFD_SAMPLE_OFF:
+        return (policy->period_ms == 0U);
+    case HAL_VFD_SAMPLE_BACKGROUND:
+    case HAL_VFD_SAMPLE_FAST:
+        return (policy->period_ms > 0U);
+    default:
+        return false;
+    }
+}
+
 static bool bind_cfg_valid(const hal_vfd_manager_bind_cfg_t *cfg)
 {
     if ((cfg == NULL) || (cfg->ops == NULL) || (cfg->drv_ctx == NULL)) {
@@ -110,10 +136,10 @@ static bool bind_cfg_valid(const hal_vfd_manager_bind_cfg_t *cfg)
     if ((cfg->ops->clear_fault == NULL) != (cfg->ops->has_clear_fault == NULL)) {
         return false;
     }
-    if ((cfg->rst_pulse_ms == 0U) || (cfg->fault_period_ms == 0U) || (cfg->current_period_ms == 0U)) {
+    if (cfg->rst_pulse_ms == 0U) {
         return false;
     }
-    return true;
+    return channel_policy_valid(&cfg->fault) && channel_policy_valid(&cfg->current);
 }
 
 static sw_err_t pulse_set_rst_level(void *ctx, bool level)
@@ -193,7 +219,7 @@ static int update_fault_state_locked(hal_vfd_slot_t *slot, uint16_t code)
     return 0;
 }
 
-static void monitor_sample_fault(hal_vfd_slot_t *slot, uint64_t now_ms)
+static bool monitor_sample_fault(hal_vfd_slot_t *slot, uint64_t now_ms)
 {
     sw_err_t ret;
     uint16_t val = 0U;
@@ -227,9 +253,10 @@ static void monitor_sample_fault(hal_vfd_slot_t *slot, uint64_t now_ms)
     if (fault_evt != 0) {
         emit_event(slot, fault_evt);
     }
+    return (ret == SW_OK);
 }
 
-static void monitor_sample_current(hal_vfd_slot_t *slot, uint64_t now_ms)
+static bool monitor_sample_current(hal_vfd_slot_t *slot, uint64_t now_ms)
 {
     hal_vfd_state_t st;
     sw_err_t        ret;
@@ -261,22 +288,42 @@ static void monitor_sample_current(hal_vfd_slot_t *slot, uint64_t now_ms)
         if (ret == SW_OK) {
             emit_event(slot, HAL_VFD_EVT_CURRENT_UPDATE);
         }
-    } else {
-        vfd_mutexes_ready();
-        pthread_mutex_lock(&s_vfd_lock);
-        slot->last_current_ms = now_ms;
-        pthread_mutex_unlock(&s_vfd_lock);
+        return (ret == SW_OK);
     }
+
+    vfd_mutexes_ready();
+    pthread_mutex_lock(&s_vfd_lock);
+    slot->last_current_ms = now_ms;
+    pthread_mutex_unlock(&s_vfd_lock);
+    return false;
 }
 
-static void monitor_sample(hal_vfd_slot_t *slot, uint64_t now_ms, bool fault_due, bool current_due)
+static void maybe_warn_fast_lag(uint32_t period_ms, uint32_t actual_ms)
 {
-    if (fault_due) {
-        monitor_sample_fault(slot, now_ms);
+    uint64_t now_ms;
+
+    if (actual_ms <= period_ms) {
+        return;
     }
-    if (current_due) {
-        monitor_sample_current(slot, now_ms);
+
+    now_ms = time_util_get_ms();
+    if ((s_fast_lag_warn_ms != 0U)
+        && (time_elapsed_ms(s_fast_lag_warn_ms, now_ms) < HAL_VFD_FAST_LAG_WARN_INTERVAL_MS)) {
+        return;
     }
+    s_fast_lag_warn_ms = now_ms;
+    LOG_WARN("hal_vfd: FAST sample interval %ums > period %ums", (unsigned)actual_ms, (unsigned)period_ms);
+}
+
+static void note_fast_sample(uint64_t last_ms, uint64_t now_ms, uint32_t period_ms)
+{
+    uint32_t gap;
+
+    if ((last_ms == 0U) || (now_ms <= last_ms)) {
+        return;
+    }
+    gap = (uint32_t)time_elapsed_ms(last_ms, now_ms);
+    maybe_warn_fast_lag(period_ms, gap);
 }
 
 sw_err_t hal_vfd_manager_bind(hal_vfd_id_t id, const hal_vfd_manager_bind_cfg_t *cfg)
@@ -315,21 +362,6 @@ sw_err_t hal_vfd_manager_bind(hal_vfd_id_t id, const hal_vfd_manager_bind_cfg_t 
     slot->rst_pulse.set_level = pulse_set_rst_level;
     slot->rst_pulse.active    = false;
     slot->control_mode        = VFD_CONTROL_NONE;
-    pthread_mutex_unlock(&s_vfd_lock);
-    return SW_OK;
-}
-
-sw_err_t hal_vfd_manager_set_monitor_mask(hal_vfd_id_t id, hal_vfd_monitor_mask_t mask)
-{
-    hal_vfd_slot_t *slot = slot_by_id(id);
-
-    if (slot == NULL) {
-        return SW_ERR_NOT_INIT;
-    }
-
-    vfd_mutexes_ready();
-    pthread_mutex_lock(&s_vfd_lock);
-    slot->cfg.monitor_mask = mask;
     pthread_mutex_unlock(&s_vfd_lock);
     return SW_OK;
 }
@@ -379,47 +411,193 @@ static sw_err_t vfd_init(void)
     return first_ret;
 }
 
-static void vfd_tick(void)
+typedef struct {
+    bool                     valid;
+    bool                     running;
+    hal_vfd_channel_policy_t fault;
+    hal_vfd_channel_policy_t current;
+    uint64_t                 last_fault_ms;
+    uint64_t                 last_current_ms;
+} vfd_slot_view_t;
+
+static void take_slot_views(vfd_slot_view_t views[HAL_VFD_MANAGER_SLOT_MAX])
+{
+    unsigned i;
+
+    for (i = 0U; i < HAL_VFD_MANAGER_SLOT_MAX; i++) {
+        views[i].valid = false;
+        if (!s_slot[i].bound || !s_slot[i].initialized) {
+            continue;
+        }
+        vfd_mutexes_ready();
+        pthread_mutex_lock(&s_vfd_lock);
+        views[i].valid          = true;
+        views[i].last_fault_ms   = s_slot[i].last_fault_ms;
+        views[i].last_current_ms = s_slot[i].last_current_ms;
+        views[i].fault           = s_slot[i].cfg.fault;
+        views[i].current         = s_slot[i].cfg.current;
+        pthread_mutex_unlock(&s_vfd_lock);
+        views[i].running = false;
+        if (s_slot[i].cfg.ops->get_state != NULL) {
+            hal_vfd_state_t st = s_slot[i].cfg.ops->get_state(s_slot[i].cfg.drv_ctx);
+            views[i].running   = ((st == HAL_VFD_STATE_FWD) || (st == HAL_VFD_STATE_REV));
+        }
+    }
+}
+
+static bool work_is_due(const vfd_slot_view_t *views, unsigned enc, bool want_fast, uint64_t now_ms)
+{
+    unsigned                     slot;
+    unsigned                     ch;
+    const vfd_slot_view_t       *v;
+    const hal_vfd_channel_policy_t *policy;
+    uint64_t                     last_ms;
+    bool                         suppress_fault;
+
+    slot = enc / VFD_CH_COUNT;
+    ch   = enc % VFD_CH_COUNT;
+    v    = &views[slot];
+    if (!v->valid) {
+        return false;
+    }
+
+    suppress_fault = v->running && (v->current.class == HAL_VFD_SAMPLE_FAST);
+    if (ch == VFD_CH_FAULT) {
+        policy = &v->fault;
+        last_ms = v->last_fault_ms;
+        if (suppress_fault) {
+            return false;
+        }
+    } else {
+        policy = &v->current;
+        last_ms = v->last_current_ms;
+        if (!v->running) {
+            return false;
+        }
+    }
+
+    if (want_fast) {
+        if (policy->class != HAL_VFD_SAMPLE_FAST) {
+            return false;
+        }
+    } else if (policy->class != HAL_VFD_SAMPLE_BACKGROUND) {
+        return false;
+    }
+
+    return (time_elapsed_ms(last_ms, now_ms) >= policy->period_ms);
+}
+
+static bool pick_due_work(const vfd_slot_view_t *views,
+                          unsigned              *cursor,
+                          bool                   want_fast,
+                          uint64_t               now_ms,
+                          unsigned              *out_enc)
+{
+    unsigned i;
+
+    for (i = 0U; i < VFD_WORK_MAX; i++) {
+        unsigned enc = (*cursor + i) % VFD_WORK_MAX;
+        if (work_is_due(views, enc, want_fast, now_ms)) {
+            *cursor   = (enc + 1U) % VFD_WORK_MAX;
+            *out_enc  = enc;
+            return true;
+        }
+    }
+    return false;
+}
+
+static void vfd_pulse_tick(void)
 {
     uint64_t now_ms = time_util_get_ms();
     unsigned i;
 
     for (i = 0U; i < HAL_VFD_MANAGER_SLOT_MAX; i++) {
-        hal_vfd_slot_t        *slot = &s_slot[i];
-        hal_vfd_monitor_mask_t mask;
-        bool                   fault_due;
-        bool                   current_due;
-
-        if (!slot->bound || !slot->initialized) {
+        if (!s_slot[i].bound || !s_slot[i].initialized) {
             continue;
         }
-
         vfd_mutexes_ready();
         pthread_mutex_lock(&s_vfd_lock);
-        pulse_out_tick(&slot->rst_pulse, now_ms);
-        mask      = slot->cfg.monitor_mask;
-        fault_due = ((mask & HAL_VFD_MON_FAULT) != 0U)
-                    && (time_elapsed_ms(slot->last_fault_ms, now_ms) >= slot->cfg.fault_period_ms);
-        current_due = ((mask & HAL_VFD_MON_CURRENT) != 0U)
-                      && (time_elapsed_ms(slot->last_current_ms, now_ms) >= slot->cfg.current_period_ms);
+        pulse_out_tick(&s_slot[i].rst_pulse, now_ms);
         pthread_mutex_unlock(&s_vfd_lock);
+    }
+}
 
-        if (fault_due || current_due) {
-            monitor_sample(slot, now_ms, fault_due, current_due);
+static void vfd_monitor_tick(void)
+{
+    vfd_slot_view_t views[HAL_VFD_MANAGER_SLOT_MAX];
+    uint64_t        now_ms = time_util_get_ms();
+    unsigned        enc    = 0U;
+    unsigned        slot;
+    unsigned        ch;
+    bool            is_fast;
+    bool            ok;
+    uint64_t        last_ms;
+    uint32_t        period_ms;
+
+    take_slot_views(views);
+
+    is_fast = false;
+    if (s_fast_since_keepalive >= HAL_VFD_FAST_KEEPALIVE_EVERY) {
+        if (pick_due_work(views, &s_bg_rr, false, now_ms, &enc)) {
+            s_fast_since_keepalive = 0U;
+        } else if (pick_due_work(views, &s_fast_rr, true, now_ms, &enc)) {
+            is_fast = true;
+        } else {
+            return;
+        }
+    } else if (pick_due_work(views, &s_fast_rr, true, now_ms, &enc)) {
+        is_fast = true;
+    } else if (pick_due_work(views, &s_bg_rr, false, now_ms, &enc)) {
+        is_fast = false;
+    } else {
+        return;
+    }
+
+    slot = enc / VFD_CH_COUNT;
+    ch   = enc % VFD_CH_COUNT;
+    if (ch == VFD_CH_FAULT) {
+        last_ms   = views[slot].last_fault_ms;
+        period_ms = views[slot].fault.period_ms;
+        ok        = monitor_sample_fault(&s_slot[slot], now_ms);
+    } else {
+        last_ms   = views[slot].last_current_ms;
+        period_ms = views[slot].current.period_ms;
+        ok        = monitor_sample_current(&s_slot[slot], now_ms);
+    }
+
+    if (is_fast) {
+        if (s_fast_since_keepalive < 0xFFU) {
+            s_fast_since_keepalive++;
+        }
+        if (ok) {
+            note_fast_sample(last_ms, now_ms, period_ms);
         }
     }
 }
 
-static void vfd_poll_task(void *ctx)
+static void vfd_pulse_task(void *ctx)
 {
     (void)ctx;
-    vfd_tick();
+    vfd_pulse_tick();
+}
+
+static void vfd_monitor_task(void *ctx)
+{
+    (void)ctx;
+    vfd_monitor_tick();
 }
 
 sw_err_t hal_vfd_manager_poll_register_task(void)
 {
+    sw_err_t ret;
+
+    ret = periodic_task_register(
+        "vfd_pulse_poll", HAL_VFD_PULSE_PERIOD_MS, vfd_pulse_task, NULL, SCHED_OTHER, 0, THD_VFD_TICK_STACK);
+    if (ret != SW_OK) {
+        return ret;
+    }
     return periodic_task_register(
-        "vfd_manager_poll", HAL_VFD_MANAGER_POLL_PERIOD_MS, vfd_poll_task, NULL, SCHED_OTHER, 0, THD_VFD_TICK_STACK);
+        "vfd_monitor_poll", HAL_VFD_MONITOR_SLICE_MS, vfd_monitor_task, NULL, SCHED_OTHER, 0, THD_VFD_TICK_STACK);
 }
 
 static sw_err_t vfd_set_gear(hal_vfd_id_t id, hal_vfd_gear_t gear)
@@ -630,9 +808,20 @@ void hal_vfd_manager_register(void)
 }
 
 #ifdef HAL_VFD_MANAGER_UNIT_TEST
+void hal_vfd_manager_test_pulse_tick(void)
+{
+    vfd_pulse_tick();
+}
+
+void hal_vfd_manager_test_monitor_tick(void)
+{
+    vfd_monitor_tick();
+}
+
 void hal_vfd_manager_test_tick(void)
 {
-    vfd_tick();
+    vfd_pulse_tick();
+    vfd_monitor_tick();
 }
 
 void hal_vfd_manager_test_reset(void)
@@ -641,5 +830,9 @@ void hal_vfd_manager_test_reset(void)
     pthread_mutex_lock(&s_vfd_lock);
     memset(s_slot, 0, sizeof(s_slot));
     pthread_mutex_unlock(&s_vfd_lock);
+    s_fast_rr              = 0U;
+    s_bg_rr                = 0U;
+    s_fast_since_keepalive = 0U;
+    s_fast_lag_warn_ms     = 0U;
 }
 #endif

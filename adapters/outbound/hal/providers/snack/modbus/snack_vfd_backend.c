@@ -196,15 +196,14 @@ static const hal_vfd_backend_ops_t s_snack_vfd_backend_ops = {
 
 static sw_err_t snack_bind_instance(hal_vfd_id_t id, snack_vfd_slot_t *slot)
 {
-    hal_vfd_manager_bind_cfg_t cfg;
+    const hal_vfd_manager_bind_cfg_t cfg = {
+        .ops          = &s_snack_vfd_backend_ops,
+        .drv_ctx      = slot,
+        .rst_pulse_ms = HAL_VFD_DEFAULT_RST_PULSE_MS,
+        .fault        = slot->cfg.fault,
+        .current      = slot->cfg.current,
+    };
 
-    cfg.ops             = &s_snack_vfd_backend_ops;
-    cfg.drv_ctx         = slot;
-    cfg.rst_pulse_ms    = HAL_VFD_DEFAULT_RST_PULSE_MS;
-    cfg.fault_period_ms = HAL_VFD_DEFAULT_MONITOR_PERIOD_MS;
-    cfg.current_period_ms
-        = (slot->cfg.current_period_ms != 0U) ? slot->cfg.current_period_ms : HAL_VFD_DEFAULT_MONITOR_PERIOD_MS;
-    cfg.monitor_mask = slot->cfg.monitor_mask;
     return hal_vfd_manager_bind(id, &cfg);
 }
 
@@ -229,17 +228,6 @@ sw_err_t snack_vfd_backend_instance_setup(hal_vfd_id_t id, const snack_vfd_backe
 
     s_slot[(unsigned)id].bound = true;
     return SW_OK;
-}
-
-sw_err_t snack_vfd_backend_instance_set_monitor_mask(hal_vfd_id_t id, hal_vfd_monitor_mask_t mask)
-{
-    if (!vfd_id_valid(id)) {
-        return SW_ERR_PARAM;
-    }
-    if (!s_slot[(unsigned)id].bound) {
-        return SW_ERR_NOT_INIT;
-    }
-    return hal_vfd_manager_set_monitor_mask(id, mask);
 }
 
 void snack_vfd_backend_register(void)

@@ -20,10 +20,11 @@ extern "C" {
 void hal_vfd_manager_register(void);
 
 /**
- * @brief  注册 VFD manager 周期推进任务。
+ * @brief  注册 VFD 脉冲推进与监测调度两个周期任务。
  * @retval SW_OK 注册成功。
  * @retval SW_ERR_PARAM / SW_ERR_OVERFLOW 注册失败。
- * @note   任务由 scheduler_start_all() 统一启动；项目层只注册任务，不直接调用 tick。
+ * @note   脉冲任务只推 RST；监测任务每拍最多一笔 Modbus 后返回。
+ *         任务由 scheduler_start_all() 统一启动；项目层只注册任务，不直接调用 tick。
  */
 sw_err_t hal_vfd_manager_poll_register_task(void);
 
@@ -34,14 +35,6 @@ sw_err_t hal_vfd_manager_poll_register_task(void);
  * @retval SW_OK / SW_ERR_PARAM
  */
 sw_err_t hal_vfd_manager_bind(hal_vfd_id_t id, const hal_vfd_manager_bind_cfg_t *cfg);
-
-/**
- * @brief  更新指定实例的通信监测掩码（不重置任何运行时状态）
- * @param  id    实例编号
- * @param  mask  新掩码（HAL_VFD_MON_* 组合）
- * @retval SW_OK / SW_ERR_NOT_INIT（id 未绑定）
- */
-sw_err_t hal_vfd_manager_set_monitor_mask(hal_vfd_id_t id, hal_vfd_monitor_mask_t mask);
 
 #ifdef HAL_VFD_MANAGER_UNIT_TEST
 void hal_vfd_manager_test_reset(void);

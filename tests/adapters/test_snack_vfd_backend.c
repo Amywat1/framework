@@ -29,16 +29,6 @@ static const drv_vfd_modbus_profile_t s_test_profile = {
     .clear_fault = {.access = DRV_VFD_MODBUS_NONE},
 };
 
-static int      s_events[8];
-static unsigned s_event_count;
-
-static void event_cb(int event_code)
-{
-    if (s_event_count < (sizeof(s_events) / sizeof(s_events[0]))) {
-        s_events[s_event_count++] = event_code;
-    }
-}
-
 static const hal_vfd_ops_t *vfd_ops(void)
 {
     const hal_vfd_ops_t *ops = hal_vfd_get_ops();
@@ -83,16 +73,13 @@ static snack_vfd_backend_instance_cfg_t make_cfg(void)
     cfg.gear_count   = 3U;
     cfg.speed_io[0]  = SNACK_VFD_BACKEND_SPEED_IO(true, false);
     cfg.speed_io[1]  = SNACK_VFD_BACKEND_SPEED_IO(false, true);
-    cfg.speed_io[2]  = SNACK_VFD_BACKEND_SPEED_IO(true, true);
-    cfg.monitor_mask = HAL_VFD_MON_NONE;
+    cfg.speed_io[2] = SNACK_VFD_BACKEND_SPEED_IO(true, true);
     return cfg;
 }
 
 void setUp(void)
 {
     snack_modbus_fake_reset();
-    memset(s_events, 0, sizeof(s_events));
-    s_event_count = 0;
     hal_vfd_manager_test_reset();
     snack_vfd_backend_test_reset();
     init_io_driver();
@@ -286,17 +273,6 @@ static void test_fault_reset_uses_rst_pin_when_modbus_clear_not_available(void)
     TEST_ASSERT_EQUAL_UINT(before, snack_modbus_fake_write_count());
 }
 
-static void test_monitor_mask_can_be_updated_after_init(void)
-{
-    snack_vfd_backend_instance_cfg_t cfg = make_cfg();
-
-    TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_INIT, snack_vfd_backend_instance_set_monitor_mask(7, HAL_VFD_MON_FAULT));
-
-    TEST_ASSERT_EQUAL_INT(SW_OK, snack_vfd_backend_instance_setup(TEST_VFD_ID, &cfg));
-    vfd_ops()->register_event_cb(TEST_VFD_ID, event_cb);
-    TEST_ASSERT_EQUAL_INT(SW_OK, snack_vfd_backend_instance_set_monitor_mask(TEST_VFD_ID, HAL_VFD_MON_FAULT));
-}
-
 static void test_bound_but_not_hal_inited_operations_return_not_init(void)
 {
     snack_vfd_backend_instance_cfg_t cfg = make_cfg();
@@ -326,7 +302,6 @@ int main(void)
     WDF_RUN_TEST(test_fault_reset_without_rst_pin_is_not_supported, "", "验证无RST引脚时不支持故障复位");
     WDF_RUN_TEST(
         test_fault_reset_uses_rst_pin_when_modbus_clear_not_available, "", "验证故障复位使用RST引脚时MODBUS清除未可用");
-    WDF_RUN_TEST(test_monitor_mask_can_be_updated_after_init, "", "验证初始化后可以更新监控掩码");
 
     return UNITY_END();
 }

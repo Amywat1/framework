@@ -259,10 +259,9 @@ static void test_vfd_tick_does_not_allocate(void)
     hal_vfd_manager_bind_cfg_t cfg = {
         .ops               = &s_backend_ops,
         .drv_ctx           = &s_drv_ctx,
-        .rst_pulse_ms      = 5U,
-        .fault_period_ms   = 1U,
-        .current_period_ms = 1U,
-        .monitor_mask      = HAL_VFD_MON_FAULT,
+        .rst_pulse_ms = 5U,
+        .fault        = {HAL_VFD_SAMPLE_BACKGROUND, 1U},
+        .current      = {HAL_VFD_SAMPLE_OFF, 0U},
     };
 
     TEST_ASSERT_EQUAL_INT(SW_OK, hal_vfd_manager_bind(0, &cfg));

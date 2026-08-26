@@ -24,21 +24,41 @@ extern "C" {
 /** @brief 默认 RST 脉冲宽度（ms） */
 #define HAL_VFD_DEFAULT_RST_PULSE_MS 200U
 
-/** @brief 默认慢速监测轮询间隔（ms），故障码固定使用该值，电流未指定实例覆盖值时也使用该值 */
-#define HAL_VFD_DEFAULT_MONITOR_PERIOD_MS 2000U
+/** @brief 后台通道默认周期（ms） */
+#define HAL_VFD_DEFAULT_BACKGROUND_PERIOD_MS 2000U
 
-/** @brief 电流闭环控制场景下的快速采样间隔（ms），供需要电流反馈的实例覆盖使用 */
-#define HAL_VFD_FAST_CURRENT_PERIOD_MS 150U
+/** @brief 快采通道默认目标周期（ms）；监测每拍最多一笔，多 FAST 轮询 */
+#define HAL_VFD_DEFAULT_FAST_PERIOD_MS 20U
+
+/** @brief RST 脉冲推进周期（ms） */
+#define HAL_VFD_PULSE_PERIOD_MS 20U
+
+/** @brief 监测调度切片（ms），每拍最多一笔总线 */
+#define HAL_VFD_MONITOR_SLICE_MS 20U
+
+/** @brief 连续快采达到该次数后穿插一笔到期后台通道 */
+#define HAL_VFD_FAST_KEEPALIVE_EVERY 8U
+
+/** @brief 快采间隔未达标告警的最小间隔（ms） */
+#define HAL_VFD_FAST_LAG_WARN_INTERVAL_MS 2000U
 
 /**
- * @brief  通信监测项掩码（可按位组合）
+ * @brief  单通道采样服务等级
  */
-typedef uint8_t hal_vfd_monitor_mask_t;
+typedef enum {
+    HAL_VFD_SAMPLE_OFF = 0,    /**< 不读 */
+    HAL_VFD_SAMPLE_BACKGROUND, /**< 后台：按 period 到期后轮询，可被快采穿插保活 */
+    HAL_VFD_SAMPLE_FAST,       /**< 快采：运行中优先，多通道轮询分享总线 */
+} hal_vfd_sample_class_t;
 
-#define HAL_VFD_MON_NONE    ((hal_vfd_monitor_mask_t)0x00U)
-#define HAL_VFD_MON_FAULT   ((hal_vfd_monitor_mask_t)0x01U)
-#define HAL_VFD_MON_CURRENT ((hal_vfd_monitor_mask_t)0x02U)
-#define HAL_VFD_MON_ALL     ((hal_vfd_monitor_mask_t)0x03U)
+/**
+ * @brief  单通道采样策略
+ * @note   OFF 时 period_ms 必须为 0；BACKGROUND / FAST 时 period_ms 必须大于 0。
+ */
+typedef struct {
+    hal_vfd_sample_class_t class;     /**< 服务等级 */
+    uint32_t               period_ms; /**< 目标周期（ms） */
+} hal_vfd_channel_policy_t;
 
 typedef sw_err_t (*hal_vfd_backend_apply_gear_fn)(void *ctx, hal_vfd_gear_t gear);
 typedef sw_err_t (*hal_vfd_backend_apply_frequency_fn)(void *ctx, hal_vfd_frequency_t frequency_centi_hz);
@@ -78,10 +98,12 @@ typedef struct {
     const hal_vfd_backend_ops_t *ops;
     void                        *drv_ctx;
 
-    uint32_t               rst_pulse_ms;
-    uint32_t               fault_period_ms;
-    uint32_t               current_period_ms;
-    hal_vfd_monitor_mask_t monitor_mask;
+    uint32_t rst_pulse_ms;
+
+    /** @brief 故障码通道策略 */
+    hal_vfd_channel_policy_t fault;
+    /** @brief 电流通道策略 */
+    hal_vfd_channel_policy_t current;
 } hal_vfd_manager_bind_cfg_t;
 
 #ifdef __cplusplus
