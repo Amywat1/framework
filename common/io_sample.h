@@ -19,8 +19,17 @@ extern "C" {
 /** @brief ADC 快照的最长有效时间，超过后质量标记为 STALE。 */
 #define IO_ADC_FRESHNESS_TIMEOUT_MS 100U
 
+/** @brief 脉冲计数快照的最长有效时间，超过后质量标记为 STALE。 */
+#define IO_PULSE_FRESHNESS_TIMEOUT_MS 100U
+
 /** @brief adc_read / adc_mv / adc_ma 在尚无有效快照时的返回值。 */
 #define IO_ADC_ERR_UNINITIALIZED (-99)
+
+/** @brief pulse_read 在尚无有效快照时的返回值。 */
+#define IO_PULSE_ERR_UNINITIALIZED (-99)
+
+/** @brief 硬件脉冲计数溢出/无效哨兵（与 Snack SDK 约定一致）。 */
+#define IO_PULSE_INVALID_COUNT 0x0FFFFFFF
 
 /** @brief 数字输入采样质量。 */
 typedef enum {
@@ -47,6 +56,13 @@ typedef struct {
     io_sample_quality_t quality;      /**< 样本质量。 */
     uint64_t            timestamp_ms; /**< 最近一次有效采样时间。 */
 } io_adc_sample_t;
+
+/** @brief 一次脉冲计数采样的完整快照。 */
+typedef struct {
+    int                 raw;          /**< 计数值；仅 quality=VALID 时可用于新判断。 */
+    io_sample_quality_t quality;      /**< 样本质量。 */
+    uint64_t            timestamp_ms; /**< 最近一次有效采样时间。 */
+} io_pulse_sample_t;
 
 #ifdef __cplusplus
 }

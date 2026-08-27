@@ -40,6 +40,7 @@ if(WDF_ENABLE_SNACK_IO_EXP_PROVIDER)
         adapters/outbound/hal/providers/snack/io_exp/io_exp_driver.c
         adapters/outbound/hal/providers/snack/io_exp/snack_io_adapter.c
         adapters/outbound/hal/components/adc_gate/hal_adc_gate.c
+        adapters/outbound/hal/components/pulse_gate/hal_pulse_gate.c
     )
     target_include_directories(wdf_hal_io_exp_snack PUBLIC
         ${CMAKE_SOURCE_DIR}

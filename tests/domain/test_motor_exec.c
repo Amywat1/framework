@@ -27,6 +27,7 @@ typedef struct {
     sw_err_t               request_stop_rc;
     bool                   reset_ok;
     int                    reset_count;
+    int                    enc_raw_calls;
     int                    temperature;
     bool                   temperature_ok;
     motor_port_status_t    port_status;
@@ -121,6 +122,7 @@ static motor_prepare_result_t driver_poll(void *ctx, int motor)
 
 static int64_t encoder_raw(void *ctx)
 {
+    ((port_fixture_t *)ctx)->enc_raw_calls++;
     return ((port_fixture_t *)ctx)->position;
 }
 
@@ -431,6 +433,19 @@ static void test_query_helpers_via_port(void)
     hal = s_exec;
     TEST_ASSERT_TRUE(motor_exec_baseline_trusted(hal, 0));
     TEST_ASSERT_TRUE(motor_exec_encoder_healthy(hal, 0));
+}
+
+/**
+ * @brief 增量轴空闲不读编码器，避免同步占用脉冲通道
+ */
+static void test_incremental_idle_skips_encoder_raw(void)
+{
+    int after_init = s_fx.enc_raw_calls;
+
+    TEST_ASSERT_GREATER_THAN_INT(0, after_init);
+    motor_executor_tick(s_exec);
+    motor_executor_tick(s_exec);
+    TEST_ASSERT_EQUAL_INT(after_init, s_fx.enc_raw_calls);
 }
 
 static void test_query_helpers_return_safe_defaults_for_bad_motor(void)
@@ -1044,6 +1059,7 @@ int main(void)
     WDF_RUN_TEST(test_run_updates_pending_while_waiting_start, "", "验证冷却排队中再次 run 更新挂起目标");
     WDF_RUN_TEST(test_recover_via_port, "", "验证经端口故障恢复");
     WDF_RUN_TEST(test_query_helpers_via_port, "", "验证经端口位置与基准/编码器查询");
+    WDF_RUN_TEST(test_incremental_idle_skips_encoder_raw, "", "验证增量轴空闲不读编码器");
     WDF_RUN_TEST(test_query_helpers_return_safe_defaults_for_bad_motor, "", "验证越界电机查询返回安全默认值");
     WDF_RUN_TEST(test_run_rejects_unset_dir, "", "验证未指定方向的运动命令被拒绝");
     WDF_RUN_TEST(test_output_hold_cuts_and_rejects_until_release, "SAFE-14", "验证输出抑制切断电机并拒绝运动直到释放");

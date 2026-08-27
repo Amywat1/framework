@@ -534,6 +534,7 @@ NON_RT_FILES=(
     "adapters/outbound/storage/json/json_deploy_store.c"   # 启动期加载
     "adapters/outbound/storage/json/json_param_store.c"    # 参数存取
     "adapters/outbound/hal/components/adc_gate/hal_adc_gate.c"       # 模拟量采样
+    "adapters/outbound/hal/components/pulse_gate/hal_pulse_gate.c"   # 脉冲计数采样
     "adapters/outbound/hal/components/sensor_filter/hal_sensor_filter.c" # 传感器滤波
     "adapters/outbound/hal/providers/snack/modbus/drv_modbus_link.c" # cutout 禁止走 Modbus，只服务业务帧
     "adapters/outbound/hal/providers/snack/modbus/drv_voice.c"       # 语音播报
@@ -854,8 +855,7 @@ VENDOR_BLOCKING_REGISTERED=(
     "adapters/outbound/hal/providers/snack/io_exp/io_exp_driver.c:io_write_all"     # 锁外，同上
     "adapters/outbound/hal/providers/snack/io_exp/io_exp_driver.c:io_write_all_s"   # 锁外，同上
     "adapters/outbound/hal/providers/snack/io_exp/io_exp_driver.c:io_adc_read"      # 锁外，仅 worker poll_adc_board
-    "adapters/outbound/hal/providers/snack/io_exp/io_exp_driver.c:io_adc_mV"        # 锁外，仅 worker poll_adc_board
-    "adapters/outbound/hal/providers/snack/io_exp/io_exp_driver.c:io_adc_mA"        # 锁外，仅 worker poll_adc_board
+    "adapters/outbound/hal/providers/snack/io_exp/io_exp_driver.c:io_pluse_read"    # 锁外，仅 worker poll_pulse_board
 )
 
 # 被视为「框架外阻塞」的符号前缀：vendor SDK 的同步收发入口。
@@ -865,7 +865,7 @@ VENDOR_BLOCKING_SYMS=(
     modbus_write_register modbus_write_registers modbus_write_bit
     modbus_connect
     io_write_all io_write_all_s io_read_input io_read_input_s
-    io_adc_read io_adc_mV io_adc_mA
+    io_adc_read io_pluse_read
 )
 
 vendor_unregistered=""
@@ -1125,6 +1125,7 @@ NONBLOCKING_HAL_FILES=(
     "adapters/outbound/hal/sim/engine_io_sim.c"
     "adapters/outbound/hal/sim/engine_actuator_sim.c"
     "adapters/outbound/hal/components/adc_gate/hal_adc_gate.c"
+    "adapters/outbound/hal/components/pulse_gate/hal_pulse_gate.c"
     "adapters/outbound/hal/components/sensor_filter/hal_sensor_filter.c"
     "adapters/outbound/hal/components/vfd_manager/hal_vfd_manager.c"
 )

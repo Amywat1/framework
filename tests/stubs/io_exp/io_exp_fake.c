@@ -9,6 +9,8 @@
 #define IO_EXP_FAKE_PIN_MAX      32
 #define IO_EXP_FAKE_ADC_PORT_MAX 4
 #define IO_EXP_FAKE_ADC_NOT_INIT (-99)
+/** 与 Snack SDK 脉冲清零对象 0x2005 一致 */
+#define IO_EXP_FAKE_PULSE_CLEAR_INDEX 0x2005
 
 typedef struct {
     int         init_result;
@@ -318,6 +320,11 @@ int io_SDO_write(int board_id, int index, int sub_index, int *data)
     s_fake.sdo_index     = index;
     s_fake.sdo_sub_index = sub_index;
     s_fake.sdo_data      = (data != NULL) ? *data : -1;
+    if ((s_fake.sdo_result >= 0) && (index == IO_EXP_FAKE_PULSE_CLEAR_INDEX)
+        && (board_id > 0) && (board_id < IO_EXP_FAKE_BOARD_MAX)
+        && (sub_index > 0) && (sub_index <= IO_EXP_FAKE_PIN_MAX)) {
+        s_fake.pulse[board_id][sub_index] = 0;
+    }
     return s_fake.sdo_result;
 }
 

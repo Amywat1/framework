@@ -419,6 +419,7 @@ _wdf_add_interface_lib(wdf_hal_engine_sim
 _wdf_add_interface_lib(wdf_hal_components
     SOURCES
         adapters/outbound/hal/components/adc_gate/hal_adc_gate.c
+        adapters/outbound/hal/components/pulse_gate/hal_pulse_gate.c
         adapters/outbound/hal/components/sensor_filter/hal_sensor_filter.c
         adapters/outbound/hal/components/vfd_manager/hal_vfd_manager.c
     DEPENDS

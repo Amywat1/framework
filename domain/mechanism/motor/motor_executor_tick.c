@@ -56,6 +56,39 @@ static void fault_one(motor_executor_t *e, int i, motor_exec_fault_code_t code, 
 static void link_shared_driver(motor_executor_t *e, int i);
 static void enter_fault(motor_executor_t *e, int i, motor_exec_fault_code_t code);
 static void begin_start(motor_executor_t *e, int i, const motor_pending_cmd_t *pc);
+static void update_encoder(motor_executor_t *e, int i, bool moving);
+
+/**
+ * @brief  是否为增量编码器轴
+ */
+static bool encoder_is_incremental(const motor_executor_t *e, int i)
+{
+    return e->cfg.motors[i].has_encoder && (e->cfg.motors[i].encoder_kind == MOTOR_ENC_INCREMENTAL);
+}
+
+/**
+ * @brief  进入运动窗口：订阅脉冲并清除位移锁存
+ */
+static void incremental_enc_arm(motor_executor_t *e, int i)
+{
+    if (!encoder_is_incremental(e, i)) {
+        return;
+    }
+    e->m[i].enc_delta_armed = false;
+    enc_arm(motor_enc(e, i));
+}
+
+/**
+ * @brief  离开运动窗口：释放脉冲订阅
+ */
+static void incremental_enc_disarm(motor_executor_t *e, int i)
+{
+    if (!encoder_is_incremental(e, i)) {
+        return;
+    }
+    e->m[i].enc_delta_armed = false;
+    enc_disarm(motor_enc(e, i));
+}
 
 /* ------------------------- 互锁 ------------------------- */
 
@@ -136,6 +169,12 @@ static void begin_start(motor_executor_t *e, int i, const motor_pending_cmd_t *p
     s->enc_warned        = false;
     s->queued            = false;
     s->exec_state        = MOTOR_STATE_RUNNING;
+    if (encoder_is_incremental(e, i)) {
+        incremental_enc_arm(e, i);
+        update_encoder(e, i, true);
+    } else {
+        update_encoder(e, i, false);
+    }
 }
 
 static bool reversal(motor_executor_t *e, int i, const motor_pending_cmd_t *pc)
@@ -259,6 +298,7 @@ static void fault_one(motor_executor_t *e, int i, motor_exec_fault_code_t code, 
     s->move_active       = false;
     s->queued            = false;
     s->driver_reset_done = false;
+    incremental_enc_disarm(e, i);
 }
 
 static void link_shared_driver(motor_executor_t *e, int i)
@@ -328,6 +368,8 @@ static void finish_halt(motor_executor_t *e, int i)
     }
     if (s->queued) {
         s->exec_state = MOTOR_STATE_WAITING_START;
+    } else {
+        incremental_enc_disarm(e, i);
     }
 }
 
@@ -493,13 +535,26 @@ static void update_encoder(motor_executor_t *e, int i, bool moving)
     }
     s  = &e->m[i];
     mc = &e->cfg.motors[i];
-    r  = enc_raw(enc);
+    if ((mc->encoder_kind == MOTOR_ENC_INCREMENTAL) && !moving) {
+        return;
+    }
+    r = enc_raw(enc);
 
     if (mc->encoder_kind == MOTOR_ENC_ABSOLUTE) {
         /* 绝对行程：运动/静止均直接采纳传感器值 */
         (void)moving;
         s->position = r;
         s->last_raw = r;
+        return;
+    }
+
+    /* 增量：尚未锁存或本拍读数无效时不计位移 */
+    if (r < 0) {
+        return;
+    }
+    if (!s->enc_delta_armed) {
+        s->last_raw        = r;
+        s->enc_delta_armed = true;
         return;
     }
 
@@ -608,6 +663,7 @@ static void trigger_estop(motor_executor_t *e)
         s->queued      = false;
         s->move_active = false;
         s->exec_state       = MOTOR_STATE_ESTOP;
+        incremental_enc_disarm(e, i);
         if (was_active) {
             push_event(e, i, MOTOR_EVENT_ESTOP, MOTOR_END_NONE, MOTOR_FAULT_NONE);
         }
@@ -876,7 +932,10 @@ static motor_init_result_t do_init(motor_executor_t *e)
     }
     for (int i = 0; i < c->motor_count; ++i) {
         motor_encoder_t *enc = motor_enc(e, i);
-        e->m[i].last_raw     = enc ? enc_raw(enc) : 0;
+        int64_t          raw = enc ? enc_raw(enc) : 0;
+
+        e->m[i].last_raw        = (raw < 0) ? 0 : raw;
+        e->m[i].enc_delta_armed = false;
         /* 上电默认编码器健康：增量轴此时基准尚未建立，但这不是编码器异常。 */
         e->m[i].enc_healthy = true;
         if (!c->motors[i].has_encoder) {

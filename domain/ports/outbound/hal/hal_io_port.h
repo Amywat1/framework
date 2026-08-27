@@ -98,7 +98,11 @@ typedef struct {
     /** @brief  子板运行时统计 */
     sw_err_t (*get_stats)(int board_id, hal_io_stats_t *out);
 
-    /** @brief  读取 DI 引脚的硬件脉冲计数器；负值或 0x0FFFFFFF 表示读取失败 */
+    /** @brief  读取 DI 引脚的硬件脉冲计数器（缓存快照；quality≠VALID 时返回负值）
+     *  @retval >= 0                         当前计数值
+     *  @retval IO_PULSE_ERR_UNINITIALIZED   尚无有效快照
+     *  @retval 其他负值                     参数非法或快照不可用
+     */
     int (*pulse_read)(io_di_t pin);
 
     /** @brief  清零 DI 引脚的硬件脉冲计数器 */

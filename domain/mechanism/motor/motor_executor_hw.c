@@ -110,6 +110,20 @@ bool enc_zero(motor_encoder_t *e)
     return e->zero(e->ctx);
 }
 
+void enc_arm(motor_encoder_t *e)
+{
+    if ((e != NULL) && (e->arm != NULL)) {
+        e->arm(e->ctx);
+    }
+}
+
+void enc_disarm(motor_encoder_t *e)
+{
+    if ((e != NULL) && (e->disarm != NULL)) {
+        e->disarm(e->ctx);
+    }
+}
+
 motor_encoder_t *motor_enc(motor_executor_t *e, int i)
 {
     return e->ports.encoders[i];

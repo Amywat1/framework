@@ -58,6 +58,7 @@ typedef struct {
     /* —— 位置基准 —— */
     int64_t position;         /**< 逻辑位置（脉冲） */
     int64_t last_raw;         /**< 上一拍编码器 raw */
+    bool    enc_delta_armed;  /**< 增量轴本段运动是否已锁存 last_raw */
     bool    baseline_trusted; /**< 位置基准是否可信 */
     int     enc_stall;        /**< 编码器连续无变化拍数 */
     bool    enc_warned;       /**< 本运动是否已发过编码器 WARNING */
@@ -196,6 +197,12 @@ int64_t enc_raw(motor_encoder_t *e);
 
 /** @brief 同步清零编码器硬件计数。 */
 bool enc_zero(motor_encoder_t *e);
+
+/** @brief 进入运动窗口（可选回调，NULL 安全）。 */
+void enc_arm(motor_encoder_t *e);
+
+/** @brief 离开运动窗口（可选回调，NULL 安全）。 */
+void enc_disarm(motor_encoder_t *e);
 
 /**
  * @brief  取电机编码器端口

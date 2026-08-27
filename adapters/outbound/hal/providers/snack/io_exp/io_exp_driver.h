@@ -230,14 +230,15 @@ int drv_io_board_count(void);
 drv_io_transport_mode_t drv_io_transport_mode(void);
 
 /* -------------------------------------------------------------------------
- * 脉冲计数器接口（编码器，底层调用 io_exp provider 内部 SDK 接口）
+ * 脉冲计数器接口（读缓存快照；worker 按门控采集 SDK）
  * ------------------------------------------------------------------------- */
 
 /**
- * @brief  读取 DI 引脚对应的硬件脉冲计数器
+ * @brief  读取 DI 引脚对应的硬件脉冲计数器（缓存快照，不触发 SDO）
  * @param  pin  DI 句柄；须为有效编码器输入引脚
- * @retval >= 0  当前计数值
- * @retval < 0 或 0x0FFFFFFF  读取失败或计数器溢出/无效
+ * @retval >= 0                         当前计数值
+ * @retval IO_PULSE_ERR_UNINITIALIZED   尚无有效快照
+ * @retval 其他负值                     参数非法或快照不可用
  */
 int drv_io_pulse_read(io_di_t pin);
 

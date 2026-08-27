@@ -6,6 +6,7 @@
 #include "adapters/outbound/hal/providers/snack/io_exp/io_exp_driver.h"
 #include "adapters/outbound/hal/providers/snack/io_exp/snack_io_adapter.h"
 #include "adapters/outbound/hal/components/adc_gate/hal_adc_gate.h"
+#include "adapters/outbound/hal/components/pulse_gate/hal_pulse_gate.h"
 #include "common/io_handle.h"
 #include "domain/ports/outbound/hal/hal_io_port.h"
 #include "tests/stubs/io_exp/io_exp_fake.h"
@@ -96,9 +97,27 @@ static int wait_adc_raw(int board_id, int port, int expected)
     return raw;
 }
 
+/** 等到脉冲计数值匹配，或 500ms 超时。 */
+static int wait_pulse_raw(io_di_t pin, int expected)
+{
+    int      raw = IO_PULSE_ERR_UNINITIALIZED;
+    unsigned i;
+
+    for (i = 0U; i < 50U; ++i) {
+        raw = io_ops()->pulse_read(pin);
+        if (raw == expected) {
+            return raw;
+        }
+        usleep(10U * 1000U);
+    }
+    TEST_ASSERT_EQUAL_INT(expected, raw);
+    return raw;
+}
+
 void setUp(void)
 {
     hal_adc_gate_reset_for_test();
+    hal_pulse_gate_reset_for_test();
     TEST_ASSERT_EQUAL_INT(SW_OK, drv_io_reset_for_test());
     configure_adapter(2);
 }
@@ -236,21 +255,28 @@ static void test_wait_boards_online_uses_worker_cache(void)
 
 static void test_pulse_read_and_clear_delegate_to_sdk(void)
 {
+    io_di_t pin = IO_DI(1U, 1U);
+
     start_online_boards(2);
     io_exp_fake_set_pulse(1, 1, 77);
-    TEST_ASSERT_EQUAL_INT(77, io_ops()->pulse_read(IO_DI(1U, 1U)));
+    TEST_ASSERT_EQUAL_INT(IO_PULSE_ERR_UNINITIALIZED, io_ops()->pulse_read(pin));
+
+    hal_pulse_gate_acquire(1, 1);
+    TEST_ASSERT_EQUAL_INT(77, wait_pulse_raw(pin, 77));
     TEST_ASSERT_EQUAL_INT(-1, io_ops()->pulse_read(IO_DI(9U, 1U)));
 
-    TEST_ASSERT_EQUAL_INT(SW_OK, io_ops()->pulse_clear(IO_DI(1U, 1U)));
+    TEST_ASSERT_EQUAL_INT(SW_OK, io_ops()->pulse_clear(pin));
     TEST_ASSERT_TRUE(io_exp_fake_sdo_called());
     TEST_ASSERT_EQUAL_INT(1, io_exp_fake_sdo_board());
     TEST_ASSERT_EQUAL_INT(0x2005, io_exp_fake_sdo_index());
     TEST_ASSERT_EQUAL_INT(1, io_exp_fake_sdo_sub_index());
     TEST_ASSERT_EQUAL_INT(0, io_exp_fake_sdo_data());
+    TEST_ASSERT_EQUAL_INT(0, io_ops()->pulse_read(pin));
 
     io_exp_fake_set_sdo_result(-1);
-    TEST_ASSERT_EQUAL_INT(SW_ERR_COMM, io_ops()->pulse_clear(IO_DI(1U, 1U)));
+    TEST_ASSERT_EQUAL_INT(SW_ERR_COMM, io_ops()->pulse_clear(pin));
     TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, io_ops()->pulse_clear(IO_DI(9U, 1U)));
+    hal_pulse_gate_release(1, 1);
 }
 
 static void test_adc_read_delegates_to_sdk(void)
@@ -269,13 +295,13 @@ static void test_adc_read_delegates_to_sdk(void)
 
     hal_adc_gate_acquire(1, 1);
     TEST_ASSERT_EQUAL_INT(100, wait_adc_raw(1, 1, 100));
-    TEST_ASSERT_EQUAL_INT(2500, io_ops()->adc_mv(1, 1));
-    TEST_ASSERT_EQUAL_INT(12, io_ops()->adc_ma(1, 1));
+    TEST_ASSERT_EQUAL_INT(0, io_ops()->adc_mv(1, 1));
+    TEST_ASSERT_EQUAL_INT(0, io_ops()->adc_ma(1, 1));
     TEST_ASSERT_EQUAL_INT(SW_OK, io_ops()->adc_sample(1, 1, &sample));
     TEST_ASSERT_EQUAL_INT(IO_SAMPLE_QUALITY_VALID, sample.quality);
     TEST_ASSERT_EQUAL_INT(100, sample.raw);
-    TEST_ASSERT_EQUAL_INT(2500, sample.millivolt);
-    TEST_ASSERT_EQUAL_INT(12, sample.milliamp);
+    TEST_ASSERT_EQUAL_INT(0, sample.millivolt);
+    TEST_ASSERT_EQUAL_INT(0, sample.milliamp);
     hal_adc_gate_release(1, 1);
 
     TEST_ASSERT_EQUAL_INT(-1, io_ops()->adc_read(0, 1));
@@ -410,12 +436,15 @@ static void test_runtime_sdk_calls_share_one_worker(void)
     start_online_boards(2);
     io_exp_fake_set_pulse(1, 1, 12);
     io_exp_fake_set_adc(1, 1, 100, 2500, 12);
-    TEST_ASSERT_EQUAL_INT(12, io_ops()->pulse_read(IO_DI(1U, 1U)));
+    TEST_ASSERT_EQUAL_INT(IO_PULSE_ERR_UNINITIALIZED, io_ops()->pulse_read(IO_DI(1U, 1U)));
+    hal_pulse_gate_acquire(1, 1);
+    TEST_ASSERT_EQUAL_INT(12, wait_pulse_raw(IO_DI(1U, 1U), 12));
     hal_adc_gate_acquire(1, 1);
     TEST_ASSERT_EQUAL_INT(100, wait_adc_raw(1, 1, 100));
     TEST_ASSERT_TRUE(io_exp_fake_sdk_thread_seen());
     TEST_ASSERT_TRUE(io_exp_fake_sdk_thread_consistent());
     hal_adc_gate_release(1, 1);
+    hal_pulse_gate_release(1, 1);
 }
 
 int main(void)
