@@ -242,6 +242,17 @@ static const op_perm_t k_cmd_matrix[DEV_CMD_MAX][OP_MODE_RECOVERING + 1] =
         OP_PERM_ALLOWED,     /* SELF_CHECK  */
         OP_PERM_ALLOWED,     /* RECOVERING  */
     },
+    /* DEV_CMD_CLOUD_SYNC：任意模式允许；无设备副作用，由云适配器执行全量上报 */
+    [DEV_CMD_CLOUD_SYNC] = {
+        OP_PERM_ALLOWED, /* INIT        */
+        OP_PERM_ALLOWED, /* STOPPED     */
+        OP_PERM_ALLOWED, /* IDLE        */
+        OP_PERM_ALLOWED, /* WASHING     */
+        OP_PERM_ALLOWED, /* ABORT_HOMING*/
+        OP_PERM_ALLOWED, /* WASH_DONE   */
+        OP_PERM_ALLOWED, /* SELF_CHECK  */
+        OP_PERM_ALLOWED, /* RECOVERING  */
+    },
 };
 
 static dev_cmd_decision_t make_denied(op_reject_reason_t reason)

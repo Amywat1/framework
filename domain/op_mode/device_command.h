@@ -31,6 +31,7 @@ typedef enum {
     DEV_CMD_START_SELF_CHECK,
     DEV_CMD_RECOVER,
     DEV_CMD_STOP_ALL_OUTPUTS,
+    DEV_CMD_CLOUD_SYNC, /**< 云端点位全量同步，无设备副作用 */
     DEV_CMD_MAX
 } dev_cmd_kind_t;
 

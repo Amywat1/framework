@@ -101,6 +101,10 @@ sw_err_t side_effect_router_run(const dev_cmd_t *cmd, operational_mode_t mode_be
         /* 模式/旗标已在 domain 处理；RECOVER 异步编排由 RECOVERY_REQUESTED 触发 */
         return SW_OK;
 
+    case DEV_CMD_CLOUD_SYNC:
+        /* 无设备副作用；全量上报由云适配器在 submit 回调中执行 */
+        return SW_OK;
+
     case DEV_CMD_NONE:
     case DEV_CMD_MAX:
         break;
