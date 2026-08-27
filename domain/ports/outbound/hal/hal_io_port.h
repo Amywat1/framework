@@ -105,32 +105,43 @@ typedef struct {
     sw_err_t (*pulse_clear)(io_di_t pin);
 
     /**
-     * @brief  读取 ADC 原始值
+     * @brief  读取 ADC 快照（不阻塞、不等待硬件）
      * @param  board_id  子板号，从 1 开始
      * @param  port      ADC 通道号，范围 1~4
-     * @retval >= 0   ADC 原始值
-     * @retval -99    子板未初始化
-     * @retval 其他负值  参数非法或 SDO 读失败
+     * @param  sample    输出采样，不可为 NULL
+     * @retval SW_OK          句柄有效，质量由 sample->quality 表示
+     * @retval SW_ERR_PARAM   参数无效
+     * @retval SW_ERR_NOT_INIT IO 后端尚未初始化
+     */
+    sw_err_t (*adc_sample)(int board_id, int port, io_adc_sample_t *sample);
+
+    /**
+     * @brief  读取 ADC 原始值（缓存快照；quality≠VALID 时返回负值）
+     * @param  board_id  子板号，从 1 开始
+     * @param  port      ADC 通道号，范围 1~4
+     * @retval >= 0                      ADC 原始值
+     * @retval IO_ADC_ERR_UNINITIALIZED  尚无有效快照
+     * @retval 其他负值                  参数非法或快照不可用
      */
     int (*adc_read)(int board_id, int port);
 
     /**
-     * @brief  读取 ADC 并换算为电压（mV）
+     * @brief  读取 ADC 并换算为电压（mV）（缓存快照）
      * @param  board_id  子板号，从 1 开始
      * @param  port      ADC 通道号，范围 1~4
-     * @retval >= 0   电压值（mV）
-     * @retval -99    子板未初始化
-     * @retval 其他负值  参数非法或 SDO 读失败
+     * @retval >= 0                      电压值（mV）
+     * @retval IO_ADC_ERR_UNINITIALIZED  尚无有效快照
+     * @retval 其他负值                  参数非法或快照不可用
      */
     int (*adc_mv)(int board_id, int port);
 
     /**
-     * @brief  读取 ADC 并换算为电流（mA）
+     * @brief  读取 ADC 并换算为电流（mA）（缓存快照）
      * @param  board_id  子板号，从 1 开始
      * @param  port      ADC 通道号，范围 1~4
-     * @retval >= 0   电流值（mA）
-     * @retval -99    子板未初始化
-     * @retval 其他负值  参数非法或 SDO 读失败
+     * @retval >= 0                      电流值（mA）
+     * @retval IO_ADC_ERR_UNINITIALIZED  尚无有效快照
+     * @retval 其他负值                  参数非法或快照不可用
      */
     int (*adc_ma)(int board_id, int port);
 } hal_io_ops_t;

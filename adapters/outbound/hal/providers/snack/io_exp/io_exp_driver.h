@@ -251,23 +251,32 @@ int drv_io_pulse_read(io_di_t pin);
 sw_err_t drv_io_pulse_clear(io_di_t pin);
 
 /* -------------------------------------------------------------------------
- * ADC 接口（底层调用 io_exp provider 内部 SDK 接口）
+ * ADC 接口（读缓存快照；worker 按门控采集 SDK）
  * ------------------------------------------------------------------------- */
 
 /** ADC 通道号下限（含） */
 #define DRV_IO_ADC_PORT_MIN     1
 /** ADC 通道号上限（含） */
 #define DRV_IO_ADC_PORT_MAX     4
-/** SDK 约定：子板未初始化时 ADC 读返回值 */
-#define DRV_IO_ADC_ERR_NOT_INIT (-99)
+/** 尚无有效快照时 adc_read / adc_mv / adc_ma 的返回值 */
+#define DRV_IO_ADC_ERR_NOT_INIT IO_ADC_ERR_UNINITIALIZED
 
 /**
- * @brief  读取 ADC 原始值
+ * @brief  读取 ADC 快照（缓存，不触发 SDO）
+ * @param  board_id  子板号，从 1 开始
+ * @param  port      ADC 通道号
+ * @param  sample    输出采样，不可为 NULL
+ * @retval SW_OK / SW_ERR_PARAM
+ */
+sw_err_t drv_io_adc_sample(int board_id, int port, io_adc_sample_t *sample);
+
+/**
+ * @brief  读取 ADC 原始值（缓存快照；quality≠VALID 时返回负值）
  * @param  board_id  子板号，从 1 开始
  * @param  port      ADC 通道号，范围 [DRV_IO_ADC_PORT_MIN, DRV_IO_ADC_PORT_MAX]
  * @retval >= 0                     ADC 原始值
- * @retval DRV_IO_ADC_ERR_NOT_INIT  子板未初始化
- * @retval 其他负值                 参数非法或 SDO 读失败
+ * @retval DRV_IO_ADC_ERR_NOT_INIT  尚无有效快照
+ * @retval 其他负值                 参数非法或快照不可用
  */
 int drv_io_adc_read(int board_id, int port);
 
@@ -276,8 +285,8 @@ int drv_io_adc_read(int board_id, int port);
  * @param  board_id  子板号，从 1 开始
  * @param  port      ADC 通道号，范围 [DRV_IO_ADC_PORT_MIN, DRV_IO_ADC_PORT_MAX]
  * @retval >= 0                     电压值（mV）
- * @retval DRV_IO_ADC_ERR_NOT_INIT  子板未初始化
- * @retval 其他负值                 参数非法或 SDO 读失败
+ * @retval DRV_IO_ADC_ERR_NOT_INIT  尚无有效快照
+ * @retval 其他负值                 参数非法或快照不可用
  */
 int drv_io_adc_mv(int board_id, int port);
 
@@ -286,8 +295,8 @@ int drv_io_adc_mv(int board_id, int port);
  * @param  board_id  子板号，从 1 开始
  * @param  port      ADC 通道号，范围 [DRV_IO_ADC_PORT_MIN, DRV_IO_ADC_PORT_MAX]
  * @retval >= 0                     电流值（mA）
- * @retval DRV_IO_ADC_ERR_NOT_INIT  子板未初始化
- * @retval 其他负值                 参数非法或 SDO 读失败
+ * @retval DRV_IO_ADC_ERR_NOT_INIT  尚无有效快照
+ * @retval 其他负值                 参数非法或快照不可用
  */
 int drv_io_adc_ma(int board_id, int port);
 

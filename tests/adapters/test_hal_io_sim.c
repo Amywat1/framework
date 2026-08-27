@@ -237,12 +237,20 @@ static void test_pulse_counter_max_value(void)
 
 static void test_adc_read_after_set(void)
 {
+    io_adc_sample_t sample;
+
     hal_io_sim_set_adc(1, 1, 100, 2500, 12);
     TEST_ASSERT_EQUAL_INT(100, hal_io_get_ops()->adc_read(1, 1));
     TEST_ASSERT_EQUAL_INT(2500, hal_io_get_ops()->adc_mv(1, 1));
     TEST_ASSERT_EQUAL_INT(12, hal_io_get_ops()->adc_ma(1, 1));
     TEST_ASSERT_EQUAL_INT(-1, hal_io_get_ops()->adc_read(1, 5));
     TEST_ASSERT_EQUAL_INT(-1, hal_io_get_ops()->adc_mv(0, 1));
+    TEST_ASSERT_EQUAL_INT(SW_OK, hal_io_get_ops()->adc_sample(1, 1, &sample));
+    TEST_ASSERT_EQUAL_INT(IO_SAMPLE_QUALITY_VALID, sample.quality);
+    TEST_ASSERT_EQUAL_INT(100, sample.raw);
+    TEST_ASSERT_EQUAL_INT(2500, sample.millivolt);
+    TEST_ASSERT_EQUAL_INT(12, sample.milliamp);
+    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, hal_io_get_ops()->adc_sample(1, 5, &sample));
 }
 
 static void test_di_quality_tracks_lifecycle(void)

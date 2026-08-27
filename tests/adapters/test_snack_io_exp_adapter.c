@@ -5,6 +5,7 @@
 
 #include "adapters/outbound/hal/providers/snack/io_exp/io_exp_driver.h"
 #include "adapters/outbound/hal/providers/snack/io_exp/snack_io_adapter.h"
+#include "adapters/outbound/hal/components/adc_gate/hal_adc_gate.h"
 #include "common/io_handle.h"
 #include "domain/ports/outbound/hal/hal_io_port.h"
 #include "tests/stubs/io_exp/io_exp_fake.h"
@@ -78,8 +79,26 @@ static io_di_sample_t read_di(io_di_t pin)
     return sample;
 }
 
+/** 等到 ADC 原始值匹配，或 500ms 超时。 */
+static int wait_adc_raw(int board_id, int port, int expected)
+{
+    int      raw = IO_ADC_ERR_UNINITIALIZED;
+    unsigned i;
+
+    for (i = 0U; i < 50U; ++i) {
+        raw = io_ops()->adc_read(board_id, port);
+        if (raw == expected) {
+            return raw;
+        }
+        usleep(10U * 1000U);
+    }
+    TEST_ASSERT_EQUAL_INT(expected, raw);
+    return raw;
+}
+
 void setUp(void)
 {
+    hal_adc_gate_reset_for_test();
     TEST_ASSERT_EQUAL_INT(SW_OK, drv_io_reset_for_test());
     configure_adapter(2);
 }
@@ -236,15 +255,28 @@ static void test_pulse_read_and_clear_delegate_to_sdk(void)
 
 static void test_adc_read_delegates_to_sdk(void)
 {
+    io_adc_sample_t sample;
+
     start_online_boards(2);
     TEST_ASSERT_EQUAL_INT(DRV_IO_ADC_ERR_NOT_INIT, io_ops()->adc_read(1, 1));
     TEST_ASSERT_EQUAL_INT(DRV_IO_ADC_ERR_NOT_INIT, io_ops()->adc_mv(1, 2));
     TEST_ASSERT_EQUAL_INT(DRV_IO_ADC_ERR_NOT_INIT, io_ops()->adc_ma(1, 3));
+    TEST_ASSERT_EQUAL_INT(SW_OK, io_ops()->adc_sample(1, 1, &sample));
+    TEST_ASSERT_EQUAL_INT(IO_SAMPLE_QUALITY_UNINITIALIZED, sample.quality);
 
     io_exp_fake_set_adc(1, 1, 100, 2500, 12);
-    TEST_ASSERT_EQUAL_INT(100, io_ops()->adc_read(1, 1));
+    TEST_ASSERT_EQUAL_INT(DRV_IO_ADC_ERR_NOT_INIT, io_ops()->adc_read(1, 1));
+
+    hal_adc_gate_acquire(1, 1);
+    TEST_ASSERT_EQUAL_INT(100, wait_adc_raw(1, 1, 100));
     TEST_ASSERT_EQUAL_INT(2500, io_ops()->adc_mv(1, 1));
     TEST_ASSERT_EQUAL_INT(12, io_ops()->adc_ma(1, 1));
+    TEST_ASSERT_EQUAL_INT(SW_OK, io_ops()->adc_sample(1, 1, &sample));
+    TEST_ASSERT_EQUAL_INT(IO_SAMPLE_QUALITY_VALID, sample.quality);
+    TEST_ASSERT_EQUAL_INT(100, sample.raw);
+    TEST_ASSERT_EQUAL_INT(2500, sample.millivolt);
+    TEST_ASSERT_EQUAL_INT(12, sample.milliamp);
+    hal_adc_gate_release(1, 1);
 
     TEST_ASSERT_EQUAL_INT(-1, io_ops()->adc_read(0, 1));
     TEST_ASSERT_EQUAL_INT(-1, io_ops()->adc_mv(1, 0));
@@ -319,7 +351,6 @@ static void test_failed_flush_keeps_output_dirty(void)
 }
 
 /** 等到指定 DI 达到目标质量，或 500ms 超时。 */
-/** 等到指定 DI 达到目标质量，或 500ms 超时。 */
 static io_di_sample_t wait_di_quality(io_di_t pin, io_sample_quality_t quality)
 {
     io_di_sample_t sample = {0};
@@ -380,9 +411,11 @@ static void test_runtime_sdk_calls_share_one_worker(void)
     io_exp_fake_set_pulse(1, 1, 12);
     io_exp_fake_set_adc(1, 1, 100, 2500, 12);
     TEST_ASSERT_EQUAL_INT(12, io_ops()->pulse_read(IO_DI(1U, 1U)));
-    TEST_ASSERT_EQUAL_INT(100, io_ops()->adc_read(1, 1));
+    hal_adc_gate_acquire(1, 1);
+    TEST_ASSERT_EQUAL_INT(100, wait_adc_raw(1, 1, 100));
     TEST_ASSERT_TRUE(io_exp_fake_sdk_thread_seen());
     TEST_ASSERT_TRUE(io_exp_fake_sdk_thread_consistent());
+    hal_adc_gate_release(1, 1);
 }
 
 int main(void)

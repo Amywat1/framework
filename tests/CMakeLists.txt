@@ -141,6 +141,7 @@ if(WDF_TEST_VENDOR_PROVIDERS)
         ${CMAKE_CURRENT_SOURCE_DIR}/adapters/test_snack_io_exp_adapter.c
         ${WDF_ROOT}/adapters/outbound/hal/providers/snack/io_exp/io_exp_driver.c
         ${WDF_ROOT}/adapters/outbound/hal/providers/snack/io_exp/snack_io_adapter.c
+        ${WDF_ROOT}/adapters/outbound/hal/components/adc_gate/hal_adc_gate.c
         ${WDF_ROOT}/tests/stubs/io_exp/io_exp_fake.c
         ${WDF_ROOT}/runtime/ports/port_registry_hal.c
         ${WDF_ROOT}/runtime/ports/port_registry_infra.c
@@ -158,6 +159,7 @@ if(WDF_TEST_VENDOR_PROVIDERS)
         ${WDF_ROOT}/adapters/outbound/hal/providers/snack/modbus/drv_vfd.c
         ${WDF_ROOT}/adapters/outbound/hal/providers/snack/modbus/snack_vfd_backend.c
         ${WDF_ROOT}/adapters/outbound/hal/providers/snack/io_exp/io_exp_driver.c
+        ${WDF_ROOT}/adapters/outbound/hal/components/adc_gate/hal_adc_gate.c
         ${WDF_ROOT}/adapters/outbound/hal/components/vfd_manager/hal_vfd_manager.c
         ${WDF_ROOT}/tests/stubs/snack/drv_modbus_link_fake.c
         ${WDF_ROOT}/tests/stubs/io_exp/io_exp_fake.c

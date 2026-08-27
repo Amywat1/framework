@@ -20,7 +20,7 @@
 #define SIM_IO_BOARD_MAX    8U
 #define SIM_IO_PIN_COUNT    32U
 #define SIM_IO_ADC_PORT_MAX 4
-#define SIM_IO_ADC_NOT_INIT (-99)
+#define SIM_IO_ADC_NOT_INIT IO_ADC_ERR_UNINITIALIZED
 
 static bool                           s_do_state[SIM_IO_BOARD_MAX][SIM_IO_PIN_COUNT + 1U];
 static bool                           s_di_state[SIM_IO_BOARD_MAX][SIM_IO_PIN_COUNT + 1U];
@@ -464,6 +464,23 @@ void hal_io_sim_set_adc(int board_id, int port, int raw, int mv, int ma)
     s_adc_ma[board_id][port]  = ma;
 }
 
+static sw_err_t sim_adc_sample(int board_id, int port, io_adc_sample_t *sample)
+{
+    if ((sample == NULL) || !sim_is_valid_adc(board_id, port)) {
+        return SW_ERR_PARAM;
+    }
+    if (!s_inited) {
+        sim_record_lifecycle_violation("adc_sample");
+        return SW_ERR_NOT_INIT;
+    }
+    sample->raw          = s_adc_raw[board_id][port];
+    sample->millivolt    = s_adc_mv[board_id][port];
+    sample->milliamp     = s_adc_ma[board_id][port];
+    sample->quality      = IO_SAMPLE_QUALITY_VALID;
+    sample->timestamp_ms = time_util_get_ms();
+    return SW_OK;
+}
+
 static int sim_adc_read(int board_id, int port)
 {
     if (!sim_is_valid_adc(board_id, port)) {
@@ -538,6 +555,7 @@ static const hal_io_ops_t s_ops = {
     .get_stats                = sim_get_stats,
     .pulse_read               = sim_pulse_read,
     .pulse_clear              = sim_pulse_clear,
+    .adc_sample               = sim_adc_sample,
     .adc_read                 = sim_adc_read,
     .adc_mv                   = sim_adc_mv,
     .adc_ma                   = sim_adc_ma,

@@ -13,8 +13,9 @@
 
 #include <pthread.h>
 #include <stddef.h>
+#include <string.h>
 
-#define HAL_ADC_GATE_MAX_CHANNELS 4U
+#define HAL_ADC_GATE_MAX_CHANNELS 8U
 
 typedef struct {
     bool used;
@@ -95,4 +96,11 @@ bool hal_adc_gate_is_needed(int board_id, int port)
     pthread_mutex_unlock(&s_lock);
 
     return needed;
+}
+
+void hal_adc_gate_reset_for_test(void)
+{
+    pthread_mutex_lock(&s_lock);
+    memset(s_entries, 0, sizeof(s_entries));
+    pthread_mutex_unlock(&s_lock);
 }

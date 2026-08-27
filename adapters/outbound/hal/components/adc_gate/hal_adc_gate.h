@@ -43,6 +43,11 @@ void hal_adc_gate_release(int board_id, int port);
  */
 bool hal_adc_gate_is_needed(int board_id, int port);
 
+/**
+ * @brief  清空全部门控计数（仅测试）
+ */
+void hal_adc_gate_reset_for_test(void);
+
 #ifdef __cplusplus
 }
 #endif

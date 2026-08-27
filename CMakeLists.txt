@@ -39,6 +39,7 @@ if(WDF_ENABLE_SNACK_IO_EXP_PROVIDER)
     add_library(wdf_hal_io_exp_snack STATIC
         adapters/outbound/hal/providers/snack/io_exp/io_exp_driver.c
         adapters/outbound/hal/providers/snack/io_exp/snack_io_adapter.c
+        adapters/outbound/hal/components/adc_gate/hal_adc_gate.c
     )
     target_include_directories(wdf_hal_io_exp_snack PUBLIC
         ${CMAKE_SOURCE_DIR}

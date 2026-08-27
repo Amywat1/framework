@@ -19,6 +19,7 @@
 
 #include "adapters/outbound/hal/providers/snack/io_exp/io_exp_driver.h"
 
+#include "adapters/outbound/hal/components/adc_gate/hal_adc_gate.h"
 #include "common/log.h"
 #include "common/sw_mutex.h"
 #include "common/time_util.h"
@@ -78,10 +79,7 @@ sw_err_t io_exp_driver_sdk_init(const char *can_bus, int can_baud, int self_node
 typedef enum {
     DRV_IO_TRANSACTION_FLUSH_OUTPUTS = 0,
     DRV_IO_TRANSACTION_PULSE_READ,
-    DRV_IO_TRANSACTION_PULSE_CLEAR,
-    DRV_IO_TRANSACTION_ADC_RAW,
-    DRV_IO_TRANSACTION_ADC_MV,
-    DRV_IO_TRANSACTION_ADC_MA
+    DRV_IO_TRANSACTION_PULSE_CLEAR
 } drv_io_transaction_type_t;
 
 typedef struct {
@@ -121,12 +119,23 @@ static uint32_t            s_input_sequence[IO_BOARD_MAX];
 static pthread_mutex_t s_input_mutex;
 static pthread_mutex_t s_output_mutex;
 static pthread_mutex_t s_worker_mutex;
+static pthread_mutex_t s_adc_mutex;
 static pthread_cond_t  s_worker_cond;
 static bool            s_worker_cond_monotonic;
 static pthread_once_t  s_mutex_once = PTHREAD_ONCE_INIT;
 
 static hal_io_stats_t s_stats[IO_BOARD_MAX]       = {{0}};
 static bool           s_seen_online[IO_BOARD_MAX] = {false};
+
+typedef struct {
+    int                 raw;
+    int                 millivolt;
+    int                 milliamp;
+    io_sample_quality_t quality;
+    uint64_t            timestamp_ms;
+} drv_io_adc_slot_t;
+
+static drv_io_adc_slot_t s_adc[IO_BOARD_MAX][DRV_IO_ADC_PORT_MAX + 1];
 
 static void drv_io_mutex_init_once(void)
 {
@@ -136,6 +145,7 @@ static void drv_io_mutex_init_once(void)
     (void)sw_mutex_init_prio_inherit(&s_input_mutex);
     (void)sw_mutex_init_prio_inherit(&s_output_mutex);
     (void)sw_mutex_init_prio_inherit(&s_worker_mutex);
+    (void)sw_mutex_init_prio_inherit(&s_adc_mutex);
 
     s_worker_cond_monotonic = false;
     ret                     = pthread_condattr_init(&attr);
@@ -549,6 +559,60 @@ static void poll_all_offline_safe_stop_and_abort(void)
     abort();
 }
 
+/**
+ * @brief  将某子板全部 ADC 槽位置为给定质量（掉线时）
+ */
+static void poll_adc_mark_board(int board_id, io_sample_quality_t quality)
+{
+    int port;
+
+    drv_io_mutexes_ready();
+    pthread_mutex_lock(&s_adc_mutex);
+    for (port = DRV_IO_ADC_PORT_MIN; port <= DRV_IO_ADC_PORT_MAX; ++port) {
+        s_adc[board_id][port].quality = quality;
+    }
+    pthread_mutex_unlock(&s_adc_mutex);
+}
+
+/**
+ * @brief  按门控采集在线子板的 ADC，写入快照（锁外 SDO）
+ */
+static void poll_adc_board(int board_id)
+{
+    int      port;
+    uint64_t now_ms;
+
+    for (port = DRV_IO_ADC_PORT_MIN; port <= DRV_IO_ADC_PORT_MAX; ++port) {
+        int raw;
+        int millivolt;
+        int milliamp;
+
+        if (!hal_adc_gate_is_needed(board_id, port)) {
+            continue;
+        }
+
+        raw       = io_adc_read(board_id, port);
+        millivolt = io_adc_mV(board_id, port);
+        milliamp  = io_adc_mA(board_id, port);
+        now_ms    = time_util_get_ms();
+
+        drv_io_mutexes_ready();
+        pthread_mutex_lock(&s_adc_mutex);
+        if (raw < 0) {
+            if (s_adc[board_id][port].quality == IO_SAMPLE_QUALITY_VALID) {
+                s_adc[board_id][port].quality = IO_SAMPLE_QUALITY_STALE;
+            }
+        } else {
+            s_adc[board_id][port].raw           = raw;
+            s_adc[board_id][port].millivolt     = (millivolt < 0) ? 0 : millivolt;
+            s_adc[board_id][port].milliamp      = (milliamp < 0) ? 0 : milliamp;
+            s_adc[board_id][port].quality       = IO_SAMPLE_QUALITY_VALID;
+            s_adc[board_id][port].timestamp_ms  = now_ms;
+        }
+        pthread_mutex_unlock(&s_adc_mutex);
+    }
+}
+
 /* -------------------------------------------------------------------------
  * worker 周期入口
  * ------------------------------------------------------------------------- */
@@ -571,8 +635,10 @@ static void drv_io_poll_tick(void)
 
         if (drv_io_board_is_online(i)) {
             poll_rw_board(i);
+            poll_adc_board(i);
             ++online_count;
         } else if (s_poll_offline_confirmed[i]) {
+            poll_adc_mark_board(i, IO_SAMPLE_QUALITY_OFFLINE);
             ++offline_confirmed_count;
             if (s_poll_online_count[i] > 0U) {
                 fast_probe_needed = true;
@@ -660,20 +726,6 @@ static sw_err_t drv_io_run_job(const drv_io_transaction_t *job, drv_io_transacti
 
         return (io_SDO_write(job->board_id, 0x2005, job->channel, &data) >= 0) ? SW_OK : SW_ERR_COMM;
     }
-    case DRV_IO_TRANSACTION_ADC_RAW:
-    case DRV_IO_TRANSACTION_ADC_MV:
-    case DRV_IO_TRANSACTION_ADC_MA:
-        if (result == NULL) {
-            return SW_ERR_PARAM;
-        }
-        if (job->type == DRV_IO_TRANSACTION_ADC_RAW) {
-            result->value = io_adc_read(job->board_id, job->channel);
-        } else if (job->type == DRV_IO_TRANSACTION_ADC_MV) {
-            result->value = io_adc_mV(job->board_id, job->channel);
-        } else {
-            result->value = io_adc_mA(job->board_id, job->channel);
-        }
-        return SW_OK;
     default:
         return SW_ERR_PARAM;
     }
@@ -849,6 +901,7 @@ sw_err_t drv_io_init(const drv_io_cfg_t *cfg)
     }
     memset(s_test_enable, 0, sizeof(s_test_enable));
     memset(s_test_value, 0, sizeof(s_test_value));
+    memset(s_adc, 0, sizeof(s_adc));
 
     /* 仅在系统启动阶段调用：这里会清空已注册回调，不作为运行期 reset 接口使用。 */
     s_debug_input_cb      = NULL;
@@ -1172,67 +1225,76 @@ static bool drv_io_is_valid_adc(int board_id, int port)
            && (port <= DRV_IO_ADC_PORT_MAX);
 }
 
+/**
+ * @brief  读取 ADC 快照（缓存，不触发 SDO）
+ */
+sw_err_t drv_io_adc_sample(int board_id, int port, io_adc_sample_t *sample)
+{
+    uint64_t now_ms;
+
+    if ((sample == NULL) || !drv_io_is_valid_adc(board_id, port)) {
+        return SW_ERR_PARAM;
+    }
+
+    now_ms = time_util_get_ms();
+    drv_io_mutexes_ready();
+    pthread_mutex_lock(&s_adc_mutex);
+    if ((s_adc[board_id][port].quality == IO_SAMPLE_QUALITY_VALID)
+        && (time_elapsed_ms(s_adc[board_id][port].timestamp_ms, now_ms) > IO_ADC_FRESHNESS_TIMEOUT_MS)) {
+        s_adc[board_id][port].quality = IO_SAMPLE_QUALITY_STALE;
+    }
+    sample->raw           = s_adc[board_id][port].raw;
+    sample->millivolt     = s_adc[board_id][port].millivolt;
+    sample->milliamp      = s_adc[board_id][port].milliamp;
+    sample->quality       = s_adc[board_id][port].quality;
+    sample->timestamp_ms  = s_adc[board_id][port].timestamp_ms;
+    pthread_mutex_unlock(&s_adc_mutex);
+    return SW_OK;
+}
+
+/** ADC 缓存快照中要取出的字段 */
+typedef enum {
+    DRV_IO_ADC_FIELD_RAW = 0,
+    DRV_IO_ADC_FIELD_MV,
+    DRV_IO_ADC_FIELD_MA
+} drv_io_adc_field_t;
+
+static int drv_io_adc_cached_field(int board_id, int port, drv_io_adc_field_t field)
+{
+    io_adc_sample_t sample;
+
+    if (drv_io_adc_sample(board_id, port, &sample) != SW_OK) {
+        return -1;
+    }
+    if ((sample.quality == IO_SAMPLE_QUALITY_UNINITIALIZED)
+        || (sample.quality == IO_SAMPLE_QUALITY_PROBING)) {
+        return DRV_IO_ADC_ERR_NOT_INIT;
+    }
+    if (sample.quality != IO_SAMPLE_QUALITY_VALID) {
+        return -1;
+    }
+    if (field == DRV_IO_ADC_FIELD_MV) {
+        return sample.millivolt;
+    }
+    if (field == DRV_IO_ADC_FIELD_MA) {
+        return sample.milliamp;
+    }
+    return sample.raw;
+}
+
 int drv_io_adc_read(int board_id, int port)
 {
-    drv_io_transaction_t        transaction;
-    drv_io_transaction_result_t result;
-
-    if (!drv_io_is_valid_adc(board_id, port)) {
-        return -1;
-    }
-
-    transaction = (drv_io_transaction_t){
-        .type     = DRV_IO_TRANSACTION_ADC_RAW,
-        .board_id = board_id,
-        .channel  = port,
-    };
-    if (drv_io_submit_job(&transaction, IO_TRANSACTION_TIMEOUT_MS, &result)
-        != SW_OK) {
-        return -1;
-    }
-    return result.value;
+    return drv_io_adc_cached_field(board_id, port, DRV_IO_ADC_FIELD_RAW);
 }
 
 int drv_io_adc_mv(int board_id, int port)
 {
-    drv_io_transaction_t        transaction;
-    drv_io_transaction_result_t result;
-
-    if (!drv_io_is_valid_adc(board_id, port)) {
-        return -1;
-    }
-
-    transaction = (drv_io_transaction_t){
-        .type     = DRV_IO_TRANSACTION_ADC_MV,
-        .board_id = board_id,
-        .channel  = port,
-    };
-    if (drv_io_submit_job(&transaction, IO_TRANSACTION_TIMEOUT_MS, &result)
-        != SW_OK) {
-        return -1;
-    }
-    return result.value;
+    return drv_io_adc_cached_field(board_id, port, DRV_IO_ADC_FIELD_MV);
 }
 
 int drv_io_adc_ma(int board_id, int port)
 {
-    drv_io_transaction_t        transaction;
-    drv_io_transaction_result_t result;
-
-    if (!drv_io_is_valid_adc(board_id, port)) {
-        return -1;
-    }
-
-    transaction = (drv_io_transaction_t){
-        .type     = DRV_IO_TRANSACTION_ADC_MA,
-        .board_id = board_id,
-        .channel  = port,
-    };
-    if (drv_io_submit_job(&transaction, IO_TRANSACTION_TIMEOUT_MS, &result)
-        != SW_OK) {
-        return -1;
-    }
-    return result.value;
+    return drv_io_adc_cached_field(board_id, port, DRV_IO_ADC_FIELD_MA);
 }
 
 #ifdef SNACK_IO_ADAPTER_UNIT_TEST

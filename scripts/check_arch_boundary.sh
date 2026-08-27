@@ -853,6 +853,9 @@ VENDOR_BLOCKING_REGISTERED=(
     "adapters/outbound/hal/providers/snack/io_exp/io_exp_driver.c:io_read_input_s"  # 锁外，同上
     "adapters/outbound/hal/providers/snack/io_exp/io_exp_driver.c:io_write_all"     # 锁外，同上
     "adapters/outbound/hal/providers/snack/io_exp/io_exp_driver.c:io_write_all_s"   # 锁外，同上
+    "adapters/outbound/hal/providers/snack/io_exp/io_exp_driver.c:io_adc_read"      # 锁外，仅 worker poll_adc_board
+    "adapters/outbound/hal/providers/snack/io_exp/io_exp_driver.c:io_adc_mV"        # 锁外，仅 worker poll_adc_board
+    "adapters/outbound/hal/providers/snack/io_exp/io_exp_driver.c:io_adc_mA"        # 锁外，仅 worker poll_adc_board
 )
 
 # 被视为「框架外阻塞」的符号前缀：vendor SDK 的同步收发入口。
@@ -862,6 +865,7 @@ VENDOR_BLOCKING_SYMS=(
     modbus_write_register modbus_write_registers modbus_write_bit
     modbus_connect
     io_write_all io_write_all_s io_read_input io_read_input_s
+    io_adc_read io_adc_mV io_adc_mA
 )
 
 vendor_unregistered=""

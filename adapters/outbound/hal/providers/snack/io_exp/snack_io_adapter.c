@@ -139,6 +139,11 @@ static sw_err_t pulse_clear(io_di_t pin)
     return drv_io_pulse_clear(pin);
 }
 
+static sw_err_t adc_sample(int board_id, int port, io_adc_sample_t *sample)
+{
+    return drv_io_adc_sample(board_id, port, sample);
+}
+
 static int adc_read(int board_id, int port)
 {
     return drv_io_adc_read(board_id, port);
@@ -173,6 +178,7 @@ static const hal_io_ops_t s_ops = {
     .get_stats                = get_stats,
     .pulse_read               = pulse_read,
     .pulse_clear              = pulse_clear,
+    .adc_sample               = adc_sample,
     .adc_read                 = adc_read,
     .adc_mv                   = adc_mv,
     .adc_ma                   = adc_ma,
