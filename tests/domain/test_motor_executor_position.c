@@ -28,6 +28,8 @@ typedef struct {
     motor_end_condition_t   last_arrived_trigger;
     motor_limit_kind_t      last_arrived_limit;
     uint64_t                last_arrived_elapsed_ms;
+    int                     last_arrived_current;
+    int                     last_arrived_current_limit;
     motor_exec_fault_code_t last_fault;
     motor_speed_t           last_speed;
     motor_dir_t             last_direction;
@@ -118,9 +120,11 @@ static void capture_event(const motor_event_t *event, void *ctx)
 
     if (event->type == MOTOR_EVENT_ARRIVED) {
         fixture->arrived_count++;
-        fixture->last_arrived_trigger    = event->trigger;
-        fixture->last_arrived_limit      = event->limit;
-        fixture->last_arrived_elapsed_ms = event->elapsed_ms;
+        fixture->last_arrived_trigger        = event->trigger;
+        fixture->last_arrived_limit          = event->limit;
+        fixture->last_arrived_elapsed_ms     = event->elapsed_ms;
+        fixture->last_arrived_current         = event->current;
+        fixture->last_arrived_current_limit   = event->current_limit;
     } else if (event->type == MOTOR_EVENT_TIMEOUT) {
         fixture->timeout_count++;
     } else if (event->type == MOTOR_EVENT_FAULT) {
@@ -528,6 +532,8 @@ static void test_current_stop_arrives_after_confirm(void)
     TEST_ASSERT_EQUAL_INT(MOTOR_STATE_STOPPED, motor_exec_state(s_executor, 0));
     TEST_ASSERT_EQUAL_INT(1, s_fixture.arrived_count);
     TEST_ASSERT_EQUAL_INT(MOTOR_END_CURRENT, s_fixture.last_arrived_trigger);
+    TEST_ASSERT_EQUAL_INT(150, s_fixture.last_arrived_current);
+    TEST_ASSERT_EQUAL_INT(100, s_fixture.last_arrived_current_limit);
     TEST_ASSERT_EQUAL_INT(0, s_fixture.fault_count);
 }
 
@@ -556,6 +562,8 @@ static void test_current_stop_respects_blank_ms(void)
     TEST_ASSERT_EQUAL_INT(MOTOR_STATE_STOPPED, motor_exec_state(s_executor, 0));
     TEST_ASSERT_EQUAL_INT(1, s_fixture.arrived_count);
     TEST_ASSERT_EQUAL_INT(MOTOR_END_CURRENT, s_fixture.last_arrived_trigger);
+    TEST_ASSERT_EQUAL_INT(200, s_fixture.last_arrived_current);
+    TEST_ASSERT_EQUAL_INT(100, s_fixture.last_arrived_current_limit);
     TEST_ASSERT_EQUAL_INT(0, s_fixture.fault_count);
 }
 
@@ -586,6 +594,8 @@ static void test_current_stop_coexists_with_overcurrent_fault(void)
     TEST_ASSERT_EQUAL_INT(MOTOR_STATE_STOPPED, motor_exec_state(s_executor, 0));
     TEST_ASSERT_EQUAL_INT(1, s_fixture.arrived_count);
     TEST_ASSERT_EQUAL_INT(MOTOR_END_CURRENT, s_fixture.last_arrived_trigger);
+    TEST_ASSERT_EQUAL_INT(200, s_fixture.last_arrived_current);
+    TEST_ASSERT_EQUAL_INT(100, s_fixture.last_arrived_current_limit);
     TEST_ASSERT_EQUAL_INT(0, s_fixture.fault_count);
 
     /* 再启一次，电流超过故障阈值；同拍 check_end 先于 monitor，仍电流停 */
@@ -604,6 +614,8 @@ static void test_current_stop_coexists_with_overcurrent_fault(void)
     TEST_ASSERT_EQUAL_INT(MOTOR_STATE_STOPPED, motor_exec_state(s_executor, 0));
     TEST_ASSERT_EQUAL_INT(1, s_fixture.arrived_count);
     TEST_ASSERT_EQUAL_INT(MOTOR_END_CURRENT, s_fixture.last_arrived_trigger);
+    TEST_ASSERT_EQUAL_INT(600, s_fixture.last_arrived_current);
+    TEST_ASSERT_EQUAL_INT(100, s_fixture.last_arrived_current_limit);
     TEST_ASSERT_EQUAL_INT(0, s_fixture.fault_count);
 
     /* 关闭电流停，仅过流监测 → 故障 */

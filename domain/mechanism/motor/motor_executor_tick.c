@@ -499,6 +499,9 @@ static void check_end(motor_executor_t *e, int i)
             if (cur > s->spec.current_limit) {
                 s->cur_stop_ms += (uint32_t)e->cfg.tick_ms;
                 if (s->cur_stop_ms >= s->spec.current_confirm_ms) {
+                    /* check_end 先于 monitor，本拍采样必须在此写入，否则事件电流为上一拍或 0。 */
+                    s->last_current       = cur;
+                    s->current_trip_limit = s->spec.current_limit;
                     complete_move(e, i, MOTOR_EVENT_ARRIVED, MOTOR_END_CURRENT);
                     return;
                 }

@@ -169,8 +169,8 @@ typedef struct {
     uint8_t                 limit_mask;     /**< 本次运动监视的硬限位掩码；连续运行时为 0 */
     bool                    use_position;   /**< 本次是否按位置到位 */
     bool                    use_time;       /**< 本次是否按时间到位 */
-    int                     current;        /**< 结束前最近一次采样电流（与阈值同量纲） */
-    int                     current_limit;  /**< 过流/欠流判定阈值；其它结局为 0 */
+    int                     current;        /**< 结束瞬间采样电流（与阈值同量纲）；电流停/过流/欠流时有效 */
+    int                     current_limit;  /**< 触发本结局的电流阈值：电流停为到位阈值，过流/欠流为故障阈值；其它结局为 0 */
 } motor_event_t;
 
 /** @brief 速度指定方式。 */
