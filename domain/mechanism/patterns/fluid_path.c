@@ -129,7 +129,7 @@ static void recompute_desired(void)
 }
 
 /**
- * @brief  泵可开：目标路径上的阀已到位且满足开阀延时；非目标路径上同泵阀已关
+ * @brief  泵可开：目标路径上的阀已到位且满足开阀延时；其它路径不再需要的同泵阀已关
  */
 static bool pump_may_turn_on(fluid_path_channel_idx_t ch, fluid_path_slot_t slot, uint64_t now_ms)
 {
@@ -156,7 +156,7 @@ static bool pump_may_turn_on(fluid_path_channel_idx_t ch, fluid_path_slot_t slot
                     || !delay_elapsed(dep->ch, dep->slot, now_ms, s_cfg.valve_open_delay_ms)) {
                     blocked = true;
                 }
-            } else if (s_actual[dep->ch][dep->slot]) {
+            } else if (s_actual[dep->ch][dep->slot] && !s_desired[dep->ch][dep->slot]) {
                 blocked = true;
             }
         }

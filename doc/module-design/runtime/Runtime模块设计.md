@@ -304,7 +304,7 @@ periodic_task_thread_fn(slot)
 | `event_dispatch` | `bootstrap_register()` | 线程 | 调用 `event_bus_dispatch_loop()` |
 | `alarm_bridge` | `alarm_bridge_init()` | 周期任务（50ms） | drain alarm registry pending 事件并算姿态边沿 |
 | `motor_tick` | `mechanism_bridge_register_tasks()` | 周期任务（10ms） | `motor_executor_tick` + 已登记轴 `motor_axis_poll` + post-tick |
-| `fluid_path_poll` | `mechanism_bridge_register_tasks()` | 周期任务（10ms） | `fluid_path_poll(now_ms)` |
+| `fluid_path_poll` | `mechanism_bridge_register_tasks()` | 周期任务（100ms） | `fluid_path_poll(now_ms)` |
 | 会话 worker | `engine_session_bind()`，名称与栈由调用方配置传入 | 线程 | 驱动方案引擎 tick |
 | `cloud_report` | `report_scheduler_start()` | 周期任务 | 云端链路 poll、watcher poll、脏点增量与重连/周期全量上报 |
 | `hal_sensor_poll` | `hal_sensor_poll_register_task()` | 周期任务 | DI 滤波推进 |
@@ -378,7 +378,7 @@ fatal 回调不尝试恢复 event bus，也不继续运行，因为 dispatch 线
 | `THD_VFD_TICK_STACK` | 16 KiB | VFD manager |
 | `THD_SENSOR_POLL_STACK` | 16 KiB | sensor filter |
 | `THD_FLUID_PATH_POLL_STACK` | 16 KiB | fluid path |
-| `THD_FLUID_PATH_POLL_PERIOD_MS` | 10 ms | fluid path poll |
+| `THD_FLUID_PATH_POLL_PERIOD_MS` | 100 ms | fluid path poll |
 | `THD_MOTOR_TICK_STACK` | 16 KiB | motor executor tick |
 | `THD_MOTOR_TICK_PERIOD_MS` | 10 ms | motor executor tick |
 | `THD_SAFETY_THREAD_STACK` | 8 KiB | safety thread |

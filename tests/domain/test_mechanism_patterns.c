@@ -1052,6 +1052,72 @@ static void test_fluid_path_opens_other_valve_during_pump_stop_wait(void)
     TEST_ASSERT_TRUE(fluid_path_is_settled());
 }
 
+static const fluid_path_actuator_key_t s_path_b_with_shared_valve_deps[] = {
+    {TEST_CH_B,      FLUID_PATH_SLOT_WATER_VALVE},
+    {TEST_CH_A,      FLUID_PATH_SLOT_WATER_VALVE},
+    {TEST_CH_SHARED, FLUID_PATH_SLOT_PUMP       },
+};
+
+static const fluid_path_def_t s_shared_valve_paths[] = {
+    {TEST_PATH_A, s_path_a_deps,                   2U},
+    {TEST_PATH_B, s_path_b_with_shared_valve_deps, 3U},
+};
+
+static void test_fluid_path_shared_valve_on_wanted_path_starts_pump(void)
+{
+    const fluid_path_actuator_ops_t ops = {
+        .slot_set = mock_slot_set,
+        .all_off  = mock_all_off,
+    };
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, fluid_path_init(&s_fluid_delayed_cfg, &ops, s_shared_valve_paths, 2U));
+    TEST_ASSERT_EQUAL_INT(SW_OK, fluid_path_set(FLUID_PATH_MASK(TEST_PATH_B)));
+
+    fluid_path_poll(0U);
+    TEST_ASSERT_TRUE(s_slot_state[TEST_CH_A][FLUID_PATH_SLOT_WATER_VALVE]);
+    TEST_ASSERT_TRUE(s_slot_state[TEST_CH_B][FLUID_PATH_SLOT_WATER_VALVE]);
+    TEST_ASSERT_FALSE(s_slot_state[TEST_CH_SHARED][FLUID_PATH_SLOT_PUMP]);
+
+    fluid_path_poll(50U);
+    TEST_ASSERT_TRUE(s_slot_state[TEST_CH_SHARED][FLUID_PATH_SLOT_PUMP]);
+    TEST_ASSERT_TRUE(fluid_path_is_settled());
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, fluid_path_set(0U));
+    fluid_path_poll(50U);
+    TEST_ASSERT_FALSE(s_slot_state[TEST_CH_SHARED][FLUID_PATH_SLOT_PUMP]);
+    TEST_ASSERT_TRUE(s_slot_state[TEST_CH_A][FLUID_PATH_SLOT_WATER_VALVE]);
+    TEST_ASSERT_TRUE(s_slot_state[TEST_CH_B][FLUID_PATH_SLOT_WATER_VALVE]);
+
+    fluid_path_poll(90U);
+    TEST_ASSERT_FALSE(s_slot_state[TEST_CH_A][FLUID_PATH_SLOT_WATER_VALVE]);
+    TEST_ASSERT_FALSE(s_slot_state[TEST_CH_B][FLUID_PATH_SLOT_WATER_VALVE]);
+    TEST_ASSERT_TRUE(fluid_path_is_settled());
+}
+
+static void test_fluid_path_shared_valve_stays_when_other_path_wanted(void)
+{
+    const fluid_path_actuator_ops_t ops = {
+        .slot_set = mock_slot_set,
+        .all_off  = mock_all_off,
+    };
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, fluid_path_init(&s_fluid_delayed_cfg, &ops, s_shared_valve_paths, 2U));
+    TEST_ASSERT_EQUAL_INT(SW_OK,
+                          fluid_path_set(FLUID_PATH_MASK(TEST_PATH_A) | FLUID_PATH_MASK(TEST_PATH_B)));
+    fluid_path_poll(0U);
+    fluid_path_poll(50U);
+    TEST_ASSERT_TRUE(s_slot_state[TEST_CH_A][FLUID_PATH_SLOT_WATER_VALVE]);
+    TEST_ASSERT_TRUE(s_slot_state[TEST_CH_B][FLUID_PATH_SLOT_WATER_VALVE]);
+    TEST_ASSERT_TRUE(s_slot_state[TEST_CH_SHARED][FLUID_PATH_SLOT_PUMP]);
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, fluid_path_disable(FLUID_PATH_MASK(TEST_PATH_B)));
+    fluid_path_poll(50U);
+    TEST_ASSERT_TRUE(s_slot_state[TEST_CH_A][FLUID_PATH_SLOT_WATER_VALVE]);
+    TEST_ASSERT_FALSE(s_slot_state[TEST_CH_B][FLUID_PATH_SLOT_WATER_VALVE]);
+    TEST_ASSERT_TRUE(s_slot_state[TEST_CH_SHARED][FLUID_PATH_SLOT_PUMP]);
+    TEST_ASSERT_TRUE(fluid_path_is_settled());
+}
+
 static void test_fluid_path_hold_request_is_polled(void)
 {
     uint64_t now_ms = 0U;
@@ -1214,6 +1280,8 @@ int main(void)
     WDF_RUN_TEST(test_fluid_path_open_wait_switch_starts_next_path, "", "验证等开阀期间改开其它路径同一拍切换");
     WDF_RUN_TEST(test_fluid_path_opens_second_valve_during_first_wait, "", "验证等开阀期间可立刻开启另一条路径的阀");
     WDF_RUN_TEST(test_fluid_path_opens_other_valve_during_pump_stop_wait, "", "验证等关泵期间可立刻开启另一条路径的阀");
+    WDF_RUN_TEST(test_fluid_path_shared_valve_on_wanted_path_starts_pump, "", "验证目标路径共用其它路径的阀时仍可开泵并同步关阀");
+    WDF_RUN_TEST(test_fluid_path_shared_valve_stays_when_other_path_wanted, "", "验证其它路径仍需要时共用阀不随本路径关闭");
     WDF_RUN_TEST(test_fluid_path_hold_request_is_polled, "SAFE-14", "验证输出抑制使水路 poll 全关并拒绝再开直到释放");
     WDF_RUN_TEST(test_fluid_path_di_hold_blocks_set, "SAFE-14", "验证急停 DI 使水路 poll 全关并拒绝改目标");
 
