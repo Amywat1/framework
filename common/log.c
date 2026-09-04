@@ -95,6 +95,7 @@ static void default_sink(sw_log_level_t level, const char *component, const char
     used++;
 
     (void)fwrite(line, 1U, (size_t)used, stderr);
+    (void)fflush(stderr);
 }
 
 void sw_log_set_level(sw_log_level_t level)

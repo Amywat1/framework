@@ -105,8 +105,6 @@ adapters/runtime/snack|整治记录第 6.5 / 33 节：已迁至 adapters/provide
 adapters/runtime/snack/snack_sdk.h|整治记录第 33 节：已迁至 adapters/providers/snack/
 domain/mechanism/motor/motor_executor_port.c|整治记录第 33 节：已更名为 motor_executor_hw.c
 tests/domain/test_motor_exec_port.c|整治记录第 33 节：已更名为 test_motor_exec.c
-application/orchestrators/recovery_service.c|整治记录第 33 节：已更名为 recovery_coordinator.c
-application/orchestrators/recovery_service.h|整治记录第 33 节：已更名为 recovery_coordinator.h
 "
 
 # -----------------------------------------------------------------------------
@@ -132,7 +130,6 @@ alarm_binding_bridge_bind|整治记录第 30 节记录该绑定已并入 alarm_b
 alarm_bridge_drain|整治记录第 30 节记录 pending drain 已删除
 alarm_registry_pull_events|整治记录第 30 节记录 pending 队列已删除
 op_mode_on_critical_alarm|整治记录第 30 节记录已并入 op_mode_on_blocking_alarm
-recovery_service_init|整治记录第 33 节：已更名为 recovery_coordinator_init
 defined|C 预处理器语法，非框架符号
 "
 
