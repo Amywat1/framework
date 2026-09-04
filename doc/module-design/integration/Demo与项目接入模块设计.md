@@ -35,7 +35,7 @@ Demo 与项目接入层展示如何把通用框架装配成一个可启动设备
 | 报警目录 | 两个 demo alarm code |
 | 洗车编排 | 无（`device_ops` 空实现返回成功） |
 | 周期任务 | 无项目任务；`alarm_bridge` 由框架 `alarm_bridge_init()` 自行登记 |
-| 验证链路 | STOP_OPERATION、硬件急停事件、报警触发链 |
+| 验证链路 | RECOVER → IDLE → STOP_ALL、硬件急停事件、报警触发链 |
 
 ---
 
@@ -135,7 +135,7 @@ bootstrap_start()
 
 | 检查 | 验证内容 |
 |------|----------|
-| STOP_OPERATION | `device_command_port.submit_sync/async` → command gateway → operational mode |
+| STOP_ALL_OUTPUTS | `device_command_port.submit_sync` → command gateway → operational mode → `stop_all_outputs` |
 | HW ESTOP | `hw_estop_sim_set_active(true)` → `EVT_HW_ESTOP_ON` → op mode estop flag |
 | Alarm trigger | `alarm_binding.trigger()` → registry blocking（变位已入队） |
 
@@ -360,7 +360,7 @@ L4）。它依次验证：
 |------|-----------|
 | `bootstrap_run()` | 7 阶段启动全过程 |
 | `RECOVER` → IDLE | 命令网关 → 裁决 → `RECOVERY_REQUESTED` → `recovery_coordinator` → `device_ops.home_device` → `EVT_OP_MODE_HOME_COMPLETED` → `EVT_OP_MODE_RECOVERY_COMPLETED` → IDLE |
-| `STOP_OPERATION` | IDLE 下的停运裁决与运营开关 |
+| `STOP_ALL_OUTPUTS` | IDLE 下全停：切断输出并落到 STOPPED，不改总开关 |
 | 急停边沿 | `hw_estop_sim` → `estop_poll_thread` → `safety_cutout_execute` → `EVT_HW_ESTOP_ON` → 姿态收敛 |
 | 报警触发 | `alarm_binding.trigger` → `alarm_bridge` → blocking 判定 |
 
@@ -374,7 +374,7 @@ L4）。它依次验证：
 
 | 原失败 | 原因与修法 |
 |--------|-----------|
-| `STOP_OPERATION` 被拒 | 启动后是 `OP_MODE_STOPPED`，而矩阵中该命令仅 IDLE / WASH_DONE 允许——"停运"本就该从"在运营"发起。改为先 `RECOVER` 归位进 IDLE 再停运，顺带把归位链路纳入覆盖 |
+| 软停机命令被拒 | 历史上曾用仅 IDLE 允许的软停机；启动后是 `OP_MODE_STOPPED` 会被拒。现已删除该命令。smoke 先 `RECOVER` 归位进 IDLE，再 `STOP_ALL_OUTPUTS` 覆盖归位与全停 |
 | `EVT_HW_ESTOP_ON` 收不到 | `hw_estop_sim` 只维护状态，发布方是 `estop_poll_thread`，而 demo 的 `init_adapters()` 是空实现。改为在此接入该可选适配器 |
 
 急停等待改为轮询而非固定睡眠：采集线程以 `SCHED_FIFO` 注册，非特权环境下会被

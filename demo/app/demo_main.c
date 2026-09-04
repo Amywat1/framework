@@ -87,8 +87,8 @@ static int submit_expect_accepted(dev_cmd_kind_t kind)
 }
 
 /*
- * 启动后为 OP_MODE_STOPPED。STOP_OPERATION 在 STOPPED/IDLE/WASH_DONE 均允许，
- * smoke 仍先经 RECOVER 进 IDLE 再停运，以覆盖完整归位链路。
+ * 启动后为 OP_MODE_STOPPED。smoke 先经 RECOVER 进 IDLE 再 STOP_ALL，
+ * 覆盖完整归位链路；全停切断输出，不关总开关。
  *
  * RECOVER@STOPPED 为 CONDITIONAL：先拒急停，再要求 service_enabled；
  * init 已开总开关且无急停，可走通。链路为 RECOVERY_REQUESTED → home_device →
@@ -111,19 +111,19 @@ static int check_recover_to_idle(void)
     return 0;
 }
 
-static int check_command_stop_operation(void)
+static int check_command_stop_all_outputs(void)
 {
-    if (submit_expect_accepted(DEV_CMD_STOP_OPERATION) != 0) {
+    if (submit_expect_accepted(DEV_CMD_STOP_ALL_OUTPUTS) != 0) {
         return 1;
     }
 
-    if (op_mode_is_service_enabled()) {
-        fprintf(stderr, "[Demo] service should be disabled after STOP_OPERATION\n");
+    if (!op_mode_is_service_enabled()) {
+        fprintf(stderr, "[Demo] service should stay enabled after STOP_ALL_OUTPUTS\n");
         return 1;
     }
 
     if (op_mode_get_current() != OP_MODE_STOPPED) {
-        fprintf(stderr, "[Demo] mode should be STOPPED after STOP_OPERATION\n");
+        fprintf(stderr, "[Demo] mode should be STOPPED after STOP_ALL_OUTPUTS\n");
         return 1;
     }
 
@@ -174,7 +174,7 @@ int main(void)
         return 1;
     }
 
-    if (check_command_stop_operation() != 0) {
+    if (check_command_stop_all_outputs() != 0) {
         return 1;
     }
 

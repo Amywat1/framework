@@ -125,7 +125,7 @@ static void test_submit_accepted_in_idle(void)
     setup_idle();
     start_runtime(&tid);
 
-    TEST_ASSERT_EQUAL_INT(SW_OK, submit_simple(DEV_CMD_STOP_OPERATION, &receipt));
+    TEST_ASSERT_EQUAL_INT(SW_OK, submit_simple(DEV_CMD_CLOUD_SYNC, &receipt));
     TEST_ASSERT_EQUAL_INT(DEV_CMD_STATUS_ACCEPTED, receipt.status);
 
     stop_runtime(tid);
@@ -167,10 +167,12 @@ static void test_start_wash_triggers_orchestrator(void)
     stop_runtime(tid);
 }
 
-static void test_stop_operation_then_resume(void)
+static void test_stop_all_then_set_service(void)
 {
     dev_cmd_receipt_t receipt = {0};
     pthread_t         tid;
+    dev_cmd_t         off_cmd;
+    dev_cmd_t         on_cmd;
 
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, operational_mode_init());
@@ -178,12 +180,19 @@ static void test_stop_operation_then_resume(void)
     setup_idle();
     start_runtime(&tid);
 
-    TEST_ASSERT_EQUAL_INT(SW_OK, submit_simple(DEV_CMD_STOP_OPERATION, &receipt));
+    TEST_ASSERT_EQUAL_INT(SW_OK, submit_simple(DEV_CMD_STOP_ALL_OUTPUTS, &receipt));
+    TEST_ASSERT_EQUAL_INT(DEV_CMD_STATUS_ACCEPTED, receipt.status);
+    TEST_ASSERT_TRUE(op_mode_is_service_enabled());
+    TEST_ASSERT_EQUAL_INT(OP_MODE_STOPPED, op_mode_get_current());
+
+    off_cmd = dev_cmd_make_set_service(false);
+    TEST_ASSERT_EQUAL_INT(SW_OK, device_command_port_get_ops()->submit_sync(&off_cmd, &receipt, 1000U));
     TEST_ASSERT_EQUAL_INT(DEV_CMD_STATUS_ACCEPTED, receipt.status);
     TEST_ASSERT_FALSE(op_mode_is_service_enabled());
     TEST_ASSERT_EQUAL_INT(OP_MODE_STOPPED, op_mode_get_current());
 
-    TEST_ASSERT_EQUAL_INT(SW_OK, submit_simple(DEV_CMD_RESUME_OPERATION, &receipt));
+    on_cmd = dev_cmd_make_set_service(true);
+    TEST_ASSERT_EQUAL_INT(SW_OK, device_command_port_get_ops()->submit_sync(&on_cmd, &receipt, 1000U));
     TEST_ASSERT_EQUAL_INT(DEV_CMD_STATUS_ACCEPTED, receipt.status);
     TEST_ASSERT_TRUE(op_mode_is_service_enabled());
     TEST_ASSERT_EQUAL_INT(OP_MODE_STOPPED, op_mode_get_current());
@@ -203,7 +212,7 @@ static void test_gateway_assigns_request_id_and_trace(void)
     setup_idle();
     start_runtime(&tid);
 
-    TEST_ASSERT_EQUAL_INT(SW_OK, submit_simple(DEV_CMD_STOP_OPERATION, &receipt));
+    TEST_ASSERT_EQUAL_INT(SW_OK, submit_simple(DEV_CMD_CLOUD_SYNC, &receipt));
     usleep(30000);
     TEST_ASSERT_NOT_EQUAL(0U, receipt.request_id);
     TEST_ASSERT_EQUAL_UINT64(receipt.request_id, s_handled_command_id);
@@ -223,7 +232,7 @@ static void test_timeout_then_reuse_gets_real_verdict(void)
     setup_idle();
 
     {
-        dev_cmd_t cmd = dev_cmd_make_simple(DEV_CMD_STOP_OPERATION);
+        dev_cmd_t cmd = dev_cmd_make_simple(DEV_CMD_CLOUD_SYNC);
 
         TEST_ASSERT_EQUAL_INT(SW_ERR_TIMEOUT, device_command_port_get_ops()->submit_sync(&cmd, &receipt, 50U));
         TEST_ASSERT_EQUAL_INT(DEV_CMD_STATUS_TIMEOUT, receipt.status);
@@ -232,7 +241,7 @@ static void test_timeout_then_reuse_gets_real_verdict(void)
     start_runtime(&tid);
 
     memset(&receipt, 0, sizeof(receipt));
-    TEST_ASSERT_EQUAL_INT(SW_OK, submit_simple(DEV_CMD_STOP_OPERATION, &receipt));
+    TEST_ASSERT_EQUAL_INT(SW_OK, submit_simple(DEV_CMD_CLOUD_SYNC, &receipt));
     TEST_ASSERT_EQUAL_INT(DEV_CMD_STATUS_ACCEPTED, receipt.status);
     TEST_ASSERT_NOT_EQUAL(SW_ERR_BUSY, receipt.effect_error);
 
@@ -245,7 +254,7 @@ static volatile int      s_reentrant_done;
 
 static sw_err_t stub_stop_all_reentrant(void)
 {
-    dev_cmd_t         cmd = dev_cmd_make_simple(DEV_CMD_STOP_OPERATION);
+    dev_cmd_t         cmd = dev_cmd_make_simple(DEV_CMD_CLOUD_SYNC);
     dev_cmd_receipt_t receipt;
 
     s_stop_all_outputs_count++;
@@ -310,7 +319,7 @@ static void test_stop_all_during_washing_via_gateway(void)
 
 static void test_submit_async_completes_via_event(void)
 {
-    dev_cmd_t cmd        = dev_cmd_make_simple(DEV_CMD_STOP_OPERATION);
+    dev_cmd_t cmd        = dev_cmd_make_simple(DEV_CMD_STOP_ALL_OUTPUTS);
     uint64_t  request_id = 0U;
     pthread_t tid;
     int       spins;
@@ -332,7 +341,7 @@ static void test_submit_async_completes_via_event(void)
     }
     TEST_ASSERT_EQUAL_UINT64(request_id, s_handled_command_id);
     TEST_ASSERT_EQUAL_INT(OP_MODE_STOPPED, op_mode_get_current());
-    TEST_ASSERT_FALSE(op_mode_is_service_enabled());
+    TEST_ASSERT_TRUE(op_mode_is_service_enabled());
 
     stop_runtime(tid);
 }
@@ -391,7 +400,7 @@ static void test_stop_all_preempts_full_queue(void)
     setup_idle();
 
     for (int i = 0; i < 4; i++) {
-        dev_cmd_t cmd = dev_cmd_make_simple(DEV_CMD_STOP_OPERATION);
+        dev_cmd_t cmd = dev_cmd_make_simple(DEV_CMD_CLOUD_SYNC);
 
         TEST_ASSERT_EQUAL_INT(SW_OK, device_command_port_get_ops()->submit_async(&cmd, &rid));
     }
@@ -421,7 +430,7 @@ int main(void)
     WDF_RUN_TEST(test_submit_rejected_wrong_mode, "", "验证模式不匹配时拒绝命令提交");
     WDF_RUN_TEST(test_start_wash_triggers_orchestrator, "", "验证启动洗车触发流程编排器");
     WDF_RUN_TEST(test_stop_all_during_washing_via_gateway, "", "验证洗车中经网关全停切断并中止");
-    WDF_RUN_TEST(test_stop_operation_then_resume, "", "验证停止运行随后恢复运行");
+    WDF_RUN_TEST(test_stop_all_then_set_service, "", "验证全停后独立开关总开关");
     WDF_RUN_TEST(test_gateway_assigns_request_id_and_trace, "", "验证网关分配请求ID并追踪上下文");
     WDF_RUN_TEST(test_timeout_then_reuse_gets_real_verdict, "", "验证超时随后复用获得真实判定结果");
     WDF_RUN_TEST(test_submit_sync_from_control_thread_is_rejected, "", "验证控制线程内同步提交被拒绝");

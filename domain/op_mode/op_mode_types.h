@@ -24,14 +24,14 @@ extern "C" {
  * 状态迁移概览：
  *   INIT → STOPPED（初始化完成；上电默认运营总开关开启，可 RECOVER）
  *   STOPPED → RECOVERING（RECOVER：复位锁存告警 + 异步归位）→ IDLE / STOPPED
- *   IDLE / WASH_DONE / STOPPED → STOPPED（STOP_OPERATION：停运并关闭总开关）
- *   任意非 INIT → 同态（RESUME_OPERATION：仅 service_enabled=true，仍须 RECOVER 进 IDLE）
+ *   任意非 INIT → STOPPED（STOP_ALL_OUTPUTS：切断输出，不改总开关；洗车中不清障）
+ *   任意非 INIT → 同态（SET_SERVICE：仅翻总开关；关闭时若在 IDLE/WASH_DONE 则落到 STOPPED）
  *   IDLE → WASHING（START_WASH）
  *   WASHING → ABORT_HOMING（STOP_WASH 等非急停/非全停中止清障）→ STOPPED
  *   WASHING → WASH_DONE（正常完成且无 MAJOR+）→ IDLE（客户离场）
  *   WASHING → STOPPED（正常完成但仍有 MAJOR+；或急停 / STOP_ALL，不清障）
  *   WASH_DONE → STOPPED（STOP_ALL / 告警 / 急停）
- *   STOPPED → SELF_CHECK → STOPPED（仅急停激活时拒绝启动自检；自检中不可 STOP_OPERATION）
+ *   STOPPED → SELF_CHECK → STOPPED（仅急停激活时拒绝启动自检；自检中可 STOP_ALL）
  *   急停解除不自动进 IDLE；故障条件由 estop / blocking / LOCKOUT 旗标表达，不占用独立模式
  *
  * @note   不变量：IDLE 蕴含 service_enabled==true 且无急停；关总开关或急停时不得停留在 IDLE。

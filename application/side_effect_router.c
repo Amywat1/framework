@@ -95,8 +95,7 @@ sw_err_t side_effect_router_run(const dev_cmd_t *cmd, operational_mode_t mode_be
         /* domain 已先切 STOPPED；仅当裁决前为 WASHING 时 abort，避免假 EVT_WASH_ABORTED */
         return run_stop_all_outputs(mode_before == OP_MODE_WASHING);
 
-    case DEV_CMD_STOP_OPERATION:
-    case DEV_CMD_RESUME_OPERATION:
+    case DEV_CMD_SET_SERVICE:
     case DEV_CMD_RECOVER:
         /* 模式/旗标已在 domain 处理；RECOVER 异步编排由 RECOVERY_REQUESTED 触发 */
         return SW_OK;

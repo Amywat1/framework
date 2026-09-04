@@ -176,19 +176,8 @@ static const op_perm_t k_cmd_matrix[DEV_CMD_MAX][OP_MODE_RECOVERING + 1] =
         OP_PERM_DENIED,      /* SELF_CHECK  */
         OP_PERM_DENIED,      /* RECOVERING  */
     },
-    /* DEV_CMD_STOP_OPERATION：非自动化态关总开关并落到 STOPPED；洗车/自检/恢复/清障中拒绝 */
-    [DEV_CMD_STOP_OPERATION] = {
-        OP_PERM_DENIED,      /* INIT        */
-        OP_PERM_ALLOWED,     /* STOPPED     */
-        OP_PERM_ALLOWED,     /* IDLE        */
-        OP_PERM_DENIED,      /* WASHING     */
-        OP_PERM_DENIED,      /* ABORT_HOMING*/
-        OP_PERM_ALLOWED,     /* WASH_DONE   */
-        OP_PERM_DENIED,      /* SELF_CHECK  */
-        OP_PERM_DENIED,      /* RECOVERING  */
-    },
-    /* DEV_CMD_RESUME_OPERATION：仅翻总开关，与模式无关；已开则幂等 */
-    [DEV_CMD_RESUME_OPERATION] = {
+    /* DEV_CMD_SET_SERVICE：除 INIT 外允许；关闭在洗车/自检/恢复/清障中由运行期条件拒绝 */
+    [DEV_CMD_SET_SERVICE] = {
         OP_PERM_DENIED,  /* INIT        */
         OP_PERM_ALLOWED, /* STOPPED     */
         OP_PERM_ALLOWED, /* IDLE        */
@@ -303,6 +292,15 @@ static dev_cmd_decision_t check_command(const dev_cmd_t *cmd)
         }
     }
 
+    if (kind == DEV_CMD_SET_SERVICE) {
+        if (!cmd->body.payload.service.enabled) {
+            if ((s_mode == OP_MODE_WASHING) || (s_mode == OP_MODE_ABORT_HOMING)
+                || (s_mode == OP_MODE_SELF_CHECK) || (s_mode == OP_MODE_RECOVERING)) {
+                return make_denied(OP_REJECT_WRONG_MODE);
+            }
+        }
+    }
+
     if (kind == DEV_CMD_RECOVER) {
         /* 运营总开关关闭时禁止归位和故障恢复。 */
         if (!s_service_enabled) {
@@ -370,15 +368,11 @@ dev_cmd_decision_t op_mode_handle_command(const dev_cmd_t *cmd)
         }
         break;
 
-    case DEV_CMD_STOP_OPERATION:
-        /* 关总开关并离开 IDLE/WASH_DONE */
-        op_mode_set_service_enabled(false);
-        set_mode(OP_MODE_STOPPED, "stop operation");
-        break;
-
-    case DEV_CMD_RESUME_OPERATION:
-        /* 仅重新授权（已开则幂等）；接单仍须 RECOVER → IDLE */
-        op_mode_set_service_enabled(true);
+    case DEV_CMD_SET_SERVICE:
+        op_mode_set_service_enabled(cmd->body.payload.service.enabled);
+        if (!s_service_enabled && ((s_mode == OP_MODE_IDLE) || (s_mode == OP_MODE_WASH_DONE))) {
+            set_mode(OP_MODE_STOPPED, "service disabled");
+        }
         break;
 
     case DEV_CMD_STOP_ALL_OUTPUTS:

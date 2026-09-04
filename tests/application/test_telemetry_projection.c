@@ -131,7 +131,8 @@ static void test_operational_projection_syncs_current_context(void)
 {
     operational_snapshot_t snap;
     dev_cmd_t              recover_cmd = dev_cmd_make_simple(DEV_CMD_RECOVER);
-    dev_cmd_t              stop_cmd    = dev_cmd_make_simple(DEV_CMD_STOP_OPERATION);
+    dev_cmd_t              stop_cmd    = dev_cmd_make_simple(DEV_CMD_STOP_ALL_OUTPUTS);
+    dev_cmd_t              off_cmd     = dev_cmd_make_set_service(false);
 
     time_util_init();
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
@@ -152,14 +153,22 @@ static void test_operational_projection_syncs_current_context(void)
     TEST_ASSERT_TRUE(snap.service_enabled);
     TEST_ASSERT_TRUE(operational_snapshot_is_standby(snap));
 
-    /* 停运：STOPPED + 总开关关 */
+    /* 停机：STOPPED，总开关仍开 */
     TEST_ASSERT_EQUAL_INT(OP_CMD_ALLOWED, op_mode_handle_command(&stop_cmd).verdict);
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_drain());
+    snap = device_snapshot_get().op;
+    TEST_ASSERT_EQUAL_INT(OP_MODE_STOPPED, snap.mode);
+    TEST_ASSERT_TRUE(snap.service_enabled);
+    TEST_ASSERT_TRUE(operational_snapshot_is_stopping(snap));
+    TEST_ASSERT_FALSE(operational_snapshot_is_standby(snap));
+
+    /* 关总开关：模式仍 STOPPED */
+    TEST_ASSERT_EQUAL_INT(OP_CMD_ALLOWED, op_mode_handle_command(&off_cmd).verdict);
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_drain());
     snap = device_snapshot_get().op;
     TEST_ASSERT_EQUAL_INT(OP_MODE_STOPPED, snap.mode);
     TEST_ASSERT_FALSE(snap.service_enabled);
     TEST_ASSERT_TRUE(operational_snapshot_is_stopping(snap));
-    TEST_ASSERT_FALSE(operational_snapshot_is_standby(snap));
 }
 
 /* STOPPED 下置急停：无 MODE_CHANGED，须靠 CONTEXT_SYNC 刷新快照 estop_active */
@@ -210,7 +219,7 @@ static void test_safety_projection_refreshes_alarm_snapshot(void)
 static void test_explicit_rebuild_repairs_dropped_projection_event(void)
 {
     operational_snapshot_t snap;
-    dev_cmd_t              stop_cmd = dev_cmd_make_simple(DEV_CMD_STOP_OPERATION);
+    dev_cmd_t              off_cmd = dev_cmd_make_set_service(false);
 
     time_util_init();
     thread_registry_reset_for_test();
@@ -224,7 +233,7 @@ static void test_explicit_rebuild_repairs_dropped_projection_event(void)
     for (unsigned i = 0U; i < EVENT_BUS_QUEUE_SIZE; ++i) {
         TEST_ASSERT_EQUAL_INT(SW_OK, event_publish(EVT_CMD_ORDER, i));
     }
-    TEST_ASSERT_EQUAL_INT(OP_CMD_ALLOWED, op_mode_handle_command(&stop_cmd).verdict);
+    TEST_ASSERT_EQUAL_INT(OP_CMD_ALLOWED, op_mode_handle_command(&off_cmd).verdict);
 
     snap = device_snapshot_get().op;
     TEST_ASSERT_TRUE(snap.service_enabled);

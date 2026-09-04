@@ -16,6 +16,7 @@ extern "C" {
 
 #include "domain/op_mode/op_mode_types.h"
 
+#include <stdbool.h>
 #include <stdint.h>
 
 /**
@@ -25,8 +26,7 @@ typedef enum {
     DEV_CMD_NONE = 0,
     DEV_CMD_START_WASH,
     DEV_CMD_STOP_WASH,
-    DEV_CMD_STOP_OPERATION,
-    DEV_CMD_RESUME_OPERATION,
+    DEV_CMD_SET_SERVICE, /**< 设置运营总开关；关闭时若在 IDLE/WASH_DONE 则落到 STOPPED */
     DEV_CMD_MANUAL_ACTUATOR,
     DEV_CMD_START_SELF_CHECK,
     DEV_CMD_RECOVER,
@@ -69,6 +69,9 @@ typedef struct {
             uint32_t act_id;
             int32_t  param;
         } manual_actuator;
+        struct {
+            bool enabled; /**< true 开启总开关；false 关闭 */
+        } service;
     } payload;
 } dev_cmd_body_t;
 
@@ -116,6 +119,18 @@ static inline dev_cmd_t dev_cmd_make_manual(uint32_t act_id, int32_t param)
 
     cmd.body.payload.manual_actuator.act_id = act_id;
     cmd.body.payload.manual_actuator.param  = param;
+    return cmd;
+}
+
+/**
+ * @brief  构造运营总开关设置命令
+ * @param  enabled  true 开启；false 关闭
+ */
+static inline dev_cmd_t dev_cmd_make_set_service(bool enabled)
+{
+    dev_cmd_t cmd = dev_cmd_make_simple(DEV_CMD_SET_SERVICE);
+
+    cmd.body.payload.service.enabled = enabled;
     return cmd;
 }
 
