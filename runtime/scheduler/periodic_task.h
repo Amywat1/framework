@@ -12,6 +12,7 @@ extern "C" {
 
 #include "common/sw_error.h"
 
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <time.h>
@@ -40,6 +41,8 @@ typedef struct {
     uint32_t    max_cb_us;         /**< 回调墙钟耗时最大值（微秒） */
     uint32_t    last_wake_late_us; /**< 最近一次相对截止时间的唤醒滞后（微秒） */
     uint32_t    max_wake_late_us;  /**< 唤醒滞后最大值（微秒） */
+    uint32_t    last_late_us;      /**< 最近一次相对下一拍截止的越过量（微秒） */
+    uint32_t    max_late_us;       /**< 越过量最大值（微秒） */
 } periodic_task_stats_t;
 
 /**
@@ -59,7 +62,7 @@ typedef struct {
  * @note   任务在 scheduler_start_all() 调用后启动，当前生命周期模型下不提供停止语义：
  *         线程以 pthread_detach 创建且不可 join，进程退出即随之终止。
  * @note   周期以绝对截止时间推进（CLOCK_MONOTONIC），回调耗时不累加进下一拍；
- *         若单次回调耗时超过一个周期，错过的拍会被跳过而非追赶。
+ *         若墙钟越过下一拍截止时间，错过的拍会被跳过而非追赶。
  */
 sw_err_t periodic_task_register(const char        *name,
                                 uint32_t           period_ms,
@@ -77,11 +80,35 @@ sw_err_t periodic_task_register(const char        *name,
  * @return 本次跳过的拍数，0 表示未超时、未跳拍
  * @note   周期任务线程体的时间推进逻辑本体，独立导出以便直接验证时序行为，
  *         无需依赖真实 sleep。语义：先推进一个周期；若推进后仍不晚于 now，
- *         说明回调耗时超过一个周期，继续推进直到截止时间严格晚于 now，
- *         即跳过已错过的拍而不逐拍追赶。
+ *         说明本拍墙钟已越过下一拍截止（回调耗时、唤醒滞后或两者），
+ *         继续推进直到截止时间严格晚于 now，即跳过已错过的拍而不逐拍追赶。
  * @note   参数非法（deadline 为空或 period_ms 为 0）时不做任何修改并返回 0。
  */
 uint32_t periodic_task_next_deadline(struct timespec *deadline, uint32_t period_ms, const struct timespec *now);
+
+/**
+ * @brief  相对下一拍截止时间的越过量
+ * @param  old_deadline 推进前的截止时间
+ * @param  now          本拍回调结束时刻（CLOCK_MONOTONIC）
+ * @param  period_ms    周期毫秒数，必须大于 0
+ * @return now 比 old_deadline + period 晚了多少微秒；未越过或参数非法时返回 0
+ * @note   与 periodic_task_next_deadline() 配套：越过量是跳拍判据的连续量，
+ *         等于「上一拍截止到 now 的间隔」减去一个周期。恰在边界上越过量为 0，
+ *         但仍可能 skipped=1（截止比较取「不晚于即跳」）。
+ */
+uint32_t periodic_task_late_us(const struct timespec *old_deadline, const struct timespec *now, uint32_t period_ms);
+
+/**
+ * @brief  本次跳拍是否应打 WARN
+ * @param  skipped   本拍跳过的拍数
+ * @param  cb_us     本拍回调墙钟耗时（微秒）
+ * @param  period_ms 周期毫秒数
+ * @return true 表示回调挤占了周期（cb >= period）或单次跳过不少于 2 拍；
+ *         skipped 为 0 或仅因唤醒抖动跳 1 拍时返回 false
+ * @note   线程体用此函数决定是否打 WARN。普通 SCHED_OTHER 任务偶发晚醒一拍
+ *         是预期抖动，不作为故障输出；慢性统计走 periodic_task_get_stats()。
+ */
+bool periodic_task_skip_should_warn(uint32_t skipped, uint32_t cb_us, uint32_t period_ms);
 
 /**
  * @brief  将本拍观测写入统计
@@ -89,11 +116,16 @@ uint32_t periodic_task_next_deadline(struct timespec *deadline, uint32_t period_
  * @param  skipped      本拍跳过的拍数，来自 periodic_task_next_deadline()
  * @param  cb_us        本拍回调墙钟耗时（微秒）
  * @param  wake_late_us 相对截止时间的唤醒滞后（微秒）；首拍尚未睡眠时传 0
+ * @param  late_us      相对下一拍截止的越过量（微秒），来自 periodic_task_late_us()
  * @note   周期任务线程体的计数逻辑本体，独立导出以便直接验证累加规则，
  *         无需启动真实线程。run_count 每次加一；skip_count 累加 skipped；
- *         skip_max / max_cb_us / max_wake_late_us 取历史最大。
+ *         skip_max / max_cb_us / max_wake_late_us / max_late_us 取历史最大。
  */
-void periodic_task_note_cycle(periodic_task_stats_t *stats, uint32_t skipped, uint32_t cb_us, uint32_t wake_late_us);
+void periodic_task_note_cycle(periodic_task_stats_t *stats,
+                              uint32_t              skipped,
+                              uint32_t              cb_us,
+                              uint32_t              wake_late_us,
+                              uint32_t              late_us);
 
 /**
  * @brief  已登记的周期任务数量

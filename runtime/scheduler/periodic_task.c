@@ -26,8 +26,13 @@ typedef char periodic_task_capacity_check_t[(PERIODIC_TASK_MAX <= THREAD_REGISTR
 
 #define PERIODIC_TASK_NS_PER_MS  1000000L
 #define PERIODIC_TASK_NS_PER_SEC 1000000000L
+#define PERIODIC_TASK_US_PER_SEC 1000000U
+#define PERIODIC_TASK_US_PER_MS  1000U
+#define PERIODIC_TASK_NS_PER_US  1000L
 /** @brief 同一周期任务跳拍 WARN 的最小间隔（ms） */
 #define PERIODIC_TASK_SKIP_WARN_INTERVAL_MS 2000U
+/** @brief 单次跳拍达到此拍数才视为非边界抖动，打 WARN */
+#define PERIODIC_TASK_SKIP_WARN_MIN_TICKS 2U
 
 typedef struct {
     bool                  used;
@@ -78,7 +83,7 @@ uint32_t periodic_task_next_deadline(struct timespec *deadline, uint32_t period_
 
     advance_deadline(deadline, period_ms);
 
-    /* 推进后若仍不晚于 now，说明回调耗时超过一个周期：跳过已错过的拍而不追赶 */
+    /* 推进后若仍不晚于 now，说明本拍墙钟已越过下一拍截止：跳过已错过的拍而不追赶 */
     while (deadline_reached(now, deadline)) {
         advance_deadline(deadline, period_ms);
         skipped++;
@@ -86,9 +91,6 @@ uint32_t periodic_task_next_deadline(struct timespec *deadline, uint32_t period_
 
     return skipped;
 }
-
-#define PERIODIC_TASK_US_PER_SEC 1000000U
-#define PERIODIC_TASK_NS_PER_US  1000L
 
 /**
  * @brief  later - earlier 的微秒差；later 早于 earlier 时返回 0，超出 uint32 则饱和
@@ -123,7 +125,42 @@ static uint32_t timespec_delta_us(const struct timespec *later, const struct tim
     return (uint32_t)us;
 }
 
-void periodic_task_note_cycle(periodic_task_stats_t *stats, uint32_t skipped, uint32_t cb_us, uint32_t wake_late_us)
+uint32_t periodic_task_late_us(const struct timespec *old_deadline, const struct timespec *now, uint32_t period_ms)
+{
+    uint32_t interval_us;
+    uint64_t period_us;
+
+    if ((old_deadline == NULL) || (now == NULL) || (period_ms == 0U)) {
+        return 0U;
+    }
+
+    interval_us = timespec_delta_us(now, old_deadline);
+    period_us   = (uint64_t)period_ms * (uint64_t)PERIODIC_TASK_US_PER_MS;
+    if ((uint64_t)interval_us <= period_us) {
+        return 0U;
+    }
+    if (((uint64_t)interval_us - period_us) > (uint64_t)UINT32_MAX) {
+        return UINT32_MAX;
+    }
+    return (uint32_t)((uint64_t)interval_us - period_us);
+}
+
+bool periodic_task_skip_should_warn(uint32_t skipped, uint32_t cb_us, uint32_t period_ms)
+{
+    if ((skipped == 0U) || (period_ms == 0U)) {
+        return false;
+    }
+    if (skipped >= PERIODIC_TASK_SKIP_WARN_MIN_TICKS) {
+        return true;
+    }
+    return ((uint64_t)cb_us >= ((uint64_t)period_ms * (uint64_t)PERIODIC_TASK_US_PER_MS));
+}
+
+void periodic_task_note_cycle(periodic_task_stats_t *stats,
+                              uint32_t              skipped,
+                              uint32_t              cb_us,
+                              uint32_t              wake_late_us,
+                              uint32_t              late_us)
 {
     if (stats == NULL) {
         return;
@@ -141,6 +178,10 @@ void periodic_task_note_cycle(periodic_task_stats_t *stats, uint32_t skipped, ui
     stats->last_wake_late_us = wake_late_us;
     if (wake_late_us > stats->max_wake_late_us) {
         stats->max_wake_late_us = wake_late_us;
+    }
+    stats->last_late_us = late_us;
+    if (late_us > stats->max_late_us) {
+        stats->max_late_us = late_us;
     }
 }
 
@@ -194,15 +235,18 @@ static void *periodic_task_thread_fn(void *arg)
     }
 
     /* 以绝对截止时间推进，避免"回调耗时累加进周期"的漂移。
-     * 回调耗时超过一个周期时，跳过已错过的拍而不是无限追赶。 */
+     * 墙钟越过下一拍截止时间时，跳过已错过的拍而不是无限追赶。 */
     (void)clock_gettime(CLOCK_MONOTONIC, &deadline);
 
     for (;;) {
         struct timespec           cb_start;
         struct timespec           cb_end;
         struct timespec           now;
+        struct timespec           old_deadline;
         uint32_t                  skipped;
         uint32_t                  cb_us;
+        uint32_t                  late_us;
+        uint32_t                  wake_us;
         bool                      warn_skip = false;
         periodic_task_tick_view_t view;
 
@@ -216,12 +260,15 @@ static void *periodic_task_thread_fn(void *arg)
         (void)clock_gettime(CLOCK_MONOTONIC, &cb_end);
         cb_us = timespec_delta_us(&cb_end, &cb_start);
 
-        now     = cb_end;
-        skipped = periodic_task_next_deadline(&deadline, view.period_ms, &now);
+        now          = cb_end;
+        old_deadline = deadline;
+        skipped      = periodic_task_next_deadline(&deadline, view.period_ms, &now);
+        late_us      = periodic_task_late_us(&old_deadline, &now, view.period_ms);
+        wake_us      = slept ? wake_late_us : 0U;
 
         pthread_mutex_lock(&s_mutex);
-        periodic_task_note_cycle(&slot->stats, skipped, cb_us, slept ? wake_late_us : 0U);
-        if (skipped > 0U) {
+        periodic_task_note_cycle(&slot->stats, skipped, cb_us, wake_us, late_us);
+        if (periodic_task_skip_should_warn(skipped, cb_us, view.period_ms)) {
             uint64_t now_ms = ((uint64_t)now.tv_sec * 1000ULL)
                               + ((uint64_t)now.tv_nsec / (uint64_t)PERIODIC_TASK_NS_PER_MS);
 
@@ -234,10 +281,13 @@ static void *periodic_task_thread_fn(void *arg)
         pthread_mutex_unlock(&s_mutex);
 
         if (warn_skip) {
-            LOG_WARN("periodic_task: [%s] skipped %u tick(s) cb=%uus",
+            LOG_WARN("periodic_task: [%s] skipped %u tick(s) period=%ums late=%uus cb=%uus wake_late=%uus",
                      (view.name != NULL) ? view.name : "?",
                      (unsigned)skipped,
-                     (unsigned)cb_us);
+                     (unsigned)view.period_ms,
+                     (unsigned)late_us,
+                     (unsigned)cb_us,
+                     (unsigned)wake_us);
         }
 
         while (clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &deadline, NULL) != 0) {

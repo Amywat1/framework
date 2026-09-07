@@ -171,14 +171,14 @@ static void test_invalid_params_leave_deadline_untouched(void)
     TEST_ASSERT_EQUAL_UINT32(0U, periodic_task_next_deadline(NULL, 10U, &now));
 }
 
-/* --- SCHED-08：跳拍 / 回调耗时 / 唤醒滞后累加 --- */
+/* --- SCHED-08：跳拍 / 回调耗时 / 唤醒滞后 / 越过量累加 --- */
 
 static void test_note_cycle_accumulates_skip_and_maxima(void)
 {
     periodic_task_stats_t stats;
 
     memset(&stats, 0, sizeof(stats));
-    periodic_task_note_cycle(&stats, 0U, 1000U, 50U);
+    periodic_task_note_cycle(&stats, 0U, 1000U, 50U, 0U);
     TEST_ASSERT_EQUAL_UINT32(1U, stats.run_count);
     TEST_ASSERT_EQUAL_UINT32(0U, stats.skip_count);
     TEST_ASSERT_EQUAL_UINT32(0U, stats.skip_max);
@@ -186,8 +186,10 @@ static void test_note_cycle_accumulates_skip_and_maxima(void)
     TEST_ASSERT_EQUAL_UINT32(1000U, stats.max_cb_us);
     TEST_ASSERT_EQUAL_UINT32(50U, stats.last_wake_late_us);
     TEST_ASSERT_EQUAL_UINT32(50U, stats.max_wake_late_us);
+    TEST_ASSERT_EQUAL_UINT32(0U, stats.last_late_us);
+    TEST_ASSERT_EQUAL_UINT32(0U, stats.max_late_us);
 
-    periodic_task_note_cycle(&stats, 3U, 400U, 80U);
+    periodic_task_note_cycle(&stats, 3U, 400U, 80U, 25000U);
     TEST_ASSERT_EQUAL_UINT32(2U, stats.run_count);
     TEST_ASSERT_EQUAL_UINT32(3U, stats.skip_count);
     TEST_ASSERT_EQUAL_UINT32(3U, stats.skip_max);
@@ -195,18 +197,72 @@ static void test_note_cycle_accumulates_skip_and_maxima(void)
     TEST_ASSERT_EQUAL_UINT32(1000U, stats.max_cb_us);
     TEST_ASSERT_EQUAL_UINT32(80U, stats.last_wake_late_us);
     TEST_ASSERT_EQUAL_UINT32(80U, stats.max_wake_late_us);
+    TEST_ASSERT_EQUAL_UINT32(25000U, stats.last_late_us);
+    TEST_ASSERT_EQUAL_UINT32(25000U, stats.max_late_us);
 
-    periodic_task_note_cycle(&stats, 1U, 2000U, 10U);
+    periodic_task_note_cycle(&stats, 1U, 2000U, 10U, 12000U);
     TEST_ASSERT_EQUAL_UINT32(3U, stats.run_count);
     TEST_ASSERT_EQUAL_UINT32(4U, stats.skip_count);
     TEST_ASSERT_EQUAL_UINT32(3U, stats.skip_max);
     TEST_ASSERT_EQUAL_UINT32(2000U, stats.max_cb_us);
     TEST_ASSERT_EQUAL_UINT32(80U, stats.max_wake_late_us);
+    TEST_ASSERT_EQUAL_UINT32(12000U, stats.last_late_us);
+    TEST_ASSERT_EQUAL_UINT32(25000U, stats.max_late_us);
 }
 
 static void test_note_cycle_null_is_noop(void)
 {
-    periodic_task_note_cycle(NULL, 1U, 1U, 1U);
+    periodic_task_note_cycle(NULL, 1U, 1U, 1U, 1U);
+}
+
+/** @brief 间隔未超过一个周期时越过量为 0 */
+static void test_late_us_zero_when_within_period(void)
+{
+    struct timespec old_deadline = make_ts(10, 0);
+    struct timespec now          = make_ts(10, 3 * NS_PER_MS);
+
+    TEST_ASSERT_EQUAL_UINT32(0U, periodic_task_late_us(&old_deadline, &now, 10U));
+}
+
+/** @brief 恰在下一拍截止上越过量为 0（与 skipped=1 的边界一致） */
+static void test_late_us_zero_on_exact_period_boundary(void)
+{
+    struct timespec old_deadline = make_ts(7, 0);
+    struct timespec now          = make_ts(7, 10 * NS_PER_MS);
+
+    TEST_ASSERT_EQUAL_UINT32(0U, periodic_task_late_us(&old_deadline, &now, 10U));
+}
+
+/** @brief 越过量等于间隔减去一个周期 */
+static void test_late_us_is_overshoot_past_one_period(void)
+{
+    struct timespec old_deadline = make_ts(10, 0);
+    struct timespec now          = make_ts(10, 35 * NS_PER_MS);
+
+    TEST_ASSERT_EQUAL_UINT32(25000U, periodic_task_late_us(&old_deadline, &now, 10U));
+}
+
+/** @brief 参数非法时越过量为 0 */
+static void test_late_us_invalid_params_return_zero(void)
+{
+    struct timespec old_deadline = make_ts(1, 0);
+    struct timespec now          = make_ts(2, 0);
+
+    TEST_ASSERT_EQUAL_UINT32(0U, periodic_task_late_us(NULL, &now, 10U));
+    TEST_ASSERT_EQUAL_UINT32(0U, periodic_task_late_us(&old_deadline, NULL, 10U));
+    TEST_ASSERT_EQUAL_UINT32(0U, periodic_task_late_us(&old_deadline, &now, 0U));
+}
+
+/** @brief WARN 只覆盖回调挤占或单次跳过不少于 2 拍 */
+static void test_skip_should_warn_only_for_callback_or_multi_skip(void)
+{
+    TEST_ASSERT_FALSE(periodic_task_skip_should_warn(0U, 20000U, 10U));
+    TEST_ASSERT_FALSE(periodic_task_skip_should_warn(1U, 17U, 10U));
+    TEST_ASSERT_FALSE(periodic_task_skip_should_warn(1U, 9999U, 10U));
+    TEST_ASSERT_TRUE(periodic_task_skip_should_warn(1U, 10000U, 10U));
+    TEST_ASSERT_TRUE(periodic_task_skip_should_warn(1U, 10001U, 10U));
+    TEST_ASSERT_TRUE(periodic_task_skip_should_warn(2U, 17U, 10U));
+    TEST_ASSERT_FALSE(periodic_task_skip_should_warn(1U, 10000U, 0U));
 }
 
 int main(void)
@@ -222,5 +278,10 @@ int main(void)
     WDF_RUN_TEST(test_invalid_params_leave_deadline_untouched, "", "验证无效参数保持截止时间不变");
     WDF_RUN_TEST(test_note_cycle_accumulates_skip_and_maxima, "", "验证跳拍与耗时按规则累加");
     WDF_RUN_TEST(test_note_cycle_null_is_noop, "", "验证空统计指针被忽略");
+    WDF_RUN_TEST(test_late_us_zero_when_within_period, "", "验证周期内越过量为零");
+    WDF_RUN_TEST(test_late_us_zero_on_exact_period_boundary, "", "验证恰在周期边界越过量为零");
+    WDF_RUN_TEST(test_late_us_is_overshoot_past_one_period, "", "验证越过量等于间隔减一个周期");
+    WDF_RUN_TEST(test_late_us_invalid_params_return_zero, "", "验证越过量非法参数返回零");
+    WDF_RUN_TEST(test_skip_should_warn_only_for_callback_or_multi_skip, "", "验证跳拍WARN仅覆盖回调挤占或多拍");
     return UNITY_END();
 }
