@@ -33,8 +33,7 @@ static void on_wash_aborted(const event_t *evt)
 {
     wash_abort_cause_t cause = wash_abort_from_evt_param(evt->param);
 
-    /* 急停 / STOP_ALL：模式已先切至 STOPPED，
-     * on_wash_session_aborted 内部会检测到非 WASHING 态并提前返回 */
+    /* 急停 / STOP_ALL：领域钩子落到 STOPPED 且不发中止归位 */
     op_mode_on_wash_session_aborted(cause);
 }
 

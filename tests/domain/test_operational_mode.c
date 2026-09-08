@@ -3,6 +3,7 @@
  * @brief   operational_mode 命令矩阵与模式转移单元测试
  */
 
+#include "common/event_types.h"
 #include "common/sw_error.h"
 #include "common/time_util.h"
 #include "runtime/event_bus/event_bus.h"
@@ -28,6 +29,14 @@ static const alarm_def_t s_catalog[] = {
      .desc         = "test blocking",
      },
 };
+
+static volatile int s_abort_home_req;
+
+static void on_abort_home_req(const event_t *evt)
+{
+    (void)evt;
+    s_abort_home_req++;
+}
 
 static sw_err_t failed_cutout(void)
 {
@@ -514,6 +523,22 @@ static void test_stop_all_from_washing_skips_abort_homing(void)
     TEST_ASSERT_EQUAL_INT(OP_MODE_STOPPED, op_mode_get_current());
 }
 
+/* 洗车中急停中止：直接 STOPPED，不发中止归位 */
+static void test_estop_abort_from_washing_skips_abort_homing(void)
+{
+    s_abort_home_req = 0;
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_subscribe(EVT_ABORT_HOME_REQUESTED, on_abort_home_req));
+
+    enter_idle();
+    op_mode_on_wash_session_started();
+    TEST_ASSERT_EQUAL_INT(OP_MODE_WASHING, op_mode_get_current());
+
+    op_mode_on_wash_session_aborted(WASH_ABORT_ESTOP);
+    TEST_ASSERT_EQUAL_INT(OP_MODE_STOPPED, op_mode_get_current());
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_drain());
+    TEST_ASSERT_EQUAL_INT(0, s_abort_home_req);
+}
+
 /* STOP_ALL：RECOVERING → STOPPED */
 static void test_stop_all_from_recovering_enters_stopped(void)
 {
@@ -616,6 +641,7 @@ int main(void)
     WDF_RUN_TEST(test_self_check_denied_when_estop, "", "验证急停时拒绝自检");
     WDF_RUN_TEST(test_stop_all_from_idle_enters_stopped, "", "验证全停从空闲进入停止");
     WDF_RUN_TEST(test_stop_all_from_washing_skips_abort_homing, "", "验证全停洗车中不清障");
+    WDF_RUN_TEST(test_estop_abort_from_washing_skips_abort_homing, "MODE-03", "验证洗车中急停中止不清障");
     WDF_RUN_TEST(test_stop_all_from_recovering_enters_stopped, "", "验证全停打断恢复进入停止");
     WDF_RUN_TEST(test_cmd_matrix_exhaustive_64, "", "验证命令许可矩阵穷举");
 

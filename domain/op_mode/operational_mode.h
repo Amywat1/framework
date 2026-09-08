@@ -56,7 +56,9 @@ void op_mode_on_wash_session_completed(void);
 
 /**
  * @brief  洗车会话中止
- * @param  cause  中止原因（急停 / STOP_ALL 时模式已先切至 STOPPED，此处无操作）
+ * @param  cause  中止原因
+ * @note   急停、STOP_ALL，或急停旗标已置位时只落到 STOPPED，不发中止归位。
+ *         其余原因在 WASHING 下进入 ABORT_HOMING 并请求归位。
  */
 void op_mode_on_wash_session_aborted(wash_abort_cause_t cause);
 

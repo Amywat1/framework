@@ -328,7 +328,7 @@ periodic_task_thread_fn(slot)
 
 ### 7.1 急停轮询适配器（可选）
 
-急停采集方式由项目决定，框架只提供一种可选实现：`adapters/inbound/safety/estop_poll_thread.c`。它属入站适配器而非运行时核心，bootstrap 不引用它；需要轮询采集的项目在 `project_init_adapters()` 中调用 `estop_poll_thread_init()` 登记线程，并由该采集器独占急停热路径。项目若另有通路发布同样事件，则不要再接入。
+急停采集方式由项目决定，框架只提供一种可选实现：`adapters/inbound/safety/estop_poll_thread.c`。它属入站适配器而非运行时核心，bootstrap 不引用它；需要轮询采集的项目在 `project_init_adapters()` 中调用 `estop_poll_thread_init()` 登记线程，并由该采集器独占急停热路径。项目若另有通路发布同样事件，则不要再接入。急停报警不得再对同一根 DI 做独立次数滤波；项目应在采集器之后调用 `estop_alarm_bridge_init(报警码)`，由 `EVT_HW_ESTOP_ON/OFF` 投影 AUTO_STATIC 急停报警。
 
 调度配置来自 `thread_config.h`：
 

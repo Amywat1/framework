@@ -224,6 +224,7 @@ _wdf_add_interface_lib(wdf_application
         application/orchestrators/recovery_coordinator.c
         application/orchestrators/safety_session_coordinator.c
         application/bridges/alarm_bridge.c
+        application/bridges/estop_alarm_bridge.c
         application/bridges/op_mode_bridge.c
     DEPENDS
         wdf_domain

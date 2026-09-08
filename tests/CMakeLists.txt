@@ -440,6 +440,17 @@ add_unit_test(test_op_mode_bridge
     ${WDF_ROOT}/common/sw_mutex.c
 )
 
+add_unit_test(test_estop_alarm_bridge
+    ${CMAKE_CURRENT_SOURCE_DIR}/application/test_estop_alarm_bridge.c
+    ${WDF_ROOT}/application/bridges/estop_alarm_bridge.c
+    ${WDF_ROOT}/domain/safety/alarm_registry/alarm_registry.c
+    ${WDF_ROOT}/runtime/ports/port_registry_infra.c
+    ${WDF_ROOT}/runtime/event_bus/event_bus.c
+    ${WDF_ROOT}/common/time_util.c
+    ${WDF_ROOT}/common/log.c
+    ${WDF_ROOT}/common/sw_mutex.c
+)
+
 add_unit_test(test_event_param_codec
     ${CMAKE_CURRENT_SOURCE_DIR}/domain/test_event_param_codec.c
 )

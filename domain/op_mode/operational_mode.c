@@ -420,8 +420,17 @@ void op_mode_on_wash_session_completed(void)
 
 void op_mode_on_wash_session_aborted(wash_abort_cause_t cause)
 {
+    bool skip_abort_home;
+
     op_mode_lock();
     if (s_mode != OP_MODE_WASHING) {
+        op_mode_unlock();
+        return;
+    }
+
+    skip_abort_home = (cause == WASH_ABORT_ESTOP) || (cause == WASH_ABORT_STOP_ALL) || s_estop_active;
+    if (skip_abort_home) {
+        set_mode(OP_MODE_STOPPED, wash_abort_name(cause));
         op_mode_unlock();
         return;
     }
