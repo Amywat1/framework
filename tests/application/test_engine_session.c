@@ -15,6 +15,7 @@
 #include "wdf_test_spec.h"
 
 #include <pthread.h>
+#include <semaphore.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
@@ -110,6 +111,36 @@ static void write_program_file(void)
     TEST_ASSERT_EQUAL_UINT((unsigned)strlen(s_program_json),
                            (unsigned)fwrite(s_program_json, 1U, strlen(s_program_json), fp));
     TEST_ASSERT_EQUAL_INT(0, fclose(fp));
+}
+
+typedef struct {
+    engine_session_t *session;
+    sem_t             in_finished;
+    bool              idle_in_finished;
+    sw_err_t          handoff_result;
+} handoff_ctx_t;
+
+static void on_finished_handoff(void *user, const engine_session_result_t *result)
+{
+    handoff_ctx_t *ctx = (handoff_ctx_t *)user;
+
+    (void)result;
+    ctx->idle_in_finished = !engine_session_is_busy(ctx->session);
+    (void)sem_post(&ctx->in_finished);
+    /* 卡住 worker，让其它线程在回调返回前 start()。 */
+    usleep(300000U);
+}
+
+static void *handoff_start_fn(void *arg)
+{
+    handoff_ctx_t       *ctx = (handoff_ctx_t *)arg;
+    engine_session_run_t run = make_run();
+
+    run.on_started      = NULL;
+    run.on_finished     = NULL;
+    run.on_stop_outputs = NULL;
+    ctx->handoff_result = engine_session_start(ctx->session, &run);
+    return NULL;
 }
 
 void setUp(void)
@@ -240,11 +271,40 @@ static void test_engine_session_runs_to_done(void)
     TEST_ASSERT_FALSE(s_last_success);
     TEST_ASSERT_TRUE(s_last_aborted);
     TEST_ASSERT_EQUAL_INT(2, s_stop_count);
+
+    {
+        handoff_ctx_t        ctx;
+        engine_session_run_t first_run;
+        pthread_t            starter;
+
+        memset(&ctx, 0, sizeof(ctx));
+        ctx.session        = session;
+        ctx.handoff_result = SW_ERR_STATE;
+        TEST_ASSERT_EQUAL_INT(0, sem_init(&ctx.in_finished, 0, 0));
+
+        first_run                 = make_run();
+        first_run.on_started      = NULL;
+        first_run.on_finished     = on_finished_handoff;
+        first_run.on_stop_outputs = NULL;
+        first_run.user            = &ctx;
+        TEST_ASSERT_EQUAL_INT(SW_OK, engine_session_start(session, &first_run));
+
+        TEST_ASSERT_EQUAL_INT(0, sem_wait(&ctx.in_finished));
+        TEST_ASSERT_TRUE(ctx.idle_in_finished);
+        TEST_ASSERT_EQUAL_INT(0, pthread_create(&starter, NULL, handoff_start_fn, &ctx));
+        TEST_ASSERT_EQUAL_INT(0, pthread_join(starter, NULL));
+        TEST_ASSERT_EQUAL_INT(SW_OK, (int)ctx.handoff_result);
+
+        usleep(250000U);
+        TEST_ASSERT_FALSE(engine_session_is_busy(session));
+        TEST_ASSERT_EQUAL_INT(0, sem_destroy(&ctx.in_finished));
+    }
 }
 
 int main(void)
 {
     UNITY_BEGIN();
-    WDF_RUN_TEST(test_engine_session_runs_to_done, "", "验证程序引擎会话运行到完成");
+    WDF_RUN_TEST(test_engine_session_runs_to_done, "",
+                 "验证会话运行完成、中止，以及 on_finished 期间可接手下次 start");
     return UNITY_END();
 }

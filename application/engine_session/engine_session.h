@@ -65,6 +65,11 @@ typedef struct {
     void (*on_started)(void *user);
     /** @brief 当前方案阶段变化；phase_id 仅在回调期间有效。 */
     void (*on_phase_changed)(void *user, const char *phase_id, engine_direction_t direction);
+    /**
+     * @brief 本次运行已结束。
+     * @note  调用时会话已不 busy，其它线程可以 start() 接手下一次运行。
+     *        禁止在本回调所处的 worker 线程里调用 engine_session_start()。
+     */
     void (*on_finished)(void *user, const engine_session_result_t *result);
     void (*on_stop_outputs)(void *user);
     void *user;
@@ -88,6 +93,11 @@ sw_err_t engine_session_bind(unsigned slot_id, const engine_session_config_t *cf
  * @brief  启动一次方案运行（阻塞至 engine_start 成功/失败或超时）
  * @param  session  engine_session_bind 返回的会话句柄
  * @param  run      本次运行参数
+ * @retval SW_OK        引擎已启动。
+ * @retval SW_ERR_BUSY  会话正在准备或 tick，尚未结束本次运行。
+ * @retval SW_ERR_PARAM 参数非法。
+ * @retval SW_ERR_TIMEOUT 等待 worker 完成 engine_start 超时。
+ * @note   `on_finished` 期间可从其它线程接手；禁止在该回调所在 worker 内调用。
  */
 sw_err_t engine_session_start(engine_session_t *session, const engine_session_run_t *run);
 
@@ -101,6 +111,7 @@ bool engine_session_abort(engine_session_t *session);
 
 /**
  * @brief  查询是否正在运行
+ * @note   准备或 tick 中为 true；`on_finished` 期间已为 false。
  */
 bool engine_session_is_busy(const engine_session_t *session);
 

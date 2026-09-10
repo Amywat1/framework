@@ -225,6 +225,8 @@ static void *engine_session_worker_fn(void *arg)
             bool                    timed_out     = false;
             bool                    aborted       = false;
             engine_session_result_t result;
+            void (*finished_cb)(void *, const engine_session_result_t *);
+            void *finished_user;
 
             while (true) {
                 if (atomic_load(&s->s_abort_requested)) {
@@ -293,12 +295,16 @@ static void *engine_session_worker_fn(void *arg)
             engine_destroy(e);
             call_stop_outputs(s);
 
-            if (s->run.on_finished != NULL) {
-                s->run.on_finished(s->run.user, &result);
+            /* 先清 busy 再回调，其它线程可在 on_finished 期间 start()。
+             * 回调须先拍下：start() 会覆盖 s->run。 */
+            finished_cb   = s->run.on_finished;
+            finished_user = s->run.user;
+            atomic_store(&s->s_busy, false);
+            if (finished_cb != NULL) {
+                finished_cb(finished_user, &result);
             }
         }
 
-        atomic_store(&s->s_busy, false);
         trace_context_set(&previous_trace);
     }
 
