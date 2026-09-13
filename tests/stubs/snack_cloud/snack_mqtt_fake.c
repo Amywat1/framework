@@ -11,6 +11,7 @@ typedef struct {
     char                product_key[64];
     char                device_name[64];
     char                device_secret[64];
+    char                iot_instance[64];
     char                last_topic[128];
     char                last_payload[256];
     mqtt_recv_handler_t recv_cb;
@@ -70,11 +71,12 @@ mqtt_recv_handler_t snack_mqtt_fake_recv_handler(void)
     return s_fake.recv_cb;
 }
 
-int aliyun_mqtt_init(char *product_key, char *device_name, char *device_secret)
+int aliyun_mqtt_init(char *product_key, char *device_name, char *device_secret, char *iot_instance)
 {
     snprintf(s_fake.product_key, sizeof(s_fake.product_key), "%s", product_key != NULL ? product_key : "");
     snprintf(s_fake.device_name, sizeof(s_fake.device_name), "%s", device_name != NULL ? device_name : "");
     snprintf(s_fake.device_secret, sizeof(s_fake.device_secret), "%s", device_secret != NULL ? device_secret : "");
+    snprintf(s_fake.iot_instance, sizeof(s_fake.iot_instance), "%s", iot_instance != NULL ? iot_instance : "");
     if (s_fake.init_result == 0) {
         s_fake.online = 1;
     }

@@ -160,7 +160,7 @@ void wiring_cloud(void)
 {
     static const cloud_point_entry_t s_model[] = { /* 项目物模型表 */ };
     snack_cloud_adapter_register();
-    snack_cloud_adapter_configure(pk, sn, secret, topic_up, topic_reply);
+    snack_cloud_adapter_configure(pk, sn, secret, instance, topic_up, topic_reply);
     cloud_model_register(s_model, ARRAY_SIZE(s_model));
     cloud_json_install(cloud_cmd_submit, snack_cloud_property_reply);
 }

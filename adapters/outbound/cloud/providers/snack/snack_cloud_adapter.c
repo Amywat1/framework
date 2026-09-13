@@ -29,6 +29,7 @@ static bool s_last_online                         = false;
 static char s_product_key[SNACK_CLOUD_CRED_MAX]   = "";
 static char s_device_sn[SNACK_CLOUD_CRED_MAX]     = "";
 static char s_device_secret[SNACK_CLOUD_CRED_MAX] = "";
+static char s_iot_instance[SNACK_CLOUD_CRED_MAX]  = "";
 static char s_topic_up[SNACK_CLOUD_TOPIC_MAX]     = "";
 static char s_topic_reply[SNACK_CLOUD_TOPIC_MAX]  = "";
 
@@ -78,8 +79,8 @@ static sw_err_t link_init(void)
 
     s_initialized = true;
 
-    if (aliyun_mqtt_init(s_product_key, s_device_sn, s_device_secret) == 0) {
-        LOG_INFO("snack_cloud: connected sn=%s", s_device_sn);
+    if (aliyun_mqtt_init(s_product_key, s_device_sn, s_device_secret, s_iot_instance) == 0) {
+        LOG_INFO("snack_cloud: connected sn=%s instance=%s", s_device_sn, s_iot_instance);
         ret = SW_OK;
     } else {
         LOG_WARN("snack_cloud: init failed, running offline");
@@ -209,6 +210,7 @@ void snack_cloud_adapter_register(void)
 sw_err_t snack_cloud_adapter_configure(const char *product_key,
                                        const char *device_sn,
                                        const char *device_secret,
+                                       const char *iot_instance,
                                        const char *topic_property_up,
                                        const char *topic_property_reply)
 {
@@ -221,6 +223,9 @@ sw_err_t snack_cloud_adapter_configure(const char *product_key,
         || (strlen(device_secret) >= sizeof(s_device_secret)) || (strlen(topic_property_up) >= sizeof(s_topic_up))) {
         return SW_ERR_PARAM;
     }
+    if ((iot_instance != NULL) && (strlen(iot_instance) >= sizeof(s_iot_instance))) {
+        return SW_ERR_PARAM;
+    }
     if ((topic_property_reply != NULL) && (topic_property_reply[0] != '\0')
         && (strlen(topic_property_reply) >= sizeof(s_topic_reply))) {
         return SW_ERR_PARAM;
@@ -229,6 +234,11 @@ sw_err_t snack_cloud_adapter_configure(const char *product_key,
     (void)snprintf(s_product_key, sizeof(s_product_key), "%s", product_key);
     (void)snprintf(s_device_sn, sizeof(s_device_sn), "%s", device_sn);
     (void)snprintf(s_device_secret, sizeof(s_device_secret), "%s", device_secret);
+    if ((iot_instance == NULL) || (iot_instance[0] == '\0')) {
+        s_iot_instance[0] = '\0';
+    } else {
+        (void)snprintf(s_iot_instance, sizeof(s_iot_instance), "%s", iot_instance);
+    }
     (void)snprintf(s_topic_up, sizeof(s_topic_up), "%s", topic_property_up);
 
     if ((topic_property_reply == NULL) || (topic_property_reply[0] == '\0')) {

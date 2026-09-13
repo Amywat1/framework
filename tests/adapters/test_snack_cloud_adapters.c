@@ -24,7 +24,7 @@ static void test_recv_cb(const char *msg)
 
 static void configure_cloud_defaults(void)
 {
-    TEST_ASSERT_EQUAL_INT(SW_OK, snack_cloud_adapter_configure("pk1", "dev1", "sec1", "/up", "/reply"));
+    TEST_ASSERT_EQUAL_INT(SW_OK, snack_cloud_adapter_configure("pk1", "dev1", "sec1", "iot-test", "/up", "/reply"));
 }
 
 void setUp(void)

@@ -38,9 +38,13 @@ typedef void (*mqtt_recv_handler_t)(const char *msg);
 
 /**
  * @brief  初始化并连接阿里云 MQTT
+ * @param  product_key   产品标识
+ * @param  device_name   设备序列号
+ * @param  device_secret 设备密钥
+ * @param  iot_instance  物联网实例 ID；NULL 或空串表示公共实例
  * @return 0 成功，非 0 失败
  */
-extern int aliyun_mqtt_init(char *product_key, char *device_name, char *device_secret);
+extern int aliyun_mqtt_init(char *product_key, char *device_name, char *device_secret, char *iot_instance);
 
 /** @brief  查询 MQTT 在线状态（1 在线，0 离线） */
 extern int mqtt_is_online(void);

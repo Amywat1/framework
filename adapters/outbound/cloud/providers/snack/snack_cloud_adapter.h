@@ -29,6 +29,7 @@ void snack_cloud_adapter_register(void);
  * @param  product_key         产品密钥，非空。
  * @param  device_sn           设备序列号，非空。
  * @param  device_secret       设备密钥，非空。
+ * @param  iot_instance        阿里云物联网实例 ID；NULL 或空串表示公共实例。
  * @param  topic_property_up   属性上报 topic，非空。
  * @param  topic_property_reply 属性下发应答 topic；NULL 或空串表示不回复。
  * @retval SW_OK 配置成功。
@@ -37,6 +38,7 @@ void snack_cloud_adapter_register(void);
 sw_err_t snack_cloud_adapter_configure(const char *product_key,
                                        const char *device_sn,
                                        const char *device_secret,
+                                       const char *iot_instance,
                                        const char *topic_property_up,
                                        const char *topic_property_reply);
 

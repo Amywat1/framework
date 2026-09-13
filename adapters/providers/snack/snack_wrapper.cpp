@@ -112,13 +112,18 @@ static void client_deal(char *topic, char *msg, int msg_len)
     cJSON_Delete(root);
 }
 
-int aliyun_mqtt_init(char *product_key, char *device_name, char *device_secret)
+int aliyun_mqtt_init(char *product_key, char *device_name, char *device_secret, char *iot_instance)
 {
+    const char *instance = "";
+
     if (product_key == NULL || device_name == NULL || device_secret == NULL) {
         return -1;
     }
+    if ((iot_instance != NULL) && (iot_instance[0] != '\0')) {
+        instance = iot_instance;
+    }
 
-    s_mqtt_client = new aiot(product_key, device_name, device_secret, "");
+    s_mqtt_client = new aiot(product_key, device_name, device_secret, instance);
     if (s_mqtt_client == NULL) {
         return -2;
     }
