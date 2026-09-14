@@ -28,9 +28,6 @@ extern void snack_log_sink_register(const char *name);
 /** @brief 设置 Snack 运行时日志级别 */
 void snack_runtime_set_log_level(int type);
 
-/** @brief 设置 Snack 运行时远程调试端口 */
-void snack_runtime_set_remote_port(int port);
-
 /* ---- MQTT ---- */
 
 /** MQTT 下行消息回调类型 */

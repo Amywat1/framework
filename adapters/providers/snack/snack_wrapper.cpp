@@ -82,11 +82,6 @@ void set_log_level(int type)
     s_framework_log->setLogClearDays(0);
 }
 
-void set_remote_port(int port)
-{
-    (void)port;
-}
-
 /* -------------------------------------------------------------------------
  * 阿里云 MQTT
  * ------------------------------------------------------------------------- */

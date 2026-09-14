@@ -6,14 +6,8 @@
 #include "framework/adapters/providers/snack/snack_sdk.h"
 
 extern void set_log_level(int type);
-extern void set_remote_port(int port);
 
 void snack_runtime_set_log_level(int type)
 {
     set_log_level(type);
-}
-
-void snack_runtime_set_remote_port(int port)
-{
-    set_remote_port(port);
 }
