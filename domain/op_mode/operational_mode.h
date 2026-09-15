@@ -129,6 +129,13 @@ bool op_mode_is_estop_active(void);
 bool op_mode_is_service_enabled(void);
 
 /**
+ * @brief  设置运营总开关。
+ * @param  enabled  true 营业；false 停业。停业时若当前为 IDLE/WASH_DONE 则落到 STOPPED。
+ * @note   上电默认开启。项目可在 init 阶段用已持久化的停业状态覆盖。
+ */
+void op_mode_set_service_enabled(bool enabled);
+
+/**
  * @brief  是否处于非运营接单态（STOPPED/恢复/中止清障等，或总开关已关）
  * @note   仅限 event_dispatch 线程调用；跨线程请用 device_snapshot_get()
  *         配合 operational_snapshot_is_stopping()。

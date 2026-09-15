@@ -45,8 +45,6 @@ static void op_mode_unlock(void)
     (void)pthread_mutex_unlock(&s_mu);
 }
 
-static void op_mode_set_service_enabled(bool enabled);
-
 static const char *op_mode_name(operational_mode_t mode)
 {
     switch (mode) {
@@ -142,6 +140,18 @@ static void set_mode(operational_mode_t next, const char *cause)
     }
 
     publish_mode_changed(from, next);
+}
+
+/* 写入运营总开关；停业且当前 IDLE/WASH_DONE 时落到 STOPPED */
+static void apply_service_enabled_locked(bool enabled)
+{
+    if (s_service_enabled != enabled) {
+        s_service_enabled = enabled;
+        publish_context_sync();
+    }
+    if (!s_service_enabled && ((s_mode == OP_MODE_IDLE) || (s_mode == OP_MODE_WASH_DONE))) {
+        set_mode(OP_MODE_STOPPED, "service disabled");
+    }
 }
 
 /*
@@ -369,10 +379,7 @@ dev_cmd_decision_t op_mode_handle_command(const dev_cmd_t *cmd)
         break;
 
     case DEV_CMD_SET_SERVICE:
-        op_mode_set_service_enabled(cmd->body.payload.service.enabled);
-        if (!s_service_enabled && ((s_mode == OP_MODE_IDLE) || (s_mode == OP_MODE_WASH_DONE))) {
-            set_mode(OP_MODE_STOPPED, "service disabled");
-        }
+        apply_service_enabled_locked(cmd->body.payload.service.enabled);
         break;
 
     case DEV_CMD_STOP_ALL_OUTPUTS:
@@ -580,12 +587,9 @@ bool op_mode_is_standby(void)
     return standby;
 }
 
-static void op_mode_set_service_enabled(bool enabled)
+void op_mode_set_service_enabled(bool enabled)
 {
-    if (s_service_enabled == enabled) {
-        return;
-    }
-
-    s_service_enabled = enabled;
-    publish_context_sync();
+    op_mode_lock();
+    apply_service_enabled_locked(enabled);
+    op_mode_unlock();
 }
