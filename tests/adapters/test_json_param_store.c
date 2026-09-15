@@ -160,7 +160,7 @@ static void test_get_truncates_long_string(void)
 
 static void test_save_empty_json_object(void)
 {
-    /* load 失败时会创建空对象，save 应写出 "{}" */
+    /* load 失败时会创建空对象，save 应写出带换行的 JSON */
     TEST_ASSERT_EQUAL_INT(SW_ERR_STORAGE, store()->load());
     TEST_ASSERT_EQUAL_INT(SW_OK, store()->save());
 

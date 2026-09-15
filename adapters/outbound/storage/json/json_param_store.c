@@ -114,7 +114,7 @@ static sw_err_t store_save(void)
     }
 
     pthread_mutex_lock(&s_mutex);
-    str = (s_root != NULL) ? cJSON_PrintUnformatted(s_root) : NULL;
+    str = (s_root != NULL) ? cJSON_Print(s_root) : NULL;
     pthread_mutex_unlock(&s_mutex);
 
     if (str == NULL) {
@@ -128,7 +128,7 @@ static sw_err_t store_save(void)
         return SW_ERR_STORAGE;
     }
 
-    fputs(str, fp);
+    (void)fprintf(fp, "%s\n", str);
     fclose(fp);
     free(str);
     LOG_INFO("json_param_store: saved to %s", path);
