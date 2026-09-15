@@ -147,6 +147,15 @@ static void test_get_stats_valid(void)
     TEST_ASSERT_TRUE(stats.online);
 }
 
+static void test_get_stats_output_snapshot(void)
+{
+    hal_io_stats_t stats;
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, hal_io_get_ops()->do_set(k_valid_do, true));
+    TEST_ASSERT_EQUAL_INT(SW_OK, hal_io_get_ops()->get_stats(1, &stats));
+    TEST_ASSERT_EQUAL_UINT32(1U << 1U, stats.last_output_snapshot);
+}
+
 static void test_get_stats_null_returns_err(void)
 {
     TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, hal_io_get_ops()->get_stats(1, NULL));
@@ -299,6 +308,7 @@ int main(void)
     WDF_RUN_TEST(test_flush_outputs_returns_ok, "", "验证刷新输出返回成功");
     WDF_RUN_TEST(test_wait_boards_online_returns_ok, "", "验证等待板卡在线返回成功");
     WDF_RUN_TEST(test_get_stats_valid, "", "验证获取统计有效");
+    WDF_RUN_TEST(test_get_stats_output_snapshot, "", "验证获取统计含输出快照");
     WDF_RUN_TEST(test_get_stats_null_returns_err, "", "验证获取统计空指针返回错误");
 
     WDF_RUN_TEST(test_di_pin_zero_returns_false, "", "验证DI引脚零返回false");

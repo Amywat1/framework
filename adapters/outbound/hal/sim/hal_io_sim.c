@@ -519,6 +519,8 @@ static int sim_adc_ma(int board_id, int port)
 
 static sw_err_t sim_get_stats(int board_id, hal_io_stats_t *out)
 {
+    unsigned pin;
+
     if ((out == NULL) || (board_id <= 0) || (board_id >= (int)SIM_IO_BOARD_MAX)) {
         return SW_ERR_PARAM;
     }
@@ -527,12 +529,19 @@ static sw_err_t sim_get_stats(int board_id, hal_io_stats_t *out)
         return SW_ERR_NOT_INIT;
     }
     sim_mutexes_ready();
-    pthread_mutex_lock(&s_di_mutex);
     memset(out, 0, sizeof(*out));
+    pthread_mutex_lock(&s_di_mutex);
     out->online                = s_di_quality[board_id] == IO_SAMPLE_QUALITY_VALID;
     out->input_refresh_count   = s_di_sequence[board_id];
     out->last_input_refresh_ms = s_di_timestamp_ms[board_id];
     pthread_mutex_unlock(&s_di_mutex);
+    pthread_mutex_lock(&s_do_mutex);
+    for (pin = 1U; pin <= SIM_IO_PIN_COUNT; pin++) {
+        if (s_do_state[board_id][pin]) {
+            out->last_output_snapshot |= (1U << (pin - 1U));
+        }
+    }
+    pthread_mutex_unlock(&s_do_mutex);
     return SW_OK;
 }
 
