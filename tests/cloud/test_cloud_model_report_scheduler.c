@@ -161,6 +161,7 @@ void setUp(void)
     s_recv             = NULL;
     cloud_model_reset_for_test();
     report_scheduler_reset_for_test();
+    cloud_json_set_report_allow(NULL);
 }
 
 void tearDown(void)
@@ -249,6 +250,32 @@ static void test_downlink_reject_publishes_current(void)
     TEST_ASSERT_EQUAL_UINT(1U, s_json_reports);
 }
 
+static bool allow_enabled_only(const char *id)
+{
+    return (id != NULL) && (strcmp(id, "enabled") == 0);
+}
+
+static void test_report_allow_filters_snapshot_and_delta(void)
+{
+    char        buf[128];
+    const char *ids[] = {"counter", "enabled"};
+
+    register_model();
+    cloud_json_set_report_allow(allow_enabled_only);
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, cloud_json_build_properties(buf, sizeof(buf)));
+    TEST_ASSERT_NULL(strstr(buf, "\"counter\""));
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"enabled\":0"));
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, cloud_json_build_properties_all(buf, sizeof(buf)));
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"counter\":7"));
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"enabled\":0"));
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, cloud_json_build_properties_delta(ids, 2U, buf, sizeof(buf)));
+    TEST_ASSERT_NULL(strstr(buf, "\"counter\""));
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"enabled\":0"));
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -257,6 +284,7 @@ int main(void)
     WDF_RUN_TEST(test_report_scheduler_resync_and_dirty_delta, "", "验证重连全量与脏点增量上报");
     WDF_RUN_TEST(test_downlink_echo_publishes_sent_value, "", "验证下行成功后立刻回显下发值");
     WDF_RUN_TEST(test_downlink_reject_publishes_current, "", "验证下行失败立刻上报当前真实值");
+    WDF_RUN_TEST(test_report_allow_filters_snapshot_and_delta, "", "验证属性上行允许函数过滤快照与增量");
 
     return UNITY_END();
 }

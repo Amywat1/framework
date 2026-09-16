@@ -10,6 +10,7 @@
 
 #include "domain/cloud/cloud_point.h"
 
+#include <stdbool.h>
 #include <stddef.h>
 
 #ifdef __cplusplus
@@ -18,6 +19,13 @@ extern "C" {
 
 /** @brief 属性下发处理完毕后的回复回调（由项目提供，可为 NULL 表示不回复） */
 typedef sw_err_t (*cloud_property_reply_fn_t)(const char *request_json, const point_apply_result_t *result);
+
+/**
+ * @brief  属性上行允许函数
+ * @param  id 点位标识，不为 NULL
+ * @return true 表示该点可进入属性 JSON
+ */
+typedef bool (*cloud_report_allow_fn_t)(const char *id);
 
 /**
  * @brief  安装属性下行：注册 COMMAND 提交回调，并把链路 recv 接到 JSON 分派
@@ -30,15 +38,31 @@ typedef sw_err_t (*cloud_property_reply_fn_t)(const char *request_json, const po
 sw_err_t cloud_json_install(cloud_device_cmd_submit_fn_t submit, cloud_property_reply_fn_t reply);
 
 /**
- * @brief  构建全量属性 JSON
- * @retval SW_OK           构建成功
+ * @brief  设置属性上行允许函数
+ * @param  fn 返回 true 表示该点可进入属性 JSON；NULL 表示不过滤
+ * @note   仅作用于 `cloud_json_build_properties()` 与
+ *         `cloud_json_build_properties_delta()`。下行回显与
+ *         `cloud_json_build_properties_all()` 不受影响。
+ */
+void cloud_json_set_report_allow(cloud_report_allow_fn_t fn);
+
+/**
+ * @brief  构建属性快照 JSON（受允许函数过滤）
+ * @retval SW_OK           构建成功；无合格点时写入 `{}`
  * @retval SW_ERR_NOT_INIT 物模型尚未注册
  */
 sw_err_t cloud_json_build_properties(char *buf, size_t buf_size);
 
 /**
- * @brief  构建指定 id 列表的增量属性 JSON
+ * @brief  构建全量属性 JSON，忽略上报白名单
  * @retval SW_OK           构建成功
+ * @retval SW_ERR_NOT_INIT 物模型尚未注册
+ */
+sw_err_t cloud_json_build_properties_all(char *buf, size_t buf_size);
+
+/**
+ * @brief  构建指定 id 列表的增量属性 JSON（受允许函数过滤）
+ * @retval SW_OK           构建成功；过滤后为空时写入 `{}`
  * @retval SW_ERR_NOT_INIT 物模型尚未注册
  */
 sw_err_t cloud_json_build_properties_delta(const char *const *ids, size_t count, char *buf, size_t buf_size);

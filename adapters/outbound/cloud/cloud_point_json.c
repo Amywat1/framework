@@ -62,23 +62,32 @@ static sw_err_t write_empty_object(char *buf, size_t buf_size)
 
 sw_err_t cloud_point_to_json(const cloud_point_entry_t *entries, size_t count, char *buf, size_t buf_size)
 {
-    point_table_entry_t table[CLOUD_POINT_TABLE_MAX];
-    size_t              n = 0U;
-    sw_err_t            ret;
+    point_table_entry_t *table;
+    size_t               n = 0U;
+    sw_err_t             ret;
 
     if ((entries == NULL) || (count == 0U) || (buf == NULL) || (buf_size == 0U)) {
         return SW_ERR_PARAM;
     }
 
+    table = malloc(sizeof(*table) * CLOUD_POINT_TABLE_MAX);
+    if (table == NULL) {
+        return SW_ERR_NOMEM;
+    }
+
     ret = collect_snapshot_bases(entries, count, table, CLOUD_POINT_TABLE_MAX, &n);
     if (ret != SW_OK) {
+        free(table);
         return ret;
     }
     if (n == 0U) {
+        free(table);
         return write_empty_object(buf, buf_size);
     }
 
-    return point_table_to_json_ex(table, n, buf, buf_size, POINT_GET_FAIL_OMIT, NULL);
+    ret = point_table_to_json_ex(table, n, buf, buf_size, POINT_GET_FAIL_OMIT, NULL);
+    free(table);
+    return ret;
 }
 
 sw_err_t cloud_point_to_json_filtered(const cloud_point_entry_t *entries,
@@ -88,23 +97,32 @@ sw_err_t cloud_point_to_json_filtered(const cloud_point_entry_t *entries,
                                       char                      *buf,
                                       size_t                     buf_size)
 {
-    point_table_entry_t table[CLOUD_POINT_TABLE_MAX];
-    size_t              n = 0U;
-    sw_err_t            ret;
+    point_table_entry_t *table;
+    size_t               n = 0U;
+    sw_err_t             ret;
 
     if ((entries == NULL) || (count == 0U) || (ids == NULL) || (id_count == 0U)) {
         return SW_ERR_PARAM;
     }
 
+    table = malloc(sizeof(*table) * CLOUD_POINT_TABLE_MAX);
+    if (table == NULL) {
+        return SW_ERR_NOMEM;
+    }
+
     ret = collect_snapshot_bases(entries, count, table, CLOUD_POINT_TABLE_MAX, &n);
     if (ret != SW_OK) {
+        free(table);
         return ret;
     }
     if (n == 0U) {
+        free(table);
         return SW_ERR_PARAM;
     }
 
-    return point_table_to_json_filtered(table, n, ids, id_count, buf, buf_size);
+    ret = point_table_to_json_filtered(table, n, ids, id_count, buf, buf_size);
+    free(table);
+    return ret;
 }
 
 static const cloud_point_entry_t *find_cloud_entry(const cloud_point_entry_t *entries, size_t count, const char *id)

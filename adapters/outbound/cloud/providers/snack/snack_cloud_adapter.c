@@ -32,6 +32,7 @@ static char s_device_secret[SNACK_CLOUD_CRED_MAX] = "";
 static char s_iot_instance[SNACK_CLOUD_CRED_MAX]  = "";
 static char s_topic_up[SNACK_CLOUD_TOPIC_MAX]     = "";
 static char s_topic_reply[SNACK_CLOUD_TOPIC_MAX]  = "";
+static char s_report_json[CLOUD_REPORT_JSON_MAX];
 
 static bool link_is_online(void)
 {
@@ -126,39 +127,40 @@ static sw_err_t send_json(const char *json)
     if (s_topic_up[0] == '\0') {
         return SW_ERR_PARAM;
     }
+    if ((json == NULL) || (json[0] == '\0') || (strcmp(json, "{}") == 0)) {
+        return SW_OK;
+    }
     return link_publish(s_topic_up, json);
 }
 
 static sw_err_t adapter_publish_properties(void)
 {
-    char     buf[CLOUD_REPORT_JSON_MAX];
     sw_err_t ret;
 
-    ret = cloud_json_build_properties(buf, sizeof(buf));
+    ret = cloud_json_build_properties(s_report_json, sizeof(s_report_json));
     if (ret != SW_OK) {
         LOG_ERROR("snack_cloud: properties build failed");
         return ret;
     }
 
-    return send_json(buf);
+    return send_json(s_report_json);
 }
 
 static sw_err_t adapter_publish_properties_delta(const char *const *ids, size_t count)
 {
-    char     buf[CLOUD_REPORT_JSON_MAX];
     sw_err_t ret;
 
     if ((ids == NULL) || (count == 0U)) {
         return SW_ERR_PARAM;
     }
 
-    ret = cloud_json_build_properties_delta(ids, count, buf, sizeof(buf));
+    ret = cloud_json_build_properties_delta(ids, count, s_report_json, sizeof(s_report_json));
     if (ret != SW_OK) {
         LOG_ERROR("snack_cloud: delta build failed");
         return ret;
     }
 
-    return send_json(buf);
+    return send_json(s_report_json);
 }
 
 static sw_err_t adapter_publish_properties_json(const char *json)
