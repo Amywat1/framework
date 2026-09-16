@@ -4,7 +4,7 @@
  * @author  HUWANGWEI
  * @date    2026-08-04
  *
- * @note    上行把可读点位序列化为属性 JSON，下行解析属性载荷后逐个交给
+ * @note    上行把快照策略点位序列化为属性 JSON，下行解析属性载荷后逐个交给
  *          `cloud_point_apply_value()` 按语义分派。语义规则本身在
  *          `domain/cloud/cloud_point_dispatch.c`，不在此处。
  */
@@ -21,7 +21,7 @@ extern "C" {
 #endif
 
 /**
- * @brief  将全部可读点位序列化为属性 JSON
+ * @brief  将快照策略点位序列化为属性 JSON（不含 REPORT_NONE）
  * @retval SW_OK           成功
  * @retval SW_ERR_PARAM    入参非法
  * @retval SW_ERR_OVERFLOW 点位数超出 CLOUD_POINT_TABLE_MAX
@@ -37,6 +37,21 @@ sw_err_t cloud_point_to_json_filtered(const cloud_point_entry_t *entries,
                                       size_t                     id_count,
                                       char                      *buf,
                                       size_t                     buf_size);
+
+/**
+ * @brief  下行后一次组两包：成功回显下发值 / 失败报当前值；已应用脉冲另组空闲 0
+ * @retval SW_OK        成功，无合格点时对应缓冲为 `{}`
+ * @retval SW_ERR_PARAM 入参非法或请求 JSON 无法解析
+ */
+sw_err_t cloud_point_to_json_downlink(const cloud_point_entry_t *entries,
+                                      size_t                     count,
+                                      const char                *request_json,
+                                      const char *const         *applied_ids,
+                                      size_t                     applied_count,
+                                      char                      *echo_buf,
+                                      size_t                     echo_size,
+                                      char                      *idle_buf,
+                                      size_t                     idle_size);
 
 /**
  * @brief  解析属性下发 JSON 并逐 key 按语义分派

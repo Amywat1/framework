@@ -312,7 +312,7 @@ periodic_task_thread_fn(slot)
 | `motor_tick` | `mechanism_bridge_register_tasks()` | 周期任务（10ms） | `motor_executor_tick` + 已登记轴 `motor_axis_poll` + post-tick |
 | `fluid_path_poll` | `mechanism_bridge_register_tasks()` | 周期任务（100ms） | `fluid_path_poll(now_ms)` |
 | 会话 worker | `engine_session_bind()`，名称与栈由调用方配置传入 | 线程 | 驱动方案引擎 tick |
-| `cloud_report` | `report_scheduler_start()` | 周期任务 | 云端链路 poll、watcher poll、脏点增量与重连/周期全量上报 |
+| `cloud_report` | `report_scheduler_start()` | 周期任务 | 云端链路 poll、watcher poll、脏点增量与重连快照 |
 | `hal_sensor_poll` | `hal_sensor_poll_register_task()` | 周期任务 | DI 滤波推进 |
 | `vfd_pulse_poll` | `hal_vfd_manager_poll_register_task()` | 周期任务（20ms） | VFD RST 脉冲推进，不发 Modbus |
 | `vfd_monitor_poll` | `hal_vfd_manager_poll_register_task()` | 周期任务（20ms） | VFD 通道监测，每拍最多一笔总线 |

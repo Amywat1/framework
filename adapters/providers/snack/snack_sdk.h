@@ -47,7 +47,9 @@ extern int aliyun_mqtt_init(char *product_key, char *device_name, char *device_s
 extern int mqtt_is_online(void);
 
 /**
- * @brief  向指定 Topic 发布消息
+ * @brief  向指定 Topic 发布完整 MQTT 载荷
+ * @param  topic 目标 Topic
+ * @param  msg   JSON 载荷，按原样发送，不受 1K 可变参重载截断
  * @return 0 成功，非 0 失败
  */
 extern int net_mqtt_send(char *topic, char *msg);

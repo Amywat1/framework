@@ -33,6 +33,8 @@ extern "C" {
 
 /** 点位 id 最大长度（用于结果记录） */
 #define POINT_ID_MAX 32U
+/** 一次属性下发可记录的成功 id 上限 */
+#define POINT_APPLY_IDS_MAX 32U
 
 /** 点位数据类型 */
 typedef enum {
@@ -61,12 +63,14 @@ typedef enum {
  * @brief  JSON 应用/序列化结果汇总
  */
 typedef struct {
-    size_t   total_keys;
-    size_t   applied;
-    size_t   rejected;
-    size_t   skipped_get;
-    sw_err_t first_error;
-    char     first_error_id[POINT_ID_MAX];
+    size_t      total_keys;
+    size_t      applied;
+    size_t      rejected;
+    size_t      skipped_get;
+    sw_err_t    first_error;
+    char        first_error_id[POINT_ID_MAX];
+    size_t      applied_id_count;                 /**< 成功应用的 id 数（截断到 POINT_APPLY_IDS_MAX） */
+    const char *applied_ids[POINT_APPLY_IDS_MAX]; /**< 指向点位表内静态 id */
 } point_apply_result_t;
 
 /**

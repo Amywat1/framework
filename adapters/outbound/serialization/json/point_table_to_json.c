@@ -34,7 +34,8 @@ static void append_typed_value(cJSON *root, const point_table_entry_t *entry, co
 {
     switch (entry->type) {
     case POINT_TYPE_BOOL:
-        cJSON_AddBoolToObject(root, entry->id, val->b);
+        /* 阿里云 TSL bool 必须是数字 0/1；cJSON 只接受 double，打印整数值时仍为 1/0 */
+        cJSON_AddNumberToObject(root, entry->id, val->b ? 1.0 : 0.0);
         break;
     case POINT_TYPE_INT:
         cJSON_AddNumberToObject(root, entry->id, (double)val->i);

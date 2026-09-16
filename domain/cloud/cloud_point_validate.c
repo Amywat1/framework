@@ -28,13 +28,23 @@ static sw_err_t validate_one(const cloud_point_entry_t *entry)
         return SW_ERR_PARAM;
     }
 
-    if (entry->on_change) {
+    if ((entry->report == CLOUD_REPORT_ON_CHANGE) || (entry->report == CLOUD_REPORT_RESYNC)) {
         if (entry->base.get == NULL) {
-            LOG_ERROR("cloud_point_validate: on_change id=%s missing get", entry->base.id);
+            LOG_ERROR("cloud_point_validate: report id=%s missing get", entry->base.id);
             return SW_ERR_PARAM;
         }
+    }
+
+    if (entry->report == CLOUD_REPORT_ON_CHANGE) {
         if (entry->base.type == POINT_TYPE_FLOAT) {
-            LOG_ERROR("cloud_point_validate: on_change id=%s forbids FLOAT", entry->base.id);
+            LOG_ERROR("cloud_point_validate: ON_CHANGE id=%s forbids FLOAT", entry->base.id);
+            return SW_ERR_PARAM;
+        }
+    }
+
+    if (entry->deadband != 0U) {
+        if ((entry->report != CLOUD_REPORT_ON_CHANGE) || (entry->base.type != POINT_TYPE_INT)) {
+            LOG_ERROR("cloud_point_validate: deadband id=%s only for ON_CHANGE INT", entry->base.id);
             return SW_ERR_PARAM;
         }
     }
@@ -62,6 +72,10 @@ static sw_err_t validate_one(const cloud_point_entry_t *entry)
         }
         if (entry->cmd_kind == DEV_CMD_NONE) {
             LOG_ERROR("cloud_point_validate: command id=%s missing cmd_kind", entry->base.id);
+            return SW_ERR_PARAM;
+        }
+        if (entry->report != CLOUD_REPORT_RESYNC) {
+            LOG_ERROR("cloud_point_validate: command id=%s must be RESYNC", entry->base.id);
             return SW_ERR_PARAM;
         }
         break;

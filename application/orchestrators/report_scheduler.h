@@ -17,20 +17,19 @@ extern "C" {
 #include <stdint.h>
 
 /**
- * @brief  启动云端上报：单一周期任务，同时 poll 链路、watcher 与上报。
+ * @brief  启动云端上报：单一周期任务，同时 poll 链路、watcher 与脏点增量。
  *
- * @param  poll_ms        poll 周期，必须大于 0。
- * @param  full_period_ms 全量上报周期；0 表示只在重连时全量。
+ * @param  poll_ms poll 周期，必须大于 0。
  * @retval SW_OK 启动成功；已启动时再次调用也返回 SW_OK。
- * @retval SW_ERR_PARAM 周期非法，或 full_period_ms 非 0 且不是 poll_ms 的整数倍。
+ * @retval SW_ERR_PARAM poll_ms 为 0。
  * @retval SW_ERR_NOT_INIT 物模型尚未注册。
  * @note   后台线程由 scheduler 统一启动。本函数会初始化 watcher 并订阅
- *         EVT_CLOUD_CONNECTED 做全量重同步。
+ *         EVT_CLOUD_CONNECTED 做快照重同步。无周期全量上报。
  */
-sw_err_t report_scheduler_start(uint32_t poll_ms, uint32_t full_period_ms);
+sw_err_t report_scheduler_start(uint32_t poll_ms);
 
 /**
- * @brief  执行一拍 poll / 脏点增量 / 到期全量（周期任务回调与单测共用）
+ * @brief  执行一拍 poll / 脏点增量（周期任务回调与单测共用）
  */
 void report_scheduler_poll(void);
 

@@ -41,6 +41,7 @@ sw_err_t point_table_parse_cjson_value(point_type_t type, const struct cJSON *it
 
 /**
  * @brief  遍历点表，将所有 get!=NULL 的点位序列化为 JSON
+ * @note   bool 点位编码为整数 0/1（阿里云 TSL 不接受 true/false）；下行解析仍同时接受两者。
  */
 sw_err_t point_table_to_json(const point_table_entry_t *entries, size_t count, char *buf, size_t buf_size);
 

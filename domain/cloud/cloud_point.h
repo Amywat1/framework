@@ -13,6 +13,7 @@
 
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdint.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -34,16 +35,61 @@ typedef enum {
     CLOUD_KIND_WRITE,         /**< 写入，必须有 set */
 } cloud_point_kind_t;
 
+/**
+ * @brief  上行策略
+ *
+ * NONE 永不进入属性 JSON；RESYNC 仅全量快照；ON_CHANGE 进 watcher，快照也带当前值。
+ */
+typedef enum {
+    CLOUD_REPORT_NONE = 0,
+    CLOUD_REPORT_RESYNC,
+    CLOUD_REPORT_ON_CHANGE,
+} cloud_report_policy_t;
+
 /** 云端物模型点位条目（编解码复用 base） */
 typedef struct {
-    point_table_entry_t base;
-    cloud_point_kind_t  kind;
-    bool                on_change; /**< 为真时纳入 watcher 脏检测；必须有 get，禁止 FLOAT */
-    dev_cmd_kind_t      cmd_kind;  /**< 仅 COMMAND 使用 */
+    point_table_entry_t     base;
+    cloud_point_kind_t      kind;
+    cloud_report_policy_t   report;   /**< 上行策略 */
+    uint32_t                deadband; /**< 仅 ON_CHANGE 的 INT：|Δ| < deadband 不置脏；0 表示精确相等 */
+    dev_cmd_kind_t          cmd_kind; /**< 仅 COMMAND 使用 */
 } cloud_point_entry_t;
+
+/**
+ * @brief  点位是否纳入变更 watcher
+ */
+static inline bool cloud_point_watch_enabled(const cloud_point_entry_t *entry)
+{
+    return (entry != NULL) && (entry->report == CLOUD_REPORT_ON_CHANGE) && (entry->base.get != NULL);
+}
+
+/**
+ * @brief  点位是否进入全量快照
+ */
+static inline bool cloud_point_snapshot_enabled(const cloud_point_entry_t *entry)
+{
+    if ((entry == NULL) || (entry->base.get == NULL)) {
+        return false;
+    }
+    return (entry->report == CLOUD_REPORT_ON_CHANGE) || (entry->report == CLOUD_REPORT_RESYNC);
+}
 
 /** @brief 脉冲命令回显空闲态（恒定 false） */
 sw_err_t cloud_point_get_echo_idle(point_value_t *out);
+
+/**
+ * @brief  是否为无保持态的脉冲点（成功回显 1 后须再报 0）
+ */
+static inline bool cloud_point_is_pulse(const cloud_point_entry_t *entry)
+{
+    if (entry == NULL) {
+        return false;
+    }
+    if (entry->kind == CLOUD_KIND_COMMAND) {
+        return true;
+    }
+    return (entry->kind == CLOUD_KIND_WRITE) && (entry->base.get == cloud_point_get_echo_idle);
+}
 
 /** @brief  COMMAND 语义提交回调（由项目 wiring 注册） */
 typedef sw_err_t (*cloud_device_cmd_submit_fn_t)(dev_cmd_kind_t kind);

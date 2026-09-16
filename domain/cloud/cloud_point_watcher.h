@@ -1,6 +1,6 @@
 /**
  * @file    cloud_point_watcher.h
- * @brief   云端物模型 on_change 点位变更检测
+ * @brief   云端物模型 ON_CHANGE 点位变更检测
  * @author  HUWANGWEI
  * @date    2026-07-08
  *
@@ -20,7 +20,7 @@ extern "C" {
 #endif
 
 /**
- * @brief  初始化变更检测（对每个 on_change 可读点位建立 shadow，不置脏）
+ * @brief  初始化变更检测（对每个 ON_CHANGE 可读点位建立 shadow，不置脏）
  */
 sw_err_t cloud_point_watcher_init(const cloud_point_entry_t *entries, size_t count);
 
@@ -41,6 +41,11 @@ size_t cloud_point_watcher_take_dirty(const char **ids, size_t cap);
  * @brief  把取出但上报失败的 id 重新置脏
  */
 void cloud_point_watcher_restore_dirty(const char *const *ids, size_t count);
+
+/**
+ * @brief  用当前 get 值刷新 shadow 并清脏（下行回显成功后避免下一拍重复增量）
+ */
+void cloud_point_watcher_sync_ids(const char *const *ids, size_t count);
 
 /**
  * @brief  清空 watcher 状态（仅供单元测试）

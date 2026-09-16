@@ -83,7 +83,7 @@ static void test_to_json_serializes_readable_points(void)
     ret = point_table_to_json(k_table, sizeof(k_table) / sizeof(k_table[0]), buf, sizeof(buf));
     TEST_ASSERT_EQUAL_INT(SW_OK, ret);
     TEST_ASSERT_NOT_NULL(strstr(buf, "\"speed\":10"));
-    TEST_ASSERT_NOT_NULL(strstr(buf, "\"enabled\":true"));
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"enabled\":1"));
     TEST_ASSERT_NOT_NULL(strstr(buf, "\"name\":\"demo\""));
 }
 

@@ -161,6 +161,14 @@ static sw_err_t adapter_publish_properties_delta(const char *const *ids, size_t 
     return send_json(buf);
 }
 
+static sw_err_t adapter_publish_properties_json(const char *json)
+{
+    if ((json == NULL) || (json[0] == '\0')) {
+        return SW_ERR_PARAM;
+    }
+    return send_json(json);
+}
+
 sw_err_t snack_cloud_property_reply(const char *request_json, const point_apply_result_t *result)
 {
     char   buf[REPLY_JSON_BUF_SIZE];
@@ -195,6 +203,7 @@ static const cloud_link_ops_t s_ops = {
     .publish                  = link_publish,
     .publish_properties       = adapter_publish_properties,
     .publish_properties_delta = adapter_publish_properties_delta,
+    .publish_properties_json  = adapter_publish_properties_json,
     .set_recv_handler         = link_set_recv_handler,
 };
 

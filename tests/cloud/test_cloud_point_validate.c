@@ -129,7 +129,35 @@ static void test_on_change_float_rejected(void)
     cloud_point_entry_t entry = make_telemetry("flow");
 
     entry.base.type = POINT_TYPE_FLOAT;
-    entry.on_change = true;
+    entry.report    = CLOUD_REPORT_ON_CHANGE;
+    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, cloud_point_validate(&entry, 1U));
+}
+
+static void test_deadband_requires_on_change_int(void)
+{
+    cloud_point_entry_t entry = make_telemetry("height");
+
+    entry.deadband = 10U;
+    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, cloud_point_validate(&entry, 1U));
+
+    entry.report = CLOUD_REPORT_ON_CHANGE;
+    TEST_ASSERT_EQUAL_INT(SW_OK, cloud_point_validate(&entry, 1U));
+}
+
+static void test_command_report_must_be_resync(void)
+{
+    cloud_point_entry_t entry;
+
+    memset(&entry, 0, sizeof(entry));
+    entry.base.id   = "stopWash";
+    entry.base.type = POINT_TYPE_BOOL;
+    entry.base.get  = echo_idle;
+    entry.kind      = CLOUD_KIND_COMMAND;
+    entry.cmd_kind  = DEV_CMD_STOP_WASH;
+    entry.report    = CLOUD_REPORT_ON_CHANGE;
+    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, cloud_point_validate(&entry, 1U));
+
+    entry.report = CLOUD_REPORT_NONE;
     TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, cloud_point_validate(&entry, 1U));
 }
 
@@ -144,6 +172,7 @@ static void test_valid_command_and_write(void)
     stop_cmd.base.get  = echo_idle;
     stop_cmd.kind      = CLOUD_KIND_COMMAND;
     stop_cmd.cmd_kind  = DEV_CMD_STOP_WASH;
+    stop_cmd.report    = CLOUD_REPORT_RESYNC;
 
     memset(&write_act, 0, sizeof(write_act));
     write_act.base.id   = "manualBrush";
@@ -166,7 +195,9 @@ int main(void)
     WDF_RUN_TEST(test_command_missing_cmd_kind_rejected, "", "验证命令缺失命令类型被拒绝");
     WDF_RUN_TEST(test_command_non_bool_rejected, "", "验证非 bool 命令被拒绝");
     WDF_RUN_TEST(test_write_missing_set_rejected, "", "验证写入点位缺失 set 被拒绝");
-    WDF_RUN_TEST(test_on_change_float_rejected, "", "验证 on_change 的 FLOAT 点位被拒绝");
+    WDF_RUN_TEST(test_on_change_float_rejected, "", "验证 ON_CHANGE 的 FLOAT 点位被拒绝");
+    WDF_RUN_TEST(test_deadband_requires_on_change_int, "", "验证死区仅允许 ON_CHANGE 的 INT");
+    WDF_RUN_TEST(test_command_report_must_be_resync, "", "验证命令点位必须是 RESYNC");
     WDF_RUN_TEST(test_valid_command_and_write, "", "验证命令和写入模型配置有效");
 
     return UNITY_END();

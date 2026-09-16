@@ -1,6 +1,6 @@
 /**
  * @file    test_cloud_point_watcher.c
- * @brief   cloud_point_watcher on_change 变更检测单元测试
+ * @brief   cloud_point_watcher 变更检测与死区单元测试
  */
 
 #include "common/sw_error.h"
@@ -27,7 +27,7 @@ static cloud_point_entry_t make_on_change_entry(void)
     entry.base.type = POINT_TYPE_INT;
     entry.base.get  = get_value;
     entry.kind      = CLOUD_KIND_TELEMETRY;
-    entry.on_change = true;
+    entry.report    = CLOUD_REPORT_ON_CHANGE;
     return entry;
 }
 
@@ -67,6 +67,37 @@ static void test_poll_after_change_marks_dirty(void)
     TEST_ASSERT_EQUAL_UINT(0U, cloud_point_watcher_take_dirty(ids, 4U));
 }
 
+static cloud_point_entry_t make_deadband_entry(uint32_t deadband)
+{
+    cloud_point_entry_t entry = make_on_change_entry();
+
+    entry.deadband = deadband;
+    return entry;
+}
+
+static void test_deadband_within_band_not_dirty(void)
+{
+    const cloud_point_entry_t entries[] = {make_deadband_entry(10U)};
+    const char               *ids[4];
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, cloud_point_watcher_init(entries, 1U));
+    s_value = 19;
+    cloud_point_watcher_poll();
+    TEST_ASSERT_EQUAL_UINT(0U, cloud_point_watcher_take_dirty(ids, 4U));
+}
+
+static void test_deadband_at_threshold_marks_dirty(void)
+{
+    const cloud_point_entry_t entries[] = {make_deadband_entry(10U)};
+    const char               *ids[4];
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, cloud_point_watcher_init(entries, 1U));
+    s_value = 20;
+    cloud_point_watcher_poll();
+    TEST_ASSERT_EQUAL_UINT(1U, cloud_point_watcher_take_dirty(ids, 4U));
+    TEST_ASSERT_EQUAL_STRING("speed", ids[0]);
+}
+
 static void test_restore_dirty_keeps_id(void)
 {
     const cloud_point_entry_t entries[] = {make_on_change_entry()};
@@ -84,6 +115,46 @@ static void test_restore_dirty_keeps_id(void)
     TEST_ASSERT_EQUAL_STRING("speed", ids[0]);
 }
 
+static cloud_point_entry_t make_policy_entry(const char *id, cloud_report_policy_t report)
+{
+    cloud_point_entry_t entry = make_on_change_entry();
+
+    entry.base.id = id;
+    entry.report  = report;
+    return entry;
+}
+
+static void test_only_on_change_marks_dirty(void)
+{
+    const cloud_point_entry_t entries[] = {
+        make_policy_entry("speed", CLOUD_REPORT_ON_CHANGE),
+        make_policy_entry("ver", CLOUD_REPORT_RESYNC),
+        make_policy_entry("hidden", CLOUD_REPORT_NONE),
+    };
+    const char *ids[4];
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, cloud_point_watcher_init(entries, 3U));
+    s_value = 20;
+    cloud_point_watcher_poll();
+    TEST_ASSERT_EQUAL_UINT(1U, cloud_point_watcher_take_dirty(ids, 4U));
+    TEST_ASSERT_EQUAL_STRING("speed", ids[0]);
+}
+
+static void test_sync_ids_clears_dirty(void)
+{
+    const cloud_point_entry_t entries[] = {make_on_change_entry()};
+    const char               *ids[4];
+    const char               *sync[1] = {"speed"};
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, cloud_point_watcher_init(entries, 1U));
+    s_value = 20;
+    cloud_point_watcher_poll();
+    cloud_point_watcher_sync_ids(sync, 1U);
+    TEST_ASSERT_EQUAL_UINT(0U, cloud_point_watcher_take_dirty(ids, 4U));
+    cloud_point_watcher_poll();
+    TEST_ASSERT_EQUAL_UINT(0U, cloud_point_watcher_take_dirty(ids, 4U));
+}
+
 static void test_init_rejects_invalid_args(void)
 {
     const cloud_point_entry_t entries[] = {make_on_change_entry()};
@@ -98,6 +169,10 @@ int main(void)
 
     WDF_RUN_TEST(test_poll_without_change_no_dirty, "", "验证点位无变化时轮询不置脏");
     WDF_RUN_TEST(test_poll_after_change_marks_dirty, "", "验证点位变化后轮询置脏");
+    WDF_RUN_TEST(test_deadband_within_band_not_dirty, "", "验证死区内变化不置脏");
+    WDF_RUN_TEST(test_deadband_at_threshold_marks_dirty, "", "验证达到死区阈值时置脏");
+    WDF_RUN_TEST(test_only_on_change_marks_dirty, "", "验证仅 ON_CHANGE 点位置脏");
+    WDF_RUN_TEST(test_sync_ids_clears_dirty, "", "验证回显后同步 shadow 不再置脏");
     WDF_RUN_TEST(test_restore_dirty_keeps_id, "", "验证上报失败后可恢复脏标记");
     WDF_RUN_TEST(test_init_rejects_invalid_args, "", "验证初始化拒绝无效参数");
 

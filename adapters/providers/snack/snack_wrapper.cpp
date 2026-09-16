@@ -137,12 +137,19 @@ int mqtt_is_online(void)
     return 0;
 }
 
+/** 属性上报使用 QoS 1，避免增量在 QoS 0 下丢失 */
+static const int SNACK_MQTT_PUBLISH_QOS = 1;
+
 int net_mqtt_send(char *topic, char *msg)
 {
     if (s_mqtt_client == NULL || topic == NULL || msg == NULL) {
         return -1;
     }
-    return s_mqtt_client->publish(topic, msg);
+    /* 必须走 publish(topic, string, qos)。
+     * publish(topic, const char*, ...) 限长 1K，且把 payload 当格式化串；
+     * 全量属性 JSON 超过 1K 会被截断，阿里云报 payload must be json format。
+     * QoS 1 保证变更增量至少一次投递。 */
+    return s_mqtt_client->publish(topic, std::string(msg), SNACK_MQTT_PUBLISH_QOS);
 }
 
 void mqtt_recv_handler_set(mqtt_recv_handler_t cb)

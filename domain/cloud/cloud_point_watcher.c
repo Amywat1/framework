@@ -1,12 +1,13 @@
 /**
  * @file    cloud_point_watcher.c
- * @brief   云端物模型 on_change 点位变更检测实现
+ * @brief   云端物模型 ON_CHANGE 点位变更检测实现
  * @author  HUWANGWEI
  * @date    2026-07-08
  */
 
 #include "domain/cloud/cloud_point_watcher.h"
 
+#include <stdint.h>
 #include <string.h>
 
 typedef struct {
@@ -22,7 +23,7 @@ static bool                       s_dirty[CLOUD_POINT_TABLE_MAX];
 
 static bool is_watched_entry(const cloud_point_entry_t *entry)
 {
-    return entry->on_change && (entry->base.get != NULL);
+    return cloud_point_watch_enabled(entry);
 }
 
 static bool value_equal(point_type_t type, const point_value_t *a, const point_value_t *b)
@@ -39,6 +40,21 @@ static bool value_equal(point_type_t type, const point_value_t *a, const point_v
     default:
         return false;
     }
+}
+
+static bool value_unchanged(const cloud_point_entry_t *entry, const point_value_t *shadow, const point_value_t *now)
+{
+    uint32_t adiff;
+
+    if ((entry->base.type == POINT_TYPE_INT) && (entry->deadband > 0U)) {
+        if (now->i >= shadow->i) {
+            adiff = (uint32_t)(now->i - shadow->i);
+        } else {
+            adiff = (uint32_t)(shadow->i - now->i);
+        }
+        return adiff < entry->deadband;
+    }
+    return value_equal(entry->base.type, shadow, now);
 }
 
 void cloud_point_watcher_reset_for_test(void)
@@ -107,7 +123,7 @@ void cloud_point_watcher_poll(void)
             continue;
         }
 
-        if (!value_equal(entry->base.type, &s_shadow[i].value, &now)) {
+        if (!value_unchanged(entry, &s_shadow[i].value, &now)) {
             s_shadow[i].value = now;
             s_dirty[i]        = true;
         }
@@ -152,6 +168,40 @@ void cloud_point_watcher_restore_dirty(const char *const *ids, size_t count)
                 s_dirty[j] = true;
                 break;
             }
+        }
+    }
+}
+
+void cloud_point_watcher_sync_ids(const char *const *ids, size_t count)
+{
+    size_t i;
+    size_t j;
+
+    if ((ids == NULL) || (s_entries == NULL)) {
+        return;
+    }
+
+    for (i = 0U; i < count; i++) {
+        if (ids[i] == NULL) {
+            continue;
+        }
+        for (j = 0U; j < s_entry_count; j++) {
+            point_value_t now;
+
+            if ((s_entries[j].base.id == NULL) || (strcmp(s_entries[j].base.id, ids[i]) != 0)) {
+                continue;
+            }
+            if (!is_watched_entry(&s_entries[j])) {
+                break;
+            }
+            if (s_entries[j].base.get(&now) != SW_OK) {
+                break;
+            }
+            s_shadow[j].valid = true;
+            s_shadow[j].type  = s_entries[j].base.type;
+            s_shadow[j].value = now;
+            s_dirty[j]        = false;
+            break;
         }
     }
 }

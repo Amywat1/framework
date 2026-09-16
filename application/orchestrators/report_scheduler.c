@@ -20,10 +20,7 @@
 #include <sched.h>
 #include <stdbool.h>
 
-static uint32_t s_poll_ms        = 0U;
-static uint32_t s_full_period_ms = 0U;
-static uint32_t s_elapsed_ms     = 0U;
-static bool     s_started        = false;
+static bool s_started = false;
 
 static bool cloud_is_online(void)
 {
@@ -89,16 +86,6 @@ void report_scheduler_poll(void)
     link_poll_if_needed();
     cloud_point_watcher_poll();
     report_dirty_batch();
-
-    if (s_full_period_ms == 0U) {
-        return;
-    }
-
-    s_elapsed_ms += s_poll_ms;
-    if (s_elapsed_ms >= s_full_period_ms) {
-        s_elapsed_ms = 0U;
-        report_properties_once();
-    }
 }
 
 static void periodic_cb(void *ctx)
@@ -116,13 +103,10 @@ static void on_cloud_connected(const event_t *evt)
 
 void report_scheduler_reset_for_test(void)
 {
-    s_poll_ms        = 0U;
-    s_full_period_ms = 0U;
-    s_elapsed_ms     = 0U;
-    s_started        = false;
+    s_started = false;
 }
 
-sw_err_t report_scheduler_start(uint32_t poll_ms, uint32_t full_period_ms)
+sw_err_t report_scheduler_start(uint32_t poll_ms)
 {
     size_t                     count   = 0U;
     const cloud_point_entry_t *entries = cloud_model_entries(&count);
@@ -133,10 +117,6 @@ sw_err_t report_scheduler_start(uint32_t poll_ms, uint32_t full_period_ms)
     }
 
     if (poll_ms == 0U) {
-        return SW_ERR_PARAM;
-    }
-    if ((full_period_ms != 0U) && ((full_period_ms % poll_ms) != 0U)) {
-        LOG_ERROR("report_scheduler: full_period_ms 必须是 poll_ms 的整数倍");
         return SW_ERR_PARAM;
     }
     if ((entries == NULL) || (count == 0U)) {
@@ -158,10 +138,7 @@ sw_err_t report_scheduler_start(uint32_t poll_ms, uint32_t full_period_ms)
         return ret;
     }
 
-    s_poll_ms        = poll_ms;
-    s_full_period_ms = full_period_ms;
-    s_elapsed_ms     = 0U;
-    s_started        = true;
-    LOG_INFO("report_scheduler: started poll=%ums full=%ums", (unsigned)poll_ms, (unsigned)full_period_ms);
+    s_started = true;
+    LOG_INFO("report_scheduler: started poll=%ums", (unsigned)poll_ms);
     return SW_OK;
 }

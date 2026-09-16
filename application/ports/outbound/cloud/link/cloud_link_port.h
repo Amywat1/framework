@@ -58,6 +58,11 @@ typedef struct {
     sw_err_t (*publish_properties_delta)(const char *const *ids, size_t count);
 
     /**
+     * @brief  发布已组好的属性 JSON（下行回显）
+     */
+    sw_err_t (*publish_properties_json)(const char *json);
+
+    /**
      * @brief  注册下行消息回调
      */
     void (*set_recv_handler)(cloud_link_recv_fn_t cb);

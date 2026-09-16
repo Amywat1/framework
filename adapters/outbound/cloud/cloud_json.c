@@ -12,8 +12,11 @@
 #include "adapters/outbound/cloud/cloud_point_json.h"
 #include "application/ports/outbound/cloud/link/cloud_link_port.h"
 #include "domain/cloud/cloud_model.h"
+#include "domain/cloud/cloud_point_watcher.h"
 
 #include <stddef.h>
+#include <stdbool.h>
+#include <string.h>
 
 static cloud_property_reply_fn_t s_reply = NULL;
 
@@ -28,6 +31,52 @@ static sw_err_t model_on_property_set(const char *json_payload, point_apply_resu
     return cloud_point_apply_json(entries, count, json_payload, result);
 }
 
+static bool json_object_empty(const char *json)
+{
+    return (json == NULL) || (json[0] == '\0') || (strcmp(json, "{}") == 0);
+}
+
+static sw_err_t publish_json_if_present(const cloud_link_ops_t *ops, const char *json)
+{
+    if ((ops == NULL) || (ops->publish_properties_json == NULL) || json_object_empty(json)) {
+        return SW_ERR_PARAM;
+    }
+    return ops->publish_properties_json(json);
+}
+
+static void report_downlink_outcome(const char *request_json, const point_apply_result_t *result)
+{
+    const cloud_link_ops_t    *ops;
+    const cloud_point_entry_t *entries;
+    size_t                     count = 0U;
+    char                       echo[CLOUD_REPORT_JSON_MAX];
+    char                       idle[CLOUD_REPORT_JSON_MAX];
+    sw_err_t                   ret;
+
+    if ((request_json == NULL) || (result == NULL)) {
+        return;
+    }
+
+    entries = cloud_model_entries(&count);
+    if ((entries == NULL) || (count == 0U)) {
+        return;
+    }
+
+    ret = cloud_point_to_json_downlink(entries, count, request_json, result->applied_ids, result->applied_id_count,
+                                       echo, sizeof(echo), idle, sizeof(idle));
+    if (ret != SW_OK) {
+        return;
+    }
+
+    ops = cloud_link_get_ops();
+    if (publish_json_if_present(ops, echo) != SW_OK) {
+        return;
+    }
+
+    cloud_point_watcher_sync_ids(result->applied_ids, result->applied_id_count);
+    (void)publish_json_if_present(ops, idle);
+}
+
 static void on_link_recv(const char *msg)
 {
     point_apply_result_t result;
@@ -37,6 +86,8 @@ static void on_link_recv(const char *msg)
     ret = model_on_property_set(msg, &result);
     if (ret != SW_OK) {
         point_apply_result_record_error(&result, "", ret);
+    } else {
+        report_downlink_outcome(msg, &result);
     }
 
     if (s_reply != NULL) {
