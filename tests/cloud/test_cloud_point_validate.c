@@ -85,7 +85,7 @@ static void test_telemetry_with_set_rejected(void)
     TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, cloud_point_validate(&entry, 1U));
 }
 
-static void test_command_missing_cmd_kind_rejected(void)
+static void test_dev_cmd_missing_cmd_kind_rejected(void)
 {
     cloud_point_entry_t entry;
 
@@ -93,33 +93,33 @@ static void test_command_missing_cmd_kind_rejected(void)
     entry.base.id   = "stopWash";
     entry.base.type = POINT_TYPE_BOOL;
     entry.base.get  = echo_idle;
-    entry.kind      = CLOUD_KIND_COMMAND;
+    entry.kind      = CLOUD_KIND_DEV_CMD;
     entry.cmd_kind  = DEV_CMD_NONE;
 
     TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, cloud_point_validate(&entry, 1U));
 }
 
-static void test_command_non_bool_rejected(void)
+static void test_dev_cmd_non_bool_rejected(void)
 {
     cloud_point_entry_t entry;
 
     memset(&entry, 0, sizeof(entry));
     entry.base.id   = "stopWash";
     entry.base.type = POINT_TYPE_INT;
-    entry.kind      = CLOUD_KIND_COMMAND;
+    entry.kind      = CLOUD_KIND_DEV_CMD;
     entry.cmd_kind  = DEV_CMD_STOP_WASH;
 
     TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, cloud_point_validate(&entry, 1U));
 }
 
-static void test_write_missing_set_rejected(void)
+static void test_set_missing_set_rejected(void)
 {
     cloud_point_entry_t entry;
 
     memset(&entry, 0, sizeof(entry));
     entry.base.id   = "manualBrush";
     entry.base.type = POINT_TYPE_BOOL;
-    entry.kind      = CLOUD_KIND_WRITE;
+    entry.kind      = CLOUD_KIND_SET;
 
     TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, cloud_point_validate(&entry, 1U));
 }
@@ -144,7 +144,7 @@ static void test_deadband_requires_on_change_int(void)
     TEST_ASSERT_EQUAL_INT(SW_OK, cloud_point_validate(&entry, 1U));
 }
 
-static void test_command_report_must_be_resync(void)
+static void test_dev_cmd_report_must_be_resync(void)
 {
     cloud_point_entry_t entry;
 
@@ -152,7 +152,7 @@ static void test_command_report_must_be_resync(void)
     entry.base.id   = "stopWash";
     entry.base.type = POINT_TYPE_BOOL;
     entry.base.get  = echo_idle;
-    entry.kind      = CLOUD_KIND_COMMAND;
+    entry.kind      = CLOUD_KIND_DEV_CMD;
     entry.cmd_kind  = DEV_CMD_STOP_WASH;
     entry.report    = CLOUD_REPORT_ON_CHANGE;
     TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, cloud_point_validate(&entry, 1U));
@@ -161,7 +161,7 @@ static void test_command_report_must_be_resync(void)
     TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, cloud_point_validate(&entry, 1U));
 }
 
-static void test_valid_command_and_write(void)
+static void test_valid_dev_cmd_and_set(void)
 {
     cloud_point_entry_t stop_cmd;
     cloud_point_entry_t write_act;
@@ -170,7 +170,7 @@ static void test_valid_command_and_write(void)
     stop_cmd.base.id   = "stopWash";
     stop_cmd.base.type = POINT_TYPE_BOOL;
     stop_cmd.base.get  = echo_idle;
-    stop_cmd.kind      = CLOUD_KIND_COMMAND;
+    stop_cmd.kind      = CLOUD_KIND_DEV_CMD;
     stop_cmd.cmd_kind  = DEV_CMD_STOP_WASH;
     stop_cmd.report    = CLOUD_REPORT_RESYNC;
 
@@ -178,7 +178,7 @@ static void test_valid_command_and_write(void)
     write_act.base.id   = "manualBrush";
     write_act.base.type = POINT_TYPE_BOOL;
     write_act.base.set  = set_temp;
-    write_act.kind      = CLOUD_KIND_WRITE;
+    write_act.kind      = CLOUD_KIND_SET;
 
     const cloud_point_entry_t entries[] = {stop_cmd, write_act};
     TEST_ASSERT_EQUAL_INT(SW_OK, cloud_point_validate(entries, 2U));
@@ -192,13 +192,13 @@ int main(void)
     WDF_RUN_TEST(test_empty_model_rejected, "", "验证空模型被拒绝");
     WDF_RUN_TEST(test_duplicate_id_rejected, "", "验证重复ID被拒绝");
     WDF_RUN_TEST(test_telemetry_with_set_rejected, "", "验证遥测点位配置写入接口时被拒绝");
-    WDF_RUN_TEST(test_command_missing_cmd_kind_rejected, "", "验证命令缺失命令类型被拒绝");
-    WDF_RUN_TEST(test_command_non_bool_rejected, "", "验证非 bool 命令被拒绝");
-    WDF_RUN_TEST(test_write_missing_set_rejected, "", "验证写入点位缺失 set 被拒绝");
+    WDF_RUN_TEST(test_dev_cmd_missing_cmd_kind_rejected, "", "验证设备命令缺失命令类型被拒绝");
+    WDF_RUN_TEST(test_dev_cmd_non_bool_rejected, "", "验证非 bool 设备命令被拒绝");
+    WDF_RUN_TEST(test_set_missing_set_rejected, "", "验证点位写入缺失 set 被拒绝");
     WDF_RUN_TEST(test_on_change_float_rejected, "", "验证 ON_CHANGE 的 FLOAT 点位被拒绝");
     WDF_RUN_TEST(test_deadband_requires_on_change_int, "", "验证死区仅允许 ON_CHANGE 的 INT");
-    WDF_RUN_TEST(test_command_report_must_be_resync, "", "验证命令点位必须是 RESYNC");
-    WDF_RUN_TEST(test_valid_command_and_write, "", "验证命令和写入模型配置有效");
+    WDF_RUN_TEST(test_dev_cmd_report_must_be_resync, "", "验证设备命令点位必须是 RESYNC");
+    WDF_RUN_TEST(test_valid_dev_cmd_and_set, "", "验证设备命令和点位写入模型配置有效");
 
     return UNITY_END();
 }

@@ -113,7 +113,7 @@ static cloud_point_entry_t make_enabled(void)
     entry.base.type = POINT_TYPE_BOOL;
     entry.base.get  = get_enabled;
     entry.base.set  = set_enabled;
-    entry.kind      = CLOUD_KIND_WRITE;
+    entry.kind      = CLOUD_KIND_SET;
     entry.report    = CLOUD_REPORT_ON_CHANGE;
     return entry;
 }

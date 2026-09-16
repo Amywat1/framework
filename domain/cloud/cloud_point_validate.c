@@ -65,28 +65,28 @@ static sw_err_t validate_one(const cloud_point_entry_t *entry)
         }
         break;
 
-    case CLOUD_KIND_COMMAND:
+    case CLOUD_KIND_DEV_CMD:
         if (entry->base.type != POINT_TYPE_BOOL) {
-            LOG_ERROR("cloud_point_validate: command id=%s must be bool", entry->base.id);
+            LOG_ERROR("cloud_point_validate: dev_cmd id=%s must be bool", entry->base.id);
             return SW_ERR_PARAM;
         }
         if (entry->cmd_kind == DEV_CMD_NONE) {
-            LOG_ERROR("cloud_point_validate: command id=%s missing cmd_kind", entry->base.id);
+            LOG_ERROR("cloud_point_validate: dev_cmd id=%s missing cmd_kind", entry->base.id);
             return SW_ERR_PARAM;
         }
         if (entry->report != CLOUD_REPORT_RESYNC) {
-            LOG_ERROR("cloud_point_validate: command id=%s must be RESYNC", entry->base.id);
+            LOG_ERROR("cloud_point_validate: dev_cmd id=%s must be RESYNC", entry->base.id);
             return SW_ERR_PARAM;
         }
         break;
 
-    case CLOUD_KIND_WRITE:
+    case CLOUD_KIND_SET:
         if (entry->base.set == NULL) {
-            LOG_ERROR("cloud_point_validate: write id=%s missing set", entry->base.id);
+            LOG_ERROR("cloud_point_validate: set id=%s missing set", entry->base.id);
             return SW_ERR_PARAM;
         }
         if (entry->cmd_kind != DEV_CMD_NONE) {
-            LOG_ERROR("cloud_point_validate: write id=%s must not have cmd_kind", entry->base.id);
+            LOG_ERROR("cloud_point_validate: set id=%s must not have cmd_kind", entry->base.id);
             return SW_ERR_PARAM;
         }
         break;

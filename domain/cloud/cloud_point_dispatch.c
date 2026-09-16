@@ -4,8 +4,8 @@
  * @author  HUWANGWEI
  * @date    2026-07-08
  *
- * @note    本文件只处理"已解析的值该交给谁"：遥测拒绝写入、命令经回调提交、
- *          写入调 set。JSON 编解码在 `adapters/outbound/cloud/cloud_point_json.c`。
+ * @note    本文件只处理"已解析的值该交给谁"：遥测拒绝写入、设备命令经回调提交、
+ *          点位写入调 set。JSON 编解码在 `adapters/outbound/cloud/cloud_point_json.c`。
  */
 
 #include "common/log.h"
@@ -66,8 +66,8 @@ sw_err_t cloud_point_apply_value(const cloud_point_entry_t *entry,
         point_apply_result_record_error(result, entry->base.id, SW_ERR_STATE);
         return SW_ERR_STATE;
 
-    case CLOUD_KIND_COMMAND:
-        /* 脉冲语义：只有置真才触发，置假是回落，不构成命令 */
+    case CLOUD_KIND_DEV_CMD:
+        /* 脉冲语义：只有置真才触发，置假是回落，不构成设备命令 */
         if (!val->b) {
             return SW_OK;
         }
@@ -77,7 +77,7 @@ sw_err_t cloud_point_apply_value(const cloud_point_entry_t *entry,
         }
         return ret;
 
-    case CLOUD_KIND_WRITE:
+    case CLOUD_KIND_SET:
         if (entry->base.set == NULL) {
             point_apply_result_record_error(result, entry->base.id, SW_ERR_NOT_INIT);
             return SW_ERR_NOT_INIT;

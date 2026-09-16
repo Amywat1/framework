@@ -5,20 +5,20 @@
 **最后同步代码**：2026-08-24  
 **适用范围**：`domain/cloud/`、`application/ports/outbound/cloud/link/`、`adapters/outbound/cloud/`、`application/orchestrators/report_scheduler.*`、`adapters/outbound/cloud/providers/snack/`  
 **架构基线**：Ports & Adapters + 物模型点位表（复用 `point_table` 引擎）  
-**关键词**：cloud_point、kind、report、deadband、属性下发、变更上报、COMMAND、`EVT_CLOUD_*`
+**关键词**：cloud_point、kind、report、deadband、属性下发、变更上报、DEV_CMD、`EVT_CLOUD_*`
 
 ---
 
 ## 1. 设计目标与核心理念
 
-云端通信把**云平台物模型**与设备内部状态/命令解耦：上行序列化为 JSON 属性，下行 JSON 解析后按 kind 路由到遥测拒写、脉冲命令或写入。
+云端通信把**云平台物模型**与设备内部状态/命令解耦：上行序列化为 JSON 属性，下行 JSON 解析后按 kind 路由到遥测拒写、设备命令或点位写入。
 
 公开概念只有：`kind`、`report`、`cloud_model`、`cloud_json`、`cloud_link`、`scheduler`。
 
 ### 1.1 设计目标
 
 - **物模型表驱动**：项目层登记 `cloud_point_entry_t[]`，框架负责校验、编解码与分派。
-- **命令不直连领域**：`CLOUD_KIND_COMMAND` 经提交回调转交 `device_command_port`。
+- **设备命令不直连领域**：`CLOUD_KIND_DEV_CMD` 经提交回调转交 `device_command_port`。
 - **变更驱动上报**：`ON_CHANGE` 点位由 watcher 记脏集合，调度器每拍批量增量上报。
 - **单一云端口**：MQTT/连接边沿、属性全量/增量、下行 recv 都在 `cloud_link_port`。
 
@@ -34,8 +34,8 @@
   cloud_point_apply_json() → cloud_point_apply_value()
         │
         ├── TELEMETRY 拒写
-        ├── COMMAND  → device_command_port.submit_async()
-        └── WRITE    → base.set()
+        ├── DEV_CMD  → device_command_port.submit_async()
+        └── SET      → base.set()
 
   上行：
   watcher poll → 脏集合 → publish_properties_delta
@@ -55,7 +55,7 @@
 | 调度 | `application/orchestrators/report_scheduler.*` | 单一周期任务 |
 | provider | `adapters/outbound/cloud/providers/snack/` | Snack MQTT |
 
-**依赖禁令**：`domain/cloud/` 不得解析 JSON、不得依赖 MQTT SDK 或 `application/`。COMMAND 必须经提交回调。
+**依赖禁令**：`domain/cloud/` 不得解析 JSON、不得依赖 MQTT SDK 或 `application/`。DEV_CMD 必须经提交回调。
 
 ---
 
@@ -83,8 +83,8 @@
 ```c
 typedef enum {
     CLOUD_KIND_TELEMETRY = 0,
-    CLOUD_KIND_COMMAND,
-    CLOUD_KIND_WRITE,
+    CLOUD_KIND_DEV_CMD,
+    CLOUD_KIND_SET,
 } cloud_point_kind_t;
 
 typedef enum {
@@ -105,10 +105,10 @@ typedef struct {
 | kind | 下行 | 约束 |
 |------|------|------|
 | TELEMETRY | 拒写 | 必须有 get，不得有 set |
-| COMMAND | `val.b == true` 时提交 `cmd_kind` | 必须是 bool，`cmd_kind ≠ NONE` |
-| WRITE | 调用 `base.set` | 必须有 set |
+| DEV_CMD | `val.b == true` 时提交 `cmd_kind` | 必须是 bool，`cmd_kind ≠ NONE` |
+| SET | 调用 `base.set` | 必须有 set |
 
-`report`：`NONE` 不进快照/脏点；`RESYNC` 仅重连/`cmd_sync` 快照；`ON_CHANGE` 进 watcher，快照也带当前值。下行后先发一包：成功点回显下发值，失败点报 getter 当前值；该包发送成功后再发成功脉冲的空闲 0。`ON_CHANGE` 必须有 get，禁止 `POINT_TYPE_FLOAT`。`deadband` 仅 `ON_CHANGE` 的 INT 有效。COMMAND 必须是 `RESYNC`。
+`report`：`NONE` 不进快照/脏点；`RESYNC` 仅重连/`cmd_sync` 快照；`ON_CHANGE` 进 watcher，快照也带当前值。下行后先发一包：成功点回显下发值，失败点报 getter 当前值；该包发送成功后再发成功脉冲的空闲 0。`ON_CHANGE` 必须有 get，禁止 `POINT_TYPE_FLOAT`。`deadband` 仅 `ON_CHANGE` 的 INT 有效。DEV_CMD 必须是 `RESYNC`。SET 以 `RESYNC` 表示脉冲。
 
 容量：`CLOUD_POINT_TABLE_MAX` 96；`CLOUD_REPORT_JSON_MAX` 4096。
 
@@ -126,7 +126,7 @@ typedef struct {
 
 根必须是 JSON 对象；载荷长于 `CLOUD_REPORT_JSON_MAX` 返回 `SW_ERR_OVERFLOW`。未知 id 继续下一 key（部分成功）。函数在解析成功时返回 `SW_OK`，逐 key 成败看 `point_apply_result_t`。
 
-COMMAND：`false` 空操作；`true` 调提交回调，未注册返回 `SW_ERR_NOT_INIT`。解析成功后无论逐 key 成败都组第一包属性：成功回显下发值，失败报当前真实值；该包发送成功后再报已应用脉冲的空闲 0。
+DEV_CMD：`false` 空操作；`true` 调提交回调，未注册返回 `SW_ERR_NOT_INIT`。解析成功后无论逐 key 成败都组第一包属性：成功回显下发值，失败报当前真实值；该包发送成功后再报已应用脉冲的空闲 0。
 
 ### 5.3 `cloud_point_watcher`
 
@@ -142,7 +142,7 @@ COMMAND：`false` 空操作；`true` 调提交回调，未注册返回 `SW_ERR_N
 
 ## 6. 与命令网关的衔接
 
-COMMAND 不在 cloud 层构造完整 `dev_cmd_t`，只传 `dev_cmd_kind_t`。项目 wiring：
+DEV_CMD 不在 cloud 层构造完整 `dev_cmd_t`，只传 `dev_cmd_kind_t`。项目 wiring：
 
 ```c
 static sw_err_t cloud_cmd_submit(dev_cmd_kind_t kind)
@@ -185,7 +185,7 @@ report_scheduler_start(500U);
 
 固化在框架：kind 分派、JSON 编解码、登记期校验、ON_CHANGE 脏集合、单一 poll 写者。
 
-由项目 / 适配器决定：物模型表、MQTT topic / 凭证、`poll_ms`、COMMAND 到 `dev_cmd_t` 的填充。
+由项目 / 适配器决定：物模型表、MQTT topic / 凭证、`poll_ms`、DEV_CMD 到 `dev_cmd_t` 的填充。
 
 ---
 
@@ -193,8 +193,8 @@ report_scheduler_start(500U);
 
 | 测试 | 覆盖点 |
 |------|--------|
-| `test_cloud_point_validate` | id 唯一、kind 约束、ON_CHANGE 禁止 FLOAT、死区与 COMMAND 策略 |
-| `test_cloud_point_dispatch` | 分派、遥测拒写、COMMAND 脉冲、快照不含 NONE、成功回显 1/失败报当前值 |
+| `test_cloud_point_validate` | id 唯一、kind 约束、ON_CHANGE 禁止 FLOAT、死区与 DEV_CMD 策略 |
+| `test_cloud_point_dispatch` | 分派、遥测拒写、DEV_CMD 脉冲、快照不含 NONE、成功回显 1/失败报当前值 |
 | `test_cloud_point_watcher` | 脏集合、死区、仅 ON_CHANGE 置脏 |
 | `test_cloud_model_report_scheduler` | 属性构建、重连全量、脏点增量、下行成功/失败上报 |
 | `test_cloud_ports` | link 注册 / NULL 解除 / 复位 |
@@ -206,9 +206,9 @@ report_scheduler_start(500U);
 
 新增属性：在项目表追加条目，选 kind 与 `report`（需要时加 `deadband`），保证 `cloud_model_register` 能通过。
 
-新增 COMMAND 种类：先扩 `dev_cmd_kind_t` 与命令矩阵，再在物模型表加 bool 点位。
+新增 DEV_CMD 种类：先扩 `dev_cmd_kind_t` 与命令矩阵，再在物模型表加 bool 点位。
 
-禁止：在 dispatch 里写机型分支；COMMAND 绕过 `device_command_port`；在 watcher 里发 MQTT。
+禁止：在 dispatch 里写机型分支；DEV_CMD 绕过 `device_command_port`；在 watcher 里发 MQTT。
 
 ---
 

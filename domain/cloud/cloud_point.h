@@ -27,12 +27,12 @@ extern "C" {
 /**
  * @brief  物模型点位种类
  *
- * 三种互斥：遥测只读、脉冲命令走网关、写入走 set。不再另设 access / semantic。
+ * 三种互斥：遥测只读、设备命令走网关、点位写入走 set。不再另设 access / semantic。
  */
 typedef enum {
     CLOUD_KIND_TELEMETRY = 0, /**< 只读遥测，必须有 get */
-    CLOUD_KIND_COMMAND,       /**< bool 脉冲命令，cmd_kind 有效，走命令网关 */
-    CLOUD_KIND_WRITE,         /**< 写入，必须有 set */
+    CLOUD_KIND_DEV_CMD,       /**< bool 脉冲设备命令，cmd_kind 有效，走命令网关 */
+    CLOUD_KIND_SET,           /**< 点位写入，必须有 set */
 } cloud_point_kind_t;
 
 /**
@@ -52,7 +52,7 @@ typedef struct {
     cloud_point_kind_t      kind;
     cloud_report_policy_t   report;   /**< 上行策略 */
     uint32_t                deadband; /**< 仅 ON_CHANGE 的 INT：|Δ| < deadband 不置脏；0 表示精确相等 */
-    dev_cmd_kind_t          cmd_kind; /**< 仅 COMMAND 使用 */
+    dev_cmd_kind_t          cmd_kind; /**< 仅 DEV_CMD 使用 */
 } cloud_point_entry_t;
 
 /**
@@ -79,22 +79,24 @@ sw_err_t cloud_point_get_echo_idle(point_value_t *out);
 
 /**
  * @brief  是否为无保持态的脉冲点（成功回显 1 后须再报 0）
+ *
+ * DEV_CMD 天生脉冲；SET 以 report==RESYNC 表示脉冲，不以 getter 函数指针推断。
  */
 static inline bool cloud_point_is_pulse(const cloud_point_entry_t *entry)
 {
     if (entry == NULL) {
         return false;
     }
-    if (entry->kind == CLOUD_KIND_COMMAND) {
+    if (entry->kind == CLOUD_KIND_DEV_CMD) {
         return true;
     }
-    return (entry->kind == CLOUD_KIND_WRITE) && (entry->base.get == cloud_point_get_echo_idle);
+    return (entry->kind == CLOUD_KIND_SET) && (entry->report == CLOUD_REPORT_RESYNC);
 }
 
-/** @brief  COMMAND 语义提交回调（由项目 wiring 注册） */
+/** @brief  DEV_CMD 提交回调（由项目 wiring 注册） */
 typedef sw_err_t (*cloud_device_cmd_submit_fn_t)(dev_cmd_kind_t kind);
 
-/** @brief  注册 COMMAND 提交回调（项目层宜转调 device_command_port.submit_async） */
+/** @brief  注册 DEV_CMD 提交回调（项目层宜转调 device_command_port.submit_async） */
 void cloud_point_set_device_cmd_submit(cloud_device_cmd_submit_fn_t fn);
 
 /**
@@ -109,7 +111,7 @@ sw_err_t cloud_point_validate(const cloud_point_entry_t *entries, size_t count);
  * @param  entry   点位条目
  * @param  val     已解析的值（类型已与 entry->base.type 校验一致）
  * @param  result  逐 key 结果汇总，可为 NULL
- * @retval SW_OK           分派成功，或 COMMAND 置假的空操作
+ * @retval SW_OK           分派成功，或 DEV_CMD 置假的空操作
  * @retval SW_ERR_STATE    遥测点位拒绝写入
  * @retval SW_ERR_NOT_INIT 语义要求的回调未注册
  * @retval SW_ERR_PARAM    入参非法或 kind 未知
