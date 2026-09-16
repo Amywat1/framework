@@ -25,6 +25,7 @@
 static mlog       *s_product_log      = NULL;
 static mlog       *s_framework_log    = NULL;
 static const char *k_default_log_name = "snack";
+#define MQTT_LOG_CHUNK 900U /**< sink 为 1KB 栈缓冲；扣 [file:line] 与 snack_cloud 前缀后约 900 */
 
 static void ensure_log_ready(const char *name)
 {
@@ -88,20 +89,78 @@ void set_log_level(int type)
 static aiot               *s_mqtt_client  = NULL;
 static mqtt_recv_handler_t s_mqtt_callback = NULL;
 
+static const char *mqtt_topic_or_empty(const char *topic)
+{
+    return (topic != NULL) ? topic : "";
+}
+
+/**
+ * @brief  topic 与 JSON 同一行打印；超长时后续行只续正文，避免撑破 1KB sink
+ */
+static void log_mqtt_payload(const char *dir, const char *topic, const char *json)
+{
+    char   chunk[MQTT_LOG_CHUNK + 1U];
+    size_t len;
+    size_t off;
+    size_t first_cap;
+    size_t extra;
+
+    if (json == NULL) {
+        json = "";
+    }
+    topic     = mqtt_topic_or_empty(topic);
+    len       = std::strlen(json);
+    extra     = std::strlen(topic) + 32U; /* 相对续行多出的 "topic=... len=..." */
+    first_cap = MQTT_LOG_CHUNK;
+    if (extra < first_cap) {
+        first_cap -= extra;
+    } else {
+        first_cap = 1U;
+    }
+
+    off = (len < first_cap) ? len : first_cap;
+    (void)std::memcpy(chunk, json, off);
+    chunk[off] = '\0';
+    LOG_DEBUG("snack_cloud: %s topic=%s len=%u %s", dir, topic, (unsigned)len, chunk);
+
+    while (off < len) {
+        size_t n = len - off;
+
+        if (n > MQTT_LOG_CHUNK) {
+            n = MQTT_LOG_CHUNK;
+        }
+        (void)std::memcpy(chunk, json + off, n);
+        chunk[n] = '\0';
+        LOG_DEBUG("snack_cloud: %s +%u %s", dir, (unsigned)off, chunk);
+        off += n;
+    }
+}
+
 /* 阿里云平台下行消息格式：{"params": {...}} — 取 params 字段传给回调 */
 static void client_deal(char *topic, char *msg, int msg_len)
 {
-    (void)topic;
+    cJSON *root;
+    cJSON *param;
+
     (void)msg_len;
 
-    cJSON *root  = cJSON_Parse(msg);
-    cJSON *param = cJSON_GetObjectItem(root, "params");
+    root = cJSON_Parse(msg);
+    if (root == NULL) {
+        LOG_WARN("snack_cloud: down invalid json topic=%s", mqtt_topic_or_empty(topic));
+        return;
+    }
 
-    if (s_mqtt_callback != NULL && param != NULL) {
+    param = cJSON_GetObjectItem(root, "params");
+    if ((s_mqtt_callback != NULL) && (param != NULL)) {
         char *str = cJSON_PrintUnformatted(param);
-        s_framework_log->i("mqtt recv: %s", str);
-        s_mqtt_callback(str);
-        free(str);
+
+        if (str != NULL) {
+            log_mqtt_payload("down", topic, str);
+            s_mqtt_callback(str);
+            free(str);
+        }
+    } else {
+        LOG_WARN("snack_cloud: down missing params topic=%s", mqtt_topic_or_empty(topic));
     }
 
     cJSON_Delete(root);
@@ -142,6 +201,8 @@ static const int SNACK_MQTT_PUBLISH_QOS = 1;
 
 int net_mqtt_send(char *topic, char *msg)
 {
+    int ret;
+
     if (s_mqtt_client == NULL || topic == NULL || msg == NULL) {
         return -1;
     }
@@ -149,7 +210,12 @@ int net_mqtt_send(char *topic, char *msg)
      * publish(topic, const char*, ...) 限长 1K，且把 payload 当格式化串；
      * 全量属性 JSON 超过 1K 会被截断，阿里云报 payload must be json format。
      * QoS 1 保证变更增量至少一次投递。 */
-    return s_mqtt_client->publish(topic, std::string(msg), SNACK_MQTT_PUBLISH_QOS);
+    ret = s_mqtt_client->publish(topic, std::string(msg), SNACK_MQTT_PUBLISH_QOS);
+    if (ret != 0) {
+        LOG_WARN("snack_cloud: up failed topic=%s", topic);
+    }
+    log_mqtt_payload("up", topic, msg);
+    return ret;
 }
 
 void mqtt_recv_handler_set(mqtt_recv_handler_t cb)

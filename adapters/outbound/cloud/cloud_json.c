@@ -11,6 +11,7 @@
 
 #include "adapters/outbound/cloud/cloud_point_json.h"
 #include "application/ports/outbound/cloud/link/cloud_link_port.h"
+#include "common/log.h"
 #include "domain/cloud/cloud_model.h"
 #include "domain/cloud/cloud_point_watcher.h"
 
@@ -93,6 +94,11 @@ static void on_link_recv(const char *msg)
     if (s_reply != NULL) {
         (void)s_reply(msg, &result);
     }
+
+    LOG_DEBUG("cloud_json: down applied=%u rejected=%u ret=%d",
+             (unsigned)result.applied,
+             (unsigned)result.rejected,
+             (int)ret);
 }
 
 sw_err_t cloud_json_install(cloud_device_cmd_submit_fn_t submit, cloud_property_reply_fn_t reply)
