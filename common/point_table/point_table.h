@@ -28,8 +28,8 @@
 extern "C" {
 #endif
 
-/** 字符串型点位的最大长度（含终止符） */
-#define POINT_STR_MAX 32U
+/** 字符串型点位的最大长度（含终止符）；须容纳多板 sts_io JSON */
+#define POINT_STR_MAX 256U
 
 /** 点位 id 最大长度（用于结果记录） */
 #define POINT_ID_MAX 32U
