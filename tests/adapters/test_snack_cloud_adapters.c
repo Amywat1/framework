@@ -110,6 +110,52 @@ static void test_adapter_handles_builder_failure_and_offline_link(void)
     TEST_ASSERT_EQUAL_INT(SW_ERR_COMM, link->publish_properties());
 }
 
+static void test_link_init_offline_poll_reconnects(void)
+{
+    const cloud_link_ops_t *link;
+
+    snack_mqtt_fake_set_online(0);
+    snack_mqtt_fake_set_init_result(-1);
+    snack_mqtt_fake_set_connect_result(0);
+    snack_cloud_adapter_register();
+    configure_cloud_defaults();
+    link = cloud_link_get_ops();
+    TEST_ASSERT_NOT_NULL(link);
+    TEST_ASSERT_EQUAL_INT(SW_ERR_COMM, link->init());
+    TEST_ASSERT_FALSE(link->is_online());
+    TEST_ASSERT_EQUAL_UINT(0U, snack_mqtt_fake_connect_calls());
+
+    link->poll();
+    TEST_ASSERT_TRUE(link->is_online());
+    TEST_ASSERT_EQUAL_UINT(1U, snack_mqtt_fake_connect_calls());
+
+    link->poll();
+    TEST_ASSERT_TRUE(link->is_online());
+    TEST_ASSERT_EQUAL_UINT(1U, snack_mqtt_fake_connect_calls());
+}
+
+static void test_link_poll_offline_respects_reconnect_interval(void)
+{
+    const cloud_link_ops_t *link;
+
+    snack_mqtt_fake_set_online(0);
+    snack_mqtt_fake_set_init_result(-1);
+    snack_mqtt_fake_set_connect_result(-1);
+    snack_cloud_adapter_register();
+    configure_cloud_defaults();
+    link = cloud_link_get_ops();
+    TEST_ASSERT_EQUAL_INT(SW_ERR_COMM, link->init());
+
+    link->poll();
+    TEST_ASSERT_FALSE(link->is_online());
+    TEST_ASSERT_EQUAL_UINT(1U, snack_mqtt_fake_connect_calls());
+
+    snack_mqtt_fake_set_connect_result(0);
+    link->poll();
+    TEST_ASSERT_FALSE(link->is_online());
+    TEST_ASSERT_EQUAL_UINT(1U, snack_mqtt_fake_connect_calls());
+}
+
 static void test_recv_handler_and_property_reply(void)
 {
     const cloud_link_ops_t *link;
@@ -145,6 +191,8 @@ int main(void)
     WDF_RUN_TEST(test_adapter_publishes_full_and_delta_json, "", "验证适配器发布全量和增量 JSON");
     WDF_RUN_TEST(test_adapter_handles_builder_failure_and_offline_link, "", "验证适配器处理构建失败和链路离线");
     WDF_RUN_TEST(test_recv_handler_and_property_reply, "", "验证接收回调与属性应答");
+    WDF_RUN_TEST(test_link_init_offline_poll_reconnects, "", "验证首次连接失败后 poll 能重连");
+    WDF_RUN_TEST(test_link_poll_offline_respects_reconnect_interval, "", "验证离线重连遵守最小间隔");
 
     return UNITY_END();
 }

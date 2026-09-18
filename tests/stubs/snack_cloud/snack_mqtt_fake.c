@@ -6,8 +6,10 @@
 
 typedef struct {
     int                 init_result;
+    int                 connect_result;
     int                 online;
     int                 send_result;
+    unsigned            connect_calls;
     char                product_key[64];
     char                device_name[64];
     char                device_secret[64];
@@ -34,6 +36,16 @@ void snack_mqtt_fake_set_online(int online)
 void snack_mqtt_fake_set_init_result(int result)
 {
     s_fake.init_result = result;
+}
+
+void snack_mqtt_fake_set_connect_result(int result)
+{
+    s_fake.connect_result = result;
+}
+
+unsigned snack_mqtt_fake_connect_calls(void)
+{
+    return s_fake.connect_calls;
 }
 
 void snack_mqtt_fake_set_send_result(int result)
@@ -79,8 +91,23 @@ int aliyun_mqtt_init(char *product_key, char *device_name, char *device_secret, 
     snprintf(s_fake.iot_instance, sizeof(s_fake.iot_instance), "%s", iot_instance != NULL ? iot_instance : "");
     if (s_fake.init_result == 0) {
         s_fake.online = 1;
+    } else {
+        s_fake.online = 0;
     }
     return s_fake.init_result;
+}
+
+int mqtt_connect(void)
+{
+    s_fake.connect_calls++;
+    if (s_fake.online != 0) {
+        return 0;
+    }
+    if (s_fake.connect_result == 0) {
+        s_fake.online = 1;
+        return 0;
+    }
+    return s_fake.connect_result;
 }
 
 int mqtt_is_online(void)

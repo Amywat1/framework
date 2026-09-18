@@ -13,6 +13,7 @@
 #include "third_party/cJSON/cJSON.h"
 #include "aliot/aiot.h"
 #include "ble.h"
+#include <cstdio>
 #include <cstring>
 #include <stdarg.h>
 #include <sstream>
@@ -86,8 +87,14 @@ void set_log_level(int type)
 /* -------------------------------------------------------------------------
  * 阿里云 MQTT
  * ------------------------------------------------------------------------- */
+#define SNACK_MQTT_CRED_MAX 64 /**< 与云适配器凭证缓冲对齐 */
+
 static aiot               *s_mqtt_client  = NULL;
 static mqtt_recv_handler_t s_mqtt_callback = NULL;
+static char                s_product_key[SNACK_MQTT_CRED_MAX];
+static char                s_device_name[SNACK_MQTT_CRED_MAX];
+static char                s_device_secret[SNACK_MQTT_CRED_MAX];
+static char                s_iot_instance[SNACK_MQTT_CRED_MAX];
 
 static const char *mqtt_topic_or_empty(const char *topic)
 {
@@ -166,26 +173,57 @@ static void client_deal(char *topic, char *msg, int msg_len)
     cJSON_Delete(root);
 }
 
-int aliyun_mqtt_init(char *product_key, char *device_name, char *device_secret, char *iot_instance)
+/**
+ * @brief  销毁旧客户端后按已保存凭证重建并连接
+ * @return 0 已在线；非 0 失败
+ */
+static int mqtt_create_and_connect(void)
 {
-    const char *instance = "";
-
-    if (product_key == NULL || device_name == NULL || device_secret == NULL) {
-        return -1;
-    }
-    if ((iot_instance != NULL) && (iot_instance[0] != '\0')) {
-        instance = iot_instance;
+    if (s_mqtt_client != NULL) {
+        delete s_mqtt_client;
+        s_mqtt_client = NULL;
     }
 
-    s_mqtt_client = new aiot(product_key, device_name, device_secret, instance);
+    s_mqtt_client = new aiot(s_product_key, s_device_name, s_device_secret, s_iot_instance);
     if (s_mqtt_client == NULL) {
         return -2;
     }
 
     s_mqtt_client->connect(client_deal);
     s_mqtt_client->heartbeatSet(15);
-
+    if (!s_mqtt_client->online) {
+        return -3;
+    }
     return 0;
+}
+
+int aliyun_mqtt_init(char *product_key, char *device_name, char *device_secret, char *iot_instance)
+{
+    if (product_key == NULL || device_name == NULL || device_secret == NULL) {
+        return -1;
+    }
+
+    (void)std::snprintf(s_product_key, sizeof(s_product_key), "%s", product_key);
+    (void)std::snprintf(s_device_name, sizeof(s_device_name), "%s", device_name);
+    (void)std::snprintf(s_device_secret, sizeof(s_device_secret), "%s", device_secret);
+    if ((iot_instance != NULL) && (iot_instance[0] != '\0')) {
+        (void)std::snprintf(s_iot_instance, sizeof(s_iot_instance), "%s", iot_instance);
+    } else {
+        s_iot_instance[0] = '\0';
+    }
+
+    return mqtt_create_and_connect();
+}
+
+int mqtt_connect(void)
+{
+    if (s_mqtt_client != NULL && s_mqtt_client->online) {
+        return 0;
+    }
+    if ((s_product_key[0] == '\0') || (s_device_name[0] == '\0') || (s_device_secret[0] == '\0')) {
+        return -1;
+    }
+    return mqtt_create_and_connect();
 }
 
 int mqtt_is_online(void)

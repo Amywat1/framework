@@ -39,9 +39,16 @@ typedef void (*mqtt_recv_handler_t)(const char *msg);
  * @param  device_name   设备序列号
  * @param  device_secret 设备密钥
  * @param  iot_instance  物联网实例 ID；NULL 或空串表示公共实例
- * @return 0 成功，非 0 失败
+ * @return 0 表示已在线；非 0 表示对象可能已创建但当前离线，可由 mqtt_connect() 重试
  */
 extern int aliyun_mqtt_init(char *product_key, char *device_name, char *device_secret, char *iot_instance);
+
+/**
+ * @brief  在离线时重建客户端并再次连接
+ * @note   已在线时直接返回 0，不打断现有会话。
+ * @return 0 表示已在线；非 0 失败
+ */
+extern int mqtt_connect(void);
 
 /** @brief  查询 MQTT 在线状态（1 在线，0 离线） */
 extern int mqtt_is_online(void);

@@ -12,6 +12,7 @@
 #include "application/ports/outbound/cloud/link/cloud_link_port.h"
 #include "common/event_types.h"
 #include "common/log.h"
+#include "common/time_util.h"
 #include "domain/cloud/cloud_point.h"
 #include "runtime/event_bus/event_bus.h"
 
@@ -19,13 +20,15 @@
 #include <stdio.h>
 #include <string.h>
 
-#define SNACK_CLOUD_CRED_MAX  64U
-#define SNACK_CLOUD_TOPIC_MAX 128U
-#define REPLY_JSON_BUF_SIZE   128U
+#define SNACK_CLOUD_CRED_MAX               64U
+#define SNACK_CLOUD_TOPIC_MAX              128U
+#define REPLY_JSON_BUF_SIZE                128U
+#define SNACK_CLOUD_RECONNECT_INTERVAL_MS  5000U /**< 离线重连最小间隔，避免打爆平台 */
 
-static bool s_initialized                         = false;
-static bool s_bootstrapped                        = false;
-static bool s_last_online                         = false;
+static bool     s_initialized                         = false;
+static bool     s_bootstrapped                        = false;
+static bool     s_last_online                         = false;
+static uint64_t s_last_reconnect_ms                   = 0U;
 static char s_product_key[SNACK_CLOUD_CRED_MAX]   = "";
 static char s_device_sn[SNACK_CLOUD_CRED_MAX]     = "";
 static char s_device_secret[SNACK_CLOUD_CRED_MAX] = "";
@@ -67,8 +70,6 @@ static void link_bootstrap_once(void)
 
 static sw_err_t link_init(void)
 {
-    sw_err_t ret = SW_ERR_COMM;
-
     if ((s_product_key[0] == '\0') || (s_device_sn[0] == '\0') || (s_device_secret[0] == '\0')) {
         return SW_ERR_NOT_INIT;
     }
@@ -81,20 +82,44 @@ static sw_err_t link_init(void)
     s_initialized = true;
 
     if (aliyun_mqtt_init(s_product_key, s_device_sn, s_device_secret, s_iot_instance) == 0) {
-        LOG_INFO("snack_cloud: connected sn=%s instance=%s", s_device_sn, s_iot_instance);
-        ret = SW_OK;
+        LOG_INFO("snack_cloud: mqtt init sn=%s instance=%s", s_device_sn, s_iot_instance);
     } else {
-        LOG_WARN("snack_cloud: init failed, running offline");
+        LOG_WARN("snack_cloud: mqtt offline sn=%s instance=%s, will retry", s_device_sn, s_iot_instance);
     }
 
     link_bootstrap_once();
-    return ret;
+    return link_is_online() ? SW_OK : SW_ERR_COMM;
+}
+
+/**
+ * @brief  离线时按间隔重建 MQTT 客户端并连接
+ */
+static void try_reconnect(void)
+{
+    uint64_t now_ms = time_util_get_ms();
+
+    if (s_last_reconnect_ms != 0U) {
+        if (time_elapsed_ms(s_last_reconnect_ms, now_ms) < SNACK_CLOUD_RECONNECT_INTERVAL_MS) {
+            return;
+        }
+    }
+
+    s_last_reconnect_ms = now_ms;
+    LOG_WARN("snack_cloud: retry connect sn=%s", s_device_sn);
+    if (mqtt_connect() == 0) {
+        s_last_reconnect_ms = 0U;
+    }
 }
 
 static void link_poll(void)
 {
-    bool now_online = link_is_online();
+    bool now_online;
 
+    if (s_initialized && !link_is_online()) {
+        try_reconnect();
+    }
+
+    now_online = link_is_online();
     if (now_online == s_last_online) {
         return;
     }
@@ -211,9 +236,10 @@ static const cloud_link_ops_t s_ops = {
 
 void snack_cloud_adapter_register(void)
 {
-    s_initialized  = false;
-    s_bootstrapped = false;
-    s_last_online  = false;
+    s_initialized        = false;
+    s_bootstrapped       = false;
+    s_last_online        = false;
+    s_last_reconnect_ms  = 0U;
     cloud_link_register(&s_ops);
     LOG_INFO("snack_cloud: adapter registered");
 }

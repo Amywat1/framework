@@ -6,6 +6,8 @@
 void                snack_mqtt_fake_reset(void);
 void                snack_mqtt_fake_set_online(int online);
 void                snack_mqtt_fake_set_init_result(int result);
+void                snack_mqtt_fake_set_connect_result(int result);
+unsigned            snack_mqtt_fake_connect_calls(void);
 void                snack_mqtt_fake_set_send_result(int result);
 const char         *snack_mqtt_fake_product_key(void);
 const char         *snack_mqtt_fake_device_name(void);
