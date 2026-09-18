@@ -18,7 +18,7 @@
 #include "tests/stubs/test_wash_modes.h"
 #include "wdf_test_spec.h"
 
-#define TEST_ALARM_BLOCKING ALARM_CODE_MAKE(ALM_C_SENSE, 1U, ALM_N_SIG_ERR)
+#define TEST_ALARM_BLOCKING ALARM_CODE_MAKE(ALM_C_DETECT, 1U, ALM_N_SIG_ERR)
 
 static const alarm_def_t s_catalog[] = {
     {
@@ -418,7 +418,7 @@ static void test_wash_done_with_blocking_enters_stopped(void)
 static void test_wash_done_after_cleared_auto_static_enters_wash_done(void)
 {
     alarm_def_t cat = {
-        .code         = ALARM_CODE_MAKE(ALM_C_SENSE, 2U, ALM_N_SIG_ERR),
+        .code         = ALARM_CODE_MAKE(ALM_C_DETECT, 2U, ALM_N_SIG_ERR),
         .level        = ALARM_LEVEL_MAJOR,
         .clear        = ALARM_CLEAR_AUTO_STATIC,
         .reeval_group = ALARM_REEVAL_GROUP_NONE,

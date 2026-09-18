@@ -96,20 +96,20 @@ static void test_alarm_code_helpers_make_decode_and_validate(void)
 {
     uint32_t code = 0U;
 
-    TEST_ASSERT_EQUAL_UINT(201101U, ALARM_CODE_MAKE(ALM_C_SENSE, 11U, ALM_N_OVERLOAD));
-    TEST_ASSERT_EQUAL_UINT(ALM_C_SENSE, ALARM_CODE_CATEGORY(201101U));
-    TEST_ASSERT_EQUAL_UINT(11U, ALARM_CODE_INDEX(201101U));
-    TEST_ASSERT_EQUAL_UINT(ALM_N_OVERLOAD, ALARM_CODE_NATURE(201101U));
+    TEST_ASSERT_EQUAL_UINT(201101U, ALARM_CODE_MAKE(ALM_C_DETECT, 11U, ALM_N_OVERLOAD));
+    TEST_ASSERT_EQUAL_UINT(ALM_C_DETECT, ALARM_CODE_LAYER(201101U));
+    TEST_ASSERT_EQUAL_UINT(11U, ALARM_CODE_OBJECT(201101U));
+    TEST_ASSERT_EQUAL_UINT(ALM_N_OVERLOAD, ALARM_CODE_FAULT_MODE(201101U));
     TEST_ASSERT_TRUE(alarm_code_is_valid(201101U));
     TEST_ASSERT_FALSE(alarm_code_is_valid(ALARM_CODE_NONE));
     TEST_ASSERT_FALSE(alarm_code_is_valid(1000000U));
 
-    TEST_ASSERT_TRUE(alarm_code_make_checked(ALM_C_CTRL, 3U, ALM_N_HW_FAULT, &code));
+    TEST_ASSERT_TRUE(alarm_code_make_checked(ALM_C_CTRL, 3U, ALM_N_UNDERLOAD, &code));
     TEST_ASSERT_EQUAL_UINT(400303U, code);
-    TEST_ASSERT_FALSE(alarm_code_make_checked(0U, 3U, ALM_N_HW_FAULT, &code));
-    TEST_ASSERT_FALSE(alarm_code_make_checked(ALM_C_CTRL, 1000U, ALM_N_HW_FAULT, &code));
+    TEST_ASSERT_FALSE(alarm_code_make_checked(0U, 3U, ALM_N_UNDERLOAD, &code));
+    TEST_ASSERT_FALSE(alarm_code_make_checked(ALM_C_CTRL, 1000U, ALM_N_UNDERLOAD, &code));
     TEST_ASSERT_FALSE(alarm_code_make_checked(ALM_C_CTRL, 3U, 100U, &code));
-    TEST_ASSERT_FALSE(alarm_code_make_checked(ALM_C_CTRL, 3U, ALM_N_HW_FAULT, NULL));
+    TEST_ASSERT_FALSE(alarm_code_make_checked(ALM_C_CTRL, 3U, ALM_N_UNDERLOAD, NULL));
 }
 
 void setUp(void)
@@ -239,7 +239,7 @@ static void test_load_catalog_rejects_invalid_defs(void)
 {
     alarm_def_t bad[2];
 
-    /* 非法码：大类为 0，不符合 6 位编码约定 */
+    /* 非法码：对象层为 0，不符合 6 位编码约定 */
     bad[0] = (alarm_def_t){
         .code         = 1234U,
         .level        = ALARM_LEVEL_MAJOR,
@@ -360,7 +360,7 @@ static uint32_t fill_code(unsigned i)
 {
     uint32_t code = 0U;
 
-    TEST_ASSERT_TRUE(alarm_code_make_checked(ALM_C_SW, i, ALM_N_OTHER, &code));
+    TEST_ASSERT_TRUE(alarm_code_make_checked(ALM_C_LOGIC, i, ALM_N_UNCLASSIFIED, &code));
     return code;
 }
 
@@ -481,7 +481,7 @@ static void test_session_journal_overflow_is_counted_and_not_cleared_on_read(voi
         cat[i] = make_fill_def(fill_code(i), ALARM_LEVEL_MAJOR);
     }
     extra                               = fill_code(ALARM_SESSION_JOURNAL_MAX);
-    minor                               = ALARM_CODE_MAKE(ALM_C_SW, 50U, ALM_N_OTHER);
+    minor                               = ALARM_CODE_MAKE(ALM_C_LOGIC, 50U, ALM_N_UNCLASSIFIED);
     cat[ALARM_SESSION_JOURNAL_MAX + 1U] = make_fill_def(minor, ALARM_LEVEL_MINOR);
 
     TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_load_catalog(cat, ALARM_SESSION_JOURNAL_MAX + 2U));

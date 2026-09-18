@@ -17,34 +17,39 @@ extern "C" {
 #include <stdint.h>
 
 /* -------------------------------------------------------------------------
- * 报警码编码：6 位十进制 = 大类(1) + 编号(3) + 性质(2)
+ * 报警码编码：6 位十进制 = 对象层(1) + 对象号(3) + 故障形态(2)
+ * 对象层：1 动力设备  2 检测元件  3 开关元件  4 控制装置  9 逻辑事件
+ * 故障形态：0 未分类  1 过载  2 通讯中断  3 欠载  4 信号异常
+ *           5 动作超时  6 故障反馈  7 液位异常  8 压力异常  9 安全触发
  * ------------------------------------------------------------------------- */
-#define ALARM_CODE_CATEGORY_MIN 1U
-#define ALARM_CODE_CATEGORY_MAX 9U
-#define ALARM_CODE_INDEX_MAX    999U
-#define ALARM_CODE_NATURE_MAX   99U
+#define ALARM_CODE_LAYER_MIN      1U
+#define ALARM_CODE_LAYER_MAX      9U
+#define ALARM_CODE_OBJECT_MAX     999U
+#define ALARM_CODE_FAULT_MODE_MAX 99U
 
-#define ALARM_CODE_MAKE(category, index, nature) ((uint32_t)((category) * 100000U + (index) * 100U + (nature)))
+#define ALARM_CODE_MAKE(layer, object_id, fault_mode) \
+    ((uint32_t)((layer) * 100000U + (object_id) * 100U + (fault_mode)))
 
-#define ALARM_CODE_CATEGORY(code) ((uint32_t)((code) / 100000U))
-#define ALARM_CODE_INDEX(code)    ((uint32_t)(((code) / 100U) % 1000U))
-#define ALARM_CODE_NATURE(code)   ((uint32_t)((code) % 100U))
+#define ALARM_CODE_LAYER(code)      ((uint32_t)((code) / 100000U))
+#define ALARM_CODE_OBJECT(code)     ((uint32_t)(((code) / 100U) % 1000U))
+#define ALARM_CODE_FAULT_MODE(code) ((uint32_t)((code) % 100U))
 
-#define ALM_C_POWER 1U
-#define ALM_C_SENSE 2U
-#define ALM_C_ACT   3U
-#define ALM_C_CTRL  4U
-#define ALM_C_SW    9U
+#define ALM_C_POWER  1U /* 动力设备：将电能转为机械功的负载 */
+#define ALM_C_DETECT 2U /* 检测元件：仅提供检测输入的器件 */
+#define ALM_C_SWITCH 3U /* 开关元件：仅负责回路通断的元件 */
+#define ALM_C_CTRL   4U /* 控制装置：具备控制或通讯能力的装置 */
+#define ALM_C_LOGIC  9U /* 逻辑事件：无对应硬件对象的软件故障 */
 
-#define ALM_N_OTHER     0U
-#define ALM_N_OVERLOAD  1U
-#define ALM_N_COMM_LOST 2U
-#define ALM_N_HW_FAULT  3U
-#define ALM_N_SIG_ERR   4U
-#define ALM_N_TIMEOUT   5U
-#define ALM_N_PRESSURE  6U
-#define ALM_N_LEVEL     7U
-#define ALM_N_SAFETY    9U
+#define ALM_N_UNCLASSIFIED    0U /* 未分类：无对应发现方式（含非故障事件） */
+#define ALM_N_OVERLOAD        1U /* 过载：过流、过载接点 */
+#define ALM_N_COMM_INTERRUPT  2U /* 通讯中断 */
+#define ALM_N_UNDERLOAD       3U /* 欠载：空载、电流过低 */
+#define ALM_N_SIG_ERR         4U /* 信号异常：传感器失效或读数不可信 */
+#define ALM_N_ACTION_TIMEOUT  5U /* 动作超时 */
+#define ALM_N_FAULT_FEEDBACK  6U /* 故障反馈：对象自身故障接点 */
+#define ALM_N_LEVEL_ERR       7U /* 液位异常：液位测量值越限 */
+#define ALM_N_PRESSURE_ERR    8U /* 压力异常：压力测量值越限 */
+#define ALM_N_SAFETY_TRIGGER  9U /* 安全触发：保护事件，非设备损坏 */
 
 /* -------------------------------------------------------------------------
  * 容量依据（按已接入项目实测）
@@ -110,35 +115,36 @@ typedef struct {
 /** @brief 空报警码；用于「当前无最高级别告警」等占位语义 */
 #define ALARM_CODE_NONE 0U
 
-static inline bool alarm_code_parts_valid(uint32_t category, uint32_t index, uint32_t nature)
+static inline bool alarm_code_parts_valid(uint32_t layer, uint32_t object_id, uint32_t fault_mode)
 {
-    return (category >= ALARM_CODE_CATEGORY_MIN) && (category <= ALARM_CODE_CATEGORY_MAX)
-           && (index <= ALARM_CODE_INDEX_MAX) && (nature <= ALARM_CODE_NATURE_MAX);
+    return (layer >= ALARM_CODE_LAYER_MIN) && (layer <= ALARM_CODE_LAYER_MAX)
+           && (object_id <= ALARM_CODE_OBJECT_MAX) && (fault_mode <= ALARM_CODE_FAULT_MODE_MAX);
 }
 
 static inline bool alarm_code_is_valid(uint32_t code)
 {
-    uint32_t category;
-    uint32_t index;
-    uint32_t nature;
+    uint32_t layer;
+    uint32_t object_id;
+    uint32_t fault_mode;
 
     if (code == ALARM_CODE_NONE) {
         return false;
     }
 
-    category = ALARM_CODE_CATEGORY(code);
-    index    = ALARM_CODE_INDEX(code);
-    nature   = ALARM_CODE_NATURE(code);
+    layer      = ALARM_CODE_LAYER(code);
+    object_id  = ALARM_CODE_OBJECT(code);
+    fault_mode = ALARM_CODE_FAULT_MODE(code);
 
-    return alarm_code_parts_valid(category, index, nature) && (code == ALARM_CODE_MAKE(category, index, nature));
+    return alarm_code_parts_valid(layer, object_id, fault_mode)
+           && (code == ALARM_CODE_MAKE(layer, object_id, fault_mode));
 }
 
-static inline bool alarm_code_make_checked(uint32_t category, uint32_t index, uint32_t nature, uint32_t *out_code)
+static inline bool alarm_code_make_checked(uint32_t layer, uint32_t object_id, uint32_t fault_mode, uint32_t *out_code)
 {
-    if (!alarm_code_parts_valid(category, index, nature) || (out_code == NULL)) {
+    if (!alarm_code_parts_valid(layer, object_id, fault_mode) || (out_code == NULL)) {
         return false;
     }
-    *out_code = ALARM_CODE_MAKE(category, index, nature);
+    *out_code = ALARM_CODE_MAKE(layer, object_id, fault_mode);
     return true;
 }
 

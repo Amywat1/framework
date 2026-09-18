@@ -55,7 +55,7 @@ static uint32_t fill_code(unsigned i)
 {
     uint32_t code = 0U;
 
-    TEST_ASSERT_TRUE(alarm_code_make_checked(ALM_C_SW, i, ALM_N_OTHER, &code));
+    TEST_ASSERT_TRUE(alarm_code_make_checked(ALM_C_LOGIC, i, ALM_N_UNCLASSIFIED, &code));
     return code;
 }
 

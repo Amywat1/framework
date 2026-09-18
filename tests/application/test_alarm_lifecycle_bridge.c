@@ -205,14 +205,14 @@ static void test_journal_overflow_dropped_survives_read_until_new_session(void)
 
     for (i = 0U; i < (ALARM_SESSION_JOURNAL_MAX + 1U); ++i) {
         cat[i] = (alarm_def_t){
-            .code         = ALARM_CODE_MAKE(ALM_C_SENSE, i, ALM_N_OVERLOAD),
+            .code         = ALARM_CODE_MAKE(ALM_C_DETECT, i, ALM_N_OVERLOAD),
             .level        = ALARM_LEVEL_MAJOR,
             .clear        = ALARM_CLEAR_AUTO_STATIC,
             .reeval_group = ALARM_REEVAL_GROUP_NONE,
             .desc         = "journal fill",
         };
     }
-    extra                               = ALARM_CODE_MAKE(ALM_C_SENSE, ALARM_SESSION_JOURNAL_MAX, ALM_N_OVERLOAD);
+    extra                               = ALARM_CODE_MAKE(ALM_C_DETECT, ALARM_SESSION_JOURNAL_MAX, ALM_N_OVERLOAD);
     cat[ALARM_SESSION_JOURNAL_MAX + 1U] = (alarm_def_t){
         .code         = minor_code,
         .level        = ALARM_LEVEL_MINOR,
@@ -225,7 +225,7 @@ static void test_journal_overflow_dropped_survives_read_until_new_session(void)
     publish_and_wait(EVT_WASH_SESSION_STARTED, 0U);
 
     for (i = 0U; i < ALARM_SESSION_JOURNAL_MAX; ++i) {
-        TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_trigger(ALARM_CODE_MAKE(ALM_C_SENSE, i, ALM_N_OVERLOAD)));
+        TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_trigger(ALARM_CODE_MAKE(ALM_C_DETECT, i, ALM_N_OVERLOAD)));
     }
     TEST_ASSERT_EQUAL_UINT(ALARM_SESSION_JOURNAL_MAX, journal_count());
     TEST_ASSERT_EQUAL_UINT32(0U, journal_dropped());
