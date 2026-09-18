@@ -159,6 +159,11 @@ static int adc_ma(int board_id, int port)
     return drv_io_adc_ma(board_id, port);
 }
 
+static void di_test_override(io_di_t pin, int value)
+{
+    drv_io_set_test_override(pin, value);
+}
+
 static const hal_io_ops_t s_ops = {
     .init                     = io_init,
     .start                    = io_start,
@@ -182,6 +187,7 @@ static const hal_io_ops_t s_ops = {
     .adc_read                 = adc_read,
     .adc_mv                   = adc_mv,
     .adc_ma                   = adc_ma,
+    .di_test_override         = di_test_override,
 };
 
 void snack_io_adapter_register(void)

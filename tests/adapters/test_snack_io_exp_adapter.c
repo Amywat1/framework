@@ -231,13 +231,14 @@ static void test_di_test_override_controls_read_value(void)
 {
     io_di_t pin = IO_DI(1U, 1U);
 
+    TEST_ASSERT_NOT_NULL(io_ops()->di_test_override);
     TEST_ASSERT_EQUAL_INT(IO_SAMPLE_QUALITY_PROBING, read_di(pin).quality);
-    drv_io_set_test_override(pin, 1);
+    io_ops()->di_test_override(pin, 1);
     TEST_ASSERT_TRUE(read_di(pin).level);
     TEST_ASSERT_EQUAL_INT(IO_SAMPLE_QUALITY_VALID, read_di(pin).quality);
-    drv_io_set_test_override(pin, 0);
+    io_ops()->di_test_override(pin, 0);
     TEST_ASSERT_FALSE(read_di(pin).level);
-    drv_io_clear_test_override(pin);
+    io_ops()->di_test_override(pin, -1);
     TEST_ASSERT_EQUAL_INT(IO_SAMPLE_QUALITY_PROBING, read_di(pin).quality);
 }
 

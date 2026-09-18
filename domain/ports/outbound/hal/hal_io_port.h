@@ -148,6 +148,14 @@ typedef struct {
      * @retval 其他负值                  参数非法或快照不可用
      */
     int (*adc_ma)(int board_id, int port);
+
+    /**
+     * @brief  设置 DI 测试覆盖（仅调试/联调）
+     * @param  pin    DI 句柄
+     * @param  value  0=强制 OFF，1=强制 ON，其它值=清除覆盖并恢复硬件采样
+     * @note   可选；未实现时指针为 NULL。覆盖优先于硬件采样，不改变实际管脚电平。
+     */
+    void (*di_test_override)(io_di_t pin, int value);
 } hal_io_ops_t;
 
 sw_err_t            hal_io_register(const hal_io_ops_t *ops);
