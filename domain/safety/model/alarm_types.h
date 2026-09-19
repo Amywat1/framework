@@ -21,6 +21,7 @@ extern "C" {
  * 对象层：1 动力设备  2 检测元件  3 开关元件  4 控制装置  9 逻辑事件
  * 故障形态：0 未分类  1 过载  2 通讯中断  3 欠载  4 信号异常
  *           5 动作超时  6 故障反馈  7 液位异常  8 压力异常  9 安全触发
+ *          10 主动停止
  * ------------------------------------------------------------------------- */
 #define ALARM_CODE_LAYER_MIN      1U
 #define ALARM_CODE_LAYER_MAX      9U
@@ -40,7 +41,7 @@ extern "C" {
 #define ALM_C_CTRL   4U /* 控制装置：具备控制或通讯能力的装置 */
 #define ALM_C_LOGIC  9U /* 逻辑事件：无对应硬件对象的软件故障 */
 
-#define ALM_N_UNCLASSIFIED    0U /* 未分类：无对应发现方式（含非故障事件） */
+#define ALM_N_UNCLASSIFIED    0U /* 未分类：无对应发现方式（如未识别的运行状态） */
 #define ALM_N_OVERLOAD        1U /* 过载：过流、过载接点 */
 #define ALM_N_COMM_INTERRUPT  2U /* 通讯中断 */
 #define ALM_N_UNDERLOAD       3U /* 欠载：空载、电流过低 */
@@ -50,6 +51,7 @@ extern "C" {
 #define ALM_N_LEVEL_ERR       7U /* 液位异常：液位测量值越限 */
 #define ALM_N_PRESSURE_ERR    8U /* 压力异常：压力测量值越限 */
 #define ALM_N_SAFETY_TRIGGER  9U /* 安全触发：保护事件，非设备损坏 */
+#define ALM_N_OPERATOR_STOP  10U /* 主动停止：人下发的中止或全切断，不是设备损坏 */
 
 /* -------------------------------------------------------------------------
  * 容量依据（按已接入项目实测）
