@@ -34,20 +34,51 @@ sw_err_t cloud_point_get_echo_idle(point_value_t *out)
 }
 
 /**
- * @brief  经 cloud_device_cmd_submit 回调提交标准设备命令
+ * @brief  按点位表把写入值翻译为设备命令
  */
-static sw_err_t submit_device_cmd(dev_cmd_kind_t kind)
+static sw_err_t build_device_cmd(const cloud_point_entry_t *entry, const point_value_t *val, dev_cmd_t *cmd)
+{
+    int32_t param;
+
+    if (entry->cmd_has_param) {
+        param = entry->cmd_param;
+    } else if (entry->base.type == POINT_TYPE_INT) {
+        param = val->i;
+    } else {
+        param = val->b ? 1 : 0;
+    }
+
+    switch (entry->cmd_kind) {
+    case DEV_CMD_MANUAL_ACTUATOR:
+        *cmd = dev_cmd_make_manual(entry->cmd_act_id, param);
+        return SW_OK;
+    case DEV_CMD_START_WASH:
+        *cmd = dev_cmd_make_start_wash(entry->cmd_has_param ? (wash_mode_t)entry->cmd_param : (wash_mode_t)0);
+        return SW_OK;
+    case DEV_CMD_SET_SERVICE:
+        *cmd = dev_cmd_make_set_service(entry->cmd_has_param ? (entry->cmd_param != 0) : val->b);
+        return SW_OK;
+    default:
+        *cmd = dev_cmd_make_simple(entry->cmd_kind);
+        return SW_OK;
+    }
+}
+
+/**
+ * @brief  经 cloud_device_cmd_submit 回调提交设备命令
+ */
+static sw_err_t submit_device_cmd(const dev_cmd_t *cmd)
 {
     if (s_device_cmd_submit == NULL) {
         LOG_WARN("cloud_point: device_cmd submit handler not registered");
         return SW_ERR_NOT_INIT;
     }
 
-    if (kind == DEV_CMD_NONE) {
+    if ((cmd == NULL) || (cmd->body.kind == DEV_CMD_NONE)) {
         return SW_ERR_PARAM;
     }
 
-    return s_device_cmd_submit(kind);
+    return s_device_cmd_submit(cmd);
 }
 
 sw_err_t cloud_point_apply_value(const cloud_point_entry_t *entry,
@@ -55,6 +86,7 @@ sw_err_t cloud_point_apply_value(const cloud_point_entry_t *entry,
                                  point_apply_result_t      *result)
 {
     sw_err_t ret = SW_OK;
+    dev_cmd_t cmd;
 
     if ((entry == NULL) || (val == NULL)) {
         return SW_ERR_PARAM;
@@ -67,13 +99,25 @@ sw_err_t cloud_point_apply_value(const cloud_point_entry_t *entry,
         return SW_ERR_STATE;
 
     case CLOUD_KIND_DEV_CMD:
-        /* 脉冲语义：只有置真才触发，置假是回落，不构成设备命令 */
-        if (!val->b) {
+        /* 脉冲：置假是回落，不构成设备命令；保持量每次写入都提交 */
+        if (cloud_point_is_pulse(entry) && (entry->base.type == POINT_TYPE_BOOL) && !val->b) {
             return SW_OK;
         }
-        ret = submit_device_cmd(entry->cmd_kind);
+        ret = build_device_cmd(entry, val, &cmd);
         if (ret != SW_OK) {
             point_apply_result_record_error(result, entry->base.id, ret);
+            return ret;
+        }
+        ret = submit_device_cmd(&cmd);
+        if (ret != SW_OK) {
+            point_apply_result_record_error(result, entry->base.id, ret);
+            return ret;
+        }
+        if (entry->base.set != NULL) {
+            ret = entry->base.set(val);
+            if (ret != SW_OK) {
+                point_apply_result_record_error(result, entry->base.id, ret);
+            }
         }
         return ret;
 

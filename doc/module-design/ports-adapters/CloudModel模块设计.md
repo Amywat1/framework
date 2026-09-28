@@ -99,16 +99,19 @@ typedef struct {
     cloud_report_policy_t report;
     uint32_t              deadband;
     dev_cmd_kind_t        cmd_kind;
+    uint32_t              cmd_act_id;
+    int32_t               cmd_param;
+    bool                  cmd_has_param;
 } cloud_point_entry_t;
 ```
 
 | kind | 下行 | 约束 |
 |------|------|------|
-| TELEMETRY | 拒写 | 必须有 get，不得有 set |
-| DEV_CMD | `val.b == true` 时提交 `cmd_kind` | 必须是 bool，`cmd_kind ≠ NONE` |
-| SET | 调用 `base.set` | 必须有 set |
+| TELEMETRY | 拒写 | 必须有 get，不得有 set / cmd 载荷 |
+| DEV_CMD | 翻译为 `dev_cmd_t` 经提交回调进命令网关 | `cmd_kind ≠ NONE`；bool 或 int；`MANUAL_ACTUATOR` 必须有 `cmd_act_id` |
+| SET | 调用 `base.set` | 必须有 set，不得带 cmd 载荷 |
 
-`report`：`NONE` 不进快照/脏点；`RESYNC` 仅重连/`cmd_sync` 快照；`ON_CHANGE` 进 watcher，快照也带当前值。下行后先发一包：成功点回显下发值，失败点报 getter 当前值；该包发送成功后再发成功脉冲的空闲 0。`ON_CHANGE` 必须有 get，禁止 `POINT_TYPE_FLOAT`。`deadband` 仅 `ON_CHANGE` 的 INT 有效。DEV_CMD 必须是 `RESYNC`。SET 以 `RESYNC` 表示脉冲。
+`report`：`NONE` 不进快照/脏点；`RESYNC` 仅重连/`cmd_sync` 快照；`ON_CHANGE` 进 watcher，快照也带当前值。下行后先发一包：成功点回显下发值，失败点报 getter 当前值；该包发送成功后再发成功脉冲的空闲 0。`ON_CHANGE` 必须有 get，禁止 `POINT_TYPE_FLOAT`。`deadband` 仅 `ON_CHANGE` 的 INT 有效。可写点以 `RESYNC` 表示脉冲。DEV_CMD 成功后若带 `set`，再调用 `set` 更新保持值。
 
 容量：`CLOUD_POINT_TABLE_MAX` 96；`CLOUD_REPORT_JSON_MAX` 4096。
 
@@ -126,7 +129,7 @@ typedef struct {
 
 根必须是 JSON 对象；载荷长于 `CLOUD_REPORT_JSON_MAX` 返回 `SW_ERR_OVERFLOW`。未知 id 继续下一 key（部分成功）。函数在解析成功时返回 `SW_OK`，逐 key 成败看 `point_apply_result_t`。
 
-DEV_CMD：`false` 空操作；`true` 调提交回调，未注册返回 `SW_ERR_NOT_INIT`。解析成功后无论逐 key 成败都组第一包属性：成功回显下发值，失败报当前真实值；该包发送成功后再报已应用脉冲的空闲 0。
+DEV_CMD：脉冲 bool 置假为空操作；否则按表构造完整 `dev_cmd_t` 调提交回调，未注册返回 `SW_ERR_NOT_INIT`。`MANUAL_ACTUATOR` 把写入值（或固定 `cmd_param`）填入 `act_id/param`。解析成功后无论逐 key 成败都组第一包属性：成功回显下发值，失败报当前真实值；该包发送成功后再报已应用脉冲的空闲 0。
 
 ### 5.3 `cloud_point_watcher`
 
@@ -142,16 +145,16 @@ DEV_CMD：`false` 空操作；`true` 调提交回调，未注册返回 `SW_ERR_N
 
 ## 6. 与命令网关的衔接
 
-DEV_CMD 不在 cloud 层构造完整 `dev_cmd_t`，只传 `dev_cmd_kind_t`。项目 wiring：
+DEV_CMD 在 cloud 层构造完整 `dev_cmd_t`（含 MANUAL / START_WASH 载荷），回调只负责来源与提交。项目 wiring：
 
 ```c
-static sw_err_t cloud_cmd_submit(dev_cmd_kind_t kind)
+static sw_err_t cloud_cmd_submit(const dev_cmd_t *cmd)
 {
-    dev_cmd_t cmd = dev_cmd_make_simple(kind);
+    dev_cmd_t local = *cmd;
     uint64_t  request_id;
 
-    cmd.meta.source = DEV_CMD_SOURCE_CLOUD;
-    return device_command_port_get_ops()->submit_async(&cmd, &request_id);
+    local.meta.source = DEV_CMD_SOURCE_CLOUD;
+    return device_command_port_get_ops()->submit_async(&local, &request_id);
 }
 ```
 
@@ -185,7 +188,7 @@ report_scheduler_start(500U);
 
 固化在框架：kind 分派、JSON 编解码、登记期校验、ON_CHANGE 脏集合、单一 poll 写者。
 
-由项目 / 适配器决定：物模型表、MQTT topic / 凭证、`poll_ms`、DEV_CMD 到 `dev_cmd_t` 的填充。
+由项目 / 适配器决定：物模型表、MQTT topic / 凭证、`poll_ms`、DEV_CMD 提交回调的来源与入队方式。
 
 ---
 
@@ -193,8 +196,8 @@ report_scheduler_start(500U);
 
 | 测试 | 覆盖点 |
 |------|--------|
-| `test_cloud_point_validate` | id 唯一、kind 约束、ON_CHANGE 禁止 FLOAT、死区与 DEV_CMD 策略 |
-| `test_cloud_point_dispatch` | 分派、遥测拒写、DEV_CMD 脉冲、快照不含 NONE、成功回显 1/失败报当前值 |
+| `test_cloud_point_validate` | id 唯一、kind 约束、ON_CHANGE 禁止 FLOAT、死区与 DEV_CMD 载荷 |
+| `test_cloud_point_dispatch` | 分派、遥测拒写、DEV_CMD 脉冲与点动载荷、快照不含 NONE、成功回显 1/失败报当前值 |
 | `test_cloud_point_watcher` | 脏集合、死区、仅 ON_CHANGE 置脏 |
 | `test_cloud_model_report_scheduler` | 属性构建、重连全量、脏点增量、下行成功/失败上报 |
 | `test_cloud_ports` | link 注册 / NULL 解除 / 复位 |
@@ -206,7 +209,7 @@ report_scheduler_start(500U);
 
 新增属性：在项目表追加条目，选 kind 与 `report`（需要时加 `deadband`），保证 `cloud_model_register` 能通过。
 
-新增 DEV_CMD 种类：先扩 `dev_cmd_kind_t` 与命令矩阵，再在物模型表加 bool 点位。
+新增 DEV_CMD 种类：先扩 `dev_cmd_kind_t` 与命令矩阵，再在物模型表加点位并按需要填 `cmd_act_id` / `cmd_param`。
 
 禁止：在 dispatch 里写机型分支；DEV_CMD 绕过 `device_command_port`；在 watcher 里发 MQTT。
 

@@ -74,6 +74,13 @@ static sw_err_t submit_simple(dev_cmd_kind_t kind, dev_cmd_receipt_t *receipt)
     return device_command_port_get_ops()->submit_sync(&cmd, receipt, 1000U);
 }
 
+static sw_err_t submit_set_service(bool enabled, dev_cmd_receipt_t *receipt)
+{
+    dev_cmd_t cmd = dev_cmd_make_set_service(enabled);
+
+    return device_command_port_get_ops()->submit_sync(&cmd, receipt, 1000U);
+}
+
 static void setup_idle(void)
 {
     dev_cmd_t cmd = dev_cmd_make_simple(DEV_CMD_RECOVER);
@@ -125,7 +132,7 @@ static void test_submit_accepted_in_idle(void)
     setup_idle();
     start_runtime(&tid);
 
-    TEST_ASSERT_EQUAL_INT(SW_OK, submit_simple(DEV_CMD_CLOUD_SYNC, &receipt));
+    TEST_ASSERT_EQUAL_INT(SW_OK, submit_set_service(true, &receipt));
     TEST_ASSERT_EQUAL_INT(DEV_CMD_STATUS_ACCEPTED, receipt.status);
 
     stop_runtime(tid);
@@ -212,7 +219,7 @@ static void test_gateway_assigns_request_id_and_trace(void)
     setup_idle();
     start_runtime(&tid);
 
-    TEST_ASSERT_EQUAL_INT(SW_OK, submit_simple(DEV_CMD_CLOUD_SYNC, &receipt));
+    TEST_ASSERT_EQUAL_INT(SW_OK, submit_set_service(true, &receipt));
     usleep(30000);
     TEST_ASSERT_NOT_EQUAL(0U, receipt.request_id);
     TEST_ASSERT_EQUAL_UINT64(receipt.request_id, s_handled_command_id);
@@ -232,7 +239,7 @@ static void test_timeout_then_reuse_gets_real_verdict(void)
     setup_idle();
 
     {
-        dev_cmd_t cmd = dev_cmd_make_simple(DEV_CMD_CLOUD_SYNC);
+        dev_cmd_t cmd = dev_cmd_make_set_service(true);
 
         TEST_ASSERT_EQUAL_INT(SW_ERR_TIMEOUT, device_command_port_get_ops()->submit_sync(&cmd, &receipt, 50U));
         TEST_ASSERT_EQUAL_INT(DEV_CMD_STATUS_TIMEOUT, receipt.status);
@@ -241,7 +248,7 @@ static void test_timeout_then_reuse_gets_real_verdict(void)
     start_runtime(&tid);
 
     memset(&receipt, 0, sizeof(receipt));
-    TEST_ASSERT_EQUAL_INT(SW_OK, submit_simple(DEV_CMD_CLOUD_SYNC, &receipt));
+    TEST_ASSERT_EQUAL_INT(SW_OK, submit_set_service(true, &receipt));
     TEST_ASSERT_EQUAL_INT(DEV_CMD_STATUS_ACCEPTED, receipt.status);
     TEST_ASSERT_NOT_EQUAL(SW_ERR_BUSY, receipt.effect_error);
 
@@ -254,7 +261,7 @@ static volatile int      s_reentrant_done;
 
 static sw_err_t stub_stop_all_reentrant(void)
 {
-    dev_cmd_t         cmd = dev_cmd_make_simple(DEV_CMD_CLOUD_SYNC);
+    dev_cmd_t         cmd = dev_cmd_make_set_service(true);
     dev_cmd_receipt_t receipt;
 
     s_stop_all_outputs_count++;
@@ -400,7 +407,7 @@ static void test_stop_all_preempts_full_queue(void)
     setup_idle();
 
     for (int i = 0; i < 4; i++) {
-        dev_cmd_t cmd = dev_cmd_make_simple(DEV_CMD_CLOUD_SYNC);
+        dev_cmd_t cmd = dev_cmd_make_set_service(true);
 
         TEST_ASSERT_EQUAL_INT(SW_OK, device_command_port_get_ops()->submit_async(&cmd, &rid));
     }

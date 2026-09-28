@@ -18,6 +18,7 @@ extern "C" {
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <string.h>
 
 /**
  * @brief  设备命令种类
@@ -31,7 +32,6 @@ typedef enum {
     DEV_CMD_START_SELF_CHECK,
     DEV_CMD_RECOVER,
     DEV_CMD_STOP_ALL_OUTPUTS,
-    DEV_CMD_CLOUD_SYNC, /**< 云端点位全量同步，无设备副作用 */
     DEV_CMD_MAX
 } dev_cmd_kind_t;
 
@@ -90,12 +90,9 @@ static inline dev_cmd_t dev_cmd_make_simple(dev_cmd_kind_t kind)
 {
     dev_cmd_t cmd;
 
-    cmd.meta.request_id      = 0U;
-    cmd.meta.wash_session_id = 0U;
-    cmd.meta.correlation_id  = 0U;
-    cmd.meta.causation_id    = 0U;
-    cmd.meta.source          = DEV_CMD_SOURCE_TEST;
-    cmd.body.kind            = kind;
+    memset(&cmd, 0, sizeof(cmd));
+    cmd.meta.source = DEV_CMD_SOURCE_TEST;
+    cmd.body.kind   = kind;
     return cmd;
 }
 

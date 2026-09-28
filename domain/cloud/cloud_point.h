@@ -27,12 +27,12 @@ extern "C" {
 /**
  * @brief  物模型点位种类
  *
- * 三种互斥：遥测只读、设备命令走网关、点位写入走 set。不再另设 access / semantic。
+ * 三种互斥：遥测只读；设备命令翻译为 `dev_cmd_t` 经命令网关；点位写入走 set，不进网关。
  */
 typedef enum {
     CLOUD_KIND_TELEMETRY = 0, /**< 只读遥测，必须有 get */
-    CLOUD_KIND_DEV_CMD,       /**< bool 脉冲设备命令，cmd_kind 有效，走命令网关 */
-    CLOUD_KIND_SET,           /**< 点位写入，必须有 set */
+    CLOUD_KIND_DEV_CMD,       /**< 写入翻译为设备命令并经命令网关；cmd_kind 有效 */
+    CLOUD_KIND_SET,           /**< 点位写入，必须有 set，不得带 cmd_kind */
 } cloud_point_kind_t;
 
 /**
@@ -50,9 +50,12 @@ typedef enum {
 typedef struct {
     point_table_entry_t     base;
     cloud_point_kind_t      kind;
-    cloud_report_policy_t   report;   /**< 上行策略 */
-    uint32_t                deadband; /**< 仅 ON_CHANGE 的 INT：|Δ| < deadband 不置脏；0 表示精确相等 */
-    dev_cmd_kind_t          cmd_kind; /**< 仅 DEV_CMD 使用 */
+    cloud_report_policy_t   report;        /**< 上行策略 */
+    uint32_t                deadband;      /**< 仅 ON_CHANGE 的 INT：|Δ| < deadband 不置脏；0 表示精确相等 */
+    dev_cmd_kind_t          cmd_kind;      /**< 仅 DEV_CMD：提交的命令种类 */
+    uint32_t                cmd_act_id;    /**< 仅 MANUAL_ACTUATOR：动作号；其余为 0 */
+    int32_t                 cmd_param;     /**< cmd_has_param 为真时的固定载荷 */
+    bool                    cmd_has_param; /**< 真则使用 cmd_param，否则用写入值（MANUAL）或 0（START_WASH） */
 } cloud_point_entry_t;
 
 /**
@@ -80,23 +83,26 @@ sw_err_t cloud_point_get_echo_idle(point_value_t *out);
 /**
  * @brief  是否为无保持态的脉冲点（成功回显 1 后须再报 0）
  *
- * DEV_CMD 天生脉冲；SET 以 report==RESYNC 表示脉冲，不以 getter 函数指针推断。
+ * 可写点以 report==RESYNC 表示脉冲，不以 kind 或 getter 函数指针推断。
  */
 static inline bool cloud_point_is_pulse(const cloud_point_entry_t *entry)
 {
     if (entry == NULL) {
         return false;
     }
-    if (entry->kind == CLOUD_KIND_DEV_CMD) {
-        return true;
+    if ((entry->kind != CLOUD_KIND_DEV_CMD) && (entry->kind != CLOUD_KIND_SET)) {
+        return false;
     }
-    return (entry->kind == CLOUD_KIND_SET) && (entry->report == CLOUD_REPORT_RESYNC);
+    return entry->report == CLOUD_REPORT_RESYNC;
 }
 
-/** @brief  DEV_CMD 提交回调（由项目 wiring 注册） */
-typedef sw_err_t (*cloud_device_cmd_submit_fn_t)(dev_cmd_kind_t kind);
+/**
+ * @brief  DEV_CMD 提交回调（由项目 wiring 注册）
+ * @param  cmd 已按点位表填好 kind 与载荷的命令；来源由回调改写
+ */
+typedef sw_err_t (*cloud_device_cmd_submit_fn_t)(const dev_cmd_t *cmd);
 
-/** @brief  注册 DEV_CMD 提交回调（项目层宜转调 device_command_port.submit_async） */
+/** @brief  注册 DEV_CMD 提交回调（项目层宜转调命令提交入口） */
 void cloud_point_set_device_cmd_submit(cloud_device_cmd_submit_fn_t fn);
 
 /**
@@ -111,10 +117,12 @@ sw_err_t cloud_point_validate(const cloud_point_entry_t *entries, size_t count);
  * @param  entry   点位条目
  * @param  val     已解析的值（类型已与 entry->base.type 校验一致）
  * @param  result  逐 key 结果汇总，可为 NULL
- * @retval SW_OK           分派成功，或 DEV_CMD 置假的空操作
+ * @retval SW_OK           分派成功，或脉冲 DEV_CMD 置假的空操作
  * @retval SW_ERR_STATE    遥测点位拒绝写入
  * @retval SW_ERR_NOT_INIT 语义要求的回调未注册
  * @retval SW_ERR_PARAM    入参非法或 kind 未知
+ *
+ * @note   DEV_CMD 成功后若带 set，再调用 set 做保持值等网关后副作用。
  *
  * @note   本函数只答"该值交给谁"，不涉及任何序列化格式。JSON 载荷的解析入口
  *         见 `adapters/outbound/cloud/cloud_json.h`。

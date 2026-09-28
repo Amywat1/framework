@@ -15,7 +15,9 @@ static int32_t        s_speed;
 static bool           s_manual_on;
 static bool           s_write_fail;
 static bool           s_cmd_fail;
-static dev_cmd_kind_t s_last_cmd;
+static bool           s_hold;
+static unsigned       s_hold_sets;
+static dev_cmd_t      s_last_cmd;
 
 static sw_err_t get_speed(point_value_t *out)
 {
@@ -38,12 +40,22 @@ static sw_err_t set_manual(const point_value_t *in)
     return SW_OK;
 }
 
-static sw_err_t submit_device_cmd(dev_cmd_kind_t kind)
+static sw_err_t set_hold(const point_value_t *in)
+{
+    s_hold_sets++;
+    s_hold = in->b;
+    return SW_OK;
+}
+
+static sw_err_t submit_device_cmd(const dev_cmd_t *cmd)
 {
     if (s_cmd_fail) {
         return SW_ERR_STATE;
     }
-    s_last_cmd = kind;
+    if (cmd == NULL) {
+        return SW_ERR_PARAM;
+    }
+    s_last_cmd = *cmd;
     return SW_OK;
 }
 
@@ -94,7 +106,10 @@ void setUp(void)
     s_manual_on  = false;
     s_write_fail = false;
     s_cmd_fail   = false;
-    s_last_cmd   = DEV_CMD_NONE;
+    s_hold       = false;
+    s_hold_sets  = 0U;
+    memset(&s_last_cmd, 0, sizeof(s_last_cmd));
+    s_last_cmd.body.kind = DEV_CMD_NONE;
     cloud_point_set_device_cmd_submit(submit_device_cmd);
 }
 
@@ -192,7 +207,63 @@ static void test_apply_json_dev_cmd_triggers_submit(void)
 
     TEST_ASSERT_EQUAL_INT(SW_OK, cloud_point_apply_json(entries, 1U, "{\"stopWash\":true}", &result));
     TEST_ASSERT_EQUAL_UINT(1U, result.applied);
-    TEST_ASSERT_EQUAL_INT(DEV_CMD_STOP_WASH, s_last_cmd);
+    TEST_ASSERT_EQUAL_INT(DEV_CMD_STOP_WASH, s_last_cmd.body.kind);
+}
+
+static cloud_point_entry_t make_manual_cmd(void)
+{
+    cloud_point_entry_t entry;
+
+    memset(&entry, 0, sizeof(entry));
+    entry.base.id     = "gantryMove";
+    entry.base.type   = POINT_TYPE_INT;
+    entry.base.get    = get_speed;
+    entry.kind        = CLOUD_KIND_DEV_CMD;
+    entry.report      = CLOUD_REPORT_ON_CHANGE;
+    entry.cmd_kind    = DEV_CMD_MANUAL_ACTUATOR;
+    entry.cmd_act_id  = 8U;
+    return entry;
+}
+
+static void test_apply_json_manual_cmd_carries_payload(void)
+{
+    point_apply_result_t      result;
+    const cloud_point_entry_t entries[] = {make_manual_cmd()};
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, cloud_point_apply_json(entries, 1U, "{\"gantryMove\":-1}", &result));
+    TEST_ASSERT_EQUAL_UINT(1U, result.applied);
+    TEST_ASSERT_EQUAL_INT(DEV_CMD_MANUAL_ACTUATOR, s_last_cmd.body.kind);
+    TEST_ASSERT_EQUAL_UINT32(8U, s_last_cmd.body.payload.manual_actuator.act_id);
+    TEST_ASSERT_EQUAL_INT(-1, s_last_cmd.body.payload.manual_actuator.param);
+}
+
+static void test_apply_json_hold_updates_after_accept(void)
+{
+    point_apply_result_t result;
+    cloud_point_entry_t  entry;
+
+    memset(&entry, 0, sizeof(entry));
+    entry.base.id    = "floodlight";
+    entry.base.type  = POINT_TYPE_BOOL;
+    entry.base.get   = get_manual;
+    entry.base.set   = set_hold;
+    entry.kind       = CLOUD_KIND_DEV_CMD;
+    entry.report     = CLOUD_REPORT_ON_CHANGE;
+    entry.cmd_kind   = DEV_CMD_MANUAL_ACTUATOR;
+    entry.cmd_act_id = 11U;
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, cloud_point_apply_json(&entry, 1U, "{\"floodlight\":true}", &result));
+    TEST_ASSERT_EQUAL_UINT(1U, result.applied);
+    TEST_ASSERT_EQUAL_UINT(1U, s_hold_sets);
+    TEST_ASSERT_TRUE(s_hold);
+
+    s_cmd_fail  = true;
+    s_hold      = false;
+    s_hold_sets = 0U;
+    TEST_ASSERT_EQUAL_INT(SW_OK, cloud_point_apply_json(&entry, 1U, "{\"floodlight\":true}", &result));
+    TEST_ASSERT_EQUAL_UINT(0U, result.applied);
+    TEST_ASSERT_EQUAL_UINT(0U, s_hold_sets);
+    TEST_ASSERT_FALSE(s_hold);
 }
 
 static void test_apply_json_rejects_telemetry(void)
@@ -212,7 +283,7 @@ static void test_apply_json_dev_cmd_false_is_noop(void)
 
     TEST_ASSERT_EQUAL_INT(SW_OK, cloud_point_apply_json(entries, 1U, "{\"stopWash\":false}", &result));
     TEST_ASSERT_EQUAL_UINT(1U, result.applied);
-    TEST_ASSERT_EQUAL_INT(DEV_CMD_NONE, s_last_cmd);
+    TEST_ASSERT_EQUAL_INT(DEV_CMD_NONE, s_last_cmd.body.kind);
 }
 
 static void test_apply_json_unknown_key_partial_reject(void)
@@ -338,6 +409,8 @@ int main(void)
     WDF_RUN_TEST(test_to_json_snapshot_includes_resync_omits_none, "", "验证快照含 RESYNC 且不含 NONE");
     WDF_RUN_TEST(test_apply_json_set, "", "验证应用 JSON 点位写入");
     WDF_RUN_TEST(test_apply_json_dev_cmd_triggers_submit, "", "验证应用 JSON 设备命令触发提交");
+    WDF_RUN_TEST(test_apply_json_manual_cmd_carries_payload, "", "验证点动设备命令携带动作号与参数");
+    WDF_RUN_TEST(test_apply_json_hold_updates_after_accept, "", "验证保持值仅在网关接受后更新");
     WDF_RUN_TEST(test_apply_json_rejects_telemetry, "", "验证应用 JSON 拒绝遥测写入");
     WDF_RUN_TEST(test_apply_json_dev_cmd_false_is_noop, "", "验证应用 JSON 设备命令 false 为无操作");
     WDF_RUN_TEST(test_apply_json_unknown_key_partial_reject, "", "验证应用 JSON 未知键部分拒绝");

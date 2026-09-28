@@ -63,19 +63,28 @@ static sw_err_t validate_one(const cloud_point_entry_t *entry)
             LOG_ERROR("cloud_point_validate: telemetry id=%s must not have cmd_kind", entry->base.id);
             return SW_ERR_PARAM;
         }
+        if ((entry->cmd_act_id != 0U) || entry->cmd_has_param) {
+            LOG_ERROR("cloud_point_validate: telemetry id=%s must not have cmd payload", entry->base.id);
+            return SW_ERR_PARAM;
+        }
         break;
 
     case CLOUD_KIND_DEV_CMD:
-        if (entry->base.type != POINT_TYPE_BOOL) {
-            LOG_ERROR("cloud_point_validate: dev_cmd id=%s must be bool", entry->base.id);
+        if ((entry->base.type != POINT_TYPE_BOOL) && (entry->base.type != POINT_TYPE_INT)) {
+            LOG_ERROR("cloud_point_validate: dev_cmd id=%s must be bool or int", entry->base.id);
             return SW_ERR_PARAM;
         }
         if (entry->cmd_kind == DEV_CMD_NONE) {
             LOG_ERROR("cloud_point_validate: dev_cmd id=%s missing cmd_kind", entry->base.id);
             return SW_ERR_PARAM;
         }
-        if (entry->report != CLOUD_REPORT_RESYNC) {
-            LOG_ERROR("cloud_point_validate: dev_cmd id=%s must be RESYNC", entry->base.id);
+        if (entry->cmd_kind == DEV_CMD_MANUAL_ACTUATOR) {
+            if (entry->cmd_act_id == 0U) {
+                LOG_ERROR("cloud_point_validate: dev_cmd id=%s missing cmd_act_id", entry->base.id);
+                return SW_ERR_PARAM;
+            }
+        } else if (entry->cmd_act_id != 0U) {
+            LOG_ERROR("cloud_point_validate: dev_cmd id=%s act_id only for MANUAL_ACTUATOR", entry->base.id);
             return SW_ERR_PARAM;
         }
         break;
@@ -87,6 +96,10 @@ static sw_err_t validate_one(const cloud_point_entry_t *entry)
         }
         if (entry->cmd_kind != DEV_CMD_NONE) {
             LOG_ERROR("cloud_point_validate: set id=%s must not have cmd_kind", entry->base.id);
+            return SW_ERR_PARAM;
+        }
+        if ((entry->cmd_act_id != 0U) || entry->cmd_has_param) {
+            LOG_ERROR("cloud_point_validate: set id=%s must not have cmd payload", entry->base.id);
             return SW_ERR_PARAM;
         }
         break;

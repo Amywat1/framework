@@ -99,15 +99,45 @@ static void test_dev_cmd_missing_cmd_kind_rejected(void)
     TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, cloud_point_validate(&entry, 1U));
 }
 
-static void test_dev_cmd_non_bool_rejected(void)
+static void test_dev_cmd_non_bool_int_rejected(void)
 {
     cloud_point_entry_t entry;
 
     memset(&entry, 0, sizeof(entry));
     entry.base.id   = "stopWash";
-    entry.base.type = POINT_TYPE_INT;
+    entry.base.type = POINT_TYPE_STRING;
     entry.kind      = CLOUD_KIND_DEV_CMD;
     entry.cmd_kind  = DEV_CMD_STOP_WASH;
+
+    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, cloud_point_validate(&entry, 1U));
+}
+
+static void test_dev_cmd_manual_int_accepted(void)
+{
+    cloud_point_entry_t entry;
+
+    memset(&entry, 0, sizeof(entry));
+    entry.base.id     = "gantryMove";
+    entry.base.type   = POINT_TYPE_INT;
+    entry.base.get    = get_temp;
+    entry.kind        = CLOUD_KIND_DEV_CMD;
+    entry.cmd_kind    = DEV_CMD_MANUAL_ACTUATOR;
+    entry.cmd_act_id  = 8U;
+    entry.report      = CLOUD_REPORT_ON_CHANGE;
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, cloud_point_validate(&entry, 1U));
+}
+
+static void test_dev_cmd_manual_missing_act_id_rejected(void)
+{
+    cloud_point_entry_t entry;
+
+    memset(&entry, 0, sizeof(entry));
+    entry.base.id    = "gantryMove";
+    entry.base.type  = POINT_TYPE_INT;
+    entry.kind       = CLOUD_KIND_DEV_CMD;
+    entry.cmd_kind   = DEV_CMD_MANUAL_ACTUATOR;
+    entry.report     = CLOUD_REPORT_ON_CHANGE;
 
     TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, cloud_point_validate(&entry, 1U));
 }
@@ -144,21 +174,19 @@ static void test_deadband_requires_on_change_int(void)
     TEST_ASSERT_EQUAL_INT(SW_OK, cloud_point_validate(&entry, 1U));
 }
 
-static void test_dev_cmd_report_must_be_resync(void)
+static void test_dev_cmd_on_change_accepted(void)
 {
     cloud_point_entry_t entry;
 
     memset(&entry, 0, sizeof(entry));
-    entry.base.id   = "stopWash";
-    entry.base.type = POINT_TYPE_BOOL;
-    entry.base.get  = echo_idle;
-    entry.kind      = CLOUD_KIND_DEV_CMD;
-    entry.cmd_kind  = DEV_CMD_STOP_WASH;
-    entry.report    = CLOUD_REPORT_ON_CHANGE;
-    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, cloud_point_validate(&entry, 1U));
-
-    entry.report = CLOUD_REPORT_NONE;
-    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, cloud_point_validate(&entry, 1U));
+    entry.base.id    = "floodlight";
+    entry.base.type  = POINT_TYPE_BOOL;
+    entry.base.get   = echo_idle;
+    entry.kind       = CLOUD_KIND_DEV_CMD;
+    entry.cmd_kind   = DEV_CMD_MANUAL_ACTUATOR;
+    entry.cmd_act_id = 11U;
+    entry.report     = CLOUD_REPORT_ON_CHANGE;
+    TEST_ASSERT_EQUAL_INT(SW_OK, cloud_point_validate(&entry, 1U));
 }
 
 static void test_valid_dev_cmd_and_set(void)
@@ -193,11 +221,13 @@ int main(void)
     WDF_RUN_TEST(test_duplicate_id_rejected, "", "验证重复ID被拒绝");
     WDF_RUN_TEST(test_telemetry_with_set_rejected, "", "验证遥测点位配置写入接口时被拒绝");
     WDF_RUN_TEST(test_dev_cmd_missing_cmd_kind_rejected, "", "验证设备命令缺失命令类型被拒绝");
-    WDF_RUN_TEST(test_dev_cmd_non_bool_rejected, "", "验证非 bool 设备命令被拒绝");
+    WDF_RUN_TEST(test_dev_cmd_non_bool_int_rejected, "", "验证非 bool/int 设备命令被拒绝");
+    WDF_RUN_TEST(test_dev_cmd_manual_int_accepted, "", "验证 int 点动设备命令合法");
+    WDF_RUN_TEST(test_dev_cmd_manual_missing_act_id_rejected, "", "验证点动设备命令缺少动作号被拒绝");
     WDF_RUN_TEST(test_set_missing_set_rejected, "", "验证点位写入缺失 set 被拒绝");
     WDF_RUN_TEST(test_on_change_float_rejected, "", "验证 ON_CHANGE 的 FLOAT 点位被拒绝");
     WDF_RUN_TEST(test_deadband_requires_on_change_int, "", "验证死区仅允许 ON_CHANGE 的 INT");
-    WDF_RUN_TEST(test_dev_cmd_report_must_be_resync, "", "验证设备命令点位必须是 RESYNC");
+    WDF_RUN_TEST(test_dev_cmd_on_change_accepted, "", "验证保持型设备命令允许 ON_CHANGE");
     WDF_RUN_TEST(test_valid_dev_cmd_and_set, "", "验证设备命令和点位写入模型配置有效");
 
     return UNITY_END();
