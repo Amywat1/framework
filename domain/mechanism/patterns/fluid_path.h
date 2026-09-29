@@ -96,6 +96,15 @@ void fluid_path_poll(uint64_t now_ms);
  */
 bool fluid_path_is_settled(void);
 
+/**
+ * @brief  读取当前目标路径掩码
+ * @param  out 当前被请求开启的路径位；调用方不可为 NULL
+ * @retval SW_OK          已写入
+ * @retval SW_ERR_PARAM   out 为空
+ * @retval SW_ERR_NOT_INIT 未初始化
+ */
+sw_err_t fluid_path_get_target(fluid_path_mask_t *out);
+
 #ifdef __cplusplus
 }
 #endif

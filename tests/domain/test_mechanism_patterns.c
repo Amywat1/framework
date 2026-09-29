@@ -866,6 +866,32 @@ static void test_fluid_path_reference_counts_shared_pump(void)
     TEST_ASSERT_GREATER_THAN_INT(0, s_all_off_count);
 }
 
+static void test_fluid_path_get_target_follows_enable_and_all_off(void)
+{
+    fluid_path_mask_t target = 0xFFFFFFFFU;
+
+    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, fluid_path_get_target(NULL));
+    fluid_init_ok();
+    TEST_ASSERT_EQUAL_INT(SW_OK, fluid_path_get_target(&target));
+    TEST_ASSERT_EQUAL_UINT(0U, target);
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, fluid_path_enable(FLUID_PATH_MASK(TEST_PATH_A)));
+    TEST_ASSERT_EQUAL_INT(SW_OK, fluid_path_get_target(&target));
+    TEST_ASSERT_EQUAL_UINT(FLUID_PATH_MASK(TEST_PATH_A), target);
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, fluid_path_enable(FLUID_PATH_MASK(TEST_PATH_B)));
+    TEST_ASSERT_EQUAL_INT(SW_OK, fluid_path_get_target(&target));
+    TEST_ASSERT_EQUAL_UINT(FLUID_PATH_MASK(TEST_PATH_A) | FLUID_PATH_MASK(TEST_PATH_B), target);
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, fluid_path_disable(FLUID_PATH_MASK(TEST_PATH_A)));
+    TEST_ASSERT_EQUAL_INT(SW_OK, fluid_path_get_target(&target));
+    TEST_ASSERT_EQUAL_UINT(FLUID_PATH_MASK(TEST_PATH_B), target);
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, fluid_path_all_off());
+    TEST_ASSERT_EQUAL_INT(SW_OK, fluid_path_get_target(&target));
+    TEST_ASSERT_EQUAL_UINT(0U, target);
+}
+
 static void test_fluid_path_rejects_invalid_topology_and_unknown_mask(void)
 {
     const fluid_path_actuator_ops_t ops = {
@@ -1273,6 +1299,7 @@ int main(void)
     WDF_RUN_TEST(test_motor_axis_poll_skips_waiting_start, "", "验证排队启动态不发布完成事件");
     WDF_RUN_TEST(test_motor_axis_poll_reports_limit_end_then_idle, "", "验证电机轴先上报限位结局再发空闲事件");
     WDF_RUN_TEST(test_fluid_path_reference_counts_shared_pump, "", "验证流体路径对共享水泵进行引用计数");
+    WDF_RUN_TEST(test_fluid_path_get_target_follows_enable_and_all_off, "", "验证流体路径目标掩码随开关与全关变化");
     WDF_RUN_TEST(test_fluid_path_rejects_invalid_topology_and_unknown_mask, "", "验证流体路径拒绝无效拓扑和未知掩码");
     WDF_RUN_TEST(test_fluid_path_respects_valve_and_pump_delays, "", "验证流体路径遵守阀门和水泵延时");
     WDF_RUN_TEST(test_fluid_path_cancels_open_wait_without_starting_pump, "", "验证等开阀期间取消则不开泵并立刻关阀");

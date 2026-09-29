@@ -401,3 +401,19 @@ bool fluid_path_is_settled(void)
     pthread_mutex_unlock(&s_mutex);
     return settled;
 }
+
+sw_err_t fluid_path_get_target(fluid_path_mask_t *out)
+{
+    if (out == NULL) {
+        return SW_ERR_PARAM;
+    }
+
+    pthread_mutex_lock(&s_mutex);
+    if (!s_ready) {
+        pthread_mutex_unlock(&s_mutex);
+        return SW_ERR_NOT_INIT;
+    }
+    *out = s_pending_target;
+    pthread_mutex_unlock(&s_mutex);
+    return SW_OK;
+}
