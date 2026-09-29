@@ -5,7 +5,7 @@
  * @date    2026-07-08
  *
  * @note    本文件只处理"已解析的值该交给谁"：遥测拒绝写入、设备命令经回调提交、
- *          点位写入调 set。JSON 编解码在 `adapters/outbound/cloud/cloud_point_json.c`。
+ *          可写属性调 set。JSON 编解码在 `adapters/outbound/cloud/cloud_point_json.c`。
  */
 
 #include "common/log.h"

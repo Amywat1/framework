@@ -11,7 +11,7 @@
 
 ## 1. 设计目标与核心理念
 
-云端通信把**云平台物模型**与设备内部状态/命令解耦：上行序列化为 JSON 属性，下行 JSON 解析后按 kind 路由到遥测拒写、设备命令或点位写入。
+云端通信把**云平台物模型**与设备内部状态/命令解耦：上行序列化为 JSON 属性，下行 JSON 解析后按 kind 路由到遥测拒写、设备命令或可写属性。
 
 公开概念只有：`kind`、`report`、`cloud_model`、`cloud_json`、`cloud_link`、`scheduler`。
 
@@ -109,7 +109,7 @@ typedef struct {
 |------|------|------|
 | TELEMETRY | 拒写 | 必须有 get，不得有 set / cmd 载荷 |
 | DEV_CMD | 翻译为 `dev_cmd_t` 经提交回调进命令网关 | `cmd_kind ≠ NONE`；bool 或 int；`MANUAL_ACTUATOR` 必须有 `cmd_act_id` |
-| SET | 调用 `base.set` | 必须有 set，不得带 cmd 载荷 |
+| SET（可写属性） | 调用 `base.set` | 必须有 set，不得带 cmd 载荷 |
 
 `report`：`NONE` 不进快照/脏点；`RESYNC` 仅重连/`cmd_sync` 快照；`ON_CHANGE` 进 watcher，快照也带当前值。下行后先发一包：成功点回显下发值，失败点报 getter 当前值；该包发送成功后再发成功脉冲的空闲 0。`ON_CHANGE` 必须有 get，禁止 `POINT_TYPE_FLOAT`。`deadband` 仅 `ON_CHANGE` 的 INT 有效。可写点以 `RESYNC` 表示脉冲。DEV_CMD 成功后若带 `set`，再调用 `set` 更新保持值。
 

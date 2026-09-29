@@ -407,7 +407,7 @@ int main(void)
     WDF_RUN_TEST(test_to_json_serializes_telemetry, "", "验证将遥测点位序列化为 JSON");
     WDF_RUN_TEST(test_to_json_omits_none, "", "验证 NONE 策略点位不进入快照 JSON");
     WDF_RUN_TEST(test_to_json_snapshot_includes_resync_omits_none, "", "验证快照含 RESYNC 且不含 NONE");
-    WDF_RUN_TEST(test_apply_json_set, "", "验证应用 JSON 点位写入");
+    WDF_RUN_TEST(test_apply_json_set, "", "验证应用 JSON 可写属性");
     WDF_RUN_TEST(test_apply_json_dev_cmd_triggers_submit, "", "验证应用 JSON 设备命令触发提交");
     WDF_RUN_TEST(test_apply_json_manual_cmd_carries_payload, "", "验证点动设备命令携带动作号与参数");
     WDF_RUN_TEST(test_apply_json_hold_updates_after_accept, "", "验证保持值仅在网关接受后更新");

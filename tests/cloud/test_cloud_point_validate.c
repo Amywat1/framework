@@ -224,11 +224,11 @@ int main(void)
     WDF_RUN_TEST(test_dev_cmd_non_bool_int_rejected, "", "验证非 bool/int 设备命令被拒绝");
     WDF_RUN_TEST(test_dev_cmd_manual_int_accepted, "", "验证 int 点动设备命令合法");
     WDF_RUN_TEST(test_dev_cmd_manual_missing_act_id_rejected, "", "验证点动设备命令缺少动作号被拒绝");
-    WDF_RUN_TEST(test_set_missing_set_rejected, "", "验证点位写入缺失 set 被拒绝");
+    WDF_RUN_TEST(test_set_missing_set_rejected, "", "验证可写属性缺失 set 被拒绝");
     WDF_RUN_TEST(test_on_change_float_rejected, "", "验证 ON_CHANGE 的 FLOAT 点位被拒绝");
     WDF_RUN_TEST(test_deadband_requires_on_change_int, "", "验证死区仅允许 ON_CHANGE 的 INT");
     WDF_RUN_TEST(test_dev_cmd_on_change_accepted, "", "验证保持型设备命令允许 ON_CHANGE");
-    WDF_RUN_TEST(test_valid_dev_cmd_and_set, "", "验证设备命令和点位写入模型配置有效");
+    WDF_RUN_TEST(test_valid_dev_cmd_and_set, "", "验证设备命令和可写属性模型配置有效");
 
     return UNITY_END();
 }

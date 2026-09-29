@@ -27,12 +27,12 @@ extern "C" {
 /**
  * @brief  物模型点位种类
  *
- * 三种互斥：遥测只读；设备命令翻译为 `dev_cmd_t` 经命令网关；点位写入走 set，不进网关。
+ * 三种互斥：遥测只读；设备命令翻译为 `dev_cmd_t` 经命令网关；可写属性走 set，不进网关。
  */
 typedef enum {
     CLOUD_KIND_TELEMETRY = 0, /**< 只读遥测，必须有 get */
     CLOUD_KIND_DEV_CMD,       /**< 写入翻译为设备命令并经命令网关；cmd_kind 有效 */
-    CLOUD_KIND_SET,           /**< 点位写入，必须有 set，不得带 cmd_kind */
+    CLOUD_KIND_SET,           /**< 可写属性，必须有 set，不得带 cmd_kind */
 } cloud_point_kind_t;
 
 /**
