@@ -5,6 +5,7 @@
  * @date    2026-08-04
  *
  * @note    点位表由 `cloud_model_entries()` 取。下行回显 JSON 放静态区，避免 8KB 进栈。
+ *          脉冲空闲 0 推迟 CLOUD_PULSE_ECHO_HOLD_MS 再发，由 cloud_json_poll() 到期上报。
  */
 
 #include "adapters/outbound/cloud/cloud_json.h"
@@ -12,17 +13,26 @@
 #include "adapters/outbound/cloud/cloud_point_json.h"
 #include "application/ports/outbound/cloud/link/cloud_link_port.h"
 #include "common/log.h"
+#include "common/time_util.h"
 #include "domain/cloud/cloud_model.h"
 #include "domain/cloud/cloud_point_watcher.h"
+#include "third_party/cJSON/cJSON.h"
 
+#include <pthread.h>
 #include <stddef.h>
 #include <stdbool.h>
+#include <stdlib.h>
 #include <string.h>
 
 static cloud_property_reply_fn_t s_reply = NULL;
 static cloud_report_allow_fn_t   s_allow = NULL;
 static char                      s_echo_json[CLOUD_REPORT_JSON_MAX];
 static char                      s_idle_json[CLOUD_REPORT_JSON_MAX];
+static char                      s_pending_idle[CLOUD_REPORT_JSON_MAX];
+static char                      s_idle_send[CLOUD_REPORT_JSON_MAX];
+static bool                      s_idle_pending = false;
+static uint64_t                  s_idle_since_ms = 0U;
+static pthread_mutex_t           s_idle_mu = PTHREAD_MUTEX_INITIALIZER;
 
 static sw_err_t model_on_property_set(const char *json_payload, point_apply_result_t *result)
 {
@@ -99,6 +109,93 @@ static sw_err_t publish_json_if_present(const cloud_link_ops_t *ops, const char 
     return ops->publish_properties_json(json);
 }
 
+static void copy_json(char *dst, size_t dst_size, const char *src)
+{
+    size_t n;
+
+    if ((dst == NULL) || (dst_size == 0U) || (src == NULL)) {
+        return;
+    }
+    n = strlen(src);
+    if (n >= dst_size) {
+        n = dst_size - 1U;
+    }
+    memcpy(dst, src, n);
+    dst[n] = '\0';
+}
+
+/**
+ * @brief  把 add 中的键并入 dst；失败则用 add 覆盖 dst
+ */
+static void merge_idle_json(char *dst, size_t dst_size, const char *add)
+{
+    cJSON *dst_obj;
+    cJSON *add_obj;
+    cJSON *item;
+    char  *printed;
+    size_t n;
+
+    if ((dst == NULL) || (dst_size == 0U) || (add == NULL) || json_object_empty(add)) {
+        return;
+    }
+    if ((dst[0] == '\0') || json_object_empty(dst)) {
+        copy_json(dst, dst_size, add);
+        return;
+    }
+
+    dst_obj = cJSON_Parse(dst);
+    add_obj = cJSON_Parse(add);
+    if ((dst_obj == NULL) || (add_obj == NULL) || !cJSON_IsObject(dst_obj) || !cJSON_IsObject(add_obj)) {
+        cJSON_Delete(dst_obj);
+        cJSON_Delete(add_obj);
+        copy_json(dst, dst_size, add);
+        return;
+    }
+
+    cJSON_ArrayForEach(item, add_obj)
+    {
+        cJSON *dup;
+
+        if ((item->string == NULL) || (item->string[0] == '\0')) {
+            continue;
+        }
+        dup = cJSON_Duplicate(item, 1);
+        if (dup == NULL) {
+            continue;
+        }
+        cJSON_DeleteItemFromObjectCaseSensitive(dst_obj, item->string);
+        cJSON_AddItemToObject(dst_obj, item->string, dup);
+    }
+
+    printed = cJSON_PrintUnformatted(dst_obj);
+    cJSON_Delete(dst_obj);
+    cJSON_Delete(add_obj);
+    if (printed == NULL) {
+        copy_json(dst, dst_size, add);
+        return;
+    }
+    n = strlen(printed);
+    if (n >= dst_size) {
+        copy_json(dst, dst_size, add);
+    } else {
+        memcpy(dst, printed, n + 1U);
+    }
+    free(printed);
+}
+
+static void schedule_idle_json(const char *idle_json)
+{
+    if (json_object_empty(idle_json)) {
+        return;
+    }
+
+    pthread_mutex_lock(&s_idle_mu);
+    merge_idle_json(s_pending_idle, sizeof(s_pending_idle), idle_json);
+    s_idle_since_ms = time_util_get_ms();
+    s_idle_pending  = true;
+    pthread_mutex_unlock(&s_idle_mu);
+}
+
 static void report_downlink_outcome(const char *request_json, const point_apply_result_t *result)
 {
     const cloud_link_ops_t    *ops;
@@ -127,7 +224,50 @@ static void report_downlink_outcome(const char *request_json, const point_apply_
     }
 
     cloud_point_watcher_sync_ids(result->applied_ids, result->applied_id_count);
-    (void)publish_json_if_present(ops, s_idle_json);
+    schedule_idle_json(s_idle_json);
+}
+
+void cloud_json_poll(void)
+{
+    const cloud_link_ops_t *ops;
+    uint64_t                now_ms;
+    bool                    due = false;
+
+    pthread_mutex_lock(&s_idle_mu);
+    if (s_idle_pending) {
+        now_ms = time_util_get_ms();
+        if (time_elapsed_ms(s_idle_since_ms, now_ms) >= CLOUD_PULSE_ECHO_HOLD_MS) {
+            copy_json(s_idle_send, sizeof(s_idle_send), s_pending_idle);
+            s_pending_idle[0] = '\0';
+            s_idle_pending    = false;
+            due               = true;
+        }
+    }
+    pthread_mutex_unlock(&s_idle_mu);
+
+    if (!due) {
+        return;
+    }
+
+    ops = cloud_link_get_ops();
+    if (publish_json_if_present(ops, s_idle_send) == SW_OK) {
+        return;
+    }
+
+    pthread_mutex_lock(&s_idle_mu);
+    merge_idle_json(s_pending_idle, sizeof(s_pending_idle), s_idle_send);
+    s_idle_pending = true;
+    pthread_mutex_unlock(&s_idle_mu);
+}
+
+void cloud_json_reset_for_test(void)
+{
+    pthread_mutex_lock(&s_idle_mu);
+    s_pending_idle[0] = '\0';
+    s_idle_send[0]    = '\0';
+    s_idle_pending    = false;
+    s_idle_since_ms   = 0U;
+    pthread_mutex_unlock(&s_idle_mu);
 }
 
 static void on_link_recv(const char *msg)

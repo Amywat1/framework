@@ -10,11 +10,13 @@
 #include "common/sw_error.h"
 #include "domain/cloud/cloud_model.h"
 #include "domain/cloud/cloud_point.h"
+#include "domain/op_mode/device_command.h"
 #include "runtime/event_bus/event_bus.h"
 #include "wdf_test_spec.h"
 
 #include <stdio.h>
 #include <string.h>
+#include <unistd.h>
 
 static int32_t  s_counter;
 static bool     s_enabled;
@@ -83,12 +85,24 @@ static void stub_set_recv(cloud_link_recv_fn_t cb)
     s_recv = cb;
 }
 
+static void stub_poll(void)
+{
+    cloud_json_poll();
+}
+
+static sw_err_t stub_submit(const dev_cmd_t *cmd)
+{
+    (void)cmd;
+    return SW_OK;
+}
+
 static const cloud_link_ops_t s_link_ops = {
     .is_online                = stub_is_online,
     .publish_properties       = stub_publish_properties,
     .publish_properties_delta = stub_publish_delta,
     .publish_properties_json  = stub_publish_json,
     .set_recv_handler         = stub_set_recv,
+    .poll                     = stub_poll,
 };
 
 static cloud_point_entry_t make_counter(void)
@@ -131,7 +145,21 @@ static cloud_point_entry_t make_hidden(void)
     return entry;
 }
 
-static cloud_point_entry_t s_entries[3];
+static cloud_point_entry_t make_stop_cmd(void)
+{
+    cloud_point_entry_t entry;
+
+    memset(&entry, 0, sizeof(entry));
+    entry.base.id   = "cmd_stop";
+    entry.base.type = POINT_TYPE_BOOL;
+    entry.base.get  = cloud_point_get_echo_idle;
+    entry.kind      = CLOUD_KIND_DEV_CMD;
+    entry.report    = CLOUD_REPORT_RESYNC;
+    entry.cmd_kind  = DEV_CMD_STOP_ALL_OUTPUTS;
+    return entry;
+}
+
+static cloud_point_entry_t s_entries[4];
 
 static void publish_and_wait(event_type_t type, uint32_t param)
 {
@@ -144,7 +172,8 @@ static void register_model(void)
     s_entries[0] = make_counter();
     s_entries[1] = make_enabled();
     s_entries[2] = make_hidden();
-    TEST_ASSERT_EQUAL_INT(SW_OK, cloud_model_register(s_entries, 3U));
+    s_entries[3] = make_stop_cmd();
+    TEST_ASSERT_EQUAL_INT(SW_OK, cloud_model_register(s_entries, 4U));
 }
 
 void setUp(void)
@@ -161,6 +190,7 @@ void setUp(void)
     s_recv             = NULL;
     cloud_model_reset_for_test();
     report_scheduler_reset_for_test();
+    cloud_json_reset_for_test();
     cloud_json_set_report_allow(NULL);
 }
 
@@ -168,6 +198,7 @@ void tearDown(void)
 {
     cloud_model_reset_for_test();
     report_scheduler_reset_for_test();
+    cloud_json_reset_for_test();
 }
 
 static void test_cloud_model_builds_and_applies_properties(void)
@@ -234,6 +265,28 @@ static void test_downlink_echo_publishes_sent_value(void)
     TEST_ASSERT_EQUAL_UINT(deltas, s_delta_reports);
 }
 
+static void test_downlink_pulse_idle_waits_hold(void)
+{
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
+    cloud_link_register(&s_link_ops);
+    register_model();
+    TEST_ASSERT_EQUAL_INT(SW_OK, cloud_json_install(stub_submit, NULL));
+    TEST_ASSERT_EQUAL_INT(SW_OK, report_scheduler_start(500U));
+    TEST_ASSERT_NOT_NULL(s_recv);
+
+    s_recv("{\"cmd_stop\":true}");
+    TEST_ASSERT_NOT_NULL(strstr(s_last_echo, "\"cmd_stop\":1"));
+    TEST_ASSERT_EQUAL_UINT(1U, s_json_reports);
+
+    report_scheduler_poll();
+    TEST_ASSERT_EQUAL_UINT(1U, s_json_reports);
+
+    (void)usleep((CLOUD_PULSE_ECHO_HOLD_MS + 50U) * 1000U);
+    report_scheduler_poll();
+    TEST_ASSERT_EQUAL_UINT(2U, s_json_reports);
+    TEST_ASSERT_NOT_NULL(strstr(s_last_echo, "\"cmd_stop\":0"));
+}
+
 static void test_downlink_reject_publishes_current(void)
 {
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
@@ -283,6 +336,7 @@ int main(void)
     WDF_RUN_TEST(test_cloud_model_builds_and_applies_properties, "", "验证云端模型构建并应用属性");
     WDF_RUN_TEST(test_report_scheduler_resync_and_dirty_delta, "", "验证重连全量与脏点增量上报");
     WDF_RUN_TEST(test_downlink_echo_publishes_sent_value, "", "验证下行成功后立刻回显下发值");
+    WDF_RUN_TEST(test_downlink_pulse_idle_waits_hold, "", "验证脉冲空闲 0 在保持窗后再上报");
     WDF_RUN_TEST(test_downlink_reject_publishes_current, "", "验证下行失败立刻上报当前真实值");
     WDF_RUN_TEST(test_report_allow_filters_snapshot_and_delta, "", "验证属性上行允许函数过滤快照与增量");
 

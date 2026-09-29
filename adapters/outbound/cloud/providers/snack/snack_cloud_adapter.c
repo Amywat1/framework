@@ -115,6 +115,8 @@ static void link_poll(void)
 {
     bool now_online;
 
+    cloud_json_poll();
+
     if (s_initialized && !link_is_online()) {
         try_reconnect();
     }

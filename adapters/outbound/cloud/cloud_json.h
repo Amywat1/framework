@@ -37,6 +37,20 @@ typedef bool (*cloud_report_allow_fn_t)(const char *id);
  */
 sw_err_t cloud_json_install(cloud_device_cmd_submit_fn_t submit, cloud_property_reply_fn_t reply);
 
+/** 脉冲点回显 1 后，再报空闲 0 的保持时间（ms） */
+#define CLOUD_PULSE_ECHO_HOLD_MS 500U
+
+/**
+ * @brief  到期则上报已推迟的脉冲空闲 0。
+ * @note   由链路 poll 调用；接收回调内不得阻塞等待。
+ */
+void cloud_json_poll(void);
+
+/**
+ * @brief  清空推迟的空闲上报（仅供单元测试）
+ */
+void cloud_json_reset_for_test(void);
+
 /**
  * @brief  设置属性上行允许函数
  * @param  fn 返回 true 表示该点可进入属性 JSON；NULL 表示不过滤

@@ -81,7 +81,7 @@ static inline bool cloud_point_snapshot_enabled(const cloud_point_entry_t *entry
 sw_err_t cloud_point_get_echo_idle(point_value_t *out);
 
 /**
- * @brief  是否为无保持态的脉冲点（成功回显 1 后须再报 0）
+ * @brief  是否为无保持态的脉冲点（成功回显 1 后须再报空闲 0）
  *
  * 可写点以 report==RESYNC 表示脉冲，不以 kind 或 getter 函数指针推断。
  */
