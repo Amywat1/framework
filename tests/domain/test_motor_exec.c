@@ -1048,6 +1048,41 @@ static void test_confirm_faults_undefined_bit_bind_fails(void)
     TEST_ASSERT_NULL(exec);
 }
 
+/* bind 到首拍即使超过 watchdog_ms 也不得锁定：空窗不是缺拍 */
+static void test_first_tick_after_bind_does_not_trip_watchdog(void)
+{
+    s_cfg.watchdog_ms = 50;
+    rebind_executor();
+    s_fx.now_ms = 80;
+    motor_executor_tick(s_exec);
+    TEST_ASSERT_FALSE(motor_executor_in_safe_state(s_exec));
+    TEST_ASSERT_EQUAL_INT(MOTOR_STATE_STOPPED, motor_exec_state(s_exec, 0));
+}
+
+/* 两拍间隔超过阈值才锁定；复位后 run 可再受理 */
+static void test_tick_gap_trips_watchdog_until_reset(void)
+{
+    motor_cmd_result_t r;
+
+    s_cfg.watchdog_ms = 50;
+    rebind_executor();
+    s_fx.now_ms = 10;
+    motor_executor_tick(s_exec);
+    s_fx.now_ms = 70;
+    motor_executor_tick(s_exec);
+    TEST_ASSERT_TRUE(motor_executor_in_safe_state(s_exec));
+    TEST_ASSERT_EQUAL_INT(MOTOR_FAULT_WATCHDOG, motor_exec_fault_code(s_exec, 0));
+
+    r = motor_exec_run(s_exec, 0, motor_speed_gear(1), MOTOR_DIR_FORWARD, NULL);
+    TEST_ASSERT_FALSE(motor_cmd_ok(r));
+    TEST_ASSERT_EQUAL_INT(MOTOR_REJECT_SAFETY, r.reject);
+
+    motor_executor_reset_watchdog(s_exec);
+    TEST_ASSERT_FALSE(motor_executor_in_safe_state(s_exec));
+    r = motor_exec_run(s_exec, 0, motor_speed_gear(1), MOTOR_DIR_FORWARD, NULL);
+    TEST_ASSERT_TRUE(motor_cmd_ok(r));
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -1085,6 +1120,8 @@ int main(void)
     WDF_RUN_TEST(test_fatal_and_hold_not_resumable, "", "验证 fatal 与 hold/ESTOP 在位图为 0 时仍拒令");
     WDF_RUN_TEST(test_hold_over_fault_restores_fault_latch, "", "验证 hold 覆盖 FAULT 解除后恢复故障门闩并内清");
     WDF_RUN_TEST(test_confirm_faults_undefined_bit_bind_fails, "", "验证未定义故障码位导致 bind 失败");
+    WDF_RUN_TEST(test_first_tick_after_bind_does_not_trip_watchdog, "", "验证 bind 后首拍不因空窗锁定看门狗");
+    WDF_RUN_TEST(test_tick_gap_trips_watchdog_until_reset, "", "验证拍间超阈值锁定看门狗，复位后可再 run");
 
     return UNITY_END();
 }

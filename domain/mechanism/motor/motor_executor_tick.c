@@ -7,6 +7,7 @@
 
 #include "domain/mechanism/motor/motor_executor_internal.h"
 #include "domain/safety/safety_output_hold.h"
+#include "common/log.h"
 
 /* ------------------------- 输出 ------------------------- */
 
@@ -710,6 +711,9 @@ static void trigger_safe(motor_executor_t *e)
         }
     }
     e->safe_latched = true;
+    LOG_WARN("motor_exec: watchdog latched gap=%llu ms limit=%d ms",
+             (unsigned long long)(e->now - e->last_tick_ms),
+             e->cfg.watchdog_ms);
 }
 
 /* ------------------------- tick ------------------------- */
@@ -926,7 +930,8 @@ static motor_init_result_t do_init(motor_executor_t *e)
     }
     e->now             = clock_now(e);
     e->last_tick_ms    = e->now;
-    e->last_tick_valid = true;
+    /* 首拍只建立基准。bind 到第一次 tick 常超过 watchdog_ms，不得把这段空窗判成缺拍。 */
+    e->last_tick_valid = false;
     e->estop_latched   = false;
     e->safe_latched    = false;
     for (int ev_i = 0; ev_i < MOTOR_MAX_MOTORS; ++ev_i) {

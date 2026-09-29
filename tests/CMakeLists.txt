@@ -496,6 +496,8 @@ add_unit_test(test_motor_exec
     ${WDF_ROOT}/domain/mechanism/motor/motor_executor_tick.c
     ${WDF_ROOT}/domain/mechanism/motor/motor_executor_cmd.c
     ${WDF_SAFETY_HOLD_SRC}
+    ${WDF_ROOT}/common/log.c
+    ${WDF_ROOT}/common/sw_mutex.c
 )
 target_compile_definitions(test_motor_exec PRIVATE MOTOR_EXECUTOR_UNIT_TEST)
 
@@ -506,6 +508,8 @@ add_unit_test(test_motor_executor_position
     ${WDF_ROOT}/domain/mechanism/motor/motor_executor_tick.c
     ${WDF_ROOT}/domain/mechanism/motor/motor_executor_cmd.c
     ${WDF_SAFETY_HOLD_SRC}
+    ${WDF_ROOT}/common/log.c
+    ${WDF_ROOT}/common/sw_mutex.c
 )
 target_compile_definitions(test_motor_executor_position PRIVATE MOTOR_EXECUTOR_UNIT_TEST)
 
@@ -516,6 +520,8 @@ add_unit_test(test_motor_fault_resume_adversarial
     ${WDF_ROOT}/domain/mechanism/motor/motor_executor_tick.c
     ${WDF_ROOT}/domain/mechanism/motor/motor_executor_cmd.c
     ${WDF_SAFETY_HOLD_SRC}
+    ${WDF_ROOT}/common/log.c
+    ${WDF_ROOT}/common/sw_mutex.c
 )
 target_compile_definitions(test_motor_fault_resume_adversarial PRIVATE MOTOR_EXECUTOR_UNIT_TEST)
 

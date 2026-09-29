@@ -460,6 +460,17 @@ static void test_manual_actuator_denied_with_estop(void)
     TEST_ASSERT_EQUAL_INT(OP_REJECT_ESTOP_ACTIVE, op_mode_handle_command(&cmd).reason);
 }
 
+/* STOPPED 下阻塞报警不拒绝点动；点动只拒急停 */
+static void test_manual_actuator_allowed_with_blocking_alarm(void)
+{
+    dev_cmd_t cmd = dev_cmd_make_manual(7U, 1);
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_trigger(TEST_ALARM_BLOCKING));
+    TEST_ASSERT_TRUE(alarm_registry_has_blocking_active());
+    TEST_ASSERT_EQUAL_INT(OP_MODE_STOPPED, op_mode_get_current());
+    TEST_ASSERT_EQUAL_INT(OP_CMD_ALLOWED, op_mode_handle_command(&cmd).verdict);
+}
+
 /* 自检：STOPPED 成功 → 回 STOPPED */
 static void test_self_check_from_stopped_success_returns_stopped(void)
 {
@@ -632,6 +643,7 @@ int main(void)
                  "验证已清除 AUTO_STATIC 不因 journal 进入 STOPPED");
     WDF_RUN_TEST(test_manual_actuator_allowed_in_stopped, "", "验证手动执行器被允许在停止模式");
     WDF_RUN_TEST(test_manual_actuator_denied_with_estop, "", "验证急停时拒绝手动执行器");
+    WDF_RUN_TEST(test_manual_actuator_allowed_with_blocking_alarm, "", "验证停机且有阻塞报警时仍允许点动");
     WDF_RUN_TEST(test_self_check_from_stopped_success_returns_stopped, "", "验证停止模式自检成功后返回停止");
     WDF_RUN_TEST(test_self_check_from_stopped_fail_returns_stopped, "", "验证停止模式自检失败后仍为停止");
     WDF_RUN_TEST(test_self_check_denied_when_estop, "", "验证急停时拒绝自检");
