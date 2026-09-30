@@ -82,11 +82,13 @@ typedef enum {
  * @note  INCREMENTAL：raw 返回硬件累计脉冲幅值（方向由领域层施加）；
  *        ABSOLUTE：raw 返回工程行程（静止时亦刷新 position）；
  *        zero 仅对增量轴有意义；绝对轴可空操作并返回 true。
+ *        zero 可以只受理请求而不等硬件完成（执行器在控制环里调用，不得阻塞总线）：
+ *        完成前 raw 须返回负值，执行器据此在首个有效读数处重新锁存基准。
  *        arm/disarm 可选：增量轴在动作窗口订阅慢通道采样，空闲释放。
  */
 typedef struct {
     int64_t (*raw)(void *ctx);     /**< 增量=累计脉冲；绝对=工程行程 */
-    bool (*zero)(void *ctx);       /**< 同步清零硬件计数器，false=失败 */
+    bool (*zero)(void *ctx);       /**< 清零硬件计数器（可异步），false=请求未受理 */
     void (*arm)(void *ctx);        /**< 进入运动窗口；可为 NULL */
     void (*disarm)(void *ctx);     /**< 离开运动窗口；可为 NULL */
     void *ctx;

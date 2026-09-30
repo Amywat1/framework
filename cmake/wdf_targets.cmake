@@ -147,6 +147,7 @@ _wdf_add_interface_lib(wdf_runtime
         runtime/event_bus/event_bus.c
         runtime/scheduler/scheduler.c
         runtime/scheduler/periodic_task.c
+        runtime/scheduler/control_loop.c
         runtime/scheduler/thread_registry.c
     DEPENDS
         wdf_common

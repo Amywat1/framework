@@ -10,6 +10,7 @@
 #include "adapters/outbound/hal/components/pulse_gate/hal_pulse_gate.h"
 
 #include "common/log.h"
+#include "common/sw_mutex.h"
 
 #include <pthread.h>
 #include <stddef.h>
@@ -25,7 +26,24 @@ typedef struct {
 } pulse_gate_entry_t;
 
 static pulse_gate_entry_t s_entries[HAL_PULSE_GATE_MAX_CHANNELS];
-static pthread_mutex_t    s_lock = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t s_lock;
+static pthread_once_t  s_lock_once = PTHREAD_ONCE_INIT;
+
+static void pulse_gate_mutex_init_once(void)
+{
+    (void)sw_mutex_init_prio_inherit(&s_lock);
+}
+
+static void pulse_gate_lock(void)
+{
+    (void)pthread_once(&s_lock_once, pulse_gate_mutex_init_once);
+    (void)pthread_mutex_lock(&s_lock);
+}
+
+static void pulse_gate_unlock(void)
+{
+    (void)pthread_mutex_unlock(&s_lock);
+}
 
 /* 调用者必须已持有 s_lock */
 static pulse_gate_entry_t *find_entry_locked(int board_id, int pin_id)
@@ -68,24 +86,24 @@ void hal_pulse_gate_acquire(int board_id, int pin_id)
 {
     pulse_gate_entry_t *entry;
 
-    pthread_mutex_lock(&s_lock);
+    pulse_gate_lock();
     entry = find_or_create_entry_locked(board_id, pin_id);
     if (entry != NULL) {
         entry->count++;
     }
-    pthread_mutex_unlock(&s_lock);
+    pulse_gate_unlock();
 }
 
 void hal_pulse_gate_release(int board_id, int pin_id)
 {
     pulse_gate_entry_t *entry;
 
-    pthread_mutex_lock(&s_lock);
+    pulse_gate_lock();
     entry = find_entry_locked(board_id, pin_id);
     if ((entry != NULL) && (entry->count > 0)) {
         entry->count--;
     }
-    pthread_mutex_unlock(&s_lock);
+    pulse_gate_unlock();
 }
 
 bool hal_pulse_gate_is_needed(int board_id, int pin_id)
@@ -93,17 +111,17 @@ bool hal_pulse_gate_is_needed(int board_id, int pin_id)
     pulse_gate_entry_t *entry;
     bool                needed;
 
-    pthread_mutex_lock(&s_lock);
+    pulse_gate_lock();
     entry  = find_entry_locked(board_id, pin_id);
     needed = (entry != NULL) && (entry->count > 0);
-    pthread_mutex_unlock(&s_lock);
+    pulse_gate_unlock();
 
     return needed;
 }
 
 void hal_pulse_gate_reset_for_test(void)
 {
-    pthread_mutex_lock(&s_lock);
+    pulse_gate_lock();
     memset(s_entries, 0, sizeof(s_entries));
-    pthread_mutex_unlock(&s_lock);
+    pulse_gate_unlock();
 }

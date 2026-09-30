@@ -19,6 +19,8 @@ typedef struct {
     int                     cutoff_count;
     int                     zero_count;
     bool                    zero_succeeds;
+    bool                    zero_async;   /**< zero 只受理请求，硬件稍后完成 */
+    bool                    zero_pending; /**< 异步清零已受理未完成；期间 raw 返回无效 */
     bool                    origin_active;
     bool                    pos_limit_active;
     bool                    neg_limit_active;
@@ -82,7 +84,9 @@ static int driver_current(void *ctx)
 
 static int64_t encoder_raw(void *ctx)
 {
-    return ((position_fixture_t *)ctx)->position;
+    position_fixture_t *fixture = (position_fixture_t *)ctx;
+
+    return fixture->zero_pending ? -1 : fixture->position;
 }
 
 static bool encoder_zero(void *ctx)
@@ -90,11 +94,15 @@ static bool encoder_zero(void *ctx)
     position_fixture_t *fixture = (position_fixture_t *)ctx;
 
     fixture->zero_count++;
-    if (fixture->zero_succeeds) {
-        fixture->position = 0;
-        return true;
+    if (!fixture->zero_succeeds) {
+        return false;
     }
-    return false;
+    if (fixture->zero_async) {
+        fixture->zero_pending = true;
+    } else {
+        fixture->position = 0;
+    }
+    return true;
 }
 
 static bool sensor_limit(void *ctx, int motor, motor_limit_kind_t kind)
@@ -331,6 +339,49 @@ static void test_origin_move_clears_hardware_and_software_once(void)
     /* ORIGIN 路径 settle 两次后仍须保留真实耗时（非 0）。
      * move_to 于 now=0 启动，两拍 tick 后 now=20 到位。 */
     TEST_ASSERT_EQUAL_UINT64(20U, s_fixture.last_arrived_elapsed_ms);
+}
+
+/**
+ * @brief  异步清零：完成前 raw 无效，完成后从 0 计数，位置不跳变
+ * @note   模拟 provider 只受理清零请求、由自身线程稍后写硬件的情形。
+ */
+static void test_origin_async_zero_relatches_after_clear_completes(void)
+{
+    motor_move_spec_t  spec = {0};
+    motor_cmd_result_t result;
+
+    init_executor(40, MOTOR_ENC_INCREMENTAL);
+    s_fixture.zero_async = true;
+    spec.limit_mask      = MOTOR_LIMIT_MASK_ORIGIN;
+    result               = motor_exec_run(s_executor, 0, motor_speed_gear(1), MOTOR_DIR_REVERSE, &spec);
+    TEST_ASSERT_TRUE(motor_cmd_ok(result));
+
+    tick_at(45);
+    s_fixture.origin_active = true;
+    tick_at(50);
+    TEST_ASSERT_EQUAL_INT(MOTOR_STATE_STOPPED, motor_exec_state(s_executor, 0));
+    TEST_ASSERT_EQUAL_INT(1, s_fixture.zero_count);
+    TEST_ASSERT_EQUAL_INT64(0, motor_exec_position(s_executor, 0));
+    TEST_ASSERT_TRUE(motor_exec_baseline_trusted(s_executor, 0));
+
+    s_fixture.origin_active = false;
+    memset(&spec, 0, sizeof(spec));
+    spec.use_position = true;
+    spec.target_pos   = 100;
+    result            = motor_exec_run(s_executor, 0, motor_speed_gear(1), MOTOR_DIR_FORWARD, &spec);
+    TEST_ASSERT_TRUE(motor_cmd_ok(result));
+
+    /* 硬件清零尚未完成：计数器仍是清零前的 50，但 raw 报无效，不得计入位移 */
+    tick_at(50);
+    tick_at(50);
+    TEST_ASSERT_EQUAL_INT64(0, motor_exec_position(s_executor, 0));
+
+    /* provider 线程完成清零：此后从 0 起算，首个有效读数只锁存，其后按差值累计 */
+    s_fixture.zero_pending = false;
+    tick_at(0);
+    tick_at(10);
+    TEST_ASSERT_EQUAL_INT64(10, motor_exec_position(s_executor, 0));
+    TEST_ASSERT_EQUAL_INT(0, s_fixture.fault_count);
 }
 
 /**
@@ -809,6 +860,9 @@ int main(void)
                  "",
                  "验证活动状态位置目标更新保持启动时间并输出");
     WDF_RUN_TEST(test_origin_move_clears_hardware_and_software_once, "", "验证原点移动仅清除一次软硬件位置");
+    WDF_RUN_TEST(test_origin_async_zero_relatches_after_clear_completes,
+                 "",
+                 "验证异步清零完成前读数无效不计位移，完成后从 0 重新锁存");
     WDF_RUN_TEST(
         test_origin_external_stop_while_pressed_rebuilds_baseline, "", "验证压原点时外部停止按到位收尾并重建基准");
     WDF_RUN_TEST(test_stop_while_watched_pos_limit_arrives, "", "验证已压监视正限位时 stop 记为到位");

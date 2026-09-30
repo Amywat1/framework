@@ -105,7 +105,11 @@ typedef struct {
      */
     int (*pulse_read)(io_di_t pin);
 
-    /** @brief  清零 DI 引脚的硬件脉冲计数器 */
+    /** @brief  清零 DI 引脚的硬件脉冲计数器
+     *  @retval SW_OK 已清零，或清零请求已受理
+     *  @note   provider 可只受理请求、由自身线程完成总线写：完成前 pulse_read
+     *          须返回负值，完成后读数从 0 计起。调用方可能是控制环，不得阻塞等总线。
+     */
     sw_err_t (*pulse_clear)(io_di_t pin);
 
     /**

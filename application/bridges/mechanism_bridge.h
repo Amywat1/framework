@@ -71,11 +71,11 @@ typedef void (*mechanism_post_tick_fn_t)(void *ctx);
 sw_err_t mechanism_bridge_add_post_tick(mechanism_post_tick_fn_t fn, void *ctx);
 
 /**
- * @brief  登记电机 tick 与水路 poll 两拍周期任务
+ * @brief  把电机 tick 与水路 poll 登记到控制环
  * @note   可重复调用：已登记的任务跳过。电机未绑定时空转 tick；水路未 init 时 poll 为空操作。
  * @note   两拍分别登记；其中一拍失败时已成功的那拍保留，下次只补登记失败项。
  * @note   电机拍内顺序：`motor_executor_tick` → 各轴 `motor_axis_poll` → post-tick。
- * @return SW_OK 成功；周期任务登记失败时返回其错误码
+ * @return SW_OK 成功；控制环登记失败时返回其错误码
  */
 sw_err_t mechanism_bridge_register_tasks(void);
 

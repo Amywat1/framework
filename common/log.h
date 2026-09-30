@@ -13,12 +13,16 @@
 
 #include <stdarg.h>
 #include <stdbool.h>
+#include <stdint.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 #define SW_LOG_COMPONENT_BASE "Base"
+
+/** 异步日志队列容量（条）；队列满时新日志丢弃并计入 sw_log_dropped_count() */
+#define SW_LOG_SPOOL_CAP 64U
 
 #ifndef SW_LOG_COMPONENT
 #define SW_LOG_COMPONENT SW_LOG_COMPONENT_BASE
@@ -68,6 +72,36 @@ bool sw_log_add_sink(sw_log_sink_fn_t sink);
 
 /** @brief  写一条日志，转发给已注册的 sink 或内置 stderr 输出 */
 void sw_log_write(sw_log_level_t level, const char *component, const char *fmt, ...);
+
+/**
+ * @brief  打开异步排出总开关
+ * @note   须在 log_drain 线程已由 scheduler_start_all() 启动之后调用。
+ *         只影响已调用 sw_log_mark_thread_async() 的线程；其余线程始终同步写出。
+ */
+void sw_log_enable_async(void);
+
+/**
+ * @brief  把调用线程标记为异步写日志线程
+ * @note   供 SCHED_FIFO 线程在入口处调用：此后该线程的日志只格式化并入队，
+ *         连同调用时的 trace 上下文一起交给 log_drain 线程写 sink，
+ *         FIFO 路径上不做 stdio。队列满时丢弃并计数，不回退同步写出。
+ * @note   条目不带时间戳：由 sink 自行盖时间（如 snack mlog）时记录的是写出时刻，
+ *         比发生时刻晚几毫秒到几十毫秒。只影响被标记线程，业务线程仍同步写出。
+ */
+void sw_log_mark_thread_async(void);
+
+/**
+ * @brief  异步队列满而丢弃的日志条数（上电累计）
+ * @return 丢弃条数
+ */
+uint32_t sw_log_dropped_count(void);
+
+/**
+ * @brief  日志排出线程入口，由 bootstrap 登记到线程表
+ * @param  arg 未使用
+ * @note   无新日志时在条件变量上限时等待，不空转轮询。
+ */
+void *sw_log_drain_thread_fn(void *arg);
 
 /**
  * @brief 从源码路径中提取文件名

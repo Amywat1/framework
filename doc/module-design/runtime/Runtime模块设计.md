@@ -382,14 +382,15 @@ fatal 回调不尝试恢复 event bus，也不继续运行，因为 dispatch 线
 | `THD_CLOUD_STACK` | 32 KiB | cloud report |
 | `THD_CLOUD_REPORT_PERIOD_MS` | 500 ms | 默认云端上报周期 |
 | `THD_VFD_TICK_STACK` | 16 KiB | VFD manager |
-| `THD_SENSOR_POLL_STACK` | 16 KiB | sensor filter |
-| `THD_FLUID_PATH_POLL_STACK` | 16 KiB | fluid path |
-| `THD_FLUID_PATH_POLL_PERIOD_MS` | 100 ms | fluid path poll |
-| `THD_MOTOR_TICK_STACK` | 16 KiB | motor executor tick |
-| `THD_MOTOR_TICK_PERIOD_MS` | 10 ms | motor executor tick |
+| `THD_SENSOR_POLL_STACK` | 16 KiB | 其它 OTHER 周期任务 |
+| `THD_FLUID_PATH_POLL_PERIOD_MS` | 100 ms | 水路 poll 节拍（控制环） |
+| `THD_MOTOR_TICK_PERIOD_MS` | 10 ms | 电机 tick 节拍，亦为控制环基准节拍 |
+| `THD_LOG_DRAIN_STACK` | 16 KiB | 日志异步排出线程 |
 | `THD_SAFETY_THREAD_STACK` | 8 KiB | safety thread |
 | `THD_SAFETY_THREAD_PRIO` | 90 | safety thread realtime priority |
 | `THD_SAFETY_THREAD_POLL_US` | 5000 us | estop poll interval |
+| `THD_CONTROL_LOOP_STACK` | 32 KiB | 控制环线程（多回调共用） |
+| `THD_CONTROL_LOOP_PRIO` | 60 | 控制环 SCHED_FIFO 优先级，须低于急停 |
 
 IO 子板 provider 的后台线程由 `io_exp_driver` 自行管理，不走 core scheduler。
 

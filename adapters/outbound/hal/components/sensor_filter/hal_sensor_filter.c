@@ -11,13 +11,12 @@
 #include "adapters/outbound/hal/components/sensor_filter/hal_sensor_filter.h"
 
 #include "common/log.h"
+#include "common/sw_mutex.h"
 #include "domain/ports/outbound/hal/hal_io_port.h"
 #include "domain/ports/outbound/hal/hal_sensor_port.h"
-#include "runtime/config/thread_config.h"
-#include "runtime/scheduler/periodic_task.h"
+#include "runtime/scheduler/control_loop.h"
 
 #include <pthread.h>
-#include <sched.h>
 #include <stddef.h>
 
 #define SENSOR_STABLE_COUNT_MAX   255U
@@ -48,7 +47,24 @@ static bool                  s_initialized      = false;
 static sensor_observer_t     s_observers[HAL_SENSOR_OBSERVER_MAX];
 static size_t                s_observer_count = 0U;
 
-static pthread_mutex_t s_sensor_lock = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t s_sensor_lock;
+static pthread_once_t  s_sensor_lock_once = PTHREAD_ONCE_INIT;
+
+static void sensor_mutex_init_once(void)
+{
+    (void)sw_mutex_init_prio_inherit(&s_sensor_lock);
+}
+
+static void sensor_lock(void)
+{
+    (void)pthread_once(&s_sensor_lock_once, sensor_mutex_init_once);
+    (void)pthread_mutex_lock(&s_sensor_lock);
+}
+
+static void sensor_unlock(void)
+{
+    (void)pthread_mutex_unlock(&s_sensor_lock);
+}
 
 static bool channel_valid(hal_sensor_channel_t ch)
 {
@@ -73,15 +89,15 @@ sw_err_t hal_sensor_filter_bind(hal_sensor_channel_t ch, const hal_sensor_bind_c
         return SW_ERR_PARAM;
     }
 
-    pthread_mutex_lock(&s_sensor_lock);
+    sensor_lock();
     if (s_bound[ch]) {
-        pthread_mutex_unlock(&s_sensor_lock);
+        sensor_unlock();
         return SW_ERR_BUSY;
     }
     s_cfg[ch]     = *cfg;
     s_bound[ch]   = true;
     s_initialized = false;
-    pthread_mutex_unlock(&s_sensor_lock);
+    sensor_unlock();
     return SW_OK;
 }
 
@@ -90,7 +106,7 @@ static sw_err_t sensor_init(void)
 {
     bool any_bound = false;
 
-    pthread_mutex_lock(&s_sensor_lock);
+    sensor_lock();
     for (hal_sensor_channel_t ch = 0U; ch < HAL_SENSOR_CHANNEL_MAX; ch++) {
         if (s_bound[ch]) {
             any_bound = true;
@@ -101,13 +117,13 @@ static sw_err_t sensor_init(void)
     }
 
     if (!any_bound) {
-        pthread_mutex_unlock(&s_sensor_lock);
+        sensor_unlock();
         return SW_ERR_NOT_INIT;
     }
 
     s_ops_error_logged = false;
     s_initialized      = true;
-    pthread_mutex_unlock(&s_sensor_lock);
+    sensor_unlock();
     return SW_OK;
 }
 
@@ -119,24 +135,24 @@ static sw_err_t sensor_tick(void)
     size_t              transition_count = 0U;
     size_t              observer_count;
 
-    pthread_mutex_lock(&s_sensor_lock);
+    sensor_lock();
     if (!s_initialized) {
-        pthread_mutex_unlock(&s_sensor_lock);
+        sensor_unlock();
         return SW_ERR_NOT_INIT;
     }
-    pthread_mutex_unlock(&s_sensor_lock);
+    sensor_unlock();
 
     if ((io == NULL) || (io->di_read == NULL)) {
-        pthread_mutex_lock(&s_sensor_lock);
+        sensor_lock();
         if (!s_ops_error_logged) {
             LOG_ERROR("hal_sensor: hal_io ops not ready");
             s_ops_error_logged = true;
         }
-        pthread_mutex_unlock(&s_sensor_lock);
+        sensor_unlock();
         return SW_ERR_NOT_INIT;
     }
 
-    pthread_mutex_lock(&s_sensor_lock);
+    sensor_lock();
 
     s_ops_error_logged = false;
 
@@ -185,7 +201,7 @@ static sw_err_t sensor_tick(void)
     for (size_t i = 0U; i < observer_count; ++i) {
         observers[i] = s_observers[i];
     }
-    pthread_mutex_unlock(&s_sensor_lock);
+    sensor_unlock();
 
     for (size_t i = 0U; i < transition_count; ++i) {
         for (size_t j = 0U; j < observer_count; ++j) {
@@ -217,9 +233,9 @@ static bool sensor_is_active(hal_sensor_channel_t ch)
         return false;
     }
 
-    pthread_mutex_lock(&s_sensor_lock);
+    sensor_lock();
     active = s_bound[ch] && (s_rt[ch].state == HAL_SENSOR_STATE_ACTIVE);
-    pthread_mutex_unlock(&s_sensor_lock);
+    sensor_unlock();
 
     return active;
 }
@@ -232,11 +248,11 @@ static hal_sensor_state_t sensor_get_state(hal_sensor_channel_t ch)
         return state;
     }
 
-    pthread_mutex_lock(&s_sensor_lock);
+    sensor_lock();
     if (s_bound[ch]) {
         state = s_rt[ch].state;
     }
-    pthread_mutex_unlock(&s_sensor_lock);
+    sensor_unlock();
     return state;
 }
 
@@ -246,13 +262,13 @@ static sw_err_t sensor_subscribe(hal_sensor_state_cb_t cb, void *ctx)
         return SW_ERR_PARAM;
     }
 
-    pthread_mutex_lock(&s_sensor_lock);
+    sensor_lock();
     if (s_observer_count >= HAL_SENSOR_OBSERVER_MAX) {
-        pthread_mutex_unlock(&s_sensor_lock);
+        sensor_unlock();
         return SW_ERR_OVERFLOW;
     }
     s_observers[s_observer_count++] = (sensor_observer_t){cb, ctx};
-    pthread_mutex_unlock(&s_sensor_lock);
+    sensor_unlock();
     return SW_OK;
 }
 
@@ -272,7 +288,7 @@ void hal_sensor_filter_register(void)
 #ifdef HAL_SENSOR_FILTER_UNIT_TEST
 void hal_sensor_filter_test_reset(void)
 {
-    pthread_mutex_lock(&s_sensor_lock);
+    sensor_lock();
     for (hal_sensor_channel_t ch = 0U; ch < HAL_SENSOR_CHANNEL_MAX; ch++) {
         s_cfg[ch]             = (hal_sensor_bind_cfg_t){0};
         s_bound[ch]           = false;
@@ -283,14 +299,14 @@ void hal_sensor_filter_test_reset(void)
     s_ops_error_logged = false;
     s_initialized      = false;
     s_observer_count   = 0U;
-    pthread_mutex_unlock(&s_sensor_lock);
+    sensor_unlock();
 }
 
 /**
  * @brief  直接驱动一次滤波 tick（仅测试）
  *
  * @note   与 hal_vfd_manager_test_tick 同一用途：tick 回调是 static，且经
- *         scheduler 启动后跑在独立线程里，测试无法确定地驱动它。导出本入口
+ *         控制环启动后跑在 FIFO 线程里，测试无法确定地驱动它。导出本入口
  *         使 tick 路径可在单线程下被断言（例如 ARCH-15 的零分配验证）。
  */
 sw_err_t hal_sensor_filter_test_tick(void)
@@ -307,6 +323,5 @@ static void sensor_poll_task(void *ctx)
 
 sw_err_t hal_sensor_poll_register_task(void)
 {
-    return periodic_task_register(
-        "hal_sensor_poll", HAL_SENSOR_POLL_PERIOD_MS, sensor_poll_task, NULL, SCHED_OTHER, 0, THD_SENSOR_POLL_STACK);
+    return control_loop_register("hal_sensor_poll", HAL_SENSOR_POLL_PERIOD_MS, sensor_poll_task, NULL);
 }

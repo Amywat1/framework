@@ -23,7 +23,7 @@ void hal_vfd_manager_register(void);
  * @brief  注册 VFD 脉冲推进与监测调度两个周期任务。
  * @retval SW_OK 注册成功。
  * @retval SW_ERR_PARAM / SW_ERR_OVERFLOW 注册失败。
- * @note   脉冲任务只推 RST；监测任务每拍最多一笔 Modbus 后返回。
+ * @note   脉冲节拍挂在控制环上，只推 RST；监测仍为独立 OTHER 周期任务，每拍最多一笔 Modbus。
  *         任务由 scheduler_start_all() 统一启动；项目层只注册任务，不直接调用 tick。
  */
 sw_err_t hal_vfd_manager_poll_register_task(void);

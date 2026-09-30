@@ -10,6 +10,7 @@
 #include "adapters/outbound/hal/components/adc_gate/hal_adc_gate.h"
 
 #include "common/log.h"
+#include "common/sw_mutex.h"
 
 #include <pthread.h>
 #include <stddef.h>
@@ -25,7 +26,24 @@ typedef struct {
 } adc_gate_entry_t;
 
 static adc_gate_entry_t s_entries[HAL_ADC_GATE_MAX_CHANNELS];
-static pthread_mutex_t  s_lock = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t s_lock;
+static pthread_once_t  s_lock_once = PTHREAD_ONCE_INIT;
+
+static void adc_gate_mutex_init_once(void)
+{
+    (void)sw_mutex_init_prio_inherit(&s_lock);
+}
+
+static void adc_gate_lock(void)
+{
+    (void)pthread_once(&s_lock_once, adc_gate_mutex_init_once);
+    (void)pthread_mutex_lock(&s_lock);
+}
+
+static void adc_gate_unlock(void)
+{
+    (void)pthread_mutex_unlock(&s_lock);
+}
 
 /* 调用者必须已持有 s_lock */
 static adc_gate_entry_t *find_entry_locked(int board_id, int port)
@@ -65,24 +83,24 @@ void hal_adc_gate_acquire(int board_id, int port)
 {
     adc_gate_entry_t *entry;
 
-    pthread_mutex_lock(&s_lock);
+    adc_gate_lock();
     entry = find_or_create_entry_locked(board_id, port);
     if (entry != NULL) {
         entry->count++;
     }
-    pthread_mutex_unlock(&s_lock);
+    adc_gate_unlock();
 }
 
 void hal_adc_gate_release(int board_id, int port)
 {
     adc_gate_entry_t *entry;
 
-    pthread_mutex_lock(&s_lock);
+    adc_gate_lock();
     entry = find_entry_locked(board_id, port);
     if ((entry != NULL) && (entry->count > 0)) {
         entry->count--;
     }
-    pthread_mutex_unlock(&s_lock);
+    adc_gate_unlock();
 }
 
 bool hal_adc_gate_is_needed(int board_id, int port)
@@ -90,17 +108,17 @@ bool hal_adc_gate_is_needed(int board_id, int port)
     adc_gate_entry_t *entry;
     bool              needed;
 
-    pthread_mutex_lock(&s_lock);
+    adc_gate_lock();
     entry  = find_entry_locked(board_id, port);
     needed = (entry != NULL) && (entry->count > 0);
-    pthread_mutex_unlock(&s_lock);
+    adc_gate_unlock();
 
     return needed;
 }
 
 void hal_adc_gate_reset_for_test(void)
 {
-    pthread_mutex_lock(&s_lock);
+    adc_gate_lock();
     memset(s_entries, 0, sizeof(s_entries));
-    pthread_mutex_unlock(&s_lock);
+    adc_gate_unlock();
 }

@@ -21,18 +21,19 @@
 #define THD_CLOUD_STACK               (32U * 1024U) /**< 云端栈 */
 #define THD_CLOUD_REPORT_PERIOD_MS    500U          /**< 状态上报周期（ms） */
 #define THD_VFD_TICK_STACK            (16U * 1024U) /**< VFD 周期任务栈 */
-#define THD_SENSOR_POLL_STACK         (16U * 1024U) /**< 传感器滤波栈 */
+#define THD_SENSOR_POLL_STACK         (16U * 1024U) /**< 其它 OTHER 周期任务栈 */
 #define THD_TELEMETRY_STACK           (16U * 1024U) /**< 遥测投影重建栈 */
-#define THD_FLUID_PATH_POLL_STACK     (16U * 1024U) /**< 水路 worker 栈 */
 #define THD_FLUID_PATH_POLL_PERIOD_MS 100U          /**< 水路轮询周期（ms） */
-#define THD_MOTOR_TICK_STACK          (16U * 1024U) /**< 电机执行器 tick 栈 */
-#define THD_MOTOR_TICK_PERIOD_MS      10U           /**< 电机执行器 tick 周期（ms） */
+#define THD_MOTOR_TICK_PERIOD_MS      10U           /**< 电机执行器 tick 周期（ms），亦为控制环节拍 */
+#define THD_LOG_DRAIN_STACK           (16U * 1024U) /**< 日志异步排出栈 */
 
 /* -------------------------------------------------------------------------
- * SCHED_FIFO 急停通道（§7.3 阶段二）
+ * SCHED_FIFO 急停与控制环（控制环必须低于急停）
  * ------------------------------------------------------------------------- */
-#define THD_SAFETY_THREAD_STACK   (8U * 1024U) /**< 急停线程栈 */
-#define THD_SAFETY_THREAD_PRIO    90           /**< 实时优先级（1~99） */
-#define THD_SAFETY_THREAD_POLL_US 5000U        /**< 轮询周期（us） */
+#define THD_SAFETY_THREAD_STACK   (8U * 1024U)  /**< 急停线程栈 */
+#define THD_SAFETY_THREAD_PRIO    90            /**< 实时优先级（1~99） */
+#define THD_SAFETY_THREAD_POLL_US 5000U         /**< 轮询周期（us） */
+#define THD_CONTROL_LOOP_STACK    (32U * 1024U) /**< 控制环栈（多回调共用） */
+#define THD_CONTROL_LOOP_PRIO     60            /**< 低于急停的控制环优先级 */
 
 #endif                                         /* RUNTIME_CONFIG_THREAD_CONFIG_H */

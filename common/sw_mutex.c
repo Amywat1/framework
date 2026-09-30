@@ -38,3 +38,31 @@ bool sw_mutex_init_prio_inherit(pthread_mutex_t *mutex)
     (void)pthread_mutexattr_destroy(&attr);
     return true;
 }
+
+bool sw_mutex_init_prio_inherit_recursive(pthread_mutex_t *mutex)
+{
+    pthread_mutexattr_t attr;
+    bool                prio_inherit;
+    bool                ok;
+
+    if (mutex == NULL) {
+        return false;
+    }
+    if (pthread_mutexattr_init(&attr) != 0) {
+        return false;
+    }
+    if (pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE) != 0) {
+        (void)pthread_mutexattr_destroy(&attr);
+        return false;
+    }
+
+    prio_inherit = (pthread_mutexattr_setprotocol(&attr, PTHREAD_PRIO_INHERIT) == 0);
+    ok           = (pthread_mutex_init(mutex, &attr) == 0);
+    if (!ok && prio_inherit) {
+        /* 平台拒绝优先级继承：退化为普通递归锁 */
+        ok = (pthread_mutexattr_setprotocol(&attr, PTHREAD_PRIO_NONE) == 0) && (pthread_mutex_init(mutex, &attr) == 0);
+    }
+
+    (void)pthread_mutexattr_destroy(&attr);
+    return ok;
+}

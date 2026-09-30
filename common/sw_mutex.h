@@ -40,6 +40,17 @@ extern "C" {
  */
 bool sw_mutex_init_prio_inherit(pthread_mutex_t *mutex);
 
+/**
+ * @brief  以优先级继承协议初始化递归互斥量
+ * @param  mutex  待初始化的互斥量；不得为 NULL，且必须尚未被初始化
+ * @retval true   互斥量可用：平台支持时带 PTHREAD_PRIO_INHERIT，否则退化为普通递归锁
+ * @retval false  初始化失败，mutex 不可用
+ * @note   供电机执行器等「同线程重入 + 可能被 FIFO 与 OTHER 竞争」的锁使用。
+ * @note   与 sw_mutex_init_prio_inherit() 不同，退化不算失败：递归语义是调用方
+ *         正确性前提，返回值只表示锁能否使用。
+ */
+bool sw_mutex_init_prio_inherit_recursive(pthread_mutex_t *mutex);
+
 #ifdef __cplusplus
 }
 #endif

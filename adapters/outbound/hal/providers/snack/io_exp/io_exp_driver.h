@@ -243,11 +243,14 @@ drv_io_transport_mode_t drv_io_transport_mode(void);
 int drv_io_pulse_read(io_di_t pin);
 
 /**
- * @brief  清零 DI 引脚对应的硬件脉冲计数器（通过 CANopen SDO 对象 0x2005）
+ * @brief  请求清零 DI 引脚对应的硬件脉冲计数器（CANopen SDO 对象 0x2005）
  * @param  pin  DI 句柄；须为有效编码器输入引脚
- * @retval SW_OK       清零成功
+ * @retval SW_OK         请求已受理，调用方不等待总线
  * @retval SW_ERR_PARAM  引脚无效
- * @retval SW_ERR_COMM   SDO 写入失败
+ * @retval SW_ERR_NOT_INIT 驱动尚未 start
+ * @note   worker 在下一个刷新周期执行 SDO，最多尝试 IO_PULSE_CLEAR_MAX_TRIES 次。
+ *         受理起到完成前 drv_io_pulse_read() 返回负值；成功后读数从 0 计起。
+ *         重试耗尽则放弃本次请求并记 ERROR，下一次采样恢复为未清零的计数。
  */
 sw_err_t drv_io_pulse_clear(io_di_t pin);
 

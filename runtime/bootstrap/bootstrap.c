@@ -135,6 +135,8 @@ static sw_err_t bootstrap_register(void)
     BOOT_CHECK(project_hooks_register(), "project_hooks_register");
     BOOT_CHECK(thread_register("event_dispatch", event_dispatch_thread_fn, SCHED_OTHER, 0, THD_EVENT_DISPATCH_STACK),
                "register event_dispatch");
+    BOOT_CHECK(thread_register("log_drain", sw_log_drain_thread_fn, SCHED_OTHER, 0, THD_LOG_DRAIN_STACK),
+               "register log_drain");
 
     return SW_OK;
 }
@@ -219,6 +221,7 @@ static sw_err_t bootstrap_start(void)
 {
     BOOT_CHECK(s_hooks->start_runtime(), "project_start_runtime");
     BOOT_CHECK(scheduler_start_all(), "scheduler_start_all");
+    sw_log_enable_async();
     return SW_OK;
 }
 

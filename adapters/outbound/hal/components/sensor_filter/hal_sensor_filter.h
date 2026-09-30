@@ -34,7 +34,7 @@ sw_err_t hal_sensor_filter_bind(hal_sensor_channel_t ch, const hal_sensor_bind_c
  * @brief  注册 HAL 传感器滤波周期任务。
  * @retval SW_OK 注册成功。
  * @retval SW_ERR_PARAM / SW_ERR_OVERFLOW 注册失败。
- * @note   任务由 scheduler_start_all() 统一启动；项目层只注册任务，不直接调用 tick。
+ * @note   滤波节拍挂在控制环上，由 scheduler_start_all() 统一启动；项目层只注册任务，不直接调用 tick。
  */
 sw_err_t hal_sensor_poll_register_task(void);
 

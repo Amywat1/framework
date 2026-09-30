@@ -13,6 +13,7 @@
 #include "common/time_util.h"
 #include "domain/ports/outbound/hal/hal_vfd_port.h"
 #include "runtime/config/thread_config.h"
+#include "runtime/scheduler/control_loop.h"
 #include "runtime/scheduler/periodic_task.h"
 
 #include <pthread.h>
@@ -502,11 +503,11 @@ sw_err_t hal_vfd_manager_poll_register_task(void)
 {
     sw_err_t ret;
 
-    ret = periodic_task_register(
-        "vfd_pulse_poll", HAL_VFD_PULSE_PERIOD_MS, vfd_pulse_tick, NULL, SCHED_OTHER, 0, THD_VFD_TICK_STACK);
+    ret = control_loop_register("vfd_pulse_poll", HAL_VFD_PULSE_PERIOD_MS, vfd_pulse_tick, NULL);
     if (ret != SW_OK) {
         return ret;
     }
+    /* 监测走 Modbus，留在 OTHER 周期任务，避免把总线阻塞带进控制环 */
     return periodic_task_register(
         "vfd_monitor_poll", HAL_VFD_MONITOR_SLICE_MS, vfd_monitor_tick, NULL, SCHED_OTHER, 0, THD_VFD_TICK_STACK);
 }

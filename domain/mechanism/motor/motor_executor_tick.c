@@ -402,8 +402,9 @@ bool zero_encoder_baseline(motor_executor_t *e, int i)
     s->baseline_trusted = false;
     for (int attempt = 0; attempt < MOTOR_ZERO_MAX_TRIES; ++attempt) {
         if (enc_zero(enc)) {
+            /* 清零可能异步完成：不取当下 raw，由下一个有效读数重新锁存 */
             s->position         = 0;
-            s->last_raw         = enc_raw(enc);
+            s->enc_delta_armed  = false;
             s->baseline_trusted = true;
             /* 归位成功重建基准，编码器读数重新可信：这是异常后的唯一恢复路径。 */
             s->enc_healthy = true;

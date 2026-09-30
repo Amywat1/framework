@@ -11,9 +11,8 @@
 #include "domain/mechanism/motor/motor_executor.h"
 #include "domain/mechanism/patterns/fluid_path.h"
 #include "runtime/config/thread_config.h"
-#include "runtime/scheduler/periodic_task.h"
+#include "runtime/scheduler/control_loop.h"
 
-#include <sched.h>
 #include <stddef.h>
 #include <string.h>
 
@@ -193,8 +192,7 @@ sw_err_t mechanism_bridge_register_tasks(void)
     sw_err_t ret;
 
     if (!s_motor_task_registered) {
-        ret = periodic_task_register(
-            "motor_tick", THD_MOTOR_TICK_PERIOD_MS, motor_tick_task, NULL, SCHED_OTHER, 0, THD_MOTOR_TICK_STACK);
+        ret = control_loop_register("motor_tick", THD_MOTOR_TICK_PERIOD_MS, motor_tick_task, NULL);
         if (ret != SW_OK) {
             return ret;
         }
@@ -202,13 +200,7 @@ sw_err_t mechanism_bridge_register_tasks(void)
     }
 
     if (!s_fluid_task_registered) {
-        ret = periodic_task_register("fluid_path_poll",
-                                     THD_FLUID_PATH_POLL_PERIOD_MS,
-                                     fluid_tick_task,
-                                     NULL,
-                                     SCHED_OTHER,
-                                     0,
-                                     THD_FLUID_PATH_POLL_STACK);
+        ret = control_loop_register("fluid_path_poll", THD_FLUID_PATH_POLL_PERIOD_MS, fluid_tick_task, NULL);
         if (ret != SW_OK) {
             return ret;
         }

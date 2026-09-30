@@ -3,6 +3,10 @@
  * @brief   调度器周期任务注册辅助实现
  */
 
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
+
 #include "runtime/scheduler/periodic_task.h"
 
 #include "common/log.h"
@@ -14,6 +18,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <string.h>
+#include <sys/prctl.h>
 #include <time.h>
 
 /* 每个周期任务恰好占用一个线程登记槽，因此容量与线程表对齐：
@@ -233,6 +238,10 @@ static void *periodic_task_thread_fn(void *arg)
     if (slot == NULL) {
         return NULL;
     }
+
+#ifdef __linux__
+    (void)prctl(PR_SET_TIMERSLACK, 1UL);
+#endif
 
     /* 以绝对截止时间推进，避免"回调耗时累加进周期"的漂移。
      * 墙钟越过下一拍截止时间时，跳过已错过的拍而不是无限追赶。 */

@@ -57,6 +57,12 @@ add_unit_test(test_log_concurrent
     ${WDF_ROOT}/common/sw_mutex.c
 )
 
+add_unit_test(test_log_async
+    ${CMAKE_CURRENT_SOURCE_DIR}/common/test_log_async.c
+    ${WDF_ROOT}/common/log.c
+    ${WDF_ROOT}/common/sw_mutex.c
+)
+
 add_unit_test(test_event_bus
     ${CMAKE_CURRENT_SOURCE_DIR}/runtime/test_event_bus.c
     ${WDF_ROOT}/runtime/event_bus/event_bus.c
@@ -89,6 +95,7 @@ add_unit_test(test_hal_sensor_filter
     ${WDF_ROOT}/adapters/outbound/hal/components/sensor_filter/hal_sensor_filter.c
     ${WDF_ROOT}/adapters/outbound/hal/sim/hal_io_sim.c
     ${WDF_ROOT}/runtime/scheduler/periodic_task.c
+    ${WDF_ROOT}/runtime/scheduler/control_loop.c
     ${WDF_ROOT}/runtime/scheduler/thread_registry.c
     ${WDF_ROOT}/runtime/ports/port_registry_hal.c
     ${WDF_ROOT}/runtime/ports/port_registry_infra.c
@@ -104,6 +111,7 @@ add_unit_test(test_hal_vfd_manager
     ${WDF_ROOT}/common/pulse_out.c
     ${WDF_ROOT}/common/time_util.c
     ${WDF_ROOT}/runtime/scheduler/periodic_task.c
+    ${WDF_ROOT}/runtime/scheduler/control_loop.c
     ${WDF_ROOT}/runtime/scheduler/thread_registry.c
     ${WDF_ROOT}/runtime/ports/port_registry_hal.c
     ${WDF_ROOT}/runtime/ports/port_registry_infra.c
@@ -168,6 +176,7 @@ if(WDF_TEST_VENDOR_PROVIDERS)
         ${WDF_ROOT}/common/pulse_out.c
         ${WDF_ROOT}/common/time_util.c
         ${WDF_ROOT}/runtime/scheduler/periodic_task.c
+        ${WDF_ROOT}/runtime/scheduler/control_loop.c
         ${WDF_ROOT}/runtime/scheduler/thread_registry.c
         ${WDF_ROOT}/runtime/ports/port_registry_hal.c
         ${WDF_ROOT}/runtime/ports/port_registry_infra.c
@@ -732,6 +741,15 @@ add_unit_test(test_periodic_deadline
     ${WDF_ROOT}/common/sw_mutex.c
 )
 
+add_unit_test(test_control_loop
+    ${CMAKE_CURRENT_SOURCE_DIR}/runtime/test_control_loop.c
+    ${WDF_ROOT}/runtime/scheduler/control_loop.c
+    ${WDF_ROOT}/runtime/scheduler/periodic_task.c
+    ${WDF_ROOT}/runtime/scheduler/thread_registry.c
+    ${WDF_ROOT}/common/log.c
+    ${WDF_ROOT}/common/sw_mutex.c
+)
+
 add_unit_test(test_scheduler
     ${CMAKE_CURRENT_SOURCE_DIR}/runtime/test_scheduler.c
     ${WDF_ROOT}/runtime/scheduler/thread_registry.c
@@ -790,6 +808,7 @@ add_unit_test(test_tick_no_alloc
     ${WDF_ROOT}/common/pulse_out.c
     ${WDF_ROOT}/common/time_util.c
     ${WDF_ROOT}/runtime/scheduler/periodic_task.c
+    ${WDF_ROOT}/runtime/scheduler/control_loop.c
     ${WDF_ROOT}/runtime/scheduler/thread_registry.c
     ${WDF_ROOT}/runtime/ports/port_registry_hal.c
     ${WDF_ROOT}/runtime/ports/port_registry_infra.c

@@ -8,6 +8,7 @@
 #include "domain/mechanism/patterns/fluid_path.h"
 
 #include "common/log.h"
+#include "common/sw_mutex.h"
 #include "common/time_util.h"
 #include "domain/safety/safety_output_hold.h"
 
@@ -16,7 +17,24 @@
 
 typedef bool (*fluid_path_gate_fn)(fluid_path_channel_idx_t ch, fluid_path_slot_t slot, uint64_t now_ms);
 
-static pthread_mutex_t s_mutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t s_mutex;
+static pthread_once_t  s_mutex_once = PTHREAD_ONCE_INIT;
+
+static void fluid_mutex_init_once(void)
+{
+    (void)sw_mutex_init_prio_inherit(&s_mutex);
+}
+
+static void fluid_lock(void)
+{
+    (void)pthread_once(&s_mutex_once, fluid_mutex_init_once);
+    (void)pthread_mutex_lock(&s_mutex);
+}
+
+static void fluid_unlock(void)
+{
+    (void)pthread_mutex_unlock(&s_mutex);
+}
 
 static fluid_path_cfg_t          s_cfg;
 static fluid_path_actuator_ops_t s_actuator;
@@ -291,7 +309,7 @@ sw_err_t fluid_path_init(const fluid_path_cfg_t          *cfg,
         return SW_ERR_PARAM;
     }
 
-    pthread_mutex_lock(&s_mutex);
+    fluid_lock();
     s_cfg        = *cfg;
     s_actuator   = *ops;
     s_paths      = paths;
@@ -299,7 +317,7 @@ sw_err_t fluid_path_init(const fluid_path_cfg_t          *cfg,
     s_valid_mask = valid_mask;
     s_ready      = true;
     force_off_locked();
-    pthread_mutex_unlock(&s_mutex);
+    fluid_unlock();
 
     /* 领域层不创建线程：时序推进由调用方登记 fluid_path_poll 为周期任务驱动。 */
     return SW_OK;
@@ -327,12 +345,12 @@ sw_err_t fluid_path_set(fluid_path_mask_t target)
 {
     sw_err_t err;
 
-    pthread_mutex_lock(&s_mutex);
+    fluid_lock();
     err = target_cmd_ok_locked(target);
     if (err == SW_OK) {
         s_pending_target = target;
     }
-    pthread_mutex_unlock(&s_mutex);
+    fluid_unlock();
     return err;
 }
 
@@ -340,12 +358,12 @@ sw_err_t fluid_path_enable(fluid_path_mask_t mask)
 {
     sw_err_t err;
 
-    pthread_mutex_lock(&s_mutex);
+    fluid_lock();
     err = target_cmd_ok_locked(mask);
     if (err == SW_OK) {
         s_pending_target |= mask;
     }
-    pthread_mutex_unlock(&s_mutex);
+    fluid_unlock();
     return err;
 }
 
@@ -353,35 +371,35 @@ sw_err_t fluid_path_disable(fluid_path_mask_t mask)
 {
     sw_err_t err;
 
-    pthread_mutex_lock(&s_mutex);
+    fluid_lock();
     err = target_cmd_ok_locked(mask);
     if (err == SW_OK) {
         s_pending_target &= ~mask;
     }
-    pthread_mutex_unlock(&s_mutex);
+    fluid_unlock();
     return err;
 }
 
 sw_err_t fluid_path_all_off(void)
 {
-    pthread_mutex_lock(&s_mutex);
+    fluid_lock();
     if (!s_ready) {
-        pthread_mutex_unlock(&s_mutex);
+        fluid_unlock();
         return SW_ERR_NOT_INIT;
     }
     s_force_off      = true;
     s_pending_target = 0U;
-    pthread_mutex_unlock(&s_mutex);
+    fluid_unlock();
     return SW_OK;
 }
 
 void fluid_path_poll(uint64_t now_ms)
 {
-    pthread_mutex_lock(&s_mutex);
+    fluid_lock();
     if (s_ready) {
         tick_locked(now_ms);
     }
-    pthread_mutex_unlock(&s_mutex);
+    fluid_unlock();
 }
 
 bool fluid_path_is_settled(void)
@@ -391,14 +409,14 @@ bool fluid_path_is_settled(void)
     if (safety_output_hold_is_active()) {
         return false;
     }
-    pthread_mutex_lock(&s_mutex);
+    fluid_lock();
     if (!s_ready || s_force_off || safety_output_hold_is_active()) {
         settled = false;
     } else {
         recompute_desired();
         settled = outputs_match_desired();
     }
-    pthread_mutex_unlock(&s_mutex);
+    fluid_unlock();
     return settled;
 }
 
@@ -408,12 +426,12 @@ sw_err_t fluid_path_get_target(fluid_path_mask_t *out)
         return SW_ERR_PARAM;
     }
 
-    pthread_mutex_lock(&s_mutex);
+    fluid_lock();
     if (!s_ready) {
-        pthread_mutex_unlock(&s_mutex);
+        fluid_unlock();
         return SW_ERR_NOT_INIT;
     }
     *out = s_pending_target;
-    pthread_mutex_unlock(&s_mutex);
+    fluid_unlock();
     return SW_OK;
 }

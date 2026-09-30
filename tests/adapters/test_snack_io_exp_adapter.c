@@ -257,7 +257,9 @@ static void test_wait_boards_online_uses_worker_cache(void)
 static void test_pulse_read_and_clear_delegate_to_sdk(void)
 {
     io_di_t pin = IO_DI(1U, 1U);
+    int     raw;
 
+    TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_INIT, io_ops()->pulse_clear(pin));
     start_online_boards(2);
     io_exp_fake_set_pulse(1, 1, 77);
     TEST_ASSERT_EQUAL_INT(IO_PULSE_ERR_UNINITIALIZED, io_ops()->pulse_read(pin));
@@ -266,16 +268,24 @@ static void test_pulse_read_and_clear_delegate_to_sdk(void)
     TEST_ASSERT_EQUAL_INT(77, wait_pulse_raw(pin, 77));
     TEST_ASSERT_EQUAL_INT(-1, io_ops()->pulse_read(IO_DI(9U, 1U)));
 
+    /* 受理即返回：完成前读数无效，任何时刻都不能再读到清零前的 77 */
     TEST_ASSERT_EQUAL_INT(SW_OK, io_ops()->pulse_clear(pin));
+    raw = io_ops()->pulse_read(pin);
+    TEST_ASSERT_TRUE((raw < 0) || (raw == 0));
+    TEST_ASSERT_EQUAL_INT(0, wait_pulse_raw(pin, 0));
     TEST_ASSERT_TRUE(io_exp_fake_sdo_called());
     TEST_ASSERT_EQUAL_INT(1, io_exp_fake_sdo_board());
     TEST_ASSERT_EQUAL_INT(0x2005, io_exp_fake_sdo_index());
     TEST_ASSERT_EQUAL_INT(1, io_exp_fake_sdo_sub_index());
     TEST_ASSERT_EQUAL_INT(0, io_exp_fake_sdo_data());
-    TEST_ASSERT_EQUAL_INT(0, io_ops()->pulse_read(pin));
 
+    /* SDO 失败：请求仍受理，重试耗尽后采样恢复为未清零的计数 */
+    io_exp_fake_set_pulse(1, 1, 55);
+    TEST_ASSERT_EQUAL_INT(55, wait_pulse_raw(pin, 55));
     io_exp_fake_set_sdo_result(-1);
-    TEST_ASSERT_EQUAL_INT(SW_ERR_COMM, io_ops()->pulse_clear(pin));
+    TEST_ASSERT_EQUAL_INT(SW_OK, io_ops()->pulse_clear(pin));
+    TEST_ASSERT_EQUAL_INT(55, wait_pulse_raw(pin, 55));
+
     TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, io_ops()->pulse_clear(IO_DI(9U, 1U)));
     hal_pulse_gate_release(1, 1);
 }

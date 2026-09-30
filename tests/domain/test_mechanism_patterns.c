@@ -12,6 +12,7 @@
 #include "domain/mechanism/motor/motor_exec.h"
 #include "domain/safety/safety_output_hold.h"
 #include "runtime/event_bus/event_bus.h"
+#include "runtime/scheduler/control_loop.h"
 #include "runtime/scheduler/periodic_task.h"
 #include "wdf_test_spec.h"
 
@@ -184,21 +185,9 @@ void motor_executor_tick(motor_exec_t *exec)
     s_executor_tick_count++;
 }
 
-sw_err_t periodic_task_register(const char        *name,
-                                uint32_t           period_ms,
-                                periodic_task_fn_t fn,
-                                void              *ctx,
-                                int                sched_policy,
-                                int                prio,
-                                size_t             stack_size)
+sw_err_t control_loop_register(const char *name, uint32_t period_ms, periodic_task_fn_t fn, void *ctx)
 {
-    (void)name;
     (void)period_ms;
-    (void)fn;
-    (void)ctx;
-    (void)sched_policy;
-    (void)prio;
-    (void)stack_size;
     s_periodic_register_count++;
     if ((name != NULL) && (strcmp(name, "motor_tick") == 0)) {
         s_captured_motor_tick     = fn;

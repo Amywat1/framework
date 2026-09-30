@@ -5,6 +5,10 @@
  * @date    2026-07-09
  */
 
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
+
 #include "adapters/inbound/safety/estop_poll_thread.h"
 
 #include "common/event_types.h"
@@ -17,6 +21,7 @@
 #include "runtime/scheduler/thread_registry.h"
 
 #include <sched.h>
+#include <sys/prctl.h>
 #include <unistd.h>
 
 static estop_filter_t s_filter;
@@ -109,6 +114,10 @@ static void handle_estop_edge(bool active)
 static void *estop_poll_thread_fn(void *arg)
 {
     (void)arg;
+#ifdef __linux__
+    (void)prctl(PR_SET_TIMERSLACK, 1UL);
+#endif
+    sw_log_mark_thread_async();
 
     for (;;) {
         estop_filter_event_t ev;

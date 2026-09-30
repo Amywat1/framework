@@ -76,16 +76,15 @@ sw_err_t io_exp_driver_sdk_init(const char *can_bus, int can_baud, int self_node
 #define IO_STARTUP_SAFE_STOP_DELAY_MS 3000U             /* 上电无板时执行安全停机的等待时间 */
 #define IO_PDO_BOARD_MAX              4                 /* Snack SDK：最多 4 块子板统一使用 PDO */
 #define IO_TRANSACTION_TIMEOUT_MS     300U              /* 单次同步事务等待上限 */
+#define IO_PULSE_CLEAR_SDO_INDEX      0x2005            /* 子板脉冲计数清零 SDO 对象 */
+#define IO_PULSE_CLEAR_MAX_TRIES      3U                /* 单次清零请求在 worker 内的 SDO 最大尝试次数 */
 
 typedef enum {
-    DRV_IO_TRANSACTION_FLUSH_OUTPUTS = 0,
-    DRV_IO_TRANSACTION_PULSE_CLEAR
+    DRV_IO_TRANSACTION_FLUSH_OUTPUTS = 0
 } drv_io_transaction_type_t;
 
 typedef struct {
     drv_io_transaction_type_t type;
-    int                       board_id;
-    int                       channel;
 } drv_io_transaction_t;
 
 typedef struct {
@@ -142,9 +141,11 @@ typedef struct {
     int                 raw;
     io_sample_quality_t quality;
     uint64_t            timestamp_ms;
+    bool                clear_pending; /* 清零已受理、worker 尚未执行；期间丢弃采样 */
 } drv_io_pulse_slot_t;
 
 static drv_io_pulse_slot_t s_pulse[IO_BOARD_MAX][IO_PIN_COUNT_MAX + 1U];
+static bool                s_pulse_clear_requested; /* 任一引脚有待执行清零；s_pulse_mutex 保护 */
 
 static void drv_io_mutex_init_once(void)
 {
@@ -666,6 +667,8 @@ static void poll_pulse_board(int board_id)
             if (s_pulse[board_id][pin_id].quality == IO_SAMPLE_QUALITY_VALID) {
                 s_pulse[board_id][pin_id].quality = IO_SAMPLE_QUALITY_STALE;
             }
+        } else if (s_pulse[board_id][pin_id].clear_pending) {
+            /* 清零前的计数，采纳会让读方看到先旧值后归零的跳变 */
         } else {
             s_pulse[board_id][pin_id].raw          = raw;
             s_pulse[board_id][pin_id].quality      = IO_SAMPLE_QUALITY_VALID;
@@ -780,13 +783,65 @@ static sw_err_t drv_io_run_job(const drv_io_transaction_t *job, drv_io_transacti
     switch (job->type) {
     case DRV_IO_TRANSACTION_FLUSH_OUTPUTS:
         return drv_io_flush_outputs_backend();
-    case DRV_IO_TRANSACTION_PULSE_CLEAR: {
-        int data = 0;
-
-        return (io_SDO_write(job->board_id, 0x2005, job->channel, &data) >= 0) ? SW_OK : SW_ERR_COMM;
-    }
     default:
         return SW_ERR_PARAM;
+    }
+}
+
+/**
+ * @brief  执行已受理的脉冲清零请求（worker 线程，锁外 SDO）
+ * @note   成功后快照置 0 且有效；重试耗尽则放弃本次请求并告警，
+ *         快照保持无效，下一次采样恢复为未清零的计数。
+ */
+static void drv_io_run_pulse_clears(void)
+{
+    int board_id;
+    int pin_id;
+
+    drv_io_mutexes_ready();
+    pthread_mutex_lock(&s_pulse_mutex);
+    if (!s_pulse_clear_requested) {
+        pthread_mutex_unlock(&s_pulse_mutex);
+        return;
+    }
+    s_pulse_clear_requested = false;
+    pthread_mutex_unlock(&s_pulse_mutex);
+
+    for (board_id = 1; board_id <= s_board_count; ++board_id) {
+        for (pin_id = 1; pin_id <= s_pin_count; ++pin_id) {
+            bool     pending;
+            sw_err_t ret = SW_ERR_COMM;
+            unsigned attempt;
+
+            pthread_mutex_lock(&s_pulse_mutex);
+            pending = s_pulse[board_id][pin_id].clear_pending;
+            pthread_mutex_unlock(&s_pulse_mutex);
+            if (!pending) {
+                continue;
+            }
+
+            for (attempt = 0U; (attempt < IO_PULSE_CLEAR_MAX_TRIES) && (ret != SW_OK); ++attempt) {
+                int data = 0;
+
+                ret = (io_SDO_write(board_id, IO_PULSE_CLEAR_SDO_INDEX, pin_id, &data) >= 0) ? SW_OK : SW_ERR_COMM;
+            }
+
+            pthread_mutex_lock(&s_pulse_mutex);
+            s_pulse[board_id][pin_id].clear_pending = false;
+            if (ret == SW_OK) {
+                s_pulse[board_id][pin_id].raw          = 0;
+                s_pulse[board_id][pin_id].quality      = IO_SAMPLE_QUALITY_VALID;
+                s_pulse[board_id][pin_id].timestamp_ms = time_util_get_ms();
+            }
+            pthread_mutex_unlock(&s_pulse_mutex);
+
+            if (ret != SW_OK) {
+                LOG_ERROR("drv_io: pulse clear board=%d pin=%d failed after %u tries",
+                          board_id,
+                          pin_id,
+                          (unsigned)IO_PULSE_CLEAR_MAX_TRIES);
+            }
+        }
     }
 }
 
@@ -905,6 +960,7 @@ static void *drv_io_worker_fn(void *arg)
         pthread_mutex_unlock(&s_worker_mutex);
 
         if (do_tick) {
+            drv_io_run_pulse_clears();
             drv_io_poll_tick();
         }
         if (run_job) {
@@ -962,6 +1018,7 @@ sw_err_t drv_io_init(const drv_io_cfg_t *cfg)
     memset(s_test_value, 0, sizeof(s_test_value));
     memset(s_adc, 0, sizeof(s_adc));
     memset(s_pulse, 0, sizeof(s_pulse));
+    s_pulse_clear_requested = false;
 
     /* 仅在系统启动阶段调用：这里会清空已注册回调，不作为运行期 reset 接口使用。 */
     s_debug_input_cb      = NULL;
@@ -1048,9 +1105,7 @@ sw_err_t drv_io_do_set(io_do_t pin, bool val)
 sw_err_t drv_io_flush_outputs_now(void)
 {
     drv_io_transaction_t transaction = {
-        .type     = DRV_IO_TRANSACTION_FLUSH_OUTPUTS,
-        .board_id = 0,
-        .channel  = 0,
+        .type = DRV_IO_TRANSACTION_FLUSH_OUTPUTS,
     };
     uint32_t timeout_ms = IO_TRANSACTION_TIMEOUT_MS + (uint32_t)s_board_count * IO_TRANSACTION_TIMEOUT_MS;
 
@@ -1274,33 +1329,25 @@ int drv_io_pulse_read(io_di_t pin)
 
 sw_err_t drv_io_pulse_clear(io_di_t pin)
 {
-    uint16_t             raw      = io_di_raw(pin);
-    int                  board_id = (int)io_handle_board(raw);
-    int                  pin_id   = (int)io_handle_pin(raw);
-    drv_io_transaction_t transaction;
-    sw_err_t             ret;
+    uint16_t raw      = io_di_raw(pin);
+    int      board_id = (int)io_handle_board(raw);
+    int      pin_id   = (int)io_handle_pin(raw);
 
     if (!drv_io_is_valid_di_raw(raw)) {
         return SW_ERR_PARAM;
     }
-
-    transaction = (drv_io_transaction_t){
-        .type     = DRV_IO_TRANSACTION_PULSE_CLEAR,
-        .board_id = board_id,
-        .channel  = pin_id,
-    };
-    ret = drv_io_submit_job(&transaction, IO_TRANSACTION_TIMEOUT_MS, NULL);
-    if (ret == SW_OK) {
-        uint64_t now_ms = time_util_get_ms();
-
-        drv_io_mutexes_ready();
-        pthread_mutex_lock(&s_pulse_mutex);
-        s_pulse[board_id][pin_id].raw          = 0;
-        s_pulse[board_id][pin_id].quality      = IO_SAMPLE_QUALITY_VALID;
-        s_pulse[board_id][pin_id].timestamp_ms = now_ms;
-        pthread_mutex_unlock(&s_pulse_mutex);
+    if (!s_io_rw_started) {
+        return SW_ERR_NOT_INIT;
     }
-    return ret;
+
+    /* 只登记请求：调用方可能是控制环 FIFO 线程，SDO 由 worker 执行 */
+    drv_io_mutexes_ready();
+    pthread_mutex_lock(&s_pulse_mutex);
+    s_pulse[board_id][pin_id].clear_pending = true;
+    s_pulse[board_id][pin_id].quality       = IO_SAMPLE_QUALITY_STALE;
+    s_pulse_clear_requested                 = true;
+    pthread_mutex_unlock(&s_pulse_mutex);
+    return SW_OK;
 }
 
 static bool drv_io_is_valid_adc(int board_id, int port)

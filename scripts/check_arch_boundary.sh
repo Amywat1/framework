@@ -515,12 +515,18 @@ fi
 
 # RT 可达：必须启用优先级继承
 RT_REACHABLE_FILES=(
-    "common/log.c"                                                  # 急停边沿每次都写日志
+    "common/log.c"                                                  # 急停边沿与控制环都会写日志
     "runtime/event_bus/event_bus.c"                                 # 急停事件发布
+    "runtime/scheduler/control_loop.c"                              # FIFO 控制环槽位锁；health OTHER 也会取
+    "domain/mechanism/patterns/fluid_path.c"                        # 控制环 FIFO 取路径锁
+    "domain/mechanism/motor/motor_executor.c"                       # 控制环 FIFO 取 motor_lock
     "adapters/outbound/hal/sim/hal_io_sim.c"                        # 仿真 DO 写
     "adapters/outbound/hal/providers/snack/io_exp/io_exp_driver.c"  # 真机 DO 写
     "adapters/outbound/hal/components/vfd_manager/hal_vfd_manager.c" # 电机停机
     "adapters/outbound/hal/providers/snack/modbus/drv_vfd.c"        # stop_outputs（DO 切断）
+    "adapters/outbound/hal/components/adc_gate/hal_adc_gate.c"       # 控制环雷达采样取门控锁
+    "adapters/outbound/hal/components/pulse_gate/hal_pulse_gate.c"   # 控制环脉冲采样取门控锁
+    "adapters/outbound/hal/components/sensor_filter/hal_sensor_filter.c" # 控制环滤波取通道锁
 )
 
 # 非 RT 可达：允许默认互斥量，须逐个说明依据
@@ -529,13 +535,9 @@ NON_RT_FILES=(
     "domain/op_mode/operational_mode.c"                   # 模式串行锁；急停 cutout 不取此锁
     "domain/safety/alarm_registry/alarm_registry.c"        # 由报警采集线程驱动
     "domain/telemetry/device_snapshot.c"                   # 投影读写
-    "domain/mechanism/patterns/fluid_path.c"          # hold_request 无锁；poll 才取路径锁
-    "domain/mechanism/motor/motor_executor.c"         # 命令/tick 串行化；急停 cutout 不取此锁
     "adapters/outbound/storage/json/json_deploy_store.c"   # 启动期加载
     "adapters/outbound/storage/json/json_param_store.c"    # 参数存取
-    "adapters/outbound/hal/components/adc_gate/hal_adc_gate.c"       # 模拟量采样
-    "adapters/outbound/hal/components/pulse_gate/hal_pulse_gate.c"   # 脉冲计数采样
-    "adapters/outbound/hal/components/sensor_filter/hal_sensor_filter.c" # 传感器滤波
+    "adapters/outbound/cloud/cloud_json.c"                 # 云端 JSON 序列化，非急停路径
     "adapters/outbound/hal/providers/snack/modbus/drv_modbus_link.c" # cutout 禁止走 Modbus，只服务业务帧
     "adapters/outbound/hal/providers/snack/modbus/drv_voice.c"       # 语音播报
     "runtime/scheduler/periodic_task.c"                    # 周期任务统计；急停切断不取此锁
@@ -638,6 +640,8 @@ BOUNDED_WAIT_SITES=(
     "application/command_gateway.c:sem_timedwait"          # 等 handler 回执
     "application/engine_session/engine_session.c:sem_timedwait" # 等启动完成
     "runtime/scheduler/periodic_task.c:clock_nanosleep"    # 绝对下一拍唤醒
+    "runtime/scheduler/control_loop.c:clock_nanosleep"     # 控制环绝对下一拍唤醒
+    "common/log.c:pthread_cond_timedwait"                  # 日志排出线程空闲等待，1 秒上限
     "adapters/outbound/hal/providers/snack/io_exp/io_exp_driver.c:pthread_cond_timedwait" # worker 周期等待与同步事务均有截止时间
 )
 

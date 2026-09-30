@@ -9,6 +9,7 @@
  */
 #include "domain/mechanism/motor/motor_executor.h"
 
+#include "common/sw_mutex.h"
 #include "domain/mechanism/motor/motor_executor_internal.h"
 
 #include <string.h>
@@ -25,24 +26,16 @@ typedef struct {
 
 static motor_executor_slot_t s_slots[WDF_MOTOR_EXECUTOR_INSTANCE_COUNT];
 
-/* 命令与 tick 串行化；急停切断路径不取此锁。 */
+/* 命令与 tick 串行化。控制环以 SCHED_FIFO 取此锁，命令线程为 SCHED_OTHER，须优先级继承。 */
 
 void motor_lock_init(motor_executor_t *e)
 {
-    pthread_mutexattr_t attr;
-
     if ((e == NULL) || e->lock_ready) {
         return;
     }
-    if (pthread_mutexattr_init(&attr) != 0) {
-        return;
+    if (sw_mutex_init_prio_inherit_recursive(&e->lock)) {
+        e->lock_ready = true;
     }
-    if (pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE) == 0) {
-        if (pthread_mutex_init(&e->lock, &attr) == 0) {
-            e->lock_ready = true;
-        }
-    }
-    (void)pthread_mutexattr_destroy(&attr);
 }
 
 void motor_lock_destroy(motor_executor_t *e)

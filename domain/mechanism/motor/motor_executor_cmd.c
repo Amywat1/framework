@@ -293,8 +293,9 @@ motor_cmd_result_t motor_zero_encoder(motor_executor_t *e, int i)
     out    = cmd_reject(MOTOR_REJECT_ENCODER, "zero-failed");
     for (int t = 0; t < MOTOR_ZERO_MAX_TRIES; ++t) {
         if (enc_zero(enc)) {
-            e->m[i].position = 0;
-            e->m[i].last_raw = enc_raw(enc);
+            /* 清零可能异步完成：不取当下 raw，由下一个有效读数重新锁存 */
+            e->m[i].position        = 0;
+            e->m[i].enc_delta_armed = false;
             out              = cmd_make(MOTOR_CMD_ACCEPTED, "zeroed");
             motor_unlock(e);
             return out;
