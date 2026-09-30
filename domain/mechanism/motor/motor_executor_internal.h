@@ -61,7 +61,7 @@ typedef struct {
     int64_t last_raw;         /**< 上一拍编码器 raw */
     bool    enc_delta_armed;  /**< 增量轴本段运动是否已锁存 last_raw */
     bool    baseline_trusted; /**< 位置基准是否可信 */
-    int     enc_stall;        /**< 编码器连续无变化拍数 */
+    int     enc_stall;        /**< 编码器连续无进展或读失败拍数 */
     bool    enc_warned;       /**< 本运动是否已发过编码器 WARNING */
     bool    enc_healthy;      /**< 编码器读数是否可信 */
 

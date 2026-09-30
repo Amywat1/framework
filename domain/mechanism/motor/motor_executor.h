@@ -102,8 +102,8 @@ typedef struct {
 
     int default_max_time_ms;           /**< 运行默认超时兜底（必须 > 0） */
 
-    int  enc_stall_ticks;              /**< 连续多拍无变化→告警（0=不检测） */
-    int  enc_jump_max;                 /**< 单拍跳变上限→告警（0=不检测） */
+    int  enc_stall_ticks;              /**< 连续多拍无进展→告警（0=不检测）。增量：raw 无变化；绝对：无指令方向进展或连续读失败 */
+    int  enc_jump_max;                 /**< 单拍跳变上限→告警（0=不检测）。绝对轴单位与 position 相同 */
     bool enc_escalate;                 /**< 编码器告警升级为故障 */
 
     int         gear_count;            /**< 可用挡位数；执行器仅校验范围，不转换频率 */

@@ -231,6 +231,10 @@ static void begin_start(motor_executor_t *e, int i, const motor_pending_cmd_t *p
     s->fb_strikes        = 0;
     s->enc_stall         = 0;
     s->enc_warned        = false;
+    /* 绝对轴每次新运动重新评估读数；增量轴不健康只能靠归位恢复。 */
+    if (e->cfg.motors[i].encoder_kind == MOTOR_ENC_ABSOLUTE) {
+        s->enc_healthy = true;
+    }
     s->queued            = false;
     s->exec_state        = MOTOR_STATE_RUNNING;
     if (encoder_is_incremental(e, i)) {
@@ -590,6 +594,67 @@ static void check_end(motor_executor_t *e, int i)
 
 /* ------------------------- 编码器 ------------------------- */
 
+/**
+ * @brief  标记编码器读数不可信并告警；本段运动只报一次
+ */
+static void encoder_signal_bad(motor_executor_t *e, int i)
+{
+    motor_mstate_t *s = &e->m[i];
+
+    if (s->enc_warned) {
+        return;
+    }
+    s->enc_warned  = true;
+    s->enc_healthy = false;
+    warn(e, i, MOTOR_FAULT_ENCODER_SIGNAL);
+}
+
+/**
+ * @brief  累计无进展/读失败拍数，达到阈值则告警
+ */
+static void encoder_note_stall(motor_executor_t *e, int i)
+{
+    motor_mstate_t *s     = &e->m[i];
+    int             ticks = e->cfg.motors[i].enc_stall_ticks;
+
+    if ((ticks > 0) && (++s->enc_stall >= ticks)) {
+        encoder_signal_bad(e, i);
+    }
+}
+
+/**
+ * @brief  绝对轴：采纳行程，并检测读失败、跳变、运动中无指令方向进展
+ * @param  moving  是否处于输出运动；静止只做读失败与跳变，不做停滞
+ */
+static void update_absolute_encoder(motor_executor_t *e, int i, bool moving, int64_t r)
+{
+    motor_mstate_t          *s  = &e->m[i];
+    const motor_motor_cfg_t *mc = &e->cfg.motors[i];
+    int64_t                  d;
+
+    if (r < 0) {
+        encoder_note_stall(e, i);
+        return;
+    }
+
+    d           = r - s->last_raw;
+    s->position = r;
+    s->last_raw = r;
+    if ((mc->enc_jump_max > 0) && (motor_iabs64(d) > (int64_t)mc->enc_jump_max)) {
+        encoder_signal_bad(e, i);
+        return;
+    }
+
+    /* 运动中、已过起步宽限、且本拍没有指令方向进展时才累计停滞 */
+    if (moving && (mc->enc_stall_ticks > 0)
+        && ((e->now - s->start_ms) >= (uint64_t)mc->mon.startup_delay_ms)
+        && (((s->dir == MOTOR_DIR_FORWARD) ? d : -d) <= 0)) {
+        encoder_note_stall(e, i);
+        return;
+    }
+    s->enc_stall = 0;
+}
+
 static void update_encoder(motor_executor_t *e, int i, bool moving)
 {
     motor_encoder_t         *enc = motor_enc(e, i);
@@ -610,10 +675,7 @@ static void update_encoder(motor_executor_t *e, int i, bool moving)
     r = enc_raw(enc);
 
     if (mc->encoder_kind == MOTOR_ENC_ABSOLUTE) {
-        /* 绝对行程：运动/静止均直接采纳传感器值 */
-        (void)moving;
-        s->position = r;
-        s->last_raw = r;
+        update_absolute_encoder(e, i, moving, r);
         return;
     }
 
@@ -634,21 +696,13 @@ static void update_encoder(motor_executor_t *e, int i, bool moving)
     }
     s->position += (s->dir == MOTOR_DIR_FORWARD) ? d : -d;
     ad = motor_iabs64(d);
-    if (mc->enc_stall_ticks > 0) {
-        if (ad == 0) {
-            if (++s->enc_stall >= mc->enc_stall_ticks && !s->enc_warned) {
-                s->enc_warned  = true;
-                s->enc_healthy = false;
-                warn(e, i, MOTOR_FAULT_ENCODER_SIGNAL);
-            }
-        } else {
-            s->enc_stall = 0;
-        }
+    if (ad == 0) {
+        encoder_note_stall(e, i);
+    } else {
+        s->enc_stall = 0;
     }
-    if (mc->enc_jump_max > 0 && ad > mc->enc_jump_max && !s->enc_warned) {
-        s->enc_warned  = true;
-        s->enc_healthy = false;
-        warn(e, i, MOTOR_FAULT_ENCODER_SIGNAL);
+    if ((mc->enc_jump_max > 0) && (ad > (int64_t)mc->enc_jump_max)) {
+        encoder_signal_bad(e, i);
     }
 }
 

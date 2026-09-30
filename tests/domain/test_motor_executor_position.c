@@ -21,6 +21,7 @@ typedef struct {
     bool                    zero_succeeds;
     bool                    zero_async;   /**< zero 只受理请求，硬件稍后完成 */
     bool                    zero_pending; /**< 异步清零已受理未完成；期间 raw 返回无效 */
+    bool                    enc_invalid;  /**< 强制本拍编码器 raw 无效 */
     bool                    origin_active;
     bool                    pos_limit_active;
     bool                    neg_limit_active;
@@ -41,6 +42,9 @@ static position_fixture_t s_fixture;
 static motor_exec_t      *s_executor;
 static int                s_watchdog_ms;
 static int                s_enc_stall_ticks;
+static int                s_enc_jump_max;
+static int                s_enc_stall_startup_ms;
+static bool               s_enc_escalate;
 static bool               s_monitor_current;
 static motor_dir_t        s_home_dir;
 
@@ -86,7 +90,7 @@ static int64_t encoder_raw(void *ctx)
 {
     position_fixture_t *fixture = (position_fixture_t *)ctx;
 
-    return fixture->zero_pending ? -1 : fixture->position;
+    return (fixture->enc_invalid || fixture->zero_pending) ? -1 : fixture->position;
 }
 
 static bool encoder_zero(void *ctx)
@@ -210,6 +214,9 @@ static void init_executor(int64_t initial_position, motor_encoder_kind_t encoder
     config.motors[0].gear_count          = 2;
     config.motors[0].home_dir            = s_home_dir;
     config.motors[0].enc_stall_ticks     = s_enc_stall_ticks;
+    config.motors[0].enc_jump_max        = s_enc_jump_max;
+    config.motors[0].enc_escalate        = s_enc_escalate;
+    config.motors[0].mon.startup_delay_ms = s_enc_stall_startup_ms;
     if (s_monitor_current) {
         config.motors[0].mon.monitor_current  = true;
         config.motors[0].mon.startup_delay_ms = 0;
@@ -228,10 +235,13 @@ static void init_executor(int64_t initial_position, motor_encoder_kind_t encoder
 
 void setUp(void)
 {
-    s_watchdog_ms     = 100;
-    s_enc_stall_ticks = 0;
-    s_monitor_current = false;
-    s_home_dir        = MOTOR_HOME_DEFAULT_DIR;
+    s_watchdog_ms            = 100;
+    s_enc_stall_ticks        = 0;
+    s_enc_jump_max           = 0;
+    s_enc_stall_startup_ms   = 0;
+    s_enc_escalate           = false;
+    s_monitor_current        = false;
+    s_home_dir               = MOTOR_HOME_DEFAULT_DIR;
 }
 
 void tearDown(void)
@@ -839,6 +849,147 @@ static void test_home_forward_dir_runs_forward(void)
     TEST_ASSERT_EQUAL_INT(MOTOR_DIR_FORWARD, s_fixture.last_direction);
 }
 
+/**
+ * @brief  绝对轴运动中行程无指令方向进展，确认后升级为编码器故障
+ */
+static void test_absolute_no_progress_escalates_encoder_fault(void)
+{
+    motor_move_spec_t spec = {0};
+
+    s_enc_stall_ticks = 3;
+    s_enc_escalate    = true;
+    init_executor(10, MOTOR_ENC_ABSOLUTE);
+    spec.use_position = true;
+    spec.target_pos   = 100;
+    TEST_ASSERT_TRUE(motor_cmd_ok(
+        motor_exec_run(s_executor, 0, motor_speed_gear(1), MOTOR_DIR_FORWARD, &spec)));
+
+    tick_at(10);
+    tick_at(10);
+    TEST_ASSERT_EQUAL_INT(MOTOR_STATE_RUNNING, motor_exec_state(s_executor, 0));
+    tick_at(10);
+    TEST_ASSERT_EQUAL_INT(MOTOR_STATE_FAULT, motor_exec_state(s_executor, 0));
+    TEST_ASSERT_EQUAL_INT(MOTOR_FAULT_ENCODER_SIGNAL, s_fixture.last_fault);
+    TEST_ASSERT_FALSE(motor_exec_encoder_healthy(s_executor, 0));
+}
+
+/**
+ * @brief  绝对轴行程反向即无指令方向进展，同样升级为故障
+ */
+static void test_absolute_reverse_progress_escalates_encoder_fault(void)
+{
+    motor_move_spec_t spec = {0};
+
+    s_enc_stall_ticks = 3;
+    s_enc_escalate    = true;
+    init_executor(40, MOTOR_ENC_ABSOLUTE);
+    spec.use_position = true;
+    spec.target_pos   = 100;
+    TEST_ASSERT_TRUE(motor_cmd_ok(
+        motor_exec_run(s_executor, 0, motor_speed_gear(1), MOTOR_DIR_FORWARD, &spec)));
+
+    tick_at(39);
+    tick_at(38);
+    TEST_ASSERT_EQUAL_INT(MOTOR_STATE_RUNNING, motor_exec_state(s_executor, 0));
+    tick_at(37);
+    TEST_ASSERT_EQUAL_INT(MOTOR_STATE_FAULT, motor_exec_state(s_executor, 0));
+    TEST_ASSERT_EQUAL_INT(MOTOR_FAULT_ENCODER_SIGNAL, s_fixture.last_fault);
+}
+
+/**
+ * @brief  绝对轴单拍跳变超限立即升级为故障
+ */
+static void test_absolute_jump_escalates_encoder_fault(void)
+{
+    motor_move_spec_t spec = {0};
+
+    s_enc_jump_max = 10;
+    s_enc_escalate = true;
+    init_executor(0, MOTOR_ENC_ABSOLUTE);
+    spec.use_position = true;
+    spec.target_pos   = 100;
+    TEST_ASSERT_TRUE(motor_cmd_ok(
+        motor_exec_run(s_executor, 0, motor_speed_gear(1), MOTOR_DIR_FORWARD, &spec)));
+
+    tick_at(20);
+    TEST_ASSERT_EQUAL_INT(MOTOR_STATE_FAULT, motor_exec_state(s_executor, 0));
+    TEST_ASSERT_EQUAL_INT(MOTOR_FAULT_ENCODER_SIGNAL, s_fixture.last_fault);
+}
+
+/**
+ * @brief  绝对轴连续读失败（含空闲）升级为故障
+ */
+static void test_absolute_invalid_raw_escalates_encoder_fault(void)
+{
+    int i;
+
+    s_enc_stall_ticks = 3;
+    s_enc_escalate    = true;
+    init_executor(20, MOTOR_ENC_ABSOLUTE);
+    s_fixture.enc_invalid = true;
+    for (i = 0; i < 2; ++i) {
+        tick_at(20);
+        TEST_ASSERT_EQUAL_INT(MOTOR_STATE_STOPPED, motor_exec_state(s_executor, 0));
+    }
+    tick_at(20);
+    TEST_ASSERT_EQUAL_INT(MOTOR_STATE_FAULT, motor_exec_state(s_executor, 0));
+    TEST_ASSERT_EQUAL_INT(MOTOR_FAULT_ENCODER_SIGNAL, s_fixture.last_fault);
+}
+
+/**
+ * @brief  起步宽限内无进展不报停滞；宽限后确认才故障
+ */
+static void test_absolute_stall_respects_startup_delay(void)
+{
+    motor_move_spec_t spec = {0};
+
+    s_enc_stall_ticks      = 2;
+    s_enc_stall_startup_ms = 30;
+    s_enc_escalate         = true;
+    init_executor(0, MOTOR_ENC_ABSOLUTE);
+    spec.use_position = true;
+    spec.target_pos   = 80;
+    TEST_ASSERT_TRUE(motor_cmd_ok(
+        motor_exec_run(s_executor, 0, motor_speed_gear(1), MOTOR_DIR_FORWARD, &spec)));
+
+    tick_at(0); /* now=10，仍在宽限 */
+    tick_at(0); /* now=20，仍在宽限 */
+    TEST_ASSERT_EQUAL_INT(MOTOR_STATE_RUNNING, motor_exec_state(s_executor, 0));
+    tick_at(0); /* now=30，开始计停滞 */
+    TEST_ASSERT_EQUAL_INT(MOTOR_STATE_RUNNING, motor_exec_state(s_executor, 0));
+    tick_at(0); /* now=40，确认 */
+    TEST_ASSERT_EQUAL_INT(MOTOR_STATE_FAULT, motor_exec_state(s_executor, 0));
+}
+
+/**
+ * @brief  绝对轴新运动重新评估健康，限位运动不被拒绝
+ */
+static void test_absolute_new_move_rearms_health(void)
+{
+    motor_move_spec_t spec = {0};
+
+    s_enc_stall_ticks = 2;
+    s_enc_escalate    = true;
+    init_executor(0, MOTOR_ENC_ABSOLUTE);
+    spec.use_position = true;
+    spec.target_pos   = 80;
+    TEST_ASSERT_TRUE(motor_cmd_ok(
+        motor_exec_run(s_executor, 0, motor_speed_gear(1), MOTOR_DIR_FORWARD, &spec)));
+    tick_at(0);
+    tick_at(0);
+    TEST_ASSERT_EQUAL_INT(MOTOR_STATE_FAULT, motor_exec_state(s_executor, 0));
+    TEST_ASSERT_FALSE(motor_exec_encoder_healthy(s_executor, 0));
+
+    memset(&spec, 0, sizeof(spec));
+    spec.limit_mask = MOTOR_LIMIT_MASK_POS;
+    TEST_ASSERT_TRUE(motor_cmd_ok(
+        motor_exec_run(s_executor, 0, motor_speed_gear(1), MOTOR_DIR_FORWARD, &spec)));
+    TEST_ASSERT_TRUE(motor_exec_encoder_healthy(s_executor, 0));
+    tick_at(1);
+    tick_at(2);
+    TEST_ASSERT_NOT_EQUAL(MOTOR_STATE_FAULT, motor_exec_state(s_executor, 0));
+}
+
 static void test_motor_capacity_constants(void)
 {
     TEST_ASSERT_EQUAL_INT(16, MOTOR_MAX_MOTORS);
@@ -874,6 +1025,18 @@ int main(void)
     WDF_RUN_TEST(test_homing_restores_encoder_health, "", "验证回零恢复编码器健康状态");
     WDF_RUN_TEST(test_home_unset_dir_rejected_at_bind, "", "验证回原方向未填时装载拒绝");
     WDF_RUN_TEST(test_home_forward_dir_runs_forward, "", "验证显式正向回原不被改写成反向");
+    WDF_RUN_TEST(test_absolute_no_progress_escalates_encoder_fault,
+                 "",
+                 "验证绝对轴无指令方向进展升级为编码器故障");
+    WDF_RUN_TEST(test_absolute_reverse_progress_escalates_encoder_fault,
+                 "",
+                 "验证绝对轴反向位移升级为编码器故障");
+    WDF_RUN_TEST(test_absolute_jump_escalates_encoder_fault, "", "验证绝对轴单拍跳变升级为编码器故障");
+    WDF_RUN_TEST(test_absolute_invalid_raw_escalates_encoder_fault,
+                 "",
+                 "验证绝对轴连续读失败升级为编码器故障");
+    WDF_RUN_TEST(test_absolute_stall_respects_startup_delay, "", "验证绝对轴停滞尊重起步宽限");
+    WDF_RUN_TEST(test_absolute_new_move_rearms_health, "", "验证绝对轴新运动重新评估编码器健康");
     WDF_RUN_TEST(test_current_stop_arrives_after_confirm, "", "验证电流停经确认后正常到位");
     WDF_RUN_TEST(test_current_stop_respects_blank_ms, "", "验证电流停尊重启动消隐");
     WDF_RUN_TEST(test_current_stop_coexists_with_overcurrent_fault, "", "验证电流停与过流故障共存");
