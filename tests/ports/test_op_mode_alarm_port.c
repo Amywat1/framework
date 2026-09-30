@@ -4,6 +4,7 @@
  */
 
 #include "domain/ports/outbound/safety/safety_port.h"
+#include "domain/safety/safety_energy_gen.h"
 #include "runtime/ports/port_registry.h"
 #include "wdf_test_spec.h"
 
@@ -75,6 +76,7 @@ static void test_unregistered_is_safe(void)
 
     /* 未注册返回 SW_ERR_NOT_INIT，与"已执行但失败"区分开 */
     TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_INIT, safety_cutout_execute());
+    TEST_ASSERT_EQUAL_UINT(0U, safety_energy_gen_get());
     safety_deferred_stop();
     TEST_ASSERT_FALSE(hw_estop_port_is_active());
     TEST_ASSERT_FALSE(op_mode_alarm_port_is_estop(0U));
@@ -88,6 +90,7 @@ static void test_registered_delegates(void)
 
     TEST_ASSERT_EQUAL_INT(SW_OK, safety_cutout_execute());
     TEST_ASSERT_EQUAL_UINT(1U, s_cutout_calls);
+    TEST_ASSERT_EQUAL_UINT(1U, safety_energy_gen_get());
 
     safety_deferred_stop();
     TEST_ASSERT_EQUAL_UINT(1U, s_deferred_calls);
@@ -165,6 +168,7 @@ static void test_cutout_failure_reported_and_counted(void)
     TEST_ASSERT_EQUAL_INT(SW_ERR_HW, safety_cutout_execute());
     TEST_ASSERT_EQUAL_UINT(1U, s_cutout_calls);
     TEST_ASSERT_EQUAL_UINT(1U, safety_cutout_failure_count());
+    TEST_ASSERT_EQUAL_UINT(1U, safety_energy_gen_get());
 
     /* 连续失败逐次累加，不做首次节流：每一条都是现场判因证据 */
     TEST_ASSERT_EQUAL_INT(SW_ERR_HW, safety_cutout_execute());

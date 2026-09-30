@@ -42,6 +42,7 @@ typedef struct {
     motor_speed_t      speed;      /**< 目标速度 */
     motor_speed_t      applied_speed;  /**< 上次成功写入驱动的速度 */
     bool               output_applied; /**< 本拍是否已建立功率级输出 */
+    uint32_t           energy_gen;     /**< 受理本次运动时的切断能量代次 */
     bool               move_active;    /**< 是否处于带到位条件的运动会话 */
     motor_move_spec_t  spec;           /**< 当前运动到位条件 */
     motor_limit_kind_t end_limit;      /**< 本次硬限位终止时触发的种类 */

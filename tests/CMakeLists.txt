@@ -1,5 +1,8 @@
 set(WDF_ROOT ${CMAKE_SOURCE_DIR})
-set(WDF_SAFETY_HOLD_SRC ${WDF_ROOT}/domain/safety/safety_output_hold.c)
+set(WDF_SAFETY_HOLD_SRC
+    ${WDF_ROOT}/domain/safety/safety_output_hold.c
+    ${WDF_ROOT}/domain/safety/safety_energy_gen.c
+)
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
 
 # 辅助宏：添加单元测试（每个测试只链接自身逻辑所需的最小源集）

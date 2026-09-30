@@ -6,10 +6,14 @@
  */
 
 #include "domain/mechanism/motor/motor_executor_internal.h"
+#include "domain/safety/safety_energy_gen.h"
 #include "domain/safety/safety_output_hold.h"
 #include "common/log.h"
 
 /* ------------------------- 输出 ------------------------- */
+
+static bool immediate_cut(motor_executor_t *e, int i);
+static void incremental_enc_disarm(motor_executor_t *e, int i);
 
 static bool speed_equal(motor_speed_t left, motor_speed_t right)
 {
@@ -30,13 +34,72 @@ static motor_speed_t desired_output_speed(motor_executor_t *e, int i)
     return speed;
 }
 
+static bool energy_gen_stale(const motor_mstate_t *s)
+{
+    return s->energy_gen != safety_energy_gen_get();
+}
+
+static void stamp_energy_gen(motor_mstate_t *s)
+{
+    uint32_t gen = safety_energy_gen_get();
+
+    if (s->energy_gen != gen) {
+        s->output_applied = false;
+    }
+    s->energy_gen = gen;
+}
+
+/**
+ * @brief  切断代次已前进：作废本轴当前运动，落到 STOPPED
+ * @note   不置 hold，不闩 ESTOP / 看门狗。不进入冷却，以便立即再受理新命令。
+ */
+static void abort_stale_energy(motor_executor_t *e, int i)
+{
+    motor_mstate_t *s = &e->m[i];
+    bool            was_moving;
+
+    was_moving = (s->exec_state == MOTOR_STATE_RUNNING) || (s->exec_state == MOTOR_STATE_STOPPING)
+                 || (s->exec_state == MOTOR_STATE_WAITING_START) || (s->exec_state == MOTOR_STATE_REVERSAL_WAIT);
+    (void)immediate_cut(e, i);
+    settle_elapsed(e, i);
+    s->queued            = false;
+    s->move_active       = false;
+    s->stop_issued       = false;
+    s->emit_stop_on_halt = false;
+    s->exec_state        = MOTOR_STATE_STOPPED;
+    incremental_enc_disarm(e, i);
+    if (was_moving) {
+        push_event(e, i, MOTOR_EVENT_STOPPED, MOTOR_END_NONE, MOTOR_FAULT_NONE);
+    }
+}
+
+static bool discard_stale_energy(motor_executor_t *e, int i)
+{
+    motor_exec_state_t st = e->m[i].exec_state;
+
+    if ((st == MOTOR_STATE_STOPPED) || (st == MOTOR_STATE_FAULT) || (st == MOTOR_STATE_ESTOP)) {
+        return false;
+    }
+    if (!energy_gen_stale(&e->m[i])) {
+        return false;
+    }
+    abort_stale_energy(e, i);
+    return true;
+}
+
 static bool apply_output(motor_executor_t *e, int i)
 {
     motor_mstate_t *s       = &e->m[i];
     motor_speed_t   desired = desired_output_speed(e, i);
 
+    if (energy_gen_stale(s)) {
+        return false;
+    }
     if (s->output_applied && speed_equal(s->applied_speed, desired)) {
         return true;
+    }
+    if (energy_gen_stale(s)) {
+        return false;
     }
     if (drv_set_output(motor_drv(e, i), desired, s->dir) != SW_OK) {
         return false;
@@ -241,6 +304,7 @@ motor_cmd_result_t apply_goal(motor_executor_t *e, int i, const motor_pending_cm
 {
     motor_mstate_t *s = &e->m[i];
 
+    stamp_energy_gen(s);
     switch (s->exec_state) {
     case MOTOR_STATE_RUNNING:
         if ((pc->dir != s->dir) || (pc->speed.kind != s->speed.kind)) {
@@ -731,6 +795,10 @@ static void tick_running(motor_executor_t *e, int i)
     check_end(e, i);
     if (s->exec_state == MOTOR_STATE_RUNNING) {
         if (!apply_output(e, i)) {
+            if (energy_gen_stale(s)) {
+                abort_stale_energy(e, i);
+                return;
+            }
             enter_fault(e, i, MOTOR_FAULT_DRIVER_PORT_FATAL);
             return;
         }
@@ -800,6 +868,9 @@ void motor_tick(motor_executor_t *e)
             continue;
         }
         if ((s->exec_state == MOTOR_STATE_FAULT) || (s->exec_state == MOTOR_STATE_ESTOP)) {
+            continue;
+        }
+        if (discard_stale_energy(e, i)) {
             continue;
         }
 

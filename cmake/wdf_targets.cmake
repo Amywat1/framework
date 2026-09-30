@@ -127,6 +127,7 @@ _wdf_add_interface_lib(wdf_ports
         runtime/ports/port_registry_cloud.c
         runtime/ports/port_registry_infra.c
         domain/safety/safety_output_hold.c
+        domain/safety/safety_energy_gen.c
         domain/ports/outbound/program_engine/engine_environment_port.c
         domain/ports/outbound/storage/engine_program_loader_port.c
         domain/ports/outbound/storage/param_kv.c

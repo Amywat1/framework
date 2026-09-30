@@ -4,6 +4,8 @@
  */
 #include "domain/safety/safety_output_hold.h"
 
+#include "domain/safety/safety_energy_gen.h"
+
 #include <stdatomic.h>
 #include <stddef.h>
 
@@ -46,4 +48,5 @@ void safety_output_hold_reset(void)
 {
     s_di = NULL;
     atomic_store_explicit(&s_latch, false, memory_order_release);
+    safety_energy_gen_reset();
 }

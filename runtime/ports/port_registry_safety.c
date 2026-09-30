@@ -10,6 +10,7 @@
  */
 
 #include "common/log.h"
+#include "domain/safety/safety_energy_gen.h"
 #include "domain/safety/safety_output_hold.h"
 #include "domain/ports/outbound/safety/safety_port.h"
 
@@ -76,6 +77,8 @@ sw_err_t safety_cutout_execute(void)
         return SW_ERR_NOT_INIT;
     }
 
+    /* 先作废软件输出再打硬件，避免切断过程中 tick 仍按旧代次续写。 */
+    safety_energy_gen_bump();
     ret = ops->cutout();
     if (ret != SW_OK) {
         (void)atomic_fetch_add(&s_cutout_failure_generation, 1U);

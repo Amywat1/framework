@@ -6,6 +6,7 @@
 #include "common/sw_error.h"
 #include "domain/mechanism/motor/motor_executor.h"
 #include "domain/mechanism/motor/motor_exec.h"
+#include "domain/safety/safety_energy_gen.h"
 #include "domain/safety/safety_output_hold.h"
 #include "wdf_test_spec.h"
 
@@ -477,6 +478,30 @@ static void test_run_rejects_unset_dir(void)
     TEST_ASSERT_FALSE(motor_cmd_ok(r));
     TEST_ASSERT_EQUAL_INT(MOTOR_REJECT_BAD_DIR, r.reject);
     TEST_ASSERT_EQUAL_INT(MOTOR_STATE_STOPPED, motor_exec_state(s_exec, 0));
+}
+
+static void test_cutout_epoch_stops_without_blocking_next_run(void)
+{
+    motor_cmd_result_t r;
+    int                outputs_after_run;
+
+    r = motor_exec_run(s_exec, 0, motor_speed_gear(1), MOTOR_DIR_FORWARD, NULL);
+    TEST_ASSERT_TRUE(motor_cmd_ok(r));
+    motor_executor_tick(s_exec);
+    TEST_ASSERT_EQUAL_INT(MOTOR_STATE_RUNNING, motor_exec_state(s_exec, 0));
+    outputs_after_run = s_fx.output_count;
+
+    safety_energy_gen_bump();
+    motor_executor_tick(s_exec);
+    TEST_ASSERT_EQUAL_INT(MOTOR_STATE_STOPPED, motor_exec_state(s_exec, 0));
+    TEST_ASSERT_EQUAL_INT(outputs_after_run, s_fx.output_count);
+    TEST_ASSERT_FALSE(safety_output_hold_is_active());
+
+    r = motor_exec_run(s_exec, 0, motor_speed_gear(1), MOTOR_DIR_FORWARD, NULL);
+    TEST_ASSERT_TRUE(motor_cmd_ok(r));
+    motor_executor_tick(s_exec);
+    TEST_ASSERT_EQUAL_INT(MOTOR_STATE_RUNNING, motor_exec_state(s_exec, 0));
+    TEST_ASSERT_TRUE(s_fx.output_count > outputs_after_run);
 }
 
 static void test_output_hold_cuts_and_rejects_until_release(void)
@@ -1097,6 +1122,7 @@ int main(void)
     WDF_RUN_TEST(test_incremental_idle_skips_encoder_raw, "", "验证增量轴空闲不读编码器");
     WDF_RUN_TEST(test_query_helpers_return_safe_defaults_for_bad_motor, "", "验证越界电机查询返回安全默认值");
     WDF_RUN_TEST(test_run_rejects_unset_dir, "", "验证未指定方向的运动命令被拒绝");
+    WDF_RUN_TEST(test_cutout_epoch_stops_without_blocking_next_run, "", "验证切断代次作废当前运动且新 run 仍可受理");
     WDF_RUN_TEST(test_output_hold_cuts_and_rejects_until_release, "SAFE-14", "验证输出抑制切断电机并拒绝运动直到释放");
     WDF_RUN_TEST(test_output_hold_reset_rejected_while_di_active, "SAFE-15", "验证急停 DI 有效时拒绝释放输出抑制");
     WDF_RUN_TEST(test_pop_event_via_port, "", "验证经端口取出运动事件");
