@@ -91,6 +91,7 @@ wiring、配置、绑定表和 provider 里。**框架不含任何具体项目�
 | 新增阻塞等待 | 在 R18 的有界/无界/定时三张表之一登记 |
 | 新增 `domain/ports/outbound` 下 `.c` | 在 `scripts/check_port_placement.py` 的 `OUTBOUND_C_REGISTERED` 登记用途（否则 R25 失败） |
 | 新增端口子目录 | 在同脚本的 `DOMAIN_OUTBOUND_SUBDIRS` 或 `APPLICATION_PORTS_PREFIXES` 登记（否则 R26 失败） |
+| 新增 `control_loop_register` | 在 `check_arch_boundary.sh` 的 R27 ENTRY / REACHABLE 表登记；回调链不得出现同步总线符号（否则 R27 失败） |
 | 调容量常量 | 同步改常量注释的实测依据 + 对应测试断言 + `history/整治记录.md` 第 3.3 节表格 |
 | 改文档引用的路径、符号、章节号、测试名 | 必须真实存在（否则 D1/D2/D5/D6 失败） |
 

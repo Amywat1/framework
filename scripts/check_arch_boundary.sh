@@ -35,6 +35,7 @@
 #   R24 假 port         出站头普通函数不得在 domain 锥、端口树外定义
 #   R25 outbound .c     必须登记用途（register_stub / helper）
 #   R26 端口子目录      必须落在能力域白名单
+#   R27 控制环          登记点必须表态，可达文件禁止同步总线
 
 set -euo pipefail
 
@@ -1242,6 +1243,241 @@ else
             TOTAL_VIOLATIONS=$((TOTAL_VIOLATIONS + 1))
         fi
     done
+fi
+
+# -----------------------------------------------------------------------------
+# R27: 控制环禁止同步总线事务
+#
+# 对应 control_loop.h：回调及其调用链不得做同步总线或等待 IO 回执。
+# 需要总线时只登记请求，由 IO 线程执行（drv_io_pulse_clear）。
+#
+# 不做调用图：端口函数指针会断链，与 R16 同因。改成三句强制表态：
+#   1. 生产代码每一处 control_loop_register 调用必须落在 ENTRY 表
+#   2. ENTRY ∪ REACHABLE 不得出现禁止的同步总线符号
+#   3. 控制环经端口可达的 provider 实现函数体不得含禁止符号，
+#      防止 pulse_clear 等再变同步
+#
+# 若脚本在项目仓内运行（framework 的上一级有 wiring/），再扫项目登记点文件
+# 本身，不把项目路径写进框架表。
+#
+# C10 对账锚点（本段必须保留 [PASS]/[FAIL] 字面量）：
+# [PASS] R27: 控制环登记点已表态，可达文件无同步总线调用
+# [FAIL] R27: 控制环登记点已表态，可达文件无同步总线调用
+# -----------------------------------------------------------------------------
+
+CONTROL_LOOP_ENTRY_FILES=(
+    "application/bridges/mechanism_bridge.c"
+    "adapters/outbound/hal/components/sensor_filter/hal_sensor_filter.c"
+    "adapters/outbound/hal/components/vfd_manager/hal_vfd_manager.c"
+)
+
+CONTROL_LOOP_REACHABLE_FILES=(
+    "runtime/scheduler/control_loop.c"
+    "domain/mechanism/motor/motor_executor.c"
+    "domain/mechanism/motor/motor_executor_tick.c"
+    "domain/mechanism/motor/motor_executor_cmd.c"
+    "domain/mechanism/patterns/fluid_path.c"
+    "adapters/outbound/hal/components/adc_gate/hal_adc_gate.c"
+    "adapters/outbound/hal/components/pulse_gate/hal_pulse_gate.c"
+)
+
+CONTROL_LOOP_FORBIDDEN_SYMS=(
+    drv_io_submit_job
+    drv_io_flush_outputs_now
+    flush_outputs_now
+    io_SDO_write
+    io_SDO_read
+    modbus_read_registers
+    modbus_read_input_registers
+    modbus_read_bits
+    modbus_write_register
+    modbus_write_registers
+    modbus_write_bit
+    modbus_connect
+)
+
+# 控制环经 hal_io_port 可达的 snack 实现（适配层 + 驱动层）；
+# flush_outputs_now 为同步刷写，仅供急停路径，不在此列。
+CONTROL_LOOP_REQUEST_ONLY=(
+    "adapters/outbound/hal/providers/snack/io_exp/snack_io_adapter.c:do_set"
+    "adapters/outbound/hal/providers/snack/io_exp/snack_io_adapter.c:di_read"
+    "adapters/outbound/hal/providers/snack/io_exp/snack_io_adapter.c:pulse_read"
+    "adapters/outbound/hal/providers/snack/io_exp/snack_io_adapter.c:pulse_clear"
+    "adapters/outbound/hal/providers/snack/io_exp/snack_io_adapter.c:adc_sample"
+    "adapters/outbound/hal/providers/snack/io_exp/snack_io_adapter.c:adc_read"
+    "adapters/outbound/hal/providers/snack/io_exp/snack_io_adapter.c:adc_mv"
+    "adapters/outbound/hal/providers/snack/io_exp/snack_io_adapter.c:adc_ma"
+    "adapters/outbound/hal/providers/snack/io_exp/io_exp_driver.c:drv_io_do_set"
+    "adapters/outbound/hal/providers/snack/io_exp/io_exp_driver.c:drv_io_di_read"
+    "adapters/outbound/hal/providers/snack/io_exp/io_exp_driver.c:drv_io_pulse_read"
+    "adapters/outbound/hal/providers/snack/io_exp/io_exp_driver.c:drv_io_pulse_clear"
+    "adapters/outbound/hal/providers/snack/io_exp/io_exp_driver.c:drv_io_adc_sample"
+    "adapters/outbound/hal/providers/snack/io_exp/io_exp_driver.c:drv_io_adc_read"
+    "adapters/outbound/hal/providers/snack/io_exp/io_exp_driver.c:drv_io_adc_mv"
+    "adapters/outbound/hal/providers/snack/io_exp/io_exp_driver.c:drv_io_adc_ma"
+)
+
+control_loop_file_has_register_call() {
+    local f="$1"
+    grep -nE '(^|[^_[:alnum:]])control_loop_register[[:space:]]*\(' "$f" 2>/dev/null \
+        | grep -vE 'sw_err_t[[:space:]]+control_loop_register' \
+        | grep -vE '^[0-9]+:[[:space:]]*(//|/\*|\*)' \
+        | grep -q .
+}
+
+control_loop_file_has_forbidden() {
+    local f="$1"
+    local hits=""
+    local sym
+    for sym in "${CONTROL_LOOP_FORBIDDEN_SYMS[@]}"; do
+        if grep -nE "(^|[^_[:alnum:]])${sym}[[:space:]]*\\(" "$f" 2>/dev/null \
+            | grep -vE '^[0-9]+:[[:space:]]*(//|/\*|\*)' >/dev/null; then
+            hits="${hits} ${sym}"
+        fi
+    done
+    printf '%s' "${hits}"
+}
+
+control_loop_collect_register_files() {
+    local root="$1"
+    local f
+    while IFS= read -r f; do
+        [ -z "$f" ] && continue
+        if control_loop_file_has_register_call "$f"; then
+            printf '%s\n' "$f"
+        fi
+    done < <(grep -rll --include='*.c' --include='*.cpp' \
+        --exclude-dir=tests --exclude-dir=third_party --exclude-dir=.git \
+        --exclude-dir=build --exclude-dir=build-check \
+        -E '(^|[^_[:alnum:]])control_loop_register[[:space:]]*\(' \
+        "$root" 2>/dev/null || true)
+}
+
+r27_violations=""
+
+for entry in "${CONTROL_LOOP_ENTRY_FILES[@]}"; do
+    f="${FW_ROOT}/${entry}"
+    if [ ! -f "$f" ]; then
+        r27_violations="${r27_violations}  登记点不存在: ${entry}"$'\n'
+        continue
+    fi
+    if ! control_loop_file_has_register_call "$f"; then
+        r27_violations="${r27_violations}  已登记但无 control_loop_register 调用: ${entry}"$'\n'
+    fi
+done
+
+while IFS= read -r f; do
+    [ -z "$f" ] && continue
+    rel="${f#"${FW_ROOT}"/}"
+    is_known=0
+    for entry in "${CONTROL_LOOP_ENTRY_FILES[@]}"; do
+        if [ "$rel" = "$entry" ]; then
+            is_known=1
+            break
+        fi
+    done
+    if [ "$is_known" -eq 0 ]; then
+        r27_violations="${r27_violations}  未登记的 control_loop_register: ${rel}"$'\n'
+    fi
+done < <(control_loop_collect_register_files "${FW_ROOT}")
+
+for rel in "${CONTROL_LOOP_ENTRY_FILES[@]}" "${CONTROL_LOOP_REACHABLE_FILES[@]}"; do
+    f="${FW_ROOT}/${rel}"
+    if [ ! -f "$f" ]; then
+        r27_violations="${r27_violations}  可达文件不存在: ${rel}"$'\n'
+        continue
+    fi
+    hits="$(control_loop_file_has_forbidden "$f")"
+    if [ -n "$hits" ]; then
+        r27_violations="${r27_violations}  同步总线符号:${hits}  @ ${rel}"$'\n'
+    fi
+done
+
+parent_of_fw="$(cd "${FW_ROOT}/.." && pwd)"
+if [ -d "${parent_of_fw}/wiring" ] && [ "${parent_of_fw}" != "${FW_ROOT}" ]; then
+    while IFS= read -r f; do
+        [ -z "$f" ] && continue
+        case "$f" in
+            "${FW_ROOT}"/*) continue ;;
+        esac
+        hits="$(control_loop_file_has_forbidden "$f")"
+        if [ -n "$hits" ]; then
+            r27_violations="${r27_violations}  项目登记点含同步总线符号:${hits}  @ ${f#"${parent_of_fw}"/}"$'\n'
+        fi
+    done < <(control_loop_collect_register_files "${parent_of_fw}")
+fi
+
+r27_fn_violations=""
+r27_py_rc=0
+r27_fn_violations="$(python3 - "${FW_ROOT}" "${CONTROL_LOOP_FORBIDDEN_SYMS[*]}" "${CONTROL_LOOP_REQUEST_ONLY[@]}" <<'PY'
+import re
+import sys
+
+root = sys.argv[1]
+forbidden = sys.argv[2].split()
+specs = sys.argv[3:]
+call_re = re.compile(
+    r'(?<![\w])(' + '|'.join(re.escape(s) for s in forbidden) + r')\s*\('
+)
+def_re_tpl = r'(?m)^(?:static\s+)?(?:[\w\*]+\s+)+%s\s*\([^;]*\)\s*\{'
+
+def body_of(text, name):
+    m = re.search(def_re_tpl % re.escape(name), text)
+    if not m:
+        return None
+    i = m.end() - 1
+    depth = 0
+    for j, ch in enumerate(text[i:], start=i):
+        if ch == '{':
+            depth += 1
+        elif ch == '}':
+            depth -= 1
+            if depth == 0:
+                return text[i:j + 1]
+    return None
+
+def strip_comments(src):
+    src = re.sub(r'/\*.*?\*/', '', src, flags=re.S)
+    return re.sub(r'//.*?$', '', src, flags=re.M)
+
+problems = []
+for spec in specs:
+    rel, name = spec.split(':', 1)
+    path = root + '/' + rel
+    try:
+        text = open(path, encoding='utf-8').read()
+    except OSError:
+        problems.append(f'  经端口可达入口文件不存在: {rel}:{name}')
+        continue
+    body = body_of(text, name)
+    if body is None:
+        problems.append(f'  找不到经端口可达入口函数: {rel}:{name}')
+        continue
+    found = sorted(set(call_re.findall(strip_comments(body))))
+    if found:
+        problems.append(f'  经端口可达入口含同步总线符号: {" ".join(found)}  @ {rel}:{name}')
+print('\n'.join(problems), end='')
+PY
+)" || r27_py_rc=$?
+
+if [ "${r27_py_rc}" -ne 0 ]; then
+    r27_violations="${r27_violations}  经端口可达入口检查脚本异常退出（rc=${r27_py_rc}）"$'\n'
+fi
+if [ -n "${r27_fn_violations}" ]; then
+    r27_violations="${r27_violations}${r27_fn_violations}"$'\n'
+fi
+
+TOTAL_RULES=$((TOTAL_RULES + 1))
+if [ -z "$r27_violations" ]; then
+    echo "[PASS] R27: 控制环登记点已表态，可达文件无同步总线调用（${#CONTROL_LOOP_ENTRY_FILES[@]} 个登记点，${#CONTROL_LOOP_REQUEST_ONLY[@]} 个经端口可达入口）"
+else
+    echo ""
+    echo "[FAIL] R27: 控制环登记点未表态，或可达路径出现同步总线调用"
+    printf '%s' "$r27_violations"
+    echo "  修正: 新回调加入 CONTROL_LOOP_ENTRY_FILES / CONTROL_LOOP_REACHABLE_FILES，"
+    echo "        新增经端口可达的 provider 实现加入 CONTROL_LOOP_REQUEST_ONLY；"
+    echo "        总线操作只登记请求（参见 drv_io_pulse_clear），禁止 drv_io_submit_job / Modbus / flush_outputs_now。"
+    TOTAL_VIOLATIONS=$((TOTAL_VIOLATIONS + 1))
 fi
 
 # -----------------------------------------------------------------------------
