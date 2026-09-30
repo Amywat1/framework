@@ -50,6 +50,14 @@ static uint64_t wall_time_ms(void)
     return (uint64_t)ts.tv_sec * 1000ULL + (uint64_t)ts.tv_nsec / 1000000ULL;
 }
 
+/**
+ * @brief  取记录墙上时刻：调用方已给出则用给出的，否则发布时采样
+ */
+static uint64_t spec_wall_time_ms(const observation_record_spec_t *spec)
+{
+    return (spec->wall_time_ms != 0U) ? spec->wall_time_ms : wall_time_ms();
+}
+
 static bool spec_is_valid(const observation_record_spec_t *spec)
 {
     if ((spec == NULL) || (spec->source == NULL)) {
@@ -86,7 +94,7 @@ static void fill_record(observation_record_t *record, const observation_record_s
     record->event_code     = spec->event_code;
     record->boot_id        = s_boot_id;
     record->sequence       = s_next_sequence++;
-    record->wall_time_ms   = wall_time_ms();
+    record->wall_time_ms   = spec_wall_time_ms(spec);
     record->monotonic_ms   = time_util_get_ms();
     record->context        = (spec->context != NULL) ? *spec->context : s_context;
     memcpy(record->source, spec->source, source_len);
@@ -215,7 +223,7 @@ sw_err_t observation_publish(const observation_record_spec_t *spec)
                 if (last->repeat_count < UINT16_MAX) {
                     last->repeat_count++;
                 }
-                last->wall_time_ms = wall_time_ms();
+                last->wall_time_ms = spec_wall_time_ms(spec);
                 last->monotonic_ms = now_ms;
                 s_stats.reliable_coalesced_count++;
                 s_stats.published_count++;

@@ -78,6 +78,7 @@ typedef struct {
     const void                  *payload;
     size_t                       payload_size;
     const observation_context_t *context;
+    uint64_t                     wall_time_ms; /**< 发生时刻（墙上毫秒）；0 表示发布时采样 */
 } observation_record_spec_t;
 
 /** @brief  队列中保存的完整记录。 */

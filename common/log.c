@@ -47,21 +47,29 @@ static pthread_once_t  s_mutex_once       = PTHREAD_ONCE_INIT;
 typedef struct {
     sw_log_level_t  level;
     trace_context_t trace; /* 入队线程的 trace 上下文，drain 写 sink 前恢复 */
+    struct timespec occurred_at;
     char            component[LOG_COMPONENT_MAX];
     char            message[SW_LOG_LINE_MAX];
 } log_spool_item_t;
 
-static log_spool_item_t      s_spool[SW_LOG_SPOOL_CAP];
-static uint32_t              s_spool_head;
-static uint32_t              s_spool_count;
-static atomic_bool           s_async_enabled;
-static atomic_uint_least32_t s_spool_dropped;
-static _Thread_local bool    s_thread_async;
-/** 同步写出：线程局部，避免把行缓冲压进各业务线程栈 */
-static _Thread_local char    s_write_line[SW_LOG_LINE_MAX];
-static _Thread_local char    s_sink_line[SW_LOG_LINE_MAX];
+/** sink 回调期间可见的发生时刻；嵌套 LOG_* 时按栈保存/恢复 */
+typedef struct {
+    struct timespec occurred_at;
+    bool            valid;
+} log_time_scope_t;
+
+static log_spool_item_t       s_spool[SW_LOG_SPOOL_CAP];
+static uint32_t               s_spool_head;
+static uint32_t               s_spool_count;
+static atomic_bool            s_async_enabled;
+static atomic_uint_least32_t  s_spool_dropped;
+static _Thread_local bool             s_thread_async;
+static _Thread_local log_time_scope_t s_occurred;
+/** 同步路径正文；default_sink 另用 s_sink_line，避免覆盖尚未写出的 message */
+static _Thread_local char             s_write_line[SW_LOG_LINE_MAX];
+static _Thread_local char             s_sink_line[SW_LOG_LINE_MAX];
 /** drain 单线程复用，避免在 16KB 排出栈上再开一条目 */
-static log_spool_item_t      s_drain_item;
+static log_spool_item_t               s_drain_item;
 
 static void default_sink(sw_log_level_t level, const char *component, const char *fmt, va_list ap);
 
@@ -106,6 +114,15 @@ static void spool_unlock(void)
     (void)pthread_mutex_unlock(&s_spool_mutex);
 }
 
+/** @brief 调用点采样墙上时钟；失败则写 0 */
+static void capture_occurred_at(struct timespec *out)
+{
+    if (clock_gettime(CLOCK_REALTIME, out) != 0) {
+        out->tv_sec  = 0;
+        out->tv_nsec = 0;
+    }
+}
+
 static void snapshot_sinks(sw_log_sink_fn_t *sinks, size_t *count)
 {
     size_t index;
@@ -144,9 +161,24 @@ static void dispatch_message(sw_log_level_t level, const char *component, const 
 }
 
 /**
+ * @brief  带发生时刻调用各 sink；嵌套 LOG_* 时恢复外层时刻
+ */
+static void dispatch_recorded(sw_log_level_t level, const char *component, const char *message,
+                              struct timespec occurred_at)
+{
+    log_time_scope_t saved = s_occurred;
+
+    s_occurred.occurred_at = occurred_at;
+    s_occurred.valid       = true;
+    dispatch_message(level, component, message);
+    s_occurred = saved;
+}
+
+/**
  * @brief  直接格式化进队列槽，FIFO 线程栈上不落整行缓冲
  */
-static bool spool_push_vformat(sw_log_level_t level, const char *component, const char *fmt, va_list ap)
+static bool spool_push_vformat(sw_log_level_t level, const char *component, const char *fmt, va_list ap,
+                               struct timespec occurred_at)
 {
     log_spool_item_t *item;
     int               written;
@@ -156,9 +188,10 @@ static bool spool_push_vformat(sw_log_level_t level, const char *component, cons
         spool_unlock();
         return false;
     }
-    item        = &s_spool[(s_spool_head + s_spool_count) % SW_LOG_SPOOL_CAP];
-    item->level = level;
-    item->trace = trace_context_get();
+    item              = &s_spool[(s_spool_head + s_spool_count) % SW_LOG_SPOOL_CAP];
+    item->level       = level;
+    item->trace       = trace_context_get();
+    item->occurred_at = occurred_at;
     (void)memset(item->component, 0, sizeof(item->component));
     if (component != NULL) {
         (void)strncpy(item->component, component, sizeof(item->component) - 1U);
@@ -354,6 +387,46 @@ void sw_log_mark_thread_async(void)
     s_thread_async = true;
 }
 
+bool sw_log_occurred_at(struct timespec *out)
+{
+    if ((out == NULL) || !s_occurred.valid) {
+        return false;
+    }
+    *out = s_occurred.occurred_at;
+    return true;
+}
+
+size_t sw_log_format_occurred_at(const struct timespec *ts, char *buffer, size_t size, bool with_date)
+{
+    struct timespec local;
+    struct tm       broken_down;
+    char            date_time[32];
+    int             written;
+
+    if ((buffer == NULL) || (size == 0U)) {
+        return 0U;
+    }
+    if (ts == NULL) {
+        if (!sw_log_occurred_at(&local)) {
+            (void)snprintf(buffer, size, "-");
+            return 1U;
+        }
+        ts = &local;
+    }
+    if ((localtime_r(&ts->tv_sec, &broken_down) == NULL)
+        || (strftime(date_time, sizeof(date_time), with_date ? "%Y-%m-%d %H:%M:%S" : "%H:%M:%S", &broken_down)
+            == 0U)) {
+        (void)snprintf(buffer, size, "-");
+        return 1U;
+    }
+    written = snprintf(buffer, size, "%s.%03ld", date_time, ts->tv_nsec / 1000000L);
+    if (written < 0) {
+        buffer[0] = '\0';
+        return 0U;
+    }
+    return strlen(buffer);
+}
+
 uint32_t sw_log_dropped_count(void)
 {
     return (uint32_t)atomic_load(&s_spool_dropped);
@@ -367,15 +440,16 @@ void *sw_log_drain_thread_fn(void *arg)
             continue;
         }
         trace_context_set(&s_drain_item.trace);
-        dispatch_message(s_drain_item.level, s_drain_item.component, s_drain_item.message);
+        dispatch_recorded(s_drain_item.level, s_drain_item.component, s_drain_item.message, s_drain_item.occurred_at);
         trace_context_set(NULL);
     }
 }
 
 void sw_log_write(sw_log_level_t level, const char *component, const char *fmt, ...)
 {
-    va_list ap;
-    int     written;
+    va_list         ap;
+    int             written;
+    struct timespec occurred_at;
 
     /* 级别过滤前置：被丢弃的日志不付出格式化代价 */
     log_lock();
@@ -389,9 +463,12 @@ void sw_log_write(sw_log_level_t level, const char *component, const char *fmt, 
         return;
     }
 
+    /* 先采发生时刻再格式化/入队，记录的是 LOG_* 调用点而非写出点 */
+    capture_occurred_at(&occurred_at);
+
     va_start(ap, fmt);
     if (s_thread_async && atomic_load(&s_async_enabled)) {
-        if (!spool_push_vformat(level, component, fmt, ap)) {
+        if (!spool_push_vformat(level, component, fmt, ap, occurred_at)) {
             (void)atomic_fetch_add(&s_spool_dropped, 1U);
         }
         va_end(ap);
@@ -403,7 +480,7 @@ void sw_log_write(sw_log_level_t level, const char *component, const char *fmt, 
         return;
     }
     (void)sw_log_clip_line(s_write_line, sizeof(s_write_line), written);
-    dispatch_message(level, component, s_write_line);
+    dispatch_recorded(level, component, s_write_line, occurred_at);
 }
 
 const char *sw_log_source_file_name(const char *source_path)

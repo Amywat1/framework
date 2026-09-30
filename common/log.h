@@ -15,6 +15,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <time.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -101,12 +102,32 @@ void sw_log_enable_async(void);
 /**
  * @brief  把调用线程标记为异步写日志线程
  * @note   供 SCHED_FIFO 线程在入口处调用：此后该线程的日志只格式化并入队，
- *         连同调用时的 trace 上下文一起交给 log_drain 线程写 sink，
+ *         连同调用时的 trace 上下文与发生时刻一起交给 log_drain 线程写 sink，
  *         FIFO 路径上不做 stdio。队列满时丢弃并计数，不回退同步写出。
- * @note   条目不带时间戳：由 sink 自行盖时间（如 snack mlog）时记录的是写出时刻，
- *         比发生时刻晚几毫秒到几十毫秒。只影响被标记线程，业务线程仍同步写出。
+ *         发生时刻在 sw_log_write() 调用点采样（CLOCK_REALTIME），sink 经
+ *         sw_log_occurred_at() 读取，不得再自行取当前时间。
  */
 void sw_log_mark_thread_async(void);
+
+/**
+ * @brief  读取当前正在写出的日志的发生时刻
+ * @param  out 输出 CLOCK_REALTIME；不得为 NULL
+ * @retval true  当前处于 sink 回调且调用点采样成功
+ * @retval false 不在 sink 回调中、参数无效，或调用点采样失败
+ * @note   仅在 sink 回调期间有效，语义与 trace_context_get() 相同：由
+ *         sw_log_write() / drain 在调 sink 前写入，返回后失效。
+ */
+bool sw_log_occurred_at(struct timespec *out);
+
+/**
+ * @brief  把墙上时钟格式化为本地时间字符串
+ * @param  ts        发生时刻；为 NULL 时使用 sw_log_occurred_at()，读不到则输出 "-"
+ * @param  buffer    输出缓冲
+ * @param  size      缓冲大小（含 NUL）
+ * @param  with_date true 带日期（YYYY-MM-DD HH:MM:SS.mmm）；false 仅 HH:MM:SS.mmm
+ * @return 写入的字符数（不含 NUL）；失败时写入 "-" 并返回其长度，参数无效返回 0
+ */
+size_t sw_log_format_occurred_at(const struct timespec *ts, char *buffer, size_t size, bool with_date);
 
 /**
  * @brief  异步队列满而丢弃的日志条数（上电累计）

@@ -145,6 +145,19 @@ static void test_observation_coalesces_repeated_reliable_logs(void)
     TEST_ASSERT_EQUAL_UINT64(2U, stats.published_count);
 }
 
+static void test_observation_uses_provided_wall_time(void)
+{
+    observation_record_spec_t spec = make_record(OBSERVATION_SEVERITY_INFO, 306U, "stamped");
+    observation_record_t      out;
+
+    spec.wall_time_ms = 123456789U;
+    TEST_ASSERT_EQUAL_INT(SW_OK, observation_init(6U));
+    observation_set_export_available(true);
+    TEST_ASSERT_EQUAL_INT(SW_OK, observation_publish(&spec));
+    TEST_ASSERT_EQUAL_INT(SW_OK, observation_try_pop(&out));
+    TEST_ASSERT_EQUAL_UINT64(123456789U, out.wall_time_ms);
+}
+
 static void test_observation_rate_limits_best_effort_logs(void)
 {
     observation_record_spec_t log = make_record(OBSERVATION_SEVERITY_INFO, 305U, "chatty");
@@ -208,6 +221,7 @@ int main(void)
     WDF_RUN_TEST(test_observation_reports_normal_queue_overflow, "", "验证观测系统上报普通队列溢出");
     WDF_RUN_TEST(test_observation_offline_keeps_only_latest_and_reliable, "", "验证离线时仅保留最新值与可靠记录");
     WDF_RUN_TEST(test_observation_coalesces_repeated_reliable_logs, "", "验证可靠日志重复聚合");
+    WDF_RUN_TEST(test_observation_uses_provided_wall_time, "", "验证观测记录使用调用方给出的墙上时刻");
     WDF_RUN_TEST(test_observation_rate_limits_best_effort_logs, "", "验证普通日志按秒限流");
     WDF_RUN_TEST(test_blackbox_preserves_configured_pre_and_post_window, "", "验证黑匣子保留配置的前置和后置窗口");
     WDF_RUN_TEST(test_blackbox_rejects_window_larger_than_capacity, "", "验证黑匣子拒绝超过容量的窗口配置");

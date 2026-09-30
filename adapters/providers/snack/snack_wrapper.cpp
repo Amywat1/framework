@@ -56,8 +56,21 @@ static mlog *log_for_component(const char *component)
 static void snack_log_sink(sw_log_level_t level, const char *component, const char *fmt, va_list ap)
 {
     mlog *logger = log_for_component(component);
+    char  occurred[24];
+    int   head;
+    int   body;
 
-    (void)vsnprintf(s_snack_line, sizeof(s_snack_line), fmt, ap);
+    /* mlog 只能盖写出时刻；把调用点发生时刻嵌进正文，分析以正文时间为准 */
+    (void)sw_log_format_occurred_at(NULL, occurred, sizeof(occurred), false);
+    head = std::snprintf(s_snack_line, sizeof(s_snack_line), "[%s] ", occurred);
+    if ((head < 0) || ((size_t)head >= sizeof(s_snack_line))) {
+        return;
+    }
+    body = vsnprintf(&s_snack_line[head], sizeof(s_snack_line) - (size_t)head, fmt, ap);
+    if (body < 0) {
+        return;
+    }
+    (void)sw_log_clip_line(s_snack_line, sizeof(s_snack_line), head + body);
     switch (level)
     {
         case SW_LOG_ERROR: logger->e(s_snack_line); break;

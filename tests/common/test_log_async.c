@@ -1,6 +1,6 @@
 /**
  * @file    test_log_async.c
- * @brief   异步日志契约：队列满丢弃计数、trace 上下文随条目传递、未标记线程同步写出
+ * @brief   异步日志契约：队列满丢弃计数、trace 上下文随条目传递、调用点时间戳、未标记线程同步写出
  *
  * @note    用例顺序有依赖：丢弃用例须在 drain 线程启动前执行，
  *          drain 线程一经启动不可回收，后续用例共用它。
@@ -13,8 +13,10 @@
 #include <pthread.h>
 #include <stdarg.h>
 #include <stdbool.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <string.h>
+#include <time.h>
 #include <unistd.h>
 
 enum {
@@ -36,14 +38,18 @@ static bool            s_seen;
 static char            s_seen_msg[LOG_ASYNC_MSG_MAX];
 static trace_context_t s_seen_trace;
 static pthread_t       s_seen_thread;
+static bool            s_seen_occurred;
+static struct timespec s_seen_occurred_at;
 static const char     *s_expect_msg;
 static bool            s_drain_started;
 
 void setUp(void)
 {
     (void)pthread_mutex_lock(&s_seen_lock);
-    s_seen       = false;
-    s_expect_msg = NULL;
+    s_seen          = false;
+    s_seen_occurred = false;
+    s_expect_msg    = NULL;
+    (void)memset(&s_seen_occurred_at, 0, sizeof(s_seen_occurred_at));
     (void)pthread_mutex_unlock(&s_seen_lock);
     trace_context_set(NULL);
 }
@@ -65,9 +71,10 @@ static void probe_sink(sw_log_level_t level, const char *component, const char *
     (void)pthread_mutex_lock(&s_seen_lock);
     if ((s_expect_msg != NULL) && (strcmp(msg, s_expect_msg) == 0)) {
         (void)snprintf(s_seen_msg, sizeof(s_seen_msg), "%s", msg);
-        s_seen_trace  = trace_context_get();
-        s_seen_thread = pthread_self();
-        s_seen        = true;
+        s_seen_trace       = trace_context_get();
+        s_seen_thread      = pthread_self();
+        s_seen_occurred    = sw_log_occurred_at(&s_seen_occurred_at);
+        s_seen             = true;
     }
     (void)pthread_mutex_unlock(&s_seen_lock);
 }
@@ -165,6 +172,40 @@ static void *unmarked_writer(void *raw)
     return NULL;
 }
 
+static uint64_t timespec_to_ms(const struct timespec *ts)
+{
+    return (uint64_t)ts->tv_sec * 1000ULL + (uint64_t)ts->tv_nsec / 1000000ULL;
+}
+
+static void test_async_keeps_call_site_timestamp(void)
+{
+    struct timespec before;
+    struct timespec after;
+    bool            seen_occurred;
+    struct timespec occurred;
+
+    sw_log_register_sink(probe_sink);
+    sw_log_mark_thread_async();
+    sw_log_enable_async();
+    start_drain_once();
+
+    expect_message("time-probe");
+    TEST_ASSERT_EQUAL_INT(0, clock_gettime(CLOCK_REALTIME, &before));
+    sw_log_write(SW_LOG_INFO, "T", "time-probe");
+    TEST_ASSERT_EQUAL_INT(0, clock_gettime(CLOCK_REALTIME, &after));
+    (void)usleep(20000);
+
+    TEST_ASSERT_TRUE(wait_seen());
+    (void)pthread_mutex_lock(&s_seen_lock);
+    seen_occurred = s_seen_occurred;
+    occurred      = s_seen_occurred_at;
+    (void)pthread_mutex_unlock(&s_seen_lock);
+
+    TEST_ASSERT_TRUE(seen_occurred);
+    TEST_ASSERT_TRUE(timespec_to_ms(&occurred) >= timespec_to_ms(&before));
+    TEST_ASSERT_TRUE(timespec_to_ms(&occurred) <= timespec_to_ms(&after));
+}
+
 static void test_unmarked_thread_writes_synchronously(void)
 {
     pthread_t tid;
@@ -185,6 +226,7 @@ int main(void)
     UNITY_BEGIN();
     WDF_RUN_TEST(test_async_drops_and_counts_when_spool_full, "", "验证异步队列满时丢弃并计数，不回退同步写出");
     WDF_RUN_TEST(test_async_restores_caller_trace_context, "", "验证异步日志在 drain 线程写 sink 时恢复调用方 trace 上下文");
+    WDF_RUN_TEST(test_async_keeps_call_site_timestamp, "LOG-07", "验证异步排出保持调用点时间戳");
     WDF_RUN_TEST(test_unmarked_thread_writes_synchronously, "", "验证未标记线程在异步开启后仍同步写出");
     return UNITY_END();
 }
