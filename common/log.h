@@ -13,6 +13,7 @@
 
 #include <stdarg.h>
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 
 #ifdef __cplusplus
@@ -23,6 +24,12 @@ extern "C" {
 
 /** 异步日志队列容量（条）；队列满时新日志丢弃并计入 sw_log_dropped_count() */
 #define SW_LOG_SPOOL_CAP 64U
+
+/** 单条物理行容量（字节）。格式化缓冲在 log 模块内，不占用调用方栈 */
+#define SW_LOG_LINE_MAX 1024U
+
+/** 行尾截断标记（含前导空格） */
+#define SW_LOG_TRUNCATED_MARK " ...(truncated)"
 
 #ifndef SW_LOG_COMPONENT
 #define SW_LOG_COMPONENT SW_LOG_COMPONENT_BASE
@@ -72,6 +79,17 @@ bool sw_log_add_sink(sw_log_sink_fn_t sink);
 
 /** @brief  写一条日志，转发给已注册的 sink 或内置 stderr 输出 */
 void sw_log_write(sw_log_level_t level, const char *component, const char *fmt, ...);
+
+/**
+ * @brief  按缓冲容量收口一行
+ * @param  line     snprintf/vsnprintf 已写入的缓冲
+ * @param  cap      缓冲大小（含 NUL）
+ * @param  written  格式化返回值，即未截断时应有的正文长度
+ * @return 收口后正文长度（不含 NUL）
+ * @note   written >= cap 时把行尾换成 SW_LOG_TRUNCATED_MARK。
+ *         按拼装后的实测长度判断，不预留前缀余量。
+ */
+size_t sw_log_clip_line(char *line, size_t cap, int written);
 
 /**
  * @brief  打开异步排出总开关

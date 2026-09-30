@@ -26,7 +26,7 @@
 static mlog       *s_product_log      = NULL;
 static mlog       *s_framework_log    = NULL;
 static const char *k_default_log_name = "snack";
-#define MQTT_LOG_CHUNK 900U /**< sink 为 1KB 栈缓冲；扣 [file:line] 与 snack_cloud 前缀后约 900 */
+static thread_local char s_snack_line[SW_LOG_LINE_MAX];
 
 static void ensure_log_ready(const char *name)
 {
@@ -55,17 +55,16 @@ static mlog *log_for_component(const char *component)
 
 static void snack_log_sink(sw_log_level_t level, const char *component, const char *fmt, va_list ap)
 {
-    char buf[1024] = {0};
-    mlog *logger    = log_for_component(component);
+    mlog *logger = log_for_component(component);
 
-    vsnprintf(buf, sizeof(buf), fmt, ap);
+    (void)vsnprintf(s_snack_line, sizeof(s_snack_line), fmt, ap);
     switch (level)
     {
-        case SW_LOG_ERROR: logger->e(buf); break;
-        case SW_LOG_WARN:  logger->w(buf); break;
-        case SW_LOG_INFO:  logger->i(buf); break;
-        case SW_LOG_DEBUG: logger->d(buf); break;
-        default:           logger->i(buf); break;
+        case SW_LOG_ERROR: logger->e(s_snack_line); break;
+        case SW_LOG_WARN:  logger->w(s_snack_line); break;
+        case SW_LOG_INFO:  logger->i(s_snack_line); break;
+        case SW_LOG_DEBUG: logger->d(s_snack_line); break;
+        default:           logger->i(s_snack_line); break;
     }
 }
 
@@ -102,45 +101,18 @@ static const char *mqtt_topic_or_empty(const char *topic)
 }
 
 /**
- * @brief  topic 与 JSON 同一行打印；超长时后续行只续正文，避免撑破 1KB sink
+ * @brief  topic 与 JSON 同一条日志打印
  */
 static void log_mqtt_payload(const char *dir, const char *topic, const char *json)
 {
-    char   chunk[MQTT_LOG_CHUNK + 1U];
-    size_t len;
-    size_t off;
-    size_t first_cap;
-    size_t extra;
-
     if (json == NULL) {
         json = "";
     }
-    topic     = mqtt_topic_or_empty(topic);
-    len       = std::strlen(json);
-    extra     = std::strlen(topic) + 32U; /* 相对续行多出的 "topic=... len=..." */
-    first_cap = MQTT_LOG_CHUNK;
-    if (extra < first_cap) {
-        first_cap -= extra;
-    } else {
-        first_cap = 1U;
-    }
-
-    off = (len < first_cap) ? len : first_cap;
-    (void)std::memcpy(chunk, json, off);
-    chunk[off] = '\0';
-    LOG_DEBUG("snack_cloud: %s topic=%s len=%u %s", dir, topic, (unsigned)len, chunk);
-
-    while (off < len) {
-        size_t n = len - off;
-
-        if (n > MQTT_LOG_CHUNK) {
-            n = MQTT_LOG_CHUNK;
-        }
-        (void)std::memcpy(chunk, json + off, n);
-        chunk[n] = '\0';
-        LOG_DEBUG("snack_cloud: %s +%u %s", dir, (unsigned)off, chunk);
-        off += n;
-    }
+    LOG_DEBUG("snack_cloud: %s topic=%s len=%u %s",
+              dir,
+              mqtt_topic_or_empty(topic),
+              (unsigned)std::strlen(json),
+              json);
 }
 
 /* 阿里云平台下行消息格式：{"params": {...}} — 取 params 字段传给回调 */

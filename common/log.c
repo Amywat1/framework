@@ -11,6 +11,7 @@
 #include "common/trace_context.h"
 
 #include <pthread.h>
+#include <stdarg.h>
 #include <stdatomic.h>
 #include <stdbool.h>
 #include <stddef.h>
@@ -20,9 +21,6 @@
 #include <time.h>
 
 #define SW_LOG_SINK_MAX 4U
-
-/** 单条日志的最大长度（含级别与组件前缀）；超长部分被截断 */
-#define SW_LOG_LINE_MAX 512U
 
 static sw_log_sink_fn_t s_sinks[SW_LOG_SINK_MAX];
 static size_t           s_sink_count;
@@ -59,6 +57,11 @@ static uint32_t              s_spool_count;
 static atomic_bool           s_async_enabled;
 static atomic_uint_least32_t s_spool_dropped;
 static _Thread_local bool    s_thread_async;
+/** 同步写出：线程局部，避免把行缓冲压进各业务线程栈 */
+static _Thread_local char    s_write_line[SW_LOG_LINE_MAX];
+static _Thread_local char    s_sink_line[SW_LOG_LINE_MAX];
+/** drain 单线程复用，避免在 16KB 排出栈上再开一条目 */
+static log_spool_item_t      s_drain_item;
 
 static void default_sink(sw_log_level_t level, const char *component, const char *fmt, va_list ap);
 
@@ -140,9 +143,13 @@ static void dispatch_message(sw_log_level_t level, const char *component, const 
     }
 }
 
-static bool spool_push(sw_log_level_t level, const char *component, const char *message)
+/**
+ * @brief  直接格式化进队列槽，FIFO 线程栈上不落整行缓冲
+ */
+static bool spool_push_vformat(sw_log_level_t level, const char *component, const char *fmt, va_list ap)
 {
     log_spool_item_t *item;
+    int               written;
 
     spool_lock();
     if (s_spool_count >= SW_LOG_SPOOL_CAP) {
@@ -156,10 +163,12 @@ static bool spool_push(sw_log_level_t level, const char *component, const char *
     if (component != NULL) {
         (void)strncpy(item->component, component, sizeof(item->component) - 1U);
     }
-    (void)memset(item->message, 0, sizeof(item->message));
-    if (message != NULL) {
-        (void)strncpy(item->message, message, sizeof(item->message) - 1U);
+    written = vsnprintf(item->message, sizeof(item->message), fmt, ap);
+    if (written < 0) {
+        spool_unlock();
+        return true;
     }
+    (void)sw_log_clip_line(item->message, sizeof(item->message), written);
     s_spool_count++;
     (void)pthread_cond_signal(&s_spool_cond);
     spool_unlock();
@@ -199,36 +208,78 @@ static const char *level_tag(sw_log_level_t level)
     return s_level_tag[level];
 }
 
+/**
+ * @brief  按实测拼装长度收口一行
+ */
+size_t sw_log_clip_line(char *line, size_t cap, int written)
+{
+    const size_t mark_len = sizeof(SW_LOG_TRUNCATED_MARK) - 1U;
+    size_t       used;
+
+    if ((line == NULL) || (cap == 0U)) {
+        return 0U;
+    }
+    if (written < 0) {
+        line[0] = '\0';
+        return 0U;
+    }
+
+    used = (size_t)written;
+    if (used < cap) {
+        line[used] = '\0';
+        return used;
+    }
+    if (cap <= 1U) {
+        line[0] = '\0';
+        return 0U;
+    }
+
+    used = cap - 1U;
+    if (used >= mark_len) {
+        (void)memcpy(line + (used - mark_len), SW_LOG_TRUNCATED_MARK, mark_len);
+    } else {
+        (void)memcpy(line, SW_LOG_TRUNCATED_MARK, used);
+    }
+    line[used] = '\0';
+    return used;
+}
+
 /*
- * 默认 sink：先整条组装进栈缓冲，再单次 fwrite。
+ * 默认 sink：先整条组装进栈缓冲，再按实测行长收口，最后单次 fwrite。
  * 原实现用 fprintf + vfprintf + fputc 三次独立 stdio 调用，
  * 多线程并发时同一行的内容会被其他线程的输出插入其中。
  */
 static void default_sink(sw_log_level_t level, const char *component, const char *fmt, va_list ap)
 {
-    char line[SW_LOG_LINE_MAX];
-    int  head;
-    int  used;
+    int    head;
+    int    written;
+    size_t used;
 
-    head = snprintf(line, sizeof(line), "[%s] [%s] ", level_tag(level), component);
+    if (component == NULL) {
+        component = "-";
+    }
+    if (fmt == NULL) {
+        return;
+    }
+
+    head = snprintf(s_sink_line, sizeof(s_sink_line), "[%s] [%s] ", level_tag(level), component);
     if (head < 0) {
         return;
     }
-    used = head;
-    if ((size_t)used < sizeof(line) - 1U) {
-        int body = vsnprintf(&line[used], sizeof(line) - (size_t)used, fmt, ap);
+    if ((size_t)head >= sizeof(s_sink_line)) {
+        written = head;
+    } else {
+        int body = vsnprintf(&s_sink_line[head], sizeof(s_sink_line) - (size_t)head, fmt, ap);
 
-        if (body > 0) {
-            used += body;
-            if ((size_t)used > sizeof(line) - 1U) {
-                used = (int)(sizeof(line) - 1U); /* vsnprintf 已截断，修正长度 */
-            }
+        if (body < 0) {
+            return;
         }
+        written = head + body;
     }
-    line[used] = '\n';
-    used++;
 
-    (void)fwrite(line, 1U, (size_t)used, stderr);
+    used             = sw_log_clip_line(s_sink_line, sizeof(s_sink_line), written);
+    s_sink_line[used] = '\n';
+    (void)fwrite(s_sink_line, 1U, used + 1U, stderr);
     (void)fflush(stderr);
 }
 
@@ -310,15 +361,13 @@ uint32_t sw_log_dropped_count(void)
 
 void *sw_log_drain_thread_fn(void *arg)
 {
-    log_spool_item_t item;
-
     (void)arg;
     for (;;) {
-        if (!spool_wait_pop(&item)) {
+        if (!spool_wait_pop(&s_drain_item)) {
             continue;
         }
-        trace_context_set(&item.trace);
-        dispatch_message(item.level, item.component, item.message);
+        trace_context_set(&s_drain_item.trace);
+        dispatch_message(s_drain_item.level, s_drain_item.component, s_drain_item.message);
         trace_context_set(NULL);
     }
 }
@@ -326,7 +375,6 @@ void *sw_log_drain_thread_fn(void *arg)
 void sw_log_write(sw_log_level_t level, const char *component, const char *fmt, ...)
 {
     va_list ap;
-    char    message[SW_LOG_LINE_MAX];
     int     written;
 
     /* 级别过滤前置：被丢弃的日志不付出格式化代价 */
@@ -337,23 +385,25 @@ void sw_log_write(sw_log_level_t level, const char *component, const char *fmt, 
     }
     log_unlock();
 
+    if (fmt == NULL) {
+        return;
+    }
+
     va_start(ap, fmt);
-    written = vsnprintf(message, sizeof(message), fmt, ap);
+    if (s_thread_async && atomic_load(&s_async_enabled)) {
+        if (!spool_push_vformat(level, component, fmt, ap)) {
+            (void)atomic_fetch_add(&s_spool_dropped, 1U);
+        }
+        va_end(ap);
+        return;
+    }
+    written = vsnprintf(s_write_line, sizeof(s_write_line), fmt, ap);
     va_end(ap);
     if (written < 0) {
         return;
     }
-    message[sizeof(message) - 1U] = '\0';
-
-    if (s_thread_async && atomic_load(&s_async_enabled)) {
-        /* 队列满时丢弃计数，不在 FIFO 路径上回退 stdio；由 health 上报丢弃数 */
-        if (!spool_push(level, component, message)) {
-            (void)atomic_fetch_add(&s_spool_dropped, 1U);
-        }
-        return;
-    }
-
-    dispatch_message(level, component, message);
+    (void)sw_log_clip_line(s_write_line, sizeof(s_write_line), written);
+    dispatch_message(level, component, s_write_line);
 }
 
 const char *sw_log_source_file_name(const char *source_path)
