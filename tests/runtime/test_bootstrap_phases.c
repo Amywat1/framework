@@ -35,8 +35,10 @@
 #include "domain/ports/outbound/hal/hal_io_port.h"
 #include "domain/ports/outbound/hal/hal_vfd_port.h"
 #include "domain/ports/outbound/hal/hal_voice_port.h"
+#include "domain/ports/outbound/safety/safety_port.h"
 #include "domain/ports/outbound/storage/deploy_store.h"
 #include "runtime/event_bus/event_bus.h"
+#include "runtime/scheduler/control_loop.h"
 #include "runtime/scheduler/scheduler.h"
 #include "runtime/scheduler/thread_registry.h"
 
@@ -174,6 +176,16 @@ void event_bus_dispatch_loop(void)
 void event_bus_set_fatal_cb(event_bus_fatal_cb_t cb)
 {
     (void)cb;
+}
+
+void control_loop_set_watchdog_trip(control_loop_watchdog_trip_fn_t fn)
+{
+    (void)fn;
+}
+
+sw_err_t safety_cutout_execute(void)
+{
+    return SW_OK;
 }
 
 /* HAL 与存储端口一律未注册：本测试只关心阶段推进，端口缺失路径由

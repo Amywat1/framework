@@ -641,7 +641,7 @@ BOUNDED_WAIT_SITES=(
     "application/command_gateway.c:sem_timedwait"          # 等 handler 回执
     "application/engine_session/engine_session.c:sem_timedwait" # 等启动完成
     "runtime/scheduler/periodic_task.c:clock_nanosleep"    # 绝对下一拍唤醒
-    "runtime/scheduler/control_loop.c:clock_nanosleep"     # 控制环绝对下一拍唤醒
+    "runtime/scheduler/control_loop.c:clock_nanosleep"     # 控制环绝对下一拍；看门狗绝对轮询
     "common/log.c:pthread_cond_timedwait"                  # 日志排出线程空闲等待，1 秒上限
     "adapters/outbound/hal/providers/snack/io_exp/io_exp_driver.c:pthread_cond_timedwait" # worker 周期等待与同步事务均有截止时间
 )

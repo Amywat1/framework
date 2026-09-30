@@ -18,12 +18,14 @@
 #include "domain/ports/outbound/hal/hal_io_port.h"
 #include "domain/ports/outbound/hal/hal_vfd_port.h"
 #include "domain/ports/outbound/hal/hal_voice_port.h"
+#include "domain/ports/outbound/safety/safety_port.h"
 #include "domain/ports/outbound/storage/deploy_store.h"
 #include "domain/safety/alarm_registry/alarm_registry.h"
 #include "runtime/bootstrap/project_hooks.h"
 #include "runtime/bootstrap/wiring.h"
 #include "runtime/config/thread_config.h"
 #include "runtime/event_bus/event_bus.h"
+#include "runtime/scheduler/control_loop.h"
 #include "runtime/scheduler/scheduler.h"
 #include "runtime/scheduler/thread_registry.h"
 #include "domain/ports/outbound/storage/param_kv.h"
@@ -57,13 +59,32 @@ sw_err_t bootstrap_register_hooks(const project_hooks_t *hooks)
         }                                                                                                              \
     } while (0)
 
-static void system_panic_safe_stop(event_bus_fatal_reason_t reason, int detail_code)
+static void bootstrap_assert_safe_outputs(void)
 {
-    LOG_ERROR("bootstrap: event_bus fatal reason=%d detail=%d", (int)reason, detail_code);
     if ((s_hooks != NULL) && (s_hooks->assert_safe_outputs != NULL)) {
         s_hooks->assert_safe_outputs();
     }
+}
+
+static void system_panic_safe_stop(event_bus_fatal_reason_t reason, int detail_code)
+{
+    LOG_ERROR("bootstrap: event_bus fatal reason=%d detail=%d", (int)reason, detail_code);
+    bootstrap_assert_safe_outputs();
     abort();
+}
+
+/**
+ * @brief 控制环看门狗超时绊索
+ * @note  切断能量路径并断言安全输出，不请求 output hold。看门狗返回后 abort。
+ */
+static void control_loop_watchdog_trip(void)
+{
+    sw_err_t cut_ret = safety_cutout_execute();
+
+    if (cut_ret != SW_OK) {
+        LOG_ERROR("bootstrap: control_loop watchdog cutout ret=%d", (int)cut_ret);
+    }
+    bootstrap_assert_safe_outputs();
 }
 
 static void *event_dispatch_thread_fn(void *arg)
@@ -219,6 +240,7 @@ static sw_err_t bootstrap_init_services(void)
 
 static sw_err_t bootstrap_start(void)
 {
+    control_loop_set_watchdog_trip(control_loop_watchdog_trip);
     BOOT_CHECK(s_hooks->start_runtime(), "project_start_runtime");
     BOOT_CHECK(scheduler_start_all(), "scheduler_start_all");
     sw_log_enable_async();

@@ -4,6 +4,7 @@
  */
 
 #include "common/sw_error.h"
+#include "runtime/config/thread_config.h"
 #include "runtime/scheduler/control_loop.h"
 #include "runtime/scheduler/thread_registry.h"
 #include "wdf_test_spec.h"
@@ -55,6 +56,29 @@ static void test_control_loop_register_and_get_stats(void)
     TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_FOUND, control_loop_get_stats(1U, &stats));
 }
 
+static void test_control_loop_register_also_registers_watchdog(void)
+{
+    const thread_entry_t *loop;
+    const thread_entry_t *wd;
+
+    TEST_ASSERT_EQUAL_INT(0, thread_registry_count());
+    TEST_ASSERT_EQUAL_INT(SW_OK, control_loop_register("motor_tick", 10U, control_loop_tick_fn, NULL));
+    TEST_ASSERT_EQUAL_INT(2, thread_registry_count());
+
+    loop = thread_registry_get(0);
+    wd   = thread_registry_get(1);
+    TEST_ASSERT_NOT_NULL(loop);
+    TEST_ASSERT_NOT_NULL(wd);
+    TEST_ASSERT_EQUAL_STRING("control_loop", loop->name);
+    TEST_ASSERT_EQUAL_INT(THD_CONTROL_LOOP_PRIO, loop->prio);
+    TEST_ASSERT_EQUAL_STRING("control_loop_wd", wd->name);
+    TEST_ASSERT_EQUAL_INT(THD_CONTROL_LOOP_WD_PRIO, wd->prio);
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, control_loop_register("fluid_path_poll", 100U, control_loop_tick_fn, NULL));
+    TEST_ASSERT_EQUAL_INT(2, thread_registry_count());
+    TEST_ASSERT_EQUAL_UINT(2U, control_loop_count());
+}
+
 static void test_control_loop_register_overflow(void)
 {
     unsigned i;
@@ -74,6 +98,7 @@ int main(void)
     UNITY_BEGIN();
     WDF_RUN_TEST(test_control_loop_register_rejects_invalid_args, "", "验证控制环拒绝非法周期与空指针");
     WDF_RUN_TEST(test_control_loop_register_and_get_stats, "", "验证控制环登记后可读统计");
+    WDF_RUN_TEST(test_control_loop_register_also_registers_watchdog, "", "验证首次登记同时挂上控制环看门狗线程");
     WDF_RUN_TEST(test_control_loop_register_overflow, "", "验证控制环槽位满时返回溢出");
     return UNITY_END();
 }

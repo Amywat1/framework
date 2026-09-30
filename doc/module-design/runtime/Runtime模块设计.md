@@ -5,7 +5,7 @@
 **最后同步代码**：2026-08-08（`runtime/bootstrap` 7 阶段、`runtime/scheduler`、`runtime/config`、Demo project hooks）  
 **适用范围**：`runtime/bootstrap/`、`runtime/scheduler/`、`runtime/config/thread_config.h`、`demo/wiring/`  
 **架构基线**：统一启动序列 + runtime tasks 阶段注册线程 + scheduler 统一启动  
-**关键词**：bootstrap_run、project_hooks、thread_registry、scheduler_start_all、periodic_task、event_dispatch
+**关键词**：bootstrap_run、project_hooks、thread_registry、scheduler_start_all、periodic_task、control_loop、event_dispatch
 
 ---
 
@@ -22,6 +22,7 @@ Runtime 层负责把框架基础设施、项目 wiring、应用模块、适配�
 - **线程统一创建**：框架线程通过 `thread_register()` 登记，最后由 scheduler 创建并 detach。
 - **周期任务统一模型**：周期任务用 `periodic_task_register()` 转成线程注册表条目。
 - **致命故障安全停机**：event bus fatal 回调先执行 `project_hooks_t.assert_safe_outputs`，再 `abort()`。
+- **控制环心跳看门狗**：独立 FIFO 线程监视控制环心跳；超时先切断再断言安全输出，然后 abort，不请求 hold。
 
 ### 1.2 当前生命周期模型
 
@@ -33,7 +34,7 @@ Runtime 层负责把框架基础设施、项目 wiring、应用模块、适配�
 | 绑定期 | 绑定 HAL/`device_ops`/报警目录，末尾执行 `project_validate()` |
 | HAL 初始化期 | HAL port `init`，再依次 `init_hal` / `init_device` / `init_safety` |
 | 服务初始化期 | 应用协调器/桥接 init、适配器 init、项目运行期任务注册 |
-| 启动期 | `hal_io.start()`、`project_start_runtime()`、`scheduler_start_all()` |
+| 启动期 | 注入控制环看门狗绊索、`project_start_runtime()`、`scheduler_start_all()` |
 | 运行期 | 线程 detach，当前不提供 join/stop/restart 语义 |
 | 致命故障 | 安全输出兜底后终止进程，交由外部 supervisor 拉起 |
 
@@ -50,6 +51,7 @@ Runtime 层负责把框架基础设施、项目 wiring、应用模块、适配�
 | `runtime/scheduler/thread_registry.{h,c}` | 线程登记表、容量核算口径、`*_reset_for_test()` |
 | `runtime/scheduler/scheduler.{h,c}` | `scheduler_start_all()` 统一创建并 detach 线程 |
 | `runtime/scheduler/periodic_task.{h,c}` | 绝对下一拍唤醒的周期任务，跳过而不追赶 |
+| `runtime/scheduler/control_loop.{h,c}` | 控制类节拍共用 FIFO 线程，附心跳看门狗 |
 | `runtime/config/thread_config.h` | 各线程栈大小与优先级、周期档常量 |
 | `tests/runtime/test_bootstrap_hooks.c` | 钩子校验与启动序列 |
 | `tests/runtime/test_scheduler.c` | 线程登记、复位、scheduler 启动 |
@@ -110,7 +112,7 @@ bootstrap_run()
     │    └─ project_register_runtime_tasks()
     │
     └─ bootstrap_start()
-         ├─ hal_io.start()
+         ├─ control_loop_set_watchdog_trip(...)
          ├─ project_start_runtime()
          └─ scheduler_start_all()
 ```
@@ -171,7 +173,7 @@ Init Services 阶段初始化所有应用服务、适配器，并注册运行期
 
 ### 3.5 Start 阶段
 
-Start 阶段先调用 `hal_io.start()`，再调用 `project_start_runtime()` 启动无法纳入 scheduler 的项目运行期线程，最后 `scheduler_start_all()` 创建线程表中的所有线程。新增后台任务应优先接入 `project_register_runtime_tasks()`，不要放到 `project_start_runtime()`。
+Start 阶段先注入控制环看门狗绊索，再调用 `project_start_runtime()` 启动无法纳入 scheduler 的项目运行期线程，最后 `scheduler_start_all()` 创建线程表中的所有线程。`hal_io.start()` 已在 Init HAL 阶段完成。新增后台任务应优先接入 `project_register_runtime_tasks()`，不要放到 `project_start_runtime()`。
 
 ---
 
@@ -233,7 +235,7 @@ Demo 实现位于 `demo/wiring/project_hooks_sim.c`：只有 `configure_storage`
 
 ### 5.1 Thread Registry
 
-`thread_registry` 是静态表，容量为 `THREAD_REGISTRY_MAX = 24`。槽位构成的实测口径记在 `thread_registry.h` 头部：框架固定占用 1（`event_dispatch`，接入急停轮询适配器再加 1）、引擎会话 worker 1~2、周期任务 9，合计约 13，余量留给项目新增周期任务，避免项目为加一个任务去改框架常量。
+`thread_registry` 是静态表，容量为 `THREAD_REGISTRY_MAX = 24`。槽位构成的实测口径记在 `thread_registry.h` 头部：框架固定占用 5（`event_dispatch` + `cmd_control` + `log_drain` + `control_loop` + `control_loop_wd`，接入急停轮询适配器再加 1）、引擎会话 worker 1~2、周期任务若干，合计约 16，余量留给项目新增周期任务，避免项目为加一个任务去改框架常量。
 
 | API | 行为 |
 |-----|------|
@@ -301,6 +303,21 @@ periodic_task_thread_fn(slot)
 | `clock_nanosleep` 失败 | `EINTR` 重试，其他错误打 ERROR 日志 |
 | 运行观测 | `run_count` / `skip_count` / `skip_max` / `last_cb_us` / `max_cb_us` / `last_wake_late_us` / `max_wake_late_us` / `last_late_us` / `max_late_us` |
 
+### 5.4 Control Loop Watchdog
+
+控制环自身无法在卡死时执行 abort：缺拍看门狗若与 tick 同线程，忙等或线程死亡都走不到检查点。因此首次 `control_loop_register()` 同时登记 `control_loop_wd`：
+
+| 项 | 约定 |
+|----|------|
+| 调度 | `SCHED_FIFO`，优先级 70，介于控制环 60 与急停 90 之间 |
+| 心跳 | 控制环每拍无锁写单调毫秒时间戳 |
+| 超时 | 已有心跳后 500 ms 未刷新即绊索；尚无心跳时启动宽限 2000 ms |
+| 轮询 | 绝对 `clock_nanosleep`，周期 50 ms |
+| 绊索 | bootstrap 注入：`safety_cutout_execute()` + `assert_safe_outputs`；看门狗随后 `abort()` |
+| 不 hold | 超时不是急停类事件，切断后允许点动；人工确认锁存只留给急停 hold |
+
+`control_loop.c` 不得调用安全端口（R5）。`control_loop_set_watchdog_trip()` 必须在 `scheduler_start_all()` 之前调用。电机 200 ms 缺拍 abort 仍由项目 post-tick 负责，与本看门狗分层：前者抓晚醒，后者抓环线程停跳。
+
 ---
 
 ## 6. 已注册线程与周期任务
@@ -308,6 +325,8 @@ periodic_task_thread_fn(slot)
 | 名称 | 注册方 | 类型 | 职责 |
 |------|--------|------|------|
 | `event_dispatch` | `bootstrap_register()` | 线程 | 调用 `event_bus_dispatch_loop()` |
+| `control_loop` | 首次 `control_loop_register()` | 线程 | 驱动控制类节拍回调 |
+| `control_loop_wd` | 首次 `control_loop_register()` | 线程 | 监视控制环心跳，超时切断后 abort |
 | `alarm_bridge` | `alarm_bridge_init()` | 周期任务（50ms） | drain alarm registry pending 事件并算姿态边沿 |
 | `motor_tick` | `mechanism_bridge_register_tasks()` | 周期任务（10ms） | `motor_executor_tick` + 已登记轴 `motor_axis_poll` + post-tick |
 | `fluid_path_poll` | `mechanism_bridge_register_tasks()` | 周期任务（100ms） | `fluid_path_poll(now_ms)` |
@@ -391,6 +410,11 @@ fatal 回调不尝试恢复 event bus，也不继续运行，因为 dispatch 线
 | `THD_SAFETY_THREAD_POLL_US` | 5000 us | estop poll interval |
 | `THD_CONTROL_LOOP_STACK` | 32 KiB | 控制环线程（多回调共用） |
 | `THD_CONTROL_LOOP_PRIO` | 60 | 控制环 SCHED_FIFO 优先级，须低于急停 |
+| `THD_CONTROL_LOOP_WD_STACK` | 8 KiB | 控制环看门狗栈 |
+| `THD_CONTROL_LOOP_WD_PRIO` | 70 | 看门狗优先级，须高于控制环、低于急停 |
+| `THD_CONTROL_LOOP_WD_TIMEOUT_MS` | 500 ms | 心跳超时 |
+| `THD_CONTROL_LOOP_WD_POLL_MS` | 50 ms | 看门狗轮询周期 |
+| `THD_CONTROL_LOOP_WD_STARTUP_MS` | 2000 ms | 尚无心跳时的启动宽限 |
 
 IO 子板 provider 的后台线程由 `io_exp_driver` 自行管理，不走 core scheduler。
 
@@ -407,6 +431,7 @@ IO 子板 provider 的后台线程由 `io_exp_driver` 自行管理，不走 core
 | `SCHED_FIFO` 创建失败 | 降级 `SCHED_OTHER` 重试 |
 | 普通线程创建失败 | 返回 `SW_ERR_HW`，启动中止 |
 | event bus fatal | 安全输出兜底后 abort |
+| 控制环心跳超时 | 切断（不 hold）+ 安全输出兜底后 abort |
 | `bootstrap_run()` 返回非 `SW_OK` | **调用方必须终止进程**，见下 |
 
 ### 9.1 启动失败后的进程约束
@@ -425,6 +450,7 @@ IO 子板 provider 的后台线程由 `io_exp_driver` 自行管理，不走 core
 |------|------|
 | `tests/runtime/test_scheduler.c` | thread registry、periodic task 注册、scheduler start、表满 |
 | `tests/runtime/test_periodic_deadline.c` | `periodic_task_next_deadline()` 纯函数时序；`periodic_task_late_us()` / `periodic_task_skip_should_warn()` / `periodic_task_note_cycle()` 跳拍观测 |
+| `tests/runtime/test_control_loop.c` | 控制环登记、统计、首次登记同时挂看门狗线程 |
 | `tests/runtime/test_bootstrap_hooks.c` | hook 非空校验与阶段顺序 |
 | `tests/adapters/test_estop_poll_thread.c` | 急停轮询线程注册、急停边沿事件 |
 | `tests/runtime/test_event_bus.c` | event dispatch 线程手动启动与 shutdown |

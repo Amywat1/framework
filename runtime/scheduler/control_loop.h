@@ -7,7 +7,8 @@
  *          回调（含其调用链）不得做同步总线事务或等待 IO 线程回执，
  *          例如 drv_io_submit_job、Modbus 读写：一次阻塞会拖住同拍全部回调。
  *          需要总线操作时只登记请求，由 IO 线程执行（参见 drv_io_pulse_clear）。
- *          优先级低于急停采集线程。
+ *          优先级低于急停采集线程。首次登记时一并挂上心跳看门狗；
+ *          超时绊索由 bootstrap 注入，本模块不得调用安全端口。
  */
 
 #ifndef RUNTIME_SCHEDULER_CONTROL_LOOP_H
@@ -30,6 +31,20 @@ extern "C" {
 #define CONTROL_LOOP_SLOT_MAX 8U
 
 /**
+ * @brief 控制环看门狗绊索
+ * @note  心跳超时后由看门狗线程调用一次。bootstrap 在此做切断与安全输出断言，
+ *        本模块随后 abort。不得请求 output hold。允许传 NULL 表示仅 abort。
+ */
+typedef void (*control_loop_watchdog_trip_fn_t)(void);
+
+/**
+ * @brief  注入控制环看门狗超时绊索
+ * @param  fn 超时回调，可为 NULL
+ * @note   必须在 scheduler_start_all() 之前调用。看门狗线程启动后不得再改。
+ */
+void control_loop_set_watchdog_trip(control_loop_watchdog_trip_fn_t fn);
+
+/**
  * @brief  登记一个由控制环线程驱动的节拍回调
  * @param  name      任务名，仅保存指针，须为静态存储
  * @param  period_ms 周期毫秒，必须是 THD_MOTOR_TICK_PERIOD_MS 的整数倍且大于 0
@@ -39,6 +54,7 @@ extern "C" {
  * @retval SW_ERR_PARAM 参数非法
  * @retval SW_ERR_OVERFLOW 槽位或线程表已满
  * @note   所有控制环任务共享一条 SCHED_FIFO 线程（优先级低于急停）。
+ *         首次成功登记时同时挂上控制环看门狗线程。
  *         日志、云、观测、Modbus 监视不得登记到本环；回调不得做同步总线事务。
  */
 sw_err_t control_loop_register(const char *name, uint32_t period_ms, periodic_task_fn_t fn, void *ctx);
@@ -59,8 +75,8 @@ unsigned control_loop_count(void);
 sw_err_t control_loop_get_stats(unsigned index, periodic_task_stats_t *out);
 
 /**
- * @brief  清空控制环表（仅供单元测试）
- * @note   生产路径不得调用：已启动的控制环线程无法回收。
+ * @brief  清空控制环表与看门狗登记状态（仅供单元测试）
+ * @note   生产路径不得调用：已启动的控制环与看门狗线程无法回收。
  */
 void control_loop_reset_for_test(void);
 

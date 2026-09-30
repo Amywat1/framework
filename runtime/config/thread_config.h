@@ -35,5 +35,17 @@
 #define THD_SAFETY_THREAD_POLL_US 5000U         /**< 轮询周期（us） */
 #define THD_CONTROL_LOOP_STACK    (32U * 1024U) /**< 控制环栈（多回调共用） */
 #define THD_CONTROL_LOOP_PRIO     60            /**< 低于急停的控制环优先级 */
+#define THD_CONTROL_LOOP_WD_STACK (8U * 1024U)  /**< 控制环看门狗栈 */
+#define THD_CONTROL_LOOP_WD_PRIO  70            /**< 高于控制环、低于急停，忙等时也能抢上来 */
+#define THD_CONTROL_LOOP_WD_TIMEOUT_MS 500U     /**< 心跳超时（ms），宽于电机缺拍 200 ms */
+#define THD_CONTROL_LOOP_WD_POLL_MS    50U      /**< 看门狗轮询周期（ms） */
+#define THD_CONTROL_LOOP_WD_STARTUP_MS 2000U    /**< 尚无心跳时的启动宽限（ms） */
+
+#if (THD_CONTROL_LOOP_WD_PRIO) <= (THD_CONTROL_LOOP_PRIO)
+#error THD_CONTROL_LOOP_WD_PRIO 必须高于控制环，才能抢占忙等
+#endif
+#if (THD_CONTROL_LOOP_WD_PRIO) >= (THD_SAFETY_THREAD_PRIO)
+#error THD_CONTROL_LOOP_WD_PRIO 必须低于急停
+#endif
 
 #endif                                         /* RUNTIME_CONFIG_THREAD_CONFIG_H */

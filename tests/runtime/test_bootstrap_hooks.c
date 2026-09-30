@@ -101,6 +101,14 @@ void event_bus_set_fatal_cb(void (*cb)(const char *reason))
 {
     (void)cb;
 }
+void control_loop_set_watchdog_trip(void (*fn)(void))
+{
+    (void)fn;
+}
+sw_err_t safety_cutout_execute(void)
+{
+    return SW_OK;
+}
 const void *deploy_store_get_ops(void)
 {
     return NULL;
