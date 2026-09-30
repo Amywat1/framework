@@ -51,3 +51,16 @@ sw_err_t cloud_json_build_properties_delta(const char *const *ids, size_t count,
     snprintf(buf, buf_size, "%s", s_delta_json);
     return SW_OK;
 }
+
+sw_err_t cloud_json_publish_snapshot(bool apply_filter)
+{
+    (void)apply_filter;
+    return SW_ERR_STATE;
+}
+
+sw_err_t cloud_json_publish_delta(const char *const *ids, size_t count)
+{
+    (void)ids;
+    (void)count;
+    return SW_ERR_STATE;
+}

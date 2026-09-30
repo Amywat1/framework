@@ -13,21 +13,21 @@
 
 static sw_err_t finalize_json(cJSON *root, char *buf, size_t buf_size)
 {
-    char    *json;
-    sw_err_t ret = SW_ERR_PARAM;
+    char  *json;
+    size_t len;
 
     json = cJSON_PrintUnformatted(root);
-    if (json != NULL) {
-        size_t len = strlen(json);
-
-        if (len < buf_size) {
-            memcpy(buf, json, len + 1U);
-            ret = SW_OK;
-        }
-        free(json);
+    if (json == NULL) {
+        return SW_ERR_NOMEM;
     }
-
-    return ret;
+    len = strlen(json);
+    if (len >= buf_size) {
+        free(json);
+        return SW_ERR_OVERFLOW;
+    }
+    memcpy(buf, json, len + 1U);
+    free(json);
+    return SW_OK;
 }
 
 static void append_typed_value(cJSON *root, const point_table_entry_t *entry, const point_value_t *val)

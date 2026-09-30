@@ -113,7 +113,7 @@ typedef struct {
 
 `report`：`NONE` 不进快照/脏点；`RESYNC` 仅重连/`cmd_sync` 快照；`ON_CHANGE` 进 watcher，快照也带当前值。下行后先发一包：成功点回显下发值，失败点报 getter 当前值；该包发送成功后再发成功脉冲的空闲 0。`ON_CHANGE` 必须有 get，禁止 `POINT_TYPE_FLOAT`。`deadband` 仅 `ON_CHANGE` 的 INT 有效。可写点以 `RESYNC` 表示脉冲。DEV_CMD 成功后若带 `set`，再调用 `set` 更新保持值。
 
-容量：`CLOUD_POINT_TABLE_MAX` 96；`CLOUD_REPORT_JSON_MAX` 4096。
+容量：`CLOUD_POINT_TABLE_MAX` 96；`CLOUD_REPORT_JSON_MAX` 2048（超长按点位拆成多包）。
 
 云事件：`EVT_CLOUD_CONNECTED` / `EVT_CLOUD_DISCONNECTED`（link 适配器 poll 边沿）。脏点不走事件。
 

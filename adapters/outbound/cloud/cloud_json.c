@@ -30,9 +30,12 @@ static char                      s_echo_json[CLOUD_REPORT_JSON_MAX];
 static char                      s_idle_json[CLOUD_REPORT_JSON_MAX];
 static char                      s_pending_idle[CLOUD_REPORT_JSON_MAX];
 static char                      s_idle_send[CLOUD_REPORT_JSON_MAX];
+static char                      s_chunk_try[CLOUD_REPORT_JSON_MAX];
 static bool                      s_idle_pending = false;
 static uint64_t                  s_idle_since_ms = 0U;
-static pthread_mutex_t           s_idle_mu = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t           s_idle_mu  = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t           s_chunk_mu = PTHREAD_MUTEX_INITIALIZER;
+static _Thread_local char        s_chunk_emit[CLOUD_REPORT_JSON_MAX];
 
 static sw_err_t model_on_property_set(const char *json_payload, point_apply_result_t *result)
 {
@@ -350,6 +353,141 @@ sw_err_t cloud_json_build_properties_delta(const char *const *ids, size_t count,
         return write_empty_object(buf, buf_size);
     }
     return cloud_point_to_json_filtered(entries, entry_count, kept, n, buf, buf_size);
+}
+
+static sw_err_t collect_snapshot_ids(bool apply_filter, const char **ids, size_t *out_n)
+{
+    size_t                     count   = 0U;
+    const cloud_point_entry_t *entries = cloud_model_entries(&count);
+    size_t                     n       = 0U;
+    size_t                     i;
+
+    if ((entries == NULL) || (count == 0U) || (ids == NULL) || (out_n == NULL)) {
+        return SW_ERR_NOT_INIT;
+    }
+
+    for (i = 0U; i < count; i++) {
+        if (!cloud_point_snapshot_enabled(&entries[i])) {
+            continue;
+        }
+        if (apply_filter && !id_allowed(entries[i].base.id)) {
+            continue;
+        }
+        if (n >= CLOUD_POINT_TABLE_MAX) {
+            return SW_ERR_OVERFLOW;
+        }
+        ids[n++] = entries[i].base.id;
+    }
+    *out_n = n;
+    return SW_OK;
+}
+
+static sw_err_t build_ids_json(const char *const *ids, size_t count, char *buf, size_t buf_size)
+{
+    size_t                     entry_count = 0U;
+    const cloud_point_entry_t *entries     = cloud_model_entries(&entry_count);
+
+    if ((entries == NULL) || (entry_count == 0U)) {
+        return SW_ERR_NOT_INIT;
+    }
+    if ((ids == NULL) || (count == 0U) || (buf == NULL) || (buf_size == 0U)) {
+        return SW_ERR_PARAM;
+    }
+    return cloud_point_to_json_filtered(entries, entry_count, ids, count, buf, buf_size);
+}
+
+static sw_err_t publish_chunk_json(const char *json, void *ctx)
+{
+    const cloud_link_ops_t *ops = cloud_link_get_ops();
+
+    (void)ctx;
+    return publish_json_if_present(ops, json);
+}
+
+sw_err_t cloud_json_visit_ids(const char *const *ids, size_t count, cloud_json_chunk_fn_t fn, void *ctx)
+{
+    size_t start = 0U;
+
+    if ((ids == NULL) || (count == 0U) || (fn == NULL)) {
+        return SW_ERR_PARAM;
+    }
+
+    while (start < count) {
+        size_t   end     = start;
+        size_t   packed  = 0U;
+        sw_err_t ret;
+        sw_err_t emit_ret;
+
+        pthread_mutex_lock(&s_chunk_mu);
+        for (end = start + 1U; end <= count; end++) {
+            ret = build_ids_json(&ids[start], end - start, s_chunk_try, sizeof(s_chunk_try));
+            if (ret != SW_OK) {
+                break;
+            }
+            copy_json(s_chunk_emit, sizeof(s_chunk_emit), s_chunk_try);
+            packed = end - start;
+        }
+        pthread_mutex_unlock(&s_chunk_mu);
+
+        if (packed == 0U) {
+            LOG_WARN("cloud_json: id=%s exceeds %u, skip",
+                     (ids[start] != NULL) ? ids[start] : "?",
+                     (unsigned)CLOUD_REPORT_JSON_MAX);
+            start++;
+            continue;
+        }
+
+        emit_ret = fn(s_chunk_emit, ctx);
+        if (emit_ret != SW_OK) {
+            return emit_ret;
+        }
+        start += packed;
+    }
+    return SW_OK;
+}
+
+sw_err_t cloud_json_visit_snapshot(bool apply_filter, cloud_json_chunk_fn_t fn, void *ctx)
+{
+    const char *ids[CLOUD_POINT_TABLE_MAX];
+    size_t      n   = 0U;
+    sw_err_t    ret = collect_snapshot_ids(apply_filter, ids, &n);
+
+    if (ret != SW_OK) {
+        return ret;
+    }
+    if (n == 0U) {
+        return SW_OK;
+    }
+    return cloud_json_visit_ids(ids, n, fn, ctx);
+}
+
+sw_err_t cloud_json_publish_snapshot(bool apply_filter)
+{
+    return cloud_json_visit_snapshot(apply_filter, publish_chunk_json, NULL);
+}
+
+sw_err_t cloud_json_publish_delta(const char *const *ids, size_t count)
+{
+    const char *kept[CLOUD_POINT_TABLE_MAX];
+    size_t      n = 0U;
+    size_t      i;
+
+    if ((ids == NULL) || (count == 0U)) {
+        return SW_ERR_PARAM;
+    }
+    for (i = 0U; i < count; i++) {
+        if (!id_allowed(ids[i])) {
+            continue;
+        }
+        if (n >= CLOUD_POINT_TABLE_MAX) {
+            return SW_ERR_OVERFLOW;
+        }
+        kept[n++] = ids[i];
+    }
+    if (n == 0U) {
+        return SW_OK;
+    }
+    return cloud_json_visit_ids(kept, n, publish_chunk_json, NULL);
 }
 
 sw_err_t cloud_json_apply_property_set(const char *json_str, point_apply_result_t *result)

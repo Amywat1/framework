@@ -165,12 +165,14 @@ static sw_err_t adapter_publish_properties(void)
     sw_err_t ret;
 
     ret = cloud_json_build_properties(s_report_json, sizeof(s_report_json));
-    if (ret != SW_OK) {
+    if (ret == SW_OK) {
+        return send_json(s_report_json);
+    }
+    if (ret != SW_ERR_OVERFLOW) {
         LOG_ERROR("snack_cloud: properties build failed");
         return ret;
     }
-
-    return send_json(s_report_json);
+    return cloud_json_publish_snapshot(true);
 }
 
 static sw_err_t adapter_publish_properties_delta(const char *const *ids, size_t count)
@@ -182,12 +184,14 @@ static sw_err_t adapter_publish_properties_delta(const char *const *ids, size_t 
     }
 
     ret = cloud_json_build_properties_delta(ids, count, s_report_json, sizeof(s_report_json));
-    if (ret != SW_OK) {
+    if (ret == SW_OK) {
+        return send_json(s_report_json);
+    }
+    if (ret != SW_ERR_OVERFLOW) {
         LOG_ERROR("snack_cloud: delta build failed");
         return ret;
     }
-
-    return send_json(s_report_json);
+    return cloud_json_publish_delta(ids, count);
 }
 
 static sw_err_t adapter_publish_properties_json(const char *json)

@@ -82,6 +82,54 @@ sw_err_t cloud_json_build_properties_all(char *buf, size_t buf_size);
 sw_err_t cloud_json_build_properties_delta(const char *const *ids, size_t count, char *buf, size_t buf_size);
 
 /**
+ * @brief  属性分包回调
+ * @param  json 单包合法对象，长度小于 CLOUD_REPORT_JSON_MAX
+ * @param  ctx  调用方上下文
+ * @return 回调返回值；非 SW_OK 时停止后续分包
+ */
+typedef sw_err_t (*cloud_json_chunk_fn_t)(const char *json, void *ctx);
+
+/**
+ * @brief  按单包上限把指定 id 拆成多段合法 JSON 并逐包回调
+ * @param  ids   点位标识列表
+ * @param  count 列表长度
+ * @param  fn    每包回调，不得为 NULL
+ * @param  ctx   透传给回调
+ * @retval SW_OK        全部处理完（被跳过的超长单点视为已处理）
+ * @retval SW_ERR_PARAM 参数无效
+ * @note   按点位贪心装箱，每包都是完整 JSON 对象。单点本身超过上限则跳过并告警。
+ */
+sw_err_t cloud_json_visit_ids(const char *const *ids, size_t count, cloud_json_chunk_fn_t fn, void *ctx);
+
+/**
+ * @brief  按单包上限遍历快照
+ * @param  apply_filter true 走白名单；false 忽略白名单
+ * @param  fn           每包回调，不得为 NULL
+ * @param  ctx          透传给回调
+ * @retval SW_OK           遍历完成；无合格点时直接成功
+ * @retval SW_ERR_NOT_INIT 物模型尚未注册
+ */
+sw_err_t cloud_json_visit_snapshot(bool apply_filter, cloud_json_chunk_fn_t fn, void *ctx);
+
+/**
+ * @brief  全量快照分包上报
+ * @param  apply_filter true 走白名单；false 忽略白名单
+ * @retval SW_OK           各包均已交给链路；无合格点或空对象不发
+ * @retval SW_ERR_NOT_INIT 物模型尚未注册
+ * @note   须在链路已注册且具备 publish_properties_json 时才会上行。
+ */
+sw_err_t cloud_json_publish_snapshot(bool apply_filter);
+
+/**
+ * @brief  指定 id 分包上报（受白名单过滤）
+ * @param  ids   点位标识列表
+ * @param  count 列表长度
+ * @retval SW_OK        各包均已交给链路；过滤后为空不发
+ * @retval SW_ERR_PARAM 参数无效
+ */
+sw_err_t cloud_json_publish_delta(const char *const *ids, size_t count);
+
+/**
  * @brief  应用属性下发 JSON（供测试或入站适配器直连使用）
  * @param  result 应用结果输出，可为 NULL
  */

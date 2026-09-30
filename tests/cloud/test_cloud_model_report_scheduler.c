@@ -27,6 +27,9 @@ static unsigned             s_delta_reports;
 static unsigned             s_json_reports;
 static char                 s_last_delta_id[32];
 static char                 s_last_echo[64];
+enum { TEST_CHUNK_LOG_MAX = 8 };
+static char                 s_chunk_log[TEST_CHUNK_LOG_MAX][CLOUD_REPORT_JSON_MAX];
+static unsigned             s_chunk_log_count;
 static cloud_link_recv_fn_t s_recv;
 
 static sw_err_t get_counter(point_value_t *out)
@@ -77,6 +80,10 @@ static sw_err_t stub_publish_json(const char *json)
     }
     s_json_reports++;
     (void)snprintf(s_last_echo, sizeof(s_last_echo), "%s", json);
+    if (s_chunk_log_count < (unsigned)TEST_CHUNK_LOG_MAX) {
+        (void)snprintf(s_chunk_log[s_chunk_log_count], sizeof(s_chunk_log[0]), "%s", json);
+        s_chunk_log_count++;
+    }
     return SW_OK;
 }
 
@@ -185,6 +192,7 @@ void setUp(void)
     s_full_reports     = 0U;
     s_delta_reports    = 0U;
     s_json_reports     = 0U;
+    s_chunk_log_count  = 0U;
     s_last_delta_id[0] = '\0';
     s_last_echo[0]     = '\0';
     s_recv             = NULL;
@@ -329,6 +337,45 @@ static void test_report_allow_filters_snapshot_and_delta(void)
     TEST_ASSERT_NOT_NULL(strstr(buf, "\"enabled\":0"));
 }
 
+#define TEST_BLOB_COUNT 12U
+
+static char                s_blob_ids[TEST_BLOB_COUNT][8];
+static char                s_blob_text[200];
+static cloud_point_entry_t s_blob_entries[TEST_BLOB_COUNT];
+
+static sw_err_t get_blob(point_value_t *out)
+{
+    (void)snprintf(out->s, sizeof(out->s), "%s", s_blob_text);
+    return SW_OK;
+}
+
+static void test_publish_snapshot_splits_oversize(void)
+{
+    unsigned i;
+
+    (void)memset(s_blob_text, 'A', sizeof(s_blob_text) - 1U);
+    s_blob_text[sizeof(s_blob_text) - 1U] = '\0';
+    for (i = 0U; i < TEST_BLOB_COUNT; i++) {
+        (void)snprintf(s_blob_ids[i], sizeof(s_blob_ids[i]), "b%02u", i);
+        (void)memset(&s_blob_entries[i], 0, sizeof(s_blob_entries[i]));
+        s_blob_entries[i].base.id   = s_blob_ids[i];
+        s_blob_entries[i].base.type = POINT_TYPE_STRING;
+        s_blob_entries[i].base.get  = get_blob;
+        s_blob_entries[i].kind      = CLOUD_KIND_TELEMETRY;
+        s_blob_entries[i].report    = CLOUD_REPORT_ON_CHANGE;
+    }
+
+    cloud_link_register(&s_link_ops);
+    TEST_ASSERT_EQUAL_INT(SW_OK, cloud_model_register(s_blob_entries, TEST_BLOB_COUNT));
+    TEST_ASSERT_EQUAL_INT(SW_OK, cloud_json_publish_snapshot(false));
+    TEST_ASSERT_TRUE(s_json_reports >= 2U);
+    TEST_ASSERT_TRUE(s_chunk_log_count >= 2U);
+    for (i = 0U; i < s_chunk_log_count; i++) {
+        TEST_ASSERT_TRUE(strlen(s_chunk_log[i]) < CLOUD_REPORT_JSON_MAX);
+        TEST_ASSERT_EQUAL_CHAR('{', s_chunk_log[i][0]);
+    }
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -339,6 +386,7 @@ int main(void)
     WDF_RUN_TEST(test_downlink_pulse_idle_waits_hold, "", "验证脉冲空闲 0 在保持窗后再上报");
     WDF_RUN_TEST(test_downlink_reject_publishes_current, "", "验证下行失败立刻上报当前真实值");
     WDF_RUN_TEST(test_report_allow_filters_snapshot_and_delta, "", "验证属性上行允许函数过滤快照与增量");
+    WDF_RUN_TEST(test_publish_snapshot_splits_oversize, "", "验证超长快照按点位拆成多包");
 
     return UNITY_END();
 }

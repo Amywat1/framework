@@ -19,8 +19,8 @@
 extern "C" {
 #endif
 
-/** 上报 JSON 缓冲上限（provider 适配器使用） */
-#define CLOUD_REPORT_JSON_MAX 4096U
+/** 单包属性 JSON 上限（字节）；超长按点位拆成多包上报 */
+#define CLOUD_REPORT_JSON_MAX 2048U
 /** 点位表条目上限；同时是 watcher shadow / 脏集合长度 */
 #define CLOUD_POINT_TABLE_MAX 96U
 
