@@ -695,6 +695,7 @@ add_unit_test(test_json_param_store
     ${WDF_ROOT}/runtime/ports/port_registry_infra.c
     ${WDF_ROOT}/common/log.c
     ${WDF_ROOT}/common/sw_mutex.c
+    ${WDF_ROOT}/common/util_crc.c
     ${WDF_ROOT}/third_party/cJSON/cJSON.c
 )
 target_compile_definitions(test_json_param_store PRIVATE
@@ -767,6 +768,7 @@ add_unit_test(test_param_kv
     ${WDF_ROOT}/runtime/ports/port_registry_infra.c
     ${WDF_ROOT}/common/log.c
     ${WDF_ROOT}/common/sw_mutex.c
+    ${WDF_ROOT}/common/util_crc.c
     ${WDF_ROOT}/third_party/cJSON/cJSON.c
 )
 target_compile_definitions(test_param_kv PRIVATE

@@ -22,6 +22,21 @@ static const param_store_ops_t *store(void)
     return param_store_get_ops();
 }
 
+static void remove_store_files(void)
+{
+    char path[512];
+
+    (void)remove(PARAM_STORE_JSON_FILE_PATH);
+    (void)snprintf(path, sizeof(path), "%s.a", PARAM_STORE_JSON_FILE_PATH);
+    (void)remove(path);
+    (void)snprintf(path, sizeof(path), "%s.b", PARAM_STORE_JSON_FILE_PATH);
+    (void)remove(path);
+    (void)snprintf(path, sizeof(path), "%s.a.tmp", PARAM_STORE_JSON_FILE_PATH);
+    (void)remove(path);
+    (void)snprintf(path, sizeof(path), "%s.b.tmp", PARAM_STORE_JSON_FILE_PATH);
+    (void)remove(path);
+}
+
 static void write_json_file(const char *content)
 {
     FILE *fp = fopen(PARAM_STORE_JSON_FILE_PATH, "w");
@@ -32,20 +47,39 @@ static void write_json_file(const char *content)
     fclose(fp);
 }
 
-static void remove_json_file(void)
+static void slot_path(char *buf, size_t buf_size, char slot)
 {
-    (void)remove(PARAM_STORE_JSON_FILE_PATH);
+    (void)snprintf(buf, buf_size, "%s.%c", PARAM_STORE_JSON_FILE_PATH, slot);
+}
+
+static void corrupt_file_last_byte(const char *path)
+{
+    FILE *fp;
+    long  len;
+    int   ch;
+
+    fp = fopen(path, "rb+");
+    TEST_ASSERT_NOT_NULL(fp);
+    TEST_ASSERT_EQUAL_INT(0, fseek(fp, 0L, SEEK_END));
+    len = ftell(fp);
+    TEST_ASSERT_TRUE(len > 0L);
+    TEST_ASSERT_EQUAL_INT(0, fseek(fp, -1L, SEEK_END));
+    ch = fgetc(fp);
+    TEST_ASSERT_TRUE(ch != EOF);
+    TEST_ASSERT_EQUAL_INT(0, fseek(fp, -1L, SEEK_END));
+    TEST_ASSERT_TRUE(fputc(ch ^ 0xFF, fp) != EOF);
+    fclose(fp);
 }
 
 void setUp(void)
 {
-    remove_json_file();
+    remove_store_files();
     json_param_store_register();
 }
 
 void tearDown(void)
 {
-    remove_json_file();
+    remove_store_files();
 }
 
 static void test_load_file_not_found(void)
@@ -160,11 +194,50 @@ static void test_get_truncates_long_string(void)
 
 static void test_save_empty_json_object(void)
 {
-    /* load 失败时会创建空对象，save 应写出带换行的 JSON */
+    /* 无文件的首次 save 允许写出空对象，形成第一代可信映像 */
     TEST_ASSERT_EQUAL_INT(SW_ERR_STORAGE, store()->load());
     TEST_ASSERT_EQUAL_INT(SW_OK, store()->save());
 
     TEST_ASSERT_EQUAL_INT(SW_OK, store()->load());
+}
+
+static void test_save_refused_when_existing_files_untrusted(void)
+{
+    write_json_file("{ invalid json");
+    TEST_ASSERT_EQUAL_INT(SW_ERR_STORAGE, store()->load());
+    TEST_ASSERT_EQUAL_INT(SW_OK, store()->set("mode", "auto"));
+    TEST_ASSERT_EQUAL_INT(SW_ERR_STATE, store()->save());
+}
+
+static void test_load_falls_back_to_older_slot(void)
+{
+    char buf[32];
+    char path_b[512];
+
+    TEST_ASSERT_EQUAL_INT(SW_ERR_STORAGE, store()->load());
+    TEST_ASSERT_EQUAL_INT(SW_OK, store()->set("mode", "v1"));
+    TEST_ASSERT_EQUAL_INT(SW_OK, store()->save());
+    TEST_ASSERT_EQUAL_INT(SW_OK, store()->set("mode", "v2"));
+    TEST_ASSERT_EQUAL_INT(SW_OK, store()->save());
+
+    slot_path(path_b, sizeof(path_b), 'b');
+    corrupt_file_last_byte(path_b);
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, store()->load());
+    TEST_ASSERT_EQUAL_INT(SW_OK, store()->get("mode", buf, sizeof(buf)));
+    TEST_ASSERT_EQUAL_STRING("v1", buf);
+}
+
+static void test_legacy_file_removed_after_slot_save(void)
+{
+    FILE *fp;
+
+    write_json_file("{\"mode\":\"legacy\"}");
+    TEST_ASSERT_EQUAL_INT(SW_OK, store()->load());
+    TEST_ASSERT_EQUAL_INT(SW_OK, store()->save());
+
+    fp = fopen(PARAM_STORE_JSON_FILE_PATH, "r");
+    TEST_ASSERT_NULL(fp);
 }
 
 int main(void)
@@ -182,7 +255,10 @@ int main(void)
     WDF_RUN_TEST(test_set_update_number_key, "", "验证设置更新数值键");
     WDF_RUN_TEST(test_set_null_args, "", "验证设置空指针参数");
     WDF_RUN_TEST(test_save_and_reload, "", "验证保存并重新加载");
-    WDF_RUN_TEST(test_save_empty_json_object, "", "验证保存空JSON对象");
+    WDF_RUN_TEST(test_save_empty_json_object, "", "验证无文件时允许首次保存空对象");
+    WDF_RUN_TEST(test_save_refused_when_existing_files_untrusted, "", "验证损坏文件时拒绝用空树覆盖");
+    WDF_RUN_TEST(test_load_falls_back_to_older_slot, "", "验证新槽损坏时回退到旧槽");
+    WDF_RUN_TEST(test_legacy_file_removed_after_slot_save, "", "验证导入旧文件后save删除明文JSON");
     WDF_RUN_TEST(test_get_truncates_long_string, "", "验证读取长字符串时按缓冲区长度截断");
 
     return UNITY_END();

@@ -1,8 +1,8 @@
 # Storage 端口与方案资产模块设计
 
-**版本**：v1.0  
+**版本**：v1.1  
 **状态**：已落地（param_store + deploy_store + engine_program_loader + JSON 适配器 + manifest 校验）  
-**最后同步代码**：2026-07-14（`domain/ports/outbound/storage`、`adapters/outbound/storage/json`、`engine_program_manifest`）  
+**最后同步代码**：2026-09-30（`json_param_store` 双槽原子落盘）  
 **适用范围**：`domain/ports/outbound/storage/`、`adapters/outbound/storage/json/`、项目方案加载流程  
 **架构基线**：Ports & Adapters + 存储类型分离 + 方案资产完整性校验  
 **关键词**：param_store、deploy_store、engine_program_loader、engine_program_json、manifest、SHA256
@@ -116,16 +116,27 @@ typedef struct {
 
 | API | 行为 |
 |-----|------|
-| `load()` | 释放旧树，创建空对象，再读取 `PARAM_STORE_JSON_FILE_PATH` |
-| `save()` | 序列化当前内存树并写回文件 |
+| `load()` | 释放旧树，创建空对象；优先读 `path.a` / `path.b` 中 CRC 合法且世代号更大的槽，都无效时再尝试导入明文 `path` |
+| `save()` | 序列化当前内存树，写入未激活槽（临时文件 + `fsync` + `rename` + 目录 `fsync`）。无可信映像且磁盘上已有文件时拒绝保存 |
 | `get()` | 支持顶层 String / Number，统一以字符串返回 |
 | `set()` | 已存在 Number 则 `atof` 更新；否则写 String；不自动 save |
 
-文件不存在、空文件或 JSON 非法返回 `SW_ERR_STORAGE`。`bootstrap` 中 `param_kv_init()` 返回 `SW_ERR_STORAGE` 时允许继续，由业务默认值兜底。
+文件不存在返回 `SW_ERR_STORAGE`。槽与明文均非法同样返回 `SW_ERR_STORAGE`，且后续 `save()` 不得用内存空树覆盖已有文件。`bootstrap` 中 `param_kv_init()` 返回 `SW_ERR_STORAGE` 时允许继续，由业务默认值兜底。
 
 ### 4.2 JSON 文件形态
 
-文件为扁平 JSON 对象，键为参数名，值为字符串或数值：
+权威落盘是 `path.a` / `path.b` 两个槽，不是就地覆盖 `path`。每个槽为二进制信封 + UTF-8 JSON payload：
+
+| 偏移 | 长度 | 字段 |
+|------|------|------|
+| 0 | 4 | magic：`M8PR` |
+| 4 | 4 | 小端格式版本，当前为 `1` |
+| 8 | 4 | 小端世代号，从 1 递增 |
+| 12 | 4 | 小端 payload 长度 |
+| 16 | 4 | payload 的 CRC-32（IEEE 802.3） |
+| 20 | n | 扁平 JSON 对象 |
+
+JSON payload 形态：
 
 ```json
 {
@@ -138,16 +149,21 @@ typedef struct {
 - 不支持嵌套对象作为 KV 值。
 - 数组、布尔等类型在 `get()` 时视为键不存在，返回 `SW_ERR_PARAM`。
 - 新增键统一以 cJSON String 写入。
+- 配置的 `path`（例如 `params.json`）仅用于导入旧明文文件；成功从槽加载或首次槽保存后删除该明文文件。
+- 只写当前未激活槽，激活槽不被打开截断。磁盘满或写失败时上一份有效映像仍在。
 
 ### 4.3 API 行为细节
 
 | API | 条件 | 行为 / 返回 |
 |-----|------|-------------|
-| `load()` | 文件不存在 | 内存保留空对象，返回 `SW_ERR_STORAGE` |
-| `load()` | JSON 合法 | 解析替换 `s_root`，返回 `SW_OK` |
-| `load()` | JSON 非法或空文件 | 内存保留空对象，返回 `SW_ERR_STORAGE` |
+| `load()` | 槽与明文均不存在 | 内存保留空对象，返回 `SW_ERR_STORAGE` |
+| `load()` | 至少一槽合法 | 取世代号最大者替换 `s_root`，返回 `SW_OK` |
+| `load()` | 槽均非法，明文 JSON 合法 | 导入明文对象，返回 `SW_OK`；下次 `save()` 写入槽 |
+| `load()` | 文件存在但映像均非法 | 内存保留空对象，返回 `SW_ERR_STORAGE`；此后 `save()` 拒绝覆盖 |
 | `save()` | `s_root == NULL` | 返回 `SW_ERR_STORAGE` |
-| `save()` | 文件不可写 | 打 ERROR 日志，返回 `SW_ERR_STORAGE` |
+| `save()` | 无可信映像且磁盘上已有文件 | 返回 `SW_ERR_STATE`，不写槽 |
+| `save()` | 无文件（首次落盘）或已有可信映像 | 写入未激活槽，成功返回 `SW_OK` |
+| `save()` | 槽不可写 / 写不完整 | 打 ERROR 日志，返回 `SW_ERR_STORAGE`；已激活槽保持不变 |
 | `get()` | 参数非法 / 未 load / 键不存在 | 返回 `SW_ERR_PARAM` |
 | `get()` | String | 拷贝字符串到 `buf`，截断并保证 `\0` |
 | `get()` | Number | 用 `snprintf("%g")` 转字符串 |
@@ -309,8 +325,8 @@ bootstrap_load_storage()
 
 | 模块 | 线程安全策略 |
 |------|--------------|
-| `json_param_store.load` | 全程持 mutex，含文件读与树重建 |
-| `json_param_store.save` | 持锁取 JSON 字符串，写文件在锁外进行 |
+| `json_param_store.load` | 全程持 mutex，含槽文件读与树重建 |
+| `json_param_store.save` | 全程持 mutex，含序列化、原子写未激活槽与世代切换 |
 | `json_param_store.get/set` | 持锁访问 `s_root` |
 | `json_deploy_store` | 单 mutex 保护 cJSON 树 |
 | `engine_program_loader_port` | 单例指针，无锁；应在启动期注册 |
@@ -331,8 +347,9 @@ bootstrap_load_storage()
 | 场景 | 错误码 | 日志 |
 |------|--------|------|
 | 参数文件不存在 | `SW_ERR_STORAGE` | WARN |
-| 参数 JSON 解析失败 | `SW_ERR_STORAGE` | 无额外 ERROR |
-| 参数文件不可写 | `SW_ERR_STORAGE` | ERROR |
+| 参数映像均非法（槽 CRC/JSON 失败，明文亦失败） | `SW_ERR_STORAGE` | ERROR |
+| 无可信映像却要覆盖已有文件 | `SW_ERR_STATE` | ERROR |
+| 参数槽写入失败 | `SW_ERR_STORAGE` | ERROR |
 | 参数键不存在 / 参数非法 | `SW_ERR_PARAM` | 无 |
 | 部署文件不存在 | `SW_ERR_STORAGE` | WARN |
 | 部署键不存在 / 参数非法 | `SW_ERR_PARAM` | 无 |

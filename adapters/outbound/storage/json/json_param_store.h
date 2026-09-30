@@ -4,7 +4,7 @@
  * @author  HUWANGWEI
  * @date    2026-04-10
  *
- * @note    实现 param_store_ops_t，底层使用 cJSON + fopen 读写 JSON 文件。
+ * @note    实现 param_store_ops_t，底层为 A/B 双槽（信封 + JSON payload）。
  *          由 wiring.c 调用 json_param_store_register() 注册到 param_store 端口。
  */
 
@@ -31,6 +31,7 @@ void json_param_store_register(void);
  * @retval SW_OK 配置成功。
  * @retval SW_ERR_PARAM 路径为空或长度超过内部缓冲区。
  * @note   未调用本函数时，适配器使用 PARAM_STORE_JSON_FILE_PATH 编译宏作为默认路径。
+ *         实际落盘文件为 path.a / path.b；path 本身仅用于兼容导入旧的明文 JSON。
  */
 sw_err_t json_param_store_configure(const char *path);
 

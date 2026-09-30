@@ -22,20 +22,30 @@ static void write_json_file(const char *content)
     fclose(fp);
 }
 
-static void remove_json_file(void)
+static void remove_store_files(void)
 {
+    char path[512];
+
     (void)remove(PARAM_STORE_JSON_FILE_PATH);
+    (void)snprintf(path, sizeof(path), "%s.a", PARAM_STORE_JSON_FILE_PATH);
+    (void)remove(path);
+    (void)snprintf(path, sizeof(path), "%s.b", PARAM_STORE_JSON_FILE_PATH);
+    (void)remove(path);
+    (void)snprintf(path, sizeof(path), "%s.a.tmp", PARAM_STORE_JSON_FILE_PATH);
+    (void)remove(path);
+    (void)snprintf(path, sizeof(path), "%s.b.tmp", PARAM_STORE_JSON_FILE_PATH);
+    (void)remove(path);
 }
 
 void setUp(void)
 {
-    remove_json_file();
+    remove_store_files();
     json_param_store_register();
 }
 
 void tearDown(void)
 {
-    remove_json_file();
+    remove_store_files();
 }
 
 static void test_init_empty_file_returns_storage_err(void)
