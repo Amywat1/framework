@@ -17,6 +17,12 @@ extern "C" {
 
 #include "domain/ports/outbound/hal/hal_sensor_port.h"
 
+/**
+ * @brief DI 滤波扫描周期（毫秒）。
+ * @note  滤波按连续采样次数确认；把确认时间换算为次数时必须使用本周期。
+ */
+#define HAL_SENSOR_POLL_PERIOD_MS 50U
+
 /** @brief  注册通用 DI 滤波 HAL 实现到 hal_sensor_port */
 void hal_sensor_filter_register(void);
 

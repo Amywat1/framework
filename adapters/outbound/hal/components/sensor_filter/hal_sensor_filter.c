@@ -19,9 +19,8 @@
 #include <pthread.h>
 #include <stddef.h>
 
-#define SENSOR_STABLE_COUNT_MAX   255U
-#define HAL_SENSOR_POLL_PERIOD_MS 30U
-#define HAL_SENSOR_OBSERVER_MAX   4U
+#define SENSOR_STABLE_COUNT_MAX 255U
+#define HAL_SENSOR_OBSERVER_MAX 4U
 
 typedef struct {
     hal_sensor_state_t state;
