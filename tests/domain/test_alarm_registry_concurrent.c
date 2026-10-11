@@ -126,10 +126,10 @@ static void *dispatch_fn(void *arg)
     return NULL;
 }
 
-static void silent_log_sink(sw_log_level_t level, const char *component, const char *fmt, va_list ap)
+static void silent_log_sink(sw_log_level_t level, const char *source, const char *fmt, va_list ap)
 {
     (void)level;
-    (void)component;
+    (void)source;
     (void)fmt;
     (void)ap;
 }

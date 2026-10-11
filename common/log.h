@@ -21,7 +21,8 @@
 extern "C" {
 #endif
 
-#define SW_LOG_COMPONENT_BASE "Base"
+/** 未覆盖时的默认日志来源标识 */
+#define SW_LOG_SOURCE_BASE "Base"
 
 /** 异步日志队列容量（条）；队列满时新日志丢弃并计入 sw_log_dropped_count() */
 #define SW_LOG_SPOOL_CAP 64U
@@ -32,8 +33,9 @@ extern "C" {
 /** 行尾截断标记（含前导空格） */
 #define SW_LOG_TRUNCATED_MARK " ...(truncated)"
 
-#ifndef SW_LOG_COMPONENT
-#define SW_LOG_COMPONENT SW_LOG_COMPONENT_BASE
+/** 当前编译单元的日志来源；项目可在包含本头文件前覆盖 */
+#ifndef SW_LOG_SOURCE
+#define SW_LOG_SOURCE SW_LOG_SOURCE_BASE
 #endif
 
 typedef enum {
@@ -43,7 +45,7 @@ typedef enum {
     SW_LOG_DEBUG,
 } sw_log_level_t;
 
-typedef void (*sw_log_sink_fn_t)(sw_log_level_t level, const char *component, const char *fmt, va_list ap);
+typedef void (*sw_log_sink_fn_t)(sw_log_level_t level, const char *source, const char *fmt, va_list ap);
 
 /**
  * @brief  设置运行期日志级别门限
@@ -78,8 +80,11 @@ void sw_log_register_sink(sw_log_sink_fn_t sink);
  */
 bool sw_log_add_sink(sw_log_sink_fn_t sink);
 
-/** @brief  写一条日志，转发给已注册的 sink 或内置 stderr 输出 */
-void sw_log_write(sw_log_level_t level, const char *component, const char *fmt, ...);
+/**
+ * @brief  写一条日志，转发给已注册的 sink 或内置 stderr 输出
+ * @param  source 日志来源标识，通常为 SW_LOG_SOURCE
+ */
+void sw_log_write(sw_log_level_t level, const char *source, const char *fmt, ...);
 
 /**
  * @brief  按缓冲容量收口一行
@@ -161,18 +166,18 @@ const char *sw_log_source_file_name(const char *source_path);
  * ------------------------------------------------------------------------- */
 #define LOG_ERROR(fmt, ...)                                                                                            \
     sw_log_write(                                                                                                      \
-        SW_LOG_ERROR, SW_LOG_COMPONENT, "[%s:%d] " fmt, sw_log_source_file_name(__FILE__), __LINE__, ##__VA_ARGS__)
+        SW_LOG_ERROR, SW_LOG_SOURCE, "[%s:%d] " fmt, sw_log_source_file_name(__FILE__), __LINE__, ##__VA_ARGS__)
 
 #define LOG_WARN(fmt, ...)                                                                                             \
     sw_log_write(                                                                                                      \
-        SW_LOG_WARN, SW_LOG_COMPONENT, "[%s:%d] " fmt, sw_log_source_file_name(__FILE__), __LINE__, ##__VA_ARGS__)
+        SW_LOG_WARN, SW_LOG_SOURCE, "[%s:%d] " fmt, sw_log_source_file_name(__FILE__), __LINE__, ##__VA_ARGS__)
 
 #define LOG_INFO(fmt, ...)                                                                                             \
     sw_log_write(                                                                                                      \
-        SW_LOG_INFO, SW_LOG_COMPONENT, "[%s:%d] " fmt, sw_log_source_file_name(__FILE__), __LINE__, ##__VA_ARGS__)
+        SW_LOG_INFO, SW_LOG_SOURCE, "[%s:%d] " fmt, sw_log_source_file_name(__FILE__), __LINE__, ##__VA_ARGS__)
 
 #define LOG_DEBUG(fmt, ...)                                                                                            \
     sw_log_write(                                                                                                      \
-        SW_LOG_DEBUG, SW_LOG_COMPONENT, "[%s:%d] " fmt, sw_log_source_file_name(__FILE__), __LINE__, ##__VA_ARGS__)
+        SW_LOG_DEBUG, SW_LOG_SOURCE, "[%s:%d] " fmt, sw_log_source_file_name(__FILE__), __LINE__, ##__VA_ARGS__)
 
 #endif /* COMMON_LOG_H */

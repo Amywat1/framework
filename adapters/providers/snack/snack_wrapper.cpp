@@ -40,22 +40,22 @@ static void ensure_log_ready(const char *name)
         s_product_log = new mlog(resolved);
     }
     if (s_framework_log == NULL) {
-        s_framework_log = new mlog(SW_LOG_COMPONENT_BASE);
+        s_framework_log = new mlog(SW_LOG_SOURCE_BASE);
     }
 }
 
-static mlog *log_for_component(const char *component)
+static mlog *log_for_source(const char *source)
 {
     ensure_log_ready(NULL);
-    if ((component != NULL) && (std::strcmp(component, SW_LOG_COMPONENT_BASE) == 0)) {
+    if ((source != NULL) && (std::strcmp(source, SW_LOG_SOURCE_BASE) == 0)) {
         return s_framework_log;
     }
     return s_product_log;
 }
 
-static void snack_log_sink(sw_log_level_t level, const char *component, const char *fmt, va_list ap)
+static void snack_log_sink(sw_log_level_t level, const char *source, const char *fmt, va_list ap)
 {
-    mlog *logger = log_for_component(component);
+    mlog *logger = log_for_source(source);
     char  occurred[24];
     int   head;
     int   body;

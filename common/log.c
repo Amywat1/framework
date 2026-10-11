@@ -41,14 +41,14 @@ static clockid_t       s_spool_cond_clock = CLOCK_REALTIME;
 static pthread_once_t  s_mutex_once       = PTHREAD_ONCE_INIT;
 
 /** 异步排出：被标记线程入队，drain 线程写出，避免 FIFO 路径上 fwrite */
-#define LOG_COMPONENT_MAX      32U
+#define LOG_SOURCE_MAX         32U
 #define LOG_DRAIN_IDLE_WAIT_S  1 /* drain 无新日志时单次等待上限（秒） */
 
 typedef struct {
     sw_log_level_t  level;
     trace_context_t trace; /* 入队线程的 trace 上下文，drain 写 sink 前恢复 */
     struct timespec occurred_at;
-    char            component[LOG_COMPONENT_MAX];
+    char            source[LOG_SOURCE_MAX];
     char            message[SW_LOG_LINE_MAX];
 } log_spool_item_t;
 
@@ -71,7 +71,7 @@ static _Thread_local char             s_sink_line[SW_LOG_LINE_MAX];
 /** drain 单线程复用，避免在 16KB 排出栈上再开一条目 */
 static log_spool_item_t               s_drain_item;
 
-static void default_sink(sw_log_level_t level, const char *component, const char *fmt, va_list ap);
+static void default_sink(sw_log_level_t level, const char *source, const char *fmt, va_list ap);
 
 static void log_mutex_init_once(void)
 {
@@ -135,16 +135,16 @@ static void snapshot_sinks(sw_log_sink_fn_t *sinks, size_t *count)
     log_unlock();
 }
 
-static void invoke_sink(sw_log_sink_fn_t sink, sw_log_level_t level, const char *component, const char *fmt, ...)
+static void invoke_sink(sw_log_sink_fn_t sink, sw_log_level_t level, const char *source, const char *fmt, ...)
 {
     va_list ap;
 
     va_start(ap, fmt);
-    sink(level, component, fmt, ap);
+    sink(level, source, fmt, ap);
     va_end(ap);
 }
 
-static void dispatch_message(sw_log_level_t level, const char *component, const char *message)
+static void dispatch_message(sw_log_level_t level, const char *source, const char *message)
 {
     sw_log_sink_fn_t sinks[SW_LOG_SINK_MAX];
     size_t           count;
@@ -152,32 +152,32 @@ static void dispatch_message(sw_log_level_t level, const char *component, const 
 
     snapshot_sinks(sinks, &count);
     if (count == 0U) {
-        invoke_sink(default_sink, level, component, "%s", message);
+        invoke_sink(default_sink, level, source, "%s", message);
         return;
     }
     for (index = 0U; index < count; index++) {
-        invoke_sink(sinks[index], level, component, "%s", message);
+        invoke_sink(sinks[index], level, source, "%s", message);
     }
 }
 
 /**
  * @brief  带发生时刻调用各 sink；嵌套 LOG_* 时恢复外层时刻
  */
-static void dispatch_recorded(sw_log_level_t level, const char *component, const char *message,
+static void dispatch_recorded(sw_log_level_t level, const char *source, const char *message,
                               struct timespec occurred_at)
 {
     log_time_scope_t saved = s_occurred;
 
     s_occurred.occurred_at = occurred_at;
     s_occurred.valid       = true;
-    dispatch_message(level, component, message);
+    dispatch_message(level, source, message);
     s_occurred = saved;
 }
 
 /**
  * @brief  直接格式化进队列槽，FIFO 线程栈上不落整行缓冲
  */
-static bool spool_push_vformat(sw_log_level_t level, const char *component, const char *fmt, va_list ap,
+static bool spool_push_vformat(sw_log_level_t level, const char *source, const char *fmt, va_list ap,
                                struct timespec occurred_at)
 {
     log_spool_item_t *item;
@@ -192,9 +192,9 @@ static bool spool_push_vformat(sw_log_level_t level, const char *component, cons
     item->level       = level;
     item->trace       = trace_context_get();
     item->occurred_at = occurred_at;
-    (void)memset(item->component, 0, sizeof(item->component));
-    if (component != NULL) {
-        (void)strncpy(item->component, component, sizeof(item->component) - 1U);
+    (void)memset(item->source, 0, sizeof(item->source));
+    if (source != NULL) {
+        (void)strncpy(item->source, source, sizeof(item->source) - 1U);
     }
     written = vsnprintf(item->message, sizeof(item->message), fmt, ap);
     if (written < 0) {
@@ -282,20 +282,20 @@ size_t sw_log_clip_line(char *line, size_t cap, int written)
  * 原实现用 fprintf + vfprintf + fputc 三次独立 stdio 调用，
  * 多线程并发时同一行的内容会被其他线程的输出插入其中。
  */
-static void default_sink(sw_log_level_t level, const char *component, const char *fmt, va_list ap)
+static void default_sink(sw_log_level_t level, const char *source, const char *fmt, va_list ap)
 {
     int    head;
     int    written;
     size_t used;
 
-    if (component == NULL) {
-        component = "-";
+    if (source == NULL) {
+        source = "-";
     }
     if (fmt == NULL) {
         return;
     }
 
-    head = snprintf(s_sink_line, sizeof(s_sink_line), "[%s] [%s] ", level_tag(level), component);
+    head = snprintf(s_sink_line, sizeof(s_sink_line), "[%s] [%s] ", level_tag(level), source);
     if (head < 0) {
         return;
     }
@@ -440,12 +440,12 @@ void *sw_log_drain_thread_fn(void *arg)
             continue;
         }
         trace_context_set(&s_drain_item.trace);
-        dispatch_recorded(s_drain_item.level, s_drain_item.component, s_drain_item.message, s_drain_item.occurred_at);
+        dispatch_recorded(s_drain_item.level, s_drain_item.source, s_drain_item.message, s_drain_item.occurred_at);
         trace_context_set(NULL);
     }
 }
 
-void sw_log_write(sw_log_level_t level, const char *component, const char *fmt, ...)
+void sw_log_write(sw_log_level_t level, const char *source, const char *fmt, ...)
 {
     va_list         ap;
     int             written;
@@ -468,7 +468,7 @@ void sw_log_write(sw_log_level_t level, const char *component, const char *fmt, 
 
     va_start(ap, fmt);
     if (s_thread_async && atomic_load(&s_async_enabled)) {
-        if (!spool_push_vformat(level, component, fmt, ap, occurred_at)) {
+        if (!spool_push_vformat(level, source, fmt, ap, occurred_at)) {
             (void)atomic_fetch_add(&s_spool_dropped, 1U);
         }
         va_end(ap);
@@ -480,7 +480,7 @@ void sw_log_write(sw_log_level_t level, const char *component, const char *fmt, 
         return;
     }
     (void)sw_log_clip_line(s_write_line, sizeof(s_write_line), written);
-    dispatch_recorded(level, component, s_write_line, occurred_at);
+    dispatch_recorded(level, source, s_write_line, occurred_at);
 }
 
 const char *sw_log_source_file_name(const char *source_path)

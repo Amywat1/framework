@@ -60,12 +60,12 @@ void tearDown(void)
 }
 
 /** 只记录与期望文本一致的那条，忽略队列里残留的其它日志 */
-static void probe_sink(sw_log_level_t level, const char *component, const char *fmt, va_list ap)
+static void probe_sink(sw_log_level_t level, const char *source, const char *fmt, va_list ap)
 {
     char msg[LOG_ASYNC_MSG_MAX];
 
     (void)level;
-    (void)component;
+    (void)source;
     (void)vsnprintf(msg, sizeof(msg), fmt, ap);
 
     (void)pthread_mutex_lock(&s_seen_lock);

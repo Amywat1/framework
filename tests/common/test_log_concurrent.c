@@ -171,10 +171,10 @@ static void test_concurrent_default_sink_keeps_lines_intact(void)
     TEST_ASSERT_EQUAL_UINT((unsigned)(LOG_CONC_THREADS * LOG_CONC_MSGS), complete);
 }
 
-static void reentrant_sink(sw_log_level_t level, const char *component, const char *fmt, va_list ap)
+static void reentrant_sink(sw_log_level_t level, const char *source, const char *fmt, va_list ap)
 {
     (void)level;
-    (void)component;
+    (void)source;
     (void)fmt;
     (void)ap;
 

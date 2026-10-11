@@ -17,19 +17,19 @@ static char            s_captured[LOG_CAPTURE_LEN];
 static bool            s_seen_occurred;
 static struct timespec s_sink_occurred;
 
-static void counting_sink(sw_log_level_t level, const char *component, const char *fmt, va_list ap)
+static void counting_sink(sw_log_level_t level, const char *source, const char *fmt, va_list ap)
 {
-    (void)component;
+    (void)source;
     (void)fmt;
     (void)ap;
     s_sink_calls++;
     s_sink_last_level = level;
 }
 
-static void capture_sink(sw_log_level_t level, const char *component, const char *fmt, va_list ap)
+static void capture_sink(sw_log_level_t level, const char *source, const char *fmt, va_list ap)
 {
     (void)level;
-    (void)component;
+    (void)source;
     (void)vsnprintf(s_captured, sizeof(s_captured), fmt, ap);
     s_sink_calls++;
 }
@@ -39,10 +39,10 @@ static uint64_t timespec_to_ms(const struct timespec *ts)
     return (uint64_t)ts->tv_sec * 1000ULL + (uint64_t)ts->tv_nsec / 1000000ULL;
 }
 
-static void occurred_sink(sw_log_level_t level, const char *component, const char *fmt, va_list ap)
+static void occurred_sink(sw_log_level_t level, const char *source, const char *fmt, va_list ap)
 {
     (void)level;
-    (void)component;
+    (void)source;
     (void)fmt;
     (void)ap;
     s_seen_occurred = sw_log_occurred_at(&s_sink_occurred);
