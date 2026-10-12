@@ -24,6 +24,11 @@
 /* Linux 线程名上限 16 字节（含结尾 '\0'）*/
 #define SCHED_OS_THREAD_NAME_MAX 16
 
+/* 仿真、单元测试和本机 demo 默认允许降级；真机目标应定义为 0。 */
+#ifndef WDF_ALLOW_SCHED_FIFO_FALLBACK
+#define WDF_ALLOW_SCHED_FIFO_FALLBACK 1
+#endif
+
 sw_err_t scheduler_start_all(void)
 {
     int count = thread_registry_count();
@@ -52,6 +57,11 @@ sw_err_t scheduler_start_all(void)
 
         if (pthread_create(&tid, &attr, e->fn, e->arg) != 0) {
             if (e->sched_policy == SCHED_FIFO) {
+                if (WDF_ALLOW_SCHED_FIFO_FALLBACK == 0) {
+                    LOG_ERROR("scheduler: SCHED_FIFO create failed for [%s], realtime required", e->name);
+                    pthread_attr_destroy(&attr);
+                    return SW_ERR_HW;
+                }
                 LOG_WARN("scheduler: SCHED_FIFO create failed for [%s], fallback SCHED_OTHER", e->name);
                 pthread_attr_destroy(&attr);
                 pthread_attr_init(&attr);

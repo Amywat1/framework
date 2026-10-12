@@ -259,7 +259,7 @@ Demo 实现位于 `demo/wiring/project_hooks_sim.c`：只有 `configure_storage`
 |------|------|
 | 栈大小 | `stack_size > 0` 时调用 `pthread_attr_setstacksize()` |
 | `SCHED_OTHER` | 普通线程，`prio` 固定传 0 |
-| `SCHED_FIFO` | 设置显式调度与优先级；创建失败时降级重试 `SCHED_OTHER` |
+| `SCHED_FIFO` | 设置显式调度与优先级。默认创建失败时降级 `SCHED_OTHER`；真机定义 `WDF_ALLOW_SCHED_FIFO_FALLBACK=0` 时直接返回 `SW_ERR_HW` |
 | detach | 成功创建后立即 `pthread_detach()` |
 | 失败 | 任一线程创建失败返回 `SW_ERR_HW` |
 
@@ -358,7 +358,7 @@ periodic_task_thread_fn(slot)
 | `THD_SAFETY_THREAD_STACK` | 8 KiB |
 | `THD_SAFETY_THREAD_PRIO` | 90 |
 | `THD_SAFETY_THREAD_POLL_US` | 5000 us |
-| 调度策略 | `SCHED_FIFO`，创建失败由 scheduler 降级 `SCHED_OTHER` |
+| 调度策略 | `SCHED_FIFO`；仿真可降级，真机禁止降级 |
 
 运行逻辑：
 
@@ -430,7 +430,7 @@ IO 子板 provider 的后台线程由 `io_exp_driver` 自行管理，不走 core
 | `param_kv_init()` 返回 `SW_ERR_STORAGE` | 允许继续，由业务默认值兜底 |
 | `deploy_store.load()` 返回 `SW_ERR_STORAGE` | 允许继续，provider 可在后续初始化中处理缺省配置 |
 | 线程注册表满 | 返回 `SW_ERR_OVERFLOW`，启动中止 |
-| `SCHED_FIFO` 创建失败 | 降级 `SCHED_OTHER` 重试 |
+| `SCHED_FIFO` 创建失败 | 默认降级 `SCHED_OTHER`；真机禁止降级，返回 `SW_ERR_HW` |
 | 普通线程创建失败 | 返回 `SW_ERR_HW`，启动中止 |
 | event bus fatal | 安全输出兜底后 abort |
 | 控制环心跳超时 | 切断（不 hold）+ 安全输出兜底后 abort |

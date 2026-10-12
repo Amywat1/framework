@@ -49,11 +49,13 @@ typedef enum {
 
 /**
  * @brief  校验声明的必需端口是否均已注册
- * @param  required  PORT_REQ_* 按位或；传 0 表示无必需端口，直接返回 SW_OK
+ * @param  required  PORT_REQ_* 按位或；传 0 表示不检查，直接返回 SW_OK
  * @retval SW_OK           全部已注册
  * @retval SW_ERR_NOT_INIT 存在未注册端口，缺失项已逐条记入 ERROR 日志
  *
  * @note   建议在 project_validate() 中调用，使缺失注册在启动期即失败。
+ *         接入项目不得传 0：传 0 只留给测试。生产接线至少应声明
+ *         `PORT_REQ_SAFETY`；存储、设备操作按项目实际能力追加。
  *         除 `PORT_REQ_CLOUD_LINK`（检查 is_online / publish_properties /
  *         set_recv_handler）外，不校验 ops 内部字段完备性——那由各
  *         *_register() 在注册时按端口自身的必填约定拒绝。
