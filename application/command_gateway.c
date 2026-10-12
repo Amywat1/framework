@@ -81,6 +81,20 @@ static dev_cmd_status_t status_from_effect(sw_err_t effect_err, op_cmd_result_t 
     return DEV_CMD_STATUS_ACCEPTED;
 }
 
+static void fill_receipt(dev_cmd_receipt_t *receipt,
+                         dev_cmd_status_t   status,
+                         sw_err_t           effect_error,
+                         uint64_t           request_id)
+{
+    if (receipt == NULL) {
+        return;
+    }
+    receipt->status        = status;
+    receipt->reject_reason = OP_REJECT_NONE;
+    receipt->effect_error  = effect_error;
+    receipt->request_id    = request_id;
+}
+
 static sw_err_t receipt_to_sw_err(const dev_cmd_receipt_t *receipt)
 {
     if (receipt == NULL) {
@@ -297,34 +311,19 @@ static sw_err_t gateway_submit_sync(const dev_cmd_t *cmd, dev_cmd_receipt_t *rec
     if (s_drain_thread_known && pthread_equal(pthread_self(), s_drain_thread)) {
         pthread_mutex_unlock(&s_q_mutex);
         LOG_ERROR("command_gateway: submit_sync 不可在 cmd_control 线程内调用（会自锁至超时）");
-        if (receipt != NULL) {
-            receipt->status        = DEV_CMD_STATUS_FAILED;
-            receipt->reject_reason = OP_REJECT_NONE;
-            receipt->effect_error  = SW_ERR_STATE;
-            receipt->request_id    = cmd->meta.request_id;
-        }
+        fill_receipt(receipt, DEV_CMD_STATUS_FAILED, SW_ERR_STATE, cmd->meta.request_id);
         return SW_ERR_STATE;
     }
     pthread_mutex_unlock(&s_q_mutex);
 
     ret = enqueue_command(cmd, true, &request_id, &slot, &my_generation);
     if (ret != SW_OK) {
-        if (receipt != NULL) {
-            receipt->status        = DEV_CMD_STATUS_BUSY;
-            receipt->reject_reason = OP_REJECT_NONE;
-            receipt->effect_error  = SW_ERR_BUSY;
-            receipt->request_id    = request_id;
-        }
+        fill_receipt(receipt, DEV_CMD_STATUS_BUSY, SW_ERR_BUSY, request_id);
         return ret;
     }
 
     if (slot == NULL) {
-        if (receipt != NULL) {
-            receipt->status        = DEV_CMD_STATUS_BUSY;
-            receipt->reject_reason = OP_REJECT_NONE;
-            receipt->effect_error  = SW_ERR_BUSY;
-            receipt->request_id    = request_id;
-        }
+        fill_receipt(receipt, DEV_CMD_STATUS_BUSY, SW_ERR_BUSY, request_id);
         return SW_ERR_BUSY;
     }
 
@@ -337,24 +336,14 @@ static sw_err_t gateway_submit_sync(const dev_cmd_t *cmd, dev_cmd_receipt_t *rec
 
     if (sem_ret != 0) {
         release_slot_if_current(slot, my_generation);
-        if (receipt != NULL) {
-            receipt->status        = DEV_CMD_STATUS_TIMEOUT;
-            receipt->reject_reason = OP_REJECT_NONE;
-            receipt->effect_error  = SW_ERR_TIMEOUT;
-            receipt->request_id    = request_id;
-        }
+        fill_receipt(receipt, DEV_CMD_STATUS_TIMEOUT, SW_ERR_TIMEOUT, request_id);
         return SW_ERR_TIMEOUT;
     }
 
     pthread_mutex_lock(&s_q_mutex);
     if (!slot->used || (slot->generation != my_generation)) {
         pthread_mutex_unlock(&s_q_mutex);
-        if (receipt != NULL) {
-            receipt->status        = DEV_CMD_STATUS_TIMEOUT;
-            receipt->reject_reason = OP_REJECT_NONE;
-            receipt->effect_error  = SW_ERR_TIMEOUT;
-            receipt->request_id    = request_id;
-        }
+        fill_receipt(receipt, DEV_CMD_STATUS_TIMEOUT, SW_ERR_TIMEOUT, request_id);
         return SW_ERR_TIMEOUT;
     }
 

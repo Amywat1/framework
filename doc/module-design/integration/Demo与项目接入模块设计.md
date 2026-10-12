@@ -56,7 +56,6 @@ Demo 是框架自带的最小接入实例，可直接作为新项目 wiring 的�
 | `demo/wiring/project_hooks_sim.c` | 15 个钩子的最小实现 |
 | `demo/wiring/demo_device_ops.c` | 最小 `device_ops_t` |
 | `demo/wiring/demo_alarm_catalog.c` | 最小报警目录 |
-| `demo/config/demo_config.h` | Demo 资产路径与常量 |
 
 ---
 

@@ -74,20 +74,6 @@ static void drop_expired_heads(const machine_profile_t *profile)
     }
 }
 
-static bool order_is_active(uint64_t order_id)
-{
-    job_desc_t job;
-    unsigned   i;
-    unsigned   count = active_jobs_count();
-
-    for (i = 0U; i < count; i++) {
-        if ((active_jobs_get_at(i, &job) == SW_OK) && (job.order_id == order_id)) {
-            return true;
-        }
-    }
-    return false;
-}
-
 /* 调用方须持 s_mu。start_job 在锁内调用：契约要求其只启动异步流程并立即返回。 */
 static sw_err_t admit_locked(void)
 {
@@ -96,8 +82,8 @@ static sw_err_t admit_locked(void)
     job_desc_t          job;
     sw_err_t            ret;
 
-    if (!op_mode_is_service_enabled() || op_mode_is_estop_active() || safety_cutout_is_unconfirmed()
-        || !op_mode_can_admit() || alarm_registry_has_blocking_active()) {
+    /* can_admit 已含总开关、急停与 STANDBY/ACTIVE；切断未确认与 blocking 不在其中。 */
+    if (safety_cutout_is_unconfirmed() || !op_mode_can_admit() || alarm_registry_has_blocking_active()) {
         return SW_OK;
     }
 
@@ -167,7 +153,7 @@ sw_err_t job_admit_submit(const job_desc_t *order)
     }
 
     admit_lock();
-    if ((order->order_id != 0U) && order_is_active(order->order_id)) {
+    if ((order->order_id != 0U) && active_jobs_contains_order(order->order_id)) {
         admit_unlock();
         return SW_OK;
     }

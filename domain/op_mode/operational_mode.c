@@ -282,9 +282,6 @@ static dev_cmd_decision_t check_command(const dev_cmd_t *cmd)
         if (!s_service_enabled) {
             return make_denied(OP_REJECT_SERVICE_DISABLED);
         }
-        if (s_estop_active) {
-            return make_denied(OP_REJECT_ESTOP_ACTIVE);
-        }
         if (safety_cutout_is_unconfirmed()) {
             return make_denied(OP_REJECT_CUTOUT_UNCONFIRMED);
         }
@@ -574,15 +571,19 @@ bool op_mode_is_service_enabled(void)
     return enabled;
 }
 
-bool op_mode_is_stopping(void)
+void op_mode_copy_view(operational_mode_t *mode, bool *service_enabled, bool *estop_active)
 {
-    bool stopping;
-
     op_mode_lock();
-    stopping = (s_mode == OP_MODE_INIT) || (s_mode == OP_MODE_STOPPED) || (s_mode == OP_MODE_RECOVERING)
-               || (s_mode == OP_MODE_CLEARING) || (s_mode == OP_MODE_SELF_CHECK) || !s_service_enabled;
+    if (mode != NULL) {
+        *mode = s_mode;
+    }
+    if (service_enabled != NULL) {
+        *service_enabled = s_service_enabled;
+    }
+    if (estop_active != NULL) {
+        *estop_active = s_estop_active;
+    }
     op_mode_unlock();
-    return stopping;
 }
 
 bool op_mode_is_standby(void)

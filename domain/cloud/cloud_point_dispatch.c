@@ -33,16 +33,6 @@ sw_err_t cloud_point_get_echo_idle(point_value_t *out)
     return SW_OK;
 }
 
-sw_err_t cloud_point_get_echo_zero(point_value_t *out)
-{
-    if (out == NULL) {
-        return SW_ERR_PARAM;
-    }
-
-    out->i = 0;
-    return SW_OK;
-}
-
 /**
  * @brief  按点位表把写入值翻译为设备命令
  */

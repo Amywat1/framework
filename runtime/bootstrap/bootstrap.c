@@ -6,7 +6,6 @@
 #include "runtime/bootstrap/bootstrap.h"
 
 #include "application/bridges/alarm_bridge.h"
-#include "application/bridges/alarm_bridge.h"
 #include "application/bridges/op_mode_bridge.h"
 #include "application/command_gateway.h"
 #include "application/job_admit.h"
@@ -31,7 +30,6 @@
 #include "runtime/scheduler/thread_registry.h"
 #include "domain/ports/outbound/storage/param_kv.h"
 
-#include <pthread.h>
 #include <sched.h>
 #include <stdlib.h>
 
@@ -267,41 +265,26 @@ static sw_err_t bootstrap_run_phase(const char *name, bootstrap_phase_fn_t phase
 
 sw_err_t bootstrap_run(void)
 {
+    static const struct {
+        const char          *name;
+        bootstrap_phase_fn_t fn;
+    } phases[] = {
+        {"register",      bootstrap_register     },
+        {"load_storage",  bootstrap_load_storage },
+        {"configure",     bootstrap_configure    },
+        {"bind",          bootstrap_bind         },
+        {"init_hal",      bootstrap_init_hal     },
+        {"init_services", bootstrap_init_services},
+        {"start",         bootstrap_start        },
+    };
+    unsigned i;
     sw_err_t ret;
 
-    ret = bootstrap_run_phase("register", bootstrap_register);
-    if (ret != SW_OK) {
-        return ret;
-    }
-
-    ret = bootstrap_run_phase("load_storage", bootstrap_load_storage);
-    if (ret != SW_OK) {
-        return ret;
-    }
-
-    ret = bootstrap_run_phase("configure", bootstrap_configure);
-    if (ret != SW_OK) {
-        return ret;
-    }
-
-    ret = bootstrap_run_phase("bind", bootstrap_bind);
-    if (ret != SW_OK) {
-        return ret;
-    }
-
-    ret = bootstrap_run_phase("init_hal", bootstrap_init_hal);
-    if (ret != SW_OK) {
-        return ret;
-    }
-
-    ret = bootstrap_run_phase("init_services", bootstrap_init_services);
-    if (ret != SW_OK) {
-        return ret;
-    }
-
-    ret = bootstrap_run_phase("start", bootstrap_start);
-    if (ret != SW_OK) {
-        return ret;
+    for (i = 0U; i < (sizeof(phases) / sizeof(phases[0])); i++) {
+        ret = bootstrap_run_phase(phases[i].name, phases[i].fn);
+        if (ret != SW_OK) {
+            return ret;
+        }
     }
 
     LOG_INFO("bootstrap: started");

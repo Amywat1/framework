@@ -21,15 +21,6 @@ extern "C" {
  */
 sw_err_t safety_sim_register(void);
 
-/** @brief  cutout 被调用次数（供测试断言安全链路已触发）*/
-unsigned safety_sim_cutout_count(void);
-
-/** @brief  deferred stop 被调用次数 */
-unsigned safety_sim_deferred_stop_count(void);
-
-/** @brief  清零计数器 */
-void safety_sim_reset_counters(void);
-
 #ifdef __cplusplus
 }
 #endif

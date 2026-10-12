@@ -202,12 +202,6 @@ void drv_io_register_panic_cb(void (*cb)(void));
 void drv_io_set_test_override(io_di_t pin, int value);
 
 /**
- * @brief  清除 DI 测试覆盖
- * @param  pin  DI 句柄
- */
-void drv_io_clear_test_override(io_di_t pin);
-
-/**
  * @brief  获取指定子板的 IO 运行时统计
  * @note   返回的是近似快照，仅用于诊断参考，不用于业务判断。
  *         直接填充端口类型 `hal_io_stats_t`，驱动不再维护镜像结构。

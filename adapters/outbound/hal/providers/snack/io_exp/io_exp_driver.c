@@ -1235,22 +1235,6 @@ void drv_io_set_test_override(io_di_t pin, int value)
     }
 }
 
-void drv_io_clear_test_override(io_di_t pin)
-{
-    uint16_t raw      = io_di_raw(pin);
-    int      board_id = (int)io_handle_board(raw);
-    int      pin_id   = (int)io_handle_pin(raw);
-
-    if (!drv_io_is_valid_di_raw(raw)) {
-        return;
-    }
-
-    drv_io_mutexes_ready();
-    pthread_mutex_lock(&s_input_mutex);
-    s_test_enable[board_id][pin_id] = false;
-    pthread_mutex_unlock(&s_input_mutex);
-}
-
 sw_err_t drv_io_get_stats(int board_id, hal_io_stats_t *out)
 {
     if ((board_id <= 0) || (board_id > s_board_count) || (out == NULL)) {

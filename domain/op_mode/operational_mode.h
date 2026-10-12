@@ -129,18 +129,19 @@ bool op_mode_is_estop_active(void);
 bool op_mode_is_service_enabled(void);
 
 /**
+ * @brief  一次持锁读取模式、总开关与急停
+ * @param  mode            可为 NULL
+ * @param  service_enabled 可为 NULL
+ * @param  estop_active    可为 NULL
+ */
+void op_mode_copy_view(operational_mode_t *mode, bool *service_enabled, bool *estop_active);
+
+/**
  * @brief  设置运营总开关。
  * @param  enabled  true 营业；false 停业。停业时若当前为 STANDBY/HOLD 则落到 STOPPED。
  * @note   上电默认开启。项目可在 init 阶段用已持久化的停业状态覆盖。
  */
 void op_mode_set_service_enabled(bool enabled);
-
-/**
- * @brief  是否处于非运营接单态（STOPPED/恢复/清障等，或总开关已关）
- * @note   仅限 event_dispatch 线程调用；跨线程请用 device_snapshot_get()
- *         配合 operational_snapshot_is_stopping()。
- */
-bool op_mode_is_stopping(void);
 
 /**
  * @brief  是否运营待机（STANDBY；可停车检测与接单）

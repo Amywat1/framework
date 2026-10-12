@@ -24,17 +24,12 @@
  */
 static sw_err_t run_self_check(void)
 {
-    bool land_fault = false;
+    const bool land_fault = op_mode_is_estop_active()
+                            || (alarm_registry_safety_posture() == SAFETY_POSTURE_LOCKOUT)
+                            || alarm_registry_has_blocking_active();
+    sw_err_t   ret;
 
-    if (op_mode_is_estop_active()) {
-        land_fault = true;
-    } else if (alarm_registry_safety_posture() == SAFETY_POSTURE_LOCKOUT) {
-        land_fault = true;
-    } else if (alarm_registry_has_blocking_active()) {
-        land_fault = true;
-    }
-
-    sw_err_t ret = event_publish_required(EVT_OP_MODE_SELF_CHECK_COMPLETED, land_fault ? 1U : 0U);
+    ret = event_publish_required(EVT_OP_MODE_SELF_CHECK_COMPLETED, land_fault ? 1U : 0U);
 
     LOG_INFO("side_effect_router: self_check completed land_fault=%d", (int)land_fault);
     return ret;

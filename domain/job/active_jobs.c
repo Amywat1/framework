@@ -34,10 +34,7 @@ static void jobs_unlock(void)
 
 void active_jobs_init(void)
 {
-    jobs_lock();
-    memset(s_jobs, 0, sizeof(s_jobs));
-    s_count = 0U;
-    jobs_unlock();
+    active_jobs_clear();
 }
 
 sw_err_t active_jobs_add(const job_desc_t *job)
@@ -118,7 +115,37 @@ sw_err_t active_jobs_get_at(unsigned index, job_desc_t *out)
     return SW_OK;
 }
 
-void active_jobs_reset_for_test(void)
+bool active_jobs_contains_order(uint64_t order_id)
 {
-    active_jobs_init();
+    unsigned i;
+    bool     found = false;
+
+    if (order_id == 0U) {
+        return false;
+    }
+
+    jobs_lock();
+    for (i = 0U; i < s_count; i++) {
+        if (s_jobs[i].order_id == order_id) {
+            found = true;
+            break;
+        }
+    }
+    jobs_unlock();
+    return found;
+}
+
+unsigned active_jobs_copy(job_desc_t *out, unsigned cap)
+{
+    unsigned count;
+
+    jobs_lock();
+    count = s_count;
+    if ((out != NULL) && (cap > 0U) && (count > 0U)) {
+        unsigned n = (count < cap) ? count : cap;
+
+        memcpy(out, s_jobs, n * sizeof(s_jobs[0]));
+    }
+    jobs_unlock();
+    return count;
 }

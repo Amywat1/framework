@@ -16,9 +16,7 @@ set(_demo_wiring
 # demo 只补齐框架分层目标未涵盖的部分：
 #   - 安全端口仿真实现与急停仿真状态（属于 sim 装配选择）
 #
-# recovery / cutout / abort_home 改用 wdf_application 里的真实实现，
-# 不再链接 tests/stubs/wash_orchestrator_stub.c：三者只依赖
-# common/ports/runtime，demo 已具备，跑真实实现才能验证这段链路。
+# recovery / cutout / abort_home 使用 wdf_application 里的真实实现。
 #
 # 这两个仿真文件刻意不导出为公共 CMake 目标，按路径直接装配，理由见
 # scripts/check_arch_boundary.sh 的 UNEXPORTED_SOURCES。

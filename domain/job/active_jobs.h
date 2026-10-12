@@ -13,6 +13,7 @@ extern "C" {
 #include "common/sw_error.h"
 #include "domain/job/job_types.h"
 
+#include <stdbool.h>
 #include <stdint.h>
 
 /**
@@ -53,9 +54,18 @@ unsigned active_jobs_count(void);
 sw_err_t active_jobs_get_at(unsigned index, job_desc_t *out);
 
 /**
- * @brief  测试复位
+ * @brief  占用表是否已有该订单
+ * @param  order_id 订单号；0 视为未占用
  */
-void active_jobs_reset_for_test(void);
+bool active_jobs_contains_order(uint64_t order_id);
+
+/**
+ * @brief  一次持锁拷贝占用表
+ * @param  out 输出缓冲，可为 NULL（只返回数量）
+ * @param  cap out 容量
+ * @return 当前占用数（不受 cap 截断）
+ */
+unsigned active_jobs_copy(job_desc_t *out, unsigned cap);
 
 #ifdef __cplusplus
 }

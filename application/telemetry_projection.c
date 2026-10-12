@@ -30,26 +30,13 @@
 static bool     s_reconcile_registered;
 static uint32_t s_last_dropped_count;
 
-static void sync_op_snapshot(void)
+static void sync_op_snapshot(const event_t *evt)
 {
     operational_snapshot_t snap;
 
-    snap.mode            = op_mode_get_current();
-    snap.service_enabled = op_mode_is_service_enabled();
-    snap.estop_active    = op_mode_is_estop_active();
+    (void)evt;
+    op_mode_copy_view(&snap.mode, &snap.service_enabled, &snap.estop_active);
     device_snapshot_update_op(&snap);
-}
-
-static void on_mode_changed(const event_t *evt)
-{
-    (void)evt;
-    sync_op_snapshot();
-}
-
-static void on_context_sync(const event_t *evt)
-{
-    (void)evt;
-    sync_op_snapshot();
 }
 
 static void refresh_safety_snapshot(const event_t *evt)
@@ -82,46 +69,39 @@ static void refresh_safety_snapshot(const event_t *evt)
     device_snapshot_update_safety(&snap);
 }
 
-static void sync_job_snapshot(void)
+static unsigned sync_job_snapshot(void)
 {
     wash_snapshot_t snap;
     job_desc_t      head;
-    unsigned        i;
 
     memset(&snap, 0, sizeof(snap));
-    snap.queued_count     = order_book_count();
-    snap.active_count     = active_jobs_count();
-    snap.max_active_jobs  = machine_profile_get().max_active_jobs;
+    snap.queued_count    = order_book_count();
+    snap.active_count    = active_jobs_copy(snap.active, JOB_ACTIVE_CAP);
+    snap.max_active_jobs = machine_profile_get().max_active_jobs;
     if (order_book_peek_front(&head) == SW_OK) {
         snap.head_order_id = head.order_id;
         snap.head_mode     = head.mode;
     }
     if (snap.active_count > 0U) {
-        (void)active_jobs_get_at(0U, &head);
-        snap.mode = head.mode;
+        snap.mode = snap.active[0].mode;
     } else if (snap.queued_count > 0U) {
         snap.mode = snap.head_mode;
     }
-    for (i = 0U; i < snap.active_count && i < JOB_ACTIVE_CAP; i++) {
-        (void)active_jobs_get_at(i, &snap.active[i]);
-    }
     device_snapshot_update_job(&snap);
+    return snap.active_count;
 }
 
 static void on_job_started(const event_t *evt)
 {
-    wash_mode_t mode = job_started_mode(evt->param);
-
-    sync_job_snapshot();
-    if (active_jobs_count() == 0U) {
-        device_snapshot_set_wash_mode(mode);
+    if (sync_job_snapshot() == 0U) {
+        device_snapshot_set_wash_mode(job_started_mode(evt->param));
     }
 }
 
 static void on_job_occupancy_changed(const event_t *evt)
 {
     (void)evt;
-    sync_job_snapshot();
+    (void)sync_job_snapshot();
 }
 
 /**
@@ -130,29 +110,24 @@ static void on_job_occupancy_changed(const event_t *evt)
  * 领域层不依赖云端口，故由本投影承担这次读取；
  * 未注册云端口（例如仿真目标）时按未连接处理。
  */
-static void sync_cloud_connected(void)
+static void sync_cloud_connected(const event_t *evt)
 {
     const cloud_link_ops_t *ops    = cloud_link_get_ops();
     bool                    online = false;
 
+    (void)evt;
     if ((ops != NULL) && (ops->is_online != NULL)) {
         online = ops->is_online();
     }
     device_snapshot_set_cloud_connected(online);
 }
 
-static void on_cloud_link_changed(const event_t *evt)
-{
-    (void)evt;
-    sync_cloud_connected();
-}
-
 void telemetry_projection_sync_all(void)
 {
-    sync_op_snapshot();
+    sync_op_snapshot(NULL);
     refresh_safety_snapshot(NULL);
-    sync_cloud_connected();
-    sync_job_snapshot();
+    sync_cloud_connected(NULL);
+    (void)sync_job_snapshot();
 }
 
 static void reconcile_tick(void *ctx)
@@ -179,8 +154,8 @@ static void reconcile_tick(void *ctx)
 sw_err_t telemetry_projection_init(void)
 {
     static const event_subscription_t s_subs[] = {
-        {EVT_OP_MODE_CHANGED,      on_mode_changed        },
-        {EVT_OP_MODE_CONTEXT_SYNC, on_context_sync        },
+        {EVT_OP_MODE_CHANGED,      sync_op_snapshot       },
+        {EVT_OP_MODE_CONTEXT_SYNC, sync_op_snapshot       },
         {EVT_ALARM_TRIGGERED,      refresh_safety_snapshot},
         {EVT_ALARM_CLEARED,        refresh_safety_snapshot},
         /* 安全姿态边沿同样要刷快照：posture 由 CRITICAL 告警驱动，
@@ -194,8 +169,8 @@ sw_err_t telemetry_projection_init(void)
         {EVT_JOB_ABORTED,          on_job_occupancy_changed },
         /* 云连接状态并入同一快照，使读侧（CLI / 诊断 / 状态上报）看到的
          * 连接状态与运行模式、安全状态来自同一时刻。 */
-        {EVT_CLOUD_CONNECTED,      on_cloud_link_changed  },
-        {EVT_CLOUD_DISCONNECTED,   on_cloud_link_changed  },
+        {EVT_CLOUD_CONNECTED,      sync_cloud_connected   },
+        {EVT_CLOUD_DISCONNECTED,   sync_cloud_connected   },
     };
 
     sw_err_t ret = event_subscribe_table(s_subs, sizeof(s_subs) / sizeof(s_subs[0]));

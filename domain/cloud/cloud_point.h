@@ -80,9 +80,6 @@ static inline bool cloud_point_snapshot_enabled(const cloud_point_entry_t *entry
 /** @brief 脉冲命令回显空闲态（恒定 false） */
 sw_err_t cloud_point_get_echo_idle(point_value_t *out);
 
-/** @brief 整型脉冲命令回显空闲态（恒定 0） */
-sw_err_t cloud_point_get_echo_zero(point_value_t *out);
-
 /**
  * @brief  是否为无保持态的脉冲点（成功回显 1 后须再报空闲 0）
  *

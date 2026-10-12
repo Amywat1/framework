@@ -15,14 +15,8 @@
 #include "common/log.h"
 #include "domain/ports/outbound/safety/safety_port.h"
 
-#include <stdatomic.h>
-
-static atomic_uint s_cutout_count;
-static atomic_uint s_deferred_stop_count;
-
 static sw_err_t sim_cutout(void)
 {
-    atomic_fetch_add(&s_cutout_count, 1U);
     LOG_WARN("safety_sim: cutout（仿真：无实际输出可切断）");
     /* 仿真没有可失败的硬件写入，恒为成功。若需验证失败分支，
      * 由测试注册自己的 ops 返回错误码，不在此处埋可配置的失败开关。 */
@@ -43,7 +37,6 @@ static bool sim_alarm_is_estop(uint32_t alarm_code)
 
 static void sim_deferred_stop(void)
 {
-    atomic_fetch_add(&s_deferred_stop_count, 1U);
     LOG_INFO("safety_sim: deferred stop（仿真：仅记录）");
 }
 
@@ -57,20 +50,4 @@ static const safety_ops_t s_sim_safety_ops = {
 sw_err_t safety_sim_register(void)
 {
     return safety_port_register(&s_sim_safety_ops);
-}
-
-unsigned safety_sim_cutout_count(void)
-{
-    return atomic_load(&s_cutout_count);
-}
-
-unsigned safety_sim_deferred_stop_count(void)
-{
-    return atomic_load(&s_deferred_stop_count);
-}
-
-void safety_sim_reset_counters(void)
-{
-    atomic_store(&s_cutout_count, 0U);
-    atomic_store(&s_deferred_stop_count, 0U);
 }
