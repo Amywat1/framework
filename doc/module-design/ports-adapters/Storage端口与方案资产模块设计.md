@@ -129,7 +129,9 @@ typedef struct {
 
 | 偏移 | 长度 | 字段 |
 |------|------|------|
-| 0 | 4 | magic：`M8PR` |
+| 0 | 4 | magic：`WDFP`（Wash Device Framework Param） |
+
+旧槽若仍以 `M8PR` 开头会被判为无效映像。开发阶段不迁移：已部署的板子需手动删除 `params.json.a` / `params.json.b`，否则会落到「无可信映像、拒绝保存」、设备只用默认参数。
 | 4 | 4 | 小端格式版本，当前为 `1` |
 | 8 | 4 | 小端世代号，从 1 递增 |
 | 12 | 4 | 小端 payload 长度 |

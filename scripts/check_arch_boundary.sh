@@ -36,6 +36,7 @@
 #   R25 outbound .c     必须登记用途（register_stub / helper）
 #   R26 端口子目录      必须落在能力域白名单
 #   R27 控制环          登记点必须表态，可达文件禁止同步总线
+#   R28 框架生产源      不含已登记项目名的字面量
 
 set -euo pipefail
 
@@ -1482,6 +1483,59 @@ else
     echo "        新增经端口可达的 provider 实现加入 CONTROL_LOOP_REQUEST_ONLY；"
     echo "        总线操作只登记请求（参见 drv_io_pulse_clear），禁止 drv_io_submit_job / Modbus / flush_outputs_now。"
     TOTAL_VIOLATIONS=$((TOTAL_VIOLATIONS + 1))
+fi
+
+# -----------------------------------------------------------------------------
+# R28: 框架生产 C/H 不含已登记项目名的字面量
+#
+# R6 只拦 include 路径，拦不住参数文件 magic、字符串常量里的项目名。
+# 本规则按已接入项目名名单拦截，换未登记的名字仍可能漏过——这是针对已知漏网
+# 的补丁，不是 R6「框架不需要知道项目有什么」那种判据。新项目接入时在下表加一行。
+#
+# C10 对账锚点（本段必须保留 [PASS]/[FAIL] 字面量）：
+# [PASS] R28: 框架生产源不含已登记项目名的字面量
+# [FAIL] R28: 框架生产源不含已登记项目名的字面量
+# -----------------------------------------------------------------------------
+R28_PROJECT_NAMES=(
+    M8
+    m8
+)
+
+r28_parts=()
+for r28_name in "${R28_PROJECT_NAMES[@]}"; do
+    r28_parts+=("(^|[^[:alnum:]_])${r28_name}([^[:alnum:]_]|$)")
+    if [ "${#r28_name}" -eq 2 ]; then
+        r28_parts+=("'${r28_name:0:1}'[[:space:]]*,[[:space:]]*'${r28_name:1:1}'")
+    fi
+done
+r28_pattern=$(IFS='|'; echo "${r28_parts[*]}")
+
+r28_rc=0
+r28_out=""
+r28_out=$(grep -Rn --include='*.c' --include='*.h' -E "${r28_pattern}" \
+    "${FW_ROOT}/common" \
+    "${FW_ROOT}/domain" \
+    "${FW_ROOT}/application" \
+    "${FW_ROOT}/runtime" \
+    "${FW_ROOT}/adapters" \
+    "${FW_ROOT}/observability") || r28_rc=$?
+
+TOTAL_RULES=$((TOTAL_RULES + 1))
+if [ "${r28_rc}" -gt 1 ]; then
+    echo ""
+    echo "[FAIL] R28: 扫描命令失败（grep 退出码 ${r28_rc}）"
+    printf '%s\n' "${r28_out}"
+    echo "  修正: 检查 R28_PROJECT_NAMES 与拼接出的正则是否合法。"
+    TOTAL_VIOLATIONS=$((TOTAL_VIOLATIONS + 1))
+elif [ "${r28_rc}" -eq 0 ]; then
+    echo ""
+    echo "[FAIL] R28: 框架生产源出现已登记项目名的字面量"
+    printf '%s\n' "${r28_out}" | sed "s|^${FW_ROOT}/|  |"
+    echo "  修正: 文件标识、字符串和注释改用中性名称；项目名只允许出现在项目仓。"
+    echo "        新项目接入时把名字加进 R28_PROJECT_NAMES。"
+    TOTAL_VIOLATIONS=$((TOTAL_VIOLATIONS + 1))
+else
+    echo "[PASS] R28: 框架生产源不含已登记项目名的字面量"
 fi
 
 # -----------------------------------------------------------------------------

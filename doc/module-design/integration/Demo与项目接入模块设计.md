@@ -35,7 +35,7 @@ Demo 与项目接入层展示如何把通用框架装配成一个可启动设备
 | 报警目录 | 两个 demo alarm code |
 | 洗车编排 | 无（`device_ops` 空实现返回成功） |
 | 周期任务 | 无项目任务；`alarm_bridge` 由框架 `alarm_bridge_init()` 自行登记 |
-| 验证链路 | RECOVER → IDLE → STOP_ALL、硬件急停事件、报警触发链 |
+| 验证链路 | RECOVER → STANDBY → STOP_ALL、硬件急停事件、报警触发链 |
 
 ---
 
@@ -112,8 +112,8 @@ bootstrap_bind()
 
 bootstrap_init_hal()
     ├─ project_init_hal()
-    ├─ project_init_device()
-    └─ project_init_safety()
+    ├─ project_init_safety()
+    └─ project_init_device()
 
 bootstrap_init_services()
     ├─ project_init_adapters()
@@ -220,7 +220,7 @@ typedef struct {
 | `clear_machine` | 启动整机清障/排空（异步）；完成后须发 `EVT_CLEAR_MACHINE_DONE` |
 | `start_job` | 放行核调用：选方案或放行上链后返回；禁止在调用内跑完整工艺 |
 | `abort_jobs` | 中止全部在洗作业（急停/LOCKOUT/CLEAR） |
-| `home_device` | `recovery_coordinator` 在 Recover 路径中启动的异步全机归位 |
+| `home_device` | `recovery_coordinator` 在 Recover 路径中启动的异步全机归位；项目在此释放输出抑制（调用 `safety_output_hold_release()` 或项目急停复位） |
 | `execute_manual_actuator` | `DEV_CMD_MANUAL_ACTUATOR`：只下发/启定时后立即返回；禁止等待点动时长 |
 | `stop_all_outputs` | `DEV_CMD_STOP_ALL_OUTPUTS` 副作用：切断输出；前态 ACTIVE 时 router 另调 `abort_jobs(STOP_ALL)` |
 | `is_admit_ready` | 下一单能否放行；未注册（NULL）时框架不拦截 |
@@ -359,8 +359,8 @@ L4）。它依次验证：
 | 步骤 | 覆盖的链路 |
 |------|-----------|
 | `bootstrap_run()` | 7 阶段启动全过程 |
-| `RECOVER` → IDLE | 命令网关 → 裁决 → `RECOVERY_REQUESTED` → `recovery_coordinator` → `device_ops.home_device` → `EVT_OP_MODE_HOME_COMPLETED` → `EVT_OP_MODE_RECOVERY_COMPLETED` → IDLE |
-| `STOP_ALL_OUTPUTS` | IDLE 下全停：切断输出并落到 STOPPED，不改总开关 |
+| `RECOVER` → STANDBY | 命令网关 → 裁决 → `RECOVERY_REQUESTED` → `recovery_coordinator` → `device_ops.home_device` → `EVT_OP_MODE_HOME_COMPLETED` → `EVT_OP_MODE_RECOVERY_COMPLETED` → STANDBY |
+| `STOP_ALL_OUTPUTS` | STANDBY 下全停：切断输出并落到 STOPPED，不改总开关 |
 | 急停边沿 | `hw_estop_sim` → `estop_poll_thread` → `safety_cutout_execute` → `EVT_HW_ESTOP_ON` → 姿态收敛 |
 | 报警触发 | `alarm_binding.trigger` → `alarm_bridge` → blocking 判定 |
 

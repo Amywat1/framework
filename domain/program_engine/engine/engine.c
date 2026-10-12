@@ -301,9 +301,12 @@ static bool engine_profile_zone(void *ctx, const char *zone, double position, bo
     return true;
 }
 
-static bool eval_bool(engine_t *e, const engine_expr_t *x, bool def)
+static bool eval_bool_ok(engine_t *e, const engine_expr_t *x, bool def, bool *ok_out)
 {
     if (x == NULL) {
+        if (ok_out != NULL) {
+            *ok_out = true;
+        }
         return def;
     }
     engine_expr_env_t env = {
@@ -315,7 +318,16 @@ static bool eval_bool(engine_t *e, const engine_expr_t *x, bool def)
     };
     bool ok = false;
     bool v  = engine_expr_eval_bool(x, &env, &ok);
+
+    if (ok_out != NULL) {
+        *ok_out = ok;
+    }
     return ok ? v : def;
+}
+
+static bool eval_bool(engine_t *e, const engine_expr_t *x, bool def)
+{
+    return eval_bool_ok(e, x, def, NULL);
 }
 
 /* -------------------------------------------------------------------------
@@ -425,7 +437,7 @@ static void apply_on_error(engine_t *e, engine_error_strategy_t st, rt_step_t *r
         break;
     case ENGINE_ERR_DEGRADE:
         if (rt != NULL) {
-            rt->state = RT_DONE;
+            rt->state = RT_SKIPPED;
         }
         break;
     default:
@@ -667,9 +679,20 @@ static void tick_wait_done_gate(engine_t *e, const engine_step_t *sd, rt_step_t 
 /* -------------------------------------------------------------------------
  * control 型步骤：每拍按 active_while 应用/释放意图
  * ------------------------------------------------------------------------- */
-static void control_step_tick(engine_t *e, const engine_step_t *sd)
+static void control_step_tick(engine_t *e, const engine_step_t *sd, rt_step_t *rt)
 {
-    if (eval_bool(e, sd->active_while, false)) {
+    bool ok     = true;
+    bool active = eval_bool_ok(e, sd->active_while, false, &ok);
+
+    if (!ok) {
+        if (e->state == ENGINE_STATE_FAULT) {
+            return;
+        }
+        resource_release(e, sd->intent.resource_id);
+        apply_on_error(e, sd->on_error, rt);
+        return;
+    }
+    if (active) {
         intent_apply(e, &sd->intent, true);
     } else {
         resource_release(e, sd->intent.resource_id);
@@ -898,7 +921,7 @@ static void phase_tick(engine_t *e, uint32_t dt)
             rt_step_t           *rt = &e->lanes[i].steps[j];
 
             if (sd->type == ENGINE_STEP_CONTROL) {
-                control_step_tick(e, sd);
+                control_step_tick(e, sd, rt);
             } else {
                 step_tick(e, sd, rt, dt);
             }

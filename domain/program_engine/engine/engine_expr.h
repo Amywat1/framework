@@ -21,6 +21,9 @@ extern "C" {
 
 #include <stdbool.h>
 
+/** 表达式树深度上限；编译期拒绝，求值期再拦一次。 */
+#define ENGINE_EXPR_EVAL_DEPTH_MAX 32U
+
 /** 编译后的表达式（不透明类型） */
 typedef struct engine_expr engine_expr_t;
 

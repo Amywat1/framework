@@ -1,3 +1,4 @@
+#include "adapters/outbound/cloud/cloud_json.h"
 #include "domain/cloud/cloud_model.h"
 
 #include <stdio.h>
@@ -63,4 +64,8 @@ sw_err_t cloud_json_publish_delta(const char *const *ids, size_t count)
     (void)ids;
     (void)count;
     return SW_ERR_STATE;
+}
+
+void cloud_json_poll(void)
+{
 }

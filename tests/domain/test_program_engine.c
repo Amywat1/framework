@@ -14,6 +14,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -154,11 +155,16 @@ static sw_err_t io_read_signal(void *ctx, unsigned signal_id, int *out_value)
     return SW_OK;
 }
 
+static sw_err_t s_axis_read_error = SW_OK;
+
 static sw_err_t io_read_axis(void *ctx, unsigned axis_id, engine_axis_sample_t *out_sample)
 {
     const engine_io_catalog_t *catalog = (const engine_io_catalog_t *)ctx;
     int                        idx;
 
+    if (s_axis_read_error != SW_OK) {
+        return s_axis_read_error;
+    }
     if ((out_sample == NULL) || (axis_id >= catalog->axis_count)) {
         return SW_ERR_PARAM;
     }
@@ -192,6 +198,7 @@ static void io_reset(void)
 {
     memset(s_signals, 0, sizeof(s_signals));
     memset(s_axes, 0, sizeof(s_axes));
+    s_axis_read_error = SW_OK;
 
     s_signals[0].name = "ESTOP";
     s_signals[1].name = "EXIT";
@@ -631,6 +638,145 @@ static void test_engine_runtime_auto_releases_held_except_keep(void)
     engine_destroy(engine);
 }
 
+static void fill_nested_sum(char *buf, size_t buf_size, unsigned nest)
+{
+    size_t   pos = 0U;
+    unsigned i;
+
+    TEST_ASSERT_TRUE(buf_size > 8U);
+    buf[0] = '\0';
+    for (i = 0U; i < nest; ++i) {
+        int n = snprintf(buf + pos, buf_size - pos, "0+(");
+
+        TEST_ASSERT_TRUE(n > 0);
+        pos += (size_t)n;
+        TEST_ASSERT_TRUE(pos < buf_size);
+    }
+    {
+        int n = snprintf(buf + pos, buf_size - pos, "0");
+
+        TEST_ASSERT_TRUE(n > 0);
+        pos += (size_t)n;
+    }
+    for (i = 0U; i < nest; ++i) {
+        int n = snprintf(buf + pos, buf_size - pos, ")");
+
+        TEST_ASSERT_TRUE(n > 0);
+        pos += (size_t)n;
+        TEST_ASSERT_TRUE(pos < buf_size);
+    }
+}
+
+static void test_engine_expr_rejects_eval_depth_overflow(void)
+{
+    char           text[512];
+    engine_expr_t *expr;
+    bool           ok = true;
+
+    fill_nested_sum(text, sizeof(text), ENGINE_EXPR_EVAL_DEPTH_MAX);
+    TEST_ASSERT_NULL(engine_expr_compile(text));
+    TEST_ASSERT_NOT_NULL(strstr(engine_expr_last_error(), "上限"));
+
+    fill_nested_sum(text, sizeof(text), ENGINE_EXPR_EVAL_DEPTH_MAX - 1U);
+    expr = engine_expr_compile(text);
+    TEST_ASSERT_NOT_NULL(expr);
+    TEST_ASSERT_EQUAL_INT(0, (int)engine_expr_eval(expr, NULL, &ok));
+    TEST_ASSERT_TRUE(ok);
+    engine_expr_free(expr);
+}
+
+static engine_program_t *make_control_on_error_program(engine_error_strategy_t strategy, const char *active_while)
+{
+    engine_program_t   *prog = (engine_program_t *)calloc(1U, sizeof(engine_program_t));
+    engine_interlock_t *interlock;
+    engine_phase_t     *phase;
+    engine_lane_t      *lane;
+    engine_step_t      *step;
+
+    TEST_ASSERT_NOT_NULL(prog);
+    (void)snprintf(prog->schema_version, sizeof(prog->schema_version), "%s", "1.0");
+    (void)snprintf(prog->id, sizeof(prog->id), "%s", "ctrl_err");
+    (void)snprintf(prog->name, sizeof(prog->name), "%s", "ctrl_err");
+
+    prog->interlock_count = 1U;
+    prog->interlocks      = (engine_interlock_t *)calloc(1U, sizeof(engine_interlock_t));
+    TEST_ASSERT_NOT_NULL(prog->interlocks);
+    interlock = &prog->interlocks[0];
+    (void)snprintf(interlock->id, sizeof(interlock->id), "%s", "estop");
+    interlock->condition       = compile_ok("ESTOP == 1");
+    interlock->reset_condition = compile_ok("ESTOP == 0");
+    interlock->action          = ENGINE_ILK_HALT_ALL;
+
+    prog->phase_count = 1U;
+    prog->phases      = (engine_phase_t *)calloc(1U, sizeof(engine_phase_t));
+    TEST_ASSERT_NOT_NULL(prog->phases);
+    phase = &prog->phases[0];
+    (void)snprintf(phase->id, sizeof(phase->id), "%s", "p0");
+    phase->entry_guard = compile_ok("true");
+    phase->exit_guard  = compile_ok("false");
+    phase->timeout_ms  = 10000U;
+    phase->on_timeout  = ENGINE_ERR_STOP;
+    phase->lane_count  = 1U;
+    phase->lanes       = (engine_lane_t *)calloc(1U, sizeof(engine_lane_t));
+    TEST_ASSERT_NOT_NULL(phase->lanes);
+
+    lane             = &phase->lanes[0];
+    lane->step_count = 1U;
+    lane->steps      = (engine_step_t *)calloc(1U, sizeof(engine_step_t));
+    TEST_ASSERT_NOT_NULL(lane->steps);
+    step = &lane->steps[0];
+    (void)snprintf(step->id, sizeof(step->id), "%s", "ctrl");
+    step->type         = ENGINE_STEP_CONTROL;
+    step->on_error     = strategy;
+    step->active_while = compile_ok(active_while);
+    (void)snprintf(step->intent.resource, sizeof(step->intent.resource), "%s", "aout");
+    (void)snprintf(step->intent.cmd, sizeof(step->intent.cmd), "%s", "run");
+    step->intent.gear = 1;
+    return prog;
+}
+
+static void test_engine_control_eval_failure_follows_on_error(void)
+{
+    engine_t         *engine;
+    engine_program_t *prog;
+
+    engine = engine_create(&s_environment);
+    prog   = make_control_on_error_program(ENGINE_ERR_HALT_PHASE, "false ? 1 : \"x\"");
+    TEST_ASSERT_NOT_NULL(engine);
+    TEST_ASSERT_EQUAL_INT(SW_OK, engine_load_program(engine, prog));
+    TEST_ASSERT_EQUAL_INT(SW_OK, engine_start(engine));
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, engine_tick(engine, 10U));
+    TEST_ASSERT_EQUAL_INT(ENGINE_STATE_PHASE_HALTED, engine_state(engine));
+    TEST_ASSERT_EQUAL_INT(0, engine_actuator_sim_active("aout"));
+
+    engine_destroy(engine);
+}
+
+static void test_engine_control_env_read_failure_stays_fault(void)
+{
+    engine_t         *engine;
+    engine_program_t *prog;
+
+    engine = engine_create(&s_environment);
+    prog   = make_control_on_error_program(ENGINE_ERR_HALT_PHASE, "axes.gantry.position > 0");
+    TEST_ASSERT_NOT_NULL(engine);
+    TEST_ASSERT_NOT_NULL(prog);
+    prog->axis_count = 1U;
+    prog->axes       = (engine_axis_t *)calloc(1U, sizeof(engine_axis_t));
+    TEST_ASSERT_NOT_NULL(prog->axes);
+    (void)snprintf(prog->axes[0].id, sizeof(prog->axes[0].id), "%s", "gantry");
+    TEST_ASSERT_EQUAL_INT(SW_OK, engine_load_program(engine, prog));
+    TEST_ASSERT_EQUAL_INT(SW_OK, engine_start(engine));
+
+    s_axis_read_error = SW_ERR_HW;
+    TEST_ASSERT_EQUAL_INT(SW_ERR_HW, engine_tick(engine, 10U));
+    TEST_ASSERT_EQUAL_INT(ENGINE_STATE_FAULT, engine_state(engine));
+    TEST_ASSERT_EQUAL_INT(SW_ERR_HW, engine_last_error(engine));
+
+    engine_destroy(engine);
+}
+
 static void test_engine_runtime_halt_all_interlock_clears_outputs(void)
 {
     engine_t         *engine = engine_create(&s_environment);
@@ -663,6 +809,9 @@ int main(void)
     WDF_RUN_TEST(test_engine_expr_rejects_non_literal_zone_name, "", "验证表达式拒绝非字面量区域名称");
     WDF_RUN_TEST(test_engine_expr_checks_nested_functions, "", "验证程序引擎表达式检查嵌套函数");
     WDF_RUN_TEST(test_engine_expr_whitelist_all_evaluable, "", "验证程序引擎表达式白名单全部可求值");
+    WDF_RUN_TEST(test_engine_expr_rejects_eval_depth_overflow, "", "验证表达式超过求值深度上限时失败");
+    WDF_RUN_TEST(test_engine_control_eval_failure_follows_on_error, "", "验证 control 步表达式失败走 on_error");
+    WDF_RUN_TEST(test_engine_control_env_read_failure_stays_fault, "", "验证 control 步环境读取失败保持 FAULT");
     WDF_RUN_TEST(test_engine_model_parse_clone_and_validate, "", "验证程序引擎模型解析克隆并校验");
     WDF_RUN_TEST(test_engine_validate_rejects_unknown_after, "", "验证引擎校验拒绝未知后继步骤");
     WDF_RUN_TEST(test_engine_runtime_runs_steps_and_finishes_phase, "", "验证程序引擎运行时运行步骤并完成阶段");

@@ -17,7 +17,7 @@ Runtime 层负责把框架基础设施、项目 wiring、应用模块、适配�
 
 ### 1.1 设计目标
 
-- **启动顺序确定**：`bootstrap_run()` 固定上述 7 个 phase；hooks 调用顺序仍保证 configure → bind → validate → init_hal → init_device → init_safety → start。
+- **启动顺序确定**：`bootstrap_run()` 固定上述 7 个 phase；hooks 调用顺序仍保证 configure → bind → validate → init_hal → init_safety → init_device → start。
 - **项目扩展受控**：项目只能通过 `wiring()` 与 `project_hooks` 填充装配点，不改框架主流程。
 - **线程统一创建**：框架线程通过 `thread_register()` 登记，最后由 scheduler 创建并 detach。
 - **周期任务统一模型**：周期任务用 `periodic_task_register()` 转成线程注册表条目。
@@ -32,7 +32,7 @@ Runtime 层负责把框架基础设施、项目 wiring、应用模块、适配�
 | 加载期 | `configure_storage` 后 `param_kv_init()` 与 `deploy_store.load()`，`SW_ERR_STORAGE` 允许继续 |
 | 配置期 | 项目 hooks 注入 HAL 参数、安全默认态和适配器参数 |
 | 绑定期 | 绑定 HAL/`device_ops`/报警目录，末尾执行 `project_validate()` |
-| HAL 初始化期 | HAL port `init`，再依次 `init_hal` / `init_device` / `init_safety` |
+| HAL 初始化期 | HAL port `init`，启动 I/O 所有者，再依次 `init_hal` / `init_safety` / `init_device` |
 | 服务初始化期 | 应用协调器/桥接 init、适配器 init、项目运行期任务注册 |
 | 启动期 | 注入控制环看门狗绊索、`project_start_runtime()`、`scheduler_start_all()` |
 | 运行期 | 线程 detach，当前不提供 join/stop/restart 语义 |
@@ -97,8 +97,9 @@ bootstrap_run()
     │    ├─ hal_vfd_bootstrap_init()
     │    ├─ hal_voice_bootstrap_init()
     │    ├─ project_init_hal()
-    │    ├─ project_init_device()
-    │    └─ project_init_safety()
+    │    ├─ hal_io_bootstrap_start()
+    │    ├─ project_init_safety()
+    │    └─ project_init_device()
     │
     ├─ bootstrap_init_services()
     │    ├─ alarm_bridge_init()
@@ -153,8 +154,9 @@ bootstrap_run()
 | 顺序 | 内容 | 为什么在这个位置 |
 |------|------|------------------|
 | 1 | `hal_io/vfd/voice` port init，然后 `project_init_hal()` | port ops 就绪后才能做项目级传感器预热和组合层初始化 |
-| 2 | `project_init_device()` | 机构与执行器初始化要读写 HAL，必须晚于 HAL init |
-| 3 | `project_init_safety()` | 建立故障安全输出态要求 HAL 与机构都已就绪 |
+| 2 | `hal_io_bootstrap_start()` | 先把 I/O 所有者拉起来，后续安全态和机构初始化才能写输出 |
+| 3 | `project_init_safety()` | 先建立故障安全输出，再初始化机构 |
+| 4 | `project_init_device()` | 机构与执行器初始化要读写 HAL，且须落在已建立的安全态之后 |
 
 `hal_io_bootstrap_init()` 在 IO port init 成功后，若 provider 提供 `register_panic_cb()`，会把项目的 `assert_safe_outputs` 注册为 IO panic 回调。三个 HAL port 的 `init` 均为可选：ops 未注册或未提供 `init` 时跳过并继续。
 
@@ -194,8 +196,8 @@ Start 阶段先注入控制环看门狗绊索，再调用 `project_start_runtime
 | `bind_alarm_catalog` | `alarm_registry_init()` 后 | 加载项目报警目录 |
 | `validate` | bind phase 末尾、各 init 之前 | 启动前一致性校验 |
 | `init_hal` | init_hal 阶段，HAL port init 后 | 初始化项目 HAL 组合层、预热传感器 |
-| `init_device` | init_hal phase 内、`init_hal` 之后 | 初始化项目机构与执行器 |
-| `init_safety` | init_hal phase 内、`init_device` 之后 | 建立项目故障安全状态 |
+| `init_safety` | init_hal phase 内、I/O 启动之后 | 建立项目故障安全状态 |
+| `init_device` | init_hal phase 内、`init_safety` 之后 | 初始化项目机构与执行器 |
 | `init_adapters` | init_services 阶段 | 初始化云端、CLI 等入站适配器；可选启用观测桥接、急停轮询 |
 | `register_runtime_tasks` | init_services 阶段末 | 注册项目周期任务和运行期线程 |
 | `start_runtime` | scheduler 启动前 | 启动无法纳入 scheduler 的项目线程 |

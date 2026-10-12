@@ -92,7 +92,10 @@ run_tests() {
         return 1
     fi
 
-    cmake -S "$ROOT" -B "$BUILD_DIR" -DWDF_BUILD_TESTS=ON -DWDF_BUILD_DEMO=ON >/dev/null || return 1
+    cmake -S "$ROOT" -B "$BUILD_DIR" \
+        -DWDF_BUILD_TESTS=ON \
+        -DWDF_BUILD_DEMO=ON \
+        -DWDF_TEST_VENDOR_PROVIDERS=ON >/dev/null || return 1
     cmake --build "$BUILD_DIR" -j"$(nproc 2>/dev/null || echo 4)" || return 1
     ctest --test-dir "$BUILD_DIR" \
         --output-on-failure \

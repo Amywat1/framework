@@ -675,6 +675,40 @@ static expr_node_t *parse_expr(parser_t *p)
  * 递归全树，任一 NODE_FUNC 不在白名单或参数个数不符即失败，并把函数名写进
  * 错误描述——求值期的 *ok = false 无法回答"哪个函数错了"。
  * ------------------------------------------------------------------------- */
+/**
+ * @brief  与 eval_node 相同的深度计量：根为 0，每下探一层加 1
+ * @return 子树中会出现的最大求值深度
+ */
+static unsigned node_max_eval_depth(const expr_node_t *n, unsigned depth)
+{
+    unsigned max_d = depth;
+    unsigned i;
+    unsigned child;
+
+    if (n == NULL) {
+        return 0U;
+    }
+    for (i = 0U; i < n->arg_count; ++i) {
+        child = node_max_eval_depth(n->args[i], depth + 1U);
+        if (child > max_d) {
+            max_d = child;
+        }
+    }
+    child = node_max_eval_depth(n->a, depth + 1U);
+    if (child > max_d) {
+        max_d = child;
+    }
+    child = node_max_eval_depth(n->b, depth + 1U);
+    if (child > max_d) {
+        max_d = child;
+    }
+    child = node_max_eval_depth(n->c, depth + 1U);
+    if (child > max_d) {
+        max_d = child;
+    }
+    return max_d;
+}
+
 static bool check_functions(const expr_node_t *n)
 {
     unsigned i;
@@ -757,6 +791,12 @@ engine_expr_t *engine_expr_compile(const char *text)
     /* 语法正确不等于语义可执行：函数名与参数个数在此拒绝，
      * 否则错误要推迟到求值期，且届时拿不到函数名。 */
     if (!check_functions(root)) {
+        node_free(root);
+        free(p);
+        return NULL;
+    }
+    if (node_max_eval_depth(root, 0U) >= ENGINE_EXPR_EVAL_DEPTH_MAX) {
+        set_error("表达式嵌套超过上限");
         node_free(root);
         free(p);
         return NULL;
@@ -887,15 +927,17 @@ static void foreach_node_vars(const expr_node_t *n,
     foreach_node_vars(n->c, fn, ctx, seen, seen_count);
 }
 
+/* 去重表放模块静态区：约 16 KB，不得上栈。仅装载期遍历使用，tick 路径不进入。 */
+static char s_foreach_seen[EXPR_TOKEN_MAX][EXPR_NAME_MAX];
+
 void engine_expr_foreach_var(const engine_expr_t *expr, engine_expr_var_fn fn, void *ctx)
 {
-    char     seen[EXPR_TOKEN_MAX][EXPR_NAME_MAX];
     unsigned seen_count = 0U;
 
     if ((expr == NULL) || (expr->root == NULL) || (fn == NULL)) {
         return;
     }
-    foreach_node_vars(expr->root, fn, ctx, seen, &seen_count);
+    foreach_node_vars(expr->root, fn, ctx, s_foreach_seen, &seen_count);
 }
 
 static bool bind_node(expr_node_t *node, engine_expr_bind_fn fn, void *ctx)
@@ -930,9 +972,13 @@ bool engine_expr_bind(engine_expr_t *expr, engine_expr_bind_fn fn, void *ctx)
 /* -------------------------------------------------------------------------
  * 求值
  * ------------------------------------------------------------------------- */
-static double eval_node(const expr_node_t *n, const engine_expr_env_t *env, bool *ok)
+static double eval_node(const expr_node_t *n, const engine_expr_env_t *env, bool *ok, unsigned depth)
 {
     if (!(*ok) || (n == NULL)) {
+        return 0.0;
+    }
+    if (depth >= ENGINE_EXPR_EVAL_DEPTH_MAX) {
+        *ok = false;
         return 0.0;
     }
 
@@ -975,9 +1021,9 @@ static double eval_node(const expr_node_t *n, const engine_expr_env_t *env, bool
                 *ok = false;
                 return 0.0;
             }
-            pos = eval_node(n->args[0], env, ok);
-            a   = eval_node(n->args[1], env, ok);
-            b   = eval_node(n->args[2], env, ok);
+            pos = eval_node(n->args[0], env, ok, depth + 1U);
+            a   = eval_node(n->args[1], env, ok, depth + 1U);
+            b   = eval_node(n->args[2], env, ok, depth + 1U);
             if (!(*ok)) {
                 return 0.0;
             }
@@ -995,9 +1041,9 @@ static double eval_node(const expr_node_t *n, const engine_expr_env_t *env, bool
                 *ok = false;
                 return 0.0;
             }
-            fixed = eval_node(n->args[0], env, ok);
-            front = eval_node(n->args[1], env, ok);
-            rear  = eval_node(n->args[2], env, ok);
+            fixed = eval_node(n->args[0], env, ok, depth + 1U);
+            front = eval_node(n->args[1], env, ok, depth + 1U);
+            rear  = eval_node(n->args[2], env, ok, depth + 1U);
             if (!(*ok)) {
                 return 0.0;
             }
@@ -1012,8 +1058,8 @@ static double eval_node(const expr_node_t *n, const engine_expr_env_t *env, bool
                 *ok = false;
                 return 0.0;
             }
-            pos = eval_node(n->args[0], env, ok);
-            def = eval_node(n->args[1], env, ok);
+            pos = eval_node(n->args[0], env, ok, depth + 1U);
+            def = eval_node(n->args[1], env, ok, depth + 1U);
             if (!(*ok)) {
                 return 0.0;
             }
@@ -1037,8 +1083,8 @@ static double eval_node(const expr_node_t *n, const engine_expr_env_t *env, bool
                 *ok = false;
                 return 0.0;
             }
-            pos = eval_node(n->args[1], env, ok);
-            def = eval_node(n->args[2], env, ok);
+            pos = eval_node(n->args[1], env, ok, depth + 1U);
+            def = eval_node(n->args[2], env, ok, depth + 1U);
             if (!(*ok)) {
                 return 0.0;
             }
@@ -1060,7 +1106,7 @@ static double eval_node(const expr_node_t *n, const engine_expr_env_t *env, bool
         return 0.0;
 
     case NODE_UNARY: {
-        double a = eval_node(n->a, env, ok);
+        double a = eval_node(n->a, env, ok, depth + 1U);
         if (n->op == TK_MINUS) {
             return -a;
         }
@@ -1071,30 +1117,30 @@ static double eval_node(const expr_node_t *n, const engine_expr_env_t *env, bool
     case NODE_BINARY: {
         /* 逻辑运算支持短路 */
         if (n->op == TK_AND) {
-            double a = eval_node(n->a, env, ok);
+            double a = eval_node(n->a, env, ok, depth + 1U);
             if (!(*ok)) {
                 return 0.0;
             }
             if (a == 0.0) {
                 return 0.0;
             }
-            double b = eval_node(n->b, env, ok);
+            double b = eval_node(n->b, env, ok, depth + 1U);
             return (b != 0.0) ? 1.0 : 0.0;
         }
         if (n->op == TK_OR) {
-            double a = eval_node(n->a, env, ok);
+            double a = eval_node(n->a, env, ok, depth + 1U);
             if (!(*ok)) {
                 return 0.0;
             }
             if (a != 0.0) {
                 return 1.0;
             }
-            double b = eval_node(n->b, env, ok);
+            double b = eval_node(n->b, env, ok, depth + 1U);
             return (b != 0.0) ? 1.0 : 0.0;
         }
 
-        double a = eval_node(n->a, env, ok);
-        double b = eval_node(n->b, env, ok);
+        double a = eval_node(n->a, env, ok, depth + 1U);
+        double b = eval_node(n->b, env, ok, depth + 1U);
         if (!(*ok)) {
             return 0.0;
         }
@@ -1127,11 +1173,11 @@ static double eval_node(const expr_node_t *n, const engine_expr_env_t *env, bool
     }
 
     case NODE_TERNARY: {
-        double c = eval_node(n->a, env, ok);
+        double c = eval_node(n->a, env, ok, depth + 1U);
         if (!(*ok)) {
             return 0.0;
         }
-        return (c != 0.0) ? eval_node(n->b, env, ok) : eval_node(n->c, env, ok);
+        return (c != 0.0) ? eval_node(n->b, env, ok, depth + 1U) : eval_node(n->c, env, ok, depth + 1U);
     }
 
     default:
@@ -1151,7 +1197,7 @@ double engine_expr_eval(const engine_expr_t *expr, const engine_expr_env_t *env,
         }
         return 0.0;
     }
-    v = eval_node(expr->root, env, &ok);
+    v = eval_node(expr->root, env, &ok, 0U);
     if (out_ok != NULL) {
         *out_ok = ok;
     }

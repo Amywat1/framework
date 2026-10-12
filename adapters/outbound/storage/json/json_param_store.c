@@ -42,7 +42,7 @@
 #define JSON_PARAM_PAYLOAD_MAX         65536U
 #define JSON_PARAM_FILE_MODE           ((mode_t)(S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH))
 
-static const uint8_t k_json_param_magic[4] = {'M', '8', 'P', 'R'};
+static const uint8_t k_json_param_magic[4] = {'W', 'D', 'F', 'P'};
 
 static cJSON          *s_root                                 = NULL;
 static pthread_mutex_t s_mutex                                = PTHREAD_MUTEX_INITIALIZER;
