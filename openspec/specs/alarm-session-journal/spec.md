@@ -49,7 +49,7 @@
 
 #### Scenario: journal 不决定洗后停机
 - **GIVEN** 会话中曾记录 MAJOR 且该报警已 AUTO_STATIC 清除，当前无 blocking 活跃
-- **WHEN** 洗车正常结束走 `op_mode_on_wash_session_completed`
+- **WHEN** 洗车正常结束走 `op_mode_on_last_job_finished`
 - **THEN** 模式 MUST NOT 仅因 journal 非空而进入 STOPPED；journal 快照仍可含该码
 
 ## Invariants

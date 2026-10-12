@@ -143,9 +143,9 @@ sw_err_t alarm_bridge_reeval_init(const alarm_reeval_binding_t *bindings, size_t
 sw_err_t alarm_bridge_init(void)
 {
     static const event_subscription_t s_life_subs[] = {
-        {EVT_WASH_SESSION_STARTED, on_wash_session_started},
-        {EVT_WASH_DONE,            on_wash_session_ended  },
-        {EVT_WASH_ABORTED,         on_wash_session_ended  },
+        {EVT_JOB_STARTED,   on_wash_session_started},
+        {EVT_JOB_COMPLETED, on_wash_session_ended  },
+        {EVT_JOB_ABORTED,   on_wash_session_ended  },
     };
     sw_err_t ret;
 

@@ -78,8 +78,8 @@ static void enter_idle(void)
 
     TEST_ASSERT_EQUAL_INT(OP_CMD_ALLOWED, d.verdict);
     TEST_ASSERT_EQUAL_INT(OP_MODE_RECOVERING, op_mode_get_current());
-    op_mode_on_recovery_completed(RECOVERY_RESULT_IDLE);
-    TEST_ASSERT_EQUAL_INT(OP_MODE_IDLE, op_mode_get_current());
+    op_mode_on_recovery_completed(RECOVERY_RESULT_STANDBY);
+    TEST_ASSERT_EQUAL_INT(OP_MODE_STANDBY, op_mode_get_current());
 }
 
 void setUp(void)
@@ -185,8 +185,8 @@ static void test_recover_denied_when_service_disabled(void)
     TEST_ASSERT_TRUE(op_mode_is_service_enabled());
     TEST_ASSERT_EQUAL_INT(OP_CMD_ALLOWED, op_mode_handle_command(&recover_cmd).verdict);
 
-    op_mode_on_recovery_completed(RECOVERY_RESULT_IDLE);
-    TEST_ASSERT_EQUAL_INT(OP_MODE_IDLE, op_mode_get_current());
+    op_mode_on_recovery_completed(RECOVERY_RESULT_STANDBY);
+    TEST_ASSERT_EQUAL_INT(OP_MODE_STANDBY, op_mode_get_current());
 
     (void)op_mode_handle_command(&off_cmd); /* → STOPPED, service=off */
     TEST_ASSERT_EQUAL_INT(OP_MODE_STOPPED, op_mode_get_current());
@@ -203,25 +203,25 @@ static void test_recover_in_idle_is_idempotent(void)
     enter_idle();
     d = op_mode_handle_command(&cmd);
     TEST_ASSERT_EQUAL_INT(OP_CMD_ALLOWED, d.verdict);
-    TEST_ASSERT_EQUAL_INT(OP_MODE_IDLE, op_mode_get_current());
+    TEST_ASSERT_EQUAL_INT(OP_MODE_STANDBY, op_mode_get_current());
 }
 
 /* IDLE 可以接单 */
 static void test_start_wash_allowed_in_idle(void)
 {
-    dev_cmd_t          cmd = dev_cmd_make_start_wash(TEST_WASH_MODE_A);
+    dev_cmd_t          cmd = dev_cmd_make_submit_order(TEST_WASH_MODE_A);
     dev_cmd_decision_t d;
 
     enter_idle();
     d = op_mode_handle_command(&cmd);
     TEST_ASSERT_EQUAL_INT(OP_CMD_ALLOWED, d.verdict);
-    TEST_ASSERT_EQUAL_INT(OP_MODE_IDLE, op_mode_get_current());
+    TEST_ASSERT_EQUAL_INT(OP_MODE_STANDBY, op_mode_get_current());
 }
 
 /* IDLE 不允许 STOP_WASH */
 static void test_stop_wash_denied_in_idle(void)
 {
-    dev_cmd_t          cmd = dev_cmd_make_simple(DEV_CMD_STOP_WASH);
+    dev_cmd_t          cmd = dev_cmd_make_simple(DEV_CMD_CLEAR_MACHINE);
     dev_cmd_decision_t d;
 
     enter_idle();
@@ -252,7 +252,7 @@ static void test_set_service_enable_is_idempotent(void)
     enter_idle();
     TEST_ASSERT_EQUAL_INT(OP_CMD_ALLOWED, op_mode_handle_command(&on_cmd).verdict);
     TEST_ASSERT_TRUE(op_mode_is_service_enabled());
-    TEST_ASSERT_EQUAL_INT(OP_MODE_IDLE, op_mode_get_current());
+    TEST_ASSERT_EQUAL_INT(OP_MODE_STANDBY, op_mode_get_current());
 
     (void)op_mode_handle_command(&stop_cmd);
     TEST_ASSERT_EQUAL_INT(OP_MODE_STOPPED, op_mode_get_current());
@@ -277,42 +277,17 @@ static void test_set_service_disable_from_idle_enters_stopped(void)
     TEST_ASSERT_FALSE(op_mode_is_service_enabled());
 }
 
-/* 洗车中拒绝关闭总开关；开启仍允许 */
-static void test_set_service_disable_denied_while_washing(void)
+/* 作业中允许关总开关：拒新单，整机仍保持 ACTIVE */
+static void test_set_service_disable_allowed_while_active(void)
 {
     dev_cmd_t off_cmd = dev_cmd_make_set_service(false);
-    dev_cmd_t on_cmd  = dev_cmd_make_set_service(true);
 
     enter_idle();
-    op_mode_on_wash_session_started();
-    TEST_ASSERT_EQUAL_INT(OP_MODE_WASHING, op_mode_get_current());
-    TEST_ASSERT_EQUAL_INT(OP_REJECT_WRONG_MODE, op_mode_handle_command(&off_cmd).reason);
-    TEST_ASSERT_TRUE(op_mode_is_service_enabled());
-    TEST_ASSERT_EQUAL_INT(OP_CMD_ALLOWED, op_mode_handle_command(&on_cmd).verdict);
-    TEST_ASSERT_EQUAL_INT(OP_MODE_WASHING, op_mode_get_current());
-}
-
-/* 全停后离开 IDLE，START_WASH 因模式拒绝（非 SERVICE_DISABLED） */
-static void test_start_wash_wrong_mode_after_stop_all(void)
-{
-    dev_cmd_t stop_cmd = dev_cmd_make_simple(DEV_CMD_STOP_ALL_OUTPUTS);
-    dev_cmd_t cmd      = dev_cmd_make_start_wash(TEST_WASH_MODE_A);
-
-    enter_idle();
-    (void)op_mode_handle_command(&stop_cmd);
-    TEST_ASSERT_EQUAL_INT(OP_MODE_STOPPED, op_mode_get_current());
-    TEST_ASSERT_EQUAL_INT(OP_REJECT_WRONG_MODE, op_mode_handle_command(&cmd).reason);
-}
-
-/* 有阻塞告警时拒绝 START_WASH */
-static void test_start_wash_denied_with_blocking_alarm(void)
-{
-    dev_cmd_t cmd = dev_cmd_make_start_wash(TEST_WASH_MODE_A);
-
-    load_alarm_catalog();
-    enter_idle();
-    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_trigger(TEST_ALARM_BLOCKING));
-    TEST_ASSERT_EQUAL_INT(OP_REJECT_WRONG_MODE, op_mode_handle_command(&cmd).reason);
+    op_mode_on_job_started();
+    TEST_ASSERT_EQUAL_INT(OP_MODE_ACTIVE, op_mode_get_current());
+    TEST_ASSERT_EQUAL_INT(OP_CMD_ALLOWED, op_mode_handle_command(&off_cmd).verdict);
+    TEST_ASSERT_FALSE(op_mode_is_service_enabled());
+    TEST_ASSERT_EQUAL_INT(OP_MODE_ACTIVE, op_mode_get_current());
 }
 
 static bool stub_wash_entry_not_ready(void)
@@ -320,17 +295,40 @@ static bool stub_wash_entry_not_ready(void)
     return false;
 }
 
-/* 机型准入门未就绪时拒绝 START_WASH */
-static void test_start_wash_denied_when_vehicle_not_ready(void)
+/* 全停后仍可入簿（STOPPED + 总开关开） */
+static void test_submit_order_allowed_after_stop_all(void)
+{
+    dev_cmd_t stop_cmd = dev_cmd_make_simple(DEV_CMD_STOP_ALL_OUTPUTS);
+    dev_cmd_t cmd      = dev_cmd_make_submit_order(TEST_WASH_MODE_A);
+
+    enter_idle();
+    (void)op_mode_handle_command(&stop_cmd);
+    TEST_ASSERT_EQUAL_INT(OP_MODE_STOPPED, op_mode_get_current());
+    TEST_ASSERT_EQUAL_INT(OP_CMD_ALLOWED, op_mode_handle_command(&cmd).verdict);
+}
+
+/* 有阻塞告警时仍可入簿，不立刻开洗 */
+static void test_submit_order_allowed_with_blocking_alarm(void)
+{
+    dev_cmd_t cmd = dev_cmd_make_submit_order(TEST_WASH_MODE_A);
+
+    load_alarm_catalog();
+    enter_idle();
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_trigger(TEST_ALARM_BLOCKING));
+    TEST_ASSERT_EQUAL_INT(OP_CMD_ALLOWED, op_mode_handle_command(&cmd).verdict);
+}
+
+/* 机型准入不影响入簿 */
+static void test_submit_order_ignores_admit_ready(void)
 {
     static const device_ops_t s_ops = {
-        .is_wash_entry_ready = stub_wash_entry_not_ready,
+        .is_admit_ready = stub_wash_entry_not_ready,
     };
-    dev_cmd_t cmd = dev_cmd_make_start_wash(TEST_WASH_MODE_A);
+    dev_cmd_t cmd = dev_cmd_make_submit_order(TEST_WASH_MODE_A);
 
     device_ops_register(&s_ops);
     enter_idle();
-    TEST_ASSERT_EQUAL_INT(OP_REJECT_VEHICLE_NOT_READY, op_mode_handle_command(&cmd).reason);
+    TEST_ASSERT_EQUAL_INT(OP_CMD_ALLOWED, op_mode_handle_command(&cmd).verdict);
 }
 
 /* 急停激活时 → STOPPED，RECOVER 被拒绝 */
@@ -383,20 +381,20 @@ static void test_wash_session_lifecycle(void)
 {
     enter_idle();
 
-    op_mode_on_wash_session_started();
-    TEST_ASSERT_EQUAL_INT(OP_MODE_WASHING, op_mode_get_current());
+    op_mode_on_job_started();
+    TEST_ASSERT_EQUAL_INT(OP_MODE_ACTIVE, op_mode_get_current());
 
-    op_mode_on_wash_session_completed();
-    TEST_ASSERT_EQUAL_INT(OP_MODE_WASH_DONE, op_mode_get_current());
+    op_mode_on_last_job_finished();
+    TEST_ASSERT_EQUAL_INT(OP_MODE_HOLD, op_mode_get_current());
 
-    op_mode_on_wash_customer_gone();
-    TEST_ASSERT_EQUAL_INT(OP_MODE_IDLE, op_mode_get_current());
+    op_mode_on_area_cleared();
+    TEST_ASSERT_EQUAL_INT(OP_MODE_STANDBY, op_mode_get_current());
 
-    op_mode_on_wash_session_started();
-    op_mode_on_wash_session_aborted(WASH_ABORT_CRITICAL);
-    TEST_ASSERT_EQUAL_INT(OP_MODE_ABORT_HOMING, op_mode_get_current());
+    op_mode_on_job_started();
+    op_mode_on_clear_requested(WASH_ABORT_CRITICAL);
+    TEST_ASSERT_EQUAL_INT(OP_MODE_CLEARING, op_mode_get_current());
 
-    op_mode_on_home_done();
+    op_mode_on_clear_done();
     TEST_ASSERT_EQUAL_INT(OP_MODE_STOPPED, op_mode_get_current());
 }
 
@@ -406,11 +404,11 @@ static void test_wash_done_with_blocking_enters_stopped(void)
     load_alarm_catalog();
     enter_idle();
 
-    op_mode_on_wash_session_started();
-    TEST_ASSERT_EQUAL_INT(OP_MODE_WASHING, op_mode_get_current());
+    op_mode_on_job_started();
+    TEST_ASSERT_EQUAL_INT(OP_MODE_ACTIVE, op_mode_get_current());
 
     TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_trigger(TEST_ALARM_BLOCKING));
-    op_mode_on_wash_session_completed();
+    op_mode_on_last_job_finished();
     TEST_ASSERT_EQUAL_INT(OP_MODE_STOPPED, op_mode_get_current());
 }
 
@@ -428,15 +426,15 @@ static void test_wash_done_after_cleared_auto_static_enters_wash_done(void)
     TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_load_catalog(&cat, 1U));
     enter_idle();
 
-    op_mode_on_wash_session_started();
-    TEST_ASSERT_EQUAL_INT(OP_MODE_WASHING, op_mode_get_current());
+    op_mode_on_job_started();
+    TEST_ASSERT_EQUAL_INT(OP_MODE_ACTIVE, op_mode_get_current());
 
     TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_trigger(cat.code));
     TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_clear(cat.code));
     TEST_ASSERT_FALSE(alarm_registry_has_blocking_active());
 
-    op_mode_on_wash_session_completed();
-    TEST_ASSERT_EQUAL_INT(OP_MODE_WASH_DONE, op_mode_get_current());
+    op_mode_on_last_job_finished();
+    TEST_ASSERT_EQUAL_INT(OP_MODE_HOLD, op_mode_get_current());
 }
 
 /* STOPPED 允许手动点动 */
@@ -522,15 +520,15 @@ static void test_stop_all_from_washing_skips_abort_homing(void)
     dev_cmd_decision_t d;
 
     enter_idle();
-    op_mode_on_wash_session_started();
-    TEST_ASSERT_EQUAL_INT(OP_MODE_WASHING, op_mode_get_current());
+    op_mode_on_job_started();
+    TEST_ASSERT_EQUAL_INT(OP_MODE_ACTIVE, op_mode_get_current());
 
     d = op_mode_handle_command(&cmd);
     TEST_ASSERT_EQUAL_INT(OP_CMD_ALLOWED, d.verdict);
-    TEST_ASSERT_EQUAL_INT(OP_MODE_WASHING, d.mode_before); /* 与裁决同锁快照，供 router abort */
+    TEST_ASSERT_EQUAL_INT(OP_MODE_ACTIVE, d.mode_before); /* 与裁决同锁快照，供 router abort */
     TEST_ASSERT_EQUAL_INT(OP_MODE_STOPPED, op_mode_get_current());
 
-    op_mode_on_wash_session_aborted(WASH_ABORT_STOP_ALL);
+    op_mode_on_clear_requested(WASH_ABORT_STOP_ALL);
     TEST_ASSERT_EQUAL_INT(OP_MODE_STOPPED, op_mode_get_current());
 }
 
@@ -538,13 +536,13 @@ static void test_stop_all_from_washing_skips_abort_homing(void)
 static void test_estop_abort_from_washing_skips_abort_homing(void)
 {
     s_abort_home_req = 0;
-    TEST_ASSERT_EQUAL_INT(SW_OK, event_subscribe(EVT_ABORT_HOME_REQUESTED, on_abort_home_req));
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_subscribe(EVT_CLEAR_MACHINE_REQUESTED, on_abort_home_req));
 
     enter_idle();
-    op_mode_on_wash_session_started();
-    TEST_ASSERT_EQUAL_INT(OP_MODE_WASHING, op_mode_get_current());
+    op_mode_on_job_started();
+    TEST_ASSERT_EQUAL_INT(OP_MODE_ACTIVE, op_mode_get_current());
 
-    op_mode_on_wash_session_aborted(WASH_ABORT_ESTOP);
+    op_mode_on_clear_requested(WASH_ABORT_ESTOP);
     TEST_ASSERT_EQUAL_INT(OP_MODE_STOPPED, op_mode_get_current());
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_drain());
     TEST_ASSERT_EQUAL_INT(0, s_abort_home_req);
@@ -570,11 +568,15 @@ static void test_cmd_matrix_exhaustive_56(void)
 {
     /* clang-format off */
     static const op_cmd_perm_t expect[DEV_CMD_MAX][OP_MODE_RECOVERING + 1] = {
-        [DEV_CMD_START_WASH] = {
-            OP_CMD_PERM_DENIED, OP_CMD_PERM_DENIED, OP_CMD_PERM_CONDITIONAL, OP_CMD_PERM_DENIED,
-            OP_CMD_PERM_DENIED, OP_CMD_PERM_DENIED, OP_CMD_PERM_DENIED, OP_CMD_PERM_DENIED,
+        [DEV_CMD_SUBMIT_ORDER] = {
+            OP_CMD_PERM_DENIED, OP_CMD_PERM_CONDITIONAL, OP_CMD_PERM_CONDITIONAL, OP_CMD_PERM_CONDITIONAL,
+            OP_CMD_PERM_CONDITIONAL, OP_CMD_PERM_CONDITIONAL, OP_CMD_PERM_CONDITIONAL, OP_CMD_PERM_CONDITIONAL,
         },
-        [DEV_CMD_STOP_WASH] = {
+        [DEV_CMD_CANCEL_ORDER] = {
+            OP_CMD_PERM_DENIED, OP_CMD_PERM_ALLOWED, OP_CMD_PERM_ALLOWED, OP_CMD_PERM_ALLOWED,
+            OP_CMD_PERM_ALLOWED, OP_CMD_PERM_ALLOWED, OP_CMD_PERM_ALLOWED, OP_CMD_PERM_ALLOWED,
+        },
+        [DEV_CMD_CLEAR_MACHINE] = {
             OP_CMD_PERM_DENIED, OP_CMD_PERM_DENIED, OP_CMD_PERM_DENIED, OP_CMD_PERM_ALLOWED,
             OP_CMD_PERM_DENIED, OP_CMD_PERM_DENIED, OP_CMD_PERM_DENIED, OP_CMD_PERM_DENIED,
         },
@@ -628,10 +630,10 @@ int main(void)
     WDF_RUN_TEST(test_stop_all_allowed_from_stopped, "", "验证停止模式下允许全停且总开关保持");
     WDF_RUN_TEST(test_set_service_enable_is_idempotent, "", "验证开启总开关幂等且不改模式");
     WDF_RUN_TEST(test_set_service_disable_from_idle_enters_stopped, "", "验证待机关总开关落入停机");
-    WDF_RUN_TEST(test_set_service_disable_denied_while_washing, "", "验证洗车中拒绝关闭总开关");
-    WDF_RUN_TEST(test_start_wash_wrong_mode_after_stop_all, "", "验证全停后启动洗车因模式拒绝");
-    WDF_RUN_TEST(test_start_wash_denied_with_blocking_alarm, "", "验证存在阻断报警时拒绝启动洗车");
-    WDF_RUN_TEST(test_start_wash_denied_when_vehicle_not_ready, "", "验证启动洗车被拒绝时车辆未就绪");
+    WDF_RUN_TEST(test_set_service_disable_allowed_while_active, "", "验证作业中可关总开关且保持 ACTIVE");
+    WDF_RUN_TEST(test_submit_order_allowed_after_stop_all, "", "验证全停后仍允许入簿");
+    WDF_RUN_TEST(test_submit_order_allowed_with_blocking_alarm, "", "验证存在阻断报警时仍允许入簿");
+    WDF_RUN_TEST(test_submit_order_ignores_admit_ready, "", "验证入簿不检查机型准入");
     WDF_RUN_TEST(test_estop_blocks_recover, "", "验证急停阻止恢复");
     WDF_RUN_TEST(test_estop_release_stays_stopped, "", "验证急停解除保持停止模式");
     WDF_RUN_TEST(test_recover_from_stopped_enters_recovering, "", "验证停止模式恢复进入恢复中");

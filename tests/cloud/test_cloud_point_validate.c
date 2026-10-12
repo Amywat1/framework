@@ -107,7 +107,7 @@ static void test_dev_cmd_non_bool_int_rejected(void)
     entry.base.id   = "stopWash";
     entry.base.type = POINT_TYPE_STRING;
     entry.kind      = CLOUD_KIND_DEV_CMD;
-    entry.cmd_kind  = DEV_CMD_STOP_WASH;
+    entry.cmd_kind  = DEV_CMD_CLEAR_MACHINE;
 
     TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, cloud_point_validate(&entry, 1U));
 }
@@ -199,7 +199,7 @@ static void test_valid_dev_cmd_and_set(void)
     stop_cmd.base.type = POINT_TYPE_BOOL;
     stop_cmd.base.get  = echo_idle;
     stop_cmd.kind      = CLOUD_KIND_DEV_CMD;
-    stop_cmd.cmd_kind  = DEV_CMD_STOP_WASH;
+    stop_cmd.cmd_kind  = DEV_CMD_CLEAR_MACHINE;
     stop_cmd.report    = CLOUD_REPORT_RESYNC;
 
     memset(&write_act, 0, sizeof(write_act));

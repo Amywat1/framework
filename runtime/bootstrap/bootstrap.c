@@ -9,6 +9,7 @@
 #include "application/bridges/alarm_bridge.h"
 #include "application/bridges/op_mode_bridge.h"
 #include "application/command_gateway.h"
+#include "application/job_admit.h"
 #include "application/orchestrators/recovery_coordinator.h"
 #include "application/orchestrators/safety_session_coordinator.h"
 #include "application/telemetry_projection.h"
@@ -227,6 +228,7 @@ static sw_err_t bootstrap_init_services(void)
 {
     BOOT_CHECK(alarm_bridge_init(), "alarm_bridge_init");
     BOOT_CHECK(operational_mode_init(), "operational_mode_init");
+    BOOT_CHECK(job_admit_init(), "job_admit_init");
     BOOT_CHECK(command_gateway_init(), "command_gateway_init");
     BOOT_CHECK(recovery_coordinator_init(), "recovery_coordinator_init");
     BOOT_CHECK(safety_session_coordinator_init(), "safety_session_coordinator_init");

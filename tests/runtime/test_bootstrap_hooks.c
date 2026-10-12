@@ -58,6 +58,10 @@ sw_err_t operational_mode_init(void)
 {
     return SW_ERR_NOT_INIT;
 }
+sw_err_t job_admit_init(void)
+{
+    return SW_ERR_NOT_INIT;
+}
 sw_err_t recovery_coordinator_init(void)
 {
     return SW_ERR_NOT_INIT;

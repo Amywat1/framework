@@ -254,7 +254,7 @@ static void test_stats_count_by_category(void)
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_get_stats(&stats));
     TEST_ASSERT_EQUAL_UINT(2U, stats.published_by_cat[EVT_CAT_ALARM]);
     TEST_ASSERT_EQUAL_UINT(1U, stats.published_by_cat[EVT_CAT_CMD]);
-    TEST_ASSERT_EQUAL_UINT(0U, stats.published_by_cat[EVT_CAT_WASH]);
+    TEST_ASSERT_EQUAL_UINT(0U, stats.published_by_cat[EVT_CAT_JOB]);
     TEST_ASSERT_EQUAL_UINT(2U, stats.dispatched_by_cat[EVT_CAT_ALARM]);
     TEST_ASSERT_EQUAL_UINT(1U, stats.dispatched_by_cat[EVT_CAT_CMD]);
     /* 分类别之和必须等于总计 */
@@ -292,14 +292,14 @@ static void test_stats_records_slow_handler(void)
     event_bus_stats_t stats;
 
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
-    TEST_ASSERT_EQUAL_INT(SW_OK, event_subscribe(EVT_WASH_DONE, slow_handler));
-    TEST_ASSERT_EQUAL_INT(SW_OK, event_publish(EVT_WASH_DONE, 0U));
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_subscribe(EVT_JOB_COMPLETED, slow_handler));
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_publish(EVT_JOB_COMPLETED, 0U));
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_drain());
 
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_get_stats(&stats));
     TEST_ASSERT_EQUAL_UINT(1U, stats.slow_handler_count);
     TEST_ASSERT_TRUE(stats.handler_max_ms >= EVENT_BUS_SLOW_HANDLER_MS);
-    TEST_ASSERT_EQUAL_UINT16(EVT_WASH_DONE, stats.handler_max_type);
+    TEST_ASSERT_EQUAL_UINT16(EVT_JOB_COMPLETED, stats.handler_max_type);
     TEST_ASSERT_TRUE(stats.dispatch_max_ms >= stats.handler_max_ms);
 }
 

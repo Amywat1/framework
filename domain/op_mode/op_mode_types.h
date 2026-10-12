@@ -19,34 +19,30 @@ extern "C" {
  * ------------------------------------------------------------------------- */
 
 /**
- * @brief  整机运行模式（8 态状态机）
+ * @brief  整机运行模式（8 态；不表达同时在洗车数）
  *
  * 状态迁移概览：
  *   INIT → STOPPED（初始化完成；上电默认运营总开关开启，可 RECOVER）
- *   STOPPED → RECOVERING（RECOVER：复位锁存告警 + 异步归位）→ IDLE / STOPPED
- *   任意非 INIT → STOPPED（STOP_ALL_OUTPUTS：切断输出，不改总开关；洗车中不清障）
- *   任意非 INIT → 同态（SET_SERVICE：仅翻总开关；关闭时若在 IDLE/WASH_DONE 则落到 STOPPED）
- *   IDLE → WASHING（START_WASH）
- *   WASHING → ABORT_HOMING（STOP_WASH 等非急停/非全停中止清障）→ STOPPED
- *   WASHING → WASH_DONE（正常完成且无 MAJOR+）→ IDLE（客户离场）
- *   WASHING → STOPPED（正常完成但仍有 MAJOR+；或急停 / STOP_ALL，不清障）
- *   WASH_DONE → STOPPED（STOP_ALL / 告警 / 急停）
- *   STOPPED → SELF_CHECK → STOPPED（仅急停激活时拒绝启动自检；自检中可 STOP_ALL）
- *   急停解除不自动进 IDLE；故障条件由 estop / blocking / LOCKOUT 旗标表达，不占用独立模式
+ *   STOPPED → RECOVERING（RECOVER：复位锁存告警 + 异步归位）→ STANDBY / STOPPED
+ *   任意非 INIT → STOPPED（STOP_ALL_OUTPUTS：切断输出，清空订单簿，不改总开关）
+ *   任意非 INIT → 同态（SET_SERVICE：仅翻总开关；关闭时若在 STANDBY/HOLD 则落到 STOPPED）
+ *   STANDBY / ACTIVE 可 SUBMIT_ORDER 入簿；放行后占用 0→1 进入 ACTIVE
+ *   ACTIVE → CLEARING（CLEAR_MACHINE：停放行、中止在洗、项目清障）→ STOPPED
+ *   ACTIVE → HOLD 或 STANDBY（最后一单结束；HOLD 由 profile.hold_after_last_job 决定）
+ *   HOLD → STANDBY（场区清空）
+ *   STOPPED → SELF_CHECK → STOPPED
+ *   急停解除不自动进 STANDBY；故障条件由 estop / blocking / LOCKOUT 旗标表达
  *
- * @note   不变量：IDLE 蕴含 service_enabled==true 且无急停；关总开关或急停时不得停留在 IDLE。
- *         进 IDLE 由 set_mode 强制检查，破坏则降级 STOPPED。
- *         IDLE/WASH_DONE 不得长期残留 MAJOR+ / LOCKOUT / 急停；出现时收敛到 STOPPED。
- *         MINOR 告警可与正常状态共存。故障态由安全快照表达，不设独立故障模式。
- *         运营归位走 RECOVERING；中止清障走 ABORT_HOMING——不再保留独立 HOMING 态。
+ * @note   不变量：STANDBY 蕴含 service_enabled==true 且无急停。
+ *         MINOR 告警可与正常状态共存。占用数见 active_jobs，不占用独立模式。
  */
 typedef enum {
     OP_MODE_INIT = 0,     /**< 系统初始化中（operational_mode_init 前）*/
     OP_MODE_STOPPED,      /**< 停机（未运营或待归位；可带或不带故障旗标）*/
-    OP_MODE_IDLE,         /**< 运营待机（总开关开且无急停，可接单）*/
-    OP_MODE_WASHING,      /**< 洗车会话执行中 */
-    OP_MODE_ABORT_HOMING, /**< 中止归位中（停洗清障 → STOPPED）*/
-    OP_MODE_WASH_DONE,    /**< 洗车完成，等待客户离场 */
+    OP_MODE_STANDBY,      /**< 运营待机（总开关开且无急停，可接单放行）*/
+    OP_MODE_ACTIVE,       /**< 至少一单在洗 */
+    OP_MODE_CLEARING,     /**< 整机清障/排空中 */
+    OP_MODE_HOLD,         /**< 最后一单结束，等待场区清空 */
     OP_MODE_SELF_CHECK,   /**< 自检中 */
     OP_MODE_RECOVERING,   /**< 恢复中（归位 + 阻塞告警验证）*/
 } operational_mode_t;
@@ -60,11 +56,11 @@ typedef uint8_t wash_mode_t;
 /** @brief  无效洗车模式（框架侧占位，项目勿用作合法模式） */
 #define WASH_MODE_INVALID ((wash_mode_t)0xFFU)
 
-/** @brief  洗车会话中止原因 */
+/** @brief  作业中止原因 */
 typedef enum {
-    WASH_ABORT_MANUAL = 0,   /**< 人工发出 STOP_WASH 指令 */
+    WASH_ABORT_MANUAL = 0,   /**< 人工发出 CLEAR_MACHINE */
     WASH_ABORT_CRITICAL,     /**< 安全 LOCKOUT（报警触发）*/
-    WASH_ABORT_STEP_TIMEOUT, /**< 洗车步骤超时 */
+    WASH_ABORT_STEP_TIMEOUT, /**< 步骤超时 */
     WASH_ABORT_INTERNAL,     /**< 内部引擎错误 */
     WASH_ABORT_ESTOP,        /**< 硬件急停触发 */
     WASH_ABORT_STOP_ALL,     /**< 手动 STOP_ALL_OUTPUTS：全切断且不清障 */
@@ -82,19 +78,19 @@ typedef enum {
     OP_REJECT_WRONG_MODE,
     OP_REJECT_ESTOP_ACTIVE,
     OP_REJECT_SERVICE_DISABLED,
-    OP_REJECT_VEHICLE_NOT_READY,  /**< 机型准入未就绪（抽象；具体条件由项目定义）*/
+    OP_REJECT_ENTRY_NOT_READY,    /**< 机型准入未就绪（抽象；具体条件由项目定义）*/
     OP_REJECT_UNKNOWN_CMD,
     OP_REJECT_CUTOUT_UNCONFIRMED, /**< 安全切断失败且尚无独立反馈确认 */
 } op_reject_reason_t;
 
 /** @brief  恢复流程结束结果 */
 typedef enum {
-    RECOVERY_RESULT_IDLE = 0, /**< 归位成功且无阻塞告警 → IDLE */
+    RECOVERY_RESULT_STANDBY = 0, /**< 归位成功且无阻塞告警 → STANDBY */
     RECOVERY_RESULT_FAILED,   /**< 归位失败或仍有阻塞 → STOPPED */
 } recovery_result_t;
 
 /**
- * @brief  将中止原因编码为 EVT_WASH_ABORTED 的 param
+ * @brief  将中止原因编码为 32 位事件参数（安全路径 / 测试辅助）
  */
 static inline uint32_t wash_abort_evt_param(wash_abort_cause_t cause)
 {
@@ -102,7 +98,8 @@ static inline uint32_t wash_abort_evt_param(wash_abort_cause_t cause)
 }
 
 /**
- * @brief  从 EVT_WASH_ABORTED 的 param 解码中止原因
+ * @brief  从 32 位事件参数解码中止原因
+ * @note   EVT_JOB_ABORTED 的 param 现为 job_id，不得用本函数解读。
  */
 static inline wash_abort_cause_t wash_abort_from_evt_param(uint32_t param)
 {
@@ -121,8 +118,8 @@ static inline wash_abort_cause_t wash_abort_from_evt_param(uint32_t param)
  * 调用点手写 `<<` / `&`。
  *
  * 布局（低位在右）：
- *   EVT_OP_MODE_CHANGED       [15:8]=from      [7:0]=to
- *   EVT_WASH_SESSION_STARTED  [7:0]=wash_mode
+ *   EVT_OP_MODE_CHANGED  [15:8]=from      [7:0]=to
+ *   EVT_JOB_STARTED      [7:0]=wash_mode
  *   命令完成见 command_types.h 的 EVT_OP_MODE_CMD_HANDLED 编解码
  * ------------------------------------------------------------------------- */
 
@@ -151,14 +148,14 @@ static inline operational_mode_t op_mode_changed_to(uint32_t param)
     return (operational_mode_t)(param & OP_MODE_EVT_FIELD_MASK);
 }
 
-/** @brief 编码 EVT_WASH_SESSION_STARTED 的 param */
-static inline uint32_t wash_session_started_evt_param(wash_mode_t mode)
+/** @brief 编码 EVT_JOB_STARTED 的 param */
+static inline uint32_t job_started_evt_param(wash_mode_t mode)
 {
     return (uint32_t)mode & OP_MODE_EVT_FIELD_MASK;
 }
 
-/** @brief 从 EVT_WASH_SESSION_STARTED 的 param 解出洗车模式 */
-static inline wash_mode_t wash_session_started_mode(uint32_t param)
+/** @brief 从 EVT_JOB_STARTED 的 param 解出洗车模式 */
+static inline wash_mode_t job_started_mode(uint32_t param)
 {
     return (wash_mode_t)(param & OP_MODE_EVT_FIELD_MASK);
 }

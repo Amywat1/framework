@@ -33,7 +33,7 @@ typedef enum {
     EVT_CAT_ALARM   = 4, /**< 报警生命周期（激活/清除）*/
     EVT_CAT_CMD     = 5, /**< 外部命令（云端/CLI/本地）*/
     EVT_CAT_CLOUD   = 6, /**< 云端连接状态 */
-    EVT_CAT_WASH    = 7, /**< 洗车流程（步骤/完成/中止）*/
+    EVT_CAT_JOB     = 7, /**< 作业流程（开始/完成/中止/场区清空）*/
     EVT_CAT_OP_MODE = 8, /**< 运行模式变更 / 命令拒绝 / 恢复请求 */
     EVT_CAT_MAX
 } event_category_t;
@@ -79,13 +79,13 @@ typedef uint16_t event_type_t;
 /* -------------------------------------------------------------------------
  * SAFETY 类（alarm_registry 按姿态边沿发布）
  * ------------------------------------------------------------------------- */
-#define EVT_SAFETY_ID_LOCKOUT         0U
-#define EVT_SAFETY_ID_NOMINAL         1U
-#define EVT_SAFETY_ID_ABORT_HOME_DONE 2U /* 中止归位完成（项目运动结束后发布）*/
+#define EVT_SAFETY_ID_LOCKOUT            0U
+#define EVT_SAFETY_ID_NOMINAL            1U
+#define EVT_SAFETY_ID_CLEAR_MACHINE_DONE 2U /* 整机清障完成（项目运动结束后发布）*/
 
-#define EVT_SAFETY_LOCKOUT  EVT_MAKE(EVT_CAT_SAFETY, EVT_SAFETY_ID_LOCKOUT)
-#define EVT_SAFETY_NOMINAL  EVT_MAKE(EVT_CAT_SAFETY, EVT_SAFETY_ID_NOMINAL)
-#define EVT_ABORT_HOME_DONE EVT_MAKE(EVT_CAT_SAFETY, EVT_SAFETY_ID_ABORT_HOME_DONE)
+#define EVT_SAFETY_LOCKOUT        EVT_MAKE(EVT_CAT_SAFETY, EVT_SAFETY_ID_LOCKOUT)
+#define EVT_SAFETY_NOMINAL        EVT_MAKE(EVT_CAT_SAFETY, EVT_SAFETY_ID_NOMINAL)
+#define EVT_CLEAR_MACHINE_DONE    EVT_MAKE(EVT_CAT_SAFETY, EVT_SAFETY_ID_CLEAR_MACHINE_DONE)
 
 /* -------------------------------------------------------------------------
  * ALARM 类（alarm_registry 放锁后发布）
@@ -113,19 +113,19 @@ typedef uint16_t event_type_t;
 #define EVT_CLOUD_DISCONNECTED EVT_MAKE(EVT_CAT_CLOUD, EVT_CLOUD_ID_DISCONNECTED)
 
 /* -------------------------------------------------------------------------
- * WASH 类（项目洗车编排器发布）
+ * 作业类（项目作业编排器发布；local_id 保持既有编号）
  * ------------------------------------------------------------------------- */
-#define EVT_WASH_ID_DONE               1U
-#define EVT_WASH_ID_ABORTED            2U
-#define EVT_WASH_ID_SESSION_STARTED    3U
+#define EVT_JOB_ID_COMPLETED           1U
+#define EVT_JOB_ID_ABORTED             2U
+#define EVT_JOB_ID_STARTED             3U
 #define EVT_WASH_ID_CHECKPOINT_REACHED 4U
-#define EVT_WASH_ID_CUSTOMER_GONE      5U /**< 洗车区域已清空，客户离场 */
+#define EVT_JOB_ID_AREA_CLEARED        5U /**< 场区已清空 */
 
-#define EVT_WASH_DONE               EVT_MAKE(EVT_CAT_WASH, EVT_WASH_ID_DONE)
-#define EVT_WASH_ABORTED            EVT_MAKE(EVT_CAT_WASH, EVT_WASH_ID_ABORTED)
-#define EVT_WASH_SESSION_STARTED    EVT_MAKE(EVT_CAT_WASH, EVT_WASH_ID_SESSION_STARTED)
-#define EVT_WASH_CHECKPOINT_REACHED EVT_MAKE(EVT_CAT_WASH, EVT_WASH_ID_CHECKPOINT_REACHED)
-#define EVT_WASH_CUSTOMER_GONE      EVT_MAKE(EVT_CAT_WASH, EVT_WASH_ID_CUSTOMER_GONE)
+#define EVT_JOB_COMPLETED           EVT_MAKE(EVT_CAT_JOB, EVT_JOB_ID_COMPLETED)
+#define EVT_JOB_ABORTED             EVT_MAKE(EVT_CAT_JOB, EVT_JOB_ID_ABORTED)
+#define EVT_JOB_STARTED             EVT_MAKE(EVT_CAT_JOB, EVT_JOB_ID_STARTED)
+#define EVT_WASH_CHECKPOINT_REACHED EVT_MAKE(EVT_CAT_JOB, EVT_WASH_ID_CHECKPOINT_REACHED)
+#define EVT_JOB_AREA_CLEARED        EVT_MAKE(EVT_CAT_JOB, EVT_JOB_ID_AREA_CLEARED)
 
 /* -------------------------------------------------------------------------
  * OP_MODE 类（OperationalMode 聚合发布）
@@ -136,8 +136,8 @@ typedef uint16_t event_type_t;
 #define EVT_OP_MODE_ID_SELF_CHECK_COMPLETED 3U
 #define EVT_OP_MODE_ID_CONTEXT_SYNC         4U
 #define EVT_OP_MODE_ID_CMD_HANDLED          5U /**< 命令处理完成（kind/status/reason 编码于 param）*/
-#define EVT_OP_MODE_ID_HOME_COMPLETED       6U /**< 内部归位完成（param=1 成功）*/
-#define EVT_OP_MODE_ID_ABORT_HOME_REQUESTED 7U /**< 中止归位请求（进入 ABORT_HOMING 时发布）*/
+#define EVT_OP_MODE_ID_HOME_COMPLETED         6U /**< 内部归位完成（param=1 成功）*/
+#define EVT_OP_MODE_ID_CLEAR_MACHINE_REQUESTED 7U /**< 整机清障请求（进入 CLEARING 时发布）*/
 
 #define EVT_OP_MODE_CHANGED              EVT_MAKE(EVT_CAT_OP_MODE, EVT_OP_MODE_ID_CHANGED)
 #define EVT_OP_MODE_RECOVERY_REQUESTED   EVT_MAKE(EVT_CAT_OP_MODE, EVT_OP_MODE_ID_RECOVERY_REQUESTED)
@@ -146,7 +146,7 @@ typedef uint16_t event_type_t;
 #define EVT_OP_MODE_CONTEXT_SYNC         EVT_MAKE(EVT_CAT_OP_MODE, EVT_OP_MODE_ID_CONTEXT_SYNC)
 #define EVT_OP_MODE_CMD_HANDLED          EVT_MAKE(EVT_CAT_OP_MODE, EVT_OP_MODE_ID_CMD_HANDLED)
 #define EVT_OP_MODE_HOME_COMPLETED       EVT_MAKE(EVT_CAT_OP_MODE, EVT_OP_MODE_ID_HOME_COMPLETED)
-#define EVT_ABORT_HOME_REQUESTED         EVT_MAKE(EVT_CAT_OP_MODE, EVT_OP_MODE_ID_ABORT_HOME_REQUESTED)
+#define EVT_CLEAR_MACHINE_REQUESTED      EVT_MAKE(EVT_CAT_OP_MODE, EVT_OP_MODE_ID_CLEAR_MACHINE_REQUESTED)
 
 /* -------------------------------------------------------------------------
  * 编解码辅助

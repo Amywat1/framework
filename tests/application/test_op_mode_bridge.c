@@ -4,18 +4,25 @@
  */
 
 #include "application/bridges/op_mode_bridge.h"
+#include "application/job_admit.h"
 #include "common/event_types.h"
 #include "common/sw_error.h"
 #include "common/time_util.h"
+#include "domain/job/job_types.h"
 #include "domain/op_mode/device_command.h"
 #include "domain/op_mode/op_mode_types.h"
 #include "domain/op_mode/operational_mode.h"
+#include "domain/ports/outbound/device/device_ops_port.h"
 #include "domain/ports/outbound/safety/safety_port.h"
 #include "domain/safety/alarm_registry/alarm_registry.h"
 #include "domain/safety/model/alarm_types.h"
 #include "runtime/event_bus/event_bus.h"
 #include "runtime/ports/port_registry.h"
+#include "tests/stubs/device_ops_stub.h"
+#include "tests/stubs/test_wash_modes.h"
 #include "wdf_test_spec.h"
+
+#include <string.h>
 
 static volatile int s_mode_changed;
 
@@ -31,13 +38,19 @@ static void publish_and_wait(event_type_t type, uint32_t param)
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_drain());
 }
 
-/* 辅助：直接将 op_mode 推进到 IDLE（绕过 event_bus）*/
-static void setup_idle(void)
+/* 辅助：直接将 op_mode 推进到 STANDBY（绕过 event_bus）*/
+static void setup_standby(void)
 {
     dev_cmd_t cmd = dev_cmd_make_simple(DEV_CMD_RECOVER);
 
     (void)op_mode_handle_command(&cmd); /* STOPPED → RECOVERING */
-    op_mode_on_recovery_completed(RECOVERY_RESULT_IDLE);
+    op_mode_on_recovery_completed(RECOVERY_RESULT_STANDBY);
+}
+
+static void enter_active(void)
+{
+    setup_standby();
+    op_mode_on_job_started();
 }
 
 void setUp(void)
@@ -86,56 +99,70 @@ static void test_hw_estop_on_enters_stopped(void)
     TEST_ASSERT_EQUAL_INT(OP_MODE_STOPPED, op_mode_get_current());
 }
 
-/* EVT_WASH_SESSION_STARTED → WASHING */
-static void test_wash_session_started_enters_washing(void)
+/* EVT_JOB_STARTED 不再切 ACTIVE，只由放行核调用 on_job_started */
+static void test_job_started_event_does_not_enter_active(void)
 {
     time_util_init();
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, operational_mode_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, job_admit_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, op_mode_bridge_init());
-    setup_idle(); /* STOPPED → IDLE */
-    publish_and_wait(EVT_WASH_SESSION_STARTED, 0U);
-    TEST_ASSERT_EQUAL_INT(OP_MODE_WASHING, op_mode_get_current());
+    setup_standby();
+    publish_and_wait(EVT_JOB_STARTED, 0U);
+    TEST_ASSERT_EQUAL_INT(OP_MODE_STANDBY, op_mode_get_current());
 }
 
-/* 正常洗车完成 → WASH_DONE */
-static void test_wash_done_enters_wash_done(void)
+/* 作业完成 → HOLD */
+static void test_job_completed_enters_hold(void)
 {
     time_util_init();
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, operational_mode_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, job_admit_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, op_mode_bridge_init());
-    setup_idle();
-    publish_and_wait(EVT_WASH_SESSION_STARTED, 0U);
-    publish_and_wait(EVT_WASH_DONE, 0U);
-    TEST_ASSERT_EQUAL_INT(OP_MODE_WASH_DONE, op_mode_get_current());
+    enter_active();
+    publish_and_wait(EVT_JOB_COMPLETED, 1U);
+    TEST_ASSERT_EQUAL_INT(OP_MODE_HOLD, op_mode_get_current());
 }
 
-/* 洗车完成 + 客户离场 → IDLE */
-static void test_customer_gone_returns_idle(void)
+/* 作业完成 + 场区清空 → STANDBY */
+static void test_area_cleared_returns_standby(void)
 {
     time_util_init();
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, operational_mode_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, job_admit_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, op_mode_bridge_init());
-    setup_idle();
-    publish_and_wait(EVT_WASH_SESSION_STARTED, 0U);
-    publish_and_wait(EVT_WASH_DONE, 0U);
-    publish_and_wait(EVT_WASH_CUSTOMER_GONE, 0U);
-    TEST_ASSERT_EQUAL_INT(OP_MODE_IDLE, op_mode_get_current());
+    enter_active();
+    publish_and_wait(EVT_JOB_COMPLETED, 1U);
+    publish_and_wait(EVT_JOB_AREA_CLEARED, 0U);
+    TEST_ASSERT_EQUAL_INT(OP_MODE_STANDBY, op_mode_get_current());
 }
 
-/* 手动停止洗车 → ABORT_HOMING */
-static void test_wash_aborted_manual_enters_alarm_homing(void)
+/* 默认 profile（单车机型）：在洗作业中止 → 整机 CLEARING */
+static void test_job_aborted_requests_clear(void)
 {
+    static device_ops_t ops;
+    job_desc_t          order;
+
     time_util_init();
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, operational_mode_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, job_admit_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, op_mode_bridge_init());
-    setup_idle();
-    publish_and_wait(EVT_WASH_SESSION_STARTED, 0U);
-    publish_and_wait(EVT_WASH_ABORTED, wash_abort_evt_param(WASH_ABORT_MANUAL));
-    TEST_ASSERT_EQUAL_INT(OP_MODE_ABORT_HOMING, op_mode_get_current());
+    device_ops_stub_reset();
+    memset(&ops, 0, sizeof(ops));
+    device_ops_stub_bind(&ops);
+    device_ops_register(&ops);
+    setup_standby();
+    memset(&order, 0, sizeof(order));
+    order.mode = TEST_WASH_MODE_A;
+    TEST_ASSERT_EQUAL_INT(SW_OK, job_admit_submit(&order));
+    TEST_ASSERT_EQUAL_INT(OP_MODE_ACTIVE, op_mode_get_current());
+
+    publish_and_wait(EVT_JOB_ABORTED, (uint32_t)device_ops_stub_last_job_id());
+    TEST_ASSERT_EQUAL_INT(OP_MODE_CLEARING, op_mode_get_current());
+    device_ops_register(NULL);
 }
 
 /* 自检完成（从 STOPPED 出发，成功）→ STOPPED */
@@ -182,25 +209,25 @@ static void test_recovery_completed_success_enters_idle(void)
     }
     TEST_ASSERT_EQUAL_INT(OP_MODE_RECOVERING, op_mode_get_current());
 
-    publish_and_wait(EVT_OP_MODE_RECOVERY_COMPLETED, (uint32_t)RECOVERY_RESULT_IDLE);
-    TEST_ASSERT_EQUAL_INT(OP_MODE_IDLE, op_mode_get_current());
+    publish_and_wait(EVT_OP_MODE_RECOVERY_COMPLETED, (uint32_t)RECOVERY_RESULT_STANDBY);
+    TEST_ASSERT_EQUAL_INT(OP_MODE_STANDBY, op_mode_get_current());
 }
 
-/* EVT_ABORT_HOME_DONE → ABORT_HOMING → STOPPED */
+/* EVT_CLEAR_MACHINE_DONE → ABORT_HOMING → STOPPED */
 static void test_alarm_home_done_enters_stopped(void)
 {
     time_util_init();
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, operational_mode_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, op_mode_bridge_init());
-    setup_idle();
+    setup_standby();
 
-    /* 手动推进到 ABORT_HOMING */
-    op_mode_on_wash_session_started();
-    op_mode_on_wash_session_aborted(WASH_ABORT_CRITICAL);
-    TEST_ASSERT_EQUAL_INT(OP_MODE_ABORT_HOMING, op_mode_get_current());
+    /* 手动推进到 CLEARING */
+    op_mode_on_job_started();
+    op_mode_on_clear_requested(WASH_ABORT_CRITICAL);
+    TEST_ASSERT_EQUAL_INT(OP_MODE_CLEARING, op_mode_get_current());
 
-    publish_and_wait(EVT_ABORT_HOME_DONE, 0U);
+    publish_and_wait(EVT_CLEAR_MACHINE_DONE, 0U);
     TEST_ASSERT_EQUAL_INT(OP_MODE_STOPPED, op_mode_get_current());
 }
 
@@ -266,9 +293,9 @@ static void test_critical_from_idle_converges_once(void)
     TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_load_catalog(catalog, 1U));
     TEST_ASSERT_EQUAL_INT(SW_OK, operational_mode_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, op_mode_bridge_init());
-    setup_idle();
+    setup_standby();
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_drain());
-    TEST_ASSERT_EQUAL_INT(OP_MODE_IDLE, op_mode_get_current());
+    TEST_ASSERT_EQUAL_INT(OP_MODE_STANDBY, op_mode_get_current());
 
     s_mode_changed = 0;
     TEST_ASSERT_EQUAL_INT(SW_OK, event_subscribe(EVT_OP_MODE_CHANGED, on_mode_changed));
@@ -284,10 +311,10 @@ int main(void)
     UNITY_BEGIN();
 
     WDF_RUN_TEST(test_hw_estop_on_enters_stopped, "", "验证HW急停开启进入停止模式");
-    WDF_RUN_TEST(test_wash_session_started_enters_washing, "", "验证洗车会话已启动进入洗车模式");
-    WDF_RUN_TEST(test_wash_done_enters_wash_done, "", "验证洗车完成进入洗车完成");
-    WDF_RUN_TEST(test_customer_gone_returns_idle, "", "验证客户离场返回空闲模式");
-    WDF_RUN_TEST(test_wash_aborted_manual_enters_alarm_homing, "", "验证洗车已中止手动进入报警回零");
+    WDF_RUN_TEST(test_job_started_event_does_not_enter_active, "", "验证作业开始事件不切 ACTIVE");
+    WDF_RUN_TEST(test_job_completed_enters_hold, "", "验证作业完成进入 HOLD");
+    WDF_RUN_TEST(test_area_cleared_returns_standby, "", "验证场区清空返回 STANDBY");
+    WDF_RUN_TEST(test_job_aborted_requests_clear, "", "验证单车机型在洗作业中止后进入清障");
     WDF_RUN_TEST(test_self_check_from_stopped_lands_stopped, "", "验证自检检查从停止模式最终进入停止模式");
     WDF_RUN_TEST(test_estop_during_self_check_enters_stopped, "", "验证自检中急停立即进入停止");
     WDF_RUN_TEST(test_recovery_completed_success_enters_idle, "", "验证恢复完成成功进入空闲模式");

@@ -44,6 +44,17 @@ void device_snapshot_set_wash_mode(wash_mode_t mode)
     pthread_mutex_unlock(&s_mutex);
 }
 
+void device_snapshot_update_job(const wash_snapshot_t *job)
+{
+    if (job == NULL) {
+        return;
+    }
+
+    pthread_mutex_lock(&s_mutex);
+    s_state.wash = *job;
+    pthread_mutex_unlock(&s_mutex);
+}
+
 void device_snapshot_set_cloud_connected(bool connected)
 {
     pthread_mutex_lock(&s_mutex);

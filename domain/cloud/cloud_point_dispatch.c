@@ -33,6 +33,16 @@ sw_err_t cloud_point_get_echo_idle(point_value_t *out)
     return SW_OK;
 }
 
+sw_err_t cloud_point_get_echo_zero(point_value_t *out)
+{
+    if (out == NULL) {
+        return SW_ERR_PARAM;
+    }
+
+    out->i = 0;
+    return SW_OK;
+}
+
 /**
  * @brief  按点位表把写入值翻译为设备命令
  */
@@ -52,11 +62,14 @@ static sw_err_t build_device_cmd(const cloud_point_entry_t *entry, const point_v
     case DEV_CMD_MANUAL_ACTUATOR:
         *cmd = dev_cmd_make_manual(entry->cmd_act_id, param);
         return SW_OK;
-    case DEV_CMD_START_WASH:
-        *cmd = dev_cmd_make_start_wash(entry->cmd_has_param ? (wash_mode_t)entry->cmd_param : (wash_mode_t)0);
+    case DEV_CMD_SUBMIT_ORDER:
+        *cmd = dev_cmd_make_submit_order(entry->cmd_has_param ? (wash_mode_t)entry->cmd_param : (wash_mode_t)0);
         return SW_OK;
     case DEV_CMD_SET_SERVICE:
         *cmd = dev_cmd_make_set_service(entry->cmd_has_param ? (entry->cmd_param != 0) : val->b);
+        return SW_OK;
+    case DEV_CMD_CANCEL_ORDER:
+        *cmd = dev_cmd_make_cancel_order((uint64_t)((param < 0) ? 0 : param));
         return SW_OK;
     default:
         *cmd = dev_cmd_make_simple(entry->cmd_kind);

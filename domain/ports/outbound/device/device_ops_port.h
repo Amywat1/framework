@@ -16,6 +16,7 @@ extern "C" {
 #endif
 
 #include "common/sw_error.h"
+#include "domain/job/job_types.h"
 #include "domain/op_mode/op_mode_types.h"
 
 #include <stdbool.h>
@@ -26,18 +27,21 @@ extern "C" {
  */
 typedef struct {
     /**
-     * @brief  启动中止归位清障（ABORT_HOMING；异于 home_device）
-     * @note   仅启动异步流程；完成后须发布 EVT_ABORT_HOME_DONE。
+     * @brief  启动整机清障/排空（CLEARING）
+     * @note   仅启动异步流程；完成后须发布 EVT_CLEAR_MACHINE_DONE。
      * @note   延后完备停机统一走 safety_ops.deferred_stop，不在此重复暴露。
      */
-    void (*abort_home)(void);
+    void (*clear_machine)(void);
     /**
-     * @brief  启动洗车会话（项目选择方案并驱动引擎）
-     * @note   仅启动异步会话后返回；禁止在本调用内跑完整段洗车（会阻塞 dispatch/网关）。
+     * @brief  启动一笔已放行作业（项目选择方案或放行上链）
+     * @note   仅启动异步会话后返回；禁止在本调用内跑完整段工艺（会阻塞 dispatch/网关）。
+     * @note   在放行锁内调用：不得同步调用 job_admit_*，作业事件须经事件总线异步发布。
+     * @retval SW_ERR_PARAM 作业不可执行（如套餐未发布），放行核丢弃该单
+     * @retval 其它非 SW_OK 暂时失败，订单保留在队首等下次放行
      */
-    sw_err_t (*start_wash)(wash_mode_t mode);
-    /** @brief 中止洗车会话 */
-    void (*abort_wash)(wash_abort_cause_t cause);
+    sw_err_t (*start_job)(const job_desc_t *job);
+    /** @brief 中止全部在洗作业 */
+    void (*abort_jobs)(wash_abort_cause_t cause);
     /** @brief 启动异步全机归位（完成后发 EVT_OP_MODE_HOME_COMPLETED） */
     sw_err_t (*home_device)(void);
     /**
@@ -49,15 +53,14 @@ typedef struct {
     sw_err_t (*execute_manual_actuator)(uint32_t act_id, int32_t param);
     /**
      * @brief  DEV_CMD_STOP_ALL_OUTPUTS 副作用：落到与 cutout 等价的安全输出态
-     * @note   裁决前为 WASHING 时，router 另调 abort_wash(STOP_ALL)。
+     * @note   裁决时有在洗作业（含裁决后才放行成功的）时，router 另调 abort_jobs(STOP_ALL)。
      */
     sw_err_t (*stop_all_outputs)(void);
     /**
-     * @brief  洗车准入是否就绪（START_WASH 附加门禁）
-     * @note   语义由机型定义；framework 不解释具体传感器/机构条件。
-     *         未注册（NULL）时框架不拦截。
+     * @brief  下一辆/下一单是否可放行
+     * @note   语义由机型定义；未注册（NULL）时框架不拦截。
      */
-    bool (*is_wash_entry_ready)(void);
+    bool (*is_admit_ready)(void);
 } device_ops_t;
 
 /**

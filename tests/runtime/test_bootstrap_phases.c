@@ -142,6 +142,10 @@ sw_err_t operational_mode_init(void)
 {
     return step("operational_mode_init");
 }
+sw_err_t job_admit_init(void)
+{
+    return step("job_admit_init");
+}
 sw_err_t command_gateway_init(void)
 {
     return step("command_gateway_init");
@@ -325,6 +329,7 @@ static const char *const k_order[] = {
     /* init_services */
     "alarm_bridge_init",
     "operational_mode_init",
+    "job_admit_init",
     "command_gateway_init",
     "recovery_coordinator_init",
     "safety_session_coordinator_init",

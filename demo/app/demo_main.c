@@ -103,8 +103,43 @@ static int check_recover_to_idle(void)
     /* home_device 是异步语义：demo 实现立即发事件，仍需等 dispatch 线程处理完 */
     usleep(100000U);
 
-    if (op_mode_get_current() != OP_MODE_IDLE) {
+    if (op_mode_get_current() != OP_MODE_STANDBY) {
         fprintf(stderr, "[Demo] mode should be IDLE after RECOVER+home, got %d\n", (int)op_mode_get_current());
+        return 1;
+    }
+
+    return 0;
+}
+
+/**
+ * @brief  下单后由放行核按桩准入启动作业
+ */
+static int check_submit_and_admit(void)
+{
+    dev_cmd_t                        cmd     = dev_cmd_make_submit_order((wash_mode_t)0U);
+    dev_cmd_receipt_t                receipt = {0};
+    const device_command_port_ops_t *ops;
+    operational_mode_t               mode;
+
+    ops = device_command_port_get_ops();
+    if (ops == NULL) {
+        fprintf(stderr, "[Demo] command port not registered\n");
+        return 1;
+    }
+
+    if (ops->submit_sync(&cmd, &receipt, 2000U) != SW_OK) {
+        fprintf(stderr, "[Demo] SUBMIT_ORDER submit failed\n");
+        return 1;
+    }
+    if (receipt.status != DEV_CMD_STATUS_ACCEPTED) {
+        fprintf(stderr, "[Demo] SUBMIT_ORDER rejected status=%d\n", (int)receipt.status);
+        return 1;
+    }
+
+    usleep(100000U);
+    mode = op_mode_get_current();
+    if ((mode != OP_MODE_ACTIVE) && (mode != OP_MODE_HOLD)) {
+        fprintf(stderr, "[Demo] mode should be ACTIVE or HOLD after admit, got %d\n", (int)mode);
         return 1;
     }
 
@@ -171,6 +206,10 @@ int main(void)
     hw_estop_sim_set_active(false);
 
     if (check_recover_to_idle() != 0) {
+        return 1;
+    }
+
+    if (check_submit_and_admit() != 0) {
         return 1;
     }
 

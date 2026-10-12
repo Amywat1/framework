@@ -83,7 +83,7 @@ static void test_cloud_link_register_and_get(void)
 
 static void test_device_command_port_register_and_get(void)
 {
-    dev_cmd_t         cmd = dev_cmd_make_simple(DEV_CMD_STOP_WASH);
+    dev_cmd_t         cmd = dev_cmd_make_simple(DEV_CMD_CLEAR_MACHINE);
     dev_cmd_receipt_t receipt;
 
     TEST_ASSERT_NULL(device_command_port_get_ops());

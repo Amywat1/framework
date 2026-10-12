@@ -5,8 +5,11 @@
 
 #include "application/side_effect_router.h"
 
+#include "application/job_admit.h"
 #include "common/event_types.h"
 #include "common/log.h"
+#include "domain/job/job_types.h"
+#include "domain/job/machine_profile.h"
 #include "domain/op_mode/op_mode_types.h"
 #include "domain/op_mode/operational_mode.h"
 #include "domain/ports/outbound/device/device_ops_port.h"
@@ -18,7 +21,6 @@
 
 /**
  * @brief  执行自检判定并发布完成事件
- * @note   按急停 / LOCKOUT / 阻塞报警决定 land_fault；模式一律回到 STOPPED。
  */
 static sw_err_t run_self_check(void)
 {
@@ -38,21 +40,21 @@ static sw_err_t run_self_check(void)
     return ret;
 }
 
-/**
- * @brief  切断全部输出；可选中止洗车会话
- */
-static sw_err_t run_stop_all_outputs(bool abort_wash_session)
+static sw_err_t run_stop_all_outputs(bool abort_active)
 {
     const device_ops_t *ops = device_ops_get();
     sw_err_t            ret;
+    unsigned            dropped;
 
     if ((ops == NULL) || (ops->stop_all_outputs == NULL)) {
         return SW_ERR_NOT_INIT;
     }
 
-    ret = ops->stop_all_outputs();
-    if (abort_wash_session && (ops->abort_wash != NULL)) {
-        ops->abort_wash(WASH_ABORT_STOP_ALL);
+    /* 先撤占用：与进行中的放行互斥，裁决后才启动的作业也会被计入并中止。 */
+    dropped = job_admit_drop_jobs(true);
+    ret     = ops->stop_all_outputs();
+    if ((abort_active || (dropped > 0U)) && (ops->abort_jobs != NULL)) {
+        ops->abort_jobs(WASH_ABORT_STOP_ALL);
     }
     return ret;
 }
@@ -60,6 +62,8 @@ static sw_err_t run_stop_all_outputs(bool abort_wash_session)
 sw_err_t side_effect_router_run(const dev_cmd_t *cmd, operational_mode_t mode_before)
 {
     const device_ops_t *ops;
+    job_desc_t          order;
+    machine_profile_t   profile;
 
     if (cmd == NULL) {
         return SW_ERR_PARAM;
@@ -68,17 +72,24 @@ sw_err_t side_effect_router_run(const dev_cmd_t *cmd, operational_mode_t mode_be
     ops = device_ops_get();
 
     switch (cmd->body.kind) {
-    case DEV_CMD_START_WASH:
-        if ((ops == NULL) || (ops->start_wash == NULL)) {
-            return SW_ERR_NOT_INIT;
-        }
-        return ops->start_wash(cmd->body.payload.start_wash.mode);
+    case DEV_CMD_SUBMIT_ORDER:
+        order.order_id       = cmd->body.payload.submit_order.order_id;
+        order.job_id         = 0U;
+        order.correlation_id = cmd->meta.correlation_id;
+        order.mode           = cmd->body.payload.submit_order.mode;
+        order.enqueued_ms    = 0U;
+        return job_admit_submit(&order);
 
-    case DEV_CMD_STOP_WASH:
-        if ((ops == NULL) || (ops->abort_wash == NULL)) {
+    case DEV_CMD_CANCEL_ORDER:
+        return job_admit_cancel(cmd->body.payload.cancel_order.order_id);
+
+    case DEV_CMD_CLEAR_MACHINE:
+        if ((ops == NULL) || (ops->abort_jobs == NULL)) {
             return SW_ERR_NOT_INIT;
         }
-        ops->abort_wash(WASH_ABORT_MANUAL);
+        /* 先撤占用再中止：随后到达的 EVT_JOB_ABORTED 被放行核忽略，不会二次请求清障。 */
+        (void)job_admit_drop_jobs(false);
+        ops->abort_jobs(WASH_ABORT_MANUAL);
         return SW_OK;
 
     case DEV_CMD_START_SELF_CHECK:
@@ -92,12 +103,18 @@ sw_err_t side_effect_router_run(const dev_cmd_t *cmd, operational_mode_t mode_be
         return SW_ERR_NOT_INIT;
 
     case DEV_CMD_STOP_ALL_OUTPUTS:
-        /* domain 已先切 STOPPED；仅当裁决前为 WASHING 时 abort，避免假 EVT_WASH_ABORTED */
-        return run_stop_all_outputs(mode_before == OP_MODE_WASHING);
+        return run_stop_all_outputs(mode_before == OP_MODE_ACTIVE);
 
     case DEV_CMD_SET_SERVICE:
+        if (!cmd->body.payload.service.enabled) {
+            profile = machine_profile_get();
+            if (profile.clear_on_service_off) {
+                job_admit_clear_orders();
+            }
+        }
+        return SW_OK;
+
     case DEV_CMD_RECOVER:
-        /* 模式/旗标已在 domain 处理；RECOVER 异步编排由 RECOVERY_REQUESTED 触发 */
         return SW_OK;
 
     case DEV_CMD_NONE:

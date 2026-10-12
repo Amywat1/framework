@@ -45,27 +45,24 @@ sw_err_t operational_mode_init(void);
 dev_cmd_decision_t op_mode_handle_command(const dev_cmd_t *cmd);
 
 /**
- * @brief  洗车会话已进入 RUNNING
+ * @brief  占用由 0 变为至少 1（STANDBY → ACTIVE）
  */
-void op_mode_on_wash_session_started(void);
+void op_mode_on_job_started(void);
 
 /**
- * @brief  洗车会话正常完成（WASHING → WASH_DONE；若仍有 MAJOR+ 则 → STOPPED）
+ * @brief  占用回到 0（ACTIVE → HOLD 或 STANDBY，由 profile 决定）
  */
-void op_mode_on_wash_session_completed(void);
+void op_mode_on_last_job_finished(void);
 
 /**
- * @brief  洗车会话中止
- * @param  cause  中止原因
- * @note   急停、STOP_ALL，或急停旗标已置位时只落到 STOPPED，不发中止归位。
- *         其余原因在 WASHING 下进入 ABORT_HOMING 并请求归位。
+ * @brief  整机清障请求已成立（仅 ACTIVE 时进入 CLEARING）
  */
-void op_mode_on_wash_session_aborted(wash_abort_cause_t cause);
+void op_mode_on_clear_requested(wash_abort_cause_t cause);
 
 /**
- * @brief  洗车区域清空，客户离场（WASH_DONE → IDLE）
+ * @brief  场区已清空（HOLD → STANDBY）
  */
-void op_mode_on_wash_customer_gone(void);
+void op_mode_on_area_cleared(void);
 
 /**
  * @brief  自检完成后的落点决策
@@ -75,28 +72,26 @@ void op_mode_on_self_check_completed(bool land_fault);
 
 /**
  * @brief  阻塞告警触发运行模式收敛（离开接单/静态可运营态 → STOPPED）。
- * @note   CRITICAL 也走本入口（LOCKOUT ⊂ blocking）；`EVT_SAFETY_LOCKOUT` 只驱动 abort_wash。
+ * @note   CRITICAL 也走本入口（LOCKOUT ⊂ blocking）；`EVT_SAFETY_LOCKOUT` 只驱动 abort_jobs。
  */
 void op_mode_on_blocking_alarm(void);
 
 /**
  * @brief  急停状态变更
- * @param  active  true → 置急停并收敛 STOPPED；false → 清标志（不自动进 IDLE）
+ * @param  active  true → 置急停并收敛 STOPPED；false → 清标志（不自动进 STANDBY）
  * @note   旗标实际变化时发布 CONTEXT_SYNC，保证已 STOPPED 时快照仍能跟上 estop_active。
  */
 void op_mode_on_estop(bool active);
 
 /**
- * @brief  恢复流程结束（RECOVERING → IDLE 或 STOPPED）
+ * @brief  恢复流程结束（RECOVERING → STANDBY 或 STOPPED）
  */
 void op_mode_on_recovery_completed(recovery_result_t result);
 
 /**
- * @brief  中止归位完成（ABORT_HOMING → STOPPED）
- * @note   仅消费 EVT_ABORT_HOME_DONE；运营归位由 recovery_coordinator 经
- *         EVT_OP_MODE_RECOVERY_COMPLETED 收口，不经本接口。
+ * @brief  整机清障完成（CLEARING → STOPPED）
  */
-void op_mode_on_home_done(void);
+void op_mode_on_clear_done(void);
 
 /**
  * @brief  静态命令许可矩阵格点（不含急停、运营开关、blocking 等运行期附加条件）
@@ -106,11 +101,16 @@ void op_mode_on_home_done(void);
  */
 op_cmd_perm_t op_mode_cmd_matrix_perm(dev_cmd_kind_t kind, operational_mode_t mode);
 
+/**
+ * @brief  当前整机是否允许放行下一单（STANDBY 或 ACTIVE）
+ */
+bool op_mode_can_admit(void);
+
 /* -------------------------------------------------------------------------
  * 直读接口
  *
  * 单字段读已由内部互斥保护，可从 cmd_control / event_dispatch / 测试线程调用。
- * 需要「模式 + 安全 + 洗车」同一时刻组合视图时，仍用 device_snapshot_get()。
+ * 需要「模式 + 安全 + 作业」同一时刻组合视图时，仍用 device_snapshot_get()。
  * ------------------------------------------------------------------------- */
 
 /**
@@ -130,20 +130,20 @@ bool op_mode_is_service_enabled(void);
 
 /**
  * @brief  设置运营总开关。
- * @param  enabled  true 营业；false 停业。停业时若当前为 IDLE/WASH_DONE 则落到 STOPPED。
+ * @param  enabled  true 营业；false 停业。停业时若当前为 STANDBY/HOLD 则落到 STOPPED。
  * @note   上电默认开启。项目可在 init 阶段用已持久化的停业状态覆盖。
  */
 void op_mode_set_service_enabled(bool enabled);
 
 /**
- * @brief  是否处于非运营接单态（STOPPED/恢复/中止清障等，或总开关已关）
+ * @brief  是否处于非运营接单态（STOPPED/恢复/清障等，或总开关已关）
  * @note   仅限 event_dispatch 线程调用；跨线程请用 device_snapshot_get()
  *         配合 operational_snapshot_is_stopping()。
  */
 bool op_mode_is_stopping(void);
 
 /**
- * @brief  是否运营待机（IDLE；可停车检测与接单）
+ * @brief  是否运营待机（STANDBY；可停车检测与接单）
  * @note   仅限 event_dispatch 线程调用；跨线程请用 device_snapshot_get()
  *         配合 operational_snapshot_is_standby()。
  */

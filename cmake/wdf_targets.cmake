@@ -165,6 +165,9 @@ _wdf_add_interface_lib(wdf_runtime
 _wdf_add_interface_lib(wdf_domain
     SOURCES
         domain/op_mode/operational_mode.c
+        domain/job/machine_profile.c
+        domain/job/order_book.c
+        domain/job/active_jobs.c
         domain/safety/alarm_registry/alarm_registry.c
         domain/telemetry/device_snapshot.c
         domain/wash/wash_events.c
@@ -221,6 +224,7 @@ _wdf_add_interface_lib(wdf_program_engine
 _wdf_add_interface_lib(wdf_application
     SOURCES
         application/command_gateway.c
+        application/job_admit.c
         application/side_effect_router.c
         application/telemetry_projection.c
         application/orchestrators/recovery_coordinator.c

@@ -96,7 +96,7 @@ void tearDown(void)
 static void test_snapshot_direct_updates_are_read_back(void)
 {
     operational_snapshot_t op = {
-        .mode            = OP_MODE_IDLE,
+        .mode            = OP_MODE_STANDBY,
         .service_enabled = true,
         .estop_active    = false,
     };
@@ -123,7 +123,7 @@ static void test_wash_projection_tracks_session_started_event(void)
     time_util_init();
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, telemetry_projection_init());
-    publish_and_wait(EVT_WASH_SESSION_STARTED, (uint32_t)TEST_WASH_MODE_B);
+    publish_and_wait(EVT_JOB_STARTED, (uint32_t)TEST_WASH_MODE_B);
     TEST_ASSERT_EQUAL_INT(TEST_WASH_MODE_B, device_snapshot_get().wash.mode);
 }
 
@@ -146,10 +146,10 @@ static void test_operational_projection_syncs_current_context(void)
 
     /* 恢复进 IDLE → 待机投影 */
     TEST_ASSERT_EQUAL_INT(OP_CMD_ALLOWED, op_mode_handle_command(&recover_cmd).verdict);
-    op_mode_on_recovery_completed(RECOVERY_RESULT_IDLE);
+    op_mode_on_recovery_completed(RECOVERY_RESULT_STANDBY);
     publish_and_wait(EVT_OP_MODE_CHANGED, 0U);
     snap = device_snapshot_get().op;
-    TEST_ASSERT_EQUAL_INT(OP_MODE_IDLE, snap.mode);
+    TEST_ASSERT_EQUAL_INT(OP_MODE_STANDBY, snap.mode);
     TEST_ASSERT_TRUE(snap.service_enabled);
     TEST_ASSERT_TRUE(operational_snapshot_is_standby(snap));
 

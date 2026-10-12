@@ -34,6 +34,7 @@ struct engine_session {
 
     atomic_bool s_busy;
     atomic_bool s_abort_requested;
+    atomic_bool s_timeout_requested;
     atomic_int  s_current_direction;
 
     uint32_t s_startup_gen;
@@ -235,6 +236,12 @@ static void *engine_session_worker_fn(void *arg)
                              engine_current_phase_id(e) ? engine_current_phase_id(e) : "?");
                     break;
                 }
+                if (atomic_load(&s->s_timeout_requested)) {
+                    timed_out = true;
+                    LOG_ERROR("engine_session: timeout requested at phase [%s]",
+                              engine_current_phase_id(e) ? engine_current_phase_id(e) : "?");
+                    break;
+                }
 
                 total_ms += s->cfg.tick_ms;
                 if ((s->run.total_timeout_ms > 0U) && (total_ms >= s->run.total_timeout_ms)) {
@@ -343,6 +350,7 @@ sw_err_t engine_session_bind(unsigned slot_id, const engine_session_config_t *cf
 
     atomic_store(&s->s_busy, false);
     atomic_store(&s->s_abort_requested, false);
+    atomic_store(&s->s_timeout_requested, false);
     atomic_store(&s->s_current_direction, (int)ENGINE_DIR_NONE);
 
     if (sem_init(&s->start_sem, 0, 0) != 0) {
@@ -409,6 +417,7 @@ sw_err_t engine_session_start(engine_session_t *s, const engine_session_run_t *r
     s->s_active_startup_gen = my_gen;
     s->s_startup_result     = SW_ERR_BUSY;
     atomic_store(&s->s_abort_requested, false);
+    atomic_store(&s->s_timeout_requested, false);
     atomic_store(&s->s_busy, true);
     (void)sem_post(&s->start_sem);
     pthread_mutex_unlock(&s->startup_mutex);
@@ -451,6 +460,19 @@ bool engine_session_abort(engine_session_t *s)
 
     call_stop_outputs(s);
     LOG_WARN("engine_session: abort requested name=%s", s->cfg.thread_name);
+    return true;
+}
+
+bool engine_session_request_timeout(engine_session_t *s)
+{
+    if ((s == NULL) || !s->inited || !atomic_load(&s->s_busy)) {
+        return false;
+    }
+    if (atomic_exchange(&s->s_timeout_requested, true)) {
+        return false;
+    }
+
+    LOG_WARN("engine_session: timeout requested name=%s", s->cfg.thread_name);
     return true;
 }
 

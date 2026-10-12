@@ -25,13 +25,14 @@ extern "C" {
  */
 typedef enum {
     DEV_CMD_NONE = 0,
-    DEV_CMD_START_WASH,
-    DEV_CMD_STOP_WASH,
-    DEV_CMD_SET_SERVICE, /**< 设置运营总开关；关闭时若在 IDLE/WASH_DONE 则落到 STOPPED */
+    DEV_CMD_SUBMIT_ORDER, /**< 入订单簿；不立即开洗 */
+    DEV_CMD_CLEAR_MACHINE, /**< 停放行、中止在洗、整机清障 */
+    DEV_CMD_SET_SERVICE, /**< 设置运营总开关；关闭时若在 STANDBY/HOLD 则落到 STOPPED */
     DEV_CMD_MANUAL_ACTUATOR,
     DEV_CMD_START_SELF_CHECK,
     DEV_CMD_RECOVER,
     DEV_CMD_STOP_ALL_OUTPUTS,
+    DEV_CMD_CANCEL_ORDER, /**< 取消未放行订单 */
     DEV_CMD_MAX
 } dev_cmd_kind_t;
 
@@ -64,7 +65,11 @@ typedef struct {
     union {
         struct {
             wash_mode_t mode;
-        } start_wash;
+            uint64_t    order_id; /**< 0 表示由订单簿分配；非 0 按号去重 */
+        } submit_order;
+        struct {
+            uint64_t order_id;
+        } cancel_order;
         struct {
             uint32_t act_id;
             int32_t  param;
@@ -97,13 +102,36 @@ static inline dev_cmd_t dev_cmd_make_simple(dev_cmd_kind_t kind)
 }
 
 /**
- * @brief  构造启动洗车命令
+ * @brief  构造提交订单命令
  */
-static inline dev_cmd_t dev_cmd_make_start_wash(wash_mode_t mode)
+static inline dev_cmd_t dev_cmd_make_submit_order(wash_mode_t mode)
 {
-    dev_cmd_t cmd = dev_cmd_make_simple(DEV_CMD_START_WASH);
+    dev_cmd_t cmd = dev_cmd_make_simple(DEV_CMD_SUBMIT_ORDER);
 
-    cmd.body.payload.start_wash.mode = mode;
+    cmd.body.payload.submit_order.mode     = mode;
+    cmd.body.payload.submit_order.order_id = 0U;
+    return cmd;
+}
+
+/**
+ * @brief  构造带云端订单号的提交命令（重试用同一 order_id 去重）
+ */
+static inline dev_cmd_t dev_cmd_make_submit_order_id(wash_mode_t mode, uint64_t order_id)
+{
+    dev_cmd_t cmd = dev_cmd_make_submit_order(mode);
+
+    cmd.body.payload.submit_order.order_id = order_id;
+    return cmd;
+}
+
+/**
+ * @brief  构造取消未放行订单命令
+ */
+static inline dev_cmd_t dev_cmd_make_cancel_order(uint64_t order_id)
+{
+    dev_cmd_t cmd = dev_cmd_make_simple(DEV_CMD_CANCEL_ORDER);
+
+    cmd.body.payload.cancel_order.order_id = order_id;
     return cmd;
 }
 

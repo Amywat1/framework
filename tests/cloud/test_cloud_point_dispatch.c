@@ -96,7 +96,7 @@ static cloud_point_entry_t make_stop_cmd(void)
     entry.base.get  = cloud_point_get_echo_idle;
     entry.kind      = CLOUD_KIND_DEV_CMD;
     entry.report    = CLOUD_REPORT_RESYNC;
-    entry.cmd_kind  = DEV_CMD_STOP_WASH;
+    entry.cmd_kind  = DEV_CMD_CLEAR_MACHINE;
     return entry;
 }
 
@@ -207,7 +207,7 @@ static void test_apply_json_dev_cmd_triggers_submit(void)
 
     TEST_ASSERT_EQUAL_INT(SW_OK, cloud_point_apply_json(entries, 1U, "{\"stopWash\":true}", &result));
     TEST_ASSERT_EQUAL_UINT(1U, result.applied);
-    TEST_ASSERT_EQUAL_INT(DEV_CMD_STOP_WASH, s_last_cmd.body.kind);
+    TEST_ASSERT_EQUAL_INT(DEV_CMD_CLEAR_MACHINE, s_last_cmd.body.kind);
 }
 
 static cloud_point_entry_t make_manual_cmd(void)

@@ -67,7 +67,7 @@ static void on_home_completed(const event_t *evt)
 
     alarm_registry_reset_all();
     blocking_active = alarm_registry_has_blocking_active();
-    result          = blocking_active ? RECOVERY_RESULT_FAILED : RECOVERY_RESULT_IDLE;
+    result          = blocking_active ? RECOVERY_RESULT_FAILED : RECOVERY_RESULT_STANDBY;
     if (blocking_active) {
         LOG_WARN("recovery_coordinator: blocking alarm remains after home");
     }

@@ -3,7 +3,7 @@
  * @brief   安全会话协调（急停/LOCKOUT 切断与中止归位）
  *
  * @note    硬件急停热路径切断由急停采集通路调用 safety_cutout_execute；
- *          本模块在 dispatch 线程做 deferred_stop、abort_wash 与 abort_home。
+ *          本模块在 dispatch 线程做 deferred_stop、abort_jobs 与 clear_machine。
  */
 
 #ifndef APPLICATION_ORCHESTRATORS_SAFETY_SESSION_COORDINATOR_H

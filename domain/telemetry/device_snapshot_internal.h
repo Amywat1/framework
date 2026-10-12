@@ -25,9 +25,14 @@ void device_snapshot_update_op(const operational_snapshot_t *op);
 void device_snapshot_update_safety(const safety_snapshot_t *safety);
 
 /**
- * @brief  更新洗车模式（会话启动时调用）
+ * @brief  更新洗车模式（作业启动时调用）
  */
 void device_snapshot_set_wash_mode(wash_mode_t mode);
+
+/**
+ * @brief  更新作业子域（订单簿 + 在洗占用）
+ */
+void device_snapshot_update_job(const wash_snapshot_t *job);
 
 /**
  * @brief  更新云连接状态

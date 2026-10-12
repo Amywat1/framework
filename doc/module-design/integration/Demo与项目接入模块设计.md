@@ -202,13 +202,13 @@ Demo 加载两个报警：
 ```c
 typedef struct {
     /* deferred_stop 在 safety_ops，不在 device_ops */
-    void (*abort_home)(void);
-    sw_err_t (*start_wash)(wash_mode_t mode);
-    void (*abort_wash)(wash_abort_cause_t cause);
+    void (*clear_machine)(void);
+    sw_err_t (*start_job)(const job_desc_t *job);
+    void (*abort_jobs)(wash_abort_cause_t cause);
     sw_err_t (*home_device)(void);
     sw_err_t (*execute_manual_actuator)(uint32_t act_id, int32_t param);
     sw_err_t (*stop_all_outputs)(void);
-    bool (*is_wash_entry_ready)(void);
+    bool (*is_admit_ready)(void);
 } device_ops_t;
 ```
 
@@ -217,13 +217,13 @@ typedef struct {
 | machine op | 典型调用方 |
 |------------|------------|
 | （停机） | 延后完备停机走 `safety_ops.deferred_stop` |
-| `abort_home` | 启动中止归位清障（异步）；完成后须发 `EVT_ABORT_HOME_DONE` |
-| `start_wash` | `DEV_CMD_START_WASH`：选方案并**启动**会话后返回；禁止在调用内跑完整洗车 |
-| `abort_wash` | `DEV_CMD_STOP_WASH` 副作用，以及急停/LOCKOUT 切断路径 |
+| `clear_machine` | 启动整机清障/排空（异步）；完成后须发 `EVT_CLEAR_MACHINE_DONE` |
+| `start_job` | 放行核调用：选方案或放行上链后返回；禁止在调用内跑完整工艺 |
+| `abort_jobs` | 中止全部在洗作业（急停/LOCKOUT/CLEAR） |
 | `home_device` | `recovery_coordinator` 在 Recover 路径中启动的异步全机归位 |
 | `execute_manual_actuator` | `DEV_CMD_MANUAL_ACTUATOR`：只下发/启定时后立即返回；禁止等待点动时长 |
-| `stop_all_outputs` | `DEV_CMD_STOP_ALL_OUTPUTS` 副作用：切断输出；前态 WASHING 时 router 另调 `abort_wash(STOP_ALL)` |
-| `is_wash_entry_ready` | `START_WASH` 附加门禁；未注册（NULL）时框架不拦截 |
+| `stop_all_outputs` | `DEV_CMD_STOP_ALL_OUTPUTS` 副作用：切断输出；前态 ACTIVE 时 router 另调 `abort_jobs(STOP_ALL)` |
+| `is_admit_ready` | 下一单能否放行；未注册（NULL）时框架不拦截 |
 
 `side_effect_router` 不做权限判断，只执行 `operational_mode` 已裁决允许的副作用。未注册或函数缺失时返回 `SW_ERR_NOT_INIT`。  
 上述回调均在 **cmd_control** 线程经网关调用：任一实现内长时间阻塞，都会拖住后续命令（含软件停止）。硬急停 cutout 仍在 `estop_poll`，不受此影响。
@@ -232,10 +232,10 @@ typedef struct {
 
 - `project_bind_device()` 中调用 `device_ops_register()`。
 - `execute_manual_actuator` 的 `act_id` / `param` 由项目定义，并在云端/CLI 映射中保持一致；**须非阻塞**——下发动作或启动定时/运动后立即返回，点动时长与到位由项目侧自行管理，勿在回调内 `sleep`/轮询等待。
-- `start_wash` / `home_device` / `abort_home` 同样只启动异步流程；完成后分别靠洗车事件、`EVT_OP_MODE_HOME_COMPLETED`、`EVT_ABORT_HOME_DONE` 收口。
+- `start_job` / `home_device` / `clear_machine` 同样只启动异步流程；完成后分别靠作业事件、`EVT_OP_MODE_HOME_COMPLETED`、`EVT_CLEAR_MACHINE_DONE` 收口。
 - 发布 `EVT_OP_MODE_HOME_COMPLETED(成功)` 前须按目标姿态证明 ON_MOTION（只 `clear` 条件；过流等 MANUAL_RESET 不得在此清除）。
-- `stop_all_outputs` 必须能落到与 cutout 等价的安全输出态；无活跃洗车会话时 router 不会调用 `abort_wash(STOP_ALL)`。
-- `home_device` 和 `abort_home` 应处理执行中冲突和硬件故障，并返回明确错误码。
+- `stop_all_outputs` 必须能落到与 cutout 等价的安全输出态；无在洗作业时 router 不会调用 `abort_jobs(STOP_ALL)`。
+- `home_device` 和 `clear_machine` 应处理执行中冲突和硬件故障，并返回明确错误码。
 
 ---
 

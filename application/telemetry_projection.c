@@ -10,6 +10,10 @@
 #include "application/ports/outbound/cloud/link/cloud_link_port.h"
 #include "common/event_types.h"
 #include "common/log.h"
+#include "domain/job/active_jobs.h"
+#include "domain/job/job_types.h"
+#include "domain/job/machine_profile.h"
+#include "domain/job/order_book.h"
 #include "domain/op_mode/operational_mode.h"
 #include "domain/ports/outbound/safety/safety_port.h"
 #include "domain/safety/alarm_registry/alarm_registry.h"
@@ -78,9 +82,46 @@ static void refresh_safety_snapshot(const event_t *evt)
     device_snapshot_update_safety(&snap);
 }
 
-static void on_session_started(const event_t *evt)
+static void sync_job_snapshot(void)
 {
-    device_snapshot_set_wash_mode(wash_session_started_mode(evt->param));
+    wash_snapshot_t snap;
+    job_desc_t      head;
+    unsigned        i;
+
+    memset(&snap, 0, sizeof(snap));
+    snap.queued_count     = order_book_count();
+    snap.active_count     = active_jobs_count();
+    snap.max_active_jobs  = machine_profile_get().max_active_jobs;
+    if (order_book_peek_front(&head) == SW_OK) {
+        snap.head_order_id = head.order_id;
+        snap.head_mode     = head.mode;
+    }
+    if (snap.active_count > 0U) {
+        (void)active_jobs_get_at(0U, &head);
+        snap.mode = head.mode;
+    } else if (snap.queued_count > 0U) {
+        snap.mode = snap.head_mode;
+    }
+    for (i = 0U; i < snap.active_count && i < JOB_ACTIVE_CAP; i++) {
+        (void)active_jobs_get_at(i, &snap.active[i]);
+    }
+    device_snapshot_update_job(&snap);
+}
+
+static void on_job_started(const event_t *evt)
+{
+    wash_mode_t mode = job_started_mode(evt->param);
+
+    sync_job_snapshot();
+    if (active_jobs_count() == 0U) {
+        device_snapshot_set_wash_mode(mode);
+    }
+}
+
+static void on_job_occupancy_changed(const event_t *evt)
+{
+    (void)evt;
+    sync_job_snapshot();
 }
 
 /**
@@ -111,6 +152,7 @@ void telemetry_projection_sync_all(void)
     sync_op_snapshot();
     refresh_safety_snapshot(NULL);
     sync_cloud_connected();
+    sync_job_snapshot();
 }
 
 static void reconcile_tick(void *ctx)
@@ -147,7 +189,9 @@ sw_err_t telemetry_projection_init(void)
         {EVT_SAFETY_LOCKOUT,       refresh_safety_snapshot},
         {EVT_SAFETY_NOMINAL,       refresh_safety_snapshot},
         {EVT_HW_ESTOP_ON,          refresh_safety_snapshot},
-        {EVT_WASH_SESSION_STARTED, on_session_started     },
+        {EVT_JOB_STARTED,          on_job_started           },
+        {EVT_JOB_COMPLETED,        on_job_occupancy_changed },
+        {EVT_JOB_ABORTED,          on_job_occupancy_changed },
         /* 云连接状态并入同一快照，使读侧（CLI / 诊断 / 状态上报）看到的
          * 连接状态与运行模式、安全状态来自同一时刻。 */
         {EVT_CLOUD_CONNECTED,      on_cloud_link_changed  },

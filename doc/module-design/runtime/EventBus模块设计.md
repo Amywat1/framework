@@ -172,12 +172,12 @@ typedef struct
 |------|------|------------|-------------------|
 | 硬件异步 | `EVT_CAT_HW` | HAL 适配器 | `EVT_HW_ESTOP_ON/OFF`、`EVT_HW_IO_OFFLINE`、`EVT_HW_IO_ONLINE` |
 | 组件完成 | `EVT_CAT_COMP` | 机构领域层 | `EVT_COMP_HOME_DONE`、`EVT_COMP_MOTION_COMPLETED` |
-| 安全姿态 | `EVT_CAT_SAFETY` | `alarm_registry`（边沿）；`safety_session_coordinator` 发完成事件 | `EVT_SAFETY_LOCKOUT`、`EVT_SAFETY_NOMINAL`、`EVT_ABORT_HOME_DONE` |
+| 安全姿态 | `EVT_CAT_SAFETY` | `alarm_registry`（边沿）；`safety_session_coordinator` 发完成事件 | `EVT_SAFETY_LOCKOUT`、`EVT_SAFETY_NOMINAL`、`EVT_CLEAR_MACHINE_DONE` |
 | 报警生命周期 | `EVT_CAT_ALARM` | `alarm_registry` | `EVT_ALARM_TRIGGERED`、`EVT_ALARM_CLEARED` |
 | 外部命令 | `EVT_CAT_CMD` | （历史/测试） | `EVT_CMD_ORDER` 仅测试；网关唤醒已改 `cmd_control` 信号量 |
 | 云端 | `EVT_CAT_CLOUD` | 云链路适配器 | `EVT_CLOUD_CONNECTED`、`EVT_CLOUD_DISCONNECTED` |
-| 洗车流程 | `EVT_CAT_WASH` | 项目洗车编排器 | `EVT_WASH_DONE`、`EVT_WASH_ABORTED`、`EVT_WASH_SESSION_STARTED`、`EVT_WASH_CHECKPOINT_REACHED` |
-| 运行模式 | `EVT_CAT_OP_MODE` | `operational_mode` 聚合 | `EVT_OP_MODE_CHANGED`、`EVT_ABORT_HOME_REQUESTED`、`EVT_OP_MODE_RECOVERY_*` 等 |
+| 洗车流程 | `EVT_CAT_WASH` | 项目洗车编排器 | `EVT_JOB_COMPLETED`、`EVT_JOB_ABORTED`、`EVT_JOB_STARTED`、`EVT_WASH_CHECKPOINT_REACHED` |
+| 运行模式 | `EVT_CAT_OP_MODE` | `operational_mode` 聚合 | `EVT_OP_MODE_CHANGED`、`EVT_CLEAR_MACHINE_REQUESTED`、`EVT_OP_MODE_RECOVERY_*` 等 |
 
 **明确不走总线的能力**（由注释固化，不得改为 event）：
 
@@ -304,7 +304,7 @@ typedef void (*event_handler_t)(const event_t *evt);
 |------|----------|----------------------|
 | `alarm_registry` | `EVT_ALARM_TRIGGERED` | 报警码 |
 | `alarm_registry` | `EVT_SAFETY_LOCKOUT` | 0 |
-| wash session | `EVT_WASH_DONE` | 结果码 |
+| wash session | `EVT_JOB_COMPLETED` | 结果码 |
 | `snack_cloud_adapter` | `EVT_CLOUD_CONNECTED` | 0 |
 | HAL / 信号滤波 | `EVT_HW_IO_OFFLINE` | 子板号等标量 |
 
@@ -335,7 +335,7 @@ typedef void (*event_handler_t)(const event_t *evt);
 static const event_subscription_t s_subs[] = {
     { EVT_ALARM_TRIGGERED, on_alarm_triggered },
     { EVT_SAFETY_LOCKOUT,  on_safety_lockout },
-    { EVT_WASH_DONE,       on_wash_done },
+    { EVT_JOB_COMPLETED,       on_wash_done },
 };
 
 sw_err_t bridge_init(void)

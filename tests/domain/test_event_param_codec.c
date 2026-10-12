@@ -25,9 +25,9 @@ void tearDown(void)
 /* EVT_OP_MODE_CHANGED：from/to 往返一致，且互不串位 */
 static void test_mode_changed_roundtrip(void)
 {
-    uint32_t param = op_mode_changed_evt_param(OP_MODE_WASHING, OP_MODE_STOPPED);
+    uint32_t param = op_mode_changed_evt_param(OP_MODE_ACTIVE, OP_MODE_STOPPED);
 
-    TEST_ASSERT_EQUAL_INT(OP_MODE_WASHING, op_mode_changed_from(param));
+    TEST_ASSERT_EQUAL_INT(OP_MODE_ACTIVE, op_mode_changed_from(param));
     TEST_ASSERT_EQUAL_INT(OP_MODE_STOPPED, op_mode_changed_to(param));
 
     /* 相邻模式值不应因移位错误而互相污染 */
@@ -63,14 +63,14 @@ static void test_cmd_handled_field_isolation(void)
     TEST_ASSERT_EQUAL_INT(0, (int)cmd_handled_reason(param));
 }
 
-/* EVT_WASH_SESSION_STARTED：wash_mode 往返一致 */
+/* EVT_JOB_STARTED：wash_mode 往返一致 */
 static void test_wash_session_started_roundtrip(void)
 {
-    TEST_ASSERT_EQUAL_UINT8(3U, wash_session_started_mode(wash_session_started_evt_param((wash_mode_t)3U)));
-    TEST_ASSERT_EQUAL_UINT8(0U, wash_session_started_mode(wash_session_started_evt_param((wash_mode_t)0U)));
+    TEST_ASSERT_EQUAL_UINT8(3U, job_started_mode(job_started_evt_param((wash_mode_t)3U)));
+    TEST_ASSERT_EQUAL_UINT8(0U, job_started_mode(job_started_evt_param((wash_mode_t)0U)));
 }
 
-/* EVT_WASH_ABORTED：既有 helper 的往返与越界兜底 */
+/* EVT_JOB_ABORTED：既有 helper 的往返与越界兜底 */
 static void test_wash_abort_roundtrip(void)
 {
     TEST_ASSERT_EQUAL_INT(WASH_ABORT_ESTOP, wash_abort_from_evt_param(wash_abort_evt_param(WASH_ABORT_ESTOP)));

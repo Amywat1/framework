@@ -533,6 +533,10 @@ RT_REACHABLE_FILES=(
 # 非 RT 可达：允许默认互斥量，须逐个说明依据
 NON_RT_FILES=(
     "application/command_gateway.c"                       # 命令提交，非急停路径
+    "application/job_admit.c"                             # 放行核；急停 cutout 不取此锁
+    "domain/job/order_book.c"                             # 内存订单簿
+    "domain/job/active_jobs.c"                            # 在洗占用表
+    "domain/job/machine_profile.c"                        # bind 期 profile
     "domain/op_mode/operational_mode.c"                   # 模式串行锁；急停 cutout 不取此锁
     "domain/safety/alarm_registry/alarm_registry.c"        # 由报警采集线程驱动
     "domain/telemetry/device_snapshot.c"                   # 投影读写

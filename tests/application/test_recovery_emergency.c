@@ -76,7 +76,7 @@ static void stub_abort_wash(wash_abort_cause_t cause)
 static void stub_abort_home(void)
 {
     s_abort_home_count++;
-    (void)event_publish(EVT_ABORT_HOME_DONE, (uint32_t)SW_OK);
+    (void)event_publish(EVT_CLEAR_MACHINE_DONE, (uint32_t)SW_OK);
 }
 
 static sw_err_t stub_home_device(void)
@@ -151,9 +151,9 @@ void setUp(void)
     s_home_auto_complete       = 1;
 
     memset(&s_device_ops, 0, sizeof(s_device_ops));
-    s_device_ops.abort_home       = stub_abort_home;
+    s_device_ops.clear_machine    = stub_abort_home;
     s_device_ops.home_device      = stub_home_device;
-    s_device_ops.abort_wash       = stub_abort_wash;
+    s_device_ops.abort_jobs       = stub_abort_wash;
     s_device_ops.stop_all_outputs = stub_stop_all_outputs;
 
     time_util_init();
@@ -188,7 +188,7 @@ static void test_recovery_coordinator_publishes_completed_idle(void)
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_drain());
 
     TEST_ASSERT_EQUAL_INT(1, s_recovery_completed_count);
-    TEST_ASSERT_EQUAL_UINT32((uint32_t)RECOVERY_RESULT_IDLE, s_recovery_result_param);
+    TEST_ASSERT_EQUAL_UINT32((uint32_t)RECOVERY_RESULT_STANDBY, s_recovery_result_param);
     TEST_ASSERT_EQUAL_INT(1, s_home_device_count);
 }
 
@@ -225,7 +225,7 @@ static void test_recovery_resets_blocking_alarm_cleared_during_home(void)
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_drain());
 
     TEST_ASSERT_EQUAL_INT(1, s_recovery_completed_count);
-    TEST_ASSERT_EQUAL_UINT32((uint32_t)RECOVERY_RESULT_IDLE, s_recovery_result_param);
+    TEST_ASSERT_EQUAL_UINT32((uint32_t)RECOVERY_RESULT_STANDBY, s_recovery_result_param);
     TEST_ASSERT_FALSE(alarm_registry_is_active(TEST_BLOCKING_ALARM_CODE));
     TEST_ASSERT_EQUAL_INT(1, s_home_device_count);
 }
@@ -246,7 +246,7 @@ static void test_recovery_resets_inactive_lockout_before_home(void)
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_drain());
 
     TEST_ASSERT_EQUAL_INT(1, s_recovery_completed_count);
-    TEST_ASSERT_EQUAL_UINT32((uint32_t)RECOVERY_RESULT_IDLE, s_recovery_result_param);
+    TEST_ASSERT_EQUAL_UINT32((uint32_t)RECOVERY_RESULT_STANDBY, s_recovery_result_param);
     TEST_ASSERT_FALSE(alarm_registry_is_active(TEST_LOCKOUT_ALARM_CODE));
     TEST_ASSERT_EQUAL_INT(1, s_home_device_count);
 }
@@ -283,7 +283,7 @@ static void test_abort_home_requested_runs_abort_home(void)
     device_ops_register(&s_device_ops);
     TEST_ASSERT_EQUAL_INT(SW_OK, safety_session_coordinator_init());
 
-    TEST_ASSERT_EQUAL_INT(SW_OK, event_publish(EVT_ABORT_HOME_REQUESTED, 0U));
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_publish(EVT_CLEAR_MACHINE_REQUESTED, 0U));
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_drain());
 
     TEST_ASSERT_EQUAL_INT(1, s_abort_home_count);
@@ -432,7 +432,7 @@ static void test_recovery_resets_on_motion_cleared_during_home(void)
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_drain());
 
     TEST_ASSERT_EQUAL_INT(1, s_recovery_completed_count);
-    TEST_ASSERT_EQUAL_UINT32((uint32_t)RECOVERY_RESULT_IDLE, s_recovery_result_param);
+    TEST_ASSERT_EQUAL_UINT32((uint32_t)RECOVERY_RESULT_STANDBY, s_recovery_result_param);
     TEST_ASSERT_FALSE(alarm_registry_is_active(TEST_ON_MOTION_ALARM_CODE));
 }
 

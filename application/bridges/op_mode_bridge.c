@@ -7,6 +7,7 @@
 
 #include "application/bridges/op_mode_bridge.h"
 
+#include "application/job_admit.h"
 #include "common/event_types.h"
 #include "common/log.h"
 #include "common/sw_error.h"
@@ -16,36 +17,25 @@
 #include "domain/safety/alarm_registry/alarm_registry.h"
 #include "runtime/event_bus/event_bus.h"
 
-static void on_wash_session_started(const event_t *evt)
+static void on_job_completed(const event_t *evt)
 {
-    (void)evt;
-    op_mode_on_wash_session_started();
+    job_admit_on_completed((uint64_t)evt->param);
 }
 
-static void on_wash_done(const event_t *evt)
+static void on_job_aborted(const event_t *evt)
 {
-    (void)evt;
-    /* WASHING → WASH_DONE；若洗后评估失败（仍有 MAJOR+）则已进 STOPPED */
-    op_mode_on_wash_session_completed();
+    job_admit_on_job_aborted((uint64_t)evt->param);
 }
 
-static void on_wash_aborted(const event_t *evt)
-{
-    wash_abort_cause_t cause = wash_abort_from_evt_param(evt->param);
-
-    /* 急停 / STOP_ALL：领域钩子落到 STOPPED 且不发中止归位 */
-    op_mode_on_wash_session_aborted(cause);
-}
-
-static void on_wash_customer_gone(const event_t *evt)
+static void on_area_cleared(const event_t *evt)
 {
     (void)evt;
-    op_mode_on_wash_customer_gone();
+    op_mode_on_area_cleared();
+    (void)job_admit_try();
 }
 
 static void on_alarm_triggered(const event_t *evt)
 {
-    /* 急停旗标只认 EVT_HW_ESTOP_*，避免报警采样绕过采集器确认滤波。 */
     if (op_mode_alarm_port_is_estop(evt->param)) {
         return;
     }
@@ -69,6 +59,7 @@ static void on_hw_estop_off(const event_t *evt)
 static void on_recovery_completed(const event_t *evt)
 {
     op_mode_on_recovery_completed((recovery_result_t)evt->param);
+    (void)job_admit_try();
 }
 
 static void on_self_check_completed(const event_t *evt)
@@ -76,26 +67,24 @@ static void on_self_check_completed(const event_t *evt)
     op_mode_on_self_check_completed(evt->param != 0U);
 }
 
-static void on_abort_home_done(const event_t *evt)
+static void on_clear_done(const event_t *evt)
 {
-    /* EVT_ABORT_HOME_DONE：中止归位完成（ABORT_HOMING → STOPPED）*/
     (void)evt;
-    op_mode_on_home_done();
+    op_mode_on_clear_done();
 }
 
 sw_err_t op_mode_bridge_init(void)
 {
     static const event_subscription_t s_subs[] = {
-        {EVT_WASH_SESSION_STARTED,         on_wash_session_started},
-        {EVT_WASH_DONE,                    on_wash_done           },
-        {EVT_WASH_ABORTED,                 on_wash_aborted        },
-        {EVT_WASH_CUSTOMER_GONE,           on_wash_customer_gone  },
+        {EVT_JOB_COMPLETED,                on_job_completed       },
+        {EVT_JOB_ABORTED,                  on_job_aborted         },
+        {EVT_JOB_AREA_CLEARED,             on_area_cleared        },
         {EVT_ALARM_TRIGGERED,              on_alarm_triggered     },
         {EVT_HW_ESTOP_ON,                  on_hw_estop_on         },
         {EVT_HW_ESTOP_OFF,                 on_hw_estop_off        },
         {EVT_OP_MODE_RECOVERY_COMPLETED,   on_recovery_completed  },
         {EVT_OP_MODE_SELF_CHECK_COMPLETED, on_self_check_completed},
-        {EVT_ABORT_HOME_DONE,              on_abort_home_done     },
+        {EVT_CLEAR_MACHINE_DONE,           on_clear_done          },
     };
 
     sw_err_t ret = event_subscribe_table(s_subs, sizeof(s_subs) / sizeof(s_subs[0]));

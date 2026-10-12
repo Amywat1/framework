@@ -30,6 +30,7 @@ static int  s_started_count;
 static int  s_finished_count;
 static bool s_last_success;
 static bool s_last_aborted;
+static bool s_last_timed_out;
 
 typedef struct {
     engine_session_t    *session;
@@ -54,8 +55,9 @@ static void on_finished(void *user, const engine_session_result_t *result)
 {
     (void)user;
     s_finished_count++;
-    s_last_success = result->success;
-    s_last_aborted = result->aborted;
+    s_last_success   = result->success;
+    s_last_aborted   = result->aborted;
+    s_last_timed_out = result->timed_out;
 }
 
 static engine_session_run_t make_run(void)
@@ -270,7 +272,34 @@ static void test_engine_session_runs_to_done(void)
     TEST_ASSERT_EQUAL_INT(1, s_finished_count);
     TEST_ASSERT_FALSE(s_last_success);
     TEST_ASSERT_TRUE(s_last_aborted);
+    TEST_ASSERT_FALSE(s_last_timed_out);
     TEST_ASSERT_EQUAL_INT(2, s_stop_count);
+
+    TEST_ASSERT_FALSE(engine_session_request_timeout(NULL));
+    TEST_ASSERT_FALSE(engine_session_request_timeout(session));
+
+    {
+        engine_session_run_t run = make_run();
+
+        s_stop_count     = 0;
+        s_finished_count = 0;
+        s_last_success   = true;
+        s_last_aborted   = true;
+        s_last_timed_out = false;
+
+        TEST_ASSERT_EQUAL_INT(SW_OK, engine_session_start(session, &run));
+        TEST_ASSERT_TRUE(engine_session_request_timeout(session));
+        TEST_ASSERT_FALSE(engine_session_request_timeout(session));
+    }
+
+    usleep(100000U);
+
+    TEST_ASSERT_FALSE(engine_session_is_busy(session));
+    TEST_ASSERT_EQUAL_INT(1, s_finished_count);
+    TEST_ASSERT_FALSE(s_last_success);
+    TEST_ASSERT_FALSE(s_last_aborted);
+    TEST_ASSERT_TRUE(s_last_timed_out);
+    TEST_ASSERT_EQUAL_INT(1, s_stop_count);
 
     {
         handoff_ctx_t        ctx;

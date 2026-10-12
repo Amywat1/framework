@@ -110,6 +110,16 @@ sw_err_t engine_session_start(engine_session_t *session, const engine_session_ru
 bool engine_session_abort(engine_session_t *session);
 
 /**
+ * @brief  请求将当前运行按总超时结束
+ * @param  session  engine_session_bind 返回的会话句柄
+ * @retval true  本次请求首次把正在运行的会话标为超时
+ * @retval false 会话未运行、尚未初始化或已经请求超时
+ * @note   与 abort 互斥：worker 先看中止再看超时。不立即停输出，由 worker 收口时调用
+ *         `on_stop_outputs`，与墙钟总超时同一条结束路径。
+ */
+bool engine_session_request_timeout(engine_session_t *session);
+
+/**
  * @brief  查询是否正在运行
  * @note   准备或 tick 中为 true；`on_finished` 期间已为 false。
  */

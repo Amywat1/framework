@@ -12,6 +12,7 @@
 extern "C" {
 #endif
 
+#include "domain/job/job_types.h"
 #include "domain/op_mode/op_mode_types.h"
 #include "domain/safety/model/alarm_types.h"
 
@@ -34,7 +35,7 @@ typedef struct {
 static inline bool operational_snapshot_is_stopping(operational_snapshot_t s)
 {
     return !s.service_enabled || (s.mode == OP_MODE_INIT) || (s.mode == OP_MODE_STOPPED)
-           || (s.mode == OP_MODE_ABORT_HOMING) || (s.mode == OP_MODE_SELF_CHECK) || (s.mode == OP_MODE_RECOVERING);
+           || (s.mode == OP_MODE_CLEARING) || (s.mode == OP_MODE_SELF_CHECK) || (s.mode == OP_MODE_RECOVERING);
 }
 
 /**
@@ -43,7 +44,7 @@ static inline bool operational_snapshot_is_stopping(operational_snapshot_t s)
  */
 static inline bool operational_snapshot_is_standby(operational_snapshot_t s)
 {
-    return s.mode == OP_MODE_IDLE;
+    return s.mode == OP_MODE_STANDBY;
 }
 
 /* -------------------------------------------------------------------------
@@ -65,7 +66,13 @@ typedef struct {
  * 洗车会话子域快照
  * ------------------------------------------------------------------------- */
 typedef struct {
-    wash_mode_t mode;
+    wash_mode_t mode;            /**< 当前在洗或队首套餐 */
+    unsigned    queued_count;    /**< 未放行订单数 */
+    uint64_t    head_order_id;   /**< 队首订单号；空簿为 0 */
+    wash_mode_t head_mode;       /**< 队首套餐 */
+    unsigned    active_count;    /**< 在洗作业数 */
+    uint8_t     max_active_jobs; /**< profile 同时在洗上限 */
+    job_desc_t  active[JOB_ACTIVE_CAP];
 } wash_snapshot_t;
 
 /* -------------------------------------------------------------------------

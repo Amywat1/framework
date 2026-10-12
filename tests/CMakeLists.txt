@@ -3,6 +3,12 @@ set(WDF_SAFETY_HOLD_SRC
     ${WDF_ROOT}/domain/safety/safety_output_hold.c
     ${WDF_ROOT}/domain/safety/safety_energy_gen.c
 )
+set(WDF_JOB_SRC
+    ${WDF_ROOT}/domain/job/machine_profile.c
+    ${WDF_ROOT}/domain/job/order_book.c
+    ${WDF_ROOT}/domain/job/active_jobs.c
+    ${WDF_ROOT}/application/job_admit.c
+)
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
 
 # 辅助宏：添加单元测试（每个测试只链接自身逻辑所需的最小源集）
@@ -442,9 +448,11 @@ add_unit_test(test_op_mode_bridge
     ${CMAKE_CURRENT_SOURCE_DIR}/application/test_op_mode_bridge.c
     ${WDF_ROOT}/application/bridges/op_mode_bridge.c
     ${WDF_ROOT}/domain/op_mode/operational_mode.c
+    ${WDF_JOB_SRC}
     ${WDF_ROOT}/domain/safety/alarm_registry/alarm_registry.c
     ${WDF_ROOT}/runtime/ports/port_registry_safety.c
     ${WDF_SAFETY_HOLD_SRC}
+    ${WDF_ROOT}/tests/stubs/device_ops_stub.c
     ${WDF_ROOT}/runtime/ports/port_registry_infra.c
     ${WDF_ROOT}/runtime/event_bus/event_bus.c
     ${WDF_ROOT}/common/time_util.c
@@ -488,9 +496,34 @@ add_unit_test(test_safety_matrix
     ${CMAKE_CURRENT_SOURCE_DIR}/domain/test_safety_matrix.c
 )
 
+add_unit_test(test_order_book
+    ${CMAKE_CURRENT_SOURCE_DIR}/domain/test_order_book.c
+    ${WDF_ROOT}/domain/job/machine_profile.c
+    ${WDF_ROOT}/domain/job/order_book.c
+    ${WDF_ROOT}/common/sw_mutex.c
+    ${WDF_ROOT}/common/time_util.c
+)
+
+add_unit_test(test_job_admit
+    ${CMAKE_CURRENT_SOURCE_DIR}/application/test_job_admit.c
+    ${WDF_ROOT}/application/side_effect_router.c
+    ${WDF_ROOT}/domain/op_mode/operational_mode.c
+    ${WDF_JOB_SRC}
+    ${WDF_ROOT}/domain/safety/alarm_registry/alarm_registry.c
+    ${WDF_ROOT}/runtime/ports/port_registry_infra.c
+    ${WDF_ROOT}/runtime/ports/port_registry_safety.c
+    ${WDF_SAFETY_HOLD_SRC}
+    ${WDF_ROOT}/tests/stubs/device_ops_stub.c
+    ${WDF_ROOT}/runtime/event_bus/event_bus.c
+    ${WDF_ROOT}/common/time_util.c
+    ${WDF_ROOT}/common/log.c
+    ${WDF_ROOT}/common/sw_mutex.c
+)
+
 add_unit_test(test_operational_mode
     ${CMAKE_CURRENT_SOURCE_DIR}/domain/test_operational_mode.c
     ${WDF_ROOT}/domain/op_mode/operational_mode.c
+    ${WDF_JOB_SRC}
     ${WDF_ROOT}/domain/safety/alarm_registry/alarm_registry.c
     ${WDF_ROOT}/runtime/ports/port_registry_infra.c
     ${WDF_ROOT}/runtime/ports/port_registry_safety.c
@@ -567,6 +600,7 @@ add_unit_test(test_side_effect_router
     ${CMAKE_CURRENT_SOURCE_DIR}/application/test_side_effect_router.c
     ${WDF_ROOT}/application/side_effect_router.c
     ${WDF_ROOT}/domain/op_mode/operational_mode.c
+    ${WDF_JOB_SRC}
     ${WDF_ROOT}/domain/safety/alarm_registry/alarm_registry.c
     ${WDF_ROOT}/runtime/ports/port_registry_infra.c
     ${WDF_ROOT}/runtime/ports/port_registry_safety.c
@@ -614,6 +648,7 @@ add_unit_test(test_recovery_emergency
     ${WDF_ROOT}/application/side_effect_router.c
     ${WDF_ROOT}/adapters/outbound/safety/sim/hw_estop_sim.c
     ${WDF_ROOT}/domain/op_mode/operational_mode.c
+    ${WDF_JOB_SRC}
     ${WDF_ROOT}/domain/safety/alarm_registry/alarm_registry.c
     ${WDF_ROOT}/runtime/ports/port_registry_infra.c
     ${WDF_ROOT}/runtime/ports/port_registry_safety.c
@@ -629,6 +664,7 @@ add_unit_test(test_telemetry_projection
     ${WDF_ROOT}/application/telemetry_projection.c
     ${WDF_ROOT}/domain/telemetry/device_snapshot.c
     ${WDF_ROOT}/domain/op_mode/operational_mode.c
+    ${WDF_JOB_SRC}
     ${WDF_ROOT}/domain/safety/alarm_registry/alarm_registry.c
     ${WDF_ROOT}/runtime/ports/port_registry_cloud.c
     ${WDF_ROOT}/runtime/ports/port_registry_infra.c
@@ -647,6 +683,7 @@ add_unit_test(test_command_gateway
     ${WDF_ROOT}/application/command_gateway.c
     ${WDF_ROOT}/application/side_effect_router.c
     ${WDF_ROOT}/domain/op_mode/operational_mode.c
+    ${WDF_JOB_SRC}
     ${WDF_ROOT}/domain/safety/alarm_registry/alarm_registry.c
     ${WDF_ROOT}/runtime/ports/port_registry_infra.c
     ${WDF_ROOT}/runtime/ports/port_registry_safety.c

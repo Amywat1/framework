@@ -24,8 +24,8 @@ static sw_err_t stub_home_device(void)
 }
 
 static const device_ops_t s_stub_ops = {
-    .abort_home  = stub_abort_home,
-    .home_device = stub_home_device,
+    .clear_machine = stub_abort_home,
+    .home_device   = stub_home_device,
 };
 
 void setUp(void)
@@ -57,7 +57,7 @@ static void test_invoke_callbacks(void)
     ops = device_ops_get();
     TEST_ASSERT_NOT_NULL(ops);
 
-    ops->abort_home();
+    ops->clear_machine();
     TEST_ASSERT_EQUAL_INT(SW_OK, ops->home_device());
 
     TEST_ASSERT_EQUAL_INT(1, s_abort_home_count);

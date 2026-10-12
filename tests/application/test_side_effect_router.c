@@ -3,6 +3,7 @@
  * @brief   side_effect_router 副作用路由单元测试
  */
 
+#include "application/job_admit.h"
 #include "application/side_effect_router.h"
 #include "common/sw_error.h"
 #include "common/time_util.h"
@@ -14,6 +15,7 @@
 #include "domain/safety/model/alarm_types.h"
 #include "runtime/event_bus/event_bus.h"
 #include "tests/stubs/device_ops_stub.h"
+#include "tests/stubs/test_wash_modes.h"
 #include "wdf_test_spec.h"
 
 #include <stdint.h>
@@ -55,6 +57,13 @@ void setUp(void)
     time_util_init();
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, operational_mode_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, job_admit_init());
+    {
+        dev_cmd_t recover = dev_cmd_make_simple(DEV_CMD_RECOVER);
+
+        (void)op_mode_handle_command(&recover);
+        op_mode_on_recovery_completed(RECOVERY_RESULT_STANDBY);
+    }
 
     memset(&s_ops, 0, sizeof(s_ops));
     s_ops.execute_manual_actuator = stub_manual_actuator;
@@ -77,18 +86,18 @@ static void test_recover_is_noop(void)
 
 static void test_start_wash_calls_orchestrator(void)
 {
-    dev_cmd_t cmd = dev_cmd_make_start_wash(TEST_WASH_MODE_B);
+    dev_cmd_t cmd = dev_cmd_make_submit_order(TEST_WASH_MODE_B);
 
-    TEST_ASSERT_EQUAL_INT(SW_OK, side_effect_router_run(&cmd, OP_MODE_IDLE));
+    TEST_ASSERT_EQUAL_INT(SW_OK, side_effect_router_run(&cmd, OP_MODE_STANDBY));
     TEST_ASSERT_EQUAL_INT(1, device_ops_stub_start_count());
     TEST_ASSERT_EQUAL_INT(TEST_WASH_MODE_B, device_ops_stub_last_mode());
 }
 
 static void test_stop_wash_aborts_orchestrator(void)
 {
-    dev_cmd_t cmd = dev_cmd_make_simple(DEV_CMD_STOP_WASH);
+    dev_cmd_t cmd = dev_cmd_make_simple(DEV_CMD_CLEAR_MACHINE);
 
-    TEST_ASSERT_EQUAL_INT(SW_OK, side_effect_router_run(&cmd, OP_MODE_WASHING));
+    TEST_ASSERT_EQUAL_INT(SW_OK, side_effect_router_run(&cmd, OP_MODE_ACTIVE));
     TEST_ASSERT_EQUAL_INT(1, device_ops_stub_abort_count());
     TEST_ASSERT_EQUAL_INT(WASH_ABORT_MANUAL, device_ops_stub_last_abort_cause());
 }
@@ -107,7 +116,7 @@ static void test_stop_all_outputs_only_cuts(void)
 {
     dev_cmd_t cmd = dev_cmd_make_simple(DEV_CMD_STOP_ALL_OUTPUTS);
 
-    TEST_ASSERT_EQUAL_INT(SW_OK, side_effect_router_run(&cmd, OP_MODE_IDLE));
+    TEST_ASSERT_EQUAL_INT(SW_OK, side_effect_router_run(&cmd, OP_MODE_STANDBY));
     TEST_ASSERT_EQUAL_INT(1, s_stop_outputs_count);
     TEST_ASSERT_EQUAL_INT(0, device_ops_stub_abort_count());
 }
@@ -116,7 +125,7 @@ static void test_stop_all_outputs_and_abort(void)
 {
     dev_cmd_t cmd = dev_cmd_make_simple(DEV_CMD_STOP_ALL_OUTPUTS);
 
-    TEST_ASSERT_EQUAL_INT(SW_OK, side_effect_router_run(&cmd, OP_MODE_WASHING));
+    TEST_ASSERT_EQUAL_INT(SW_OK, side_effect_router_run(&cmd, OP_MODE_ACTIVE));
     TEST_ASSERT_EQUAL_INT(1, s_stop_outputs_count);
     TEST_ASSERT_EQUAL_INT(1, device_ops_stub_abort_count());
     TEST_ASSERT_EQUAL_INT(WASH_ABORT_STOP_ALL, device_ops_stub_last_abort_cause());
@@ -127,7 +136,7 @@ static void test_device_ops_not_init_returns_error(void)
     dev_cmd_t cmd = dev_cmd_make_simple(DEV_CMD_STOP_ALL_OUTPUTS);
 
     device_ops_register(NULL);
-    TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_INIT, side_effect_router_run(&cmd, OP_MODE_IDLE));
+    TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_INIT, side_effect_router_run(&cmd, OP_MODE_STANDBY));
 }
 
 static void test_invalid_kind_returns_param(void)
