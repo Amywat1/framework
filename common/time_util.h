@@ -19,13 +19,35 @@ extern "C" {
 #include <time.h>
 
 /**
- * @brief  初始化时钟工具（Linux 上为空操作，保留供跨平台扩展）
+ * @brief  初始化时钟工具并读取 Host 时间倍率
+ * @note   仅当编译定义 `WDF_ALLOW_TIME_SCALE` 时才接受环境变量
+ *         `WDF_TIME_SCALE`（1 / 2 / 5，须整除所有被缩短的周期：
+ *         控制环 10 ms、报警轮询 30 ms）。非法值回落到 1 并打日志。
+ *         真机目标不得定义该宏，倍率恒为 1。
  */
 void time_util_init(void);
 
 /**
+ * @brief  当前时间倍率（1 表示墙钟）
+ * @retval 1、2 或 5
+ */
+uint32_t time_util_scale(void);
+
+/**
+ * @brief  把虚拟毫秒换成墙钟毫秒，供 nanosleep / usleep 使用
+ * @param  virtual_ms  按 `time_util_get_ms()` 计量的时长
+ * @retval 墙钟毫秒；`virtual_ms > 0` 时至少为 1
+ */
+uint32_t time_util_to_wall_ms(uint32_t virtual_ms);
+
+/**
+ * @brief  测试用：丢掉已缓存的倍率，下次读取重新解析环境变量
+ */
+void time_util_reset_for_test(void);
+
+/**
  * @brief  获取自系统启动以来的单调时间戳（毫秒）
- * @retval 当前毫秒时间戳（uint64_t，无实际溢出风险）
+ * @retval 当前毫秒时间戳。Host 开启倍率时按倍率放大，使固件超时与墙钟缩短成正比。
  */
 uint64_t time_util_get_ms(void);
 

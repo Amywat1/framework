@@ -271,23 +271,28 @@ static void *periodic_task_thread_fn(void *arg)
 
         now          = cb_end;
         old_deadline = deadline;
-        skipped      = periodic_task_next_deadline(&deadline, view.period_ms, &now);
-        late_us      = periodic_task_late_us(&old_deadline, &now, view.period_ms);
-        wake_us      = slept ? wake_late_us : 0U;
+        {
+            uint32_t wall_period_ms = time_util_to_wall_ms(view.period_ms);
 
-        pthread_mutex_lock(&s_mutex);
-        periodic_task_note_cycle(&slot->stats, skipped, cb_us, wake_us, late_us);
-        if (periodic_task_skip_should_warn(skipped, cb_us, view.period_ms)) {
-            uint64_t now_ms = ((uint64_t)now.tv_sec * 1000ULL)
-                              + ((uint64_t)now.tv_nsec / (uint64_t)PERIODIC_TASK_NS_PER_MS);
+            skipped = periodic_task_next_deadline(&deadline, wall_period_ms, &now);
+            late_us = periodic_task_late_us(&old_deadline, &now, wall_period_ms);
+            wake_us = slept ? wake_late_us : 0U;
 
-            if ((slot->skip_warn_ms == 0U)
-                || (time_elapsed_ms(slot->skip_warn_ms, now_ms) >= PERIODIC_TASK_SKIP_WARN_INTERVAL_MS)) {
-                slot->skip_warn_ms = now_ms;
-                warn_skip          = true;
+            pthread_mutex_lock(&s_mutex);
+            periodic_task_note_cycle(&slot->stats, skipped, cb_us, wake_us, late_us);
+            if (periodic_task_skip_should_warn(skipped, cb_us, wall_period_ms)) {
+                uint64_t now_ms = ((uint64_t)now.tv_sec * 1000ULL)
+                                  + ((uint64_t)now.tv_nsec / (uint64_t)PERIODIC_TASK_NS_PER_MS);
+
+                if ((slot->skip_warn_ms == 0U)
+                    || (time_elapsed_ms(slot->skip_warn_ms, now_ms)
+                        >= PERIODIC_TASK_SKIP_WARN_INTERVAL_MS)) {
+                    slot->skip_warn_ms = now_ms;
+                    warn_skip          = true;
+                }
             }
+            pthread_mutex_unlock(&s_mutex);
         }
-        pthread_mutex_unlock(&s_mutex);
 
         if (warn_skip) {
             LOG_WARN("periodic_task: [%s] skipped %u tick(s) period=%ums late=%uus cb=%uus wake_late=%uus",

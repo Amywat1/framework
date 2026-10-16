@@ -87,7 +87,7 @@ static void control_loop_apply_qos(void)
     sw_log_mark_thread_async();
 }
 
-/** @brief 本拍单调毫秒，与 time_util_get_ms 同一时钟 */
+/** @brief 本拍墙钟毫秒。看门狗必须走墙钟，不受 Host 时间倍率影响。 */
 static uint64_t control_loop_now_ms(void)
 {
     struct timespec ts;
@@ -339,14 +339,18 @@ static void *control_loop_thread_fn(void *arg)
 
         (void)clock_gettime(CLOCK_MONOTONIC, &now);
         old_deadline = deadline;
-        skipped      = periodic_task_next_deadline(&deadline, THD_MOTOR_TICK_PERIOD_MS, &now);
-        late_us      = periodic_task_late_us(&old_deadline, &now, THD_MOTOR_TICK_PERIOD_MS);
+        {
+            uint32_t wall_period_ms = time_util_to_wall_ms(THD_MOTOR_TICK_PERIOD_MS);
+
+            skipped = periodic_task_next_deadline(&deadline, wall_period_ms, &now);
+            late_us = periodic_task_late_us(&old_deadline, &now, wall_period_ms);
+        }
         note_runs(due, due_count, wake_us, late_us);
 
         control_loop_lock();
         note_skipped_beats_locked(run_beat + 1U, skipped);
         s_beat = run_beat + 1U + skipped;
-        if (periodic_task_skip_should_warn(skipped, 0U, THD_MOTOR_TICK_PERIOD_MS)) {
+        if (periodic_task_skip_should_warn(skipped, 0U, time_util_to_wall_ms(THD_MOTOR_TICK_PERIOD_MS))) {
             uint64_t now_ms = ((uint64_t)now.tv_sec * CONTROL_LOOP_MS_PER_SEC)
                               + ((uint64_t)now.tv_nsec / CONTROL_LOOP_NS_PER_MS);
 

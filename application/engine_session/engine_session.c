@@ -289,7 +289,7 @@ static void *engine_session_worker_fn(void *arg)
                     }
                 }
 
-                usleep((unsigned long)s->cfg.tick_ms * 1000UL);
+                usleep((unsigned long)time_util_to_wall_ms(s->cfg.tick_ms) * 1000UL);
             }
 
             atomic_store(&s->s_current_direction, (int)ENGINE_DIR_NONE);

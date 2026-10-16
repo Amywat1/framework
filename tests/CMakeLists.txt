@@ -479,6 +479,14 @@ add_unit_test(test_sw_error
     ${CMAKE_CURRENT_SOURCE_DIR}/common/test_sw_error.c
 )
 
+add_unit_test(test_time_util
+    ${CMAKE_CURRENT_SOURCE_DIR}/common/test_time_util.c
+    ${WDF_ROOT}/common/time_util.c
+    ${WDF_ROOT}/common/log.c
+    ${WDF_ROOT}/common/sw_mutex.c
+)
+target_compile_definitions(test_time_util PRIVATE WDF_ALLOW_TIME_SCALE=1)
+
 add_unit_test(test_asset_version
     ${CMAKE_CURRENT_SOURCE_DIR}/common/test_asset_version.c
     ${WDF_ROOT}/common/asset_version.c
