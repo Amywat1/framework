@@ -19,7 +19,8 @@
 | 快速理解通用框架 | `architecture/00-通用框架架构说明.md` |
 | 判断框架与项目边界 | `architecture/03-通用能力与项目资产边界.md` |
 | 理解运行链路 | `architecture/02-核心业务链路说明.md` |
-| 接入新项目 | `architecture/06-项目接入架构.md`、`module-design/integration/Demo与项目接入模块设计.md` |
+| 理解整机运营语义（八态、入簿/放行、三种停） | `architecture/10-通用洗车运营模型.md` |
+| 接入新项目 | `architecture/06-项目接入架构.md`、`architecture/10-通用洗车运营模型.md` 文末声明清单、`module-design/integration/Demo与项目接入模块设计.md` |
 | 规划后续优化 | `architecture/08-框架优化方向.md` |
 | 维护具体代码 | `module-design/README.md` 后按模块进入对应文档 |
 | 定位某个符号 | `ai/符号索引.md` |
