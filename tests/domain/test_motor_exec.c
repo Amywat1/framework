@@ -1073,6 +1073,58 @@ static void test_confirm_faults_undefined_bit_bind_fails(void)
     TEST_ASSERT_NULL(exec);
 }
 
+static void bind_absolute_jump_monitor(int jump_max, int stall_ticks, bool escalate)
+{
+    s_cfg.motors[0].encoder_kind    = MOTOR_ENC_ABSOLUTE;
+    s_cfg.motors[0].enc_jump_max    = jump_max;
+    s_cfg.motors[0].enc_stall_ticks = stall_ticks;
+    s_cfg.motors[0].enc_escalate    = escalate;
+    rebind_executor();
+}
+
+/** @brief 绝对轴绑定后首帧有效采样只建基准；其后跳变才升故障。 */
+static void test_absolute_first_valid_sample_does_not_jump(void)
+{
+    motor_event_t ev;
+
+    s_fx.position = -1;
+    bind_absolute_jump_monitor(15, 2, true);
+    TEST_ASSERT_EQUAL_INT(MOTOR_STATE_STOPPED, motor_exec_state(s_exec, 0));
+    TEST_ASSERT_EQUAL_INT(MOTOR_FAULT_NONE, motor_exec_fault_code(s_exec, 0));
+
+    s_fx.now_ms   = 10;
+    s_fx.position = 20;
+    motor_executor_tick(s_exec);
+    TEST_ASSERT_EQUAL_INT(MOTOR_STATE_STOPPED, motor_exec_state(s_exec, 0));
+    TEST_ASSERT_EQUAL_INT(MOTOR_FAULT_NONE, motor_exec_fault_code(s_exec, 0));
+    TEST_ASSERT_EQUAL_INT64(20, motor_exec_position(s_exec, 0));
+    TEST_ASSERT_TRUE(motor_exec_encoder_healthy(s_exec, 0));
+    TEST_ASSERT_FALSE(motor_exec_pop_event(s_exec, &ev));
+
+    s_fx.now_ms   = 20;
+    s_fx.position = 40;
+    motor_executor_tick(s_exec);
+    TEST_ASSERT_EQUAL_INT(MOTOR_STATE_FAULT, motor_exec_state(s_exec, 0));
+    TEST_ASSERT_EQUAL_INT(MOTOR_FAULT_ENCODER_SIGNAL, motor_exec_fault_code(s_exec, 0));
+    TEST_ASSERT_TRUE(motor_exec_pop_event(s_exec, &ev));
+    TEST_ASSERT_EQUAL_INT(MOTOR_EVENT_FAULT, ev.type);
+    TEST_ASSERT_EQUAL_INT(MOTOR_FAULT_ENCODER_SIGNAL, ev.fault);
+}
+
+/** @brief 绝对轴尚未采到有效值时，无效读不累计停滞。 */
+static void test_absolute_invalid_before_baseline_does_not_stall(void)
+{
+    s_fx.position = -1;
+    bind_absolute_jump_monitor(15, 1, true);
+    s_fx.now_ms = 10;
+    motor_executor_tick(s_exec);
+    s_fx.now_ms = 20;
+    motor_executor_tick(s_exec);
+    TEST_ASSERT_EQUAL_INT(MOTOR_STATE_STOPPED, motor_exec_state(s_exec, 0));
+    TEST_ASSERT_EQUAL_INT(MOTOR_FAULT_NONE, motor_exec_fault_code(s_exec, 0));
+    TEST_ASSERT_TRUE(motor_exec_encoder_healthy(s_exec, 0));
+}
+
 /* bind 到首拍即使超过 watchdog_ms 也不得锁定：空窗不是缺拍 */
 static void test_first_tick_after_bind_does_not_trip_watchdog(void)
 {
@@ -1146,6 +1198,10 @@ int main(void)
     WDF_RUN_TEST(test_fatal_and_hold_not_resumable, "", "验证 fatal 与 hold/ESTOP 在位图为 0 时仍拒令");
     WDF_RUN_TEST(test_hold_over_fault_restores_fault_latch, "", "验证 hold 覆盖 FAULT 解除后恢复故障门闩并内清");
     WDF_RUN_TEST(test_confirm_faults_undefined_bit_bind_fails, "", "验证未定义故障码位导致 bind 失败");
+    WDF_RUN_TEST(test_absolute_first_valid_sample_does_not_jump, "",
+                 "验证绝对轴首次有效采样不判跳变，其后跳变升故障");
+    WDF_RUN_TEST(test_absolute_invalid_before_baseline_does_not_stall, "",
+                 "验证绝对轴建基准前无效读不累计停滞");
     WDF_RUN_TEST(test_first_tick_after_bind_does_not_trip_watchdog, "", "验证 bind 后首拍不因空窗锁定看门狗");
     WDF_RUN_TEST(test_tick_gap_trips_watchdog_until_reset, "", "验证拍间超阈值锁定看门狗，复位后可再 run");
 

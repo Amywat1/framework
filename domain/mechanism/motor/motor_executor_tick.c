@@ -625,6 +625,8 @@ static void encoder_note_stall(motor_executor_t *e, int i)
 /**
  * @brief  绝对轴：采纳行程，并检测读失败、跳变、运动中无指令方向进展
  * @param  moving  是否处于输出运动；静止只做读失败与跳变，不做停滞
+ * @note   第一次有效采样只锁存基准。绑定时常尚未采到真值，last_raw 仍是 0，
+ *         若把首帧真值当跳变，空闲轴会立刻 ENCODER_SIGNAL。
  */
 static void update_absolute_encoder(motor_executor_t *e, int i, bool moving, int64_t r)
 {
@@ -633,7 +635,17 @@ static void update_absolute_encoder(motor_executor_t *e, int i, bool moving, int
     int64_t                  d;
 
     if (r < 0) {
-        encoder_note_stall(e, i);
+        if (s->enc_delta_armed) {
+            encoder_note_stall(e, i);
+        }
+        return;
+    }
+
+    if (!s->enc_delta_armed) {
+        s->position        = r;
+        s->last_raw        = r;
+        s->enc_delta_armed = true;
+        s->enc_stall       = 0;
         return;
     }
 

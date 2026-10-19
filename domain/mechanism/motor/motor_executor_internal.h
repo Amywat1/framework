@@ -59,7 +59,7 @@ typedef struct {
     /* —— 位置基准 —— */
     int64_t position;         /**< 逻辑位置（脉冲） */
     int64_t last_raw;         /**< 上一拍编码器 raw */
-    bool    enc_delta_armed;  /**< 增量轴本段运动是否已锁存 last_raw */
+    bool    enc_delta_armed;  /**< 增量轴本段运动、或绝对轴首次有效采样，是否已锁存 last_raw */
     bool    baseline_trusted; /**< 位置基准是否可信 */
     int     enc_stall;        /**< 编码器连续无进展或读失败拍数 */
     bool    enc_warned;       /**< 本运动是否已发过编码器 WARNING */
