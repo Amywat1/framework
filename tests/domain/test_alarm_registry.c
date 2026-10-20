@@ -233,6 +233,17 @@ static void test_reset_all_publishes_cleared(void)
     TEST_ASSERT_FALSE(alarm_registry_is_active(201101U));
 }
 
+static void test_reset_non_safety_keeps_safety_trigger(void)
+{
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_trigger(201101U));
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_trigger(201709U));
+    TEST_ASSERT_TRUE(alarm_registry_has_safety_trigger_active());
+    alarm_registry_reset_non_safety();
+    TEST_ASSERT_FALSE(alarm_registry_is_active(201101U));
+    TEST_ASSERT_TRUE(alarm_registry_is_active(201709U));
+    TEST_ASSERT_TRUE(alarm_registry_has_safety_trigger_active());
+}
+
 /* 目录内容非法时整表拒绝：这些错误在运行期不会报错，只会表现为
  * 「报警行为和配置对不上」，必须挡在装载期 */
 static void test_load_catalog_rejects_invalid_defs(void)
@@ -601,6 +612,7 @@ int main(void)
     WDF_RUN_TEST(test_minor_published_before_return, "", "验证 MINOR 触发返回前已入队");
     WDF_RUN_TEST(test_last_critical_clear_publishes_nominal, "", "验证末条 CRITICAL 清除后立即发 NOMINAL");
     WDF_RUN_TEST(test_reset_all_publishes_cleared, "", "验证 reset_all 批量 CLEARED 已入队");
+    WDF_RUN_TEST(test_reset_non_safety_keeps_safety_trigger, "", "验证强制清非安全类时保留安全触发");
     WDF_RUN_TEST(test_load_catalog_rejects_invalid_defs, "ALRM-15", "验证非法报警目录整表拒绝");
     WDF_RUN_TEST(test_load_catalog_resets_session_journal, "ALRM-16", "验证换目录同时清空会话日志");
     WDF_RUN_TEST(test_session_journal_blocking_levels, "", "验证会话日志仅记录阻断级别报警");

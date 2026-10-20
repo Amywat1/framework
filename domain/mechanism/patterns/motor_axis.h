@@ -176,6 +176,12 @@ bool motor_axis_baseline_trusted(const motor_axis_t *self);
 bool motor_axis_encoder_healthy(const motor_axis_t *self);
 
 /**
+ * @brief  恢复起步时摘掉编码器不健康旗子
+ * @note   不重建位置基准。未初始化则忽略。
+ */
+void motor_axis_ack_encoder_health(motor_axis_t *self);
+
+/**
  * @brief  查询当前输出频率（厘赫）
  * @return 未运行或未初始化为 0
  */

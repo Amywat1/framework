@@ -74,11 +74,17 @@ bool motor_exec_fault_requires_confirm(const motor_exec_t *exec, int motor, moto
 
 /**
  * @brief  查询编码器健康状态。
- * @return true 编码器读数可信；false 已检测到停滞或跳变，尚未经归位恢复。
+ * @return true 编码器读数可信；false 已检测到停滞或跳变，尚未确认恢复。
  * @note   电机号越界时返回 false。无编码器的机构恒为 true。这是跨运动的持续状态，供上层作为报警条件；
  *         与"位置基准是否已建立"不同，增量编码器上电时基准未建立但编码器健康。
  */
 bool motor_exec_encoder_healthy(const motor_exec_t *exec, int motor);
+
+/**
+ * @brief  恢复起步时摘掉编码器不健康旗子
+ * @note   不重建位置基准。归位仍用限位清零。电机号越界或句柄无效则忽略。
+ */
+void motor_exec_ack_encoder_health(motor_exec_t *exec, int motor);
 
 /**
  * @brief  查询位置基准是否可信。

@@ -231,7 +231,7 @@ static void begin_start(motor_executor_t *e, int i, const motor_pending_cmd_t *p
     s->fb_strikes        = 0;
     s->enc_stall         = 0;
     s->enc_warned        = false;
-    /* 绝对轴每次新运动重新评估读数；增量轴不健康只能靠归位恢复。 */
+    /* 绝对轴每次新运动重新评估读数；增量轴沿用已有健康旗。 */
     if (e->cfg.motors[i].encoder_kind == MOTOR_ENC_ABSOLUTE) {
         s->enc_healthy = true;
     }
@@ -474,7 +474,7 @@ bool zero_encoder_baseline(motor_executor_t *e, int i)
             s->position         = 0;
             s->enc_delta_armed  = false;
             s->baseline_trusted = true;
-            /* 归位成功重建基准，编码器读数重新可信：这是异常后的唯一恢复路径。 */
+            /* 归位撞原点清零后，读数重新可信。 */
             s->enc_healthy = true;
             return true;
         }

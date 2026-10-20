@@ -320,6 +320,14 @@ bool motor_axis_encoder_healthy(const motor_axis_t *self)
     return motor_exec_encoder_healthy(self->exec, self->motor);
 }
 
+void motor_axis_ack_encoder_health(motor_axis_t *self)
+{
+    if (!axis_ready(self)) {
+        return;
+    }
+    motor_exec_ack_encoder_health(self->exec, self->motor);
+}
+
 int motor_axis_current_freq(const motor_axis_t *self)
 {
     if (!axis_ready(self)) {

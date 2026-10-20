@@ -286,6 +286,15 @@ bool motor_exec_encoder_healthy(const motor_exec_t *exec, int motor)
     return (executor != NULL) && motor_encoder_healthy(executor, motor);
 }
 
+void motor_exec_ack_encoder_health(motor_exec_t *exec, int motor)
+{
+    motor_executor_t *executor = executor_from_handle(exec);
+
+    if (executor != NULL) {
+        motor_ack_encoder_health(executor, motor);
+    }
+}
+
 bool motor_exec_baseline_trusted(const motor_exec_t *exec, int motor)
 {
     const motor_executor_t *executor = const_executor_from_handle(exec);

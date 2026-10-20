@@ -357,16 +357,28 @@ void alarm_registry_on_wash_session_ended(void)
     pthread_mutex_unlock(&s_mutex);
 }
 
-void alarm_registry_reset_all(void)
+/**
+ * @brief  码尾是否为安全触发
+ * @param  code 报警码
+ * @return 是安全触发为 true
+ */
+static bool alarm_code_is_safety_trigger(uint32_t code)
+{
+    return alarm_fault_mode_blocks_recover(ALARM_CODE_FAULT_MODE(code));
+}
+
+/**
+ * @brief  倒序删除满足条件的活动报警并发布
+ * @param  should_clear 为 true 时删除该条
+ */
+static void reset_matching(bool (*should_clear)(const alarm_instance_t *inst))
 {
     unsigned        i;
     publish_batch_t batch = {0};
 
     pthread_mutex_lock(&s_mutex);
     for (i = s_active_count; i-- > 0U;) {
-        const alarm_instance_t *inst = &s_active[i];
-
-        if (alarm_clear_allows_manual_reset(inst->clear) && !inst->condition_active) {
+        if (should_clear(&s_active[i])) {
             clear_active_at_locked(i, &batch);
         }
     }
@@ -375,6 +387,52 @@ void alarm_registry_reset_all(void)
     }
     pthread_mutex_unlock(&s_mutex);
     publish_batch(&batch);
+}
+
+/**
+ * @brief  reset_all：条件已消失的可人工复位条目
+ * @param  inst 活动条目
+ * @return 应删除为 true
+ */
+static bool reset_all_match(const alarm_instance_t *inst)
+{
+    return alarm_clear_allows_manual_reset(inst->clear) && !inst->condition_active;
+}
+
+/**
+ * @brief  reset_non_safety：非安全触发一律删除
+ * @param  inst 活动条目
+ * @return 应删除为 true
+ */
+static bool reset_non_safety_match(const alarm_instance_t *inst)
+{
+    return !alarm_code_is_safety_trigger(inst->code);
+}
+
+void alarm_registry_reset_all(void)
+{
+    reset_matching(reset_all_match);
+}
+
+void alarm_registry_reset_non_safety(void)
+{
+    reset_matching(reset_non_safety_match);
+}
+
+bool alarm_registry_has_safety_trigger_active(void)
+{
+    unsigned i;
+    bool     active = false;
+
+    pthread_mutex_lock(&s_mutex);
+    for (i = 0U; i < s_active_count; ++i) {
+        if (alarm_code_is_safety_trigger(s_active[i].code) && s_active[i].condition_active) {
+            active = true;
+            break;
+        }
+    }
+    pthread_mutex_unlock(&s_mutex);
+    return active;
 }
 
 bool alarm_registry_is_active(uint32_t code)

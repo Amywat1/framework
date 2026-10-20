@@ -23,7 +23,7 @@ extern "C" {
  *
  * 状态迁移概览：
  *   INIT → STOPPED（初始化完成；上电默认运营总开关开启，可 RECOVER）
- *   STOPPED → RECOVERING（RECOVER：复位锁存告警 + 异步归位）→ STANDBY / STOPPED
+ *   STOPPED → RECOVERING（RECOVER：安全触发门禁 + 清非安全报警 + 异步归位）→ STANDBY / STOPPED
  *   任意非 INIT → STOPPED（STOP_ALL_OUTPUTS：切断输出，清空订单簿，不改总开关）
  *   任意非 INIT → 同态（SET_SERVICE：仅翻总开关；关闭时若在 STANDBY/HOLD 则落到 STOPPED）
  *   STANDBY / ACTIVE 可 SUBMIT_ORDER 入簿；放行后占用 0→1 进入 ACTIVE
@@ -85,8 +85,8 @@ typedef enum {
 
 /** @brief  恢复流程结束结果 */
 typedef enum {
-    RECOVERY_RESULT_STANDBY = 0, /**< 归位成功且无阻塞告警 → STANDBY */
-    RECOVERY_RESULT_FAILED,   /**< 归位失败或仍有阻塞 → STOPPED */
+    RECOVERY_RESULT_STANDBY = 0, /**< 归位成功且当时无禁止接单报警 → STANDBY */
+    RECOVERY_RESULT_FAILED,      /**< 安全触发挡起步、清故障超时、归位失败或归位后仍阻断 → STOPPED */
 } recovery_result_t;
 
 /**

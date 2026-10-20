@@ -426,6 +426,9 @@ static void test_query_helpers_via_port(void)
     motor_executor_tick(s_exec);
     TEST_ASSERT_TRUE(motor_exec_baseline_trusted(hal, 0));
     TEST_ASSERT_FALSE(motor_exec_encoder_healthy(hal, 0));
+    motor_exec_ack_encoder_health(hal, 0);
+    TEST_ASSERT_TRUE(motor_exec_encoder_healthy(hal, 0));
+    TEST_ASSERT_TRUE(motor_exec_baseline_trusted(hal, 0));
 
     /* 无编码器时查询侧恒 true。 */
     s_cfg.motors[0].has_encoder = false;

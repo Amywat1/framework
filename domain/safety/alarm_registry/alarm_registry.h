@@ -92,6 +92,18 @@ void alarm_registry_on_wash_session_ended(void);
  */
 void alarm_registry_reset_all(void);
 
+/**
+ * @brief  强制删除所有非安全触发的活动报警
+ * @note   条件仍成立也删除。安全触发（码尾 09）保留。删除在返回前发 CLEARED。
+ */
+void alarm_registry_reset_non_safety(void);
+
+/**
+ * @brief  是否存在仍成立的安全触发
+ * @return 活动表中有 safety_trigger 且 condition_active 时为 true
+ */
+bool alarm_registry_has_safety_trigger_active(void);
+
 bool alarm_registry_is_active(uint32_t code);
 bool alarm_registry_has_blocking_active(void);
 

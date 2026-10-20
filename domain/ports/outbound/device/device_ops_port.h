@@ -23,6 +23,16 @@ extern "C" {
 #include <stdint.h>
 
 /**
+ * @brief  异步清报警进展
+ * @note   未注册 poll_clear_alarms 时，协调器视为立刻 DONE。
+ */
+typedef enum {
+    DEVICE_CLEAR_ALARMS_DONE = 0,    /**< 可软件清除的已生效，或无需等待 */
+    DEVICE_CLEAR_ALARMS_PENDING,     /**< 仍在等硬件接点释放 */
+    DEVICE_CLEAR_ALARMS_FAILED,      /**< 等待超时，接点仍闭合 */
+} device_clear_alarms_status_t;
+
+/**
  * @brief 整机运行时操作集合
  */
 typedef struct {
@@ -61,6 +71,17 @@ typedef struct {
      * @note   语义由机型定义；未注册（NULL）时框架不拦截。
      */
     bool (*is_admit_ready)(void);
+    /**
+     * @brief  恢复时对能软件复位的硬件发清故障（可选）
+     * @note   只发指令，不得阻塞等机构到位。未注册则跳过。
+     */
+    sw_err_t (*clear_alarms)(void);
+    /**
+     * @brief  查询清故障是否已生效（可选）
+     * @return DONE 继续归位；PENDING 再等；FAILED 恢复失败
+     * @note   未注册视为 DONE。供 RST 等异步清接点使用。
+     */
+    device_clear_alarms_status_t (*poll_clear_alarms)(void);
 } device_ops_t;
 
 /**

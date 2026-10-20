@@ -242,6 +242,12 @@ bool motor_exec_encoder_healthy(const motor_exec_t *exec, int motor)
     return motor_index_valid(motor);
 }
 
+void motor_exec_ack_encoder_health(motor_exec_t *exec, int motor)
+{
+    (void)exec;
+    (void)motor;
+}
+
 bool motor_exec_baseline_trusted(const motor_exec_t *exec, int motor)
 {
     (void)exec;

@@ -375,6 +375,9 @@ bool motor_baseline_trusted(const motor_executor_t *e, int i);
 /** @brief 查询编码器是否健康。 */
 bool motor_encoder_healthy(const motor_executor_t *e, int i);
 
+/** @brief 摘掉编码器不健康旗子，不改基准。 */
+void motor_ack_encoder_health(motor_executor_t *e, int i);
+
 /** @brief 查询是否处于看门狗安全闩锁。 */
 bool motor_in_safe_state(const motor_executor_t *e);
 

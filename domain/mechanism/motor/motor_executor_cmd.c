@@ -483,6 +483,20 @@ bool motor_encoder_healthy(const motor_executor_t *e, int i)
     return healthy;
 }
 
+void motor_ack_encoder_health(motor_executor_t *e, int i)
+{
+    if (e == NULL) {
+        return;
+    }
+
+    motor_lock(e);
+    if (!bad_motor(e, i)) {
+        e->m[i].enc_healthy = true;
+        e->m[i].enc_warned  = false;
+    }
+    motor_unlock(e);
+}
+
 bool motor_in_safe_state(const motor_executor_t *e)
 {
     bool safe;
