@@ -24,7 +24,7 @@ static const alarm_def_t s_catalog[] = {
     {
      .code         = TEST_ALARM_BLOCKING,
      .level        = ALARM_LEVEL_MAJOR,
-     .clear        = ALARM_CLEAR_MANUAL_RESET,
+     .lifecycle        = ALARM_LIFECYCLE_LATCH,
      .reeval_group = ALARM_REEVAL_GROUP_NONE,
      .desc         = "test blocking",
      },
@@ -418,7 +418,7 @@ static void test_wash_done_after_cleared_auto_static_enters_wash_done(void)
     alarm_def_t cat = {
         .code         = ALARM_CODE_MAKE(ALM_C_DETECT, 2U, ALM_N_SIG_ERR),
         .level        = ALARM_LEVEL_MAJOR,
-        .clear        = ALARM_CLEAR_AUTO_STATIC,
+        .lifecycle        = ALARM_LIFECYCLE_FOLLOW_SIGNAL,
         .reeval_group = ALARM_REEVAL_GROUP_NONE,
         .desc         = "auto major",
     };

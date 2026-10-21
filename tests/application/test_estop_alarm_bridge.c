@@ -21,7 +21,7 @@ static const alarm_def_t s_catalog[] = {
     {
      .code         = TEST_ESTOP_CODE,
      .level        = ALARM_LEVEL_CRITICAL,
-     .clear        = ALARM_CLEAR_AUTO_STATIC,
+     .lifecycle        = ALARM_LIFECYCLE_FOLLOW_SIGNAL,
      .reeval_group = ALARM_REEVAL_GROUP_NONE,
      .desc         = "test estop",
      },

@@ -1,6 +1,6 @@
 /**
  * @file    alarm_types.h
- * @brief   报警码、等级、清除方式与定义类型
+ * @brief   报警码、等级、生命周期与定义类型
  * @author  HUWANGWEI
  * @date    2026-07-09
  */
@@ -83,7 +83,7 @@ typedef enum {
 } safety_posture_t;
 
 /* -------------------------------------------------------------------------
- * 报警等级与清除策略
+ * 报警等级与生命周期
  * ------------------------------------------------------------------------- */
 typedef enum {
     ALARM_LEVEL_MINOR = 0, /**< 仅记录，不挡开洗 */
@@ -91,23 +91,26 @@ typedef enum {
     ALARM_LEVEL_CRITICAL,  /**< LOCKOUT：立刻停机 */
 } alarm_level_t;
 
+/**
+ * @brief  报警生命周期
+ * @note   只分两档。运动结案不是第三档，而是锁存上的可选 `reeval_group`。
+ */
 typedef enum {
-    ALARM_CLEAR_AUTO_STATIC = 0,
-    ALARM_CLEAR_ON_MOTION,
-    ALARM_CLEAR_MANUAL_RESET,
-} alarm_clear_t;
+    ALARM_LIFECYCLE_FOLLOW_SIGNAL = 0, /**< 条件消失即结案 */
+    ALARM_LIFECYCLE_LATCH,             /**< 条件消失仍锁存，由运动组或复位结案 */
+} alarm_lifecycle_t;
 
-/** @brief ON_MOTION 重评估分组 ID；framework 只定义 NONE，具体取值由项目配置 */
+/** @brief 锁存报警的运动结案分组 ID；framework 只定义 NONE，具体取值由项目配置 */
 #define ALARM_REEVAL_GROUP_NONE 0U
 typedef uint16_t motion_reeval_group_id_t;
 
-/** @brief ON_MOTION 重评估触发源类型 */
+/** @brief 运动结案重评估触发源类型 */
 typedef enum {
     ALARM_REEVAL_TRIGGER_ACTUATOR_COMPLETED = 1,
     ALARM_REEVAL_TRIGGER_WASH_CHECKPOINT    = 2,
 } alarm_reeval_trigger_kind_t;
 
-/** @brief 一条 ON_MOTION 重评估绑定（触发源 → 重评估分组） */
+/** @brief 一条运动结案绑定（触发源 → 重评估分组） */
 typedef struct {
     alarm_reeval_trigger_kind_t kind;
     uint16_t                    trigger_id;
@@ -153,7 +156,7 @@ static inline bool alarm_code_make_checked(uint32_t layer, uint32_t object_id, u
 typedef struct {
     uint32_t                 code;
     alarm_level_t            level;
-    alarm_clear_t            clear;
+    alarm_lifecycle_t        lifecycle;
     motion_reeval_group_id_t reeval_group;
     char                     desc[ALARM_DESC_MAX];
 } alarm_def_t;
@@ -161,7 +164,7 @@ typedef struct {
 /**
  * @brief 活动告警实例。
  *
- * @note  `level` / `clear` / `reeval_group` 是插入时从目录定义拷入的快照。
+ * @note  `level` / `lifecycle` / `reeval_group` 是插入时从目录定义拷入的快照。
  *        目录在运行期不变（`load_catalog` 会同时清空活动表），因此活动表上的
  *        任何判定都不需要回查目录——`reevaluate_group` / `reset_all` / `clear`
  *        据此只扫活动表一趟。
@@ -169,8 +172,8 @@ typedef struct {
 typedef struct {
     uint32_t                 code;             /**< 告警码。 */
     alarm_level_t            level;            /**< 告警等级。 */
-    alarm_clear_t            clear;            /**< 清除策略。 */
-    motion_reeval_group_id_t reeval_group;     /**< ON_MOTION 重评估分组。 */
+    alarm_lifecycle_t        lifecycle;        /**< 生命周期。 */
+    motion_reeval_group_id_t reeval_group;     /**< 锁存的运动结案分组；无则为 NONE。 */
     uint64_t                 triggered_at_ms;  /**< 首次触发时间。 */
     bool                     condition_active; /**< 故障源当前是否仍成立。 */
 } alarm_instance_t;

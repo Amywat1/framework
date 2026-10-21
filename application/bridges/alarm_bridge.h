@@ -1,6 +1,6 @@
 /**
  * @file    alarm_bridge.h
- * @brief   报警应用桥接：入站端口绑定、会话 journal、可选 ON_MOTION 重评估
+ * @brief   报警应用桥接：入站端口绑定、会话 journal、可选 锁存运动结案
  * @author  HUWANGWEI
  * @date    2026-08-08
  */
@@ -17,7 +17,7 @@ extern "C" {
 
 #include <stddef.h>
 
-/** @brief ON_MOTION 重评估 binding 表容量上限 */
+/** @brief 锁存运动结案 binding 表容量上限 */
 #define ALARM_REEVAL_BINDING_MAX 64U
 
 /**
@@ -35,7 +35,7 @@ sw_err_t alarm_bridge_bind(void);
 sw_err_t alarm_bridge_init(void);
 
 /**
- * @brief  注册项目 ON_MOTION 重评估 binding 表并订阅相关事件
+ * @brief  注册项目 锁存运动结案 binding 表并订阅相关事件
  * @note   binding 表由项目静态持有；框架不复制。由项目在 init_adapters 中按需调用，
  *         bootstrap 不代替项目做此选择。
  */

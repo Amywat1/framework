@@ -24,7 +24,7 @@ static const alarm_def_t s_catalog[] = {
     {
      .code         = TEST_ALARM_CODE,
      .level        = ALARM_LEVEL_MAJOR,
-     .clear        = ALARM_CLEAR_MANUAL_RESET,
+     .lifecycle        = ALARM_LIFECYCLE_LATCH,
      .reeval_group = ALARM_REEVAL_GROUP_NONE,
      .desc         = "binding bridge",
      },

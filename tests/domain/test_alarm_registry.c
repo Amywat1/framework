@@ -15,28 +15,28 @@ static const alarm_def_t s_catalog[] = {
     {
      .code         = 201101U,
      .level        = ALARM_LEVEL_MAJOR,
-     .clear        = ALARM_CLEAR_MANUAL_RESET,
+     .lifecycle    = ALARM_LIFECYCLE_LATCH,
      .reeval_group = ALARM_REEVAL_GROUP_NONE,
      .desc         = "侧刷过载",
      },
     {
      .code         = 201709U,
      .level        = ALARM_LEVEL_CRITICAL,
-     .clear        = ALARM_CLEAR_AUTO_STATIC,
+     .lifecycle    = ALARM_LIFECYCLE_FOLLOW_SIGNAL,
      .reeval_group = ALARM_REEVAL_GROUP_NONE,
      .desc         = "急停",
      },
     {
      .code         = 200205U,
      .level        = ALARM_LEVEL_MAJOR,
-     .clear        = ALARM_CLEAR_ON_MOTION,
+     .lifecycle    = ALARM_LIFECYCLE_LATCH,
      .reeval_group = (motion_reeval_group_id_t)1U,
      .desc         = "龙门前限位超时",
      },
     {
      .code         = 901001U,
      .level        = ALARM_LEVEL_MINOR,
-     .clear        = ALARM_CLEAR_AUTO_STATIC,
+     .lifecycle    = ALARM_LIFECYCLE_FOLLOW_SIGNAL,
      .reeval_group = ALARM_REEVAL_GROUP_NONE,
      .desc         = "demo minor",
      },
@@ -197,6 +197,19 @@ static void test_reevaluate_by_group(void)
     TEST_ASSERT_FALSE(alarm_registry_is_active(200205U));
 }
 
+static void test_latch_without_group_ignores_reeval(void)
+{
+    (void)alarm_registry_trigger(201101U);
+    (void)alarm_registry_clear(201101U);
+    TEST_ASSERT_TRUE(alarm_registry_is_active(201101U));
+
+    (void)alarm_registry_reevaluate_group((motion_reeval_group_id_t)1U);
+    TEST_ASSERT_TRUE(alarm_registry_is_active(201101U));
+
+    alarm_registry_reset_all();
+    TEST_ASSERT_FALSE(alarm_registry_is_active(201101U));
+}
+
 static void test_minor_published_before_return(void)
 {
     TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_load_catalog(s_catalog, 4U));
@@ -254,7 +267,7 @@ static void test_load_catalog_rejects_invalid_defs(void)
     bad[0] = (alarm_def_t){
         .code         = 1234U,
         .level        = ALARM_LEVEL_MAJOR,
-        .clear        = ALARM_CLEAR_MANUAL_RESET,
+        .lifecycle    = ALARM_LIFECYCLE_LATCH,
         .reeval_group = ALARM_REEVAL_GROUP_NONE,
         .desc         = "bad code",
     };
@@ -264,7 +277,7 @@ static void test_load_catalog_rejects_invalid_defs(void)
     bad[0] = (alarm_def_t){
         .code         = 201101U,
         .level        = ALARM_LEVEL_MINOR,
-        .clear        = ALARM_CLEAR_MANUAL_RESET,
+        .lifecycle    = ALARM_LIFECYCLE_LATCH,
         .reeval_group = ALARM_REEVAL_GROUP_NONE,
         .desc         = "first",
     };
@@ -277,19 +290,19 @@ static void test_load_catalog_rejects_invalid_defs(void)
     bad[0].level = (alarm_level_t)7;
     TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, alarm_registry_load_catalog(bad, 1U));
 
-    /* ON_MOTION 缺分组：永远进不了任何重评估批次 */
+    /* 跟随信号不得挂运动组 */
     bad[0] = (alarm_def_t){
         .code         = 201101U,
         .level        = ALARM_LEVEL_MAJOR,
-        .clear        = ALARM_CLEAR_ON_MOTION,
-        .reeval_group = ALARM_REEVAL_GROUP_NONE,
-        .desc         = "on motion without group",
+        .lifecycle    = ALARM_LIFECYCLE_FOLLOW_SIGNAL,
+        .reeval_group = (motion_reeval_group_id_t)3U,
+        .desc         = "follow_signal with group",
     };
     TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, alarm_registry_load_catalog(bad, 1U));
 
-    /* 非 ON_MOTION 却填了分组：该分组永远不会被重评估用到 */
-    bad[0].clear        = ALARM_CLEAR_MANUAL_RESET;
-    bad[0].reeval_group = (motion_reeval_group_id_t)3U;
+    /* 未定义生命周期 */
+    bad[0].lifecycle    = (alarm_lifecycle_t)9;
+    bad[0].reeval_group = ALARM_REEVAL_GROUP_NONE;
     TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, alarm_registry_load_catalog(bad, 1U));
 
     /* 整表拒绝，不做部分装载：setUp 装的目录必须原封不动 */
@@ -337,7 +350,7 @@ static void test_active_pool_full_rejects(void)
         cat[i] = (alarm_def_t){
             .code         = 902100U + i,
             .level        = ALARM_LEVEL_MINOR,
-            .clear        = ALARM_CLEAR_AUTO_STATIC,
+            .lifecycle    = ALARM_LIFECYCLE_FOLLOW_SIGNAL,
             .reeval_group = ALARM_REEVAL_GROUP_NONE,
             .desc         = "minor fill",
         };
@@ -361,7 +374,7 @@ static alarm_def_t make_fill_def(uint32_t code, alarm_level_t level)
     return (alarm_def_t){
         .code         = code,
         .level        = level,
-        .clear        = ALARM_CLEAR_AUTO_STATIC,
+        .lifecycle    = ALARM_LIFECYCLE_FOLLOW_SIGNAL,
         .reeval_group = ALARM_REEVAL_GROUP_NONE,
         .desc         = "fill",
     };
@@ -609,6 +622,7 @@ int main(void)
     WDF_RUN_TEST(test_reset_requires_manual_condition_clear, "", "验证复位要求手动条件清除");
     WDF_RUN_TEST(test_manual_condition_clear_waits_for_reset, "", "验证手动清除条件后等待复位");
     WDF_RUN_TEST(test_reevaluate_by_group, "", "验证重新评估按分组");
+    WDF_RUN_TEST(test_latch_without_group_ignores_reeval, "", "验证无组锁存不因运动重评估结案");
     WDF_RUN_TEST(test_minor_published_before_return, "", "验证 MINOR 触发返回前已入队");
     WDF_RUN_TEST(test_last_critical_clear_publishes_nominal, "", "验证末条 CRITICAL 清除后立即发 NOMINAL");
     WDF_RUN_TEST(test_reset_all_publishes_cleared, "", "验证 reset_all 批量 CLEARED 已入队");

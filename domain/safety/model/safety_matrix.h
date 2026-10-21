@@ -1,12 +1,12 @@
 /**
  * @file    safety_matrix.h
- * @brief   安全行为矩阵：报警等级与清除策略的语义收口
+ * @brief   安全行为矩阵：报警等级与生命周期的语义收口
  * @author  HUWANGWEI
  * @date    2026-08-03
  *
- * @note    解决的问题：等级与清除策略的语义原先散落在判定点上——
+ * @note    解决的问题：等级与生命周期的语义原先散落在判定点上——
  *          `level >= ALARM_LEVEL_MAJOR` 出现在 3 处、`level == CRITICAL` 出现在
- *          2 处、清除策略判定出现在 3 处。每处都在重新表达"MAJOR 意味着什么"，
+ *          2 处、结案判定出现在多处。每处都在重新表达"MAJOR 意味着什么"，
  *          新增等级或调整语义时要逐个找齐，漏改不会有任何编译期提示。
  *
  *          做法：把"某等级具备哪些行为属性"做成一张表，判定点改为查表。
@@ -120,79 +120,70 @@ static inline bool alarm_level_is_defined(alarm_level_t level)
 }
 
 /* -------------------------------------------------------------------------
- * 清除策略矩阵
+ * 生命周期矩阵
  *
- * | 策略         | 条件消失即清除 | 需运动重评估 | 需手动复位 |
- * |--------------|----------------|--------------|------------|
- * | AUTO_STATIC  | 是             | 否           | 否         |
- * | ON_MOTION    | 否             | 是           | 是（兜底） |
- * | MANUAL_RESET | 否             | 否           | 是         |
+ * | 生命周期       | 条件消失即结案 | 允许复位结案 |
+ * |----------------|----------------|--------------|
+ * | FOLLOW_SIGNAL  | 是             | 否           |
+ * | LATCH          | 否             | 是           |
  *
- * ON_MOTION 两列同时为真：正常路径由运动完成触发重评估自动清除；
- * 若相关运动一直未发生，仍允许手动复位兜底，避免报警永久卡住。
+ * 运动结案不是第三档：锁存且 `reeval_group != NONE` 时，同组运动结束且
+ * 条件已是 false 即删条目。复位是锁存的兜底，与有没有组无关。
  * ------------------------------------------------------------------------- */
 
-/** @brief 单个清除策略的行为属性 */
+/** @brief 单个生命周期的行为属性 */
 typedef struct {
-    bool clears_when_condition_gone; /**< 故障条件消失即自动清除 */
-    bool needs_motion_reeval;        /**< 由运动完成触发重评估清除 */
-    bool allows_manual_reset;        /**< 允许手动复位清除 */
-} alarm_clear_behaviour_t;
+    bool clears_when_condition_gone; /**< 故障条件消失即自动结案 */
+    bool allows_manual_reset;        /**< 允许复位结案（条件须已消失） */
+} alarm_lifecycle_behaviour_t;
 
 /**
- * @brief  查询清除策略的行为属性
- * @param  clear  清除策略
- * @return 行为属性；未知策略按"仅允许手动复位"处理
+ * @brief  查询生命周期的行为属性
+ * @param  lifecycle  生命周期
+ * @return 行为属性；未知取值按锁存处理
  *
- * @note   未知策略不自动清除：自动清除一个语义未知的报警，
+ * @note   未知取值不自动结案：自动结案一个语义未知的报警，
  *         等于让未定义行为决定安全状态何时解除。
  */
-static inline alarm_clear_behaviour_t alarm_clear_behaviour(alarm_clear_t clear)
+static inline alarm_lifecycle_behaviour_t alarm_lifecycle_behaviour(alarm_lifecycle_t lifecycle)
 {
-    switch (clear) {
-    case ALARM_CLEAR_AUTO_STATIC:
-        return (alarm_clear_behaviour_t){
-            .clears_when_condition_gone = true, .needs_motion_reeval = false, .allows_manual_reset = false};
-    case ALARM_CLEAR_ON_MOTION:
-        return (alarm_clear_behaviour_t){
-            .clears_when_condition_gone = false, .needs_motion_reeval = true, .allows_manual_reset = true};
-    case ALARM_CLEAR_MANUAL_RESET:
-        return (alarm_clear_behaviour_t){
-            .clears_when_condition_gone = false, .needs_motion_reeval = false, .allows_manual_reset = true};
+    switch (lifecycle) {
+    case ALARM_LIFECYCLE_FOLLOW_SIGNAL:
+        return (alarm_lifecycle_behaviour_t){.clears_when_condition_gone = true, .allows_manual_reset = false};
+    case ALARM_LIFECYCLE_LATCH:
+        return (alarm_lifecycle_behaviour_t){.clears_when_condition_gone = false, .allows_manual_reset = true};
     default:
-        return (alarm_clear_behaviour_t){
-            .clears_when_condition_gone = false, .needs_motion_reeval = false, .allows_manual_reset = true};
+        return (alarm_lifecycle_behaviour_t){.clears_when_condition_gone = false, .allows_manual_reset = true};
     }
 }
 
-/** @brief 故障条件消失时是否应自动清除 */
-static inline bool alarm_clear_is_auto(alarm_clear_t clear)
+/** @brief 故障条件消失时是否应自动结案 */
+static inline bool alarm_lifecycle_follows_signal(alarm_lifecycle_t lifecycle)
 {
-    return alarm_clear_behaviour(clear).clears_when_condition_gone;
+    return alarm_lifecycle_behaviour(lifecycle).clears_when_condition_gone;
 }
 
-/** @brief 是否参与运动完成后的重评估 */
-static inline bool alarm_clear_needs_motion_reeval(alarm_clear_t clear)
+/** @brief 是否为锁存（条件消失后仍留条目） */
+static inline bool alarm_lifecycle_is_latch(alarm_lifecycle_t lifecycle)
 {
-    return alarm_clear_behaviour(clear).needs_motion_reeval;
+    return !alarm_lifecycle_follows_signal(lifecycle);
 }
 
-/** @brief 是否可由手动复位清除 */
-static inline bool alarm_clear_allows_manual_reset(alarm_clear_t clear)
+/** @brief 是否可由复位结案 */
+static inline bool alarm_lifecycle_allows_manual_reset(alarm_lifecycle_t lifecycle)
 {
-    return alarm_clear_behaviour(clear).allows_manual_reset;
+    return alarm_lifecycle_behaviour(lifecycle).allows_manual_reset;
 }
 
 /**
- * @brief  该清除策略是否为矩阵中已定义的取值
+ * @brief  该生命周期是否为矩阵中已定义的取值
  * @note   用途同 `alarm_level_is_defined`：装载期拒绝，运行期仍保留最严格兜底。
  */
-static inline bool alarm_clear_is_defined(alarm_clear_t clear)
+static inline bool alarm_lifecycle_is_defined(alarm_lifecycle_t lifecycle)
 {
-    switch (clear) {
-    case ALARM_CLEAR_AUTO_STATIC:
-    case ALARM_CLEAR_ON_MOTION:
-    case ALARM_CLEAR_MANUAL_RESET:
+    switch (lifecycle) {
+    case ALARM_LIFECYCLE_FOLLOW_SIGNAL:
+    case ALARM_LIFECYCLE_LATCH:
         return true;
     default:
         return false;

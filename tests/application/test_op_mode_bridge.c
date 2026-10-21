@@ -238,7 +238,7 @@ static void test_blocking_alarm_event_keeps_stopped(void)
         {
          .code         = 201101U,
          .level        = ALARM_LEVEL_MAJOR,
-         .clear        = ALARM_CLEAR_MANUAL_RESET,
+         .lifecycle        = ALARM_LIFECYCLE_LATCH,
          .reeval_group = ALARM_REEVAL_GROUP_NONE,
          .desc         = "test blocking",
          },
@@ -281,7 +281,7 @@ static void test_critical_from_idle_converges_once(void)
         {
          .code         = 201709U,
          .level        = ALARM_LEVEL_CRITICAL,
-         .clear        = ALARM_CLEAR_AUTO_STATIC,
+         .lifecycle        = ALARM_LIFECYCLE_FOLLOW_SIGNAL,
          .reeval_group = ALARM_REEVAL_GROUP_NONE,
          .desc         = "test critical",
          },

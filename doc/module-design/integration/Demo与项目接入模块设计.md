@@ -185,7 +185,7 @@ Demo 加载两个报警：
 | Code | 等级 | 说明 |
 |------|------|------|
 | `201101` | MAJOR | blocking |
-| `201709` | CRITICAL | LOCKOUT（AUTO_STATIC，Recover 不会清除） |
+| `201709` | CRITICAL | LOCKOUT（跟随信号，Recover 不会清除还在的条件） |
 
 装载经 `alarm_binding_get_ops()->load_catalog()` 而非直接调 `alarm_registry`：
 项目接入一律只透过端口触碰报警域，demo 作为接入范本必须示范同一种姿势
@@ -232,7 +232,7 @@ typedef struct {
 - `project_bind_device()` 中调用 `device_ops_register()`。
 - `execute_manual_actuator` 的 `act_id` / `param` 由项目定义，并在云端/CLI 映射中保持一致；**须非阻塞**——下发动作或启动定时/运动后立即返回，点动时长与到位由项目侧自行管理，勿在回调内 `sleep`/轮询等待。
 - `start_job` / `home_device` / `clear_machine` 同样只启动异步流程；完成后分别靠作业事件、`EVT_OP_MODE_HOME_COMPLETED`、`EVT_CLEAR_MACHINE_DONE` 收口。
-- 发布 `EVT_OP_MODE_HOME_COMPLETED(成功)` 前须按目标姿态证明 ON_MOTION（只 `clear` 条件；过流等 MANUAL_RESET 不得在此清除）。
+- 发布 `EVT_OP_MODE_HOME_COMPLETED(成功)` 前须按目标姿态证明锁存条件消失（只 `clear` 条件）。
 - `stop_all_outputs` 必须能落到与 cutout 等价的安全输出态；无在洗作业时 router 不会调用 `abort_jobs(STOP_ALL)`。
 - `home_device` 和 `clear_machine` 应处理执行中冲突和硬件故障，并返回明确错误码。
 

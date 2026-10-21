@@ -32,15 +32,16 @@ static volatile wash_abort_cause_t s_abort_cause;
 static volatile int                s_deferred_stop_count;
 static volatile int                s_stop_all_outputs_count;
 static uint32_t                    s_retrigger_on_home_code;
+static uint32_t                    s_clear_on_home_code;
 static volatile int                 s_home_auto_complete;
 static volatile int                 s_clear_alarms_count;
 static device_clear_alarms_status_t s_clear_poll_status;
 
 #define TEST_BLOCKING_ALARM_CODE    201101U
 #define TEST_LOCKOUT_ALARM_CODE     201102U
-#define TEST_ON_MOTION_ALARM_CODE   201103U
+#define TEST_LATCH_ALARM_CODE       201103U
 #define TEST_SAFETY_ALARM_CODE      201109U
-#define TEST_ON_MOTION_REEVAL_GROUP ((motion_reeval_group_id_t)1U)
+#define TEST_LATCH_REEVAL_GROUP     ((motion_reeval_group_id_t)1U)
 
 static sw_err_t fake_cutout(void)
 {
@@ -88,6 +89,9 @@ static sw_err_t stub_home_device(void)
     if (s_retrigger_on_home_code != 0U) {
         (void)alarm_registry_trigger(s_retrigger_on_home_code);
     }
+    if (s_clear_on_home_code != 0U) {
+        (void)alarm_registry_clear(s_clear_on_home_code);
+    }
     if (s_home_auto_complete != 0) {
         (void)event_publish(EVT_OP_MODE_HOME_COMPLETED, 1U);
     }
@@ -117,21 +121,19 @@ static const alarm_def_t s_blocking_catalog[] = {
     {
      .code         = TEST_BLOCKING_ALARM_CODE,
      .level        = ALARM_LEVEL_MAJOR,
-     .clear        = ALARM_CLEAR_MANUAL_RESET,
+     .lifecycle    = ALARM_LIFECYCLE_LATCH,
      .reeval_group = ALARM_REEVAL_GROUP_NONE,
      .desc         = "test blocking",
      },
 };
 
-static const alarm_def_t s_on_motion_catalog[] = {
+static const alarm_def_t s_latch_catalog[] = {
     {
-     .code  = TEST_ON_MOTION_ALARM_CODE,
-     .level = ALARM_LEVEL_MAJOR,
-     .clear = ALARM_CLEAR_ON_MOTION,
-     /* ON_MOTION 必须配非 NONE 分组。本用例验的是「运动一直没发生时手动复位
-     * 兜底」，分组填上不影响该路径。 */
-        .reeval_group = TEST_ON_MOTION_REEVAL_GROUP,
-     .desc         = "test on motion",
+     .code         = TEST_LATCH_ALARM_CODE,
+     .level        = ALARM_LEVEL_MAJOR,
+     .lifecycle    = ALARM_LIFECYCLE_LATCH,
+     .reeval_group = TEST_LATCH_REEVAL_GROUP,
+     .desc         = "test latch",
      },
 };
 
@@ -139,7 +141,7 @@ static const alarm_def_t s_lockout_catalog[] = {
     {
      .code         = TEST_LOCKOUT_ALARM_CODE,
      .level        = ALARM_LEVEL_CRITICAL,
-     .clear        = ALARM_CLEAR_MANUAL_RESET,
+     .lifecycle    = ALARM_LIFECYCLE_LATCH,
      .reeval_group = ALARM_REEVAL_GROUP_NONE,
      .desc         = "test lockout",
      },
@@ -149,7 +151,7 @@ static const alarm_def_t s_safety_catalog[] = {
     {
      .code         = TEST_SAFETY_ALARM_CODE,
      .level        = ALARM_LEVEL_CRITICAL,
-     .clear        = ALARM_CLEAR_AUTO_STATIC,
+     .lifecycle    = ALARM_LIFECYCLE_FOLLOW_SIGNAL,
      .reeval_group = ALARM_REEVAL_GROUP_NONE,
      .desc         = "test safety",
      },
@@ -172,6 +174,7 @@ void setUp(void)
     s_deferred_stop_count      = 0;
     s_stop_all_outputs_count   = 0;
     s_retrigger_on_home_code   = 0U;
+    s_clear_on_home_code       = 0U;
     s_home_auto_complete       = 1;
     s_clear_alarms_count       = 0;
     s_clear_poll_status        = DEVICE_CLEAR_ALARMS_DONE;
@@ -234,6 +237,30 @@ static void test_recovery_coordinator_keeps_exception_when_blocking_remains(void
 
     TEST_ASSERT_EQUAL_INT(1, s_recovery_completed_count);
     TEST_ASSERT_EQUAL_UINT32((uint32_t)RECOVERY_RESULT_FAILED, s_recovery_result_param);
+    TEST_ASSERT_EQUAL_INT(1, s_home_device_count);
+}
+
+/**
+ * 归位中条件消失的事件锁存在归位成功后摘掉，进待机。
+ */
+static void test_recovery_resets_latch_cleared_during_home(void)
+{
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_load_catalog(s_blocking_catalog, 1U));
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_trigger(TEST_BLOCKING_ALARM_CODE));
+    s_retrigger_on_home_code = TEST_BLOCKING_ALARM_CODE;
+    s_clear_on_home_code     = TEST_BLOCKING_ALARM_CODE;
+    device_ops_register(&s_device_ops);
+    TEST_ASSERT_EQUAL_INT(SW_OK, recovery_coordinator_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_subscribe(EVT_OP_MODE_RECOVERY_COMPLETED, on_recovery_completed));
+
+    start_recover_via_command();
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_drain());
+
+    TEST_ASSERT_EQUAL_INT(1, s_recovery_completed_count);
+    TEST_ASSERT_EQUAL_UINT32((uint32_t)RECOVERY_RESULT_STANDBY, s_recovery_result_param);
+    TEST_ASSERT_FALSE(alarm_registry_is_active(TEST_BLOCKING_ALARM_CODE));
     TEST_ASSERT_EQUAL_INT(1, s_home_device_count);
 }
 
@@ -485,15 +512,15 @@ static void test_stop_all_during_pending_home_cuts_outputs(void)
 }
 
 /**
- * ON_MOTION 属非安全类，起步强制清掉。
+ * 锁存属非安全类，起步强制清掉。
  */
-static void test_recovery_clears_on_motion_before_home(void)
+static void test_recovery_clears_latch_before_home(void)
 {
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_init());
-    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_load_catalog(s_on_motion_catalog, 1U));
-    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_trigger(TEST_ON_MOTION_ALARM_CODE));
-    TEST_ASSERT_TRUE(alarm_registry_is_active(TEST_ON_MOTION_ALARM_CODE));
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_load_catalog(s_latch_catalog, 1U));
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_trigger(TEST_LATCH_ALARM_CODE));
+    TEST_ASSERT_TRUE(alarm_registry_is_active(TEST_LATCH_ALARM_CODE));
     device_ops_register(&s_device_ops);
     TEST_ASSERT_EQUAL_INT(SW_OK, recovery_coordinator_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, event_subscribe(EVT_OP_MODE_RECOVERY_COMPLETED, on_recovery_completed));
@@ -503,7 +530,7 @@ static void test_recovery_clears_on_motion_before_home(void)
 
     TEST_ASSERT_EQUAL_INT(1, s_recovery_completed_count);
     TEST_ASSERT_EQUAL_UINT32((uint32_t)RECOVERY_RESULT_STANDBY, s_recovery_result_param);
-    TEST_ASSERT_FALSE(alarm_registry_is_active(TEST_ON_MOTION_ALARM_CODE));
+    TEST_ASSERT_FALSE(alarm_registry_is_active(TEST_LATCH_ALARM_CODE));
     TEST_ASSERT_EQUAL_INT(1, s_home_device_count);
 }
 
@@ -658,6 +685,7 @@ int main(void)
     WDF_RUN_TEST(test_recovery_coordinator_publishes_completed_idle, "", "验证恢复完成后发布空闲状态事件");
     WDF_RUN_TEST(
         test_recovery_coordinator_keeps_exception_when_blocking_remains, "", "验证归位结束时阻断告警仍在则失败");
+    WDF_RUN_TEST(test_recovery_resets_latch_cleared_during_home, "", "验证归位中条件消失的锁存结束后摘掉");
     WDF_RUN_TEST(test_recovery_safety_trigger_blocks_home, "", "验证安全触发还在时不开归位");
     WDF_RUN_TEST(test_recovery_clears_non_safety_before_home, "", "验证非安全类起步强制清除后可归位");
     WDF_RUN_TEST(test_recovery_critical_non_safety_starts_home, "", "验证非安全 CRITICAL 不挡恢复起步");
@@ -669,7 +697,7 @@ int main(void)
     WDF_RUN_TEST(test_leave_recovering_ignores_late_home_completed, "", "验证离开恢复后忽略迟到归位完成");
     WDF_RUN_TEST(test_estop_during_pending_home_preempts_recovery, "", "验证归位等待中急停抢占恢复并切断");
     WDF_RUN_TEST(test_stop_all_during_pending_home_cuts_outputs, "", "验证归位等待中全停切断输出");
-    WDF_RUN_TEST(test_recovery_clears_on_motion_before_home, "", "验证 ON_MOTION 起步即强制清除");
+    WDF_RUN_TEST(test_recovery_clears_latch_before_home, "", "验证锁存起步即强制清除");
     WDF_RUN_TEST(test_recovery_waits_clear_alarms_before_home, "", "验证清故障未就绪时先等再归位");
     WDF_RUN_TEST(test_recovery_clear_alarms_failed_skips_home, "", "验证清故障超时不开归位");
     WDF_RUN_TEST(test_recovery_clear_done_claimed_once, "", "验证清故障完成只认领一次归位");

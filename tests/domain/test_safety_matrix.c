@@ -85,65 +85,50 @@ static void test_level_helpers_match_matrix(void)
 }
 
 /* -------------------------------------------------------------------------
- * 清除策略矩阵：3 策略 × 3 属性，共 9 个格点
+ * 生命周期矩阵：2 档 × 2 属性
  *
- * | 策略         | 条件消失即清 | 需运动重评估 | 允许手动复位 |
- * |--------------|--------------|--------------|--------------|
- * | AUTO_STATIC  | 是           | 否           | 否           |
- * | ON_MOTION    | 否           | 是           | 是           |
- * | MANUAL_RESET | 否           | 否           | 是           |
+ * | 生命周期      | 条件消失即结案 | 允许复位结案 |
+ * |---------------|----------------|--------------|
+ * | FOLLOW_SIGNAL | 是             | 否           |
+ * | LATCH         | 否             | 是           |
  * ------------------------------------------------------------------------- */
 
-static void test_auto_static_clear_grid(void)
+static void test_follow_signal_lifecycle_grid(void)
 {
-    alarm_clear_behaviour_t b = alarm_clear_behaviour(ALARM_CLEAR_AUTO_STATIC);
+    alarm_lifecycle_behaviour_t b = alarm_lifecycle_behaviour(ALARM_LIFECYCLE_FOLLOW_SIGNAL);
 
     TEST_ASSERT_TRUE(b.clears_when_condition_gone);
-    TEST_ASSERT_FALSE(b.needs_motion_reeval);
     TEST_ASSERT_FALSE(b.allows_manual_reset);
 }
 
-static void test_on_motion_clear_grid(void)
+static void test_latch_lifecycle_grid(void)
 {
-    alarm_clear_behaviour_t b = alarm_clear_behaviour(ALARM_CLEAR_ON_MOTION);
+    alarm_lifecycle_behaviour_t b = alarm_lifecycle_behaviour(ALARM_LIFECYCLE_LATCH);
 
-    /* 两列同真：正常由运动重评估清除，运动一直不发生时手动复位兜底，
-     * 否则报警会永久卡住。 */
     TEST_ASSERT_FALSE(b.clears_when_condition_gone);
-    TEST_ASSERT_TRUE(b.needs_motion_reeval);
     TEST_ASSERT_TRUE(b.allows_manual_reset);
 }
 
-static void test_manual_reset_clear_grid(void)
+/* 未知生命周期不得自动结案：那等于让未定义行为决定安全状态何时解除 */
+static void test_unknown_lifecycle_never_auto(void)
 {
-    alarm_clear_behaviour_t b = alarm_clear_behaviour(ALARM_CLEAR_MANUAL_RESET);
+    alarm_lifecycle_behaviour_t b = alarm_lifecycle_behaviour((alarm_lifecycle_t)99);
 
     TEST_ASSERT_FALSE(b.clears_when_condition_gone);
-    TEST_ASSERT_FALSE(b.needs_motion_reeval);
     TEST_ASSERT_TRUE(b.allows_manual_reset);
 }
 
-/* 未知策略不得自动清除：那等于让未定义行为决定安全状态何时解除 */
-static void test_unknown_clear_never_auto(void)
+static void test_lifecycle_helpers_match_matrix(void)
 {
-    alarm_clear_behaviour_t b = alarm_clear_behaviour((alarm_clear_t)99);
+    const alarm_lifecycle_t values[] = {ALARM_LIFECYCLE_FOLLOW_SIGNAL, ALARM_LIFECYCLE_LATCH};
+    unsigned                i;
 
-    TEST_ASSERT_FALSE(b.clears_when_condition_gone);
-    TEST_ASSERT_FALSE(b.needs_motion_reeval);
-    TEST_ASSERT_TRUE(b.allows_manual_reset);
-}
+    for (i = 0U; i < sizeof(values) / sizeof(values[0]); i++) {
+        alarm_lifecycle_behaviour_t b = alarm_lifecycle_behaviour(values[i]);
 
-static void test_clear_helpers_match_matrix(void)
-{
-    const alarm_clear_t clears[] = {ALARM_CLEAR_AUTO_STATIC, ALARM_CLEAR_ON_MOTION, ALARM_CLEAR_MANUAL_RESET};
-    unsigned            i;
-
-    for (i = 0U; i < sizeof(clears) / sizeof(clears[0]); i++) {
-        alarm_clear_behaviour_t b = alarm_clear_behaviour(clears[i]);
-
-        TEST_ASSERT_EQUAL_INT(b.clears_when_condition_gone, alarm_clear_is_auto(clears[i]));
-        TEST_ASSERT_EQUAL_INT(b.needs_motion_reeval, alarm_clear_needs_motion_reeval(clears[i]));
-        TEST_ASSERT_EQUAL_INT(b.allows_manual_reset, alarm_clear_allows_manual_reset(clears[i]));
+        TEST_ASSERT_EQUAL_INT(b.clears_when_condition_gone, alarm_lifecycle_follows_signal(values[i]));
+        TEST_ASSERT_EQUAL_INT(!b.clears_when_condition_gone, alarm_lifecycle_is_latch(values[i]));
+        TEST_ASSERT_EQUAL_INT(b.allows_manual_reset, alarm_lifecycle_allows_manual_reset(values[i]));
     }
 }
 
@@ -197,11 +182,10 @@ int main(void)
     WDF_RUN_TEST(test_critical_level_grid, "", "验证严重级报警行为矩阵");
     WDF_RUN_TEST(test_unknown_level_is_most_restrictive, "", "验证未知级别为最严格限制");
     WDF_RUN_TEST(test_level_helpers_match_matrix, "", "验证级别辅助函数与安全矩阵一致");
-    WDF_RUN_TEST(test_auto_static_clear_grid, "", "验证自动静止时清除组合矩阵");
-    WDF_RUN_TEST(test_on_motion_clear_grid, "", "验证开启运动时清除组合矩阵");
-    WDF_RUN_TEST(test_manual_reset_clear_grid, "", "验证手动复位清除组合矩阵");
-    WDF_RUN_TEST(test_unknown_clear_never_auto, "", "验证未知清除永不自动");
-    WDF_RUN_TEST(test_clear_helpers_match_matrix, "", "验证清除辅助函数与安全矩阵一致");
+    WDF_RUN_TEST(test_follow_signal_lifecycle_grid, "", "验证跟随信号生命周期矩阵");
+    WDF_RUN_TEST(test_latch_lifecycle_grid, "", "验证锁存生命周期矩阵");
+    WDF_RUN_TEST(test_unknown_lifecycle_never_auto, "", "验证未知生命周期永不自动结案");
+    WDF_RUN_TEST(test_lifecycle_helpers_match_matrix, "", "验证生命周期辅助函数与安全矩阵一致");
     WDF_RUN_TEST(test_posture_derivation, "", "验证安全姿态推导");
     WDF_RUN_TEST(test_severity_is_monotonic, "", "验证报警严重度保持单调");
     return UNITY_END();

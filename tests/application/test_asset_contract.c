@@ -22,7 +22,7 @@ static const alarm_def_t s_defs[] = {
      * 报警码（大类解析为 0），装载期校验会整表拒绝。 */
         .code         = 100101U,
      .level        = ALARM_LEVEL_MAJOR,
-     .clear        = ALARM_CLEAR_AUTO_STATIC,
+     .lifecycle        = ALARM_LIFECYCLE_FOLLOW_SIGNAL,
      .reeval_group = ALARM_REEVAL_GROUP_NONE,
      .desc         = "test alarm",
      },

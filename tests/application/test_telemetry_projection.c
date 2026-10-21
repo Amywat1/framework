@@ -24,21 +24,21 @@ static const alarm_def_t s_catalog[] = {
     {
      .code         = 201101U,
      .level        = ALARM_LEVEL_MAJOR,
-     .clear        = ALARM_CLEAR_MANUAL_RESET,
+     .lifecycle        = ALARM_LIFECYCLE_LATCH,
      .reeval_group = ALARM_REEVAL_GROUP_NONE,
      .desc         = "blocking alarm",
      },
     {
      .code         = 201201U,
      .level        = ALARM_LEVEL_MAJOR,
-     .clear        = ALARM_CLEAR_MANUAL_RESET,
+     .lifecycle        = ALARM_LIFECYCLE_LATCH,
      .reeval_group = ALARM_REEVAL_GROUP_NONE,
      .desc         = "blocking alarm 2",
      },
     {
      .code         = 201301U,
      .level        = ALARM_LEVEL_MAJOR,
-     .clear        = ALARM_CLEAR_AUTO_STATIC,
+     .lifecycle        = ALARM_LIFECYCLE_FOLLOW_SIGNAL,
      .reeval_group = ALARM_REEVAL_GROUP_NONE,
      .desc         = "auto static major",
      },
@@ -287,7 +287,7 @@ static void test_safety_projection_journal_dropped_visible(void)
         cat[i] = (alarm_def_t){
             .code         = ALARM_CODE_MAKE(ALM_C_DETECT, i, ALM_N_OVERLOAD),
             .level        = ALARM_LEVEL_MAJOR,
-            .clear        = ALARM_CLEAR_AUTO_STATIC,
+            .lifecycle        = ALARM_LIFECYCLE_FOLLOW_SIGNAL,
             .reeval_group = ALARM_REEVAL_GROUP_NONE,
             .desc         = "fill",
         };

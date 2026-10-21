@@ -109,13 +109,13 @@ static void on_nominal(const event_t *evt)
     seq_push(evt->type);
 }
 
-static alarm_def_t make_def(uint32_t code, alarm_level_t level, alarm_clear_t clear,
+static alarm_def_t make_def(uint32_t code, alarm_level_t level, alarm_lifecycle_t lifecycle,
                             motion_reeval_group_id_t group)
 {
     return (alarm_def_t){
         .code         = code,
         .level        = level,
-        .clear        = clear,
+        .lifecycle    = lifecycle,
         .reeval_group = group,
         .desc         = "adv",
     };
@@ -184,8 +184,8 @@ static void test_repeat_trigger_and_second_critical_no_extra_lockout(void)
     uint32_t          c1 = fill_code(1U);
     uint32_t          c2 = fill_code(2U);
 
-    cat[0] = make_def(c1, ALARM_LEVEL_CRITICAL, ALARM_CLEAR_AUTO_STATIC, ALARM_REEVAL_GROUP_NONE);
-    cat[1] = make_def(c2, ALARM_LEVEL_CRITICAL, ALARM_CLEAR_AUTO_STATIC, ALARM_REEVAL_GROUP_NONE);
+    cat[0] = make_def(c1, ALARM_LEVEL_CRITICAL, ALARM_LIFECYCLE_FOLLOW_SIGNAL, ALARM_REEVAL_GROUP_NONE);
+    cat[1] = make_def(c2, ALARM_LEVEL_CRITICAL, ALARM_LIFECYCLE_FOLLOW_SIGNAL, ALARM_REEVAL_GROUP_NONE);
     TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_load_catalog(cat, 2U));
     subscribe_all();
 
@@ -224,7 +224,7 @@ static void test_load_catalog_and_init_do_not_emit_cleared(void)
     alarm_def_t cat[1];
     uint32_t    c1 = fill_code(3U);
 
-    cat[0] = make_def(c1, ALARM_LEVEL_CRITICAL, ALARM_CLEAR_AUTO_STATIC, ALARM_REEVAL_GROUP_NONE);
+    cat[0] = make_def(c1, ALARM_LEVEL_CRITICAL, ALARM_LIFECYCLE_FOLLOW_SIGNAL, ALARM_REEVAL_GROUP_NONE);
     TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_load_catalog(cat, 1U));
     subscribe_all();
 
@@ -288,9 +288,9 @@ static void test_concurrent_two_minors_and_lockout_table_already_set(void)
 
     g_code_a = fill_code(11U);
     g_code_b = fill_code(12U);
-    cat[0]   = make_def(crit, ALARM_LEVEL_CRITICAL, ALARM_CLEAR_AUTO_STATIC, ALARM_REEVAL_GROUP_NONE);
-    cat[1]   = make_def(g_code_a, ALARM_LEVEL_MINOR, ALARM_CLEAR_AUTO_STATIC, ALARM_REEVAL_GROUP_NONE);
-    cat[2]   = make_def(g_code_b, ALARM_LEVEL_MINOR, ALARM_CLEAR_AUTO_STATIC, ALARM_REEVAL_GROUP_NONE);
+    cat[0]   = make_def(crit, ALARM_LEVEL_CRITICAL, ALARM_LIFECYCLE_FOLLOW_SIGNAL, ALARM_REEVAL_GROUP_NONE);
+    cat[1]   = make_def(g_code_a, ALARM_LEVEL_MINOR, ALARM_LIFECYCLE_FOLLOW_SIGNAL, ALARM_REEVAL_GROUP_NONE);
+    cat[2]   = make_def(g_code_b, ALARM_LEVEL_MINOR, ALARM_LIFECYCLE_FOLLOW_SIGNAL, ALARM_REEVAL_GROUP_NONE);
     TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_load_catalog(cat, 3U));
     subscribe_all();
 
@@ -354,7 +354,7 @@ static void test_concurrent_trigger_clear_last_safety_event_matches_table(void)
     unsigned    i;
 
     g_code_a = fill_code(20U);
-    cat[0]   = make_def(g_code_a, ALARM_LEVEL_CRITICAL, ALARM_CLEAR_AUTO_STATIC, ALARM_REEVAL_GROUP_NONE);
+    cat[0]   = make_def(g_code_a, ALARM_LEVEL_CRITICAL, ALARM_LIFECYCLE_FOLLOW_SIGNAL, ALARM_REEVAL_GROUP_NONE);
     TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_load_catalog(cat, 1U));
     subscribe_all();
 
@@ -401,7 +401,7 @@ static void test_hi_queue_full_critical_keeps_table_fatal_visible(void)
     uint32_t          crit = fill_code(30U);
     unsigned          i;
 
-    cat[0] = make_def(crit, ALARM_LEVEL_CRITICAL, ALARM_CLEAR_AUTO_STATIC, ALARM_REEVAL_GROUP_NONE);
+    cat[0] = make_def(crit, ALARM_LEVEL_CRITICAL, ALARM_LIFECYCLE_FOLLOW_SIGNAL, ALARM_REEVAL_GROUP_NONE);
     TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_load_catalog(cat, 1U));
     subscribe_all();
 
@@ -433,7 +433,7 @@ static void test_normal_queue_full_minor_keeps_table_fatal_visible(void)
     uint32_t    minor = fill_code(31U);
     unsigned    i;
 
-    cat[0] = make_def(minor, ALARM_LEVEL_MINOR, ALARM_CLEAR_AUTO_STATIC, ALARM_REEVAL_GROUP_NONE);
+    cat[0] = make_def(minor, ALARM_LEVEL_MINOR, ALARM_LIFECYCLE_FOLLOW_SIGNAL, ALARM_REEVAL_GROUP_NONE);
     TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_load_catalog(cat, 1U));
     subscribe_all();
 
@@ -463,9 +463,9 @@ static void test_full_lockout_pool_rejects_without_events(void)
     unsigned    i;
 
     for (i = 0U; i < ALARM_ACTIVE_MAX; ++i) {
-        cat[i] = make_def(fill_code(i), ALARM_LEVEL_CRITICAL, ALARM_CLEAR_AUTO_STATIC, ALARM_REEVAL_GROUP_NONE);
+        cat[i] = make_def(fill_code(i), ALARM_LEVEL_CRITICAL, ALARM_LIFECYCLE_FOLLOW_SIGNAL, ALARM_REEVAL_GROUP_NONE);
     }
-    cat[ALARM_ACTIVE_MAX] = make_def(extra, ALARM_LEVEL_CRITICAL, ALARM_CLEAR_AUTO_STATIC, ALARM_REEVAL_GROUP_NONE);
+    cat[ALARM_ACTIVE_MAX] = make_def(extra, ALARM_LEVEL_CRITICAL, ALARM_LIFECYCLE_FOLLOW_SIGNAL, ALARM_REEVAL_GROUP_NONE);
     TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_load_catalog(cat, ALARM_ACTIVE_MAX + 1U));
     subscribe_all();
 
@@ -497,8 +497,8 @@ static void test_lockout_handler_retrigger_second_critical(void)
     uint32_t    c1 = fill_code(40U);
     uint32_t    c2 = fill_code(41U);
 
-    cat[0] = make_def(c1, ALARM_LEVEL_CRITICAL, ALARM_CLEAR_AUTO_STATIC, ALARM_REEVAL_GROUP_NONE);
-    cat[1] = make_def(c2, ALARM_LEVEL_CRITICAL, ALARM_CLEAR_AUTO_STATIC, ALARM_REEVAL_GROUP_NONE);
+    cat[0] = make_def(c1, ALARM_LEVEL_CRITICAL, ALARM_LIFECYCLE_FOLLOW_SIGNAL, ALARM_REEVAL_GROUP_NONE);
+    cat[1] = make_def(c2, ALARM_LEVEL_CRITICAL, ALARM_LIFECYCLE_FOLLOW_SIGNAL, ALARM_REEVAL_GROUP_NONE);
     TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_load_catalog(cat, 2U));
 
     g_reenter_kind = 1;
@@ -526,8 +526,8 @@ static void test_handler_copy_view_and_nested_clear_no_deadlock(void)
     uint32_t    minor = fill_code(42U);
     uint32_t    crit  = fill_code(43U);
 
-    cat[0] = make_def(minor, ALARM_LEVEL_MINOR, ALARM_CLEAR_AUTO_STATIC, ALARM_REEVAL_GROUP_NONE);
-    cat[1] = make_def(crit, ALARM_LEVEL_CRITICAL, ALARM_CLEAR_AUTO_STATIC, ALARM_REEVAL_GROUP_NONE);
+    cat[0] = make_def(minor, ALARM_LEVEL_MINOR, ALARM_LIFECYCLE_FOLLOW_SIGNAL, ALARM_REEVAL_GROUP_NONE);
+    cat[1] = make_def(crit, ALARM_LEVEL_CRITICAL, ALARM_LIFECYCLE_FOLLOW_SIGNAL, ALARM_REEVAL_GROUP_NONE);
     TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_load_catalog(cat, 2U));
 
     g_reenter_kind = 2;
@@ -563,9 +563,9 @@ static void test_eviction_events_then_unknown_code_does_not_drop_queue(void)
     unsigned          i;
 
     for (i = 0U; i < ALARM_ACTIVE_MAX; ++i) {
-        cat[i] = make_def(fill_code(i), ALARM_LEVEL_MINOR, ALARM_CLEAR_AUTO_STATIC, ALARM_REEVAL_GROUP_NONE);
+        cat[i] = make_def(fill_code(i), ALARM_LEVEL_MINOR, ALARM_LIFECYCLE_FOLLOW_SIGNAL, ALARM_REEVAL_GROUP_NONE);
     }
-    cat[ALARM_ACTIVE_MAX] = make_def(crit, ALARM_LEVEL_CRITICAL, ALARM_CLEAR_AUTO_STATIC, ALARM_REEVAL_GROUP_NONE);
+    cat[ALARM_ACTIVE_MAX] = make_def(crit, ALARM_LEVEL_CRITICAL, ALARM_LIFECYCLE_FOLLOW_SIGNAL, ALARM_REEVAL_GROUP_NONE);
     TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_load_catalog(cat, ALARM_ACTIVE_MAX + 1U));
     subscribe_all();
 
@@ -607,13 +607,13 @@ static void test_journal_and_pool_full_then_critical_dropped_sticky(void)
     unsigned            i;
 
     for (i = 0U; i < ALARM_SESSION_JOURNAL_MAX; ++i) {
-        cat[i] = make_def(fill_code(i), ALARM_LEVEL_MAJOR, ALARM_CLEAR_MANUAL_RESET, ALARM_REEVAL_GROUP_NONE);
+        cat[i] = make_def(fill_code(i), ALARM_LEVEL_MAJOR, ALARM_LIFECYCLE_LATCH, ALARM_REEVAL_GROUP_NONE);
     }
     for (i = ALARM_SESSION_JOURNAL_MAX; i < ALARM_ACTIVE_MAX; ++i) {
-        cat[i] = make_def(fill_code(i), ALARM_LEVEL_MINOR, ALARM_CLEAR_AUTO_STATIC, ALARM_REEVAL_GROUP_NONE);
+        cat[i] = make_def(fill_code(i), ALARM_LEVEL_MINOR, ALARM_LIFECYCLE_FOLLOW_SIGNAL, ALARM_REEVAL_GROUP_NONE);
     }
-    cat[ALARM_ACTIVE_MAX]      = make_def(crit, ALARM_LEVEL_CRITICAL, ALARM_CLEAR_AUTO_STATIC, ALARM_REEVAL_GROUP_NONE);
-    cat[ALARM_ACTIVE_MAX + 1U] = make_def(minor, ALARM_LEVEL_MINOR, ALARM_CLEAR_AUTO_STATIC, ALARM_REEVAL_GROUP_NONE);
+    cat[ALARM_ACTIVE_MAX]      = make_def(crit, ALARM_LEVEL_CRITICAL, ALARM_LIFECYCLE_FOLLOW_SIGNAL, ALARM_REEVAL_GROUP_NONE);
+    cat[ALARM_ACTIVE_MAX + 1U] = make_def(minor, ALARM_LEVEL_MINOR, ALARM_LIFECYCLE_FOLLOW_SIGNAL, ALARM_REEVAL_GROUP_NONE);
 
     TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_load_catalog(cat, ALARM_ACTIVE_MAX + 2U));
     alarm_registry_on_wash_session_started();
@@ -650,8 +650,8 @@ static void test_boundary_codes_null_view_empty_reset_reeval(void)
     uint32_t            on_motion = fill_code(50U);
     uint32_t            manual    = fill_code(51U);
 
-    cat[0] = make_def(on_motion, ALARM_LEVEL_MAJOR, ALARM_CLEAR_ON_MOTION, (motion_reeval_group_id_t)1U);
-    cat[1] = make_def(manual, ALARM_LEVEL_MAJOR, ALARM_CLEAR_MANUAL_RESET, ALARM_REEVAL_GROUP_NONE);
+    cat[0] = make_def(on_motion, ALARM_LEVEL_MAJOR, ALARM_LIFECYCLE_LATCH, (motion_reeval_group_id_t)1U);
+    cat[1] = make_def(manual, ALARM_LEVEL_MAJOR, ALARM_LIFECYCLE_LATCH, ALARM_REEVAL_GROUP_NONE);
     TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_load_catalog(cat, 2U));
     subscribe_all();
 
@@ -703,7 +703,7 @@ static void test_init_order_catalog_and_bus_shutdown(void)
     drain_bus();
     TEST_ASSERT_EQUAL_INT(0, g_trigger_count);
 
-    cat[0] = make_def(crit, ALARM_LEVEL_CRITICAL, ALARM_CLEAR_AUTO_STATIC, ALARM_REEVAL_GROUP_NONE);
+    cat[0] = make_def(crit, ALARM_LEVEL_CRITICAL, ALARM_LIFECYCLE_FOLLOW_SIGNAL, ALARM_REEVAL_GROUP_NONE);
     TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_load_catalog(cat, 1U));
     TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_trigger(crit));
     TEST_ASSERT_TRUE(alarm_registry_is_active(crit));
@@ -780,9 +780,9 @@ static void test_copy_safety_view_stable_during_eviction(void)
     unsigned    i;
 
     for (i = 0U; i < ALARM_ACTIVE_MAX; ++i) {
-        cat[i] = make_def(fill_code(i), ALARM_LEVEL_MINOR, ALARM_CLEAR_AUTO_STATIC, ALARM_REEVAL_GROUP_NONE);
+        cat[i] = make_def(fill_code(i), ALARM_LEVEL_MINOR, ALARM_LIFECYCLE_FOLLOW_SIGNAL, ALARM_REEVAL_GROUP_NONE);
     }
-    cat[ALARM_ACTIVE_MAX] = make_def(crit, ALARM_LEVEL_CRITICAL, ALARM_CLEAR_AUTO_STATIC, ALARM_REEVAL_GROUP_NONE);
+    cat[ALARM_ACTIVE_MAX] = make_def(crit, ALARM_LEVEL_CRITICAL, ALARM_LIFECYCLE_FOLLOW_SIGNAL, ALARM_REEVAL_GROUP_NONE);
     TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_load_catalog(cat, ALARM_ACTIVE_MAX + 1U));
 
     TEST_ASSERT_EQUAL_INT(0, pthread_barrier_init(&s_barrier, NULL, 2));

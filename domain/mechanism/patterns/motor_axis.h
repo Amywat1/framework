@@ -8,7 +8,7 @@
  * @note    方向由调用方显式传入；机构“只正转”等约束属于项目 mechanism 层。
  * @note    run 为异步命令：受理后即返回。完成须 poll 至非 MOVING，或依赖
  *          桥接内的 motor_axis_poll()；后者先消费本电机事件并回调 on_motion_end，
- *          再在进入 IDLE 时发布 motion_completed（仅表示轴已空闲）。
+ *          再在进入 IDLE 且最近结局为非电流停的到位时发布 motion_completed。
  * @note    经本模式管理的电机由轴 poll 独占消费执行器事件。
  * @note    on_motion_end 对同一故障闩锁（同 type + fault）去重；run/home/recover
  *          受理后解除闩锁。查询只转发执行器，轴上不缓存位置或故障码。
@@ -39,7 +39,8 @@ typedef void (*motion_process_end_fn_t)(actuator_id_t id, const motor_event_t *e
 
 /**
  * @brief  运动模式 lifecycle 注入选项
- * @note   motion_completed 只表示轴空闲（重评估）；结局原因走 on_motion_end / last_result。
+ * @note   motion_completed 只表示限位/位置/定时到位做成；超时/停止/故障/电流停空闲不发。
+ *         电流停是否做成由项目 on_motion_end 自行发布。结局原因走 on_motion_end / last_result。
  */
 typedef struct {
     actuator_id_t           motion_actuator_id;

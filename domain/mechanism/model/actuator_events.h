@@ -2,8 +2,9 @@
  * @file    actuator_events.h
  * @brief   机构空闲生命周期事件发布契约（不含报警语义）
  *
- * @note    由 `motor_axis_poll()` 在轴进入 IDLE 时发布；项目 wiring 可订阅后
- *          做 ON_MOTION 重评估。运动结局走 `on_motion_end`，不走本事件。
+ * @note    由 `motor_axis_poll()` 在轴进入 IDLE 且最近结局为非电流停的到位时发布；
+ *          项目 wiring 可订阅后做锁存运动结案，也可在电流停证明成功后自行发布。
+ *          超时、停止、故障、电流停空闲不发。运动结局走 `on_motion_end`，不走本事件。
  */
 #ifndef DOMAIN_MECHANISM_MODEL_ACTUATOR_EVENTS_H
 #define DOMAIN_MECHANISM_MODEL_ACTUATOR_EVENTS_H

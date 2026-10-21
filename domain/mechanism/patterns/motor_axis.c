@@ -259,7 +259,10 @@ void motor_axis_poll(motor_axis_t *self)
     }
 
     self->awaiting_idle = false;
-    if (self->opts.motion_actuator_id != 0U) {
+    /* 限位/位置/定时到位才结案。电流停只表示监视触发，是否做成由项目自行发布。 */
+    if ((self->opts.motion_actuator_id != 0U) && self->last_valid
+        && (self->last_event.type == MOTOR_EVENT_ARRIVED)
+        && (self->last_event.trigger != MOTOR_END_CURRENT)) {
         actuator_publish_motion_completed(self->opts.motion_actuator_id);
     }
 }

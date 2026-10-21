@@ -213,7 +213,7 @@ static void append_active_slot_locked(const alarm_def_t *def, publish_batch_t *b
 
     inst->code             = def->code;
     inst->level            = def->level;
-    inst->clear            = def->clear;
+    inst->lifecycle        = def->lifecycle;
     inst->reeval_group     = def->reeval_group;
     inst->triggered_at_ms  = time_util_get_ms();
     inst->condition_active = true;
@@ -301,7 +301,7 @@ sw_err_t alarm_registry_clear(uint32_t code)
         alarm_instance_t *inst = &s_active[(unsigned)active_idx];
 
         inst->condition_active = false;
-        if (alarm_clear_is_auto(inst->clear)) {
+        if (alarm_lifecycle_follows_signal(inst->lifecycle)) {
             clear_active_at_locked((unsigned)active_idx, &batch);
             note_posture_edge_locked(&batch);
         }
@@ -329,7 +329,8 @@ sw_err_t alarm_registry_reevaluate_group(motion_reeval_group_id_t group)
     for (i = s_active_count; i-- > 0U;) {
         const alarm_instance_t *inst = &s_active[i];
 
-        if (alarm_clear_needs_motion_reeval(inst->clear) && (inst->reeval_group == group) && !inst->condition_active) {
+        if ((inst->reeval_group != ALARM_REEVAL_GROUP_NONE) && (inst->reeval_group == group)
+            && !inst->condition_active) {
             clear_active_at_locked(i, &batch);
         }
     }
@@ -396,7 +397,7 @@ static void reset_matching(bool (*should_clear)(const alarm_instance_t *inst))
  */
 static bool reset_all_match(const alarm_instance_t *inst)
 {
-    return alarm_clear_allows_manual_reset(inst->clear) && !inst->condition_active;
+    return alarm_lifecycle_allows_manual_reset(inst->lifecycle) && !inst->condition_active;
 }
 
 /**
@@ -536,27 +537,25 @@ static bool catalog_defs_valid(const alarm_def_t *defs, unsigned count)
     unsigned j;
 
     for (i = 0U; i < count; ++i) {
-        const alarm_def_t *def         = &defs[i];
-        bool               needs_group = alarm_clear_needs_motion_reeval(def->clear);
-        bool               has_group   = (def->reeval_group != ALARM_REEVAL_GROUP_NONE);
+        const alarm_def_t *def       = &defs[i];
+        bool               has_group = (def->reeval_group != ALARM_REEVAL_GROUP_NONE);
 
         if (!alarm_code_is_valid(def->code)) {
             LOG_ERROR("alarm_registry: catalog[%u] invalid code=%u", i, (unsigned)def->code);
             return false;
         }
-        if (!alarm_level_is_defined(def->level) || !alarm_clear_is_defined(def->clear)) {
-            LOG_ERROR("alarm_registry: catalog[%u] code=%06u undefined level=%d clear=%d",
+        if (!alarm_level_is_defined(def->level) || !alarm_lifecycle_is_defined(def->lifecycle)) {
+            LOG_ERROR("alarm_registry: catalog[%u] code=%06u undefined level=%d lifecycle=%d",
                       i,
                       (unsigned)def->code,
                       (int)def->level,
-                      (int)def->clear);
+                      (int)def->lifecycle);
             return false;
         }
-        if (needs_group != has_group) {
-            LOG_ERROR("alarm_registry: catalog[%u] code=%06u clear=%d mismatches reeval_group=%u",
+        if (alarm_lifecycle_follows_signal(def->lifecycle) && has_group) {
+            LOG_ERROR("alarm_registry: catalog[%u] code=%06u follow_signal cannot have reeval_group=%u",
                       i,
                       (unsigned)def->code,
-                      (int)def->clear,
                       (unsigned)def->reeval_group);
             return false;
         }

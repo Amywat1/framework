@@ -42,10 +42,10 @@ sw_err_t alarm_registry_init(void);
  * @retval SW_ERR_OVERFLOW count 超过 ALARM_CATALOG_MAX
  *
  * @note   目录内容逐条校验，任一条不合法即整表拒绝、不做部分装载：
- *         报警码须合法且全表唯一，等级与清除策略须是已定义取值，
- *         `ALARM_CLEAR_ON_MOTION` 须配非 NONE 的 `reeval_group`、其余策略须配
- *         `ALARM_REEVAL_GROUP_NONE`。这些错误在运行期都只表现为「报警行为和
- *         配置对不上」而无任何报错，因此必须挡在装载期。
+ *         报警码须合法且全表唯一，等级与生命周期须是已定义取值，
+ *         `FOLLOW_SIGNAL` 须配 `ALARM_REEVAL_GROUP_NONE`，`LATCH` 的组可空可填。
+ *         这些错误在运行期都只表现为「报警行为和配置对不上」而无任何报错，
+ *         因此必须挡在装载期。
  * @note   装载会清空活动表与会话日志且不补发 CLEARED——目录换了之后这些都不再对应。
  */
 sw_err_t alarm_registry_load_catalog(const alarm_def_t *defs, unsigned count);
@@ -69,15 +69,15 @@ sw_err_t alarm_registry_trigger(uint32_t code);
 
 /**
  * @brief  上报指定报警的故障条件消失
- * @note   AUTO_STATIC 立即删除并发 `EVT_ALARM_CLEARED`；其余策略只清条件、保持锁存。
+ * @note   跟随信号立即删除并发 `EVT_ALARM_CLEARED`；锁存只清条件、保持条目。
  */
 sw_err_t alarm_registry_clear(uint32_t code);
 
 /**
- * @brief  对指定分组的 ON_MOTION 报警做运动结束重评估
+ * @brief  对指定分组的锁存报警做运动结束重评估
  * @param  group 重评估分组
  * @return SW_OK
- * @note   仅删除 `condition_active==false`（动作中已判定正常）的条目；
+ * @note   仅删除本组且 `condition_active==false` 的锁存条目；
  *         条件仍成立时保持活动，运动结束本身不会清警。删除在返回前发 CLEARED。
  */
 sw_err_t alarm_registry_reevaluate_group(motion_reeval_group_id_t group);

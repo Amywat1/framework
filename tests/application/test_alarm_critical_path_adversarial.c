@@ -45,7 +45,7 @@ static alarm_def_t make_fill_def(uint32_t code, alarm_level_t level)
     return (alarm_def_t){
         .code         = code,
         .level        = level,
-        .clear        = ALARM_CLEAR_AUTO_STATIC,
+        .lifecycle        = ALARM_LIFECYCLE_FOLLOW_SIGNAL,
         .reeval_group = ALARM_REEVAL_GROUP_NONE,
         .desc         = "adv",
     };

@@ -21,7 +21,7 @@ extern "C" {
  *
  * @note   起步：安全触发还在则失败。再调机型 clear_alarms，等 poll_clear_alarms
  *         （未注册则不等），然后 reset_non_safety，再归位。
- *         归位成功且当时无禁止接单报警则待机，否则停机。
+ *         归位成功后 reset_all 摘掉条件已消失的锁存，当时无禁止接单报警则待机，否则停机。
  *         离开 RECOVERING 取消等待，清故障等待用 CAS 认领，迟到完成忽略。
  *         开归位再认领 IDLE→WAIT_HOME，认领后已离开则退回 IDLE。
  */

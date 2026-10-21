@@ -1,6 +1,6 @@
 /**
  * @file    alarm_bridge.c
- * @brief   报警应用桥接：入站端口、会话生命周期、可选 ON_MOTION 重评估
+ * @brief   报警应用桥接：入站端口、会话生命周期、可选 锁存运动结案
  * @author  HUWANGWEI
  * @date    2026-08-08
  */

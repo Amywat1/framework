@@ -32,28 +32,28 @@ static const alarm_def_t s_catalog[] = {
     {
      .code         = TEST_CODE_MAJOR,
      .level        = ALARM_LEVEL_MAJOR,
-     .clear        = ALARM_CLEAR_MANUAL_RESET,
+     .lifecycle        = ALARM_LIFECYCLE_LATCH,
      .reeval_group = ALARM_REEVAL_GROUP_NONE,
      .desc         = "major a",
      },
     {
      .code         = TEST_CODE_MAJOR_2,
      .level        = ALARM_LEVEL_MAJOR,
-     .clear        = ALARM_CLEAR_MANUAL_RESET,
+     .lifecycle        = ALARM_LIFECYCLE_LATCH,
      .reeval_group = ALARM_REEVAL_GROUP_NONE,
      .desc         = "major b",
      },
     {
      .code         = TEST_CODE_MINOR,
      .level        = ALARM_LEVEL_MINOR,
-     .clear        = ALARM_CLEAR_AUTO_STATIC,
+     .lifecycle        = ALARM_LIFECYCLE_FOLLOW_SIGNAL,
      .reeval_group = ALARM_REEVAL_GROUP_NONE,
      .desc         = "minor",
      },
     {
      .code         = TEST_CODE_CRITICAL,
      .level        = ALARM_LEVEL_CRITICAL,
-     .clear        = ALARM_CLEAR_MANUAL_RESET,
+     .lifecycle        = ALARM_LIFECYCLE_LATCH,
      .reeval_group = ALARM_REEVAL_GROUP_NONE,
      .desc         = "critical",
      },
@@ -207,7 +207,7 @@ static void test_journal_overflow_dropped_survives_read_until_new_session(void)
         cat[i] = (alarm_def_t){
             .code         = ALARM_CODE_MAKE(ALM_C_DETECT, i, ALM_N_OVERLOAD),
             .level        = ALARM_LEVEL_MAJOR,
-            .clear        = ALARM_CLEAR_AUTO_STATIC,
+            .lifecycle        = ALARM_LIFECYCLE_FOLLOW_SIGNAL,
             .reeval_group = ALARM_REEVAL_GROUP_NONE,
             .desc         = "journal fill",
         };
@@ -216,7 +216,7 @@ static void test_journal_overflow_dropped_survives_read_until_new_session(void)
     cat[ALARM_SESSION_JOURNAL_MAX + 1U] = (alarm_def_t){
         .code         = minor_code,
         .level        = ALARM_LEVEL_MINOR,
-        .clear        = ALARM_CLEAR_AUTO_STATIC,
+        .lifecycle        = ALARM_LIFECYCLE_FOLLOW_SIGNAL,
         .reeval_group = ALARM_REEVAL_GROUP_NONE,
         .desc         = "minor",
     };

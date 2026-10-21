@@ -697,6 +697,7 @@ static void test_motor_axis_poll_publishes_completed_on_idle(void)
 {
     motor_axis_t            axis;
     motion_lifecycle_opts_t opts;
+    motor_event_t           ev;
     motor_exec_t           *exec = (motor_exec_t *)s_motor;
     event_bus_stats_t       stats;
 
@@ -715,11 +716,93 @@ static void test_motor_axis_poll_publishes_completed_on_idle(void)
     assert_axis_ok(motor_axis_stop(&axis));
     motor_axis_poll(&axis);
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_get_stats(&stats));
+    TEST_ASSERT_EQUAL_UINT32(0U, stats.published_count);
+
+    assert_axis_ok(motor_axis_run(&axis, MOTOR_DIR_FORWARD, motor_speed_gear(1), NULL));
+    memset(&ev, 0, sizeof(ev));
+    ev.motor = 0;
+    ev.type  = MOTOR_EVENT_ARRIVED;
+    mock_push_event(&ev);
+    s_motor[0].exec_state = MOTOR_STATE_STOPPED;
+    motor_axis_poll(&axis);
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_get_stats(&stats));
     TEST_ASSERT_EQUAL_UINT32(1U, stats.published_count);
 
     motor_axis_poll(&axis);
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_get_stats(&stats));
     TEST_ASSERT_EQUAL_UINT32(1U, stats.published_count);
+    event_bus_shutdown();
+}
+
+/**
+ * @brief  超时打成空闲不发完成事件，避免同一次失败运动结案
+ */
+static void test_motor_axis_timeout_idle_does_not_publish_completed(void)
+{
+    motor_axis_t            axis;
+    motion_lifecycle_opts_t opts;
+    motor_event_t           ev;
+    motor_exec_t           *exec = (motor_exec_t *)s_motor;
+    event_bus_stats_t       stats;
+
+    memset(&axis, 0, sizeof(axis));
+    time_util_init();
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
+
+    opts.motion_actuator_id = 10U;
+    opts.on_motion_end      = on_motion_end;
+    TEST_ASSERT_EQUAL_INT(SW_OK, motor_axis_init(&axis, exec, 0, &opts));
+    assert_axis_ok(motor_axis_run(&axis, MOTOR_DIR_FORWARD, motor_speed_gear(1), NULL));
+
+    memset(&ev, 0, sizeof(ev));
+    ev.motor = 0;
+    ev.type  = MOTOR_EVENT_TIMEOUT;
+    mock_push_event(&ev);
+    s_motor[0].exec_state = MOTOR_STATE_STOPPED;
+    motor_axis_poll(&axis);
+
+    TEST_ASSERT_EQUAL_INT(1, s_end_cb_count);
+    TEST_ASSERT_EQUAL_INT(MOTOR_EVENT_TIMEOUT, s_end_cb_result.type);
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_get_stats(&stats));
+    TEST_ASSERT_EQUAL_UINT32(0U, stats.published_count);
+    TEST_ASSERT_TRUE(motor_axis_is_settled(&axis));
+    event_bus_shutdown();
+}
+
+/**
+ * @brief  电流停打成空闲不发完成事件，是否做成由项目证明后自行发布
+ */
+static void test_motor_axis_current_idle_does_not_publish_completed(void)
+{
+    motor_axis_t            axis;
+    motion_lifecycle_opts_t opts;
+    motor_event_t           ev;
+    motor_exec_t           *exec = (motor_exec_t *)s_motor;
+    event_bus_stats_t       stats;
+
+    memset(&axis, 0, sizeof(axis));
+    time_util_init();
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
+
+    opts.motion_actuator_id = 12U;
+    opts.on_motion_end      = on_motion_end;
+    TEST_ASSERT_EQUAL_INT(SW_OK, motor_axis_init(&axis, exec, 0, &opts));
+    assert_axis_ok(motor_axis_run(&axis, MOTOR_DIR_FORWARD, motor_speed_gear(1), NULL));
+
+    memset(&ev, 0, sizeof(ev));
+    ev.motor   = 0;
+    ev.type    = MOTOR_EVENT_ARRIVED;
+    ev.trigger = MOTOR_END_CURRENT;
+    mock_push_event(&ev);
+    s_motor[0].exec_state = MOTOR_STATE_STOPPED;
+    motor_axis_poll(&axis);
+
+    TEST_ASSERT_EQUAL_INT(1, s_end_cb_count);
+    TEST_ASSERT_EQUAL_INT(MOTOR_EVENT_ARRIVED, s_end_cb_result.type);
+    TEST_ASSERT_EQUAL_INT(MOTOR_END_CURRENT, s_end_cb_result.trigger);
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_get_stats(&stats));
+    TEST_ASSERT_EQUAL_UINT32(0U, stats.published_count);
+    TEST_ASSERT_TRUE(motor_axis_is_settled(&axis));
     event_bus_shutdown();
 }
 
@@ -774,7 +857,7 @@ static void test_motor_axis_poll_skips_waiting_start(void)
     s_motor[0].exec_state = MOTOR_STATE_STOPPED;
     motor_axis_poll(&axis);
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_get_stats(&stats));
-    TEST_ASSERT_EQUAL_UINT32(1U, stats.published_count);
+    TEST_ASSERT_EQUAL_UINT32(0U, stats.published_count);
     event_bus_shutdown();
 }
 
@@ -1283,7 +1366,11 @@ int main(void)
     WDF_RUN_TEST(test_motor_axis_reject_without_fault_skips_end_callback, "", "验证无故障码的命令拒绝不上报结局");
     WDF_RUN_TEST(test_motor_axis_continuous_stop_and_recover, "", "验证电机轴连续运行停止并恢复");
     WDF_RUN_TEST(test_motor_axis_preserves_frequency_speed, "", "验证电机轴保留频率速度");
-    WDF_RUN_TEST(test_motor_axis_poll_publishes_completed_on_idle, "", "验证电机轴在空闲边沿发布完成事件");
+    WDF_RUN_TEST(test_motor_axis_poll_publishes_completed_on_idle, "", "验证电机轴到位空闲才发布完成事件");
+    WDF_RUN_TEST(test_motor_axis_timeout_idle_does_not_publish_completed, "",
+                 "验证超时空闲不发布完成事件");
+    WDF_RUN_TEST(test_motor_axis_current_idle_does_not_publish_completed, "",
+                 "验证电流停空闲不发布完成事件");
     WDF_RUN_TEST(test_motor_axis_is_settled_after_idle_poll, "", "验证电机轴运行后未结算、空闲消费后已结算");
     WDF_RUN_TEST(test_motor_axis_home_marks_awaiting_idle, "", "验证电机轴回原后等待空闲");
     WDF_RUN_TEST(
