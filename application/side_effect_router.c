@@ -68,12 +68,14 @@ sw_err_t side_effect_router_run(const dev_cmd_t *cmd, operational_mode_t mode_be
 
     switch (cmd->body.kind) {
     case DEV_CMD_SUBMIT_ORDER:
+        order                = (job_desc_t){0};
         order.order_id       = cmd->body.payload.submit_order.order_id;
-        order.job_id         = 0U;
         order.correlation_id = cmd->meta.correlation_id;
         order.mode           = cmd->body.payload.submit_order.mode;
-        order.enqueued_ms    = 0U;
         return job_admit_submit(&order);
+
+    case DEV_CMD_START_WASH:
+        return job_admit_start(cmd->body.payload.start_wash.mode);
 
     case DEV_CMD_CANCEL_ORDER:
         return job_admit_cancel(cmd->body.payload.cancel_order.order_id);

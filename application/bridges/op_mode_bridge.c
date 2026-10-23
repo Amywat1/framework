@@ -31,7 +31,6 @@ static void on_area_cleared(const event_t *evt)
 {
     (void)evt;
     op_mode_on_area_cleared();
-    (void)job_admit_try();
 }
 
 static void on_alarm_triggered(const event_t *evt)
@@ -59,7 +58,6 @@ static void on_hw_estop_off(const event_t *evt)
 static void on_recovery_completed(const event_t *evt)
 {
     op_mode_on_recovery_completed((recovery_result_t)evt->param);
-    (void)job_admit_try();
 }
 
 static void on_self_check_completed(const event_t *evt)

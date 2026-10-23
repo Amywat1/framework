@@ -206,8 +206,8 @@ static void test_recover_in_idle_is_idempotent(void)
     TEST_ASSERT_EQUAL_INT(OP_MODE_STANDBY, op_mode_get_current());
 }
 
-/* IDLE 可以接单 */
-static void test_start_wash_allowed_in_idle(void)
+/* 待机可以入簿 */
+static void test_submit_order_allowed_in_idle(void)
 {
     dev_cmd_t          cmd = dev_cmd_make_submit_order(TEST_WASH_MODE_A);
     dev_cmd_decision_t d;
@@ -572,6 +572,10 @@ static void test_cmd_matrix_exhaustive_56(void)
             OP_CMD_PERM_DENIED, OP_CMD_PERM_CONDITIONAL, OP_CMD_PERM_CONDITIONAL, OP_CMD_PERM_CONDITIONAL,
             OP_CMD_PERM_CONDITIONAL, OP_CMD_PERM_CONDITIONAL, OP_CMD_PERM_CONDITIONAL, OP_CMD_PERM_CONDITIONAL,
         },
+        [DEV_CMD_START_WASH] = {
+            OP_CMD_PERM_DENIED, OP_CMD_PERM_CONDITIONAL, OP_CMD_PERM_CONDITIONAL, OP_CMD_PERM_CONDITIONAL,
+            OP_CMD_PERM_CONDITIONAL, OP_CMD_PERM_CONDITIONAL, OP_CMD_PERM_CONDITIONAL, OP_CMD_PERM_CONDITIONAL,
+        },
         [DEV_CMD_CANCEL_ORDER] = {
             OP_CMD_PERM_DENIED, OP_CMD_PERM_ALLOWED, OP_CMD_PERM_ALLOWED, OP_CMD_PERM_ALLOWED,
             OP_CMD_PERM_ALLOWED, OP_CMD_PERM_ALLOWED, OP_CMD_PERM_ALLOWED, OP_CMD_PERM_ALLOWED,
@@ -625,7 +629,7 @@ int main(void)
     WDF_RUN_TEST(test_blocking_alarm_during_home_lands_stopped, "", "验证回零期间阻断报警完成后进入停止");
     WDF_RUN_TEST(test_recover_denied_when_service_disabled, "", "验证恢复被拒绝时服务禁用");
     WDF_RUN_TEST(test_recover_in_idle_is_idempotent, "", "验证恢复在空闲模式为幂等");
-    WDF_RUN_TEST(test_start_wash_allowed_in_idle, "", "验证启动洗车被允许在空闲模式");
+    WDF_RUN_TEST(test_submit_order_allowed_in_idle, "", "验证待机允许入簿");
     WDF_RUN_TEST(test_stop_wash_denied_in_idle, "", "验证停止洗车被拒绝在空闲模式");
     WDF_RUN_TEST(test_stop_all_allowed_from_stopped, "", "验证停止模式下允许全停且总开关保持");
     WDF_RUN_TEST(test_set_service_enable_is_idempotent, "", "验证开启总开关幂等且不改模式");

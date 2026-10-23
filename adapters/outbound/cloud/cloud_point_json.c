@@ -130,6 +130,23 @@ static const cloud_point_entry_t *find_cloud_entry(const cloud_point_entry_t *en
     return (const cloud_point_entry_t *)point_table_find_entry_at(entries, count, sizeof(cloud_point_entry_t), id);
 }
 
+/**
+ * @brief  同包三遍：属性 → 入簿 → 开洗及其它命令
+ */
+static bool apply_in_pass(const cloud_point_entry_t *entry, unsigned pass)
+{
+    if (pass == 0U) {
+        return entry->kind != CLOUD_KIND_DEV_CMD;
+    }
+    if (entry->kind != CLOUD_KIND_DEV_CMD) {
+        return false;
+    }
+    if (pass == 1U) {
+        return entry->cmd_kind == DEV_CMD_SUBMIT_ORDER;
+    }
+    return entry->cmd_kind != DEV_CMD_SUBMIT_ORDER;
+}
+
 static sw_err_t dump_cjson(cJSON *obj, char *buf, size_t buf_size)
 {
     char    *json;
@@ -308,51 +325,62 @@ sw_err_t cloud_point_apply_json(const cloud_point_entry_t *entries,
         return SW_ERR_PARAM;
     }
 
-    cJSON_ArrayForEach(item, root)
-    {
-        const cloud_point_entry_t *entry;
-        point_value_t              val;
-        sw_err_t                   ret;
+    /* 先落可写属性，再入簿，最后开洗及其它设备命令，不吃 JSON 键序。 */
+    for (unsigned pass = 0U; pass < 3U; pass++) {
+        cJSON_ArrayForEach(item, root)
+        {
+            const cloud_point_entry_t *entry;
+            point_value_t              val;
+            sw_err_t                   ret;
 
-        if (result_opt != NULL) {
-            result_opt->total_keys++;
-        }
-
-        if (item->string == NULL) {
-            continue;
-        }
-
-        entry = find_cloud_entry(entries, count, item->string);
-        if (entry == NULL) {
-            LOG_WARN("cloud_point_json: unknown id=%s", item->string);
-            if (result_opt != NULL) {
-                result_opt->rejected++;
+            if (item->string == NULL) {
+                continue;
             }
-            point_apply_result_record_error(result_opt, item->string, SW_ERR_PARAM);
-            continue;
-        }
 
-        /* 类型不符属编解码问题，在此拒绝；能否写入由语义分派回答 */
-        ret = point_table_parse_cjson_value(entry->base.type, item, &val);
-        if (ret != SW_OK) {
-            LOG_WARN("cloud_point_json: id=%s type mismatch", entry->base.id);
-            if (result_opt != NULL) {
-                result_opt->rejected++;
+            entry = find_cloud_entry(entries, count, item->string);
+            if (entry == NULL) {
+                if (pass != 0U) {
+                    continue;
+                }
+                LOG_WARN("cloud_point_json: unknown id=%s", item->string);
+                if (result_opt != NULL) {
+                    result_opt->total_keys++;
+                    result_opt->rejected++;
+                }
+                point_apply_result_record_error(result_opt, item->string, SW_ERR_PARAM);
+                continue;
             }
-            point_apply_result_record_error(result_opt, entry->base.id, ret);
-            continue;
-        }
 
-        ret = cloud_point_apply_value(entry, &val, result_opt);
-        if (ret == SW_OK) {
-            if (result_opt != NULL) {
-                result_opt->applied++;
-                if (result_opt->applied_id_count < POINT_APPLY_IDS_MAX) {
-                    result_opt->applied_ids[result_opt->applied_id_count++] = entry->base.id;
+            if (pass == 0U) {
+                if (result_opt != NULL) {
+                    result_opt->total_keys++;
                 }
             }
-        } else if (result_opt != NULL) {
-            result_opt->rejected++;
+            if (!apply_in_pass(entry, pass)) {
+                continue;
+            }
+
+            ret = point_table_parse_cjson_value(entry->base.type, item, &val);
+            if (ret != SW_OK) {
+                LOG_WARN("cloud_point_json: id=%s type mismatch", entry->base.id);
+                if (result_opt != NULL) {
+                    result_opt->rejected++;
+                }
+                point_apply_result_record_error(result_opt, entry->base.id, ret);
+                continue;
+            }
+
+            ret = cloud_point_apply_value(entry, &val, result_opt);
+            if (ret == SW_OK) {
+                if (result_opt != NULL) {
+                    result_opt->applied++;
+                    if (result_opt->applied_id_count < POINT_APPLY_IDS_MAX) {
+                        result_opt->applied_ids[result_opt->applied_id_count++] = entry->base.id;
+                    }
+                }
+            } else if (result_opt != NULL) {
+                result_opt->rejected++;
+            }
         }
     }
 

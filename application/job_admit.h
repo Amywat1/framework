@@ -26,14 +26,27 @@ extern "C" {
 sw_err_t job_admit_init(void);
 
 /**
- * @brief  入簿一笔订单并尝试放行
+ * @brief  入簿一笔订单，不放行
  * @param  order  订单；order_id 为 0 时由订单簿分配
  * @retval SW_OK           已入簿，或同一订单号已在簿/在洗（幂等）
  * @retval SW_ERR_PARAM    order 为空
  * @retval SW_ERR_OVERFLOW 簿满
- * @note   返回值只表示入簿结果，与本次是否放行无关。
+ * @note   开洗只走 job_admit_start()。
  */
 sw_err_t job_admit_submit(const job_desc_t *order);
+
+/**
+ * @brief  请求开洗队首一单
+ * @param  mode  空簿且无在洗时自建订单所用套餐
+ * @retval SW_OK           已放行
+ * @retval SW_ERR_STATE    启动条件不满足。未锁好时已入队/自建单保留；整机不可放行时不自建
+ * @retval SW_ERR_OVERFLOW 空簿自建时簿满
+ * @retval SW_ERR_NOT_INIT 设备口未注册
+ * @note   仅 STANDBY/ACTIVE（can_admit）且空簿无在洗时才自建。
+ *         HOLD/停机点启动失败且不入簿。已有未放行或在洗订单时不再自建。
+ *         一次只放队首。洗着能否再放，由占用上限和 is_admit_ready 决定。
+ */
+sw_err_t job_admit_start(wash_mode_t mode);
 
 /**
  * @brief  取消未放行订单
@@ -57,16 +70,7 @@ unsigned job_admit_drop_jobs(bool clear_orders);
 void job_admit_clear_orders(void);
 
 /**
- * @brief  在条件满足时放行队首一单
- * @retval SW_OK           已放行、暂不可放，或 start_job 失败（暂时性错误单仍在簿）
- * @retval SW_ERR_NOT_INIT 设备口未注册
- *
- * @note   start_job 返回 SW_ERR_PARAM 视为永久失败，丢弃该单并记错误日志，避免堵住队首。
- */
-sw_err_t job_admit_try(void);
-
-/**
- * @brief  一单正常结束：按框架 job_id 撤占用；占用归零则收口整机态并尝试放行下一单
+ * @brief  一单正常结束：按框架 job_id 撤占用；占用归零则收口整机态，不接下单
  * @param  job_id  结束的作业号；0 表示撤掉全部在洗作业
  */
 void job_admit_on_completed(uint64_t job_id);

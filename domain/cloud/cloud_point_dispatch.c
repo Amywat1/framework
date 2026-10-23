@@ -53,7 +53,17 @@ static sw_err_t build_device_cmd(const cloud_point_entry_t *entry, const point_v
         *cmd = dev_cmd_make_manual(entry->cmd_act_id, param);
         return SW_OK;
     case DEV_CMD_SUBMIT_ORDER:
-        *cmd = dev_cmd_make_submit_order(entry->cmd_has_param ? (wash_mode_t)entry->cmd_param : (wash_mode_t)0);
+        if (entry->cmd_has_param) {
+            *cmd = dev_cmd_make_submit_order((wash_mode_t)entry->cmd_param);
+        } else if (entry->base.type == POINT_TYPE_INT) {
+            *cmd = dev_cmd_make_submit_order_id((wash_mode_t)0,
+                                                (uint64_t)((param < 0) ? 0 : param));
+        } else {
+            *cmd = dev_cmd_make_submit_order((wash_mode_t)0);
+        }
+        return SW_OK;
+    case DEV_CMD_START_WASH:
+        *cmd = dev_cmd_make_start_wash((wash_mode_t)0);
         return SW_OK;
     case DEV_CMD_SET_SERVICE:
         *cmd = dev_cmd_make_set_service(entry->cmd_has_param ? (entry->cmd_param != 0) : val->b);
@@ -104,6 +114,10 @@ sw_err_t cloud_point_apply_value(const cloud_point_entry_t *entry,
     case CLOUD_KIND_DEV_CMD:
         /* 脉冲：置假是回落，不构成设备命令；保持量每次写入都提交 */
         if (cloud_point_is_pulse(entry) && (entry->base.type == POINT_TYPE_BOOL) && !val->b) {
+            return SW_OK;
+        }
+        if ((entry->cmd_kind == DEV_CMD_SUBMIT_ORDER) && (entry->base.type == POINT_TYPE_INT)
+            && (val->i <= 0)) {
             return SW_OK;
         }
         ret = build_device_cmd(entry, val, &cmd);

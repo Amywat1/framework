@@ -84,9 +84,17 @@ static void test_recover_is_noop(void)
     TEST_ASSERT_EQUAL_INT(SW_OK, side_effect_router_run(&cmd, OP_MODE_STOPPED));
 }
 
-static void test_start_wash_calls_orchestrator(void)
+static void test_submit_order_does_not_start(void)
 {
     dev_cmd_t cmd = dev_cmd_make_submit_order(TEST_WASH_MODE_B);
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, side_effect_router_run(&cmd, OP_MODE_STANDBY));
+    TEST_ASSERT_EQUAL_INT(0, device_ops_stub_start_count());
+}
+
+static void test_start_wash_calls_orchestrator(void)
+{
+    dev_cmd_t cmd = dev_cmd_make_start_wash(TEST_WASH_MODE_B);
 
     TEST_ASSERT_EQUAL_INT(SW_OK, side_effect_router_run(&cmd, OP_MODE_STANDBY));
     TEST_ASSERT_EQUAL_INT(1, device_ops_stub_start_count());
@@ -152,6 +160,7 @@ int main(void)
     UNITY_BEGIN();
 
     WDF_RUN_TEST(test_recover_is_noop, "", "验证恢复命令无同步副作用");
+    WDF_RUN_TEST(test_submit_order_does_not_start, "", "验证入簿不放行");
     WDF_RUN_TEST(test_start_wash_calls_orchestrator, "", "验证启动洗车调用流程编排器");
     WDF_RUN_TEST(test_stop_wash_aborts_orchestrator, "", "验证停止洗车中止流程编排器");
     WDF_RUN_TEST(test_manual_actuator_forwards_params, "", "验证手动执行器转发参数");

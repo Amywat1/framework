@@ -172,6 +172,16 @@ static const op_perm_t k_cmd_matrix[DEV_CMD_MAX][OP_MODE_RECOVERING + 1] =
         OP_PERM_CONDITIONAL, /* SELF_CHECK  */
         OP_PERM_CONDITIONAL, /* RECOVERING  */
     },
+    [DEV_CMD_START_WASH] = {
+        OP_PERM_DENIED,      /* INIT        */
+        OP_PERM_CONDITIONAL, /* STOPPED     */
+        OP_PERM_CONDITIONAL, /* STANDBY     */
+        OP_PERM_CONDITIONAL, /* ACTIVE      */
+        OP_PERM_CONDITIONAL, /* CLEARING    */
+        OP_PERM_CONDITIONAL, /* HOLD        */
+        OP_PERM_CONDITIONAL, /* SELF_CHECK  */
+        OP_PERM_CONDITIONAL, /* RECOVERING  */
+    },
     [DEV_CMD_CLEAR_MACHINE] = {
         OP_PERM_DENIED,  /* INIT        */
         OP_PERM_DENIED,  /* STOPPED     */
@@ -278,7 +288,7 @@ static dev_cmd_decision_t check_command(const dev_cmd_t *cmd)
         }
     }
 
-    if (kind == DEV_CMD_SUBMIT_ORDER) {
+    if (dev_cmd_is_order_flow(kind)) {
         if (!s_service_enabled) {
             return make_denied(OP_REJECT_SERVICE_DISABLED);
         }
@@ -376,6 +386,7 @@ dev_cmd_decision_t op_mode_handle_command(const dev_cmd_t *cmd)
         break;
 
     case DEV_CMD_SUBMIT_ORDER:
+    case DEV_CMD_START_WASH:
     case DEV_CMD_CANCEL_ORDER:
     case DEV_CMD_MANUAL_ACTUATOR:
     default:

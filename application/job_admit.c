@@ -131,6 +131,18 @@ static sw_err_t admit_locked(void)
     return SW_OK;
 }
 
+/* 调用方须持 s_mu。仅待机/在洗且簿空无在洗时自建，避免 HOLD/停机留下幽灵单。 */
+static sw_err_t generate_if_empty(wash_mode_t mode)
+{
+    job_desc_t generated = {0};
+
+    if (!op_mode_can_admit() || (order_book_count() != 0U) || (active_jobs_count() != 0U)) {
+        return SW_OK;
+    }
+    generated.mode = mode;
+    return order_book_enqueue(&generated, NULL);
+}
+
 sw_err_t job_admit_init(void)
 {
     admit_lock();
@@ -160,8 +172,30 @@ sw_err_t job_admit_submit(const job_desc_t *order)
     profile = machine_profile_get();
     drop_expired_heads(&profile);
     ret = order_book_enqueue(order, NULL);
+    admit_unlock();
+    return ret;
+}
+
+sw_err_t job_admit_start(wash_mode_t mode)
+{
+    unsigned          before;
+    machine_profile_t profile;
+    sw_err_t          ret;
+
+    admit_lock();
+    profile = machine_profile_get();
+    drop_expired_heads(&profile);
+    ret = generate_if_empty(mode);
     if (ret == SW_OK) {
-        (void)admit_locked();
+        before = active_jobs_count();
+        ret    = admit_locked();
+        if ((ret == SW_OK) && (active_jobs_count() > before)) {
+            admit_unlock();
+            return SW_OK;
+        }
+        if (ret != SW_ERR_NOT_INIT) {
+            ret = SW_ERR_STATE;
+        }
     }
     admit_unlock();
     return ret;
@@ -198,16 +232,6 @@ void job_admit_clear_orders(void)
     admit_unlock();
 }
 
-sw_err_t job_admit_try(void)
-{
-    sw_err_t ret;
-
-    admit_lock();
-    ret = admit_locked();
-    admit_unlock();
-    return ret;
-}
-
 void job_admit_on_completed(uint64_t job_id)
 {
     admit_lock();
@@ -219,7 +243,6 @@ void job_admit_on_completed(uint64_t job_id)
     if (active_jobs_count() == 0U) {
         op_mode_on_last_job_finished();
     }
-    (void)admit_locked();
     admit_unlock();
 }
 
@@ -245,7 +268,6 @@ void job_admit_on_job_aborted(uint64_t job_id)
     if (active_jobs_count() == 0U) {
         op_mode_on_last_job_finished();
     }
-    (void)admit_locked();
     admit_unlock();
 }
 
