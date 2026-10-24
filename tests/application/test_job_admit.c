@@ -70,7 +70,9 @@ static void test_submit_without_admit_ready_only_queues(void)
     device_ops_stub_set_admit_ready(false);
 
     TEST_ASSERT_EQUAL_INT(SW_OK, submit_mode(TEST_WASH_MODE_A));
+    TEST_ASSERT_EQUAL_UINT64(1U, job_admit_last_submit_id());
     TEST_ASSERT_EQUAL_INT(SW_OK, submit_mode(TEST_WASH_MODE_B));
+    TEST_ASSERT_EQUAL_UINT64(2U, job_admit_last_submit_id());
     TEST_ASSERT_EQUAL_UINT(2U, order_book_count());
     TEST_ASSERT_EQUAL_UINT(0U, active_jobs_count());
     TEST_ASSERT_EQUAL_INT(0, device_ops_stub_start_count());

@@ -20,7 +20,8 @@
 
 static pthread_mutex_t s_mu;
 static pthread_once_t  s_mu_once = PTHREAD_ONCE_INIT;
-static uint64_t        s_next_job_id = 1U;
+static uint64_t        s_next_job_id    = 1U;
+static uint64_t        s_last_submit_id = 0U;
 
 static void admit_mu_init(void)
 {
@@ -137,7 +138,8 @@ sw_err_t job_admit_init(void)
     machine_profile_init();
     order_book_init();
     active_jobs_init();
-    s_next_job_id = 1U;
+    s_next_job_id     = 1U;
+    s_last_submit_id = 0U;
     admit_unlock();
     LOG_INFO("job_admit: init ok");
     return SW_OK;
@@ -147,6 +149,7 @@ sw_err_t job_admit_submit(const job_desc_t *order)
 {
     machine_profile_t profile;
     sw_err_t          ret;
+    uint64_t          assigned = 0U;
 
     if (order == NULL) {
         return SW_ERR_PARAM;
@@ -154,14 +157,28 @@ sw_err_t job_admit_submit(const job_desc_t *order)
 
     admit_lock();
     if ((order->order_id != 0U) && active_jobs_contains_order(order->order_id)) {
+        s_last_submit_id = order->order_id;
         admit_unlock();
         return SW_OK;
     }
     profile = machine_profile_get();
     drop_expired_heads(&profile);
-    ret = order_book_enqueue(order, NULL);
+    ret = order_book_enqueue(order, &assigned);
+    if (ret == SW_OK) {
+        s_last_submit_id = assigned;
+    }
     admit_unlock();
     return ret;
+}
+
+uint64_t job_admit_last_submit_id(void)
+{
+    uint64_t id;
+
+    admit_lock();
+    id = s_last_submit_id;
+    admit_unlock();
+    return id;
 }
 
 sw_err_t job_admit_start(void)

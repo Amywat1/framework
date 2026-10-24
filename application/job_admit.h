@@ -36,6 +36,11 @@ sw_err_t job_admit_init(void);
 sw_err_t job_admit_submit(const job_desc_t *order);
 
 /**
+ * @brief  最近一次入队成功的订单号（含幂等命中；失败不改）
+ */
+uint64_t job_admit_last_submit_id(void);
+
+/**
  * @brief  请求开洗队首一单
  * @retval SW_OK           已放行
  * @retval SW_ERR_STATE    当时不能开洗：空队、未准入、占用满、HOLD/停机或有阻断。已入队单保留
