@@ -249,6 +249,34 @@ static void test_expired_order_is_dropped(void)
     TEST_ASSERT_EQUAL_UINT(1U, active_jobs_count());
 }
 
+static void test_expire_drops_stale_without_start(void)
+{
+    machine_profile_t profile = machine_profile_get();
+    job_desc_t        stale;
+    job_desc_t        fresh;
+    job_desc_t        head;
+    uint64_t          now_ms;
+
+    profile.max_order_age_ms = 10U;
+    TEST_ASSERT_EQUAL_INT(SW_OK, machine_profile_register(&profile));
+    enter_standby();
+    device_ops_stub_set_admit_ready(false);
+    now_ms = time_util_get_ms();
+    memset(&stale, 0, sizeof(stale));
+    stale.mode         = TEST_WASH_MODE_A;
+    stale.enqueued_ms  = (now_ms > 1000U) ? (now_ms - 1000U) : 1U;
+    memset(&fresh, 0, sizeof(fresh));
+    fresh.mode        = TEST_WASH_MODE_B;
+    fresh.enqueued_ms = now_ms;
+    TEST_ASSERT_EQUAL_INT(SW_OK, order_book_enqueue(&stale, NULL));
+    TEST_ASSERT_EQUAL_INT(SW_OK, order_book_enqueue(&fresh, NULL));
+    job_admit_expire();
+    TEST_ASSERT_EQUAL_INT(0, device_ops_stub_start_count());
+    TEST_ASSERT_EQUAL_UINT(1U, order_book_count());
+    TEST_ASSERT_EQUAL_INT(SW_OK, order_book_peek_front(&head));
+    TEST_ASSERT_EQUAL_INT(TEST_WASH_MODE_B, head.mode);
+}
+
 static void test_stop_all_clears_book_and_jobs(void)
 {
     dev_cmd_t stop = dev_cmd_make_simple(DEV_CMD_STOP_ALL_OUTPUTS);
@@ -450,6 +478,7 @@ int main(void)
     WDF_RUN_TEST(test_submit_succeeds_when_start_job_fails, "", "验证放行失败仍保留订单且下单成功");
     WDF_RUN_TEST(test_duplicate_order_id_does_not_enqueue_twice, "", "验证同一订单号去重");
     WDF_RUN_TEST(test_expired_order_is_dropped, "", "验证过期订单在放行前淘汰");
+    WDF_RUN_TEST(test_expire_drops_stale_without_start, "", "验证周期淘汰过期队首且不开洗");
     WDF_RUN_TEST(test_stop_all_clears_book_and_jobs, "", "验证全停清空订单簿与占用");
     WDF_RUN_TEST(test_job_abort_requests_clear, "", "验证单车机型工艺中止后整机进入清障");
     WDF_RUN_TEST(test_job_abort_without_clear_keeps_queue, "", "验证多车 profile 单车中止只撤该单不补放行");

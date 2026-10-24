@@ -217,6 +217,16 @@ void job_admit_clear_orders(void)
     admit_unlock();
 }
 
+void job_admit_expire(void)
+{
+    machine_profile_t profile;
+
+    admit_lock();
+    profile = machine_profile_get();
+    drop_expired_heads(&profile);
+    admit_unlock();
+}
+
 void job_admit_on_completed(uint64_t job_id)
 {
     admit_lock();

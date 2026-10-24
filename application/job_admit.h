@@ -66,6 +66,14 @@ unsigned job_admit_drop_jobs(bool clear_orders);
 void job_admit_clear_orders(void);
 
 /**
+ * @brief  淘汰已过期的队首订单，不放行
+ *
+ * @note   入簿时刻单调递增，只从队首连续丢掉过期单。
+ *         周期扫描与入簿/放行前均走本路径；`max_order_age_ms` 为 0 时不淘汰。
+ */
+void job_admit_expire(void);
+
+/**
  * @brief  一单正常结束：按框架 job_id 撤占用；占用归零则收口整机态，不接下单
  * @param  job_id  结束的作业号；0 表示撤掉全部在洗作业
  */

@@ -7,6 +7,7 @@
 
 #include "application/telemetry_projection.h"
 
+#include "application/job_admit.h"
 #include "application/ports/outbound/cloud/link/cloud_link_port.h"
 #include "common/event_types.h"
 #include "common/log.h"
@@ -135,6 +136,7 @@ static void reconcile_tick(void *ctx)
     event_bus_stats_t stats;
 
     (void)ctx;
+    job_admit_expire();
     if (event_bus_get_stats(&stats) != SW_OK) {
         LOG_WARN("telemetry_projection: unable to read event bus stats");
         return;
