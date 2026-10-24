@@ -237,6 +237,9 @@ void job_admit_on_completed(uint64_t job_id)
     }
     if (active_jobs_count() == 0U) {
         op_mode_on_last_job_finished();
+        if (op_mode_get_current() == OP_MODE_STOPPED) {
+            order_book_clear();
+        }
     }
     admit_unlock();
 }
@@ -254,6 +257,7 @@ void job_admit_on_job_aborted(uint64_t job_id)
     profile = machine_profile_get();
     if (profile.clear_on_job_abort) {
         active_jobs_clear();
+        order_book_clear();
         /* 安全/全停/清障路径先撤占用，其后到达的中止已在上方被忽略；此处只剩工艺失败，具体原因见项目日志。 */
         op_mode_on_clear_requested(WASH_ABORT_INTERNAL);
         admit_unlock();
@@ -262,6 +266,9 @@ void job_admit_on_job_aborted(uint64_t job_id)
 
     if (active_jobs_count() == 0U) {
         op_mode_on_last_job_finished();
+        if (op_mode_get_current() == OP_MODE_STOPPED) {
+            order_book_clear();
+        }
     }
     admit_unlock();
 }
@@ -270,6 +277,7 @@ void job_admit_on_aborted(wash_abort_cause_t cause)
 {
     admit_lock();
     active_jobs_clear();
+    order_book_clear();
     op_mode_on_clear_requested(cause);
     admit_unlock();
 }

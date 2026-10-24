@@ -33,6 +33,14 @@ static void on_area_cleared(const event_t *evt)
     op_mode_on_area_cleared();
 }
 
+/* 进入停机即清簿，与应用退费对齐。HOLD 不是停机。 */
+static void drop_book_if_stopped(void)
+{
+    if (op_mode_get_current() == OP_MODE_STOPPED) {
+        job_admit_clear_orders();
+    }
+}
+
 static void on_alarm_triggered(const event_t *evt)
 {
     if (op_mode_alarm_port_is_estop(evt->param)) {
@@ -40,6 +48,7 @@ static void on_alarm_triggered(const event_t *evt)
     }
     if (alarm_registry_has_blocking_active()) {
         op_mode_on_blocking_alarm();
+        drop_book_if_stopped();
     }
 }
 
@@ -47,6 +56,7 @@ static void on_hw_estop_on(const event_t *evt)
 {
     (void)evt;
     op_mode_on_estop(true);
+    job_admit_clear_orders();
 }
 
 static void on_hw_estop_off(const event_t *evt)
@@ -58,17 +68,20 @@ static void on_hw_estop_off(const event_t *evt)
 static void on_recovery_completed(const event_t *evt)
 {
     op_mode_on_recovery_completed((recovery_result_t)evt->param);
+    drop_book_if_stopped();
 }
 
 static void on_self_check_completed(const event_t *evt)
 {
     op_mode_on_self_check_completed(evt->param != 0U);
+    drop_book_if_stopped();
 }
 
 static void on_clear_done(const event_t *evt)
 {
     (void)evt;
     op_mode_on_clear_done();
+    drop_book_if_stopped();
 }
 
 sw_err_t op_mode_bridge_init(void)

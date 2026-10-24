@@ -23,7 +23,6 @@ typedef struct {
     uint8_t max_active_jobs;     /**< 同时在洗上限，1..JOB_ACTIVE_CAP */
     uint8_t max_queued_orders;   /**< 内存簿上限，1..JOB_ORDER_QUEUE_CAP */
     bool     hold_after_last_job;  /**< 最后一单结束后进入 HOLD 等场区清空 */
-    bool     clear_on_service_off; /**< 关总开关时清空订单簿 */
     bool     clear_on_job_abort;   /**< 单车工艺中止后整机清障（单车机型为真，连续多车为假）*/
     uint32_t max_order_age_ms;     /**< 入簿有效期；0 表示不淘汰 */
 } machine_profile_t;

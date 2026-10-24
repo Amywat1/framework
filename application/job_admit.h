@@ -80,13 +80,13 @@ void job_admit_expire(void);
 void job_admit_on_completed(uint64_t job_id);
 
 /**
- * @brief  单车中止：撤该 job_id；profile.clear_on_job_abort 为真时请求整机清障
+ * @brief  单车中止：撤该 job_id；profile.clear_on_job_abort 为真时清簿并请求整机清障
  * @param  job_id  中止的作业号；已不在占用表中（被安全路径撤掉）时忽略
  */
 void job_admit_on_job_aborted(uint64_t job_id);
 
 /**
- * @brief  整机级中止：清空在洗占用并按原因请求清障或停机（仅安全/全停路径）
+ * @brief  整机级中止：清空在洗占用与订单簿，并按原因请求清障或停机（仅安全/全停路径）
  */
 void job_admit_on_aborted(wash_abort_cause_t cause);
 

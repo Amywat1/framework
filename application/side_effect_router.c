@@ -9,7 +9,6 @@
 #include "common/event_types.h"
 #include "common/log.h"
 #include "domain/job/job_types.h"
-#include "domain/job/machine_profile.h"
 #include "domain/op_mode/op_mode_types.h"
 #include "domain/op_mode/operational_mode.h"
 #include "domain/ports/outbound/device/device_ops_port.h"
@@ -58,7 +57,6 @@ sw_err_t side_effect_router_run(const dev_cmd_t *cmd, operational_mode_t mode_be
 {
     const device_ops_t *ops;
     job_desc_t          order;
-    machine_profile_t   profile;
 
     if (cmd == NULL) {
         return SW_ERR_PARAM;
@@ -103,11 +101,9 @@ sw_err_t side_effect_router_run(const dev_cmd_t *cmd, operational_mode_t mode_be
         return run_stop_all_outputs(mode_before == OP_MODE_ACTIVE);
 
     case DEV_CMD_SET_SERVICE:
-        if (!cmd->body.payload.service.enabled) {
-            profile = machine_profile_get();
-            if (profile.clear_on_service_off) {
-                job_admit_clear_orders();
-            }
+        if (!cmd->body.payload.service.enabled
+            && (op_mode_get_current() == OP_MODE_STOPPED)) {
+            job_admit_clear_orders();
         }
         return SW_OK;
 

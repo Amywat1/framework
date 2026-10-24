@@ -13,7 +13,6 @@ static const machine_profile_t s_default_profile = {
     .max_active_jobs      = 1U,
     .max_queued_orders    = 8U,
     .hold_after_last_job  = true,
-    .clear_on_service_off = false,
     .clear_on_job_abort   = true,
     .max_order_age_ms     = 30U * 60U * 1000U,
 };

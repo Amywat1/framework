@@ -9,6 +9,7 @@
 #include "common/sw_error.h"
 #include "common/time_util.h"
 #include "domain/job/job_types.h"
+#include "domain/job/order_book.h"
 #include "domain/op_mode/device_command.h"
 #include "domain/op_mode/op_mode_types.h"
 #include "domain/op_mode/operational_mode.h"
@@ -87,16 +88,30 @@ static const safety_ops_t s_fake_safety_ops = {
     .deferred_stop   = fake_deferred_stop,
 };
 
+static void queue_one_order(void)
+{
+    job_desc_t order;
+
+    memset(&order, 0, sizeof(order));
+    order.mode = TEST_WASH_MODE_A;
+    TEST_ASSERT_EQUAL_INT(SW_OK, job_admit_submit(&order));
+}
+
 /* 急停触发 → STOPPED */
 static void test_hw_estop_on_enters_stopped(void)
 {
     time_util_init();
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, operational_mode_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, job_admit_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, op_mode_bridge_init());
+    setup_standby();
+    queue_one_order();
+    TEST_ASSERT_EQUAL_UINT(1U, order_book_count());
     publish_and_wait(EVT_HW_ESTOP_ON, 0U);
     TEST_ASSERT_TRUE(op_mode_is_estop_active());
     TEST_ASSERT_EQUAL_INT(OP_MODE_STOPPED, op_mode_get_current());
+    TEST_ASSERT_EQUAL_UINT(0U, order_book_count());
 }
 
 /* EVT_JOB_STARTED 不再切 ACTIVE，只由放行核调用 on_job_started */
@@ -155,9 +170,11 @@ static void test_job_aborted_requests_clear(void)
     device_ops_stub_bind(&ops);
     device_ops_register(&ops);
     setup_standby();
+    device_ops_stub_set_admit_ready(true);
     memset(&order, 0, sizeof(order));
     order.mode = TEST_WASH_MODE_A;
     TEST_ASSERT_EQUAL_INT(SW_OK, job_admit_submit(&order));
+    TEST_ASSERT_EQUAL_INT(SW_OK, job_admit_start());
     TEST_ASSERT_EQUAL_INT(OP_MODE_ACTIVE, op_mode_get_current());
 
     publish_and_wait(EVT_JOB_ABORTED, (uint32_t)device_ops_stub_last_job_id());
@@ -254,6 +271,72 @@ static void test_blocking_alarm_event_keeps_stopped(void)
     TEST_ASSERT_EQUAL_INT(OP_MODE_STOPPED, op_mode_get_current());
 }
 
+static void test_blocking_alarm_from_standby_clears_book(void)
+{
+    static const alarm_def_t catalog[] = {
+        {
+         .code         = 201101U,
+         .level        = ALARM_LEVEL_MAJOR,
+         .lifecycle        = ALARM_LIFECYCLE_LATCH,
+         .reeval_group = ALARM_REEVAL_GROUP_NONE,
+         .desc         = "test blocking",
+         },
+    };
+
+    time_util_init();
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_load_catalog(catalog, 1U));
+    TEST_ASSERT_EQUAL_INT(SW_OK, operational_mode_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, job_admit_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, op_mode_bridge_init());
+    setup_standby();
+    queue_one_order();
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_trigger(201101U));
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_drain());
+    TEST_ASSERT_EQUAL_INT(OP_MODE_STOPPED, op_mode_get_current());
+    TEST_ASSERT_EQUAL_UINT(0U, order_book_count());
+}
+
+static void test_recovery_failed_clears_book(void)
+{
+    job_desc_t order;
+    dev_cmd_t  recover = dev_cmd_make_simple(DEV_CMD_RECOVER);
+
+    time_util_init();
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, operational_mode_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, job_admit_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, op_mode_bridge_init());
+    (void)op_mode_handle_command(&recover);
+    TEST_ASSERT_EQUAL_INT(OP_MODE_RECOVERING, op_mode_get_current());
+    memset(&order, 0, sizeof(order));
+    order.mode = TEST_WASH_MODE_A;
+    TEST_ASSERT_EQUAL_INT(SW_OK, job_admit_submit(&order));
+    TEST_ASSERT_EQUAL_UINT(1U, order_book_count());
+    publish_and_wait(EVT_OP_MODE_RECOVERY_COMPLETED, (uint32_t)RECOVERY_RESULT_FAILED);
+    TEST_ASSERT_EQUAL_INT(OP_MODE_STOPPED, op_mode_get_current());
+    TEST_ASSERT_EQUAL_UINT(0U, order_book_count());
+}
+
+static void test_clear_done_clears_queued(void)
+{
+    time_util_init();
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, operational_mode_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, job_admit_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, op_mode_bridge_init());
+    setup_standby();
+    queue_one_order();
+    op_mode_on_job_started();
+    op_mode_on_clear_requested(WASH_ABORT_MANUAL);
+    TEST_ASSERT_EQUAL_INT(OP_MODE_CLEARING, op_mode_get_current());
+    TEST_ASSERT_EQUAL_UINT(1U, order_book_count());
+    publish_and_wait(EVT_CLEAR_MACHINE_DONE, 0U);
+    TEST_ASSERT_EQUAL_INT(OP_MODE_STOPPED, op_mode_get_current());
+    TEST_ASSERT_EQUAL_UINT(0U, order_book_count());
+}
+
 /* 急停报警不再置 estop_active，只认 EVT_HW_ESTOP_* */
 static void test_estop_alarm_does_not_set_estop_flag(void)
 {
@@ -310,7 +393,7 @@ int main(void)
 {
     UNITY_BEGIN();
 
-    WDF_RUN_TEST(test_hw_estop_on_enters_stopped, "", "验证HW急停开启进入停止模式");
+    WDF_RUN_TEST(test_hw_estop_on_enters_stopped, "", "验证HW急停进入停止并清空订单簿");
     WDF_RUN_TEST(test_job_started_event_does_not_enter_active, "", "验证作业开始事件不切 ACTIVE");
     WDF_RUN_TEST(test_job_completed_enters_hold, "", "验证作业完成进入 HOLD");
     WDF_RUN_TEST(test_area_cleared_returns_standby, "", "验证场区清空返回 STANDBY");
@@ -320,6 +403,9 @@ int main(void)
     WDF_RUN_TEST(test_recovery_completed_success_enters_idle, "", "验证恢复完成成功进入空闲模式");
     WDF_RUN_TEST(test_alarm_home_done_enters_stopped, "", "验证中止归位完成进入停止模式");
     WDF_RUN_TEST(test_blocking_alarm_event_keeps_stopped, "", "验证阻断报警在停止模式保持停止");
+    WDF_RUN_TEST(test_blocking_alarm_from_standby_clears_book, "", "验证待机禁止接单停机清空订单簿");
+    WDF_RUN_TEST(test_recovery_failed_clears_book, "", "验证恢复失败落到停机清空订单簿");
+    WDF_RUN_TEST(test_clear_done_clears_queued, "", "验证中止归位完成进入停机时清空订单簿");
     WDF_RUN_TEST(test_critical_from_idle_converges_once, "", "验证 CRITICAL 从空闲只收敛一次进入停止");
     WDF_RUN_TEST(test_estop_alarm_does_not_set_estop_flag, "", "验证急停报警不再置急停旗标");
 
