@@ -206,7 +206,7 @@ static void test_recover_in_idle_is_idempotent(void)
     TEST_ASSERT_EQUAL_INT(OP_MODE_STANDBY, op_mode_get_current());
 }
 
-/* 待机可以入簿 */
+/* 待机可以入队 */
 static void test_submit_order_allowed_in_idle(void)
 {
     dev_cmd_t          cmd = dev_cmd_make_submit_order(TEST_WASH_MODE_A);
@@ -295,7 +295,7 @@ static bool stub_wash_entry_not_ready(void)
     return false;
 }
 
-/* 全停后仍可入簿（STOPPED + 总开关开） */
+/* 全停后仍可入队（STOPPED + 总开关开） */
 static void test_submit_order_allowed_after_stop_all(void)
 {
     dev_cmd_t stop_cmd = dev_cmd_make_simple(DEV_CMD_STOP_ALL_OUTPUTS);
@@ -307,7 +307,7 @@ static void test_submit_order_allowed_after_stop_all(void)
     TEST_ASSERT_EQUAL_INT(OP_CMD_ALLOWED, op_mode_handle_command(&cmd).verdict);
 }
 
-/* 有阻塞告警时仍可入簿，不立刻开洗 */
+/* 有阻塞告警时仍可入队，不立刻开洗 */
 static void test_submit_order_allowed_with_blocking_alarm(void)
 {
     dev_cmd_t cmd = dev_cmd_make_submit_order(TEST_WASH_MODE_A);
@@ -318,7 +318,7 @@ static void test_submit_order_allowed_with_blocking_alarm(void)
     TEST_ASSERT_EQUAL_INT(OP_CMD_ALLOWED, op_mode_handle_command(&cmd).verdict);
 }
 
-/* 机型准入不影响入簿 */
+/* 机型准入不影响入队 */
 static void test_submit_order_ignores_admit_ready(void)
 {
     static const device_ops_t s_ops = {
@@ -629,15 +629,15 @@ int main(void)
     WDF_RUN_TEST(test_blocking_alarm_during_home_lands_stopped, "", "验证回零期间阻断报警完成后进入停止");
     WDF_RUN_TEST(test_recover_denied_when_service_disabled, "", "验证恢复被拒绝时服务禁用");
     WDF_RUN_TEST(test_recover_in_idle_is_idempotent, "", "验证恢复在空闲模式为幂等");
-    WDF_RUN_TEST(test_submit_order_allowed_in_idle, "", "验证待机允许入簿");
+    WDF_RUN_TEST(test_submit_order_allowed_in_idle, "", "验证待机允许入队");
     WDF_RUN_TEST(test_stop_wash_denied_in_idle, "", "验证停止洗车被拒绝在空闲模式");
     WDF_RUN_TEST(test_stop_all_allowed_from_stopped, "", "验证停止模式下允许全停且总开关保持");
     WDF_RUN_TEST(test_set_service_enable_is_idempotent, "", "验证开启总开关幂等且不改模式");
     WDF_RUN_TEST(test_set_service_disable_from_idle_enters_stopped, "", "验证待机关总开关落入停机");
     WDF_RUN_TEST(test_set_service_disable_allowed_while_active, "", "验证作业中可关总开关且保持 ACTIVE");
-    WDF_RUN_TEST(test_submit_order_allowed_after_stop_all, "", "验证全停后仍允许入簿");
-    WDF_RUN_TEST(test_submit_order_allowed_with_blocking_alarm, "", "验证存在阻断报警时仍允许入簿");
-    WDF_RUN_TEST(test_submit_order_ignores_admit_ready, "", "验证入簿不检查机型准入");
+    WDF_RUN_TEST(test_submit_order_allowed_after_stop_all, "", "验证全停后仍允许入队");
+    WDF_RUN_TEST(test_submit_order_allowed_with_blocking_alarm, "", "验证存在阻断报警时仍允许入队");
+    WDF_RUN_TEST(test_submit_order_ignores_admit_ready, "", "验证入队不检查机型准入");
     WDF_RUN_TEST(test_estop_blocks_recover, "", "验证急停阻止恢复");
     WDF_RUN_TEST(test_estop_release_stays_stopped, "", "验证急停解除保持停止模式");
     WDF_RUN_TEST(test_recover_from_stopped_enters_recovering, "", "验证停止模式恢复进入恢复中");

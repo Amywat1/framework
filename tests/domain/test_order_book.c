@@ -122,9 +122,9 @@ int main(void)
 {
     UNITY_BEGIN();
     WDF_RUN_TEST(test_fifo_enqueue_pop, "", "验证订单簿按入队顺序弹出");
-    WDF_RUN_TEST(test_same_order_id_is_deduped, "", "验证同一订单号重复入簿去重");
+    WDF_RUN_TEST(test_same_order_id_is_deduped, "", "验证同一订单号重复入队去重");
     WDF_RUN_TEST(test_cancel_middle_keeps_order, "", "验证取消中间单后仍保持 FIFO");
     WDF_RUN_TEST(test_overflow_uses_profile, "", "验证满队按 profile 拒单");
-    WDF_RUN_TEST(test_clear_empties, "", "验证清簿后深度为 0");
+    WDF_RUN_TEST(test_clear_empties, "", "验证清队后深度为 0");
     return UNITY_END();
 }

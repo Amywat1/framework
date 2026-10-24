@@ -68,7 +68,7 @@ typedef struct {
 typedef struct {
     wash_mode_t mode;            /**< 当前在洗或队首套餐 */
     unsigned    queued_count;    /**< 未放行订单数 */
-    uint64_t    head_order_id;   /**< 队首订单号；空簿为 0 */
+    uint64_t    head_order_id;   /**< 队首订单号；空队为 0 */
     wash_mode_t head_mode;       /**< 队首套餐 */
     unsigned    active_count;    /**< 在洗作业数 */
     uint8_t     max_active_jobs; /**< profile 同时在洗上限 */

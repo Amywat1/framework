@@ -376,7 +376,7 @@ dev_cmd_decision_t op_mode_handle_command(const dev_cmd_t *cmd)
         break;
 
     case DEV_CMD_STOP_ALL_OUTPUTS:
-        /* 必须先切 STOPPED 再让 application 跑切断/清簿副作用。 */
+        /* 必须先切 STOPPED 再让 application 跑切断/清队副作用。 */
         set_mode(OP_MODE_STOPPED, "stop all outputs");
         break;
 

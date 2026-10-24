@@ -24,8 +24,8 @@ void order_book_init(void);
 /**
  * @brief  将一笔订单追加到队尾
  * @param  order    入参；order_id 为 0 时由本模块分配
- * @param  out_id   实际入簿的 order_id，可为 NULL
- * @retval SW_OK           已入簿
+ * @param  out_id   实际入队的 order_id，可为 NULL
+ * @retval SW_OK           已入队
  * @retval SW_ERR_PARAM    order 为空
  * @retval SW_ERR_OVERFLOW 已达 profile 上限
  */
@@ -35,7 +35,7 @@ sw_err_t order_book_enqueue(const job_desc_t *order, uint64_t *out_id);
  * @brief  按订单号取消未放行订单
  * @retval SW_OK        已删除
  * @retval SW_ERR_PARAM 订单号为 0
- * @retval SW_ERR_STATE 簿中无此单
+ * @retval SW_ERR_STATE 队中无此单
  */
 sw_err_t order_book_cancel(uint64_t order_id);
 
@@ -43,7 +43,7 @@ sw_err_t order_book_cancel(uint64_t order_id);
  * @brief  弹出队首
  * @retval SW_OK        已写入 out
  * @retval SW_ERR_PARAM out 为空
- * @retval SW_ERR_STATE 簿空
+ * @retval SW_ERR_STATE 队空
  */
 sw_err_t order_book_pop_front(job_desc_t *out);
 

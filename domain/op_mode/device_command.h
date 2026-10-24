@@ -25,7 +25,7 @@ extern "C" {
  */
 typedef enum {
     DEV_CMD_NONE = 0,
-    DEV_CMD_SUBMIT_ORDER, /**< 入订单簿；不立即开洗 */
+    DEV_CMD_SUBMIT_ORDER, /**< 入队；不立即开洗 */
     DEV_CMD_START_WASH, /**< 请求开洗队首；条件不够则失败 */
     DEV_CMD_CLEAR_MACHINE, /**< 停放行、中止在洗、整机清障 */
     DEV_CMD_SET_SERVICE, /**< 设置运营总开关；关闭时若在 STANDBY/HOLD 则落到 STOPPED */
@@ -90,7 +90,7 @@ typedef struct {
 } dev_cmd_t;
 
 /**
- * @brief  入簿或开洗命令（共用总开关/切断检查，并可新开会话）
+ * @brief  入队或开洗命令（共用总开关/切断检查，并可新开会话）
  */
 static inline bool dev_cmd_is_order_flow(dev_cmd_kind_t kind)
 {

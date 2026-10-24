@@ -1,6 +1,6 @@
 /**
  * @file    test_job_admit.c
- * @brief   放行核：入队/启动放行/占用/急停清簿/profile 契约
+ * @brief   放行核：入队/启动放行/占用/急停清队/profile 契约
  */
 
 #include "application/job_admit.h"
@@ -506,9 +506,9 @@ static void test_complete_does_not_start_next(void)
 int main(void)
 {
     UNITY_BEGIN();
-    WDF_RUN_TEST(test_submit_without_admit_ready_only_queues, "", "验证未准入时只入簿不放行");
+    WDF_RUN_TEST(test_submit_without_admit_ready_only_queues, "", "验证未准入时只入队不放行");
     WDF_RUN_TEST(test_start_releases_fifo, "", "验证启动按 FIFO 放行队首");
-    WDF_RUN_TEST(test_occupancy_full_keeps_queue, "", "验证占用满时启动失败且后续单待簿中");
+    WDF_RUN_TEST(test_occupancy_full_keeps_queue, "", "验证占用满时启动失败且后续单待队中");
     WDF_RUN_TEST(test_multi_active_profile_start_each, "", "验证占用未满时洗中启动可再放一单");
     WDF_RUN_TEST(test_last_job_hold, "", "验证最后一单结束后按默认 profile 进入 HOLD");
     WDF_RUN_TEST(test_last_job_standby_without_hold, "", "验证关闭 hold 后最后一单回 STANDBY");
@@ -519,20 +519,20 @@ int main(void)
     WDF_RUN_TEST(test_expired_order_is_dropped, "", "验证过期订单在放行前淘汰");
     WDF_RUN_TEST(test_expire_drops_stale_without_start, "", "验证周期淘汰过期队首且不开洗");
     WDF_RUN_TEST(test_stop_all_clears_book_and_jobs, "", "验证全停清空订单簿与占用");
-    WDF_RUN_TEST(test_job_abort_requests_clear, "", "验证单车机型工艺中止后整机进入清障并清簿");
+    WDF_RUN_TEST(test_job_abort_requests_clear, "", "验证单车机型工艺中止后整机进入清障并清队");
     WDF_RUN_TEST(test_estop_abort_clears_queued, "", "验证急停整机中止清空订单簿");
     WDF_RUN_TEST(test_post_job_blocking_clears_queued, "", "验证洗完禁止接单停机时清空排队单");
     WDF_RUN_TEST(test_job_abort_without_clear_keeps_queue, "", "验证多车 profile 单车中止只撤该单不补放行");
     WDF_RUN_TEST(test_stale_job_abort_is_ignored, "", "验证已被撤占用的迟到中止不再请求清障");
     WDF_RUN_TEST(test_rejected_start_drops_order, "", "验证 start_job 永久拒绝时丢弃队首单");
-    WDF_RUN_TEST(test_active_order_id_is_deduped, "", "验证在洗订单号重复下单不再入簿");
+    WDF_RUN_TEST(test_active_order_id_is_deduped, "", "验证在洗订单号重复下单不再入队");
     WDF_RUN_TEST(test_stop_all_aborts_job_admitted_after_verdict, "", "验证全停中止裁决前模式未及 ACTIVE 的在洗作业");
-    WDF_RUN_TEST(test_start_without_order_fails, "", "验证空簿启动失败");
+    WDF_RUN_TEST(test_start_without_order_fails, "", "验证空队启动失败");
     WDF_RUN_TEST(test_start_without_order_not_ready_fails, "",
-                 "验证未准入空簿启动失败");
+                 "验证未准入空队启动失败");
     WDF_RUN_TEST(test_start_keeps_queued_mode, "", "验证启动不改已入队订单的套餐");
     WDF_RUN_TEST(test_start_while_active_empty_book_fails, "",
-                 "验证在洗且空簿时启动失败");
+                 "验证在洗且空队时启动失败");
     WDF_RUN_TEST(test_hold_start_fails, "", "验证 HOLD 点启动失败");
     WDF_RUN_TEST(test_stopped_start_fails, "", "验证停机点启动失败");
     WDF_RUN_TEST(test_complete_does_not_start_next, "", "验证作业结束不自动放行下一单");

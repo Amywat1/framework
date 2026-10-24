@@ -33,7 +33,7 @@ static void on_area_cleared(const event_t *evt)
     op_mode_on_area_cleared();
 }
 
-/* 进入停机即清簿，与应用退费对齐。HOLD 不是停机。 */
+/* 进入停机即清队，与应用退费对齐。HOLD 不是停机。 */
 static void drop_book_if_stopped(void)
 {
     if (op_mode_get_current() == OP_MODE_STOPPED) {

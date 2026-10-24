@@ -131,7 +131,7 @@ static const cloud_point_entry_t *find_cloud_entry(const cloud_point_entry_t *en
 }
 
 /**
- * @brief  同包三遍：属性 → 入簿 → 开洗及其它命令
+ * @brief  同包三遍：属性 → 入队 → 开洗及其它命令
  */
 static bool apply_in_pass(const cloud_point_entry_t *entry, unsigned pass)
 {
@@ -325,7 +325,7 @@ sw_err_t cloud_point_apply_json(const cloud_point_entry_t *entries,
         return SW_ERR_PARAM;
     }
 
-    /* 先落可写属性，再入簿，最后开洗及其它设备命令，不吃 JSON 键序。 */
+    /* 先落可写属性，再入队，最后开洗及其它设备命令，不吃 JSON 键序。 */
     for (unsigned pass = 0U; pass < 3U; pass++) {
         cJSON_ArrayForEach(item, root)
         {

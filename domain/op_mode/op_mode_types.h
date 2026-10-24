@@ -26,7 +26,7 @@ extern "C" {
  *   STOPPED → RECOVERING（RECOVER：安全触发门禁 + 清非安全报警 + 异步归位）→ STANDBY / STOPPED
  *   任意非 INIT → STOPPED（STOP_ALL_OUTPUTS：切断输出，清空订单簿，不改总开关）
  *   任意非 INIT → 同态（SET_SERVICE：仅翻总开关；关闭时若在 STANDBY/HOLD 则落到 STOPPED）
- *   STANDBY / ACTIVE 可 SUBMIT_ORDER 入簿；放行后占用 0→1 进入 ACTIVE
+ *   STANDBY / ACTIVE 可 SUBMIT_ORDER 入队；放行后占用 0→1 进入 ACTIVE
  *   ACTIVE → CLEARING（CLEAR_MACHINE：停放行、中止在洗、项目清障）→ STOPPED
  *   ACTIVE → HOLD 或 STANDBY（最后一单结束；HOLD 由 profile.hold_after_last_job 决定）
  *   HOLD → STANDBY（场区清空）

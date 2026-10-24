@@ -57,7 +57,7 @@ static bool order_expired(const job_desc_t *job, uint32_t max_age_ms, uint64_t n
     return (now_ms - job->enqueued_ms) > (uint64_t)max_age_ms;
 }
 
-/* 入簿时刻单调递增，队首未过期则其后均未过期。 */
+/* 入队时刻单调递增，队首未过期则其后均未过期。 */
 static void drop_expired_heads(const machine_profile_t *profile)
 {
     job_desc_t head;

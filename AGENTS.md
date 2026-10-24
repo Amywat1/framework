@@ -61,7 +61,7 @@ wiring、配置、绑定表和 provider 里。**框架不含任何具体项目�
 | 知道一处改动要连带改哪些文件 | `doc/ai/任务索引.md` |
 | 找某个目录属于哪个构建目标、有无文档 | `doc/ai/代码地图.md` |
 | 理解为什么这样分层、这样取舍 | `doc/architecture/` |
-| 理解整机八态、入簿/放行、三种停 | `doc/architecture/10-通用洗车运营模型.md` |
+| 理解整机八态、入队/开洗、三种停 | `doc/architecture/10-通用洗车运营模型.md` |
 | 查某模块代码级契约、数据模型、启动顺序 | `doc/module-design/` |
 | 查某条行为由谁保证、在哪一层验证 | `doc/contract/行为契约.md` |
 | 查已完成整治的决策理由 | `doc/history/整治记录.md` |

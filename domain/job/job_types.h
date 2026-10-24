@@ -29,10 +29,10 @@ extern "C" {
  * @brief  一笔待放行或已放行的作业描述
  */
 typedef struct {
-    uint64_t    order_id;       /**< 订单号；0 表示入簿时由框架分配 */
+    uint64_t    order_id;       /**< 订单号；0 表示入队时由框架分配 */
     uint64_t    job_id;         /**< 放行后的作业号；未放行时为 0 */
     uint64_t    correlation_id; /**< 云端关联号，可与 order_id 相同 */
-    uint64_t    enqueued_ms;    /**< 入簿单调时钟，供有效期淘汰 */
+    uint64_t    enqueued_ms;    /**< 入队单调时钟，供有效期淘汰 */
     wash_mode_t mode;           /**< 套餐选择子，框架不解释 */
 } job_desc_t;
 
