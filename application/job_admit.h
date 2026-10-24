@@ -37,16 +37,12 @@ sw_err_t job_admit_submit(const job_desc_t *order);
 
 /**
  * @brief  请求开洗队首一单
- * @param  mode  空簿时自建订单所用套餐
  * @retval SW_OK           已放行
- * @retval SW_ERR_STATE    启动条件不满足。未锁好或占用满时已入队/自建单保留；整机不可放行时不自建
- * @retval SW_ERR_OVERFLOW 空簿自建时簿满
+ * @retval SW_ERR_STATE    当时不能开洗：空簿、未准入、占用满、HOLD/停机或有阻断。已入队单保留
  * @retval SW_ERR_NOT_INIT 设备口未注册
- * @note   仅 STANDBY/ACTIVE（can_admit）且空簿时才自建；在洗占用不挡自建。
- *         HOLD/停机点启动失败且不入簿。已有未放行订单时不再自建。
- *         一次只放队首。洗着能否再放，由占用上限和 is_admit_ready 决定。
+ * @note   一次只放队首。洗着能否再放，由占用上限和 is_admit_ready 决定。
  */
-sw_err_t job_admit_start(wash_mode_t mode);
+sw_err_t job_admit_start(void);
 
 /**
  * @brief  取消未放行订单

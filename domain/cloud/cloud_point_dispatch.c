@@ -63,7 +63,7 @@ static sw_err_t build_device_cmd(const cloud_point_entry_t *entry, const point_v
         }
         return SW_OK;
     case DEV_CMD_START_WASH:
-        *cmd = dev_cmd_make_start_wash((wash_mode_t)0);
+        *cmd = dev_cmd_make_start_wash();
         return SW_OK;
     case DEV_CMD_SET_SERVICE:
         *cmd = dev_cmd_make_set_service(entry->cmd_has_param ? (entry->cmd_param != 0) : val->b);

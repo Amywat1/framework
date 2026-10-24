@@ -94,9 +94,11 @@ static void test_submit_order_does_not_start(void)
 
 static void test_start_wash_calls_orchestrator(void)
 {
-    dev_cmd_t cmd = dev_cmd_make_start_wash(TEST_WASH_MODE_B);
+    dev_cmd_t order = dev_cmd_make_submit_order(TEST_WASH_MODE_B);
+    dev_cmd_t start = dev_cmd_make_start_wash();
 
-    TEST_ASSERT_EQUAL_INT(SW_OK, side_effect_router_run(&cmd, OP_MODE_STANDBY));
+    TEST_ASSERT_EQUAL_INT(SW_OK, side_effect_router_run(&order, OP_MODE_STANDBY));
+    TEST_ASSERT_EQUAL_INT(SW_OK, side_effect_router_run(&start, OP_MODE_STANDBY));
     TEST_ASSERT_EQUAL_INT(1, device_ops_stub_start_count());
     TEST_ASSERT_EQUAL_INT(TEST_WASH_MODE_B, device_ops_stub_last_mode());
 }

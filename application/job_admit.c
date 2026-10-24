@@ -131,18 +131,6 @@ static sw_err_t admit_locked(void)
     return SW_OK;
 }
 
-/* 调用方须持 s_mu。仅可放行且簿空时自建；在洗占用不挡自建，放行仍受占用上限约束。 */
-static sw_err_t generate_if_empty(wash_mode_t mode)
-{
-    job_desc_t generated = {0};
-
-    if (!op_mode_can_admit() || (order_book_count() != 0U)) {
-        return SW_OK;
-    }
-    generated.mode = mode;
-    return order_book_enqueue(&generated, NULL);
-}
-
 sw_err_t job_admit_init(void)
 {
     admit_lock();
@@ -176,7 +164,7 @@ sw_err_t job_admit_submit(const job_desc_t *order)
     return ret;
 }
 
-sw_err_t job_admit_start(wash_mode_t mode)
+sw_err_t job_admit_start(void)
 {
     unsigned          before;
     machine_profile_t profile;
@@ -185,17 +173,14 @@ sw_err_t job_admit_start(wash_mode_t mode)
     admit_lock();
     profile = machine_profile_get();
     drop_expired_heads(&profile);
-    ret = generate_if_empty(mode);
-    if (ret == SW_OK) {
-        before = active_jobs_count();
-        ret    = admit_locked();
-        if ((ret == SW_OK) && (active_jobs_count() > before)) {
-            admit_unlock();
-            return SW_OK;
-        }
-        if (ret != SW_ERR_NOT_INIT) {
-            ret = SW_ERR_STATE;
-        }
+    before = active_jobs_count();
+    ret    = admit_locked();
+    if ((ret == SW_OK) && (active_jobs_count() > before)) {
+        admit_unlock();
+        return SW_OK;
+    }
+    if (ret != SW_ERR_NOT_INIT) {
+        ret = SW_ERR_STATE;
     }
     admit_unlock();
     return ret;

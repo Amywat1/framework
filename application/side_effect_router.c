@@ -75,7 +75,7 @@ sw_err_t side_effect_router_run(const dev_cmd_t *cmd, operational_mode_t mode_be
         return job_admit_submit(&order);
 
     case DEV_CMD_START_WASH:
-        return job_admit_start(cmd->body.payload.start_wash.mode);
+        return job_admit_start();
 
     case DEV_CMD_CANCEL_ORDER:
         return job_admit_cancel(cmd->body.payload.cancel_order.order_id);

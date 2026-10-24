@@ -26,7 +26,7 @@ extern "C" {
 typedef enum {
     DEV_CMD_NONE = 0,
     DEV_CMD_SUBMIT_ORDER, /**< 入订单簿；不立即开洗 */
-    DEV_CMD_START_WASH, /**< 请求开洗：可放行且无单才自建，条件不够则失败 */
+    DEV_CMD_START_WASH, /**< 请求开洗队首；条件不够则失败 */
     DEV_CMD_CLEAR_MACHINE, /**< 停放行、中止在洗、整机清障 */
     DEV_CMD_SET_SERVICE, /**< 设置运营总开关；关闭时若在 STANDBY/HOLD 则落到 STOPPED */
     DEV_CMD_MANUAL_ACTUATOR,
@@ -68,9 +68,6 @@ typedef struct {
             wash_mode_t mode;
             uint64_t    order_id; /**< 0 表示由订单簿分配；非 0 按号去重 */
         } submit_order;
-        struct {
-            wash_mode_t mode; /**< 空簿时自建订单用 */
-        } start_wash;
         struct {
             uint64_t order_id;
         } cancel_order;
@@ -138,14 +135,10 @@ static inline dev_cmd_t dev_cmd_make_submit_order_id(wash_mode_t mode, uint64_t 
 
 /**
  * @brief  构造开洗命令
- * @param  mode 空簿自建订单时锁存的套餐
  */
-static inline dev_cmd_t dev_cmd_make_start_wash(wash_mode_t mode)
+static inline dev_cmd_t dev_cmd_make_start_wash(void)
 {
-    dev_cmd_t cmd = dev_cmd_make_simple(DEV_CMD_START_WASH);
-
-    cmd.body.payload.start_wash.mode = mode;
-    return cmd;
+    return dev_cmd_make_simple(DEV_CMD_START_WASH);
 }
 
 /**

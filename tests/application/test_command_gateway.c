@@ -159,7 +159,8 @@ static void test_submit_rejected_wrong_mode(void)
 
 static void test_start_wash_triggers_orchestrator(void)
 {
-    dev_cmd_t         cmd     = dev_cmd_make_submit_order(TEST_WASH_MODE_A);
+    dev_cmd_t         order   = dev_cmd_make_submit_order(TEST_WASH_MODE_A);
+    dev_cmd_t         start   = dev_cmd_make_start_wash();
     dev_cmd_receipt_t receipt = {0};
     pthread_t         tid;
 
@@ -169,7 +170,12 @@ static void test_start_wash_triggers_orchestrator(void)
     setup_idle();
     start_runtime(&tid);
 
-    TEST_ASSERT_EQUAL_INT(SW_OK, device_command_port_get_ops()->submit_sync(&cmd, &receipt, 1000U));
+    TEST_ASSERT_EQUAL_INT(SW_OK, device_command_port_get_ops()->submit_sync(&order, &receipt, 1000U));
+    TEST_ASSERT_EQUAL_INT(DEV_CMD_STATUS_ACCEPTED, receipt.status);
+    TEST_ASSERT_EQUAL_INT(0, device_ops_stub_start_count());
+
+    memset(&receipt, 0, sizeof(receipt));
+    TEST_ASSERT_EQUAL_INT(SW_OK, device_command_port_get_ops()->submit_sync(&start, &receipt, 1000U));
     TEST_ASSERT_EQUAL_INT(DEV_CMD_STATUS_ACCEPTED, receipt.status);
     TEST_ASSERT_EQUAL_INT(1, device_ops_stub_start_count());
     TEST_ASSERT_EQUAL_INT(TEST_WASH_MODE_A, device_ops_stub_last_mode());
@@ -276,8 +282,9 @@ static sw_err_t stub_stop_all_reentrant(void)
 
 static void test_submit_sync_from_control_thread_is_rejected(void)
 {
-    dev_cmd_t         wash_cmd = dev_cmd_make_submit_order(TEST_WASH_MODE_A);
-    dev_cmd_receipt_t receipt  = {0};
+    dev_cmd_t         order   = dev_cmd_make_submit_order(TEST_WASH_MODE_A);
+    dev_cmd_t         start   = dev_cmd_make_start_wash();
+    dev_cmd_receipt_t receipt = {0};
     pthread_t         tid;
 
     s_reentrant_ret        = SW_OK;
@@ -291,7 +298,8 @@ static void test_submit_sync_from_control_thread_is_rejected(void)
     setup_idle();
     start_runtime(&tid);
 
-    TEST_ASSERT_EQUAL_INT(SW_OK, device_command_port_get_ops()->submit_sync(&wash_cmd, &receipt, 1000U));
+    TEST_ASSERT_EQUAL_INT(SW_OK, device_command_port_get_ops()->submit_sync(&order, &receipt, 1000U));
+    TEST_ASSERT_EQUAL_INT(SW_OK, device_command_port_get_ops()->submit_sync(&start, &receipt, 1000U));
     op_mode_on_job_started();
     TEST_ASSERT_EQUAL_INT(SW_OK, submit_simple(DEV_CMD_STOP_ALL_OUTPUTS, &receipt));
     TEST_ASSERT_EQUAL_INT(1, s_reentrant_done);
@@ -302,8 +310,9 @@ static void test_submit_sync_from_control_thread_is_rejected(void)
 
 static void test_stop_all_during_washing_via_gateway(void)
 {
-    dev_cmd_t         wash_cmd = dev_cmd_make_submit_order(TEST_WASH_MODE_A);
-    dev_cmd_receipt_t receipt  = {0};
+    dev_cmd_t         order   = dev_cmd_make_submit_order(TEST_WASH_MODE_A);
+    dev_cmd_t         start   = dev_cmd_make_start_wash();
+    dev_cmd_receipt_t receipt = {0};
     pthread_t         tid;
 
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
@@ -312,7 +321,9 @@ static void test_stop_all_during_washing_via_gateway(void)
     setup_idle();
     start_runtime(&tid);
 
-    TEST_ASSERT_EQUAL_INT(SW_OK, device_command_port_get_ops()->submit_sync(&wash_cmd, &receipt, 1000U));
+    TEST_ASSERT_EQUAL_INT(SW_OK, device_command_port_get_ops()->submit_sync(&order, &receipt, 1000U));
+    TEST_ASSERT_EQUAL_INT(DEV_CMD_STATUS_ACCEPTED, receipt.status);
+    TEST_ASSERT_EQUAL_INT(SW_OK, device_command_port_get_ops()->submit_sync(&start, &receipt, 1000U));
     TEST_ASSERT_EQUAL_INT(DEV_CMD_STATUS_ACCEPTED, receipt.status);
     op_mode_on_job_started();
     TEST_ASSERT_EQUAL_INT(OP_MODE_ACTIVE, op_mode_get_current());
