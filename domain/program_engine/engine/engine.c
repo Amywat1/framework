@@ -800,8 +800,21 @@ static void step_tick(engine_t *e, const engine_step_t *sd, rt_step_t *rt, uint3
             break;
         }
 
+        case RT_DONE:
+            if (sd->repeat && !trigger_level_active(e, &sd->trigger)) {
+                rt->state           = RT_ARMED;
+                rt->action_idx      = 0U;
+                rt->waiting         = false;
+                rt->wait_remaining  = 0U;
+                rt->done_elapsed    = 0U;
+                rt->confirm_elapsed = 0U;
+                rt->retry_used      = 0U;
+                progressed          = true;
+            }
+            break;
+
         default:
-            break; /* RT_DONE / RT_SKIPPED / RT_IDLE 稳定 */
+            break; /* RT_SKIPPED / RT_IDLE 稳定 */
         }
     }
 

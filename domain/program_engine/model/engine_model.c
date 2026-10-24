@@ -156,6 +156,7 @@ static bool clone_step(engine_step_t *dst, const engine_step_t *src)
     dst->type      = src->type;
     dst->on_error  = src->on_error;
     dst->retry_max = src->retry_max;
+    dst->repeat    = src->repeat;
 
     if (src->type == ENGINE_STEP_CONTROL) {
         dst->active_while = engine_expr_clone(src->active_while);

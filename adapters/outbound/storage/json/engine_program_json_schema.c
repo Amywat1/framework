@@ -147,6 +147,7 @@ static bool validate_step_schema(const cJSON *node, const char *path, char *err,
         "done",
         "on_error",
         "retry_max",
+        "repeat",
         "after",
     };
     static const char *const trigger_allowed[] = {"type", "expr", "signal", "edge"};

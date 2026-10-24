@@ -113,6 +113,7 @@ typedef struct {
     engine_step_type_t      type;
     engine_error_strategy_t on_error;
     uint32_t                retry_max; /**< done 超时后重发 intent 次数；0=不重试 */
+    bool                    repeat;    /**< 完成后触发器变假再武装，可再做一次 */
 
     /* event 型字段 */
     engine_trigger_t trigger;

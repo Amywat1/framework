@@ -349,6 +349,11 @@ static bool build_event_step(engine_step_t *st, const cJSON *node, char *err, un
     }
 
     (void)juint(node, "retry_max", &st->retry_max);
+    {
+        const cJSON *repeat = cJSON_GetObjectItemCaseSensitive(node, "repeat");
+
+        st->repeat = (repeat != NULL) && cJSON_IsBool(repeat) && cJSON_IsTrue(repeat);
+    }
 
     /* after */
     const cJSON *after = cJSON_GetObjectItemCaseSensitive(node, "after");
