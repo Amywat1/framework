@@ -22,8 +22,9 @@ doc/contract/行为契约.md 第 5 节已论证过，tests/reports/ 也已因此
 event_bus 8 例、实际 13 例）。
 
 所以本脚本的输出全部从代码抽取：事件表来自 common/event_types.h 的宏定义与全仓
-的 event_publish / 订阅表调用点，端口表来自 ports/**/*.h 的 doxygen @brief 与
-注册表，目录表来自 cmake/wdf_targets.cmake。框架 109 个头文件 @brief 覆盖率 100%，
+的 event_publish / 订阅表调用点，端口表来自 domain/ports 与 application/ports
+下头文件的 doxygen @brief 与注册表，目录表来自 cmake/wdf_targets.cmake。
+框架 109 个头文件 @brief 覆盖率 100%，
 这些信息本来就在代码里，缺的只是抽取。
 
 --check 模式进门禁：代码改了而索引没重生成即失败，这样索引不可能落后于代码。
@@ -174,9 +175,24 @@ def file_brief(p: Path) -> str:
 
 FUNC_RE = re.compile(r"^(?:sw_err_t|void|bool|int|size_t|uint\d+_t|const\s+\w+\s*\*)\s+(\w+)\s*\(", re.M)
 
+# 契约头按所有权落在 domain/ports 与 application/ports；runtime/ports 只做装配，不入表。
+PORT_ROOTS = (
+    ROOT / "domain" / "ports",
+    ROOT / "application" / "ports",
+)
+
+
+def collect_port_headers() -> list[Path]:
+    headers: list[Path] = []
+    for base in PORT_ROOTS:
+        if not base.is_dir():
+            continue
+        headers.extend(p for p in base.rglob("*.h") if p.is_file())
+    return sorted(headers, key=rel)
+
 
 def collect_ports() -> str:
-    port_headers = sorted((ROOT / "ports").rglob("*.h"))
+    port_headers = collect_port_headers()
 
     lines = [
         "## 端口全表",
@@ -331,7 +347,8 @@ def build_code_map() -> str:
         "「设计文档」列只取**深度提及**该目录的文档（提及次数 ≥3），并按次数排序；",
         "只顺带提一句的文档不列出，否则 `common/` 这类目录会列出十几篇而失去指向性。",
         "标 **无** 说明该目录没有任何文档深度覆盖——这本身是可行动的信息，",
-        "已知缺口与原因记在 `doc/module-design/README.md` 的「尚未收录的代码」一节。",
+        "已知缺口与原因记在 [module-design/README.md](../module-design/README.md)",
+        "的「尚未收录的代码」一节。",
         "",
         "「CMake 目标」列的 `vendor（根 CMakeLists）` 指由 `WDF_ENABLE_*` 选项以 STATIC",
         "库形式提供的可选 provider，它们有外部 SDK 依赖，不作为无条件导出的 INTERFACE 源。",
@@ -364,11 +381,13 @@ def build_code_map() -> str:
         # 深度提及：出现 3 次以上才算该文档在讲这个目录
         scored = [(v.count(d), k) for k, v in doc_texts.items() if v.count(d) >= 3]
         scored.sort(key=lambda t: (-t[0], t[1]))
-        doc_col = (
-            "<br>".join(f"`{(Path(k).relative_to('doc').as_posix() if k.startswith('doc/') else k)}` ({c})"
-                        for c, k in scored[:3])
-            or "**无**"
-        )
+        # 链接相对 doc/ai/，避免预览把路径解析到不存在的 doc/ai/module-design/
+        doc_bits = []
+        for c, k in scored[:3]:
+            label = Path(k).relative_to("doc").as_posix() if k.startswith("doc/") else k
+            href = f"../{label}" if k.startswith("doc/") else k
+            doc_bits.append(f"[`{label}`]({href}) ({c})")
+        doc_col = "<br>".join(doc_bits) or "**无**"
         if len(scored) > 3:
             doc_col += f"<br>等 {len(scored)} 篇"
 
