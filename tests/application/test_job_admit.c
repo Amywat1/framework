@@ -393,15 +393,39 @@ static void test_start_keeps_queued_mode(void)
     TEST_ASSERT_EQUAL_UINT(1U, order_book_count());
 }
 
-static void test_start_while_active_does_not_generate(void)
+static void test_start_while_active_generates_when_book_empty(void)
 {
+    job_desc_t head;
+
     enter_standby();
     TEST_ASSERT_EQUAL_INT(SW_OK, job_admit_start(TEST_WASH_MODE_A));
     TEST_ASSERT_EQUAL_UINT(0U, order_book_count());
     TEST_ASSERT_EQUAL_UINT(1U, active_jobs_count());
     TEST_ASSERT_EQUAL_INT(SW_ERR_STATE, job_admit_start(TEST_WASH_MODE_B));
-    TEST_ASSERT_EQUAL_UINT(0U, order_book_count());
+    TEST_ASSERT_EQUAL_UINT(1U, order_book_count());
     TEST_ASSERT_EQUAL_INT(1, device_ops_stub_start_count());
+    TEST_ASSERT_EQUAL_INT(SW_OK, order_book_peek_front(&head));
+    TEST_ASSERT_EQUAL_INT(TEST_WASH_MODE_B, head.mode);
+}
+
+static void test_start_while_active_vacancy_generates_and_starts(void)
+{
+    machine_profile_t profile = {
+        .max_active_jobs     = 2U,
+        .max_queued_orders   = 8U,
+        .hold_after_last_job = false,
+    };
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, machine_profile_register(&profile));
+    enter_standby();
+    TEST_ASSERT_EQUAL_INT(SW_OK, job_admit_start(TEST_WASH_MODE_A));
+    TEST_ASSERT_EQUAL_UINT(0U, order_book_count());
+    TEST_ASSERT_EQUAL_UINT(1U, active_jobs_count());
+    TEST_ASSERT_EQUAL_INT(SW_OK, job_admit_start(TEST_WASH_MODE_B));
+    TEST_ASSERT_EQUAL_UINT(0U, order_book_count());
+    TEST_ASSERT_EQUAL_UINT(2U, active_jobs_count());
+    TEST_ASSERT_EQUAL_INT(2, device_ops_stub_start_count());
+    TEST_ASSERT_EQUAL_INT(TEST_WASH_MODE_B, device_ops_stub_last_mode());
 }
 
 static void test_hold_start_does_not_generate(void)
@@ -465,7 +489,10 @@ int main(void)
     WDF_RUN_TEST(test_start_without_order_generates_and_starts, "", "验证无单启动自建并开洗");
     WDF_RUN_TEST(test_start_without_order_not_ready_generates, "", "验证无单且未准入时启动自建一单并拒绝");
     WDF_RUN_TEST(test_start_keeps_queued_mode, "", "验证启动不改已入队订单的套餐");
-    WDF_RUN_TEST(test_start_while_active_does_not_generate, "", "验证在洗且空簿时启动不再自建");
+    WDF_RUN_TEST(test_start_while_active_generates_when_book_empty, "",
+                 "验证在洗且空簿时启动自建并因占用满留在簿中");
+    WDF_RUN_TEST(test_start_while_active_vacancy_generates_and_starts, "",
+                 "验证占用未满时在洗空簿启动自建并立刻开洗");
     WDF_RUN_TEST(test_hold_start_does_not_generate, "", "验证 HOLD 点启动不自建幽灵单");
     WDF_RUN_TEST(test_stopped_start_does_not_generate, "", "验证停机点启动不自建幽灵单");
     WDF_RUN_TEST(test_complete_does_not_start_next, "", "验证作业结束不自动放行下一单");

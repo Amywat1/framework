@@ -69,7 +69,7 @@ typedef struct {
             uint64_t    order_id; /**< 0 表示由订单簿分配；非 0 按号去重 */
         } submit_order;
         struct {
-            wash_mode_t mode; /**< 空簿且无在洗时自建订单用 */
+            wash_mode_t mode; /**< 空簿时自建订单用 */
         } start_wash;
         struct {
             uint64_t order_id;

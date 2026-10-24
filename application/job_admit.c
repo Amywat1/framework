@@ -131,12 +131,12 @@ static sw_err_t admit_locked(void)
     return SW_OK;
 }
 
-/* 调用方须持 s_mu。仅待机/在洗且簿空无在洗时自建，避免 HOLD/停机留下幽灵单。 */
+/* 调用方须持 s_mu。仅可放行且簿空时自建；在洗占用不挡自建，放行仍受占用上限约束。 */
 static sw_err_t generate_if_empty(wash_mode_t mode)
 {
     job_desc_t generated = {0};
 
-    if (!op_mode_can_admit() || (order_book_count() != 0U) || (active_jobs_count() != 0U)) {
+    if (!op_mode_can_admit() || (order_book_count() != 0U)) {
         return SW_OK;
     }
     generated.mode = mode;
