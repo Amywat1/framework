@@ -5,6 +5,7 @@
 
 #include "adapters/outbound/safety/sim/hw_estop_sim.h"
 #include "application/ports/inbound/command/command_port.h"
+#include "application/wash_quota.h"
 #include "application/ports/inbound/safety/alarm_binding_port.h"
 #include "common/event_types.h"
 #include "common/log.h"
@@ -112,7 +113,7 @@ static int check_recover_to_idle(void)
 }
 
 /**
- * @brief  下单后由放行核按桩准入启动作业
+ * @brief  下单后再发开洗，由放行核按桩准入启动作业
  */
 static int check_submit_and_admit(void)
 {
@@ -133,6 +134,19 @@ static int check_submit_and_admit(void)
     }
     if (receipt.status != DEV_CMD_STATUS_ACCEPTED) {
         fprintf(stderr, "[Demo] SUBMIT_ORDER rejected status=%d\n", (int)receipt.status);
+        return 1;
+    }
+
+    /* 演示无云链路，视为可监控，避免离线 0 次拦住开洗。 */
+    wash_quota_set_monitorable(true);
+    cmd     = dev_cmd_make_start_wash();
+    receipt = (dev_cmd_receipt_t){0};
+    if (ops->submit_sync(&cmd, &receipt, 2000U) != SW_OK) {
+        fprintf(stderr, "[Demo] START_WASH submit failed\n");
+        return 1;
+    }
+    if (receipt.status != DEV_CMD_STATUS_ACCEPTED) {
+        fprintf(stderr, "[Demo] START_WASH rejected status=%d\n", (int)receipt.status);
         return 1;
     }
 

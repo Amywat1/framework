@@ -4,6 +4,7 @@
  */
 
 #include "application/job_admit.h"
+#include "application/wash_quota.h"
 #include "application/side_effect_router.h"
 #include "common/sw_error.h"
 #include "common/time_util.h"
@@ -52,6 +53,7 @@ void setUp(void)
     TEST_ASSERT_EQUAL_INT(SW_OK, operational_mode_init());
     machine_profile_reset_for_test();
     TEST_ASSERT_EQUAL_INT(SW_OK, job_admit_init());
+    wash_quota_reset_for_test();
     device_ops_stub_reset();
     memset(&s_ops, 0, sizeof(s_ops));
     device_ops_stub_bind(&s_ops);
@@ -505,6 +507,39 @@ static void test_complete_does_not_start_next(void)
     TEST_ASSERT_EQUAL_UINT(0U, active_jobs_count());
 }
 
+static void test_offline_quota_exhausted_keeps_queue(void)
+{
+    wash_quota_info_t info = {0};
+
+    enter_standby();
+    wash_quota_set_monitorable(false);
+    TEST_ASSERT_EQUAL_INT(SW_OK, submit_mode(TEST_WASH_MODE_A));
+    TEST_ASSERT_EQUAL_INT(SW_ERR_STATE, job_admit_start());
+    TEST_ASSERT_EQUAL_INT(0, device_ops_stub_start_count());
+    TEST_ASSERT_EQUAL_UINT(1U, order_book_count());
+    wash_quota_get_info(&info);
+    TEST_ASSERT_EQUAL_UINT8(0U, info.remaining);
+}
+
+static void test_offline_quota_consumes_only_on_start_ok(void)
+{
+    wash_quota_info_t info = {0};
+
+    enter_standby();
+    wash_quota_set_monitorable(false);
+    TEST_ASSERT_EQUAL_INT(SW_OK, wash_quota_apply_grant(2U, 1U));
+    device_ops_stub_set_start_result(SW_ERR_BUSY);
+    TEST_ASSERT_EQUAL_INT(SW_OK, submit_mode(TEST_WASH_MODE_A));
+    TEST_ASSERT_EQUAL_INT(SW_ERR_STATE, job_admit_start());
+    wash_quota_get_info(&info);
+    TEST_ASSERT_EQUAL_UINT8(2U, info.remaining);
+    device_ops_stub_set_start_result(SW_OK);
+    TEST_ASSERT_EQUAL_INT(SW_OK, job_admit_start());
+    wash_quota_get_info(&info);
+    TEST_ASSERT_EQUAL_UINT8(1U, info.remaining);
+    TEST_ASSERT_EQUAL_INT(2, device_ops_stub_start_count());
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -538,5 +573,9 @@ int main(void)
     WDF_RUN_TEST(test_hold_start_fails, "", "验证 HOLD 点启动失败");
     WDF_RUN_TEST(test_stopped_start_fails, "", "验证停机点启动失败");
     WDF_RUN_TEST(test_complete_does_not_start_next, "", "验证作业结束不自动放行下一单");
+    WDF_RUN_TEST(test_offline_quota_exhausted_keeps_queue, "QUOTA-05",
+                 "验证离线无次数时启动失败且订单保留");
+    WDF_RUN_TEST(test_offline_quota_consumes_only_on_start_ok, "QUOTA-02",
+                 "验证离线次数仅在 start_job 成功后扣减");
     return UNITY_END();
 }

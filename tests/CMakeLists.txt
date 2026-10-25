@@ -8,6 +8,9 @@ set(WDF_JOB_SRC
     ${WDF_ROOT}/domain/job/order_book.c
     ${WDF_ROOT}/domain/job/active_jobs.c
     ${WDF_ROOT}/application/job_admit.c
+    ${WDF_ROOT}/application/wash_quota.c
+    ${WDF_ROOT}/domain/ports/outbound/storage/param_kv.c
+    ${WDF_ROOT}/runtime/ports/port_registry_cloud.c
 )
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
 
@@ -512,6 +515,30 @@ add_unit_test(test_order_book
     ${WDF_ROOT}/common/time_util.c
 )
 
+add_unit_test(test_wash_quota
+    ${CMAKE_CURRENT_SOURCE_DIR}/application/test_wash_quota.c
+    ${WDF_ROOT}/application/wash_quota.c
+    ${WDF_ROOT}/domain/ports/outbound/storage/param_kv.c
+    ${WDF_ROOT}/runtime/ports/port_registry_cloud.c
+    ${WDF_ROOT}/common/log.c
+    ${WDF_ROOT}/common/sw_mutex.c
+)
+
+add_unit_test(test_wash_quota_persist
+    ${CMAKE_CURRENT_SOURCE_DIR}/application/test_wash_quota_persist.c
+    ${WDF_ROOT}/application/wash_quota.c
+    ${WDF_ROOT}/domain/ports/outbound/storage/param_kv.c
+    ${WDF_ROOT}/adapters/outbound/storage/json/json_param_store.c
+    ${WDF_ROOT}/runtime/ports/port_registry_cloud.c
+    ${WDF_ROOT}/common/log.c
+    ${WDF_ROOT}/common/sw_mutex.c
+    ${WDF_ROOT}/common/util_crc.c
+    ${WDF_ROOT}/third_party/cJSON/cJSON.c
+)
+target_compile_definitions(test_wash_quota_persist PRIVATE
+    PARAM_STORE_JSON_FILE_PATH="${CMAKE_BINARY_DIR}/tests/wash_quota_persist.json"
+)
+
 add_unit_test(test_job_admit
     ${CMAKE_CURRENT_SOURCE_DIR}/application/test_job_admit.c
     ${WDF_ROOT}/application/side_effect_router.c
@@ -674,7 +701,6 @@ add_unit_test(test_telemetry_projection
     ${WDF_ROOT}/domain/op_mode/operational_mode.c
     ${WDF_JOB_SRC}
     ${WDF_ROOT}/domain/safety/alarm_registry/alarm_registry.c
-    ${WDF_ROOT}/runtime/ports/port_registry_cloud.c
     ${WDF_ROOT}/runtime/ports/port_registry_infra.c
     ${WDF_ROOT}/runtime/ports/port_registry_safety.c
     ${WDF_SAFETY_HOLD_SRC}
@@ -788,6 +814,7 @@ add_unit_test(test_periodic_deadline
     ${WDF_ROOT}/runtime/scheduler/thread_registry.c
     ${WDF_ROOT}/common/log.c
     ${WDF_ROOT}/common/sw_mutex.c
+    ${WDF_ROOT}/common/time_util.c
 )
 
 add_unit_test(test_control_loop
@@ -797,6 +824,7 @@ add_unit_test(test_control_loop
     ${WDF_ROOT}/runtime/scheduler/thread_registry.c
     ${WDF_ROOT}/common/log.c
     ${WDF_ROOT}/common/sw_mutex.c
+    ${WDF_ROOT}/common/time_util.c
 )
 
 add_unit_test(test_scheduler
@@ -806,6 +834,7 @@ add_unit_test(test_scheduler
     ${WDF_ROOT}/runtime/scheduler/periodic_task.c
     ${WDF_ROOT}/common/log.c
     ${WDF_ROOT}/common/sw_mutex.c
+    ${WDF_ROOT}/common/time_util.c
 )
 
 add_unit_test(test_param_kv

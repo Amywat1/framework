@@ -8,6 +8,7 @@
 #include "application/telemetry_projection.h"
 
 #include "application/job_admit.h"
+#include "application/wash_quota.h"
 #include "application/ports/outbound/cloud/link/cloud_link_port.h"
 #include "common/event_types.h"
 #include "common/log.h"
@@ -120,7 +121,17 @@ static void sync_cloud_connected(const event_t *evt)
     if ((ops != NULL) && (ops->is_online != NULL)) {
         online = ops->is_online();
     }
+    /* 连通视为可监控；只改标志，次数授权模块不会因此回满。 */
+    wash_quota_set_monitorable(online);
     device_snapshot_set_cloud_connected(online);
+}
+
+static void sync_wash_quota(void)
+{
+    wash_quota_info_t info = {0};
+
+    wash_quota_get_info(&info);
+    device_snapshot_set_wash_quota(info.monitorable, info.remaining, info.grant_serial);
 }
 
 void telemetry_projection_sync_all(void)
@@ -128,6 +139,7 @@ void telemetry_projection_sync_all(void)
     sync_op_snapshot(NULL);
     refresh_safety_snapshot(NULL);
     sync_cloud_connected(NULL);
+    sync_wash_quota();
     (void)sync_job_snapshot();
 }
 

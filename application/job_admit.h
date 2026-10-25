@@ -4,6 +4,8 @@
  *
  * @note    订单簿与占用表的写入只经本模块，统一在放行锁下进行；
  *          start_job 也在锁内调用，保证放行与下单/取消/全停/清障互斥。
+ *          开洗另受 wash_quota 约束：可监控则放行不扣次；离线须有剩余次数，
+ *          且只在 start_job 成功后立即扣减。
  */
 
 #ifndef APPLICATION_JOB_ADMIT_H

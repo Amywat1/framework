@@ -5,6 +5,7 @@
 
 #include "application/command_gateway.h"
 #include "application/job_admit.h"
+#include "application/wash_quota.h"
 #include "application/ports/inbound/command/command_port.h"
 #include "common/sw_error.h"
 #include "common/trace_context.h"
@@ -113,6 +114,7 @@ void setUp(void)
     device_ops_stub_bind(&s_ops);
     device_ops_register(&s_ops);
     (void)job_admit_init();
+    wash_quota_reset_for_test();
     s_handled_command_id     = 0U;
     s_handled_correlation_id = 0U;
     s_stop_all_outputs_count = 0;

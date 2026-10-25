@@ -5,6 +5,7 @@
 
 #include "application/bridges/op_mode_bridge.h"
 #include "application/job_admit.h"
+#include "application/wash_quota.h"
 #include "common/event_types.h"
 #include "common/sw_error.h"
 #include "common/time_util.h"
@@ -104,6 +105,7 @@ static void test_hw_estop_on_enters_stopped(void)
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, operational_mode_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, job_admit_init());
+    wash_quota_reset_for_test();
     TEST_ASSERT_EQUAL_INT(SW_OK, op_mode_bridge_init());
     setup_standby();
     queue_one_order();
@@ -121,6 +123,7 @@ static void test_job_started_event_does_not_enter_active(void)
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, operational_mode_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, job_admit_init());
+    wash_quota_reset_for_test();
     TEST_ASSERT_EQUAL_INT(SW_OK, op_mode_bridge_init());
     setup_standby();
     publish_and_wait(EVT_JOB_STARTED, 0U);
@@ -134,6 +137,7 @@ static void test_job_completed_enters_hold(void)
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, operational_mode_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, job_admit_init());
+    wash_quota_reset_for_test();
     TEST_ASSERT_EQUAL_INT(SW_OK, op_mode_bridge_init());
     enter_active();
     publish_and_wait(EVT_JOB_COMPLETED, 1U);
@@ -147,6 +151,7 @@ static void test_area_cleared_returns_standby(void)
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, operational_mode_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, job_admit_init());
+    wash_quota_reset_for_test();
     TEST_ASSERT_EQUAL_INT(SW_OK, op_mode_bridge_init());
     enter_active();
     publish_and_wait(EVT_JOB_COMPLETED, 1U);
@@ -164,6 +169,7 @@ static void test_job_aborted_requests_clear(void)
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, operational_mode_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, job_admit_init());
+    wash_quota_reset_for_test();
     TEST_ASSERT_EQUAL_INT(SW_OK, op_mode_bridge_init());
     device_ops_stub_reset();
     memset(&ops, 0, sizeof(ops));
@@ -289,6 +295,7 @@ static void test_blocking_alarm_from_standby_clears_book(void)
     TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_load_catalog(catalog, 1U));
     TEST_ASSERT_EQUAL_INT(SW_OK, operational_mode_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, job_admit_init());
+    wash_quota_reset_for_test();
     TEST_ASSERT_EQUAL_INT(SW_OK, op_mode_bridge_init());
     setup_standby();
     queue_one_order();
@@ -307,6 +314,7 @@ static void test_recovery_failed_clears_book(void)
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, operational_mode_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, job_admit_init());
+    wash_quota_reset_for_test();
     TEST_ASSERT_EQUAL_INT(SW_OK, op_mode_bridge_init());
     (void)op_mode_handle_command(&recover);
     TEST_ASSERT_EQUAL_INT(OP_MODE_RECOVERING, op_mode_get_current());
@@ -325,6 +333,7 @@ static void test_clear_done_clears_queued(void)
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, operational_mode_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, job_admit_init());
+    wash_quota_reset_for_test();
     TEST_ASSERT_EQUAL_INT(SW_OK, op_mode_bridge_init());
     setup_standby();
     queue_one_order();

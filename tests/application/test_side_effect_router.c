@@ -4,6 +4,7 @@
  */
 
 #include "application/job_admit.h"
+#include "application/wash_quota.h"
 #include "application/side_effect_router.h"
 #include "common/sw_error.h"
 #include "common/time_util.h"
@@ -58,6 +59,7 @@ void setUp(void)
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, operational_mode_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, job_admit_init());
+    wash_quota_reset_for_test();
     {
         dev_cmd_t recover = dev_cmd_make_simple(DEV_CMD_RECOVER);
 

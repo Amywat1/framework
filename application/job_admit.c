@@ -4,6 +4,7 @@
  */
 
 #include "application/job_admit.h"
+#include "application/wash_quota.h"
 
 #include "common/log.h"
 #include "common/sw_mutex.h"
@@ -105,26 +106,39 @@ static sw_err_t admit_locked(void)
         return SW_OK;
     }
 
-    job.job_id = alloc_job_id();
-    ret        = active_jobs_add(&job);
-    if (ret != SW_OK) {
-        return ret;
-    }
+    {
+        bool need_consume = false;
 
-    ret = ops->start_job(&job);
-    if (ret != SW_OK) {
-        (void)active_jobs_remove(job.job_id);
-        if (ret == SW_ERR_PARAM) {
-            (void)order_book_cancel(job.order_id);
-            LOG_ERROR("job_admit: start_job rejected, drop order=%llu mode=%u",
-                      (unsigned long long)job.order_id,
-                      (unsigned)job.mode);
-        } else {
-            LOG_ERROR("job_admit: start_job failed ret=%d order=%llu, keep queued",
-                      (int)ret,
-                      (unsigned long long)job.order_id);
+        if (wash_quota_check_start(&need_consume) != SW_OK) {
+            LOG_WARN("job_admit: wash quota denied, keep queued");
+            return SW_OK;
         }
-        return SW_OK;
+
+        job.job_id = alloc_job_id();
+        ret        = active_jobs_add(&job);
+        if (ret != SW_OK) {
+            return ret;
+        }
+
+        ret = ops->start_job(&job);
+        if (ret != SW_OK) {
+            (void)active_jobs_remove(job.job_id);
+            if (ret == SW_ERR_PARAM) {
+                (void)order_book_cancel(job.order_id);
+                LOG_ERROR("job_admit: start_job rejected, drop order=%llu mode=%u",
+                          (unsigned long long)job.order_id,
+                          (unsigned)job.mode);
+            } else {
+                LOG_ERROR("job_admit: start_job failed ret=%d order=%llu, keep queued",
+                          (int)ret,
+                          (unsigned long long)job.order_id);
+            }
+            return SW_OK;
+        }
+
+        if (need_consume) {
+            (void)wash_quota_consume_one();
+        }
     }
 
     (void)order_book_cancel(job.order_id);
@@ -138,9 +152,10 @@ sw_err_t job_admit_init(void)
     machine_profile_init();
     order_book_init();
     active_jobs_init();
-    s_next_job_id     = 1U;
+    s_next_job_id    = 1U;
     s_last_submit_id = 0U;
     admit_unlock();
+    (void)wash_quota_init();
     LOG_INFO("job_admit: init ok");
     return SW_OK;
 }

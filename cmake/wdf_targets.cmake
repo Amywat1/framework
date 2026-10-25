@@ -225,6 +225,7 @@ _wdf_add_interface_lib(wdf_application
     SOURCES
         application/command_gateway.c
         application/job_admit.c
+        application/wash_quota.c
         application/side_effect_router.c
         application/telemetry_projection.c
         application/orchestrators/recovery_coordinator.c
