@@ -3,7 +3,8 @@
  * @brief   离线开洗次数授权：可监控则放行，离线只靠平台下发的剩余次数
  *
  * @note    不用时间宽限。云连接或项目把「可监控」置位时不增加次数。
- *          只有 wash_quota_apply_grant() 且序号严格递增才能改写剩余次数。
+ *          平台与现场只写 remaining：wash_quota_set_remaining() 由本机自增序号。
+ *          apply_grant() 仍要求序号严格递增，供测试与显式带序号的调用。
  *          remaining / grant_serial 经参数存储落盘，上电由 init 恢复；可监控不落盘。
  */
 
@@ -63,6 +64,17 @@ bool wash_quota_is_monitorable(void);
  * @retval SW_ERR_STORAGE 已注册存储但落盘失败（内存回退，重启仍见旧值）
  */
 sw_err_t wash_quota_apply_grant(uint8_t remaining, uint32_t serial);
+
+/**
+ * @brief  下发离线剩余次数（序号本机自增）
+ * @param  remaining  新的剩余次数，0..WASH_QUOTA_REMAINING_MAX
+ * @retval SW_OK          已写入或与当前值相同；有存储时已落盘
+ * @retval SW_ERR_STATE   内部序号已到上限，无法再自增
+ * @retval SW_ERR_STORAGE 已注册存储但落盘失败（内存回退）
+ *
+ * @note   与当前剩余相同则不改序号、不落盘。连通不会走本接口回满。
+ */
+sw_err_t wash_quota_set_remaining(uint8_t remaining);
 
 /**
  * @brief  判断当前能否开洗

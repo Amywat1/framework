@@ -10,6 +10,7 @@
 #include "domain/ports/outbound/storage/param_kv.h"
 
 #include <pthread.h>
+#include <stdint.h>
 
 static pthread_mutex_t s_mu;
 static pthread_once_t  s_mu_once = PTHREAD_ONCE_INIT;
@@ -138,6 +139,20 @@ sw_err_t wash_quota_apply_grant(uint8_t remaining, uint32_t serial)
              (unsigned)remaining,
              (unsigned)serial);
     return SW_OK;
+}
+
+sw_err_t wash_quota_set_remaining(uint8_t remaining)
+{
+    wash_quota_info_t info = {0};
+
+    wash_quota_get_info(&info);
+    if (info.remaining == remaining) {
+        return SW_OK;
+    }
+    if (info.grant_serial == UINT32_MAX) {
+        return SW_ERR_STATE;
+    }
+    return wash_quota_apply_grant(remaining, info.grant_serial + 1U);
 }
 
 sw_err_t wash_quota_check_start(bool *need_consume)

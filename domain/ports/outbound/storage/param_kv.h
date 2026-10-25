@@ -24,7 +24,7 @@ extern "C" {
  * ------------------------------------------------------------------------- */
 #define PARAM_KEY_WASH_MODE "washMode" /* 洗车模式（wash_mode_t）*/
 #define PARAM_KEY_WASH_QUOTA_REMAINING "washQuotaRemaining" /* 离线剩余开洗次数 */
-#define PARAM_KEY_WASH_QUOTA_SERIAL "washQuotaSerial"       /* 最近一次平台授权序号 */
+#define PARAM_KEY_WASH_QUOTA_SERIAL "washQuotaSerial"       /* 本机自增的授权序号 */
 /* 待规划：洗车单量（washCount）*/
 
 /* -------------------------------------------------------------------------
