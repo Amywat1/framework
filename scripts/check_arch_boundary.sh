@@ -538,6 +538,7 @@ NON_RT_FILES=(
     "application/wash_quota.c"                            # 离线次数授权；急停 cutout 不取此锁
     "application/pending_start.c"                         # 延迟开洗门锁；急停 cutout 不取此锁
     "application/lifetime.c"                              # 保养通道表；急停 cutout 不取此锁
+    "application/comm_watchdog.c"                         # 通讯心跳轮询；急停 cutout 不取此锁
     "domain/job/order_book.c"                             # 内存订单簿
     "domain/job/active_jobs.c"                            # 在洗占用表
     "domain/job/machine_profile.c"                        # bind 期 profile
