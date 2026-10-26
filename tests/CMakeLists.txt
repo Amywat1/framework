@@ -526,6 +526,11 @@ add_unit_test(test_command_submit
     ${WDF_ROOT}/application/command_submit.c
 )
 
+add_unit_test(test_lifetime
+    ${CMAKE_CURRENT_SOURCE_DIR}/application/test_lifetime.c
+    ${WDF_ROOT}/application/lifetime.c
+)
+
 add_unit_test(test_pending_start
     ${CMAKE_CURRENT_SOURCE_DIR}/application/test_pending_start.c
     ${WDF_ROOT}/application/pending_start.c
