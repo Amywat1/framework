@@ -531,6 +531,11 @@ add_unit_test(test_comm_watchdog
     ${WDF_ROOT}/application/comm_watchdog.c
 )
 
+add_unit_test(test_wash_catalog
+    ${CMAKE_CURRENT_SOURCE_DIR}/application/test_wash_catalog.c
+    ${WDF_ROOT}/application/wash_catalog.c
+)
+
 add_unit_test(test_lifetime
     ${CMAKE_CURRENT_SOURCE_DIR}/application/test_lifetime.c
     ${WDF_ROOT}/application/lifetime.c
