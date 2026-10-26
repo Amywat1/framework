@@ -225,6 +225,7 @@ _wdf_add_interface_lib(wdf_program_engine
 _wdf_add_interface_lib(wdf_application
     SOURCES
         application/command_gateway.c
+        application/command_submit.c
         application/job_admit.c
         application/pending_start.c
         application/wash_quota.c
