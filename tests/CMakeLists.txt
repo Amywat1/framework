@@ -521,6 +521,11 @@ add_unit_test(test_order_book
     ${WDF_ROOT}/common/time_util.c
 )
 
+add_unit_test(test_pending_start
+    ${CMAKE_CURRENT_SOURCE_DIR}/application/test_pending_start.c
+    ${WDF_ROOT}/application/pending_start.c
+)
+
 add_unit_test(test_wash_quota
     ${CMAKE_CURRENT_SOURCE_DIR}/application/test_wash_quota.c
     ${WDF_ROOT}/application/wash_quota.c

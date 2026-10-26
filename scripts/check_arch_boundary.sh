@@ -536,6 +536,7 @@ NON_RT_FILES=(
     "application/command_gateway.c"                       # 命令提交，非急停路径
     "application/job_admit.c"                             # 放行核；急停 cutout 不取此锁
     "application/wash_quota.c"                            # 离线次数授权；急停 cutout 不取此锁
+    "application/pending_start.c"                         # 延迟开洗门锁；急停 cutout 不取此锁
     "domain/job/order_book.c"                             # 内存订单簿
     "domain/job/active_jobs.c"                            # 在洗占用表
     "domain/job/machine_profile.c"                        # bind 期 profile
