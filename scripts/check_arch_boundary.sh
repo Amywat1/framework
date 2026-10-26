@@ -929,6 +929,7 @@ SNAPSHOT_WRITE_FNS=(
     device_snapshot_update_safety
     device_snapshot_set_wash_mode
     device_snapshot_set_cloud_connected
+    device_snapshot_update_occupancy
     device_snapshot_reset_for_test
 )
 

@@ -226,6 +226,11 @@ add_unit_test(test_device_ops_port
     ${WDF_ROOT}/common/sw_mutex.c
 )
 
+add_unit_test(test_entry_occupancy_port
+    ${CMAKE_CURRENT_SOURCE_DIR}/ports/test_entry_occupancy_port.c
+    ${WDF_ROOT}/domain/ports/outbound/device/entry_occupancy_port.c
+)
+
 add_unit_test(test_op_mode_alarm_port
     ${CMAKE_CURRENT_SOURCE_DIR}/ports/test_op_mode_alarm_port.c
     ${WDF_ROOT}/runtime/ports/port_registry_safety.c
@@ -264,6 +269,7 @@ add_unit_test(test_port_contract
     ${WDF_ROOT}/runtime/ports/port_registry_infra.c
     ${WDF_ROOT}/runtime/ports/port_registry_cloud.c
     ${WDF_ROOT}/domain/ports/outbound/storage/engine_program_loader_port.c
+    ${WDF_ROOT}/domain/ports/outbound/device/entry_occupancy_port.c
     ${WDF_ROOT}/common/log.c
     ${WDF_ROOT}/common/sw_mutex.c
 )
@@ -697,6 +703,7 @@ add_unit_test(test_recovery_emergency
 add_unit_test(test_telemetry_projection
     ${CMAKE_CURRENT_SOURCE_DIR}/application/test_telemetry_projection.c
     ${WDF_ROOT}/application/telemetry_projection.c
+    ${WDF_ROOT}/domain/ports/outbound/device/entry_occupancy_port.c
     ${WDF_ROOT}/domain/telemetry/device_snapshot.c
     ${WDF_ROOT}/domain/op_mode/operational_mode.c
     ${WDF_JOB_SRC}

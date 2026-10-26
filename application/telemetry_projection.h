@@ -1,6 +1,6 @@
 /**
  * @file    telemetry_projection.h
- * @brief   设备遥测投影初始化（合并三子域投影）
+ * @brief   设备遥测投影初始化（运营、安全、作业、连通、入场占用）
  * @author  HUWANGWEI
  * @date    2026-07-14
  */

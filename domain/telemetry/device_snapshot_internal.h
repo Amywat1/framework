@@ -46,6 +46,11 @@ void device_snapshot_set_cloud_connected(bool connected);
 void device_snapshot_set_wash_quota(bool monitorable, uint8_t remaining, uint32_t grant_serial);
 
 /**
+ * @brief  更新入场占用子域
+ */
+void device_snapshot_update_occupancy(const entry_occupancy_t *occupancy);
+
+/**
  * @brief  清空快照全部子域（仅测试使用）
  *
  * @note   本模块没有 init 入口，快照靠加载期零初始化，进程内无从复位。

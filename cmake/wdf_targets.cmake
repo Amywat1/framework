@@ -131,6 +131,7 @@ _wdf_add_interface_lib(wdf_ports
         domain/ports/outbound/program_engine/engine_environment_port.c
         domain/ports/outbound/storage/engine_program_loader_port.c
         domain/ports/outbound/storage/param_kv.c
+        domain/ports/outbound/device/entry_occupancy_port.c
     DEPENDS
         wdf_common
 )

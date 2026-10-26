@@ -28,23 +28,24 @@ extern "C" {
 /**
  * @brief 可声明为必需的端口位标志
  *
- * 位宽 32，当前用 12 位；位 8、9 曾是独立 report/property 端口，已并入
+ * 位宽 32，当前用 13 位；位 8、9 曾是独立 report/property 端口，已并入
  * CLOUD_LINK，不再暴露也不得复用，以免项目侧旧掩码静默改义。
  * 新增端口在末尾追加，不改动既有位值。
  */
 typedef enum {
-    PORT_REQ_HAL_IO         = (1U << 0),  /**< 数字 IO */
-    PORT_REQ_HAL_SENSOR     = (1U << 1),  /**< 模拟量/传感器 */
-    PORT_REQ_HAL_VFD        = (1U << 2),  /**< 变频器 */
-    PORT_REQ_HAL_VOICE      = (1U << 3),  /**< 语音播报 */
-    PORT_REQ_DEVICE_COMMAND = (1U << 4),  /**< 设备命令入站（由 command_gateway 注册）*/
-    PORT_REQ_ALARM_BINDING  = (1U << 5),  /**< 报警触发绑定（由 alarm_registry 注册）*/
-    PORT_REQ_DEVICE_OPS     = (1U << 6),  /**< 整机运行时操作 */
-    PORT_REQ_CLOUD_LINK     = (1U << 7),  /**< 云连接：is_online / publish_properties / set_recv_handler */
-    PORT_REQ_DEPLOY_STORE   = (1U << 10), /**< 部署配置存储 */
-    PORT_REQ_PARAM_STORE    = (1U << 11), /**< 运行参数存储 */
-    PORT_REQ_PROGRAM_LOADER = (1U << 12), /**< 洗车方案加载 */
-    PORT_REQ_SAFETY         = (1U << 13), /**< 安全输出与急停（cutout / estop / deferred stop）*/
+    PORT_REQ_HAL_IO             = (1U << 0),  /**< 数字 IO */
+    PORT_REQ_HAL_SENSOR         = (1U << 1),  /**< 模拟量/传感器 */
+    PORT_REQ_HAL_VFD            = (1U << 2),  /**< 变频器 */
+    PORT_REQ_HAL_VOICE          = (1U << 3),  /**< 语音播报 */
+    PORT_REQ_DEVICE_COMMAND     = (1U << 4),  /**< 设备命令入站（由 command_gateway 注册）*/
+    PORT_REQ_ALARM_BINDING      = (1U << 5),  /**< 报警触发绑定（由 alarm_registry 注册）*/
+    PORT_REQ_DEVICE_OPS         = (1U << 6),  /**< 整机运行时操作 */
+    PORT_REQ_CLOUD_LINK         = (1U << 7),  /**< 云连接：is_online / publish_properties / set_recv_handler */
+    PORT_REQ_DEPLOY_STORE       = (1U << 10), /**< 部署配置存储 */
+    PORT_REQ_PARAM_STORE        = (1U << 11), /**< 运行参数存储 */
+    PORT_REQ_PROGRAM_LOADER     = (1U << 12), /**< 洗车方案加载 */
+    PORT_REQ_SAFETY             = (1U << 13), /**< 安全输出与急停（cutout / estop / deferred stop）*/
+    PORT_REQ_ENTRY_OCCUPANCY    = (1U << 14), /**< 入场占用查询（可选；灯/延迟开洗/视觉应声明）*/
 } port_requirement_t;
 
 /**

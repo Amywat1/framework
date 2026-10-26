@@ -34,6 +34,10 @@ OUTBOUND_C_REGISTERED = {
         "helper",
         "参数 KV 便利层，与 param_store 同目录",
     ),
+    "domain/ports/outbound/device/entry_occupancy_port.c": (
+        "register_stub",
+        "入场占用口单例注册与查询转发",
+    ),
 }
 ALLOWED_C_PURPOSES = ("register_stub", "helper")
 

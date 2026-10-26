@@ -71,6 +71,17 @@ void device_snapshot_set_wash_quota(bool monitorable, uint8_t remaining, uint32_
     pthread_mutex_unlock(&s_mutex);
 }
 
+void device_snapshot_update_occupancy(const entry_occupancy_t *occupancy)
+{
+    if (occupancy == NULL) {
+        return;
+    }
+
+    pthread_mutex_lock(&s_mutex);
+    s_state.occupancy = *occupancy;
+    pthread_mutex_unlock(&s_mutex);
+}
+
 device_snapshot_t device_snapshot_get(void)
 {
     device_snapshot_t out;

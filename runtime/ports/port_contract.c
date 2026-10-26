@@ -12,6 +12,7 @@
 #include "application/ports/outbound/cloud/link/cloud_link_port.h"
 #include "common/log.h"
 #include "domain/ports/outbound/device/device_ops_port.h"
+#include "domain/ports/outbound/device/entry_occupancy_port.h"
 #include "domain/ports/outbound/hal/hal_io_port.h"
 #include "domain/ports/outbound/hal/hal_sensor_port.h"
 #include "domain/ports/outbound/hal/hal_vfd_port.h"
@@ -84,6 +85,10 @@ static bool safety_present(void)
 {
     return safety_port_get_ops() != NULL;
 }
+static bool entry_occupancy_present(void)
+{
+    return entry_occupancy_get_ops() != NULL;
+}
 
 /* 表驱动：新增端口只在此追加一行，校验逻辑本身不变 */
 static const port_contract_entry_t k_entries[] = {
@@ -98,7 +103,8 @@ static const port_contract_entry_t k_entries[] = {
     {PORT_REQ_DEPLOY_STORE,   "deploy_store",          deploy_store_present  },
     {PORT_REQ_PARAM_STORE,    "param_store",           param_store_present   },
     {PORT_REQ_PROGRAM_LOADER, "engine_program_loader", program_loader_present},
-    {PORT_REQ_SAFETY,         "safety",                safety_present        },
+    {PORT_REQ_SAFETY,          "safety",                safety_present           },
+    {PORT_REQ_ENTRY_OCCUPANCY, "entry_occupancy",       entry_occupancy_present  },
 };
 
 #define PORT_CONTRACT_ENTRY_COUNT (sizeof(k_entries) / sizeof(k_entries[0]))

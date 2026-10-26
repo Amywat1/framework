@@ -12,6 +12,7 @@
 extern "C" {
 #endif
 
+#include "domain/job/entry_occupancy.h"
 #include "domain/job/job_types.h"
 #include "domain/op_mode/op_mode_types.h"
 #include "domain/safety/model/alarm_types.h"
@@ -101,6 +102,7 @@ typedef struct {
     safety_snapshot_t       safety;
     wash_snapshot_t         wash;
     connectivity_snapshot_t connectivity;
+    entry_occupancy_t       occupancy; /**< 入场占用；未注册时 available 为假 */
 } device_snapshot_t;
 
 /**

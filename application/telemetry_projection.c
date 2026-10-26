@@ -17,6 +17,7 @@
 #include "domain/job/machine_profile.h"
 #include "domain/job/order_book.h"
 #include "domain/op_mode/operational_mode.h"
+#include "domain/ports/outbound/device/entry_occupancy_port.h"
 #include "domain/ports/outbound/safety/safety_port.h"
 #include "domain/safety/alarm_registry/alarm_registry.h"
 #include "domain/telemetry/device_snapshot_internal.h"
@@ -134,6 +135,13 @@ static void sync_wash_quota(void)
     device_snapshot_set_wash_quota(info.monitorable, info.remaining, info.grant_serial);
 }
 
+static void sync_occupancy_snapshot(void)
+{
+    entry_occupancy_t occ = entry_occupancy_get();
+
+    device_snapshot_update_occupancy(&occ);
+}
+
 void telemetry_projection_sync_all(void)
 {
     sync_op_snapshot(NULL);
@@ -141,6 +149,7 @@ void telemetry_projection_sync_all(void)
     sync_cloud_connected(NULL);
     sync_wash_quota();
     (void)sync_job_snapshot();
+    sync_occupancy_snapshot();
 }
 
 static void reconcile_tick(void *ctx)

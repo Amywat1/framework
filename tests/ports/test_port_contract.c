@@ -8,6 +8,7 @@
 #include "application/ports/inbound/command/command_port.h"
 #include "application/ports/outbound/cloud/link/cloud_link_port.h"
 #include "domain/ports/outbound/device/device_ops_port.h"
+#include "domain/ports/outbound/device/entry_occupancy_port.h"
 #include "domain/ports/outbound/hal/hal_io_port.h"
 #include "domain/ports/outbound/hal/hal_voice_port.h"
 #include "runtime/ports/port_contract.h"
@@ -64,6 +65,19 @@ static const device_command_port_ops_t s_cmd_ops = {
 
 static const device_ops_t s_device_ops = {0};
 
+static entry_occupancy_t fake_occupancy_get(void)
+{
+    entry_occupancy_t view;
+
+    view.available = false;
+    view.phase     = ENTRY_OCC_READY;
+    return view;
+}
+
+static const entry_occupancy_ops_t s_occ_ops = {
+    .get = fake_occupancy_get,
+};
+
 static bool fake_cloud_online(void)
 {
     return true;
@@ -90,6 +104,7 @@ void setUp(void)
     port_registry_hal_reset();
     port_registry_infra_reset();
     port_registry_cloud_reset();
+    TEST_ASSERT_EQUAL_INT(SW_OK, entry_occupancy_register(NULL));
 }
 
 void tearDown(void)
@@ -97,6 +112,7 @@ void tearDown(void)
     port_registry_hal_reset();
     port_registry_infra_reset();
     port_registry_cloud_reset();
+    (void)entry_occupancy_register(NULL);
 }
 
 /* 未声明任何必需端口时直接通过，不因端口全空而失败 */
@@ -167,6 +183,14 @@ static void test_name_lookup(void)
     TEST_ASSERT_EQUAL_STRING("unknown", port_contract_name((port_requirement_t)(1U << 30)));
     TEST_ASSERT_EQUAL_STRING("cloud_link", port_contract_name(PORT_REQ_CLOUD_LINK));
     TEST_ASSERT_EQUAL_STRING("unknown", port_contract_name((port_requirement_t)(1U << 8)));
+    TEST_ASSERT_EQUAL_STRING("entry_occupancy", port_contract_name(PORT_REQ_ENTRY_OCCUPANCY));
+}
+
+static void test_entry_occupancy_requirement(void)
+{
+    TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_INIT, port_contract_validate(PORT_REQ_ENTRY_OCCUPANCY));
+    TEST_ASSERT_EQUAL_INT(SW_OK, entry_occupancy_register(&s_occ_ops));
+    TEST_ASSERT_EQUAL_INT(SW_OK, port_contract_validate(PORT_REQ_ENTRY_OCCUPANCY));
 }
 
 /* CLOUD_LINK 已合并原 report/property：只登记空表不算就位 */
@@ -193,5 +217,6 @@ int main(void)
     WDF_RUN_TEST(test_unknown_bits_ignored, "", "验证未知位被忽略");
     WDF_RUN_TEST(test_name_lookup, "", "验证名称查询");
     WDF_RUN_TEST(test_cloud_link_requires_property_ops, "", "验证云链路要求属性上报与下行指针");
+    WDF_RUN_TEST(test_entry_occupancy_requirement, "PORT-07", "验证入场占用口可声明为必需");
     return UNITY_END();
 }

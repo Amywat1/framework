@@ -9,6 +9,7 @@
 #include "common/time_util.h"
 #include "domain/op_mode/device_command.h"
 #include "domain/op_mode/operational_mode.h"
+#include "domain/ports/outbound/device/entry_occupancy_port.h"
 #include "domain/ports/outbound/safety/safety_port.h"
 #include "domain/safety/alarm_registry/alarm_registry.h"
 #include "domain/telemetry/device_snapshot.h"
@@ -77,8 +78,22 @@ static void publish_and_wait(event_type_t type, uint32_t param)
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_drain());
 }
 
+static entry_occupancy_t proj_occ_get(void)
+{
+    entry_occupancy_t view;
+
+    view.available = false;
+    view.phase     = ENTRY_OCC_OCCUPIED;
+    return view;
+}
+
+static const entry_occupancy_ops_t s_proj_occ_ops = {
+    .get = proj_occ_get,
+};
+
 void setUp(void)
 {
+    TEST_ASSERT_EQUAL_INT(SW_OK, entry_occupancy_register(NULL));
     port_registry_safety_reset();
     /* 快照是进程级全局态，不复位则用例只在"先写后读"的写法下偶然成立，
      * 一旦有用例断言某子域的绝对值就会依赖执行顺序。 */
@@ -328,11 +343,36 @@ static void test_cleared_auto_static_keeps_journal_without_blocking(void)
     TEST_ASSERT_EQUAL_UINT(201301U, snap.session_journal[0]);
 }
 
+static void test_occupancy_sync_unregistered_is_unavailable(void)
+{
+    entry_occupancy_t occ;
+
+    telemetry_projection_sync_all();
+    occ = device_snapshot_get().occupancy;
+    TEST_ASSERT_FALSE(occ.available);
+    TEST_ASSERT_EQUAL_INT(ENTRY_OCC_EMPTY, occ.phase);
+}
+
+static void test_occupancy_sync_copies_registered_phase(void)
+{
+    entry_occupancy_t occ;
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, entry_occupancy_register(&s_proj_occ_ops));
+    telemetry_projection_sync_all();
+    occ = device_snapshot_get().occupancy;
+    TEST_ASSERT_TRUE(occ.available);
+    TEST_ASSERT_EQUAL_INT(ENTRY_OCC_OCCUPIED, occ.phase);
+}
+
 int main(void)
 {
     UNITY_BEGIN();
 
     WDF_RUN_TEST(test_snapshot_direct_updates_are_read_back, "", "验证直接更新快照后可以读取新值");
+    WDF_RUN_TEST(test_occupancy_sync_unregistered_is_unavailable, "PROJ-07",
+                 "未注册占用口时快照 available 为假");
+    WDF_RUN_TEST(test_occupancy_sync_copies_registered_phase, "PROJ-07",
+                 "同步把已注册占用相位写入快照");
     WDF_RUN_TEST(test_wash_projection_tracks_session_started_event, "", "验证洗车投影跟踪会话已启动事件");
     WDF_RUN_TEST(test_operational_projection_syncs_current_context, "", "验证运行状态投影同步当前上下文");
     WDF_RUN_TEST(test_estop_while_stopped_syncs_snapshot_flag, "", "验证已停止时急停仍刷新快照旗标");
