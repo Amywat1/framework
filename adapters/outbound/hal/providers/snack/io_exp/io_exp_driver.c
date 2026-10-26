@@ -78,6 +78,7 @@ sw_err_t io_exp_driver_sdk_init(const char *can_bus, int can_baud, int self_node
 #define IO_TRANSACTION_TIMEOUT_MS     300U              /* 单次同步事务等待上限 */
 #define IO_PULSE_CLEAR_SDO_INDEX      0x2005            /* 子板脉冲计数清零 SDO 对象 */
 #define IO_PULSE_CLEAR_MAX_TRIES      3U                /* 单次清零请求在 worker 内的 SDO 最大尝试次数 */
+#define IO_PULSE_INVALID_COUNT        0x0FFFFFFF        /* Snack SDK：脉冲计数溢出/无效哨兵 */
 
 typedef enum {
     DRV_IO_TRANSACTION_FLUSH_OUTPUTS = 0

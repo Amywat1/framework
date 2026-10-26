@@ -71,7 +71,7 @@ const char *drv_io_di_name(io_di_t pin);
 
 /**
  * @brief  获取 DO 句柄对应的标准名称
- * @retval 返回形如 `DO_WATER_PUMP` 的静态字符串；未知句柄返回 NULL
+ * @retval 返回形如 `DO_OUTPUT_1` 的静态字符串；未知句柄返回 NULL
  */
 const char *drv_io_do_name(io_do_t pin);
 

@@ -208,6 +208,7 @@ if(WDF_TEST_VENDOR_PROVIDERS)
         ${WDF_ROOT}/tests/stubs/snack_cloud/cloud_model_fake.c
         ${WDF_ROOT}/common/point_table/point_table.c
         ${WDF_ROOT}/adapters/outbound/serialization/json/point_table_from_json.c
+        ${WDF_ROOT}/adapters/outbound/serialization/json/point_table_to_json.c
         ${WDF_ROOT}/runtime/event_bus/event_bus.c
         ${WDF_ROOT}/runtime/ports/port_registry_cloud.c
         ${WDF_ROOT}/runtime/ports/port_registry_infra.c

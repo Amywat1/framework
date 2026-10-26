@@ -62,15 +62,6 @@ void device_snapshot_set_cloud_connected(bool connected)
     pthread_mutex_unlock(&s_mutex);
 }
 
-void device_snapshot_set_wash_quota(bool monitorable, uint8_t remaining, uint32_t grant_serial)
-{
-    pthread_mutex_lock(&s_mutex);
-    s_state.connectivity.wash_quota_monitorable  = monitorable;
-    s_state.connectivity.wash_quota_remaining    = remaining;
-    s_state.connectivity.wash_quota_grant_serial = grant_serial;
-    pthread_mutex_unlock(&s_mutex);
-}
-
 void device_snapshot_update_occupancy(const entry_occupancy_t *occupancy)
 {
     if (occupancy == NULL) {

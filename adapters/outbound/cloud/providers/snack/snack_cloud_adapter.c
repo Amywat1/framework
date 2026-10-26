@@ -8,6 +8,7 @@
 #include "adapters/outbound/cloud/providers/snack/snack_cloud_adapter.h"
 
 #include "adapters/outbound/cloud/cloud_json.h"
+#include "adapters/outbound/serialization/json/point_table_json.h"
 #include "adapters/providers/snack/snack_sdk.h"
 #include "application/ports/outbound/cloud/link/cloud_link_port.h"
 #include "common/event_types.h"
@@ -35,6 +36,7 @@ static char s_device_secret[SNACK_CLOUD_CRED_MAX] = "";
 static char s_iot_instance[SNACK_CLOUD_CRED_MAX]  = "";
 static char s_topic_up[SNACK_CLOUD_TOPIC_MAX]     = "";
 static char s_topic_reply[SNACK_CLOUD_TOPIC_MAX]  = "";
+static uint16_t s_heartbeat_s                     = 0U;
 static char s_report_json[CLOUD_REPORT_JSON_MAX];
 
 static bool link_is_online(void)
@@ -81,7 +83,7 @@ static sw_err_t link_init(void)
 
     s_initialized = true;
 
-    if (aliyun_mqtt_init(s_product_key, s_device_sn, s_device_secret, s_iot_instance) == 0) {
+    if (aliyun_mqtt_init(s_product_key, s_device_sn, s_device_secret, s_iot_instance, (int)s_heartbeat_s) == 0) {
         LOG_INFO("snack_cloud: mqtt init sn=%s instance=%s", s_device_sn, s_iot_instance);
     } else {
         LOG_WARN("snack_cloud: mqtt offline sn=%s instance=%s, will retry", s_device_sn, s_iot_instance);
@@ -246,6 +248,7 @@ void snack_cloud_adapter_register(void)
     s_bootstrapped       = false;
     s_last_online        = false;
     s_last_reconnect_ms  = 0U;
+    point_table_json_set_bool_as_number(true);
     cloud_link_register(&s_ops);
     LOG_INFO("snack_cloud: adapter registered");
 }
@@ -255,11 +258,12 @@ sw_err_t snack_cloud_adapter_configure(const char *product_key,
                                        const char *device_secret,
                                        const char *iot_instance,
                                        const char *topic_property_up,
-                                       const char *topic_property_reply)
+                                       const char *topic_property_reply,
+                                       uint16_t    heartbeat_s)
 {
     if ((product_key == NULL) || (device_sn == NULL) || (device_secret == NULL) || (topic_property_up == NULL)
         || (product_key[0] == '\0') || (device_sn[0] == '\0') || (device_secret[0] == '\0')
-        || (topic_property_up[0] == '\0')) {
+        || (topic_property_up[0] == '\0') || (heartbeat_s == 0U)) {
         return SW_ERR_PARAM;
     }
     if ((strlen(product_key) >= sizeof(s_product_key)) || (strlen(device_sn) >= sizeof(s_device_sn))
@@ -283,6 +287,7 @@ sw_err_t snack_cloud_adapter_configure(const char *product_key,
         (void)snprintf(s_iot_instance, sizeof(s_iot_instance), "%s", iot_instance);
     }
     (void)snprintf(s_topic_up, sizeof(s_topic_up), "%s", topic_property_up);
+    s_heartbeat_s = heartbeat_s;
 
     if ((topic_property_reply == NULL) || (topic_property_reply[0] == '\0')) {
         s_topic_reply[0] = '\0';

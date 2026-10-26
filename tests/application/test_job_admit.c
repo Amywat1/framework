@@ -20,6 +20,7 @@
 #include "domain/safety/model/alarm_types.h"
 #include "runtime/event_bus/event_bus.h"
 #include "tests/stubs/device_ops_stub.h"
+#include "tests/stubs/test_machine_profile.h"
 #include "tests/stubs/test_wash_modes.h"
 #include "wdf_test_spec.h"
 
@@ -52,6 +53,7 @@ void setUp(void)
     TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, operational_mode_init());
     machine_profile_reset_for_test();
+    TEST_ASSERT_EQUAL_INT(SW_OK, test_machine_profile_register());
     TEST_ASSERT_EQUAL_INT(SW_OK, job_admit_init());
     wash_quota_reset_for_test();
     device_ops_stub_reset();
@@ -324,6 +326,27 @@ static void test_estop_abort_clears_queued(void)
     TEST_ASSERT_EQUAL_UINT(0U, active_jobs_count());
 }
 
+static void test_stop_keeps_queued_when_profile_disables_clear(void)
+{
+    machine_profile_t profile = machine_profile_get();
+
+    profile.clear_orders_on_stopped = false;
+    TEST_ASSERT_EQUAL_INT(SW_OK, machine_profile_register(&profile));
+    enter_standby();
+    device_ops_stub_set_admit_ready(false);
+    TEST_ASSERT_EQUAL_INT(SW_OK, submit_mode(TEST_WASH_MODE_A));
+    job_admit_on_aborted(WASH_ABORT_ESTOP);
+    job_admit_on_stopped();
+    TEST_ASSERT_EQUAL_UINT(1U, order_book_count());
+    TEST_ASSERT_EQUAL_UINT(0U, active_jobs_count());
+}
+
+static void test_init_requires_registered_profile(void)
+{
+    machine_profile_reset_for_test();
+    TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_INIT, job_admit_init());
+}
+
 static void test_post_job_blocking_clears_queued(void)
 {
     static const alarm_def_t catalog[] = {
@@ -507,10 +530,17 @@ static void test_complete_does_not_start_next(void)
     TEST_ASSERT_EQUAL_UINT(0U, active_jobs_count());
 }
 
+static void use_wash_quota(void)
+{
+    s_ops.admit_check   = wash_quota_check_start;
+    s_ops.admit_consume = wash_quota_consume_one;
+}
+
 static void test_offline_quota_exhausted_keeps_queue(void)
 {
     wash_quota_info_t info = {0};
 
+    use_wash_quota();
     enter_standby();
     wash_quota_set_monitorable(false);
     TEST_ASSERT_EQUAL_INT(SW_OK, submit_mode(TEST_WASH_MODE_A));
@@ -525,6 +555,7 @@ static void test_offline_quota_consumes_only_on_start_ok(void)
 {
     wash_quota_info_t info = {0};
 
+    use_wash_quota();
     enter_standby();
     wash_quota_set_monitorable(false);
     TEST_ASSERT_EQUAL_INT(SW_OK, wash_quota_apply_grant(2U, 1U));
@@ -547,7 +578,7 @@ int main(void)
     WDF_RUN_TEST(test_start_releases_fifo, "", "验证启动按 FIFO 放行队首");
     WDF_RUN_TEST(test_occupancy_full_keeps_queue, "", "验证占用满时启动失败且后续单待队中");
     WDF_RUN_TEST(test_multi_active_profile_start_each, "", "验证占用未满时洗中启动可再放一单");
-    WDF_RUN_TEST(test_last_job_hold, "", "验证最后一单结束后按默认 profile 进入 HOLD");
+    WDF_RUN_TEST(test_last_job_hold, "", "验证最后一单结束后按 profile 进入 HOLD");
     WDF_RUN_TEST(test_last_job_standby_without_hold, "", "验证关闭 hold 后最后一单回 STANDBY");
     WDF_RUN_TEST(test_service_off_clears_book, "", "验证关总开关落到停机时清空订单簿");
     WDF_RUN_TEST(test_estop_rejects_new_order, "", "验证急停拒绝新单");
@@ -558,6 +589,9 @@ int main(void)
     WDF_RUN_TEST(test_stop_all_clears_book_and_jobs, "", "验证全停清空订单簿与占用");
     WDF_RUN_TEST(test_job_abort_requests_clear, "", "验证单车机型工艺中止后整机进入清障并清队");
     WDF_RUN_TEST(test_estop_abort_clears_queued, "", "验证急停整机中止清空订单簿");
+    WDF_RUN_TEST(test_stop_keeps_queued_when_profile_disables_clear, "",
+                 "验证 profile 关闭停机清队时急停与停机保留排队单");
+    WDF_RUN_TEST(test_init_requires_registered_profile, "", "验证未注册 profile 时放行核初始化失败");
     WDF_RUN_TEST(test_post_job_blocking_clears_queued, "", "验证洗完禁止接单停机时清空排队单");
     WDF_RUN_TEST(test_job_abort_without_clear_keeps_queue, "", "验证多车 profile 单车中止只撤该单不补放行");
     WDF_RUN_TEST(test_stale_job_abort_is_ignored, "", "验证已被撤占用的迟到中止不再请求清障");

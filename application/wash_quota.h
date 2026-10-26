@@ -1,8 +1,11 @@
 /**
  * @file    wash_quota.h
- * @brief   离线开洗次数授权：可监控则放行，离线只靠平台下发的剩余次数
+ * @brief   离线开洗次数授权（可选参考实现）：可监控则放行，离线只靠平台下发的剩余次数
  *
- * @note    不用时间宽限。云连接或项目把「可监控」置位时不增加次数。
+ * @note    框架不默认启用。项目选用时调用 wash_quota_init()，把 wash_quota_check_start /
+ *          wash_quota_consume_one 填入 device_ops_t 的 admit_check / admit_consume，
+ *          并自行决定「可监控」的来源（如云连接事件）调用 wash_quota_set_monitorable()。
+ *          不用时间宽限。项目把「可监控」置位时不增加次数。
  *          平台与现场只写 remaining：wash_quota_set_remaining() 由本机自增序号。
  *          apply_grant() 仍要求序号严格递增，供测试与显式带序号的调用。
  *          remaining / grant_serial 经参数存储落盘，上电由 init 恢复；可监控不落盘。
@@ -36,7 +39,7 @@ typedef struct {
  * @brief  初始化次数授权
  *
  * 从参数存储恢复 remaining / grant_serial，不是每次上电清零；无落盘记录时均为 0。
- * 可监控默认为 false，由云连接边沿或项目调用 set_monitorable 更新。
+ * 可监控默认为 false，由项目调用 set_monitorable 更新。
  *
  * @retval SW_OK 已就绪（存储未注册时仍用内存态，不失败）
  */
@@ -89,7 +92,7 @@ sw_err_t wash_quota_check_start(bool *need_consume);
  * @brief  离线开洗成功后扣减一次并落盘
  * @retval SW_OK          已减一；已注册存储时已落盘
  * @retval SW_ERR_STATE   剩余已为 0（未改写）
- * @retval SW_ERR_STORAGE 已注册存储但落盘失败（次数回退）
+ * @retval 其它           落盘失败；内存仍已减一，本次运行不会多放行，重启后回到上次落盘值
  *
  * @note   仅在 start_job 成功之后调用。可监控路径不得调用。
  */
@@ -104,7 +107,7 @@ void wash_quota_get_info(wash_quota_info_t *info);
 /**
  * @brief  测试复位：剩余 0、序号 0、可监控为 true
  *
- * @note   仅单测使用，使既有放行用例不因默认离线拒绝而失败。
+ * @note   仅单测使用。
  */
 void wash_quota_reset_for_test(void);
 

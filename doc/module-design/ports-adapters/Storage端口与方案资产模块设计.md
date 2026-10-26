@@ -385,7 +385,7 @@ if ((ps != NULL) && (ps->set("mode", "auto") == SW_OK)) {
 const deploy_store_ops_t *ds = deploy_store_get_ops();
 char topic[128];
 
-if ((ds != NULL) && (ds->get("topicPropertyUp", topic, sizeof(topic)) == SW_OK)) {
+if ((ds != NULL) && (ds->get(PROJECT_KEY_TOPIC, topic, sizeof(topic)) == SW_OK)) { /* 键名由项目部署资产定义 */
     /* 使用 topic */
 }
 ```

@@ -83,8 +83,9 @@ mqtt_recv_handler_t snack_mqtt_fake_recv_handler(void)
     return s_fake.recv_cb;
 }
 
-int aliyun_mqtt_init(char *product_key, char *device_name, char *device_secret, char *iot_instance)
+int aliyun_mqtt_init(char *product_key, char *device_name, char *device_secret, char *iot_instance, int heartbeat_s)
 {
+    (void)heartbeat_s;
     snprintf(s_fake.product_key, sizeof(s_fake.product_key), "%s", product_key != NULL ? product_key : "");
     snprintf(s_fake.device_name, sizeof(s_fake.device_name), "%s", device_name != NULL ? device_name : "");
     snprintf(s_fake.device_secret, sizeof(s_fake.device_secret), "%s", device_secret != NULL ? device_secret : "");

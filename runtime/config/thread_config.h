@@ -37,7 +37,7 @@
 #define THD_CONTROL_LOOP_PRIO     60            /**< 低于急停的控制环优先级 */
 #define THD_CONTROL_LOOP_WD_STACK (8U * 1024U)  /**< 控制环看门狗栈 */
 #define THD_CONTROL_LOOP_WD_PRIO  70            /**< 高于控制环、低于急停，忙等时也能抢上来 */
-#define THD_CONTROL_LOOP_WD_TIMEOUT_MS 500U     /**< 心跳超时（ms），宽于电机缺拍 200 ms */
+#define THD_CONTROL_LOOP_WD_TIMEOUT_MS 500U     /**< 心跳超时（ms），须宽于各电机 watchdog_ms */
 #define THD_CONTROL_LOOP_WD_POLL_MS    50U      /**< 看门狗轮询周期（ms） */
 #define THD_CONTROL_LOOP_WD_STARTUP_MS 2000U    /**< 尚无心跳时的启动宽限（ms） */
 

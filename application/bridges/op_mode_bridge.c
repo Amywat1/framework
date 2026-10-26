@@ -33,11 +33,11 @@ static void on_area_cleared(const event_t *evt)
     op_mode_on_area_cleared();
 }
 
-/* 进入停机即清队，与应用退费对齐。HOLD 不是停机。 */
+/* 进入停机按 profile 决定是否清队。HOLD 不是停机。 */
 static void drop_book_if_stopped(void)
 {
     if (op_mode_get_current() == OP_MODE_STOPPED) {
-        job_admit_clear_orders();
+        job_admit_on_stopped();
     }
 }
 
@@ -56,7 +56,7 @@ static void on_hw_estop_on(const event_t *evt)
 {
     (void)evt;
     op_mode_on_estop(true);
-    job_admit_clear_orders();
+    job_admit_on_stopped();
 }
 
 static void on_hw_estop_off(const event_t *evt)

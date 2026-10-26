@@ -102,16 +102,17 @@ typedef struct {
     uint32_t              cmd_act_id;
     int32_t               cmd_param;
     bool                  cmd_has_param;
+    bool                  pulse;
 } cloud_point_entry_t;
 ```
 
 | kind | 下行 | 约束 |
 |------|------|------|
 | TELEMETRY | 拒写 | 必须有 get，不得有 set / cmd 载荷 |
-| DEV_CMD | 翻译为 `dev_cmd_t` 经提交回调进命令网关 | `cmd_kind ≠ NONE`；bool 或 int；`MANUAL_ACTUATOR` 必须有 `cmd_act_id` |
+| DEV_CMD | 翻译为 `dev_cmd_t` 经提交回调进命令网关 | `cmd_kind ≠ NONE`；bool 或 int，承载订单号的 `SUBMIT_ORDER` / `CANCEL_ORDER` 另可为 string；`MANUAL_ACTUATOR` 必须有 `cmd_act_id` |
 | SET（可写属性） | 调用 `base.set` | 必须有 set，不得带 cmd 载荷 |
 
-`report`：`NONE` 不进快照/脏点；`RESYNC` 仅重连/`cmd_sync` 快照；`ON_CHANGE` 进 watcher，快照也带当前值。下行后先发一包：成功点回显下发值，失败点报 getter 当前值；该包发送成功后再发成功脉冲的空闲 0。`ON_CHANGE` 必须有 get，禁止 `POINT_TYPE_FLOAT`。`deadband` 仅 `ON_CHANGE` 的 INT 有效。可写点以 `RESYNC` 表示脉冲。DEV_CMD 成功后若带 `set`，再调用 `set` 更新保持值。
+`report`：`NONE` 不进快照/脏点；`RESYNC` 仅重连/`cmd_sync` 快照；`ON_CHANGE` 进 watcher，快照也带当前值。下行后先发一包：成功点回显下发值，失败点报 getter 当前值；该包发送成功后再发成功脉冲的空闲 0。`ON_CHANGE` 必须有 get，禁止 `POINT_TYPE_FLOAT`。`deadband` 仅 `ON_CHANGE` 的 INT 有效。脉冲由 `pulse` 字段显式声明，与 `report` 无关，仅允许可写 bool 点。空闲 0 推迟的保持时间默认 `CLOUD_PULSE_ECHO_HOLD_DEFAULT_MS`，可经 `cloud_json_set_pulse_echo_hold_ms()` 覆盖。bool 上行默认编码为 JSON `true` / `false`，平台要求数字时由 provider 调 `point_table_json_set_bool_as_number(true)`（Snack 在 `snack_cloud_adapter_register()` 内设置）。DEV_CMD 成功后若带 `set`，再调用 `set` 更新保持值。
 
 容量：`CLOUD_POINT_TABLE_MAX` 96；`CLOUD_REPORT_JSON_MAX` 2048（超长按点位拆成多包）。
 
@@ -129,7 +130,7 @@ typedef struct {
 
 根必须是 JSON 对象；载荷长于 `CLOUD_REPORT_JSON_MAX` 返回 `SW_ERR_OVERFLOW`。未知 id 继续下一 key（部分成功）。函数在解析成功时返回 `SW_OK`，逐 key 成败看 `point_apply_result_t`。
 
-DEV_CMD：脉冲 bool 置假为空操作；否则按表构造完整 `dev_cmd_t` 调提交回调，未注册返回 `SW_ERR_NOT_INIT`。`MANUAL_ACTUATOR` 把写入值（或固定 `cmd_param`）填入 `act_id/param`。解析成功后无论逐 key 成败都组第一包属性：成功回显下发值，失败报当前真实值；该包发送成功后再报已应用脉冲的空闲 0。
+DEV_CMD：脉冲 bool 置假为空操作；否则按表构造完整 `dev_cmd_t` 调提交回调，未注册返回 `SW_ERR_NOT_INIT`。`MANUAL_ACTUATOR` 把写入值（或固定 `cmd_param`）填入 `act_id/param`。订单点的写入值即订单号：int 取正值，string 按十进制解析完整 64 位，非法串按该 key 失败记 `SW_ERR_PARAM`，空值（0 或空串）不下单；`SUBMIT_ORDER` 的套餐取 `cmd_param`，未配置时为 `WASH_MODE_INVALID`，由项目提交回调补全。解析成功后无论逐 key 成败都组第一包属性：成功回显下发值，失败报当前真实值；该包发送成功后再报已应用脉冲的空闲 0。
 
 ### 5.3 `cloud_point_watcher`
 
@@ -171,7 +172,7 @@ void wiring_cloud(void)
 {
     static const cloud_point_entry_t s_model[] = { /* 项目物模型表 */ };
     snack_cloud_adapter_register();
-    snack_cloud_adapter_configure(pk, sn, secret, instance, topic_up, topic_reply);
+    snack_cloud_adapter_configure(pk, sn, secret, instance, topic_up, topic_reply, heartbeat_s);
     cloud_model_register(s_model, ARRAY_SIZE(s_model));
     cloud_json_install(cloud_cmd_submit, snack_cloud_property_reply);
 }

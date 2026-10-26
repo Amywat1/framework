@@ -14,9 +14,9 @@
 #include "wdf_test_spec.h"
 
 enum {
-    TEST_ACTUATOR_GANTRY = 11,
+    TEST_ACTUATOR_A      = 11,
     TEST_CHECKPOINT_EXIT = 21,
-    TEST_GROUP_GANTRY    = 101,
+    TEST_GROUP_A         = 101,
     TEST_GROUP_EXIT      = 102,
 };
 
@@ -25,8 +25,8 @@ static const alarm_def_t s_catalog[] = {
      .code         = 201105U,
      .level        = ALARM_LEVEL_MAJOR,
      .lifecycle        = ALARM_LIFECYCLE_LATCH,
-     .reeval_group = TEST_GROUP_GANTRY,
-     .desc         = "gantry timeout",
+     .reeval_group = TEST_GROUP_A,
+     .desc         = "axis timeout",
      },
     {
      .code         = 201205U,
@@ -38,7 +38,7 @@ static const alarm_def_t s_catalog[] = {
 };
 
 static const alarm_reeval_binding_t s_bindings[] = {
-    {ALARM_REEVAL_TRIGGER_ACTUATOR_COMPLETED, TEST_ACTUATOR_GANTRY, TEST_GROUP_GANTRY},
+    {ALARM_REEVAL_TRIGGER_ACTUATOR_COMPLETED, TEST_ACTUATOR_A, TEST_GROUP_A},
     {ALARM_REEVAL_TRIGGER_WASH_CHECKPOINT,    TEST_CHECKPOINT_EXIT, TEST_GROUP_EXIT  },
 };
 
@@ -57,14 +57,14 @@ void tearDown(void)
 static void test_init_rejects_invalid_binding_table(void)
 {
     const alarm_reeval_binding_t zero_trigger[] = {
-        {ALARM_REEVAL_TRIGGER_ACTUATOR_COMPLETED, 0U, TEST_GROUP_GANTRY},
+        {ALARM_REEVAL_TRIGGER_ACTUATOR_COMPLETED, 0U, TEST_GROUP_A},
     };
     const alarm_reeval_binding_t no_group[] = {
-        {ALARM_REEVAL_TRIGGER_ACTUATOR_COMPLETED, TEST_ACTUATOR_GANTRY, ALARM_REEVAL_GROUP_NONE},
+        {ALARM_REEVAL_TRIGGER_ACTUATOR_COMPLETED, TEST_ACTUATOR_A, ALARM_REEVAL_GROUP_NONE},
     };
     const alarm_reeval_binding_t duplicate[] = {
-        {ALARM_REEVAL_TRIGGER_ACTUATOR_COMPLETED, TEST_ACTUATOR_GANTRY, TEST_GROUP_GANTRY},
-        {ALARM_REEVAL_TRIGGER_ACTUATOR_COMPLETED, TEST_ACTUATOR_GANTRY, TEST_GROUP_EXIT  },
+        {ALARM_REEVAL_TRIGGER_ACTUATOR_COMPLETED, TEST_ACTUATOR_A, TEST_GROUP_A},
+        {ALARM_REEVAL_TRIGGER_ACTUATOR_COMPLETED, TEST_ACTUATOR_A, TEST_GROUP_EXIT  },
     };
 
     TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, alarm_bridge_reeval_init(NULL, 1U));
@@ -81,10 +81,10 @@ static void test_actuator_event_reevaluates_bound_group_only(void)
     TEST_ASSERT_TRUE(alarm_registry_is_active(201105U));
     TEST_ASSERT_TRUE(alarm_registry_is_active(201205U));
 
-    /* 仅龙门侧在动作中判为正常；条件仍成立的分组不得被运动结束误清 */
+    /* 仅 A 组在动作中判为正常；条件仍成立的分组不得被运动结束误清 */
     TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_clear(201105U));
 
-    actuator_publish_motion_completed(TEST_ACTUATOR_GANTRY);
+    actuator_publish_motion_completed(TEST_ACTUATOR_A);
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_drain());
 
     TEST_ASSERT_FALSE(alarm_registry_is_active(201105U));
@@ -108,7 +108,7 @@ static void test_motion_complete_keeps_active_condition(void)
     TEST_ASSERT_EQUAL_INT(SW_OK, alarm_bridge_reeval_init(s_bindings, 2U));
     TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_trigger(201105U));
 
-    actuator_publish_motion_completed(TEST_ACTUATOR_GANTRY);
+    actuator_publish_motion_completed(TEST_ACTUATOR_A);
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_drain());
 
     TEST_ASSERT_TRUE(alarm_registry_is_active(201105U));

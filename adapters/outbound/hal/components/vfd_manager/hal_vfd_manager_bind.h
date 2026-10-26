@@ -21,9 +21,6 @@ extern "C" {
 /** @brief components/vfd_manager 支持的最大实例槽位数 */
 #define HAL_VFD_MANAGER_SLOT_MAX 8U
 
-/** @brief 默认 RST 脉冲宽度（ms） */
-#define HAL_VFD_DEFAULT_RST_PULSE_MS 200U
-
 /** @brief RST 脉冲推进周期（ms） */
 #define HAL_VFD_PULSE_PERIOD_MS 20U
 

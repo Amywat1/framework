@@ -157,12 +157,13 @@ static cloud_point_entry_t make_stop_cmd(void)
     cloud_point_entry_t entry;
 
     memset(&entry, 0, sizeof(entry));
-    entry.base.id   = "cmd_stop";
+    entry.base.id   = "cmd_a";
     entry.base.type = POINT_TYPE_BOOL;
     entry.base.get  = cloud_point_get_echo_idle;
     entry.kind      = CLOUD_KIND_DEV_CMD;
     entry.report    = CLOUD_REPORT_RESYNC;
     entry.cmd_kind  = DEV_CMD_STOP_ALL_OUTPUTS;
+    entry.pulse     = true;
     return entry;
 }
 
@@ -218,12 +219,12 @@ static void test_cloud_model_builds_and_applies_properties(void)
     register_model();
     TEST_ASSERT_EQUAL_INT(SW_OK, cloud_json_build_properties(buf, sizeof(buf)));
     TEST_ASSERT_NOT_NULL(strstr(buf, "\"counter\":7"));
-    TEST_ASSERT_NOT_NULL(strstr(buf, "\"enabled\":0"));
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"enabled\":false"));
     TEST_ASSERT_NULL(strstr(buf, "\"hidden\""));
 
     TEST_ASSERT_EQUAL_INT(SW_OK, cloud_json_build_properties_delta(ids, 1U, buf, sizeof(buf)));
     TEST_ASSERT_NULL(strstr(buf, "\"counter\""));
-    TEST_ASSERT_NOT_NULL(strstr(buf, "\"enabled\":0"));
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"enabled\":false"));
     TEST_ASSERT_NULL(strstr(buf, "\"hidden\""));
 
     TEST_ASSERT_EQUAL_INT(SW_OK, cloud_json_install(NULL, NULL));
@@ -265,7 +266,7 @@ static void test_downlink_echo_publishes_sent_value(void)
 
     s_recv("{\"enabled\":true}");
     TEST_ASSERT_TRUE(s_enabled);
-    TEST_ASSERT_NOT_NULL(strstr(s_last_echo, "\"enabled\":1"));
+    TEST_ASSERT_NOT_NULL(strstr(s_last_echo, "\"enabled\":true"));
     TEST_ASSERT_EQUAL_UINT(1U, s_json_reports);
 
     deltas = s_delta_reports;
@@ -282,17 +283,17 @@ static void test_downlink_pulse_idle_waits_hold(void)
     TEST_ASSERT_EQUAL_INT(SW_OK, report_scheduler_start(500U));
     TEST_ASSERT_NOT_NULL(s_recv);
 
-    s_recv("{\"cmd_stop\":true}");
-    TEST_ASSERT_NOT_NULL(strstr(s_last_echo, "\"cmd_stop\":1"));
+    s_recv("{\"cmd_a\":true}");
+    TEST_ASSERT_NOT_NULL(strstr(s_last_echo, "\"cmd_a\":true"));
     TEST_ASSERT_EQUAL_UINT(1U, s_json_reports);
 
     report_scheduler_poll();
     TEST_ASSERT_EQUAL_UINT(1U, s_json_reports);
 
-    (void)usleep((CLOUD_PULSE_ECHO_HOLD_MS + 50U) * 1000U);
+    (void)usleep((CLOUD_PULSE_ECHO_HOLD_DEFAULT_MS + 50U) * 1000U);
     report_scheduler_poll();
     TEST_ASSERT_EQUAL_UINT(2U, s_json_reports);
-    TEST_ASSERT_NOT_NULL(strstr(s_last_echo, "\"cmd_stop\":0"));
+    TEST_ASSERT_NOT_NULL(strstr(s_last_echo, "\"cmd_a\":false"));
 }
 
 static void test_downlink_reject_publishes_current(void)
@@ -307,7 +308,7 @@ static void test_downlink_reject_publishes_current(void)
     s_set_fail = true;
     s_recv("{\"enabled\":true}");
     TEST_ASSERT_FALSE(s_enabled);
-    TEST_ASSERT_NOT_NULL(strstr(s_last_echo, "\"enabled\":0"));
+    TEST_ASSERT_NOT_NULL(strstr(s_last_echo, "\"enabled\":false"));
     TEST_ASSERT_EQUAL_UINT(1U, s_json_reports);
 }
 
@@ -326,15 +327,15 @@ static void test_report_allow_filters_snapshot_and_delta(void)
 
     TEST_ASSERT_EQUAL_INT(SW_OK, cloud_json_build_properties(buf, sizeof(buf)));
     TEST_ASSERT_NULL(strstr(buf, "\"counter\""));
-    TEST_ASSERT_NOT_NULL(strstr(buf, "\"enabled\":0"));
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"enabled\":false"));
 
     TEST_ASSERT_EQUAL_INT(SW_OK, cloud_json_build_properties_all(buf, sizeof(buf)));
     TEST_ASSERT_NOT_NULL(strstr(buf, "\"counter\":7"));
-    TEST_ASSERT_NOT_NULL(strstr(buf, "\"enabled\":0"));
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"enabled\":false"));
 
     TEST_ASSERT_EQUAL_INT(SW_OK, cloud_json_build_properties_delta(ids, 2U, buf, sizeof(buf)));
     TEST_ASSERT_NULL(strstr(buf, "\"counter\""));
-    TEST_ASSERT_NOT_NULL(strstr(buf, "\"enabled\":0"));
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"enabled\":false"));
 }
 
 #define TEST_BLOB_COUNT 12U

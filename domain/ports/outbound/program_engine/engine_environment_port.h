@@ -29,8 +29,8 @@ typedef struct {
 typedef struct {
     const char *const *resources;
     unsigned           resource_count;
-    const char *const *water_paths;
-    unsigned           water_path_count;
+    const char *const *paths;
+    unsigned           path_count;
 } engine_actuator_catalog_t;
 
 /** @brief 项目变量名称目录；数组下标同时是 provider 稳定 ID。 */

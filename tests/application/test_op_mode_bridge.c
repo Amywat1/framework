@@ -5,7 +5,6 @@
 
 #include "application/bridges/op_mode_bridge.h"
 #include "application/job_admit.h"
-#include "application/wash_quota.h"
 #include "common/event_types.h"
 #include "common/sw_error.h"
 #include "common/time_util.h"
@@ -23,6 +22,7 @@
 #include "tests/stubs/device_ops_stub.h"
 #include "tests/stubs/test_wash_modes.h"
 #include "wdf_test_spec.h"
+#include "tests/stubs/test_machine_profile.h"
 
 #include <string.h>
 
@@ -75,7 +75,7 @@ static bool fake_estop_is_active(void)
 
 static bool fake_alarm_is_estop(uint32_t alarm_code)
 {
-    return alarm_code == 201709U;
+    return alarm_code == 209909U;
 }
 
 static void fake_deferred_stop(void)
@@ -104,8 +104,8 @@ static void test_hw_estop_on_enters_stopped(void)
     time_util_init();
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, operational_mode_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, test_machine_profile_register());
     TEST_ASSERT_EQUAL_INT(SW_OK, job_admit_init());
-    wash_quota_reset_for_test();
     TEST_ASSERT_EQUAL_INT(SW_OK, op_mode_bridge_init());
     setup_standby();
     queue_one_order();
@@ -122,8 +122,8 @@ static void test_job_started_event_does_not_enter_active(void)
     time_util_init();
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, operational_mode_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, test_machine_profile_register());
     TEST_ASSERT_EQUAL_INT(SW_OK, job_admit_init());
-    wash_quota_reset_for_test();
     TEST_ASSERT_EQUAL_INT(SW_OK, op_mode_bridge_init());
     setup_standby();
     publish_and_wait(EVT_JOB_STARTED, 0U);
@@ -136,8 +136,8 @@ static void test_job_completed_enters_hold(void)
     time_util_init();
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, operational_mode_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, test_machine_profile_register());
     TEST_ASSERT_EQUAL_INT(SW_OK, job_admit_init());
-    wash_quota_reset_for_test();
     TEST_ASSERT_EQUAL_INT(SW_OK, op_mode_bridge_init());
     enter_active();
     publish_and_wait(EVT_JOB_COMPLETED, 1U);
@@ -150,8 +150,8 @@ static void test_area_cleared_returns_standby(void)
     time_util_init();
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, operational_mode_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, test_machine_profile_register());
     TEST_ASSERT_EQUAL_INT(SW_OK, job_admit_init());
-    wash_quota_reset_for_test();
     TEST_ASSERT_EQUAL_INT(SW_OK, op_mode_bridge_init());
     enter_active();
     publish_and_wait(EVT_JOB_COMPLETED, 1U);
@@ -168,8 +168,8 @@ static void test_job_aborted_requests_clear(void)
     time_util_init();
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, operational_mode_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, test_machine_profile_register());
     TEST_ASSERT_EQUAL_INT(SW_OK, job_admit_init());
-    wash_quota_reset_for_test();
     TEST_ASSERT_EQUAL_INT(SW_OK, op_mode_bridge_init());
     device_ops_stub_reset();
     memset(&ops, 0, sizeof(ops));
@@ -294,8 +294,8 @@ static void test_blocking_alarm_from_standby_clears_book(void)
     TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_load_catalog(catalog, 1U));
     TEST_ASSERT_EQUAL_INT(SW_OK, operational_mode_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, test_machine_profile_register());
     TEST_ASSERT_EQUAL_INT(SW_OK, job_admit_init());
-    wash_quota_reset_for_test();
     TEST_ASSERT_EQUAL_INT(SW_OK, op_mode_bridge_init());
     setup_standby();
     queue_one_order();
@@ -313,8 +313,8 @@ static void test_recovery_failed_clears_book(void)
     time_util_init();
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, operational_mode_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, test_machine_profile_register());
     TEST_ASSERT_EQUAL_INT(SW_OK, job_admit_init());
-    wash_quota_reset_for_test();
     TEST_ASSERT_EQUAL_INT(SW_OK, op_mode_bridge_init());
     (void)op_mode_handle_command(&recover);
     TEST_ASSERT_EQUAL_INT(OP_MODE_RECOVERING, op_mode_get_current());
@@ -332,8 +332,8 @@ static void test_clear_done_clears_queued(void)
     time_util_init();
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, operational_mode_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, test_machine_profile_register());
     TEST_ASSERT_EQUAL_INT(SW_OK, job_admit_init());
-    wash_quota_reset_for_test();
     TEST_ASSERT_EQUAL_INT(SW_OK, op_mode_bridge_init());
     setup_standby();
     queue_one_order();
@@ -356,7 +356,7 @@ static void test_estop_alarm_does_not_set_estop_flag(void)
     TEST_ASSERT_EQUAL_INT(SW_OK, safety_port_register(&s_fake_safety_ops));
     TEST_ASSERT_EQUAL_INT(SW_OK, op_mode_bridge_init());
 
-    publish_and_wait(EVT_ALARM_TRIGGERED, 201709U);
+    publish_and_wait(EVT_ALARM_TRIGGERED, 209909U);
     TEST_ASSERT_FALSE(op_mode_is_estop_active());
     TEST_ASSERT_EQUAL_INT(OP_MODE_STOPPED, op_mode_get_current());
 
@@ -371,7 +371,7 @@ static void test_critical_from_idle_converges_once(void)
 {
     static const alarm_def_t catalog[] = {
         {
-         .code         = 201709U,
+         .code         = 209909U,
          .level        = ALARM_LEVEL_CRITICAL,
          .lifecycle        = ALARM_LIFECYCLE_FOLLOW_SIGNAL,
          .reeval_group = ALARM_REEVAL_GROUP_NONE,
@@ -391,7 +391,7 @@ static void test_critical_from_idle_converges_once(void)
 
     s_mode_changed = 0;
     TEST_ASSERT_EQUAL_INT(SW_OK, event_subscribe(EVT_OP_MODE_CHANGED, on_mode_changed));
-    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_trigger(201709U));
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_trigger(209909U));
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_drain());
 
     TEST_ASSERT_EQUAL_INT(OP_MODE_STOPPED, op_mode_get_current());

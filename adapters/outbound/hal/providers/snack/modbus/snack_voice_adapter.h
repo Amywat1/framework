@@ -15,6 +15,7 @@
 extern "C" {
 #endif
 
+#include "adapters/outbound/hal/providers/snack/modbus/drv_voice.h"
 #include "common/sw_error.h"
 
 /**
@@ -22,9 +23,14 @@ extern "C" {
  * @param  serial_port  Modbus RTU 串口路径（如 "/dev/ttyS1"）
  * @param  baud         串口波特率
  * @param  modbus_addr  Modbus 从站地址（1~247）
- * @note   不读取配置、不初始化硬件；真实 drv_voice_init() 只在 hal_voice.init() 中执行。
+ * @param  profile      语音模块寄存器 profile（项目按模块型号定义），生命周期须覆盖进程
+ * @note   不读取配置、不初始化硬件；真实 drv_voice_init() 只在 hal_voice.init() 中执行，
+ *         profile 为 NULL 时 init 返回 SW_ERR_PARAM。
  */
-void snack_voice_adapter_register(const char *serial_port, int baud, int modbus_addr);
+void snack_voice_adapter_register(const char                       *serial_port,
+                                  int                               baud,
+                                  int                               modbus_addr,
+                                  const drv_voice_modbus_profile_t *profile);
 
 #ifdef SNACK_VOICE_ADAPTER_UNIT_TEST
 void snack_voice_adapter_test_reset(void);

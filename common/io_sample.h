@@ -28,9 +28,6 @@ extern "C" {
 /** @brief pulse_read 在尚无有效快照时的返回值。 */
 #define IO_PULSE_ERR_UNINITIALIZED (-99)
 
-/** @brief 硬件脉冲计数溢出/无效哨兵（与 Snack SDK 约定一致）。 */
-#define IO_PULSE_INVALID_COUNT 0x0FFFFFFF
-
 /** @brief 数字输入采样质量。 */
 typedef enum {
     IO_SAMPLE_QUALITY_UNINITIALIZED = 0, /**< IO 驱动尚未初始化。 */

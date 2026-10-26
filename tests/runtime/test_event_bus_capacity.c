@@ -80,7 +80,7 @@ static void start_dispatch(void)
  * 稳态密度
  *
  * 已接入项目实测的周期任务构成（周期越短发布越密）：
- *   10ms  水路时序、龙门 tick、仿真模型 tick
+ *   10ms  流体时序、电机 tick、仿真模型 tick
  *   50ms  报警桥接
  *   500ms 云端上报
  * 取最密的 10ms 档，模拟 3 个发布者各连续发布 20 拍。

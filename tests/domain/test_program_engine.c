@@ -56,7 +56,7 @@ static bool profile_in_zone(void *ctx, const char *zone, double pos, bool defaul
     if ((zone == NULL) || (out_in_zone == NULL)) {
         return false;
     }
-    *out_in_zone = (strcmp(zone, "mirror") == 0) && (pos >= 100.0) && (pos <= 200.0);
+    *out_in_zone = (strcmp(zone, "zone_a") == 0) && (pos >= 100.0) && (pos <= 200.0);
     return true;
 }
 
@@ -186,12 +186,18 @@ static const engine_io_ops_t s_io_ops = {
 };
 
 static const char *const         s_catalog_signals[] = {"ESTOP", "EXIT", "GO", "MARK"};
-static const char *const         s_catalog_axes[]    = {"gantry"};
+static const char *const         s_catalog_axes[]    = {"axis_a"};
 static const engine_io_catalog_t s_io_catalog        = {
            .signals      = s_catalog_signals,
            .signal_count = 4U,
            .axes         = s_catalog_axes,
            .axis_count   = 1U,
+};
+
+static const char *const               s_catalog_resources[] = {"aout", "bout"};
+static const engine_actuator_catalog_t s_act_catalog         = {
+            .resources      = s_catalog_resources,
+            .resource_count = 2U,
 };
 
 static void io_reset(void)
@@ -205,14 +211,14 @@ static void io_reset(void)
     s_signals[2].name = "GO";
     s_signals[3].name = "MARK";
 
-    s_axes[0].name     = "gantry";
+    s_axes[0].name     = "axis_a";
     s_axes[0].position = 123.0;
     s_axes[0].speed    = 4.0;
     s_axes[0].valid    = true;
 
     TEST_ASSERT_EQUAL_INT(SW_OK, engine_io_provider_bind(&s_io, &s_io_ops, (void *)&s_io_catalog, &s_io_catalog));
     s_environment.io       = &s_io;
-    s_environment.actuator = engine_actuator_sim_instance();
+    s_environment.actuator = engine_actuator_sim_instance(&s_act_catalog);
 }
 
 static engine_expr_t *compile_ok(const char *text)
@@ -321,13 +327,13 @@ static void test_engine_expr_evaluates_arithmetic_logic_and_vars(void)
 {
     const expr_var_t vars[] = {
         {"$offset",              20.0 },
-        {"axes.gantry.position", 130.0},
+        {"axes.axis_a.position", 130.0},
         {"MARK",                 1.0  },
         {NULL,                   0.0  },
     };
 
     TEST_ASSERT_EQUAL_INT(14, eval_int("2 + 3 * 4", vars));
-    TEST_ASSERT_TRUE(eval_bool_value("MARK AND axes.gantry.position >= 100 + $offset", vars));
+    TEST_ASSERT_TRUE(eval_bool_value("MARK AND axes.axis_a.position >= 100 + $offset", vars));
     TEST_ASSERT_FALSE(eval_bool_value("NOT MARK", vars));
     TEST_ASSERT_NULL(engine_expr_compile("1 +"));
 }
@@ -335,7 +341,7 @@ static void test_engine_expr_evaluates_arithmetic_logic_and_vars(void)
 static void test_engine_expr_evaluates_profile_functions(void)
 {
     const expr_var_t vars[] = {
-        {"axes.gantry.position", 150.0},
+        {"axes.axis_a.position", 150.0},
         {NULL,                   0.0  },
     };
 
@@ -343,13 +349,13 @@ static void test_engine_expr_evaluates_profile_functions(void)
     TEST_ASSERT_TRUE(eval_bool_value("body_covers(150, 200, 100)", vars));
 
     s_profile_enabled = true;
-    TEST_ASSERT_EQUAL_INT(160, eval_int("profile.height_at(axes.gantry.position, 0)", vars));
-    TEST_ASSERT_TRUE(eval_bool_value("profile.in_zone(\"mirror\", axes.gantry.position, false)", vars));
-    TEST_ASSERT_FALSE(eval_bool_value("profile.in_zone('roof', axes.gantry.position, false)", vars));
+    TEST_ASSERT_EQUAL_INT(160, eval_int("profile.height_at(axes.axis_a.position, 0)", vars));
+    TEST_ASSERT_TRUE(eval_bool_value("profile.in_zone(\"zone_a\", axes.axis_a.position, false)", vars));
+    TEST_ASSERT_FALSE(eval_bool_value("profile.in_zone('zone_b', axes.axis_a.position, false)", vars));
 
     s_profile_enabled = false;
-    TEST_ASSERT_EQUAL_INT(77, eval_int("profile.height_at(axes.gantry.position, 77)", vars));
-    TEST_ASSERT_TRUE(eval_bool_value("profile.in_zone(\"missing\", axes.gantry.position, true)", vars));
+    TEST_ASSERT_EQUAL_INT(77, eval_int("profile.height_at(axes.axis_a.position, 77)", vars));
+    TEST_ASSERT_TRUE(eval_bool_value("profile.in_zone(\"missing\", axes.axis_a.position, true)", vars));
 }
 
 /* -------------------------------------------------------------------------
@@ -380,7 +386,7 @@ static void test_engine_expr_rejects_wrong_arity_at_compile(void)
  * 置 *ok = false，故这类位置只能在加载期查出来 */
 static void test_engine_expr_rejects_non_literal_zone_name(void)
 {
-    TEST_ASSERT_NULL(engine_expr_compile("profile.in_zone(axes.gantry.position, 1, 0)"));
+    TEST_ASSERT_NULL(engine_expr_compile("profile.in_zone(axes.axis_a.position, 1, 0)"));
     TEST_ASSERT_NOT_NULL(strstr(engine_expr_last_error(), "字符串字面量"));
 }
 
@@ -759,13 +765,13 @@ static void test_engine_control_env_read_failure_stays_fault(void)
     engine_program_t *prog;
 
     engine = engine_create(&s_environment);
-    prog   = make_control_on_error_program(ENGINE_ERR_HALT_PHASE, "axes.gantry.position > 0");
+    prog   = make_control_on_error_program(ENGINE_ERR_HALT_PHASE, "axes.axis_a.position > 0");
     TEST_ASSERT_NOT_NULL(engine);
     TEST_ASSERT_NOT_NULL(prog);
     prog->axis_count = 1U;
     prog->axes       = (engine_axis_t *)calloc(1U, sizeof(engine_axis_t));
     TEST_ASSERT_NOT_NULL(prog->axes);
-    (void)snprintf(prog->axes[0].id, sizeof(prog->axes[0].id), "%s", "gantry");
+    (void)snprintf(prog->axes[0].id, sizeof(prog->axes[0].id), "%s", "axis_a");
     TEST_ASSERT_EQUAL_INT(SW_OK, engine_load_program(engine, prog));
     TEST_ASSERT_EQUAL_INT(SW_OK, engine_start(engine));
 

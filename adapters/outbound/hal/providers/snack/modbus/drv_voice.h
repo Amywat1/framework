@@ -5,7 +5,8 @@
  * @date    2026-06-29
  *
  * @note    驱动层只负责寄存器读写与通信状态管理，不含项目业务语义。
- *          各项目的曲目编号映射（如"欢迎语"→track 3）由上层 HAL adapter 完成。
+ *          寄存器布局随语音模块型号变化，由项目以 drv_voice_modbus_profile_t 注入；
+ *          业务语义到曲目编号的映射由项目侧完成。
  *          通信失败/恢复事件在操作调用点同步触发，不依赖后台线程。
  */
 
@@ -21,6 +22,20 @@ extern "C" {
 
 #include <stdint.h>
 
+/**
+ * @brief 语音模块 Modbus profile，由项目配置层按模块型号定义并以静态只读对象注入。
+ * @note  动作寄存器（音量加减 / 暂停 / 停止）统一写入 trigger 触发。
+ */
+typedef struct {
+    uint16_t reg_volume;   /**< 绝对音量寄存器 */
+    uint16_t reg_play;     /**< 播放寄存器（写入曲目编号） */
+    uint16_t reg_vol_up;   /**< 音量增加寄存器 */
+    uint16_t reg_vol_down; /**< 音量减小寄存器 */
+    uint16_t reg_pause;    /**< 暂停寄存器 */
+    uint16_t reg_stop;     /**< 停止播放并清空列表寄存器 */
+    uint16_t trigger;      /**< 动作寄存器触发值 */
+} drv_voice_modbus_profile_t;
+
 /** @brief 语音驱动不透明句柄，真实存储仅由 Snack provider 内部持有。 */
 typedef struct drv_voice drv_voice_t;
 
@@ -30,12 +45,17 @@ typedef struct drv_voice drv_voice_t;
  * @param[in]  serial_port  Modbus RTU 串口路径（如 "/dev/ttyS1"），不可为 NULL
  * @param[in]  baud         串口波特率
  * @param[in]  modbus_addr  Modbus 从站地址（1~247）
+ * @param[in]  profile      项目侧注入的模块寄存器 profile，生命周期须覆盖实例，不可为 NULL
  * @retval     SW_OK        初始化成功
- * @retval     SW_ERR_PARAM v 或 serial_port 为 NULL，或 modbus_addr 非法
+ * @retval     SW_ERR_PARAM v / serial_port / profile 为 NULL，或 modbus_addr 非法
  * @retval     SW_ERR_HW    mutex 初始化失败或 Modbus 上下文创建失败
  * @note   Modbus connect 失败不中止 init（defer-link），后续操作自动重连
  */
-sw_err_t drv_voice_init(drv_voice_t *v, const char *serial_port, int baud, int modbus_addr);
+sw_err_t drv_voice_init(drv_voice_t                      *v,
+                        const char                       *serial_port,
+                        int                               baud,
+                        int                               modbus_addr,
+                        const drv_voice_modbus_profile_t *profile);
 
 /**
  * @brief  播放指定曲目

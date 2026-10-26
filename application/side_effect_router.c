@@ -103,7 +103,7 @@ sw_err_t side_effect_router_run(const dev_cmd_t *cmd, operational_mode_t mode_be
     case DEV_CMD_SET_SERVICE:
         if (!cmd->body.payload.service.enabled
             && (op_mode_get_current() == OP_MODE_STOPPED)) {
-            job_admit_clear_orders();
+            job_admit_on_stopped();
         }
         return SW_OK;
 

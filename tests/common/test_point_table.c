@@ -73,6 +73,16 @@ void setUp(void)
 
 void tearDown(void)
 {
+    point_table_json_set_bool_as_number(false);
+}
+
+static void test_to_json_bool_as_number_when_enabled(void)
+{
+    char buf[128];
+
+    point_table_json_set_bool_as_number(true);
+    TEST_ASSERT_EQUAL_INT(SW_OK, point_table_to_json(k_table, sizeof(k_table) / sizeof(k_table[0]), buf, sizeof(buf)));
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"enabled\":1"));
 }
 
 static void test_to_json_serializes_readable_points(void)
@@ -83,7 +93,7 @@ static void test_to_json_serializes_readable_points(void)
     ret = point_table_to_json(k_table, sizeof(k_table) / sizeof(k_table[0]), buf, sizeof(buf));
     TEST_ASSERT_EQUAL_INT(SW_OK, ret);
     TEST_ASSERT_NOT_NULL(strstr(buf, "\"speed\":10"));
-    TEST_ASSERT_NOT_NULL(strstr(buf, "\"enabled\":1"));
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"enabled\":true"));
     TEST_ASSERT_NOT_NULL(strstr(buf, "\"name\":\"demo\""));
 }
 
@@ -139,6 +149,7 @@ int main(void)
 {
     UNITY_BEGIN();
     WDF_RUN_TEST(test_to_json_serializes_readable_points, "", "验证仅将可读点位序列化为 JSON");
+    WDF_RUN_TEST(test_to_json_bool_as_number_when_enabled, "", "验证 provider 开启后 bool 编码为 0/1");
     WDF_RUN_TEST(test_apply_json_updates_values, "", "验证应用JSON更新值");
     WDF_RUN_TEST(test_apply_json_rejects_unknown_key, "", "验证应用JSON拒绝未知键");
     WDF_RUN_TEST(test_apply_json_readonly_rejected, "", "验证应用JSON只读被拒绝");

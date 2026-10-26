@@ -41,11 +41,6 @@ void device_snapshot_update_job(const wash_snapshot_t *job);
 void device_snapshot_set_cloud_connected(bool connected);
 
 /**
- * @brief  更新离线次数授权到连接性子域
- */
-void device_snapshot_set_wash_quota(bool monitorable, uint8_t remaining, uint32_t grant_serial);
-
-/**
  * @brief  更新入场占用子域
  */
 void device_snapshot_update_occupancy(const entry_occupancy_t *occupancy);

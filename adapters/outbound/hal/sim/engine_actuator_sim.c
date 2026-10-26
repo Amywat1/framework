@@ -23,18 +23,6 @@ typedef struct {
 static sim_res_t         s_res[SIM_RES_MAX];
 static unsigned          s_res_count;
 static engine_actuator_t s_handle;
-static bool              s_bound;
-
-static const char *const s_resources[]
-    = {"aout", "bout", "ctrl", "gantry", "lift", "rear_lock", "brush_top", "brush_side", "fan", "water", "roof_follow"};
-static const char *const s_water_paths[] = {"curtain", "top_foam", "bottom_foam", "top_high", "bottom_high"};
-
-static const engine_actuator_catalog_t s_catalog = {
-    .resources        = s_resources,
-    .resource_count   = (unsigned)(sizeof(s_resources) / sizeof(s_resources[0])),
-    .water_paths      = s_water_paths,
-    .water_path_count = (unsigned)(sizeof(s_water_paths) / sizeof(s_water_paths[0])),
-};
 
 static sim_res_t *find_or_add(const char *name)
 {
@@ -129,12 +117,9 @@ static const engine_actuator_ops_t s_ops = {
     .is_settled = sim_is_settled,
 };
 
-engine_actuator_t *engine_actuator_sim_instance(void)
+engine_actuator_t *engine_actuator_sim_instance(const engine_actuator_catalog_t *catalog)
 {
-    if (!s_bound) {
-        s_bound = engine_actuator_provider_bind(&s_handle, &s_ops, (void *)&s_catalog, &s_catalog) == SW_OK;
-    }
-    return s_bound ? &s_handle : NULL;
+    return (engine_actuator_provider_bind(&s_handle, &s_ops, (void *)catalog, catalog) == SW_OK) ? &s_handle : NULL;
 }
 
 void engine_actuator_sim_reset(void)

@@ -12,12 +12,13 @@
 
 #include <string.h>
 
-static drv_voice_t s_voice;
-static bool        s_voice_inited         = false;
-static const char *s_serial_port          = NULL;
-static int         s_baud                 = 0;
-static int         s_modbus_addr          = 0;
-static void (*s_event_cb)(int event_code) = NULL;
+static drv_voice_t                       s_voice;
+static bool                              s_voice_inited = false;
+static const char                       *s_serial_port  = NULL;
+static int                               s_baud         = 0;
+static int                               s_modbus_addr  = 0;
+static const drv_voice_modbus_profile_t *s_profile      = NULL;
+static void (*s_event_cb)(int event_code)               = NULL;
 
 static bool voice_ready(void)
 {
@@ -36,7 +37,7 @@ static sw_err_t voice_init(void)
     }
 
     memset(&s_voice, 0, sizeof(s_voice));
-    ret = drv_voice_init(&s_voice, s_serial_port, s_baud, s_modbus_addr);
+    ret = drv_voice_init(&s_voice, s_serial_port, s_baud, s_modbus_addr, s_profile);
     if (ret != SW_OK) {
         s_voice_inited = false;
         return ret;
@@ -114,11 +115,15 @@ static const hal_voice_ops_t s_ops = {
     .register_event_cb = voice_register_event_cb,
 };
 
-void snack_voice_adapter_register(const char *serial_port, int baud, int modbus_addr)
+void snack_voice_adapter_register(const char                       *serial_port,
+                                  int                               baud,
+                                  int                               modbus_addr,
+                                  const drv_voice_modbus_profile_t *profile)
 {
     s_serial_port = serial_port;
     s_baud        = baud;
     s_modbus_addr = modbus_addr;
+    s_profile     = profile;
     hal_voice_register(&s_ops);
 }
 
@@ -130,6 +135,7 @@ void snack_voice_adapter_test_reset(void)
     s_serial_port  = NULL;
     s_baud         = 0;
     s_modbus_addr  = 0;
+    s_profile      = NULL;
     s_event_cb     = NULL;
 }
 #endif

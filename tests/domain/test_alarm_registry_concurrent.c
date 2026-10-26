@@ -38,7 +38,7 @@ enum {
  * 让活动表在整场测试中持续变位。 */
 #define CONC_CODE_MINOR    901001U
 #define CONC_CODE_MAJOR    201101U
-#define CONC_CODE_CRITICAL 201709U
+#define CONC_CODE_CRITICAL 209909U
 /* 专供 ALRM-18 记账：AUTO_STATIC 的 clear 会立即删除条目，故 trigger/clear 成对
  * 必定各产生一条域事件，产生总数精确可算。MANUAL_RESET 的码做不到——clear 只翻
  * condition_active 而不发 CLEARED，下一次 trigger 又命中已活跃条目而不发

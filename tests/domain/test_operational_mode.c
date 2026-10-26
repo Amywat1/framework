@@ -15,6 +15,7 @@
 #include "domain/safety/alarm_registry/alarm_registry.h"
 #include "domain/safety/model/alarm_types.h"
 #include "runtime/ports/port_registry.h"
+#include "tests/stubs/test_machine_profile.h"
 #include "tests/stubs/test_wash_modes.h"
 #include "wdf_test_spec.h"
 
@@ -90,6 +91,7 @@ void setUp(void)
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
     TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_init());
     load_alarm_catalog();
+    TEST_ASSERT_EQUAL_INT(SW_OK, test_machine_profile_register());
     TEST_ASSERT_EQUAL_INT(SW_OK, operational_mode_init());
 }
 

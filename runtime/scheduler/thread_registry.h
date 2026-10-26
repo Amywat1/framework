@@ -28,7 +28,7 @@ extern "C" {
  *                      + control_loop_wd（急停轮询适配器如接入再加 1）
  *   引擎会话 worker   1~2 每个 engine_session 配置一个
  *   周期任务          若干  云/观测/Modbus 监测等仍走 periodic_task；
- *                      电机/水路/滤波/雷达/仿形/脉冲已并入 control_loop
+ *                      电机/水路/滤波/脉冲及项目控制类节拍已并入 control_loop
  * 合计约 16，留出余量以便项目新增周期任务时不必同步改框架常量。
  *
  * 提升此值会等量提升 PERIODIC_TASK_MAX（periodic_task.c 以此为准），

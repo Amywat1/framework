@@ -47,7 +47,7 @@ static bool actuator_valid(const engine_actuator_t *actuator)
     return (actuator != NULL) && (actuator->ops != NULL) && (actuator->ctx != NULL) && (actuator->catalog != NULL)
            && (actuator->ops->apply != NULL) && (actuator->ops->release != NULL) && (actuator->ops->halt_all != NULL)
            && names_valid(actuator->catalog->resources, actuator->catalog->resource_count)
-           && names_valid(actuator->catalog->water_paths, actuator->catalog->water_path_count);
+           && names_valid(actuator->catalog->paths, actuator->catalog->path_count);
 }
 
 sw_err_t engine_environment_validate(const engine_environment_t *environment)
@@ -134,7 +134,7 @@ sw_err_t engine_actuator_provider_bind(engine_actuator_t               *actuator
     if ((actuator == NULL) || (ops == NULL) || (ctx == NULL) || (catalog == NULL) || (ops->apply == NULL)
         || (ops->release == NULL) || (ops->halt_all == NULL)
         || !names_valid(catalog->resources, catalog->resource_count)
-        || !names_valid(catalog->water_paths, catalog->water_path_count)) {
+        || !names_valid(catalog->paths, catalog->path_count)) {
         return SW_ERR_PARAM;
     }
     actuator->ops     = ops;

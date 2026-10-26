@@ -99,7 +99,7 @@ static void test_dev_cmd_missing_cmd_kind_rejected(void)
     TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, cloud_point_validate(&entry, 1U));
 }
 
-static void test_dev_cmd_non_bool_int_rejected(void)
+static void test_dev_cmd_string_only_for_order(void)
 {
     cloud_point_entry_t entry;
 
@@ -110,6 +110,30 @@ static void test_dev_cmd_non_bool_int_rejected(void)
     entry.cmd_kind  = DEV_CMD_CLEAR_MACHINE;
 
     TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, cloud_point_validate(&entry, 1U));
+    entry.cmd_kind = DEV_CMD_SUBMIT_ORDER;
+    TEST_ASSERT_EQUAL_INT(SW_OK, cloud_point_validate(&entry, 1U));
+}
+
+static void test_pulse_only_for_writable_bool(void)
+{
+    cloud_point_entry_t entry;
+
+    memset(&entry, 0, sizeof(entry));
+    entry.base.id    = "axisMove";
+    entry.base.type  = POINT_TYPE_INT;
+    entry.kind       = CLOUD_KIND_DEV_CMD;
+    entry.cmd_kind   = DEV_CMD_MANUAL_ACTUATOR;
+    entry.cmd_act_id = 1U;
+    entry.pulse      = true;
+    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, cloud_point_validate(&entry, 1U));
+
+    memset(&entry, 0, sizeof(entry));
+    entry.base.id   = "temp";
+    entry.base.type = POINT_TYPE_BOOL;
+    entry.base.get  = get_temp;
+    entry.kind      = CLOUD_KIND_TELEMETRY;
+    entry.pulse     = true;
+    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, cloud_point_validate(&entry, 1U));
 }
 
 static void test_dev_cmd_manual_int_accepted(void)
@@ -117,7 +141,7 @@ static void test_dev_cmd_manual_int_accepted(void)
     cloud_point_entry_t entry;
 
     memset(&entry, 0, sizeof(entry));
-    entry.base.id     = "gantryMove";
+    entry.base.id     = "axisMove";
     entry.base.type   = POINT_TYPE_INT;
     entry.base.get    = get_temp;
     entry.kind        = CLOUD_KIND_DEV_CMD;
@@ -133,7 +157,7 @@ static void test_dev_cmd_manual_missing_act_id_rejected(void)
     cloud_point_entry_t entry;
 
     memset(&entry, 0, sizeof(entry));
-    entry.base.id    = "gantryMove";
+    entry.base.id    = "axisMove";
     entry.base.type  = POINT_TYPE_INT;
     entry.kind       = CLOUD_KIND_DEV_CMD;
     entry.cmd_kind   = DEV_CMD_MANUAL_ACTUATOR;
@@ -147,7 +171,7 @@ static void test_set_missing_set_rejected(void)
     cloud_point_entry_t entry;
 
     memset(&entry, 0, sizeof(entry));
-    entry.base.id   = "manualBrush";
+    entry.base.id   = "manualAct";
     entry.base.type = POINT_TYPE_BOOL;
     entry.kind      = CLOUD_KIND_SET;
 
@@ -201,9 +225,10 @@ static void test_valid_dev_cmd_and_set(void)
     stop_cmd.kind      = CLOUD_KIND_DEV_CMD;
     stop_cmd.cmd_kind  = DEV_CMD_CLEAR_MACHINE;
     stop_cmd.report    = CLOUD_REPORT_RESYNC;
+    stop_cmd.pulse     = true;
 
     memset(&write_act, 0, sizeof(write_act));
-    write_act.base.id   = "manualBrush";
+    write_act.base.id   = "manualAct";
     write_act.base.type = POINT_TYPE_BOOL;
     write_act.base.set  = set_temp;
     write_act.kind      = CLOUD_KIND_SET;
@@ -221,7 +246,8 @@ int main(void)
     WDF_RUN_TEST(test_duplicate_id_rejected, "", "验证重复ID被拒绝");
     WDF_RUN_TEST(test_telemetry_with_set_rejected, "", "验证遥测点位配置写入接口时被拒绝");
     WDF_RUN_TEST(test_dev_cmd_missing_cmd_kind_rejected, "", "验证设备命令缺失命令类型被拒绝");
-    WDF_RUN_TEST(test_dev_cmd_non_bool_int_rejected, "", "验证非 bool/int 设备命令被拒绝");
+    WDF_RUN_TEST(test_dev_cmd_string_only_for_order, "", "验证字符串设备命令仅允许承载订单号");
+    WDF_RUN_TEST(test_pulse_only_for_writable_bool, "", "验证 pulse 仅允许可写 bool 点位");
     WDF_RUN_TEST(test_dev_cmd_manual_int_accepted, "", "验证 int 点动设备命令合法");
     WDF_RUN_TEST(test_dev_cmd_manual_missing_act_id_rejected, "", "验证点动设备命令缺少动作号被拒绝");
     WDF_RUN_TEST(test_set_missing_set_rejected, "", "验证可写属性缺失 set 被拒绝");

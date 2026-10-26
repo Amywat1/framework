@@ -231,7 +231,7 @@ static void test_scheduler_truncates_long_os_thread_name(void)
 {
     /* 21 字符，远超 Linux 的 16 字节上限；不截断则 setname 静默失败，
      * OS 层名字会残留为进程名（如 test_scheduler）。 */
-    static const char   long_name[] = "top_brush_profile_cli";
+    static const char   long_name[] = "worker_profile_cli_01";
     static name_probe_t probe;
     char                os_name[32];
 
@@ -245,7 +245,7 @@ static void test_scheduler_truncates_long_os_thread_name(void)
     TEST_ASSERT_EQUAL_INT(0, pthread_getname_np(probe.tid, os_name, sizeof(os_name)));
     /* 保留前 15 字符 + '\0' */
     TEST_ASSERT_EQUAL_INT(15, (int)strlen(os_name));
-    TEST_ASSERT_EQUAL_STRING("top_brush_profi", os_name);
+    TEST_ASSERT_EQUAL_STRING("worker_profile_", os_name);
 
     probe.stop = 1;
 }

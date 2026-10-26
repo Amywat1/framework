@@ -10,26 +10,6 @@
 
 #include <string.h>
 
-/* -------------------------------------------------------------------------
- * 寄存器地址（按厂家区分；切换厂家时改下方别名）
- * ------------------------------------------------------------------------- */
-#define VOICE_VENDOR_REG_VOLUME   0x0002U /**< 模块音量（绝对值） */
-#define VOICE_VENDOR_REG_PLAY     0x0004U /**< 语音播放（写入曲目编号） */
-#define VOICE_VENDOR_REG_VOL_UP   0x0005U /**< 音量增加（写触发值） */
-#define VOICE_VENDOR_REG_VOL_DOWN 0x0006U /**< 音量减小（写触发值） */
-#define VOICE_VENDOR_REG_PAUSE    0x0009U /**< 暂停（写触发值） */
-#define VOICE_VENDOR_REG_STOP     0x000AU /**< 停止播放并清空列表（写触发值） */
-
-#define VOICE_REG_VOLUME   VOICE_VENDOR_REG_VOLUME
-#define VOICE_REG_PLAY     VOICE_VENDOR_REG_PLAY
-#define VOICE_REG_VOL_UP   VOICE_VENDOR_REG_VOL_UP
-#define VOICE_REG_VOL_DOWN VOICE_VENDOR_REG_VOL_DOWN
-#define VOICE_REG_PAUSE    VOICE_VENDOR_REG_PAUSE
-#define VOICE_REG_STOP     VOICE_VENDOR_REG_STOP
-
-/* 动作寄存器触发值（stop/pause/volume_up/volume_down 均使用此值） */
-#define VOICE_CMD_TRIGGER 0x0001U
-
 #define VOICE_MODBUS_TIMEOUT_US   100000U /**< Modbus 响应超时 100ms */
 #define VOICE_COMM_FAIL_NOTIFY    3U      /**< 连续失败 N 次后通知通信丢失 */
 #define VOICE_COMM_FAIL_RECONNECT 10U     /**< 连续失败 N 次后重建 Modbus 连接 */
@@ -87,15 +67,20 @@ static sw_err_t voice_mb_write(drv_voice_t *v, uint16_t addr, uint16_t val)
 /* -------------------------------------------------------------------------
  * 接口实现
  * ------------------------------------------------------------------------- */
-sw_err_t drv_voice_init(drv_voice_t *v, const char *serial_port, int baud, int modbus_addr)
+sw_err_t drv_voice_init(drv_voice_t                      *v,
+                        const char                       *serial_port,
+                        int                               baud,
+                        int                               modbus_addr,
+                        const drv_voice_modbus_profile_t *profile)
 {
     sw_err_t ret;
 
-    if ((v == NULL) || (serial_port == NULL) || (modbus_addr < 1) || (modbus_addr > 247)) {
+    if ((v == NULL) || (serial_port == NULL) || (profile == NULL) || (modbus_addr < 1) || (modbus_addr > 247)) {
         return SW_ERR_PARAM;
     }
 
     (void)memset(v, 0, sizeof(*v));
+    v->profile = profile;
 
     if (pthread_mutex_init(&v->notify_mutex, NULL) != 0) {
         LOG_ERROR("drv_voice_init[addr=%d]: mutex init failed", modbus_addr);
@@ -120,32 +105,32 @@ sw_err_t drv_voice_init(drv_voice_t *v, const char *serial_port, int baud, int m
 
 sw_err_t drv_voice_play(drv_voice_t *v, uint16_t track)
 {
-    return voice_mb_write(v, VOICE_REG_PLAY, track);
+    return voice_mb_write(v, v->profile->reg_play, track);
 }
 
 sw_err_t drv_voice_stop(drv_voice_t *v)
 {
-    return voice_mb_write(v, VOICE_REG_STOP, VOICE_CMD_TRIGGER);
+    return voice_mb_write(v, v->profile->reg_stop, v->profile->trigger);
 }
 
 sw_err_t drv_voice_pause(drv_voice_t *v)
 {
-    return voice_mb_write(v, VOICE_REG_PAUSE, VOICE_CMD_TRIGGER);
+    return voice_mb_write(v, v->profile->reg_pause, v->profile->trigger);
 }
 
 sw_err_t drv_voice_set_volume(drv_voice_t *v, uint16_t vol)
 {
-    return voice_mb_write(v, VOICE_REG_VOLUME, vol);
+    return voice_mb_write(v, v->profile->reg_volume, vol);
 }
 
 sw_err_t drv_voice_volume_up(drv_voice_t *v)
 {
-    return voice_mb_write(v, VOICE_REG_VOL_UP, VOICE_CMD_TRIGGER);
+    return voice_mb_write(v, v->profile->reg_vol_up, v->profile->trigger);
 }
 
 sw_err_t drv_voice_volume_down(drv_voice_t *v)
 {
-    return voice_mb_write(v, VOICE_REG_VOL_DOWN, VOICE_CMD_TRIGGER);
+    return voice_mb_write(v, v->profile->reg_vol_down, v->profile->trigger);
 }
 
 void drv_voice_register_event_cb(drv_voice_t *v, void (*cb)(int event_code))

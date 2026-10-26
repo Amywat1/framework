@@ -4,8 +4,8 @@
  *
  * @note    订单簿与占用表的写入只经本模块，统一在放行锁下进行；
  *          start_job 也在锁内调用，保证放行与下单/取消/全停/清障互斥。
- *          开洗另受 wash_quota 约束：可监控则放行不扣次；离线须有剩余次数，
- *          且只在 start_job 成功后立即扣减。
+ *          开洗授权（计费、次数等）由项目经 device_ops_t.admit_check / admit_consume
+ *          注入；未注册则不拦截，记账只在 start_job 成功后进行。
  */
 
 #ifndef APPLICATION_JOB_ADMIT_H
@@ -24,6 +24,8 @@ extern "C" {
 
 /**
  * @brief  初始化放行核（订单簿与占用表）
+ * @retval SW_OK           已就绪
+ * @retval SW_ERR_NOT_INIT 项目未注册 machine_profile
  */
 sw_err_t job_admit_init(void);
 
@@ -60,17 +62,17 @@ sw_err_t job_admit_start(void);
 sw_err_t job_admit_cancel(uint64_t order_id);
 
 /**
- * @brief  撤掉全部在洗占用，可选清空订单簿（STOP_ALL / CLEAR_MACHINE 前置）
- * @param  clear_orders  true 时同时清空订单簿
+ * @brief  撤掉全部在洗占用（STOP_ALL / CLEAR_MACHINE 前置）
+ * @param  entering_stop  true 表示随后进入停机，按 profile.clear_orders_on_stopped 清空订单簿
  * @return 被撤掉的在洗作业数；调用方据此决定是否 abort_jobs
  * @note   与进行中的放行互斥：返回时不会再有作业在本次调用之后被启动并漏记。
  */
-unsigned job_admit_drop_jobs(bool clear_orders);
+unsigned job_admit_drop_jobs(bool entering_stop);
 
 /**
- * @brief  清空订单簿，不动在洗作业（进入停机时调用）
+ * @brief  进入停机：按 profile.clear_orders_on_stopped 清空订单簿，不动在洗作业
  */
-void job_admit_clear_orders(void);
+void job_admit_on_stopped(void);
 
 /**
  * @brief  淘汰已过期的队首订单，不放行
@@ -93,7 +95,8 @@ void job_admit_on_completed(uint64_t job_id);
 void job_admit_on_job_aborted(uint64_t job_id);
 
 /**
- * @brief  整机级中止：清空在洗占用与订单簿，并按原因请求清障或停机（仅安全/全停路径）
+ * @brief  整机级中止：清空在洗占用，按 profile.clear_orders_on_stopped 清空订单簿，
+ *         并按原因请求清障或停机（仅安全/全停路径）
  */
 void job_admit_on_aborted(wash_abort_cause_t cause);
 

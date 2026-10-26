@@ -39,7 +39,7 @@ static bool instance_cfg_valid(const snack_vfd_backend_instance_cfg_t *cfg)
     unsigned i;
 
     if ((cfg == NULL) || (cfg->serial_port == NULL) || (cfg->modbus_addr <= 0) || (cfg->modbus_addr > 247)
-        || !drv_vfd_profile_is_valid(cfg->profile)) {
+        || !drv_vfd_profile_is_valid(cfg->profile) || (cfg->rst_pulse_ms == 0U)) {
         return false;
     }
     if ((cfg->gear_count == 0U) || (cfg->gear_count > SNACK_VFD_BACKEND_SPEED_GEAR_COUNT)) {
@@ -199,7 +199,7 @@ static sw_err_t snack_bind_instance(hal_vfd_id_t id, snack_vfd_slot_t *slot)
     const hal_vfd_manager_bind_cfg_t cfg = {
         .ops          = &s_snack_vfd_backend_ops,
         .drv_ctx      = slot,
-        .rst_pulse_ms = HAL_VFD_DEFAULT_RST_PULSE_MS,
+        .rst_pulse_ms = slot->cfg.rst_pulse_ms,
         .fault        = slot->cfg.fault,
         .current      = slot->cfg.current,
     };

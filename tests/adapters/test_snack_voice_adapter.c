@@ -10,6 +10,16 @@
 
 #include <string.h>
 
+static const drv_voice_modbus_profile_t s_profile = {
+    .reg_volume   = 0x0011U,
+    .reg_play     = 0x0012U,
+    .reg_vol_up   = 0x0013U,
+    .reg_vol_down = 0x0014U,
+    .reg_pause    = 0x0015U,
+    .reg_stop     = 0x0016U,
+    .trigger      = 0x0003U,
+};
+
 static int      s_events[8];
 static unsigned s_event_count;
 
@@ -34,7 +44,7 @@ void setUp(void)
     memset(s_events, 0, sizeof(s_events));
     s_event_count = 0;
     snack_voice_adapter_test_reset();
-    snack_voice_adapter_register(NULL, 0, 0);
+    snack_voice_adapter_register(NULL, 0, 0, NULL);
 }
 
 void tearDown(void)
@@ -54,7 +64,7 @@ static void test_registered_ops_reject_commands_before_instance_init(void)
 
 static void test_instance_init_passes_modbus_parameters(void)
 {
-    snack_voice_adapter_register("/dev/ttyS1", 9600, 7);
+    snack_voice_adapter_register("/dev/ttyS1", 9600, 7, &s_profile);
     TEST_ASSERT_EQUAL_INT(SW_OK, voice()->init());
     TEST_ASSERT_TRUE(snack_modbus_fake_init_called());
     TEST_ASSERT_EQUAL_STRING("/dev/ttyS1", snack_modbus_fake_serial_port());
@@ -64,37 +74,37 @@ static void test_instance_init_passes_modbus_parameters(void)
 
 static void test_commands_write_expected_registers(void)
 {
-    snack_voice_adapter_register("/dev/ttyS1", 9600, 7);
+    snack_voice_adapter_register("/dev/ttyS1", 9600, 7, &s_profile);
     TEST_ASSERT_EQUAL_INT(SW_OK, voice()->init());
 
     TEST_ASSERT_EQUAL_INT(SW_OK, voice()->play(12));
-    TEST_ASSERT_EQUAL_UINT16(0x0004U, snack_modbus_fake_last_write_addr());
+    TEST_ASSERT_EQUAL_UINT16(s_profile.reg_play, snack_modbus_fake_last_write_addr());
     TEST_ASSERT_EQUAL_UINT16(12U, snack_modbus_fake_last_write_val());
 
     TEST_ASSERT_EQUAL_INT(SW_OK, voice()->set_volume(20));
-    TEST_ASSERT_EQUAL_UINT16(0x0002U, snack_modbus_fake_last_write_addr());
+    TEST_ASSERT_EQUAL_UINT16(s_profile.reg_volume, snack_modbus_fake_last_write_addr());
     TEST_ASSERT_EQUAL_UINT16(20U, snack_modbus_fake_last_write_val());
 
     TEST_ASSERT_EQUAL_INT(SW_OK, voice()->volume_up());
-    TEST_ASSERT_EQUAL_UINT16(0x0005U, snack_modbus_fake_last_write_addr());
-    TEST_ASSERT_EQUAL_UINT16(1U, snack_modbus_fake_last_write_val());
+    TEST_ASSERT_EQUAL_UINT16(s_profile.reg_vol_up, snack_modbus_fake_last_write_addr());
+    TEST_ASSERT_EQUAL_UINT16(s_profile.trigger, snack_modbus_fake_last_write_val());
 
     TEST_ASSERT_EQUAL_INT(SW_OK, voice()->volume_down());
-    TEST_ASSERT_EQUAL_UINT16(0x0006U, snack_modbus_fake_last_write_addr());
-    TEST_ASSERT_EQUAL_UINT16(1U, snack_modbus_fake_last_write_val());
+    TEST_ASSERT_EQUAL_UINT16(s_profile.reg_vol_down, snack_modbus_fake_last_write_addr());
+    TEST_ASSERT_EQUAL_UINT16(s_profile.trigger, snack_modbus_fake_last_write_val());
 
     TEST_ASSERT_EQUAL_INT(SW_OK, voice()->pause());
-    TEST_ASSERT_EQUAL_UINT16(0x0009U, snack_modbus_fake_last_write_addr());
-    TEST_ASSERT_EQUAL_UINT16(1U, snack_modbus_fake_last_write_val());
+    TEST_ASSERT_EQUAL_UINT16(s_profile.reg_pause, snack_modbus_fake_last_write_addr());
+    TEST_ASSERT_EQUAL_UINT16(s_profile.trigger, snack_modbus_fake_last_write_val());
 
     TEST_ASSERT_EQUAL_INT(SW_OK, voice()->stop());
-    TEST_ASSERT_EQUAL_UINT16(0x000AU, snack_modbus_fake_last_write_addr());
-    TEST_ASSERT_EQUAL_UINT16(1U, snack_modbus_fake_last_write_val());
+    TEST_ASSERT_EQUAL_UINT16(s_profile.reg_stop, snack_modbus_fake_last_write_addr());
+    TEST_ASSERT_EQUAL_UINT16(s_profile.trigger, snack_modbus_fake_last_write_val());
 }
 
 static void test_comm_lost_and_restored_events_are_reported(void)
 {
-    snack_voice_adapter_register("/dev/ttyS1", 9600, 7);
+    snack_voice_adapter_register("/dev/ttyS1", 9600, 7, &s_profile);
     voice()->register_event_cb(event_cb);
     TEST_ASSERT_EQUAL_INT(SW_OK, voice()->init());
 
@@ -118,8 +128,15 @@ static void test_instance_init_failure_keeps_adapter_not_ready(void)
 {
     snack_modbus_fake_set_init_result(SW_ERR_HW);
 
-    snack_voice_adapter_register("/dev/ttyS1", 9600, 7);
+    snack_voice_adapter_register("/dev/ttyS1", 9600, 7, &s_profile);
     TEST_ASSERT_EQUAL_INT(SW_ERR_HW, voice()->init());
+    TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_INIT, voice()->play(1));
+}
+
+static void test_instance_init_rejects_missing_profile(void)
+{
+    snack_voice_adapter_register("/dev/ttyS1", 9600, 7, NULL);
+    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, voice()->init());
     TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_INIT, voice()->play(1));
 }
 
@@ -132,6 +149,7 @@ int main(void)
     WDF_RUN_TEST(test_commands_write_expected_registers, "", "验证语音命令写入预期寄存器");
     WDF_RUN_TEST(test_comm_lost_and_restored_events_are_reported, "", "验证通信丢失和恢复事件被上报");
     WDF_RUN_TEST(test_instance_init_failure_keeps_adapter_not_ready, "", "验证实例初始化失败保持适配器未就绪");
+    WDF_RUN_TEST(test_instance_init_rejects_missing_profile, "", "验证缺少寄存器 profile 时实例初始化失败");
 
     return UNITY_END();
 }

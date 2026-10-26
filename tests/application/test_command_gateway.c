@@ -5,7 +5,6 @@
 
 #include "application/command_gateway.h"
 #include "application/job_admit.h"
-#include "application/wash_quota.h"
 #include "application/ports/inbound/command/command_port.h"
 #include "common/sw_error.h"
 #include "common/trace_context.h"
@@ -17,6 +16,7 @@
 #include "tests/stubs/device_ops_stub.h"
 #include "tests/stubs/test_wash_modes.h"
 #include "wdf_test_spec.h"
+#include "tests/stubs/test_machine_profile.h"
 
 #include <pthread.h>
 #include <string.h>
@@ -113,8 +113,8 @@ void setUp(void)
     s_ops.stop_all_outputs = stub_stop_all_outputs;
     device_ops_stub_bind(&s_ops);
     device_ops_register(&s_ops);
+    TEST_ASSERT_EQUAL_INT(SW_OK, test_machine_profile_register());
     (void)job_admit_init();
-    wash_quota_reset_for_test();
     s_handled_command_id     = 0U;
     s_handled_correlation_id = 0U;
     s_stop_all_outputs_count = 0;

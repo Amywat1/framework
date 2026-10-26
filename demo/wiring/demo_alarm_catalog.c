@@ -10,7 +10,7 @@
 #include <stddef.h>
 
 #define DEMO_ALARM_MAJOR 201101U
-#define DEMO_ALARM_ESTOP 201709U
+#define DEMO_ALARM_ESTOP 209909U
 
 static const alarm_def_t s_demo_catalog[] = {
     {

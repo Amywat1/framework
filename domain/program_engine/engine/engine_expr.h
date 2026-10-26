@@ -34,7 +34,7 @@ typedef struct {
     /**
      * @brief  解析变量名到数值
      * @param  ctx        调用方上下文
-     * @param  name       变量原始文本（如 "$x"、"ESTOP"、"axes.gantry.position"）
+     * @param  name       变量原始文本（如 "$x"、"ESTOP"、"axes.axis_a.position"）
      * @param  out_value  输出数值（布尔以 0.0/1.0 表示）
      * @return true=解析成功；false=未知变量（求值将判定为失败）
      */

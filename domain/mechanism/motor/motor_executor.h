@@ -26,8 +26,8 @@ extern "C" {
 
 /* ------------------------- 编译期容量上限 ------------------------- */
 /*
- * MOTOR_MAX_MOTORS / DRIVERS / INTERLOCKS = 16：覆盖当前隧道/龙门多轴接入余量
- * （输送、侧刷、顶刷、风机、行车/升降等逻辑轴合计），并控制静态 RAM。
+ * MOTOR_MAX_MOTORS / DRIVERS / INTERLOCKS = 16：覆盖已接入项目的逻辑轴合计并留余量，
+ * 同时控制静态 RAM。
  * 互锁条数与轴数同级。
  */
 #define MOTOR_MAX_MOTORS     16 /**< 单执行器最多管理的电机数 */

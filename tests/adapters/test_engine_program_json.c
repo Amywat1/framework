@@ -16,20 +16,20 @@
 #include <stdio.h>
 #include <string.h>
 
-static bool s_tail_active;
+static bool s_var_active;
 
 static sw_err_t test_var_read(void *ctx, unsigned variable_id, double *out)
 {
-    const bool *tail_active = (const bool *)ctx;
+    const bool *var_active = (const bool *)ctx;
 
     if ((out == NULL) || (variable_id != 0U)) {
         return SW_ERR_PARAM;
     }
-    *out = *tail_active ? 1.0 : 0.0;
+    *out = *var_active ? 1.0 : 0.0;
     return SW_OK;
 }
 
-static const char *const               s_test_var_names[] = {"car_tail.active"};
+static const char *const               s_test_var_names[] = {"var_a.active"};
 static const engine_variable_catalog_t s_test_var_catalog = {
     .names      = s_test_var_names,
     .name_count = 1U,
@@ -40,6 +40,17 @@ static const engine_variable_ops_t s_test_var_ops = {
 static engine_variable_t    s_test_variable;
 static engine_environment_t s_environment;
 
+static const char *const               s_io_signals[] = {"ESTOP", "EXIT", "SIG", "MARK"};
+static const char *const               s_io_axes[]    = {"axis_a"};
+static const engine_io_catalog_t       s_io_catalog   = {
+            .signals      = s_io_signals,
+            .signal_count = 4U,
+            .axes         = s_io_axes,
+            .axis_count   = 1U,
+};
+static const char *const               s_resources[]  = {"aout", "bout"};
+static const engine_actuator_catalog_t s_act_catalog  = {.resources = s_resources, .resource_count = 2U};
+
 static const char *const s_program_json
     = "{"
       "\"program\":{"
@@ -47,8 +58,8 @@ static const char *const s_program_json
       "\"id\":\"json_unit\","
       "\"name\":\"json unit\","
       "\"params\":{\"delay_ms\":200},"
-      "\"axes\":{\"gantry\":{\"type\":\"physical\",\"encoder\":\"enc\",\"pulse_per_mm\":1,\"direction\":1}},"
-      "\"markers\":{\"tail\":{\"type\":\"latch\",\"axis\":\"gantry\",\"on\":{\"signal\":\"TAIL\",\"edge\":\"rising\"}}}"
+      "\"axes\":{\"axis_a\":{\"type\":\"physical\",\"encoder\":\"enc\",\"pulse_per_mm\":1,\"direction\":1}},"
+      "\"markers\":{\"mark_a\":{\"type\":\"latch\",\"axis\":\"axis_a\",\"on\":{\"signal\":\"MARK\",\"edge\":\"rising\"}}}"
       ","
       "\"interlocks\":[{\"id\":\"estop\",\"condition\":\"ESTOP == 1\",\"action\":\"halt_all\","
       "\"priority\":0,\"reset_condition\":\"ESTOP == 0\",\"auto_reset\":false}],"
@@ -78,12 +89,12 @@ void setUp(void)
 {
     engine_io_sim_reset();
     engine_actuator_sim_reset();
-    s_tail_active = false;
+    s_var_active = false;
     TEST_ASSERT_EQUAL_INT(
-        SW_OK, engine_variable_provider_bind(&s_test_variable, &s_test_var_ops, &s_tail_active, &s_test_var_catalog));
+        SW_OK, engine_variable_provider_bind(&s_test_variable, &s_test_var_ops, &s_var_active, &s_test_var_catalog));
     s_environment = (engine_environment_t){
-        .io       = engine_io_sim_instance(),
-        .actuator = engine_actuator_sim_instance(),
+        .io       = engine_io_sim_instance(&s_io_catalog),
+        .actuator = engine_actuator_sim_instance(&s_act_catalog),
         .variable = &s_test_variable,
     };
 }
@@ -109,9 +120,9 @@ static void test_json_loader_parses_model_and_validates_catalog(void)
     TEST_ASSERT_EQUAL_UINT(1U, program->param_count);
     TEST_ASSERT_EQUAL_STRING("delay_ms", program->params[0].name);
     TEST_ASSERT_EQUAL_UINT(1U, program->axis_count);
-    TEST_ASSERT_EQUAL_STRING("gantry", program->axes[0].id);
+    TEST_ASSERT_EQUAL_STRING("axis_a", program->axes[0].id);
     TEST_ASSERT_EQUAL_UINT(1U, program->marker_count);
-    TEST_ASSERT_EQUAL_STRING("tail", program->markers[0].id);
+    TEST_ASSERT_EQUAL_STRING("mark_a", program->markers[0].id);
     TEST_ASSERT_EQUAL_INT(ENGINE_MARKER_ON_SIGNAL, program->markers[0].on_kind);
     TEST_ASSERT_EQUAL_UINT(1U, program->interlock_count);
     TEST_ASSERT_EQUAL_UINT(1U, program->phase_count);
@@ -160,12 +171,12 @@ static void test_engine_runs_loaded_json_with_sim_io(void)
     TEST_ASSERT_EQUAL_INT(SW_OK, engine_load_program(engine, program));
     TEST_ASSERT_EQUAL_INT(SW_OK, engine_start(engine));
 
-    engine_io_sim_set_axis("gantry", 42.0, 1.0, true);
+    engine_io_sim_set_axis("axis_a", 42.0, 1.0, true);
     engine_io_sim_set_signal("SIG", 0);
     tick_n(engine, 3U, 100U);
     TEST_ASSERT_EQUAL_INT(1, engine_actuator_sim_active("aout"));
     TEST_ASSERT_EQUAL_INT(0, engine_actuator_sim_active("bout"));
-    TEST_ASSERT_EQUAL_INT(42, (int)engine_io_sim_get_axis_pos("gantry"));
+    TEST_ASSERT_EQUAL_INT(42, (int)engine_io_sim_get_axis_pos("axis_a"));
 
     engine_io_sim_set_signal("SIG", 1);
     tick_n(engine, 2U, 100U);
@@ -251,15 +262,15 @@ static void test_condition_marker_latches_on_rising(void)
           "\"program\":{"
           "\"schema_version\":\"1.0\","
           "\"id\":\"cond_mk\","
-          "\"axes\":{\"gantry\":{\"type\":\"physical\",\"encoder\":\"enc\",\"pulse_per_mm\":1,\"direction\":1}},"
-          "\"markers\":{\"tail\":{\"type\":\"latch\",\"axis\":\"gantry\","
-          "\"on\":{\"condition\":\"car_tail.active\",\"edge\":\"rising\"}}},"
+          "\"axes\":{\"axis_a\":{\"type\":\"physical\",\"encoder\":\"enc\",\"pulse_per_mm\":1,\"direction\":1}},"
+          "\"markers\":{\"mark_a\":{\"type\":\"latch\",\"axis\":\"axis_a\","
+          "\"on\":{\"condition\":\"var_a.active\",\"edge\":\"rising\"}}},"
           "\"interlocks\":[{\"id\":\"estop\",\"condition\":\"ESTOP == 1\",\"action\":\"halt_all\","
           "\"priority\":0,\"reset_condition\":\"ESTOP == 0\",\"auto_reset\":false}],"
           "\"phases\":[{\"id\":\"p0\",\"entry_guard\":\"true\","
           "\"exit_guard\":\"false\",\"timeout_ms\":10000,"
           "\"lanes\":[{\"id\":\"lane\",\"steps\":[{\"id\":\"a\",\"type\":\"event\","
-          "\"trigger\":{\"type\":\"condition\",\"expr\":\"markers.tail.valid\"},"
+          "\"trigger\":{\"type\":\"condition\",\"expr\":\"markers.mark_a.valid\"},"
           "\"actions\":[{\"act\":{\"resource\":\"aout\",\"cmd\":\"run\",\"gear\":1}}],"
           "\"done\":{\"type\":\"actions_complete\"}}]}]}]"
           "}"
@@ -275,13 +286,13 @@ static void test_condition_marker_latches_on_rising(void)
     engine = engine_create(&s_environment);
     TEST_ASSERT_NOT_NULL(engine);
     TEST_ASSERT_EQUAL_INT(SW_OK, engine_load_program(engine, program));
-    engine_io_sim_set_axis("gantry", 123.0, 0.0, true);
+    engine_io_sim_set_axis("axis_a", 123.0, 0.0, true);
     TEST_ASSERT_EQUAL_INT(SW_OK, engine_start(engine));
 
     engine_tick(engine, 10U);
     TEST_ASSERT_EQUAL_INT(0, engine_actuator_sim_active("aout"));
 
-    s_tail_active = true;
+    s_var_active = true;
     engine_tick(engine, 10U);
     TEST_ASSERT_EQUAL_INT(1, engine_actuator_sim_active("aout"));
     TEST_ASSERT_EQUAL_INT(ENGINE_STATE_RUNNING, engine_state(engine));
@@ -331,8 +342,8 @@ static void test_json_loader_parses_done_motion(void)
                               "\"lanes\":[{\"id\":\"lane\",\"steps\":[{"
                               "\"id\":\"move\",\"type\":\"event\","
                               "\"trigger\":{\"type\":\"condition\",\"expr\":\"EXIT == 0\"},"
-                              "\"actions\":[{\"act\":{\"resource\":\"gantry\",\"cmd\":\"run\",\"gear\":1}}],"
-                              "\"done\":{\"type\":\"motion\",\"resource\":\"gantry\",\"timeout_ms\":5000},"
+                              "\"actions\":[{\"act\":{\"resource\":\"aout\",\"cmd\":\"run\",\"gear\":1}}],"
+                              "\"done\":{\"type\":\"motion\",\"resource\":\"aout\",\"timeout_ms\":5000},"
                               "\"retry_max\":0,\"on_error\":\"stop\""
                               "}]}]}]}"
                               "}";
@@ -343,7 +354,7 @@ static void test_json_loader_parses_done_motion(void)
     TEST_ASSERT_NOT_NULL_MESSAGE(program, err);
     step = &program->phases[0].lanes[0].steps[0];
     TEST_ASSERT_EQUAL_INT(ENGINE_DONE_MOTION, step->done.type);
-    TEST_ASSERT_EQUAL_STRING("gantry", step->done.resource);
+    TEST_ASSERT_EQUAL_STRING("aout", step->done.resource);
     TEST_ASSERT_EQUAL_STRING("", step->done.signal);
     TEST_ASSERT_EQUAL_UINT(5000U, step->done.timeout_ms);
     TEST_ASSERT_EQUAL_UINT(0U, step->done.confirm_ms);

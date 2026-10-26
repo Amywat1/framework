@@ -29,7 +29,7 @@ static const alarm_def_t s_catalog[] = {
      .desc         = "test",
      },
     {
-     .code         = 201709U,
+     .code         = 209909U,
      .level        = ALARM_LEVEL_CRITICAL,
      .lifecycle        = ALARM_LIFECYCLE_FOLLOW_SIGNAL,
      .reeval_group = ALARM_REEVAL_GROUP_NONE,
@@ -143,7 +143,7 @@ static void test_binding_trigger_lockout_publishes_before_return(void)
     TEST_ASSERT_EQUAL_INT(SW_OK, event_subscribe(EVT_ALARM_TRIGGERED, on_triggered));
     TEST_ASSERT_EQUAL_INT(SW_OK, event_subscribe(EVT_SAFETY_LOCKOUT, on_lockout));
 
-    TEST_ASSERT_EQUAL_INT(SW_OK, ops->trigger(201709U));
+    TEST_ASSERT_EQUAL_INT(SW_OK, ops->trigger(209909U));
     TEST_ASSERT_EQUAL_INT(SAFETY_POSTURE_LOCKOUT, alarm_registry_safety_posture());
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_drain());
 
@@ -182,7 +182,7 @@ static void test_binding_second_critical_does_not_repeat_lockout(void)
     TEST_ASSERT_EQUAL_INT(SW_OK, event_subscribe(EVT_SAFETY_NOMINAL, on_nominal));
     TEST_ASSERT_EQUAL_INT(SW_OK, event_subscribe(EVT_ALARM_CLEARED, on_cleared));
 
-    TEST_ASSERT_EQUAL_INT(SW_OK, ops->trigger(201709U));
+    TEST_ASSERT_EQUAL_INT(SW_OK, ops->trigger(209909U));
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_drain());
     TEST_ASSERT_EQUAL_INT(1, g_lockout_count);
 

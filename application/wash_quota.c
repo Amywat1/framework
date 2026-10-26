@@ -191,10 +191,10 @@ sw_err_t wash_quota_consume_one(void)
     if (s_remaining > 0U) {
         sw_err_t persisted;
 
+        /* 作业已启动，落盘失败也不回退内存，避免本次运行内同一份额被重复放行 */
         s_remaining--;
         persisted = persist_locked();
         if ((persisted != SW_OK) && (persisted != SW_ERR_NOT_INIT)) {
-            s_remaining++;
             quota_unlock();
             return persisted;
         }

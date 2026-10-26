@@ -333,7 +333,7 @@ static bool sim_name_matches(const char *input, const char *canonical)
     if (strcmp(input, canonical) == 0) {
         return true;
     }
-    /* 允许省略 DO_ 前缀：GANTRY_FWD 匹配 DO_GANTRY_FWD。 */
+    /* 允许省略 DO_ 前缀：OUTPUT_1 匹配 DO_OUTPUT_1。 */
     if ((strncmp(canonical, "DO_", 3) == 0) && (strcmp(input, canonical + 3) == 0)) {
         return true;
     }

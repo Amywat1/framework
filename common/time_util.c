@@ -22,7 +22,7 @@ static bool     s_ready = false;
 
 /**
  * @brief  解析 `WDF_TIME_SCALE`；非法或未允许时返回 1
- * @note   只收 1 / 2 / 5，须整除所有被缩短的周期（控制环 10 ms、报警轮询 30 ms），
+ * @note   只收 1 / 2 / 5，须整除所有被缩短的周期（如控制环 10 ms；项目周期须自行保证可被整除），
  *         避免 4、8 整数截断后与虚拟时钟偏离。非法非空值回落到 1 并打日志。
  */
 static uint32_t parse_scale(void)

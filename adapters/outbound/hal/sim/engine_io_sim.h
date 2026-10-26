@@ -16,8 +16,13 @@ extern "C" {
 
 #include <stdbool.h>
 
-/** @brief 返回仿真 IO 独立实例；当前仿真 adapter 提供一个进程级测试实例。 */
-engine_io_t *engine_io_sim_instance(void);
+/**
+ * @brief  以调用方目录绑定并返回进程级仿真 IO 实例
+ * @param  catalog  IO 目录（信号名与轴名由调用方定义），须在实例使用期间保持有效
+ * @return 成功返回实例；目录无效返回 NULL
+ * @note   每次调用都会重新绑定目录，须在 engine_create 之前完成。
+ */
+engine_io_t *engine_io_sim_instance(const engine_io_catalog_t *catalog);
 void         engine_io_sim_reset(void);
 void         engine_io_sim_set_signal(const char *name, int value);
 void         engine_io_sim_set_axis(const char *name, double pos, double speed, bool valid);

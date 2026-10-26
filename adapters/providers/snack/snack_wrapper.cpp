@@ -107,6 +107,7 @@ static char                s_product_key[SNACK_MQTT_CRED_MAX];
 static char                s_device_name[SNACK_MQTT_CRED_MAX];
 static char                s_device_secret[SNACK_MQTT_CRED_MAX];
 static char                s_iot_instance[SNACK_MQTT_CRED_MAX];
+static int                 s_heartbeat_s = 0;
 
 static const char *mqtt_topic_or_empty(const char *topic)
 {
@@ -175,18 +176,19 @@ static int mqtt_create_and_connect(void)
     }
 
     s_mqtt_client->connect(client_deal);
-    s_mqtt_client->heartbeatSet(15);
+    s_mqtt_client->heartbeatSet(s_heartbeat_s);
     if (!s_mqtt_client->online) {
         return -3;
     }
     return 0;
 }
 
-int aliyun_mqtt_init(char *product_key, char *device_name, char *device_secret, char *iot_instance)
+int aliyun_mqtt_init(char *product_key, char *device_name, char *device_secret, char *iot_instance, int heartbeat_s)
 {
-    if (product_key == NULL || device_name == NULL || device_secret == NULL) {
+    if (product_key == NULL || device_name == NULL || device_secret == NULL || heartbeat_s <= 0) {
         return -1;
     }
+    s_heartbeat_s = heartbeat_s;
 
     (void)std::snprintf(s_product_key, sizeof(s_product_key), "%s", product_key);
     (void)std::snprintf(s_device_name, sizeof(s_device_name), "%s", device_name);
@@ -251,11 +253,18 @@ void mqtt_recv_handler_set(mqtt_recv_handler_t cb)
  * ------------------------------------------------------------------------- */
 static music s_player;
 
-void player_play(uint8_t item)
+#define PLAYER_PATH_MAX 256U
+
+void player_play(const char *file_path, int volume)
 {
-    char filePath[64] = {0};
-    snprintf(filePath, sizeof(filePath), "/home/neardi/Music/00%d.mp3", item);
-    s_player.play(filePath, 60);
+    char path[PLAYER_PATH_MAX] = {0};
+
+    if (file_path == NULL) {
+        return;
+    }
+    /* 沿用 SDK 原有的可写缓冲区传参形式 */
+    snprintf(path, sizeof(path), "%s", file_path);
+    s_player.play(path, volume);
 }
 
 /* -------------------------------------------------------------------------

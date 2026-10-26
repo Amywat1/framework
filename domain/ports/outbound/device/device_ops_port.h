@@ -72,6 +72,19 @@ typedef struct {
      */
     bool (*is_admit_ready)(void);
     /**
+     * @brief  开洗授权检查（可选，计费/次数等运营策略由项目决定）
+     * @param[out] need_consume  允许开洗时写入：start_job 成功后是否须调用 admit_consume
+     * @retval SW_OK 允许开洗；其它值拒绝，订单保留在队首
+     * @note   未注册时框架不拦截。在放行锁内调用，不得阻塞。
+     */
+    sw_err_t (*admit_check)(bool *need_consume);
+    /**
+     * @brief  开洗授权记账（可选；admit_check 要求时在 start_job 成功后调用）
+     * @retval SW_OK 已记账；其它值时作业已启动，框架记 ERROR 日志
+     * @note   失败时实现须保证本次运行内不再重复放行同一份额（内存态先扣减）。
+     */
+    sw_err_t (*admit_consume)(void);
+    /**
      * @brief  恢复时对能软件复位的硬件发清故障（可选）
      * @note   只发指令，不得阻塞等机构到位。未注册则跳过。
      */
@@ -79,7 +92,7 @@ typedef struct {
     /**
      * @brief  查询清故障是否已生效（可选）
      * @return DONE 继续归位；PENDING 再等；FAILED 恢复失败
-     * @note   未注册视为 DONE。供 RST 等异步清接点使用。
+     * @note   未注册视为 DONE。供需要等待硬件接点释放的清故障使用。
      */
     device_clear_alarms_status_t (*poll_clear_alarms)(void);
 } device_ops_t;

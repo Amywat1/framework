@@ -83,7 +83,7 @@ Demo 是框架自带的最小接入实例，可直接作为新项目 wiring 的�
 
 ```text
 target entry
-    ├─ 配置 Snack 进程级参数
+    ├─ 配置所选 vendor SDK 的进程级参数（如有）
     └─ 调用 bootstrap_run()
 
 bootstrap_register()
@@ -185,7 +185,7 @@ Demo 加载两个报警：
 | Code | 等级 | 说明 |
 |------|------|------|
 | `201101` | MAJOR | blocking |
-| `201709` | CRITICAL | LOCKOUT（跟随信号，Recover 不会清除还在的条件） |
+| `209909` | CRITICAL | LOCKOUT（跟随信号，Recover 不会清除还在的条件） |
 
 装载经 `alarm_binding_get_ops()->load_catalog()` 而非直接调 `alarm_registry`：
 项目接入一律只透过端口触碰报警域，demo 作为接入范本必须示范同一种姿势

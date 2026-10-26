@@ -105,6 +105,11 @@ static const char *const s_program_json
       "}"
       "}";
 
+static const char *const               s_io_signals[]  = {"ESTOP"};
+static const engine_io_catalog_t       s_io_catalog    = {.signals = s_io_signals, .signal_count = 1U};
+static const char *const               s_resources[]   = {"aout"};
+static const engine_actuator_catalog_t s_act_catalog   = {.resources = s_resources, .resource_count = 1U};
+
 static void write_program_file(void)
 {
     FILE *fp = fopen(TEST_ENGINE_SESSION_PROGRAM_PATH, "wb");
@@ -177,8 +182,8 @@ static void test_engine_session_runs_to_done(void)
     cfg.tick_ms              = 50U;
     cfg.startup_wait_ms      = 4500U;
     cfg.integrity_check      = false;
-    cfg.environment.io       = engine_io_sim_instance();
-    cfg.environment.actuator = engine_actuator_sim_instance();
+    cfg.environment.io       = engine_io_sim_instance(&s_io_catalog);
+    cfg.environment.actuator = engine_actuator_sim_instance(&s_act_catalog);
 
     TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, engine_session_bind(WDF_ENGINE_SESSION_INSTANCE_COUNT, &cfg, &session));
     TEST_ASSERT_NULL(session);

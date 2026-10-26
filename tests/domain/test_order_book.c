@@ -9,6 +9,7 @@
 #include "domain/job/order_book.h"
 #include "tests/stubs/test_wash_modes.h"
 #include "wdf_test_spec.h"
+#include "tests/stubs/test_machine_profile.h"
 
 static job_desc_t make_order(uint64_t order_id, wash_mode_t mode)
 {
@@ -24,7 +25,7 @@ static job_desc_t make_order(uint64_t order_id, wash_mode_t mode)
 
 void setUp(void)
 {
-    machine_profile_reset_for_test();
+    TEST_ASSERT_EQUAL_INT(SW_OK, test_machine_profile_register());
     order_book_reset_for_test();
 }
 

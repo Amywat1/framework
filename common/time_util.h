@@ -22,7 +22,7 @@ extern "C" {
  * @brief  初始化时钟工具并读取 Host 时间倍率
  * @note   仅当编译定义 `WDF_ALLOW_TIME_SCALE` 时才接受环境变量
  *         `WDF_TIME_SCALE`（1 / 2 / 5，须整除所有被缩短的周期：
- *         控制环 10 ms、报警轮询 30 ms）。非法值回落到 1 并打日志。
+ *         控制环 10 ms；项目周期须自行保证可被整除）。非法值回落到 1 并打日志。
  *         真机目标不得定义该宏，倍率恒为 1。
  */
 void time_util_init(void);

@@ -214,8 +214,8 @@ static void validate_intent(const engine_intent_t *intent, var_ctx_t *ctx)
         return;
     }
     for (unsigned p = 0U; (p < intent->path_count) && ctx->ok; ++p) {
-        if ((ctx->act_catalog != NULL) && (ctx->act_catalog->water_paths != NULL)
-            && !name_in_list(intent->paths[p], ctx->act_catalog->water_paths, ctx->act_catalog->water_path_count)) {
+        if ((ctx->act_catalog != NULL) && (ctx->act_catalog->paths != NULL)
+            && !name_in_list(intent->paths[p], ctx->act_catalog->paths, ctx->act_catalog->path_count)) {
             vfail(ctx->err, ctx->errsz, "未知水路路径: %s", intent->paths[p]);
             ctx->ok = false;
             return;

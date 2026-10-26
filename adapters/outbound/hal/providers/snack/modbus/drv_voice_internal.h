@@ -12,10 +12,11 @@
 #include <stdbool.h>
 
 struct drv_voice {
-    drv_modbus_link_t link;
-    bool              comm_ok;
-    uint16_t          notify_fail_count;
-    pthread_mutex_t   notify_mutex;
+    drv_modbus_link_t                 link;
+    const drv_voice_modbus_profile_t *profile;
+    bool                              comm_ok;
+    uint16_t                          notify_fail_count;
+    pthread_mutex_t                   notify_mutex;
     void (*event_cb)(int event_code);
 };
 

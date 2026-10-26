@@ -28,7 +28,7 @@ extern "C" {
 typedef enum {
     EVT_CAT_NONE    = 0,
     EVT_CAT_HW      = 1, /**< 硬件异步（DI/VFD/IO 子板/编码器）*/
-    EVT_CAT_COMP    = 2, /**< 组件完成（电机/归位/升降/刷子）*/
+    EVT_CAT_COMP    = 2, /**< 组件完成（机构运动/归位）*/
     EVT_CAT_SAFETY  = 3, /**< 安全域姿态（LOCKOUT/NOMINAL）*/
     EVT_CAT_ALARM   = 4, /**< 报警生命周期（激活/清除）*/
     EVT_CAT_CMD     = 5, /**< 外部命令（云端/CLI/本地）*/
@@ -66,7 +66,7 @@ typedef uint16_t event_type_t;
 
 /* -------------------------------------------------------------------------
  * COMP 类（framework/domain/mechanism 发布）
- * 电机单次动作完成（MOTOR_DONE）和刷子启动（BRUSH_STARTED）属于域内完成通知，
+ * 电机单次动作完成（MOTOR_DONE）等属于域内完成通知，
  * 改由 motor_set_done_cb 回调传递，不经过事件总线。
  * ------------------------------------------------------------------------- */
 #define EVT_COMP_ID_HOME_DONE        0U

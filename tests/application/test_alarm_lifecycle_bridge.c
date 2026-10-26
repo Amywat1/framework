@@ -25,7 +25,7 @@ enum {
     TEST_CODE_MAJOR    = 201105U,
     TEST_CODE_MAJOR_2  = 201205U,
     TEST_CODE_MINOR    = 901001U,
-    TEST_CODE_CRITICAL = 201709U,
+    TEST_CODE_CRITICAL = 209909U,
 };
 
 static const alarm_def_t s_catalog[] = {

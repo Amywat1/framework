@@ -88,7 +88,7 @@ static inline bool alarm_level_forces_lockout(alarm_level_t level)
 
 /**
  * @brief  该故障形态是否在恢复起步时禁止归位
- * @note   仅安全触发（急停、胶条、防撞杆、防撞）。等级 CRITICAL 的通讯/变频器反馈不在此列。
+ * @note   仅安全触发（急停及项目接入的其他安全检测输入）。等级 CRITICAL 的通讯/变频器反馈不在此列。
  */
 static inline bool alarm_fault_mode_blocks_recover(uint32_t fault_mode)
 {

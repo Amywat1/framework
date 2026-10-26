@@ -164,26 +164,6 @@ static sw_err_t dump_cjson(cJSON *obj, char *buf, size_t buf_size)
     return ret;
 }
 
-static void append_typed_number(cJSON *root, const cloud_point_entry_t *entry, const point_value_t *val)
-{
-    switch (entry->base.type) {
-    case POINT_TYPE_BOOL:
-        cJSON_AddNumberToObject(root, entry->base.id, val->b ? 1.0 : 0.0);
-        break;
-    case POINT_TYPE_INT:
-        cJSON_AddNumberToObject(root, entry->base.id, (double)val->i);
-        break;
-    case POINT_TYPE_FLOAT:
-        cJSON_AddNumberToObject(root, entry->base.id, (double)val->f);
-        break;
-    case POINT_TYPE_STRING:
-        cJSON_AddStringToObject(root, entry->base.id, val->s);
-        break;
-    default:
-        break;
-    }
-}
-
 static bool id_in_list(const char *id, const char *const *ids, size_t count)
 {
     size_t i;
@@ -210,7 +190,7 @@ static void append_current_value(cJSON *root, const cloud_point_entry_t *entry)
     if (entry->base.get(&now) != SW_OK) {
         return;
     }
-    append_typed_number(root, entry, &now);
+    point_table_json_add_value(root, entry->base.id, entry->base.type, &now);
 }
 
 sw_err_t cloud_point_to_json_downlink(const cloud_point_entry_t *entries,
@@ -271,9 +251,10 @@ sw_err_t cloud_point_to_json_downlink(const cloud_point_entry_t *entries,
             if (point_table_parse_cjson_value(entry->base.type, item, &val) != SW_OK) {
                 continue;
             }
-            append_typed_number(echo, entry, &val);
-            if (cloud_point_is_pulse(entry) && (entry->base.type == POINT_TYPE_BOOL) && val.b) {
-                cJSON_AddNumberToObject(idle, entry->base.id, 0.0);
+            point_table_json_add_value(echo, entry->base.id, entry->base.type, &val);
+            if (cloud_point_is_pulse(entry) && val.b) {
+                val.b = false;
+                point_table_json_add_value(idle, entry->base.id, POINT_TYPE_BOOL, &val);
             }
             continue;
         }

@@ -17,21 +17,21 @@ static const alarm_def_t s_catalog[] = {
      .level        = ALARM_LEVEL_MAJOR,
      .lifecycle    = ALARM_LIFECYCLE_LATCH,
      .reeval_group = ALARM_REEVAL_GROUP_NONE,
-     .desc         = "侧刷过载",
+     .desc         = "测试过载",
      },
     {
-     .code         = 201709U,
+     .code         = 209909U,
      .level        = ALARM_LEVEL_CRITICAL,
      .lifecycle    = ALARM_LIFECYCLE_FOLLOW_SIGNAL,
      .reeval_group = ALARM_REEVAL_GROUP_NONE,
      .desc         = "急停",
      },
     {
-     .code         = 200205U,
+     .code         = 209905U,
      .level        = ALARM_LEVEL_MAJOR,
      .lifecycle    = ALARM_LIFECYCLE_LATCH,
      .reeval_group = (motion_reeval_group_id_t)1U,
-     .desc         = "龙门前限位超时",
+     .desc         = "测试超时",
      },
     {
      .code         = 901001U,
@@ -152,17 +152,17 @@ static void test_major_not_lockout(void)
 
 static void test_critical_lockout(void)
 {
-    (void)alarm_registry_trigger(201709U);
+    (void)alarm_registry_trigger(209909U);
     TEST_ASSERT_EQUAL_INT(SAFETY_POSTURE_LOCKOUT, alarm_registry_safety_posture());
     TEST_ASSERT_TRUE(alarm_registry_has_blocking_active());
 }
 
 static void test_reset_requires_manual_condition_clear(void)
 {
-    (void)alarm_registry_trigger(201709U);
+    (void)alarm_registry_trigger(209909U);
     (void)alarm_registry_trigger(201101U);
     alarm_registry_reset_all();
-    TEST_ASSERT_TRUE(alarm_registry_is_active(201709U));
+    TEST_ASSERT_TRUE(alarm_registry_is_active(209909U));
     TEST_ASSERT_TRUE(alarm_registry_is_active(201101U));
 
     (void)alarm_registry_clear(201101U);
@@ -183,18 +183,18 @@ static void test_manual_condition_clear_waits_for_reset(void)
 
 static void test_reevaluate_by_group(void)
 {
-    (void)alarm_registry_trigger(200205U);
-    TEST_ASSERT_TRUE(alarm_registry_is_active(200205U));
+    (void)alarm_registry_trigger(209905U);
+    TEST_ASSERT_TRUE(alarm_registry_is_active(209905U));
 
     /* 条件仍成立：运动结束重评估不得清警 */
     (void)alarm_registry_reevaluate_group((motion_reeval_group_id_t)1U);
-    TEST_ASSERT_TRUE(alarm_registry_is_active(200205U));
+    TEST_ASSERT_TRUE(alarm_registry_is_active(209905U));
 
     /* 动作中判定正常后，再重评估才落地清除 */
-    (void)alarm_registry_clear(200205U);
-    TEST_ASSERT_TRUE(alarm_registry_is_active(200205U));
+    (void)alarm_registry_clear(209905U);
+    TEST_ASSERT_TRUE(alarm_registry_is_active(209905U));
     (void)alarm_registry_reevaluate_group((motion_reeval_group_id_t)1U);
-    TEST_ASSERT_FALSE(alarm_registry_is_active(200205U));
+    TEST_ASSERT_FALSE(alarm_registry_is_active(209905U));
 }
 
 static void test_latch_without_group_ignores_reeval(void)
@@ -222,13 +222,13 @@ static void test_minor_published_before_return(void)
 
 static void test_last_critical_clear_publishes_nominal(void)
 {
-    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_trigger(201709U));
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_trigger(209909U));
     drain_bus();
     TEST_ASSERT_EQUAL_INT(1, s_lockout_n);
-    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_clear(201709U));
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_clear(209909U));
     drain_bus();
     TEST_ASSERT_EQUAL_UINT(1U, s_clr_n);
-    TEST_ASSERT_EQUAL_UINT(201709U, s_clr[0]);
+    TEST_ASSERT_EQUAL_UINT(209909U, s_clr[0]);
     TEST_ASSERT_EQUAL_INT(1, s_nominal_n);
     TEST_ASSERT_EQUAL_INT(SAFETY_POSTURE_NOMINAL, alarm_registry_safety_posture());
 }
@@ -249,11 +249,11 @@ static void test_reset_all_publishes_cleared(void)
 static void test_reset_non_safety_keeps_safety_trigger(void)
 {
     TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_trigger(201101U));
-    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_trigger(201709U));
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_trigger(209909U));
     TEST_ASSERT_TRUE(alarm_registry_has_safety_trigger_active());
     alarm_registry_reset_non_safety();
     TEST_ASSERT_FALSE(alarm_registry_is_active(201101U));
-    TEST_ASSERT_TRUE(alarm_registry_is_active(201709U));
+    TEST_ASSERT_TRUE(alarm_registry_is_active(209909U));
     TEST_ASSERT_TRUE(alarm_registry_has_safety_trigger_active());
 }
 
@@ -334,11 +334,11 @@ static void test_session_journal_blocking_levels(void)
 
     alarm_registry_on_wash_session_started();
     (void)alarm_registry_trigger(201101U);
-    (void)alarm_registry_trigger(201709U);
+    (void)alarm_registry_trigger(209909U);
     n = alarm_registry_get_session_journal(codes, 4U, NULL);
     TEST_ASSERT_EQUAL_UINT(2U, n);
     TEST_ASSERT_EQUAL_UINT(201101U, codes[0U]);
-    TEST_ASSERT_EQUAL_UINT(201709U, codes[1U]);
+    TEST_ASSERT_EQUAL_UINT(209909U, codes[1U]);
 }
 
 static void test_active_pool_full_rejects(void)
@@ -391,7 +391,7 @@ static uint32_t fill_code(unsigned i)
 static void test_lockout_evicts_oldest_minor_when_pool_full(void)
 {
     alarm_def_t cat[ALARM_ACTIVE_MAX + 1U];
-    uint32_t    crit = 201709U;
+    uint32_t    crit = 209909U;
     unsigned    i;
 
     for (i = 0U; i < ALARM_ACTIVE_MAX; ++i) {
@@ -422,7 +422,7 @@ static void test_lockout_evicts_oldest_minor_when_pool_full(void)
 static void test_lockout_evicts_oldest_major_when_no_minor(void)
 {
     alarm_def_t cat[ALARM_ACTIVE_MAX + 1U];
-    uint32_t    crit = 201709U;
+    uint32_t    crit = 209909U;
     unsigned    i;
 
     for (i = 0U; i < ALARM_ACTIVE_MAX; ++i) {
@@ -549,13 +549,13 @@ static void test_copy_safety_view_returns_consistent_snapshot(void)
 
     alarm_registry_on_wash_session_started();
     (void)alarm_registry_trigger(201101U); /* MAJOR */
-    (void)alarm_registry_trigger(201709U); /* CRITICAL */
+    (void)alarm_registry_trigger(209909U); /* CRITICAL */
 
     TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_copy_safety_view(&view));
 
     TEST_ASSERT_EQUAL_UINT(2U, view.count);
     TEST_ASSERT_TRUE(view.blocking);
-    TEST_ASSERT_EQUAL_UINT(201709U, view.top_code); /* CRITICAL 级别最高 */
+    TEST_ASSERT_EQUAL_UINT(209909U, view.top_code); /* CRITICAL 级别最高 */
     TEST_ASSERT_EQUAL_INT(SAFETY_POSTURE_LOCKOUT, view.posture);
     TEST_ASSERT_EQUAL_UINT(2U, view.journal_count);
     TEST_ASSERT_EQUAL_UINT32(0U, view.journal_dropped);

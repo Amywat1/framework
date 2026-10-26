@@ -77,7 +77,7 @@ static cloud_point_entry_t make_set(void)
     cloud_point_entry_t entry;
 
     memset(&entry, 0, sizeof(entry));
-    entry.base.id   = "manualBrush";
+    entry.base.id   = "manualAct";
     entry.base.type = POINT_TYPE_BOOL;
     entry.base.get  = get_manual;
     entry.base.set  = set_manual;
@@ -97,6 +97,7 @@ static cloud_point_entry_t make_stop_cmd(void)
     entry.kind      = CLOUD_KIND_DEV_CMD;
     entry.report    = CLOUD_REPORT_RESYNC;
     entry.cmd_kind  = DEV_CMD_CLEAR_MACHINE;
+    entry.pulse     = true;
     return entry;
 }
 
@@ -125,14 +126,15 @@ static void test_get_echo_idle_returns_false(void)
     TEST_ASSERT_FALSE(val.b);
 }
 
-static void test_set_resync_is_pulse(void)
+static void test_pulse_field_marks_pulse(void)
 {
     cloud_point_entry_t hold  = make_set();
     cloud_point_entry_t pulse = make_set();
     cloud_point_entry_t cmd   = make_stop_cmd();
 
+    hold.report = CLOUD_REPORT_RESYNC;
     TEST_ASSERT_FALSE(cloud_point_is_pulse(&hold));
-    pulse.report = CLOUD_REPORT_RESYNC;
+    pulse.pulse = true;
     TEST_ASSERT_TRUE(cloud_point_is_pulse(&pulse));
     TEST_ASSERT_TRUE(cloud_point_is_pulse(&cmd));
 }
@@ -186,7 +188,7 @@ static void test_to_json_snapshot_includes_resync_omits_none(void)
     TEST_ASSERT_EQUAL_INT(SW_OK, cloud_point_to_json(entries, 4U, buf, sizeof(buf)));
     TEST_ASSERT_NOT_NULL(strstr(buf, "\"speed\":120"));
     TEST_ASSERT_NOT_NULL(strstr(buf, "\"fw\":\"1.0\""));
-    TEST_ASSERT_NOT_NULL(strstr(buf, "\"stopWash\":0"));
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"stopWash\":false"));
     TEST_ASSERT_NULL(strstr(buf, "monitor"));
 }
 
@@ -195,7 +197,7 @@ static void test_apply_json_set(void)
     point_apply_result_t      result;
     const cloud_point_entry_t entries[] = {make_set()};
 
-    TEST_ASSERT_EQUAL_INT(SW_OK, cloud_point_apply_json(entries, 1U, "{\"manualBrush\":true}", &result));
+    TEST_ASSERT_EQUAL_INT(SW_OK, cloud_point_apply_json(entries, 1U, "{\"manualAct\":true}", &result));
     TEST_ASSERT_EQUAL_UINT(1U, result.applied);
     TEST_ASSERT_TRUE(s_manual_on);
 }
@@ -215,7 +217,7 @@ static cloud_point_entry_t make_manual_cmd(void)
     cloud_point_entry_t entry;
 
     memset(&entry, 0, sizeof(entry));
-    entry.base.id     = "gantryMove";
+    entry.base.id     = "axisMove";
     entry.base.type   = POINT_TYPE_INT;
     entry.base.get    = get_speed;
     entry.kind        = CLOUD_KIND_DEV_CMD;
@@ -230,11 +232,66 @@ static void test_apply_json_manual_cmd_carries_payload(void)
     point_apply_result_t      result;
     const cloud_point_entry_t entries[] = {make_manual_cmd()};
 
-    TEST_ASSERT_EQUAL_INT(SW_OK, cloud_point_apply_json(entries, 1U, "{\"gantryMove\":-1}", &result));
+    TEST_ASSERT_EQUAL_INT(SW_OK, cloud_point_apply_json(entries, 1U, "{\"axisMove\":-1}", &result));
     TEST_ASSERT_EQUAL_UINT(1U, result.applied);
     TEST_ASSERT_EQUAL_INT(DEV_CMD_MANUAL_ACTUATOR, s_last_cmd.body.kind);
     TEST_ASSERT_EQUAL_UINT32(8U, s_last_cmd.body.payload.manual_actuator.act_id);
     TEST_ASSERT_EQUAL_INT(-1, s_last_cmd.body.payload.manual_actuator.param);
+}
+
+static cloud_point_entry_t make_order_cmd(point_type_t type)
+{
+    cloud_point_entry_t entry;
+
+    memset(&entry, 0, sizeof(entry));
+    entry.base.id   = "orderId";
+    entry.base.type = type;
+    entry.kind      = CLOUD_KIND_DEV_CMD;
+    entry.cmd_kind  = DEV_CMD_SUBMIT_ORDER;
+    return entry;
+}
+
+static void test_apply_order_string_keeps_full_id(void)
+{
+    point_apply_result_t result;
+    cloud_point_entry_t  entry = make_order_cmd(POINT_TYPE_STRING);
+
+    TEST_ASSERT_EQUAL_INT(SW_OK,
+                          cloud_point_apply_json(&entry, 1U, "{\"orderId\":\"18446744073709551615\"}", &result));
+    TEST_ASSERT_EQUAL_INT(DEV_CMD_SUBMIT_ORDER, s_last_cmd.body.kind);
+    TEST_ASSERT_TRUE(s_last_cmd.body.payload.submit_order.order_id == UINT64_MAX);
+    TEST_ASSERT_EQUAL_UINT8(WASH_MODE_INVALID, s_last_cmd.body.payload.submit_order.mode);
+}
+
+static void test_apply_order_int_uses_point_mode(void)
+{
+    point_apply_result_t result;
+    cloud_point_entry_t  entry = make_order_cmd(POINT_TYPE_INT);
+
+    entry.cmd_param     = 3;
+    entry.cmd_has_param = true;
+    TEST_ASSERT_EQUAL_INT(SW_OK, cloud_point_apply_json(&entry, 1U, "{\"orderId\":42}", &result));
+    TEST_ASSERT_TRUE(s_last_cmd.body.payload.submit_order.order_id == 42U);
+    TEST_ASSERT_EQUAL_UINT8(3U, s_last_cmd.body.payload.submit_order.mode);
+}
+
+static void test_apply_order_bad_id_rejected_empty_noop(void)
+{
+    point_apply_result_t result;
+    cloud_point_entry_t  entry = make_order_cmd(POINT_TYPE_STRING);
+
+    const char *const bad[] = {"{\"orderId\":\"12a\"}", "{\"orderId\":\"-1\"}",
+                               "{\"orderId\":\"18446744073709551616\"}"};
+    size_t i;
+
+    for (i = 0U; i < (sizeof(bad) / sizeof(bad[0])); i++) {
+        TEST_ASSERT_EQUAL_INT(SW_OK, cloud_point_apply_json(&entry, 1U, bad[i], &result));
+        TEST_ASSERT_EQUAL_UINT(1U, result.rejected);
+        TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, result.first_error);
+    }
+    TEST_ASSERT_EQUAL_INT(SW_OK, cloud_point_apply_json(&entry, 1U, "{\"orderId\":\"\"}", &result));
+    TEST_ASSERT_EQUAL_UINT(0U, result.rejected);
+    TEST_ASSERT_EQUAL_INT(DEV_CMD_NONE, s_last_cmd.body.kind);
 }
 
 static void test_apply_json_hold_updates_after_accept(void)
@@ -291,7 +348,7 @@ static void test_apply_json_unknown_key_partial_reject(void)
     point_apply_result_t      result;
     const cloud_point_entry_t entries[] = {make_set()};
 
-    TEST_ASSERT_EQUAL_INT(SW_OK, cloud_point_apply_json(entries, 1U, "{\"unknown\":1,\"manualBrush\":true}", &result));
+    TEST_ASSERT_EQUAL_INT(SW_OK, cloud_point_apply_json(entries, 1U, "{\"unknown\":1,\"manualAct\":true}", &result));
     TEST_ASSERT_EQUAL_UINT(2U, result.total_keys);
     TEST_ASSERT_EQUAL_UINT(1U, result.applied);
     TEST_ASSERT_EQUAL_UINT(1U, result.rejected);
@@ -341,11 +398,12 @@ static void test_to_json_echo_sent_values(void)
     cloud_point_entry_t  write   = make_set();
     cloud_point_entry_t  pulse   = make_set();
     cloud_point_entry_t  missing = make_set();
-    const char          *req     = "{\"stopWash\":true,\"manualBrush\":true,\"cmdStop\":true,\"monitor\":true}";
+    const char          *req     = "{\"stopWash\":true,\"manualAct\":true,\"cmdStop\":true,\"monitor\":true}";
 
     pulse.base.id  = "cmdStop";
     pulse.base.get = cloud_point_get_echo_idle;
     pulse.report   = CLOUD_REPORT_RESYNC;
+    pulse.pulse    = true;
 
     missing.base.id = "monitor";
     missing.report  = CLOUD_REPORT_NONE;
@@ -357,13 +415,13 @@ static void test_to_json_echo_sent_values(void)
     TEST_ASSERT_EQUAL_INT(SW_OK, cloud_point_to_json_downlink(entries, 4U, req, result.applied_ids,
                                                              result.applied_id_count, echo, sizeof(echo), idle,
                                                              sizeof(idle)));
-    TEST_ASSERT_NOT_NULL(strstr(echo, "\"stopWash\":1"));
-    TEST_ASSERT_NOT_NULL(strstr(echo, "\"manualBrush\":1"));
-    TEST_ASSERT_NOT_NULL(strstr(echo, "\"cmdStop\":1"));
+    TEST_ASSERT_NOT_NULL(strstr(echo, "\"stopWash\":true"));
+    TEST_ASSERT_NOT_NULL(strstr(echo, "\"manualAct\":true"));
+    TEST_ASSERT_NOT_NULL(strstr(echo, "\"cmdStop\":true"));
     TEST_ASSERT_NULL(strstr(echo, "monitor"));
-    TEST_ASSERT_NOT_NULL(strstr(idle, "\"stopWash\":0"));
-    TEST_ASSERT_NOT_NULL(strstr(idle, "\"cmdStop\":0"));
-    TEST_ASSERT_NULL(strstr(idle, "manualBrush"));
+    TEST_ASSERT_NOT_NULL(strstr(idle, "\"stopWash\":false"));
+    TEST_ASSERT_NOT_NULL(strstr(idle, "\"cmdStop\":false"));
+    TEST_ASSERT_NULL(strstr(idle, "manualAct"));
     TEST_ASSERT_NULL(strstr(idle, "monitor"));
 }
 
@@ -376,7 +434,7 @@ static void test_to_json_echo_rejected_reports_current(void)
     cloud_point_entry_t  write   = make_set();
     cloud_point_entry_t  telem   = make_speed_telemetry();
     cloud_point_entry_t  missing = make_set();
-    const char          *req     = "{\"stopWash\":true,\"manualBrush\":true,\"speed\":9,\"monitor\":true}";
+    const char          *req     = "{\"stopWash\":true,\"manualAct\":true,\"speed\":9,\"monitor\":true}";
 
     s_cmd_fail   = true;
     s_write_fail = true;
@@ -390,8 +448,8 @@ static void test_to_json_echo_rejected_reports_current(void)
     TEST_ASSERT_EQUAL_INT(SW_OK, cloud_point_to_json_downlink(entries, 4U, req, result.applied_ids,
                                                              result.applied_id_count, echo, sizeof(echo), idle,
                                                              sizeof(idle)));
-    TEST_ASSERT_NOT_NULL(strstr(echo, "\"stopWash\":0"));
-    TEST_ASSERT_NOT_NULL(strstr(echo, "\"manualBrush\":0"));
+    TEST_ASSERT_NOT_NULL(strstr(echo, "\"stopWash\":false"));
+    TEST_ASSERT_NOT_NULL(strstr(echo, "\"manualAct\":false"));
     TEST_ASSERT_NOT_NULL(strstr(echo, "\"speed\":120"));
     TEST_ASSERT_NULL(strstr(echo, "monitor"));
     TEST_ASSERT_FALSE(s_manual_on);
@@ -403,13 +461,16 @@ int main(void)
     UNITY_BEGIN();
 
     WDF_RUN_TEST(test_get_echo_idle_returns_false, "", "验证获取回显空闲模式返回false");
-    WDF_RUN_TEST(test_set_resync_is_pulse, "", "验证 SET 的 RESYNC 即脉冲，不依赖 getter");
+    WDF_RUN_TEST(test_pulse_field_marks_pulse, "", "验证脉冲只由 pulse 字段决定，与上行策略无关");
     WDF_RUN_TEST(test_to_json_serializes_telemetry, "", "验证将遥测点位序列化为 JSON");
     WDF_RUN_TEST(test_to_json_omits_none, "", "验证 NONE 策略点位不进入快照 JSON");
     WDF_RUN_TEST(test_to_json_snapshot_includes_resync_omits_none, "", "验证快照含 RESYNC 且不含 NONE");
     WDF_RUN_TEST(test_apply_json_set, "", "验证应用 JSON 可写属性");
     WDF_RUN_TEST(test_apply_json_dev_cmd_triggers_submit, "", "验证应用 JSON 设备命令触发提交");
     WDF_RUN_TEST(test_apply_json_manual_cmd_carries_payload, "", "验证点动设备命令携带动作号与参数");
+    WDF_RUN_TEST(test_apply_order_string_keeps_full_id, "", "验证字符串订单号按 64 位完整传递，未配套餐为无效模式");
+    WDF_RUN_TEST(test_apply_order_int_uses_point_mode, "", "验证整数订单号携带点位配置的套餐");
+    WDF_RUN_TEST(test_apply_order_bad_id_rejected_empty_noop, "", "验证非法订单号被拒绝，空订单号不下单");
     WDF_RUN_TEST(test_apply_json_hold_updates_after_accept, "", "验证保持值仅在网关接受后更新");
     WDF_RUN_TEST(test_apply_json_rejects_telemetry, "", "验证应用 JSON 拒绝遥测写入");
     WDF_RUN_TEST(test_apply_json_dev_cmd_false_is_noop, "", "验证应用 JSON 设备命令 false 为无操作");

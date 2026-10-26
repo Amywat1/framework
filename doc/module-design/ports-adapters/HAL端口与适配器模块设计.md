@@ -258,8 +258,8 @@ Snack voice provider 通过 Modbus RTU 对接语音模块，并注册到 `hal_vo
 | 文件                      | 职责                                 |
 | ----------------------- | ---------------------------------- |
 | `drv_modbus_link.*`     | Modbus RTU 连接封装                    |
-| `drv_voice.*`           | 语音模块寄存器协议                          |
-| `snack_voice_adapter.*` | 注册 `hal_voice_ops_t`，配置串口、波特率、从站地址 |
+| `drv_voice.*`           | 语音模块寄存器读写，寄存器布局由 `drv_voice_modbus_profile_t` 注入 |
+| `snack_voice_adapter.*` | 注册 `hal_voice_ops_t`，配置串口、波特率、从站地址、寄存器 profile |
 
 
 
@@ -286,7 +286,9 @@ Snack VFD backend 通过 Modbus + IO 输出组合驱动变频器，向 `hal_vfd_
 | `WDF_ENABLE_SNACK_MODBUS_PROVIDER=ON` + `WDF_ENABLE_SNACK_IO_EXP_PROVIDER=ON` | `libmodbus` + io_exp provider |
 
 
-`snack_vfd_backend_instance_cfg_t` 中的 `pin_fwd`、`pin_rev`、`pin_rst`、`pin_spd1`、`pin_spd2` 均由项目点位表提供。
+`snack_vfd_backend_instance_cfg_t` 中的 `pin_fwd`、`pin_rev`、`pin_rst`、`pin_spd1`、`pin_spd2` 均由项目点位表提供；`rst_pulse_ms` 按变频器型号的复位脉宽要求逐实例设定，不可为 0。
+
+语音模块与变频器的寄存器布局都随设备型号变化，provider 内不保存任何型号的寄存器表，统一由项目以 profile 静态对象注入。
 
 ---
 

@@ -17,13 +17,13 @@
 static const drv_vfd_modbus_profile_t s_test_profile = {
     .name = "test",
     .state = {
-        .access = DRV_VFD_MODBUS_READ_HOLDING, .address = 0x1304U, .scale_num = 1U, .scale_den = 1U,
+        .access = DRV_VFD_MODBUS_READ_HOLDING, .address = 0x0101U, .scale_num = 1U, .scale_den = 1U,
     },
     .fault_code = {
-        .access = DRV_VFD_MODBUS_READ_HOLDING, .address = 0x1300U, .scale_num = 1U, .scale_den = 1U,
+        .access = DRV_VFD_MODBUS_READ_HOLDING, .address = 0x0102U, .scale_num = 1U, .scale_den = 1U,
     },
     .current = {
-        .access = DRV_VFD_MODBUS_READ_HOLDING, .address = 0x1206U, .scale_num = 1U, .scale_den = 1U,
+        .access = DRV_VFD_MODBUS_READ_HOLDING, .address = 0x0103U, .scale_num = 1U, .scale_den = 1U,
     },
     .frequency   = {.access = DRV_VFD_MODBUS_NONE},
     .clear_fault = {.access = DRV_VFD_MODBUS_NONE},
@@ -68,6 +68,7 @@ static snack_vfd_backend_instance_cfg_t make_cfg(void)
     cfg.pin_fwd      = IO_DO(1U, 1U);
     cfg.pin_rev      = IO_DO(1U, 2U);
     cfg.pin_rst      = IO_DO(1U, 3U);
+    cfg.rst_pulse_ms = 150U;
     cfg.pin_spd1     = IO_DO(1U, 4U);
     cfg.pin_spd2     = IO_DO(1U, 5U);
     cfg.gear_count   = 3U;
@@ -104,6 +105,9 @@ static void test_instance_configure_rejects_invalid_config(void)
     TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, snack_vfd_backend_instance_setup(8, &cfg));
     TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, snack_vfd_backend_instance_setup(TEST_VFD_ID, NULL));
     cfg.profile = NULL;
+    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, snack_vfd_backend_instance_setup(TEST_VFD_ID, &cfg));
+    cfg              = make_cfg();
+    cfg.rst_pulse_ms = 0U;
     TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, snack_vfd_backend_instance_setup(TEST_VFD_ID, &cfg));
 }
 
@@ -181,20 +185,20 @@ static void test_read_registers_use_profile(void)
 
     configure_bind_init(TEST_VFD_ID, &cfg);
 
-    snack_modbus_fake_set_read_value(0x1304U, 0x0011U);
+    snack_modbus_fake_set_read_value(0x0101U, 0x0011U);
     TEST_ASSERT_EQUAL_INT(SW_OK, vfd_ops()->read(TEST_VFD_ID, HAL_VFD_REG_STATE, &val));
     TEST_ASSERT_EQUAL_UINT16(0x0011U, val);
-    TEST_ASSERT_EQUAL_UINT16(0x1304U, snack_modbus_fake_last_read_addr());
+    TEST_ASSERT_EQUAL_UINT16(0x0101U, snack_modbus_fake_last_read_addr());
 
-    snack_modbus_fake_set_read_value(0x1300U, 0x0022U);
+    snack_modbus_fake_set_read_value(0x0102U, 0x0022U);
     TEST_ASSERT_EQUAL_INT(SW_OK, vfd_ops()->read(TEST_VFD_ID, HAL_VFD_REG_FAULT_CODE, &val));
     TEST_ASSERT_EQUAL_UINT16(0x0022U, val);
-    TEST_ASSERT_EQUAL_UINT16(0x1300U, snack_modbus_fake_last_read_addr());
+    TEST_ASSERT_EQUAL_UINT16(0x0102U, snack_modbus_fake_last_read_addr());
 
-    snack_modbus_fake_set_read_value(0x1206U, 0x0033U);
+    snack_modbus_fake_set_read_value(0x0103U, 0x0033U);
     TEST_ASSERT_EQUAL_INT(SW_OK, vfd_ops()->read(TEST_VFD_ID, HAL_VFD_REG_CURRENT, &val));
     TEST_ASSERT_EQUAL_UINT16(0x0033U, val);
-    TEST_ASSERT_EQUAL_UINT16(0x1206U, snack_modbus_fake_last_read_addr());
+    TEST_ASSERT_EQUAL_UINT16(0x0103U, snack_modbus_fake_last_read_addr());
 }
 
 static void test_profile_supports_input_register_and_scale(void)
@@ -208,7 +212,7 @@ static void test_profile_supports_input_register_and_scale(void)
     cfg.profile               = &profile;
     configure_bind_init(TEST_VFD_ID, &cfg);
 
-    snack_modbus_fake_set_read_value(0x1206U, 50U);
+    snack_modbus_fake_set_read_value(0x0103U, 50U);
     TEST_ASSERT_EQUAL_INT(SW_OK, vfd_ops()->read(TEST_VFD_ID, HAL_VFD_REG_CURRENT, &val));
     TEST_ASSERT_EQUAL_UINT16(100U, val);
     TEST_ASSERT_EQUAL_INT(DRV_MODBUS_REG_INPUT, snack_modbus_fake_last_read_type());
@@ -220,14 +224,14 @@ static void test_frequency_uses_profile_address_and_scale(void)
     snack_vfd_backend_instance_cfg_t cfg     = make_cfg();
 
     profile.frequency.access    = DRV_VFD_MODBUS_WRITE_SINGLE;
-    profile.frequency.address   = 0x2001U;
+    profile.frequency.address   = 0x0201U;
     profile.frequency.scale_num = 2U;
     profile.frequency.scale_den = 1U;
     cfg.profile                 = &profile;
     configure_bind_init(TEST_VFD_ID, &cfg);
 
     TEST_ASSERT_EQUAL_INT(SW_OK, vfd_ops()->set_frequency(TEST_VFD_ID, 100));
-    TEST_ASSERT_EQUAL_UINT16(0x2001U, snack_modbus_fake_last_write_addr());
+    TEST_ASSERT_EQUAL_UINT16(0x0201U, snack_modbus_fake_last_write_addr());
     TEST_ASSERT_EQUAL_UINT16(50U, snack_modbus_fake_last_write_val());
 }
 
@@ -237,15 +241,15 @@ static void test_modbus_clear_fault_uses_profile_command(void)
     snack_vfd_backend_instance_cfg_t cfg     = make_cfg();
 
     profile.clear_fault.access      = DRV_VFD_MODBUS_WRITE_SINGLE;
-    profile.clear_fault.address     = 0x2002U;
-    profile.clear_fault.fixed_value = 0x0002U;
+    profile.clear_fault.address     = 0x0202U;
+    profile.clear_fault.fixed_value = 0x0007U;
     cfg.profile                     = &profile;
     cfg.pin_rst                     = (io_do_t){IO_HANDLE_NULL};
     configure_bind_init(TEST_VFD_ID, &cfg);
 
     TEST_ASSERT_EQUAL_INT(SW_OK, vfd_ops()->fault_reset(TEST_VFD_ID));
-    TEST_ASSERT_EQUAL_UINT16(0x2002U, snack_modbus_fake_last_write_addr());
-    TEST_ASSERT_EQUAL_UINT16(0x0002U, snack_modbus_fake_last_write_val());
+    TEST_ASSERT_EQUAL_UINT16(0x0202U, snack_modbus_fake_last_write_addr());
+    TEST_ASSERT_EQUAL_UINT16(0x0007U, snack_modbus_fake_last_write_val());
 }
 
 static void test_fault_reset_without_rst_pin_is_not_supported(void)

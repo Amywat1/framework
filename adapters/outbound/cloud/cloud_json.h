@@ -37,8 +37,15 @@ typedef bool (*cloud_report_allow_fn_t)(const char *id);
  */
 sw_err_t cloud_json_install(cloud_device_cmd_submit_fn_t submit, cloud_property_reply_fn_t reply);
 
-/** 脉冲点回显 1 后，再报空闲 0 的保持时间（ms） */
-#define CLOUD_PULSE_ECHO_HOLD_MS 500U
+/** 脉冲点回显 1 后，再报空闲 0 的默认保持时间（ms） */
+#define CLOUD_PULSE_ECHO_HOLD_DEFAULT_MS 500U
+
+/**
+ * @brief  设置脉冲点回显 1 后再报空闲 0 的保持时间
+ * @param  hold_ms 保持时间（ms）；0 表示下一次 poll 即上报
+ * @note   由云平台 provider 或项目装配在链路启动前按平台控制台的刷新特性设置。
+ */
+void cloud_json_set_pulse_echo_hold_ms(uint32_t hold_ms);
 
 /**
  * @brief  到期则上报已推迟的脉冲空闲 0。

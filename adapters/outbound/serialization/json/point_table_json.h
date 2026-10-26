@@ -40,8 +40,23 @@ struct cJSON;
 sw_err_t point_table_parse_cjson_value(point_type_t type, const struct cJSON *item, point_value_t *out);
 
 /**
+ * @brief  设置 bool 点位的上行编码
+ * @param  enable true 编码为整数 0/1（如阿里云 TSL 不接受 true/false）；false 为 JSON true/false（默认）
+ * @note   由云平台 provider 在链路启动前设置；下行解析始终同时接受两种写法。
+ */
+void point_table_json_set_bool_as_number(bool enable);
+
+/**
+ * @brief  按点位类型把值写入 JSON 对象（bool 编码遵循 point_table_json_set_bool_as_number）
+ * @param  root JSON 对象
+ * @param  id   键名
+ * @param  type 点位类型
+ * @param  val  点位值
+ */
+void point_table_json_add_value(struct cJSON *root, const char *id, point_type_t type, const point_value_t *val);
+
+/**
  * @brief  遍历点表，将所有 get!=NULL 的点位序列化为 JSON
- * @note   bool 点位编码为整数 0/1（阿里云 TSL 不接受 true/false）；下行解析仍同时接受两者。
  */
 sw_err_t point_table_to_json(const point_table_entry_t *entries, size_t count, char *buf, size_t buf_size);
 

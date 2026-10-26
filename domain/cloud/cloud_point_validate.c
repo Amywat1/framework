@@ -49,6 +49,11 @@ static sw_err_t validate_one(const cloud_point_entry_t *entry)
         }
     }
 
+    if (entry->pulse && ((entry->kind == CLOUD_KIND_TELEMETRY) || (entry->base.type != POINT_TYPE_BOOL))) {
+        LOG_ERROR("cloud_point_validate: pulse id=%s only for writable bool", entry->base.id);
+        return SW_ERR_PARAM;
+    }
+
     switch (entry->kind) {
     case CLOUD_KIND_TELEMETRY:
         if (entry->base.get == NULL) {
@@ -70,8 +75,13 @@ static sw_err_t validate_one(const cloud_point_entry_t *entry)
         break;
 
     case CLOUD_KIND_DEV_CMD:
-        if ((entry->base.type != POINT_TYPE_BOOL) && (entry->base.type != POINT_TYPE_INT)) {
-            LOG_ERROR("cloud_point_validate: dev_cmd id=%s must be bool or int", entry->base.id);
+        if ((entry->base.type == POINT_TYPE_STRING)
+            && (entry->cmd_kind != DEV_CMD_SUBMIT_ORDER) && (entry->cmd_kind != DEV_CMD_CANCEL_ORDER)) {
+            LOG_ERROR("cloud_point_validate: dev_cmd id=%s string only for order id", entry->base.id);
+            return SW_ERR_PARAM;
+        }
+        if (entry->base.type == POINT_TYPE_FLOAT) {
+            LOG_ERROR("cloud_point_validate: dev_cmd id=%s must not be float", entry->base.id);
             return SW_ERR_PARAM;
         }
         if (entry->cmd_kind == DEV_CMD_NONE) {

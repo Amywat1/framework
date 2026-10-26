@@ -19,7 +19,7 @@ extern "C" {
 
 /** @brief 仿真 IO 名称表条目（与机型 DO_/DI_ 规范名表布局一致）。 */
 typedef struct {
-    const char *name; /**< 标准名称，如 "DO_GANTRY_FWD" */
+    const char *name; /**< 标准名称，如 "DO_OUTPUT_1" */
     uint16_t    raw;  /**< 句柄底层编码 */
 } hal_io_sim_name_entry_t;
 

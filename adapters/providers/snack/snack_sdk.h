@@ -39,9 +39,11 @@ typedef void (*mqtt_recv_handler_t)(const char *msg);
  * @param  device_name   设备序列号
  * @param  device_secret 设备密钥
  * @param  iot_instance  物联网实例 ID；NULL 或空串表示公共实例
+ * @param  heartbeat_s   MQTT 心跳间隔（秒），须大于 0；mqtt_connect() 重建时沿用
  * @return 0 表示已在线；非 0 表示对象可能已创建但当前离线，可由 mqtt_connect() 重试
  */
-extern int aliyun_mqtt_init(char *product_key, char *device_name, char *device_secret, char *iot_instance);
+extern int aliyun_mqtt_init(char *product_key, char *device_name, char *device_secret, char *iot_instance,
+                            int heartbeat_s);
 
 /**
  * @brief  在离线时重建客户端并再次连接
@@ -67,10 +69,11 @@ extern void mqtt_recv_handler_set(mqtt_recv_handler_t cb);
 /* ---- 音乐播放 ---- */
 
 /**
- * @brief 播放指定编号的音频文件
- * @param item 音频编号（对应 /home/neardi/Music/00N.mp3）
+ * @brief 播放指定音频文件
+ * @param file_path 音频文件完整路径（目录与命名规则由项目定义），不可为 NULL
+ * @param volume    播放音量（取值范围由 Snack 播放器定义）
  */
-extern void player_play(uint8_t item);
+extern void player_play(const char *file_path, int volume);
 
 /* ---- BLE ---- */
 

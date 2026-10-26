@@ -46,7 +46,13 @@ typedef enum {
     CLOUD_REPORT_ON_CHANGE,
 } cloud_report_policy_t;
 
-/** 云端物模型点位条目（编解码复用 base） */
+/**
+ * @brief  云端物模型点位条目（编解码复用 base）
+ *
+ * SUBMIT_ORDER / CANCEL_ORDER 的写入值即订单号：INT 点取正值，STRING 点按十进制解析
+ * 完整 64 位；SUBMIT_ORDER 的套餐取 cmd_param，未设时为 WASH_MODE_INVALID，
+ * 由项目提交回调补全或由 start_job 拒绝。
+ */
 typedef struct {
     point_table_entry_t     base;
     cloud_point_kind_t      kind;
@@ -54,8 +60,9 @@ typedef struct {
     uint32_t                deadband;      /**< 仅 ON_CHANGE 的 INT：|Δ| < deadband 不置脏；0 表示精确相等 */
     dev_cmd_kind_t          cmd_kind;      /**< 仅 DEV_CMD：提交的命令种类 */
     uint32_t                cmd_act_id;    /**< 仅 MANUAL_ACTUATOR：动作号；其余为 0 */
-    int32_t                 cmd_param;     /**< cmd_has_param 为真时的固定载荷 */
+    int32_t                 cmd_param;     /**< cmd_has_param 为真时的固定载荷（SUBMIT_ORDER 为套餐） */
     bool                    cmd_has_param; /**< 真则使用 cmd_param，否则用写入值（MANUAL）或 0（START_WASH） */
+    bool                    pulse;         /**< 无保持态按钮：成功回显 1 后再报空闲 0；仅 BOOL 的 DEV_CMD / SET */
 } cloud_point_entry_t;
 
 /**
@@ -83,17 +90,11 @@ sw_err_t cloud_point_get_echo_idle(point_value_t *out);
 /**
  * @brief  是否为无保持态的脉冲点（成功回显 1 后须再报空闲 0）
  *
- * 可写点以 report==RESYNC 表示脉冲，不以 kind 或 getter 函数指针推断。
+ * 只看显式 pulse 字段，与上行策略无关；kind / type 约束由 cloud_point_validate 保证。
  */
 static inline bool cloud_point_is_pulse(const cloud_point_entry_t *entry)
 {
-    if (entry == NULL) {
-        return false;
-    }
-    if ((entry->kind != CLOUD_KIND_DEV_CMD) && (entry->kind != CLOUD_KIND_SET)) {
-        return false;
-    }
-    return entry->report == CLOUD_REPORT_RESYNC;
+    return (entry != NULL) && entry->pulse;
 }
 
 /**

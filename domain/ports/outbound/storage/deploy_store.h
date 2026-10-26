@@ -34,7 +34,7 @@ typedef struct {
 
     /**
      * @brief  按键名读取配置值
-     * @param  key       配置键名（如 "deviceName"、"topicPropertyUp"）
+     * @param  key       配置键名（键名集合由项目部署资产定义）
      * @param  buf       输出缓冲区
      * @param  buf_size  缓冲区大小
      * @retval SW_OK / SW_ERR_PARAM（键不存在）

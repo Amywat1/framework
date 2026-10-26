@@ -5,7 +5,7 @@
  * @date    2026-08-04
  *
  * @note    点位表由 `cloud_model_entries()` 取。下行回显 JSON 放静态区，避免 8KB 进栈。
- *          脉冲空闲 0 推迟 CLOUD_PULSE_ECHO_HOLD_MS 再发，由 cloud_json_poll() 到期上报。
+ *          脉冲空闲 0 推迟保持时间再发，由 cloud_json_poll() 到期上报。
  */
 
 #include "adapters/outbound/cloud/cloud_json.h"
@@ -33,6 +33,7 @@ static char                      s_idle_send[CLOUD_REPORT_JSON_MAX];
 static char                      s_chunk_try[CLOUD_REPORT_JSON_MAX];
 static bool                      s_idle_pending = false;
 static uint64_t                  s_idle_since_ms = 0U;
+static uint32_t                  s_pulse_echo_hold_ms = CLOUD_PULSE_ECHO_HOLD_DEFAULT_MS;
 static pthread_mutex_t           s_idle_mu  = PTHREAD_MUTEX_INITIALIZER;
 static pthread_mutex_t           s_chunk_mu = PTHREAD_MUTEX_INITIALIZER;
 static _Thread_local char        s_chunk_emit[CLOUD_REPORT_JSON_MAX];
@@ -239,7 +240,7 @@ void cloud_json_poll(void)
     pthread_mutex_lock(&s_idle_mu);
     if (s_idle_pending) {
         now_ms = time_util_get_ms();
-        if (time_elapsed_ms(s_idle_since_ms, now_ms) >= CLOUD_PULSE_ECHO_HOLD_MS) {
+        if (time_elapsed_ms(s_idle_since_ms, now_ms) >= s_pulse_echo_hold_ms) {
             copy_json(s_idle_send, sizeof(s_idle_send), s_pending_idle);
             s_pending_idle[0] = '\0';
             s_idle_pending    = false;
@@ -270,6 +271,14 @@ void cloud_json_reset_for_test(void)
     s_idle_send[0]    = '\0';
     s_idle_pending    = false;
     s_idle_since_ms   = 0U;
+    s_pulse_echo_hold_ms = CLOUD_PULSE_ECHO_HOLD_DEFAULT_MS;
+    pthread_mutex_unlock(&s_idle_mu);
+}
+
+void cloud_json_set_pulse_echo_hold_ms(uint32_t hold_ms)
+{
+    pthread_mutex_lock(&s_idle_mu);
+    s_pulse_echo_hold_ms = hold_ms;
     pthread_mutex_unlock(&s_idle_mu);
 }
 

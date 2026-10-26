@@ -138,7 +138,7 @@ check_includes \
 #
 # 判据不是"名字像不像项目专属"，而是"能不能在框架树内解析"。
 #
-# 前一版判据是 grep '#include "m8/'，把"项目专属"绑定到一个写死的项目名。
+# 前一版判据是 grep '#include "<项目名>/'，把"项目专属"绑定到一个写死的项目名。
 # 框架无从预知下一个项目叫什么，换个名字规则就完全失效：把
 # #include "acme_robot/io_table.h" 注入 domain/ 后全部规则仍报通过。
 #
@@ -206,7 +206,7 @@ fi
 # -----------------------------------------------------------------------------
 # R7: 框架层每个 .c 都必须被框架自己的构建清单登记
 #
-# 前一版判据是 find -name 'm8_*.c'，与 R6 同病：绑定写死的项目前缀。
+# 前一版判据是 find -name '<项目前缀>_*.c'，与 R6 同病：绑定写死的项目前缀。
 #
 # 改为登记完整性：框架层的每个 .c 都应出现在 cmake/wdf_targets.cmake（导出给
 # 项目的分层目标）或根 CMakeLists.txt（有外部 SDK 依赖的 vendor provider）中。
@@ -526,7 +526,7 @@ RT_REACHABLE_FILES=(
     "adapters/outbound/hal/providers/snack/io_exp/io_exp_driver.c"  # 真机 DO 写
     "adapters/outbound/hal/components/vfd_manager/hal_vfd_manager.c" # 电机停机
     "adapters/outbound/hal/providers/snack/modbus/drv_vfd.c"        # stop_outputs（DO 切断）
-    "adapters/outbound/hal/components/adc_gate/hal_adc_gate.c"       # 控制环雷达采样取门控锁
+    "adapters/outbound/hal/components/adc_gate/hal_adc_gate.c"       # 控制环 ADC 采样取门控锁
     "adapters/outbound/hal/components/pulse_gate/hal_pulse_gate.c"   # 控制环脉冲采样取门控锁
     "adapters/outbound/hal/components/sensor_filter/hal_sensor_filter.c" # 控制环滤波取通道锁
 )
@@ -1541,6 +1541,51 @@ elif [ "${r28_rc}" -eq 0 ]; then
     TOTAL_VIOLATIONS=$((TOTAL_VIOLATIONS + 1))
 else
     echo "[PASS] R28: 框架生产源不含已登记项目名的字面量"
+fi
+
+# -----------------------------------------------------------------------------
+# R29: 框架源码、测试与 demo 不出现具体机型的机构名、工艺词与部署路径
+#
+# R6/R7 管住了「项目文件混进框架树」，R28 管住了已登记项目名，都管不住「框架
+# 文件的内容写着某台机器」：引擎仿真后端曾内置一整张龙门机的机构表与 DI 名表，
+# 测试照抄接入项目的报警目录，接入项目反过来依赖这些表——include 与构建登记全绿。
+#
+# 判据取机构/工艺词表：洗车机的机构与工艺词汇是有限集合，不随新项目接入而增长，
+# 出现即说明有机型资产写进了框架。测试与 demo 一并扫描：它们写死机型资产时，
+# 框架的验证事实上绑定了该机型。文档不扫——文档需要以禁止项的形式提到这些词。
+# 需要示例名时用 res_a / axis_a / SIG_A 这类中性占位。
+#
+# C10 对账锚点（本段必须保留 [PASS]/[FAIL] 字面量）：
+# [PASS] R29: 框架源码、测试与 demo 未出现具体机型的机构名、工艺词与部署路径
+# [FAIL] R29: 框架源码、测试与 demo 出现了具体机型的机构名、工艺词或部署路径
+# -----------------------------------------------------------------------------
+MODEL_TERMS='gantry|brush|foam|wax|rear_lock|roof_follow|radar|bumper|curtain|car_tail|(^|[^a-z])lift|"/home/'
+MODEL_TERMS+='|龙门|刷子|毛刷|顶刷|侧刷|滚刷|升降|泡沫|打蜡|风干|吹干|雷达|防撞|隧道|风机|欢迎语'
+
+r29_rc=0
+r29_out=""
+r29_out=$(cd "${FW_ROOT}" && grep -rniE \
+    --include='*.c' --include='*.h' --include='*.cpp' --include='*.py' \
+    --include='*.cmake' --include='*.in' --include='*.json' --include='*.yaml' --include='*.yml' \
+    --exclude-dir=third_party \
+    -e "${MODEL_TERMS}" \
+    common domain application adapters runtime observability demo tests tools cmake \
+    CMakeLists.txt) || r29_rc=$?
+
+TOTAL_RULES=$((TOTAL_RULES + 1))
+if [ "${r29_rc}" -gt 1 ]; then
+    echo ""
+    echo "[FAIL] R29: 扫描命令失败（grep 退出码 ${r29_rc}）"
+    printf '%s\n' "${r29_out}"
+    TOTAL_VIOLATIONS=$((TOTAL_VIOLATIONS + 1))
+elif [ "${r29_rc}" -eq 0 ]; then
+    echo ""
+    echo "[FAIL] R29: 框架源码、测试与 demo 出现了具体机型的机构名、工艺词或部署路径"
+    printf '%s\n' "${r29_out}" | sed 's/^/  /'
+    echo "  修正: 机型资产留在项目侧；示例改用 res_a / axis_a / SIG_A 等中性占位。"
+    TOTAL_VIOLATIONS=$((TOTAL_VIOLATIONS + 1))
+else
+    echo "[PASS] R29: 框架源码、测试与 demo 未出现具体机型的机构名、工艺词与部署路径"
 fi
 
 # -----------------------------------------------------------------------------

@@ -32,7 +32,6 @@ static unsigned         s_signal_count;
 static sim_axis_entry_t s_axes[ENGINE_IO_SIM_AXIS_CAP];
 static unsigned         s_axis_count;
 static engine_io_t      s_handle;
-static bool             s_bound;
 
 static sim_int_entry_t *int_find(sim_int_entry_t *table, unsigned *count, unsigned cap, const char *name, bool create)
 {
@@ -117,45 +116,9 @@ static const engine_io_ops_t s_sim_ops = {
     .read_axis   = sim_read_axis,
 };
 
-static const char *const s_sim_signals[] = {
-    "GANTRY_FWD_LIMIT",
-    "GANTRY_REV_LIMIT",
-    "LIFT_UP_LIMIT",
-    "LIFT_DOWN_LIMIT",
-    "REAR_LOCK_HOME",
-    "ESTOP",
-    "BUMPER_LEFT",
-    "BUMPER_RIGHT",
-    "TOP_BRUSH_COLLISION",
-    "RADAR_CAR_TAIL",
-    "EXIT",
-    "EXIT0",
-    "EXIT1",
-    "SIG",
-    "HP",
-    "CA",
-    "TAIL",
-    "NEVER",
-};
-
-static const char *const s_sim_axes[] = {
-    "gantry",
-    "g",
-};
-
-static const engine_io_catalog_t s_sim_catalog = {
-    .signals      = s_sim_signals,
-    .signal_count = (unsigned)(sizeof(s_sim_signals) / sizeof(s_sim_signals[0])),
-    .axes         = s_sim_axes,
-    .axis_count   = (unsigned)(sizeof(s_sim_axes) / sizeof(s_sim_axes[0])),
-};
-
-engine_io_t *engine_io_sim_instance(void)
+engine_io_t *engine_io_sim_instance(const engine_io_catalog_t *catalog)
 {
-    if (!s_bound) {
-        s_bound = engine_io_provider_bind(&s_handle, &s_sim_ops, (void *)&s_sim_catalog, &s_sim_catalog) == SW_OK;
-    }
-    return s_bound ? &s_handle : NULL;
+    return (engine_io_provider_bind(&s_handle, &s_sim_ops, (void *)catalog, catalog) == SW_OK) ? &s_handle : NULL;
 }
 
 void engine_io_sim_reset(void)

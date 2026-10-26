@@ -158,7 +158,7 @@ static void on_home_completed(const event_t *evt)
         return;
     }
 
-    /* 软件过流等：条件已消失的锁存在此摘掉。热继接点仍闭合则检测条件还在，摘不掉。 */
+    /* 软件过流等：条件已消失的锁存在此摘掉。检测条件仍成立的摘不掉。 */
     alarm_registry_reset_all();
     blocking_active = alarm_registry_has_blocking_active();
     result          = blocking_active ? RECOVERY_RESULT_FAILED : RECOVERY_RESULT_STANDBY;

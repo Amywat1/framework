@@ -20,7 +20,7 @@ static const alarm_def_t s_defs[] = {
     {
      /* 6 位十进制码：大类 1 / 编号 001 / 性质 01。原先写的 0x00010101 不是合法
      * 报警码（大类解析为 0），装载期校验会整表拒绝。 */
-        .code         = 100101U,
+        .code         = 109901U,
      .level        = ALARM_LEVEL_MAJOR,
      .lifecycle        = ALARM_LIFECYCLE_FOLLOW_SIGNAL,
      .reeval_group = ALARM_REEVAL_GROUP_NONE,
@@ -48,7 +48,7 @@ static void register_cloud_model(void)
 }
 
 static const char *const s_signals[] = {"di_estop"};
-static const char *const s_axes[]    = {"gantry"};
+static const char *const s_axes[]    = {"axis_a"};
 
 static const engine_io_catalog_t s_catalog = {
     .signals      = s_signals,

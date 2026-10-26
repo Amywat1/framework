@@ -32,7 +32,7 @@ static bool fake_estop_is_active(void)
 static bool fake_alarm_is_estop(uint32_t alarm_code)
 {
     s_last_alarm_code = alarm_code;
-    return alarm_code == 201709U;
+    return alarm_code == 209909U;
 }
 
 static void fake_deferred_stop(void)
@@ -100,8 +100,8 @@ static void test_registered_delegates(void)
     s_estop_state = false;
     TEST_ASSERT_FALSE(hw_estop_port_is_active());
 
-    TEST_ASSERT_TRUE(op_mode_alarm_port_is_estop(201709U));
-    TEST_ASSERT_EQUAL_UINT32(201709U, s_last_alarm_code);
+    TEST_ASSERT_TRUE(op_mode_alarm_port_is_estop(209909U));
+    TEST_ASSERT_EQUAL_UINT32(209909U, s_last_alarm_code);
     TEST_ASSERT_FALSE(op_mode_alarm_port_is_estop(100001U));
 }
 

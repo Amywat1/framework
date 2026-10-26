@@ -38,6 +38,8 @@ typedef struct {
     io_do_t pin_fwd;
     io_do_t pin_rev;
     io_do_t pin_rst;
+    /** @brief 故障复位脉冲宽度（ms），按变频器型号的最小脉宽要求设定，不可为 0 */
+    uint32_t rst_pulse_ms;
 
     io_do_t pin_spd1;
     io_do_t pin_spd2;

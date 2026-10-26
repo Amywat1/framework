@@ -4,7 +4,6 @@
  */
 
 #include "application/job_admit.h"
-#include "application/wash_quota.h"
 
 #include "common/log.h"
 #include "common/sw_mutex.h"
@@ -38,6 +37,14 @@ static void admit_lock(void)
 static void admit_unlock(void)
 {
     pthread_mutex_unlock(&s_mu);
+}
+
+/* 调用方须持 s_mu。进入停机时按 profile 决定是否清空未放行订单。 */
+static void clear_orders_on_stop_locked(void)
+{
+    if (machine_profile_get().clear_orders_on_stopped) {
+        order_book_clear();
+    }
 }
 
 static uint64_t alloc_job_id(void)
@@ -109,8 +116,8 @@ static sw_err_t admit_locked(void)
     {
         bool need_consume = false;
 
-        if (wash_quota_check_start(&need_consume) != SW_OK) {
-            LOG_WARN("job_admit: wash quota denied, keep queued");
+        if ((ops->admit_check != NULL) && (ops->admit_check(&need_consume) != SW_OK)) {
+            LOG_WARN("job_admit: admit_check denied, keep queued");
             return SW_OK;
         }
 
@@ -136,8 +143,13 @@ static sw_err_t admit_locked(void)
             return SW_OK;
         }
 
-        if (need_consume) {
-            (void)wash_quota_consume_one();
+        if (need_consume && (ops->admit_consume != NULL)) {
+            ret = ops->admit_consume();
+            if (ret != SW_OK) {
+                LOG_ERROR("job_admit: admit_consume failed ret=%d order=%llu",
+                          (int)ret,
+                          (unsigned long long)job.order_id);
+            }
         }
     }
 
@@ -148,14 +160,16 @@ static sw_err_t admit_locked(void)
 
 sw_err_t job_admit_init(void)
 {
+    if (!machine_profile_is_registered()) {
+        LOG_ERROR("job_admit: machine_profile not registered");
+        return SW_ERR_NOT_INIT;
+    }
     admit_lock();
-    machine_profile_init();
     order_book_init();
     active_jobs_init();
     s_next_job_id    = 1U;
     s_last_submit_id = 0U;
     admit_unlock();
-    (void)wash_quota_init();
     LOG_INFO("job_admit: init ok");
     return SW_OK;
 }
@@ -228,24 +242,24 @@ sw_err_t job_admit_cancel(uint64_t order_id)
     return ret;
 }
 
-unsigned job_admit_drop_jobs(bool clear_orders)
+unsigned job_admit_drop_jobs(bool entering_stop)
 {
     unsigned dropped;
 
     admit_lock();
     dropped = active_jobs_count();
     active_jobs_clear();
-    if (clear_orders) {
-        order_book_clear();
+    if (entering_stop) {
+        clear_orders_on_stop_locked();
     }
     admit_unlock();
     return dropped;
 }
 
-void job_admit_clear_orders(void)
+void job_admit_on_stopped(void)
 {
     admit_lock();
-    order_book_clear();
+    clear_orders_on_stop_locked();
     admit_unlock();
 }
 
@@ -270,7 +284,7 @@ void job_admit_on_completed(uint64_t job_id)
     if (active_jobs_count() == 0U) {
         op_mode_on_last_job_finished();
         if (op_mode_get_current() == OP_MODE_STOPPED) {
-            order_book_clear();
+            clear_orders_on_stop_locked();
         }
     }
     admit_unlock();
@@ -299,7 +313,7 @@ void job_admit_on_job_aborted(uint64_t job_id)
     if (active_jobs_count() == 0U) {
         op_mode_on_last_job_finished();
         if (op_mode_get_current() == OP_MODE_STOPPED) {
-            order_book_clear();
+            clear_orders_on_stop_locked();
         }
     }
     admit_unlock();
@@ -309,7 +323,7 @@ void job_admit_on_aborted(wash_abort_cause_t cause)
 {
     admit_lock();
     active_jobs_clear();
-    order_book_clear();
+    clear_orders_on_stop_locked();
     op_mode_on_clear_requested(cause);
     admit_unlock();
 }

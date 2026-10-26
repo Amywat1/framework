@@ -11,6 +11,13 @@
 #include <stdlib.h>
 #include <string.h>
 
+static bool s_bool_as_number = false;
+
+void point_table_json_set_bool_as_number(bool enable)
+{
+    s_bool_as_number = enable;
+}
+
 static sw_err_t finalize_json(cJSON *root, char *buf, size_t buf_size)
 {
     char  *json;
@@ -30,21 +37,24 @@ static sw_err_t finalize_json(cJSON *root, char *buf, size_t buf_size)
     return SW_OK;
 }
 
-static void append_typed_value(cJSON *root, const point_table_entry_t *entry, const point_value_t *val)
+void point_table_json_add_value(struct cJSON *root, const char *id, point_type_t type, const point_value_t *val)
 {
-    switch (entry->type) {
+    switch (type) {
     case POINT_TYPE_BOOL:
-        /* 阿里云 TSL bool 必须是数字 0/1；cJSON 只接受 double，打印整数值时仍为 1/0 */
-        cJSON_AddNumberToObject(root, entry->id, val->b ? 1.0 : 0.0);
+        if (s_bool_as_number) {
+            cJSON_AddNumberToObject(root, id, val->b ? 1.0 : 0.0);
+        } else {
+            cJSON_AddBoolToObject(root, id, val->b);
+        }
         break;
     case POINT_TYPE_INT:
-        cJSON_AddNumberToObject(root, entry->id, (double)val->i);
+        cJSON_AddNumberToObject(root, id, (double)val->i);
         break;
     case POINT_TYPE_FLOAT:
-        cJSON_AddNumberToObject(root, entry->id, (double)val->f);
+        cJSON_AddNumberToObject(root, id, (double)val->f);
         break;
     case POINT_TYPE_STRING:
-        cJSON_AddStringToObject(root, entry->id, val->s);
+        cJSON_AddStringToObject(root, id, val->s);
         break;
     default:
         break;
@@ -81,7 +91,7 @@ static sw_err_t append_entry(cJSON                     *root,
         }
     }
 
-    append_typed_value(root, entry, &val);
+    point_table_json_add_value(root, entry->id, entry->type, &val);
     return SW_OK;
 }
 
@@ -150,7 +160,7 @@ sw_err_t point_table_to_json_filtered(const point_table_entry_t *entries,
             continue;
         }
 
-        append_typed_value(root, entry, &val);
+        point_table_json_add_value(root, entry->id, entry->type, &val);
         serialized++;
     }
 

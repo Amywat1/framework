@@ -12,7 +12,7 @@
 #include "runtime/event_bus/event_bus.h"
 #include "wdf_test_spec.h"
 
-#define TEST_ESTOP_CODE 201709U
+#define TEST_ESTOP_CODE 209909U
 
 static volatile int s_lockout_count;
 static volatile int s_nominal_count;

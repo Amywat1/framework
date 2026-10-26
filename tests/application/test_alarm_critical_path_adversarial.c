@@ -21,7 +21,7 @@
 #include <pthread.h>
 #include <stddef.h>
 
-#define CRIT_CODE      201709U
+#define CRIT_CODE      209909U
 #define CRIT2_CODE     201809U
 #define MINOR_PAD_CODE 901001U
 #define UNKNOWN_CODE   999999U

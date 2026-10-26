@@ -84,10 +84,7 @@ typedef struct {
  * 遥测投影从云端口刷新写入，领域层不依赖任何云端口。
  * ------------------------------------------------------------------------- */
 typedef struct {
-    bool     cloud_connected;          /**< 云链路当前连通 */
-    bool     wash_quota_monitorable;   /**< 平台能监控订单，开洗不扣离线次数 */
-    uint8_t  wash_quota_remaining;     /**< 离线剩余开洗次数 */
-    uint32_t wash_quota_grant_serial;  /**< 最近一次已接受的授权序号 */
+    bool cloud_connected; /**< 云链路当前连通 */
 } connectivity_snapshot_t;
 
 /* -------------------------------------------------------------------------

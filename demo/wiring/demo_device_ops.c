@@ -6,6 +6,7 @@
 #include "common/event_types.h"
 #include "common/sw_error.h"
 #include "domain/job/job_types.h"
+#include "domain/job/machine_profile.h"
 #include "domain/op_mode/op_mode_types.h"
 #include "domain/ports/outbound/device/device_ops_port.h"
 #include "runtime/event_bus/event_bus.h"
@@ -66,11 +67,21 @@ static const device_ops_t s_demo_device_ops = {
     .is_admit_ready          = demo_is_admit_ready,
 };
 
+/* 单车、等场区清空、中止即清障、停机清队、订单不过期 */
+static const machine_profile_t s_demo_profile = {
+    .max_active_jobs         = 1U,
+    .max_queued_orders       = JOB_ORDER_QUEUE_CAP,
+    .hold_after_last_job     = true,
+    .clear_on_job_abort      = true,
+    .clear_orders_on_stopped = true,
+    .max_order_age_ms        = 0U,
+};
+
 /**
- * @brief  注册 Demo device_ops
+ * @brief  注册 Demo device_ops 与机型 profile
  */
 sw_err_t demo_device_ops_register(void)
 {
     device_ops_register(&s_demo_device_ops);
-    return SW_OK;
+    return machine_profile_register(&s_demo_profile);
 }

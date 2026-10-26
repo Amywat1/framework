@@ -20,10 +20,10 @@ static const alarm_def_t s_catalog[] = {
      .level        = ALARM_LEVEL_MAJOR,
      .lifecycle        = ALARM_LIFECYCLE_LATCH,
      .reeval_group = ALARM_REEVAL_GROUP_NONE,
-     .desc         = "侧刷过载",
+     .desc         = "测试过载",
      },
     {
-     .code         = 201709U,
+     .code         = 209909U,
      .level        = ALARM_LEVEL_CRITICAL,
      .lifecycle        = ALARM_LIFECYCLE_FOLLOW_SIGNAL,
      .reeval_group = ALARM_REEVAL_GROUP_NONE,
@@ -82,7 +82,7 @@ static void test_critical_publishes_lockout(void)
     (void)event_subscribe(EVT_SAFETY_NOMINAL, on_nominal);
     (void)event_subscribe(EVT_SAFETY_LOCKOUT, on_lockout);
 
-    (void)alarm_registry_trigger(201709U);
+    (void)alarm_registry_trigger(209909U);
     drain_registry();
 
     TEST_ASSERT_EQUAL_INT(1, g_lockout_count);

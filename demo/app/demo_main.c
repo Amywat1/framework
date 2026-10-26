@@ -5,7 +5,6 @@
 
 #include "adapters/outbound/safety/sim/hw_estop_sim.h"
 #include "application/ports/inbound/command/command_port.h"
-#include "application/wash_quota.h"
 #include "application/ports/inbound/safety/alarm_binding_port.h"
 #include "common/event_types.h"
 #include "common/log.h"
@@ -137,8 +136,6 @@ static int check_submit_and_admit(void)
         return 1;
     }
 
-    /* 演示无云链路，视为可监控，避免离线 0 次拦住开洗。 */
-    wash_quota_set_monitorable(true);
     cmd     = dev_cmd_make_start_wash();
     receipt = (dev_cmd_receipt_t){0};
     if (ops->submit_sync(&cmd, &receipt, 2000U) != SW_OK) {
