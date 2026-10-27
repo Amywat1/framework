@@ -8,6 +8,7 @@
 #include "adapters/outbound/storage/json/engine_program_json.h"
 #include "application/engine_session/engine_session.h"
 #include "common/sw_error.h"
+#include "domain/job/machine_profile.h"
 #include "common/time_util.h"
 #include "runtime/config/thread_config.h"
 #include "runtime/event_bus/event_bus.h"
@@ -335,9 +336,35 @@ static void test_engine_session_runs_to_done(void)
     }
 }
 
+static void test_session_profile_slots_enough(void)
+{
+    machine_profile_t profile = {
+        .max_active_jobs   = 1U,
+        .max_queued_orders = 8U,
+    };
+
+    machine_profile_reset_for_test();
+    TEST_ASSERT_EQUAL_INT(SW_OK, machine_profile_register(&profile));
+    TEST_ASSERT_EQUAL_INT(SW_OK, engine_session_check_profile());
+}
+
+static void test_session_profile_slots_short(void)
+{
+    machine_profile_t profile = {
+        .max_active_jobs   = 2U,
+        .max_queued_orders = 8U,
+    };
+
+    machine_profile_reset_for_test();
+    TEST_ASSERT_EQUAL_INT(SW_OK, machine_profile_register(&profile));
+    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, engine_session_check_profile());
+}
+
 int main(void)
 {
     UNITY_BEGIN();
+    WDF_RUN_TEST(test_session_profile_slots_enough, "", "验证占用上限不超过会话槽时通过");
+    WDF_RUN_TEST(test_session_profile_slots_short, "", "验证占用上限超过会话槽时拒绝");
     WDF_RUN_TEST(test_engine_session_runs_to_done, "",
                  "验证会话运行完成、中止，以及 on_finished 期间可接手下次 start");
     return UNITY_END();

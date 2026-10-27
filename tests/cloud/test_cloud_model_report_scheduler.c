@@ -280,6 +280,7 @@ static void test_downlink_pulse_idle_waits_hold(void)
     cloud_link_register(&s_link_ops);
     register_model();
     TEST_ASSERT_EQUAL_INT(SW_OK, cloud_json_install(stub_submit, NULL));
+    cloud_json_set_pulse_echo_hold_ms(500U);
     TEST_ASSERT_EQUAL_INT(SW_OK, report_scheduler_start(500U));
     TEST_ASSERT_NOT_NULL(s_recv);
 
@@ -290,7 +291,7 @@ static void test_downlink_pulse_idle_waits_hold(void)
     report_scheduler_poll();
     TEST_ASSERT_EQUAL_UINT(1U, s_json_reports);
 
-    (void)usleep((CLOUD_PULSE_ECHO_HOLD_DEFAULT_MS + 50U) * 1000U);
+    (void)usleep((500U + 50U) * 1000U);
     report_scheduler_poll();
     TEST_ASSERT_EQUAL_UINT(2U, s_json_reports);
     TEST_ASSERT_NOT_NULL(strstr(s_last_echo, "\"cmd_a\":false"));

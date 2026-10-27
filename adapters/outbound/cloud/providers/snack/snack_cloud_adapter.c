@@ -249,6 +249,7 @@ void snack_cloud_adapter_register(void)
     s_last_online        = false;
     s_last_reconnect_ms  = 0U;
     point_table_json_set_bool_as_number(true);
+    cloud_json_set_pulse_echo_hold_ms(500U);
     cloud_link_register(&s_ops);
     LOG_INFO("snack_cloud: adapter registered");
 }

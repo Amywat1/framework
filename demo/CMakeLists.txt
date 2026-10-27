@@ -38,10 +38,10 @@ target_include_directories(wdf_smoke PRIVATE
 target_compile_options(wdf_smoke PRIVATE -Wall -Wextra -Werror -g)
 
 # 分层目标按依赖传递：wdf_application 会带入 domain / runtime / ports / common。
-# 不链接 wdf_observation_bridge：桥接改为项目在 init_adapters 中显式启用后，
-# bootstrap 不再引用该符号，未启用观测的 demo 也就不必提供它。
+# Demo 启用观测桥与黑匣子采样，故链接 wdf_observation_bridge。
 target_link_libraries(wdf_smoke PRIVATE
     wdf_application
+    wdf_observation_bridge
     wdf_estop_poll
     wdf_storage_json
     wdf_hal_sim

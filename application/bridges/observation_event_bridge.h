@@ -18,11 +18,10 @@
  *          阶段失败、切断失败、事件总线丢弃）不在此处——它们发生时 event_bus
  *          可能尚未就绪或正是故障源，需各自就地记录。
  *
- * @note    可选设施：本桥接是"项目没有自己的事件投影"时的通用默认实现，由项目
- *          显式启用，不由 bootstrap 代为挂接。它记录的 `event_code` 是框架
- *          `event_type_t` 原值、载荷是 4 字节 `evt->param`；项目若需要自有事件
- *          编码、更完整的载荷或事件触发的附带动作（如黑匣子冻结），应实现自己的
- *          投影并跳过本桥接，而不是两者并存。
+ * @note    可选设施：本桥接只记事件时间线，不冻黑匣子。由项目显式启用，不由
+ *          bootstrap 代为挂接。`event_code` 是框架 `event_type_t` 原值，载荷是
+ *          4 字节 `evt->param`。黑匣子由项目另调 `blackbox_sampler_start` 或自写
+ *          采样。项目若自带事件投影，应跳过本桥接，以免同一事件记两条。
  */
 
 #ifndef APPLICATION_BRIDGES_OBSERVATION_EVENT_BRIDGE_H

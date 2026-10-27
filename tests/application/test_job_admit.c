@@ -90,6 +90,7 @@ static void test_start_releases_fifo(void)
     TEST_ASSERT_EQUAL_INT(SW_OK, submit_mode(TEST_WASH_MODE_A));
     TEST_ASSERT_EQUAL_INT(SW_OK, submit_mode(TEST_WASH_MODE_B));
     TEST_ASSERT_EQUAL_INT(SW_ERR_STATE, job_admit_start());
+    TEST_ASSERT_EQUAL_INT(OP_REJECT_ENTRY_NOT_READY, job_admit_last_fail_reason());
     TEST_ASSERT_EQUAL_INT(0, device_ops_stub_start_count());
     TEST_ASSERT_EQUAL_UINT(2U, order_book_count());
 
@@ -113,6 +114,7 @@ static void test_occupancy_full_keeps_queue(void)
     TEST_ASSERT_EQUAL_UINT(1U, active_jobs_count());
 
     TEST_ASSERT_EQUAL_INT(SW_ERR_STATE, job_admit_start());
+    TEST_ASSERT_EQUAL_INT(OP_REJECT_OCCUPANCY_FULL, job_admit_last_fail_reason());
     TEST_ASSERT_EQUAL_INT(1, device_ops_stub_start_count());
     TEST_ASSERT_EQUAL_UINT(1U, order_book_count());
 }
@@ -415,6 +417,7 @@ static void test_rejected_start_drops_order(void)
     device_ops_stub_set_start_result(SW_ERR_PARAM);
     TEST_ASSERT_EQUAL_INT(SW_OK, submit_mode(TEST_WASH_MODE_A));
     TEST_ASSERT_EQUAL_INT(SW_ERR_STATE, job_admit_start());
+    TEST_ASSERT_EQUAL_INT(OP_REJECT_JOB_DROPPED, job_admit_last_fail_reason());
     TEST_ASSERT_EQUAL_INT(1, device_ops_stub_start_count());
     TEST_ASSERT_EQUAL_UINT(0U, order_book_count());
     TEST_ASSERT_EQUAL_UINT(0U, active_jobs_count());
@@ -453,6 +456,7 @@ static void test_start_without_order_fails(void)
 {
     enter_standby();
     TEST_ASSERT_EQUAL_INT(SW_ERR_STATE, job_admit_start());
+    TEST_ASSERT_EQUAL_INT(OP_REJECT_QUEUE_EMPTY, job_admit_last_fail_reason());
     TEST_ASSERT_EQUAL_INT(0, device_ops_stub_start_count());
     TEST_ASSERT_EQUAL_UINT(0U, order_book_count());
     TEST_ASSERT_EQUAL_UINT(0U, active_jobs_count());
@@ -475,6 +479,7 @@ static void test_start_keeps_queued_mode(void)
     device_ops_stub_set_admit_ready(false);
     TEST_ASSERT_EQUAL_INT(SW_OK, submit_mode(TEST_WASH_MODE_A));
     TEST_ASSERT_EQUAL_INT(SW_ERR_STATE, job_admit_start());
+    TEST_ASSERT_EQUAL_INT(OP_REJECT_ENTRY_NOT_READY, job_admit_last_fail_reason());
     TEST_ASSERT_EQUAL_INT(SW_OK, order_book_peek_front(&head));
     TEST_ASSERT_EQUAL_INT(TEST_WASH_MODE_A, head.mode);
     TEST_ASSERT_EQUAL_UINT(1U, order_book_count());
@@ -488,6 +493,7 @@ static void test_start_while_active_empty_book_fails(void)
     TEST_ASSERT_EQUAL_UINT(0U, order_book_count());
     TEST_ASSERT_EQUAL_UINT(1U, active_jobs_count());
     TEST_ASSERT_EQUAL_INT(SW_ERR_STATE, job_admit_start());
+    TEST_ASSERT_EQUAL_INT(OP_REJECT_OCCUPANCY_FULL, job_admit_last_fail_reason());
     TEST_ASSERT_EQUAL_UINT(0U, order_book_count());
     TEST_ASSERT_EQUAL_INT(1, device_ops_stub_start_count());
 }
@@ -503,6 +509,7 @@ static void test_hold_start_fails(void)
     job_admit_on_completed(head.job_id);
     TEST_ASSERT_EQUAL_INT(OP_MODE_HOLD, op_mode_get_current());
     TEST_ASSERT_EQUAL_INT(SW_ERR_STATE, job_admit_start());
+    TEST_ASSERT_EQUAL_INT(OP_REJECT_WRONG_MODE, job_admit_last_fail_reason());
     TEST_ASSERT_EQUAL_UINT(0U, order_book_count());
     TEST_ASSERT_EQUAL_INT(1, device_ops_stub_start_count());
 }
@@ -511,6 +518,7 @@ static void test_stopped_start_fails(void)
 {
     TEST_ASSERT_EQUAL_INT(OP_MODE_STOPPED, op_mode_get_current());
     TEST_ASSERT_EQUAL_INT(SW_ERR_STATE, job_admit_start());
+    TEST_ASSERT_EQUAL_INT(OP_REJECT_WRONG_MODE, job_admit_last_fail_reason());
     TEST_ASSERT_EQUAL_UINT(0U, order_book_count());
     TEST_ASSERT_EQUAL_INT(0, device_ops_stub_start_count());
 }
@@ -545,6 +553,7 @@ static void test_offline_quota_exhausted_keeps_queue(void)
     wash_quota_set_monitorable(false);
     TEST_ASSERT_EQUAL_INT(SW_OK, submit_mode(TEST_WASH_MODE_A));
     TEST_ASSERT_EQUAL_INT(SW_ERR_STATE, job_admit_start());
+    TEST_ASSERT_EQUAL_INT(OP_REJECT_POLICY, job_admit_last_fail_reason());
     TEST_ASSERT_EQUAL_INT(0, device_ops_stub_start_count());
     TEST_ASSERT_EQUAL_UINT(1U, order_book_count());
     wash_quota_get_info(&info);
@@ -562,6 +571,7 @@ static void test_offline_quota_consumes_only_on_start_ok(void)
     device_ops_stub_set_start_result(SW_ERR_BUSY);
     TEST_ASSERT_EQUAL_INT(SW_OK, submit_mode(TEST_WASH_MODE_A));
     TEST_ASSERT_EQUAL_INT(SW_ERR_STATE, job_admit_start());
+    TEST_ASSERT_EQUAL_INT(OP_REJECT_JOB_RETRY, job_admit_last_fail_reason());
     wash_quota_get_info(&info);
     TEST_ASSERT_EQUAL_UINT8(2U, info.remaining);
     device_ops_stub_set_start_result(SW_OK);
@@ -575,8 +585,8 @@ int main(void)
 {
     UNITY_BEGIN();
     WDF_RUN_TEST(test_submit_without_admit_ready_only_queues, "", "验证未准入时只入队不放行");
-    WDF_RUN_TEST(test_start_releases_fifo, "", "验证启动按 FIFO 放行队首");
-    WDF_RUN_TEST(test_occupancy_full_keeps_queue, "", "验证占用满时启动失败且后续单待队中");
+    WDF_RUN_TEST(test_start_releases_fifo, "ADMIT-01", "验证启动按 FIFO 放行队首");
+    WDF_RUN_TEST(test_occupancy_full_keeps_queue, "ADMIT-01", "验证占用满时启动失败且后续单待队中");
     WDF_RUN_TEST(test_multi_active_profile_start_each, "", "验证占用未满时洗中启动可再放一单");
     WDF_RUN_TEST(test_last_job_hold, "", "验证最后一单结束后按 profile 进入 HOLD");
     WDF_RUN_TEST(test_last_job_standby_without_hold, "", "验证关闭 hold 后最后一单回 STANDBY");
@@ -598,10 +608,10 @@ int main(void)
     WDF_RUN_TEST(test_rejected_start_drops_order, "", "验证 start_job 永久拒绝时丢弃队首单");
     WDF_RUN_TEST(test_active_order_id_is_deduped, "", "验证在洗订单号重复下单不再入队");
     WDF_RUN_TEST(test_stop_all_aborts_job_admitted_after_verdict, "", "验证全停中止裁决前模式未及 ACTIVE 的在洗作业");
-    WDF_RUN_TEST(test_start_without_order_fails, "", "验证空队启动失败");
+    WDF_RUN_TEST(test_start_without_order_fails, "ADMIT-01", "验证空队启动失败");
     WDF_RUN_TEST(test_start_without_order_not_ready_fails, "",
                  "验证未准入空队启动失败");
-    WDF_RUN_TEST(test_start_keeps_queued_mode, "", "验证启动不改已入队订单的套餐");
+    WDF_RUN_TEST(test_start_keeps_queued_mode, "ADMIT-01", "验证启动不改已入队订单的套餐");
     WDF_RUN_TEST(test_start_while_active_empty_book_fails, "",
                  "验证在洗且空队时启动失败");
     WDF_RUN_TEST(test_hold_start_fails, "", "验证 HOLD 点启动失败");

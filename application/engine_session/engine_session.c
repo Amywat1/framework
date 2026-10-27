@@ -10,6 +10,7 @@
 #include "common/log.h"
 #include "common/time_util.h"
 #include "common/trace_context.h"
+#include "domain/job/machine_profile.h"
 #include "domain/ports/outbound/storage/engine_program_loader_port.h"
 #include "domain/program_engine/model/engine_model.h"
 #include "runtime/scheduler/thread_registry.h"
@@ -490,4 +491,14 @@ engine_direction_t engine_session_direction(const engine_session_t *s)
         return ENGINE_DIR_NONE;
     }
     return (engine_direction_t)atomic_load(&s->s_current_direction);
+}
+
+sw_err_t engine_session_check_profile(void)
+{
+    machine_profile_t profile = machine_profile_get();
+
+    if ((unsigned)profile.max_active_jobs > (unsigned)WDF_ENGINE_SESSION_INSTANCE_COUNT) {
+        return SW_ERR_PARAM;
+    }
+    return SW_OK;
 }

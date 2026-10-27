@@ -20,8 +20,9 @@
 
 static pthread_mutex_t s_mu;
 static pthread_once_t  s_mu_once = PTHREAD_ONCE_INIT;
-static uint64_t        s_next_job_id    = 1U;
-static uint64_t        s_last_submit_id = 0U;
+static uint64_t            s_next_job_id       = 1U;
+static uint64_t            s_last_submit_id    = 0U;
+static op_reject_reason_t  s_last_fail_reason  = OP_REJECT_NONE;
 
 static void admit_mu_init(void)
 {
@@ -83,6 +84,12 @@ static void drop_expired_heads(const machine_profile_t *profile)
     }
 }
 
+static sw_err_t fail_locked(op_reject_reason_t reason)
+{
+    s_last_fail_reason = reason;
+    return SW_ERR_STATE;
+}
+
 /* 调用方须持 s_mu。start_job 在锁内调用：契约要求其只启动异步流程并立即返回。 */
 static sw_err_t admit_locked(void)
 {
@@ -90,71 +97,78 @@ static sw_err_t admit_locked(void)
     machine_profile_t   profile;
     job_desc_t          job;
     sw_err_t            ret;
+    bool                need_consume = false;
 
-    /* can_admit 已含总开关、急停与 STANDBY/ACTIVE；切断未确认与 blocking 不在其中。 */
-    if (safety_cutout_is_unconfirmed() || !op_mode_can_admit() || alarm_registry_has_blocking_active()) {
-        return SW_OK;
+    if (safety_cutout_is_unconfirmed()) {
+        return fail_locked(OP_REJECT_CUTOUT_UNCONFIRMED);
+    }
+    if (op_mode_is_estop_active()) {
+        return fail_locked(OP_REJECT_ESTOP_ACTIVE);
+    }
+    if (!op_mode_is_service_enabled()) {
+        return fail_locked(OP_REJECT_SERVICE_DISABLED);
+    }
+    if (!op_mode_can_admit() || alarm_registry_has_blocking_active()) {
+        return fail_locked(OP_REJECT_WRONG_MODE);
     }
 
     profile = machine_profile_get();
     drop_expired_heads(&profile);
     if (active_jobs_count() >= (unsigned)profile.max_active_jobs) {
-        return SW_OK;
+        return fail_locked(OP_REJECT_OCCUPANCY_FULL);
     }
     if (order_book_peek_front(&job) != SW_OK) {
-        return SW_OK;
+        return fail_locked(OP_REJECT_QUEUE_EMPTY);
     }
 
     ops = device_ops_get();
     if ((ops == NULL) || (ops->start_job == NULL)) {
+        s_last_fail_reason = OP_REJECT_NONE;
         return SW_ERR_NOT_INIT;
     }
     if ((ops->is_admit_ready != NULL) && !ops->is_admit_ready()) {
-        return SW_OK;
+        return fail_locked(OP_REJECT_ENTRY_NOT_READY);
     }
 
-    {
-        bool need_consume = false;
+    if ((ops->admit_check != NULL) && (ops->admit_check(&need_consume) != SW_OK)) {
+        LOG_WARN("job_admit: admit_check denied, keep queued");
+        return fail_locked(OP_REJECT_POLICY);
+    }
 
-        if ((ops->admit_check != NULL) && (ops->admit_check(&need_consume) != SW_OK)) {
-            LOG_WARN("job_admit: admit_check denied, keep queued");
-            return SW_OK;
+    job.job_id = alloc_job_id();
+    ret        = active_jobs_add(&job);
+    if (ret != SW_OK) {
+        return fail_locked(OP_REJECT_OCCUPANCY_FULL);
+    }
+
+    ret = ops->start_job(&job);
+    if (ret != SW_OK) {
+        (void)active_jobs_remove(job.job_id);
+        if (ret == SW_ERR_PARAM) {
+            (void)order_book_cancel(job.order_id);
+            LOG_ERROR("job_admit: start_job rejected, drop order=%llu mode=%u",
+                      (unsigned long long)job.order_id,
+                      (unsigned)job.mode);
+            return fail_locked(OP_REJECT_JOB_DROPPED);
         }
+        LOG_ERROR("job_admit: start_job failed ret=%d order=%llu, keep queued",
+                  (int)ret,
+                  (unsigned long long)job.order_id);
+        return fail_locked(OP_REJECT_JOB_RETRY);
+    }
 
-        job.job_id = alloc_job_id();
-        ret        = active_jobs_add(&job);
+    if (need_consume && (ops->admit_consume != NULL)) {
+        ret = ops->admit_consume();
         if (ret != SW_OK) {
-            return ret;
-        }
-
-        ret = ops->start_job(&job);
-        if (ret != SW_OK) {
-            (void)active_jobs_remove(job.job_id);
-            if (ret == SW_ERR_PARAM) {
-                (void)order_book_cancel(job.order_id);
-                LOG_ERROR("job_admit: start_job rejected, drop order=%llu mode=%u",
-                          (unsigned long long)job.order_id,
-                          (unsigned)job.mode);
-            } else {
-                LOG_ERROR("job_admit: start_job failed ret=%d order=%llu, keep queued",
-                          (int)ret,
-                          (unsigned long long)job.order_id);
-            }
-            return SW_OK;
-        }
-
-        if (need_consume && (ops->admit_consume != NULL)) {
-            ret = ops->admit_consume();
-            if (ret != SW_OK) {
-                LOG_ERROR("job_admit: admit_consume failed ret=%d order=%llu",
-                          (int)ret,
-                          (unsigned long long)job.order_id);
-            }
+            LOG_ERROR("job_admit: admit_consume failed ret=%d order=%llu",
+                      (int)ret,
+                      (unsigned long long)job.order_id);
         }
     }
 
     (void)order_book_cancel(job.order_id);
     op_mode_on_job_started();
+    s_last_fail_reason = OP_REJECT_NONE;
     return SW_OK;
 }
 
@@ -167,8 +181,9 @@ sw_err_t job_admit_init(void)
     admit_lock();
     order_book_init();
     active_jobs_init();
-    s_next_job_id    = 1U;
-    s_last_submit_id = 0U;
+    s_next_job_id      = 1U;
+    s_last_submit_id   = 0U;
+    s_last_fail_reason = OP_REJECT_NONE;
     admit_unlock();
     LOG_INFO("job_admit: init ok");
     return SW_OK;
@@ -210,24 +225,25 @@ uint64_t job_admit_last_submit_id(void)
     return id;
 }
 
+op_reject_reason_t job_admit_last_fail_reason(void)
+{
+    op_reject_reason_t reason;
+
+    admit_lock();
+    reason = s_last_fail_reason;
+    admit_unlock();
+    return reason;
+}
+
 sw_err_t job_admit_start(void)
 {
-    unsigned          before;
     machine_profile_t profile;
     sw_err_t          ret;
 
     admit_lock();
     profile = machine_profile_get();
     drop_expired_heads(&profile);
-    before = active_jobs_count();
-    ret    = admit_locked();
-    if ((ret == SW_OK) && (active_jobs_count() > before)) {
-        admit_unlock();
-        return SW_OK;
-    }
-    if (ret != SW_ERR_NOT_INIT) {
-        ret = SW_ERR_STATE;
-    }
+    ret = admit_locked();
     admit_unlock();
     return ret;
 }

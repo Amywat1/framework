@@ -7,12 +7,14 @@
 
 #include "application/command_gateway.h"
 
+#include "application/job_admit.h"
 #include "application/ports/inbound/command/command_port.h"
 #include "application/side_effect_router.h"
 #include "common/event_types.h"
 #include "common/log.h"
 #include "common/time_util.h"
 #include "common/trace_context.h"
+#include "domain/op_mode/device_command.h"
 #include "domain/op_mode/operational_mode.h"
 #include "runtime/config/thread_config.h"
 #include "runtime/event_bus/event_bus.h"
@@ -394,6 +396,9 @@ static void process_one_slot(cmd_gateway_slot_t *slot)
     receipt.reject_reason = decision.reason;
     receipt.effect_error  = effect_err;
     receipt.status        = status_from_effect(effect_err, decision.verdict);
+    if ((cmd.body.kind == DEV_CMD_START_WASH) && (effect_err != SW_OK)) {
+        receipt.reject_reason = job_admit_last_fail_reason();
+    }
 
     publish_cmd_handled(cmd.body.kind, receipt.status, receipt.reject_reason);
     trace_context_set(&previous);

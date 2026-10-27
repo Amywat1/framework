@@ -3,6 +3,7 @@
  * @brief   未准入启动门锁与就位延迟放行
  */
 
+#include "application/job_admit.h"
 #include "application/pending_start.h"
 #include "common/log.h"
 #include "common/sw_error.h"
@@ -28,6 +29,7 @@ static unsigned                s_book_count;
 static uint64_t                s_now_ms;
 static unsigned                s_start_count;
 static sw_err_t                s_start_ret;
+static op_reject_reason_t      s_fail_reason;
 
 int param_kv_get_int(const char *key, int default_val)
 {
@@ -85,6 +87,11 @@ sw_err_t job_admit_start(void)
     return s_start_ret;
 }
 
+op_reject_reason_t job_admit_last_fail_reason(void)
+{
+    return s_fail_reason;
+}
+
 sw_err_t periodic_task_register(const char        *name,
                                 uint32_t           period_ms,
                                 periodic_task_fn_t fn,
@@ -131,6 +138,7 @@ void setUp(void)
     s_now_ms        = 10000U;
     s_start_count   = 0U;
     s_start_ret     = SW_OK;
+    s_fail_reason   = OP_REJECT_ENTRY_NOT_READY;
     pending_start_init();
 }
 
@@ -162,21 +170,21 @@ static void test_not_ready_start_is_remembered(void)
 
 static void test_empty_book_is_not_remembered(void)
 {
-    s_book_count = 0U;
+    s_fail_reason = OP_REJECT_QUEUE_EMPTY;
     pending_start_on_start_result(SW_ERR_STATE);
     TEST_ASSERT_FALSE(pending_start_is_armed());
 }
 
 static void test_already_ready_fail_is_not_remembered(void)
 {
-    s_admit_ready = true;
+    s_fail_reason = OP_REJECT_JOB_RETRY;
     pending_start_on_start_result(SW_ERR_STATE);
     TEST_ASSERT_FALSE(pending_start_is_armed());
 }
 
 static void test_hold_fail_is_not_remembered(void)
 {
-    s_mode = OP_MODE_HOLD;
+    s_fail_reason = OP_REJECT_WRONG_MODE;
     pending_start_on_start_result(SW_ERR_STATE);
     TEST_ASSERT_FALSE(pending_start_is_armed());
 }
@@ -294,7 +302,7 @@ int main(void)
                  "延迟为 0 或负值表示不记住启动");
     WDF_RUN_TEST(test_delay_clamps_to_30s, "PEND-01",
                  "延迟超过 30 秒按 30000 ms 夹紧");
-    WDF_RUN_TEST(test_not_ready_start_is_remembered, "PEND-02",
+    WDF_RUN_TEST(test_not_ready_start_is_remembered, "ADMIT-02",
                  "未准入启动失败且延迟非 0 时记住");
     WDF_RUN_TEST(test_empty_book_is_not_remembered, "PEND-02",
                  "无队首时启动失败不记住");

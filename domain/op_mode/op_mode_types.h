@@ -72,15 +72,20 @@ typedef enum {
     OP_CMD_DENIED,
 } op_cmd_result_t;
 
-/** @brief  命令拒绝原因 */
+/** @brief  命令拒绝原因（含放行核失败原因，写入命令回执） */
 typedef enum {
     OP_REJECT_NONE = 0,
-    OP_REJECT_WRONG_MODE,
+    OP_REJECT_WRONG_MODE,         /**< 矩阵 DENIED、模式不可放行，或有阻断报警 */
     OP_REJECT_ESTOP_ACTIVE,
     OP_REJECT_SERVICE_DISABLED,
-    OP_REJECT_ENTRY_NOT_READY,    /**< 机型准入未就绪（抽象；具体条件由项目定义）*/
+    OP_REJECT_ENTRY_NOT_READY,    /**< 机型准入未就绪（is_admit_ready 为假）*/
     OP_REJECT_UNKNOWN_CMD,
     OP_REJECT_CUTOUT_UNCONFIRMED, /**< 安全切断失败且尚无独立反馈确认 */
+    OP_REJECT_QUEUE_EMPTY,        /**< 订单簿空，无从放行 */
+    OP_REJECT_OCCUPANCY_FULL,     /**< 同时在洗已达 profile 上限 */
+    OP_REJECT_POLICY,             /**< admit_check 拒绝（次数/计费等）*/
+    OP_REJECT_JOB_DROPPED,        /**< start_job 永久失败，队首已丢 */
+    OP_REJECT_JOB_RETRY,          /**< start_job 暂时失败，队首保留 */
 } op_reject_reason_t;
 
 /** @brief  恢复流程结束结果 */

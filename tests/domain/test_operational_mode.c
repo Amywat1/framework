@@ -566,7 +566,7 @@ static void test_stop_all_from_recovering_enters_stopped(void)
  * MODE-01：命令 × 8 状态穷举矩阵（与设计文档转录表一致）
  * D=DENIED A=ALLOWED C=CONDITIONAL；列序 INIT..RECOVERING
  */
-static void test_cmd_matrix_exhaustive_56(void)
+static void test_cmd_matrix_exhaustive_72(void)
 {
     /* clang-format off */
     static const op_cmd_perm_t expect[DEV_CMD_MAX][OP_MODE_RECOVERING + 1] = {
@@ -659,7 +659,7 @@ int main(void)
     WDF_RUN_TEST(test_stop_all_from_washing_skips_abort_homing, "", "验证全停洗车中不清障");
     WDF_RUN_TEST(test_estop_abort_from_washing_skips_abort_homing, "MODE-03", "验证洗车中急停中止不清障");
     WDF_RUN_TEST(test_stop_all_from_recovering_enters_stopped, "", "验证全停打断恢复进入停止");
-    WDF_RUN_TEST(test_cmd_matrix_exhaustive_56, "", "验证命令许可矩阵穷举");
+    WDF_RUN_TEST(test_cmd_matrix_exhaustive_72, "", "验证命令许可矩阵穷举");
 
     return UNITY_END();
 }

@@ -130,6 +130,14 @@ bool engine_session_is_busy(const engine_session_t *session);
  */
 engine_direction_t engine_session_direction(const engine_session_t *session);
 
+/**
+ * @brief  核对机型占用上限不超过会话槽数
+ * @retval SW_OK        槽位足够
+ * @retval SW_ERR_PARAM max_active_jobs 大于 WDF_ENGINE_SESSION_INSTANCE_COUNT
+ * @note   使用方案会话的项目在 project_validate 中调用；不接入 job_admit_init。
+ */
+sw_err_t engine_session_check_profile(void);
+
 #ifdef __cplusplus
 }
 #endif

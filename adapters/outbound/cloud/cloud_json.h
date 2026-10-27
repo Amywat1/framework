@@ -38,7 +38,7 @@ typedef bool (*cloud_report_allow_fn_t)(const char *id);
 sw_err_t cloud_json_install(cloud_device_cmd_submit_fn_t submit, cloud_property_reply_fn_t reply);
 
 /** 脉冲点回显 1 后，再报空闲 0 的默认保持时间（ms） */
-#define CLOUD_PULSE_ECHO_HOLD_DEFAULT_MS 500U
+#define CLOUD_PULSE_ECHO_HOLD_DEFAULT_MS 0U
 
 /**
  * @brief  设置脉冲点回显 1 后再报空闲 0 的保持时间

@@ -430,6 +430,17 @@ add_unit_test(test_observation_event_bridge
     ${WDF_ROOT}/common/sw_mutex.c
 )
 
+add_unit_test(test_blackbox_sampler
+    ${CMAKE_CURRENT_SOURCE_DIR}/application/test_blackbox_sampler.c
+    ${WDF_ROOT}/application/blackbox_sampler.c
+    ${WDF_ROOT}/observability/recorder/blackbox_recorder.c
+    ${WDF_ROOT}/domain/telemetry/device_snapshot.c
+    ${WDF_ROOT}/runtime/event_bus/event_bus.c
+    ${WDF_ROOT}/common/time_util.c
+    ${WDF_ROOT}/common/log.c
+    ${WDF_ROOT}/common/sw_mutex.c
+)
+
 add_unit_test(test_alarm_reeval_bridge
     ${CMAKE_CURRENT_SOURCE_DIR}/application/test_alarm_reeval_bridge.c
     ${WDF_ROOT}/application/bridges/alarm_bridge.c
@@ -682,6 +693,7 @@ add_unit_test(test_side_effect_router
 add_unit_test(test_engine_session
     ${CMAKE_CURRENT_SOURCE_DIR}/application/test_engine_session.c
     ${WDF_ROOT}/application/engine_session/engine_session.c
+    ${WDF_ROOT}/domain/job/machine_profile.c
     ${WDF_ROOT}/adapters/outbound/storage/json/engine_program_json.c
     ${WDF_ROOT}/adapters/outbound/storage/json/engine_program_json_schema.c
     ${WDF_ROOT}/adapters/outbound/storage/json/engine_program_json_template.c

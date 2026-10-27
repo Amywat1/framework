@@ -260,18 +260,16 @@ _wdf_add_interface_lib(wdf_mechanism_bridge
 )
 
 # ---------------------------------------------------------------------------
-# wdf_observation_bridge — 框架事件转观测记录
+# wdf_observation_bridge — 事件时间线 + 可选黑匣子默认通道
 #
-# 独立成目标而非并入 wdf_application：它是 observability 的唯一框架侧接入点，
-# 不接观测的项目不该被迫链接 observability。
-#
-# 只有需要这套通用事件投影的项目才链接本目标并在 init_adapters 中调
-# observation_event_bridge_init()；bootstrap 不引用该符号。自带事件投影的项目
-# （有自己的事件编码与载荷）应只链接 wdf_observability。
+# 独立成目标而非并入 wdf_application：不接观测的项目不该被迫链接 observability。
+# 项目按需链接，并在 init_adapters 中显式调用 observation_event_bridge_init /
+# blackbox_sampler_start；bootstrap 不引用这些符号。
 # ---------------------------------------------------------------------------
 _wdf_add_interface_lib(wdf_observation_bridge
     SOURCES
         application/bridges/observation_event_bridge.c
+        application/blackbox_sampler.c
     DEPENDS
         wdf_application
         wdf_observability

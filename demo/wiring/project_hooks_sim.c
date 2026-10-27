@@ -6,6 +6,8 @@
 #include "adapters/inbound/safety/estop_poll_thread.h"
 #include "adapters/outbound/storage/json/json_deploy_store.h"
 #include "adapters/outbound/storage/json/json_param_store.h"
+#include "application/blackbox_sampler.h"
+#include "application/bridges/observation_event_bridge.h"
 #include "runtime/bootstrap/project_hooks.h"
 #include "runtime/ports/port_contract.h"
 
@@ -45,7 +47,17 @@ static sw_err_t validate(void)
  */
 static sw_err_t init_adapters(void)
 {
-    return estop_poll_thread_init(NULL);
+    sw_err_t ret;
+
+    ret = estop_poll_thread_init(NULL);
+    if (ret != SW_OK) {
+        return ret;
+    }
+    ret = observation_event_bridge_init();
+    if (ret != SW_OK) {
+        return ret;
+    }
+    return blackbox_sampler_start(10U, 5U, BLACKBOX_TRIG_ESTOP | BLACKBOX_TRIG_LOCKOUT);
 }
 
 sw_err_t project_hooks_register(void)

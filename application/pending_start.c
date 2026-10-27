@@ -84,28 +84,23 @@ void pending_start_init(void)
 
 void pending_start_on_start_result(sw_err_t start_ret)
 {
-    operational_mode_t mode;
     uint32_t           delay_ms;
+    op_reject_reason_t reason;
 
-    pending_lock();
     if (start_ret == SW_OK) {
+        pending_lock();
         clear_locked();
         pending_unlock();
         return;
     }
 
     delay_ms = pending_start_delay_ms();
-    if ((start_ret != SW_ERR_STATE) || (delay_ms == 0U)) {
-        pending_unlock();
+    reason   = job_admit_last_fail_reason();
+    if ((start_ret != SW_ERR_STATE) || (delay_ms == 0U) || (reason != OP_REJECT_ENTRY_NOT_READY)) {
         return;
     }
 
-    mode = device_snapshot_get().op.mode;
-    if ((mode != OP_MODE_STANDBY) || (order_book_count() == 0U) || admit_ready()) {
-        pending_unlock();
-        return;
-    }
-
+    pending_lock();
     s_armed          = true;
     s_seen_vehicle   = (entry_occupancy_get().phase != ENTRY_OCC_EMPTY);
     s_ready_since_ms = 0U;

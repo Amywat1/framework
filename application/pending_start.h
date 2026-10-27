@@ -39,8 +39,9 @@ void pending_start_init(void);
 /**
  * @brief  消化一次启动命令结果
  * @param  start_ret  当次 job_admit / 网关返回值
- * @note   仅当失败且当时待机、队中有单、未准入、延迟非 0 时记住。
- *         已准入仍失败（占用满、阻断等）不记住。成功则清掉。
+ * @note   仅当 `SW_ERR_STATE` 且 `job_admit_last_fail_reason()` 为
+ *         `OP_REJECT_ENTRY_NOT_READY` 且延迟大于 0 时记住。其它失败不记住。
+ *         成功则清掉。调用方须先走 `job_admit_start`，以便原因与当次一致。
  */
 void pending_start_on_start_result(sw_err_t start_ret);
 

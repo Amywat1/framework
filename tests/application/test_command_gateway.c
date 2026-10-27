@@ -185,6 +185,49 @@ static void test_start_wash_triggers_orchestrator(void)
     stop_runtime(tid);
 }
 
+static void test_start_wash_empty_queue_reports_reason(void)
+{
+    dev_cmd_t         start   = dev_cmd_make_start_wash();
+    dev_cmd_receipt_t receipt = {0};
+    pthread_t         tid;
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, operational_mode_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, command_gateway_init());
+    setup_idle();
+    start_runtime(&tid);
+
+    TEST_ASSERT_EQUAL_INT(SW_ERR_STATE, device_command_port_get_ops()->submit_sync(&start, &receipt, 1000U));
+    TEST_ASSERT_EQUAL_INT(DEV_CMD_STATUS_FAILED, receipt.status);
+    TEST_ASSERT_EQUAL_INT(OP_REJECT_QUEUE_EMPTY, receipt.reject_reason);
+
+    stop_runtime(tid);
+}
+
+static void test_start_wash_not_ready_reports_reason(void)
+{
+    dev_cmd_t         order   = dev_cmd_make_submit_order(TEST_WASH_MODE_A);
+    dev_cmd_t         start   = dev_cmd_make_start_wash();
+    dev_cmd_receipt_t receipt = {0};
+    pthread_t         tid;
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, operational_mode_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, command_gateway_init());
+    setup_idle();
+    device_ops_stub_set_admit_ready(false);
+    start_runtime(&tid);
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, device_command_port_get_ops()->submit_sync(&order, &receipt, 1000U));
+    memset(&receipt, 0, sizeof(receipt));
+    TEST_ASSERT_EQUAL_INT(SW_ERR_STATE, device_command_port_get_ops()->submit_sync(&start, &receipt, 1000U));
+    TEST_ASSERT_EQUAL_INT(DEV_CMD_STATUS_FAILED, receipt.status);
+    TEST_ASSERT_EQUAL_INT(OP_REJECT_ENTRY_NOT_READY, receipt.reject_reason);
+    TEST_ASSERT_EQUAL_INT(0, device_ops_stub_start_count());
+
+    stop_runtime(tid);
+}
+
 static void test_stop_all_then_set_service(void)
 {
     dev_cmd_receipt_t receipt = {0};
@@ -452,6 +495,10 @@ int main(void)
     WDF_RUN_TEST(test_submit_accepted_in_idle, "", "验证空闲模式接受命令提交");
     WDF_RUN_TEST(test_submit_rejected_wrong_mode, "", "验证模式不匹配时拒绝命令提交");
     WDF_RUN_TEST(test_start_wash_triggers_orchestrator, "", "验证启动洗车触发流程编排器");
+    WDF_RUN_TEST(test_start_wash_empty_queue_reports_reason, "ADMIT-03",
+                 "验证开洗失败回执带放行原因");
+    WDF_RUN_TEST(test_start_wash_not_ready_reports_reason, "ADMIT-03",
+                 "验证未准入开洗失败回执带 ENTRY_NOT_READY");
     WDF_RUN_TEST(test_stop_all_during_washing_via_gateway, "", "验证洗车中经网关全停切断并中止");
     WDF_RUN_TEST(test_stop_all_then_set_service, "", "验证全停后独立开关总开关");
     WDF_RUN_TEST(test_gateway_assigns_request_id_and_trace, "", "验证网关分配请求ID并追踪上下文");

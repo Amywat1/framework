@@ -47,11 +47,17 @@ uint64_t job_admit_last_submit_id(void);
 /**
  * @brief  请求开洗队首一单
  * @retval SW_OK           已放行
- * @retval SW_ERR_STATE    当时不能开洗：空队、未准入、占用满、HOLD/停机或有阻断。已入队单保留
+ * @retval SW_ERR_STATE    当时不能开洗。原因见 job_admit_last_fail_reason()
  * @retval SW_ERR_NOT_INIT 设备口未注册
  * @note   一次只放队首。洗着能否再放，由占用上限和 is_admit_ready 决定。
  */
 sw_err_t job_admit_start(void);
+
+/**
+ * @brief  最近一次 job_admit_start 失败原因
+ * @return 成功或尚未调用过、以及 SW_ERR_NOT_INIT 时为 OP_REJECT_NONE
+ */
+op_reject_reason_t job_admit_last_fail_reason(void);
 
 /**
  * @brief  取消未放行订单
