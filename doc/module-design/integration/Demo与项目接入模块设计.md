@@ -1,8 +1,8 @@
 # Demo 与项目接入模块设计
 
-**版本**：v1.0  
-**状态**：已落地（Demo smoke + wiring/project hooks 接入骨架）  
-**最后同步代码**：2026-07-14（`demo/`、`runtime/bootstrap/wiring.h`、`runtime/bootstrap/project_hooks.h`、`device_ops_port`）  
+**版本**：v1.1  
+**状态**：已落地（Demo smoke + 接入骨架对照）  
+**最后同步代码**：2026-10-27（`demo/`、`runtime/bootstrap/wiring.h`、`runtime/bootstrap/project_hooks.h`、`device_ops_port`）  
 **适用范围**：`demo/`、`runtime/bootstrap/`、`domain/ports/outbound/device/`、项目 wiring/bindings  
 **架构基线**：通用 bootstrap + 项目依赖注入 + 项目 hooks  
 **关键词**：demo、wiring、project_hooks、device_ops、bootstrap_run、smoke、project bring-up
@@ -23,19 +23,24 @@ Demo 与项目接入层展示如何把通用框架装配成一个可启动设备
 
 ### 1.2 Demo 当前定位
 
-当前 `demo/` 不是完整洗车机产品示例，而是最小集成验证：
+当前 `demo/` 不是完整洗车机产品，而是**可对照复制的最小接入骨架**加 L4 smoke：
 
 | 能力 | Demo 实现 |
 |------|-----------|
-| 启动入口 | `demo/app/demo_main.c` |
+| 启动入口 | `demo/app/demo_main.c`（退出式 smoke，产品 main 常驻） |
 | HAL | `hal_io_sim`、`hal_voice_sim` |
 | 安全端口 | `safety_sim` 注册 `safety_ops_t`，急停状态由 `hw_estop_sim` 维护 |
 | 存储 | `json_param_store`、`json_deploy_store` |
-| device ops | 空操作/成功返回的 `demo_device_ops` |
-| 报警目录 | 两个 demo alarm code |
-| 洗车编排 | 无（`device_ops` 空实现返回成功） |
-| 周期任务 | 无项目任务；`alarm_bridge` 由框架 `alarm_bridge_init()` 自行登记 |
-| 验证链路 | RECOVER → STANDBY → STOP_ALL、硬件急停事件、报警触发链 |
+| device ops | 异步 `start_job`（只发 STARTED）；home/clear 无方案引擎故同步回报 |
+| 机型 profile | 单车：同时 1 单、队深 1、洗完 HOLD |
+| 入场占用 | 桩相位 READY；产品按传感器填 EMPTY/OCCUPIED/READY |
+| 次数授权 | `wash_quota`，无云时 `set_monitorable(true)` |
+| 延迟开洗 | `pending_start_init` + 周期任务（默认延迟 0，不记住） |
+| 报警目录 | 两条码，经 `alarm_binding_port` 装载 |
+| 急停→报警 | `estop_poll_thread` + `estop_alarm_bridge` |
+| 观测 | `observation_event_bridge` + 黑匣子（产品可换自有投影） |
+| 洗车编排 | 无方案引擎；产品在 `init_device` 接会话 |
+| 验证链路 | RECOVER → STANDBY → 开洗 ACTIVE → STOP_ALL、硬件急停、报警触发 |
 
 ---
 
@@ -53,9 +58,10 @@ Demo 是框架自带的最小接入实例，可直接作为新项目 wiring 的�
 | `application/asset_contract.h` | 必需资产的启动期集中校验（`ASSET_REQ_*`） |
 | `demo/app/demo_main.c` | 最小 main：调 `bootstrap_run()` 后驱动 smoke 场景 |
 | `demo/wiring/wiring_sim.c` | 最小 provider 注册（sim HAL、storage、safety） |
-| `demo/wiring/project_hooks_sim.c` | 15 个钩子的最小实现 |
-| `demo/wiring/demo_device_ops.c` | 最小 `device_ops_t` |
-| `demo/wiring/demo_alarm_catalog.c` | 最小报警目录 |
+| `demo/wiring/project_hooks_sim.c` | 15 个钩子；未用阶段填 `project_hook_noop` |
+| `demo/wiring/demo_device_ops.c` | `device_ops_t`、profile、入场占用 |
+| `demo/wiring/demo_alarm_catalog.c` | 最小报警目录（经端口装载） |
+| `demo/wiring/demo_defs.h` | Demo 报警码（`ALARM_CODE_MAKE`） |
 
 ---
 
@@ -130,13 +136,15 @@ bootstrap_start()
 
 ### 4.1 `demo_main`
 
-`demo/app/demo_main.c` 调用 `bootstrap_run()` 后执行三段 smoke 检查：
+`demo/app/demo_main.c` 调用 `bootstrap_run()` 后按产品命令路径驱动 smoke：
 
 | 检查 | 验证内容 |
 |------|----------|
-| STOP_ALL_OUTPUTS | `device_command_port.submit_sync` → command gateway → operational mode → `stop_all_outputs` |
+| RECOVER | 归位 → STANDBY |
+| SUBMIT_ORDER + START_WASH | 放行核 → `start_job` 只发 STARTED → ACTIVE |
+| STOP_ALL_OUTPUTS | ACTIVE 下全停：`abort_jobs` + 切断输出 → STOPPED，不改总开关 |
 | HW ESTOP | `hw_estop_sim_set_active(true)` → `EVT_HW_ESTOP_ON` → op mode estop flag |
-| Alarm trigger | `alarm_binding.trigger()` → registry blocking（变位已入队） |
+| Alarm trigger | `alarm_binding.trigger()` → registry blocking |
 
 Demo 直接订阅 `EVT_HW_ESTOP_ON`，用于确认 event dispatch 线程已工作。该事件需要有采集方发布，见 §9.1。
 
@@ -149,34 +157,38 @@ wiring()
     ├─ hal_io_sim_register()
     ├─ hal_voice_sim_register()
     ├─ json_param_store_register()
-    └─ json_deploy_store_register()
+    ├─ json_deploy_store_register()
+    └─ safety_sim_register()
 ```
 
-它不注册真实 HAL、cloud provider、engine program loader 或完整物模型。JSON 文件路径不在 `wiring()` 中注入，而由 `project_configure_storage()` 调用 `json_param_store_configure()` / `json_deploy_store_configure()` 完成。
+它不注册真实 HAL、cloud provider、engine program loader 或完整物模型。JSON 文件路径不在 `wiring()` 中注入，而由 `project_configure_storage()` 调用 `json_param_store_configure()` / `json_deploy_store_configure()` 完成。产品通常再拆一份真机 `wiring()`：把 `*_sim` 换成现场 provider，并注册云连接。
 
 ### 4.3 `project_hooks_sim`
 
 | Hook | Demo 行为 |
 |------|-----------|
-| `project_configure_storage()` | 注入 Demo 参数/部署 JSON 路径 |
-| `project_configure_hal()` | 空实现 |
-| `project_bind_hal()` | 空实现 |
-| `project_init_hal()` | 空实现 |
-| `project_configure_safety()` | 空实现 |
-| `project_init_safety()` | 空实现 |
-| `project_configure_adapters()` | 空实现 |
-| `project_bind_device()` | `demo_device_ops_register()` |
-| `project_init_device()` | 空实现 |
-| `project_bind_alarm_catalog()` | `demo_alarm_catalog_load()` |
-| `project_validate()` | `port_contract_validate()` 校验必需端口 |
-| `project_init_adapters()` | 接入急停轮询适配器；不接观测桥（观测设施由项目显式启用） |
-| `project_register_runtime_tasks()` | 空实现 |
-| `project_start_runtime()` | 空实现 |
-| `assert_safe_outputs`（hook 字段） | 空实现（仿真无真实输出可切断） |
+| `configure_storage` | 注入 Demo 参数/部署 JSON 路径 |
+| `configure_hal` / `bind_hal` / `init_hal` | `project_hook_noop`；产品在此下发并绑定传感器、变频器、语音 |
+| `configure_safety` / `init_safety` | `project_hook_noop`；产品在 `init_safety` 建立上电安全态 |
+| `configure_adapters` | `project_hook_noop`；真机在此配置云端密钥 |
+| `bind_device` | `demo_device_ops_register()`：ops + profile + 占用口 |
+| `init_device` | `pending_start_init` + `wash_quota_init` + 无云时 `set_monitorable(true)` |
+| `bind_alarm_catalog` | `demo_alarm_catalog_load()` |
+| `validate` | `port_contract_validate()`（含 `PORT_REQ_ENTRY_OCCUPANCY`）。有方案/云的项目再调 `asset_contract_validate` |
+| `init_adapters` | 急停轮询、`estop_alarm_bridge`、观测桥、黑匣子 |
+| `register_runtime_tasks` | `pending_start_register_task()` |
+| `start_runtime` | `project_hook_noop`；产品在此等传感器就绪、启动无法纳入 scheduler 的线程 |
+| `assert_safe_outputs` | 空函数（仿真无输出）；产品须幂等切断 |
 
 ### 4.4 `demo_device_ops`
 
-Demo 注册 `device_ops_t`，所有动作为空或返回 `SW_OK`。这只验证 `side_effect_router` 能调用到项目端口，不验证真实机构动作。
+Demo 注册完整 `device_ops_t` 外形，用来示范契约而不是机构：
+
+- `start_job` 只发 `EVT_JOB_STARTED` 后返回，作业保持 ACTIVE，由后续 STOP_ALL 走 `abort_jobs`。禁止在回调内发 `EVT_JOB_COMPLETED` 或跑完整工艺。
+- `home_device` / `clear_machine` 无方案引擎，同步发完成事件；产品须改成会话完成后再发。
+- `admit_check` / `admit_consume` 接到 `wash_quota`。
+- `clear_alarms` / `poll_clear_alarms` 留空：无可软件复位的硬件。
+- 同时登记 `machine_profile`（单车队深 1）和入场占用桩（恒 READY）。
 
 ### 4.5 `demo_alarm_catalog`
 
@@ -198,18 +210,13 @@ Demo 加载两个报警：
 
 `device_ops_port` 是 framework application 到项目机构能力的出站端口。
 
-```c
-typedef struct {
-    /* deferred_stop 在 safety_ops，不在 device_ops */
-    void (*clear_machine)(void);
-    sw_err_t (*start_job)(const job_desc_t *job);
-    void (*abort_jobs)(wash_abort_cause_t cause);
-    sw_err_t (*home_device)(void);
-    sw_err_t (*execute_manual_actuator)(uint32_t act_id, int32_t param);
-    sw_err_t (*stop_all_outputs)(void);
-    bool (*is_admit_ready)(void);
-} device_ops_t;
-```
+字段以 `domain/ports/outbound/device/device_ops_port.h` 为准。必填动作是清障、开洗、中止、归位、点动、全停；可选口为：
+
+| 字段 | 未注册时 | 产品何时填 |
+|------|----------|------------|
+| `is_admit_ready` | 框架不拦截 | 入场联锁（占用相位不够时再叠加锁紧等） |
+| `admit_check` / `admit_consume` | 框架不拦截 | 选用 `wash_quota` 或自有计费 |
+| `clear_alarms` / `poll_clear_alarms` | 视为无需等待 | 恢复路径有可软件复位的硬件 |
 
 ### 5.1 调用方
 
@@ -223,13 +230,15 @@ typedef struct {
 | `execute_manual_actuator` | `DEV_CMD_MANUAL_ACTUATOR`：只下发/启定时后立即返回；禁止等待点动时长 |
 | `stop_all_outputs` | `DEV_CMD_STOP_ALL_OUTPUTS` 副作用：切断输出；前态 ACTIVE 时 router 另调 `abort_jobs(STOP_ALL)` |
 | `is_admit_ready` | 下一单能否放行；未注册（NULL）时框架不拦截 |
+| `admit_check` / `admit_consume` | 开洗授权；未注册不拦截。`wash_quota` 是可选参考实现 |
+| `clear_alarms` / `poll_clear_alarms` | 恢复时清可软件复位的硬件；未注册视为立刻 DONE |
 
 `side_effect_router` 不做权限判断，只执行 `operational_mode` 已裁决允许的副作用。未注册或函数缺失时返回 `SW_ERR_NOT_INIT`。  
 上述回调均在 **cmd_control** 线程经网关调用：任一实现内长时间阻塞，都会拖住后续命令（含软件停止）。硬急停 cutout 仍在 `estop_poll`，不受此影响。
 
 ### 5.2 项目实现要求
 
-- `project_bind_device()` 中调用 `device_ops_register()`。
+- `project_bind_device()` 中调用 `device_ops_register()` 与 `machine_profile_register()`；有入场灯、延迟开洗或视觉时再注册占用口。
 - `execute_manual_actuator` 的 `act_id` / `param` 由项目定义，并在云端/CLI 映射中保持一致；**须非阻塞**——下发动作或启动定时/运动后立即返回，点动时长与到位由项目侧自行管理，勿在回调内 `sleep`/轮询等待。
 - `start_job` / `home_device` / `clear_machine` 同样只启动异步流程；完成后分别靠作业事件、`EVT_OP_MODE_HOME_COMPLETED`、`EVT_CLEAR_MACHINE_DONE` 收口。
 - 发布 `EVT_OP_MODE_HOME_COMPLETED(成功)` 前须按目标姿态证明锁存条件消失（只 `clear` 条件）。
@@ -260,11 +269,14 @@ typedef struct {
 
 ### 6.3 Domain / Application
 
-- 在 `project_bind_device()` 注册 `device_ops_t`。
+- 在 `project_bind_device()` 注册 `device_ops_t`、`machine_profile`；有入场灯/延迟开洗/视觉时注册占用口并声明 `PORT_REQ_ENTRY_OCCUPANCY`。
 - 在 `project_bind_alarm_catalog()` 经 `alarm_binding_port` 加载项目报警目录（不直接调 `alarm_registry`）。
+- 在 `project_init_device()` 初始化方案会话、次数授权（`wash_quota_init`）、延迟开洗（`pending_start_init`）和入场监督。
+- 在 `project_init_adapters()` 接入 `estop_poll_thread_init` 与 `estop_alarm_bridge_init(项目急停码)`。
 - 初始化洗车 orchestrator 所需的 engine IO 后端和方案 loader。
 - 遥测投影由 `bootstrap_init_services()` 自动接入，项目无需初始化；读侧用 `device_snapshot_get()`。
-- 在 `project_validate()` 校验 cloud model，在 `project_register_runtime_tasks()` 注册 `report_scheduler`。
+- 在 `project_validate()` 先 `port_contract_validate`，有方案/云时再 `asset_contract_validate`；真机校验物模型非空。
+- 在 `project_register_runtime_tasks()` 登记滤波、机构 tick、`pending_start_register_task`、观测和 `report_scheduler`。
 
 ### 6.4 Cloud / Inbound
 
@@ -359,8 +371,9 @@ L4）。它依次验证：
 |------|-----------|
 | `bootstrap_run()` | 7 阶段启动全过程 |
 | `RECOVER` → STANDBY | 命令网关 → 裁决 → `RECOVERY_REQUESTED` → `recovery_coordinator` → `device_ops.home_device` → `EVT_OP_MODE_HOME_COMPLETED` → `EVT_OP_MODE_RECOVERY_COMPLETED` → STANDBY |
-| `STOP_ALL_OUTPUTS` | STANDBY 下全停：切断输出并落到 STOPPED，不改总开关 |
-| 急停边沿 | `hw_estop_sim` → `estop_poll_thread` → `safety_cutout_execute` → `EVT_HW_ESTOP_ON` → 姿态收敛 |
+| SUBMIT_ORDER + START_WASH | 放行核 → `is_admit_ready` + `wash_quota` → `start_job`（只发 STARTED）→ ACTIVE |
+| `STOP_ALL_OUTPUTS` | ACTIVE 下全停：`abort_jobs` + 切断输出并落到 STOPPED，不改总开关 |
+| 急停边沿 | `hw_estop_sim` → `estop_poll_thread` → `safety_cutout_execute` → `EVT_HW_ESTOP_ON` → `estop_alarm_bridge` → 姿态收敛 |
 | 报警触发 | `alarm_binding.trigger` → `alarm_bridge` → blocking 判定 |
 
 全部通过时输出 `[Demo] All checks passed.`。
@@ -373,7 +386,7 @@ L4）。它依次验证：
 
 | 原失败 | 原因与修法 |
 |--------|-----------|
-| 软停机命令被拒 | 历史上曾用仅 IDLE 允许的软停机；启动后是 `OP_MODE_STOPPED` 会被拒。现已删除该命令。smoke 先 `RECOVER` 归位进 IDLE，再 `STOP_ALL_OUTPUTS` 覆盖归位与全停 |
+| 软停机命令被拒 | 历史上曾用仅 IDLE 允许的软停机；启动后是 `OP_MODE_STOPPED` 会被拒。现已删除该命令。smoke 先 `RECOVER` 归位进 STANDBY，再开洗、`STOP_ALL_OUTPUTS` |
 | `EVT_HW_ESTOP_ON` 收不到 | `hw_estop_sim` 只维护状态，发布方是 `estop_poll_thread`，而 demo 的 `init_adapters()` 是空实现。改为在此接入该可选适配器 |
 
 急停等待改为轮询而非固定睡眠：采集线程以 `SCHED_FIFO` 注册，非特权环境下会被
@@ -381,7 +394,7 @@ scheduler 降级为 `SCHED_OTHER`，边沿检测延迟随负载变化。固定�
 smoke 的偶发失败比不跑更糟——它会让真实回归被当成抖动忽略。
 
 已注入验证两条链路确有约束力：`init_adapters` 不接急停采集时 smoke 失败；
-`demo_home_device` 不回报归位完成时报 `mode should be IDLE after RECOVER+home`。
+`demo_home_device` 不回报归位完成时报 `mode should be STANDBY after RECOVER+home`。
 
 ### 9.2 项目 Bring-up
 
@@ -408,6 +421,9 @@ smoke 的偶发失败比不跑更糟——它会让真实回归被当成抖动�
 | event handler 中执行阻塞 IO | 阻塞全局 event dispatch |
 | 跳过 `project_hooks_t.assert_safe_outputs` 实现 | event bus fatal / IO panic 时无法兜底切断 |
 | Demo stub 被误用于产品 | 命令看似成功但没有真实机构动作 |
+| `start_job` 内发 `EVT_JOB_COMPLETED` 或跑完整工艺 | 占用 cmd_control，STOP_ALL 被拖住；Demo 已示范只发 STARTED |
+| 接了 `wash_quota` 却既不可监控、剩余又为 0 | `START_WASH` 被拒，订单留在队首 |
+| 有入场灯/延迟开洗/视觉却不注册占用口 | 框架读到 `available=false`，空场忘掉与灯语都不会触发 |
 
 ---
 
@@ -420,7 +436,7 @@ smoke 的偶发失败比不跑更糟——它会让真实回归被当成抖动�
 | 端口契约校验（`PORT_REQ_*`，14 位） | ✅ |
 | 资产契约校验（`ASSET_REQ_*`，3 位） | ✅ |
 | Demo 最小 wiring（sim HAL / storage / safety） | ✅ |
-| `wdf_smoke` 端到端场景 | ✅ 已纳入 `ctest`，覆盖启动/命令/归位/急停/报警五条链路，见第 9.1 节 |
+| `wdf_smoke` 端到端场景 | ✅ 已纳入 `ctest`，覆盖启动/归位/开洗/在洗全停/急停/报警，见第 9.1 节 |
 | 真机项目 wiring 参考实现 | 项目侧职责，框架只提供 Demo 作为对照 |
 
 ---

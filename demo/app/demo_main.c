@@ -1,7 +1,13 @@
 /**
  * @file    demo_main.c
- * @brief   Demo 入口：bootstrap 启动与集成验证
+ * @brief   Demo 入口：bootstrap 启动与接入链路 smoke
+ *
+ * @note    本二进制是行为契约唯一 L4，也是新项目对照接线的最小实例。
+ *          复制时保留 wiring / project_hooks / device_ops / 报警目录 四件套，
+ *          把桩换成机构、方案和入站适配器；不要把本文件的退出式 smoke 当成产品 main。
  */
+
+#include "wiring/demo_defs.h"
 
 #include "adapters/outbound/safety/sim/hw_estop_sim.h"
 #include "application/ports/inbound/command/command_port.h"
@@ -18,8 +24,6 @@
 
 #include <stdio.h>
 #include <unistd.h>
-
-#define DEMO_ALARM_MAJOR 201101U
 
 /** 轮询间隔：取急停采集周期的两倍，避免空转 */
 #define DEMO_POLL_STEP_US 10000U
@@ -87,14 +91,14 @@ static int submit_expect_accepted(dev_cmd_kind_t kind)
 }
 
 /*
- * 启动后为 OP_MODE_STOPPED。smoke 先经 RECOVER 进 IDLE 再 STOP_ALL，
- * 覆盖完整归位链路；全停切断输出，不关总开关。
+ * 启动后为 OP_MODE_STOPPED。smoke 先经 RECOVER 进 STANDBY 再开洗、STOP_ALL，
+ * 覆盖完整归位与在洗全停。
  *
  * RECOVER@STOPPED 为 CONDITIONAL：先拒急停，再要求 service_enabled；
  * init 已开总开关且无急停，可走通。链路为 RECOVERY_REQUESTED → home_device →
  * HOME_COMPLETED → RECOVERY_COMPLETED。
  */
-static int check_recover_to_idle(void)
+static int check_recover_to_standby(void)
 {
     if (submit_expect_accepted(DEV_CMD_RECOVER) != 0) {
         return 1;
@@ -104,7 +108,7 @@ static int check_recover_to_idle(void)
     usleep(100000U);
 
     if (op_mode_get_current() != OP_MODE_STANDBY) {
-        fprintf(stderr, "[Demo] mode should be IDLE after RECOVER+home, got %d\n", (int)op_mode_get_current());
+        fprintf(stderr, "[Demo] mode should be STANDBY after RECOVER+home, got %d\n", (int)op_mode_get_current());
         return 1;
     }
 
@@ -112,14 +116,13 @@ static int check_recover_to_idle(void)
 }
 
 /**
- * @brief  下单后再发开洗，由放行核按桩准入启动作业
+ * @brief  下单后再发开洗；start_job 只发 STARTED，作业保持 ACTIVE
  */
 static int check_submit_and_admit(void)
 {
     dev_cmd_t                        cmd     = dev_cmd_make_submit_order((wash_mode_t)0U);
     dev_cmd_receipt_t                receipt = {0};
     const device_command_port_ops_t *ops;
-    operational_mode_t               mode;
 
     ops = device_command_port_get_ops();
     if (ops == NULL) {
@@ -148,9 +151,8 @@ static int check_submit_and_admit(void)
     }
 
     usleep(100000U);
-    mode = op_mode_get_current();
-    if ((mode != OP_MODE_ACTIVE) && (mode != OP_MODE_HOLD)) {
-        fprintf(stderr, "[Demo] mode should be ACTIVE or HOLD after admit, got %d\n", (int)mode);
+    if (op_mode_get_current() != OP_MODE_ACTIVE) {
+        fprintf(stderr, "[Demo] mode should be ACTIVE after admit, got %d\n", (int)op_mode_get_current());
         return 1;
     }
 
@@ -216,7 +218,7 @@ int main(void)
 
     hw_estop_sim_set_active(false);
 
-    if (check_recover_to_idle() != 0) {
+    if (check_recover_to_standby() != 0) {
         return 1;
     }
 

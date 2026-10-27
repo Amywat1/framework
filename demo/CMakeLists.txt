@@ -39,6 +39,8 @@ target_compile_options(wdf_smoke PRIVATE -Wall -Wextra -Werror -g)
 
 # 分层目标按依赖传递：wdf_application 会带入 domain / runtime / ports / common。
 # Demo 启用观测桥与黑匣子采样，故链接 wdf_observation_bridge。
+# 产品在此基础上按需追加：wdf_mechanism / wdf_mechanism_bridge / wdf_engine_session /
+# wdf_storage_program_json / wdf_hal_components / wdf_asset_contract / wdf_cloud_json。
 target_link_libraries(wdf_smoke PRIVATE
     wdf_application
     wdf_observation_bridge

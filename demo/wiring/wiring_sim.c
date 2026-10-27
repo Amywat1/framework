@@ -1,6 +1,11 @@
 /**
  * @file    wiring_sim.c
- * @brief   Demo 项目仿真依赖接线
+ * @brief   Demo 仿真依赖接线
+ *
+ * @note    wiring() 只 register provider，路径与实例绑定放进 hooks。
+ *          产品通常拆 sim / 真机两份：本文件对应仿真；真机把 *_sim 换成现场
+ *          provider，并注册云连接。有模拟量或变频器时再挂 sensor / vfd；
+ *          有方案引擎时再挂 engine_program_json_register_loader。
  */
 
 #include "adapters/outbound/safety/sim/safety_sim.h"
