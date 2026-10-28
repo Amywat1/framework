@@ -31,13 +31,13 @@ typedef int8_t hal_vfd_gear_t;
 typedef int32_t hal_vfd_frequency_t;
 
 /**
- * @brief  VFD 寄存器操作枚举（供 read / get_cached / write 使用）
- * @note   各操作支持的 reg 值见 hal_vfd_ops_t 各函数注释
+ * @brief  VFD 寄存器操作枚举（供 read / get_cached 使用）
+ * @note   CURRENT 仅用于 read；缓存电流走 get_cached_current。
  */
 typedef enum {
     HAL_VFD_REG_STATE,      /**< VFD 运行状态字（只读）*/
     HAL_VFD_REG_FAULT_CODE, /**< 故障码（只读，monitor 周期缓存）*/
-    HAL_VFD_REG_CURRENT,    /**< 输出电流，0.01A（只读，monitor 周期缓存）*/
+    HAL_VFD_REG_CURRENT,    /**< 输出电流，0.01A（只读）*/
 } hal_vfd_reg_t;
 
 /** @brief  VFD 运行状态 */
@@ -53,7 +53,7 @@ typedef enum {
 #define HAL_VFD_EVT_COMM_RESTORED  2 /**< Modbus 通信恢复 */
 #define HAL_VFD_EVT_FAULT_DETECTED 3 /**< VFD 检测到故障（fault_code 从 0 变为非零）*/
 #define HAL_VFD_EVT_FAULT_CLEARED  4 /**< VFD 故障消除（fault_code 恢复为 0）*/
-#define HAL_VFD_EVT_CURRENT_UPDATE 5 /**< 电流值已更新（读缓存 cached_current 获取）*/
+#define HAL_VFD_EVT_CURRENT_UPDATE 5 /**< 电流值已更新（读 get_cached_current 获取）*/
 
 /**
  * @brief  VFD 实例标识（整数，具体值由机型配置层定义）
@@ -90,8 +90,18 @@ typedef struct {
 
     /** @brief  实时读寄存器（发起 Modbus IO），支持 STATE / FAULT_CODE / CURRENT */
     sw_err_t (*read)(hal_vfd_id_t id, hal_vfd_reg_t reg, uint16_t *p_val);
-    /** @brief  读缓存值（无 Modbus IO），支持 FAULT_CODE / CURRENT */
+    /** @brief  读缓存值（无 Modbus IO），仅支持 FAULT_CODE；电流走 get_cached_current */
     sw_err_t (*get_cached)(hal_vfd_id_t id, hal_vfd_reg_t reg, uint16_t *p_val);
+    /**
+     * @brief  读未作废的缓存电流及采样时刻（无 Modbus IO）
+     * @param  id         VFD 实例
+     * @param  p_val      电流，0.01 A；仅 SW_OK 时有效
+     * @param  sample_ms  成功采样时刻（time_util 单调毫秒）；仅 SW_OK 时有效
+     * @retval SW_OK 本实例有一次运行中成功采样且尚未因停机作废
+     * @retval SW_ERR_NOT_FOUND 尚未采到或停机已作废
+     * @retval SW_ERR_PARAM / SW_ERR_NOT_INIT
+     */
+    sw_err_t (*get_cached_current)(hal_vfd_id_t id, uint16_t *p_val, uint64_t *sample_ms);
 
     void (*register_event_cb)(hal_vfd_id_t id, void (*cb)(int event_code));
 } hal_vfd_ops_t;

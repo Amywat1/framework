@@ -37,6 +37,8 @@ typedef struct {
 
     uint16_t cached_fault_code;
     uint16_t cached_current;
+    bool     current_valid;
+    uint64_t current_sample_ms;
     bool     fault_active;
     bool     comm_ok;
     uint8_t  comm_fail_count;
@@ -84,6 +86,17 @@ static void vfd_mutexes_ready(void)
 }
 
 static sw_err_t vfd_stop(hal_vfd_id_t id);
+
+/**
+ * @brief  停机或初始化时作废电流缓存
+ * @note   调用方须已持有 s_vfd_lock。
+ */
+static void current_invalidate_locked(hal_vfd_slot_t *slot)
+{
+    slot->cached_current    = 0U;
+    slot->current_valid     = false;
+    slot->current_sample_ms = 0U;
+}
 
 static bool slot_id_valid(hal_vfd_id_t id)
 {
@@ -273,8 +286,10 @@ static void monitor_sample_current(hal_vfd_slot_t *slot, uint64_t now_ms)
     vfd_mutexes_ready();
     pthread_mutex_lock(&s_vfd_lock);
     if (ret == SW_OK) {
-        comm_restored        = on_comm_success_locked(slot);
-        slot->cached_current = val;
+        comm_restored           = on_comm_success_locked(slot);
+        slot->cached_current    = val;
+        slot->current_valid     = true;
+        slot->current_sample_ms = now_ms;
     } else if (ret == SW_ERR_COMM) {
         comm_lost = on_comm_failure_locked(slot);
     }
@@ -318,7 +333,7 @@ sw_err_t hal_vfd_manager_bind(hal_vfd_id_t id, const hal_vfd_manager_bind_cfg_t 
         slot->event_cb    = saved_cb;
     }
     slot->cached_fault_code   = 0U;
-    slot->cached_current      = 0U;
+    current_invalidate_locked(slot);
     slot->fault_active        = false;
     slot->comm_ok             = true;
     slot->comm_fail_count     = 0U;
@@ -360,7 +375,7 @@ static sw_err_t vfd_init(void)
         pthread_mutex_lock(&s_vfd_lock);
         pulse_out_cancel(&s_slot[i].rst_pulse);
         s_slot[i].cached_fault_code = 0U;
-        s_slot[i].cached_current    = 0U;
+        current_invalidate_locked(&s_slot[i]);
         s_slot[i].fault_active      = false;
         s_slot[i].comm_ok           = true;
         s_slot[i].comm_fail_count   = 0U;
@@ -593,6 +608,7 @@ static sw_err_t vfd_stop(hal_vfd_id_t id)
         vfd_mutexes_ready();
         pthread_mutex_lock(&s_vfd_lock);
         slot->control_mode = VFD_CONTROL_NONE;
+        current_invalidate_locked(slot);
         pthread_mutex_unlock(&s_vfd_lock);
     }
     pthread_mutex_unlock(&s_control_lock);
@@ -675,16 +691,34 @@ static sw_err_t vfd_get_cached(hal_vfd_id_t id, hal_vfd_reg_t reg, uint16_t *p_v
 
     vfd_mutexes_ready();
     pthread_mutex_lock(&s_vfd_lock);
-    switch (reg) {
-    case HAL_VFD_REG_FAULT_CODE:
+    if (reg == HAL_VFD_REG_FAULT_CODE) {
         *p_val = slot->cached_fault_code;
-        break;
-    case HAL_VFD_REG_CURRENT:
-        *p_val = slot->cached_current;
-        break;
-    default:
+    } else {
         ret = SW_ERR_PARAM;
-        break;
+    }
+    pthread_mutex_unlock(&s_vfd_lock);
+    return ret;
+}
+
+static sw_err_t vfd_get_cached_current(hal_vfd_id_t id, uint16_t *p_val, uint64_t *sample_ms)
+{
+    hal_vfd_slot_t *slot = ready_slot_by_id(id);
+    sw_err_t        ret  = SW_OK;
+
+    if (slot == NULL) {
+        return SW_ERR_NOT_INIT;
+    }
+    if ((p_val == NULL) || (sample_ms == NULL)) {
+        return SW_ERR_PARAM;
+    }
+
+    vfd_mutexes_ready();
+    pthread_mutex_lock(&s_vfd_lock);
+    if (!slot->current_valid) {
+        ret = SW_ERR_NOT_FOUND;
+    } else {
+        *p_val     = slot->cached_current;
+        *sample_ms = slot->current_sample_ms;
     }
     pthread_mutex_unlock(&s_vfd_lock);
     return ret;
@@ -703,15 +737,16 @@ static void vfd_register_event_cb(hal_vfd_id_t id, void (*cb)(int event_code))
 }
 
 static const hal_vfd_ops_t s_ops = {
-    .init              = vfd_init,
-    .set_gear          = vfd_set_gear,
-    .set_frequency     = vfd_set_frequency,
-    .stop              = vfd_stop,
-    .fault_reset       = vfd_fault_reset,
-    .get_state         = vfd_get_state,
-    .read              = vfd_read,
-    .get_cached        = vfd_get_cached,
-    .register_event_cb = vfd_register_event_cb,
+    .init               = vfd_init,
+    .set_gear           = vfd_set_gear,
+    .set_frequency      = vfd_set_frequency,
+    .stop               = vfd_stop,
+    .fault_reset        = vfd_fault_reset,
+    .get_state          = vfd_get_state,
+    .read               = vfd_read,
+    .get_cached         = vfd_get_cached,
+    .get_cached_current = vfd_get_cached_current,
+    .register_event_cb  = vfd_register_event_cb,
 };
 
 void hal_vfd_manager_register(void)

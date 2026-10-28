@@ -42,11 +42,21 @@ typedef struct {
 } motor_clock_t;
 
 /**
+ * @brief 驱动器电流采样
+ * @note  sample_ms 须与 motor_clock 同一单调时钟，供执行器判断是否为本趟启动之后采到。
+ */
+typedef struct {
+    int      value;     /**< 与监测阈值同量纲 */
+    uint64_t sample_ms; /**< 成功采样时刻 */
+} motor_current_sample_t;
+
+/**
  * @brief 物理驱动器端口（可被多台电机共享）。
  *
- * 必填：set_output/cutoff/reset/is_running/current。
+ * 必填：set_output/cutoff/reset/is_running。
  * 选填（可置 NULL，采用默认行为）：request_stop(默认 cutoff)、prepare(默认 READY)、
- * poll(默认 READY)、temperature(默认不支持)、voltage(默认不支持)、status(默认 OK)。
+ * poll(默认 READY)、current(默认无采样)、temperature(默认不支持)、voltage(默认不支持)、
+ * status(默认 OK)。
  *
  * @note prepare/poll 的 motor 为逻辑电机索引，便于共享驱动区分路径。
  *       poll 只维持驱动器侧不变量（如接触器路径），不得改写速度给定；
@@ -60,7 +70,13 @@ typedef struct {
     motor_prepare_result_t (*prepare)(void *ctx, int motor); /**< 启动前预备；可为 NULL */
     motor_prepare_result_t (*poll)(void *ctx, int motor);    /**< RUNNING 每拍巡检；可为 NULL */
     bool (*is_running)(void *ctx);                           /**< 功率级运行反馈 */
-    int (*current)(void *ctx);                               /**< 负载电流（与阈值同量纲） */
+    /**
+     * @brief  读取最近一次成功的负载电流；可为 NULL
+     * @param  ctx 驱动上下文
+     * @param  out 采样；仅返回 true 时有效
+     * @return true 有未作废的成功采样；false 无采样、停机已作废、尚未采到，或 out 为空
+     */
+    bool (*current)(void *ctx, motor_current_sample_t *out);
     bool (*temperature)(void *ctx, int *out);                /**< 可选温度；可为 NULL */
     bool (*voltage)(void *ctx, int *out);                    /**< 可选母线电压；可为 NULL */
     motor_port_status_t (*status)(void *ctx);                /**< 端口层健康；可为 NULL */

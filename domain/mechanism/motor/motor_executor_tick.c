@@ -121,6 +121,7 @@ static void link_shared_driver(motor_executor_t *e, int i);
 static void enter_fault(motor_executor_t *e, int i, motor_exec_fault_code_t code);
 static void begin_start(motor_executor_t *e, int i, const motor_pending_cmd_t *pc);
 static void update_encoder(motor_executor_t *e, int i, bool moving);
+static bool take_motion_current(motor_executor_t *e, int i, int *out_cur);
 
 /**
  * @brief  是否为增量编码器轴
@@ -513,6 +514,24 @@ void complete_move(motor_executor_t *e, int i, motor_event_type_t type, motor_en
     finish_halt(e, i);
 }
 
+/**
+ * @brief  取本趟启动之后的有效电流
+ * @return true 已写入 *out_cur；false 无采样、采样早于本趟 start_ms，或 out 为空
+ */
+static bool take_motion_current(motor_executor_t *e, int i, int *out_cur)
+{
+    motor_current_sample_t sample;
+
+    if ((out_cur == NULL) || !drv_current(motor_drv(e, i), &sample)) {
+        return false;
+    }
+    if (sample.sample_ms < e->m[i].start_ms) {
+        return false;
+    }
+    *out_cur = sample.value;
+    return true;
+}
+
 static void check_end(motor_executor_t *e, int i)
 {
     motor_mstate_t          *s  = &e->m[i];
@@ -565,8 +584,8 @@ static void check_end(motor_executor_t *e, int i)
         if (run_ms < (uint64_t)s->spec.current_blank_ms) {
             s->cur_stop_ms = 0;
         } else {
-            int cur = drv_current(motor_drv(e, i));
-            if (cur > s->spec.current_limit) {
+            int cur = 0;
+            if (take_motion_current(e, i, &cur) && (cur > s->spec.current_limit)) {
                 s->cur_stop_ms += (uint32_t)e->cfg.tick_ms;
                 if (s->cur_stop_ms >= s->spec.current_confirm_ms) {
                     /* check_end 先于 monitor，本拍采样必须在此写入，否则事件电流为上一拍或 0。 */
@@ -725,25 +744,30 @@ static void monitor(motor_executor_t *e, int i)
     motor_mstate_t            *s  = &e->m[i];
     const motor_monitor_cfg_t *mn = &e->cfg.motors[i].mon;
 
-    if ((e->now - s->start_ms) < (uint64_t)mn->startup_delay_ms) {
-        /* 启动延迟窗口内不做电流判定。 */
-    } else if (mn->monitor_current) {
-        bool accel_seg  = (e->now - s->start_ms) < (uint64_t)e->cfg.motors[i].accel_ms;
-        int  cmax       = accel_seg ? mn->cur_max_accel : mn->cur_max_steady;
-        int  cmin       = accel_seg ? mn->cur_min_accel : mn->cur_min_steady;
-        int  cur        = drv_current(motor_drv(e, i));
-        s->last_current = cur;
-        s->cur_over_ms  = (cur > cmax) ? s->cur_over_ms + e->cfg.tick_ms : 0;
-        s->cur_under_ms = (cur < cmin) ? s->cur_under_ms + e->cfg.tick_ms : 0;
-        if (s->cur_over_ms >= mn->cur_confirm_ms && cur > cmax) {
-            s->current_trip_limit = cmax;
-            enter_fault(e, i, MOTOR_FAULT_OVERCURRENT);
-            return;
-        }
-        if (s->cur_under_ms >= mn->cur_confirm_ms && cur < cmin) {
-            s->current_trip_limit = cmin;
-            enter_fault(e, i, MOTOR_FAULT_UNDERCURRENT);
-            return;
+    if (mn->monitor_current && ((e->now - s->start_ms) >= (uint64_t)mn->startup_delay_ms)) {
+        int cur = 0;
+
+        if (!take_motion_current(e, i, &cur)) {
+            s->cur_over_ms  = 0;
+            s->cur_under_ms = 0;
+        } else {
+            bool accel_seg = (e->now - s->start_ms) < (uint64_t)e->cfg.motors[i].accel_ms;
+            int  cmax      = accel_seg ? mn->cur_max_accel : mn->cur_max_steady;
+            int  cmin      = accel_seg ? mn->cur_min_accel : mn->cur_min_steady;
+
+            s->last_current = cur;
+            s->cur_over_ms  = (cur > cmax) ? s->cur_over_ms + e->cfg.tick_ms : 0;
+            s->cur_under_ms = (cur < cmin) ? s->cur_under_ms + e->cfg.tick_ms : 0;
+            if (s->cur_over_ms >= mn->cur_confirm_ms && cur > cmax) {
+                s->current_trip_limit = cmax;
+                enter_fault(e, i, MOTOR_FAULT_OVERCURRENT);
+                return;
+            }
+            if (s->cur_under_ms >= mn->cur_confirm_ms && cur < cmin) {
+                s->current_trip_limit = cmin;
+                enter_fault(e, i, MOTOR_FAULT_UNDERCURRENT);
+                return;
+            }
         }
     }
 

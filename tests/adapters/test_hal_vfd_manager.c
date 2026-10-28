@@ -172,6 +172,13 @@ static void run_monitor_tick(void)
     hal_vfd_manager_test_monitor_tick();
 }
 
+static sw_err_t read_cached_current(uint16_t *val)
+{
+    uint64_t ms = 0U;
+
+    return hal_vfd_get_ops()->get_cached_current(TEST_VFD_ID, val, &ms);
+}
+
 static void bind_default(void)
 {
     hal_vfd_manager_bind_cfg_t cfg = make_cfg();
@@ -259,13 +266,15 @@ static void test_bind_rejects_invalid_config(void)
 static void test_unbound_operations_return_not_init(void)
 {
     uint16_t val;
+    uint64_t ms;
 
     TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_INIT, hal_vfd_get_ops()->set_gear(TEST_VFD_ID, 1));
     TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_INIT, hal_vfd_get_ops()->set_frequency(TEST_VFD_ID, 50));
     TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_INIT, hal_vfd_get_ops()->stop(TEST_VFD_ID));
     TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_INIT, hal_vfd_get_ops()->fault_reset(TEST_VFD_ID));
     TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_INIT, hal_vfd_get_ops()->read(TEST_VFD_ID, HAL_VFD_REG_CURRENT, &val));
-    TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_INIT, hal_vfd_get_ops()->get_cached(TEST_VFD_ID, HAL_VFD_REG_CURRENT, &val));
+    TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_INIT, hal_vfd_get_ops()->get_cached(TEST_VFD_ID, HAL_VFD_REG_FAULT_CODE, &val));
+    TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_INIT, hal_vfd_get_ops()->get_cached_current(TEST_VFD_ID, &val, &ms));
 }
 
 static void test_control_mode_is_selected_by_api_and_switch_requires_stop(void)
@@ -342,7 +351,7 @@ static void test_monitor_updates_cached_fault_and_current_and_events(void)
 
     TEST_ASSERT_EQUAL_INT(SW_OK, hal_vfd_get_ops()->get_cached(TEST_VFD_ID, HAL_VFD_REG_FAULT_CODE, &val));
     TEST_ASSERT_EQUAL_UINT16(99U, val);
-    TEST_ASSERT_EQUAL_INT(SW_OK, hal_vfd_get_ops()->get_cached(TEST_VFD_ID, HAL_VFD_REG_CURRENT, &val));
+    TEST_ASSERT_EQUAL_INT(SW_OK, read_cached_current(&val));
     TEST_ASSERT_EQUAL_UINT16(456U, val);
     TEST_ASSERT_EQUAL_INT(HAL_VFD_EVT_FAULT_DETECTED, s_events[0]);
     TEST_ASSERT_EQUAL_INT(HAL_VFD_EVT_CURRENT_UPDATE, s_events[1]);
@@ -542,15 +551,40 @@ static void test_monitor_independent_periods_current_faster_than_fault(void)
     s_vfd.current    = 111U;
 
     run_monitor_tick();
-    TEST_ASSERT_EQUAL_INT(SW_OK, hal_vfd_get_ops()->get_cached(TEST_VFD_ID, HAL_VFD_REG_CURRENT, &val));
+    TEST_ASSERT_EQUAL_INT(SW_OK, read_cached_current(&val));
     TEST_ASSERT_EQUAL_UINT16(111U, val);
     TEST_ASSERT_EQUAL_INT(SW_OK, hal_vfd_get_ops()->get_cached(TEST_VFD_ID, HAL_VFD_REG_FAULT_CODE, &val));
     TEST_ASSERT_EQUAL_UINT16(0U, val);
 
     s_vfd.current = 222U;
     run_monitor_tick();
-    TEST_ASSERT_EQUAL_INT(SW_OK, hal_vfd_get_ops()->get_cached(TEST_VFD_ID, HAL_VFD_REG_CURRENT, &val));
+    TEST_ASSERT_EQUAL_INT(SW_OK, read_cached_current(&val));
     TEST_ASSERT_EQUAL_UINT16(222U, val);
+}
+
+/**
+ * @brief 停机作废电流有效样本
+ */
+static void test_stop_invalidates_cached_current_sample(void)
+{
+    uint16_t val;
+
+    bind_slot(TEST_VFD_ID,
+              &s_vfd,
+              (hal_vfd_channel_policy_t){HAL_VFD_SAMPLE_OFF, 0U},
+              (hal_vfd_channel_policy_t){HAL_VFD_SAMPLE_FAST, 1U});
+    TEST_ASSERT_EQUAL_INT(SW_OK, hal_vfd_get_ops()->init());
+    TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_FOUND, read_cached_current(&val));
+
+    s_vfd.state   = HAL_VFD_STATE_FWD;
+    s_vfd.current = 321U;
+    run_monitor_tick();
+    TEST_ASSERT_EQUAL_INT(SW_OK, read_cached_current(&val));
+    TEST_ASSERT_EQUAL_UINT16(321U, val);
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, hal_vfd_get_ops()->stop(TEST_VFD_ID));
+    TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_FOUND, read_cached_current(&val));
+    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, hal_vfd_get_ops()->get_cached(TEST_VFD_ID, HAL_VFD_REG_CURRENT, &val));
 }
 
 int main(void)
@@ -574,6 +608,7 @@ int main(void)
     WDF_RUN_TEST(test_off_channels_do_not_read, "", "验证通道全 OFF 不发总线读");
     WDF_RUN_TEST(test_stopped_fast_current_does_not_read, "", "验证停机 FAST 电流不占用总线");
     WDF_RUN_TEST(test_monitor_independent_periods_current_faster_than_fault, "", "验证 FAST 电流优先于慢速故障码");
+    WDF_RUN_TEST(test_stop_invalidates_cached_current_sample, "", "验证停机作废电流有效样本");
 
     return UNITY_END();
 }

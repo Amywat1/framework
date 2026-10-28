@@ -370,7 +370,7 @@ static const char *ports_error(const motor_config_t *cfg, const motor_ports_t *p
         const motor_driver_t *port = ports->drivers[driver];
 
         if ((port == NULL) || (port->set_output == NULL) || (port->cutoff == NULL) || (port->reset == NULL)
-            || (port->is_running == NULL) || (port->current == NULL)) {
+            || (port->is_running == NULL)) {
             return "driver port incomplete";
         }
     }

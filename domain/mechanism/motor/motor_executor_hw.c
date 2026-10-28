@@ -80,9 +80,12 @@ bool drv_is_running(motor_driver_t *d)
     return d->is_running(d->ctx);
 }
 
-int drv_current(motor_driver_t *d)
+bool drv_current(motor_driver_t *d, motor_current_sample_t *out)
 {
-    return d->current(d->ctx);
+    if ((d == NULL) || (d->current == NULL) || (out == NULL)) {
+        return false;
+    }
+    return d->current(d->ctx, out);
 }
 
 bool drv_temperature(motor_driver_t *d, int *out)

@@ -19,6 +19,8 @@ typedef struct {
     int                    output_count;
     int                    cutoff_count;
     int                    current;
+    bool                   current_unsampled;
+    bool                   current_stale_stamp;
     int                    poll_count;
     int                    poll_motor;
     motor_speed_t          last_speed;
@@ -92,9 +94,16 @@ static sw_err_t driver_request_stop(void *ctx)
     return fx->request_stop_rc;
 }
 
-static int driver_current(void *ctx)
+static bool driver_current(void *ctx, motor_current_sample_t *out)
 {
-    return ((port_fixture_t *)ctx)->current;
+    port_fixture_t *fx = (port_fixture_t *)ctx;
+
+    if ((out == NULL) || fx->current_unsampled) {
+        return false;
+    }
+    out->value     = fx->current;
+    out->sample_ms = fx->current_stale_stamp ? 0U : fx->now_ms;
+    return true;
 }
 
 static bool driver_temperature(void *ctx, int *out)
@@ -234,6 +243,18 @@ static void enable_overcurrent_monitor(void)
     s_cfg.motors[0].mon.cur_confirm_ms  = 20;
 }
 
+/** @brief 启用欠流监测（确认 20ms = 两拍；加速段为 0，一进匀速即判） */
+static void enable_undercurrent_monitor(void)
+{
+    s_cfg.motors[0].mon.monitor_current = true;
+    s_cfg.motors[0].mon.cur_max_accel   = 800;
+    s_cfg.motors[0].mon.cur_max_steady  = 800;
+    s_cfg.motors[0].mon.cur_min_accel   = 0;
+    s_cfg.motors[0].mon.cur_min_steady  = 20;
+    s_cfg.motors[0].mon.cur_confirm_ms  = 20;
+    s_cfg.motors[0].accel_ms            = 0;
+}
+
 /**
  * @brief 运行至过流 FAULT
  */
@@ -294,6 +315,20 @@ static void test_slot_binding_is_fixed_and_reinit_keeps_handle(void)
     TEST_ASSERT_TRUE_MESSAGE(result.ok, result.error);
     TEST_ASSERT_EQUAL_PTR(original, s_exec);
     TEST_ASSERT_EQUAL_INT(MOTOR_STATE_STOPPED, motor_exec_state(s_exec, 0));
+}
+
+/**
+ * @brief 电流回调可选；无采样驱动仍可绑定并运行
+ */
+static void test_bind_allows_null_current(void)
+{
+    s_driver.current = NULL;
+    rebind_executor();
+    TEST_ASSERT_TRUE(motor_cmd_ok(motor_exec_run(s_exec, 0, motor_speed_gear(1), MOTOR_DIR_FORWARD, NULL)));
+    s_fx.now_ms = 10;
+    motor_executor_tick(s_exec);
+    TEST_ASSERT_EQUAL_INT(MOTOR_STATE_RUNNING, motor_exec_state(s_exec, 0));
+    TEST_ASSERT_EQUAL_INT(MOTOR_FAULT_NONE, motor_exec_fault_code(s_exec, 0));
 }
 
 static void test_move_to_time_and_stop_via_port(void)
@@ -603,6 +638,80 @@ static void test_timeout_event_copies_move_spec(void)
     TEST_ASSERT_EQUAL_UINT8(MOTOR_LIMIT_MASK_POS, out.limit_mask);
     TEST_ASSERT_FALSE(out.use_position);
     TEST_ASSERT_FALSE(out.use_time);
+}
+
+/**
+ * @brief 无本趟电流采样时，即使读数为 0 也不报欠流
+ */
+static void test_undercurrent_ignores_missing_sample(void)
+{
+    motor_exec_t *hal;
+
+    enable_undercurrent_monitor();
+    rebind_executor();
+    hal                  = s_exec;
+    s_fx.current         = 0;
+    s_fx.current_unsampled = true;
+    TEST_ASSERT_TRUE(motor_cmd_ok(motor_exec_run(hal, 0, motor_speed_gear(1), MOTOR_DIR_FORWARD, NULL)));
+    s_fx.now_ms = 10;
+    motor_executor_tick(s_exec);
+    s_fx.now_ms = 20;
+    motor_executor_tick(s_exec);
+    TEST_ASSERT_EQUAL_INT(MOTOR_STATE_RUNNING, motor_exec_state(hal, 0));
+    TEST_ASSERT_EQUAL_INT(MOTOR_FAULT_NONE, motor_exec_fault_code(hal, 0));
+}
+
+/**
+ * @brief 采样时刻早于本趟启动的缓存电流不累计欠流
+ */
+static void test_undercurrent_ignores_stale_sample(void)
+{
+    motor_exec_t *hal;
+
+    enable_undercurrent_monitor();
+    rebind_executor();
+    hal                       = s_exec;
+    s_fx.now_ms               = 100;
+    s_fx.current              = 0;
+    s_fx.current_stale_stamp  = true;
+    TEST_ASSERT_TRUE(motor_cmd_ok(motor_exec_run(hal, 0, motor_speed_gear(1), MOTOR_DIR_FORWARD, NULL)));
+    s_fx.now_ms = 110;
+    motor_executor_tick(s_exec);
+    s_fx.now_ms = 120;
+    motor_executor_tick(s_exec);
+    TEST_ASSERT_EQUAL_INT(MOTOR_STATE_RUNNING, motor_exec_state(hal, 0));
+    TEST_ASSERT_EQUAL_INT(MOTOR_FAULT_NONE, motor_exec_fault_code(hal, 0));
+}
+
+/**
+ * @brief 本趟采到低于下限的电流后，确认窗到期报欠流
+ */
+static void test_undercurrent_trips_after_fresh_low_sample(void)
+{
+    motor_event_t out;
+    motor_exec_t *hal;
+
+    enable_undercurrent_monitor();
+    rebind_executor();
+    hal                    = s_exec;
+    s_fx.current           = 0;
+    s_fx.current_unsampled = true;
+    TEST_ASSERT_TRUE(motor_cmd_ok(motor_exec_run(hal, 0, motor_speed_gear(1), MOTOR_DIR_FORWARD, NULL)));
+    s_fx.now_ms = 10;
+    motor_executor_tick(s_exec);
+    TEST_ASSERT_EQUAL_INT(MOTOR_STATE_RUNNING, motor_exec_state(hal, 0));
+
+    s_fx.current_unsampled = false;
+    s_fx.now_ms            = 20;
+    motor_executor_tick(s_exec);
+    s_fx.now_ms = 30;
+    motor_executor_tick(s_exec);
+    TEST_ASSERT_EQUAL_INT(MOTOR_STATE_FAULT, motor_exec_state(hal, 0));
+    TEST_ASSERT_EQUAL_INT(MOTOR_FAULT_UNDERCURRENT, motor_exec_fault_code(hal, 0));
+    TEST_ASSERT_TRUE(motor_exec_pop_event(hal, &out));
+    TEST_ASSERT_EQUAL_INT(MOTOR_EVENT_FAULT, out.type);
+    TEST_ASSERT_EQUAL_INT(0, out.current);
+    TEST_ASSERT_EQUAL_INT(20, out.current_limit);
 }
 
 /**
@@ -1169,6 +1278,7 @@ int main(void)
 
     WDF_RUN_TEST(test_run_continuous_and_state_via_port, "", "验证经端口连续运行与状态查询");
     WDF_RUN_TEST(test_slot_binding_is_fixed_and_reinit_keeps_handle, "", "验证槽位只绑定一次且重初始化保持句柄");
+    WDF_RUN_TEST(test_bind_allows_null_current, "", "验证无电流回调的驱动仍可绑定");
     WDF_RUN_TEST(test_move_to_time_and_stop_via_port, "", "验证经端口按时到位与停止");
     WDF_RUN_TEST(test_run_updates_speed_without_restart, "", "验证运行中再次 run 只更新目标不重启");
     WDF_RUN_TEST(test_run_updates_pending_while_waiting_start, "", "验证冷却排队中再次 run 更新挂起目标");
@@ -1182,6 +1292,9 @@ int main(void)
     WDF_RUN_TEST(test_output_hold_reset_rejected_while_di_active, "SAFE-15", "验证急停 DI 有效时拒绝释放输出抑制");
     WDF_RUN_TEST(test_pop_event_via_port, "", "验证经端口取出运动事件");
     WDF_RUN_TEST(test_timeout_event_copies_move_spec, "", "验证超时事件携带本次运动限位掩码与到位方式");
+    WDF_RUN_TEST(test_undercurrent_ignores_missing_sample, "", "验证无本趟电流采样不报欠流");
+    WDF_RUN_TEST(test_undercurrent_ignores_stale_sample, "", "验证早于本趟启动的电流缓存不报欠流");
+    WDF_RUN_TEST(test_undercurrent_trips_after_fresh_low_sample, "", "验证本趟采到低电流后确认报欠流");
     WDF_RUN_TEST(test_overcurrent_event_copies_current, "", "验证过流事件携带采样电流与阈值");
     WDF_RUN_TEST(test_pop_event_for_keeps_other_motors, "", "验证按电机取事件保留其它电机");
     WDF_RUN_TEST(test_event_queue_prefers_drop_same_motor, "", "验证队列满时优先丢同电机事件");

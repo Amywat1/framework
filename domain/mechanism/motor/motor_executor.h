@@ -7,7 +7,7 @@
  * 配置与硬件端口（可经 mechanism_bridge_bind）；业务命令走 motor_axis。
  *
  * 量纲约定：速度频率单位 0.01Hz(厘赫)；时间单位 ms；位置单位 脉冲；
- * 电流由硬件端口实现约定。执行器与配置采用编译期上限的定长存储，不做动态内存分配。
+ * 电流由硬件端口实现约定，且必须带本趟采样时刻。执行器与配置采用编译期上限的定长存储，不做动态内存分配。
  */
 #ifndef DOMAIN_MECHANISM_MOTOR_MOTOR_EXECUTOR_H
 #define DOMAIN_MECHANISM_MOTOR_MOTOR_EXECUTOR_H
@@ -58,7 +58,7 @@ extern "C" {
 
 /** @brief 单电机监测项配置（各项独立，未启用不参与判定）。 */
 typedef struct {
-    bool monitor_current;  /**< 是否启用负载电流监测 */
+    bool monitor_current;  /**< 是否启用负载电流监测；无本趟有效采样时不累计 */
     int  cur_max_accel;    /**< 加速段电流上限 */
     int  cur_min_accel;    /**< 加速段电流下限 */
     int  cur_max_steady;   /**< 匀速段电流上限 */

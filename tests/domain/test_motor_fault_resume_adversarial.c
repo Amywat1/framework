@@ -108,9 +108,16 @@ static bool driver_is_running(void *ctx)
     return ((port_fixture_t *)ctx)->running;
 }
 
-static int driver_current(void *ctx)
+static bool driver_current(void *ctx, motor_current_sample_t *out)
 {
-    return ((port_fixture_t *)ctx)->current;
+    port_fixture_t *fx = (port_fixture_t *)ctx;
+
+    if (out == NULL) {
+        return false;
+    }
+    out->value     = fx->current;
+    out->sample_ms = fx->now_ms;
+    return true;
 }
 
 static bool driver_temperature(void *ctx, int *out)

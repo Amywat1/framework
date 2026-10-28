@@ -181,8 +181,11 @@ motor_prepare_result_t drv_poll(motor_driver_t *d, int motor);
 /** @brief 调用驱动器 is_running。 */
 bool drv_is_running(motor_driver_t *d);
 
-/** @brief 调用驱动器 current。 */
-int drv_current(motor_driver_t *d);
+/**
+ * @brief  调用驱动器 current
+ * @return true 已写入有效采样；false 无样本或端口无效
+ */
+bool drv_current(motor_driver_t *d, motor_current_sample_t *out);
 
 /** @brief 调用驱动器 temperature；未实现时返回 false。 */
 bool drv_temperature(motor_driver_t *d, int *out);
