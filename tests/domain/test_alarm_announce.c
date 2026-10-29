@@ -329,16 +329,16 @@ static void test_clear_oos_drops_compensating(void)
 int main(void)
 {
     UNITY_BEGIN();
-    WDF_RUN_TEST(test_shelve_major_keeps_blocking, "", "搁置 MAJOR 不放开洗闸且到期再提示");
-    WDF_RUN_TEST(test_idle_timeout_muted_overload_announced, "", "IDLE 超时不提示、过流仍提示");
-    WDF_RUN_TEST(test_tripped_timeout_eclipsed_same_object, "", "同对象过流后超时互挡");
-    WDF_RUN_TEST(test_estop_eclipses_other_timeout_not_other_safety, "", "急停挡住其它轴超时但不挡另一安全触发");
-    WDF_RUN_TEST(test_oos_safety_compensating_minor, "", "安全检测停用后原码不进表、补偿 MINOR 不挡开洗");
-    WDF_RUN_TEST(test_load_rejects_standby_suppress, "", "接单态写入 suppress_modes 装载失败");
+    WDF_RUN_TEST(test_shelve_major_keeps_blocking, "ALRM-23", "搁置 MAJOR 不放开洗闸且到期再提示");
+    WDF_RUN_TEST(test_idle_timeout_muted_overload_announced, "ALRM-29", "IDLE 超时不提示、过流仍提示");
+    WDF_RUN_TEST(test_tripped_timeout_eclipsed_same_object, "ALRM-28", "同对象过流后超时互挡");
+    WDF_RUN_TEST(test_estop_eclipses_other_timeout_not_other_safety, "ALRM-28", "急停挡住其它轴超时但不挡另一安全触发");
+    WDF_RUN_TEST(test_oos_safety_compensating_minor, "ALRM-24", "安全检测停用后原码不进表、补偿 MINOR 不挡开洗");
+    WDF_RUN_TEST(test_load_rejects_standby_suppress, "ALRM-24", "接单态写入 suppress_modes 装载失败");
     WDF_RUN_TEST(test_stopped_suppresses_catalog_minor, "", "停机按目录抑制仅提示码");
-    WDF_RUN_TEST(test_commanded_timeout_announces, "", "受令后超时提示");
-    WDF_RUN_TEST(test_repeat_trigger_keeps_shelve, "", "条件仍成立时重复 trigger 不取消搁置");
-    WDF_RUN_TEST(test_latch_reraise_unshelves, "", "锁存条件再现视为新事件并下架搁置");
+    WDF_RUN_TEST(test_commanded_timeout_announces, "ALRM-29", "受令后超时提示");
+    WDF_RUN_TEST(test_repeat_trigger_keeps_shelve, "ALRM-25", "条件仍成立时重复 trigger 不取消搁置");
+    WDF_RUN_TEST(test_latch_reraise_unshelves, "ALRM-25", "锁存条件再现视为新事件并下架搁置");
     WDF_RUN_TEST(test_clear_overrides_resets_object_run, "ALRM-26", "清覆盖后对象开停回到 IDLE，过程量不再提示");
     WDF_RUN_TEST(test_oos_survives_recover_sequence, "ALRM-27", "恢复起步不清停用，补偿码仍在且不挡开洗");
     WDF_RUN_TEST(test_clear_oos_drops_compensating, "ALRM-27", "关总开关清停用后补偿码删除");
