@@ -356,6 +356,16 @@ add_unit_test(test_alarm_registry
     ${WDF_ROOT}/common/sw_mutex.c
 )
 
+add_unit_test(test_alarm_announce
+    ${CMAKE_CURRENT_SOURCE_DIR}/domain/test_alarm_announce.c
+    ${WDF_ROOT}/domain/safety/alarm_registry/alarm_registry.c
+    ${WDF_ROOT}/runtime/ports/port_registry_infra.c
+    ${WDF_ROOT}/runtime/event_bus/event_bus.c
+    ${WDF_ROOT}/common/time_util.c
+    ${WDF_ROOT}/common/log.c
+    ${WDF_ROOT}/common/sw_mutex.c
+)
+
 add_unit_test(test_alarm_registry_concurrent
     ${CMAKE_CURRENT_SOURCE_DIR}/domain/test_alarm_registry_concurrent.c
     ${WDF_ROOT}/domain/safety/alarm_registry/alarm_registry.c

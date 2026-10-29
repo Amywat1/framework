@@ -127,6 +127,9 @@ static void on_motion_accepted(motor_axis_t *self)
     self->last_valid    = false;
     self->awaiting_idle = true;
     memset(&self->last_event, 0, sizeof(self->last_event));
+    if (self->opts.on_motion_start != NULL) {
+        self->opts.on_motion_start(self->opts.motion_actuator_id, self->motor);
+    }
 }
 
 static motor_cmd_result_t finish_motion_cmd(motor_axis_t *self, motor_cmd_result_t r)

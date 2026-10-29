@@ -252,6 +252,36 @@ static const op_perm_t k_cmd_matrix[DEV_CMD_MAX][OP_MODE_RECOVERING + 1] =
         OP_PERM_ALLOWED, /* SELF_CHECK  */
         OP_PERM_ALLOWED, /* RECOVERING  */
     },
+    [DEV_CMD_ALARM_SHELVE] = {
+        OP_PERM_DENIED,  /* INIT        */
+        OP_PERM_ALLOWED, /* STOPPED     */
+        OP_PERM_ALLOWED, /* STANDBY     */
+        OP_PERM_ALLOWED, /* ACTIVE      */
+        OP_PERM_ALLOWED, /* CLEARING    */
+        OP_PERM_ALLOWED, /* HOLD        */
+        OP_PERM_ALLOWED, /* SELF_CHECK  */
+        OP_PERM_ALLOWED, /* RECOVERING  */
+    },
+    [DEV_CMD_ALARM_UNSHELVE] = {
+        OP_PERM_DENIED,  /* INIT        */
+        OP_PERM_ALLOWED, /* STOPPED     */
+        OP_PERM_ALLOWED, /* STANDBY     */
+        OP_PERM_ALLOWED, /* ACTIVE      */
+        OP_PERM_ALLOWED, /* CLEARING    */
+        OP_PERM_ALLOWED, /* HOLD        */
+        OP_PERM_ALLOWED, /* SELF_CHECK  */
+        OP_PERM_ALLOWED, /* RECOVERING  */
+    },
+    [DEV_CMD_ALARM_OOS] = {
+        OP_PERM_DENIED,  /* INIT        */
+        OP_PERM_ALLOWED, /* STOPPED     */
+        OP_PERM_ALLOWED, /* STANDBY     */
+        OP_PERM_ALLOWED, /* ACTIVE      */
+        OP_PERM_ALLOWED, /* CLEARING    */
+        OP_PERM_ALLOWED, /* HOLD        */
+        OP_PERM_ALLOWED, /* SELF_CHECK  */
+        OP_PERM_ALLOWED, /* RECOVERING  */
+    },
 };
 
 static dev_cmd_decision_t make_denied(op_reject_reason_t reason)
@@ -389,6 +419,9 @@ dev_cmd_decision_t op_mode_handle_command(const dev_cmd_t *cmd)
     case DEV_CMD_START_WASH:
     case DEV_CMD_CANCEL_ORDER:
     case DEV_CMD_MANUAL_ACTUATOR:
+    case DEV_CMD_ALARM_SHELVE:
+    case DEV_CMD_ALARM_UNSHELVE:
+    case DEV_CMD_ALARM_OOS:
     default:
         break;
     }

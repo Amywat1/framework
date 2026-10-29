@@ -92,9 +92,13 @@ typedef uint16_t event_type_t;
  * ------------------------------------------------------------------------- */
 #define EVT_ALARM_ID_TRIGGERED 0U
 #define EVT_ALARM_ID_CLEARED   1U
+#define EVT_ALARM_ID_ANNOUNCE  2U /**< 提示轴：开始向人提示 */
+#define EVT_ALARM_ID_MUTE      3U /**< 提示轴：停止向人提示 */
 
 #define EVT_ALARM_TRIGGERED EVT_MAKE(EVT_CAT_ALARM, EVT_ALARM_ID_TRIGGERED)
 #define EVT_ALARM_CLEARED   EVT_MAKE(EVT_CAT_ALARM, EVT_ALARM_ID_CLEARED)
+#define EVT_ALARM_ANNOUNCE  EVT_MAKE(EVT_CAT_ALARM, EVT_ALARM_ID_ANNOUNCE)
+#define EVT_ALARM_MUTE      EVT_MAKE(EVT_CAT_ALARM, EVT_ALARM_ID_MUTE)
 
 /* -------------------------------------------------------------------------
  * CMD 类（ORDER 仅测试用；生产命令经 device_command_port.submit_async/sync）

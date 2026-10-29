@@ -11,6 +11,7 @@
 #include "common/event_types.h"
 #include "common/log.h"
 #include "common/sw_error.h"
+#include "common/time_util.h"
 #include "domain/mechanism/model/actuator_events.h"
 #include "domain/safety/alarm_registry/alarm_registry.h"
 #include "domain/safety/model/alarm_types.h"
@@ -156,4 +157,9 @@ sw_err_t alarm_bridge_init(void)
 
     LOG_INFO("alarm_bridge: init ok");
     return SW_OK;
+}
+
+void alarm_bridge_poll(void)
+{
+    alarm_registry_poll(time_util_get_ms());
 }

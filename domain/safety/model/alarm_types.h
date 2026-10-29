@@ -22,7 +22,7 @@ extern "C" {
  * 对象层：1 动力设备  2 检测元件  3 开关元件  4 控制装置  9 逻辑事件
  * 故障形态：0 未分类  1 过载  2 通讯中断  3 欠载  4 信号异常
  *           5 动作超时  6 故障反馈  7 液位异常  8 压力异常  9 安全触发
- *          10 主动停止
+ *          10 主动停止  11 检测停用
  * ------------------------------------------------------------------------- */
 #define ALARM_CODE_LAYER_MIN      1U
 #define ALARM_CODE_LAYER_MAX      9U
@@ -52,7 +52,8 @@ extern "C" {
 #define ALM_N_LEVEL_ERR       7U /* 液位异常：液位测量值越限 */
 #define ALM_N_PRESSURE_ERR    8U /* 压力异常：压力测量值越限 */
 #define ALM_N_SAFETY_TRIGGER  9U /* 安全触发：保护事件，非设备损坏 */
-#define ALM_N_OPERATOR_STOP  10U /* 主动停止：人下发的中止或全切断，不是设备损坏 */
+#define ALM_N_OPERATOR_STOP   10U /* 主动停止：人下发的中止或全切断，不是设备损坏 */
+#define ALM_N_OUT_OF_SERVICE  11U /* 检测停用：该对象发现路径已旁路，补偿码由装载期合成 */
 
 /* -------------------------------------------------------------------------
  * 容量依据（按已接入项目实测）
@@ -74,6 +75,8 @@ extern "C" {
 #define ALARM_CATALOG_MAX         64U
 #define ALARM_ACTIVE_MAX          32U
 #define ALARM_SESSION_JOURNAL_MAX 16U
+#define ALARM_OOS_MAX             8U
+#define ALARM_SHELVE_MAX_MS       (4U * 3600U * 1000U) /**< 搁置时限封顶：4 小时 */
 
 /* -------------------------------------------------------------------------
  * 安全姿态
@@ -100,6 +103,88 @@ typedef enum {
     ALARM_LIFECYCLE_FOLLOW_SIGNAL = 0, /**< 条件消失即结案 */
     ALARM_LIFECYCLE_LATCH,             /**< 条件消失仍锁存，由运动组或复位结案 */
 } alarm_lifecycle_t;
+
+/**
+ * @brief  提示裁决用的整机工况
+ * @note   数值必须与 `operational_mode_t` 一致。safety 不包含 op_mode 头，由应用桥传入。
+ */
+typedef enum {
+    ALARM_OP_INIT = 0,
+    ALARM_OP_STOPPED,
+    ALARM_OP_STANDBY,
+    ALARM_OP_ACTIVE,
+    ALARM_OP_CLEARING,
+    ALARM_OP_HOLD,
+    ALARM_OP_SELF_CHECK,
+    ALARM_OP_RECOVERING,
+} alarm_op_mode_t;
+
+/** @brief 八态抑制位；STANDBY/ACTIVE/HOLD 装载期拒绝 */
+#define ALARM_SUPPRESS_MODE_BIT(mode) ((uint8_t)(1U << (unsigned)(mode)))
+
+/**
+ * @brief  设备开停要求
+ * @note   缺省 ANY。装载期对超时/欠载若仍为 ANY，则升为 COMMANDED。
+ */
+typedef enum {
+    ALARM_NEED_RUN_ANY = 0,       /**< 任何 run_state 都可提示 */
+    ALARM_NEED_RUN_COMMANDED,     /**< 仅受令时提示过程量 */
+} alarm_need_run_t;
+
+/** @brief 对象运行态；未推送视为 IDLE */
+typedef enum {
+    ALARM_OBJECT_RUN_IDLE = 0,    /**< 策略未开 */
+    ALARM_OBJECT_RUN_COMMANDED,   /**< 正在受令 */
+    ALARM_OBJECT_RUN_TRIPPED,     /**< 因故障停 */
+} alarm_object_run_t;
+
+/**
+ * @brief  报警互挡角色
+ * @note   FROM_FAULT 在运行期按故障形态推导。
+ */
+typedef enum {
+    ALARM_ECLIPSE_FROM_FAULT = 0, /**< 按故障形态：过载/安全/主动停止/信号异常为根因 */
+    ALARM_ECLIPSE_ROOT,           /**< 根因，不被同组互挡 */
+    ALARM_ECLIPSE_CONSEQUENTIAL,  /**< 次生，可被根因、切断链或本对象 TRIPPED 挡住 */
+} alarm_eclipse_role_t;
+
+/**
+ * @brief  搁置策略
+ * @note   DEFAULT：MINOR/MAJOR 允许，CRITICAL 与安全触发禁止。
+ */
+typedef enum {
+    ALARM_SHELVE_DEFAULT = 0,
+    ALARM_SHELVE_ALLOW,
+    ALARM_SHELVE_FORBID,
+} alarm_shelve_policy_t;
+
+/** @brief 检测停用后的开洗后果 */
+typedef enum {
+    ALARM_OOS_ADMIT_BLOCK = 0, /**< 补偿码 MAJOR，暂停接单 */
+    ALARM_OOS_ADMIT_RUN,       /**< 补偿码 MINOR，继续开洗 */
+} alarm_oos_admit_t;
+
+/** @brief 当前不提示的原因；无则 announced 为真 */
+typedef enum {
+    ALARM_MUTE_NONE = 0,
+    ALARM_MUTE_MODE,     /**< 装置工况 */
+    ALARM_MUTE_RUN,      /**< 设备开停 */
+    ALARM_MUTE_ECLIPSE,  /**< 报警互挡 */
+    ALARM_MUTE_SHELVED,  /**< 搁置 */
+} alarm_mute_reason_t;
+
+/**
+ * @brief  对象键：层 × 1000 + 对象号，避免跨层对象号碰撞
+ */
+static inline uint32_t alarm_object_key(uint32_t layer, uint32_t object_id)
+{
+    return (layer * 1000U) + object_id;
+}
+
+static inline uint32_t alarm_code_object_key(uint32_t code)
+{
+    return alarm_object_key(ALARM_CODE_LAYER(code), ALARM_CODE_OBJECT(code));
+}
 
 /** @brief 锁存报警的运动结案分组 ID；framework 只定义 NONE，具体取值由项目配置 */
 #define ALARM_REEVAL_GROUP_NONE 0U
@@ -160,15 +245,21 @@ typedef struct {
     alarm_lifecycle_t        lifecycle;
     motion_reeval_group_id_t reeval_group;
     char                     desc[ALARM_DESC_MAX];
+    alarm_need_run_t         need_run;       /**< 缺省 ANY；超时/欠载装载期升为 COMMANDED */
+    alarm_eclipse_role_t     eclipse_role;   /**< 缺省按故障形态推导 */
+    alarm_shelve_policy_t    shelve_policy;  /**< 缺省按等级 */
+    bool                     allow_oos;      /**< 是否允许检测停用 */
+    alarm_oos_admit_t        oos_admit;      /**< 停用后开洗后果；仅 allow_oos 有意义 */
+    uint8_t                  suppress_modes; /**< 八态抑制位图；STANDBY/ACTIVE/HOLD 装载拒绝 */
 } alarm_def_t;
 
 /**
  * @brief 活动告警实例。
  *
  * @note  `level` / `lifecycle` / `reeval_group` 是插入时从目录定义拷入的快照。
- *        目录在运行期不变（`load_catalog` 会同时清空活动表），因此活动表上的
- *        任何判定都不需要回查目录——`reevaluate_group` / `reset_all` / `clear`
- *        据此只扫活动表一趟。
+ *        提示字段在运行期由 registry 按三轴谓词重算，不回写目录。
+ *        目录在运行期不变（`load_catalog` 会同时清空活动表），因此结案判定
+ *        仍只扫活动表一趟。
  */
 typedef struct {
     uint32_t                 code;             /**< 告警码。 */
@@ -177,6 +268,9 @@ typedef struct {
     motion_reeval_group_id_t reeval_group;     /**< 锁存的运动结案分组；无则为 NONE。 */
     uint64_t                 triggered_at_ms;  /**< 首次触发时间。 */
     bool                     condition_active; /**< 故障源当前是否仍成立。 */
+    bool                     announced;        /**< 是否向人提示；不影响开洗闸 */
+    alarm_mute_reason_t      mute_reason;      /**< 不提示时的原因；announced 时为 NONE */
+    uint64_t                 shelved_until_ms; /**< 搁置截止；0 表示未搁 */
 } alarm_instance_t;
 
 /**
@@ -193,6 +287,8 @@ typedef struct {
     uint32_t         session_journal[ALARM_SESSION_JOURNAL_MAX];     /**< 本会话 MAJOR+ 码 */
     unsigned         journal_count;                                  /**< journal 有效条数 */
     uint32_t         journal_dropped;                                /**< 满池未记入的累计条数，读不清零 */
+    uint32_t         oos_list[ALARM_OOS_MAX];                        /**< 当前检测停用的原码 */
+    unsigned         oos_count;                                      /**< oos_list 有效条数 */
 } alarm_safety_view_t;
 
 #ifdef __cplusplus

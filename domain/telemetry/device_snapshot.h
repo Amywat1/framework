@@ -61,6 +61,8 @@ typedef struct {
     uint32_t         session_journal[ALARM_SESSION_JOURNAL_MAX]; /**< 本会话 MAJOR+ 码，同码去重 */
     unsigned         session_journal_count;                      /**< journal 有效条数 */
     uint32_t         session_journal_dropped;                    /**< 满池未记入的累计条数，读不清零 */
+    uint32_t         oos_list[ALARM_OOS_MAX];                    /**< 当前检测停用的原码 */
+    unsigned         oos_count;                                  /**< oos_list 有效条数 */
 } safety_snapshot_t;
 
 /* -------------------------------------------------------------------------

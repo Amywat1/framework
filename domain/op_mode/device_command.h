@@ -34,6 +34,9 @@ typedef enum {
     DEV_CMD_RECOVER,
     DEV_CMD_STOP_ALL_OUTPUTS,
     DEV_CMD_CANCEL_ORDER, /**< 取消未放行订单 */
+    DEV_CMD_ALARM_SHELVE, /**< 限时搁置一条活动报警的提示 */
+    DEV_CMD_ALARM_UNSHELVE, /**< 取消搁置 */
+    DEV_CMD_ALARM_OOS, /**< 检测停用 / 恢复检测 */
     DEV_CMD_MAX
 } dev_cmd_kind_t;
 
@@ -78,6 +81,17 @@ typedef struct {
         struct {
             bool enabled; /**< true 开启总开关；false 关闭 */
         } service;
+        struct {
+            uint32_t code;        /**< 报警码 */
+            uint32_t duration_ms; /**< 搁置时限 */
+        } alarm_shelve;
+        struct {
+            uint32_t code; /**< 报警码 */
+        } alarm_unshelve;
+        struct {
+            uint32_t code;   /**< 原码 */
+            bool     enable; /**< true 停用检测 */
+        } alarm_oos;
     } payload;
 } dev_cmd_body_t;
 
@@ -173,6 +187,42 @@ static inline dev_cmd_t dev_cmd_make_set_service(bool enabled)
     dev_cmd_t cmd = dev_cmd_make_simple(DEV_CMD_SET_SERVICE);
 
     cmd.body.payload.service.enabled = enabled;
+    return cmd;
+}
+
+/**
+ * @brief  构造报警搁置命令
+ */
+static inline dev_cmd_t dev_cmd_make_alarm_shelve(uint32_t code, uint32_t duration_ms)
+{
+    dev_cmd_t cmd = dev_cmd_make_simple(DEV_CMD_ALARM_SHELVE);
+
+    cmd.body.payload.alarm_shelve.code        = code;
+    cmd.body.payload.alarm_shelve.duration_ms = duration_ms;
+    return cmd;
+}
+
+/**
+ * @brief  构造取消搁置命令
+ */
+static inline dev_cmd_t dev_cmd_make_alarm_unshelve(uint32_t code)
+{
+    dev_cmd_t cmd = dev_cmd_make_simple(DEV_CMD_ALARM_UNSHELVE);
+
+    cmd.body.payload.alarm_unshelve.code = code;
+    return cmd;
+}
+
+/**
+ * @brief  构造检测停用命令
+ * @note   除 INIT 外任意运营态可下发，不因急停或切断未确认拒绝。
+ */
+static inline dev_cmd_t dev_cmd_make_alarm_oos(uint32_t code, bool enable)
+{
+    dev_cmd_t cmd = dev_cmd_make_simple(DEV_CMD_ALARM_OOS);
+
+    cmd.body.payload.alarm_oos.code   = code;
+    cmd.body.payload.alarm_oos.enable = enable;
     return cmd;
 }
 

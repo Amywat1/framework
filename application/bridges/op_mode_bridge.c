@@ -84,6 +84,14 @@ static void on_clear_done(const event_t *evt)
     drop_book_if_stopped();
 }
 
+static void on_mode_changed(const event_t *evt)
+{
+    if (evt == NULL) {
+        return;
+    }
+    alarm_registry_set_op_mode((alarm_op_mode_t)op_mode_changed_to(evt->param));
+}
+
 sw_err_t op_mode_bridge_init(void)
 {
     static const event_subscription_t s_subs[] = {
@@ -96,6 +104,7 @@ sw_err_t op_mode_bridge_init(void)
         {EVT_OP_MODE_RECOVERY_COMPLETED,   on_recovery_completed  },
         {EVT_OP_MODE_SELF_CHECK_COMPLETED, on_self_check_completed},
         {EVT_CLEAR_MACHINE_DONE,           on_clear_done          },
+        {EVT_OP_MODE_CHANGED,              on_mode_changed        },
     };
 
     sw_err_t ret = event_subscribe_table(s_subs, sizeof(s_subs) / sizeof(s_subs[0]));
@@ -103,6 +112,7 @@ sw_err_t op_mode_bridge_init(void)
         return ret;
     }
 
+    alarm_registry_set_op_mode((alarm_op_mode_t)op_mode_get_current());
     LOG_INFO("op_mode_bridge: init ok");
     return SW_OK;
 }

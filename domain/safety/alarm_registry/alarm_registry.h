@@ -64,6 +64,7 @@ unsigned alarm_registry_catalog_count(void);
  * @brief  上报指定报警的故障条件成立
  * @note   新插入或驱逐腾槽后，在返回前将 `EVT_ALARM_TRIGGERED`（及姿态边沿）入队。
  *         重复 trigger 只刷新 `condition_active`，不再发 TRIGGERED。
+ *         条件已成立时不取消搁置；条件从消失回到成立视为新事件，搁置下架。
  */
 sw_err_t alarm_registry_trigger(uint32_t code);
 
@@ -94,7 +95,8 @@ void alarm_registry_reset_all(void);
 
 /**
  * @brief  强制删除所有非安全触发的活动报警
- * @note   条件仍成立也删除。安全触发（码尾 09）保留。删除在返回前发 CLEARED。
+ * @note   条件仍成立也删除。安全触发（码尾 09）与检测停用补偿码（形态 11）保留。
+ *         删除在返回前发 CLEARED。
  */
 void alarm_registry_reset_non_safety(void);
 
@@ -129,6 +131,74 @@ safety_posture_t alarm_registry_safety_posture(void);
  * @note   全部字段来自同一次持锁。需要多项时一律走本接口。
  */
 sw_err_t alarm_registry_copy_safety_view(alarm_safety_view_t *out);
+
+/**
+ * @brief  应用桥推送当前整机工况，供装置工况谓词使用
+ * @param  mode 与 operational_mode_t 同值
+ */
+void alarm_registry_set_op_mode(alarm_op_mode_t mode);
+
+/**
+ * @brief  项目推送对象运行态
+ * @param  layer     对象层
+ * @param  object_id 对象号
+ * @param  run       IDLE / COMMANDED / TRIPPED
+ * @retval SW_OK        已记录并重算提示
+ * @retval SW_ERR_PARAM 层或对象号非法
+ */
+sw_err_t alarm_registry_set_object_run(uint32_t layer, uint32_t object_id, alarm_object_run_t run);
+
+/**
+ * @brief  搁置一条已活动报警的提示
+ * @param  code         报警码
+ * @param  duration_ms  时限；0 非法，超过 ALARM_SHELVE_MAX_MS 按封顶
+ * @retval SW_OK         已搁置
+ * @retval SW_ERR_PARAM  码未知、未活动、或策略禁止
+ */
+sw_err_t alarm_registry_shelve(uint32_t code, uint32_t duration_ms);
+
+/**
+ * @brief  取消搁置
+ */
+sw_err_t alarm_registry_unshelve(uint32_t code);
+
+/**
+ * @brief  设置检测停用
+ * @param  code    原码（目录 allow_oos）
+ * @param  enable  true 停用，false 恢复检测
+ * @retval SW_OK         已切换
+ * @retval SW_ERR_PARAM  不允许停用
+ */
+sw_err_t alarm_registry_set_oos(uint32_t code, bool enable);
+
+/**
+ * @brief  指定原码当前是否检测停用
+ */
+bool alarm_registry_is_oos(uint32_t code);
+
+/**
+ * @brief  合成补偿码：同层同对象 + 故障形态 11；目录无此对象时仍可计算
+ */
+uint32_t alarm_registry_oos_compensating_code(uint32_t original_code);
+
+/**
+ * @brief  清除全部搁置，并把对象开停态清回 IDLE
+ * @note   恢复起步调用。不清检测停用。开停态回到 IDLE，避免恢复后残留 TRIPPED/COMMANDED。
+ */
+void alarm_registry_clear_announce_overrides(void);
+
+/**
+ * @brief  清除全部检测停用并删除形态 11 补偿码
+ * @note   上电由 init/装载目录清零；关总开关落到 STOPPED 时调用。
+ *         不补发原码 TRIGGERED；检测条件仍成立时由 detector 下一拍再贴。
+ */
+void alarm_registry_clear_oos(void);
+
+/**
+ * @brief  到期取消搁置；由应用周期调用
+ * @param  now_ms 当前单调毫秒
+ */
+void alarm_registry_poll(uint64_t now_ms);
 
 #ifdef __cplusplus
 }

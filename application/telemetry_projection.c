@@ -63,6 +63,10 @@ static void refresh_safety_snapshot(const event_t *evt)
     if (view.journal_count > 0U) {
         memcpy(snap.session_journal, view.session_journal, view.journal_count * sizeof(snap.session_journal[0]));
     }
+    snap.oos_count = view.oos_count;
+    if (view.oos_count > 0U) {
+        memcpy(snap.oos_list, view.oos_list, view.oos_count * sizeof(snap.oos_list[0]));
+    }
     snap.cutout_unconfirmed = safety_cutout_is_unconfirmed();
     if (snap.cutout_unconfirmed) {
         snap.posture         = SAFETY_POSTURE_LOCKOUT;
@@ -169,6 +173,8 @@ sw_err_t telemetry_projection_init(void)
         {EVT_OP_MODE_CONTEXT_SYNC, sync_op_snapshot       },
         {EVT_ALARM_TRIGGERED,      refresh_safety_snapshot},
         {EVT_ALARM_CLEARED,        refresh_safety_snapshot},
+        {EVT_ALARM_ANNOUNCE,       refresh_safety_snapshot},
+        {EVT_ALARM_MUTE,           refresh_safety_snapshot},
         /* 安全姿态边沿同样要刷快照：posture 由 CRITICAL 告警驱动，
          * 但姿态事件与告警事件是两条独立发布路径，缺订阅会导致
          * LOCKOUT/NOMINAL 切换后快照里的 posture 滞后。 */

@@ -38,13 +38,21 @@ extern "C" {
 typedef void (*motion_process_end_fn_t)(actuator_id_t id, const motor_event_t *ev);
 
 /**
+ * @brief  运动命令已受理（尚未结束）
+ * @param  id     注入的 actuator_id；可为 0
+ * @param  motor  电机索引
+ */
+typedef void (*motion_process_start_fn_t)(actuator_id_t id, int motor);
+
+/**
  * @brief  运动模式 lifecycle 注入选项
  * @note   motion_completed 只表示限位/位置/定时到位做成；超时/停止/故障/电流停空闲不发。
  *         电流停是否做成由项目 on_motion_end 自行发布。结局原因走 on_motion_end / last_result。
  */
 typedef struct {
-    actuator_id_t           motion_actuator_id;
-    motion_process_end_fn_t on_motion_end;
+    actuator_id_t             motion_actuator_id;
+    motion_process_end_fn_t   on_motion_end;
+    motion_process_start_fn_t on_motion_start;
 } motion_lifecycle_opts_t;
 
 typedef enum {

@@ -27,6 +27,7 @@ extern "C" {
 #include "domain/safety/model/alarm_types.h"
 
 #include <stdbool.h>
+#include <stddef.h>
 
 /* -------------------------------------------------------------------------
  * 等级行为矩阵
@@ -202,6 +203,112 @@ static inline safety_posture_t safety_posture_from_level(alarm_level_t highest_a
         return SAFETY_POSTURE_NOMINAL;
     }
     return alarm_level_forces_lockout(highest_active_level) ? SAFETY_POSTURE_LOCKOUT : SAFETY_POSTURE_NOMINAL;
+}
+
+/* -------------------------------------------------------------------------
+ * 提示轴：静音不得改变开洗闸。下列规则供装载期与运行期共用。
+ * ------------------------------------------------------------------------- */
+
+/**
+ * @brief  按故障形态推导互挡角色
+ */
+static inline alarm_eclipse_role_t alarm_eclipse_role_from_fault(uint32_t fault_mode)
+{
+    switch (fault_mode) {
+    case ALM_N_ACTION_TIMEOUT:
+    case ALM_N_COMM_INTERRUPT:
+    case ALM_N_FAULT_FEEDBACK:
+    case ALM_N_UNDERLOAD:
+        return ALARM_ECLIPSE_CONSEQUENTIAL;
+    default:
+        return ALARM_ECLIPSE_ROOT;
+    }
+}
+
+/**
+ * @brief  目录条目的有效互挡角色
+ */
+static inline alarm_eclipse_role_t alarm_def_eclipse_role(const alarm_def_t *def)
+{
+    if ((def == NULL) || (def->eclipse_role == ALARM_ECLIPSE_FROM_FAULT)) {
+        return alarm_eclipse_role_from_fault((def != NULL) ? ALARM_CODE_FAULT_MODE(def->code) : 0U);
+    }
+    return def->eclipse_role;
+}
+
+/**
+ * @brief  该条目是否允许搁置提示
+ * @note   安全触发、检测停用补偿码、CRITICAL 一律禁止。未知策略按禁止。
+ */
+static inline bool alarm_def_allows_shelve(const alarm_def_t *def)
+{
+    uint32_t fault_mode;
+
+    if (def == NULL) {
+        return false;
+    }
+    fault_mode = ALARM_CODE_FAULT_MODE(def->code);
+    if ((fault_mode == ALM_N_SAFETY_TRIGGER) || (fault_mode == ALM_N_OUT_OF_SERVICE)) {
+        return false;
+    }
+    if (alarm_level_forces_lockout(def->level)) {
+        return false;
+    }
+    if (def->shelve_policy == ALARM_SHELVE_FORBID) {
+        return false;
+    }
+    if (def->shelve_policy == ALARM_SHELVE_ALLOW) {
+        return true;
+    }
+    return alarm_level_is_defined(def->level) && !alarm_level_forces_lockout(def->level);
+}
+
+/**
+ * @brief  该八态位图是否含接单态（这些态禁止用八态抑制）
+ */
+static inline bool alarm_suppress_modes_touch_admit(uint8_t suppress_modes)
+{
+    return (suppress_modes
+            & (ALARM_SUPPRESS_MODE_BIT(ALARM_OP_STANDBY) | ALARM_SUPPRESS_MODE_BIT(ALARM_OP_ACTIVE)
+               | ALARM_SUPPRESS_MODE_BIT(ALARM_OP_HOLD)))
+           != 0U;
+}
+
+/**
+ * @brief  装载期：超时/欠载不得标在过载或安全触发上（need_run=COMMANDED 禁配这些形态）
+ */
+static inline bool alarm_need_run_commanded_forbidden(uint32_t fault_mode)
+{
+    return (fault_mode == ALM_N_OVERLOAD) || (fault_mode == ALM_N_SAFETY_TRIGGER);
+}
+
+/**
+ * @brief  该条目是否允许检测停用
+ * @note   过载、CRITICAL 通讯禁止。安全触发仅允许检测层且 oos_admit=run。
+ */
+static inline bool alarm_def_oos_policy_legal(const alarm_def_t *def)
+{
+    uint32_t layer;
+    uint32_t fault_mode;
+
+    if ((def == NULL) || !def->allow_oos) {
+        return true;
+    }
+    layer      = ALARM_CODE_LAYER(def->code);
+    fault_mode = ALARM_CODE_FAULT_MODE(def->code);
+    if (layer != ALM_C_DETECT) {
+        return false;
+    }
+    if (fault_mode == ALM_N_OVERLOAD) {
+        return false;
+    }
+    if ((fault_mode == ALM_N_COMM_INTERRUPT) && alarm_level_forces_lockout(def->level)) {
+        return false;
+    }
+    if (fault_mode == ALM_N_SAFETY_TRIGGER) {
+        return def->oos_admit == ALARM_OOS_ADMIT_RUN;
+    }
+    return true;
 }
 
 #ifdef __cplusplus

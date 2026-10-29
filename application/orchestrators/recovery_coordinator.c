@@ -130,6 +130,7 @@ static void reset_and_home(void)
     if (op_mode_get_current() != OP_MODE_RECOVERING) {
         return;
     }
+    alarm_registry_clear_announce_overrides();
     alarm_registry_reset_non_safety();
     start_home();
 }

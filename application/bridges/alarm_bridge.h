@@ -35,6 +35,11 @@ sw_err_t alarm_bridge_bind(void);
 sw_err_t alarm_bridge_init(void);
 
 /**
+ * @brief  周期推进搁置到期；由项目 alarm poll 调用
+ */
+void alarm_bridge_poll(void);
+
+/**
  * @brief  注册项目 锁存运动结案 binding 表并订阅相关事件
  * @note   binding 表由项目静态持有；框架不复制。由项目在 init_adapters 中按需调用，
  *         bootstrap 不代替项目做此选择。

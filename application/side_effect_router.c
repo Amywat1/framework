@@ -103,12 +103,24 @@ sw_err_t side_effect_router_run(const dev_cmd_t *cmd, operational_mode_t mode_be
     case DEV_CMD_SET_SERVICE:
         if (!cmd->body.payload.service.enabled
             && (op_mode_get_current() == OP_MODE_STOPPED)) {
+            alarm_registry_clear_announce_overrides();
+            alarm_registry_clear_oos();
             job_admit_on_stopped();
         }
         return SW_OK;
 
     case DEV_CMD_RECOVER:
         return SW_OK;
+
+    case DEV_CMD_ALARM_SHELVE:
+        return alarm_registry_shelve(cmd->body.payload.alarm_shelve.code,
+                                     cmd->body.payload.alarm_shelve.duration_ms);
+
+    case DEV_CMD_ALARM_UNSHELVE:
+        return alarm_registry_unshelve(cmd->body.payload.alarm_unshelve.code);
+
+    case DEV_CMD_ALARM_OOS:
+        return alarm_registry_set_oos(cmd->body.payload.alarm_oos.code, cmd->body.payload.alarm_oos.enable);
 
     case DEV_CMD_NONE:
     case DEV_CMD_MAX:

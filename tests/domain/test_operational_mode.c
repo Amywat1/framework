@@ -142,6 +142,31 @@ static void test_cutout_unconfirmed_blocks_recovery(void)
     TEST_ASSERT_EQUAL_INT(OP_MODE_STOPPED, op_mode_get_current());
 }
 
+/* 检测停用不因急停或切断未确认拒绝 */
+static void test_oos_not_gated_by_estop_or_cutout(void)
+{
+    dev_cmd_t cmd = dev_cmd_make_alarm_oos(TEST_ALARM_BLOCKING, true);
+
+    op_mode_on_estop(true);
+    TEST_ASSERT_EQUAL_INT(OP_CMD_ALLOWED, op_mode_handle_command(&cmd).verdict);
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, safety_port_register(&s_failed_cutout_ops));
+    TEST_ASSERT_EQUAL_INT(SW_ERR_HW, safety_cutout_execute());
+    TEST_ASSERT_TRUE(safety_cutout_is_unconfirmed());
+    TEST_ASSERT_EQUAL_INT(OP_CMD_ALLOWED, op_mode_handle_command(&cmd).verdict);
+}
+
+/* 洗车中允许开停检测停用 */
+static void test_oos_allowed_while_active(void)
+{
+    dev_cmd_t cmd = dev_cmd_make_alarm_oos(TEST_ALARM_BLOCKING, true);
+
+    enter_idle();
+    op_mode_on_job_started();
+    TEST_ASSERT_EQUAL_INT(OP_MODE_ACTIVE, op_mode_get_current());
+    TEST_ASSERT_EQUAL_INT(OP_CMD_ALLOWED, op_mode_handle_command(&cmd).verdict);
+}
+
 /* STOPPED 下阻塞告警保持 STOPPED（故障由旗标表达）*/
 static void test_blocking_alarm_from_stopped_stays_stopped(void)
 {
@@ -566,7 +591,7 @@ static void test_stop_all_from_recovering_enters_stopped(void)
  * MODE-01：命令 × 8 状态穷举矩阵（与设计文档转录表一致）
  * D=DENIED A=ALLOWED C=CONDITIONAL；列序 INIT..RECOVERING
  */
-static void test_cmd_matrix_exhaustive_72(void)
+static void test_cmd_matrix_exhaustive_96(void)
 {
     /* clang-format off */
     static const op_cmd_perm_t expect[DEV_CMD_MAX][OP_MODE_RECOVERING + 1] = {
@@ -606,6 +631,18 @@ static void test_cmd_matrix_exhaustive_72(void)
             OP_CMD_PERM_DENIED, OP_CMD_PERM_ALLOWED, OP_CMD_PERM_ALLOWED, OP_CMD_PERM_ALLOWED,
             OP_CMD_PERM_ALLOWED, OP_CMD_PERM_ALLOWED, OP_CMD_PERM_ALLOWED, OP_CMD_PERM_ALLOWED,
         },
+        [DEV_CMD_ALARM_SHELVE] = {
+            OP_CMD_PERM_DENIED, OP_CMD_PERM_ALLOWED, OP_CMD_PERM_ALLOWED, OP_CMD_PERM_ALLOWED,
+            OP_CMD_PERM_ALLOWED, OP_CMD_PERM_ALLOWED, OP_CMD_PERM_ALLOWED, OP_CMD_PERM_ALLOWED,
+        },
+        [DEV_CMD_ALARM_UNSHELVE] = {
+            OP_CMD_PERM_DENIED, OP_CMD_PERM_ALLOWED, OP_CMD_PERM_ALLOWED, OP_CMD_PERM_ALLOWED,
+            OP_CMD_PERM_ALLOWED, OP_CMD_PERM_ALLOWED, OP_CMD_PERM_ALLOWED, OP_CMD_PERM_ALLOWED,
+        },
+        [DEV_CMD_ALARM_OOS] = {
+            OP_CMD_PERM_DENIED, OP_CMD_PERM_ALLOWED, OP_CMD_PERM_ALLOWED, OP_CMD_PERM_ALLOWED,
+            OP_CMD_PERM_ALLOWED, OP_CMD_PERM_ALLOWED, OP_CMD_PERM_ALLOWED, OP_CMD_PERM_ALLOWED,
+        },
     };
     /* clang-format on */
     dev_cmd_kind_t     kind;
@@ -626,6 +663,8 @@ int main(void)
     WDF_RUN_TEST(test_recover_from_stopped_enters_idle, "", "验证恢复从停止模式进入空闲模式");
     WDF_RUN_TEST(test_recover_home_failure_enters_stopped, "", "验证恢复回零失败进入停止模式");
     WDF_RUN_TEST(test_cutout_unconfirmed_blocks_recovery, "SAFE-11", "验证切断未确认时拒绝恢复");
+    WDF_RUN_TEST(test_oos_not_gated_by_estop_or_cutout, "", "验证检测停用不因急停或切断未确认拒绝");
+    WDF_RUN_TEST(test_oos_allowed_while_active, "", "验证洗车中允许开停检测停用");
     WDF_RUN_TEST(test_blocking_alarm_from_stopped_stays_stopped, "", "验证停止模式阻断报警仍为停止");
     WDF_RUN_TEST(test_blocking_alarm_from_idle_enters_stopped, "", "验证空闲模式阻断报警进入停止");
     WDF_RUN_TEST(test_blocking_alarm_during_home_lands_stopped, "", "验证回零期间阻断报警完成后进入停止");
@@ -659,7 +698,7 @@ int main(void)
     WDF_RUN_TEST(test_stop_all_from_washing_skips_abort_homing, "", "验证全停洗车中不清障");
     WDF_RUN_TEST(test_estop_abort_from_washing_skips_abort_homing, "MODE-03", "验证洗车中急停中止不清障");
     WDF_RUN_TEST(test_stop_all_from_recovering_enters_stopped, "", "验证全停打断恢复进入停止");
-    WDF_RUN_TEST(test_cmd_matrix_exhaustive_72, "", "验证命令许可矩阵穷举");
+    WDF_RUN_TEST(test_cmd_matrix_exhaustive_96, "", "验证命令许可矩阵穷举");
 
     return UNITY_END();
 }

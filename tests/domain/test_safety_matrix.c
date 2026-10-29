@@ -152,6 +152,69 @@ static void test_posture_derivation(void)
  * 更高等级不得比更低等级宽松。这条不变量比单个格点更重要：
  * 新增等级时若插在中间且属性配错，逐格断言可能仍然通过，但单调性会失败。
  * ------------------------------------------------------------------------- */
+static void test_eclipse_role_from_fault(void)
+{
+    TEST_ASSERT_EQUAL_INT(ALARM_ECLIPSE_ROOT, alarm_eclipse_role_from_fault(ALM_N_OVERLOAD));
+    TEST_ASSERT_EQUAL_INT(ALARM_ECLIPSE_ROOT, alarm_eclipse_role_from_fault(ALM_N_SAFETY_TRIGGER));
+    TEST_ASSERT_EQUAL_INT(ALARM_ECLIPSE_CONSEQUENTIAL, alarm_eclipse_role_from_fault(ALM_N_ACTION_TIMEOUT));
+    TEST_ASSERT_EQUAL_INT(ALARM_ECLIPSE_CONSEQUENTIAL, alarm_eclipse_role_from_fault(ALM_N_COMM_INTERRUPT));
+}
+
+static void test_shelve_forbidden_for_critical_and_safety(void)
+{
+    alarm_def_t major = {
+        .code  = 100401U,
+        .level = ALARM_LEVEL_MAJOR,
+    };
+    alarm_def_t crit = {
+        .code  = 201709U,
+        .level = ALARM_LEVEL_CRITICAL,
+    };
+    alarm_def_t safety_major = {
+        .code  = 201309U,
+        .level = ALARM_LEVEL_MAJOR,
+    };
+
+    TEST_ASSERT_TRUE(alarm_def_allows_shelve(&major));
+    TEST_ASSERT_FALSE(alarm_def_allows_shelve(&crit));
+    TEST_ASSERT_FALSE(alarm_def_allows_shelve(&safety_major));
+}
+
+static void test_suppress_modes_cannot_cover_admit(void)
+{
+    TEST_ASSERT_TRUE(alarm_suppress_modes_touch_admit(ALARM_SUPPRESS_MODE_BIT(ALARM_OP_STANDBY)));
+    TEST_ASSERT_TRUE(alarm_suppress_modes_touch_admit(ALARM_SUPPRESS_MODE_BIT(ALARM_OP_ACTIVE)));
+    TEST_ASSERT_TRUE(alarm_suppress_modes_touch_admit(ALARM_SUPPRESS_MODE_BIT(ALARM_OP_HOLD)));
+    TEST_ASSERT_FALSE(alarm_suppress_modes_touch_admit(ALARM_SUPPRESS_MODE_BIT(ALARM_OP_STOPPED)));
+    TEST_ASSERT_FALSE(alarm_suppress_modes_touch_admit(0U));
+}
+
+static void test_oos_policy_detect_safety_run_ok(void)
+{
+    alarm_def_t rod = {
+        .code      = 201409U,
+        .level     = ALARM_LEVEL_CRITICAL,
+        .allow_oos = true,
+        .oos_admit = ALARM_OOS_ADMIT_RUN,
+    };
+    alarm_def_t overload = {
+        .code      = 100401U,
+        .level     = ALARM_LEVEL_MAJOR,
+        .allow_oos = true,
+        .oos_admit = ALARM_OOS_ADMIT_RUN,
+    };
+
+    TEST_ASSERT_TRUE(alarm_def_oos_policy_legal(&rod));
+    TEST_ASSERT_FALSE(alarm_def_oos_policy_legal(&overload));
+}
+
+static void test_need_run_commanded_forbidden_on_root_faults(void)
+{
+    TEST_ASSERT_TRUE(alarm_need_run_commanded_forbidden(ALM_N_OVERLOAD));
+    TEST_ASSERT_TRUE(alarm_need_run_commanded_forbidden(ALM_N_SAFETY_TRIGGER));
+    TEST_ASSERT_FALSE(alarm_need_run_commanded_forbidden(ALM_N_ACTION_TIMEOUT));
+}
+
 static void test_severity_is_monotonic(void)
 {
     const alarm_level_t ordered[] = {ALARM_LEVEL_MINOR, ALARM_LEVEL_MAJOR, ALARM_LEVEL_CRITICAL};
@@ -188,5 +251,10 @@ int main(void)
     WDF_RUN_TEST(test_lifecycle_helpers_match_matrix, "", "验证生命周期辅助函数与安全矩阵一致");
     WDF_RUN_TEST(test_posture_derivation, "", "验证安全姿态推导");
     WDF_RUN_TEST(test_severity_is_monotonic, "", "验证报警严重度保持单调");
+    WDF_RUN_TEST(test_eclipse_role_from_fault, "", "验证互挡角色按故障形态推导");
+    WDF_RUN_TEST(test_shelve_forbidden_for_critical_and_safety, "", "验证 CRITICAL 与安全触发不可搁置");
+    WDF_RUN_TEST(test_suppress_modes_cannot_cover_admit, "", "验证接单态不得写入八态抑制");
+    WDF_RUN_TEST(test_oos_policy_detect_safety_run_ok, "", "验证检测停用策略装载约束");
+    WDF_RUN_TEST(test_need_run_commanded_forbidden_on_root_faults, "", "验证过载与安全触发不得标 need_run");
     return UNITY_END();
 }
