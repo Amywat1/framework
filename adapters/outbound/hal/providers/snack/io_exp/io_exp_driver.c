@@ -80,6 +80,8 @@ sw_err_t io_exp_driver_sdk_init(const char *can_bus, int can_baud, int self_node
 #define IO_PULSE_CLEAR_MAX_TRIES      3U                /* 单次清零请求在 worker 内的 SDO 最大尝试次数 */
 #define IO_PULSE_INVALID_COUNT        0x0FFFFFFF        /* Snack SDK：脉冲计数溢出/无效哨兵 */
 #define IO_DI_FILTER_SDO_INDEX        0x2006            /* 子板 DI 硬件滤波时间 SDO 对象 */
+#define IO_DI_FILTER_SDO_LEN          2                 /* 0x2006 为 UNSIGNED16，不能走 4 字节 io_SDO_write */
+#define IO_DI_FILTER_SDO_TYPE         0x06              /* CANopen UNSIGNED16 */
 #define IO_DI_FILTER_WRITE_MAX_TRIES  3U                /* 单脚滤波下发在 worker 内的 SDO 最大尝试次数 */
 #define IO_DI_FILTER_WRITES_PER_TICK  1U                /* 每拍最多写几路，避免一次卡住刷新 */
 
@@ -922,9 +924,18 @@ static void drv_io_run_di_filter_writes(void)
                 unsigned attempt;
 
                 for (attempt = 0U; (attempt < IO_DI_FILTER_WRITE_MAX_TRIES) && (ret != SW_OK); ++attempt) {
-                    int data = (int)ms;
+                    uint16_t data = ms;
 
-                    ret = (io_SDO_write(board_id, IO_DI_FILTER_SDO_INDEX, pin_id, &data) >= 0) ? SW_OK : SW_ERR_COMM;
+                    /* 长度必须是 2：写成 4 字节会 abort 0x06070012，随后 SDO 客户端卡死，ADC 也读不了。 */
+                    if (sdo_write(board_id,
+                                  IO_DI_FILTER_SDO_INDEX,
+                                  pin_id,
+                                  IO_DI_FILTER_SDO_LEN,
+                                  &data,
+                                  IO_DI_FILTER_SDO_TYPE)
+                        >= 0) {
+                        ret = SW_OK;
+                    }
                 }
 
                 pthread_mutex_lock(&s_filter_mutex);

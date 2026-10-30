@@ -3,6 +3,7 @@
 
 #include <pthread.h>
 #include <stdbool.h>
+#include <stdint.h>
 #include <string.h>
 
 #define IO_EXP_FAKE_BOARD_MAX    8
@@ -45,6 +46,8 @@ typedef struct {
     int       sdo_index;
     int       sdo_sub_index;
     int       sdo_data;
+    int       sdo_len;
+    int       sdo_datatype;
     bool      sdo_called;
     unsigned  filter_sdo_count;
     int       filter_sdo_board;
@@ -222,6 +225,16 @@ int io_exp_fake_sdo_data(void)
     return s_fake.sdo_data;
 }
 
+int io_exp_fake_sdo_len(void)
+{
+    return s_fake.sdo_len;
+}
+
+int io_exp_fake_sdo_datatype(void)
+{
+    return s_fake.sdo_datatype;
+}
+
 unsigned io_exp_fake_filter_sdo_count(void)
 {
     return s_fake.filter_sdo_count;
@@ -346,16 +359,49 @@ int io_SDO_write(int board_id, int index, int sub_index, int *data)
     s_fake.sdo_index     = index;
     s_fake.sdo_sub_index = sub_index;
     s_fake.sdo_data      = (data != NULL) ? *data : -1;
-    if (index == IO_EXP_FAKE_DI_FILTER_INDEX) {
-        s_fake.filter_sdo_count++;
-        s_fake.filter_sdo_board = board_id;
-        s_fake.filter_sdo_pin   = sub_index;
-        s_fake.filter_sdo_data  = (data != NULL) ? *data : -1;
-    }
+    s_fake.sdo_len       = (int)sizeof(int);
+    s_fake.sdo_datatype  = 0;
     if ((s_fake.sdo_result >= 0) && (index == IO_EXP_FAKE_PULSE_CLEAR_INDEX)
         && (board_id > 0) && (board_id < IO_EXP_FAKE_BOARD_MAX)
         && (sub_index > 0) && (sub_index <= IO_EXP_FAKE_PIN_MAX)) {
         s_fake.pulse[board_id][sub_index] = 0;
+    }
+    return s_fake.sdo_result;
+}
+
+int sdo_write(int id, int index, int subindex, int len, void *data, int datatype)
+{
+    int value = -1;
+
+    io_exp_fake_record_sdk_thread();
+    if (data != NULL) {
+        if (len >= (int)sizeof(int)) {
+            memcpy(&value, data, sizeof(int));
+        } else if (len == 2) {
+            uint16_t u16 = 0U;
+
+            memcpy(&u16, data, sizeof(u16));
+            value = (int)u16;
+        } else if (len == 1) {
+            uint8_t u8 = 0U;
+
+            memcpy(&u8, data, sizeof(u8));
+            value = (int)u8;
+        }
+    }
+
+    s_fake.sdo_called    = true;
+    s_fake.sdo_board     = id;
+    s_fake.sdo_index     = index;
+    s_fake.sdo_sub_index = subindex;
+    s_fake.sdo_data      = value;
+    s_fake.sdo_len       = len;
+    s_fake.sdo_datatype  = datatype;
+    if (index == IO_EXP_FAKE_DI_FILTER_INDEX) {
+        s_fake.filter_sdo_count++;
+        s_fake.filter_sdo_board = id;
+        s_fake.filter_sdo_pin   = subindex;
+        s_fake.filter_sdo_data  = value;
     }
     return s_fake.sdo_result;
 }

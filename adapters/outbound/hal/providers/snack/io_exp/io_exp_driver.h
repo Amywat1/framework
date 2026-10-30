@@ -255,7 +255,8 @@ sw_err_t drv_io_pulse_clear(io_di_t pin);
  * @retval SW_OK           请求已受理，调用方不等待总线
  * @retval SW_ERR_PARAM    引脚无效
  * @retval SW_ERR_NOT_INIT 驱动尚未 init
- * @note   允许在 start 之前调用：只记值。worker 在子板在线后执行 SDO，
+ * @note   允许在 start 之前调用：只记值。worker 在子板在线后写 0x2006，
+ *         对象是 UNSIGNED16（2 字节），不能走 4 字节 `io_SDO_write`。
  *         每脚最多尝试 IO_DI_FILTER_WRITE_MAX_TRIES 次。
  *         未调用过的脚不下发。子板恢复后按已记录值重下发。
  */

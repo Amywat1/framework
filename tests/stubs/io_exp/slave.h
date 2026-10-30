@@ -11,5 +11,6 @@
 int io_online_get(int id);
 int io_read_input_s(int id);
 int io_write_all_s(int id, int val);
+int sdo_write(int id, int index, int subindex, int len, void *data, int datatype);
 
 #endif /* IO_EXP_SLAVE_STUB_H */

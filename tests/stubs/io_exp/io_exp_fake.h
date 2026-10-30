@@ -30,7 +30,11 @@ int         io_exp_fake_sdo_board(void);
 int         io_exp_fake_sdo_index(void);
 int         io_exp_fake_sdo_sub_index(void);
 int         io_exp_fake_sdo_data(void);
-/** @brief 统计 `io_SDO_write` 写入 0x2006 的次数。 */
+/** @brief 最近一次 `sdo_write` / `io_SDO_write` 的数据字节数。 */
+int         io_exp_fake_sdo_len(void);
+/** @brief 最近一次 `sdo_write` 的 CANopen 数据类型。 */
+int         io_exp_fake_sdo_datatype(void);
+/** @brief 统计写入 0x2006 的次数。 */
 unsigned    io_exp_fake_filter_sdo_count(void);
 /** @brief 最近一次 0x2006 写入的子板号。 */
 int         io_exp_fake_filter_sdo_board(void);

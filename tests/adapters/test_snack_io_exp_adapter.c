@@ -495,6 +495,8 @@ static void test_di_set_filter_ms_writes_on_online(void)
     TEST_ASSERT_EQUAL_INT(3, io_exp_fake_filter_sdo_pin());
     TEST_ASSERT_EQUAL_INT(8, io_exp_fake_filter_sdo_data());
     TEST_ASSERT_EQUAL_INT(0x2006, io_exp_fake_sdo_index());
+    TEST_ASSERT_EQUAL_INT(2, io_exp_fake_sdo_len());
+    TEST_ASSERT_EQUAL_INT(0x06, io_exp_fake_sdo_datatype());
 }
 
 static void test_di_set_filter_ms_zero_is_written(void)
