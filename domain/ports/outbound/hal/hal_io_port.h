@@ -113,6 +113,19 @@ typedef struct {
     sw_err_t (*pulse_clear)(io_di_t pin);
 
     /**
+     * @brief  设置 DI 引脚的子板硬件滤波时间。
+     * @param  pin  DI 句柄
+     * @param  ms   滤波时间（毫秒）；0 表示关闭子板滤波
+     * @retval SW_OK         已受理（未等总线）
+     * @retval SW_ERR_PARAM  引脚无效
+     * @retval SW_ERR_NOT_INIT 后端尚未初始化
+     * @note   provider 只记值并置位；worker 写总线。
+     *         子板恢复后须按已记录值重下发。
+     *         未调用过的脚不下发，保留子板出厂默认。
+     */
+    sw_err_t (*di_set_filter_ms)(io_di_t pin, uint16_t ms);
+
+    /**
      * @brief  读取 ADC 快照（不阻塞、不等待硬件）
      * @param  board_id  子板号，从 1 开始
      * @param  port      ADC 通道号，范围 1~4

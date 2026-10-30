@@ -432,6 +432,23 @@ static sw_err_t sim_pulse_clear(io_di_t pin)
     return SW_OK;
 }
 
+/**
+ * @brief  仿真不写子板，只校验句柄并受理请求。
+ */
+static sw_err_t sim_di_set_filter_ms(io_di_t pin, uint16_t ms)
+{
+    (void)ms;
+
+    if (!sim_is_valid_di(pin)) {
+        return SW_ERR_PARAM;
+    }
+    if (!s_inited) {
+        sim_record_lifecycle_violation("di_set_filter_ms");
+        return SW_ERR_NOT_INIT;
+    }
+    return SW_OK;
+}
+
 void hal_io_sim_set_pulse_counter(io_di_t pin, uint32_t value)
 {
     uint16_t board = io_handle_board(io_di_raw(pin));
@@ -564,6 +581,7 @@ static const hal_io_ops_t s_ops = {
     .get_stats                = sim_get_stats,
     .pulse_read               = sim_pulse_read,
     .pulse_clear              = sim_pulse_clear,
+    .di_set_filter_ms         = sim_di_set_filter_ms,
     .adc_sample               = sim_adc_sample,
     .adc_read                 = sim_adc_read,
     .adc_mv                   = sim_adc_mv,

@@ -387,6 +387,39 @@ static void test_failed_flush_keeps_output_dirty(void)
     TEST_ASSERT_FALSE(stats.dirty_pending);
 }
 
+/** 等到滤波 SDO 次数达到下限，或超时。 */
+static unsigned wait_filter_sdo_count(unsigned min_count, unsigned timeout_ms)
+{
+    unsigned count = 0U;
+    unsigned i;
+    unsigned loops = (timeout_ms / 20U) + 1U;
+
+    for (i = 0U; i < loops; ++i) {
+        count = io_exp_fake_filter_sdo_count();
+        if (count >= min_count) {
+            return count;
+        }
+        usleep(20U * 1000U);
+    }
+    TEST_ASSERT_GREATER_OR_EQUAL_UINT32(min_count, count);
+    return count;
+}
+
+/** 等到子板在线状态匹配，或超时。 */
+static void wait_board_online_state(int board_id, bool online, unsigned timeout_ms)
+{
+    unsigned i;
+    unsigned loops = (timeout_ms / 20U) + 1U;
+
+    for (i = 0U; i < loops; ++i) {
+        if (io_ops()->board_is_online(board_id) == online) {
+            return;
+        }
+        usleep(20U * 1000U);
+    }
+    TEST_ASSERT_EQUAL(online, io_ops()->board_is_online(board_id));
+}
+
 /** 等到指定 DI 达到目标质量，或 500ms 超时。 */
 static io_di_sample_t wait_di_quality(io_di_t pin, io_sample_quality_t quality)
 {
@@ -442,6 +475,83 @@ static void test_init_after_start_preserves_online_state(void)
     TEST_ASSERT_TRUE(io_ops()->board_is_online(2));
 }
 
+static void test_unconfigured_di_filter_not_written_on_online(void)
+{
+    start_online_boards(2);
+    usleep(200U * 1000U);
+    TEST_ASSERT_EQUAL_UINT32(0U, io_exp_fake_filter_sdo_count());
+}
+
+static void test_di_set_filter_ms_writes_on_online(void)
+{
+    io_di_t pin = IO_DI(1U, 3U);
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, io_ops()->di_set_filter_ms(pin, 8U));
+    TEST_ASSERT_EQUAL_UINT32(0U, io_exp_fake_filter_sdo_count());
+
+    start_online_boards(2);
+    (void)wait_filter_sdo_count(1U, 500U);
+    TEST_ASSERT_EQUAL_INT(1, io_exp_fake_filter_sdo_board());
+    TEST_ASSERT_EQUAL_INT(3, io_exp_fake_filter_sdo_pin());
+    TEST_ASSERT_EQUAL_INT(8, io_exp_fake_filter_sdo_data());
+    TEST_ASSERT_EQUAL_INT(0x2006, io_exp_fake_sdo_index());
+}
+
+static void test_di_set_filter_ms_zero_is_written(void)
+{
+    io_di_t pin = IO_DI(2U, 1U);
+
+    start_online_boards(2);
+    TEST_ASSERT_EQUAL_INT(SW_OK, io_ops()->di_set_filter_ms(pin, 0U));
+    (void)wait_filter_sdo_count(1U, 500U);
+    TEST_ASSERT_EQUAL_INT(2, io_exp_fake_filter_sdo_board());
+    TEST_ASSERT_EQUAL_INT(1, io_exp_fake_filter_sdo_pin());
+    TEST_ASSERT_EQUAL_INT(0, io_exp_fake_filter_sdo_data());
+}
+
+static void test_di_set_filter_ms_rewrites_on_recover(void)
+{
+    io_di_t  pin   = IO_DI(1U, 2U);
+    unsigned first;
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, io_ops()->di_set_filter_ms(pin, 5U));
+    start_online_boards(2);
+    first = wait_filter_sdo_count(1U, 500U);
+
+    /* 只掉一块，避免全板离线触发安全停机 abort */
+    io_exp_fake_set_online(1, 0);
+    wait_board_online_state(1, false, 2000U);
+    TEST_ASSERT_TRUE(io_ops()->board_is_online(2));
+
+    io_exp_fake_set_online(1, 1);
+    wait_board_online_state(1, true, 4000U);
+    (void)wait_filter_sdo_count(first + 1U, 1000U);
+    TEST_ASSERT_EQUAL_INT(1, io_exp_fake_filter_sdo_board());
+    TEST_ASSERT_EQUAL_INT(2, io_exp_fake_filter_sdo_pin());
+    TEST_ASSERT_EQUAL_INT(5, io_exp_fake_filter_sdo_data());
+}
+
+static void test_di_set_filter_ms_rejects_invalid_pin(void)
+{
+    io_di_t as_do = {IO_HANDLE_MAKE(IO_KIND_DO, 1U, 1U)};
+
+    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, io_ops()->di_set_filter_ms(IO_DI(9U, 1U), 4U));
+    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, io_ops()->di_set_filter_ms(as_do, 4U));
+    TEST_ASSERT_EQUAL_UINT32(0U, io_exp_fake_filter_sdo_count());
+}
+
+static void test_di_set_filter_ms_failure_keeps_board_online(void)
+{
+    io_di_t pin = IO_DI(1U, 1U);
+
+    start_online_boards(2);
+    io_exp_fake_set_sdo_result(-1);
+    TEST_ASSERT_EQUAL_INT(SW_OK, io_ops()->di_set_filter_ms(pin, 6U));
+    (void)wait_filter_sdo_count(3U, 500U);
+    TEST_ASSERT_TRUE(io_ops()->board_is_online(1));
+    TEST_ASSERT_TRUE(io_ops()->board_is_online(2));
+}
+
 static void test_runtime_sdk_calls_share_one_worker(void)
 {
     start_online_boards(2);
@@ -484,6 +594,12 @@ int main(void)
     WDF_RUN_TEST(test_init_after_start_preserves_online_state, "", "验证start后init失败且不清除在线状态");
     WDF_RUN_TEST(test_failed_flush_keeps_output_dirty, "", "验证输出写失败保留待落地状态");
     WDF_RUN_TEST(test_runtime_sdk_calls_share_one_worker, "", "验证运行期SDK调用共享唯一worker");
+    WDF_RUN_TEST(test_unconfigured_di_filter_not_written_on_online, "", "验证未配置滤波的脚上线不下发");
+    WDF_RUN_TEST(test_di_set_filter_ms_writes_on_online, "", "验证先配置滤波再上线会下发0x2006");
+    WDF_RUN_TEST(test_di_set_filter_ms_zero_is_written, "", "验证滤波时间0也会下发");
+    WDF_RUN_TEST(test_di_set_filter_ms_rewrites_on_recover, "", "验证子板恢复后重下发已配置滤波");
+    WDF_RUN_TEST(test_di_set_filter_ms_rejects_invalid_pin, "", "验证滤波配置拒绝非法句柄");
+    WDF_RUN_TEST(test_di_set_filter_ms_failure_keeps_board_online, "", "验证滤波下发失败不把子板打成离线");
 
     return UNITY_END();
 }

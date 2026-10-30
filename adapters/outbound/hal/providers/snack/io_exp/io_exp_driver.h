@@ -248,6 +248,19 @@ int drv_io_pulse_read(io_di_t pin);
  */
 sw_err_t drv_io_pulse_clear(io_di_t pin);
 
+/**
+ * @brief  请求设置 DI 引脚的子板硬件滤波时间（CANopen SDO 对象 0x2006）。
+ * @param  pin  DI 句柄
+ * @param  ms   滤波时间（毫秒）；0 表示关闭子板滤波
+ * @retval SW_OK           请求已受理，调用方不等待总线
+ * @retval SW_ERR_PARAM    引脚无效
+ * @retval SW_ERR_NOT_INIT 驱动尚未 init
+ * @note   允许在 start 之前调用：只记值。worker 在子板在线后执行 SDO，
+ *         每脚最多尝试 IO_DI_FILTER_WRITE_MAX_TRIES 次。
+ *         未调用过的脚不下发。子板恢复后按已记录值重下发。
+ */
+sw_err_t drv_io_di_set_filter_ms(io_di_t pin, uint16_t ms);
+
 /* -------------------------------------------------------------------------
  * ADC 接口（读缓存快照；worker 按门控采集 SDK）
  * ------------------------------------------------------------------------- */

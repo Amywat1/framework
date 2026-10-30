@@ -118,6 +118,17 @@ static void test_pulse_clear_invalid_pin_returns_err(void)
     TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, hal_io_get_ops()->pulse_clear(k_bad_di));
 }
 
+static void test_di_set_filter_ms_returns_ok(void)
+{
+    TEST_ASSERT_EQUAL_INT(SW_OK, hal_io_get_ops()->di_set_filter_ms(k_valid_di, 5U));
+    TEST_ASSERT_EQUAL_INT(SW_OK, hal_io_get_ops()->di_set_filter_ms(k_valid_di, 0U));
+}
+
+static void test_di_set_filter_ms_invalid_pin_returns_err(void)
+{
+    TEST_ASSERT_EQUAL_INT(SW_ERR_PARAM, hal_io_get_ops()->di_set_filter_ms(k_bad_di, 5U));
+}
+
 static void test_pulse_counter_init_clears_value(void)
 {
     hal_io_sim_set_pulse_counter(k_valid_di, 777U);
@@ -233,6 +244,7 @@ static void test_ops_before_init_return_not_init_or_safe_value(void)
     TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_INIT, hal_io_get_ops()->do_set(k_valid_do, true));
     TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_INIT, hal_io_get_ops()->di_read(k_valid_di, &sample));
     TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_INIT, hal_io_get_ops()->pulse_clear(k_valid_di));
+    TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_INIT, hal_io_get_ops()->di_set_filter_ms(k_valid_di, 5U));
     TEST_ASSERT_EQUAL_INT(SW_ERR_NOT_INIT, hal_io_get_ops()->get_stats(1, &stats));
     TEST_ASSERT_EQUAL_INT(SW_ERR_STATE, hal_io_sim_validate_lifecycle());
 }
@@ -302,6 +314,8 @@ int main(void)
     WDF_RUN_TEST(test_pulse_clear_zeros_counter, "", "验证脉冲清除归零计数器");
     WDF_RUN_TEST(test_pulse_read_invalid_pin_returns_negative, "", "验证脉冲读取无效引脚返回负数");
     WDF_RUN_TEST(test_pulse_clear_invalid_pin_returns_err, "", "验证脉冲清除无效引脚返回错误");
+    WDF_RUN_TEST(test_di_set_filter_ms_returns_ok, "", "验证仿真滤波配置受理并返回成功");
+    WDF_RUN_TEST(test_di_set_filter_ms_invalid_pin_returns_err, "", "验证仿真滤波配置拒绝无效引脚");
     WDF_RUN_TEST(test_pulse_counter_init_clears_value, "", "验证脉冲计数器初始化清除值");
 
     WDF_RUN_TEST(test_board_is_online_always_true, "", "验证模拟板卡始终报告在线");

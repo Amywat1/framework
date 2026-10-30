@@ -79,6 +79,9 @@ sw_err_t io_exp_driver_sdk_init(const char *can_bus, int can_baud, int self_node
 #define IO_PULSE_CLEAR_SDO_INDEX      0x2005            /* 子板脉冲计数清零 SDO 对象 */
 #define IO_PULSE_CLEAR_MAX_TRIES      3U                /* 单次清零请求在 worker 内的 SDO 最大尝试次数 */
 #define IO_PULSE_INVALID_COUNT        0x0FFFFFFF        /* Snack SDK：脉冲计数溢出/无效哨兵 */
+#define IO_DI_FILTER_SDO_INDEX        0x2006            /* 子板 DI 硬件滤波时间 SDO 对象 */
+#define IO_DI_FILTER_WRITE_MAX_TRIES  3U                /* 单脚滤波下发在 worker 内的 SDO 最大尝试次数 */
+#define IO_DI_FILTER_WRITES_PER_TICK  1U                /* 每拍最多写几路，避免一次卡住刷新 */
 
 typedef enum {
     DRV_IO_TRANSACTION_FLUSH_OUTPUTS = 0
@@ -121,6 +124,7 @@ static pthread_mutex_t s_output_mutex;
 static pthread_mutex_t s_worker_mutex;
 static pthread_mutex_t s_adc_mutex;
 static pthread_mutex_t s_pulse_mutex;
+static pthread_mutex_t s_filter_mutex;
 static pthread_cond_t  s_worker_cond;
 static bool            s_worker_cond_monotonic;
 static pthread_once_t  s_mutex_once = PTHREAD_ONCE_INIT;
@@ -148,6 +152,15 @@ typedef struct {
 static drv_io_pulse_slot_t s_pulse[IO_BOARD_MAX][IO_PIN_COUNT_MAX + 1U];
 static bool                s_pulse_clear_requested; /* 任一引脚有待执行清零；s_pulse_mutex 保护 */
 
+typedef struct {
+    bool     configured; /* 调用方曾设置过该脚 */
+    bool     pending;    /* worker 尚未（或恢复后尚未再次）下发 */
+    uint16_t ms;         /* 最近一次请求的滤波时间 */
+} drv_io_filter_slot_t;
+
+static drv_io_filter_slot_t s_filter[IO_BOARD_MAX][IO_PIN_COUNT_MAX + 1U];
+static bool                 s_filter_write_requested; /* 任一引脚有待下发；s_filter_mutex 保护 */
+
 static void drv_io_mutex_init_once(void)
 {
     pthread_condattr_t attr;
@@ -158,6 +171,7 @@ static void drv_io_mutex_init_once(void)
     (void)sw_mutex_init_prio_inherit(&s_worker_mutex);
     (void)sw_mutex_init_prio_inherit(&s_adc_mutex);
     (void)sw_mutex_init_prio_inherit(&s_pulse_mutex);
+    (void)sw_mutex_init_prio_inherit(&s_filter_mutex);
 
     s_worker_cond_monotonic = false;
     ret                     = pthread_condattr_init(&attr);
@@ -386,12 +400,25 @@ static void poll_handle_detected_online(int id, uint8_t online_cnt[], uint8_t of
         }
         pthread_mutex_unlock(&s_input_mutex);
 
-        /* 子板离线期间硬件输出可能丢失，恢复后强制重发 */
+        /* 子板离线期间硬件输出与滤波配置可能丢失，恢复后强制重发 */
         drv_io_mutexes_ready();
         pthread_mutex_lock(&s_output_mutex);
         s_output_dirty[id]        = true;
         s_stats[id].dirty_pending = true;
         pthread_mutex_unlock(&s_output_mutex);
+
+        pthread_mutex_lock(&s_filter_mutex);
+        {
+            int pin_id;
+
+            for (pin_id = 1; pin_id <= s_pin_count; ++pin_id) {
+                if (s_filter[id][pin_id].configured) {
+                    s_filter[id][pin_id].pending = true;
+                    s_filter_write_requested     = true;
+                }
+            }
+        }
+        pthread_mutex_unlock(&s_filter_mutex);
 
         if (s_board_error_cb != NULL) {
             s_board_error_cb(id, false);
@@ -846,6 +873,82 @@ static void drv_io_run_pulse_clears(void)
     }
 }
 
+/**
+ * @brief  执行已受理的 DI 滤波时间下发（worker 线程，锁外 SDO）
+ * @note   子板离线时保留 pending，不上报失败。每拍最多写
+ *         IO_DI_FILTER_WRITES_PER_TICK 路；重试耗尽则放弃本次并记 ERROR，
+ *         已记录值仍保留，子板恢复后会再下发。
+ */
+static void drv_io_run_di_filter_writes(void)
+{
+    int      board_id;
+    int      pin_id;
+    unsigned written   = 0U;
+    bool     remaining = false;
+
+    drv_io_mutexes_ready();
+    pthread_mutex_lock(&s_filter_mutex);
+    if (!s_filter_write_requested) {
+        pthread_mutex_unlock(&s_filter_mutex);
+        return;
+    }
+    s_filter_write_requested = false;
+    pthread_mutex_unlock(&s_filter_mutex);
+
+    for (board_id = 1; board_id <= s_board_count; ++board_id) {
+        for (pin_id = 1; pin_id <= s_pin_count; ++pin_id) {
+            bool     pending;
+            uint16_t ms;
+
+            pthread_mutex_lock(&s_filter_mutex);
+            pending = s_filter[board_id][pin_id].pending;
+            ms      = s_filter[board_id][pin_id].ms;
+            pthread_mutex_unlock(&s_filter_mutex);
+            if (!pending) {
+                continue;
+            }
+
+            if (!drv_io_board_is_online(board_id)) {
+                remaining = true;
+                continue;
+            }
+            if (written >= IO_DI_FILTER_WRITES_PER_TICK) {
+                remaining = true;
+                continue;
+            }
+
+            {
+                sw_err_t ret = SW_ERR_COMM;
+                unsigned attempt;
+
+                for (attempt = 0U; (attempt < IO_DI_FILTER_WRITE_MAX_TRIES) && (ret != SW_OK); ++attempt) {
+                    int data = (int)ms;
+
+                    ret = (io_SDO_write(board_id, IO_DI_FILTER_SDO_INDEX, pin_id, &data) >= 0) ? SW_OK : SW_ERR_COMM;
+                }
+
+                pthread_mutex_lock(&s_filter_mutex);
+                s_filter[board_id][pin_id].pending = false;
+                pthread_mutex_unlock(&s_filter_mutex);
+                written++;
+
+                if (ret != SW_OK) {
+                    LOG_ERROR("drv_io: di filter board=%d pin=%d failed after %u tries",
+                              board_id,
+                              pin_id,
+                              (unsigned)IO_DI_FILTER_WRITE_MAX_TRIES);
+                }
+            }
+        }
+    }
+
+    if (remaining) {
+        pthread_mutex_lock(&s_filter_mutex);
+        s_filter_write_requested = true;
+        pthread_mutex_unlock(&s_filter_mutex);
+    }
+}
+
 static void drv_io_fill_wait_deadline(uint32_t timeout_ms, struct timespec *ts)
 {
     if (s_worker_cond_monotonic) {
@@ -962,6 +1065,7 @@ static void *drv_io_worker_fn(void *arg)
 
         if (do_tick) {
             drv_io_run_pulse_clears();
+            drv_io_run_di_filter_writes();
             drv_io_poll_tick();
         }
         if (run_job) {
@@ -1020,6 +1124,8 @@ sw_err_t drv_io_init(const drv_io_cfg_t *cfg)
     memset(s_adc, 0, sizeof(s_adc));
     memset(s_pulse, 0, sizeof(s_pulse));
     s_pulse_clear_requested = false;
+    memset(s_filter, 0, sizeof(s_filter));
+    s_filter_write_requested = false;
 
     /* 仅在系统启动阶段调用：这里会清空已注册回调，不作为运行期 reset 接口使用。 */
     s_debug_input_cb      = NULL;
@@ -1332,6 +1438,30 @@ sw_err_t drv_io_pulse_clear(io_di_t pin)
     s_pulse[board_id][pin_id].quality       = IO_SAMPLE_QUALITY_STALE;
     s_pulse_clear_requested                 = true;
     pthread_mutex_unlock(&s_pulse_mutex);
+    return SW_OK;
+}
+
+sw_err_t drv_io_di_set_filter_ms(io_di_t pin, uint16_t ms)
+{
+    uint16_t raw      = io_di_raw(pin);
+    int      board_id = (int)io_handle_board(raw);
+    int      pin_id   = (int)io_handle_pin(raw);
+
+    if (s_board_count <= 0) {
+        return SW_ERR_NOT_INIT;
+    }
+    if (!drv_io_is_valid_di_raw(raw)) {
+        return SW_ERR_PARAM;
+    }
+
+    /* 只登记请求：SDO 由 worker 在子板在线后执行 */
+    drv_io_mutexes_ready();
+    pthread_mutex_lock(&s_filter_mutex);
+    s_filter[board_id][pin_id].configured = true;
+    s_filter[board_id][pin_id].ms         = ms;
+    s_filter[board_id][pin_id].pending    = true;
+    s_filter_write_requested              = true;
+    pthread_mutex_unlock(&s_filter_mutex);
     return SW_OK;
 }
 

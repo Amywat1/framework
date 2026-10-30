@@ -74,7 +74,7 @@ adapters/outbound/hal
 
 ### 3.1 数字 IO：`hal_io_port`
 
-`hal_io_ops_t` 是数字 IO 的统一出站端口，覆盖初始化、后台线程启动、DI/DO 读写、子板在线状态、名称解析、统计与硬件脉冲计数器。
+`hal_io_ops_t` 是数字 IO 的统一出站端口，覆盖初始化、后台线程启动、DI/DO 读写、子板在线状态、名称解析、统计、硬件脉冲计数器与子板 DI 滤波时间。
 
 
 | 能力     | API                                                                     |
@@ -86,6 +86,7 @@ adapters/outbound/hal
 | 安全回调   | `register_panic_cb()`                                                   |
 | 诊断     | `try_parse_di()`、`try_parse_do()`、`di_name()`、`do_name()`、`get_stats()` |
 | 编码器/脉冲 | `pulse_read()`、`pulse_clear()`                                          |
+| 子板滤波   | `di_set_filter_ms(pin, ms)`                                             |
 
 
 `io_di_t` / `io_do_t` 句柄定义在 `common/io_handle.h`，项目只通过句柄和名称表表达点位，不在业务层使用 provider 原始地址。
@@ -363,7 +364,7 @@ bootstrap_start()
 
 | 测试                                 | 覆盖                                    |
 | ---------------------------------- | ------------------------------------- |
-| `test_hal_io_sim`                  | IO sim 注册、DI/DO、脉冲计数                  |
+| `test_hal_io_sim`                  | IO sim 注册、DI/DO、脉冲计数、滤波配置受理            |
 | `test_hal_sensor_filter`           | DI 滤波绑定、预热、周期采样                       |
 | `test_hal_vfd_manager`             | VFD manager 绑定、run/stop/reset、monitor |
 | `test_snack_io_exp_adapter`        | Snack io_exp driver/adapter 行为        |

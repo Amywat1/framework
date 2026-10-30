@@ -11,6 +11,8 @@
 #define IO_EXP_FAKE_ADC_NOT_INIT (-99)
 /** 与 Snack SDK 脉冲清零对象 0x2005 一致 */
 #define IO_EXP_FAKE_PULSE_CLEAR_INDEX 0x2005
+/** 与 Snack SDK DI 滤波时间对象 0x2006 一致 */
+#define IO_EXP_FAKE_DI_FILTER_INDEX   0x2006
 
 typedef struct {
     int         init_result;
@@ -44,6 +46,10 @@ typedef struct {
     int       sdo_sub_index;
     int       sdo_data;
     bool      sdo_called;
+    unsigned  filter_sdo_count;
+    int       filter_sdo_board;
+    int       filter_sdo_pin;
+    int       filter_sdo_data;
 } io_exp_fake_t;
 
 static io_exp_fake_t s_fake;
@@ -216,6 +222,26 @@ int io_exp_fake_sdo_data(void)
     return s_fake.sdo_data;
 }
 
+unsigned io_exp_fake_filter_sdo_count(void)
+{
+    return s_fake.filter_sdo_count;
+}
+
+int io_exp_fake_filter_sdo_board(void)
+{
+    return s_fake.filter_sdo_board;
+}
+
+int io_exp_fake_filter_sdo_pin(void)
+{
+    return s_fake.filter_sdo_pin;
+}
+
+int io_exp_fake_filter_sdo_data(void)
+{
+    return s_fake.filter_sdo_data;
+}
+
 int io_online_get(int id)
 {
     io_exp_fake_record_sdk_thread();
@@ -320,6 +346,12 @@ int io_SDO_write(int board_id, int index, int sub_index, int *data)
     s_fake.sdo_index     = index;
     s_fake.sdo_sub_index = sub_index;
     s_fake.sdo_data      = (data != NULL) ? *data : -1;
+    if (index == IO_EXP_FAKE_DI_FILTER_INDEX) {
+        s_fake.filter_sdo_count++;
+        s_fake.filter_sdo_board = board_id;
+        s_fake.filter_sdo_pin   = sub_index;
+        s_fake.filter_sdo_data  = (data != NULL) ? *data : -1;
+    }
     if ((s_fake.sdo_result >= 0) && (index == IO_EXP_FAKE_PULSE_CLEAR_INDEX)
         && (board_id > 0) && (board_id < IO_EXP_FAKE_BOARD_MAX)
         && (sub_index > 0) && (sub_index <= IO_EXP_FAKE_PIN_MAX)) {

@@ -30,5 +30,13 @@ int         io_exp_fake_sdo_board(void);
 int         io_exp_fake_sdo_index(void);
 int         io_exp_fake_sdo_sub_index(void);
 int         io_exp_fake_sdo_data(void);
+/** @brief 统计 `io_SDO_write` 写入 0x2006 的次数。 */
+unsigned    io_exp_fake_filter_sdo_count(void);
+/** @brief 最近一次 0x2006 写入的子板号。 */
+int         io_exp_fake_filter_sdo_board(void);
+/** @brief 最近一次 0x2006 写入的引脚号。 */
+int         io_exp_fake_filter_sdo_pin(void);
+/** @brief 最近一次 0x2006 写入的滤波时间。 */
+int         io_exp_fake_filter_sdo_data(void);
 
 #endif /* TESTS_STUBS_IO_EXP_IO_EXP_FAKE_H */

@@ -41,6 +41,8 @@
 | `test_pulse_clear_zeros_counter` | 清零计数器 | clear 后 read 0 | 通过 |
 | `test_pulse_read_invalid_pin_returns_negative` | 无效引脚读失败 | 返回值 < 0 | 通过 |
 | `test_pulse_clear_invalid_pin_returns_err` | 无效引脚清失败 | 返回 `SW_ERR_PARAM` | 通过 |
+| `test_di_set_filter_ms_returns_ok` | 仿真受理滤波配置 | 返回 `SW_OK` | 通过 |
+| `test_di_set_filter_ms_invalid_pin_returns_err` | 无效引脚滤波配置失败 | 返回 `SW_ERR_PARAM` | 通过 |
 | `test_pulse_counter_init_clears_value` | 重新 register 清零 | register 后计数为 0 | 通过 |
 
 ### D. 实用接口（5 项）
