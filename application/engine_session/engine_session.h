@@ -138,6 +138,15 @@ engine_direction_t engine_session_direction(const engine_session_t *session);
  */
 sw_err_t engine_session_check_profile(void);
 
+#ifdef ENGINE_SESSION_UNIT_TEST
+/**
+ * @brief  测试用：向 startup_done 投入一枚残留令牌
+ * @param  session  已绑定会话
+ * @note   仅测试目标编译。用于验证下次 start 会排空残留，不把占位 BUSY 当结果。
+ */
+void engine_session_test_post_startup_done(engine_session_t *session);
+#endif
+
 #ifdef __cplusplus
 }
 #endif

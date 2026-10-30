@@ -727,6 +727,7 @@ add_unit_test(test_engine_session
 )
 target_compile_definitions(test_engine_session PRIVATE
     TEST_ENGINE_SESSION_PROGRAM_PATH="/tmp/wdf_engine_session_program.json"
+    ENGINE_SESSION_UNIT_TEST
 )
 
 add_unit_test(test_recovery_emergency

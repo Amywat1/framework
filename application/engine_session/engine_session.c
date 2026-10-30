@@ -52,10 +52,23 @@ typedef struct {
 
 static engine_session_slot_t s_slots[WDF_ENGINE_SESSION_INSTANCE_COUNT];
 
+/** 0 表示无等待方；worker 读到 0 不得准备或回报。 */
+#define ENGINE_SESSION_GEN_NONE 0U
+
+/**
+ * @brief  排空 startup_done 残留令牌
+ * @note   调用方须已持 startup_mutex。计数信号量当一次性事件用时，
+ *         上次提前返回会留下令牌，下次 start 会立刻读到占位 BUSY。
+ */
+static void drain_startup_done(engine_session_t *s)
+{
+    while (sem_trywait(&s->startup_done) == 0) {}
+}
+
 static void signal_startup(engine_session_t *s, uint32_t gen, sw_err_t result)
 {
     pthread_mutex_lock(&s->startup_mutex);
-    if (s->s_active_startup_gen == gen) {
+    if ((gen != ENGINE_SESSION_GEN_NONE) && (s->s_active_startup_gen == gen)) {
         s->s_startup_result = result;
         (void)sem_post(&s->startup_done);
     }
@@ -66,10 +79,10 @@ static void invalidate_startup_gen(engine_session_t *s, uint32_t gen)
 {
     pthread_mutex_lock(&s->startup_mutex);
     if (s->s_active_startup_gen == gen) {
-        s->s_active_startup_gen = 0U;
+        s->s_active_startup_gen = ENGINE_SESSION_GEN_NONE;
         /* signal_startup 与本函数共用互斥锁。超时边界若结果已发布但
          * sem_timedwait 仍返回超时，在此排空旧代际令牌，避免污染下次启动。 */
-        while (sem_trywait(&s->startup_done) == 0) {}
+        drain_startup_done(s);
     }
     pthread_mutex_unlock(&s->startup_mutex);
 }
@@ -188,6 +201,13 @@ static void *engine_session_worker_fn(void *arg)
         startup_gen = s->s_active_startup_gen;
         pthread_mutex_unlock(&s->startup_mutex);
 
+        if (startup_gen == ENGINE_SESSION_GEN_NONE) {
+            LOG_WARN("engine_session: ignore start with no waiter name=%s",
+                     s->cfg.thread_name != NULL ? s->cfg.thread_name : "?");
+            atomic_store(&s->s_busy, false);
+            continue;
+        }
+
         previous_trace = trace_context_get();
         trace_context_set(&s->run_trace);
 
@@ -203,7 +223,8 @@ static void *engine_session_worker_fn(void *arg)
             bool waiter_active;
 
             pthread_mutex_lock(&s->startup_mutex);
-            waiter_active = (s->s_active_startup_gen == startup_gen);
+            waiter_active = (startup_gen != ENGINE_SESSION_GEN_NONE)
+                            && (s->s_active_startup_gen == startup_gen);
             pthread_mutex_unlock(&s->startup_mutex);
 
             if (!waiter_active) {
@@ -402,11 +423,14 @@ sw_err_t engine_session_start(engine_session_t *s, const engine_session_run_t *r
     pthread_mutex_lock(&s->startup_mutex);
 
     /* 启动结果由对应调用方消费前保留代际，避免后续调用覆盖结果。 */
-    if (atomic_load(&s->s_busy) || (s->s_active_startup_gen != 0U)) {
+    if (atomic_load(&s->s_busy) || (s->s_active_startup_gen != ENGINE_SESSION_GEN_NONE)) {
         pthread_mutex_unlock(&s->startup_mutex);
         LOG_WARN("engine_session_start: busy name=%s", s->cfg.thread_name);
         return SW_ERR_BUSY;
     }
+
+    /* 抢到空闲槽即排空残留。否则 leftover 令牌让等待立刻返回，读到占位 BUSY。 */
+    drain_startup_done(s);
 
     s->run = *run;
     (void)strncpy(s->program_path, run->program_path, sizeof(s->program_path) - 1U);
@@ -414,7 +438,10 @@ sw_err_t engine_session_start(engine_session_t *s, const engine_session_run_t *r
     s->run.program_path                           = s->program_path;
     s->run_trace                                  = trace_context_get();
 
-    my_gen                  = ++s->s_startup_gen;
+    my_gen = ++s->s_startup_gen;
+    if (my_gen == ENGINE_SESSION_GEN_NONE) {
+        my_gen = ++s->s_startup_gen;
+    }
     s->s_active_startup_gen = my_gen;
     s->s_startup_result     = SW_ERR_BUSY;
     atomic_store(&s->s_abort_requested, false);
@@ -440,7 +467,8 @@ sw_err_t engine_session_start(engine_session_t *s, const engine_session_run_t *r
     }
 
     ret                     = s->s_startup_result;
-    s->s_active_startup_gen = 0U;
+    s->s_active_startup_gen = ENGINE_SESSION_GEN_NONE;
+    drain_startup_done(s);
     pthread_mutex_unlock(&s->startup_mutex);
 
     if (ret != SW_OK) {
@@ -502,3 +530,13 @@ sw_err_t engine_session_check_profile(void)
     }
     return SW_OK;
 }
+
+#ifdef ENGINE_SESSION_UNIT_TEST
+void engine_session_test_post_startup_done(engine_session_t *s)
+{
+    if ((s == NULL) || !s->inited) {
+        return;
+    }
+    (void)sem_post(&s->startup_done);
+}
+#endif

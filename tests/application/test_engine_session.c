@@ -254,6 +254,22 @@ static void test_engine_session_runs_to_done(void)
     TEST_ASSERT_EQUAL_INT(1, s_stop_count);
     TEST_ASSERT_EQUAL_INT(ENGINE_DIR_NONE, engine_session_direction(session));
 
+    {
+        engine_session_run_t stale_run = make_run();
+
+        stale_run.on_started      = NULL;
+        stale_run.on_finished     = NULL;
+        stale_run.on_stop_outputs = NULL;
+        engine_session_test_post_startup_done(session);
+        TEST_ASSERT_EQUAL_INT(SW_OK, engine_session_start(session, &stale_run));
+        usleep(250000U);
+        TEST_ASSERT_FALSE(engine_session_is_busy(session));
+        engine_session_test_post_startup_done(session);
+        TEST_ASSERT_EQUAL_INT(SW_OK, engine_session_start(session, &stale_run));
+        usleep(250000U);
+        TEST_ASSERT_FALSE(engine_session_is_busy(session));
+    }
+
     TEST_ASSERT_FALSE(engine_session_abort(NULL));
     TEST_ASSERT_FALSE(engine_session_abort(session));
     TEST_ASSERT_EQUAL_INT(1, s_stop_count);
@@ -366,6 +382,6 @@ int main(void)
     WDF_RUN_TEST(test_session_profile_slots_enough, "", "验证占用上限不超过会话槽时通过");
     WDF_RUN_TEST(test_session_profile_slots_short, "", "验证占用上限超过会话槽时拒绝");
     WDF_RUN_TEST(test_engine_session_runs_to_done, "",
-                 "验证会话运行完成、中止，以及 on_finished 期间可接手下次 start");
+                 "验证会话运行完成、中止、on_finished 期间可接手下次 start，以及残留令牌不误报 BUSY");
     return UNITY_END();
 }
