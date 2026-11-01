@@ -229,6 +229,25 @@ static void test_recover_denied_when_service_disabled(void)
     TEST_ASSERT_EQUAL_INT(OP_REJECT_SERVICE_DISABLED, op_mode_handle_command(&recover_cmd).reason);
 }
 
+/* 停业时远程恢复仍拒绝；现场本地来源可归位，完成后因不变量停在停机 */
+static void test_local_recover_allowed_when_service_disabled(void)
+{
+    dev_cmd_t recover_cmd = dev_cmd_make_simple(DEV_CMD_RECOVER);
+    dev_cmd_t off_cmd     = dev_cmd_make_set_service(false);
+
+    recover_cmd.meta.source = DEV_CMD_SOURCE_LOCAL;
+    enter_idle();
+    (void)op_mode_handle_command(&off_cmd);
+    TEST_ASSERT_EQUAL_INT(OP_MODE_STOPPED, op_mode_get_current());
+    TEST_ASSERT_FALSE(op_mode_is_service_enabled());
+    TEST_ASSERT_EQUAL_INT(OP_CMD_ALLOWED, op_mode_handle_command(&recover_cmd).verdict);
+    TEST_ASSERT_EQUAL_INT(OP_MODE_RECOVERING, op_mode_get_current());
+
+    op_mode_on_recovery_completed(RECOVERY_RESULT_STANDBY);
+    TEST_ASSERT_EQUAL_INT(OP_MODE_STOPPED, op_mode_get_current());
+    TEST_ASSERT_FALSE(op_mode_is_service_enabled());
+}
+
 /* IDLE 下重复 RECOVER 幂等成功且不产生副作用 */
 static void test_recover_in_idle_is_idempotent(void)
 {
@@ -711,6 +730,8 @@ int main(void)
     WDF_RUN_TEST(test_blocking_alarm_from_idle_enters_stopped, "", "验证空闲模式阻断报警进入停止");
     WDF_RUN_TEST(test_blocking_alarm_during_home_lands_stopped, "", "验证回零期间阻断报警完成后进入停止");
     WDF_RUN_TEST(test_recover_denied_when_service_disabled, "", "验证恢复被拒绝时服务禁用");
+    WDF_RUN_TEST(test_local_recover_allowed_when_service_disabled, "",
+                 "验证停业时本地来源仍可恢复且完成后停机");
     WDF_RUN_TEST(test_recover_in_idle_is_idempotent, "", "验证恢复在空闲模式为幂等");
     WDF_RUN_TEST(test_submit_order_allowed_in_idle, "", "验证待机允许入队");
     WDF_RUN_TEST(test_stop_wash_denied_in_idle, "", "验证停止洗车被拒绝在空闲模式");

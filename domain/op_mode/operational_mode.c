@@ -337,7 +337,7 @@ static dev_cmd_decision_t check_command(const dev_cmd_t *cmd)
     }
 
     if (kind == DEV_CMD_RECOVER) {
-        if (!s_service_enabled) {
+        if (!s_service_enabled && (cmd->meta.source != DEV_CMD_SOURCE_LOCAL)) {
             return make_denied(OP_REJECT_SERVICE_DISABLED);
         }
     }
@@ -541,8 +541,10 @@ void op_mode_on_recovery_completed(recovery_result_t result)
         return;
     }
 
-    if (result == RECOVERY_RESULT_STANDBY) {
+    if ((result == RECOVERY_RESULT_STANDBY) && s_service_enabled) {
         set_mode(OP_MODE_STANDBY, NULL);
+    } else if (result == RECOVERY_RESULT_STANDBY) {
+        set_mode(OP_MODE_STOPPED, "service disabled");
     } else {
         set_mode(OP_MODE_STOPPED, "recovery failed");
     }

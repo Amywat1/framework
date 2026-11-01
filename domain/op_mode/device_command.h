@@ -48,6 +48,7 @@ typedef enum {
     DEV_CMD_SOURCE_CLI,
     DEV_CMD_SOURCE_SIM,
     DEV_CMD_SOURCE_TEST,
+    DEV_CMD_SOURCE_LOCAL, /**< 现场按键等本机来源 */
 } dev_cmd_source_t;
 
 /**
