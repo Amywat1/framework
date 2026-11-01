@@ -474,6 +474,7 @@ void op_mode_on_clear_requested(wash_abort_cause_t cause)
         return;
     }
 
+    /* 急停与全切断就地停机。CRITICAL 在洗车中仍走清障。 */
     skip_clear = (cause == WASH_ABORT_ESTOP) || (cause == WASH_ABORT_STOP_ALL) || s_estop_active;
     if (skip_clear) {
         set_mode(OP_MODE_STOPPED, wash_abort_name(cause));

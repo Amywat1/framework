@@ -20,6 +20,7 @@
 #include "wdf_test_spec.h"
 
 #define TEST_ALARM_BLOCKING ALARM_CODE_MAKE(ALM_C_DETECT, 1U, ALM_N_SIG_ERR)
+#define TEST_ALARM_SAFETY   ALARM_CODE_MAKE(ALM_C_DETECT, 9U, ALM_N_SAFETY_TRIGGER)
 
 static const alarm_def_t s_catalog[] = {
     {
@@ -28,6 +29,13 @@ static const alarm_def_t s_catalog[] = {
      .lifecycle        = ALARM_LIFECYCLE_LATCH,
      .reeval_group = ALARM_REEVAL_GROUP_NONE,
      .desc         = "test blocking",
+     },
+    {
+     .code         = TEST_ALARM_SAFETY,
+     .level        = ALARM_LEVEL_CRITICAL,
+     .lifecycle        = ALARM_LIFECYCLE_FOLLOW_SIGNAL,
+     .reeval_group = ALARM_REEVAL_GROUP_NONE,
+     .desc         = "test safety",
      },
 };
 
@@ -68,7 +76,7 @@ static const safety_ops_t s_failed_cutout_ops = {
 
 static void load_alarm_catalog(void)
 {
-    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_load_catalog(s_catalog, 1U));
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_load_catalog(s_catalog, 2U));
 }
 
 /* 辅助：从 STOPPED 经统一 recovery 路径进入 IDLE */
@@ -575,6 +583,40 @@ static void test_estop_abort_from_washing_skips_abort_homing(void)
     TEST_ASSERT_EQUAL_INT(0, s_abort_home_req);
 }
 
+/* 洗车中安全触发中止：仍进 CLEARING 并请求中止归位 */
+static void test_safety_trigger_abort_from_washing_requests_abort_homing(void)
+{
+    s_abort_home_req = 0;
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_subscribe(EVT_CLEAR_MACHINE_REQUESTED, on_abort_home_req));
+
+    enter_idle();
+    op_mode_on_job_started();
+    TEST_ASSERT_EQUAL_INT(OP_MODE_ACTIVE, op_mode_get_current());
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_trigger(TEST_ALARM_SAFETY));
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_drain());
+
+    op_mode_on_clear_requested(WASH_ABORT_CRITICAL);
+    TEST_ASSERT_EQUAL_INT(OP_MODE_CLEARING, op_mode_get_current());
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_drain());
+    TEST_ASSERT_EQUAL_INT(1, s_abort_home_req);
+}
+
+/* 非安全 CRITICAL 中止：进 CLEARING 并请求中止归位 */
+static void test_critical_abort_from_washing_requests_abort_homing(void)
+{
+    s_abort_home_req = 0;
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_subscribe(EVT_CLEAR_MACHINE_REQUESTED, on_abort_home_req));
+
+    enter_idle();
+    op_mode_on_job_started();
+    TEST_ASSERT_EQUAL_INT(OP_MODE_ACTIVE, op_mode_get_current());
+
+    op_mode_on_clear_requested(WASH_ABORT_CRITICAL);
+    TEST_ASSERT_EQUAL_INT(OP_MODE_CLEARING, op_mode_get_current());
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_drain());
+    TEST_ASSERT_EQUAL_INT(1, s_abort_home_req);
+}
+
 /* STOP_ALL：RECOVERING → STOPPED */
 static void test_stop_all_from_recovering_enters_stopped(void)
 {
@@ -697,6 +739,10 @@ int main(void)
     WDF_RUN_TEST(test_stop_all_from_idle_enters_stopped, "", "验证全停从空闲进入停止");
     WDF_RUN_TEST(test_stop_all_from_washing_skips_abort_homing, "", "验证全停洗车中不清障");
     WDF_RUN_TEST(test_estop_abort_from_washing_skips_abort_homing, "MODE-03", "验证洗车中急停中止不清障");
+    WDF_RUN_TEST(test_safety_trigger_abort_from_washing_requests_abort_homing, "",
+                 "验证洗车中安全触发中止仍请求清障");
+    WDF_RUN_TEST(test_critical_abort_from_washing_requests_abort_homing, "",
+                 "验证非安全 CRITICAL 中止仍请求清障");
     WDF_RUN_TEST(test_stop_all_from_recovering_enters_stopped, "", "验证全停打断恢复进入停止");
     WDF_RUN_TEST(test_cmd_matrix_exhaustive_96, "", "验证命令许可矩阵穷举");
 

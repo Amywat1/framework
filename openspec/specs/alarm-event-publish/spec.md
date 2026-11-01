@@ -58,7 +58,7 @@
 - **TIMING** 入队 MUST 在函数返回前完成
 
 ### Requirement: 发布不得持 registry 锁且不得在采集线程停机
-registry MUST 在释放自身互斥量之后才调用 `event_publish` / `event_publish_required`。发布路径 MUST 只入队，MUST NOT 调用 `abort_wash`、`safety_cutout_execute` 或 `safety_output_hold_request`。`abort_wash` 仍由 dispatch 线程上的 `safety_session_coordinator` 消费 `EVT_SAFETY_LOCKOUT`。
+registry MUST 在释放自身互斥量之后才调用 `event_publish` / `event_publish_required`。发布路径 MUST 只入队，MUST NOT 调用 `abort_wash`、`safety_cutout_execute` 或 `safety_output_hold_request`。`abort_wash` 仍由 dispatch 线程上的 `safety_session_coordinator` 消费 CRITICAL 的 `EVT_ALARM_TRIGGERED`。`EVT_SAFETY_LOCKOUT` MUST 仍入队表示姿态，MUST NOT 单独 `abort_wash`。
 
 #### Scenario: 持锁期间不进入总线
 - **GIVEN** 测试可观测 registry 互斥与 `event_publish` 的嵌套
@@ -84,7 +84,7 @@ registry MUST 在释放自身互斥量之后才调用 `event_publish` / `event_p
 - **THEN** 返回前总线 MUST 已含该码 `EVT_ALARM_TRIGGERED`
 
 ### Requirement: 运行模式对报警只做一次收敛
-`op_mode_bridge` MUST 在存在 blocking 活跃报警时调用单一收敛入口（离开接单/静态可运营态 → STOPPED）。MUST NOT 对同一次 CRITICAL 变位分别调用「blocking 收敛」与「critical 收敛」两个等价入口。`EVT_SAFETY_LOCKOUT` MUST 仍由 `safety_session_coordinator` 用于 `abort_wash`，MUST NOT 从总线上删除。
+`op_mode_bridge` MUST 在存在 blocking 活跃报警时调用单一收敛入口（离开接单/静态可运营态 → STOPPED）。MUST NOT 对同一次 CRITICAL 变位分别调用「blocking 收敛」与「critical 收敛」两个等价入口。`EVT_SAFETY_LOCKOUT` MUST 仍从总线上发布表示姿态，MUST NOT 由 `safety_session_coordinator` 用于 `abort_wash`。
 
 #### Scenario: CRITICAL 触发只收敛一次模式
 - **GIVEN** 模式为 IDLE，目录含 CRITICAL 码 C

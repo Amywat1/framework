@@ -225,7 +225,7 @@ Demo 加载两个报警：
 | （停机） | 延后完备停机走 `safety_ops.deferred_stop` |
 | `clear_machine` | 启动整机清障/排空（异步）；完成后须发 `EVT_CLEAR_MACHINE_DONE` |
 | `start_job` | 放行核调用：选方案或放行上链后返回；禁止在调用内跑完整工艺 |
-| `abort_jobs` | 中止全部在洗作业（急停/LOCKOUT/CLEAR） |
+| `abort_jobs` | 中止全部在洗作业（急停/CRITICAL/CLEAR） |
 | `home_device` | `recovery_coordinator` 在 Recover 路径中启动的异步全机归位；项目在此释放输出抑制（调用 `safety_output_hold_release()` 或项目急停复位） |
 | `execute_manual_actuator` | `DEV_CMD_MANUAL_ACTUATOR`：只下发/启定时后立即返回；禁止等待点动时长 |
 | `stop_all_outputs` | `DEV_CMD_STOP_ALL_OUTPUTS` 副作用：切断输出；前态 ACTIVE 时 router 另调 `abort_jobs(STOP_ALL)` |

@@ -41,6 +41,7 @@ static device_clear_alarms_status_t s_clear_poll_status;
 #define TEST_LOCKOUT_ALARM_CODE     201102U
 #define TEST_LATCH_ALARM_CODE       201103U
 #define TEST_SAFETY_ALARM_CODE      201109U
+#define TEST_ESTOP_ALARM_CODE       201709U
 #define TEST_LATCH_REEVAL_GROUP     ((motion_reeval_group_id_t)1U)
 
 static sw_err_t fake_cutout(void)
@@ -55,8 +56,7 @@ static bool fake_estop_is_active(void)
 
 static bool fake_alarm_is_estop(uint32_t code)
 {
-    (void)code;
-    return false;
+    return code == TEST_ESTOP_ALARM_CODE;
 }
 
 static void fake_deferred_stop(void)
@@ -154,6 +154,16 @@ static const alarm_def_t s_safety_catalog[] = {
      .lifecycle    = ALARM_LIFECYCLE_FOLLOW_SIGNAL,
      .reeval_group = ALARM_REEVAL_GROUP_NONE,
      .desc         = "test safety",
+     },
+};
+
+static const alarm_def_t s_estop_catalog[] = {
+    {
+     .code         = TEST_ESTOP_ALARM_CODE,
+     .level        = ALARM_LEVEL_CRITICAL,
+     .lifecycle    = ALARM_LIFECYCLE_FOLLOW_SIGNAL,
+     .reeval_group = ALARM_REEVAL_GROUP_NONE,
+     .desc         = "test estop",
      },
 };
 
@@ -361,7 +371,7 @@ static void test_cutout_estop_release_does_not_run_abort_home(void)
     TEST_ASSERT_EQUAL_INT(0, s_abort_home_count);
 }
 
-static void test_cutout_lockout_aborts_wash(void)
+static void test_lockout_edge_does_not_abort_jobs(void)
 {
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
     device_ops_register(&s_device_ops);
@@ -370,8 +380,7 @@ static void test_cutout_lockout_aborts_wash(void)
     TEST_ASSERT_EQUAL_INT(SW_OK, event_publish(EVT_SAFETY_LOCKOUT, 0U));
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_drain());
 
-    TEST_ASSERT_EQUAL_INT(1, s_abort_count);
-    TEST_ASSERT_EQUAL_INT(WASH_ABORT_CRITICAL, s_abort_cause);
+    TEST_ASSERT_EQUAL_INT(0, s_abort_count);
     TEST_ASSERT_EQUAL_INT(0, s_deferred_stop_count);
 }
 
@@ -385,6 +394,195 @@ static void test_abort_home_requested_runs_abort_home(void)
     TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_drain());
 
     TEST_ASSERT_EQUAL_INT(1, s_abort_home_count);
+}
+
+static void test_safety_trigger_aborts_jobs_without_lockout_edge(void)
+{
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_load_catalog(s_safety_catalog, 1U));
+    device_ops_register(&s_device_ops);
+    TEST_ASSERT_EQUAL_INT(SW_OK, safety_session_coordinator_init());
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_trigger(TEST_SAFETY_ALARM_CODE));
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_drain());
+
+    TEST_ASSERT_EQUAL_INT(1, s_abort_count);
+    TEST_ASSERT_EQUAL_INT(WASH_ABORT_CRITICAL, s_abort_cause);
+}
+
+static void test_second_safety_trigger_aborts_while_already_lockout(void)
+{
+    static const alarm_def_t catalog[] = {
+        {
+         .code         = TEST_LOCKOUT_ALARM_CODE,
+         .level        = ALARM_LEVEL_CRITICAL,
+         .lifecycle    = ALARM_LIFECYCLE_LATCH,
+         .reeval_group = ALARM_REEVAL_GROUP_NONE,
+         .desc         = "test lockout",
+         },
+        {
+         .code         = TEST_SAFETY_ALARM_CODE,
+         .level        = ALARM_LEVEL_CRITICAL,
+         .lifecycle    = ALARM_LIFECYCLE_FOLLOW_SIGNAL,
+         .reeval_group = ALARM_REEVAL_GROUP_NONE,
+         .desc         = "test safety",
+         },
+    };
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_load_catalog(catalog, 2U));
+    device_ops_register(&s_device_ops);
+    TEST_ASSERT_EQUAL_INT(SW_OK, safety_session_coordinator_init());
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_trigger(TEST_LOCKOUT_ALARM_CODE));
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_drain());
+    TEST_ASSERT_EQUAL_INT(1, s_abort_count);
+    TEST_ASSERT_EQUAL_INT(SAFETY_POSTURE_LOCKOUT, alarm_registry_safety_posture());
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_trigger(TEST_SAFETY_ALARM_CODE));
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_drain());
+    TEST_ASSERT_EQUAL_INT(2, s_abort_count);
+    TEST_ASSERT_EQUAL_INT(WASH_ABORT_CRITICAL, s_abort_cause);
+}
+
+static void test_second_critical_aborts_while_already_lockout(void)
+{
+    static const alarm_def_t catalog[] = {
+        {
+         .code         = TEST_SAFETY_ALARM_CODE,
+         .level        = ALARM_LEVEL_CRITICAL,
+         .lifecycle    = ALARM_LIFECYCLE_FOLLOW_SIGNAL,
+         .reeval_group = ALARM_REEVAL_GROUP_NONE,
+         .desc         = "test safety",
+         },
+        {
+         .code         = TEST_LOCKOUT_ALARM_CODE,
+         .level        = ALARM_LEVEL_CRITICAL,
+         .lifecycle    = ALARM_LIFECYCLE_LATCH,
+         .reeval_group = ALARM_REEVAL_GROUP_NONE,
+         .desc         = "test critical",
+         },
+    };
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_load_catalog(catalog, 2U));
+    device_ops_register(&s_device_ops);
+    TEST_ASSERT_EQUAL_INT(SW_OK, safety_session_coordinator_init());
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_trigger(TEST_SAFETY_ALARM_CODE));
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_drain());
+    TEST_ASSERT_EQUAL_INT(1, s_abort_count);
+    TEST_ASSERT_EQUAL_INT(SAFETY_POSTURE_LOCKOUT, alarm_registry_safety_posture());
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_trigger(TEST_LOCKOUT_ALARM_CODE));
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_drain());
+    TEST_ASSERT_EQUAL_INT(2, s_abort_count);
+    TEST_ASSERT_EQUAL_INT(WASH_ABORT_CRITICAL, s_abort_cause);
+}
+
+static void test_major_does_not_abort_while_already_lockout(void)
+{
+    static const alarm_def_t catalog[] = {
+        {
+         .code         = TEST_LOCKOUT_ALARM_CODE,
+         .level        = ALARM_LEVEL_CRITICAL,
+         .lifecycle    = ALARM_LIFECYCLE_LATCH,
+         .reeval_group = ALARM_REEVAL_GROUP_NONE,
+         .desc         = "test lockout",
+         },
+        {
+         .code         = TEST_BLOCKING_ALARM_CODE,
+         .level        = ALARM_LEVEL_MAJOR,
+         .lifecycle    = ALARM_LIFECYCLE_LATCH,
+         .reeval_group = ALARM_REEVAL_GROUP_NONE,
+         .desc         = "test major",
+         },
+    };
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_load_catalog(catalog, 2U));
+    device_ops_register(&s_device_ops);
+    TEST_ASSERT_EQUAL_INT(SW_OK, safety_session_coordinator_init());
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_trigger(TEST_LOCKOUT_ALARM_CODE));
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_drain());
+    TEST_ASSERT_EQUAL_INT(1, s_abort_count);
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_trigger(TEST_BLOCKING_ALARM_CODE));
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_drain());
+    TEST_ASSERT_EQUAL_INT(1, s_abort_count);
+}
+
+static void test_clear_machine_runs_when_safety_trigger_active(void)
+{
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_load_catalog(s_safety_catalog, 1U));
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_trigger(TEST_SAFETY_ALARM_CODE));
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_drain());
+    s_abort_count      = 0;
+    s_abort_home_count = 0;
+    device_ops_register(&s_device_ops);
+    TEST_ASSERT_EQUAL_INT(SW_OK, safety_session_coordinator_init());
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_publish(EVT_CLEAR_MACHINE_REQUESTED, 0U));
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_drain());
+
+    TEST_ASSERT_EQUAL_INT(1, s_abort_home_count);
+}
+
+static void test_clear_machine_runs_when_only_non_safety_lockout(void)
+{
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_load_catalog(s_lockout_catalog, 1U));
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_trigger(TEST_LOCKOUT_ALARM_CODE));
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_drain());
+    s_abort_home_count = 0;
+    device_ops_register(&s_device_ops);
+    TEST_ASSERT_EQUAL_INT(SW_OK, safety_session_coordinator_init());
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_publish(EVT_CLEAR_MACHINE_REQUESTED, 0U));
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_drain());
+
+    TEST_ASSERT_EQUAL_INT(1, s_abort_home_count);
+}
+
+static void test_estop_alarm_does_not_abort_jobs_as_critical(void)
+{
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_load_catalog(s_estop_catalog, 1U));
+    device_ops_register(&s_device_ops);
+    TEST_ASSERT_EQUAL_INT(SW_OK, safety_session_coordinator_init());
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_trigger(TEST_ESTOP_ALARM_CODE));
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_drain());
+
+    TEST_ASSERT_EQUAL_INT(0, s_abort_count);
+}
+
+static void test_estop_on_then_estop_alarm_does_not_abort_again(void)
+{
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_load_catalog(s_estop_catalog, 1U));
+    device_ops_register(&s_device_ops);
+    TEST_ASSERT_EQUAL_INT(SW_OK, safety_session_coordinator_init());
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_publish(EVT_HW_ESTOP_ON, 0U));
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_drain());
+    TEST_ASSERT_EQUAL_INT(1, s_abort_count);
+    TEST_ASSERT_EQUAL_INT(WASH_ABORT_ESTOP, s_abort_cause);
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, alarm_registry_trigger(TEST_ESTOP_ALARM_CODE));
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_drain());
+    TEST_ASSERT_EQUAL_INT(1, s_abort_count);
+    TEST_ASSERT_EQUAL_INT(WASH_ABORT_ESTOP, s_abort_cause);
 }
 
 static void test_cutout_estop_on_aborts_wash_and_defers_stop(void)
@@ -691,8 +889,24 @@ int main(void)
     WDF_RUN_TEST(test_recovery_critical_non_safety_starts_home, "", "验证非安全 CRITICAL 不挡恢复起步");
     WDF_RUN_TEST(test_recovery_resets_inactive_lockout_before_home, "", "验证回零前复位已失活的锁定报警");
     WDF_RUN_TEST(test_cutout_estop_release_does_not_run_abort_home, "", "验证急停释放的安全切断不执行中止回零");
-    WDF_RUN_TEST(test_cutout_lockout_aborts_wash, "", "验证安全切断锁定中止洗车");
+    WDF_RUN_TEST(test_lockout_edge_does_not_abort_jobs, "", "验证 LOCKOUT 边沿本身不停当前运动");
     WDF_RUN_TEST(test_abort_home_requested_runs_abort_home, "", "验证请求中止回零时执行中止回零操作");
+    WDF_RUN_TEST(test_safety_trigger_aborts_jobs_without_lockout_edge, "",
+                 "验证安全触发进表即中止作业");
+    WDF_RUN_TEST(test_second_safety_trigger_aborts_while_already_lockout, "",
+                 "验证已 LOCKOUT 后再来安全触发仍中止");
+    WDF_RUN_TEST(test_second_critical_aborts_while_already_lockout, "",
+                 "验证已 LOCKOUT 后再来非安全 CRITICAL 仍中止");
+    WDF_RUN_TEST(test_major_does_not_abort_while_already_lockout, "",
+                 "验证已 LOCKOUT 后再来 MAJOR 不停当前运动");
+    WDF_RUN_TEST(test_clear_machine_runs_when_safety_trigger_active, "",
+                 "验证安全触发活动时仍可清障");
+    WDF_RUN_TEST(test_clear_machine_runs_when_only_non_safety_lockout, "",
+                 "验证仅非安全 LOCKOUT 时仍可清障");
+    WDF_RUN_TEST(test_estop_alarm_does_not_abort_jobs_as_critical, "",
+                 "验证急停报警进表不按 CRITICAL 中止作业");
+    WDF_RUN_TEST(test_estop_on_then_estop_alarm_does_not_abort_again, "",
+                 "验证急停确认后再进急停报警不再按 CRITICAL 中止");
     WDF_RUN_TEST(test_cutout_estop_on_aborts_wash_and_defers_stop, "", "验证安全切断急停开启中止洗车并延后停止");
     WDF_RUN_TEST(test_leave_recovering_ignores_late_home_completed, "", "验证离开恢复后忽略迟到归位完成");
     WDF_RUN_TEST(test_estop_during_pending_home_preempts_recovery, "", "验证归位等待中急停抢占恢复并切断");

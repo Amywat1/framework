@@ -56,6 +56,8 @@ void op_mode_on_last_job_finished(void);
 
 /**
  * @brief  整机清障请求已成立（仅 ACTIVE 时进入 CLEARING）
+ * @param  cause  中止原因
+ * @note   急停或全切断时直接进 STOPPED，不开清障。安全触发在洗车中仍走清障。
  */
 void op_mode_on_clear_requested(wash_abort_cause_t cause);
 
@@ -72,7 +74,7 @@ void op_mode_on_self_check_completed(bool land_fault);
 
 /**
  * @brief  阻塞告警触发运行模式收敛（离开接单/静态可运营态 → STOPPED）。
- * @note   CRITICAL 也走本入口（LOCKOUT ⊂ blocking）；`EVT_SAFETY_LOCKOUT` 只驱动 abort_jobs。
+ * @note   CRITICAL 也走本入口（LOCKOUT ⊂ blocking）；停机构由 coordinator 订 CRITICAL 进表。
  */
 void op_mode_on_blocking_alarm(void);
 

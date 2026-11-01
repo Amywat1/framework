@@ -790,6 +790,20 @@ bool alarm_registry_has_safety_trigger_active(void)
     return active;
 }
 
+bool alarm_registry_code_is_critical(uint32_t code)
+{
+    int  idx;
+    bool critical = false;
+
+    pthread_mutex_lock(&s_mutex);
+    idx = find_def_index(code);
+    if (idx >= 0) {
+        critical = (s_catalog[(unsigned)idx].level == ALARM_LEVEL_CRITICAL);
+    }
+    pthread_mutex_unlock(&s_mutex);
+    return critical;
+}
+
 bool alarm_registry_is_active(uint32_t code)
 {
     bool active;

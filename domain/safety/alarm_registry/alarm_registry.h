@@ -106,6 +106,13 @@ void alarm_registry_reset_non_safety(void);
  */
 bool alarm_registry_has_safety_trigger_active(void);
 
+/**
+ * @brief  目录中该码是否为 CRITICAL
+ * @param  code 报警码
+ * @return 已装载且等级为 CRITICAL 时为 true；未知码为 false
+ */
+bool alarm_registry_code_is_critical(uint32_t code);
+
 bool alarm_registry_is_active(uint32_t code);
 bool alarm_registry_has_blocking_active(void);
 
