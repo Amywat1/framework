@@ -1,6 +1,6 @@
 /**
  * @file    snack_sdk.h
- * @brief   Snack SDK 薄 C 包装接口聚合（日志 / MQTT / 播放 / BLE / CLI / 运行时）
+ * @brief   Snack SDK 薄 C 包装接口聚合（日志 / MQTT / OTA / 播放 / BLE / CLI / 运行时）
  *
  * @note    供真机构建路径下需要调用 Snack SDK 的文件使用；
  *          仿真构建路径不链接 Snack SDK，不得包含本头文件。
@@ -13,6 +13,7 @@
 extern "C" {
 #endif
 
+#include <stdbool.h>
 #include <stdint.h>
 
 /* ---- 日志 ---- */
@@ -65,6 +66,30 @@ extern int net_mqtt_send(char *topic, char *msg);
 
 /** @brief 注册 MQTT 下行消息回调 */
 extern void mqtt_recv_handler_set(mqtt_recv_handler_t cb);
+
+/**
+ * @brief  Snack `ota_init` 的升级类型，取值与 SDK 一致
+ */
+typedef enum {
+    SNACK_OTA_TYPE_FILE    = 0, /**< 单文件 */
+    SNACK_OTA_TYPE_PACKAGE = 1, /**< 压缩包 */
+} snack_ota_type_t;
+
+/**
+ * @brief  向阿里云上报当前固件版本并订阅 OTA
+ * @param  version 版本字符串，不可为空；具体格式由调用方决定
+ * @param  type    `ota_init` 类型，见 `snack_ota_type_t`
+ * @return 0 已上报；非 0 客户端未就绪或 SDK 失败
+ * @note   须在 MQTT 已在线后调用。重建客户端后须由调用方再报。
+ *         本封装不决定何时上报、报哪一串版本。
+ */
+extern int snack_ota_report(const char *version, int type);
+
+/**
+ * @brief  Snack 是否正在下载或处理 OTA 包
+ * @return true 忙碌；客户端未创建时为 false
+ */
+extern bool snack_ota_busy(void);
 
 /* ---- 音乐播放 ---- */
 

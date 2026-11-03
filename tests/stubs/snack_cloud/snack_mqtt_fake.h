@@ -15,5 +15,10 @@ const char         *snack_mqtt_fake_device_secret(void);
 const char         *snack_mqtt_fake_last_topic(void);
 const char         *snack_mqtt_fake_last_payload(void);
 mqtt_recv_handler_t snack_mqtt_fake_recv_handler(void);
+void                snack_mqtt_fake_set_ota_result(int result);
+void                snack_mqtt_fake_set_ota_busy(bool busy);
+unsigned            snack_mqtt_fake_ota_report_calls(void);
+const char         *snack_mqtt_fake_ota_version(void);
+int                 snack_mqtt_fake_ota_type(void);
 
 #endif /* TESTS_STUBS_SNACK_CLOUD_SNACK_MQTT_FAKE_H */

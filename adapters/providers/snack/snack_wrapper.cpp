@@ -177,6 +177,7 @@ static int mqtt_create_and_connect(void)
 
     s_mqtt_client->connect(client_deal);
     s_mqtt_client->heartbeatSet(s_heartbeat_s);
+    /* 重建客户端会丢掉 OTA 订阅，须由调用方再报；此处不自动 ota_init */
     if (!s_mqtt_client->online) {
         return -3;
     }
@@ -246,6 +247,30 @@ int net_mqtt_send(char *topic, char *msg)
 void mqtt_recv_handler_set(mqtt_recv_handler_t cb)
 {
     s_mqtt_callback = cb;
+}
+
+int snack_ota_report(const char *version, int type)
+{
+    int ret;
+
+    if ((version == NULL) || (version[0] == '\0')) {
+        return -1;
+    }
+    if ((s_mqtt_client == NULL) || !s_mqtt_client->online) {
+        return -2;
+    }
+    ret = s_mqtt_client->ota_init(version, type);
+    if (ret != 0) {
+        LOG_WARN("snack_cloud: ota_init failed ret=%d version=%s type=%d", ret, version, type);
+        return ret;
+    }
+    LOG_INFO("snack_cloud: ota_init version=%s type=%d", version, type);
+    return 0;
+}
+
+bool snack_ota_busy(void)
+{
+    return aiot::ota_new;
 }
 
 /* -------------------------------------------------------------------------

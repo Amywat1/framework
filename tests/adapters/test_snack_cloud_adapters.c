@@ -183,6 +183,19 @@ static void test_recv_handler_and_property_reply(void)
     TEST_ASSERT_EQUAL_STRING("{\"applied\":3,\"rejected\":1}", snack_mqtt_fake_last_payload());
 }
 
+static void test_ota_report_and_busy(void)
+{
+    TEST_ASSERT_EQUAL_INT(-1, snack_ota_report(NULL, SNACK_OTA_TYPE_PACKAGE));
+    TEST_ASSERT_EQUAL_INT(-1, snack_ota_report("", SNACK_OTA_TYPE_PACKAGE));
+    TEST_ASSERT_EQUAL_INT(0, snack_ota_report("1.2.3", SNACK_OTA_TYPE_PACKAGE));
+    TEST_ASSERT_EQUAL_UINT(1U, snack_mqtt_fake_ota_report_calls());
+    TEST_ASSERT_EQUAL_STRING("1.2.3", snack_mqtt_fake_ota_version());
+    TEST_ASSERT_EQUAL_INT(SNACK_OTA_TYPE_PACKAGE, snack_mqtt_fake_ota_type());
+    TEST_ASSERT_FALSE(snack_ota_busy());
+    snack_mqtt_fake_set_ota_busy(true);
+    TEST_ASSERT_TRUE(snack_ota_busy());
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -194,6 +207,7 @@ int main(void)
     WDF_RUN_TEST(test_recv_handler_and_property_reply, "", "验证接收回调与属性应答");
     WDF_RUN_TEST(test_link_init_offline_poll_reconnects, "", "验证首次连接失败后 poll 能重连");
     WDF_RUN_TEST(test_link_poll_offline_respects_reconnect_interval, "", "验证离线重连遵守最小间隔");
+    WDF_RUN_TEST(test_ota_report_and_busy, "", "验证 OTA 上报版本/类型与忙碌查询");
 
     return UNITY_END();
 }

@@ -9,13 +9,18 @@ typedef struct {
     int                 connect_result;
     int                 online;
     int                 send_result;
+    int                 ota_report_result;
+    bool                ota_busy;
     unsigned            connect_calls;
+    unsigned            ota_report_calls;
+    int                 ota_type;
     char                product_key[64];
     char                device_name[64];
     char                device_secret[64];
     char                iot_instance[64];
     char                last_topic[128];
     char                last_payload[256];
+    char                ota_version[64];
     mqtt_recv_handler_t recv_cb;
 } snack_mqtt_fake_t;
 
@@ -126,4 +131,45 @@ int net_mqtt_send(char *topic, char *msg)
 void mqtt_recv_handler_set(mqtt_recv_handler_t cb)
 {
     s_fake.recv_cb = cb;
+}
+
+int snack_ota_report(const char *version, int type)
+{
+    if ((version == NULL) || (version[0] == '\0')) {
+        return -1;
+    }
+    s_fake.ota_type = type;
+    s_fake.ota_report_calls++;
+    snprintf(s_fake.ota_version, sizeof(s_fake.ota_version), "%s", version);
+    return s_fake.ota_report_result;
+}
+
+bool snack_ota_busy(void)
+{
+    return s_fake.ota_busy;
+}
+
+void snack_mqtt_fake_set_ota_result(int result)
+{
+    s_fake.ota_report_result = result;
+}
+
+void snack_mqtt_fake_set_ota_busy(bool busy)
+{
+    s_fake.ota_busy = busy;
+}
+
+unsigned snack_mqtt_fake_ota_report_calls(void)
+{
+    return s_fake.ota_report_calls;
+}
+
+const char *snack_mqtt_fake_ota_version(void)
+{
+    return s_fake.ota_version;
+}
+
+int snack_mqtt_fake_ota_type(void)
+{
+    return s_fake.ota_type;
 }
