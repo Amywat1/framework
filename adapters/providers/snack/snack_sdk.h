@@ -13,6 +13,7 @@
 extern "C" {
 #endif
 
+#include <stddef.h>
 #include <stdbool.h>
 #include <stdint.h>
 
@@ -90,6 +91,39 @@ extern int snack_ota_report(const char *version, int type);
  * @return true 忙碌；客户端未创建时为 false
  */
 extern bool snack_ota_busy(void);
+
+/**
+ * @brief  云端 OTA 任务使用的摘要算法
+ */
+typedef enum {
+    SNACK_OTA_DIGEST_NONE   = 0, /**< 尚无任务 */
+    SNACK_OTA_DIGEST_MD5    = 1, /**< MD5 */
+    SNACK_OTA_DIGEST_SHA256 = 2, /**< SHA-256 */
+} snack_ota_digest_method_t;
+
+/** 摘要 hex 缓冲最小长度（含结尾 NUL） */
+#define SNACK_OTA_DIGEST_HEX_MAX 65U
+
+/**
+ * @brief  读取最近一次压缩包任务的摘要
+ * @param  method      输出算法，不可为空
+ * @param  digest      输出小写 hex，不可为空
+ * @param  digest_len  `digest` 字节数，须不小于 `SNACK_OTA_DIGEST_HEX_MAX`
+ * @param  size_bytes  输出任务声明的文件大小；可为 NULL
+ * @return 0 已有任务；非 0 尚无任务或参数非法
+ * @note   摘要在任务下行时拷走。每次 `snack_ota_report` 会清空上次任务。
+ *         本封装不决定落盘路径，也不安装固件。
+ */
+extern int snack_ota_job_digest(snack_ota_digest_method_t *method, char *digest, size_t digest_len,
+                                uint32_t *size_bytes);
+
+/**
+ * @brief  按最近任务摘要在压缩包旁写 sidecar
+ * @param  bundle_path 压缩包路径，不可为空
+ * @return 0 已写入；非 0 无任务、路径非法或写失败
+ * @note   SHA-256 写 `路径.sha256`，MD5 写 `路径.md5`。一行：`hex  文件名`。
+ */
+extern int snack_ota_write_job_sidecar(const char *bundle_path);
 
 /* ---- 音乐播放 ---- */
 

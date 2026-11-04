@@ -12,9 +12,12 @@
 #include "music/music.h"
 #include "third_party/cJSON/cJSON.h"
 #include "aliot/aiot.h"
+#include "aiot/aiot_ota_api.h"
 #include "ble.h"
 #include <cstdio>
 #include <cstring>
+#include <libgen.h>
+#include <pthread.h>
 #include <stdarg.h>
 #include <sstream>
 #include <string>
@@ -249,6 +252,93 @@ void mqtt_recv_handler_set(mqtt_recv_handler_t cb)
     s_mqtt_callback = cb;
 }
 
+/** 任务摘要 hex 最长 SHA-256 */
+#define SNACK_OTA_DIGEST_STORE_MAX SNACK_OTA_DIGEST_HEX_MAX
+/** sidecar 路径 = 原路径 + ".sha256" */
+#define SNACK_OTA_SIDECAR_PATH_MAX 512U
+
+static pthread_mutex_t           s_ota_digest_mux = PTHREAD_MUTEX_INITIALIZER;
+static snack_ota_digest_method_t s_ota_digest_method = SNACK_OTA_DIGEST_NONE;
+static char                      s_ota_digest_hex[SNACK_OTA_DIGEST_STORE_MAX];
+static uint32_t                  s_ota_digest_size;
+
+/**
+ * @brief  清空已缓存的任务摘要
+ */
+static void snack_ota_digest_clear_locked(void)
+{
+    s_ota_digest_method = SNACK_OTA_DIGEST_NONE;
+    s_ota_digest_hex[0] = '\0';
+    s_ota_digest_size   = 0U;
+}
+
+/**
+ * @brief  清空任务摘要（上报前调用，避免套用上一任务）
+ */
+static void snack_ota_digest_clear(void)
+{
+    (void)pthread_mutex_lock(&s_ota_digest_mux);
+    snack_ota_digest_clear_locked();
+    (void)pthread_mutex_unlock(&s_ota_digest_mux);
+}
+
+/**
+ * @brief  从任务描述拷走算法与摘要
+ * @param  desc 阿里云任务；空或字段不全则忽略
+ */
+static void snack_ota_digest_store(const aiot_download_task_desc_t *desc)
+{
+    snack_ota_digest_method_t method;
+    size_t                    len;
+
+    if ((desc == NULL) || (desc->expect_digest == NULL) || (desc->expect_digest[0] == '\0')) {
+        return;
+    }
+    if (desc->digest_method == AIOT_OTA_DIGEST_MD5) {
+        method = SNACK_OTA_DIGEST_MD5;
+    } else if (desc->digest_method == AIOT_OTA_DIGEST_SHA256) {
+        method = SNACK_OTA_DIGEST_SHA256;
+    } else {
+        return;
+    }
+    len = std::strlen(desc->expect_digest);
+    if ((len == 0U) || (len >= sizeof(s_ota_digest_hex))) {
+        return;
+    }
+    (void)pthread_mutex_lock(&s_ota_digest_mux);
+    s_ota_digest_method = method;
+    (void)std::memcpy(s_ota_digest_hex, desc->expect_digest, len + 1U);
+    s_ota_digest_size = desc->size_total;
+    (void)pthread_mutex_unlock(&s_ota_digest_mux);
+}
+
+/**
+ * @brief  先拷任务摘要，再交给 Snack 原回调继续下载
+ */
+static void snack_ota_recv_wrapper(void *handle, const aiot_ota_recv_t *const msg, void *userdata)
+{
+    if ((msg != NULL) && (msg->task_desc != NULL)) {
+        snack_ota_digest_store(msg->task_desc);
+    }
+    aiot::ota_recv_cb(handle, const_cast<void *>(static_cast<const void *>(msg)), userdata);
+}
+
+/**
+ * @brief  把包装回调挂到本次 `ota_init` 创建的句柄上
+ */
+static void snack_ota_hook_recv(void)
+{
+    int32_t ret;
+
+    if ((s_mqtt_client == NULL) || (s_mqtt_client->ota == NULL)) {
+        return;
+    }
+    ret = aiot_ota_setopt(s_mqtt_client->ota, AIOT_OTAOPT_RECV_HANDLER, (void *)snack_ota_recv_wrapper);
+    if (ret != 0) {
+        LOG_WARN("snack_cloud: ota recv hook failed ret=%d", (int)ret);
+    }
+}
+
 int snack_ota_report(const char *version, int type)
 {
     int ret;
@@ -259,11 +349,13 @@ int snack_ota_report(const char *version, int type)
     if ((s_mqtt_client == NULL) || !s_mqtt_client->online) {
         return -2;
     }
+    snack_ota_digest_clear();
     ret = s_mqtt_client->ota_init(version, type);
     if (ret != 0) {
         LOG_WARN("snack_cloud: ota_init failed ret=%d version=%s type=%d", ret, version, type);
         return ret;
     }
+    snack_ota_hook_recv();
     LOG_INFO("snack_cloud: ota_init version=%s type=%d", version, type);
     return 0;
 }
@@ -271,6 +363,70 @@ int snack_ota_report(const char *version, int type)
 bool snack_ota_busy(void)
 {
     return aiot::ota_new;
+}
+
+int snack_ota_job_digest(snack_ota_digest_method_t *method, char *digest, size_t digest_len,
+                         uint32_t *size_bytes)
+{
+    int ret = -1;
+
+    if ((method == NULL) || (digest == NULL) || (digest_len < SNACK_OTA_DIGEST_HEX_MAX)) {
+        return -1;
+    }
+    (void)pthread_mutex_lock(&s_ota_digest_mux);
+    if (s_ota_digest_method != SNACK_OTA_DIGEST_NONE) {
+        *method = s_ota_digest_method;
+        (void)std::snprintf(digest, digest_len, "%s", s_ota_digest_hex);
+        if (size_bytes != NULL) {
+            *size_bytes = s_ota_digest_size;
+        }
+        ret = 0;
+    }
+    (void)pthread_mutex_unlock(&s_ota_digest_mux);
+    return ret;
+}
+
+int snack_ota_write_job_sidecar(const char *bundle_path)
+{
+    snack_ota_digest_method_t method;
+    char                      digest[SNACK_OTA_DIGEST_HEX_MAX];
+    char                      sidecar[SNACK_OTA_SIDECAR_PATH_MAX];
+    char                      name_buf[SNACK_OTA_SIDECAR_PATH_MAX];
+    const char               *suffix;
+    const char               *base;
+    FILE                     *fp;
+    int                      n;
+
+    if ((bundle_path == NULL) || (bundle_path[0] == '\0')) {
+        return -1;
+    }
+    if (snack_ota_job_digest(&method, digest, sizeof(digest), NULL) != 0) {
+        return -1;
+    }
+    if (method == SNACK_OTA_DIGEST_MD5) {
+        suffix = ".md5";
+    } else if (method == SNACK_OTA_DIGEST_SHA256) {
+        suffix = ".sha256";
+    } else {
+        return -1;
+    }
+    n = std::snprintf(sidecar, sizeof(sidecar), "%s%s", bundle_path, suffix);
+    if ((n < 0) || ((size_t)n >= sizeof(sidecar))) {
+        return -1;
+    }
+    (void)std::snprintf(name_buf, sizeof(name_buf), "%s", bundle_path);
+    base = basename(name_buf);
+    if ((base == NULL) || (base[0] == '\0')) {
+        return -1;
+    }
+    fp = std::fopen(sidecar, "w");
+    if (fp == NULL) {
+        LOG_WARN("snack_cloud: cannot write ota sidecar path=%s", sidecar);
+        return -1;
+    }
+    (void)std::fprintf(fp, "%s  %s\n", digest, base);
+    (void)std::fclose(fp);
+    return 0;
 }
 
 /* -------------------------------------------------------------------------

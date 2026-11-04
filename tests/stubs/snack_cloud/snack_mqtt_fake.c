@@ -13,15 +13,18 @@ typedef struct {
     bool                ota_busy;
     unsigned            connect_calls;
     unsigned            ota_report_calls;
-    int                 ota_type;
-    char                product_key[64];
-    char                device_name[64];
-    char                device_secret[64];
-    char                iot_instance[64];
-    char                last_topic[128];
-    char                last_payload[256];
-    char                ota_version[64];
-    mqtt_recv_handler_t recv_cb;
+    int                       ota_type;
+    snack_ota_digest_method_t ota_digest_method;
+    uint32_t                  ota_digest_size;
+    char                      product_key[64];
+    char                      device_name[64];
+    char                      device_secret[64];
+    char                      iot_instance[64];
+    char                      last_topic[128];
+    char                      last_payload[256];
+    char                      ota_version[64];
+    char                      ota_digest_hex[SNACK_OTA_DIGEST_HEX_MAX];
+    mqtt_recv_handler_t       recv_cb;
 } snack_mqtt_fake_t;
 
 static snack_mqtt_fake_t s_fake;
@@ -141,7 +144,68 @@ int snack_ota_report(const char *version, int type)
     s_fake.ota_type = type;
     s_fake.ota_report_calls++;
     snprintf(s_fake.ota_version, sizeof(s_fake.ota_version), "%s", version);
+    s_fake.ota_digest_method = SNACK_OTA_DIGEST_NONE;
+    s_fake.ota_digest_hex[0] = '\0';
+    s_fake.ota_digest_size   = 0U;
     return s_fake.ota_report_result;
+}
+
+int snack_ota_job_digest(snack_ota_digest_method_t *method, char *digest, size_t digest_len,
+                         uint32_t *size_bytes)
+{
+    if ((method == NULL) || (digest == NULL) || (digest_len < SNACK_OTA_DIGEST_HEX_MAX)) {
+        return -1;
+    }
+    if (s_fake.ota_digest_method == SNACK_OTA_DIGEST_NONE) {
+        return -1;
+    }
+    *method = s_fake.ota_digest_method;
+    snprintf(digest, digest_len, "%s", s_fake.ota_digest_hex);
+    if (size_bytes != NULL) {
+        *size_bytes = s_fake.ota_digest_size;
+    }
+    return 0;
+}
+
+int snack_ota_write_job_sidecar(const char *bundle_path)
+{
+    snack_ota_digest_method_t method;
+    char                      digest[SNACK_OTA_DIGEST_HEX_MAX];
+    char                      sidecar[512];
+    const char               *suffix;
+    const char               *base;
+    FILE                     *fp;
+    int                       n;
+
+    if ((bundle_path == NULL) || (bundle_path[0] == '\0')) {
+        return -1;
+    }
+    if (snack_ota_job_digest(&method, digest, sizeof(digest), NULL) != 0) {
+        return -1;
+    }
+    if (method == SNACK_OTA_DIGEST_MD5) {
+        suffix = ".md5";
+    } else if (method == SNACK_OTA_DIGEST_SHA256) {
+        suffix = ".sha256";
+    } else {
+        return -1;
+    }
+    n = snprintf(sidecar, sizeof(sidecar), "%s%s", bundle_path, suffix);
+    if ((n < 0) || ((size_t)n >= sizeof(sidecar))) {
+        return -1;
+    }
+    base = strrchr(bundle_path, '/');
+    base = (base != NULL) ? (base + 1) : bundle_path;
+    if (base[0] == '\0') {
+        return -1;
+    }
+    fp = fopen(sidecar, "w");
+    if (fp == NULL) {
+        return -1;
+    }
+    (void)fprintf(fp, "%s  %s\n", digest, base);
+    (void)fclose(fp);
+    return 0;
 }
 
 bool snack_ota_busy(void)
@@ -157,6 +221,19 @@ void snack_mqtt_fake_set_ota_result(int result)
 void snack_mqtt_fake_set_ota_busy(bool busy)
 {
     s_fake.ota_busy = busy;
+}
+
+void snack_mqtt_fake_set_ota_job_digest(snack_ota_digest_method_t method, const char *digest,
+                                        uint32_t size_bytes)
+{
+    s_fake.ota_digest_method = method;
+    s_fake.ota_digest_size   = size_bytes;
+    if (digest != NULL) {
+        snprintf(s_fake.ota_digest_hex, sizeof(s_fake.ota_digest_hex), "%s", digest);
+    } else {
+        s_fake.ota_digest_hex[0] = '\0';
+        s_fake.ota_digest_method = SNACK_OTA_DIGEST_NONE;
+    }
 }
 
 unsigned snack_mqtt_fake_ota_report_calls(void)

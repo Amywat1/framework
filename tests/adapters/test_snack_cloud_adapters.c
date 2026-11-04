@@ -12,6 +12,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <unistd.h>
 
 static char     s_last_recv[256];
 static unsigned s_recv_count;
@@ -196,6 +197,41 @@ static void test_ota_report_and_busy(void)
     TEST_ASSERT_TRUE(snack_ota_busy());
 }
 
+static void test_ota_job_digest_and_sidecar(void)
+{
+    snack_ota_digest_method_t method = SNACK_OTA_DIGEST_NONE;
+    char                      digest[SNACK_OTA_DIGEST_HEX_MAX];
+    uint32_t                  size = 0U;
+    FILE                     *fp;
+    char                      line[128];
+    static const char        *k_bundle = "ota-job-digest.bin";
+    static const char        *k_side   = "ota-job-digest.bin.sha256";
+    static const char        *k_hex    = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+
+    TEST_ASSERT_EQUAL_INT(-1, snack_ota_job_digest(NULL, digest, sizeof(digest), NULL));
+    TEST_ASSERT_EQUAL_INT(-1, snack_ota_job_digest(&method, digest, sizeof(digest), &size));
+    TEST_ASSERT_EQUAL_INT(-1, snack_ota_write_job_sidecar(k_bundle));
+
+    snack_mqtt_fake_set_ota_job_digest(SNACK_OTA_DIGEST_SHA256, k_hex, 4096U);
+    TEST_ASSERT_EQUAL_INT(0, snack_ota_job_digest(&method, digest, sizeof(digest), &size));
+    TEST_ASSERT_EQUAL_INT(SNACK_OTA_DIGEST_SHA256, method);
+    TEST_ASSERT_EQUAL_STRING(k_hex, digest);
+    TEST_ASSERT_EQUAL_UINT32(4096U, size);
+
+    (void)unlink(k_side);
+    TEST_ASSERT_EQUAL_INT(0, snack_ota_write_job_sidecar(k_bundle));
+    fp = fopen(k_side, "r");
+    TEST_ASSERT_NOT_NULL(fp);
+    TEST_ASSERT_NOT_NULL(fgets(line, sizeof(line), fp));
+    (void)fclose(fp);
+    (void)unlink(k_side);
+    TEST_ASSERT_NOT_NULL(strstr(line, k_hex));
+    TEST_ASSERT_NOT_NULL(strstr(line, k_bundle));
+
+    TEST_ASSERT_EQUAL_INT(0, snack_ota_report("1.2.3", SNACK_OTA_TYPE_PACKAGE));
+    TEST_ASSERT_EQUAL_INT(-1, snack_ota_job_digest(&method, digest, sizeof(digest), &size));
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -208,6 +244,7 @@ int main(void)
     WDF_RUN_TEST(test_link_init_offline_poll_reconnects, "", "验证首次连接失败后 poll 能重连");
     WDF_RUN_TEST(test_link_poll_offline_respects_reconnect_interval, "", "验证离线重连遵守最小间隔");
     WDF_RUN_TEST(test_ota_report_and_busy, "", "验证 OTA 上报版本/类型与忙碌查询");
+    WDF_RUN_TEST(test_ota_job_digest_and_sidecar, "", "验证 OTA 任务摘要读取、sidecar 与上报清空");
 
     return UNITY_END();
 }
