@@ -11,7 +11,10 @@
 #include "cli/cli.h"
 #include "music/music.h"
 #include "third_party/cJSON/cJSON.h"
+/* SDK 头文件把 ota_recv_cb 标为 private，但 libsnack 仍导出该符号；挂钩里须转调 Snack 原下载逻辑。 */
+#define private public
 #include "aliot/aiot.h"
+#undef private
 #include "aiot/aiot_ota_api.h"
 #include "ble.h"
 #include <cstdio>
