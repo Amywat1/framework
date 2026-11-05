@@ -141,7 +141,7 @@ typedef uint16_t event_type_t;
 #define EVT_OP_MODE_ID_CONTEXT_SYNC         4U
 #define EVT_OP_MODE_ID_CMD_HANDLED          5U /**< 命令处理完成（kind/status/reason 编码于 param）*/
 #define EVT_OP_MODE_ID_HOME_COMPLETED         6U /**< 内部归位完成（param=1 成功）*/
-#define EVT_OP_MODE_ID_CLEAR_MACHINE_REQUESTED 7U /**< 整机清障请求（进入 CLEARING 时发布）*/
+#define EVT_OP_MODE_ID_CLEAR_MACHINE_REQUESTED 7U /**< 整机清障请求（进入 CLEARING 时发布；param 为 wash_abort_cause_t）*/
 
 #define EVT_OP_MODE_CHANGED              EVT_MAKE(EVT_CAT_OP_MODE, EVT_OP_MODE_ID_CHANGED)
 #define EVT_OP_MODE_RECOVERY_REQUESTED   EVT_MAKE(EVT_CAT_OP_MODE, EVT_OP_MODE_ID_RECOVERY_REQUESTED)

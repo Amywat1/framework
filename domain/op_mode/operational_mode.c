@@ -412,7 +412,8 @@ dev_cmd_decision_t op_mode_handle_command(const dev_cmd_t *cmd)
 
     case DEV_CMD_CLEAR_MACHINE:
         set_mode(OP_MODE_CLEARING, "clear machine");
-        (void)event_publish_required(EVT_CLEAR_MACHINE_REQUESTED, 0U);
+        (void)event_publish_required(EVT_CLEAR_MACHINE_REQUESTED,
+                                     wash_abort_evt_param(WASH_ABORT_MANUAL));
         break;
 
     case DEV_CMD_SUBMIT_ORDER:
@@ -483,7 +484,7 @@ void op_mode_on_clear_requested(wash_abort_cause_t cause)
     }
 
     set_mode(OP_MODE_CLEARING, wash_abort_name(cause));
-    (void)event_publish_required(EVT_CLEAR_MACHINE_REQUESTED, 0U);
+    (void)event_publish_required(EVT_CLEAR_MACHINE_REQUESTED, wash_abort_evt_param(cause));
     op_mode_unlock();
 }
 

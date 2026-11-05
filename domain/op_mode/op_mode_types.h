@@ -104,7 +104,7 @@ static inline uint32_t wash_abort_evt_param(wash_abort_cause_t cause)
 
 /**
  * @brief  从 32 位事件参数解码中止原因
- * @note   EVT_JOB_ABORTED 的 param 现为 job_id，不得用本函数解读。
+ * @note   供 EVT_CLEAR_MACHINE_REQUESTED 使用。EVT_JOB_ABORTED 的 param 是 job_id，不得用本函数解读。
  */
 static inline wash_abort_cause_t wash_abort_from_evt_param(uint32_t param)
 {
