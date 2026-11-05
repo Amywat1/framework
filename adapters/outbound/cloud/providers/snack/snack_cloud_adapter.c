@@ -231,6 +231,26 @@ sw_err_t snack_cloud_property_reply(const char *request_json, const point_apply_
     return SW_OK;
 }
 
+static sw_err_t ota_report(const char *version)
+{
+    return (snack_ota_report(version) == 0) ? SW_OK : SW_ERR_COMM;
+}
+
+static const ota_channel_ops_t s_ota_channel = {
+    .report = ota_report,
+    .busy   = snack_ota_busy,
+};
+
+const ota_channel_ops_t *snack_cloud_ota_channel(void)
+{
+    return &s_ota_channel;
+}
+
+sw_err_t snack_cloud_ota_write_sidecar(const char *bundle_path)
+{
+    return (snack_ota_write_job_sidecar(bundle_path) == 0) ? SW_OK : SW_ERR_STATE;
+}
+
 static const cloud_link_ops_t s_ops = {
     .init                     = link_init,
     .is_online                = link_is_online,

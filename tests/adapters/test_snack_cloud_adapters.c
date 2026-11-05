@@ -12,7 +12,6 @@
 
 #include <stdio.h>
 #include <string.h>
-#include <unistd.h>
 
 static char     s_last_recv[256];
 static unsigned s_recv_count;
@@ -184,52 +183,23 @@ static void test_recv_handler_and_property_reply(void)
     TEST_ASSERT_EQUAL_STRING("{\"applied\":3,\"rejected\":1}", snack_mqtt_fake_last_payload());
 }
 
-static void test_ota_report_and_busy(void)
+static void test_ota_channel_forwards_to_snack(void)
 {
-    TEST_ASSERT_EQUAL_INT(-1, snack_ota_report(NULL, SNACK_OTA_TYPE_PACKAGE));
-    TEST_ASSERT_EQUAL_INT(-1, snack_ota_report("", SNACK_OTA_TYPE_PACKAGE));
-    TEST_ASSERT_EQUAL_INT(0, snack_ota_report("1.2.3", SNACK_OTA_TYPE_PACKAGE));
+    const ota_channel_ops_t *ch = snack_cloud_ota_channel();
+
+    TEST_ASSERT_NOT_NULL(ch);
+    TEST_ASSERT_EQUAL_INT(SW_ERR_COMM, ch->report(""));
+    TEST_ASSERT_EQUAL_INT(SW_OK, ch->report("v1.2.3"));
     TEST_ASSERT_EQUAL_UINT(1U, snack_mqtt_fake_ota_report_calls());
-    TEST_ASSERT_EQUAL_STRING("1.2.3", snack_mqtt_fake_ota_version());
-    TEST_ASSERT_EQUAL_INT(SNACK_OTA_TYPE_PACKAGE, snack_mqtt_fake_ota_type());
-    TEST_ASSERT_FALSE(snack_ota_busy());
+    TEST_ASSERT_EQUAL_STRING("v1.2.3", snack_mqtt_fake_ota_version());
+    TEST_ASSERT_FALSE(ch->busy());
     snack_mqtt_fake_set_ota_busy(true);
-    TEST_ASSERT_TRUE(snack_ota_busy());
-}
+    TEST_ASSERT_TRUE(ch->busy());
 
-static void test_ota_job_digest_and_sidecar(void)
-{
-    snack_ota_digest_method_t method = SNACK_OTA_DIGEST_NONE;
-    char                      digest[SNACK_OTA_DIGEST_HEX_MAX];
-    uint32_t                  size = 0U;
-    FILE                     *fp;
-    char                      line[128];
-    static const char        *k_bundle = "ota-job-digest.bin";
-    static const char        *k_side   = "ota-job-digest.bin.sha256";
-    static const char        *k_hex    = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
-
-    TEST_ASSERT_EQUAL_INT(-1, snack_ota_job_digest(NULL, digest, sizeof(digest), NULL));
-    TEST_ASSERT_EQUAL_INT(-1, snack_ota_job_digest(&method, digest, sizeof(digest), &size));
-    TEST_ASSERT_EQUAL_INT(-1, snack_ota_write_job_sidecar(k_bundle));
-
-    snack_mqtt_fake_set_ota_job_digest(SNACK_OTA_DIGEST_SHA256, k_hex, 4096U);
-    TEST_ASSERT_EQUAL_INT(0, snack_ota_job_digest(&method, digest, sizeof(digest), &size));
-    TEST_ASSERT_EQUAL_INT(SNACK_OTA_DIGEST_SHA256, method);
-    TEST_ASSERT_EQUAL_STRING(k_hex, digest);
-    TEST_ASSERT_EQUAL_UINT32(4096U, size);
-
-    (void)unlink(k_side);
-    TEST_ASSERT_EQUAL_INT(0, snack_ota_write_job_sidecar(k_bundle));
-    fp = fopen(k_side, "r");
-    TEST_ASSERT_NOT_NULL(fp);
-    TEST_ASSERT_NOT_NULL(fgets(line, sizeof(line), fp));
-    (void)fclose(fp);
-    (void)unlink(k_side);
-    TEST_ASSERT_NOT_NULL(strstr(line, k_hex));
-    TEST_ASSERT_NOT_NULL(strstr(line, k_bundle));
-
-    TEST_ASSERT_EQUAL_INT(0, snack_ota_report("1.2.3", SNACK_OTA_TYPE_PACKAGE));
-    TEST_ASSERT_EQUAL_INT(-1, snack_ota_job_digest(&method, digest, sizeof(digest), &size));
+    TEST_ASSERT_EQUAL_INT(SW_OK, snack_cloud_ota_write_sidecar("/w/update.tar.gz"));
+    TEST_ASSERT_EQUAL_STRING("/w/update.tar.gz", snack_mqtt_fake_ota_sidecar_path());
+    snack_mqtt_fake_set_ota_sidecar_result(-1);
+    TEST_ASSERT_EQUAL_INT(SW_ERR_STATE, snack_cloud_ota_write_sidecar("/w/update.tar.gz"));
 }
 
 int main(void)
@@ -243,8 +213,7 @@ int main(void)
     WDF_RUN_TEST(test_recv_handler_and_property_reply, "", "验证接收回调与属性应答");
     WDF_RUN_TEST(test_link_init_offline_poll_reconnects, "", "验证首次连接失败后 poll 能重连");
     WDF_RUN_TEST(test_link_poll_offline_respects_reconnect_interval, "", "验证离线重连遵守最小间隔");
-    WDF_RUN_TEST(test_ota_report_and_busy, "", "验证 OTA 上报版本/类型与忙碌查询");
-    WDF_RUN_TEST(test_ota_job_digest_and_sidecar, "", "验证 OTA 任务摘要读取、sidecar 与上报清空");
+    WDF_RUN_TEST(test_ota_channel_forwards_to_snack, "", "验证 OTA 通道转发上报、忙碌与 sidecar 并映射错误码");
 
     return UNITY_END();
 }

@@ -255,15 +255,23 @@ void mqtt_recv_handler_set(mqtt_recv_handler_t cb)
     s_mqtt_callback = cb;
 }
 
-/** 任务摘要 hex 最长 SHA-256 */
-#define SNACK_OTA_DIGEST_STORE_MAX SNACK_OTA_DIGEST_HEX_MAX
+/** `ota_init` 压缩包类型，取值与 SDK 一致 */
+#define SNACK_OTA_INIT_TYPE_PACKAGE 1
+/** 任务摘要 hex 缓冲（SHA-256 64 位 + NUL） */
+#define SNACK_OTA_DIGEST_HEX_MAX 65U
 /** sidecar 路径 = 原路径 + ".sha256" */
 #define SNACK_OTA_SIDECAR_PATH_MAX 512U
 
+/** 云端 OTA 任务使用的摘要算法 */
+typedef enum {
+    SNACK_OTA_DIGEST_NONE   = 0, /**< 尚无任务 */
+    SNACK_OTA_DIGEST_MD5    = 1, /**< MD5 */
+    SNACK_OTA_DIGEST_SHA256 = 2, /**< SHA-256 */
+} snack_ota_digest_method_t;
+
 static pthread_mutex_t           s_ota_digest_mux = PTHREAD_MUTEX_INITIALIZER;
 static snack_ota_digest_method_t s_ota_digest_method = SNACK_OTA_DIGEST_NONE;
-static char                      s_ota_digest_hex[SNACK_OTA_DIGEST_STORE_MAX];
-static uint32_t                  s_ota_digest_size;
+static char                      s_ota_digest_hex[SNACK_OTA_DIGEST_HEX_MAX];
 
 /**
  * @brief  清空已缓存的任务摘要
@@ -272,7 +280,6 @@ static void snack_ota_digest_clear_locked(void)
 {
     s_ota_digest_method = SNACK_OTA_DIGEST_NONE;
     s_ota_digest_hex[0] = '\0';
-    s_ota_digest_size   = 0U;
 }
 
 /**
@@ -311,7 +318,6 @@ static void snack_ota_digest_store(const aiot_download_task_desc_t *desc)
     (void)pthread_mutex_lock(&s_ota_digest_mux);
     s_ota_digest_method = method;
     (void)std::memcpy(s_ota_digest_hex, desc->expect_digest, len + 1U);
-    s_ota_digest_size = desc->size_total;
     (void)pthread_mutex_unlock(&s_ota_digest_mux);
 }
 
@@ -342,7 +348,7 @@ static void snack_ota_hook_recv(void)
     }
 }
 
-int snack_ota_report(const char *version, int type)
+int snack_ota_report(const char *version)
 {
     int ret;
 
@@ -353,13 +359,13 @@ int snack_ota_report(const char *version, int type)
         return -2;
     }
     snack_ota_digest_clear();
-    ret = s_mqtt_client->ota_init(version, type);
+    ret = s_mqtt_client->ota_init(version, SNACK_OTA_INIT_TYPE_PACKAGE);
     if (ret != 0) {
-        LOG_WARN("snack_cloud: ota_init failed ret=%d version=%s type=%d", ret, version, type);
+        LOG_WARN("snack_cloud: ota_init failed ret=%d version=%s", ret, version);
         return ret;
     }
     snack_ota_hook_recv();
-    LOG_INFO("snack_cloud: ota_init version=%s type=%d", version, type);
+    LOG_INFO("snack_cloud: ota_init version=%s", version);
     return 0;
 }
 
@@ -368,25 +374,20 @@ bool snack_ota_busy(void)
     return aiot::ota_new;
 }
 
-int snack_ota_job_digest(snack_ota_digest_method_t *method, char *digest, size_t digest_len,
-                         uint32_t *size_bytes)
+/**
+ * @brief  拷出最近任务的摘要
+ * @param  digest 至少 SNACK_OTA_DIGEST_HEX_MAX 字节
+ * @return 尚无任务时为 SNACK_OTA_DIGEST_NONE
+ */
+static snack_ota_digest_method_t snack_ota_digest_copy(char *digest)
 {
-    int ret = -1;
+    snack_ota_digest_method_t method;
 
-    if ((method == NULL) || (digest == NULL) || (digest_len < SNACK_OTA_DIGEST_HEX_MAX)) {
-        return -1;
-    }
     (void)pthread_mutex_lock(&s_ota_digest_mux);
-    if (s_ota_digest_method != SNACK_OTA_DIGEST_NONE) {
-        *method = s_ota_digest_method;
-        (void)std::snprintf(digest, digest_len, "%s", s_ota_digest_hex);
-        if (size_bytes != NULL) {
-            *size_bytes = s_ota_digest_size;
-        }
-        ret = 0;
-    }
+    method = s_ota_digest_method;
+    (void)std::snprintf(digest, SNACK_OTA_DIGEST_HEX_MAX, "%s", s_ota_digest_hex);
     (void)pthread_mutex_unlock(&s_ota_digest_mux);
-    return ret;
+    return method;
 }
 
 int snack_ota_write_job_sidecar(const char *bundle_path)
@@ -403,9 +404,7 @@ int snack_ota_write_job_sidecar(const char *bundle_path)
     if ((bundle_path == NULL) || (bundle_path[0] == '\0')) {
         return -1;
     }
-    if (snack_ota_job_digest(&method, digest, sizeof(digest), NULL) != 0) {
-        return -1;
-    }
+    method = snack_ota_digest_copy(digest);
     if (method == SNACK_OTA_DIGEST_MD5) {
         suffix = ".md5";
     } else if (method == SNACK_OTA_DIGEST_SHA256) {

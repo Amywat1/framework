@@ -568,6 +568,25 @@ add_unit_test(test_pending_start
     ${WDF_ROOT}/application/pending_start.c
 )
 
+add_unit_test(test_ota_gate
+    ${CMAKE_CURRENT_SOURCE_DIR}/application/test_ota_gate.c
+    ${WDF_ROOT}/application/ota_gate.c
+)
+
+add_unit_test(test_ota_bundle
+    ${CMAKE_CURRENT_SOURCE_DIR}/adapters/test_ota_bundle.c
+    ${WDF_ROOT}/adapters/outbound/ota/ota_bundle.c
+)
+
+add_test(
+    NAME test_ota_scripts
+    COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/deploy/test_ota_scripts.sh
+)
+set_tests_properties(test_ota_scripts PROPERTIES
+    LABELS "framework;deploy"
+    TIMEOUT 120
+)
+
 add_unit_test(test_wash_quota
     ${CMAKE_CURRENT_SOURCE_DIR}/application/test_wash_quota.c
     ${WDF_ROOT}/application/wash_quota.c

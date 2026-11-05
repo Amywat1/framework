@@ -65,7 +65,7 @@ lines = open(doc, encoding='utf-8').read().split('\n')
 PREFIXES = {
     'BOOT', 'EBUS', 'SCHED', 'CMD', 'MODE', 'ALRM', 'SAFE', 'ENGN',
     'PROJ', 'PORT', 'ERRM', 'ASSET', 'ARCH', 'LOG', 'QUOTA', 'PEND', 'ADMIT',
-    'LIFE', 'WD', 'CAT',
+    'LIFE', 'WD', 'CAT', 'UPG',
 }
 CATEGORIES = {
     '接口契约', '功能行为', '状态机', '并发', '时序', '容量', '故障',

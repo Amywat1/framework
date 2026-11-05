@@ -8,6 +8,7 @@
 #ifndef ADAPTERS_OUTBOUND_CLOUD_PROVIDERS_SNACK_SNACK_CLOUD_ADAPTER_H
 #define ADAPTERS_OUTBOUND_CLOUD_PROVIDERS_SNACK_SNACK_CLOUD_ADAPTER_H
 
+#include "application/ports/outbound/cloud/ota/ota_channel_port.h"
 #include "common/point_table/point_table.h"
 #include "common/sw_error.h"
 
@@ -52,6 +53,21 @@ sw_err_t snack_cloud_adapter_configure(const char *product_key,
  * @note   未配置回复 topic 时静默跳过。
  */
 sw_err_t snack_cloud_property_reply(const char *request_json, const point_apply_result_t *result);
+
+/**
+ * @brief  取 Snack 压缩包 OTA 通道，供 ota_gate_cfg_t.channel
+ * @return 静态操作表：report 以压缩包类型调 `ota_init`，busy 查 Snack 下载忙碌
+ * @note   须在 MQTT 在线后上报；重建客户端会丢订阅，由 ota_gate 在下次连接事件重报。
+ */
+const ota_channel_ops_t *snack_cloud_ota_channel(void);
+
+/**
+ * @brief  按最近一次 OTA 任务摘要在压缩包旁写 sidecar，供 ota_bundle_cfg_t.write_sidecar
+ * @param  bundle_path 落盘压缩包路径
+ * @retval SW_OK        已写入
+ * @retval SW_ERR_STATE 尚无任务摘要、路径非法或写失败
+ */
+sw_err_t snack_cloud_ota_write_sidecar(const char *bundle_path);
 
 #ifdef __cplusplus
 }

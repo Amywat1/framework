@@ -35,6 +35,7 @@
 #   wdf_cloud_json       物模型属性 JSON 编解码与下行安装
 #   wdf_cjson            随框架分发的 cJSON
 #   wdf_estop_poll       急停边沿采集（可选入站适配器，须显式 init）
+#   wdf_ota_bundle       压缩包 OTA 本机安装器（文件闸门、落盘巡检、交接安装脚本）
 #   wdf_conformance      「框架要求」条目的一致性套件（交付项目运行）
 #
 # 注意：vendor provider 仍由 framework/CMakeLists.txt 的
@@ -229,6 +230,7 @@ _wdf_add_interface_lib(wdf_application
         application/comm_watchdog.c
         application/job_admit.c
         application/lifetime.c
+        application/ota_gate.c
         application/pending_start.c
         application/wash_catalog.c
         application/wash_quota.c
@@ -399,6 +401,20 @@ _wdf_add_interface_lib(wdf_storage_program_json
         wdf_ports
         wdf_cjson
         wdf_program_engine
+)
+
+# ---------------------------------------------------------------------------
+# wdf_ota_bundle — 压缩包 OTA 本机安装器（Linux 文件系统 + tar + 安装脚本）
+#
+# 与 wdf_application 分开：它做文件 IO 并拉起 shell，只有真机接云升级的项目才链接，
+# 并在 wiring 中 ota_bundle_configure 后把 ota_bundle_installer() 交给 ota_gate_bind。
+# 配套脚本在 deploy/ota/。
+# ---------------------------------------------------------------------------
+_wdf_add_interface_lib(wdf_ota_bundle
+    SOURCES
+        adapters/outbound/ota/ota_bundle.c
+    DEPENDS
+        wdf_application
 )
 
 # ---------------------------------------------------------------------------

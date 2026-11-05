@@ -17,10 +17,9 @@ const char         *snack_mqtt_fake_last_payload(void);
 mqtt_recv_handler_t snack_mqtt_fake_recv_handler(void);
 void                snack_mqtt_fake_set_ota_result(int result);
 void                snack_mqtt_fake_set_ota_busy(bool busy);
-void                snack_mqtt_fake_set_ota_job_digest(snack_ota_digest_method_t method, const char *digest,
-                                                       uint32_t size_bytes);
+void                snack_mqtt_fake_set_ota_sidecar_result(int result);
+const char         *snack_mqtt_fake_ota_sidecar_path(void);
 unsigned            snack_mqtt_fake_ota_report_calls(void);
 const char         *snack_mqtt_fake_ota_version(void);
-int                 snack_mqtt_fake_ota_type(void);
 
 #endif /* TESTS_STUBS_SNACK_CLOUD_SNACK_MQTT_FAKE_H */
