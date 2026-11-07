@@ -49,6 +49,44 @@ sw_err_t snack_cloud_adapter_configure(const char *product_key,
                                        uint16_t    heartbeat_s);
 
 /**
+ * @brief  用已经 configure 的凭证拆掉旧客户端并再建一个
+ * @retval SW_OK            新会话已在线
+ * @retval SW_ERR_COMM      客户端已换，但当前离线。链路轮询会再连
+ * @retval SW_ERR_NOT_INIT  三元组尚未配置
+ *
+ * @note   首次调用补一次连接边沿。已经 bootstrap 过时先发断开，新会话在线再发连接，
+ *         让依赖连接事件的模块重新拉取。
+ * @note   已在线时单独 configure 会暂停发送，避免新 topic 走旧客户端；随后必须 rebind
+ *         或 apply。SDK 调用在锁外，可从非云线程调用。
+ */
+sw_err_t snack_cloud_adapter_rebind(void);
+
+/**
+ * @brief  写入凭证并重建 MQTT 客户端
+ *
+ * @param  product_key          产品密钥，非空。
+ * @param  device_sn            设备序列号，非空。
+ * @param  device_secret        设备密钥，非空。
+ * @param  iot_instance         阿里云物联网实例 ID；NULL 或空串表示公共实例。
+ * @param  topic_property_up    属性上报 topic，非空。
+ * @param  topic_property_reply 属性下发应答 topic；NULL 或空串表示不回复。
+ * @param  heartbeat_s          MQTT 心跳间隔（秒），须大于 0。
+ * @retval SW_OK                新会话已在线
+ * @retval SW_ERR_PARAM         参数非法或超长
+ * @retval SW_ERR_COMM          客户端已换，但当前离线。链路轮询会再连
+ *
+ * @note   凭证写入与暂停发送在同一把锁里完成，随后锁外重建客户端。蓝牙换身份应走本接口，
+ *         不要先 configure 再 rebind。
+ */
+sw_err_t snack_cloud_adapter_apply(const char *product_key,
+                                   const char *device_sn,
+                                   const char *device_secret,
+                                   const char *iot_instance,
+                                   const char *topic_property_up,
+                                   const char *topic_property_reply,
+                                   uint16_t    heartbeat_s);
+
+/**
  * @brief  属性下发应答（供 cloud_json_install 的 reply 注入）
  * @note   未配置回复 topic 时静默跳过。
  */
@@ -57,7 +95,8 @@ sw_err_t snack_cloud_property_reply(const char *request_json, const point_apply_
 /**
  * @brief  取 Snack 压缩包 OTA 通道，供 ota_gate_cfg_t.channel
  * @return 静态操作表：report 以压缩包类型调 `ota_init`，busy 查 Snack 下载忙碌
- * @note   须在 MQTT 在线后上报；重建客户端会丢订阅，由 ota_gate 在下次连接事件重报。
+ * @note   须在 MQTT 在线后上报。重建客户端会丢掉订阅；ota_gate 在云离线时清掉已上报标志，
+ *         下次在线再报。
  */
 const ota_channel_ops_t *snack_cloud_ota_channel(void);
 

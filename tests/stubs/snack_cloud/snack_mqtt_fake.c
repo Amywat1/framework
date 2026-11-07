@@ -75,6 +75,11 @@ const char *snack_mqtt_fake_device_secret(void)
     return s_fake.device_secret;
 }
 
+const char *snack_mqtt_fake_iot_instance(void)
+{
+    return s_fake.iot_instance;
+}
+
 const char *snack_mqtt_fake_last_topic(void)
 {
     return s_fake.last_topic;

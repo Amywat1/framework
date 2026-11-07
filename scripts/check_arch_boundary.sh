@@ -548,6 +548,7 @@ NON_RT_FILES=(
     "adapters/outbound/storage/json/json_deploy_store.c"   # 启动期加载
     "adapters/outbound/storage/json/json_param_store.c"    # 参数存取
     "adapters/outbound/cloud/cloud_json.c"                 # 云端 JSON 序列化，非急停路径
+    "adapters/outbound/cloud/providers/snack/snack_cloud_adapter.c" # MQTT 上报与换凭证；急停切断不取此锁
     "adapters/outbound/hal/providers/snack/modbus/drv_modbus_link.c" # cutout 禁止走 Modbus，只服务业务帧
     "adapters/outbound/hal/providers/snack/modbus/drv_voice.c"       # 语音播报
     "runtime/scheduler/periodic_task.c"                    # 周期任务统计；急停切断不取此锁

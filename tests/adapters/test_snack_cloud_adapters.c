@@ -5,7 +5,9 @@
 
 #include "adapters/outbound/cloud/providers/snack/snack_cloud_adapter.h"
 #include "application/ports/outbound/cloud/link/cloud_link_port.h"
+#include "common/event_types.h"
 #include "common/point_table/point_table.h"
+#include "runtime/event_bus/event_bus.h"
 #include "tests/stubs/snack_cloud/cloud_model_fake.h"
 #include "tests/stubs/snack_cloud/snack_mqtt_fake.h"
 #include "wdf_test_spec.h"
@@ -202,6 +204,99 @@ static void test_ota_channel_forwards_to_snack(void)
     TEST_ASSERT_EQUAL_INT(SW_ERR_STATE, snack_cloud_ota_write_sidecar("/w/update.tar.gz"));
 }
 
+static event_type_t s_cloud_edges[4];
+static unsigned     s_cloud_edge_count;
+
+static void on_cloud_edge(const event_t *evt)
+{
+    if ((evt == NULL) || (s_cloud_edge_count >= 4U)) {
+        return;
+    }
+    s_cloud_edges[s_cloud_edge_count] = evt->type;
+    s_cloud_edge_count++;
+}
+
+static void test_rebind_replaces_client_and_emits_edges(void)
+{
+    const cloud_link_ops_t *link;
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_subscribe(EVT_CLOUD_CONNECTED, on_cloud_edge));
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_subscribe(EVT_CLOUD_DISCONNECTED, on_cloud_edge));
+
+    snack_cloud_adapter_register();
+    configure_cloud_defaults();
+    link = cloud_link_get_ops();
+    TEST_ASSERT_NOT_NULL(link);
+    TEST_ASSERT_EQUAL_INT(SW_OK, link->init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_drain());
+    s_cloud_edge_count = 0U;
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, snack_cloud_adapter_configure("pk2", "dev2", "sec2", "", "/up2", "/reply2",
+                                                               SNACK_MQTT_HEARTBEAT_DEFAULT_S));
+    TEST_ASSERT_EQUAL_INT(SW_OK, snack_cloud_adapter_rebind());
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_drain());
+
+    TEST_ASSERT_EQUAL_UINT(2U, s_cloud_edge_count);
+    TEST_ASSERT_EQUAL_UINT16(EVT_CLOUD_DISCONNECTED, s_cloud_edges[0]);
+    TEST_ASSERT_EQUAL_UINT16(EVT_CLOUD_CONNECTED, s_cloud_edges[1]);
+    TEST_ASSERT_EQUAL_STRING("pk2", snack_mqtt_fake_product_key());
+    TEST_ASSERT_EQUAL_STRING("dev2", snack_mqtt_fake_device_name());
+    TEST_ASSERT_EQUAL_STRING("sec2", snack_mqtt_fake_device_secret());
+    TEST_ASSERT_EQUAL_STRING("", snack_mqtt_fake_iot_instance());
+    TEST_ASSERT_EQUAL_INT(SW_OK, link->publish_properties());
+    TEST_ASSERT_EQUAL_STRING("/up2", snack_mqtt_fake_last_topic());
+}
+
+static void test_live_configure_blocks_until_rebind(void)
+{
+    const cloud_link_ops_t *link;
+
+    snack_cloud_adapter_register();
+    configure_cloud_defaults();
+    link = cloud_link_get_ops();
+    TEST_ASSERT_EQUAL_INT(SW_OK, link->init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, link->publish_properties());
+    TEST_ASSERT_EQUAL_STRING("/up", snack_mqtt_fake_last_topic());
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, snack_cloud_adapter_configure("pk2", "dev2", "sec2", "", "/up2", "/reply2",
+                                                               SNACK_MQTT_HEARTBEAT_DEFAULT_S));
+    TEST_ASSERT_EQUAL_INT(SW_ERR_COMM, link->publish_properties());
+    TEST_ASSERT_EQUAL_STRING("/up", snack_mqtt_fake_last_topic());
+    TEST_ASSERT_EQUAL_STRING("pk1", snack_mqtt_fake_product_key());
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, snack_cloud_adapter_rebind());
+    TEST_ASSERT_EQUAL_INT(SW_OK, link->publish_properties());
+    TEST_ASSERT_EQUAL_STRING("/up2", snack_mqtt_fake_last_topic());
+    TEST_ASSERT_EQUAL_STRING("pk2", snack_mqtt_fake_product_key());
+}
+
+static void test_apply_writes_creds_and_rebuilds(void)
+{
+    const cloud_link_ops_t *link;
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_subscribe(EVT_CLOUD_CONNECTED, on_cloud_edge));
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_subscribe(EVT_CLOUD_DISCONNECTED, on_cloud_edge));
+
+    snack_cloud_adapter_register();
+    configure_cloud_defaults();
+    link = cloud_link_get_ops();
+    TEST_ASSERT_EQUAL_INT(SW_OK, link->init());
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_drain());
+    s_cloud_edge_count = 0U;
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, snack_cloud_adapter_apply("pk3", "dev3", "sec3", "", "/up3", "/reply3",
+                                                           SNACK_MQTT_HEARTBEAT_DEFAULT_S));
+    TEST_ASSERT_EQUAL_INT(SW_OK, event_bus_drain());
+    TEST_ASSERT_EQUAL_UINT(2U, s_cloud_edge_count);
+    TEST_ASSERT_EQUAL_UINT16(EVT_CLOUD_DISCONNECTED, s_cloud_edges[0]);
+    TEST_ASSERT_EQUAL_UINT16(EVT_CLOUD_CONNECTED, s_cloud_edges[1]);
+    TEST_ASSERT_EQUAL_STRING("pk3", snack_mqtt_fake_product_key());
+    TEST_ASSERT_EQUAL_INT(SW_OK, link->publish_properties());
+    TEST_ASSERT_EQUAL_STRING("/up3", snack_mqtt_fake_last_topic());
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -214,6 +309,9 @@ int main(void)
     WDF_RUN_TEST(test_link_init_offline_poll_reconnects, "", "验证首次连接失败后 poll 能重连");
     WDF_RUN_TEST(test_link_poll_offline_respects_reconnect_interval, "", "验证离线重连遵守最小间隔");
     WDF_RUN_TEST(test_ota_channel_forwards_to_snack, "", "验证 OTA 通道转发上报、忙碌与 sidecar 并映射错误码");
+    WDF_RUN_TEST(test_rebind_replaces_client_and_emits_edges, "", "验证换三元组后重建客户端并发出断开再连接");
+    WDF_RUN_TEST(test_live_configure_blocks_until_rebind, "", "验证在线 configure 暂停发送直到 rebind");
+    WDF_RUN_TEST(test_apply_writes_creds_and_rebuilds, "", "验证 apply 一次写入凭证并重建客户端");
 
     return UNITY_END();
 }

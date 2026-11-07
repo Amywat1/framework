@@ -92,7 +92,11 @@ void ota_gate_sync(void)
         s_reported = false;
         return;
     }
-    if (s_reported || (cfg->channel == NULL) || !cloud_is_online()) {
+    if (!cloud_is_online()) {
+        s_reported = false;
+        return;
+    }
+    if (s_reported || (cfg->channel == NULL)) {
         return;
     }
     ret = cfg->channel->report(cfg->version);

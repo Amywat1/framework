@@ -12,6 +12,7 @@ void                snack_mqtt_fake_set_send_result(int result);
 const char         *snack_mqtt_fake_product_key(void);
 const char         *snack_mqtt_fake_device_name(void);
 const char         *snack_mqtt_fake_device_secret(void);
+const char         *snack_mqtt_fake_iot_instance(void);
 const char         *snack_mqtt_fake_last_topic(void);
 const char         *snack_mqtt_fake_last_payload(void);
 mqtt_recv_handler_t snack_mqtt_fake_recv_handler(void);

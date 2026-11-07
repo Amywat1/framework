@@ -194,6 +194,18 @@ static void test_offline_does_not_report(void)
     TEST_ASSERT_EQUAL_UINT(1U, s_report_calls);
 }
 
+static void test_offline_clears_reported_and_reports_again(void)
+{
+    ota_gate_sync();
+    TEST_ASSERT_EQUAL_UINT(1U, s_report_calls);
+    s_online = false;
+    ota_gate_sync();
+    TEST_ASSERT_EQUAL_UINT(1U, s_report_calls);
+    s_online = true;
+    ota_gate_sync();
+    TEST_ASSERT_EQUAL_UINT(2U, s_report_calls);
+}
+
 static void test_ticket_follows_allowed_state_only(void)
 {
     s_online = false;
@@ -257,6 +269,8 @@ int main(void)
     WDF_RUN_TEST(test_report_failure_retries, "UPG-02", "上报失败下次同步再试");
     WDF_RUN_TEST(test_denied_modes_do_not_report, "UPG-01", "禁止态与急停不报版本、撤闸门");
     WDF_RUN_TEST(test_offline_does_not_report, "UPG-02", "离线不报，上线后再报");
+    WDF_RUN_TEST(test_offline_clears_reported_and_reports_again, "UPG-02",
+                 "已上报后离线再上线，仍在待机也会再报");
     WDF_RUN_TEST(test_ticket_follows_allowed_state_only, "UPG-03",
                  "闸门只跟允许态，与云在线和通道绑定无关");
     WDF_RUN_TEST(test_blocks_start, "UPG-04", "通道下载忙或安装中拒绝开洗");
