@@ -139,6 +139,12 @@ static sw_err_t finish_rebuild(snack_mqtt_cred_t *cred, bool was_bootstrapped, c
     s_initialized = true;
     s_tx_blocked  = false;
     online        = mqtt_online_unlocked();
+    /* 失败后再立刻 mqtt_connect 会删掉刚建的 aiot，测试三元组时会把进程弄死 */
+    if (online) {
+        s_last_reconnect_ms = 0U;
+    } else {
+        s_last_reconnect_ms = time_util_get_ms();
+    }
     if (!was_bootstrapped) {
         s_bootstrapped    = true;
         s_last_online     = online;
