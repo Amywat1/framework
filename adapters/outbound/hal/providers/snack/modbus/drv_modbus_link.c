@@ -181,7 +181,9 @@ static sw_err_t link_reconnect_locked(drv_modbus_link_t *link)
     }
 
     if (modbus_connect(link->mb) < 0) {
-        LOG_ERROR("drv_modbus_link[addr=%d]: modbus_connect failed", link->modbus_addr);
+        if (link->comm_fail_count == 0U) {
+            LOG_ERROR("drv_modbus_link[addr=%d]: modbus_connect failed", link->modbus_addr);
+        }
         modbus_free(link->mb);
         link->mb = NULL;
         return SW_ERR_COMM;
@@ -264,18 +266,24 @@ static sw_err_t link_execute(drv_modbus_link_t *link, link_op_t *op)
     }
 
     if (rc < 0) {
+        bool first_fail = (link->comm_fail_count == 0U);
         link_on_failure_locked(link, &need_reconnect);
         (void)pthread_mutex_unlock(bus_mtx);
         /* 失败后不在持锁时重连：下一次读写会在入口处看到 mb_connected=false
          * 再连。把 connect 留在锁内会让同总线的其他设备多等一个超时。 */
-        LOG_ERROR("drv_modbus_link[addr=%d]: Modbus %s reg 0x%04X failed%s",
-                  link->modbus_addr,
-                  op->is_write ? "write" : "read",
-                  op->addr,
-                  need_reconnect ? ", reconnect deferred" : "");
+        if (first_fail || need_reconnect) {
+            LOG_ERROR("drv_modbus_link[addr=%d]: Modbus %s reg 0x%04X failed%s",
+                      link->modbus_addr,
+                      op->is_write ? "write" : "read",
+                      op->addr,
+                      need_reconnect ? ", reconnect deferred" : "");
+        }
         return SW_ERR_COMM;
     }
 
+    if (link->comm_fail_count > 0U) {
+        LOG_INFO("drv_modbus_link[addr=%d]: Modbus recovered", link->modbus_addr);
+    }
     link_on_success_locked(link);
     (void)pthread_mutex_unlock(bus_mtx);
     return SW_OK;

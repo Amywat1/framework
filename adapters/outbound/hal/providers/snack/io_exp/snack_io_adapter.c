@@ -37,8 +37,8 @@ static sw_err_t io_init(void)
 
     ret = io_exp_driver_sdk_init(s_cfg.can_bus, s_cfg.can_baud, s_cfg.self_node, s_cfg.board_count);
     if (ret != SW_OK) {
-        LOG_ERROR("snack_io_adapter: io_exp sdk init failed ret=%d", (int)ret);
-        return ret;
+        /* 节点无心跳时 SDK 仍可能已打开 CAN；进程须继续，由通讯看门狗报 400402。 */
+        LOG_ERROR("snack_io_adapter: io_exp sdk init failed ret=%d, continue offline", (int)ret);
     }
 
     ret = drv_io_init(&s_cfg);

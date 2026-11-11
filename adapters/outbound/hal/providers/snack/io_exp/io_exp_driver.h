@@ -34,6 +34,7 @@ extern "C" {
 /**
  * @brief  初始化 io_exp SDK 的 CAN 总线访问。
  * @note   仅供 snack_io_adapter 等 provider 内部调用；项目入口不应直接依赖。
+ *         节点无心跳时返回 `SW_ERR_HW`；调用方可继续 `drv_io_init`，由看门狗报通讯丢失。
  */
 sw_err_t io_exp_driver_sdk_init(const char *can_bus, int can_baud, int self_node, int board_count);
 
@@ -189,7 +190,7 @@ void drv_io_register_board_error_cb(void (*cb)(int board_id, bool offline));
  * @note   检测到全部 IO 子板确认掉线时调用。
  *         回调应通过 drv_io_do_set 将输出缓冲设为安全态，
  *         不应自行调用 flush（flush 由 drv_io 在回调返回后无条件执行）。
- *         flush 完成后进程 abort，由 systemd 负责拉起。
+ *         进程保持存活，由通讯看门狗报 IO 子板通讯丢失。
  */
 void drv_io_register_panic_cb(void (*cb)(void));
 

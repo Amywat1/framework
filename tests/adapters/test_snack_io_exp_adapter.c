@@ -8,6 +8,7 @@
 #include "adapters/outbound/hal/components/adc_gate/hal_adc_gate.h"
 #include "adapters/outbound/hal/components/pulse_gate/hal_pulse_gate.h"
 #include "common/io_handle.h"
+#include "common/io_sample.h"
 #include "domain/ports/outbound/hal/hal_io_port.h"
 #include "tests/stubs/io_exp/io_exp_fake.h"
 #include "wdf_test_spec.h"
@@ -520,7 +521,6 @@ static void test_di_set_filter_ms_rewrites_on_recover(void)
     start_online_boards(2);
     first = wait_filter_sdo_count(1U, 500U);
 
-    /* 只掉一块，避免全板离线触发安全停机 abort */
     io_exp_fake_set_online(1, 0);
     wait_board_online_state(1, false, 2000U);
     TEST_ASSERT_TRUE(io_ops()->board_is_online(2));
@@ -552,6 +552,44 @@ static void test_di_set_filter_ms_failure_keeps_board_online(void)
     (void)wait_filter_sdo_count(3U, 500U);
     TEST_ASSERT_TRUE(io_ops()->board_is_online(1));
     TEST_ASSERT_TRUE(io_ops()->board_is_online(2));
+}
+
+static unsigned s_panic_count;
+
+static void test_count_panic(void)
+{
+    s_panic_count++;
+}
+
+static void test_hal_adapter_init_continues_when_sdk_fails(void)
+{
+    drv_io_cfg_t cfg = make_cfg();
+
+    TEST_ASSERT_EQUAL_INT(SW_OK, drv_io_reset_for_test());
+    io_exp_fake_reset();
+    snack_io_adapter_test_reset();
+    snack_io_adapter_register();
+    io_exp_fake_set_init_result(-3);
+    TEST_ASSERT_EQUAL_INT(SW_OK, snack_io_adapter_configure(&cfg));
+    TEST_ASSERT_EQUAL_INT(SW_OK, io_ops()->init());
+    TEST_ASSERT_EQUAL_STRING("can0", io_exp_fake_can_bus());
+    TEST_ASSERT_EQUAL_INT(SW_OK, io_ops()->start());
+    usleep(200U * 1000U);
+    TEST_ASSERT_FALSE(io_ops()->board_is_online(1));
+    TEST_ASSERT_FALSE(io_ops()->board_is_online(2));
+    TEST_ASSERT_EQUAL_INT(SW_OK, io_ops()->flush_outputs_now());
+}
+
+static void test_all_boards_offline_safe_stop_keeps_running(void)
+{
+    s_panic_count = 0U;
+    io_ops()->register_panic_cb(test_count_panic);
+    TEST_ASSERT_EQUAL_INT(SW_OK, io_ops()->start());
+    usleep(4000U * 1000U);
+    TEST_ASSERT_EQUAL_UINT32(1U, s_panic_count);
+    TEST_ASSERT_FALSE(io_ops()->board_is_online(1));
+    TEST_ASSERT_FALSE(io_ops()->board_is_online(2));
+    TEST_ASSERT_EQUAL_INT(IO_SAMPLE_QUALITY_OFFLINE, read_di(IO_DI(1U, 1U)).quality);
 }
 
 static void test_runtime_sdk_calls_share_one_worker(void)
@@ -595,6 +633,12 @@ int main(void)
     WDF_RUN_TEST(test_hal_adapter_rejects_duplicate_init, "", "验证HAL适配器拒绝重复初始化");
     WDF_RUN_TEST(test_init_after_start_preserves_online_state, "", "验证start后init失败且不清除在线状态");
     WDF_RUN_TEST(test_failed_flush_keeps_output_dirty, "", "验证输出写失败保留待落地状态");
+    WDF_RUN_TEST(test_hal_adapter_init_continues_when_sdk_fails,
+                 "",
+                 "验证SDK初始化失败后HAL仍完成init并保持离线");
+    WDF_RUN_TEST(test_all_boards_offline_safe_stop_keeps_running,
+                 "",
+                 "验证全板离线只做安全停机且进程继续");
     WDF_RUN_TEST(test_runtime_sdk_calls_share_one_worker, "", "验证运行期SDK调用共享唯一worker");
     WDF_RUN_TEST(test_unconfigured_di_filter_not_written_on_online, "", "验证未配置滤波的脚上线不下发");
     WDF_RUN_TEST(test_di_set_filter_ms_writes_on_online, "", "验证先配置滤波再上线会下发0x2006");

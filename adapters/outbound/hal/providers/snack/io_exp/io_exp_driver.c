@@ -10,7 +10,7 @@
  *          - 输出缓冲写出
  *          - 由本文件唯一 worker 串行执行所有 Snack SDK 调用
  *          - 输入变化调试通知
- *          - 全板离线时的安全停机联动
+ *          - 全板离线时把输出置安全态，进程保持存活
  */
 
 #ifndef _GNU_SOURCE
@@ -31,7 +31,6 @@
 #include <pthread.h>
 #include <stdarg.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 
@@ -571,10 +570,10 @@ static void poll_rw_board(int id)
     }
 }
 
-/* 全板确认离线时的安全停机处理 */
-static void poll_all_offline_safe_stop_and_abort(void)
+/* 全板确认离线时把输出置安全态；进程保持存活，由通讯看门狗报 400402 */
+static void poll_all_offline_safe_stop(void)
 {
-    LOG_ERROR("drv_io: all boards offline, safe stop then abort");
+    LOG_ERROR("drv_io: all boards offline, safe stop; process stays up");
 
     /* panic_cb（项目 assert_safe_outputs 实现）通过 drv_io_do_set 把缓冲设为安全态，
      * 不负责 flush；flush 由驱动在此处统一执行，保证一定能写到硬件。*/
@@ -597,7 +596,6 @@ static void poll_all_offline_safe_stop_and_abort(void)
             (void)snack_write_output(i, snapshot[i]);
         }
     }
-    abort();
 }
 
 /**
@@ -749,7 +747,7 @@ static void drv_io_poll_tick(void)
         if (!s_poll_all_offline_action_done
             && (time_elapsed_ms(s_poll_startup_ms, time_util_get_ms()) >= IO_STARTUP_SAFE_STOP_DELAY_MS)) {
             s_poll_all_offline_action_done = true;
-            poll_all_offline_safe_stop_and_abort();
+            poll_all_offline_safe_stop();
         }
     } else {
         s_poll_all_offline_action_done = false;
@@ -777,7 +775,18 @@ static sw_err_t drv_io_flush_outputs_backend(void)
     pthread_mutex_unlock(&s_output_mutex);
 
     for (int i = 1; i <= s_board_count; ++i) {
-        sw_err_t ret = snack_write_output(i, snapshot[i]);
+        sw_err_t ret;
+
+        if (!drv_io_board_is_online(i)) {
+            drv_io_mutexes_ready();
+            pthread_mutex_lock(&s_output_mutex);
+            s_output_dirty[i]        = true;
+            s_stats[i].dirty_pending = true;
+            pthread_mutex_unlock(&s_output_mutex);
+            continue;
+        }
+
+        ret = snack_write_output(i, snapshot[i]);
 
         drv_io_mutexes_ready();
         pthread_mutex_lock(&s_output_mutex);
