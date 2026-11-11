@@ -150,9 +150,9 @@ uint32_t periodic_task_late_us(const struct timespec *old_deadline, const struct
     return (uint32_t)((uint64_t)interval_us - period_us);
 }
 
-bool periodic_task_skip_should_warn(uint32_t skipped, uint32_t cb_us, uint32_t period_ms)
+bool periodic_task_skip_should_warn(uint32_t skipped, uint32_t cb_us, uint32_t period_ms, bool cadence_started)
 {
-    if ((skipped == 0U) || (period_ms == 0U)) {
+    if (!cadence_started || (skipped == 0U) || (period_ms == 0U)) {
         return false;
     }
     if (skipped >= PERIODIC_TASK_SKIP_WARN_MIN_TICKS) {
@@ -280,7 +280,7 @@ static void *periodic_task_thread_fn(void *arg)
 
             pthread_mutex_lock(&s_mutex);
             periodic_task_note_cycle(&slot->stats, skipped, cb_us, wake_us, late_us);
-            if (periodic_task_skip_should_warn(skipped, cb_us, wall_period_ms)) {
+            if (periodic_task_skip_should_warn(skipped, cb_us, wall_period_ms, slept)) {
                 uint64_t now_ms = ((uint64_t)now.tv_sec * 1000ULL)
                                   + ((uint64_t)now.tv_nsec / (uint64_t)PERIODIC_TASK_NS_PER_MS);
 

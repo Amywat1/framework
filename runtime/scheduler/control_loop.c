@@ -350,7 +350,7 @@ static void *control_loop_thread_fn(void *arg)
         control_loop_lock();
         note_skipped_beats_locked(run_beat + 1U, skipped);
         s_beat = run_beat + 1U + skipped;
-        if (periodic_task_skip_should_warn(skipped, 0U, time_util_to_wall_ms(THD_MOTOR_TICK_PERIOD_MS))) {
+        if (periodic_task_skip_should_warn(skipped, 0U, time_util_to_wall_ms(THD_MOTOR_TICK_PERIOD_MS), slept)) {
             uint64_t now_ms = ((uint64_t)now.tv_sec * CONTROL_LOOP_MS_PER_SEC)
                               + ((uint64_t)now.tv_nsec / CONTROL_LOOP_NS_PER_MS);
 

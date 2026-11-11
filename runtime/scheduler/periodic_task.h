@@ -100,15 +100,17 @@ uint32_t periodic_task_late_us(const struct timespec *old_deadline, const struct
 
 /**
  * @brief  本次跳拍是否应打 WARN
- * @param  skipped   本拍跳过的拍数
- * @param  cb_us     本拍回调墙钟耗时（微秒）
- * @param  period_ms 周期毫秒数
- * @return true 表示回调挤占了周期（cb >= period）或单次跳过不少于 2 拍；
- *         skipped 为 0 或仅因唤醒抖动跳 1 拍时返回 false
- * @note   线程体用此函数决定是否打 WARN。普通 SCHED_OTHER 任务偶发晚醒一拍
- *         是预期抖动，不作为故障输出；慢性统计走 periodic_task_get_stats()。
+ * @param  skipped         本拍跳过的拍数
+ * @param  cb_us           本拍回调墙钟耗时（微秒）
+ * @param  period_ms       周期毫秒数
+ * @param  cadence_started 周期是否已建立：false 表示线程尚未睡过第一拍
+ * @return true 表示周期已建立，且回调挤占了周期（cb >= period）或单次跳过不少于 2 拍；
+ *         尚未进入周期、skipped 为 0、或仅因唤醒抖动跳 1 拍时返回 false
+ * @note   线程体用此函数决定是否打 WARN。第一拍仍写入 periodic_task_note_cycle()，
+ *         但不升级成故障告警（启动初始化尚未进入周期）。普通 SCHED_OTHER 任务
+ *         偶发晚醒一拍是预期抖动，不作为故障输出；慢性统计走 periodic_task_get_stats()。
  */
-bool periodic_task_skip_should_warn(uint32_t skipped, uint32_t cb_us, uint32_t period_ms);
+bool periodic_task_skip_should_warn(uint32_t skipped, uint32_t cb_us, uint32_t period_ms, bool cadence_started);
 
 /**
  * @brief  将本拍观测写入统计

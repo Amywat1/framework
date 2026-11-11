@@ -282,16 +282,16 @@ periodic_task_thread_fn(slot)
         skipped = periodic_task_next_deadline(&deadline, slot->period_ms, &t1)
         late_us = periodic_task_late_us(&deadline_before, &t1, slot->period_ms)
         periodic_task_note_cycle(stats, skipped, cb_us, wake_late_us, late_us)
-        if periodic_task_skip_should_warn(skipped, cb_us, period_ms):
+        if periodic_task_skip_should_warn(skipped, cb_us, period_ms, slept):
             LOG_WARN  # 2s 节流；字段含 period / late / cb / wake_late
         clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &deadline, NULL)
-        wake_late_us = now - deadline   # 首拍尚未睡眠，记 0
+        wake_late_us = now - deadline   # 首拍尚未睡眠，记 0；slept 置 true
     }
 ```
 
 `periodic_task_next_deadline()` 独立导出，语义是：先推进一个周期；若推进后仍不晚于 `now`（本拍墙钟已越过下一拍截止，原因可能是回调耗时、唤醒滞后或两者），继续推进直到严格晚于 `now`，返回本次跳过的拍数。因此墙钟间隔**不累加进下一拍**，超时的拍被**跳过而非追赶**。把这段时间推进逻辑做成纯函数，是为了不依赖真实 sleep 就能验证时序行为。
 
-`periodic_task_late_us()` 给出越过量：`now - old_deadline - period`，未越过则为 0。`periodic_task_skip_should_warn()` 决定是否打 WARN：仅当回调墙钟 `>=` 周期，或单次 `skipped >= 2`。仅因唤醒抖动跳 1 拍不打日志。同类 WARN 间隔至少 2000ms。耗时是 `CLOCK_MONOTONIC` 墙钟，不是线程 CPU 时间。首拍尚未睡眠，唤醒滞后记 0。
+`periodic_task_late_us()` 给出越过量：`now - old_deadline - period`，未越过则为 0。`periodic_task_skip_should_warn()` 决定是否打 WARN：周期已建立（线程睡过第一拍）之后，仅当回调墙钟 `>=` 周期，或单次 `skipped >= 2`。第一拍仍写入统计，不升级成告警。仅因唤醒抖动跳 1 拍不打日志。同类 WARN 间隔至少 2000ms。耗时是 `CLOCK_MONOTONIC` 墙钟，不是线程 CPU 时间。首拍尚未睡眠，唤醒滞后记 0。
 
 线程体把跳拍数、回调墙钟耗时、唤醒滞后和越过量交给 `periodic_task_note_cycle()` 累加，经 `periodic_task_get_stats()` 读取。慢性趋势由项目 health 快照读出，不靠 WARN 兼做看板。
 

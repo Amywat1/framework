@@ -253,16 +253,24 @@ static void test_late_us_invalid_params_return_zero(void)
     TEST_ASSERT_EQUAL_UINT32(0U, periodic_task_late_us(&old_deadline, &now, 0U));
 }
 
-/** @brief WARN 只覆盖回调挤占或单次跳过不少于 2 拍 */
+/** @brief WARN 只覆盖已进入周期后的回调挤占或单次跳过不少于 2 拍 */
 static void test_skip_should_warn_only_for_callback_or_multi_skip(void)
 {
-    TEST_ASSERT_FALSE(periodic_task_skip_should_warn(0U, 20000U, 10U));
-    TEST_ASSERT_FALSE(periodic_task_skip_should_warn(1U, 17U, 10U));
-    TEST_ASSERT_FALSE(periodic_task_skip_should_warn(1U, 9999U, 10U));
-    TEST_ASSERT_TRUE(periodic_task_skip_should_warn(1U, 10000U, 10U));
-    TEST_ASSERT_TRUE(periodic_task_skip_should_warn(1U, 10001U, 10U));
-    TEST_ASSERT_TRUE(periodic_task_skip_should_warn(2U, 17U, 10U));
-    TEST_ASSERT_FALSE(periodic_task_skip_should_warn(1U, 10000U, 0U));
+    TEST_ASSERT_FALSE(periodic_task_skip_should_warn(0U, 20000U, 10U, true));
+    TEST_ASSERT_FALSE(periodic_task_skip_should_warn(1U, 17U, 10U, true));
+    TEST_ASSERT_FALSE(periodic_task_skip_should_warn(1U, 9999U, 10U, true));
+    TEST_ASSERT_TRUE(periodic_task_skip_should_warn(1U, 10000U, 10U, true));
+    TEST_ASSERT_TRUE(periodic_task_skip_should_warn(1U, 10001U, 10U, true));
+    TEST_ASSERT_TRUE(periodic_task_skip_should_warn(2U, 17U, 10U, true));
+    TEST_ASSERT_FALSE(periodic_task_skip_should_warn(1U, 10000U, 0U, true));
+}
+
+/** @brief 尚未睡过第一拍时不打 WARN，即使回调已挤占多拍 */
+static void test_skip_should_warn_false_before_cadence_starts(void)
+{
+    TEST_ASSERT_FALSE(periodic_task_skip_should_warn(2U, 509630U, 200U, false));
+    TEST_ASSERT_FALSE(periodic_task_skip_should_warn(1U, 10000U, 10U, false));
+    TEST_ASSERT_TRUE(periodic_task_skip_should_warn(2U, 509630U, 200U, true));
 }
 
 int main(void)
@@ -283,5 +291,6 @@ int main(void)
     WDF_RUN_TEST(test_late_us_is_overshoot_past_one_period, "", "验证越过量等于间隔减一个周期");
     WDF_RUN_TEST(test_late_us_invalid_params_return_zero, "", "验证越过量非法参数返回零");
     WDF_RUN_TEST(test_skip_should_warn_only_for_callback_or_multi_skip, "", "验证跳拍WARN仅覆盖回调挤占或多拍");
+    WDF_RUN_TEST(test_skip_should_warn_false_before_cadence_starts, "", "验证进入周期前跳拍不打WARN");
     return UNITY_END();
 }
